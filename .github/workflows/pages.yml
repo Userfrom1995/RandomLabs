@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
   pull-requests: write
@@ -41,24 +41,6 @@ jobs:
           mkdir -p _site
           cp index.html styles.css script.js _site/
 
-      - name: Stage PR previews
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          prs=$(gh api "repos/${{ github.repository }}/pulls?state=open" --jq '.[].number' || true)
-          # shellcheck disable=SC2086 # intentional word-splitting of the PR-number list
-          for pr in $prs; do
-            if ! git fetch origin "pull/$pr/head:pr-$pr" --quiet; then
-              echo "Skipping PR #$pr (could not fetch)"
-              continue
-            fi
-            echo "Staging preview for PR #$pr"
-            mkdir -p "_site/preview/pr-$pr"
-            if ! git archive pr-$pr index.html styles.css script.js | tar -x -C "_site/preview/pr-$pr"; then
-              echo "Skipping PR #$pr (missing site files)"
-            fi
-          done
-
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -68,30 +50,25 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  comment:
-    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+  preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
-      - name: Post or update preview URL comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          pr="${{ github.event.pull_request.number }}"
-          url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${pr}/"
-          marker="<!-- opencode-preview-${pr} -->"
-          body="### Preview
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.OPENCODE_PAT }}
 
-          ${marker}
-
-          This PR's site will be served at **${url}** after the next deployment to \`main\`.
-
-          - GitHub Pages only permits the default branch to deploy (the \`github-pages\` environment protection rules), and native Pages PR-preview support is still an internal alpha, so PRs cannot deploy directly.
-          - The \`deploy\` job stages the production site plus previews of every open PR into a single artifact, so each push to \`main\` refreshes them. Once live, GitHub Pages can take ~30-60s to start serving the new build.
-          - The preview is served under \`/preview/pr-${pr}/\`, so it never touches the production site."
-          body="$(printf '%s\n' "$body" | sed 's/^[[:space:]]*//')"
-          existing=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)
-          if [ -n "$existing" ]; then
-            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${existing}" -f body="$body" >/dev/null
-          else
-            gh api -X POST "repos/${{ github.repository }}/issues/${pr}/comments" -f body="$body" >/dev/null
-          fi
+      - name: Deploy PR preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          token: ${{ secrets.OPENCODE_PAT }}
+          source-dir: .
+          preview-branch: main
+          umbrella-dir: pr-preview
+          action: auto
+          comment: true
+          wait-for-pages-deployment: true
