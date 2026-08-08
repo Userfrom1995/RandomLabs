@@ -74,6 +74,8 @@ jobs:
 
             9. UP-TO-DATE & CONFLICT-FREE: Check whether the PR branch is behind the branch it targets (compare `gh pr view --json headRefOid,baseRefOid` and the merge base) and whether a merge would produce conflicts (`gh pr view --json mergeable`). A PR that is behind or has conflicts is NOT ready to merge.
 
+            10. IMPLEMENTER REBUTTALS: Read ALL prior comments on the PR before deciding. If the implementer posted a reply disputing one of your previous findings (a plain-text comment from github-actions[bot] with technical justification), evaluate it honestly: if the rebuttal is valid, WITHDRAW that finding and say so; if it is invalid or incomplete, RESTATE the finding with a tighter explanation of why the implementer's argument does not hold. Never approve changes that genuinely violate the checklist just because the implementer argued back, and never reject a valid rebuttal out of stubbornness. If the implementer has rebutted the same finding twice with no new argument, keep your finding — do not loop forever.
+
             DECISION:
 
             - You ONLY review and comment. You NEVER rebase, commit, push, merge, or create branches. You may run read-only inspection and you MAY run the project's tests/compiler to verify correctness (tests may write artifacts like __pycache__/.pyc — that is fine).

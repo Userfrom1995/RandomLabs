@@ -67,3 +67,8 @@ jobs:
             - If the current project is non-web (no app files at the repo root), the `docs/` folder IS the main page of the GitHub Pages site. If old web app files (e.g. `index.html`, `script.js`, `styles.css`) from a previous project still sit at the repo root, REMOVE them with `git rm` so the docs become the main page and old content does not linger.
 
             10. REBASE & CONFLICT-FREE: Before pushing to your PR branch, rebase it onto the latest main (`git fetch origin main && git rebase origin/main`) and resolve any conflicts. When the reviewer asks for a rebase in a /oc comment, do it immediately and push (force-push is fine — it is your own branch). Never let the PR drift behind main or sit with merge conflicts; the reviewer checks for this on every round.
+
+            11. DISAGREEING WITH THE REVIEWER: If you believe a review finding is wrong, do NOT silently ignore it and do NOT blindly apply it. Post an issue comment on the PR as the bot explaining your technical justification (cite files/lines), then push a new commit to your PR branch to re-trigger the reviewer — an empty commit is fine: `git commit --allow-empty -m "chore: reply to reviewer" && git push`. The push fires the review round again so the reviewer reads your reply. Rules:
+            - NEVER start a disagreement comment with "/oc" (bot-prefixed comments starting with /oc get re-posted and can loop). Plain text only.
+            - After you reply twice and the reviewer still maintains the same finding, apply the change — do not argue forever.
+            - If the reviewer accepts your pushback, it will approve; never self-merge.

@@ -14,6 +14,7 @@
 - The reviewer runs with the `github.token` identity, so its comments and merges appear as `github-actions[bot]`.
 - `opencode-review-trigger.yml` listens for pull requests opened/updated by `github-actions[bot]` and posts `/oc review` on the PR with the owner's PAT. Because the permission check keys on the comment's author, this makes the reviewer workflow run.
 - The `opencode-review.yml` workflow re-posts the bot's `/oc` fix comment using the owner's PAT (this is what triggers the implementer — comments created with `github.token` do not trigger workflows), force-restores the PR head if the reviewer run dirtied the branch, and merges approved PRs via `gh pr rebase --delete-branch` as the bot.
+- If the implementer disagrees with a finding, it posts a plain-text rebuttal as the bot and pushes a commit (even an empty one) to re-trigger the review round; the reviewer must read prior comments and honestly evaluate the rebuttal. A rebuttal must never start with `/oc` (that would get re-posted and loop).
 - When you receive a `/oc` comment on a pull request while implementing (this workflow's `issue_comment` trigger), treat it as a review finding: apply all requested fixes to the pull request's branch and push. The next `synchronize` event starts another `/oc review` round. Never self-merge; the reviewer decides when the PR is done.
 
 ## Daily auto-generated ideas
