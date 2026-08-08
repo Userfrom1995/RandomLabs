@@ -1,23 +1,29 @@
-# Arpeggio — Markov-Chain Melody Composer
+# Homunculus — Genetic-Algorithm Phrase Evolver
 
-**Arpeggio** is a small, dependency-free Python CLI that composes original
-music and renders it straight to a WAV file. It runs on nothing but the
-Python standard library — no external packages, no assets.
+**Homunculus** is a small, dependency-free Python CLI that demonstrates
+evolution in action: it grows a population of random strings and, over
+successive generations of selection, crossover, and mutation, hammers them
+into an exact target phrase. It runs on nothing but the Python standard
+library — no external packages, no assets.
 
-- A **weighted Markov chain** walks classic chord progressions so every piece
-  is fresh but always tonal.
-- Every bar is **arpeggiated from its own chord**, so each note belongs to
-  the current harmony.
-- Notes are synthesized with **sine/triangle oscillators**, an attack-decay
-  envelope, and an optional octave-up harmonic, then mixed to a mono 16-bit
-  WAV.
+- A **Dawkins-style genetic algorithm**: truncation or tournament selection,
+  uniform crossover, per-character mutation, and elitism.
+- Every printed generation is **diffed against the previous one**, with `^`
+  marking the positions that just changed.
+- All randomness flows through a **single seeded `random.Random`**, so any run
+  can be replayed exactly.
 
 ```text
-$ python3 -m arpeggio --key F --scale minor --bpm 90 --preview
-bar 1/8  F   (i    )   [F G# C]
-bar 2/8  C#  (VI   )   [C# F G#]
-...
-arpeggio: wrote 'arpeggio.wav': key=F, scale=minor, 8 bars, 64 notes, 21.3s
+$ python3 -m homunculus --target hello --seed 42
+gen 0/1000 | score 1/5
+  hdmlo
+gen 1/1000 | score 3/5
+  hdllo
+    ^
+gen 2/1000 | score 5/5
+  hello
+   ^^
+homunculus: converged to 'hello' in 2 generations
 ```
 
 ---
@@ -25,151 +31,165 @@ arpeggio: wrote 'arpeggio.wav': key=F, scale=minor, 8 bars, 64 notes, 21.3s
 ## Requirements
 
 - Python 3.8 or newer.
-- Nothing else — no external packages, no audio assets, no network.
+- Nothing else — no external packages, no network.
 
 ## Quick start
 
 ```bash
-# Compose an 8-bar tune in C major and write arpeggio.wav
-python3 -m arpeggio
+# Evolve the classic weasel phrase (default)
+python3 -m homunculus
 
-# A slower, darker tune in F minor, preview the progression
-python3 -m arpeggio --key F --scale minor --bpm 90 --preview
+# A custom phrase with a fixed seed
+python3 -m homunculus --target "to be or not to be" --seed 42
 
-# A longer piece with a named output
-python3 -m arpeggio --bars 16 --seed 42 --output my_tune.wav
+# Harder: uppercase alphabet, bigger population, more mutation
+python3 -m homunculus --target "HELLO WORLD" \
+  --alphabet " ABCDEFGHIJKLMNOPQRSTUVWXYZ" --population-size 400 --mutation-rate 0.1
 
-# Warmer sound with a triangle wave and a harmonic, capped at 30s
-python3 -m arpeggio --wave triangle --harmonic --duration 30
+# Tournament selection, printing every 10th generation
+python3 -m homunculus --selection tournament --tournament-size 5 --every 10
 ```
 
 The single file can also be run directly:
 
 ```bash
-python3 arpeggio/arpeggio.py --key Db --seed 7
+python3 homunculus/homunculus.py --target hello
 ```
 
-`python3 -m arpeggio --help` prints the full option reference with examples.
+`python3 -m homunculus --help` prints the full option reference with examples.
 
 ## Configuration options
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--key KEY` | `C` | Root note of the key: `C`, `F#`, `Db`, `Bb`, any note name. |
-| `--scale SCALE` | `major` | `major`, `minor`, or `pentatonic` (aliases: `maj`, `min`, `penta`). |
-| `--bpm N` | `120` | Tempo in beats per minute (1–400). |
-| `--bars N` | `8` | Number of 4/4 measures (1–128). |
-| `--notes-per-bar N` | `8` | Arpeggio grid density per bar (1–64); patterns tile to fill the slots. |
-| `--wave WAVE` | `sine` | Oscillator shape: `sine` or `triangle`. |
-| `--harmonic` | off | Add an octave-up harmonic at lower amplitude for warmth. |
-| `--seed N` | *random* | Reproducible randomness; the chosen seed is printed to stderr when random. |
-| `--duration SEC` | *none* | Cap output at `SEC` seconds (0–300); the piece is truncated to whole bars. |
-| `--preview` | off | Print each chord of the progression as it is composed. |
-| `--output FILE`, `-o` | `arpeggio.wav` | Output WAV file path. |
+| `--target PHRASE` | `methinks it is like a weasel` | Phrase to evolve. |
+| `--population-size N` | `200` | Individuals per generation (1–100000). |
+| `--mutation-rate F` | `0.05` | Per-character mutation probability, `0 < F <= 1`. A rate of 0 is rejected — no mutation, no evolution. |
+| `--elite N` | `2` | Best individuals copied unchanged into the next generation (`0 <= N < population size`). |
+| `--max-generations N` | `1000` | Hard cap on generations before giving up (1–1000000). |
+| `--seed N` | *random* | Random seed for reproducible runs; the chosen seed is printed to stderr when random. |
+| `--alphabet CHARS` | `abcdefghijklmnopqrstuvwxyz ` | Characters the population may use. Must not be empty and must cover every target character. |
+| `--selection SCHEME` | `truncation` | Parent selection: `truncation` (draw from the top `--keep`) or `tournament` (`--tournament-size`-way tournaments). |
+| `--keep N` | `10` | Truncation pool: parents are drawn from the top N individuals. |
+| `--tournament-size N` | `3` | Contenders per tournament pick (2–population size). |
+| `--every N` | `1` | Print every Nth generation; convergence is still checked each generation. |
+| `--verbose` | off | Also print the population's average fitness each printed generation. |
 | `--version` | | Print the version and exit. |
 
 ### Examples
 
 ```bash
-# A gentle 12-bar tune in G major at 100 bpm
-python3 -m arpeggio --key G --bpm 100 --bars 12
+# Converge "to be or not to be" deterministically
+python3 -m homunculus --target "to be or not to be" --seed 2024
 
-# A haunting A minor piece with a dense 16th-note grid
-python3 -m arpeggio --key A --scale minor --notes-per-bar 16 --harmonic
+# Watch letters pop into place every 5 generations
+python3 -m homunculus --every 5 --seed 7
 
-# A bright C pentatonic tune with a triangle wave
-python3 -m arpeggio --key C --scale pentatonic --wave triangle --bars 16
+# Include digits for a longer, harder target
+python3 -m homunculus --target "evolve 42" --alphabet " abcdefghijklmnopqrstuvwxyz0123456789"
 
-# A bounded render for a podcast sting (whole bars only, <= 10s)
-python3 -m arpeggio --duration 10 --seed 2024 --output sting.wav
+# Tournament selection with a small population, verbose stats
+python3 -m homunculus --selection tournament --tournament-size 4 \
+  --population-size 50 --verbose --seed 3
 ```
 
 ## How it works
 
-### 1. Compose
+### 1. Initialize
 
-The key's scale provides diatonic triads built by stacking every other scale
-tone. A weighted Markov chain is derived from a table of classic progressions
-(I-V-vi-IV, ii-V-I, I-vi-IV-V, and more) — each progression contributes its
-chord transitions at its weight. The chain is walked for `--bars` steps, and
-any chord that could be reached but has no outgoing transition resolves to
-the tonic, so the chain never dead-ends.
+The first population is `--population-size` random strings over the alphabet,
+all the same length as the target. Generation 0 is printed before any
+evolution happens.
 
-### 2. Arpeggiate
+### 2. Score
 
-Each bar picks an arpeggio pattern (root-3rd-5th-3rd, full ascending,
-descending, and more) that tiles across the `--notes-per-bar` grid. Pattern
-index 3 is the root one octave up, letting ascending patterns span two
-octaves.
+Fitness is the number of positions matching the target (higher is better; a
+perfect match scores the target length). Because the `--elite` best
+individuals are copied into the next generation unchanged, the best score
+never decreases.
 
-### 3. Synthesize
+### 3. Select
 
-Every note is a sine or triangle oscillator shaped by a fast attack and an
-exponential decay (with a final fade to avoid clicks). The optional
-`--harmonic` adds a quieter octave-up partial. All notes are summed into a
-mono mix, normalized to a safe peak, and written as 16-bit PCM WAV at
-44.1 kHz.
+Parents are chosen by one of two schemes:
+
+- **Truncation** — draw uniformly from the top `--keep` individuals.
+- **Tournament** — pick `--tournament-size` random contenders and keep the
+  fittest; larger tournaments put more pressure towards fitter parents.
+
+### 4. Reproduce and mutate
+
+Two parents produce a child via uniform crossover (each position is inherited
+from either parent with probability 1/2), then every child position is
+replaced with a random alphabet character with probability `--mutation-rate`.
+Offspring are generated until the population is full again.
+
+### 5. Converge
+
+The run stops the first time a generation's best individual matches the target
+exactly and prints the generation count. If `--max-generations` is reached
+first, the run gives up with exit code 1.
 
 ## Reproducibility
 
 All randomness flows through a single `random.Random` seeded by `--seed`. The
-same seed, key, scale, and parameters always produce byte-identical WAV
-files:
+same seed, target, and parameters always produce byte-identical output:
 
 ```bash
-python3 -m arpeggio --seed 42 --output one.wav
-python3 -m arpeggio --seed 42 --output two.wav
-cmp one.wav two.wav   # identical
+python3 -m homunculus --target hello --seed 42 --max-generations 100 > one.txt
+python3 -m homunculus --target hello --seed 42 --max-generations 100 > two.txt
+diff one.txt two.txt   # identical
 ```
 
 When no seed is given, the one actually used is printed to stderr, e.g.
-`arpeggio: seed = 1234567890 (pass --seed 1234567890 to replay)`.
+`homunculus: seed = 2600470316 (pass --seed 2600470316 to replay)`.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success. |
-| `1` | Could not write the output file. |
+| `0` | Target reached; the generation count is printed on stdout. |
+| `1` | Target not reached within `--max-generations`. |
 | `2` | Invalid command-line arguments (argparse). |
 
 ## Project layout
 
 ```text
-arpeggio/
-  arpeggio.py         # the whole CLI — composition, synthesis, WAV output
-  __main__.py         # enables `python -m arpeggio`
+homunculus/
+  homunculus.py       # the whole CLI — fitness, GA operators, evolution loop
+  __main__.py         # enables `python -m homunculus`
   __init__.py         # package marker
   README.md           # tool-specific usage guide
   tests/
-    test_arpeggio.py
+    test_homunculus.py
 docs/
   index.md            # this page (source)
   index.html          # rendered documentation page
 ideas/
-  2026-08-08-arpeggio-markov-melody-composer.md
+  2026-08-08-homunculus-genetic-algorithm.md
 ```
 
 ## Development
 
 ```bash
-python3 -m unittest discover -s arpeggio/tests
+python3 -m unittest discover -s homunculus/tests
 ```
 
-The 45 tests cover note parsing and frequency math, diatonic triad
-construction, Markov-chain validity and reproducibility, synthesis waveform
-and envelope behavior, WAV header correctness, and CLI error handling.
+The 45 tests cover fitness scoring, crossover and mutation behavior (including
+the expected mutation fraction), tournament selection, elitism's
+never-decreases guarantee, seed reproducibility, convergence on a short phrase
+with a fixed seed, and CLI validation/error handling.
 
 ## Design notes
 
 - **Single file, zero dependencies** — the whole CLI is one Python module
-  using only `argparse`, `math`, `random`, `wave`, `array`, and `typing`.
-- **Data-driven harmony** — progressions and arpeggio patterns are plain
-  tables, so extending the musical vocabulary is a one-line change.
+  using only `argparse`, `random`, `string`, `sys`, and `typing`.
+- **Two selection schemes, one reproduction path** — switching
+  `--selection truncation` ↔ `--selection tournament` is a single flag.
 - **Determinism** — every random draw goes through a single seeded
-  `random.Random`, so a given seed always reproduces the exact same file.
-- **Bounded output** — `--duration` and an internal cap keep generated files
-  small and predictable.
+  `random.Random`, so a given seed always reproduces the exact same run.
+- **Bounded output** — a hard `--max-generations` cap, a `--every` print
+  throttle, and up-front validation of every option (including the fail-fast
+  rejection of a zero mutation rate and alphabet/target mismatches).
 
 ## License
 
