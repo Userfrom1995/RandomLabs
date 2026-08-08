@@ -6,21 +6,22 @@ on:
   pull_request_review_comment:
     types: [created]
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
-  opencode:
+  build:
     if: |
       !startsWith(github.event.comment.body, '/oc review') &&
       !startsWith(github.event.comment.body, '/oc approve') &&
       !startsWith(github.event.comment.body, '/opencode review') &&
-      (contains(github.event.comment.body, ' /oc') ||
-       startsWith(github.event.comment.body, '/oc') ||
-       contains(github.event.comment.body, ' /opencode') ||
-       startsWith(github.event.comment.body, '/opencode'))
+      (contains(github.event.comment.body, ' /oc build') ||
+       startsWith(github.event.comment.body, '/oc build') ||
+       contains(github.event.comment.body, ' /opencode build') ||
+       startsWith(github.event.comment.body, '/opencode build'))
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -33,7 +34,19 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Run opencode
+      - name: Capture baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branches_before=$(git ls-remote origin 'refs/heads/opencode/*' 2>/dev/null | sort | sha256sum | cut -c1-16)
+          prs_before=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null | sort | tr '\n' ',')
+          echo "branches_before=$branches_before" >> "$GITHUB_OUTPUT"
+          echo "prs_before=$prs_before" >> "$GITHUB_OUTPUT"
+
+      - name: Run opencode build agent
+        id: opencode
+        continue-on-error: true
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -42,7 +55,7 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are a production-quality coding agent. Build things properly — no quick prototypes, no placeholder code. Follow these rules strictly:
+            You are a production-quality coding agent. This is a BUILD request (triggered by "/oc build"). Build things properly — no quick prototypes, no placeholder code. Follow these rules strictly:
 
             1. NEW ISSUE PER TASK: Each distinct task MUST get its own issue. Never reuse an existing issue (especially not a "universal" or meta issue) for a new feature or bug fix. Create the issue first with `gh issue create`, then open the PR referencing that new issue with "Closes #N".
 
@@ -74,4 +87,256 @@ jobs:
             - After you reply twice and the reviewer still maintains the same finding, apply the change — do not argue forever.
             - If the reviewer accepts your pushback, it will approve; never self-merge.
 
-            12. COMMIT & PUSH YOURSELF — NO CO-AUTHOR: The git identity is already configured as `github-actions[bot]` (name: `github-actions[bot]`, email: `41898282+github-actions[bot]@users.noreply.github.com`). Commit your work YOURSELF with a clean message: `git add -A && git commit -m "<concise summary>"`. NEVER add any `Co-authored-by:` trailer — commits must be authored and attributed ONLY to `github-actions[bot]`. Then push your branch yourself (`git push -u origin <branch>`) and, for new builds, open the PR yourself with `gh pr create --base main --head <branch> --title "<summary>" --body "Closes #N"` (see rule 4). If you leave changes uncommitted when you finish, the workflow auto-commits them WITH a `Co-authored-by: <owner>` trailer — that is forbidden; always `git status --porcelain` at the end and make sure it is clean. When triggered by a `/oc` comment on an existing PR, commit your fixes on that PR's branch with a clean message and push.
+            12. COMMIT & PUSH YOURSELF — NO CO-AUTHOR: The git identity is already configured as `github-actions[bot]` (name: `github-actions[bot]`, email: `41898282+github-actions[bot]@users.noreply.github.com`). Commit your work YOURSELF with a clean message: `git add -A && git commit -m "<concise summary>"`. NEVER add any `Co-authored-by:` trailer — commits must be authored and attributed ONLY to `github-actions[bot]`. Then push your branch yourself (`git push -u origin <branch>`) and, for new builds, open the PR yourself with `gh pr create --base main --head <branch> --title "<summary>" --body "Closes #N"` (see rule 4). If you leave changes uncommitted when you finish, the workflow auto-commits them WITH a `Co-authored-by: <owner>` trailer — that is forbidden; always `git status --porcelain` at the end and make sure it is clean.
+
+            13. NEVER END A RUN WITHOUT PUSHING: A build run is ONLY complete when your work is committed, pushed, and a PR is opened (rules 4 and 12). Research, planning, and validation are fine INSIDE the run, but you MUST continue straight into the build — never stop after research, and never post a status comment like "research done" and end the run: comments are not deliverables, and the workflow verifies your push and re-triggers you if you finish without one. If you see "/oc build this (auto-retry N)" comments in the thread, a previous attempt stopped early — continue from its state and BUILD; do not redo research or re-ask questions.
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          if [ -z "$pr" ]; then
+            echo "No PR found for this run; skipping approval"
+            exit 0
+          fi
+          head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          echo "Looking for held runs on PR #$pr (head $head_sha)"
+          for i in $(seq 1 30); do
+            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
+            if [ -z "$held" ]; then
+              echo "No held runs remain (poll $i)"
+              exit 0
+            fi
+            for run in $held; do
+              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                echo "Approved run $run"
+              else
+                echo "APPROVE FAILED for run $run"
+              fi
+            done
+            sleep 5
+          done
+          echo "Held runs could not be auto-approved after polling"
+          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
+          exit 0
+
+      - name: Verify build pushed, else auto-retry
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_BRANCHES: ${{ steps.baseline.outputs.branches_before }}
+          BASELINE_PRS: ${{ steps.baseline.outputs.prs_before }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          branches_after=$(git ls-remote origin 'refs/heads/opencode/*' 2>/dev/null | sort | sha256sum | cut -c1-16)
+          prs_after=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null | sort | tr '\n' ',')
+          if [ "$branches_after" != "$BASELINE_BRANCHES" ] || [ "$prs_after" != "$BASELINE_PRS" ]; then
+            echo "Build pushed (branch/PR change detected)"
+            exit 0
+          fi
+          echo "No push detected"
+          retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || echo "0")
+          if [ "$retries" -lt 3 ]; then
+            n=$((retries + 1))
+            echo "Posting auto-retry $n"
+            gh api "repos/${{ github.repository }}/issues/$issue/comments" -f body="/oc build this (auto-retry $n)"
+            exit 0
+          fi
+          echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+          exit 1
+
+  fix:
+    if: |
+      (github.event.comment.body == '/oc fix' ||
+       startsWith(github.event.comment.body, '/oc fix (auto-retry')) &&
+      github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ secrets.OPENCODE_PAT }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Capture baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_before=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+          echo "head_before=$head_before" >> "$GITHUB_OUTPUT"
+
+      - name: Run opencode fix agent
+        id: opencode
+        continue-on-error: true
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are the implementation agent responding to a review finding on the open pull request this comment was posted on. Read ALL comments on the PR: the reviewer's latest "/oc fix: ..." comment lists the required changes, and earlier comments may contain your own rebuttals. Follow these rules strictly:
+
+            1. Apply every requested fix on the PR's branch. The git identity is already configured as `github-actions[bot]` and credentials are configured: if the checkout is not on the PR branch, fetch and switch to it, e.g. `git fetch origin <branch> && git checkout -b <branch> origin/<branch>`.
+
+            2. DISAGREEING WITH THE REVIEWER: Apply the changes you agree with (partial changes are fine). If you believe some findings are wrong, post an issue comment on the PR as the bot with your technical justification (cite files/lines) for the ones you skip. NEVER start a disagreement comment with "/oc" (bot-prefixed comments starting with /oc get re-posted and can loop). Plain text only. After you reply twice and the reviewer still maintains the same finding, apply the change — do not argue forever. Never self-merge; the reviewer decides when the PR is done.
+
+            3. REBASE & CONFLICT-FREE: Before pushing, rebase onto the latest main (`git fetch origin main && git rebase origin/main`) and resolve any conflicts.
+
+            4. COMMIT & PUSH YOURSELF — NO CO-AUTHOR: Commit your fixes yourself with a clean message: `git add -A && git commit -m "<concise summary>"`. NEVER add any `Co-authored-by:` trailer — commits must be attributed ONLY to `github-actions[bot]`. Then push (`git push`; force-push is fine on your own PR branch). If you made NO changes, still push to re-trigger the reviewer: `git commit --allow-empty -m "chore: reply to reviewer" && git push`.
+
+            5. NEVER END A RUN WITHOUT PUSHING: Your run is only complete when your changes (or your empty reply commit) are on the PR branch. Never stop after analysis without pushing; the workflow verifies your push and re-triggers you if you finish without one. If you see "/oc fix (auto-retry N)" comments in the thread, a previous attempt stopped early — continue from its state and push; do not re-analyze from scratch.
+
+            6. SCOPE: Only change what the review finding requires. Do NOT create new issues, branches, or PRs. Do NOT touch docs/ or ideas/ unless the finding requires it.
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          pr="${{ github.event.issue.number }}"
+          head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          echo "Looking for held runs on PR #$pr (head $head_sha)"
+          for i in $(seq 1 30); do
+            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
+            if [ -z "$held" ]; then
+              echo "No held runs remain (poll $i)"
+              exit 0
+            fi
+            for run in $held; do
+              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                echo "Approved run $run"
+              else
+                echo "APPROVE FAILED for run $run"
+              fi
+            done
+            sleep 5
+          done
+          echo "Held runs could not be auto-approved after polling"
+          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
+          exit 0
+
+      - name: Verify fix pushed, else auto-retry
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then
+            echo "Fix pushed (PR head moved)"
+            exit 0
+          fi
+          echo "No push detected"
+          retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || echo "0")
+          if [ "$retries" -lt 3 ]; then
+            n=$((retries + 1))
+            echo "Posting auto-retry $n"
+            gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc fix (auto-retry $n)"
+            exit 0
+          fi
+          echo "::error::Fix agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+          exit 1
+
+  general:
+    if: |
+      !startsWith(github.event.comment.body, '/oc review') &&
+      !startsWith(github.event.comment.body, '/oc approve') &&
+      !startsWith(github.event.comment.body, '/opencode review') &&
+      !startsWith(github.event.comment.body, '/oc build') &&
+      !startsWith(github.event.comment.body, '/opencode build') &&
+      github.event.comment.body != '/oc fix' &&
+      !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
+      (contains(github.event.comment.body, ' /oc') ||
+       startsWith(github.event.comment.body, '/oc') ||
+       contains(github.event.comment.body, ' /opencode') ||
+       startsWith(github.event.comment.body, '/opencode'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ secrets.OPENCODE_PAT }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run opencode general agent
+        id: opencode
+        continue-on-error: true
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are a general-purpose assistant on the Random repository, triggered by a plain "/oc" request (a question, a housekeeping task like closing an issue, or a small change). You have FULL capabilities — answer in comments, close or comment on issues, create issues, push code, open pull requests — use your judgment and do exactly what the request asks, nothing more.
+
+            - If the request is a question or housekeeping (close issue, add label, summarize, explain something), a comment or API action is a complete answer — no commit, branch, or PR is required.
+            - If the request calls for a code change: you may commit (as `github-actions[bot]` — identity and credentials are preconfigured; NEVER add a `Co-authored-by:` trailer), push on a branch, and open a PR with base main if appropriate; the normal review loop will pick it up. Do NOT force a PR when the request does not need one, and do NOT create an issue unless the request calls for it.
+            - Never remove: the first section of README.md (repo overview), the repo root `index.html` landing page, the `docs/` folder, or the PR-preview feature in `pages.yml`.
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          if [ -z "$pr" ]; then
+            echo "No PR found for this run; skipping approval"
+            exit 0
+          fi
+          head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          echo "Looking for held runs on PR #$pr (head $head_sha)"
+          for i in $(seq 1 30); do
+            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
+            if [ -z "$held" ]; then
+              echo "No held runs remain (poll $i)"
+              exit 0
+            fi
+            for run in $held; do
+              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                echo "Approved run $run"
+              else
+                echo "APPROVE FAILED for run $run"
+              fi
+            done
+            sleep 5
+          done
+          echo "Held runs could not be auto-approved after polling"
+          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
+          exit 0
