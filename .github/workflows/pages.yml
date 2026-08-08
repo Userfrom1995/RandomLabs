@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -69,7 +69,6 @@ jobs:
         uses: actions/deploy-pages@v4
 
   comment:
-    needs: deploy
     if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
@@ -80,14 +79,15 @@ jobs:
           pr="${{ github.event.pull_request.number }}"
           url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${pr}/"
           marker="<!-- opencode-preview-${pr} -->"
-          body="### Preview deployed
+          body="### Preview
 
           ${marker}
 
-          This PR is live at **${url}**
+          This PR's site will be served at **${url}** after the next deployment to \`main\`.
 
-          - The preview is built from the PR head and served under \`/preview/pr-${pr}/\`, so it never touches the production site.
-          - GitHub Pages can take ~30-60s to start serving a new build."
+          - GitHub Pages only permits the default branch to deploy (the \`github-pages\` environment protection rules), and native Pages PR-preview support is still an internal alpha, so PRs cannot deploy directly.
+          - The \`deploy\` job stages the production site plus previews of every open PR into a single artifact, so each push to \`main\` refreshes them. Once live, GitHub Pages can take ~30-60s to start serving the new build.
+          - The preview is served under \`/preview/pr-${pr}/\`, so it never touches the production site."
           body="$(printf '%s\n' "$body" | sed 's/^[[:space:]]*//')"
           existing=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)
           if [ -n "$existing" ]; then

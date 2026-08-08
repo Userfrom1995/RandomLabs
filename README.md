@@ -23,11 +23,11 @@ The site is deployed via GitHub Actions (see `.github/workflows/pages.yml`) — 
 
 ### PR previews
 
-Every pull request also gets a **preview deployment**. The workflow rebuilds the production site plus a preview for each open PR and publishes them as a single artifact:
+Every pull request also gets a **preview**. Because GitHub Pages only permits the default branch to deploy (the `github-pages` environment protection rules) and native Pages PR previews are still an internal alpha, PRs can't deploy directly. Instead, each push to `main` rebuilds the production site plus a preview for every open PR and publishes them as a single artifact:
 
 - Production lives at the site root.
-- Each PR's site is served at `https://<username>.github.io/<repo>/preview/pr-<number>/`.
-- The bot posts (and updates, on new commits) a comment on the PR with the preview link.
+- Each open PR's site is served at `https://<username>.github.io/<repo>/preview/pr-<number>/`, refreshed on the next `main` deployment.
+- The bot posts (and updates, on new commits) a comment on the PR stating the preview URL goes live after the next deployment to `main`.
 - When a PR closes, its preview disappears on the next deployment.
 
 ### One-time setup
