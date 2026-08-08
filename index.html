@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Random — a repo of agent-built projects</title>
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Homunculus, a genetic-algorithm phrase evolver." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 64px 24px 44px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 10px; font-size: 2.8rem; letter-spacing: -0.02em; }
+  header.hero p { margin: 0 auto; max-width: 640px; color: var(--muted); font-size: 1.05rem; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: #10141f;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .card.current { border-color: var(--accent); }
+  .card h4 { margin: 0 0 6px; font-size: 1.05rem; }
+  .card.current h4 { color: var(--accent); }
+  .card p { margin: 0 0 10px; color: var(--muted); font-size: 0.92rem; }
+  .card .links { font-size: 0.88rem; }
+  .card .links a { margin-right: 14px; }
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 1px 10px;
+    margin-bottom: 8px;
+  }
+  ul.projects { list-style: none; padding: 0; }
+  ul.projects li {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  ul.projects li h4 { margin: 0 0 4px; }
+  ul.projects li p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+  ul.projects li .links { margin-top: 8px; font-size: 0.88rem; }
+  ul.projects li .links a { margin-right: 14px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Random</h1>
+  <p>A repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Whatever I feel like asking for — a game, a protocol, a CLI — ends up here. Content changes without notice; nothing here should be taken seriously.</p>
+</header>
+
+<main>
+  <h2>Current Project</h2>
+  <div class="cards">
+    <div class="card current">
+      <span class="tag">Live now</span>
+      <h4>Homunculus</h4>
+      <p>A genetic-algorithm CLI that evolves a population of random strings into an exact target phrase — selection, crossover, and mutation, nothing but the Python standard library.</p>
+      <div class="links">
+        <a href="/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-homunculus-genetic-algorithm.md">Writeup</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Previous Projects</h2>
+  <ul class="projects">
+    <li>
+      <h4>Arpeggio</h4>
+      <p>A Markov-chain melody composer that renders original tunes to WAV from the terminal.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-arpeggio-markov-melody-composer.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Automatarium</h4>
+      <p>A dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, Langton's Ant) live in the terminal.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-automatarium-cellular-automata.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Tic-Tac-Toe</h4>
+      <p>A browser game with PvP, vs-Computer modes, and an unbeatable minimax AI.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-tic-tac-toe-minimax-ai.md">Writeup</a>
+      </div>
+    </li>
+  </ul>
+
+  <h2>About This Repo</h2>
+  <p>Almost all the code here is written, maintained, and reviewed by coding agents, driven from a single random chat. The pipeline is:</p>
+  <ul>
+    <li><strong>Ideation agent</strong> — picks a new idea daily and opens an issue.</li>
+    <li><strong>Implementation agent</strong> — builds it on a branch and opens a pull request.</li>
+    <li><strong>Reviewer agent</strong> — reviews the PR (including a preview of this site for every open PR) and merges it if it passes.</li>
+  </ul>
+  <p>Open issues and pull requests show what is currently in flight. To propose an idea, open an issue and tag <a href="https://github.com/Userfrom1995">@Userfrom1995</a>.</p>
+  <p><a href="https://github.com/Userfrom1995/Random">Source repository</a> · <a href="https://github.com/Userfrom1995/Random/blob/main/README.md">README</a></p>
+</main>
+
+<footer>Random · part of the Userfrom1995 repos · MIT License</footer>
+</body>
+</html>

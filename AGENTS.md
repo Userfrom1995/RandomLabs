@@ -17,6 +17,12 @@
 - The implementer commits and pushes its own work itself (rule 12) with a clean message and no `Co-authored-by:` trailer, so all commits on PR branches are authored and attributed only to `github-actions[bot]`.
 - If the implementer disagrees with a finding, it applies the changes it agrees with (partial changes are fine), posts a plain-text rebuttal as the bot explaining what it skipped and why, and pushes (an empty commit if it made no changes) to re-trigger the review round; the reviewer must read prior comments and honestly evaluate the rebuttal. A rebuttal must never start with `/oc` (that would get re-posted and loop).
 - When you receive a `/oc` comment on a pull request while implementing (this workflow's `issue_comment` trigger), treat it as a review finding: apply all requested fixes to the pull request's branch and push. The next `synchronize` event starts another `/oc review` round. Never self-merge; the reviewer decides when the PR is done.
+- When the reviewer approves, the review workflow merges the PR and then auto-closes every issue the PR body links with `Closes #N` (or `Fixes #N` / `Resolves #N`).
+
+## GitHub Pages site
+
+- The Pages site is built from `main` by `pages.yml`: the repo root `index.html` is the Random landing page (repo overview + links to projects and docs), and `docs/` holds the current project's documentation, served at `/docs/`. Never remove or overwrite the root landing page; a new non-web project replaces `docs/index.html`.
+- `pages.yml` also runs a PR-preview feature: the `deploy` job stages a preview of every open PR under `/preview/pr-<N>/`, and the `comment` job posts the preview URL on the PR. Previews are built from open PR branches at deploy time — they are never committed to the repo, and the feature must not be removed or broken.
 
 ## Daily auto-generated ideas
 

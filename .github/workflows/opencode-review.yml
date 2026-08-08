@@ -70,11 +70,13 @@ jobs:
 
             7. IDEAS ENTRY: The PR must include an `ideas/` file — a detailed markdown writeup named `YYYY-MM-DD-<name>-<what-is-it>.md` where `<name>` is a unique, non-generic name and `<what-is-it>` describes the project (e.g., `2026-08-08-sentinel-tray-file-watcher.md`). If missing or generically named, REQUEST CHANGES and ask the implementer to fix it.
 
-            8. DOCUMENTATION: The PR MUST include a `docs/` folder with proper docs for the project (usage, examples, config). If missing, REQUEST CHANGES. GitHub Pages should never be empty. For non-web projects, the docs folder is the site's main page: if obsolete web app files (e.g. `index.html`, `script.js`, `styles.css`) from a previous project remain at the repo root while the current project is non-web, REQUEST CHANGES asking the implementer to `git rm` them so the docs become the main page.
+            8. DOCUMENTATION & SITE LAYOUT: The PR MUST include a `docs/` folder with proper docs for the project (usage, examples, config). If missing, REQUEST CHANGES. GitHub Pages should never be empty. The repo root `index.html` is the Random landing page (repo overview + links to projects) and MUST be preserved by every PR. Project docs live under `docs/` and are served at `/docs/`; a non-web project puts its documentation in `docs/` (e.g. `docs/index.html`) WITHOUT removing or overwriting the root landing page.
 
-            9. UP-TO-DATE & CONFLICT-FREE: Check whether the PR branch is behind the branch it targets (compare `gh pr view --json headRefOid,baseRefOid` and the merge base) and whether a merge would produce conflicts (`gh pr view --json mergeable`). A PR that is behind or has conflicts is NOT ready to merge.
+            9. PREVIEW INFRASTRUCTURE: `pages.yml` contains the GitHub Pages deployment plus a PR-preview feature: the `deploy` job stages every open PR's site under `_site/preview/pr-<N>/` and the `comment` job posts the preview URL on the PR. This is required infrastructure. Do NOT flag it as scope creep when a PR legitimately modifies pages.yml, and REQUEST CHANGES if a PR removes or breaks the preview feature. Previews are built from open PR branches at deploy time; they are never part of any PR branch or the repo working tree.
 
-            10. IMPLEMENTER REBUTTALS: Read ALL prior comments on the PR before deciding. If the implementer posted a reply disputing one of your previous findings (a plain-text comment from github-actions[bot] with technical justification), evaluate it honestly: if the rebuttal is valid, WITHDRAW that finding and say so; if it is invalid or incomplete, RESTATE the finding with a tighter explanation of why the implementer's argument does not hold. Never approve changes that genuinely violate the checklist just because the implementer argued back, and never reject a valid rebuttal out of stubbornness. If the implementer has rebutted the same finding twice with no new argument, keep your finding — do not loop forever.
+            10. UP-TO-DATE & CONFLICT-FREE: Check whether the PR branch is behind the branch it targets (compare `gh pr view --json headRefOid,baseRefOid` and the merge base) and whether a merge would produce conflicts (`gh pr view --json mergeable`). A PR that is behind or has conflicts is NOT ready to merge.
+
+            11. IMPLEMENTER REBUTTALS: Read ALL prior comments on the PR before deciding. If the implementer posted a reply disputing one of your previous findings (a plain-text comment from github-actions[bot] with technical justification), evaluate it honestly: if the rebuttal is valid, WITHDRAW that finding and say so; if it is invalid or incomplete, RESTATE the finding with a tighter explanation of why the implementer's argument does not hold. Never approve changes that genuinely violate the checklist just because the implementer argued back, and never reject a valid rebuttal out of stubbornness. If the implementer has rebutted the same finding twice with no new argument, keep your finding — do not loop forever.
 
             DECISION:
 
@@ -138,3 +140,12 @@ jobs:
           fi
           echo "Reviewer approved, merging as bot"
           gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1 | tail -5
+          # Auto-close issues linked via Closes #N in the PR body
+          closed=$(gh pr view "$pr" --repo "${{ github.repository }}" --json body --jq '.body' 2>/dev/null | grep -oE '(Closes|Fixes|Resolves) #[0-9]+' | grep -oE '[0-9]+' || true)
+          for n in $closed; do
+            state=$(gh issue view "$n" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+            if [ "$state" = "OPEN" ]; then
+              echo "Closing issue #$n (linked by #$pr)"
+              gh issue close "$n" --repo "${{ github.repository }}" --comment "Auto-closed: #$pr merged." 2>&1 | tail -1 || true
+            fi
+          done

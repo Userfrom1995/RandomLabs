@@ -72,6 +72,11 @@ jobs:
             mkdir -p "_site/preview/pr-$pr"
             if ! git archive pr-$pr index.html styles.css script.js docs/ 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
               echo "Skipping PR #$pr (could not archive)"
+              continue
+            fi
+            # Pure-docs PRs: promote docs/ to the preview root so the advertised URL serves a page
+            if [ ! -f "_site/preview/pr-$pr/index.html" ] && [ -f "_site/preview/pr-$pr/docs/index.html" ]; then
+              cp -r "_site/preview/pr-$pr/docs/." "_site/preview/pr-$pr/"
             fi
           done
 
