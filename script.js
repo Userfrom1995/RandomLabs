@@ -60,7 +60,7 @@
   window.addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
 
   /* ---------- Scroll reveal ---------- */
-  const revealEls = document.querySelectorAll(".card, .step, .pr-card, .faq-item, .code-window, .section-head");
+  const revealEls = document.querySelectorAll(".card, .project-card, .focus-card, .section-head, .stat-row, .breakdown");
   revealEls.forEach((el) => el.classList.add("reveal"));
 
   const io = new IntersectionObserver(
@@ -76,30 +76,8 @@
   );
   revealEls.forEach((el) => io.observe(el));
 
-  /* ---------- Terminal loop: replay typed session ---------- */
-  const terminalBody = document.querySelector(".terminal-body");
-  if (terminalBody) {
-    const lines = Array.from(terminalBody.children);
-    const originalHtml = lines.map((l) => l.outerHTML).join("\n");
-
-    function replay() {
-      terminalBody.innerHTML = "";
-      const clone = document.createElement("div");
-      clone.innerHTML = originalHtml;
-      terminalBody.append(...clone.children);
-      setTimeout(replay, 6500);
-    }
-
-    if (prefersReducedMotion) {
-      terminalBody.innerHTML = originalHtml;
-      terminalBody.querySelectorAll(".term-line").forEach((l) => (l.style.opacity = "1"));
-    } else {
-      setTimeout(replay, 6500);
-    }
-  }
-
   /* ---------- Parallax glow on cards ---------- */
-  document.querySelectorAll(".card, .pr-card").forEach((card) => {
+  document.querySelectorAll(".card, .project-card, .focus-card").forEach((card) => {
     card.addEventListener("mousemove", (e) => {
       const rect = card.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width - 0.5;
@@ -109,5 +87,23 @@
     card.addEventListener("mouseleave", () => {
       card.style.transform = "";
     });
+  });
+
+  /* ---------- Animate contribution bars when visible ---------- */
+  const bars = document.querySelectorAll(".bar-fill");
+  const barObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.style.width = entry.target.getAttribute("style").match(/--w:\s*([^;]+)/)?.[1];
+          barObserver.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.4 }
+  );
+  bars.forEach((bar) => {
+    bar.style.width = "0%";
+    barObserver.observe(bar);
   });
 })();
