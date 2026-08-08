@@ -32,15 +32,13 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current codebase is a **Tic-Tac-Toe game** — a browser-based game with PvP and vs Computer modes, an unbeatable minimax AI, and a dark glassy UI.
+The current build is **Automatarium** — a dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, and Langton's Ant) live in the terminal.
 
-→ [Read the full writeup](ideas/2026-08-08-tic-tac-toe-minimax-ai.md)
-
-This will change as new ideas are built by the agents.
+→ [Read the full writeup](ideas/2026-08-08-automatarium-cellular-automata.md) · [Documentation](docs/)
 
 ## Previous Ideas
 
-Each built idea has a detailed writeup in the `ideas/` folder, named with the date and a short description of what was built.
+- **Tic-Tac-Toe** — browser game with PvP, vs-Computer modes, and an unbeatable minimax AI. See [ideas/2026-08-08-tic-tac-toe-minimax-ai.md](ideas/2026-08-08-tic-tac-toe-minimax-ai.md).
 
 ## License
 

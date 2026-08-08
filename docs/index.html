@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Automatarium — Terminal Cellular Automata Playground</title>
+<meta name="description" content="Automatarium: a dependency-free Python CLI that renders Rule 30, Conway's Game of Life, and Langton's Ant live in the terminal." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; }
+  header.hero p { margin: 0 auto; max-width: 620px; color: var(--muted); font-size: 1.05rem; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card code { white-space: nowrap; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  .term {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Automatarium</h1>
+  <p>A small, dependency-free Python CLI that renders classic cellular automata
+  live in your terminal — nothing but frames and the Python standard library.</p>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>Elementary rules</h4>
+      <p><code>--rule 30</code> — any Wolfram rule <code>0–255</code> (<code>90</code>, <code>110</code>, …) as a scrolling 1D history.</p>
+    </div>
+    <div class="card">
+      <h4>Game of Life</h4>
+      <p><code>--rule life</code> — Conway's classic on a toroidal grid, with reproducible random seeding.</p>
+    </div>
+    <div class="card">
+      <h4>Langton's Ant</h4>
+      <p><code>--rule ant</code> — one ant painting a trail that self-organises into a highway.</p>
+    </div>
+  </section>
+
+  <div class="term">$ python3 -m automatarium --rule 30<br>Rule 30 | generation 42 | 80x40</div>
+
+  <h2>Requirements</h2>
+  <p>Python 3.8 or newer. No external packages. A UTF-8 capable terminal is
+  recommended for the default <code>█</code> glyph; plain ASCII terminals can
+  use <code>--alive #</code>.</p>
+
+  <h2>Quick start</h2>
+  <pre><code># Rule 30 scrolling animation (default)
+python3 -m automatarium
+
+# Conway's Game of Life, reproducible random grid
+python3 -m automatarium --rule life --seed 42
+
+# Langton's Ant, 5000 generations, fast-forwarded
+python3 -m automatarium --rule ant --steps 5000 --fps 60
+
+# Capture a fixed number of generations to a file
+python3 -m automatarium --rule 30 --width 160 --height 80 --steps 80 &gt; rule30.txt</code></pre>
+  <p>Press <code>Ctrl-C</code> to stop an animated run. The single file also runs
+  directly: <code>python3 automatarium/automatarium.py --rule life</code>.
+  <code>--help</code> prints the full reference with examples.</p>
+
+  <h2>Configuration options</h2>
+  <table>
+    <tr><th>Option</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>--rule RULE</code></td><td><code>30</code></td><td>Elementary rule number <code>0–255</code>, <code>life</code>, or <code>ant</code>. Aliases like <code>gol</code>, <code>langton</code>, <code>rule90</code> accepted.</td></tr>
+    <tr><td><code>--width N</code></td><td><code>80</code></td><td>Grid width in cells, 1–1000.</td></tr>
+    <tr><td><code>--height N</code></td><td><code>40</code></td><td>Grid height in cells, 1–1000.</td></tr>
+    <tr><td><code>--fps N</code></td><td><code>10</code></td><td>Frames per second while animating.</td></tr>
+    <tr><td><code>--steps N</code></td><td><em>forever</em></td><td>Run exactly N generations then exit. <code>--steps 0</code> prints only the initial grid.</td></tr>
+    <tr><td><code>--seed N</code></td><td><em>random</em></td><td>Reproducible randomness; the chosen seed is printed to stderr when random.</td></tr>
+    <tr><td><code>--density F</code></td><td>per rule</td><td>Initial probability a cell is alive, 0.0–1.0. Defaults: 0.5 elementary, 0.4 life, 0.0 ant.</td></tr>
+    <tr><td><code>--alive CH</code></td><td><code>█</code></td><td>Glyph for a live cell.</td></tr>
+    <tr><td><code>--dead CH</code></td><td><code>space</code></td><td>Glyph for a dead cell.</td></tr>
+    <tr><td><code>--ant CH</code></td><td><code>@</code></td><td>Glyph marking Langton's ant.</td></tr>
+    <tr><td><code>--version</code></td><td></td><td>Print version and exit.</td></tr>
+  </table>
+
+  <h3>Examples</h3>
+  <pre><code># A wide, tall Rule 30 "triangle" dumped to a file
+python3 -m automatarium --rule 30 --width 240 --height 120 --steps 120 &gt; rule30.txt
+
+# Game of Life on a small grid at a lazy 4 fps
+python3 -m automatarium --rule life --width 50 --height 30 --fps 4
+
+# Rule 110 (universal) with a custom live-cell glyph
+python3 -m automatarium --rule rule110 --alive '#'
+
+# A 2-second splash of the ant with an explicit seed
+python3 -m automatarium --rule ant --seed 7 --steps 60 --fps 30</code></pre>
+
+  <h2>Interactive vs captured output</h2>
+  <p><strong>Terminal (stdout is a TTY):</strong> the automaton animates at
+  <code>--fps</code>. The screen is cleared and redrawn each generation; the
+  cursor is hidden during the run and restored afterwards. If the grid is
+  wider or taller than the terminal, a warning is printed to stderr with a
+  suggested size.</p>
+  <p><strong>Piped / redirected stdout:</strong> every generation is printed
+  once, separated by a blank line and preceded by a header line. The
+  per-frame delay is skipped in this mode, so large <code>--steps</code> runs
+  finish almost instantly and are easy to grep, diff, or replay.</p>
+  <p>When <code>--seed</code> is omitted, the seed actually used is written
+  to stderr so any run can be replayed exactly.</p>
+
+  <h2>How each automaton works</h2>
+  <h3>Elementary cellular automata</h3>
+  <p>One-dimensional rules from Stephen Wolfram's "elementary" class. Each
+  cell's next state is a function of itself and its two neighbours — an
+  8-state lookup table encoded by the rule number. Rule 30 is the classic
+  chaos generator; Rule 110 is Turing-complete; Rule 90 draws a Sierpinski
+  triangle.</p>
+  <p>The display is a <strong>rolling window</strong> <code>--height</code>
+  rows tall: each generation is appended at the bottom and the oldest row
+  scrolls off the top, so long runs never overflow the screen. To capture a
+  full history, set <code>--height</code> to at least your
+  <code>--steps</code> count. Borders are treated as permanently dead.</p>
+  <h3>Conway's Game of Life</h3>
+  <p>A live cell survives with 2 or 3 live neighbours; a dead cell is born
+  with exactly 3. The grid wraps at every edge (<strong>toroidal</strong>),
+  eliminating edge artifacts. The initial grid is a random fill controlled by
+  <code>--seed</code> and <code>--density</code>.</p>
+  <h3>Langton's Ant</h3>
+  <p>One ant starts at the centre facing north. On a dead (white) cell it
+  turns right and paints the cell alive (black); on a live (black) cell it
+  turns left and paints it dead. The ant's position is drawn with
+  <code>--ant</code>. On an all-white grid the trail is chaotic for a few
+  hundred steps, then locks into a repeating highway. The grid wraps at the
+  edges.</p>
+
+  <h2>Project layout</h2>
+  <pre><code>automatarium/
+  automatarium.py     # the whole CLI — three automata + driver
+  __main__.py         # enables `python -m automatarium`
+  __init__.py         # package marker
+  README.md           # tool-specific usage guide
+  tests/
+    test_automatarium.py
+docs/
+  index.md            # this page (source)
+  index.html          # rendered documentation page
+ideas/
+  2026-08-08-automatarium-cellular-automata.md</code></pre>
+
+  <h2>Development</h2>
+  <pre><code>python3 -m unittest discover -s automatarium/tests</code></pre>
+  <p>The suite covers rule parsing and validation, the Rule 30 transition
+  table, Life's blinker and block patterns, the ant's 4-step return symmetry,
+  seed reproducibility, capture-mode framing, and CLI error handling.</p>
+
+  <h2>Design notes</h2>
+  <ul>
+    <li><strong>Single file, zero dependencies</strong> — the whole CLI is one
+    Python module using only <code>argparse</code>, <code>random</code>,
+    <code>shutil</code>, <code>sys</code>, <code>time</code>, and
+    <code>typing</code>.</li>
+    <li><strong>One interface, three automata</strong> — every automaton
+    exposes the same <code>step()</code> / <code>render()</code> /
+    <code>name</code> contract, so the animation driver is shared.</li>
+    <li><strong>Determinism</strong> — every random draw goes through a
+    <code>random.Random</code> instance seeded by <code>--seed</code>, so a
+    given seed always reproduces the exact same frames.</li>
+    <li><strong>Bounded display</strong> — scrolling windows keep memory and
+    screen usage constant regardless of run length.</li>
+  </ul>
+
+  <p><a href="index.md">Read the markdown source of this page</a>.</p>
+</main>
+
+<footer>Automatarium · part of the Random repository · MIT License</footer>
+</body>
+</html>
