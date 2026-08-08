@@ -11,7 +11,10 @@
 ## Two-model review loop
 
 - A separate reviewer workflow (different model) reviews every non-draft pull request and either merges it or posts a comment starting with `/oc` listing required fixes.
-- When you receive a `/oc` comment on a pull request while implementing (this workflow's `issue_comment` trigger), treat it as a review finding: apply all requested fixes to the pull request's branch and push. Never self-merge; the reviewer decides when the PR is done.
+- The reviewer runs with the `github.token` identity, so its comments and merges appear as `github-actions[bot]`.
+- `opencode-review-trigger.yml` listens for pull requests opened/updated by `github-actions[bot]` and posts `/oc review` on the PR with the owner's PAT. Because the permission check keys on the comment's author, this makes the reviewer workflow run.
+- The `opencode-review.yml` workflow then re-posts the bot's `/oc` fix comment using the owner's PAT. The re-post is what triggers the implementer workflow (comments created with `github.token` do not trigger workflows).
+- When you receive a `/oc` comment on a pull request while implementing (this workflow's `issue_comment` trigger), treat it as a review finding: apply all requested fixes to the pull request's branch and push. The next `synchronize` event starts another `/oc review` round. Never self-merge; the reviewer decides when the PR is done.
 
 ## Daily auto-generated ideas
 

@@ -1,0 +1,34 @@
+name: opencode-review-trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+concurrency:
+  group: review-trigger-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  trigger:
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Post /oc review as owner
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.pull_request.number }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          last=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
+            --jq '[.[] | select(.user.login == "Userfrom1995" and (.body | startswith("/oc review")))] | last | .body' 2>/dev/null || true)
+          if echo "$last" | grep -q "$head"; then
+            echo "Review already triggered for this head, skipping"
+            exit 0
+          fi
+          echo "Posting /oc review for PR #$pr (head $head)"
+          gh issue comment "$pr" --body "/oc review (head $head)"
