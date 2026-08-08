@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Homunculus — Genetic-Algorithm Phrase Evolver</title>
-<meta name="description" content="Homunculus: a dependency-free Python CLI that grows a population of random strings and evolves them into an exact target phrase with selection, crossover, and mutation." />
+<title>Rotoria — Terminal Enigma Machine Cipher Simulator</title>
+<meta name="description" content="Rotoria: a dependency-free Python CLI that simulates a WWII Enigma cipher machine — configurable rotors, ring settings, plugboard, and reflector, with encryption, decryption, and internal wiring visualization." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -99,180 +99,186 @@
 </head>
 <body>
 <header class="hero">
-  <h1>Homunculus</h1>
-  <p>A small, dependency-free Python CLI that demonstrates evolution in action:
-  it grows a population of random strings and, over successive generations of
-  selection, crossover, and mutation, hammers them into an exact target phrase —
-  nothing but the Python standard library.</p>
+  <h1>Rotoria</h1>
+  <p>A small, dependency-free Python CLI that simulates a WWII Enigma cipher
+  machine: configurable rotor order, ring settings, plugboard stecker pairs,
+  and a reflector — with encryption, decryption, and a visualization of the
+  internal wiring of every letter. Nothing but the Python standard library.</p>
 </header>
 
 <main>
   <section class="cards">
     <div class="card">
-      <h4>Dawkins-style GA</h4>
-      <p>Truncation or tournament selection, uniform crossover, per-character mutation, and elitism.</p>
+      <h4>Historically accurate stepping</h4>
+      <p>The rightmost rotor steps every keypress, the middle rotor is carried at the right rotor's notch, and the leftmost rotor steps at the middle's notch — the real Enigma "double-step".</p>
     </div>
     <div class="card">
-      <h4>Diffed convergence display</h4>
-      <p>Each printed generation is diffed against the previous one, with <code>^</code> marking the positions that just changed.</p>
+      <h4>Full configurability</h4>
+      <p>Rotor order (I–V), ring settings, starting positions, plugboard pairs, and reflector B or C, all from the command line.</p>
     </div>
     <div class="card">
-      <h4>Reproducible</h4>
-      <p>All randomness flows through a single seeded <code>random.Random</code>, so any run can be replayed exactly.</p>
+      <h4>Internal wiring visualization</h4>
+      <p><code>visualize</code> traces every letter's signal path through the stecker, rotors, and reflector, and <code>machine</code> prints the wiring tables.</p>
     </div>
   </section>
 
-  <div class="term">$ python3 -m homunculus --target hello --seed 42
-gen 0/1000 | score 1/5
-  hdmlo
-gen 1/1000 | score 3/5
-  hdllo
-    ^
-gen 2/1000 | score 5/5
-  hello
-   ^^
-homunculus: converged to 'hello' in 2 generations</div>
+  <div class="term">$ python3 -m roteria encrypt "HELLO WORLD"
+ILBDAAMTAZ
+
+$ python3 -m roteria decrypt "ILBDAAMTAZ"
+HELLOWORLD</div>
 
   <h2>Requirements</h2>
   <p>Python 3.8 or newer. Nothing else — no external packages, no network.</p>
 
   <h2>Quick start</h2>
-  <pre><code># Evolve the classic weasel phrase (default)
-python3 -m homunculus
+  <pre><code># Encrypt a message with the default machine (rotors I II III, rings 1 1 1,
+# positions AAA, reflector B, no plugboard)
+python3 -m roteria encrypt "HELLO WORLD"
+# -&gt; ILBDAAMTAZ
 
-# A custom phrase with a fixed seed
-python3 -m homunculus --target "to be or not to be" --seed 42
+# Decrypt is the same operation
+python3 -m roteria decrypt "ILBDAAMTAZ"
+# -&gt; HELLOWORLD
 
-# Harder: uppercase alphabet, bigger population, more mutation
-python3 -m homunculus --target "HELLO WORLD" \
-  --alphabet " ABCDEFGHIJKLMNOPQRSTUVWXYZ" --population-size 400 --mutation-rate 0.1
+# A wartime-style configuration, with ciphertext grouped in blocks of five
+python3 -m roteria encrypt "ATTACK AT DAWN" \
+  --rotors II III V --rings 2 3 4 --positions ABC \
+  --stecker AB CD EF --group 5
 
-# Tournament selection, printing every 10th generation
-python3 -m homunculus --selection tournament --tournament-size 5 --every 10</code></pre>
+# Watch the signal path of every letter
+python3 -m roteria visualize "A" --positions AAA
+
+# Interactive session
+python3 -m roteria --interactive --rotors III II I --reflector C
+
+# Print the wiring tables and current configuration
+python3 -m roteria machine</code></pre>
   <p>The single file also runs directly:
-  <code>python3 homunculus/homunculus.py --target hello</code>.
+  <code>python3 roteria/roteria.py --help</code>.
   <code>--help</code> prints the full reference with examples.</p>
 
   <h2>Configuration options</h2>
   <table>
     <tr><th>Option</th><th>Default</th><th>Description</th></tr>
-    <tr><td><code>--target PHRASE</code></td><td><code>methinks it is like a weasel</code></td><td>Phrase to evolve.</td></tr>
-    <tr><td><code>--population-size N</code></td><td><code>200</code></td><td>Individuals per generation (1–100000).</td></tr>
-    <tr><td><code>--mutation-rate F</code></td><td><code>0.05</code></td><td>Per-character mutation probability, <code>0 &lt; F &lt;= 1</code>. A rate of 0 is rejected — no mutation, no evolution.</td></tr>
-    <tr><td><code>--elite N</code></td><td><code>2</code></td><td>Best individuals copied unchanged into the next generation (<code>0 &lt;= N &lt; population size</code>).</td></tr>
-    <tr><td><code>--max-generations N</code></td><td><code>1000</code></td><td>Hard cap on generations before giving up (1–1000000).</td></tr>
-    <tr><td><code>--seed N</code></td><td><em>random</em></td><td>Random seed for reproducible runs; the chosen seed is printed to stderr when random.</td></tr>
-    <tr><td><code>--alphabet CHARS</code></td><td><code>abcdefghijklmnopqrstuvwxyz </code></td><td>Characters the population may use. Must not be empty and must cover every target character.</td></tr>
-    <tr><td><code>--selection SCHEME</code></td><td><code>truncation</code></td><td>Parent selection: <code>truncation</code> (draw from the top <code>--keep</code>) or <code>tournament</code> (<code>--tournament-size</code>-way tournaments).</td></tr>
-    <tr><td><code>--keep N</code></td><td><code>10</code></td><td>Truncation pool: parents are drawn from the top N individuals.</td></tr>
-    <tr><td><code>--tournament-size N</code></td><td><code>3</code></td><td>Contenders per tournament pick (2–population size).</td></tr>
-    <tr><td><code>--every N</code></td><td><code>1</code></td><td>Print every Nth generation; convergence is still checked each generation.</td></tr>
-    <tr><td><code>--verbose</code></td><td>off</td><td>Also print the population's average fitness each printed generation.</td></tr>
+    <tr><td><code>-r, --rotors ORDER</code></td><td><code>I II III</code></td><td>Rotor order left-to-right, e.g. <code>--rotors I III V</code>. Any subset/order of rotors I–V.</td></tr>
+    <tr><td><code>--rings SETTINGS</code></td><td>all <code>1</code></td><td>Ring settings: letters A–Z (<code>A</code> = setting 1) or numbers 1–26, e.g. <code>--rings 1 2 3</code>.</td></tr>
+    <tr><td><code>--positions POSITIONS</code></td><td>all <code>A</code></td><td>Starting rotor positions: letters A–Z (A = 0) or numbers 0–25, e.g. <code>--positions Q W E</code>.</td></tr>
+    <tr><td><code>-s, --stecker PAIRS</code></td><td>none</td><td>Plugboard pairs, e.g. <code>--stecker AB CD EF</code>. Each letter at most once; at most 13 pairs.</td></tr>
+    <tr><td><code>--reflector NAME</code></td><td><code>B</code></td><td>Reflector to use: <code>B</code> or <code>C</code>.</td></tr>
+    <tr><td><code>--group N</code></td><td><code>0</code></td><td>Group ciphertext output in blocks of N letters (<code>0</code> disables).</td></tr>
+    <tr><td><code>--interactive</code></td><td>off</td><td>Start an interactive session (works with the global flags above).</td></tr>
     <tr><td><code>--version</code></td><td></td><td>Print the version and exit.</td></tr>
+    <tr><td><code>--help</code></td><td></td><td>Print full help, including examples.</td></tr>
   </table>
+
+  <p>Rings and positions also accept a contiguous letter string when it
+  matches the rotor count, e.g. <code>--positions QWE</code> is the same as
+  <code>--positions Q W E</code>.</p>
+
+  <h3>Subcommands</h3>
+  <ul>
+    <li><code>encrypt MESSAGE</code> / <code>decrypt MESSAGE</code> — process a message (identical operations; the Enigma is an involution).</li>
+    <li><code>visualize MESSAGE</code> — step through the message and print every letter's signal path plus the rotor windows after each keypress.</li>
+    <li><code>machine</code> — print the machine configuration and the complete rotor and reflector wiring tables.</li>
+  </ul>
+  <p>If no message is given, input is read from standard input, so the tool
+  pipes naturally: <code>echo "SECRET MESSAGE" | python3 -m roteria encrypt --rotors II III V</code>.</p>
 
   <h3>Examples</h3>
-  <pre><code># Converge "to be or not to be" deterministically
-python3 -m homunculus --target "to be or not to be" --seed 2024
+  <pre><code># A 26-letter known-answer vector
+python3 -m roteria encrypt "AAAAAAAAAAAAAAAAAAAAAAAAAA"
+# -&gt; BDZGOWCXLTKSBTMCDLPBMUQOFX
 
-# Watch letters pop into place every 5 generations
-python3 -m homunculus --every 5 --seed 7
+# Deterministic round-trip with a plugboard and custom rings
+python3 -m roteria encrypt "HELLOWORLD" --rings 1 2 3 --positions ABC --stecker AB CD
+python3 -m roteria decrypt &lt;the ciphertext&gt; --rings 1 2 3 --positions ABC --stecker AB CD
 
-# Include digits for a longer, harder target
-python3 -m homunculus --target "evolve 42" \
-  --alphabet " abcdefghijklmnopqrstuvwxyz0123456789"
-
-# Tournament selection with a small population, verbose stats
-python3 -m homunculus --selection tournament --tournament-size 4 \
-  --population-size 50 --verbose --seed 3</code></pre>
+# Four-rotor machine (M4-style rotor count)
+python3 -m roteria encrypt "FOURROTORTEST" --rotors V IV III II --positions AAAA</code></pre>
 
   <h2>How it works</h2>
-  <h3>1. Initialize</h3>
-  <p>The first population is <code>--population-size</code> random strings over
-  the alphabet, all the same length as the target. Generation 0 is printed
-  before any evolution happens.</p>
-  <h3>2. Score</h3>
-  <p>Fitness is the number of positions matching the target (higher is better;
-  a perfect match scores the target length). Because the <code>--elite</code>
-  best individuals are copied into the next generation unchanged, the best
-  score never decreases.</p>
-  <h3>3. Select</h3>
-  <p>Parents are chosen by one of two schemes:</p>
-  <ul>
-    <li><strong>Truncation</strong> — draw uniformly from the top <code>--keep</code> individuals.</li>
-    <li><strong>Tournament</strong> — pick <code>--tournament-size</code> random contenders and keep the fittest; larger tournaments put more pressure towards fitter parents.</li>
-  </ul>
-  <h3>4. Reproduce and mutate</h3>
-  <p>Two parents produce a child via uniform crossover (each position is
-  inherited from either parent with probability 1/2), then every child position
-  is replaced with a random alphabet character with probability
-  <code>--mutation-rate</code>. Offspring are generated until the population is
-  full again.</p>
-  <h3>5. Converge</h3>
-  <p>The run stops the first time a generation's best individual matches the
-  target exactly and prints the generation count. If
-  <code>--max-generations</code> is reached first, the run gives up with exit
-  code 1.</p>
+  <h3>1. The machine</h3>
+  <p>An Enigma machine is a cascade of substitution stages. A keystroke's
+  electrical signal enters through the plugboard, passes through each rotor
+  right-to-left, bounces off the reflector, passes back through each rotor
+  left-to-right, and exits through the plugboard again.</p>
+  <h3>2. Stepping</h3>
+  <p>Before each letter the rotors advance: the rightmost rotor steps on every
+  keypress; when it reaches its notch the middle rotor steps too; and when the
+  middle rotor reaches its own notch the leftmost rotor steps as well. Because
+  the middle rotor can be carried and then immediately hit its own notch, it
+  sometimes steps on two consecutive keypresses — the Enigma's famous
+  "double-stepping". For rotors I II III at AAA the window sequence begins:</p>
+  <pre><code>AAB AAC AAD ... AAV  ABW ABX ABY ABZ ABA ...
+      (middle carried at AAV -&gt; ABW)</code></pre>
+  <h3>3. Ring settings</h3>
+  <p>Each rotor's wiring is rotated relative to its body by its ring setting,
+  shifting the substitution without moving the window letter.</p>
+  <h3>4. The involution</h3>
+  <p>The plugboard swaps, the rotor passes are mirrored around the reflector,
+  and the reflector is reciprocal, so the whole machine is symmetric:
+  encrypting the ciphertext with the same settings recovers the plaintext.</p>
 
-  <h2>Reproducibility</h2>
-  <p>All randomness flows through a single <code>random.Random</code> seeded by
-  <code>--seed</code>. The same seed, target, and parameters always produce
-  byte-identical output:</p>
-  <pre><code>python3 -m homunculus --target hello --seed 42 --max-generations 100 &gt; one.txt
-python3 -m homunculus --target hello --seed 42 --max-generations 100 &gt; two.txt
-diff one.txt two.txt   # identical</code></pre>
-  <p>When no seed is given, the one actually used is printed to stderr, e.g.
-  <code>homunculus: seed = 2600470316 (pass --seed 2600470316 to replay)</code>.</p>
+  <h3>Example trace</h3>
+  <div class="term">$ python3 -m roteria visualize "A" --positions AAA
+Machine: rotors:    I II III | rings:     1 1 1 | positions: A A A | reflector: B | plugboard: none
 
-  <h2>Exit codes</h2>
-  <table>
-    <tr><th>Code</th><th>Meaning</th></tr>
-    <tr><td><code>0</code></td><td>Target reached; the generation count is printed on stdout.</td></tr>
-    <tr><td><code>1</code></td><td>Target not reached within <code>--max-generations</code>.</td></tr>
-    <tr><td><code>2</code></td><td>Invalid command-line arguments (argparse).</td></tr>
-  </table>
+Key 1  plaintext A
+  A --III.fwd--&gt; C --II.fwd--&gt; D --I.fwd--&gt; F --refl--&gt; S --I.back--&gt; S --II.back--&gt; E --III.back--&gt; B --stecker-out--&gt; B
+  ciphertext B | windows: A A B</div>
+
+  <h2>Reproducibility and correctness</h2>
+  <p>The stepping logic and wiring tables are validated against the well-known
+  reference implementation (py-enigma) across 300+ random configurations, and
+  the test suite embeds published test vectors (including the 26-letter
+  <code>AAAAAAAAAAAAAAAAAAAAAAAAAA</code> vector and the double-stepping window
+  sequence). The same settings always produce the same output — there is no
+  randomness.</p>
 
   <h2>Project layout</h2>
-  <pre><code>homunculus/
-  homunculus.py       # the whole CLI — fitness, GA operators, evolution loop
-  __main__.py         # enables `python -m homunculus`
+  <pre><code>roteria/
+  roteria.py          # the whole CLI: rotors, stepping, plugboard, reflector
+  __main__.py         # enables `python -m roteria`
   __init__.py         # package marker
   README.md           # tool-specific usage guide
   tests/
-    test_homunculus.py
+    test_roteria.py
 docs/
   index.md            # this page (source)
   index.html          # rendered documentation page
 ideas/
-  2026-08-08-homunculus-genetic-algorithm.md</code></pre>
+  2026-08-08-rotoria-terminal-enigma-simulator.md</code></pre>
 
   <h2>Development</h2>
-  <pre><code>python3 -m unittest discover -s homunculus/tests</code></pre>
-  <p>The 45 tests cover fitness scoring, crossover and mutation behavior
-  (including the expected mutation fraction), tournament selection, elitism's
-  never-decreases guarantee, seed reproducibility, convergence on a short
-  phrase with a fixed seed, and CLI validation/error handling.</p>
+  <pre><code>python3 -m unittest discover -s roteria/tests</code></pre>
+  <p>The 56 tests cover the wiring tables, rotor forward/backward passes, the
+  notch and double-stepping behavior, the documented stepping sequence,
+  known-answer ciphertexts, the involution property, plugboard validation,
+  ring and position parsing, and the full CLI surface (including error handling
+  and stdin input).</p>
 
   <h2>Design notes</h2>
   <ul>
     <li><strong>Single file, zero dependencies</strong> — the whole CLI is one
-    Python module using only <code>argparse</code>, <code>random</code>,
-    <code>string</code>, <code>sys</code>, and <code>typing</code>.</li>
-    <li><strong>Two selection schemes, one reproduction path</strong> — switching
-    <code>--selection truncation</code> ↔ <code>--selection tournament</code>
-    is a single flag.</li>
-    <li><strong>Determinism</strong> — every random draw goes through a single
-    seeded <code>random.Random</code>, so a given seed always reproduces the
-    exact same run.</li>
-    <li><strong>Bounded output</strong> — a hard <code>--max-generations</code>
-    cap, a <code>--every</code> print throttle, and up-front validation of
-    every option (including the fail-fast rejection of a zero mutation rate and
-    alphabet/target mismatches).</li>
+    Python module using only <code>argparse</code>, <code>re</code>, and
+    <code>sys</code>.</li>
+    <li><strong>Faithful, not approximate</strong> — the double-stepping notch
+    logic is implemented exactly as the physical machine behaves, not the
+    simplified "rotate all rotors, carry on turnover" shortcut some simulators
+    use.</li>
+    <li><strong>Validation everywhere</strong> — unknown rotors/reflectors,
+    out-of-range ring or position settings, duplicate or self-connected
+    plugboard letters, and wrong setting counts are all rejected with clear
+    errors.</li>
+    <li><strong>Educational by design</strong> — <code>visualize</code> and
+    <code>machine</code> expose the internal wiring so the cipher can be
+    studied, not just executed.</li>
   </ul>
 
   <p><a href="index.md">Read the markdown source of this page</a>.</p>
 </main>
 
-<footer>Homunculus · part of the Random repository · MIT License</footer>
+<footer>Rotoria · part of the Random repository · MIT License</footer>
 </body>
 </html>

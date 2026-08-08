@@ -1,11 +1,11 @@
-# Rotoria — Terminal Enigma Machine Cipher Simulator
+# Rotoria
 
-**Rotoria** is a small, dependency-free Python CLI that simulates a WWII
-Enigma cipher machine. It reproduces the historical machine's rotor stepping
-(including the famous "double-stepping" of the middle rotor), the plugboard
-(stecker), ring settings, and reflectors, letting you encrypt and decrypt
-messages and visualize the internal wiring path of every letter. It runs on
-nothing but the Python standard library — no external packages, no assets.
+A small, dependency-free Python CLI that simulates a WWII Enigma cipher
+machine. Rotoria reproduces the historical machine's rotor stepping (including
+the famous "double-stepping" of the middle rotor), the plugboard (stecker),
+ring settings, and reflectors, and can visualize the internal wiring path of
+every letter as it travels through the machine. Nothing but the Python
+standard library (`argparse`, `re`, `sys`) — no external packages, no assets.
 
 - **Historically accurate stepping** — the rightmost rotor steps every
   keypress; the middle rotor is carried along at the right rotor's notch; the
@@ -21,21 +21,6 @@ nothing but the Python standard library — no external packages, no assets.
   backward pass → stecker) and shows the rotor windows after every keypress.
 - **Wiring tables** — `machine` prints the complete rotor and reflector wiring
   tables for reference.
-
-```text
-$ python3 -m roteria encrypt "HELLO WORLD"
-ILBDAAMTAZ
-
-$ python3 -m roteria decrypt "ILBDAAMTAZ"
-HELLOWORLD
-```
-
----
-
-## Requirements
-
-- Python 3.8 or newer.
-- Nothing else — no external packages, no network.
 
 ## Quick start
 
@@ -64,15 +49,9 @@ python3 -m roteria --interactive --rotors III II I --reflector C
 python3 -m roteria machine
 ```
 
-The single file also runs directly:
+The single file also runs directly: `python3 roteria/roteria.py --help`.
 
-```bash
-python3 roteria/roteria.py --help
-```
-
-`python3 -m roteria --help` prints the full option reference with examples.
-
-## Configuration options
+## Options
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -99,55 +78,31 @@ rotor count, e.g. `--positions QWE` is the same as `--positions Q W E`.
   reflector wiring tables.
 
 If no message is given to `encrypt`/`decrypt`/`visualize`, input is read from
-standard input, so the tool pipes naturally:
-
-```bash
-echo "SECRET MESSAGE" | python3 -m roteria encrypt --rotors II III V
-```
+standard input, so the tool pipes naturally.
 
 ## How it works
 
-### 1. The machine
-
-An Enigma machine is a cascade of substitution stages. A keystroke's
-electrical signal enters through the plugboard, passes through each rotor
-right-to-left, bounces off the reflector, passes back through each rotor
-left-to-right, and exits through the plugboard again.
-
-### 2. Stepping
-
-Before each letter, the rotors advance:
-
-- the rightmost rotor steps on every keypress;
-- when the rightmost rotor reaches its notch letter, the middle rotor steps
-  too;
-- when the middle rotor reaches its own notch letter, the leftmost rotor steps
-  as well.
-
-Because the middle rotor can be carried and then immediately hit its own
-notch, it sometimes steps on two consecutive keypresses — the Enigma's famous
-"double-stepping". For rotors I II III starting at AAA, the window sequence
-begins:
-
-```text
-AAB AAC AAD ... AAV  ABW ABX ABY ABZ ABA ...
-      (middle carried at AAV -> ABW)
-```
-
-### 3. Ring settings
-
-Each rotor's wiring is rotated relative to its body by its ring setting,
-shifting the substitution without moving the window letter.
-
-### 4. The involution
-
-The plugboard swaps, the rotor passes are mirrored around the reflector, and
-the reflector is reciprocal, so the whole machine is symmetric: encrypting the
-ciphertext with the same settings recovers the plaintext.
+1. **The machine.** An Enigma machine is a cascade of substitution stages.
+   A keystroke's electrical signal enters through the plugboard, passes
+   through each rotor right-to-left, bounces off the reflector, passes back
+   through each rotor left-to-right, and exits through the plugboard again.
+2. **Stepping.** Before each letter, the rotors advance: the rightmost rotor
+   always steps; when the rightmost rotor reaches its notch, the middle rotor
+   steps too; when the middle rotor reaches its own notch, the leftmost rotor
+   steps as well. Because the middle rotor can be carried and then immediately
+   hit its own notch, it sometimes steps on two consecutive keypresses — the
+   Enigma's famous "double-stepping".
+3. **Ring settings.** Each rotor's wiring is rotated relative to its body by
+   its ring setting, shifting the substitution without moving the window
+   letter.
+4. **The involution.** The plugboard swaps, the rotor passes are mirrored
+   around the reflector, and the reflector is reciprocal, so the whole machine
+   is symmetric: encrypting the ciphertext with the same settings recovers the
+   plaintext.
 
 ### Example trace
 
-```text
+```
 $ python3 -m roteria visualize "A" --positions AAA
 Machine: rotors:    I II III | rings:     1 1 1 | positions: A A A | reflector: B | plugboard: none
 
@@ -166,16 +121,16 @@ The same settings always produce the same output — there is no randomness.
 
 ## Project layout
 
-```text
+```
 roteria/
   roteria.py          # the whole CLI: rotors, stepping, plugboard, reflector
   __main__.py         # enables `python -m roteria`
   __init__.py         # package marker
-  README.md           # tool-specific usage guide
+  README.md           # this guide
   tests/
     test_roteria.py
 docs/
-  index.md            # this page (source)
+  index.md            # the documentation page (source)
   index.html          # rendered documentation page
 ideas/
   2026-08-08-rotoria-terminal-enigma-simulator.md
@@ -187,15 +142,16 @@ ideas/
 python3 -m unittest discover -s roteria/tests
 ```
 
-The 56 tests cover the wiring tables, rotor forward/backward passes, the notch
-and double-stepping behavior, the documented stepping sequence, known-answer
-ciphertexts, the involution property, plugboard validation, ring and position
-parsing, and the full CLI surface (including error handling and stdin input).
+The 56 tests cover the wiring tables, rotor forward/backward passes, the
+notch and double-stepping behavior, the documented stepping sequence,
+known-answer ciphertexts, the involution property, plugboard validation, ring
+and position parsing, and the full CLI surface (including error handling and
+stdin input).
 
 ## Design notes
 
-- **Single file, zero dependencies** — the whole CLI is one Python module
-  using only `argparse`, `re`, and `sys`.
+- **Single file, zero dependencies** — `argparse`, `re`, and `sys` only; the
+  machine is a few plain classes.
 - **Faithful, not approximate** — the double-stepping notch logic is
   implemented exactly as the physical machine behaves, not the simplified
   "rotate all rotors, carry on turnover" shortcut some simulators use.
@@ -204,7 +160,3 @@ parsing, and the full CLI surface (including error handling and stdin input).
   setting counts are all rejected with clear errors.
 - **Educational by design** — `visualize` and `machine` expose the internal
   wiring so the cipher can be studied, not just executed.
-
-## License
-
-MIT — see [LICENSE](../LICENSE) in the repository root.
