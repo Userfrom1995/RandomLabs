@@ -1,109 +1,235 @@
 (() => {
   "use strict";
 
-  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const X = "X";
+  const O = "O";
 
-  /* ---------- Animated starfield background ---------- */
-  const canvas = document.getElementById("bg-canvas");
-  const ctx = canvas.getContext("2d");
-  let stars = [];
-  let mouse = { x: 0, y: 0 };
+  const WIN_LINES = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6],
+  ];
 
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const count = Math.min(180, Math.floor((canvas.width * canvas.height) / 9000));
-    stars = Array.from({ length: count }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      r: Math.random() * 1.4 + 0.3,
-      a: Math.random() * 0.6 + 0.2,
-      dx: (Math.random() - 0.5) * 0.12,
-      dy: (Math.random() - 0.5) * 0.12,
-    }));
+  const boardEl = document.getElementById("board");
+  const cells = [...document.querySelectorAll(".cell")];
+  const statusEl = document.getElementById("status");
+  const modeButtons = [...document.querySelectorAll(".seg-btn[data-mode]")];
+  const diffButtons = [...document.querySelectorAll(".seg-btn[data-diff]")];
+  const controlsEl = document.querySelector(".controls");
+  const playerXNameEl = document.getElementById("player-x-name");
+  const playerONameEl = document.getElementById("player-o-name");
+  const scoreXEl = document.getElementById("score-x-num");
+  const scoreOEl = document.getElementById("score-o-num");
+  const scoreDrawEl = document.getElementById("score-draw-num");
+  const newGameBtn = document.getElementById("new-game");
+  const resetBtn = document.getElementById("reset-scores");
+
+  let board = Array(9).fill(null);
+  let current = X;
+  let mode = "pvp";
+  let difficulty = "hard";
+  let gameOver = false;
+  let cpuThinking = false;
+  let scores = { x: 0, o: 0, draw: 0 };
+
+  function resetBoard() {
+    board = Array(9).fill(null);
+    current = X;
+    gameOver = false;
+    cpuThinking = false;
+    cells.forEach((cell) => {
+      cell.textContent = "";
+      cell.dataset.mark = "";
+      cell.classList.remove("taken", "win-cell");
+    });
+    document.querySelectorAll(".cell.win-cell").forEach((c) => c.classList.remove("win-cell"));
+    updateScoreHighlight();
+    renderStatus();
   }
 
-  function drawStars() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function resetScores() {
+    scores = { x: 0, o: 0, draw: 0 };
+    renderScores();
+    resetBoard();
+  }
 
-    for (const s of stars) {
-      s.x += s.dx;
-      s.y += s.dy;
+  function renderScores() {
+    scoreXEl.textContent = scores.x;
+    scoreOEl.textContent = scores.o;
+    scoreDrawEl.textContent = scores.draw;
+  }
 
-      const dxm = s.x - mouse.x;
-      const dym = s.y - mouse.y;
-      const dist = Math.hypot(dxm, dym);
-      if (dist < 160) {
-        s.x += (dxm / dist) * 0.18;
-        s.y += (dym / dist) * 0.18;
+  function updateScoreHighlight() {
+    const xCard = document.getElementById("score-x");
+    const oCard = document.getElementById("score-o");
+    xCard.classList.toggle("active", current === X && !gameOver);
+    oCard.classList.toggle("active", current === O && !gameOver);
+  }
+
+  function renderStatus() {
+    if (gameOver) return;
+    const isCpuTurn = mode === "cpu" && current === O;
+    const name = current === X ? playerXNameEl.textContent : playerONameEl.textContent;
+    const suffix = isCpuTurn ? " is thinking…" : "'s turn";
+    statusEl.textContent = `${name} (${current})${suffix}`;
+    statusEl.classList.remove("win", "draw");
+  }
+
+  function markCell(idx) {
+    if (board[idx] !== null || gameOver) return;
+    board[idx] = current;
+    const cell = cells[idx];
+    cell.textContent = current;
+    cell.dataset.mark = current;
+    cell.classList.add("taken");
+
+    const line = findWin(board, current);
+    if (line) {
+      gameOver = true;
+      highlightWinningLine(line);
+      if (current === X) scores.x += 1;
+      else scores.o += 1;
+      renderScores();
+      statusEl.textContent = `${current === X ? playerXNameEl.textContent : playerONameEl.textContent} (${current}) wins!`;
+      statusEl.classList.add("win");
+      cells.forEach((c) => c.classList.add("disabled"));
+      return;
+    }
+
+    if (board.every((v) => v !== null)) {
+      gameOver = true;
+      scores.draw += 1;
+      renderScores();
+      statusEl.textContent = "It's a draw!";
+      statusEl.classList.add("draw");
+      return;
+    }
+
+    current = current === X ? O : X;
+    updateScoreHighlight();
+    renderStatus();
+
+    if (mode === "cpu" && current === O && !gameOver) {
+      cpuThinking = true;
+      setTimeout(cpuMove, 350);
+    }
+  }
+
+  function cpuMove() {
+    if (gameOver) return;
+    let move;
+    if (difficulty === "hard") {
+      move = bestMove(board.slice(), O);
+    } else {
+      const empties = board.map((v, i) => (v === null ? i : null)).filter((v) => v !== null);
+      move = empties.length ? empties[Math.floor(Math.random() * empties.length)] : null;
+    }
+    cpuThinking = false;
+    if (move !== null && move !== undefined) markCell(move);
+  }
+
+  function findWin(b, player) {
+    for (const [a, c, d] of WIN_LINES) {
+      if (b[a] === player && b[c] === player && b[d] === player) return [a, c, d];
+    }
+    return null;
+  }
+
+  function highlightWinningLine(line) {
+    line.forEach((idx) => cells[idx].classList.add("win-cell"));
+  }
+
+  function evaluate(b) {
+    if (findWin(b, O)) return 10;
+    if (findWin(b, X)) return -10;
+    return 0;
+  }
+
+  function minimax(b, depth, isMaximizing) {
+    const score = evaluate(b);
+    if (score === 10) return score - depth;
+    if (score === -10) return score + depth;
+    if (b.every((v) => v !== null)) return 0;
+
+    if (isMaximizing) {
+      let best = -Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (b[i] === null) {
+          b[i] = O;
+          best = Math.max(best, minimax(b, depth + 1, false));
+          b[i] = null;
+        }
       }
-
-      if (s.x < 0) s.x = canvas.width;
-      if (s.x > canvas.width) s.x = 0;
-      if (s.y < 0) s.y = canvas.height;
-      if (s.y > canvas.height) s.y = 0;
-
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(165, 180, 252, ${s.a})`;
-      ctx.fill();
-    }
-
-    if (!prefersReducedMotion) {
-      requestAnimationFrame(drawStars);
+      return best;
+    } else {
+      let best = Infinity;
+      for (let i = 0; i < 9; i++) {
+        if (b[i] === null) {
+          b[i] = X;
+          best = Math.min(best, minimax(b, depth + 1, true));
+          b[i] = null;
+        }
+      }
+      return best;
     }
   }
 
-  resizeCanvas();
-  drawStars();
-  window.addEventListener("resize", resizeCanvas);
-  window.addEventListener("mousemove", (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
-
-  /* ---------- Scroll reveal ---------- */
-  const revealEls = document.querySelectorAll(".card, .project-card, .focus-card, .section-head, .stat-row, .breakdown");
-  revealEls.forEach((el) => el.classList.add("reveal"));
-
-  const io = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add("in-view");
-          io.unobserve(entry.target);
+  function bestMove(b, player) {
+    let bestScore = -Infinity;
+    let moves = [];
+    for (let i = 0; i < 9; i++) {
+      if (b[i] === null) {
+        b[i] = player;
+        const score = minimax(b, 0, false);
+        b[i] = null;
+        if (score > bestScore) {
+          bestScore = score;
+          moves = [i];
+        } else if (score === bestScore) {
+          moves.push(i);
         }
-      });
-    },
-    { threshold: 0.12 }
-  );
-  revealEls.forEach((el) => io.observe(el));
+      }
+    }
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
 
-  /* ---------- Parallax glow on cards ---------- */
-  document.querySelectorAll(".card, .project-card, .focus-card").forEach((card) => {
-    card.addEventListener("mousemove", (e) => {
-      const rect = card.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      card.style.transform = `translateY(-6px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 4).toFixed(2)}deg)`;
+  function setMode(nextMode) {
+    mode = nextMode;
+    controlsEl.classList.toggle("cpu", mode === "cpu");
+    modeButtons.forEach((btn) => {
+      const active = btn.dataset.mode === mode;
+      btn.setAttribute("aria-pressed", String(active));
     });
-    card.addEventListener("mouseleave", () => {
-      card.style.transform = "";
+    if (mode === "cpu") {
+      playerXNameEl.textContent = "You";
+      playerONameEl.textContent = "Computer";
+    } else {
+      playerXNameEl.textContent = "Player 1";
+      playerONameEl.textContent = "Player 2";
+    }
+    resetBoard();
+  }
+
+  function setDifficulty(nextDiff) {
+    difficulty = nextDiff;
+    diffButtons.forEach((btn) => {
+      btn.setAttribute("aria-pressed", String(btn.dataset.diff === difficulty));
+    });
+    resetBoard();
+  }
+
+  cells.forEach((cell, idx) => {
+    cell.addEventListener("click", () => {
+      if (mode === "cpu" && current === O) return;
+      if (cpuThinking) return;
+      markCell(idx);
     });
   });
 
-  /* ---------- Animate contribution bars when visible ---------- */
-  const bars = document.querySelectorAll(".bar-fill");
-  const barObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.style.width = entry.target.getAttribute("style").match(/--w:\s*([^;]+)/)?.[1];
-          barObserver.unobserve(entry.target);
-        }
-      });
-    },
-    { threshold: 0.4 }
-  );
-  bars.forEach((bar) => {
-    bar.style.width = "0%";
-    barObserver.observe(bar);
-  });
+  modeButtons.forEach((btn) => btn.addEventListener("click", () => setMode(btn.dataset.mode)));
+  diffButtons.forEach((btn) => btn.addEventListener("click", () => setDifficulty(btn.dataset.diff)));
+  newGameBtn.addEventListener("click", resetBoard);
+  resetBtn.addEventListener("click", resetScores);
+
+  resetScores();
 })();

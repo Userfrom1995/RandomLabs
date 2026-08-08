@@ -3,360 +3,83 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User1995 — GitHub Portfolio</title>
-  <meta name="description" content="GitHub account summary and portfolio for Userfrom1995 — LLM and browser AI experiments, PostgreSQL ecosystem contributions, Linux/WSL tooling, and more." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%91%A8%F0%9F%8F%BB%F0%9F%92%BB%3C/text%3E%3C/svg%3E" />
-  <link rel="canonical" href="https://userfrom1995.github.io/Random/" />
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="User1995 — GitHub Portfolio" />
-  <meta property="og:description" content="A portfolio built from my GitHub activity and repositories." />
-  <meta property="og:url" content="https://userfrom1995.github.io/Random/" />
-  <meta name="twitter:card" content="summary" />
+  <title>Tic-Tac-Toe</title>
+  <meta name="description" content="A clean, responsive Tic-Tac-Toe game — play a friend or challenge the computer." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9D%8E%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body id="top">
-  <canvas id="bg-canvas" aria-hidden="true"></canvas>
-
-  <header class="site-header">
-    <a href="#top" class="logo" aria-label="Home">
-      <span class="logo-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2a10 10 0 0 0-3.16 19.48c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.58 9.58 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85V21c0 .27.18.58.69.48A10 10 0 0 0 12 2z"></path>
-        </svg>
-      </span>
-      <span class="logo-text">user<span class="accent">1995</span></span>
-    </a>
-    <nav class="site-nav" aria-label="Primary">
-      <a href="#about">About</a>
-      <a href="#projects">Projects</a>
-      <a href="#activity">Activity</a>
-      <a href="#contact">Contact</a>
-    </nav>
-    <a href="https://github.com/Userfrom1995" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">GitHub ↗</a>
-  </header>
-
-  <main>
-    <section class="hero">
-      <div class="hero-orbit" aria-hidden="true">
-        <span class="orbit orbit-1"></span>
-        <span class="orbit orbit-2"></span>
-        <span class="orbit orbit-3"></span>
-        <span class="dot dot-a"></span>
-        <span class="dot dot-b"></span>
-        <span class="dot dot-c"></span>
-        <span class="dot dot-d"></span>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <span class="logo-mark" aria-hidden="true">❎</span>
+      <div>
+        <h1>Tic<span class="accent">-</span>Tac<span class="accent">-</span>Toe</h1>
+        <p class="tagline">Three in a row wins. Ready when you are.</p>
       </div>
+    </header>
 
-      <img class="hero-avatar" src="https://avatars.githubusercontent.com/u/143902610?v=4" alt="Profile avatar" width="96" height="96" />
-
-      <span class="hero-badge">
-        <span class="pulse-dot"></span>
-        <span id="hero-role">Building &amp; experimenting on GitHub since 2023</span>
-      </span>
-
-      <h1 class="hero-title">
-        Hi, I'm <span class="gradient-text">User1995</span>.
-      </h1>
-
-      <p class="hero-sub">
-        I tinker across LLMs, in-browser machine learning, the PostgreSQL
-        ecosystem, Linux and WSL tooling, blockchain tooling, and security —
-        and I open-source most of what I build.
-      </p>
-
-      <div class="hero-actions">
-        <a href="#projects" class="btn btn-primary">Explore my projects</a>
-        <a href="#about" class="btn btn-ghost">Read my summary</a>
+    <section class="controls" aria-label="Game setup">
+      <div class="control-group">
+        <span class="control-label">Mode</span>
+        <div class="segmented" role="group" aria-label="Game mode">
+          <button class="seg-btn" data-mode="pvp" aria-pressed="true">2 Players</button>
+          <button class="seg-btn" data-mode="cpu" aria-pressed="false">vs Computer</button>
+        </div>
       </div>
-
-      <div class="stat-row">
-        <div class="stat">
-          <span class="stat-num">100</span>
-          <span class="stat-label">Public repos</span>
-        </div>
-        <div class="stat">
-          <span class="stat-num">732</span>
-          <span class="stat-label">Contributions / year</span>
-        </div>
-        <div class="stat">
-          <span class="stat-num">20</span>
-          <span class="stat-label">Stars earned</span>
-        </div>
-        <div class="stat">
-          <span class="stat-num">59+</span>
-          <span class="stat-label">Repos contributed to</span>
+      <div class="control-group cpu-only">
+        <span class="control-label">Difficulty</span>
+        <div class="segmented" role="group" aria-label="Difficulty">
+          <button class="seg-btn" data-diff="easy" aria-pressed="false">Easy</button>
+          <button class="seg-btn" data-diff="hard" aria-pressed="true">Hard</button>
         </div>
       </div>
     </section>
 
-    <section class="section" id="about">
-      <div class="section-head">
-        <span class="kicker">Account summary</span>
-        <h2>About <span class="gradient-text">this account</span></h2>
-        <p class="section-sub">A snapshot of GitHub activity, summarised.</p>
+    <section class="scoreboard" aria-label="Score">
+      <div class="score-card" id="score-x">
+        <span class="score-symbol">X</span>
+        <span class="score-name" id="player-x-name">Player 1</span>
+        <span class="score-num" id="score-x-num">0</span>
       </div>
-
-      <div class="about-grid">
-        <article class="card card-glow">
-          <div class="card-icon">👤</div>
-          <h3>Who I am</h3>
-          <p><strong>Userfrom1995</strong> (display name <strong>User1995</strong>), on GitHub since
-          <strong>September 2023</strong>. A curious developer who ships small, focused open-source
-          projects and contributes to larger ecosystems along the way.</p>
-        </article>
-        <article class="card card-glow" data-delay="1">
-          <div class="card-icon">🛠️</div>
-          <h3>What I work on</h3>
-          <p>LLM inference in the browser (WASM + WebGPU), Python developer tooling,
-          the PostgreSQL universe (<em>pgagroal</em>, <em>pgmoneta</em>, <em>pgexporter</em>),
-          and Fedora/Linux packaging and WSL tooling (<em>dnf5</em>).</p>
-        </article>
-        <article class="card card-glow" data-delay="2">
-          <div class="card-icon">📊</div>
-          <h3>My footprint</h3>
-          <p><strong>100</strong> public repositories — 12 original projects and 88 forks used to
-          explore and upstream. In the last year alone I landed <strong>732 contributions</strong>
-          across <strong>59+ repositories</strong>.</p>
-        </article>
+      <div class="score-card draws">
+        <span class="score-symbol">—</span>
+        <span class="score-name">Draws</span>
+        <span class="score-num" id="score-draw-num">0</span>
       </div>
-
-      <div class="breakdown" id="activity">
-        <div class="breakdown-head">
-          <span class="kicker">Last 12 months</span>
-          <h2>Activity <span class="gradient-text">breakdown</span></h2>
-          <p class="section-sub">How the 732 contributions break down by type.</p>
-        </div>
-
-        <div class="bar-list">
-          <div class="bar-row">
-            <span class="bar-label">Commits</span>
-            <div class="bar-track"><span class="bar-fill" style="--w: 78%"></span></div>
-            <span class="bar-pct">78%</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Pull requests</span>
-            <div class="bar-track"><span class="bar-fill bar-cyan" style="--w: 13%"></span></div>
-            <span class="bar-pct">13%</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Issues</span>
-            <div class="bar-track"><span class="bar-fill bar-green" style="--w: 7%"></span></div>
-            <span class="bar-pct">7%</span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Code review</span>
-            <div class="bar-track"><span class="bar-fill bar-amber" style="--w: 2%"></span></div>
-            <span class="bar-pct">2%</span>
-          </div>
-        </div>
-
-        <p class="breakdown-note">
-          Regular, sustained activity across projects including
-          <strong>pgagroal/pgagroal</strong>, <strong>rpm-software-management/dnf5</strong>,
-          <strong>pgmoneta</strong>, and <strong>pgexporter</strong> — most of it commits,
-          with a steady stream of pull requests and code reviews.
-        </p>
+      <div class="score-card" id="score-o">
+        <span class="score-symbol">O</span>
+        <span class="score-name" id="player-o-name">Player 2</span>
+        <span class="score-num" id="score-o-num">0</span>
       </div>
     </section>
 
-    <section class="section alt" id="projects">
-      <div class="section-head">
-        <span class="kicker">Featured work</span>
-        <h2>Selected <span class="gradient-text">projects</span></h2>
-        <p class="section-sub">Original repositories, ordered by popularity.</p>
-      </div>
-
-      <div class="projects-grid">
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 8</span>
-            <span class="pill pill-green">TypeScript</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/goku" target="_blank" rel="noopener">goku</a></h3>
-          <p>A fully client-side web app for running open-source LLMs directly in your browser. No
-          server, no backend, no data leaves your machine. Powered by wllama (llama.cpp WASM) with
-          WebGPU acceleration.</p>
-          <div class="tag-row">
-            <span class="tag">LLM</span><span class="tag">WebGPU</span><span class="tag">WASM</span><span class="tag">React</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/goku" target="_blank" rel="noopener">Repository</a>
-            <a href="https://userfrom1995.github.io/goku/" target="_blank" rel="noopener">Live demo ↗</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 4</span>
-            <span class="pill pill-green">Python</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/envon" target="_blank" rel="noopener">envon</a></h3>
-          <p>A cross-shell Python virtual environment activator that unifies the activation command
-          across all shells — one consistent workflow wherever you work.</p>
-          <div class="tag-row">
-            <span class="tag">Python</span><span class="tag">Shell</span><span class="tag">Dev tools</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/envon" target="_blank" rel="noopener">Repository</a>
-            <a href="https://pypi.org/project/envon/" target="_blank" rel="noopener">PyPI ↗</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 3</span>
-            <span class="pill pill-green">JavaScript</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/benchd" target="_blank" rel="noopener">benchd</a></h3>
-          <p>A browser-based CPU benchmark that runs fully on the client — measure raw performance
-          straight from the browser with no installs.</p>
-          <div class="tag-row">
-            <span class="tag">Benchmark</span><span class="tag">WASM</span><span class="tag">Rust</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/benchd" target="_blank" rel="noopener">Repository</a>
-            <a href="https://userfrom1995.github.io/benchd/" target="_blank" rel="noopener">Live demo ↗</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 2</span>
-            <span class="pill pill-green">Python</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/FaceSwapLive" target="_blank" rel="noopener">FaceSwapLive</a></h3>
-          <p>Instant browser-based face swapping with AI — fast, easy, fun. A self-contained,
-          easy-to-run experiment in applied computer vision.</p>
-          <div class="tag-row">
-            <span class="tag">AI</span><span class="tag">Computer vision</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/FaceSwapLive" target="_blank" rel="noopener">Repository</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 1</span>
-            <span class="pill pill-green">Shell</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/FedoraRawhide_WSL" target="_blank" rel="noopener">FedoraRawhide_WSL</a></h3>
-          <p>A weekly-built Fedora Rawhide root filesystem for WSL 2 with systemd, WSLg, and first-run
-          user setup included — always up to date.</p>
-          <div class="tag-row">
-            <span class="tag">Fedora</span><span class="tag">WSL2</span><span class="tag">Linux</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/FedoraRawhide_WSL" target="_blank" rel="noopener">Repository</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 1</span>
-            <span class="pill pill-green">C</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/DPiracy" target="_blank" rel="noopener">DPiracy</a></h3>
-          <p>A lightweight, host-based Deep Packet Inspection (DPI) tool with real-time web and
-          terminal dashboards for watching traffic on the wire.</p>
-          <div class="tag-row">
-            <span class="tag">C</span><span class="tag">DPI</span><span class="tag">Go</span><span class="tag">Networking</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/DPiracy" target="_blank" rel="noopener">Repository</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">★ 1</span>
-            <span class="pill pill-green">Python</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/ChainLens" target="_blank" rel="noopener">ChainLens</a></h3>
-          <p>A CLI tool that turns a raw Bitcoin transaction into a precise, machine-checkable JSON
-          report, plus a web visualizer for exploring the results.</p>
-          <div class="tag-row">
-            <span class="tag">Bitcoin</span><span class="tag">Blockchain</span><span class="tag">CLI</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/ChainLens" target="_blank" rel="noopener">Repository</a>
-          </div>
-        </article>
-
-        <article class="project-card">
-          <div class="project-top">
-            <span class="project-star">—</span>
-            <span class="pill pill-green">Go</span>
-          </div>
-          <h3><a href="https://github.com/Userfrom1995/go_cli" target="_blank" rel="noopener">go_cli</a></h3>
-          <p>A simple terminal copilot powered by Gemini — an AI assistant you can run right in your
-          command line.</p>
-          <div class="tag-row">
-            <span class="tag">Go</span><span class="tag">Gemini</span><span class="tag">CLI</span>
-          </div>
-          <div class="project-links">
-            <a href="https://github.com/Userfrom1995/go_cli" target="_blank" rel="noopener">Repository</a>
-          </div>
-        </article>
+    <section class="board-wrap" aria-label="Game board">
+      <div class="status" id="status" aria-live="polite">Player 1's turn (X)</div>
+      <div class="board" id="board">
+        <button class="cell" data-idx="0" aria-label="Cell 1"></button>
+        <button class="cell" data-idx="1" aria-label="Cell 2"></button>
+        <button class="cell" data-idx="2" aria-label="Cell 3"></button>
+        <button class="cell" data-idx="3" aria-label="Cell 4"></button>
+        <button class="cell" data-idx="4" aria-label="Cell 5"></button>
+        <button class="cell" data-idx="5" aria-label="Cell 6"></button>
+        <button class="cell" data-idx="6" aria-label="Cell 7"></button>
+        <button class="cell" data-idx="7" aria-label="Cell 8"></button>
+        <button class="cell" data-idx="8" aria-label="Cell 9"></button>
       </div>
     </section>
 
-    <section class="section" id="interests">
-      <div class="section-head">
-        <span class="kicker">Where I contribute</span>
-        <h2>Focus <span class="gradient-text">areas</span></h2>
-        <p class="section-sub">The ecosystems and communities this account engages with.</p>
-      </div>
-
-      <div class="focus-grid">
-        <article class="focus-card">
-          <h3>🤖 LLMs &amp; in-browser AI</h3>
-          <p>Client-side LLM inference via WASM and WebGPU — goku, wllama, llama.cpp, BitNet.</p>
-        </article>
-        <article class="focus-card">
-          <h3>🐘 PostgreSQL ecosystem</h3>
-          <p>Contributions to pgagroal, pgmoneta, and pgexporter — connection pooling, backup, monitoring.</p>
-        </article>
-        <article class="focus-card">
-          <h3>🐧 Linux &amp; WSL</h3>
-          <p>Fedora Rawhide on WSL 2, dnf5 packaging and translations, and system-level tooling.</p>
-        </article>
-        <article class="focus-card">
-          <h3>🔐 Security &amp; networking</h3>
-          <p>DPI traffic analysis, malformed-traffic detection, and crypto/OpenSSL explorations.</p>
-        </article>
-        <article class="focus-card">
-          <h3>⛓️ Blockchain tooling</h3>
-          <p>Bitcoin transaction analysis with ChainLens and TON smart-contract experimentation.</p>
-        </article>
-        <article class="focus-card">
-          <h3>🧠 Data &amp; ML experiments</h3>
-          <p>Notebooks and small models for learning, prediction, and subtitle generation.</p>
-        </article>
-      </div>
+    <section class="actions">
+      <button class="btn btn-primary" id="new-game">New Game</button>
+      <button class="btn btn-ghost" id="reset-scores">Reset Scores</button>
     </section>
 
-    <section class="section" id="contact">
-      <div class="cta">
-        <div class="cta-glow" aria-hidden="true"></div>
-        <h2>Let's connect</h2>
-        <p>Follow my work on GitHub, or reach out on X (Twitter). I love talking about open source,
-        LLMs, and tooling that makes development feel effortless.</p>
-        <div class="hero-actions">
-          <a href="https://github.com/Userfrom1995" target="_blank" rel="noopener" class="btn btn-primary">View GitHub profile</a>
-          <a href="https://twitter.com/Userfrom1995" target="_blank" rel="noopener" class="btn btn-ghost">X / Twitter</a>
-        </div>
-      </div>
-    </section>
+    <footer class="site-footer">
+      <p>Built with plain HTML, CSS &amp; JavaScript — no dependencies.</p>
+    </footer>
   </main>
-
-  <footer class="site-footer">
-    <p>Built from real GitHub activity · <a href="https://github.com/Userfrom1995/Random" target="_blank" rel="noopener">Source</a> · <a href="#top">Back to top ↑</a></p>
-    <p class="footer-note">© 2026 User1995 · Static site — no build step required.</p>
-  </footer>
 
   <script src="script.js"></script>
 </body>

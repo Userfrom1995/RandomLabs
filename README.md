@@ -1,26 +1,28 @@
-# GitHub Portfolio
+# Tic-Tac-Toe
 
-A static portfolio site built from my GitHub account activity and repositories — a summary of the account, selected projects, contribution breakdown, and focus areas.
+A clean, responsive Tic-Tac-Toe game built with plain HTML, CSS, and JavaScript — no dependencies, no build step. Play a friend on the same device or challenge the computer.
 
-## What's Here
+## How to Play
 
-The site is plain HTML/CSS/JS with no build step — just open `index.html` or host it anywhere.
+Open `index.html` in a browser or host the repo on GitHub Pages. Click any empty cell to place your mark. Get three in a row (horizontal, vertical, or diagonal) to win.
 
-- `index.html` — Portfolio markup and copy
-- `styles.css` — Styling, layout, and animations (starfield, orbit rings, scroll reveals, glassy dark UI)
-- `script.js` — Background animation, scroll reveal, contribution-bar animation, card tilt
+## Features
 
-## Content Highlights
+- **Two modes** — 2-player (pass-and-play) or single-player against the computer
+- **Difficulty levels** — *Easy* (random moves) or *Hard* (unbeatable minimax AI)
+- **Scoreboard** — tracks wins for each player and draws across the session
+- **Status bar** — shows whose turn it is, announces wins and draws
+- **Winning line highlight** — the three winning cells light up
+- **Responsive** — works great on desktop and mobile
 
-- **Account summary** — identity, join date, repo counts, and yearly contribution totals
-- **Selected projects** — original repositories such as `goku`, `envon`, `benchd`, and more
-- **Activity breakdown** — how the past year's contributions split across commits, pull requests, issues, and code review
-- **Focus areas** — LLMs/in-browser AI, the PostgreSQL ecosystem, Linux/WSL tooling, security, and blockchain
+## Files
 
-The site is deployed to GitHub Pages via `.github/workflows/pages.yml`, which also publishes a preview for every open PR.
+- `index.html` — Game markup
+- `styles.css` — Styling and layout (dark, glassy theme)
+- `script.js` — Game logic: state, win detection, scoring, and the minimax AI
 
 ## Automation
 
+- `.github/workflows/pages.yml` — Deploys the game to GitHub Pages (production plus PR previews)
 - `.github/workflows/opencode.yml` — Runs an opencode coding agent in GitHub Actions
-- `.github/workflows/pages.yml` — Deploys the static site to GitHub Pages (production plus PR previews)
 - `AGENTS.md` — Instructions that tell coding agents how to behave in this repo (branch + PR workflow)
