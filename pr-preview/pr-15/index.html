@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tic-Tac-Toe</title>
+  <meta name="description" content="A clean, responsive Tic-Tac-Toe game — play a friend or challenge the computer." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9D%8E%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="app-header">
+      <span class="logo-mark" aria-hidden="true">❎</span>
+      <div>
+        <h1>Tic<span class="accent">-</span>Tac<span class="accent">-</span>Toe</h1>
+        <p class="tagline">Three in a row wins. Ready when you are.</p>
+      </div>
+    </header>
+
+    <section class="controls" aria-label="Game setup">
+      <div class="control-group">
+        <span class="control-label">Mode</span>
+        <div class="segmented" role="group" aria-label="Game mode">
+          <button class="seg-btn" data-mode="pvp" aria-pressed="true">2 Players</button>
+          <button class="seg-btn" data-mode="cpu" aria-pressed="false">vs Computer</button>
+        </div>
+      </div>
+      <div class="control-group cpu-only">
+        <span class="control-label">Difficulty</span>
+        <div class="segmented" role="group" aria-label="Difficulty">
+          <button class="seg-btn" data-diff="easy" aria-pressed="false">Easy</button>
+          <button class="seg-btn" data-diff="hard" aria-pressed="true">Hard</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="scoreboard" aria-label="Score">
+      <div class="score-card" id="score-x">
+        <span class="score-symbol">X</span>
+        <span class="score-name" id="player-x-name">Player 1</span>
+        <span class="score-num" id="score-x-num">0</span>
+      </div>
+      <div class="score-card draws">
+        <span class="score-symbol">—</span>
+        <span class="score-name">Draws</span>
+        <span class="score-num" id="score-draw-num">0</span>
+      </div>
+      <div class="score-card" id="score-o">
+        <span class="score-symbol">O</span>
+        <span class="score-name" id="player-o-name">Player 2</span>
+        <span class="score-num" id="score-o-num">0</span>
+      </div>
+    </section>
+
+    <section class="board-wrap" aria-label="Game board">
+      <div class="status" id="status" aria-live="polite">Player 1's turn (X)</div>
+      <div class="board" id="board">
+        <button class="cell" data-idx="0" aria-label="Cell 1"></button>
+        <button class="cell" data-idx="1" aria-label="Cell 2"></button>
+        <button class="cell" data-idx="2" aria-label="Cell 3"></button>
+        <button class="cell" data-idx="3" aria-label="Cell 4"></button>
+        <button class="cell" data-idx="4" aria-label="Cell 5"></button>
+        <button class="cell" data-idx="5" aria-label="Cell 6"></button>
+        <button class="cell" data-idx="6" aria-label="Cell 7"></button>
+        <button class="cell" data-idx="7" aria-label="Cell 8"></button>
+        <button class="cell" data-idx="8" aria-label="Cell 9"></button>
+      </div>
+    </section>
+
+    <section class="actions">
+      <button class="btn btn-primary" id="new-game">New Game</button>
+      <button class="btn btn-ghost" id="reset-scores">Reset Scores</button>
+    </section>
+
+    <footer class="site-footer">
+      <p>Built with plain HTML, CSS &amp; JavaScript — no dependencies.</p>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
