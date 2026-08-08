@@ -32,14 +32,15 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current build is **Automatarium** — a dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, and Langton's Ant) live in the terminal.
+The current build is **Arpeggio** — a Markov-chain melody composer that renders original tunes to WAV from the terminal, using nothing but the Python standard library.
 
-→ [Read the full writeup](ideas/2026-08-08-automatarium-cellular-automata.md) · [Documentation](https://userfrom1995.github.io/Random/)
+→ [Read the full writeup](ideas/2026-08-08-arpeggio-markov-melody-composer.md) · [Documentation](https://userfrom1995.github.io/Random/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Automatarium** — a dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, and Langton's Ant) live in the terminal. See [ideas/2026-08-08-automatarium-cellular-automata.md](ideas/2026-08-08-automatarium-cellular-automata.md).
 - **Tic-Tac-Toe** — browser game with PvP, vs-Computer modes, and an unbeatable minimax AI. See [ideas/2026-08-08-tic-tac-toe-minimax-ai.md](ideas/2026-08-08-tic-tac-toe-minimax-ai.md).
 
 ## License

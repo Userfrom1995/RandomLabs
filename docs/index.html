@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Automatarium — Terminal Cellular Automata Playground</title>
-<meta name="description" content="Automatarium: a dependency-free Python CLI that renders Rule 30, Conway's Game of Life, and Langton's Ant live in the terminal." />
+<title>Arpeggio — Markov-Chain Melody Composer</title>
+<meta name="description" content="Arpeggio: a dependency-free Python CLI that composes original music with a Markov chain and renders it straight to a WAV file." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -32,7 +32,7 @@
     background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
   }
   header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; }
-  header.hero p { margin: 0 auto; max-width: 620px; color: var(--muted); font-size: 1.05rem; }
+  header.hero p { margin: 0 auto; max-width: 640px; color: var(--muted); font-size: 1.05rem; }
   main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
   h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
   h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
@@ -97,156 +97,157 @@
 </head>
 <body>
 <header class="hero">
-  <h1>Automatarium</h1>
-  <p>A small, dependency-free Python CLI that renders classic cellular automata
-  live in your terminal — nothing but frames and the Python standard library.</p>
+  <h1>Arpeggio</h1>
+  <p>A small, dependency-free Python CLI that composes original music with a
+  Markov chain and renders it straight to a WAV file — nothing but the Python
+  standard library.</p>
 </header>
 
 <main>
   <section class="cards">
     <div class="card">
-      <h4>Elementary rules</h4>
-      <p><code>--rule 30</code> — any Wolfram rule <code>0–255</code> (<code>90</code>, <code>110</code>, …) as a scrolling 1D history.</p>
+      <h4>Markov-chain harmony</h4>
+      <p>A weighted Markov chain walks classic progressions (I-V-vi-IV, ii-V-I, …), so every piece is fresh but always tonal.</p>
     </div>
     <div class="card">
-      <h4>Game of Life</h4>
-      <p><code>--rule life</code> — Conway's classic on a toroidal grid, with reproducible random seeding.</p>
+      <h4>Chord-bound melodies</h4>
+      <p>Each bar is arpeggiated from its own chord, so every note belongs to the current harmony.</p>
     </div>
     <div class="card">
-      <h4>Langton's Ant</h4>
-      <p><code>--rule ant</code> — one ant painting a trail that self-organises into a highway.</p>
+      <h4>Digital synthesis</h4>
+      <p>Sine/triangle oscillators, an attack-decay envelope, an optional octave-up harmonic, mixed to mono 16-bit WAV.</p>
     </div>
   </section>
 
-  <div class="term">$ python3 -m automatarium --rule 30<br>Rule 30 | generation 42 | 80x40</div>
+  <div class="term">$ python3 -m arpeggio --key F --scale minor --bpm 90 --preview<br>bar 1/8&nbsp;&nbsp;F&nbsp;&nbsp;&nbsp;(i&nbsp;&nbsp;&nbsp;&nbsp;)&nbsp;&nbsp;&nbsp;[F G# C]<br>bar 2/8&nbsp;&nbsp;C#&nbsp;&nbsp;(VI&nbsp;&nbsp;&nbsp;)&nbsp;&nbsp;&nbsp;[C# F G#]<br>arpeggio: wrote 'arpeggio.wav': key=F, scale=minor, 8 bars, 64 notes, 21.3s</div>
 
   <h2>Requirements</h2>
-  <p>Python 3.8 or newer. No external packages. A UTF-8 capable terminal is
-  recommended for the default <code>█</code> glyph; plain ASCII terminals can
-  use <code>--alive #</code>.</p>
+  <p>Python 3.8 or newer. Nothing else — no external packages, no audio
+  assets, no network.</p>
 
   <h2>Quick start</h2>
-  <pre><code># Rule 30 scrolling animation (default)
-python3 -m automatarium
+  <pre><code># Compose an 8-bar tune in C major and write arpeggio.wav
+python3 -m arpeggio
 
-# Conway's Game of Life, reproducible random grid
-python3 -m automatarium --rule life --seed 42
+# A slower, darker tune in F minor, preview the progression
+python3 -m arpeggio --key F --scale minor --bpm 90 --preview
 
-# Langton's Ant, 5000 generations, fast-forwarded
-python3 -m automatarium --rule ant --steps 5000 --fps 60
+# A longer piece with a named output
+python3 -m arpeggio --bars 16 --seed 42 --output my_tune.wav
 
-# Capture a fixed number of generations to a file
-python3 -m automatarium --rule 30 --width 160 --height 80 --steps 80 &gt; rule30.txt</code></pre>
-  <p>Press <code>Ctrl-C</code> to stop an animated run. The single file also runs
-  directly: <code>python3 automatarium/automatarium.py --rule life</code>.
+# Warmer sound with a triangle wave and a harmonic, capped at 30s
+python3 -m arpeggio --wave triangle --harmonic --duration 30</code></pre>
+  <p>The single file also runs directly:
+  <code>python3 arpeggio/arpeggio.py --key Db --seed 7</code>.
   <code>--help</code> prints the full reference with examples.</p>
 
   <h2>Configuration options</h2>
   <table>
     <tr><th>Option</th><th>Default</th><th>Description</th></tr>
-    <tr><td><code>--rule RULE</code></td><td><code>30</code></td><td>Elementary rule number <code>0–255</code>, <code>life</code>, or <code>ant</code>. Aliases like <code>gol</code>, <code>langton</code>, <code>rule90</code> accepted.</td></tr>
-    <tr><td><code>--width N</code></td><td><code>80</code></td><td>Grid width in cells, 1–1000.</td></tr>
-    <tr><td><code>--height N</code></td><td><code>40</code></td><td>Grid height in cells, 1–1000.</td></tr>
-    <tr><td><code>--fps N</code></td><td><code>10</code></td><td>Frames per second while animating.</td></tr>
-    <tr><td><code>--steps N</code></td><td><em>forever</em></td><td>Run exactly N generations then exit. <code>--steps 0</code> prints only the initial grid.</td></tr>
+    <tr><td><code>--key KEY</code></td><td><code>C</code></td><td>Root note of the key: <code>C</code>, <code>F#</code>, <code>Db</code>, <code>Bb</code>, any note name.</td></tr>
+    <tr><td><code>--scale SCALE</code></td><td><code>major</code></td><td><code>major</code>, <code>minor</code>, or <code>pentatonic</code> (aliases: <code>maj</code>, <code>min</code>, <code>penta</code>).</td></tr>
+    <tr><td><code>--bpm N</code></td><td><code>120</code></td><td>Tempo in beats per minute (1–400).</td></tr>
+    <tr><td><code>--bars N</code></td><td><code>8</code></td><td>Number of 4/4 measures (1–128).</td></tr>
+    <tr><td><code>--notes-per-bar N</code></td><td><code>8</code></td><td>Arpeggio grid density per bar (1–64); patterns tile to fill the slots.</td></tr>
+    <tr><td><code>--wave WAVE</code></td><td><code>sine</code></td><td>Oscillator shape: <code>sine</code> or <code>triangle</code>.</td></tr>
+    <tr><td><code>--harmonic</code></td><td>off</td><td>Add an octave-up harmonic at lower amplitude for warmth.</td></tr>
     <tr><td><code>--seed N</code></td><td><em>random</em></td><td>Reproducible randomness; the chosen seed is printed to stderr when random.</td></tr>
-    <tr><td><code>--density F</code></td><td>per rule</td><td>Initial probability a cell is alive, 0.0–1.0. Defaults: 0.5 elementary, 0.4 life, 0.0 ant.</td></tr>
-    <tr><td><code>--alive CH</code></td><td><code>█</code></td><td>Glyph for a live cell.</td></tr>
-    <tr><td><code>--dead CH</code></td><td><code>space</code></td><td>Glyph for a dead cell.</td></tr>
-    <tr><td><code>--ant CH</code></td><td><code>@</code></td><td>Glyph marking Langton's ant.</td></tr>
-    <tr><td><code>--version</code></td><td></td><td>Print version and exit.</td></tr>
+    <tr><td><code>--duration SEC</code></td><td><em>none</em></td><td>Cap output at SEC seconds (0–300); the piece is truncated to whole bars.</td></tr>
+    <tr><td><code>--preview</code></td><td>off</td><td>Print each chord of the progression as it is composed.</td></tr>
+    <tr><td><code>--output FILE</code>, <code>-o</code></td><td><code>arpeggio.wav</code></td><td>Output WAV file path.</td></tr>
+    <tr><td><code>--version</code></td><td></td><td>Print the version and exit.</td></tr>
   </table>
 
   <h3>Examples</h3>
-  <pre><code># A wide, tall Rule 30 "triangle" dumped to a file
-python3 -m automatarium --rule 30 --width 240 --height 120 --steps 120 &gt; rule30.txt
+  <pre><code># A gentle 12-bar tune in G major at 100 bpm
+python3 -m arpeggio --key G --bpm 100 --bars 12
 
-# Game of Life on a small grid at a lazy 4 fps
-python3 -m automatarium --rule life --width 50 --height 30 --fps 4
+# A haunting A minor piece with a dense 16th-note grid
+python3 -m arpeggio --key A --scale minor --notes-per-bar 16 --harmonic
 
-# Rule 110 (universal) with a custom live-cell glyph
-python3 -m automatarium --rule rule110 --alive '#'
+# A bright C pentatonic tune with a triangle wave
+python3 -m arpeggio --key C --scale pentatonic --wave triangle --bars 16
 
-# A 2-second splash of the ant with an explicit seed
-python3 -m automatarium --rule ant --seed 7 --steps 60 --fps 30</code></pre>
+# A bounded render for a podcast sting (whole bars only, &lt;= 10s)
+python3 -m arpeggio --duration 10 --seed 2024 --output sting.wav</code></pre>
 
-  <h2>Interactive vs captured output</h2>
-  <p><strong>Terminal (stdout is a TTY):</strong> the automaton animates at
-  <code>--fps</code>. The screen is cleared and redrawn each generation; the
-  cursor is hidden during the run and restored afterwards. If the grid is
-  wider or taller than the terminal, a warning is printed to stderr with a
-  suggested size.</p>
-  <p><strong>Piped / redirected stdout:</strong> every generation is printed
-  once, separated by a blank line and preceded by a header line. The
-  per-frame delay is skipped in this mode, so large <code>--steps</code> runs
-  finish almost instantly and are easy to grep, diff, or replay.</p>
-  <p>When <code>--seed</code> is omitted, the seed actually used is written
-  to stderr so any run can be replayed exactly.</p>
+  <h2>How it works</h2>
+  <h3>1. Compose</h3>
+  <p>The key's scale provides diatonic triads built by stacking every other
+  scale tone. A weighted Markov chain is derived from a table of classic
+  progressions — each progression contributes its chord transitions at its
+  weight. The chain is walked for <code>--bars</code> steps, and any chord
+  that could be reached but has no outgoing transition resolves to the tonic,
+  so the chain never dead-ends.</p>
+  <h3>2. Arpeggiate</h3>
+  <p>Each bar picks an arpeggio pattern (root-3rd-5th-3rd, full ascending,
+  descending, and more) that tiles across the <code>--notes-per-bar</code>
+  grid. Pattern index 3 is the root one octave up, letting ascending patterns
+  span two octaves.</p>
+  <h3>3. Synthesize</h3>
+  <p>Every note is a sine or triangle oscillator shaped by a fast attack and
+  an exponential decay (with a final fade to avoid clicks). The optional
+  <code>--harmonic</code> adds a quieter octave-up partial. All notes are
+  summed into a mono mix, normalized to a safe peak, and written as 16-bit
+  PCM WAV at 44.1 kHz.</p>
 
-  <h2>How each automaton works</h2>
-  <h3>Elementary cellular automata</h3>
-  <p>One-dimensional rules from Stephen Wolfram's "elementary" class. Each
-  cell's next state is a function of itself and its two neighbours — an
-  8-state lookup table encoded by the rule number. Rule 30 is the classic
-  chaos generator; Rule 110 is Turing-complete; Rule 90 draws a Sierpinski
-  triangle.</p>
-  <p>The display is a <strong>rolling window</strong> <code>--height</code>
-  rows tall: each generation is appended at the bottom and the oldest row
-  scrolls off the top, so long runs never overflow the screen. To capture a
-  full history, set <code>--height</code> to at least your
-  <code>--steps</code> count. Borders are treated as permanently dead.</p>
-  <h3>Conway's Game of Life</h3>
-  <p>A live cell survives with 2 or 3 live neighbours; a dead cell is born
-  with exactly 3. The grid wraps at every edge (<strong>toroidal</strong>),
-  eliminating edge artifacts. The initial grid is a random fill controlled by
-  <code>--seed</code> and <code>--density</code>.</p>
-  <h3>Langton's Ant</h3>
-  <p>One ant starts at the centre facing north. On a dead (white) cell it
-  turns right and paints the cell alive (black); on a live (black) cell it
-  turns left and paints it dead. The ant's position is drawn with
-  <code>--ant</code>. On an all-white grid the trail is chaotic for a few
-  hundred steps, then locks into a repeating highway. The grid wraps at the
-  edges.</p>
+  <h2>Reproducibility</h2>
+  <p>All randomness flows through a single <code>random.Random</code> seeded
+  by <code>--seed</code>. The same seed, key, scale, and parameters always
+  produce byte-identical WAV files:</p>
+  <pre><code>python3 -m arpeggio --seed 42 --output one.wav
+python3 -m arpeggio --seed 42 --output two.wav
+cmp one.wav two.wav   # identical</code></pre>
+  <p>When no seed is given, the one actually used is printed to stderr, e.g.
+  <code>arpeggio: seed = 1234567890 (pass --seed 1234567890 to replay)</code>.</p>
+
+  <h2>Exit codes</h2>
+  <table>
+    <tr><th>Code</th><th>Meaning</th></tr>
+    <tr><td><code>0</code></td><td>Success.</td></tr>
+    <tr><td><code>1</code></td><td>Could not write the output file.</td></tr>
+    <tr><td><code>2</code></td><td>Invalid command-line arguments (argparse).</td></tr>
+  </table>
 
   <h2>Project layout</h2>
-  <pre><code>automatarium/
-  automatarium.py     # the whole CLI — three automata + driver
-  __main__.py         # enables `python -m automatarium`
+  <pre><code>arpeggio/
+  arpeggio.py         # the whole CLI — composition, synthesis, WAV output
+  __main__.py         # enables `python -m arpeggio`
   __init__.py         # package marker
   README.md           # tool-specific usage guide
   tests/
-    test_automatarium.py
+    test_arpeggio.py
 docs/
   index.md            # this page (source)
   index.html          # rendered documentation page
 ideas/
-  2026-08-08-automatarium-cellular-automata.md</code></pre>
+  2026-08-08-arpeggio-markov-melody-composer.md</code></pre>
 
   <h2>Development</h2>
-  <pre><code>python3 -m unittest discover -s automatarium/tests</code></pre>
-  <p>The suite covers rule parsing and validation, the Rule 30 transition
-  table, Life's blinker and block patterns, the ant's 4-step return symmetry,
-  seed reproducibility, capture-mode framing, and CLI error handling.</p>
+  <pre><code>python3 -m unittest discover -s arpeggio/tests</code></pre>
+  <p>The 45 tests cover note parsing and frequency math, diatonic triad
+  construction, Markov-chain validity and reproducibility, synthesis waveform
+  and envelope behavior, WAV header correctness, and CLI error handling.</p>
 
   <h2>Design notes</h2>
   <ul>
     <li><strong>Single file, zero dependencies</strong> — the whole CLI is one
-    Python module using only <code>argparse</code>, <code>random</code>,
-    <code>shutil</code>, <code>sys</code>, <code>time</code>, and
+    Python module using only <code>argparse</code>, <code>math</code>,
+    <code>random</code>, <code>wave</code>, <code>array</code>, and
     <code>typing</code>.</li>
-    <li><strong>One interface, three automata</strong> — every automaton
-    exposes the same <code>step()</code> / <code>render()</code> /
-    <code>name</code> contract, so the animation driver is shared.</li>
-    <li><strong>Determinism</strong> — every random draw goes through a
-    <code>random.Random</code> instance seeded by <code>--seed</code>, so a
-    given seed always reproduces the exact same frames.</li>
-    <li><strong>Bounded display</strong> — scrolling windows keep memory and
-    screen usage constant regardless of run length.</li>
+    <li><strong>Data-driven harmony</strong> — progressions and arpeggio
+    patterns are plain tables, so extending the musical vocabulary is a
+    one-line change.</li>
+    <li><strong>Determinism</strong> — every random draw goes through a single
+    seeded <code>random.Random</code>, so a given seed always reproduces the
+    exact same file.</li>
+    <li><strong>Bounded output</strong> — <code>--duration</code> and an
+    internal cap keep generated files small and predictable.</li>
   </ul>
 
   <p><a href="index.md">Read the markdown source of this page</a>.</p>
 </main>
 
-<footer>Automatarium · part of the Random repository · MIT License</footer>
+<footer>Arpeggio · part of the Random repository · MIT License</footer>
 </body>
 </html>
