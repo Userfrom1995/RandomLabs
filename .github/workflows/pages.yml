@@ -35,10 +35,24 @@ jobs:
         with:
           enablement: true
 
-      - name: Stage production site
+      - name: Stage site
         run: |
           mkdir -p _site
-          cp index.html styles.css script.js _site/
+          # If docs/ exists, deploy it (non-static projects)
+          if [ -d "docs" ]; then
+            cp -r docs/* _site/
+          fi
+          # If static web app files exist at root, deploy them
+          if [ -f "index.html" ]; then
+            cp index.html _site/
+            [ -f "styles.css" ] && cp styles.css _site/
+            [ -f "script.js" ] && cp script.js _site/
+          fi
+          # Always include docs/ subfolder if both app and docs exist
+          if [ -d "docs" ] && [ -f "index.html" ]; then
+            mkdir -p _site/docs
+            cp -r docs/* _site/docs/
+          fi
 
       - name: Stage PR previews
         env:
@@ -52,8 +66,8 @@ jobs:
             fi
             echo "Staging preview for PR #$pr"
             mkdir -p "_site/preview/pr-$pr"
-            if ! git archive pr-$pr index.html styles.css script.js | tar -x -C "_site/preview/pr-$pr"; then
-              echo "Skipping PR #$pr (missing site files)"
+            if ! git archive pr-$pr index.html styles.css script.js docs/ 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
+              echo "Skipping PR #$pr (could not archive)"
             fi
           done
 
