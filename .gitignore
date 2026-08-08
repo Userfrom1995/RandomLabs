@@ -11,6 +11,9 @@ build/
 dist/
 *.egg-info/
 
+# Generated audio
+*.wav
+
 # Editors & OS
 .vscode/
 .idea/
