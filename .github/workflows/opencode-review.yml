@@ -3,27 +3,41 @@ name: opencode-review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
 
 concurrency:
-  group: opencode-review-${{ github.event.pull_request.number }}
+  group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc review'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
       issues: read
     steps:
+      - name: Get PR info
+        if: github.event_name == 'issue_comment'
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_ref=$(gh pr view "$pr" --json headRefName --jq '.headRefName')
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository (PR head)
         uses: actions/checkout@v6
         with:
           persist-credentials: true
           token: ${{ secrets.OPENCODE_PAT }}
-          ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           fetch-depth: 0
 
       - name: Configure git identity
@@ -35,16 +49,16 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
         with:
           model: opencode/nemotron-3-ultra-free
           use_github_token: true
           prompt: |
             You are the reviewer in a two-model review loop. You never write code. Review this pull request for correctness, code quality, security, and whether it fully resolves its linked issue (look for "Closes #N" references in the PR body).
 
-            - If the changes meet the standards and any findings from your previous review round have been addressed: approve by merging the pull request. The "Closes #N" reference will close the linked issue automatically on merge.
+            - If the changes meet the standards and any findings from your previous review round have been addressed: approve by rebasing the pull request onto main using `gh pr rebase --delete-branch`. The "Closes #N" reference will close the linked issue automatically on merge.
             - If changes are needed: do NOT modify any code. Instead, post a single issue comment on the pull request whose body starts with "/oc" and lists the required fixes precisely, e.g. "/oc fix the review feedback: <finding 1>; <finding 2>". The implementer workflow reacts to that comment, fixes the branch, and pushes, which re-triggers this review.
-            - To avoid infinite loops: if only trivial or stylistic issues remain, merge instead of requesting another round.
+            - To avoid infinite loops: if only trivial or stylistic issues remain, rebase instead of requesting another round.
             - Never create new branches or new pull requests.
 
       - name: Re-post /oc comment with PAT
@@ -52,12 +66,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          pr="${{ github.event.pull_request.number }}"
-          latest_comment=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select(.user.login == "github-actions[bot]")] | last | .body' 2>/dev/null || true)
-          if [ -n "$latest_comment" ] && echo "$latest_comment" | grep -q '^/oc'; then
-            echo "Re-posting /oc comment with PAT"
-            gh api "repos/${{ github.repository }}/issues/${pr}/comments" -f body="$latest_comment"
-          else
+          pr="${{ github.event.pull_request.number || github.event.issue.number }}"
+          bot_oc=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("/oc")))] | last | .body' 2>/dev/null || true)
+          if [ -z "$bot_oc" ]; then
             echo "No /oc comment found from github-actions[bot]"
+            exit 0
           fi
+          existing=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
+            --jq '[.[] | select(.user.login != "github-actions[bot]" and (.body | startswith("/oc")))] | length' 2>/dev/null || echo "0")
+          if [ "$existing" -gt 0 ]; then
+            echo "User /oc comment already exists, skipping"
+            exit 0
+          fi
+          echo "Re-posting /oc comment with PAT"
+          gh api "repos/${{ github.repository }}/issues/${pr}/comments" -f body="$bot_oc"
