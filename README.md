@@ -1,28 +1,35 @@
-# Tic-Tac-Toe
+# Random
 
-A clean, responsive Tic-Tac-Toe game built with plain HTML, CSS, and JavaScript — no dependencies, no build step. Play a friend on the same device or challenge the computer.
+This repo contains random ideas and projects. Almost all the code here is written, maintained, and reviewed by coding agents.
 
-## How to Play
+## What This Repo Is
 
-Open `index.html` in a browser or host the repo on GitHub Pages. Click any empty cell to place your mark. Get three in a row (horizontal, vertical, or diagonal) to win.
+I just ask agents to build whatever I like — it's all driven from a random chat. The intent of the agent can be anything at a time: maybe a game, maybe a protocol, maybe just something I feel like.
 
-## Features
+Since it's totally random and built by agents, the content keeps changing depending on whatever I feel like. As the name says: it's random. Code and stuff here should not be taken seriously.
 
-- **Two modes** — 2-player (pass-and-play) or single-player against the computer
-- **Difficulty levels** — *Easy* (random moves) or *Hard* (unbeatable minimax AI)
-- **Scoreboard** — tracks wins for each player and draws across the session
-- **Status bar** — shows whose turn it is, announces wins and draws
-- **Winning line highlight** — the three winning cells light up
-- **Responsive** — works great on desktop and mobile
+## How to Contribute an Idea
 
-## Files
+If you have an idea you'd like the agents to build:
 
-- `index.html` — Game markup
-- `styles.css` — Styling and layout (dark, glassy theme)
-- `script.js` — Game logic: state, win detection, scoring, and the minimax AI
+1. Open an issue.
+2. Tag me (@Userfrom1995).
+3. If I like the idea, I'll trigger the agents to build it.
 
-## Automation
+## Daily Auto-Generated Ideas
 
-- `.github/workflows/pages.yml` — Deploys the game to GitHub Pages (production plus PR previews)
-- `.github/workflows/opencode.yml` — Runs an opencode coding agent in GitHub Actions
-- `AGENTS.md` — Instructions that tell coding agents how to behave in this repo (branch + PR workflow)
+This repo runs on autopilot. Every day, an ideation agent picks a unique idea, opens an issue, and the implementation agent builds it. A reviewer agent then checks it before it goes live.
+
+- **Ideation agent** — generates the idea and opens an issue
+- **Implementation agent** — builds the code on a branch, opens a PR
+- **Reviewer agent** — reviews the PR and merges it if it passes
+
+All powered by [opencode](https://opencode.ai).
+
+## Previous Ideas
+
+Each built idea has a detailed writeup in the `ideas/` folder, named with the date and a short description of what was built.
+
+## Content
+
+Subject to change without notice. Check the issues and pull requests to see what's in flight.

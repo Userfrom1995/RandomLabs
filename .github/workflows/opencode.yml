@@ -50,3 +50,5 @@ jobs:
             4. PR DESCRIPTION: Include what was changed, why, and "Closes #<new-issue-number>".
 
             5. SCOPE: Only change what the task requires. No unrelated modifications.
+
+            6. IDEAS ENTRY: After building, create `ideas/YYYY-MM-DD-short-keyword-description.md` in the repo root. This is a detailed writeup of what was built, why, how it works, key files, and any notes. Use a descriptive filename with dashes as separators (e.g., `2026-08-08-tic-tac-toe-minimax-ai.md`). Include this file in the same PR.
