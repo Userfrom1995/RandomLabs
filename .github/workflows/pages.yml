@@ -52,6 +52,11 @@ jobs:
             # Non-web project without a landing page: docs are the main page
             cp -r docs/* _site/
           fi
+          # Standalone static web apps (game directories) are served from /<name>/
+          if [ -d "rush" ]; then
+            cp -r rush _site/rush
+            rm -f _site/rush/logic.test.js _site/rush/README.md
+          fi
           # Fallback if nothing was staged
           if [ -z "$(ls -A _site)" ]; then
             echo "<h1>No site content yet</h1><p>This repo currently has no deployable web content.</p>" > _site/index.html
@@ -69,13 +74,28 @@ jobs:
             fi
             echo "Staging preview for PR #$pr"
             mkdir -p "_site/preview/pr-$pr"
-            if ! git archive pr-$pr index.html styles.css script.js docs/ 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
+            # Only archive paths that exist in the PR's tree, so a preview is
+            # still staged when a project ships no root styles.css/script.js
+            # (git archive aborts entirely on a missing pathspec otherwise).
+            paths=""
+            for p in index.html styles.css script.js docs; do
+              if git rev-parse --verify "pr-$pr:$p" >/dev/null 2>&1; then paths="$paths $p"; fi
+            done
+            if [ -z "$paths" ]; then
+              echo "Skipping PR #$pr (no site content)"
+              continue
+            fi
+            if ! git archive pr-$pr $paths 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
               echo "Skipping PR #$pr (could not archive)"
               continue
             fi
             # Pure-docs PRs: promote docs/ to the preview root so the advertised URL serves a page
             if [ ! -f "_site/preview/pr-$pr/index.html" ] && [ -f "_site/preview/pr-$pr/docs/index.html" ]; then
               cp -r "_site/preview/pr-$pr/docs/." "_site/preview/pr-$pr/"
+            fi
+            # Optional: stage a web-app game directory into the preview if the PR has one
+            if git archive pr-$pr rush/ 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
+              rm -f "_site/preview/pr-$pr/rush/logic.test.js" "_site/preview/pr-$pr/rush/README.md"
             fi
           done
 

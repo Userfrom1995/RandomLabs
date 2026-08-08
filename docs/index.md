@@ -1,210 +1,172 @@
-# Rotoria — Terminal Enigma Machine Cipher Simulator
+# Redline Rush — Top-Down Arcade Car Racing
 
-**Rotoria** is a small, dependency-free Python CLI that simulates a WWII
-Enigma cipher machine. It reproduces the historical machine's rotor stepping
-(including the famous "double-stepping" of the middle rotor), the plugboard
-(stecker), ring settings, and reflectors, letting you encrypt and decrypt
-messages and visualize the internal wiring path of every letter. It runs on
-nothing but the Python standard library — no external packages, no assets.
+**Redline Rush** is a polished, dependency-free browser racing game: you steer
+a car up a four-lane road at ever-increasing speed, dodge oncoming traffic,
+and keep the tank from running dry by scooping up fuel cans. Everything —
+graphics, audio, input, scoring — is plain HTML5 Canvas 2D, the Web Audio
+API, and vanilla JavaScript. No frameworks, no CDNs, no build step: it runs
+offline from a single folder and plays in any modern browser.
 
-- **Historically accurate stepping** — the rightmost rotor steps every
-  keypress; the middle rotor is carried along at the right rotor's notch; the
-  leftmost rotor steps when the middle rotor hits its own notch, producing the
-  real Enigma "double-step". Verified step-for-step against the reference
-  implementation across hundreds of random configurations.
-- **Full configurability** — rotor order (I–V), ring settings, starting
-  positions, plugboard pairs, and reflector B or C, all from the command line.
-- **Encrypt and decrypt** — the Enigma is an involution, so one operation does
-  both; the CLI offers `encrypt` and `decrypt` for clarity.
-- **Internal wiring visualization** — `visualize` traces every letter's full
-  signal path (stecker → each rotor's forward pass → reflector → each rotor's
-  backward pass → stecker) and shows the rotor windows after every keypress.
-- **Wiring tables** — `machine` prints the complete rotor and reflector wiring
-  tables for reference.
+- **Play it now** — [Redline Rush game](https://userfrom1995.github.io/Random/rush/)
+  (the game lives at `/rush/`; the rest of the site is the repo landing page).
+- **Dependency-free** — `logic.js` (pure gameplay rules), `game.js`
+  (rendering/input/audio), one HTML shell, one stylesheet. Open `rush/index.html`
+  directly from disk and it works.
+- **Procedural everything** — cars, road, trees, and sound effects are drawn
+  and synthesized at runtime; there are zero image or audio assets.
+- **Tested** — 20 unit tests for the pure gameplay logic
+  (`rush/logic.test.js`, run with `node --test`), plus a headless-browser
+  smoke test driving the full game loop.
 
 ```text
-$ python3 -m roteria encrypt "HELLO WORLD"
-ILBDAAMTAZ
-
-$ python3 -m roteria decrypt "ILBDAAMTAZ"
-HELLOWORLD
+Steer ← → (A/D) · Brake ↓ (S) · Pause P · Mute M · Enter to start
 ```
 
 ---
 
-## Requirements
+## How to play
 
-- Python 3.8 or newer.
-- Nothing else — no external packages, no network.
+Click **Start Engine** (or press Enter). Your car sits at the bottom of a
+four-lane road that scrolls faster the farther you drive.
 
-## Quick start
+- **Steer** — arrow keys or A/D, or drag/tap the road on touch screens
+  (touch devices also get on-screen steer and brake buttons).
+- **Brake** — hold ↓ / S / the BRAKE button to drop to ~55% speed. Slower
+  driving burns less fuel but earns score more slowly.
+- **Fuel** — the tank drains continuously and drains faster at high speed.
+  Collect **fuel cans** (the red canisters with a yellow band) to refill.
+  When the tank empties, it's game over. If fuel is running low a can is
+  guaranteed to appear soon.
+- **Lives** — you have 3. Hitting traffic costs one life and a couple of
+  seconds of invincibility; three hits ends the run.
+- **Near misses** — threading past a car within a whisker earns a `+25`
+  near-miss bonus and a whoosh. That's where the real points come from.
+- **Scoring** — you score continuously for distance travelled (faster = more
+  per second), plus near-miss and fuel bonuses. Your best score is saved in
+  `localStorage` on this device.
+
+### Controls reference
+
+| Key | Action |
+| --- | --- |
+| `←` / `A` | Steer left |
+| `→` / `D` | Steer right |
+| `↓` / `S` or `BRAKE` button | Brake |
+| `P` / `Esc` | Pause / resume |
+| `M` | Mute / unmute |
+| `Enter` / `Space` | Start / restart |
+| Tap or drag the road | Steer (touch) |
+
+## Running it
+
+There is nothing to install. The game is a static web app:
+
+- **From the deployed site** — open
+  [https://userfrom1995.github.io/Random/rush/](https://userfrom1995.github.io/Random/rush/).
+- **Locally** — clone the repo and open `rush/index.html` in a browser, or
+  serve the folder (`python3 -m http.server` in the repo root, then visit
+  `/rush/`).
+
+### Running the tests
+
+The gameplay rules live in `rush/logic.js` as pure functions and are tested
+with Node's built-in test runner (Node 18+):
 
 ```bash
-# Encrypt a message with the default machine (rotors I II III, rings 1 1 1,
-# positions AAA, reflector B, no plugboard)
-python3 -m roteria encrypt "HELLO WORLD"
-# -> ILBDAAMTAZ
-
-# Decrypt is the same operation
-python3 -m roteria decrypt "ILBDAAMTAZ"
-# -> HELLOWORLD
-
-# A wartime-style configuration, with ciphertext grouped in blocks of five
-python3 -m roteria encrypt "ATTACK AT DAWN" \
-  --rotors II III V --rings 2 3 4 --positions ABC \
-  --stecker AB CD EF --group 5
-
-# Watch the signal path of every letter
-python3 -m roteria visualize "A" --positions AAA
-
-# Interactive session
-python3 -m roteria --interactive --rotors III II I --reflector C
-
-# Print the wiring tables and current configuration
-python3 -m roteria machine
+node --test rush/logic.test.js
 ```
 
-The single file also runs directly:
+A headless-browser smoke test (Playwright) drives the actual game: boot,
+start, steering, pause, three crashes → game over, high-score persistence,
+mute, and window resize:
 
 ```bash
-python3 roteria/roteria.py --help
+node -e "const {chromium}=require('playwright'); ... "   # see rush/README.md
 ```
 
-`python3 -m roteria --help` prints the full option reference with examples.
+## Configuration
 
-## Configuration options
+All gameplay tuning lives in a single frozen `CONFIG` object at the top of
+`rush/logic.js`, so the game can be rebalanced without touching logic:
 
-| Option | Default | Description |
+| Key | Default | Description |
 | --- | --- | --- |
-| `-r, --rotors ORDER` | `I II III` | Rotor order left-to-right, e.g. `--rotors I III V`. Any subset/order of rotors I–V. |
-| `--rings SETTINGS` | all `1` | Ring settings: letters A–Z (`A` = setting 1) or numbers 1–26. e.g. `--rings 1 2 3` or `--rings A B C`. |
-| `--positions POSITIONS` | all `A` | Starting rotor positions: letters A–Z (A = 0) or numbers 0–25. e.g. `--positions AAA` or `--positions Q W E`. |
-| `-s, --stecker PAIRS` | none | Plugboard pairs, e.g. `--stecker AB CD EF`. Each letter may appear at most once; at most 13 pairs. |
-| `--reflector NAME` | `B` | Reflector to use: `B` or `C`. |
-| `--group N` | `0` | Group ciphertext output in blocks of N letters (`0` disables). |
-| `--interactive` | off | Start an interactive session (available with the global flags above). |
-| `--version` | | Print the version and exit. |
-| `--help` | | Print full help, including examples. |
+| `lanes` | `4` | Number of road lanes |
+| `minScrollSpeed` | `230` | Road speed (px/s) at the start of a run |
+| `maxScrollSpeed` | `900` | Road speed (px/s) at full difficulty |
+| `speedRampDistance` | `16000` | Distance (px) until max speed is reached |
+| `spawnIntervalMin/Max` | `0.42` / `0.95` | Seconds between traffic batches |
+| `maxGroupSize` | `3` | Cars per batch at full difficulty (a lane is always free) |
+| `brakeMultiplier` | `0.55` | Speed fraction while braking |
+| `collisionShrink` | `0.78` | Hitbox size fraction — forgiving scrapes |
+| `fuelMax` / `fuelPickupAmount` | `100` / `40` | Tank capacity / refill per can |
+| `fuelDrainBase` / `fuelDrainPerSpeed` | `1.2` / `0.006` | Fuel/s drained at base speed, plus per px/s |
+| `fuelPickupEvery` | `8` | Average seconds between fuel-can spawns |
+| `fuelLowThreshold` | `30` | Below this, a fuel can is guaranteed within ~2 s |
+| `nearMissDistance` / `nearMissScore` | `60` / `25` | Lateral distance and reward for near misses |
+| `fuelPickupScore` | `15` | Score per fuel can collected |
+| `lives` / `invincibleTime` | `3` / `2.0` | Lives and post-hit invulnerability (s) |
+| `scorePerPixel` / `speedToKmh` | `0.01` / `0.32` | Score per px and px/s→km/h conversion |
 
-Rings and positions also accept a contiguous letter string when it matches the
-rotor count, e.g. `--positions QWE` is the same as `--positions Q W E`.
-
-### Subcommands
-
-- `encrypt MESSAGE` / `decrypt MESSAGE` — process a message (identical
-  operations; the Enigma is an involution).
-- `visualize MESSAGE` — step through the message and print every letter's
-  signal path plus the rotor windows after each keypress.
-- `machine` — print the machine configuration and the complete rotor and
-  reflector wiring tables.
-
-If no message is given to `encrypt`/`decrypt`/`visualize`, input is read from
-standard input, so the tool pipes naturally:
-
-```bash
-echo "SECRET MESSAGE" | python3 -m roteria encrypt --rotors II III V
-```
+Visual-only tuning (tree spacing, dash lengths, steering speed) lives in the
+`RENDER` object at the top of `rush/game.js`.
 
 ## How it works
 
-### 1. The machine
+### Architecture
 
-An Enigma machine is a cascade of substitution stages. A keystroke's
-electrical signal enters through the plugboard, passes through each rotor
-right-to-left, bounces off the reflector, passes back through each rotor
-left-to-right, and exits through the plugboard again.
+- **`rush/logic.js`** — pure, framework-free gameplay rules: difficulty curves
+  (`scrollSpeedAt`, `spawnIntervalAt`, `groupSizeAt`), forgiving AABB
+  collision, lane math, score formatting, sanitized high-score persistence,
+  fuel math, the traffic **spawner**, and near-miss detection. Exposed as
+  `window.Redline` in the browser and as a CommonJS module for Node tests.
+- **`rush/game.js`** — the browser side: canvas sizing (devicePixelRatio-aware),
+  road/scenery/car/canister rendering, the update loop
+  (`requestAnimationFrame` with clamped delta), keyboard/touch/pointer input,
+  the state machine (menu → playing → paused → over), and the Web Audio
+  synth (engine hum whose pitch follows speed, collision thump, pickup blip,
+  near-miss whoosh, game-over jingle).
+- **`rush/index.html` + `rush/style.css`** — the shell: canvas, HUD (score,
+  best, km/h, fuel bar, lives), the three overlay screens, and on-screen
+  touch buttons that appear only on coarse-pointer devices.
 
-### 2. Stepping
+### The spawner (fairness guarantee)
 
-Before each letter, the rotors advance:
+Traffic spawns in batches, and the spawner guarantees every batch leaves at
+least one lane free, and (with a 65% bias) reuses the *previous* batch's free
+lane, so consecutive rows form gentle corridors instead of dead-end walls.
+Vertical spacing between batches is always greater than a car length, so there
+is always a path through. This is unit-tested and validated by a simulation
+where a lane-choosing bot never collides across an hour of traffic.
 
-- the rightmost rotor steps on every keypress;
-- when the rightmost rotor reaches its notch letter, the middle rotor steps
-  too;
-- when the middle rotor reaches its own notch letter, the leftmost rotor steps
-  as well.
+### Difficulty curve
 
-Because the middle rotor can be carried and then immediately hit its own
-notch, it sometimes steps on two consecutive keypresses — the Enigma's famous
-"double-stepping". For rotors I II III starting at AAA, the window sequence
-begins:
+Speed and traffic density ramp over distance using a clamped smoothstep, so
+early runs are gentle and things get frantic gradually rather than abruptly.
+Braking trades score-per-second and fuel burn for breathing room.
 
-```text
-AAB AAC AAD ... AAV  ABW ABX ABY ABZ ABA ...
-      (middle carried at AAV -> ABW)
-```
+## Key files
 
-### 3. Ring settings
+- `rush/index.html` — game shell, screens, touch controls.
+- `rush/style.css` — layout and theming for the HUD and screens.
+- `rush/logic.js` — pure gameplay rules (unit-tested).
+- `rush/game.js` — rendering, input, audio, game loop.
+- `rush/logic.test.js` — 20 Node unit tests for the gameplay rules.
+- `rush/README.md` — project README with quick-start and testing notes.
+- `docs/index.md` / `docs/index.html` — this documentation (served at `/docs/`).
+- `ideas/2026-08-08-redline-rush-top-down-arcade-racer.md` — the build writeup.
 
-Each rotor's wiring is rotated relative to its body by its ring setting,
-shifting the substitution without moving the window letter.
+## Notes
 
-### 4. The involution
-
-The plugboard swaps, the rotor passes are mirrored around the reflector, and
-the reflector is reciprocal, so the whole machine is symmetric: encrypting the
-ciphertext with the same settings recovers the plaintext.
-
-### Example trace
-
-```text
-$ python3 -m roteria visualize "A" --positions AAA
-Machine: rotors:    I II III | rings:     1 1 1 | positions: A A A | reflector: B | plugboard: none
-
-Key 1  plaintext A
-  A --III.fwd--> C --II.fwd--> D --I.fwd--> F --refl--> S --I.back--> S --II.back--> E --III.back--> B --stecker-out--> B
-  ciphertext B | windows: A A B
-```
-
-## Reproducibility and correctness
-
-The stepping logic and wiring tables are validated against the well-known
-reference implementation (py-enigma) across 300+ random configurations, and
-the test suite embeds published test vectors (including the 26-letter
-`AAAAAAAAAAAAAAAAAAAAAAAAAA` vector and the double-stepping window sequence).
-The same settings always produce the same output — there is no randomness.
-
-## Project layout
-
-```text
-roteria/
-  roteria.py          # the whole CLI: rotors, stepping, plugboard, reflector
-  __main__.py         # enables `python -m roteria`
-  __init__.py         # package marker
-  README.md           # tool-specific usage guide
-  tests/
-    test_roteria.py
-docs/
-  index.md            # this page (source)
-  index.html          # rendered documentation page
-ideas/
-  2026-08-08-rotoria-terminal-enigma-simulator.md
-```
-
-## Development
-
-```bash
-python3 -m unittest discover -s roteria/tests
-```
-
-The 56 tests cover the wiring tables, rotor forward/backward passes, the notch
-and double-stepping behavior, the documented stepping sequence, known-answer
-ciphertexts, the involution property, plugboard validation, ring and position
-parsing, and the full CLI surface (including error handling and stdin input).
-
-## Design notes
-
-- **Single file, zero dependencies** — the whole CLI is one Python module
-  using only `argparse`, `re`, and `sys`.
-- **Faithful, not approximate** — the double-stepping notch logic is
-  implemented exactly as the physical machine behaves, not the simplified
-  "rotate all rotors, carry on turnover" shortcut some simulators use.
-- **Validation everywhere** — unknown rotors/reflectors, out-of-range ring or
-  position settings, duplicate or self-connected plugboard letters, and wrong
-  setting counts are all rejected with clear errors.
-- **Educational by design** — `visualize` and `machine` expose the internal
-  wiring so the cipher can be studied, not just executed.
-
-## License
-
-MIT — see [LICENSE](../LICENSE) in the repository root.
+- **Why `/rush/` and not the site root?** The repo root `index.html` is the
+  Random landing page, which is preserved; the game is served from its own
+  directory. `pages.yml` stages `rush/` into the Pages artifact alongside the
+  landing page and docs.
+- **No assets, ever** — cars are rounded rects with gradient bodies, windshields,
+  and lights; the road is a gradient with scrolling dashes and edge lines;
+  trees are procedural; fuel cans are a red can with a yellow band and glow;
+  audio is synthesized. This keeps the game tiny and fully offline-capable.
+- **Fair by construction** — high scores are clamped to safe non-negative
+  integers, `localStorage` access is wrapped so private browsing can't crash
+  the game, delta time is clamped so a background tab can't cause a teleport,
+  and the game auto-pauses when the tab loses focus.
