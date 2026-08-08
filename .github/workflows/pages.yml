@@ -53,6 +53,10 @@ jobs:
             mkdir -p _site/docs
             cp -r docs/* _site/docs/
           fi
+          # Fallback if nothing was staged
+          if [ -z "$(ls -A _site)" ]; then
+            echo "<h1>No site content yet</h1><p>This repo currently has no deployable web content.</p>" > _site/index.html
+          fi
 
       - name: Stage PR previews
         env:

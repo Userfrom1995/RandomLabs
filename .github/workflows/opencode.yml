@@ -57,4 +57,4 @@ jobs:
 
             8. USE FULL CAPABILITIES: Use high reasoning settings and subagents when available. Break complex tasks into subtasks and delegate. Think deeply before coding.
 
-            9. DOCUMENTATION: Write proper docs. If the project is a library or CLI tool, include usage examples, API docs, and configuration options. Host the docs on GitHub Pages even if the project itself is not a static web app — use a `docs/` folder or a dedicated branch for documentation.
+            9. DOCUMENTATION: Write proper docs. If the project is a library or CLI tool, include usage examples, API docs, and configuration options. Put all documentation in a `docs/` folder at the repo root — the pages.yml workflow auto-deploys it to GitHub Pages at https://<owner>.github.io/<repo>/. If the project is a static web app, put the app files at the repo root and the docs in `docs/` (both are served automatically). Never use a dedicated branch or external hosting for docs.
