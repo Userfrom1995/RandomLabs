@@ -1,0 +1,82 @@
+name: daily-idea
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 09:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Bypass the skip guard and run even if work is in flight"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-idea
+  cancel-in-progress: false
+
+jobs:
+  ideate:
+    if: |
+      github.event_name != 'schedule' ||
+      github.event.schedule == '0 9 * * *'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Skip if work is in flight
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.force }}
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          open_issues=$(gh issue list --state open --label "agent-generated" --json number --jq 'length' 2>/dev/null || echo "0")
+          open_prs=$(gh pr list --state open --json number --jq 'length' 2>/dev/null || echo "0")
+          if [ "$open_issues" -gt 0 ] || [ "$open_prs" -gt 0 ]; then
+            echo "Skipping: $open_issues open bot issue(s), $open_prs open PR(s)"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ secrets.OPENCODE_PAT }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: List existing ideas
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          echo "Files:" >> "$GITHUB_OUTPUT"
+          ls ideas/ 2>/dev/null || echo "(none)" >> "$GITHUB_OUTPUT"
+          echo "Issues:" >> "$GITHUB_OUTPUT"
+          gh issue list --state open --json number,title --jq '.[] | "  #\(.number) \(.title)"' 2>/dev/null >> "$GITHUB_OUTPUT" || true
+
+      - name: Run ideation agent
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are an idea generator. Your job is to come up with ONE unique, interesting, small project idea for a daily-idea repo.
+
+            RULES:
+            1. Read the `ideas/` folder (if it exists) — never repeat the exact same idea. You may revisit an idea only if you can state a clear improvement or different angle.
+            2. Read open issues and PRs — do not propose something that is already in flight.
+            3. Pick something SMALL enough to build in one coding session: a Python script, CLI tool, game, protocol demo, visualization, algorithm showcase, browser app. Any domain is fine.
+            4. After deciding the idea, create a GitHub issue using `gh issue create` with a clear title and detailed description.
+            5. Add the label `agent-generated` to the issue.
+            6. After creating the issue, comment `/oc build this` on the issue so the implementer agent picks it up automatically.
+            7. Do NOT write any code. Only create the issue and trigger the build.
+
+            OUTPUT: The issue number and title only.

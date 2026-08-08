@@ -12,3 +12,11 @@
 
 - A separate reviewer workflow (different model) reviews every non-draft pull request and either merges it or posts a comment starting with `/oc` listing required fixes.
 - When you receive a `/oc` comment on a pull request while implementing (this workflow's `issue_comment` trigger), treat it as a review finding: apply all requested fixes to the pull request's branch and push. Never self-merge; the reviewer decides when the PR is done.
+
+## Daily auto-generated ideas
+
+- A daily cron workflow (`idea.yml`) runs an ideation agent that reads the `ideas/` folder and open issues, proposes a unique idea (or an improvement of a previous one), opens an issue with the `agent-generated` label, and comments `/oc` to trigger the implementation agent.
+- The implementation agent builds the code and includes an `ideas/YYYY-MM-DD-keyword-description.md` writeup in the same PR.
+- The reviewer agent reviews the PR (including the ideas entry) and merges it.
+- The daily run skips if an open PR or open bot-created issue already exists (no pile-up). Manual dispatch with `force: true` bypasses this.
+- Both the daily path and the manual `/oc` path coexist identically.
