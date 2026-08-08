@@ -38,20 +38,18 @@ jobs:
       - name: Stage site
         run: |
           mkdir -p _site
-          # If docs/ exists, deploy it (non-static projects)
-          if [ -d "docs" ]; then
-            cp -r docs/* _site/
-          fi
-          # If static web app files exist at root, deploy them
+          # Root landing page at /, project docs at /docs/
           if [ -f "index.html" ]; then
             cp index.html _site/
             [ -f "styles.css" ] && cp styles.css _site/
             [ -f "script.js" ] && cp script.js _site/
-          fi
-          # Always include docs/ subfolder if both app and docs exist
-          if [ -d "docs" ] && [ -f "index.html" ]; then
-            mkdir -p _site/docs
-            cp -r docs/* _site/docs/
+            if [ -d "docs" ]; then
+              mkdir -p _site/docs
+              cp -r docs/* _site/docs/
+            fi
+          elif [ -d "docs" ]; then
+            # Non-web project without a landing page: docs are the main page
+            cp -r docs/* _site/
           fi
           # Fallback if nothing was staged
           if [ -z "$(ls -A _site)" ]; then

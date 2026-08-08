@@ -34,7 +34,7 @@ All powered by [opencode](https://opencode.ai).
 
 The current build is **Homunculus** — a genetic-algorithm CLI that evolves a population of random strings into an exact target phrase, using nothing but the Python standard library.
 
-→ [Read the full writeup](ideas/2026-08-08-homunculus-genetic-algorithm.md) · [Documentation](https://userfrom1995.github.io/Random/)
+→ [Read the full writeup](ideas/2026-08-08-homunculus-genetic-algorithm.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
