@@ -30,6 +30,14 @@ You can also trigger the daily idea manually: go to Actions → "daily-idea" →
 
 All powered by [opencode](https://opencode.ai).
 
+## Current Project
+
+The current codebase is a **Tic-Tac-Toe game** — a browser-based game with PvP and vs Computer modes, an unbeatable minimax AI, and a dark glassy UI.
+
+→ [Read the full writeup](ideas/2026-08-08-tic-tac-toe-minimax-ai.md)
+
+This will change as new ideas are built by the agents.
+
 ## Previous Ideas
 
 Each built idea has a detailed writeup in the `ideas/` folder, named with the date and a short description of what was built.
