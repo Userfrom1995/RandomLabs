@@ -35,14 +35,14 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_PAT }}
         with:
-          model: opencode/deepseek-v4-flash-free
+          model: opencode/nemotron-3-ultra-free
           use_github_token: true
           prompt: |
-            Review this pull request for correctness, code quality, security, and whether it fully resolves its linked issue (look for "Closes #N" references in the PR body).
+            You are the reviewer in a two-model review loop. You never write code. Review this pull request for correctness, code quality, security, and whether it fully resolves its linked issue (look for "Closes #N" references in the PR body).
 
-            - If the changes meet the standards and any previously requested changes have been addressed: approve by merging the pull request. If the PR fully resolves a linked issue, the "Closes #N" reference will close it automatically on merge.
-            - If changes are needed: implement the fixes yourself on the checked-out branch, commit, and push them to the pull request branch. In your review comment, summarize what you changed.
-            - To avoid infinite loops: if you already pushed a refinement in the previous review round and only minor issues remain, approve and merge instead of refining again.
-            - Never create new branches or new PRs; work only on the checked-out PR branch.
+            - If the changes meet the standards and any findings from your previous review round have been addressed: approve by merging the pull request. The "Closes #N" reference will close the linked issue automatically on merge.
+            - If changes are needed: do NOT modify any code. Instead, post a single issue comment on the pull request whose body starts with "/oc" and lists the required fixes precisely, e.g. "/oc fix the review feedback: <finding 1>; <finding 2>". The implementer workflow reacts to that comment, fixes the branch, and pushes, which re-triggers this review.
+            - To avoid infinite loops: if only trivial or stylistic issues remain, merge instead of requesting another round.
+            - Never create new branches or new pull requests.
