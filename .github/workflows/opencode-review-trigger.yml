@@ -31,4 +31,4 @@ jobs:
             exit 0
           fi
           echo "Posting /oc review for PR #$pr (head $head)"
-          gh issue comment "$pr" --body "/oc review (head $head)"
+          gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc review (head $head)"
