@@ -70,8 +70,12 @@ jobs:
 
             8. DOCUMENTATION: The PR MUST include a `docs/` folder with proper docs for the project (usage, examples, config). If missing, REQUEST CHANGES. GitHub Pages should never be empty.
 
+            9. UP-TO-DATE & CONFLICT-FREE: Check whether the PR branch is behind the branch it targets (compare `gh pr view --json headRefOid,baseRefOid` and the merge base) and whether a merge would produce conflicts (`gh pr view --json mergeable`). A PR that is behind or has conflicts is NOT ready to merge.
+
             DECISION:
 
+            - If the PR is behind the target branch but rebases cleanly: first rebase it yourself with `gh pr rebase` (this keeps it conflict-free), then continue the review against the updated branch. Do NOT merge a PR that is behind.
+            - If the PR has merge conflicts: do NOT rebase it yourself. Post a single issue comment starting with "/oc" listing the conflicting files and ask the implementer to rebase onto the target branch and resolve the conflicts, e.g. "/oc fix: PR is behind/conflicting with main; rebase onto main and resolve conflicts in files: X, Y".
             - If ALL checks pass and previous review findings are addressed: approve by rebasing onto main using `gh pr rebase --delete-branch`.
             - If ANY check fails: do NOT modify code. Post a single issue comment starting with "/oc" listing EVERY failed check with specific file/line references, e.g. "/oc fix: README section overwritten (README.md:1-5); hardcoded key in script.js:42".
             - To avoid infinite loops: if only trivial/style issues remain after 2+ rounds, rebase instead of requesting another round.
