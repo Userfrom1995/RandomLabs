@@ -54,6 +54,7 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+          OPENCODE_PAT: ${{ secrets.OPENCODE_PAT }}
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
@@ -67,18 +68,32 @@ jobs:
             4. Give the idea a GOOD, UNIQUE NAME — not a generic one ("app", "tool", "project"). The name should be memorable and hint at what the thing is.
             5. Create the issue with a descriptive title following the `<Name>: <what it is>` pattern (e.g., "Sentinel: a tray-based file watcher for Linux") so future agents can spot duplicates easily.
             6. Add the label `agent-generated` to the issue.
-            7. Do NOT write any code and do NOT comment on the issue — the workflow triggers the implementer automatically after you finish.
+            7. After creating the issue, post EXACTLY ONE comment `/oc build this` on it using the OWNER identity: run `GH_TOKEN="$OPENCODE_PAT" gh issue comment <N> --body "/oc build this"` where <N> is the issue number you just created. This comment appears as the repo owner and triggers the implementer agent. Do NOT comment with the default token, do NOT post any other comments, and do NOT write any code.
 
             OUTPUT: The issue number and title only.
 
-      - name: Trigger implementer
+      - name: Trigger implementer (fallback)
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=agent-generated&sort=created&direction=desc" --jq '.[0].number' 2>/dev/null || true)
+          issue=""
+          for i in $(seq 1 12); do
+            issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=agent-generated&sort=created&direction=desc" --jq '.[0].number' 2>/dev/null || true)
+            if [ -n "$issue" ] && [ "$issue" != "null" ]; then
+              break
+            fi
+            echo "Waiting for agent-generated issue to appear in API (attempt $i/12)..."
+            sleep 10
+          done
           if [ -z "$issue" ] || [ "$issue" = "null" ]; then
-            echo "No agent-generated issue found"
-            exit 0
+            latest=$(gh api "repos/${{ github.repository }}/issues?state=open&sort=created&direction=desc" --jq '.[0] | select(.user.login == "github-actions[bot]") | .number' 2>/dev/null || true)
+            if [ -n "$latest" ] && [ "$latest" != "null" ]; then
+              issue="$latest"
+              echo "Using fallback: newest bot-authored open issue #$issue"
+            else
+              echo "No agent-generated issue found"
+              exit 0
+            fi
           fi
           existing=$(gh api "repos/${{ github.repository }}/issues/${issue}/comments" --jq '[.[] | select(.body | startswith("/oc"))] | length' 2>/dev/null || echo "0")
           if [ "$existing" -gt 0 ]; then
