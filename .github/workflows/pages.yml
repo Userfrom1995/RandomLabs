@@ -12,6 +12,7 @@ permissions:
   pages: write
   id-token: write
   pull-requests: write
+  actions: write
 
 jobs:
   deploy:
@@ -102,10 +103,9 @@ jobs:
 
           ${marker}
 
-          This PR's site will be served at **${url}** after the next deployment to \`main\`.
+          This PR's site is live at **${url}** — deploying now; GitHub Pages can take ~30-60s to start serving it.
 
-          - GitHub Pages only permits the default branch to deploy (the \`github-pages\` environment protection rules), and native Pages PR-preview support is still an internal alpha, so PRs cannot deploy directly.
-          - The \`deploy\` job stages the production site plus previews of every open PR into a single artifact, so each push to \`main\` refreshes them. Once live, GitHub Pages can take ~30-60s to start serving the new build.
+          - GitHub Pages only permits the default branch to deploy (the \`github-pages\` environment protection rules), so PRs cannot deploy directly; this job stages the production site plus previews of every open PR into a single artifact and re-deploys it whenever this PR opens or updates.
           - The preview is served under \`/preview/pr-${pr}/\`, so it never touches the production site."
           body="$(printf '%s\n' "$body" | sed 's/^[[:space:]]*//')"
           existing=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)
@@ -114,3 +114,9 @@ jobs:
           else
             gh api -X POST "repos/${{ github.repository }}/issues/${pr}/comments" -f body="$body" >/dev/null
           fi
+
+      - name: Trigger preview deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "${{ github.repository }}" 2>&1 | tail -2 || echo "Dispatch failed; preview will appear on the next push to main"
