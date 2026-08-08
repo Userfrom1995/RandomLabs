@@ -72,6 +72,8 @@ jobs:
 
             7. IDEAS ENTRY: The PR must include an `ideas/` file — a detailed markdown writeup named `YYYY-MM-DD-<name>-<what-is-it>.md` where `<name>` is a unique, non-generic name and `<what-is-it>` describes the project (e.g., `2026-08-08-sentinel-tray-file-watcher.md`). If missing or generically named, REQUEST CHANGES and ask the implementer to fix it.
 
+            8. DOCUMENTATION: The PR MUST include a `docs/` folder with proper docs for the project (usage, examples, config). If missing, REQUEST CHANGES. GitHub Pages should never be empty.
+
             DECISION:
 
             - If ALL checks pass and previous review findings are addressed: approve by rebasing onto main using `gh pr rebase --delete-branch`.
