@@ -66,9 +66,9 @@ jobs:
             2. Read open issues and PRs — do not propose something that is already in flight.
             3. Pick something SMALL enough to build in one coding session: a Python script, CLI tool, game, protocol demo, visualization, algorithm showcase, browser app. Any domain is fine.
             4. Give the idea a GOOD, UNIQUE NAME — not a generic one ("app", "tool", "project"). The name should be memorable and hint at what the thing is.
-            5. Create the issue with a descriptive title following the `<Name>: <what it is>` pattern (e.g., "Sentinel: a tray-based file watcher for Linux") so future agents can spot duplicates easily.
-            6. Add the label `agent-generated` to the issue.
-            7. After creating the issue, post EXACTLY ONE comment `/oc build this` on it using the OWNER identity: run `GH_TOKEN="$OPENCODE_PAT" gh issue comment <N> --body "/oc build this"` where <N> is the issue number you just created. This comment appears as the repo owner and triggers the implementer agent. Do NOT comment with the default token, do NOT post any other comments, and do NOT write any code.
+            5. Create the issue with a descriptive title following the `<Name>: <what it is>` pattern (e.g., "Sentinel: a tray-based file watcher for Linux") so future agents can spot duplicates easily. IMPORTANT: create the issue with the DEFAULT token so the issue author is the bot — run `gh issue create ...` WITHOUT setting GH_TOKEN (the default `GITHUB_TOKEN` env makes the author `github-actions[bot]`). Never use OPENCODE_PAT for creating the issue.
+            6. Add the label `agent-generated` to the issue (still with the default token).
+            7. After creating the issue, post EXACTLY ONE comment `/oc build this` on it using the OWNER identity: run `GH_TOKEN="$OPENCODE_PAT" gh issue comment <N> --body "/oc build this"` where <N> is the issue number you just created. This is the ONLY command that uses the PAT — everything else (reading issues, creating the issue, adding labels) uses the default token so it appears as `github-actions[bot]`. Do NOT post any other comments, and do NOT write any code.
 
             OUTPUT: The issue number and title only.
 
