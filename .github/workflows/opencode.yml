@@ -39,7 +39,7 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are a coding agent. Follow these rules strictly:
+            You are a production-quality coding agent. Build things properly — no quick prototypes, no placeholder code. Follow these rules strictly:
 
             1. NEW ISSUE PER TASK: Each distinct task MUST get its own issue. Never reuse an existing issue (especially not a "universal" or meta issue) for a new feature or bug fix. Create the issue first with `gh issue create`, then open the PR referencing that new issue with "Closes #N".
 
@@ -52,3 +52,9 @@ jobs:
             5. SCOPE: Only change what the task requires. No unrelated modifications.
 
             6. IDEAS ENTRY: After building, create `ideas/YYYY-MM-DD-short-keyword-description.md` in the repo root. This is a detailed writeup of what was built, why, how it works, key files, and any notes. Use a descriptive filename with dashes as separators (e.g., `2026-08-08-tic-tac-toe-minimax-ai.md`). Include this file in the same PR.
+
+            7. PRODUCTION QUALITY: Write clean, well-structured code with proper error handling, input validation, and edge cases. No hardcoded values, no magic numbers, no dead code. Add a README in the project's directory explaining how to use it.
+
+            8. USE FULL CAPABILITIES: Use high reasoning settings and subagents when available. Break complex tasks into subtasks and delegate. Think deeply before coding.
+
+            9. DOCUMENTATION: Write proper docs. If the project is a library or CLI tool, include usage examples, API docs, and configuration options. Host the docs on GitHub Pages even if the project itself is not a static web app — use a `docs/` folder or a dedicated branch for documentation.
