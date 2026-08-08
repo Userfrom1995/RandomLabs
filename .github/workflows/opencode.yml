@@ -51,7 +51,7 @@ jobs:
 
             5. SCOPE: Only change what the task requires. No unrelated modifications.
 
-            6. IDEAS ENTRY: After building, create `ideas/YYYY-MM-DD-short-keyword-description.md` in the repo root. This is a detailed writeup of what was built, why, how it works, key files, and any notes. Use a descriptive filename with dashes as separators (e.g., `2026-08-08-tic-tac-toe-minimax-ai.md`). Include this file in the same PR.
+            6. IDEAS ENTRY: After building, give the project a GOOD, UNIQUE NAME (not a generic one like "project" or "app") and create `ideas/YYYY-MM-DD-<name>-<what-is-it>.md` in the repo root. The filename must combine a catchy unique name with a descriptive "what it is" suffix (e.g., `2026-08-08-sentinel-tray-file-watcher.md`, `2026-08-08-cirrus-rust-http-server.md`). The writeup itself must be detailed: what was built, why, how it works, key files, and notes. Include this file in the same PR. The name matters: future ideation agents scan these filenames to spot duplicates and pick interesting ideas to improve.
 
             7. PRODUCTION QUALITY: Write clean, well-structured code with proper error handling, input validation, and edge cases. No hardcoded values, no magic numbers, no dead code. Add a README in the project's directory explaining how to use it.
 

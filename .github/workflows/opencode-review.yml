@@ -70,7 +70,7 @@ jobs:
 
             6. LINKED ISSUE: The PR body must reference an issue with "Closes #N". If it references a "universal" or meta issue instead of a dedicated task issue, REQUEST CHANGES and ask the implementer to create a proper issue first.
 
-            7. IDEAS ENTRY: The PR must include an `ideas/` file — a detailed markdown writeup named `YYYY-MM-DD-short-keyword-description.md`. If missing, REQUEST CHANGES and ask the implementer to add it.
+            7. IDEAS ENTRY: The PR must include an `ideas/` file — a detailed markdown writeup named `YYYY-MM-DD-<name>-<what-is-it>.md` where `<name>` is a unique, non-generic name and `<what-is-it>` describes the project (e.g., `2026-08-08-sentinel-tray-file-watcher.md`). If missing or generically named, REQUEST CHANGES and ask the implementer to fix it.
 
             DECISION:
 

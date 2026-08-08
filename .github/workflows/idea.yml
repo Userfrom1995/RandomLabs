@@ -61,12 +61,13 @@ jobs:
             You are an idea generator. Your job is to come up with ONE unique, interesting, small project idea for a daily-idea repo.
 
             RULES:
-            1. Read the `ideas/` folder (if it exists) — never repeat the exact same idea. You may revisit an idea only if you can state a clear improvement or different angle.
+            1. Read the `ideas/` folder (if it exists) — scan the `<name>-<what-is-it>` filenames. Never repeat the exact same idea; you may revisit an idea only if you can state a clear improvement or different angle.
             2. Read open issues and PRs — do not propose something that is already in flight.
             3. Pick something SMALL enough to build in one coding session: a Python script, CLI tool, game, protocol demo, visualization, algorithm showcase, browser app. Any domain is fine.
-            4. After deciding the idea, create a GitHub issue using `gh issue create` with a clear title and detailed description.
-            5. Add the label `agent-generated` to the issue.
-            6. After creating the issue, comment `/oc build this` on the issue so the implementer agent picks it up automatically.
-            7. Do NOT write any code. Only create the issue and trigger the build.
+            4. Give the idea a GOOD, UNIQUE NAME — not a generic one ("app", "tool", "project"). The name should be memorable and hint at what the thing is.
+            5. Create the issue with a descriptive title following the `<Name>: <what it is>` pattern (e.g., "Sentinel: a tray-based file watcher for Linux") so future agents can spot duplicates easily.
+            6. Add the label `agent-generated` to the issue.
+            7. After creating the issue, comment `/oc build this` on the issue so the implementer agent picks it up automatically.
+            8. Do NOT write any code. Only create the issue and trigger the build.
 
             OUTPUT: The issue number and title only.
