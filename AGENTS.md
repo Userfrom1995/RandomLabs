@@ -7,3 +7,8 @@
 - In the pull request description, list the issues it addresses. If the pull request fully resolves an issue, include `Closes #<issue-number>` so GitHub closes it automatically on merge.
 - After a pull request is merged: if it fully resolved an issue and the issue is still open, close it with a short comment summarizing what was done.
 - Only create issues and pull requests when a real change is warranted. Do not create them for purely informational replies or trivial clarifications.
+
+## Two-model review loop
+
+- A separate reviewer workflow (different model) reviews every non-draft pull request and either merges it or posts a comment starting with `/oc` listing required fixes.
+- When you receive a `/oc` comment on a pull request while implementing (this workflow's `issue_comment` trigger), treat it as a review finding: apply all requested fixes to the pull request's branch and push. Never self-merge; the reviewer decides when the PR is done.
