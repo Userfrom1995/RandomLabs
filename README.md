@@ -34,7 +34,9 @@ All powered by [opencode](https://opencode.ai).
 
 The current build is **Automatarium** — a dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, and Langton's Ant) live in the terminal.
 
-→ [Read the full writeup](ideas/2026-08-08-automatarium-cellular-automata.md) · [Documentation](docs/)
+→ [Read the full writeup](ideas/2026-08-08-automatarium-cellular-automata.md) · [Documentation](https://userfrom1995.github.io/Random/)
+
+This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
