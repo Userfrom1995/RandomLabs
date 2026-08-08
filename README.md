@@ -21,6 +21,15 @@ A static, one-page landing site explaining the benefits of using **coding agents
 
 The site is deployed via GitHub Actions (see `.github/workflows/pages.yml`) — there's no build step, the workflow just uploads the static files. It deploys on every push to `main` and can also be triggered manually from **Actions → Deploy static site to GitHub Pages → Run workflow**.
 
+### PR previews
+
+Every pull request also gets a **preview deployment**. The workflow rebuilds the production site plus a preview for each open PR and publishes them as a single artifact:
+
+- Production lives at the site root.
+- Each PR's site is served at `https://<username>.github.io/<repo>/preview/pr-<number>/`.
+- The bot posts (and updates, on new commits) a comment on the PR with the preview link.
+- When a PR closes, its preview disappears on the next deployment.
+
 ### One-time setup
 
 1. Go to **Settings → Pages** in your repo.

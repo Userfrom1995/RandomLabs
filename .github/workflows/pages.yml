@@ -3,12 +3,15 @@ name: Deploy static site to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: write
 
 concurrency:
   group: pages
@@ -16,23 +19,77 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Stage site files
+
+      - name: Stage production site
         run: |
           mkdir -p _site
           cp index.html styles.css script.js _site/
+
+      - name: Stage PR previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prs=$(gh api "repos/${{ github.repository }}/pulls?state=open" --jq '.[].number' || true)
+          # shellcheck disable=SC2086 # intentional word-splitting of the PR-number list
+          for pr in $prs; do
+            if ! git fetch origin "pull/$pr/head:pr-$pr" --quiet; then
+              echo "Skipping PR #$pr (could not fetch)"
+              continue
+            fi
+            echo "Staging preview for PR #$pr"
+            mkdir -p "_site/preview/pr-$pr"
+            if ! git archive pr-$pr index.html styles.css script.js | tar -x -C "_site/preview/pr-$pr"; then
+              echo "Skipping PR #$pr (missing site files)"
+            fi
+          done
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  comment:
+    needs: deploy
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update preview URL comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.pull_request.number }}"
+          url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${pr}/"
+          marker="<!-- opencode-preview-${pr} -->"
+          body="### Preview deployed
+
+          ${marker}
+
+          This PR is live at **${url}**
+
+          - The preview is built from the PR head and served under \`/preview/pr-${pr}/\`, so it never touches the production site.
+          - GitHub Pages can take ~30-60s to start serving a new build."
+          body="$(printf '%s\n' "$body" | sed 's/^[[:space:]]*//')"
+          existing=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${existing}" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${pr}/comments" -f body="$body" >/dev/null
+          fi
