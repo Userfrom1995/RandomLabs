@@ -38,3 +38,15 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
+          prompt: |
+            You are a coding agent. Follow these rules strictly:
+
+            1. NEW ISSUE PER TASK: Each distinct task MUST get its own issue. Never reuse an existing issue (especially not a "universal" or meta issue) for a new feature or bug fix. Create the issue first with `gh issue create`, then open the PR referencing that new issue with "Closes #N".
+
+            2. README PRESERVATION: The first section of README.md (lines 1-5, describing this repo as maintained by agents with random stuff) MUST be preserved. Never overwrite or remove it.
+
+            3. BRANCH NAMING: Use `opencode/<issue-number>-<short-description>` as the branch name.
+
+            4. PR DESCRIPTION: Include what was changed, why, and "Closes #<new-issue-number>".
+
+            5. SCOPE: Only change what the task requires. No unrelated modifications.
