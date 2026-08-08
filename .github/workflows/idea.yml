@@ -49,16 +49,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: List existing ideas
-        id: existing
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-        run: |
-          echo "Files:" >> "$GITHUB_OUTPUT"
-          ls ideas/ 2>/dev/null || echo "(none)" >> "$GITHUB_OUTPUT"
-          echo "Issues:" >> "$GITHUB_OUTPUT"
-          gh issue list --state open --json number,title --jq '.[] | "  #\(.number) \(.title)"' 2>/dev/null >> "$GITHUB_OUTPUT" || true
-
       - name: Run ideation agent
         uses: anomalyco/opencode/github@latest
         env:
