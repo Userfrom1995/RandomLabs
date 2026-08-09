@@ -1,0 +1,17 @@
+# A small example map for Shaftcast.
+#   #  wall (default brick texture)
+#   .  empty floor
+#   >  player spawn, facing east   (< west, v south, ^ north, @ east)
+#
+# Rows are padded with floor space automatically, so uneven rows are fine.
+#
+# Other characters (%, =, +, *, $, @ as a wall, P, ...) also become walls and
+# get their own shading ramp, so maps can carry per-tile textures.
+###########
+#.........#
+#...###...#
+#...#.#...#
+#...###...#
+#....>....#
+#.........#
+###########

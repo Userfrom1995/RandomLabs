@@ -1,172 +1,231 @@
-# Redline Rush — Top-Down Arcade Car Racing
+# Shaftcast — A First-Person Raycasting Engine in the Terminal
 
-**Redline Rush** is a polished, dependency-free browser racing game: you steer
-a car up a four-lane road at ever-increasing speed, dodge oncoming traffic,
-and keep the tank from running dry by scooping up fuel cans. Everything —
-graphics, audio, input, scoring — is plain HTML5 Canvas 2D, the Web Audio
-API, and vanilla JavaScript. No frameworks, no CDNs, no build step: it runs
-offline from a single folder and plays in any modern browser.
+**Shaftcast** is a small, dependency-free Python CLI that renders a pseudo-3D,
+Wolfenstein-style view straight into your terminal. It casts a ray through a
+2D grid map for every screen column using the **Digital Differential Analyzer
+(DDA)** algorithm, finds the first wall each ray hits, and scales the wall
+slice's height by the ray length to fake depth perspective. Walls are shaded
+with a distance-based luminance ramp, per-tile textures and ceiling/floor
+fills are optional, and a 2D minimap overlay can be drawn in the corner.
 
-- **Play it now** — [Redline Rush game](https://userfrom1995.github.io/Random/rush/)
-  (the game lives at `/rush/`; the rest of the site is the repo landing page).
-- **Dependency-free** — `logic.js` (pure gameplay rules), `game.js`
-  (rendering/input/audio), one HTML shell, one stylesheet. Open `rush/index.html`
-  directly from disk and it works.
-- **Procedural everything** — cars, road, trees, and sound effects are drawn
-  and synthesized at runtime; there are zero image or audio assets.
-- **Tested** — 20 unit tests for the pure gameplay logic
-  (`rush/logic.test.js`, run with `node --test`), plus a headless-browser
-  smoke test driving the full game loop.
+It runs on nothing but the Python standard library (`argparse`, `math`,
+`random`, `shutil`, `sys`, `time`, plus `termios`/`tty`/`select` on POSIX) —
+no external packages, no assets, no GPU.
 
 ```text
-Steer ← → (A/D) · Brake ↓ (S) · Pause P · Mute M · Enter to start
+WASD move · Q/E or ←→ turn · M minimap · F fill · T textures · ESC quit
 ```
 
 ---
 
-## How to play
+## What it is
 
-Click **Start Engine** (or press Enter). Your car sits at the bottom of a
-four-lane road that scrolls faster the farther you drive.
-
-- **Steer** — arrow keys or A/D, or drag/tap the road on touch screens
-  (touch devices also get on-screen steer and brake buttons).
-- **Brake** — hold ↓ / S / the BRAKE button to drop to ~55% speed. Slower
-  driving burns less fuel but earns score more slowly.
-- **Fuel** — the tank drains continuously and drains faster at high speed.
-  Collect **fuel cans** (the red canisters with a yellow band) to refill.
-  When the tank empties, it's game over. If fuel is running low a can is
-  guaranteed to appear soon.
-- **Lives** — you have 3. Hitting traffic costs one life and a couple of
-  seconds of invincibility; three hits ends the run.
-- **Near misses** — threading past a car within a whisker earns a `+25`
-  near-miss bonus and a whoosh. That's where the real points come from.
-- **Scoring** — you score continuously for distance travelled (faster = more
-  per second), plus near-miss and fuel bonuses. Your best score is saved in
-  `localStorage` on this device.
-
-### Controls reference
-
-| Key | Action |
-| --- | --- |
-| `←` / `A` | Steer left |
-| `→` / `D` | Steer right |
-| `↓` / `S` or `BRAKE` button | Brake |
-| `P` / `Esc` | Pause / resume |
-| `M` | Mute / unmute |
-| `Enter` / `Space` | Start / restart |
-| Tap or drag the road | Steer (touch) |
+- **DDA raycasting** — one ray per screen column. Each ray steps through the
+  grid cell-by-cell, always advancing along the shorter DDA axis, until it
+  crosses a wall. The perpendicular wall distance is used to compute the wall
+  slice's on-screen height, producing convincing depth.
+- **ASCII shading** — wall columns fade with distance through a bright-to-dark
+  ramp such as `#%+~.`; nearby walls are bright, far walls fade away. Walls hit
+  on their y-axis are dimmed, and each distinct wall character can carry its
+  own ramp for a per-tile texturing effect.
+- **First-person movement** — WASD to walk and strafe, arrow keys or Q/E to
+  turn, with per-axis collision checking so the camera slides along walls.
+  The render grid is sized to your terminal via `shutil.get_terminal_size`
+  and paced by a `time`-based frame loop.
+- **Map editor convenience** — load any map from a small text file (with
+  comment support and automatic padding), choose a built-in map, or generate a
+  random perfect maze with `--maze WIDTHxHEIGHT` (deterministic via `--seed`).
+  An optional 2D minimap overlay shows the world around the player.
+- **Three run modes** — interactive raw-mode keyboard loop (needs a TTY),
+  autopilot animation (no input needed), and a non-interactive frame dump
+  (`--frames N`) that is easy to pipe, diff, or test.
 
 ## Running it
 
-There is nothing to install. The game is a static web app:
+Shaftcast is a Python package in `shaftcast/`. Python 3.8+ is all you need.
 
-- **From the deployed site** — open
-  [https://userfrom1995.github.io/Random/rush/](https://userfrom1995.github.io/Random/rush/).
-- **Locally** — clone the repo and open `rush/index.html` in a browser, or
-  serve the folder (`python3 -m http.server` in the repo root, then visit
-  `/rush/`).
+```bash
+# Interactive first-person mode (needs a real terminal)
+python3 -m shaftcast
+
+# Render one frame and exit
+python3 -m shaftcast --frames 1
+
+# Generate a random perfect maze (deterministic with --seed)
+python3 -m shaftcast --maze 21x31 --seed 42
+
+# Load a map file with a minimap overlay
+python3 -m shaftcast --map shaftcast/examples/courtyard.map --minimap
+
+# Autopilot: let the camera turn itself while you watch
+python3 -m shaftcast --autopilot
+```
+
+The single file also runs directly: `python3 shaftcast/shaftcast.py --frames 1`.
+
+### Controls (interactive mode)
+
+| Key | Action |
+| --- | --- |
+| `W` / `↑` | Walk forward |
+| `S` / `↓` | Walk backward |
+| `A` | Strafe left |
+| `D` | Strafe right |
+| `Q` / `←` | Turn left |
+| `E` / `→` | Turn right |
+| `M` | Toggle the minimap overlay |
+| `F` | Toggle ceiling/floor fills |
+| `T` | Toggle per-tile textures |
+| `ESC` / `Ctrl-C` | Quit |
+
+### Run modes
+
+- **Interactive** — selected automatically when stdin and stdout are TTYs. It
+  reads raw keypresses with `termios`, clears and redraws each frame, and
+  hides the cursor for the duration.
+- **Autopilot** — `--autopilot` (or when stdout is a TTY but stdin is not)
+  slowly turns the camera so the world can be watched hands-free; `Ctrl-C`
+  stops it.
+- **Frame dump** — `--frames N` renders N frames to stdout, each preceded by a
+  header line (`Shaftcast 1.0.0 | frame 1/2 | 80x24 | ...`). When output is
+  fully piped, one frame is dumped automatically so the command never hangs.
 
 ### Running the tests
 
-The gameplay rules live in `rush/logic.js` as pure functions and are tested
-with Node's built-in test runner (Node 18+):
-
 ```bash
-node --test rush/logic.test.js
+python3 -m unittest discover -s shaftcast/tests
 ```
 
-A headless-browser smoke test (Playwright) drives the actual game: boot,
-start, steering, pause, three crashes → game over, high-score persistence,
-mute, and window resize:
-
-```bash
-node -e "const {chromium}=require('playwright'); ... "   # see rush/README.md
-```
+The 49 tests cover map parsing, maze generation, camera math, DDA ray casting,
+shading, frame rendering, and the full CLI surface.
 
 ## Configuration
 
-All gameplay tuning lives in a single frozen `CONFIG` object at the top of
-`rush/logic.js`, so the game can be rebalanced without touching logic:
-
-| Key | Default | Description |
+| Option | Default | Description |
 | --- | --- | --- |
-| `lanes` | `4` | Number of road lanes |
-| `minScrollSpeed` | `230` | Road speed (px/s) at the start of a run |
-| `maxScrollSpeed` | `900` | Road speed (px/s) at full difficulty |
-| `speedRampDistance` | `16000` | Distance (px) until max speed is reached |
-| `spawnIntervalMin/Max` | `0.42` / `0.95` | Seconds between traffic batches |
-| `maxGroupSize` | `3` | Cars per batch at full difficulty (a lane is always free) |
-| `brakeMultiplier` | `0.55` | Speed fraction while braking |
-| `collisionShrink` | `0.78` | Hitbox size fraction — forgiving scrapes |
-| `fuelMax` / `fuelPickupAmount` | `100` / `40` | Tank capacity / refill per can |
-| `fuelDrainBase` / `fuelDrainPerSpeed` | `1.2` / `0.006` | Fuel/s drained at base speed, plus per px/s |
-| `fuelPickupEvery` | `8` | Average seconds between fuel-can spawns |
-| `fuelLowThreshold` | `30` | Below this, a fuel can is guaranteed within ~2 s |
-| `nearMissDistance` / `nearMissScore` | `60` / `25` | Lateral distance and reward for near misses |
-| `fuelPickupScore` | `15` | Score per fuel can collected |
-| `lives` / `invincibleTime` | `3` / `2.0` | Lives and post-hit invulnerability (s) |
-| `scorePerPixel` / `speedToKmh` | `0.01` / `0.32` | Score per px and px/s→km/h conversion |
+| `--map FILE` | | Load a map from a text file. |
+| `--maze WIDTHxHEIGHT` | | Generate a random perfect maze (min `5x5`). |
+| `--builtin NAME` | `demo` | Built-in map: `demo`, `fort`, `castle`. |
+| `--seed N` | random | RNG seed for `--maze` (reproducible mazes). |
+| `--width N` | terminal | Render width in columns (4–400). |
+| `--height N` | terminal | Render height in rows (4–200). |
+| `--fps N` | `20` | Frame rate target for interactive/autopilot. |
+| `--fov DEG` | `66` | Horizontal field of view in degrees. |
+| `--max-dist N` | `12` | Render distance in grid cells. |
+| `--frames N` | | Render N frames and exit (non-interactive dump). |
+| `--fill MODE` | `both` | Ceiling/floor fills: `none`, `ceiling`, `floor`, `both`. |
+| `--minimap` | off | Overlay a 2D minimap in the bottom-left corner. |
+| `--no-textures` | off | Use the same ramp for every wall. |
+| `--autopilot` | off | Rotate the camera automatically. |
 
-Visual-only tuning (tree spacing, dash lengths, steering speed) lives in the
-`RENDER` object at the top of `rush/game.js`.
+### Map format
+
+A map is a plain-text grid, one character per cell, one row per line:
+
+```text
+###########
+#.........#
+#...###...#
+#...#.#...#
+#...###...#
+#....>....#
+#.........#
+###########
+```
+
+| Character | Meaning |
+| --- | --- |
+| `#` | Wall with the default brick ramp. |
+| `%`, `=`, `+`, `*`, `$`, `@`, `P`, ... | Wall with its own per-tile ramp. |
+| `.`, ` `, `,`, `-`, `_` | Empty floor. |
+| `@` / `>` | Player spawn, facing east. |
+| `<` | Player spawn, facing west. |
+| `^` | Player spawn, facing north. |
+| `v` | Player spawn, facing south. |
+
+Rules: exactly one player spawn is required; rows are padded to a common width
+automatically; cells outside the grid are walls; lines starting with `# ` (and
+blank lines) are comments. Any character that is neither floor nor a spawn
+marker becomes a wall, so adding a new texture is a one-character change. Two
+example maps ship in `shaftcast/examples/`: `small-room.map` and
+`courtyard.map`.
 
 ## How it works
 
-### Architecture
+### 1. The DDA ray cast
 
-- **`rush/logic.js`** — pure, framework-free gameplay rules: difficulty curves
-  (`scrollSpeedAt`, `spawnIntervalAt`, `groupSizeAt`), forgiving AABB
-  collision, lane math, score formatting, sanitized high-score persistence,
-  fuel math, the traffic **spawner**, and near-miss detection. Exposed as
-  `window.Redline` in the browser and as a CommonJS module for Node tests.
-- **`rush/game.js`** — the browser side: canvas sizing (devicePixelRatio-aware),
-  road/scenery/car/canister rendering, the update loop
-  (`requestAnimationFrame` with clamped delta), keyboard/touch/pointer input,
-  the state machine (menu → playing → paused → over), and the Web Audio
-  synth (engine hum whose pitch follows speed, collision thump, pickup blip,
-  near-miss whoosh, game-over jingle).
-- **`rush/index.html` + `rush/style.css`** — the shell: canvas, HUD (score,
-  best, km/h, fuel bar, lives), the three overlay screens, and on-screen
-  touch buttons that appear only on coarse-pointer devices.
+For each screen column `x`, the ray direction is the camera direction plus the
+camera plane scaled by `2*x/width - 1` (so the left and right edges of the
+screen spread the field of view). The ray then marches through the grid using
+the DDA: at every step it advances whichever of `sideX`/`sideY` is smaller,
+jumping from one grid line to the next, until the cell it enters is a wall.
+The perpendicular distance to that wall (`perp = side - delta` on the hit
+axis) is what produces the depth effect: `lineHeight = height / perp`, drawn
+centered around the horizon.
 
-### The spawner (fairness guarantee)
+### 2. ASCII shading
 
-Traffic spawns in batches, and the spawner guarantees every batch leaves at
-least one lane free, and (with a 65% bias) reuses the *previous* batch's free
-lane, so consecutive rows form gentle corridors instead of dead-end walls.
-Vertical spacing between batches is always greater than a car length, so there
-is always a path through. This is unit-tested and validated by a simulation
-where a lane-choosing bot never collides across an hour of traffic.
+Wall columns are drawn one glyph per row between `drawStart` and `drawEnd`.
+The glyph comes from a luminance ramp (`#` bright → `.` dark) indexed by the
+normalized distance `distance / max_dist`; y-side hits are pushed toward the
+dark end. Per-tile textures give each wall character its own ramp, and the
+`--no-textures` flag collapses everything to the default ramp.
 
-### Difficulty curve
+Ceiling and floor rows are filled (unless `--fill none`) with a subtle
+gradient whose intensity follows an approximate row distance, computed from
+how far the row is above or below the screen center.
 
-Speed and traffic density ramp over distance using a clamped smoothstep, so
-early runs are gentle and things get frantic gradually rather than abruptly.
-Braking trades score-per-second and fuel burn for breathing room.
+### 3. Movement and collision
 
-## Key files
+WASD and arrow/Q-E input map to world deltas via the camera's direction and
+perpendicular vectors. Movement checks the X and Y axes independently:
+`move(map, dx, dy)` only commits an axis if the target cell is not a wall, so
+the camera slides along walls instead of sticking. Turning rotates both the
+direction vector and the camera plane together by the same angle.
 
-- `rush/index.html` — game shell, screens, touch controls.
-- `rush/style.css` — layout and theming for the HUD and screens.
-- `rush/logic.js` — pure gameplay rules (unit-tested).
-- `rush/game.js` — rendering, input, audio, game loop.
-- `rush/logic.test.js` — 20 Node unit tests for the gameplay rules.
-- `rush/README.md` — project README with quick-start and testing notes.
-- `docs/index.md` / `docs/index.html` — this documentation (served at `/docs/`).
-- `ideas/2026-08-08-redline-rush-top-down-arcade-racer.md` — the build writeup.
+### 4. Input handling
 
-## Notes
+A small incremental parser (`_KeyReader`) reads raw bytes and assembles
+multi-byte escape sequences, so arrow keys split across reads are never
+corrupted. Held keys are tracked with a short timeout: a key that stops
+arriving is considered released, so movement stops cleanly.
 
-- **Why `/rush/` and not the site root?** The repo root `index.html` is the
-  Random landing page, which is preserved; the game is served from its own
-  directory. `pages.yml` stages `rush/` into the Pages artifact alongside the
-  landing page and docs.
-- **No assets, ever** — cars are rounded rects with gradient bodies, windshields,
-  and lights; the road is a gradient with scrolling dashes and edge lines;
-  trees are procedural; fuel cans are a red can with a yellow band and glow;
-  audio is synthesized. This keeps the game tiny and fully offline-capable.
-- **Fair by construction** — high scores are clamped to safe non-negative
-  integers, `localStorage` access is wrapped so private browsing can't crash
-  the game, delta time is clamped so a background tab can't cause a teleport,
-  and the game auto-pauses when the tab loses focus.
+### 5. Minimap overlay
+
+The minimap draws a viewport of the world grid (centered on the player,
+clipped to at most a third of the screen) into the bottom-left corner of the
+frame, with `@` for the player and the map's own characters for walls and
+floor. It is purely a post-process over the rendered frame, so it stays a
+pure, testable operation.
+
+## Project layout
+
+```text
+shaftcast/
+  shaftcast.py         # the whole engine + CLI
+  __main__.py          # enables `python -m shaftcast`
+  __init__.py          # package marker / public exports
+  README.md            # project quick-start and option reference
+  examples/
+    small-room.map     # minimal example map
+    courtyard.map      # a little fort, complete with comment syntax
+  tests/
+    test_shaftcast.py  # 49 stdlib-unittest tests
+docs/
+  index.md             # this documentation page (source)
+  index.html           # rendered documentation page
+ideas/
+  2026-08-09-shaftcast-terminal-raycasting.md
+```
+
+## Design notes
+
+- **Pure core** — map parsing, ray casting, shading, and frame rendering are
+  pure functions with no terminal side effects, so they are trivially
+  testable and reusable.
+- **Per-axis movement** — sliding along walls falls out naturally from
+  checking each movement axis independently.
+- **Robust input** — incremental escape-sequence parsing and held-key
+  timeouts make the interactive loop reliable in real terminals.
+- **Reproducible mazes** — `--seed` makes every generated maze repeatable,
+  which also keeps tests deterministic.

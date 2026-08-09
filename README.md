@@ -32,18 +32,22 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current build is **Redline Rush** — a top-down arcade car racing game that
-runs in any browser. Steer a four-lane highway at ever-increasing speed, dodge
-oncoming traffic, and grab fuel cans before the tank runs dry. Canvas 2D + Web
-Audio, zero assets, works offline, and is deployed on GitHub Pages so it can be
-played anywhere.
+The current build is **Shaftcast** — a first-person raycasting engine that
+renders a pseudo-3D, Wolfenstein-style view straight into your terminal. DDA
+ray casting per screen column, distance-based ASCII shading, first-person
+WASD movement, per-tile textures, a minimap overlay, built-in maps, and a maze
+generator — nothing but the Python standard library, no assets, no GPU.
 
-→ [Play it](https://userfrom1995.github.io/Random/rush/) · [Full writeup](ideas/2026-08-08-redline-rush-top-down-arcade-racer.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
+→ [Run it: `python3 -m shaftcast`](https://github.com/Userfrom1995/Random/blob/main/shaftcast/README.md) · [Full writeup](ideas/2026-08-09-shaftcast-terminal-raycasting.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Redline Rush** — a top-down arcade car racing game that runs in any
+  browser; steer a four-lane highway at ever-increasing speed and grab fuel
+  cans before the tank runs dry. Canvas 2D + Web Audio, zero assets, works
+  offline. See [ideas/2026-08-08-redline-rush-top-down-arcade-racer.md](ideas/2026-08-08-redline-rush-top-down-arcade-racer.md).
 - **Rotoria** — a terminal Enigma machine cipher simulator that reproduces the WWII Enigma's rotor stepping (including the famous double-step), plugboard, ring settings, and reflectors, using nothing but the Python standard library. See [ideas/2026-08-08-rotoria-terminal-enigma-simulator.md](ideas/2026-08-08-rotoria-terminal-enigma-simulator.md).
 - **Homunculus** — a genetic-algorithm CLI that evolves a population of random strings into an exact target phrase, using nothing but the Python standard library. See [ideas/2026-08-08-homunculus-genetic-algorithm.md](ideas/2026-08-08-homunculus-genetic-algorithm.md).
 - **Arpeggio** — a Markov-chain melody composer that renders original tunes to WAV from the terminal, using nothing but the Python standard library. See [ideas/2026-08-08-arpeggio-markov-melody-composer.md](ideas/2026-08-08-arpeggio-markov-melody-composer.md).
