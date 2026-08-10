@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Shaftcast — First-Person Raycasting in the Terminal</title>
-<meta name="description" content="Shaftcast: a dependency-free Python CLI that renders a pseudo-3D, Wolfenstein-style view in the terminal using DDA raycasting and ASCII shading. Standard library only." />
+<title>Fernwald — Terminal L-System Fractal Garden</title>
+<meta name="description" content="Fernwald: a dependency-free Python CLI that grows procedural plants, trees, and fractals from L-system grammar rules and renders them in the terminal as ASCII art or SVG. Standard library only." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -109,195 +109,213 @@
 </head>
 <body>
 <header class="hero">
-  <h1>Shaftcast</h1>
-  <p>A first-person raycasting engine that renders a pseudo-3D,
-  Wolfenstein-style view straight into your terminal — DDA ray casting, ASCII
-  depth shading, per-tile textures, a minimap overlay, and first-person
-  movement, using nothing but the Python standard library.</p>
+  <h1>Fernwald</h1>
+  <p>A small, dependency-free Python CLI that grows procedural plants, trees,
+  and fractals from L-system grammar rules and renders them straight into the
+  terminal as ASCII art — with an optional SVG export. Nothing but the Python
+  standard library.</p>
 </header>
 
 <main>
-  <a class="play-link" href="https://github.com/Userfrom1995/Random/blob/main/shaftcast/README.md">▶ Run it: python3 -m shaftcast</a>
+  <a class="play-link" href="https://github.com/Userfrom1995/Random/blob/main/fernwald/README.md">▶ Run it: python3 -m fernwald</a>
 
   <section class="cards">
     <div class="card">
-      <h4>DDA raycasting</h4>
-      <p>One ray per screen column marches cell-by-cell through the grid and
-      scales each wall slice's height by its distance for convincing depth.</p>
+      <h4>L-system engine</h4>
+      <p>Axiom + production rules rewritten N times, then walked by a turtle
+      with a branch stack — the classic Lindenmayer growth model.</p>
     </div>
     <div class="card">
-      <h4>ASCII shading</h4>
-      <p>Walls fade with distance through a <code>#%+~.</code>-style ramp; side
-      walls dim, and each wall character can carry its own texture.</p>
+      <h4>Seven presets</h4>
+      <p><code>tree</code>, <code>fern</code>, <code>plant</code>,
+      <code>sierpinski</code>, <code>dragon</code>, <code>koch</code>, and the
+      stochastic <code>wild</code> garden — all overridable.</p>
     </div>
     <div class="card">
       <h4>Zero dependencies</h4>
-      <p>Only <code>argparse</code>, <code>math</code>, <code>shutil</code>,
-      <code>sys</code>, <code>time</code> (and <code>termios</code> on POSIX).
-      No assets, no GPU, no install step.</p>
+      <p>Only <code>argparse</code>, <code>math</code>, <code>random</code>,
+      <code>re</code>, <code>shutil</code>, <code>sys</code>, <code>time</code>.
+      No packages, no build step.</p>
     </div>
   </section>
 
-  <div class="term">WASD move · Q/E or &#8592;&#8594; turn · M minimap
-F fill · T textures · ESC quit
+  <div class="term">        F: F[+F][-F]F   angle 30   iterations 5
+        X: F+[[X]-X]-F[-FX]+X   angle 25   iterations 5
+        F: F-G+F+G-F   G: GG   angle 120   iterations 5
 
-###########&#8201;
-#.........#
-#...###...#
-#...#.#...#
-#...###...#
-#....&gt;....#
-#.........#
-###########</div>
+      *******
+  ***********@***********
+  *********@**@@@**@*********
+  ***@@****@*****@*****@****@@***
+  *@***:******@%*%*%@******:***@*
+ **@*@@**%***  *%@%*  ***%**@@*@**
+  *   **+*@******#******@*+**   *
+       ***@****@****@***
+       *@%*@@.*@*.@@*%@*
+           ****@****
+             **@**
+            ***@***</div>
 
   <h2>Running it</h2>
   <p>Clone the repo and run from the repository root (Python 3.8+):</p>
-  <pre><code># Interactive first-person mode (needs a real terminal)
-python3 -m shaftcast
+  <pre><code># A leafy tree (the default preset)
+python3 -m fernwald
 
-# Render one frame and exit
-python3 -m shaftcast --frames 1
+# The Barnsley-style fern
+python3 -m fernwald --preset fern --iterations 5
 
-# Generate a random perfect maze (deterministic with --seed)
-python3 -m shaftcast --maze 21x31 --seed 42
+# Print all built-in grammars
+python3 -m fernwald --list-presets
 
-# Load a map file with a minimap overlay
-python3 -m shaftcast --map shaftcast/examples/courtyard.map --minimap</code></pre>
+# A custom grammar inline, exported as print-quality SVG
+python3 -m fernwald --rules 'A: F[+A][-A]' --seed 1 --svg &gt; garden.svg
 
-  <h3>Controls reference</h3>
-  <table>
-    <tr><th>Key</th><th>Action</th></tr>
-    <tr><td><code>W</code> / <code>&#8593;</code></td><td>Walk forward</td></tr>
-    <tr><td><code>S</code> / <code>&#8595;</code></td><td>Walk backward</td></tr>
-    <tr><td><code>A</code></td><td>Strafe left</td></tr>
-    <tr><td><code>D</code></td><td>Strafe right</td></tr>
-    <tr><td><code>Q</code> / <code>&#8592;</code></td><td>Turn left</td></tr>
-    <tr><td><code>E</code> / <code>&#8594;</code></td><td>Turn right</td></tr>
-    <tr><td><code>M</code></td><td>Toggle the minimap overlay</td></tr>
-    <tr><td><code>F</code></td><td>Toggle ceiling/floor fills</td></tr>
-    <tr><td><code>T</code></td><td>Toggle per-tile textures</td></tr>
-    <tr><td><code>ESC</code> / <code>Ctrl-C</code></td><td>Quit</td></tr>
-  </table>
+# A reproducible stochastic garden, shaded by stroke density
+python3 -m fernwald --preset wild --seed 7 --style shade
 
-  <h3>Run modes</h3>
-  <ul>
-    <li><strong>Interactive</strong> — selected when stdin and stdout are TTYs:
-    raw <code>termios</code> keypresses, per-frame redraw, hidden cursor.</li>
-    <li><strong>Autopilot</strong> — <code>--autopilot</code> turns the camera
-    on its own; <code>Ctrl-C</code> stops it.</li>
-    <li><strong>Frame dump</strong> — <code>--frames N</code> prints N frames
-    with header lines, perfect for piping, diffs, and tests. Fully piped
-    output dumps one frame automatically so the command never hangs.</li>
-  </ul>
+# Watch the plant grow step by step (needs a TTY)
+python3 -m fernwald --preset plant --animate</code></pre>
+
+  <p>The single file also runs directly:
+  <code>python3 fernwald/fernwald.py --preset koch</code>.</p>
 
   <h3>Running the tests</h3>
-  <pre><code>python3 -m unittest discover -s shaftcast/tests</code></pre>
-  <p>49 tests cover map parsing, maze generation, camera math, DDA ray
-  casting, shading, frame rendering, and the CLI surface.</p>
+  <pre><code>python3 -m unittest discover -s fernwald/tests</code></pre>
+  <p>71 tests cover rule expansion, grammar parsing, turtle interpretation,
+  grid fitting, ASCII rendering, SVG export, and the CLI surface.</p>
+
+  <h2>Presets</h2>
+  <table>
+    <tr><th>Preset</th><th>Axiom</th><th>Angle</th><th>Iterations</th><th>What you get</th></tr>
+    <tr><td><code>tree</code></td><td><code>F</code></td><td>30°</td><td>5</td><td>A symmetric leafy tree with a trunk.</td></tr>
+    <tr><td><code>fern</code></td><td><code>X</code></td><td>25°</td><td>5</td><td>The classic Barnsley-style branching plant.</td></tr>
+    <tr><td><code>plant</code></td><td><code>X</code></td><td>20°</td><td>6</td><td>A dense leafy bush.</td></tr>
+    <tr><td><code>sierpinski</code></td><td><code>F-G-G</code></td><td>120°</td><td>5</td><td>The Sierpinski triangle.</td></tr>
+    <tr><td><code>dragon</code></td><td><code>FX</code></td><td>90°</td><td>12</td><td>The Heighway dragon curve.</td></tr>
+    <tr><td><code>koch</code></td><td><code>F++F++F</code></td><td>60°</td><td>4</td><td>The Koch snowflake.</td></tr>
+    <tr><td><code>wild</code></td><td><code>F</code></td><td>22.5°</td><td>6</td><td>A stochastic garden — needs <code>--seed</code> to reproduce.</td></tr>
+  </table>
+  <p><code>--axiom</code>, <code>--angle</code>, and <code>--iterations</code>
+  override any part of the chosen grammar.</p>
 
   <h2>Configuration</h2>
   <table>
     <tr><th>Option</th><th>Default</th><th>Description</th></tr>
-    <tr><td><code>--map FILE</code></td><td></td><td>Load a map from a text file.</td></tr>
-    <tr><td><code>--maze WIDTHxHEIGHT</code></td><td></td><td>Generate a random perfect maze (min <code>5x5</code>).</td></tr>
-    <tr><td><code>--builtin NAME</code></td><td><code>demo</code></td><td>Built-in map: <code>demo</code>, <code>fort</code>, <code>castle</code>.</td></tr>
-    <tr><td><code>--seed N</code></td><td>random</td><td>RNG seed for <code>--maze</code> (reproducible mazes).</td></tr>
-    <tr><td><code>--width N</code></td><td>terminal</td><td>Render width in columns (4–400).</td></tr>
-    <tr><td><code>--height N</code></td><td>terminal</td><td>Render height in rows (4–200).</td></tr>
-    <tr><td><code>--fps N</code></td><td><code>20</code></td><td>Frame rate target for interactive/autopilot.</td></tr>
-    <tr><td><code>--fov DEG</code></td><td><code>66</code></td><td>Horizontal field of view in degrees.</td></tr>
-    <tr><td><code>--max-dist N</code></td><td><code>12</code></td><td>Render distance in grid cells.</td></tr>
-    <tr><td><code>--frames N</code></td><td></td><td>Render N frames and exit (non-interactive dump).</td></tr>
-    <tr><td><code>--fill MODE</code></td><td><code>both</code></td><td>Ceiling/floor fills: <code>none</code>, <code>ceiling</code>, <code>floor</code>, <code>both</code>.</td></tr>
-    <tr><td><code>--minimap</code></td><td>off</td><td>Overlay a 2D minimap in the bottom-left corner.</td></tr>
-    <tr><td><code>--no-textures</code></td><td>off</td><td>Use the same ramp for every wall.</td></tr>
-    <tr><td><code>--autopilot</code></td><td>off</td><td>Rotate the camera automatically.</td></tr>
+    <tr><td><code>--preset NAME</code></td><td><code>tree</code></td><td>Built-in grammar: <code>tree</code>, <code>fern</code>, <code>plant</code>, <code>sierpinski</code>, <code>dragon</code>, <code>koch</code>, <code>wild</code>.</td></tr>
+    <tr><td><code>--rules TEXT</code></td><td></td><td>Custom grammar as inline text or a <code>.grow</code> file path.</td></tr>
+    <tr><td><code>--axiom TEXT</code></td><td></td><td>Override the axiom.</td></tr>
+    <tr><td><code>--angle DEG</code></td><td></td><td>Override the turn angle (0 &lt; angle ≤ 360).</td></tr>
+    <tr><td><code>--iterations N</code></td><td></td><td>Override the rewrite count (0–20).</td></tr>
+    <tr><td><code>--seed N</code></td><td>random</td><td>Seed for stochastic grammars (<code>wild</code>).</td></tr>
+    <tr><td><code>--width COLS</code></td><td>terminal</td><td>Render width (4–400).</td></tr>
+    <tr><td><code>--height ROWS</code></td><td>terminal−1</td><td>Render height (4–400).</td></tr>
+    <tr><td><code>--pad N</code></td><td><code>1</code></td><td>Blank cells left around the drawing.</td></tr>
+    <tr><td><code>--style</code></td><td><code>line</code></td><td><code>line</code> (slope-shaded) or <code>shade</code> (density ramp).</td></tr>
+    <tr><td><code>--svg</code></td><td>off</td><td>Emit SVG instead of ASCII.</td></tr>
+    <tr><td><code>--svg-width</code>/<code>--svg-height</code></td><td><code>800</code></td><td>SVG canvas size in pixels.</td></tr>
+    <tr><td><code>--stroke COLOR</code></td><td><code>#2f9e63</code></td><td>SVG stroke color.</td></tr>
+    <tr><td><code>--no-leaves</code></td><td>off</td><td>Omit the SVG leaf-tip dots.</td></tr>
+    <tr><td><code>--animate</code></td><td>off</td><td>Step the iteration count up so the plant grows.</td></tr>
+    <tr><td><code>--delay SECS</code></td><td><code>0.4</code></td><td>Seconds between <code>--animate</code> frames.</td></tr>
+    <tr><td><code>--list-presets</code></td><td></td><td>Print the built-in grammars and exit.</td></tr>
+    <tr><td><code>--version</code></td><td></td><td>Print the version and exit.</td></tr>
   </table>
 
-  <h3>Map format</h3>
-  <p>A map is a plain-text grid, one character per cell, one row per line:</p>
-  <pre><code>###########
-#.........#
-#...###...#
-#...#.#...#
-#...###...#
-#....&gt;....#
-#.........#
-###########</code></pre>
+  <h3>Grammar file format</h3>
+  <p>A <code>.grow</code> file is a list of statements — a production rule or
+  a directive per line. <code>;</code>-separated statements work too, and
+  <code>#</code> starts a comment.</p>
+  <pre><code># fernwald/examples/plant.grow
+angle 20
+axiom X
+iterations 6
+X: F[+X][-X]FX
+F: FF</code></pre>
+
   <table>
-    <tr><th>Character</th><th>Meaning</th></tr>
-    <tr><td><code>#</code></td><td>Wall with the default brick ramp.</td></tr>
-    <tr><td><code>%</code>, <code>=</code>, <code>+</code>, <code>*</code>, <code>$</code>, <code>@</code>, <code>P</code>, ...</td><td>Wall with its own per-tile ramp.</td></tr>
-    <tr><td><code>.</code>, <code> </code>, <code>,</code>, <code>-</code>, <code>_</code></td><td>Empty floor.</td></tr>
-    <tr><td><code>@</code> / <code>&gt;</code></td><td>Player spawn, facing east.</td></tr>
-    <tr><td><code>&lt;</code></td><td>Player spawn, facing west.</td></tr>
-    <tr><td><code>^</code></td><td>Player spawn, facing north.</td></tr>
-    <tr><td><code>v</code></td><td>Player spawn, facing south.</td></tr>
+    <tr><th>Symbol</th><th>Meaning</th></tr>
+    <tr><td><code>F</code>, <code>G</code></td><td>Move forward one unit and draw a line.</td></tr>
+    <tr><td><code>f</code>, <code>g</code></td><td>Move forward one unit without drawing.</td></tr>
+    <tr><td><code>+</code></td><td>Turn left (counter-clockwise) by the angle.</td></tr>
+    <tr><td><code>-</code></td><td>Turn right by the angle.</td></tr>
+    <tr><td><code>[</code></td><td>Push position and heading (start a branch).</td></tr>
+    <tr><td><code>]</code></td><td>Pop position and heading (back to the branch point).</td></tr>
+    <tr><td>other letters</td><td>Variables — rewritten by rules if they have one, otherwise ignored.</td></tr>
   </table>
-  <p>Exactly one player spawn is required; rows are padded to a common width
-  automatically; cells outside the grid are walls; lines starting with
-  <code># </code> (and blank lines) are comments. Two example maps ship in
-  <code>shaftcast/examples/</code>: <code>small-room.map</code> and
-  <code>courtyard.map</code>.</p>
+  <p>A rule may list alternatives separated with <code>|</code> for stochastic
+  growth. Choices are made with the RNG seeded by <code>--seed</code>, so the
+  same seed always grows the same garden.</p>
 
   <h2>How it works</h2>
-  <h3>1. The DDA ray cast</h3>
-  <p>For each screen column <code>x</code>, the ray direction is the camera
-  direction plus the camera plane scaled by <code>2*x/width - 1</code>, so the
-  screen edges spread the field of view. The ray marches through the grid with
-  the DDA, advancing whichever of <code>sideX</code>/<code>sideY</code> is
-  smaller until it enters a wall cell. The perpendicular distance gives the
-  depth: <code>lineHeight = height / perp</code>, drawn centered on the
-  horizon.</p>
-  <h3>2. ASCII shading</h3>
-  <p>Wall slices are drawn glyph-per-row from a luminance ramp (<code>#</code>
-  bright to <code>.</code> dark) indexed by the normalized distance; y-side
-  hits are pushed toward the dark end. Per-tile textures give each wall
-  character its own ramp. Ceiling/floor fills use an approximate row-distance
-  gradient unless disabled with <code>--fill none</code>.</p>
-  <h3>3. Movement and collision</h3>
-  <p>WASD and arrow/Q-E input map to world deltas via the camera's direction
-  and perpendicular vectors. Movement checks the X and Y axes independently, so
-  the camera slides along walls; turning rotates the direction and camera
-  plane together.</p>
-  <h3>4. Input handling</h3>
-  <p>An incremental escape-sequence parser keeps arrow keys split across reads
-  from corrupting the stream, and held keys use a short timeout so movement
-  stops cleanly when released.</p>
+
+  <h3>1. Expansion</h3>
+  <p><code>expand(axiom, rules, iterations)</code> rewrites the axiom in place,
+  replacing every symbol that has a production rule and passing constants
+  (<code>+ - [ ]</code>) through unchanged. Rules with several alternatives pick
+  one via a seeded <code>random.Random</code>. A running character count guards
+  against runaway growth: grammars are capped at 2,000,000 symbols and 20
+  iterations.</p>
+
+  <h3>2. Turtle interpretation</h3>
+  <p><code>interpret(sequence, angle)</code> walks the command string. The
+  turtle starts at <code>(0, 0)</code> facing up so plants stand upright.
+  <code>F</code>/<code>G</code> record a line segment, <code>[</code>/<code>]</code>
+  push and pop a (position, heading) stack, and <code>+</code>/<code>-</code> turn
+  by the angle. The endpoint of every branch that closes (<code>]</code>) or of
+  the final stroke becomes a <em>tip</em> — the leaf dots in both output modes.</p>
+
+  <h3>3. Fitting and ASCII rendering</h3>
+  <p>All segments are collected, their bounding box computed, and a single
+  affine mapping is built that scales the drawing to fit the grid with
+  <code>--pad</code> cells of margin, centers it, flips Y (turtle up = screen
+  up), and stretches the X axis by the terminal cell aspect ratio so unit
+  lengths read the same in both directions. Each segment is then stroked with
+  sub-cell sampling so steep diagonals never show gaps. In <code>line</code>
+  style a glyph is chosen from the segment's slope; in <code>shade</code> style
+  a per-cell stroke counter is mapped through a greyscale ramp. Tips are always
+  painted <code>*</code>.</p>
+
+  <h3>4. SVG export</h3>
+  <p><code>export_svg</code> repeats the same bounding-box fit (pixels are
+  square, so no aspect correction) and emits one <code>M...L...</code> command
+  per segment inside a single <code>&lt;path&gt;</code> — this avoids the
+  spurious connector lines a single <code>&lt;polyline&gt;</code> would draw
+  across branch jumps. Leaf tips become small filled circles unless
+  <code>--no-leaves</code> is given.</p>
 
   <h2>Project layout</h2>
-  <pre><code>shaftcast/
-  shaftcast.py         # the whole engine + CLI
-  __main__.py          # enables `python -m shaftcast`
-  __init__.py          # package marker / public exports
-  README.md            # project quick-start and option reference
+  <pre><code>fernwald/
+  fernwald.py         # the whole engine + CLI
+  __main__.py         # enables `python -m fernwald`
+  __init__.py         # package marker / public exports
+  README.md           # project quick-start and option reference
   examples/
-    small-room.map     # minimal example map
-    courtyard.map      # a little fort with comment syntax
+    plant.grow        # a leafy bush grammar file
+    wild.grow         # a stochastic garden grammar file
   tests/
-    test_shaftcast.py  # 49 stdlib-unittest tests
+    test_fernwald.py  # 71 stdlib-unittest tests
 docs/
-  index.md             # this documentation page (source)
-  index.html           # rendered documentation page
+  index.md            # this documentation page (source)
+  index.html          # rendered documentation page
 ideas/
-  2026-08-09-shaftcast-terminal-raycasting.md</code></pre>
+  2026-08-10-fernwald-terminal-lsystem-garden.md</code></pre>
 
   <h2>Design notes</h2>
   <ul>
-    <li><strong>Pure core</strong> — map parsing, ray casting, shading, and
-    frame rendering are pure functions with no terminal side effects, so they
-    are trivially testable and reusable.</li>
-    <li><strong>Per-axis movement</strong> — wall sliding falls out naturally
-    from checking each movement axis independently.</li>
-    <li><strong>Robust input</strong> — incremental escape-sequence parsing and
-    held-key timeouts keep the interactive loop reliable.</li>
-    <li><strong>Reproducible mazes</strong> — <code>--seed</code> makes every
-    generated maze repeatable, keeping tests deterministic too.</li>
+    <li><strong>Pure core</strong> — expansion, interpretation, fitting, and
+    rendering are pure functions with no terminal side effects, so they are
+    trivially testable and reusable.</li>
+    <li><strong>One pass, one fit</strong> — the whole turtle path is fitted
+    into the grid in a single bounding-box pass before stroking, so output is
+    always exactly the requested size.</li>
+    <li><strong>Terminal-aware aspect</strong> — the ~2:1 cell aspect is folded
+    into the fit, so plants look geometrically correct rather than squashed.</li>
+    <li><strong>Reproducible gardens</strong> — every stochastic choice flows
+    through a seeded <code>random.Random</code>; the same <code>--seed</code>
+    always grows the same plant.</li>
   </ul>
-
-  <p><a href="index.md">Read the markdown source of this page</a>.</p>
 </main>
 
-<footer>Shaftcast · part of the Random repository · MIT License</footer>
+<footer>Fernwald · part of the Random repo · MIT License</footer>
 </body>
 </html>

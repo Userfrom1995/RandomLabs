@@ -32,18 +32,24 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current build is **Shaftcast** — a first-person raycasting engine that
-renders a pseudo-3D, Wolfenstein-style view straight into your terminal. DDA
-ray casting per screen column, distance-based ASCII shading, first-person
-WASD movement, per-tile textures, a minimap overlay, built-in maps, and a maze
-generator — nothing but the Python standard library, no assets, no GPU.
+The current build is **Fernwald** — a terminal L-system fractal garden that
+grows procedural plants, trees, and fractals from grammar rules and renders
+them as ASCII art (with an optional SVG export). A seed string plus production
+rules are iterated and walked by a turtle with a branch stack, so the same tiny
+engine draws a leafy tree, a Barnsley-style fern, a Sierpinski triangle, a
+dragon curve, or a Koch snowflake — nothing but the Python standard library.
 
-→ [Run it: `python3 -m shaftcast`](https://github.com/Userfrom1995/Random/blob/main/shaftcast/README.md) · [Full writeup](ideas/2026-08-09-shaftcast-terminal-raycasting.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
+→ [Run it: `python3 -m fernwald`](https://github.com/Userfrom1995/Random/blob/main/fernwald/README.md) · [Full writeup](ideas/2026-08-10-fernwald-terminal-lsystem-garden.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Shaftcast** — a first-person raycasting engine that renders a pseudo-3D,
+  Wolfenstein-style view straight into your terminal using DDA ray casting and
+  distance-based ASCII shading, with first-person WASD movement, per-tile
+  textures, a minimap overlay, and a maze generator. Nothing but the Python
+  standard library. See [ideas/2026-08-09-shaftcast-terminal-raycasting.md](ideas/2026-08-09-shaftcast-terminal-raycasting.md).
 - **Redline Rush** — a top-down arcade car racing game that runs in any
   browser; steer a four-lane highway at ever-increasing speed and grab fuel
   cans before the tank runs dry. Canvas 2D + Web Audio, zero assets, works

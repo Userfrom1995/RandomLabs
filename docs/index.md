@@ -1,231 +1,223 @@
-# Shaftcast — A First-Person Raycasting Engine in the Terminal
+# Fernwald — A Terminal L-System Fractal Garden
 
-**Shaftcast** is a small, dependency-free Python CLI that renders a pseudo-3D,
-Wolfenstein-style view straight into your terminal. It casts a ray through a
-2D grid map for every screen column using the **Digital Differential Analyzer
-(DDA)** algorithm, finds the first wall each ray hits, and scales the wall
-slice's height by the ray length to fake depth perspective. Walls are shaded
-with a distance-based luminance ramp, per-tile textures and ceiling/floor
-fills are optional, and a 2D minimap overlay can be drawn in the corner.
+**Fernwald** is a small, dependency-free Python CLI that grows procedural
+plants, trees, and fractals from **L-system grammar rules** and renders them
+straight into the terminal as ASCII art (with an optional **SVG export**).
+
+Lindenmayer systems model plant growth as string rewriting: a seed string (the
+*axiom*) is rewritten a fixed number of times by a set of production *rules*,
+and the resulting command string is walked by a turtle that translates symbols
+into drawing commands (`F` = forward, `+`/`-` = turn, `[`/`]` = push/pop the
+branch stack). The same tiny engine draws a leafy tree, a Barnsley-style fern,
+a Sierpinski triangle, a dragon curve, or a Koch snowflake simply by swapping
+rule sets.
 
 It runs on nothing but the Python standard library (`argparse`, `math`,
-`random`, `shutil`, `sys`, `time`, plus `termios`/`tty`/`select` on POSIX) —
-no external packages, no assets, no GPU.
+`random`, `re`, `shutil`, `sys`, `time`) — no dependencies, no build step.
 
 ```text
-WASD move · Q/E or ←→ turn · M minimap · F fill · T textures · ESC quit
+python3 -m fernwald --preset fern --iterations 5
+python3 -m fernwald --preset wild --seed 7 --style shade
 ```
 
 ---
 
 ## What it is
 
-- **DDA raycasting** — one ray per screen column. Each ray steps through the
-  grid cell-by-cell, always advancing along the shorter DDA axis, until it
-  crosses a wall. The perpendicular wall distance is used to compute the wall
-  slice's on-screen height, producing convincing depth.
-- **ASCII shading** — wall columns fade with distance through a bright-to-dark
-  ramp such as `#%+~.`; nearby walls are bright, far walls fade away. Walls hit
-  on their y-axis are dimmed, and each distinct wall character can carry its
-  own ramp for a per-tile texturing effect.
-- **First-person movement** — WASD to walk and strafe, arrow keys or Q/E to
-  turn, with per-axis collision checking so the camera slides along walls.
-  The render grid is sized to your terminal via `shutil.get_terminal_size`
-  and paced by a `time`-based frame loop.
-- **Map editor convenience** — load any map from a small text file (with
-  comment support and automatic padding), choose a built-in map, or generate a
-  random perfect maze with `--maze WIDTHxHEIGHT` (deterministic via `--seed`).
-  An optional 2D minimap overlay shows the world around the player.
-- **Three run modes** — interactive raw-mode keyboard loop (needs a TTY),
-  autopilot animation (no input needed), and a non-interactive frame dump
-  (`--frames N`) that is easy to pipe, diff, or test.
+- **Rule-set parser** — reads a grammar as an inline string or a `.grow` file:
+  production rules (`F: F[+F][-F]F`) plus `angle`, `axiom`, and `iterations`
+  directives, with `#` comments and `;`-separated statements.
+- **Preset grammar library** — `tree`, `fern`, `plant`, `sierpinski`,
+  `dragon`, `koch`, and the stochastic `wild` garden, all overridable with
+  `--axiom` / `--angle` / `--iterations`.
+- **ASCII renderer** — the turtle path is stroked into a character grid sized
+  to your terminal with `--style line` (slope-shaded `-|/\` with `*` leaf
+  tips) or `--style shade` (stroke-density greyscale ramp).
+- **SVG export** — `--svg` emits the same path as a `<path>` of line segments
+  with optional leaf-tip dots, built from plain strings.
+- **Reproducible gardens** — `--seed` seeds the stochastic rule choices, and
+  `--animate` steps the iteration count up so the plant visibly grows.
 
 ## Running it
 
-Shaftcast is a Python package in `shaftcast/`. Python 3.8+ is all you need.
+Fernwald is a Python package in `fernwald/`. Python 3.8+ is all you need.
 
 ```bash
-# Interactive first-person mode (needs a real terminal)
-python3 -m shaftcast
+# A leafy tree (the default preset)
+python3 -m fernwald
 
-# Render one frame and exit
-python3 -m shaftcast --frames 1
+# The Barnsley-style fern
+python3 -m fernwald --preset fern --iterations 5
 
-# Generate a random perfect maze (deterministic with --seed)
-python3 -m shaftcast --maze 21x31 --seed 42
+# Print all built-in grammars
+python3 -m fernwald --list-presets
 
-# Load a map file with a minimap overlay
-python3 -m shaftcast --map shaftcast/examples/courtyard.map --minimap
+# A custom grammar inline, exported as print-quality SVG
+python3 -m fernwald --rules 'A: F[+A][-A]' --seed 1 --svg > garden.svg
 
-# Autopilot: let the camera turn itself while you watch
-python3 -m shaftcast --autopilot
+# A reproducible stochastic garden, shaded by stroke density
+python3 -m fernwald --preset wild --seed 7 --style shade
+
+# Watch the plant grow step by step (needs a TTY)
+python3 -m fernwald --preset plant --animate
 ```
 
-The single file also runs directly: `python3 shaftcast/shaftcast.py --frames 1`.
-
-### Controls (interactive mode)
-
-| Key | Action |
-| --- | --- |
-| `W` / `↑` | Walk forward |
-| `S` / `↓` | Walk backward |
-| `A` | Strafe left |
-| `D` | Strafe right |
-| `Q` / `←` | Turn left |
-| `E` / `→` | Turn right |
-| `M` | Toggle the minimap overlay |
-| `F` | Toggle ceiling/floor fills |
-| `T` | Toggle per-tile textures |
-| `ESC` / `Ctrl-C` | Quit |
-
-### Run modes
-
-- **Interactive** — selected automatically when stdin and stdout are TTYs. It
-  reads raw keypresses with `termios`, clears and redraws each frame, and
-  hides the cursor for the duration.
-- **Autopilot** — `--autopilot` (or when stdout is a TTY but stdin is not)
-  slowly turns the camera so the world can be watched hands-free; `Ctrl-C`
-  stops it.
-- **Frame dump** — `--frames N` renders N frames to stdout, each preceded by a
-  header line (`Shaftcast 1.0.0 | frame 1/2 | 80x24 | ...`). When output is
-  fully piped, one frame is dumped automatically so the command never hangs.
+The single file also runs directly: `python3 fernwald/fernwald.py --preset koch`.
 
 ### Running the tests
 
 ```bash
-python3 -m unittest discover -s shaftcast/tests
+python3 -m unittest discover -s fernwald/tests
 ```
 
-The 49 tests cover map parsing, maze generation, camera math, DDA ray casting,
-shading, frame rendering, and the full CLI surface.
+The 71 tests cover rule expansion (determinism, seeding, the expansion cap),
+grammar parsing (inline, files, directives, comments, alternatives, error
+cases), turtle interpretation (bracket stack, tips, turns, movement), grid
+fitting (bounds, aspect, y-flip), ASCII rendering (dimensions, glyphs, styles),
+SVG export (structure, y-flip, leaf dots), and the CLI surface (presets,
+errors, seeding, clamping).
+
+## Presets
+
+| Preset | Axiom | Angle | Iterations | What you get |
+| --- | --- | --- | --- | --- |
+| `tree` | `F` | 30° | 5 | A symmetric leafy tree with a trunk. |
+| `fern` | `X` | 25° | 5 | The classic Barnsley-style branching plant. |
+| `plant` | `X` | 20° | 6 | A dense leafy bush. |
+| `sierpinski` | `F-G-G` | 120° | 5 | The Sierpinski triangle. |
+| `dragon` | `FX` | 90° | 12 | The Heighway dragon curve. |
+| `koch` | `F++F++F` | 60° | 4 | The Koch snowflake. |
+| `wild` | `F` | 22.5° | 6 | A stochastic garden — needs `--seed` to reproduce. |
+
+`--axiom`, `--angle`, and `--iterations` override any part of the chosen
+grammar: `python3 -m fernwald --preset koch --angle 60 --iterations 5`.
 
 ## Configuration
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--map FILE` | | Load a map from a text file. |
-| `--maze WIDTHxHEIGHT` | | Generate a random perfect maze (min `5x5`). |
-| `--builtin NAME` | `demo` | Built-in map: `demo`, `fort`, `castle`. |
-| `--seed N` | random | RNG seed for `--maze` (reproducible mazes). |
-| `--width N` | terminal | Render width in columns (4–400). |
-| `--height N` | terminal | Render height in rows (4–200). |
-| `--fps N` | `20` | Frame rate target for interactive/autopilot. |
-| `--fov DEG` | `66` | Horizontal field of view in degrees. |
-| `--max-dist N` | `12` | Render distance in grid cells. |
-| `--frames N` | | Render N frames and exit (non-interactive dump). |
-| `--fill MODE` | `both` | Ceiling/floor fills: `none`, `ceiling`, `floor`, `both`. |
-| `--minimap` | off | Overlay a 2D minimap in the bottom-left corner. |
-| `--no-textures` | off | Use the same ramp for every wall. |
-| `--autopilot` | off | Rotate the camera automatically. |
+| `--preset NAME` | `tree` | Built-in grammar: `tree`, `fern`, `plant`, `sierpinski`, `dragon`, `koch`, `wild`. |
+| `--rules TEXT` | | Custom grammar as inline text or a `.grow` file path. |
+| `--axiom TEXT` | | Override the axiom. |
+| `--angle DEG` | | Override the turn angle (0 < angle ≤ 360). |
+| `--iterations N` | | Override the rewrite count (0–20). |
+| `--seed N` | random | Seed for stochastic grammars (`wild`). |
+| `--width COLS` | terminal | Render width (4–400). |
+| `--height ROWS` | terminal−1 | Render height (4–400). |
+| `--pad N` | `1` | Blank cells left around the drawing. |
+| `--style` | `line` | `line` (slope-shaded) or `shade` (density ramp). |
+| `--svg` | off | Emit SVG instead of ASCII. |
+| `--svg-width` / `--svg-height` | `800` | SVG canvas size in pixels. |
+| `--stroke COLOR` | `#2f9e63` | SVG stroke color. |
+| `--no-leaves` | off | Omit the SVG leaf-tip dots. |
+| `--animate` | off | Step the iteration count up so the plant grows. |
+| `--delay SECS` | `0.4` | Seconds between `--animate` frames. |
+| `--list-presets` | | Print the built-in grammars and exit. |
+| `--version` | | Print the version and exit. |
 
-### Map format
+### Grammar file format
 
-A map is a plain-text grid, one character per cell, one row per line:
+A `.grow` file is a list of statements — a production rule or a directive per
+line. `;`-separated statements work too, and `#` starts a comment.
 
-```text
-###########
-#.........#
-#...###...#
-#...#.#...#
-#...###...#
-#....>....#
-#.........#
-###########
+```
+# fernwald/examples/plant.grow
+angle 20
+axiom X
+iterations 6
+X: F[+X][-X]FX
+F: FF
 ```
 
-| Character | Meaning |
-| --- | --- |
-| `#` | Wall with the default brick ramp. |
-| `%`, `=`, `+`, `*`, `$`, `@`, `P`, ... | Wall with its own per-tile ramp. |
-| `.`, ` `, `,`, `-`, `_` | Empty floor. |
-| `@` / `>` | Player spawn, facing east. |
-| `<` | Player spawn, facing west. |
-| `^` | Player spawn, facing north. |
-| `v` | Player spawn, facing south. |
+```bash
+python3 -m fernwald --rules fernwald/examples/plant.grow
+```
 
-Rules: exactly one player spawn is required; rows are padded to a common width
-automatically; cells outside the grid are walls; lines starting with `# ` (and
-blank lines) are comments. Any character that is neither floor nor a spawn
-marker becomes a wall, so adding a new texture is a one-character change. Two
-example maps ship in `shaftcast/examples/`: `small-room.map` and
-`courtyard.map`.
+| Symbol | Meaning |
+| --- | --- |
+| `F`, `G` | Move forward one unit and draw a line. |
+| `f`, `g` | Move forward one unit without drawing. |
+| `+` | Turn left (counter-clockwise) by the angle. |
+| `-` | Turn right by the angle. |
+| `[` | Push the current position and heading (start a branch). |
+| `]` | Pop the saved position and heading (back to the branch point). |
+| other letters | Variables — rewritten by rules if they have one, otherwise ignored. |
+
+A rule may list alternatives separated with `|` for stochastic growth:
+
+```
+F: F[+F][-F]F | F[+F]F[-F] | FF[+F][-F]
+```
+
+Choices are made with the RNG seeded by `--seed`, so the same seed always
+grows the same garden.
 
 ## How it works
 
-### 1. The DDA ray cast
+### 1. Expansion
 
-For each screen column `x`, the ray direction is the camera direction plus the
-camera plane scaled by `2*x/width - 1` (so the left and right edges of the
-screen spread the field of view). The ray then marches through the grid using
-the DDA: at every step it advances whichever of `sideX`/`sideY` is smaller,
-jumping from one grid line to the next, until the cell it enters is a wall.
-The perpendicular distance to that wall (`perp = side - delta` on the hit
-axis) is what produces the depth effect: `lineHeight = height / perp`, drawn
-centered around the horizon.
+`expand(axiom, rules, iterations)` rewrites the axiom in place, replacing every
+symbol that has a production rule and passing constants (`+`, `-`, `[`, `]`)
+through unchanged. Rules with several alternatives pick one via a seeded
+`random.Random`. A running character count guards against runaway growth:
+grammars are capped at 2,000,000 symbols and 20 iterations.
 
-### 2. ASCII shading
+### 2. Turtle interpretation
 
-Wall columns are drawn one glyph per row between `drawStart` and `drawEnd`.
-The glyph comes from a luminance ramp (`#` bright → `.` dark) indexed by the
-normalized distance `distance / max_dist`; y-side hits are pushed toward the
-dark end. Per-tile textures give each wall character its own ramp, and the
-`--no-textures` flag collapses everything to the default ramp.
+`interpret(sequence, angle)` walks the command string. The turtle starts at
+`(0, 0)` facing up so plants stand upright. `F`/`G` record a line segment,
+`[`/`]` push and pop a (position, heading) stack, and `+`/`-` turn by the
+angle. The endpoint of every branch that closes (`]`) or the final stroke
+becomes a *tip* — the leaf dots in both output modes.
 
-Ceiling and floor rows are filled (unless `--fill none`) with a subtle
-gradient whose intensity follows an approximate row distance, computed from
-how far the row is above or below the screen center.
+### 3. Fitting and ASCII rendering
 
-### 3. Movement and collision
+All segments are collected, their bounding box computed, and a single affine
+mapping is built that scales the drawing to fit the grid with `--pad` cells of
+margin, centers it, flips Y (turtle up = screen up), and stretches the X axis
+by the terminal cell aspect ratio so unit lengths read the same in both
+directions. Each segment is then stroked with sub-cell sampling so steep
+diagonals never show gaps. In `line` style a glyph is chosen from the segment's
+slope; in `shade` style a per-cell stroke counter is mapped through a greyscale
+ramp. Tips are always painted `*`.
 
-WASD and arrow/Q-E input map to world deltas via the camera's direction and
-perpendicular vectors. Movement checks the X and Y axes independently:
-`move(map, dx, dy)` only commits an axis if the target cell is not a wall, so
-the camera slides along walls instead of sticking. Turning rotates both the
-direction vector and the camera plane together by the same angle.
+### 4. SVG export
 
-### 4. Input handling
-
-A small incremental parser (`_KeyReader`) reads raw bytes and assembles
-multi-byte escape sequences, so arrow keys split across reads are never
-corrupted. Held keys are tracked with a short timeout: a key that stops
-arriving is considered released, so movement stops cleanly.
-
-### 5. Minimap overlay
-
-The minimap draws a viewport of the world grid (centered on the player,
-clipped to at most a third of the screen) into the bottom-left corner of the
-frame, with `@` for the player and the map's own characters for walls and
-floor. It is purely a post-process over the rendered frame, so it stays a
-pure, testable operation.
+`export_svg` repeats the same bbox fitting (pixels are square, so no aspect
+correction) and emits one `M...L...` command per segment inside a single
+`<path>` — this avoids the spurious connector lines a single `<polyline>` would
+draw across branch jumps. Leaf tips become small filled circles unless
+`--no-leaves` is given.
 
 ## Project layout
 
 ```text
-shaftcast/
-  shaftcast.py         # the whole engine + CLI
-  __main__.py          # enables `python -m shaftcast`
-  __init__.py          # package marker / public exports
-  README.md            # project quick-start and option reference
+fernwald/
+  fernwald.py         # the whole engine + CLI
+  __main__.py         # enables `python -m fernwald`
+  __init__.py         # package marker / public exports
+  README.md           # project quick-start and option reference
   examples/
-    small-room.map     # minimal example map
-    courtyard.map      # a little fort, complete with comment syntax
+    plant.grow        # a leafy bush grammar file
+    wild.grow         # a stochastic garden grammar file
   tests/
-    test_shaftcast.py  # 49 stdlib-unittest tests
+    test_fernwald.py  # 71 stdlib-unittest tests
 docs/
-  index.md             # this documentation page (source)
-  index.html           # rendered documentation page
+  index.md            # this documentation page (source)
+  index.html          # rendered documentation page
 ideas/
-  2026-08-09-shaftcast-terminal-raycasting.md
+  2026-08-10-fernwald-terminal-lsystem-garden.md
 ```
 
 ## Design notes
 
-- **Pure core** — map parsing, ray casting, shading, and frame rendering are
-  pure functions with no terminal side effects, so they are trivially
-  testable and reusable.
-- **Per-axis movement** — sliding along walls falls out naturally from
-  checking each movement axis independently.
-- **Robust input** — incremental escape-sequence parsing and held-key
-  timeouts make the interactive loop reliable in real terminals.
-- **Reproducible mazes** — `--seed` makes every generated maze repeatable,
-  which also keeps tests deterministic.
+- **Pure core** — expansion, interpretation, fitting, and rendering are pure
+  functions with no terminal side effects, so they are trivially testable and
+  reusable.
+- **One pass, one fit** — the whole turtle path is fitted into the grid in a
+  single bounding-box pass before stroking, so output is always exactly the
+  requested size.
+- **Terminal-aware aspect** — the ~2:1 cell aspect is folded into the fit, so
+  plants look geometrically correct rather than squashed.
+- **Reproducible gardens** — every stochastic choice flows through a seeded
+  `random.Random`; the same `--seed` always grows the same plant.
