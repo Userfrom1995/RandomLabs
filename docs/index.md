@@ -1,223 +1,244 @@
-# Fernwald — A Terminal L-System Fractal Garden
+# Regexplorer — a visual regex engine that animates NFA matching in the terminal
 
-**Fernwald** is a small, dependency-free Python CLI that grows procedural
-plants, trees, and fractals from **L-system grammar rules** and renders them
-straight into the terminal as ASCII art (with an optional **SVG export**).
+**Regexplorer** is a small, dependency-free Python CLI that implements a
+regular-expression engine from scratch and renders it as a living diagram.
+It parses a pattern into an AST, builds the **Thompson NFA**, draws the state
+machine in the terminal as an ASCII graph, and **steps a string through it
+frame-by-frame** so you can watch which transitions fire, where the engine
+backtracks, and whether the match succeeds.
 
-Lindenmayer systems model plant growth as string rewriting: a seed string (the
-*axiom*) is rewritten a fixed number of times by a set of production *rules*,
-and the resulting command string is walked by a turtle that translates symbols
-into drawing commands (`F` = forward, `+`/`-` = turn, `[`/`]` = push/pop the
-branch stack). The same tiny engine draws a leafy tree, a Barnsley-style fern,
-a Sierpinski triangle, a dragon curve, or a Koch snowflake simply by swapping
-rule sets.
-
-It runs on nothing but the Python standard library (`argparse`, `math`,
-`random`, `re`, `shutil`, `sys`, `time`) — no dependencies, no build step.
+It runs on nothing but the Python standard library (`argparse`, `collections`,
+`itertools`, `math`, `sys`, `time`) — no dependencies, no build step.
 
 ```text
-python3 -m fernwald --preset fern --iterations 5
-python3 -m fernwald --preset wild --seed 7 --style shade
+python3 -m regexplorer 'a(b|c)*d' 'abccbd'
+python3 -m regexplorer --diagram-only 'a(b|c)*d'
+python3 -m regexplorer --quiet --engine backtrack '(a+)+b' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 ```
 
 ---
 
 ## What it is
 
-- **Rule-set parser** — reads a grammar as an inline string or a `.grow` file:
-  production rules (`F: F[+F][-F]F`) plus `angle`, `axiom`, and `iterations`
-  directives, with `#` comments and `;`-separated statements.
-- **Preset grammar library** — `tree`, `fern`, `plant`, `sierpinski`,
-  `dragon`, `koch`, and the stochastic `wild` garden, all overridable with
-  `--axiom` / `--angle` / `--iterations`.
-- **ASCII renderer** — the turtle path is stroked into a character grid sized
-  to your terminal with `--style line` (slope-shaded `-|/\` with `*` leaf
-  tips) or `--style shade` (stroke-density greyscale ramp).
-- **SVG export** — `--svg` emits the same path as a `<path>` of line segments
-  with optional leaf-tip dots, built from plain strings.
-- **Reproducible gardens** — `--seed` seeds the stochastic rule choices, and
-  `--animate` steps the iteration count up so the plant visibly grows.
+- **Parser + AST** — a recursive-descent parser turns a small regex subset
+  (literals, `.`, character classes, `*` `+` `?`, `|`, grouping, `^` `$` anchors,
+  escapes) into a typed AST with correct precedence. Unknown escapes like `\b`
+  are rejected instead of silently ignored.
+- **Thompson NFA builder** — the classic textbook construction: one state per
+  atomic position, ε-edges wiring literals into sequences, alternations, and
+  quantifiers. The machine is drawn as an ASCII graph in the terminal.
+- **Two honest engines** — the default NFA simulation keeps a *set of active
+  states* and advances it one input character at a time (linear time, leftmost
+  *shortest* match, no backtracking); `--engine backtrack` does greedy,
+  leftmost *longest* matching like Python's `re` — and you can watch it give
+  input back step by step.
+- **Step animation** — every consumed character, fired transition, restarted
+  thread, and backtrack is recorded as an explicit trace and replayed
+  frame-by-frame, so the animation is deterministic and fully testable.
+- **The catastrophic-backtracking lesson** — `(a+)+b` on a run of `a`s explodes
+  under backtracking (bounded by `--max-steps`, which aborts the run with a
+  clear message) yet is instant for the NFA engine. Both are one command apart.
+- **Script-friendly** — `--quiet` prints one machine-readable line
+  (`MATCH 2-5`, `NO MATCH`, `ABORTED 200000`) with distinct exit codes.
 
 ## Running it
 
-Fernwald is a Python package in `fernwald/`. Python 3.8+ is all you need.
+Regexplorer is a Python package in `regexplorer/`. Python 3.8+ is all you need.
 
 ```bash
-# A leafy tree (the default preset)
-python3 -m fernwald
+# Render the NFA once, then animate the match frame by frame (needs a TTY)
+python3 -m regexplorer 'a(b|c)*d' 'abccbd'
 
-# The Barnsley-style fern
-python3 -m fernwald --preset fern --iterations 5
+# Just print the state machine
+python3 -m regexplorer --diagram-only 'a(b|c)*d'
 
-# Print all built-in grammars
-python3 -m fernwald --list-presets
+# Watch classic greedy backtracking (and the backtrack it takes)
+python3 -m regexplorer --engine backtrack 'ab|ac' 'ac'
 
-# A custom grammar inline, exported as print-quality SVG
-python3 -m fernwald --rules 'A: F[+A][-A]' --seed 1 --svg > garden.svg
+# Demonstrate catastrophic backtracking: (a+)+b explodes, the NFA does not
+python3 -m regexplorer --engine backtrack '(a+)+b' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+python3 -m regexplorer '(a+)+b' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 
-# A reproducible stochastic garden, shaded by stroke density
-python3 -m fernwald --preset wild --seed 7 --style shade
-
-# Watch the plant grow step by step (needs a TTY)
-python3 -m fernwald --preset plant --animate
+# Plain, script-friendly results
+python3 -m regexplorer --quiet '[a-c]+' 'xxabcx'    # -> MATCH 2-3   (shortest)
+python3 -m regexplorer --quiet --engine backtrack '[a-c]+' 'xxabcx'   # -> MATCH 2-5   (greedy)
+python3 -m regexplorer --quiet '^ab$' 'ac'          # -> NO MATCH
 ```
 
-The single file also runs directly: `python3 fernwald/fernwald.py --preset koch`.
+The single file also runs directly: `python3 regexplorer/regexplorer.py --help`.
 
 ### Running the tests
 
 ```bash
-python3 -m unittest discover -s fernwald/tests
+python3 -m unittest discover -s regexplorer/tests
 ```
 
-The 71 tests cover rule expansion (determinism, seeding, the expansion cap),
-grammar parsing (inline, files, directives, comments, alternatives, error
-cases), turtle interpretation (bracket stack, tips, turns, movement), grid
-fitting (bounds, aspect, y-flip), ASCII rendering (dimensions, glyphs, styles),
-SVG export (structure, y-flip, leaf dots), and the CLI surface (presets,
-errors, seeding, clamping).
+The 63 tests cover the parser (literals, classes, ranges, escapes, anchors,
+precedence, and every error case), NFA construction (reachability, epsilon
+closures, the `*` back edge), both engines against a shared table of ~50
+match/no-match cases, the documented shortest-vs-greedy difference,
+catastrophic backtracking aborts, statistics, both renderers, and the CLI
+surface (quiet output, exit codes, flags, validation).
 
-## Presets
+## The two engines
 
-| Preset | Axiom | Angle | Iterations | What you get |
-| --- | --- | --- | --- | --- |
-| `tree` | `F` | 30° | 5 | A symmetric leafy tree with a trunk. |
-| `fern` | `X` | 25° | 5 | The classic Barnsley-style branching plant. |
-| `plant` | `X` | 20° | 6 | A dense leafy bush. |
-| `sierpinski` | `F-G-G` | 120° | 5 | The Sierpinski triangle. |
-| `dragon` | `FX` | 90° | 12 | The Heighway dragon curve. |
-| `koch` | `F++F++F` | 60° | 4 | The Koch snowflake. |
-| `wild` | `F` | 22.5° | 6 | A stochastic garden — needs `--seed` to reproduce. |
+| Engine | Semantics | Complexity | What you see |
+| --- | --- | --- | --- |
+| `--engine nfa` (default) | Leftmost **shortest** match: a set of active states is advanced together and the run stops at the first offset where an accepting state is reached. No backtracking. | O(n·m) per input over the NFA | Active states spreading through the machine; the "fresh match can begin here" restarts. |
+| `--engine backtrack` | Leftmost **longest** (greedy) match, like Python's `re.search`: quantifiers eat as much as possible first, then give input back one step at a time. | Potentially exponential (see the step cap) | The AST tree, the current path, and every backtrack. |
 
-`--axiom`, `--angle`, and `--iterations` override any part of the chosen
-grammar: `python3 -m fernwald --preset koch --angle 60 --iterations 5`.
+The two can disagree on the same input, and that is the point: the NFA engine
+is what makes real engines linear, while backtracking is what makes them
+predictable-but-slow. On `abccbd` with the pattern `a(b|c)*`:
+
+```bash
+python3 -m regexplorer --quiet 'a(b|c)*' 'abccbd'        # MATCH 0-1   (shortest)
+python3 -m regexplorer --quiet --engine backtrack 'a(b|c)*' 'abccbd'   # MATCH 0-5   (greedy)
+```
+
+### Catastrophic backtracking
+
+Patterns like `(a+)+b` on a long run of `a`'s have exponentially many ways to
+split the input into `a+` groups, so a backtracking engine explores them all
+before concluding there is no match. Regexplorer bounds this with `--max-steps`
+(default 200,000): when the budget is exhausted the run is **aborted** with a
+clear message instead of hanging. The same input is instant for the NFA engine
+— that contrast is the whole lesson.
+
+```bash
+python3 -m regexplorer --engine backtrack '(a+)+b' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+# ...
+# ABORTED after 200000 steps — the pattern likely causes catastrophic backtracking
+```
+
+## Supported pattern syntax
+
+A deliberately small, documented subset:
+
+| Construct | Example | Meaning |
+| --- | --- | --- |
+| Literals | `a`, `1`, `_` | Match that exact character (metacharacters like `+` are literal when escaped). |
+| Any character | `.` | Any character except newline. |
+| Character class | `[abc]`, `[a-z]`, `[0-9_]` | One of the listed characters / ranges. |
+| Negated class | `[^abc]`, `[^0-9]` | Any character *not* listed. |
+| Predefined classes | `\d` `\w` `\s` `\D` `\W` `\S` | Digit / word / whitespace (and complements). |
+| Quantifiers | `a*` `a+` `a?` | Zero or more, one or more, zero or one (greedy in the backtracking engine). |
+| Alternation | `a|b|c` | First branch that matches wins. |
+| Grouping | `(ab|c)*` | Grouping only (no capture extraction). |
+| Anchors | `^a`, `a$` | Start / end of the input. |
+| Escapes | `\n` `\t` `\r` `\f` `\v` `\0` `\.` `\*` `\[` `\\` … | Control characters and escaped metacharacters. |
+
+Bare `-`, `{`, `}`, `]` outside a class are literal characters. Unknown
+alphabetic escapes (e.g. `\b`, `\q`) are rejected as pattern errors rather than
+silently ignored. There are no backreferences, look-around, or bounded
+repetition — keeping the NFA construction textbook-clean.
 
 ## Configuration
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--preset NAME` | `tree` | Built-in grammar: `tree`, `fern`, `plant`, `sierpinski`, `dragon`, `koch`, `wild`. |
-| `--rules TEXT` | | Custom grammar as inline text or a `.grow` file path. |
-| `--axiom TEXT` | | Override the axiom. |
-| `--angle DEG` | | Override the turn angle (0 < angle ≤ 360). |
-| `--iterations N` | | Override the rewrite count (0–20). |
-| `--seed N` | random | Seed for stochastic grammars (`wild`). |
-| `--width COLS` | terminal | Render width (4–400). |
-| `--height ROWS` | terminal−1 | Render height (4–400). |
-| `--pad N` | `1` | Blank cells left around the drawing. |
-| `--style` | `line` | `line` (slope-shaded) or `shade` (density ramp). |
-| `--svg` | off | Emit SVG instead of ASCII. |
-| `--svg-width` / `--svg-height` | `800` | SVG canvas size in pixels. |
-| `--stroke COLOR` | `#2f9e63` | SVG stroke color. |
-| `--no-leaves` | off | Omit the SVG leaf-tip dots. |
-| `--animate` | off | Step the iteration count up so the plant grows. |
-| `--delay SECS` | `0.4` | Seconds between `--animate` frames. |
-| `--list-presets` | | Print the built-in grammars and exit. |
+| `PATTERN` | | The regular expression to compile and match. |
+| `TEXT` | `""` | The input to match against (optional; `--diagram-only` doesn't need it). |
+| `--engine` | `nfa` | `nfa` (set of active states, linear) or `backtrack` (greedy recursion). |
+| `--diagram-only` | off | Print just the NFA state machine and exit. |
+| `--quiet` | off | One machine-readable line: `MATCH a-b`, `NO MATCH`, or `ABORTED n`. |
+| `--no-animate` | off | Print every frame without screen clears or delays. |
+| `--delay SECS` | `0.25` | Seconds between animation frames on a TTY. |
+| `--max-steps N` | `200000` | Stop the backtracking engine after N steps (reveals catastrophic backtracking). |
+| `--color` | `auto` | `auto` (only on a TTY), `always`, or `never`. |
 | `--version` | | Print the version and exit. |
 
-### Grammar file format
+Exit codes: `0` = match, `1` = no match, `2` = error or an aborted run.
 
-A `.grow` file is a list of statements — a production rule or a directive per
-line. `;`-separated statements work too, and `#` starts a comment.
-
-```
-# fernwald/examples/plant.grow
-angle 20
-axiom X
-iterations 6
-X: F[+X][-X]FX
-F: FF
-```
-
-```bash
-python3 -m fernwald --rules fernwald/examples/plant.grow
-```
-
-| Symbol | Meaning |
-| --- | --- |
-| `F`, `G` | Move forward one unit and draw a line. |
-| `f`, `g` | Move forward one unit without drawing. |
-| `+` | Turn left (counter-clockwise) by the angle. |
-| `-` | Turn right by the angle. |
-| `[` | Push the current position and heading (start a branch). |
-| `]` | Pop the saved position and heading (back to the branch point). |
-| other letters | Variables — rewritten by rules if they have one, otherwise ignored. |
-
-A rule may list alternatives separated with `|` for stochastic growth:
-
-```
-F: F[+F][-F]F | F[+F]F[-F] | FF[+F][-F]
-```
-
-Choices are made with the RNG seeded by `--seed`, so the same seed always
-grows the same garden.
+Safety: patterns are capped at 200 characters, inputs at 2,000 characters, and
+the backtracking engine at `--max-steps` calls, so an accidental exponential
+pattern can never hang the process.
 
 ## How it works
 
-### 1. Expansion
+### 1. Parsing
 
-`expand(axiom, rules, iterations)` rewrites the axiom in place, replacing every
-symbol that has a production rule and passing constants (`+`, `-`, `[`, `]`)
-through unchanged. Rules with several alternatives pick one via a seeded
-`random.Random`. A running character count guards against runaway growth:
-grammars are capped at 2,000,000 symbols and 20 iterations.
+`parse()` tokenizes the pattern and runs a recursive-descent parser with the
+usual precedence chain — alternation (lowest) → sequence → repetition
+(highest). Every construct becomes a small AST node (`Lit`, `AnyChar`,
+`CharClass`, `Anchor`, `Seq`, `Alt`, `Star`, `Plus`, `Opt`). A `_pattern_str`
+renderer can turn an AST back into a regex-like string, which the test suite
+uses for round-trip checks.
 
-### 2. Turtle interpretation
+### 2. Thompson NFA construction
 
-`interpret(sequence, angle)` walks the command string. The turtle starts at
-`(0, 0)` facing up so plants stand upright. `F`/`G` record a line segment,
-`[`/`]` push and pop a (position, heading) stack, and `+`/`-` turn by the
-angle. The endpoint of every branch that closes (`]`) or the final stroke
-becomes a *tip* — the leaf dots in both output modes.
+`build_nfa(ast)` applies the textbook fragment algebra: each node builds a
+small state graph and returns its *start* and *accept* states, and parents wire
+fragments together with ε-transitions. A `Star` starts a fresh "loop start"
+state, ε-splits into the child (and out the bottom), and adds an ε back-edge
+from the child's accept to the loop start — the back edge that makes `*`
+actually loop, and the one every NFA test pokes at.
 
-### 3. Fitting and ASCII rendering
+### 3. The NFA engine
 
-All segments are collected, their bounding box computed, and a single affine
-mapping is built that scales the drawing to fit the grid with `--pad` cells of
-margin, centers it, flips Y (turtle up = screen up), and stretches the X axis
-by the terminal cell aspect ratio so unit lengths read the same in both
-directions. Each segment is then stroked with sub-cell sampling so steep
-diagonals never show gaps. In `line` style a glyph is chosen from the segment's
-slope; in `shade` style a per-cell stroke counter is mapped through a greyscale
-ramp. Tips are always painted `*`.
+`nfa_simulate(nfa, text)` is the set-of-states algorithm, done in a single
+pass with leftmost tracking: each active state carries the *minimum start
+offset* of a thread that reached it, and the ε-closure propagates those offsets
+monotonically. At each input offset a fresh thread may begin at the start
+state; when any thread reaches an accepting state the run stops immediately —
+that is what makes it leftmost-*shortest*. Every closure, transition, and
+restart is recorded in the trace for the animator.
 
-### 4. SVG export
+### 4. The backtracking engine
 
-`export_svg` repeats the same bbox fitting (pixels are square, so no aspect
-correction) and emits one `M...L...` command per segment inside a single
-`<path>` — this avoids the spurious connector lines a single `<polyline>` would
-draw across branch jumps. Leaf tips become small filled circles unless
-`--no-leaves` is given.
+`backtrack_simulate(ast, text)` is written in continuation-passing style: a
+`Star`/`Plus` consumes greedily and returns a *continuation* that re-enters
+the loop, so when the rest of the pattern fails, the continuation naturally
+"gives back" one character at a time. An empty-match guard (`q > p`) keeps
+`(a*)*` from spinning forever. Each step records which node is being tried and
+whether input was given back, which the AST-tree view turns into an explicit
+`branch 0 failed; trying the next alternative` message.
+
+### 5. Rendering and animation
+
+The NFA is laid out left-to-right by a dependency-free `spring_layout`
+(balanced forces on the ε skeleton) and stroked onto a character grid with
+rounded corners for cycles. Animation frames are built from the recorded trace:
+the input line with a caret, the machine with active states highlighted, the
+transitions that just fired, and a stats line (`states visited · steps · max
+active set`). The backtracking view shows the AST as a tree with the working
+node marked. `--diagram-only` prints just the machine; `--quiet` skips the
+screen entirely.
 
 ## Project layout
 
 ```text
-fernwald/
-  fernwald.py         # the whole engine + CLI
-  __main__.py         # enables `python -m fernwald`
-  __init__.py         # package marker / public exports
-  README.md           # project quick-start and option reference
-  examples/
-    plant.grow        # a leafy bush grammar file
-    wild.grow         # a stochastic garden grammar file
+regexplorer/
+  regexplorer.py         # the whole engine + CLI
+  __main__.py            # enables `python -m regexplorer`
+  __init__.py            # package marker / public exports
+  README.md              # project quick-start and option reference
   tests/
-    test_fernwald.py  # 71 stdlib-unittest tests
+    test_regexplorer.py  # 63 stdlib-unittest tests
 docs/
-  index.md            # this documentation page (source)
-  index.html          # rendered documentation page
+  index.md               # this documentation page (source)
+  index.html             # rendered documentation page
 ideas/
-  2026-08-10-fernwald-terminal-lsystem-garden.md
+  2026-08-11-regexplorer-visual-regex-engine.md
 ```
 
 ## Design notes
 
-- **Pure core** — expansion, interpretation, fitting, and rendering are pure
-  functions with no terminal side effects, so they are trivially testable and
-  reusable.
-- **One pass, one fit** — the whole turtle path is fitted into the grid in a
-  single bounding-box pass before stroking, so output is always exactly the
-  requested size.
-- **Terminal-aware aspect** — the ~2:1 cell aspect is folded into the fit, so
-  plants look geometrically correct rather than squashed.
-- **Reproducible gardens** — every stochastic choice flows through a seeded
-  `random.Random`; the same `--seed` always grows the same plant.
+- **Pure core, terminal on top** — parsing, NFA construction, both engines,
+  and the diagram renderer are side-effect-free functions; only the CLI plays
+  frames. Everything is driven by an explicit *trace*: a list of steps that the
+  engines record and the renderer turns into frames, which makes the animation
+  deterministic and trivially testable.
+- **Leftmost start tracking in the NFA** — the set-based simulation carries,
+  for every active state, the *minimum start offset* of a thread that reached
+  it; ε-closure propagates it monotonically. That single-pass trick is what
+  lets the engine find the leftmost (shortest) match without the O(n²) "try
+  every start offset" loop.
+- **CPS backtracking** — greedy repetition is implemented with explicit
+  continuations so a `*` naturally "gives back" one character at a time when
+  the rest of the pattern fails; an empty-match guard keeps `(a*)*` from
+  spinning.
+- **Two honest engines** — Regexplorer deliberately keeps the NFA and
+  backtracking semantics *different* rather than papering over them, and
+  documents the difference, because that difference *is* the educational
+  content: linear time vs. exponential blow-up, and where it comes from.

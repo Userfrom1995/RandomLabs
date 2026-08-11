@@ -32,19 +32,26 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current build is **Fernwald** — a terminal L-system fractal garden that
-grows procedural plants, trees, and fractals from grammar rules and renders
-them as ASCII art (with an optional SVG export). A seed string plus production
-rules are iterated and walked by a turtle with a branch stack, so the same tiny
-engine draws a leafy tree, a Barnsley-style fern, a Sierpinski triangle, a
-dragon curve, or a Koch snowflake — nothing but the Python standard library.
+The current build is **Regexplorer** — a visual regex engine that animates NFA
+matching in the terminal. It parses a small regex subset into an AST, builds the
+classic Thompson NFA, draws the state machine as an ASCII graph, and steps a
+string through it frame-by-frame so you can watch which transitions fire, where
+greedy backtracking gives input back, and whether the match succeeds. Two honest
+engines — linear set-of-states NFA simulation (leftmost shortest) and greedy
+recursive backtracking (leftmost longest) — make catastrophic patterns like
+`(a+)+b` a one-command demo — nothing but the Python standard library.
 
-→ [Run it: `python3 -m fernwald`](https://github.com/Userfrom1995/Random/blob/main/fernwald/README.md) · [Full writeup](ideas/2026-08-10-fernwald-terminal-lsystem-garden.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
+→ [Run it: `python3 -m regexplorer`](https://github.com/Userfrom1995/Random/blob/main/regexplorer/README.md) · [Full writeup](ideas/2026-08-11-regexplorer-visual-regex-engine.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Fernwald** — a terminal L-system fractal garden that grows procedural
+  plants, trees, and fractals from grammar rules and renders them as ASCII art
+  or SVG. Seven presets, custom grammars, seeded stochastic gardens, and growth
+  animation. Nothing but the Python standard library. See
+  [ideas/2026-08-10-fernwald-terminal-lsystem-garden.md](ideas/2026-08-10-fernwald-terminal-lsystem-garden.md).
 - **Shaftcast** — a first-person raycasting engine that renders a pseudo-3D,
   Wolfenstein-style view straight into your terminal using DDA ray casting and
   distance-based ASCII shading, with first-person WASD movement, per-tile
