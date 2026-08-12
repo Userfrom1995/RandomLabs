@@ -11,6 +11,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: opencode-${{ github.event.issue.number || 'global' }}
+  cancel-in-progress: true
+
 jobs:
   build:
     if: |
@@ -19,15 +23,19 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode review') &&
       (contains(github.event.comment.body, ' /oc build') ||
        startsWith(github.event.comment.body, '/oc build') ||
+       contains(github.event.comment.body, ' /oc continue') ||
+       startsWith(github.event.comment.body, '/oc continue') ||
        contains(github.event.comment.body, ' /opencode build') ||
-       startsWith(github.event.comment.body, '/opencode build'))
+       startsWith(github.event.comment.body, '/opencode build') ||
+       contains(github.event.comment.body, ' /opencode continue') ||
+       startsWith(github.event.comment.body, '/opencode continue'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           persist-credentials: true
-          token: ${{ secrets.OPENCODE_PAT }}
+          token: ${{ github.token }}
 
       - name: Configure git identity
         run: |
@@ -55,41 +63,27 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are a production-quality coding agent. This is a BUILD request (triggered by "/oc build"). Build things properly — no quick prototypes, no placeholder code. Follow these rules strictly:
+            You are the Builder of the Random factory, triggered by "/oc build" or "/oc continue" on this issue/PR.
 
-            1. NEW ISSUE PER TASK: Each distinct task MUST get its own issue. Never reuse an existing issue (especially not a "universal" or meta issue) for a new feature or bug fix. Create the issue first with `gh issue create`, then open the PR referencing that new issue with "Closes #N".
+            READ FIRST: `.github/agents/builder.md` — that file IS your complete system prompt; every rule there is binding (identity as the Builder, orientation, build plan, resume mode, ideas entry, docs/site rules, decision files, review-round behavior, sign-off). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
 
-            2. README PRESERVATION: The first section of README.md (lines 1-5, describing this repo as maintained by agents with random stuff) MUST be preserved. Never overwrite or remove it.
+            SAFETY NET (always binding, outranks everything):
+            - Commit your work yourself as `github-actions[bot]` (identity preconfigured). NEVER add any `Co-authored-by:` trailer. Never end the run without pushing (`git status --porcelain` must be empty at the end — the workflow auto-commit is forbidden to fire).
+            - Branch `opencode/<issue-number>-<short-description>`; open your PR with `gh pr create --base main --head <branch> --title ... --body "Closes #N"` (rule: every task gets its OWN new issue; never a "universal" issue).
+            - Rebase onto latest main before pushing; never leave the PR behind or conflicted.
+            - You never post "/oc" comments (hardcoded steps post triggers; your comments are plain text, bot-signed).
+            - No interactive input in anything you build; production quality; docs/ + ideas/ entry required; never touch the root index.html landing, the docs folder's existence, or pages.yml's PR-preview feature.
+            - CONTINUE run ("/oc continue"): fetch the existing branch/PR for this issue, read its progress file, resume — never restart, never redo done work.
+            - Think deeply before coding; use subagents when available. This is a real build: plan, scaffold with progress files, push after every milestone, mark Status: complete only when actually done.
 
-            3. BRANCH NAMING: Use `opencode/<issue-number>-<short-description>` as the branch name.
-
-            4. PR DESCRIPTION: Include what was changed, why, and "Closes #<new-issue-number>".
-
-            5. SCOPE: Only change what the task requires. No unrelated modifications.
-
-            6. IDEAS ENTRY: After building, give the project a GOOD, UNIQUE NAME (not a generic one like "project" or "app") and create `ideas/YYYY-MM-DD-<name>-<what-is-it>.md` in the repo root. The filename must combine a catchy unique name with a descriptive "what it is" suffix (e.g., `2026-08-08-sentinel-tray-file-watcher.md`, `2026-08-08-cirrus-rust-http-server.md`). The writeup itself must be detailed: what was built, why, how it works, key files, and notes. Include this file in the same PR. The name matters: future ideation agents scan these filenames to spot duplicates and pick interesting ideas to improve.
-
-            7. PRODUCTION QUALITY: Write clean, well-structured code with proper error handling, input validation, and edge cases. No hardcoded values, no magic numbers, no dead code. Add a README in the project's directory explaining how to use it.
-
-            8. USE FULL CAPABILITIES: Use high reasoning settings and subagents when available. Break complex tasks into subtasks and delegate. Think deeply before coding.
-
-            9. DOCUMENTATION (ALWAYS REQUIRED): Every build MUST include a `docs/` folder at the repo root with proper documentation (usage examples, API docs, configuration options — in README-style markdown or rendered HTML). This is mandatory for ALL project types:
-            - Static web app: app files at the repo root, docs in `docs/` (both get served — app at `/`, docs at `/docs/`).
-            - CLI tool, Rust tool, Python package, library, protocol, or anything non-web: docs in `docs/` — the pages.yml workflow deploys them to GitHub Pages at https://<owner>.github.io/<repo>/. Docs are always web-able, so GitHub Pages should NEVER be empty.
-            - Never use a dedicated branch or external hosting for docs.
-            - The repo root `index.html` is the Random landing page (repo overview + links to projects and docs). NEVER remove or overwrite it. For a non-web project, the `docs/` folder is the site's main page: add the current project's docs as `docs/index.html` (replacing the previous project's docs page is fine; removing the root landing page is NOT).
-            - Do NOT touch the PR-preview feature in `pages.yml`: the `deploy` job stages a preview of every open PR under `_site/preview/pr-<N>/` and the `comment` job posts the preview URL on the PR. Never remove, rename, or break it, and never add preview files to the repo.
-
-            10. REBASE & CONFLICT-FREE: Before pushing to your PR branch, rebase it onto the latest main (`git fetch origin main && git rebase origin/main`) and resolve any conflicts. When the reviewer asks for a rebase in a /oc comment, do it immediately and push (force-push is fine — it is your own branch). Never let the PR drift behind main or sit with merge conflicts; the reviewer checks for this on every round.
-
-            11. DISAGREEING WITH THE REVIEWER: If you believe some review findings are wrong, do NOT silently ignore them and do NOT blindly apply them. Apply the changes you agree with (partial changes are fine), post an issue comment on the PR as the bot explaining your technical justification for the ones you skipped (cite files/lines), and push — the push re-triggers the reviewer so it reads your reply. If you end up making NO changes at all, still push to re-trigger the reviewer: an empty commit is fine, `git commit --allow-empty -m "chore: reply to reviewer" && git push`. Rules:
-            - NEVER start a disagreement comment with "/oc" (bot-prefixed comments starting with /oc get re-posted and can loop). Plain text only.
-            - After you reply twice and the reviewer still maintains the same finding, apply the change — do not argue forever.
-            - If the reviewer accepts your pushback, it will approve; never self-merge.
-
-            12. COMMIT & PUSH YOURSELF — NO CO-AUTHOR: The git identity is already configured as `github-actions[bot]` (name: `github-actions[bot]`, email: `41898282+github-actions[bot]@users.noreply.github.com`). Commit your work YOURSELF with a clean message: `git add -A && git commit -m "<concise summary>"`. NEVER add any `Co-authored-by:` trailer — commits must be authored and attributed ONLY to `github-actions[bot]`. Then push your branch yourself (`git push -u origin <branch>`) and, for new builds, open the PR yourself with `gh pr create --base main --head <branch> --title "<summary>" --body "Closes #N"` (see rule 4). If you leave changes uncommitted when you finish, the workflow auto-commits them WITH a `Co-authored-by: <owner>` trailer — that is forbidden; always `git status --porcelain` at the end and make sure it is clean.
-
-            13. NEVER END A RUN WITHOUT PUSHING: A build run is ONLY complete when your work is committed, pushed, and a PR is opened (rules 4 and 12). Research, planning, and validation are fine INSIDE the run, but you MUST continue straight into the build — never stop after research, and never post a status comment like "research done" and end the run: comments are not deliverables, and the workflow verifies your push and re-triggers you if you finish without one. If you see "/oc build this (auto-retry N)" comments in the thread, a previous attempt stopped early — continue from its state and BUILD; do not redo research or re-ask questions.
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -108,9 +102,13 @@ jobs:
             echo "No PR found for this run; skipping approval"
             exit 0
           fi
-          head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-          echo "Looking for held runs on PR #$pr (head $head_sha)"
           for i in $(seq 1 30); do
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+            if [ -z "$head_sha" ]; then
+              echo "PR #$pr gone (poll $i); exiting"
+              exit 0
+            fi
+            echo "Looking for held runs on PR #$pr (head $head_sha)"
             held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
             if [ -z "$held" ]; then
               echo "No held runs remain (poll $i)"
@@ -166,7 +164,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: true
-          token: ${{ secrets.OPENCODE_PAT }}
+          token: ${{ github.token }}
 
       - name: Configure git identity
         run: |
@@ -193,19 +191,46 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the implementation agent responding to a review finding on the open pull request this comment was posted on. Read ALL comments on the PR: the reviewer's latest "/oc fix: ..." comment lists the required changes, and earlier comments may contain your own rebuttals. Follow these rules strictly:
+            You are the Fixer of the Random factory, responding to the reviewer's findings on the open PR this comment was posted on.
 
-            1. Apply every requested fix on the PR's branch. The git identity is already configured as `github-actions[bot]` and credentials are configured: if the checkout is not on the PR branch, fetch and switch to it, e.g. `git fetch origin <branch> && git checkout -b <branch> origin/<branch>`.
+            READ FIRST: `.github/agents/fixer.md` — that file IS your complete system prompt; every rule there is binding (apply the latest "/oc fix: ..." findings, partial-application + plain-text rebuttals for what you skip, rebase before push). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
 
-            2. DISAGREEING WITH THE REVIEWER: Apply the changes you agree with (partial changes are fine). If you believe some findings are wrong, post an issue comment on the PR as the bot with your technical justification (cite files/lines) for the ones you skip. NEVER start a disagreement comment with "/oc" (bot-prefixed comments starting with /oc get re-posted and can loop). Plain text only. After you reply twice and the reviewer still maintains the same finding, apply the change — do not argue forever. Never self-merge; the reviewer decides when the PR is done.
+            SAFETY NET (always binding):
+            - Apply every requested fix you agree with on the PR's branch (fetch/checkout it first if needed).
+            - Disagreements: post a plain-text rebuttal with technical justification (file:line), NEVER starting with "/oc". After two rounds of argument, apply the change.
+            - Commit as `github-actions[bot]`, NEVER any `Co-authored-by:` trailer. Never end without pushing — if you made NO changes, push an empty commit (`git commit --allow-empty -m "chore: reply to reviewer"`). Rebase onto latest main before pushing.
+            - Scope: only what the findings require — no new issues/branches/PRs, no docs//ideas/ unless the finding requires it, never merge.
+            - Leave `git status --porcelain` empty at the end.
 
-            3. REBASE & CONFLICT-FREE: Before pushing, rebase onto the latest main (`git fetch origin main && git rebase origin/main`) and resolve any conflicts.
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
 
-            4. COMMIT & PUSH YOURSELF — NO CO-AUTHOR: Commit your fixes yourself with a clean message: `git add -A && git commit -m "<concise summary>"`. NEVER add any `Co-authored-by:` trailer — commits must be attributed ONLY to `github-actions[bot]`. Then push (`git push`; force-push is fine on your own PR branch). If you made NO changes, still push to re-trigger the reviewer: `git commit --allow-empty -m "chore: reply to reviewer" && git push`.
-
-            5. NEVER END A RUN WITHOUT PUSHING: Your run is only complete when your changes (or your empty reply commit) are on the PR branch. Never stop after analysis without pushing; the workflow verifies your push and re-triggers you if you finish without one. If you see "/oc fix (auto-retry N)" comments in the thread, a previous attempt stopped early — continue from its state and push; do not re-analyze from scratch.
-
-            6. SCOPE: Only change what the review finding requires. Do NOT create new issues, branches, or PRs. Do NOT touch docs/ or ideas/ unless the finding requires it.
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          pr="${{ github.event.issue.number }}"
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -214,9 +239,9 @@ jobs:
         run: |
           set +e
           pr="${{ github.event.issue.number }}"
-          head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-          echo "Looking for held runs on PR #$pr (head $head_sha)"
           for i in $(seq 1 30); do
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+            echo "Looking for held runs on PR #$pr (head $head_sha)"
             held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
             if [ -z "$held" ]; then
               echo "No held runs remain (poll $i)"
@@ -266,6 +291,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode review') &&
       !startsWith(github.event.comment.body, '/oc build') &&
       !startsWith(github.event.comment.body, '/opencode build') &&
+      !startsWith(github.event.comment.body, '/oc continue') &&
+      !startsWith(github.event.comment.body, '/opencode continue') &&
       github.event.comment.body != '/oc fix' &&
       !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
       (contains(github.event.comment.body, ' /oc') ||
@@ -278,7 +305,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: true
-          token: ${{ secrets.OPENCODE_PAT }}
+          token: ${{ github.token }}
 
       - name: Configure git identity
         run: |
@@ -296,11 +323,22 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are a general-purpose assistant on the Random repository, triggered by a plain "/oc" request (a question, a housekeeping task like closing an issue, or a small change). You have FULL capabilities — answer in comments, close or comment on issues, create issues, push code, open pull requests — use your judgment and do exactly what the request asks, nothing more.
+            You are the General agent of the Random factory, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
 
-            - If the request is a question or housekeeping (close issue, add label, summarize, explain something), a comment or API action is a complete answer — no commit, branch, or PR is required.
-            - If the request calls for a code change: you may commit (as `github-actions[bot]` — identity and credentials are preconfigured; NEVER add a `Co-authored-by:` trailer), push on a branch, and open a PR with base main if appropriate; the normal review loop will pick it up. Do NOT force a PR when the request does not need one, and do NOT create an issue unless the request calls for it.
-            - Never remove: the first section of README.md (repo overview), the repo root `index.html` landing page, the `docs/` folder, or the PR-preview feature in `pages.yml`.
+            READ FIRST: `.github/agents/general.md` — that file IS your complete system prompt; every rule there is binding (full capabilities, housekeeping vs code-change judgment, preservation rules, sign-off). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
+
+            SAFETY NET (always binding):
+            - Answer/housekeeping = a comment or API action is complete; code changes get committed (as `github-actions[bot]`, NEVER a `Co-authored-by:` trailer), pushed, and PR'd when appropriate — nothing forced.
+            - You never post "/oc" comments; comment only as `github-actions[bot]`; never expose secrets; never remove the README first section, the root `index.html`, `docs/`, the pages.yml PR-preview feature, or the factory infrastructure without a clear request.
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
@@ -319,9 +357,12 @@ jobs:
             echo "No PR found for this run; skipping approval"
             exit 0
           fi
-          head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-          echo "Looking for held runs on PR #$pr (head $head_sha)"
           for i in $(seq 1 30); do
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+            if [ -z "$head_sha" ]; then
+              echo "PR #$pr gone (poll $i); exiting"
+              exit 0
+            fi
             held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
             if [ -z "$held" ]; then
               echo "No held runs remain (poll $i)"

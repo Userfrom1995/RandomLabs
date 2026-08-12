@@ -26,14 +26,18 @@ jobs:
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
           head_oid=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid')
+          author=$(gh pr view "$pr" --repo "${{ github.repository }}" --json author --jq '.author.login')
+          head_repo=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRepository --jq '.headRepository.nameWithOwner // ""')
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
           echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"
+          echo "author=$author" >> "$GITHUB_OUTPUT"
+          echo "head_repo=$head_repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository (PR head)
         uses: actions/checkout@v6
         with:
           persist-credentials: true
-          token: ${{ secrets.OPENCODE_PAT }}
+          token: ${{ github.token }}
           ref: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           fetch-depth: 0
@@ -52,41 +56,11 @@ jobs:
           model: opencode/nemotron-3-ultra-free
           use_github_token: true
           prompt: |
-            You are a strict security-focused code reviewer. Think step by step before every decision. You never write code, you never commit, you never push, you never rebase, and you never touch the working tree except for read-only inspection.
+            You are the Reviewer of the Random factory, triggered by "/oc review" on the open PR in this checkout.
 
-            REVIEW CHECKLIST (check ALL of these before approving):
+            READ FIRST: `.github/agents/reviewer.md` — that file IS your complete system prompt; every rule there is binding (checklist, file:line findings with corrected code, human-vs-bot guidance, rebuttal etiquette, decision-file respect, clean-tree-before-commenting).
 
-            1. README PRESERVATION: The first section of README.md describing this repo ("maintained by agents, contains random stuff") MUST be preserved. If the PR overwrites or removes it, REQUEST CHANGES.
-
-            2. SECURITY: Check for hardcoded secrets, tokens, API keys, unsafe eval/exec, injection vulnerabilities, dependency risks, overly broad permissions, or any code that could be exploited.
-
-            3. CODE QUALITY: No dead code, no unused imports, no magic numbers, proper error handling, consistent style with existing codebase.
-
-            4. CORRECTNESS: Does the PR actually solve the linked issue? Are there logic errors, race conditions, or edge cases?
-
-            5. SCOPE CREEP: Does the PR only change what the issue requested? No unrelated modifications.
-
-            6. LINKED ISSUE: The PR body must reference an issue with "Closes #N". If it references a "universal" or meta issue instead of a dedicated task issue, REQUEST CHANGES and ask the implementer to create a proper issue first.
-
-            7. IDEAS ENTRY: The PR must include an `ideas/` file — a detailed markdown writeup named `YYYY-MM-DD-<name>-<what-is-it>.md` where `<name>` is a unique, non-generic name and `<what-is-it>` describes the project (e.g., `2026-08-08-sentinel-tray-file-watcher.md`). If missing or generically named, REQUEST CHANGES and ask the implementer to fix it.
-
-            8. DOCUMENTATION & SITE LAYOUT: The PR MUST include a `docs/` folder with proper docs for the project (usage, examples, config). If missing, REQUEST CHANGES. GitHub Pages should never be empty. The repo root `index.html` is the Random landing page (repo overview + links to projects) and MUST be preserved by every PR. Project docs live under `docs/` and are served at `/docs/`; a non-web project puts its documentation in `docs/` (e.g. `docs/index.html`) WITHOUT removing or overwriting the root landing page.
-
-            9. PREVIEW INFRASTRUCTURE: `pages.yml` contains the GitHub Pages deployment plus a PR-preview feature: the `deploy` job stages every open PR's site under `_site/preview/pr-<N>/` and the `comment` job posts the preview URL on the PR. This is required infrastructure. Do NOT flag it as scope creep when a PR legitimately modifies pages.yml, and REQUEST CHANGES if a PR removes or breaks the preview feature. Previews are built from open PR branches at deploy time; they are never part of any PR branch or the repo working tree.
-
-            10. UP-TO-DATE & CONFLICT-FREE: Check whether the PR branch is behind the branch it targets (compare `gh pr view --json headRefOid,baseRefOid` and the merge base) and whether a merge would produce conflicts (`gh pr view --json mergeable`). A PR that is behind or has conflicts is NOT ready to merge.
-
-            11. IMPLEMENTER REBUTTALS: Read ALL prior comments on the PR before deciding. If the implementer posted a reply disputing one of your previous findings (a plain-text comment from github-actions[bot] with technical justification), evaluate it honestly: if the rebuttal is valid, WITHDRAW that finding and say so; if it is invalid or incomplete, RESTATE the finding with a tighter explanation of why the implementer's argument does not hold. Never approve changes that genuinely violate the checklist just because the implementer argued back, and never reject a valid rebuttal out of stubbornness. If the implementer has rebutted the same finding twice with no new argument, keep your finding — do not loop forever.
-
-            DECISION:
-
-            - You ONLY review and comment. You NEVER rebase, commit, push, merge, or create branches. You may run read-only inspection and you MAY run the project's tests/compiler to verify correctness (tests may write artifacts like __pycache__/.pyc — that is fine).
-            - CRITICAL — CLEAN THE TREE BEFORE COMMENTING: Before you post your review comment, you MUST discard every change the tests/commands made to the working tree so the action does not auto-commit them. Do exactly this: run `git status --porcelain`, then `git checkout -- .` to revert modified tracked files, then `git clean -fd` to delete untracked files (this removes __pycache__/ and other test artifacts). Finish by confirming `git status --porcelain` outputs NOTHING. Only then write your review comment. If you skip this, your run's artifacts get auto-committed to the PR branch, which is forbidden.
-            - If ALL checks pass and previous review findings are addressed: post a single issue comment starting with "/oc approve" listing the checks that passed. A separate workflow step will merge the PR (as the bot) using `gh pr merge --rebase --delete-branch`.
-            - If ANY check fails: do NOT modify code. Post a single issue comment starting with "/oc" listing EVERY failed check with specific file/line references, e.g. "/oc fix: README section overwritten (README.md:1-5); hardcoded key in script.js:42".
-            - If the PR is behind the target branch or has merge conflicts: do NOT rebase it yourself. Post a single issue comment starting with "/oc" asking the implementer to rebase onto the target branch and resolve the conflicts, e.g. "/oc fix: PR is behind/conflicting with main; rebase onto main and resolve conflicts in files: X, Y".
-            - To avoid infinite loops: if only trivial/style issues remain after 2+ rounds, approve instead of requesting another round.
-            - Never create new branches or new pull requests.
+            SAFETY NET (always binding): you NEVER write code, commit, push, rebase, merge, or create branches/branches/PRs; you are strictly read-only; you may run tests for verification only, and you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting; you post ONE decision comment per run — "/oc approve" when every check passes, or "/oc fix: ..." (exact file:line + corrected code) otherwise; human PRs get guidance in the same comment (a human fixes it themselves); if the PR is behind or conflicted, ask for a rebase in the comment. Never post more than one decision comment. If reviewer.md is missing from the tree, fall back to the safety net and AGENTS.md rules.
 
       - name: Restore PR head if reviewer dirtied the branch
         if: always()
@@ -105,12 +79,18 @@ jobs:
             echo "PR head unchanged by reviewer run"
           fi
 
-      - name: Post /oc fix trigger as owner
+      - name: Post /oc fix trigger as owner (bot PRs only)
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.pull_request.number || github.event.issue.number }}"
+          author="${{ steps.pr-info.outputs.author }}"
+          head_repo="${{ steps.pr-info.outputs.head_repo }}"
+          if [ "$author" != "github-actions[bot]" ] || [ "$head_repo" != "${{ github.repository }}" ]; then
+            echo "PR #$pr is not a same-repo bot PR (author=$author repo=$head_repo); findings are guidance only — no /oc fix trigger"
+            exit 0
+          fi
           bot_time=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
             --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("/oc")) and ((.body | startswith("/oc review")) | not) and ((.body | startswith("/oc approve")) | not))] | last | .created_at' 2>/dev/null || true)
           if [ -z "$bot_time" ]; then
@@ -126,26 +106,34 @@ jobs:
           echo "Posting short /oc fix trigger as owner"
           gh api "repos/${{ github.repository }}/issues/${pr}/comments" -f body="/oc fix"
 
-      - name: Merge if approved
+      - name: Hand over approved PR to the Maintainer
         if: always()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.pull_request.number || github.event.issue.number }}"
           approved=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
             --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("/oc approve")))] | length' 2>/dev/null || echo "0")
           if [ "$approved" -eq 0 ]; then
-            echo "Reviewer did not approve, skipping merge"
+            echo "Reviewer did not approve, skipping handover"
             exit 0
           fi
-          echo "Reviewer approved, merging as bot"
-          gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1 | tail -5
-          # Auto-close issues linked via Closes #N in the PR body
-          closed=$(gh pr view "$pr" --repo "${{ github.repository }}" --json body --jq '.body' 2>/dev/null | grep -oE '(Closes|Fixes|Resolves) #[0-9]+' | grep -oE '[0-9]+' || true)
-          for n in $closed; do
-            state=$(gh issue view "$n" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
-            if [ "$state" = "OPEN" ]; then
-              echo "Closing issue #$n (linked by #$pr)"
-              gh issue close "$n" --repo "${{ github.repository }}" --comment "Auto-closed: #$pr merged." 2>&1 | tail -1 || true
-            fi
-          done
+          approve_msg=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("/oc approve")))] | last | .body' 2>/dev/null || echo "/oc approve")
+          printf '%s\n' "$approve_msg" > /tmp/approve.txt
+          if gh workflow view maintainer.yml --repo "${{ github.repository }}" --json id --jq '.id' >/dev/null 2>&1; then
+            echo "Dispatching the Maintainer to merge PR #$pr"
+            gh workflow run maintainer.yml --repo "${{ github.repository }}" \
+              -f pr_number="$pr" -F reason="@/tmp/approve.txt" 2>&1 | tail -2 || true
+          else
+            echo "maintainer.yml unavailable; fallback: merging as bot"
+            gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1 | tail -5
+            closed=$(gh pr view "$pr" --repo "${{ github.repository }}" --json body --jq '.body' 2>/dev/null | grep -oE '(Closes|Fixes|Resolves) #[0-9]+' | grep -oE '[0-9]+' || true)
+            for n in $closed; do
+              state=$(gh issue view "$n" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+              if [ "$state" = "OPEN" ]; then
+                echo "Closing issue #$n (linked by #$pr)"
+                gh issue close "$n" --repo "${{ github.repository }}" --comment "Auto-closed: #$pr merged." 2>&1 | tail -1 || true
+              fi
+            done
+          fi

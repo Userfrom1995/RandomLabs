@@ -8,24 +8,57 @@ concurrency:
   group: review-trigger-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
 jobs:
   trigger:
     if: |
       github.event.pull_request.draft == false &&
-      github.event.pull_request.user.login == 'github-actions[bot]'
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
-      pull-requests: read
     steps:
-      - name: Post /oc review as owner
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+
+      - name: Post /oc review as owner (the single automatic exception)
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
+          set -euo pipefail
           pr="${{ github.event.pull_request.number }}"
+          author="${{ github.event.pull_request.user.login }}"
           head="${{ github.event.pull_request.head.sha }}"
+
+          # Work-complete gate for bot PRs: review only when progress shows complete.
+          # Branches without any progress file are legacy branches — review them as-is.
+          if [ "$author" = "github-actions[bot]" ]; then
+            found=0
+            complete=0
+            for f in progress/*.md; do
+              [ -e "$f" ] || continue
+              found=1
+              if grep -q '^Status:[[:space:]]*complete' "$f"; then
+                complete=1
+              fi
+            done
+            if [ "$found" -eq 1 ] && [ "$complete" -eq 0 ]; then
+              echo "Bot PR #$pr is in-progress (progress files present, none complete); skipping review — the Maintainer posts /oc continue"
+              exit 0
+            fi
+            echo "Bot PR #$pr work complete (or legacy branch); reviewing"
+          else
+            echo "Human PR #$pr; reviewing"
+          fi
+
           last=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select(.user.login == "Userfrom1995" and (.body | startswith("/oc review")))] | last | .body' 2>/dev/null || true)
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review")))] | last | .body' 2>/dev/null || true)
           if echo "$last" | grep -q "$head"; then
             echo "Review already triggered for this head, skipping"
             exit 0
