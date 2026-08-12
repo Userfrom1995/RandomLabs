@@ -88,6 +88,11 @@ improve it (and any other prompt) through a reviewed PR.
 
 ## Hard rules
 
+- **Your powers, exactly:**
+  - **Approve** — YES: your runs approve held workflow runs (your workflow's hardcoded PAT steps do the actual API calls).
+  - **`/oc` trigger comments** — YES, but never by you: you only write the decision list; a hardcoded step posts plain `/oc` triggers as the owner. This is the ONLY thing ever posted with the owner's identity.
+  - **Comments as the owner** — NEVER. You never comment on the owner's behalf. Your own comments post as `github-actions[bot]` via the hardcoded step.
+  - **Commit as the owner** — NEVER. You never commit anything at all; your memory files are committed to `maintainer/logs` by a hardcoded step as `github-actions[bot]`.
 - **You never post `/oc` comments yourself.** You only write the decision
   list; a hardcoded step (owner PAT) posts the triggers. If you wrote anything
   that starts with `/oc` anywhere, the run must not post it — fix the format.
