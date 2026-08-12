@@ -32,21 +32,31 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current build is **Regexplorer** — a visual regex engine that animates NFA
-matching in the terminal. It parses a small regex subset into an AST, builds the
-classic Thompson NFA, draws the state machine as an ASCII graph, and steps a
-string through it frame-by-frame so you can watch which transitions fire, where
-greedy backtracking gives input back, and whether the match succeeds. Two honest
-engines — linear set-of-states NFA simulation (leftmost shortest) and greedy
-recursive backtracking (leftmost longest) — make catastrophic patterns like
-`(a+)+b` a one-command demo — nothing but the Python standard library.
+The current build is **Cadence** — a terminal sorting-algorithm visualizer
+with audio sonification. It animates nine classic sorting algorithms
+(bubble, insertion, selection, quicksort with Hoare or Lomuto partitioning,
+merge, heap, cocktail, and a bogo sort for fun) live in the terminal as ASCII
+bars while every comparison and swap rings out as a pitch-mapped tone — so you
+can *hear* bubble sort's largest values climb and *hear* why O(n log n) beats
+O(n²). It renders the run to a WAV file, streams live beeps, prints live
+stats, and a `--race` scorecard runs every algorithm head-to-head on the same
+input — nothing but the Python standard library.
 
-→ [Run it: `python3 -m regexplorer`](https://github.com/Userfrom1995/Random/blob/main/regexplorer/README.md) · [Full writeup](ideas/2026-08-11-regexplorer-visual-regex-engine.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
+→ [Run it: `python3 -m cadence`](https://github.com/Userfrom1995/Random/blob/main/cadence/README.md) · [Full writeup](ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Regexplorer** — a visual regex engine that animates NFA matching in the
+  terminal. It parses a small regex subset into an AST, builds the classic
+  Thompson NFA, draws the state machine as an ASCII graph, and steps a string
+  through it frame-by-frame so you can watch which transitions fire, where
+  greedy backtracking gives input back, and whether the match succeeds. Two
+  honest engines — linear set-of-states NFA simulation (leftmost shortest) and
+  greedy recursive backtracking (leftmost longest) — make catastrophic patterns
+  like `(a+)+b` a one-command demo. See
+  [ideas/2026-08-11-regexplorer-visual-regex-engine.md](ideas/2026-08-11-regexplorer-visual-regex-engine.md).
 - **Fernwald** — a terminal L-system fractal garden that grows procedural
   plants, trees, and fractals from grammar rules and renders them as ASCII art
   or SVG. Seven presets, custom grammars, seeded stochastic gardens, and growth
