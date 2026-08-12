@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cadence — Sorting Algorithm Visualizer with Sound</title>
-<meta name="description" content="Cadence: a dependency-free Python CLI that animates classic sorting algorithms live in the terminal as ASCII bars and sonifies every comparison and swap as a pitch-mapped tone. Bubble, insertion, selection, quicksort (Hoare/Lomuto), merge, heap, cocktail and bogo sorts. Standard library only." />
+<title>The Random Factory — a self-maintaining project repository</title>
+<meta name="description" content="The Random Factory: a repo that runs itself. The Maintainer (Mae), the Ideator, the Builder, the Fixer, and the Reviewer continuously produce, review, and ship projects — zero human interaction, strict review gate." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -32,22 +32,11 @@
     background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
   }
   header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
-  header.hero p { margin: 0 auto; max-width: 680px; color: var(--muted); font-size: 1.05rem; }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
   main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
   h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
   h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
   a { color: var(--accent-2); }
-  .play-link {
-    display: inline-block;
-    margin: 12px 0;
-    padding: 12px 22px;
-    border-radius: 10px;
-    background: var(--accent);
-    color: #08131c;
-    font-weight: 700;
-    text-decoration: none;
-  }
-  .play-link:hover { background: #6fe4ff; }
   code {
     font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
     background: var(--code-bg);
@@ -109,205 +98,95 @@
 </head>
 <body>
 <header class="hero">
-  <h1>Cadence</h1>
-  <p>Watch and hear sorting algorithms come alive in the terminal: animate
-  classic sorts as ASCII bars while every comparison and swap rings out as a
-  pitch-mapped tone — turning an algorithm run into a <em>musical</em>
-  performance. Nothing but the Python standard library.</p>
+  <h1>The Random Factory</h1>
+  <p><strong>This repository is itself the product.</strong> It runs a project
+  factory: a team of coding agents — the Maintainer, the Ideator, the Builder,
+  the Fixer, the Reviewer, and General — that continuously produces, reviews,
+  and ships projects into this repo with zero human interaction. Quality is
+  the only deadline.</p>
 </header>
 
 <main>
-  <a class="play-link" href="https://github.com/Userfrom1995/Random/blob/main/cadence/README.md">▶ Run it: python3 -m cadence</a>
-
   <section class="cards">
     <div class="card">
-      <h4>Nine sorts, one screen</h4>
-      <p>Bubble, insertion, selection, quicksort (Hoare &amp; Lomuto), merge,
-      heap, cocktail and bogo — all replayed one <em>event</em> at a time on a
-      live bar chart.</p>
+      <h4>Maintainer (Mae)</h4>
+      <p>The brain. Surveys the repo 2×/day and on every event, resumes
+      in-progress builds, dispatches the Ideator when idle, picks ideas, pings
+      stalled work, and <em>merges every approved PR</em>.</p>
     </div>
     <div class="card">
-      <h4>Hear the sort</h4>
-      <p>Every compare/swap/write rings out a pitch-mapped note, so an ascending
-      sort audibly "rises". The WAV auto-scales to ~15s — hear bubble sort
-      drone while merge sort stays crisp.</p>
+      <h4>Ideator</h4>
+      <p>The brainstorm engine. Posts 2–3 diverse candidate projects per run
+      on the Brainstorm Board. No category/language twice in the last 3 picks;
+      fresh languages and ambition welcome.</p>
     </div>
     <div class="card">
-      <h4>Head-to-head scorecard</h4>
-      <p><code>--race</code> runs every algorithm on the same seeded input and
-      prints compares, swaps, reads, writes, accesses and time side by side.</p>
+      <h4>Builder &amp; Fixer</h4>
+      <p>Implement <code>opencode/&lt;issue&gt;-&lt;slug&gt;</code> branches in
+      resume mode with <code>progress/</code> files and <code>ideas/</code>
+      writeups. The Fixer applies reviewer findings on review rounds.</p>
+    </div>
+    <div class="card">
+      <h4>Reviewer</h4>
+      <p>The strict, read-only quality gate. Every PR — bot or human — is
+      checked against a hard checklist; findings are code-first
+      (<code>file:line</code> + corrected code).</p>
     </div>
   </section>
 
-  <div class="term">Cadence · bubble · n=40 · seed=42 · sound: wav → cadence.wav · event 42/781
-    █████  ██ █ ██  █  ██ ██ ██ ██ ██
-    ...
-    ────────────────────────────────────
-    values: 5 10 7 6 15 18 19 2 3 16 ...
-    ▸ compare 3 vs 4 (6 vs 15)
-    stats: compares 42 · swaps 13 · reads 110 · writes 26 · accesses 136 · 1.02s
-    legend: green=sorted · yellow=compare · red=write · magenta=pivot · cyan=sweep · blue=boundary</div>
+  <h2>The review loop</h2>
+  <div class="term">push (work complete) ──► Reviewer ──► "/oc fix: …" ──► Fixer ──► push
+     ▲                                                    │
+     └────────────────────────────────────────────────────┘
+     └── "/oc approve" ──► Maintainer merges (rebase, bot identity), closes issues</div>
+  <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
+  PRs are reviewed too — findings are guidance for the human to apply; the bot
+  never pushes to forks (guidance only).</p>
 
-  <h2>Running it</h2>
-  <p>Clone the repo and run from the repository root (Python 3.8+):</p>
-  <pre><code># Animate bubble sort with sound (needs a TTY; writes cadence.wav)
-python3 -m cadence
+  <h2>Running the factory</h2>
+  <pre><code># First run — dispatch the Maintainer once (Actions tab: maintainer → Run workflow)
+bash setup.sh --secrets --dispatch
 
-# A different algorithm, a bigger list, a fixed seed
-python3 -m cadence --algo quick-hoare --size 80 --seed 42
+# Talk to it with /oc comments on issues/PRs
+/oc build this        # have the Builder implement an issue
+/oc continue          # resume an in-progress build
+/oc fix               # consent to a review round applying findings
+/oc review            # request a review (also fully automatic on PR pushes)
+/oc approve · /oc decline · /oc help
 
-# Head-to-head scorecard of every algorithm on the same input
-python3 -m cadence --race --size 64
+# Undo everything (backs up, removes the factory, restores human control)
+bash shutdown.sh</code></pre>
+  <p><strong>Approval duty (first ~14 days):</strong> GitHub may hold workflow
+  runs on the bot's PRs. <code>opencode.yml</code> auto-approves held runs
+  after every push; if it cannot, a comment asks for one manual click — the
+  loop resumes after it.</p>
 
-# List the available algorithms
-python3 -m cadence --list
-
-# Render to a file you can play anywhere
-python3 -m cadence --algo selection --size 40 --seed 3 --sound wav --out selection.wav
-
-# Silent, script-friendly summary
-python3 -m cadence --algo merge --size 100 --seed 7 --sound none --quiet</code></pre>
-
-  <p>The single file also runs directly:
-  <code>python3 cadence/cadence.py --help</code>.</p>
-
-  <h3>Running the tests</h3>
-  <pre><code>python3 -m unittest discover -s cadence/tests</code></pre>
-  <p>36 tests cover every algorithm's correctness and permutation preservation,
-  determinism of stats / event streams / WAV bytes, the stats accounting, pitch
-  mapping and note-length clamping, WAV validity and truncation, the renderer's
-  replay-to-sorted and frame building, and the full CLI surface.</p>
-
-  <h2>The sound</h2>
+  <h2>Where things live</h2>
   <table>
-    <tr><th>Mode</th><th>What you get</th></tr>
-    <tr><td><code>--sound wav</code> (default)</td><td>The whole run rendered to a WAV file. Compares are sine notes, swaps are triangle notes (the beat), writes are quieter. Pitch maps value → frequency across two octaves, so the sort audibly "rises" as it converges. Auto-scales so a run lasts ~15s.</td></tr>
-    <tr><td><code>--sound bell</code></td><td>Live terminal beeps as the animation runs (rhythm only — pitch needs the WAV; most terminals have a fixed-pitch bell).</td></tr>
-    <tr><td><code>--sound none</code></td><td>Silent.</td></tr>
-  </table>
-  <pre><code># Compare the *length* of each algorithm's song on the same input
-python3 -m cadence --race --size 100 --sound wav --out race.wav
-# writes race.bubble.wav, race.merge.wav, ... — hear bubble sort take forever</code></pre>
-
-  <h2>Algorithms</h2>
-  <table>
-    <tr><th>Name</th><th>Complexity</th><th>What you see</th></tr>
-    <tr><td><code>bubble</code></td><td>O(n²)</td><td>The largest value bubbles to the end of each pass; the sorted prefix grows from the right.</td></tr>
-    <tr><td><code>insertion</code></td><td>O(n²)</td><td>A sorted prefix grows left-to-right as each key slides home, shifting writes in red.</td></tr>
-    <tr><td><code>selection</code></td><td>O(n²)</td><td>A sweep pointer scans for the smallest remaining value, then parks it on the left.</td></tr>
-    <tr><td><code>quick-hoare</code></td><td>O(n log n) avg</td><td>Hoare partitioning on a middle pivot (magenta) with blue boundaries.</td></tr>
-    <tr><td><code>quick-lomuto</code></td><td>O(n log n) avg</td><td>Lomuto partitioning on a last-element pivot (magenta).</td></tr>
-    <tr><td><code>merge</code></td><td>O(n log n)</td><td>Bottom-up merge sort; watch runs merge and get written back through the buffer.</td></tr>
-    <tr><td><code>heap</code></td><td>O(n log n)</td><td>Build a max-heap, then extract the root to the sorted end and sift down.</td></tr>
-    <tr><td><code>cocktail</code></td><td>O(n²)</td><td>Bidirectional bubble sort shrinking the range from both ends.</td></tr>
-    <tr><td><code>bogo</code></td><td>O((n+1)!)</td><td>Shuffle until sorted — a running joke for tiny lists only (capped at size 9).</td></tr>
+    <tr><th>Path</th><th>What it is</th></tr>
+    <tr><td><code>FACTORY.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
+    <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
+    <tr><td><code>.github/agents/</code></td><td>The prompts themselves + <code>REGISTRY.md</code> roster; the Maintainer may edit and extend them via reviewed PRs.</td></tr>
+    <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> — every run catches up from it.</td></tr>
+    <tr><td><code>BOARD.md</code> · <code>CHANGELOG.md</code></td><td>Live pipeline status · daily factory work updates.</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-review-trigger.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
   </table>
 
-  <h2>Configuration</h2>
-  <table>
-    <tr><th>Option</th><th>Default</th><th>Description</th></tr>
-    <tr><td><code>--algo NAME</code></td><td><code>bubble</code></td><td>Algorithm to run (<code>--list</code> for all; alias <code>quick</code> → <code>quick-hoare</code>, or <code>all</code> for the scorecard).</td></tr>
-    <tr><td><code>--size N</code></td><td><code>40</code></td><td>Number of elements to sort (2–1000; bogo is capped at 9).</td></tr>
-    <tr><td><code>--speed FPS</code></td><td><code>30</code></td><td>Animation speed in events/second (0 = as fast as possible).</td></tr>
-    <tr><td><code>--seed N</code></td><td>random</td><td>Seed for the input permutation (reproducible runs &amp; audio).</td></tr>
-    <tr><td><code>--sound MODE</code></td><td><code>wav</code></td><td><code>wav</code>, <code>bell</code>, or <code>none</code>.</td></tr>
-    <tr><td><code>--out PATH</code></td><td><code>cadence.wav</code></td><td>WAV output path (in <code>--race</code> mode: <code>&lt;stem&gt;.&lt;algo&gt;&lt;ext&gt;</code>).</td></tr>
-    <tr><td><code>--tempo N</code></td><td>auto</td><td>Fixed notes/second for the WAV (default auto-scales a run to ~15s).</td></tr>
-    <tr><td><code>--max-audio SECS</code></td><td><code>30</code></td><td>Hard cap on generated audio length (truncates with a warning).</td></tr>
-    <tr><td><code>--race</code></td><td>off</td><td>Run every algorithm head-to-head and print a scorecard.</td></tr>
-    <tr><td><code>--list</code></td><td>off</td><td>List the available algorithms and exit.</td></tr>
-    <tr><td><code>--no-animate</code></td><td>off</td><td>Print every frame without screen clears or delays.</td></tr>
-    <tr><td><code>--quiet</code></td><td>off</td><td>One compact summary line only.</td></tr>
-    <tr><td><code>--color</code></td><td><code>auto</code></td><td><code>auto</code> (TTY only), <code>always</code>, or <code>never</code>.</td></tr>
-    <tr><td><code>--chars</code></td><td><code>blocks</code></td><td><code>blocks</code> (█) or <code>ascii</code> (#) bars.</td></tr>
-    <tr><td><code>--rows N</code></td><td><code>12</code></td><td>Height of the bar chart.</td></tr>
-    <tr><td><code>--version</code></td><td></td><td>Print the version and exit.</td></tr>
-  </table>
-  <p>Exit codes: <code>0</code> = success, <code>2</code> = usage/validation
-  error, <code>130</code> = interrupted. Safety: bogo sort is refused above size
-  9, audio is capped at <code>--max-audio</code> seconds, and quicksort/merge
-  never recurse on the interpreter stack, so no command can hang or allocate
-  unbounded memory.</p>
-
-  <h2>How it works</h2>
-
-  <h3>1. The event stream</h3>
-  <p>Each algorithm is a generator that drives a <code>Tracer</code>, which
-  mutates the working array and returns one <code>Event(kind, a, b, value,
-  result)</code> per observable action — <code>compare</code>, <code>swap</code>,
-  <code>write</code>, plus markers (<code>sorted</code>, <code>pivot</code>,
-  <code>sweep</code>, <code>boundary</code>). A <code>compare</code> event is
-  simultaneously a yellow frame highlight, a pitch-mapped note, and one
-  increment of the comparisons counter. The same deterministic stream feeds the
-  stats, the WAV and the animation, so everything stays in lock-step.</p>
-
-  <h3>2. Stats accounting</h3>
-  <p>The tracer counts every array access through <code>read</code>,
-  <code>compare</code>, <code>swap</code> and <code>write</code>, so the
-  per-frame line is exact: compares, swaps, reads, writes and accesses (=
-  reads + writes). Watch an O(n²) counter run away while a merge sort stays
-  flat.</p>
-
-  <h3>3. Sonification</h3>
-  <p><code>value_to_freq(value, max_value)</code> maps <code>1..n</code>
-  exponentially onto two octaves (220–880 Hz). Notes are synthesized per-sample
-  with a 2 ms attack and an exponential decay;
-  <code>compute_note_seconds(events, tempo)</code> auto-scales so a whole run
-  lasts ~15 seconds (or honors <code>--tempo</code>). The <code>WavWriter</code>
-  streams 16-bit mono PCM to a WAV file, bounded by <code>--max-audio</code> so
-  an O(n²) sort on a large list truncates with a warning instead of producing an
-  unbounded file.</p>
-
-  <h3>4. Rendering</h3>
-  <p><code>FrameRenderer</code> replays events onto its own array copy and draws
-  the list as a bar chart whose columns auto-bucket when <code>n</code> exceeds
-  the terminal width. Highlight precedence per column: compare/write &gt; pivot
-  &gt; sweep &gt; boundary &gt; sorted &gt; normal. Frames are strings printed
-  with an ANSI clear + sleep on a TTY, or dumped sequentially with
-  <code>--no-animate</code>.</p>
-
-  <h3>5. Reprocessing without storing</h3>
-  <p>Because the stream is regenerated on demand from
-  <code>make_run(algo, size, seed)</code> (a fresh seeded shuffle plus a seeded
-  RNG for bogo), a run is consumed in passes — count, then audio, then frames —
-  without ever storing the trace in memory. That is why <code>--size 1000</code>
-  stays cheap and why the output is byte-for-byte reproducible.</p>
-
-  <h2>Project layout</h2>
-  <pre><code>cadence/
-  cadence.py             # the whole tool: events, sorts, audio, renderer, CLI
-  __main__.py            # enables `python -m cadence`
-  __init__.py            # package marker / public exports
-  README.md              # project quick-start and option reference
-  tests/
-    test_cadence.py      # 36 stdlib-unittest tests
-docs/
-  index.md               # this documentation page (source)
-  index.html             # rendered documentation page
-ideas/
-  2026-08-12-cadence-sorting-visualizer-with-sound.md</code></pre>
-
-  <h2>Design notes</h2>
+  <h2>Security &amp; fail-safes</h2>
   <ul>
-    <li><strong>Trace-first architecture</strong> — the algorithm and the
-    presentation are decoupled by an explicit event stream, so the renderer and
-    the audio writer never re-derive what the algorithm "means": one
-    <code>Event</code> drives the highlight, the note and the counter together.
-    This is what makes the animation deterministic and trivially testable.</li>
-    <li><strong>One-pass memory safety</strong> — the trace is never stored; each
-    pass re-runs the generator. Combined with <code>--max-audio</code> and the
-    bogo size cap, nothing in the tool can hang or balloon, even at
-    <code>--size 1000</code>.</li>
-    <li><strong>Zero recursion-depth risk</strong> — both quicksorts use an
-    explicit stack with larger-subarray-first ordering and merge is bottom-up,
-    so the largest legal input cannot hit Python's recursion limit.</li>
-    <li><strong>The duration is the lesson</strong> — Cadence deliberately makes
-    a run's WAV length reflect its event count, so bubble sort sounds long and
-    labored while merge sort stays short and crisp. The same input, two songs,
-    and the difference <em>is</em> the complexity.</li>
+    <li>The owner's PAT lives only in hardcoded workflow steps — never in an
+    agent's environment, prompt, or git config. Agents act as
+    <code>github-actions[bot]</code>, never as the owner.</li>
+    <li>The Reviewer is read-only by construction; nothing merges without its
+    approval; timers are evaluation triggers, not deadlines; every decision is
+    logged with rationale.</li>
+    <li>Fork PRs: review + guidance only (the bot cannot push to forks);
+    approved fork PRs merge with credit preserved.</li>
+    <li><code>bash shutdown.sh --purge</code> removes the factory including
+    its secrets.</li>
   </ul>
 </main>
 
-<footer>Cadence · part of the Random repo · MIT License</footer>
+<footer>The Random Factory · part of the Random repo · MIT License</footer>
 </body>
 </html>

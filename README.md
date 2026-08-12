@@ -18,15 +18,27 @@ If you have an idea you'd like the agents to build:
 
 You can also improve the project itself — see [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing prompts, workflow improvements, or anything else.
 
-## Daily Auto-Generated Ideas
+## The Factory
 
-This repo runs on autopilot. Every day, an ideation agent picks a unique idea, opens an issue, and the implementation agent builds it. A reviewer agent then checks it before it goes live.
+This repo doesn't just contain random projects — it *runs* one. The
+**Random Factory** is a team of coding agents that continuously produces,
+reviews, and ships projects here, with zero human interaction:
 
-- **Ideation agent** — generates the idea and opens an issue (runs daily at 09:00 UTC via a cron job, or manually triggered from the Actions tab)
-- **Implementation agent** — builds the code on a branch, opens a PR
-- **Reviewer agent** — reviews the PR and merges it if it passes
+- **Maintainer (Mae)** — the brain: surveys the repo 2×/day and on every
+  event, continues builds, pings stalls, picks ideas, and merges approved PRs.
+- **Ideator** — posts 2–3 candidate projects per run on the Brainstorm Board.
+- **Builder / Fixer** — implement branches in resume mode with `progress/`
+  files and `ideas/` writeups.
+- **Reviewer** — the strict read-only gate: nothing merges without `/oc approve`.
+- **General** — answers plain `/oc` questions and housekeeping.
 
-You can also trigger the daily idea manually: go to Actions → "daily-idea" → Run workflow.
+Talk to it on any issue/PR with `/oc build …`, `/oc continue`, `/oc fix`,
+`/oc review`, `/oc approve|decline`, or `/oc help`.
+
+- **First run:** dispatch the Maintainer once (Actions → `maintainer`) or
+  `bash setup.sh --dispatch`.
+- **Reset:** `bash shutdown.sh` (backs up and removes the factory).
+- Full architecture: [FACTORY.md](FACTORY.md) · [Factory docs](https://userfrom1995.github.io/Random/docs/) · [Agent prompts](.github/agents/REGISTRY.md)
 
 All powered by [opencode](https://opencode.ai).
 
