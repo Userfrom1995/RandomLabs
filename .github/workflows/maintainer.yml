@@ -1,0 +1,375 @@
+name: maintainer
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR to focus on (optional)"
+        required: false
+        type: string
+      issue_number:
+        description: "Issue to focus on (optional)"
+        required: false
+        type: string
+      reason:
+        description: "Why this run was triggered (e.g. approve: PR #N)"
+        required: false
+        type: string
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: maintainer-${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number || 'global' }}
+  cancel-in-progress: true
+
+jobs:
+  maintainer:
+    if: |
+      github.event_name != 'issue_comment' ||
+      (github.event.comment.user.login != 'github-actions[bot]' &&
+       !startsWith(github.event.comment.body, '/oc') &&
+       !startsWith(github.event.comment.body, '/opencode'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ github.event.pull_request.head.ref || '' }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Load Maintainer memory (maintainer/logs)
+        run: |
+          mkdir -p .maintainer/memory/logs
+          git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || echo "no memory branch yet (first run)"
+          for f in STATE.md personality.md REGISTRY.md; do
+            if git cat-file -e "refs/remotes/origin/logs:$f" 2>/dev/null; then
+              git show "refs/remotes/origin/logs:$f" > ".maintainer/memory/$f"
+            fi
+          done
+          for d in 0 1 2 3 4 5 6; do
+            day=$(date -u -d "-$d day" +%Y-%m-%d 2>/dev/null || date -u -v-$d'd' +%Y-%m-%d)
+            if git cat-file -e "refs/remotes/origin/logs:logs/$day.md" 2>/dev/null; then
+              git show "refs/remotes/origin/logs:logs/$day.md" > ".maintainer/memory/logs/$day.md"
+            fi
+          done
+          ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
+
+      - name: Build run notification
+        run: |
+          {
+            echo "WORKFLOW: ${{ github.workflow }}"
+            echo "REPO: ${{ github.repository }}"
+            echo "RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "--- event payload (jq) ---"
+            jq -r '
+              "EVENT_NAME: \(.action // "" // "unknown")",
+              "EVENT: \(.action // "" // "unknown")",
+              "ISSUE: \(.issue.number // "" // "")",
+              "PR_NUMBER: \(.pull_request.number // "" // "")",
+              "PR_TITLE: \(.pull_request.title // "" // "")",
+              "PR_HEAD: \(.pull_request.head.sha // "" // "")",
+              "PR_HEAD_REF: \(.pull_request.head.ref // "" // "")",
+              "PR_AUTHOR: \(.pull_request.user.login // .issue.user.login // "" // "")",
+              "PR_BODY: \(.pull_request.body // "" // "")",
+              "COMMENT_AUTHOR: \(.comment.user.login // "" // "")",
+              "ISSUE_TITLE: \(.issue.title // "" // "")",
+              "ISSUE_USER: \(.issue.user.login // "" // "")",
+              "INPUTS: \((.inputs // {}) | tostring)"' "$GITHUB_EVENT_PATH"
+          } > .maintainer/notification.txt
+          echo "--- notification ---"
+          cat .maintainer/notification.txt
+
+      - name: Run Maintainer agent
+        id: maintainer
+        continue-on-error: true
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          timeout-minutes: 55
+          prompt: |
+            You are the factory Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
+
+            READ FIRST: `.github/agents/maintainer.md` — that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.
+
+            You also have, on disk:
+            - `.maintainer/memory/` — your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
+            - `.maintainer/notification.txt` — why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, BOARD.md, progress/*.md) and act on everything that needs you.
+
+            SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push code to main or any PR branch; you only write the output files below; everything you write is later committed to the maintainer/logs branch as the bot. Never print or reference any PAT or secret.
+
+            OUTPUT CONTRACT — write exactly these files (hardcoded steps act on them):
+            1. `.maintainer/decision.json` — a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine — do not invent work.
+            2. `.maintainer/comment.md` — your public bot comment for this run's target PR/issue (or leave empty).
+            3. `.maintainer/log-entry.md` — the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions).
+            4. `.maintainer/state.md` — the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
+            5. `.maintainer/personality.md` — updated identity ONLY if it genuinely evolved today; otherwise leave empty.
+
+            When you finish, print a one-line summary of what you decided (the decision list is the deliverable).
+
+      - name: Commit Maintainer memory (maintainer/logs)
+        if: always()
+        run: |
+          git fetch origin maintainer/logs --quiet || true
+          if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then
+            git checkout --detach refs/remotes/origin/logs --quiet
+          else
+            git checkout --orphan logs-bootstrap --quiet
+            git rm -rf . --quiet 2>/dev/null || true
+          fi
+          mkdir -p logs
+          if [ -s .maintainer/state.md ]; then cp .maintainer/state.md STATE.md; fi
+          if [ -s .maintainer/personality.md ]; then cp .maintainer/personality.md personality.md; fi
+          today="$(date -u +%Y-%m-%d)"
+          if [ -s ".maintainer/log-entry.md" ]; then
+            cp ".maintainer/log-entry.md" "logs/$today.md"
+          fi
+          if [ -f .github/agents/REGISTRY.md ]; then cp .github/agents/REGISTRY.md REGISTRY.md; fi
+          if ! git diff --quiet -- . ':!logs' 2>/dev/null || ! git diff --quiet -- logs 2>/dev/null; then
+            git add -A
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin "HEAD:maintainer/logs" --quiet
+            echo "memory pushed to maintainer/logs"
+          else
+            echo "no memory changes"
+          fi
+
+      - name: Post Maintainer comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OC_TARGET: ${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}
+        run: |
+          mkdir -p /tmp/ocout
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          target = os.environ.get("OC_TARGET", "")
+          marker = "/tmp/ocout/pings.txt"
+
+          with open(marker, "w") as f:
+              f.write("")
+
+          decisions = []
+          if os.path.exists(".maintainer/decision.json"):
+              try:
+                  decisions = json.load(open(".maintainer/decision.json"))
+              except Exception as e:
+                  print(f"decision.json unparseable: {e}")
+
+          posts = []
+          for d in decisions:
+              if d.get("action") == "ping" and d.get("target"):
+                  posts.append((d["target"], d.get("message", "")))
+          if posts:
+              with open(marker, "w") as f:
+                  for t, m in posts:
+                      f.write(f"{t}\0{m}\n")
+
+          if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
+              posts.append((target, open(".maintainer/comment.md").read()))
+
+          for t, body in posts:
+              body = body.strip()
+              if not body:
+                  continue
+              subprocess.run(
+                  ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
+                  check=False,
+              )
+              print(f"posted comment on #{t}")
+          PY
+
+      - name: Run /oc triggers as owner
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          pat = os.environ["GH_TOKEN"]
+
+          def api(*args, check=True):
+              r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=check)
+              return r.stdout.strip(), r
+
+          def comments(n):
+              out, _ = api(f"repos/{repo}/issues/{n}/comments", "--paginate", check=False)
+              try:
+                  return json.loads(out) if out else []
+              except Exception:
+                  return []
+
+          def owner_review_trigger(n, head):
+              for c in comments(n):
+                  if c.get("user", {}).get("login") == owner and c.get("body", "").startswith("/oc review"):
+                      if head in c.get("body", ""):
+                          return True
+              return False
+
+          def last_owner_trigger(n, prefix):
+              latest = ""
+              for c in comments(n):
+                  if c.get("user", {}).get("login") == owner and c.get("body", "").startswith(prefix):
+                      latest = max(latest, c.get("created_at", ""))
+              return latest
+
+          def pr_updated(n):
+              out, _ = api(f"repos/{repo}/pulls/{n}", check=False)
+              try:
+                  return json.loads(out).get("updated_at", "")
+              except Exception:
+                  return ""
+
+          def pr_info(n):
+              out, _ = api(f"repos/{repo}/pulls/{n}", check=False)
+              try:
+                  return json.loads(out)
+              except Exception:
+                  return {}
+
+          decisions = []
+          if os.path.exists(".maintainer/decision.json"):
+              try:
+                  decisions = json.load(open(".maintainer/decision.json"))
+              except Exception as e:
+                  print(f"decision.json unparseable: {e}")
+
+          posted = set()
+          for d in decisions:
+              action = d.get("action")
+              pr = d.get("pr")
+              target = d.get("target") or pr or d.get("issue")
+              if not target:
+                  continue
+              target = int(target)
+              key = (action, target)
+              if key in posted:
+                  print(f"skip {action} #{target} (one trigger per PR per run)")
+                  continue
+
+              body = None
+              if action == "review":
+                  head = d.get("head", "")
+                  if not head or owner_review_trigger(target, head):
+                      print(f"skip review #{target} (already triggered for head {head})")
+                      continue
+                  body = f"/oc review (head {head})"
+              elif action == "continue":
+                  last = last_owner_trigger(target, "/oc continue")
+                  if last and last >= pr_updated(target):
+                      print(f"skip continue #{target} (already triggered after latest update)")
+                      continue
+                  body = "/oc continue"
+              elif action == "build":
+                  last = last_owner_trigger(target, "/oc build")
+                  if last:
+                      print(f"skip build #{target} (already triggered)")
+                      continue
+                  body = "/oc build this"
+              elif action == "fix":
+                  info = pr_info(target)
+                  author = info.get("user", {}).get("login", "")
+                  head_repo = (info.get("head", {}) or {}).get("repo", {}) or {}
+                  same_repo = head_repo.get("full_name", "") == repo
+                  if author != "github-actions[bot]" or not same_repo:
+                      print(f"skip fix #{target} (not a same-repo bot PR: author={author} repo={head_repo.get('full_name')})")
+                      continue
+                  last = last_owner_trigger(target, "/oc fix")
+                  if last and last >= pr_updated(target):
+                      print(f"skip fix #{target} (already triggered after latest update)")
+                      continue
+                  body = "/oc fix"
+
+              if body:
+                  subprocess.run(
+                      ["gh", "api", f"repos/{repo}/issues/{target}/comments", "-f", f"body={body}"],
+                      check=False,
+                  )
+                  posted.add(key)
+                  print(f"posted '{body}' on #{target}")
+          PY
+
+      - name: Dispatch ideator when asked
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          if not os.path.exists(".maintainer/decision.json"):
+              raise SystemExit(0)
+          try:
+              decisions = json.load(open(".maintainer/decision.json"))
+          except Exception:
+              raise SystemExit(0)
+          if any(d.get("action") == "ideate" for d in decisions):
+              r = subprocess.run(
+                  ["gh", "workflow", "run", "ideate.yml", "--repo", os.environ["GITHUB_REPOSITORY"]],
+                  capture_output=True, text=True,
+              )
+              print("ideator dispatched" if r.returncode == 0 else f"ideator dispatch failed: {r.stderr[:200]}")
+          PY
+
+      - name: Approve held CI runs on bot PRs
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
+          if [ -z "$pr" ]; then
+            echo "No PR context; skipping approval"
+            exit 0
+          fi
+          for i in $(seq 1 30); do
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+            if [ -z "$head_sha" ]; then
+              echo "PR #$pr gone (poll $i); exiting"
+              exit 0
+            fi
+            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
+            if [ -z "$held" ]; then
+              echo "No held runs remain (poll $i)"
+              exit 0
+            fi
+            for run in $held; do
+              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                echo "Approved run $run"
+              else
+                echo "APPROVE FAILED for run $run"
+              fi
+            done
+            sleep 5
+          done
+          echo "Held runs could not be auto-approved after polling"
+          exit 0
