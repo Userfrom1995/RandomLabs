@@ -82,7 +82,6 @@ jobs:
             echo "RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             echo "--- event payload (jq) ---"
             jq -r '
-              "EVENT_NAME: \(.action // "" // "unknown")",
               "EVENT: \(.action // "" // "unknown")",
               "ISSUE: \(.issue.number // "" // "")",
               "PR_NUMBER: \(.pull_request.number // "" // "")",
@@ -148,8 +147,9 @@ jobs:
             cp ".maintainer/log-entry.md" "logs/$today.md"
           fi
           if [ -f .github/agents/REGISTRY.md ]; then cp .github/agents/REGISTRY.md REGISTRY.md; fi
-          if ! git diff --quiet -- . ':!logs' 2>/dev/null || ! git diff --quiet -- logs 2>/dev/null; then
-            git add -A
+          # Stage ONLY the memory files — never the whole repo — then commit and push.
+          git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
+          if ! git diff --cached --quiet; then
             git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"
             git push origin "HEAD:maintainer/logs" --quiet
@@ -164,16 +164,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           OC_TARGET: ${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}
         run: |
-          mkdir -p /tmp/ocout
           python3 - <<'PY'
-          import json, os, subprocess, sys
+          import json, os, subprocess
 
           repo = os.environ["GITHUB_REPOSITORY"]
           target = os.environ.get("OC_TARGET", "")
-          marker = "/tmp/ocout/pings.txt"
-
-          with open(marker, "w") as f:
-              f.write("")
 
           decisions = []
           if os.path.exists(".maintainer/decision.json"):
@@ -186,10 +181,6 @@ jobs:
           for d in decisions:
               if d.get("action") == "ping" and d.get("target"):
                   posts.append((d["target"], d.get("message", "")))
-          if posts:
-              with open(marker, "w") as f:
-                  for t, m in posts:
-                      f.write(f"{t}\0{m}\n")
 
           if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
               posts.append((target, open(".maintainer/comment.md").read()))
