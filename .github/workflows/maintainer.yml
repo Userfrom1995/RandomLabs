@@ -330,7 +330,7 @@ jobs:
               print("ideator dispatched" if r.returncode == 0 else f"ideator dispatch failed: {r.stderr[:200]}")
           PY
 
-      - name: Approve held CI runs on bot PRs
+      - name: Approve held CI runs (PR or repo-wide sweep)
         continue-on-error: true
         if: always()
         env:
@@ -339,7 +339,23 @@ jobs:
           set +e
           pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
           if [ -z "$pr" ]; then
-            echo "No PR context; skipping approval"
+            echo "No PR context — repo-wide sweep of held runs (schedule/dispatch runs are never held, so this always works)"
+            for i in $(seq 1 10); do
+              held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
+              if [ -z "$held" ]; then
+                echo "No held runs remain (sweep $i)"
+                exit 0
+              fi
+              for run in $held; do
+                if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                  echo "Approved run $run"
+                else
+                  echo "APPROVE FAILED for run $run (a later sweep or a human click will retry)"
+                fi
+              done
+              sleep 5
+            done
+            echo "Held runs could not all be auto-approved after sweeping"
             exit 0
           fi
           for i in $(seq 1 30); do

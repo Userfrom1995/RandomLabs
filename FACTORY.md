@@ -111,7 +111,9 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 1. Posting `/oc` trigger comments (maintainer.yml)
 2. The automatic push→reviewer trigger (opencode-review-trigger.yml)
 3. The reviewer→fixer short `/oc fix` trigger (opencode-review.yml)
-4. Approve-CI API calls (stable-head polling)
+4. Approve-CI API calls (stable-head polling on PRs; non-held runs also do a
+   repo-wide sweep of ALL held runs — so the Maintainer's 2×/day schedule and
+   every `/oc`-comment run unblock everything by themselves)
 5. Dispatching the Maintainer with the approval message (review workflow end)
 
 - No agent ever receives the PAT (no `OPENCODE_PAT` in any agent env;

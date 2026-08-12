@@ -97,9 +97,12 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
   by `github-actions[bot]`. After a build/fix/general/maintainer run pushes to
   such a PR, the workflow auto-approves the PR's held workflow runs using the
   owner's PAT (`POST /repos/{owner}/{repo}/actions/runs/{id}/approve`,
-  stable-head polling); if the approval cannot be completed it posts a
-  `github-actions[bot]` comment asking the owner to approve manually, and the
-  loop resumes after that approval.
+  stable-head polling). Runs without a PR context (Maintainer schedule/
+  dispatch runs, PR-less build runs) sweep and approve ALL held runs
+  repo-wide — so once any non-held run happens (a `/oc` comment run, or the
+  2×/day schedule), everything held is approved without a human. If approval
+  still cannot be completed it posts a `github-actions[bot]` comment asking
+  the owner to approve manually, and the loop resumes after that approval.
 - If the implementer disagrees with a finding, it applies the changes it
   agrees with (partial changes are fine), posts a plain-text rebuttal as the
   bot explaining what it skipped and why, and pushes (an empty commit if it
