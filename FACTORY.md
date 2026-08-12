@@ -384,3 +384,10 @@ catches up in seconds. `CHANGELOG.md` on main stays the public daily summary.
   decision with rationale.
 - `shutdown.sh --purge` removes workflows, agents, secrets, and branch
   protection — human regains full control.
+
+## Bootstrap note
+
+The factory foundation (this document, `.github/agents/`, the workflows) was
+landed directly with owner approval. From the first merged factory change
+onward, every factory change flows through the standard review gate like any
+other build — including changes the Maintainer makes to its own prompts.

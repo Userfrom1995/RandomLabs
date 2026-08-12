@@ -47,7 +47,8 @@ review gate that even the factory's own changes must pass.
 ## Notes
 
 - The review gate applies to everyone, including the factory's own changes —
-  this very foundation PR went through it.
+  the foundation itself was owner-approved while being built; every factory
+  change after this commit goes through the gate like any build.
 - Builds may span multiple days; quality is the only deadline.
 - The owner stays the highest authority: directives bind, arguments are heard,
   dissents are logged; `shutdown.sh --purge` undoes everything.
