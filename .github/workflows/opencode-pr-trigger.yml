@@ -1,0 +1,30 @@
+name: opencode-pr-trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+concurrency:
+  group: pr-trigger-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  trigger:
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post /oc maintainer as owner to wake up Maintainer
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set -euo pipefail
+          pr="${{ github.event.pull_request.number }}"
+          echo "Posting /oc maintainer for PR #$pr"
+          gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
