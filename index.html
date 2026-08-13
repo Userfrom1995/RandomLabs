@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random — a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Orrery, an interactive 3D solar system in the browser — WebGL/TypeScript with Keplerian orbital mechanics." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Granite, a SQL database engine built from scratch in Go." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -99,18 +99,27 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
-      <h4>Orrery</h4>
-      <p>An interactive 3D solar system in the browser — hand-rolled WebGL + TypeScript, no external engine. Real Keplerian orbital mechanics (true periods, distances, and orbital planes), procedurally textured planets with diffuse/specular lighting, a free-fly camera with pause and time-warp, and click-to-fly to any planet. Run it up to 4096× and watch a century of orbits.</p>
+      <h4>Granite</h4>
+      <p>A SQL database engine built from scratch in Go — a lexer and recursive-descent parser, a query planner and executor, and a paged B-tree storage engine that persists real .db files. Create tables, insert, update, delete, and query with joins, WHERE, ORDER BY, LIMIT, DISTINCT, and indexes, wrapped in BEGIN/COMMIT transactions — all from a terminal CLI. Standard library only, with 81 tests.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/Random/orrery/">Fly to Jupiter</a>
-        <a href="https://userfrom1995.github.io/Random/orrery/docs/">Documentation</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/granite/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-granite-sql-database-engine.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/docs/">Documentation</a>
       </div>
     </div>
   </div>
 
   <h2>Previous Projects</h2>
   <ul class="projects">
+    <li>
+      <h4>Orrery</h4>
+      <p>An interactive 3D solar system in the browser — hand-rolled WebGL + TypeScript, no external engine. Real Keplerian orbital mechanics (true periods, distances, and orbital planes), procedurally textured planets with diffuse/specular lighting, a free-fly camera with pause and time-warp, and click-to-fly to any planet.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/Random/orrery/">Fly to Jupiter</a>
+        <a href="https://userfrom1995.github.io/Random/orrery/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md">Writeup</a>
+      </div>
+    </li>
     <li>
       <h4>Cadence</h4>
       <p>A terminal sorting-algorithm visualizer with audio sonification — animates nine classic sorts as ASCII bars while every comparison and swap rings out as a pitch-mapped tone. Python standard library only.</p>

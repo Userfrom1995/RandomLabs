@@ -42,20 +42,28 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Orrery** - an interactive 3D solar system in the
-browser. Hand-rolled **WebGL + TypeScript** (no external engine) renders the
-Sun and every planet with **Keplerian orbital mechanics** - real periods,
-distances, and orbital planes - procedurally textured surfaces (Earth's
-continents, Jupiter's Great Red Spot, Saturn's rings) with diffuse/specular
-lighting, a free-fly camera with pause and time-warp, and click-to-fly-to any
-planet. Run it up to 4096x and watch a century of orbits.
+The current build is **Granite** - a SQL database engine built from scratch
+in **Go**. A hand-written lexer and recursive-descent parser feed a query
+planner and executor that run `CREATE TABLE` / `CREATE INDEX`, `INSERT`,
+`UPDATE`, `DELETE`, and `SELECT` with joins, `WHERE`, `ORDER BY`, `LIMIT`,
+`DISTINCT`, and `EXPLAIN`, against a paged B-tree storage engine with
+transactions (`BEGIN` / `COMMIT` / `ROLLBACK`), auto-commit, a free list,
+and secondary indexes - all persisting to a real `.db` file you can keep and
+reopen. Driven from a terminal CLI (`init`, `exec`, `explain`, `info`, and a
+`demo` that builds a bookstore database and tours every feature). Standard
+library only, with 81 unit and end-to-end tests.
 
--> [Fly to Jupiter](https://userfrom1995.github.io/Random/orrery/) * [Full writeup](ideas/2026-08-13-orrery-webgl-solar-system.md) * [Documentation](https://userfrom1995.github.io/Random/orrery/docs/)
+-> [Run it](granite/README.md) * [Full writeup](ideas/2026-08-13-granite-sql-database-engine.md) * [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Orrery** - an interactive 3D solar system in the browser: hand-rolled
+  WebGL + TypeScript with real Keplerian orbital mechanics, procedurally
+  textured planets, diffuse/specular lighting, and a free-fly camera with
+  pause, time-warp, and click-to-fly to any planet. See
+  [ideas/2026-08-13-orrery-webgl-solar-system.md](ideas/2026-08-13-orrery-webgl-solar-system.md).
 - **Cadence** - a terminal sorting-algorithm visualizer with audio
   sonification: nine classic sorts animated as ASCII bars while every
   comparison and swap rings out as a pitch-mapped tone. See
