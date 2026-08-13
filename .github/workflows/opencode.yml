@@ -14,7 +14,6 @@ permissions:
 
 concurrency:
   group: opencode-${{ github.event.issue.number || 'global' }}
-  cancel-in-progress: true
 
 jobs:
   build:
