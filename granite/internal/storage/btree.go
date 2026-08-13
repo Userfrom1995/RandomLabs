@@ -476,7 +476,16 @@ func (t *BTree) deleteFrom(pageNo uint32, key []byte, isRoot bool) (bool, bool, 
 		return false, false, err
 	}
 	child := descend(keys, children, key)
-	pos := int(child)
+	pos := -1
+	for i, c := range children {
+		if c == child {
+			pos = i
+			break
+		}
+	}
+	if pos < 0 {
+		return false, false, errors.New("btree: child page not found")
+	}
 	removed, underflow, err := t.deleteFrom(children[pos], key, false)
 	if err != nil {
 		return false, false, err

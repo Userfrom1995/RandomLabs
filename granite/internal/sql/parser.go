@@ -508,8 +508,9 @@ func (p *Parser) parseSelectItem() (SelectItem, error) {
 		save := p.pos
 		first := p.next()
 		if p.peek().Kind == TokDot {
-			second := p.next()
-			if second.Kind == TokStar {
+			p.pos++
+			if p.peek().Kind == TokStar {
+				p.pos++
 				return SelectItem{Expr: &ColumnRef{Table: strings.ToLower(first.Text), Name: "*"}}, nil
 			}
 		}
