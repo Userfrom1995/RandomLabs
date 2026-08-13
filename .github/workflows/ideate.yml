@@ -37,6 +37,7 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
+          timeout-minutes: 25
           prompt: |
             You are the Ideator of the Random factory, in a dispatch-only run (no schedule, no triggers).
 

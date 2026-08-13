@@ -31,6 +31,7 @@ jobs:
        contains(github.event.comment.body, ' /opencode continue') ||
        startsWith(github.event.comment.body, '/opencode continue'))
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -63,6 +64,7 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
+          timeout-minutes: 25
           prompt: |
             You are the Builder of the Random factory, triggered by "/oc build" or "/oc continue" on this issue/PR.
 
@@ -186,6 +188,7 @@ jobs:
        startsWith(github.event.comment.body, '/oc fix (auto-retry')) &&
       github.event.issue.pull_request != null
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -217,6 +220,7 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
+          timeout-minutes: 25
           prompt: |
             You are the Fixer of the Random factory, responding to the reviewer's findings on the open PR this comment was posted on.
 
@@ -337,6 +341,7 @@ jobs:
        contains(github.event.comment.body, ' /opencode') ||
        startsWith(github.event.comment.body, '/opencode'))
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -359,6 +364,7 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
+          timeout-minutes: 25
           prompt: |
             You are the General agent of the Random factory, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
 

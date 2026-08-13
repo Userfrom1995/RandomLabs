@@ -108,7 +108,7 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
-          timeout-minutes: 55
+          timeout-minutes: 25
           prompt: |
             You are the factory Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
 
