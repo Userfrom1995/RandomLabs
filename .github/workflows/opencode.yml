@@ -57,6 +57,7 @@ jobs:
       - name: Run opencode build agent
         id: opencode
         continue-on-error: true
+        timeout-minutes: 25
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -64,7 +65,6 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
-          timeout-minutes: 25
           prompt: |
             You are the Builder of the Random factory, triggered by "/oc build" or "/oc continue" on this issue/PR.
 
@@ -213,6 +213,7 @@ jobs:
       - name: Run opencode fix agent
         id: opencode
         continue-on-error: true
+        timeout-minutes: 25
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -220,7 +221,6 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
-          timeout-minutes: 25
           prompt: |
             You are the Fixer of the Random factory, responding to the reviewer's findings on the open PR this comment was posted on.
 
@@ -357,6 +357,7 @@ jobs:
       - name: Run opencode general agent
         id: opencode
         continue-on-error: true
+        timeout-minutes: 25
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -364,7 +365,6 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
-          timeout-minutes: 25
           prompt: |
             You are the General agent of the Random factory, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
 

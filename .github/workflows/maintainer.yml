@@ -101,6 +101,7 @@ jobs:
       - name: Run Maintainer agent
         id: maintainer
         continue-on-error: true
+        timeout-minutes: 25
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -108,7 +109,6 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
-          timeout-minutes: 25
           prompt: |
             You are the factory Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
 

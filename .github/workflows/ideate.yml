@@ -30,6 +30,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Run ideator agent
+        timeout-minutes: 25
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -37,7 +38,6 @@ jobs:
         with:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
-          timeout-minutes: 25
           prompt: |
             You are the Ideator of the Random factory, in a dispatch-only run (no schedule, no triggers).
 
