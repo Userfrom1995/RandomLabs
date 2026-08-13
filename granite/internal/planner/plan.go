@@ -131,6 +131,8 @@ type QueryNode interface {
 // ScanNode reads rows from a table or an index.
 type ScanNode struct {
 	Table *storage.TableMeta
+	// Alias is the table alias used for qualified column references.
+	Alias string
 	// Index usage: -1 means full table scan.
 	Index    int
 	IndexKey *sql.Value // equality lookups

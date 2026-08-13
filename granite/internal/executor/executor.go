@@ -35,8 +35,25 @@ func New(db *storage.Database) *Executor {
 	return &Executor{db: db}
 }
 
-// Execute runs a plan and returns the result.
+// Execute runs a plan and returns the result. Statements issued outside an
+// explicit transaction are auto-committed so each one persists immediately.
 func (ex *Executor) Execute(p planner.Plan) (*Result, error) {
+	res, err := ex.execute(p)
+	if err != nil {
+		return nil, err
+	}
+	switch p.(type) {
+	case *planner.BeginPlan, *planner.CommitPlan, *planner.RollbackPlan:
+		// transaction control manages its own commit state
+	default:
+		if err := ex.db.AutoCommit(); err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ex *Executor) execute(p planner.Plan) (*Result, error) {
 	switch plan := p.(type) {
 	case *planner.CreateTablePlan:
 		return ex.execCreateTable(plan)
@@ -178,6 +195,8 @@ type row struct {
 	vals []sql.Value
 	// cols[i] is the source column name for vals[i] ("" for computed).
 	cols []string
+	// tbls[i] is the table alias for cols[i] ("" for computed).
+	tbls []string
 }
 
 func (ex *Executor) execSelect(p *planner.SelectPlan) (*Result, error) {
@@ -228,6 +247,7 @@ func (ex *Executor) evalNode(node planner.QueryNode, env []row) ([]row, error) {
 		for _, r := range children {
 			vals := make([]sql.Value, len(n.Items))
 			cols := make([]string, len(n.Items))
+			tbls := make([]string, len(n.Items))
 			for i, it := range n.Items {
 				v, err := evalRowExpr(it.Expr, r)
 				if err != nil {
@@ -235,8 +255,9 @@ func (ex *Executor) evalNode(node planner.QueryNode, env []row) ([]row, error) {
 				}
 				vals[i] = v
 				cols[i] = it.Alias
+				tbls[i] = it.Alias
 			}
-			out = append(out, row{vals: vals, cols: cols})
+			out = append(out, row{vals: vals, cols: cols, tbls: tbls})
 		}
 		return out, nil
 	case *planner.SortNode:
@@ -304,13 +325,15 @@ func (ex *Executor) evalNode(node planner.QueryNode, env []row) ([]row, error) {
 
 func (ex *Executor) evalScan(n *planner.ScanNode) ([]row, error) {
 	cols := make([]string, len(n.Table.Cols))
+	tbls := make([]string, len(n.Table.Cols))
 	for i, c := range n.Table.Cols {
 		cols[i] = c.Name
+		tbls[i] = n.Alias
 	}
 	var out []row
 	if n.Index < 0 {
 		err := ex.db.ScanRows(n.Table, func(_ int64, vals []sql.Value) bool {
-			out = append(out, row{vals: append([]sql.Value(nil), vals...), cols: cols})
+			out = append(out, row{vals: append([]sql.Value(nil), vals...), cols: cols, tbls: tbls})
 			return true
 		})
 		return out, err
@@ -348,7 +371,7 @@ func (ex *Executor) evalScan(n *planner.ScanNode) ([]row, error) {
 		// Re-check the predicate for index scans that do not fully cover the
 		// predicate (value equality/range are covered; a manual re-check is
 		// still safe).
-		out = append(out, row{vals: vals, cols: cols})
+		out = append(out, row{vals: vals, cols: cols, tbls: tbls})
 	}
 	_ = ix
 	return out, nil
@@ -382,11 +405,14 @@ func (ex *Executor) evalJoin(n *planner.JoinNode) ([]row, error) {
 func joinRows(a, b row) row {
 	vals := make([]sql.Value, 0, len(a.vals)+len(b.vals))
 	cols := make([]string, 0, len(a.cols)+len(b.cols))
+	tbls := make([]string, 0, len(a.tbls)+len(b.tbls))
 	vals = append(vals, a.vals...)
 	vals = append(vals, b.vals...)
 	cols = append(cols, a.cols...)
 	cols = append(cols, b.cols...)
-	return row{vals: vals, cols: cols}
+	tbls = append(tbls, a.tbls...)
+	tbls = append(tbls, b.tbls...)
+	return row{vals: vals, cols: cols, tbls: tbls}
 }
 
 // evalRowExpr evaluates an expression against a row's column schema.
@@ -399,10 +425,19 @@ func evalRowExpr(e sql.Expr, r row) (sql.Value, error) {
 			return sql.Value{}, errors.New("wildcard in expression")
 		}
 		idx := -1
-		for i, c := range r.cols {
-			if c == x.Name {
-				idx = i
-				break
+		if x.Table != "" {
+			for i, c := range r.cols {
+				if r.tbls[i] == x.Table && c == x.Name {
+					idx = i
+					break
+				}
+			}
+		} else {
+			for i, c := range r.cols {
+				if c == x.Name {
+					idx = i
+					break
+				}
 			}
 		}
 		if idx < 0 {
@@ -452,9 +487,10 @@ func evalRowExpr(e sql.Expr, r row) (sql.Value, error) {
 
 // evalExpr evaluates against a plain table row.
 func evalExpr(e sql.Expr, vals []sql.Value, t *storage.TableMeta) (sql.Value, error) {
-	r := row{vals: vals, cols: make([]string, len(t.Cols))}
+	r := row{vals: vals, cols: make([]string, len(t.Cols)), tbls: make([]string, len(t.Cols))}
 	for i, c := range t.Cols {
 		r.cols[i] = c.Name
+		r.tbls[i] = t.Name
 	}
 	return evalRowExpr(e, r)
 }

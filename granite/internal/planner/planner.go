@@ -205,6 +205,18 @@ func (p *Planner) planDelete(s *sql.DeleteStmt) (Plan, error) {
 // validateExprRefs checks that every column reference in e exists in the
 // given table.
 func validateExprRefs(e sql.Expr, t *storage.TableMeta) error {
+	scope := &colScope{tables: []*storage.TableMeta{t}, aliases: []string{t.Name}}
+	return scope.validate(e)
+}
+
+// colScope resolves column references against an ordered list of joined
+// tables, honouring table qualifiers and aliases.
+type colScope struct {
+	tables  []*storage.TableMeta
+	aliases []string
+}
+
+func (s *colScope) validate(e sql.Expr) error {
 	if e == nil {
 		return nil
 	}
@@ -213,25 +225,36 @@ func validateExprRefs(e sql.Expr, t *storage.TableMeta) error {
 		if x.Name == "*" {
 			return fmt.Errorf("wildcard not allowed here")
 		}
-		found := false
-		for _, c := range t.Cols {
-			if c.Name == x.Name {
-				found = true
-				break
+		if x.Table != "" {
+			for i, a := range s.aliases {
+				if a == x.Table {
+					for _, c := range s.tables[i].Cols {
+						if c.Name == x.Name {
+							return nil
+						}
+					}
+					return fmt.Errorf("no such column: %s.%s", x.Table, x.Name)
+				}
+			}
+			return fmt.Errorf("no such table or alias: %s", x.Table)
+		}
+		for _, t := range s.tables {
+			for _, c := range t.Cols {
+				if c.Name == x.Name {
+					return nil
+				}
 			}
 		}
-		if !found {
-			return fmt.Errorf("no such column: %s", x.Name)
-		}
+		return fmt.Errorf("no such column: %s", x.Name)
 	case *sql.Binary:
-		if err := validateExprRefs(x.L, t); err != nil {
+		if err := s.validate(x.L); err != nil {
 			return err
 		}
-		return validateExprRefs(x.R, t)
+		return s.validate(x.R)
 	case *sql.Unary:
-		return validateExprRefs(x.X, t)
+		return s.validate(x.X)
 	case *sql.IsNull:
-		return validateExprRefs(x.X, t)
+		return s.validate(x.X)
 	}
 	return nil
 }
@@ -241,8 +264,11 @@ func (p *Planner) planSelect(s *sql.SelectStmt) (Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The whole FROM list forms the scope used to validate WHERE, ON, and the
+	// projection.
+	scope := &colScope{tables: []*storage.TableMeta{t}, aliases: []string{s.From.Alias}}
 	// Base scan.
-	var root QueryNode = &ScanNode{Table: t, Index: -1}
+	var root QueryNode = &ScanNode{Table: t, Alias: s.From.Alias, Index: -1}
 	// Joins.
 	if len(s.Joins) > 0 {
 		for _, j := range s.Joins {
@@ -250,15 +276,11 @@ func (p *Planner) planSelect(s *sql.SelectStmt) (Plan, error) {
 			if err != nil {
 				return nil, err
 			}
-			if err := validateExprRefs(j.On, t); err != nil {
-				return nil, err
-			}
-			if err := validateExprRefs(j.On, jt); err != nil {
-				return nil, err
-			}
+			scope.tables = append(scope.tables, jt)
+			scope.aliases = append(scope.aliases, j.Table.Alias)
 			root = &JoinNode{
 				Left:  root,
-				Right: &ScanNode{Table: jt, Index: -1},
+				Right: &ScanNode{Table: jt, Alias: j.Table.Alias, Index: -1},
 				On:    j.On,
 			}
 		}
@@ -272,7 +294,7 @@ func (p *Planner) planSelect(s *sql.SelectStmt) (Plan, error) {
 	}
 	// WHERE filter.
 	if s.Where != nil {
-		if err := validateExprRefs(s.Where, t); err != nil {
+		if err := scope.validate(s.Where); err != nil {
 			return nil, err
 		}
 		root = &FilterNode{Child: root, Pred: s.Where}
@@ -286,7 +308,7 @@ func (p *Planner) planSelect(s *sql.SelectStmt) (Plan, error) {
 		root = &SortNode{Child: root, Keys: keys}
 	}
 	// Projection.
-	items, names, err := buildProjection(s.Items, t)
+	items, names, err := buildProjection(s.Items, scope, t)
 	if err != nil {
 		return nil, err
 	}
@@ -378,20 +400,33 @@ func splitConjuncts(e sql.Expr, fn func(sql.Expr)) {
 }
 
 // buildProjection computes the projection items and output names.
-func buildProjection(items []sql.SelectItem, t *storage.TableMeta) ([]ProjectItem, []string, error) {
+func buildProjection(items []sql.SelectItem, scope *colScope, t *storage.TableMeta) ([]ProjectItem, []string, error) {
 	var out []ProjectItem
 	var names []string
 	for _, it := range items {
 		if cr, ok := it.Expr.(*sql.ColumnRef); ok && cr.Name == "*" {
-			// expand all columns
-			for _, c := range t.Cols {
-				ref := &sql.ColumnRef{Name: c.Name}
+			// Unqualified star expands the FROM table.
+			if cr.Table == "" {
+				for _, c := range t.Cols {
+					ref := &sql.ColumnRef{Name: c.Name}
+					out = append(out, ProjectItem{Expr: ref, Alias: c.Name})
+					names = append(names, c.Name)
+				}
+				continue
+			}
+			// Qualified star (alias.*) expands that table's columns.
+			tab, found := scope.lookup(cr.Table)
+			if !found {
+				return nil, nil, fmt.Errorf("no such table or alias: %s", cr.Table)
+			}
+			for _, c := range tab.Cols {
+				ref := &sql.ColumnRef{Table: cr.Table, Name: c.Name}
 				out = append(out, ProjectItem{Expr: ref, Alias: c.Name})
 				names = append(names, c.Name)
 			}
 			continue
 		}
-		if err := validateExprRefs(it.Expr, t); err != nil {
+		if err := scope.validate(it.Expr); err != nil {
 			return nil, nil, err
 		}
 		name := it.Alias
@@ -402,6 +437,16 @@ func buildProjection(items []sql.SelectItem, t *storage.TableMeta) ([]ProjectIte
 		names = append(names, name)
 	}
 	return out, names, nil
+}
+
+// lookup finds the table with the given alias or name.
+func (s *colScope) lookup(alias string) (*storage.TableMeta, bool) {
+	for i, a := range s.aliases {
+		if a == alias {
+			return s.tables[i], true
+		}
+	}
+	return nil, false
 }
 
 func exprName(e sql.Expr) string {

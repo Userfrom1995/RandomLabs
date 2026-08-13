@@ -73,6 +73,10 @@ type Pager struct {
 	dirty map[uint32]bool
 	txn   bool
 	saved header
+	snap  map[uint32][]byte
+	// savedDirty captures the dirty set at Begin so Rollback can restore it
+	// exactly.
+	savedDirty map[uint32]bool
 }
 
 // openPager opens an existing Granite database file.
@@ -109,6 +113,14 @@ func createPager(path string) (*Pager, error) {
 }
 
 func (p *Pager) Close() error {
+	// Persist any unflushed writes (e.g. statements issued outside an
+	// explicit transaction). An open transaction is discarded.
+	if !p.txn {
+		if err := p.flush(); err != nil {
+			_ = p.file.Close()
+			return err
+		}
+	}
 	return p.file.Close()
 }
 
@@ -198,11 +210,23 @@ func (p *Pager) writeHeader() error {
 }
 
 // Begin starts a transaction. Writes are buffered until Commit or Rollback.
+// The current cache is snapshotted so Rollback can restore exactly what was
+// on disk (or in the cache) before the transaction began.
 func (p *Pager) Begin() error {
 	if p.txn {
 		return errors.New("transaction already active")
 	}
 	p.saved = p.h
+	p.snap = make(map[uint32][]byte, len(p.cache))
+	for n, b := range p.cache {
+		cp := make([]byte, PageSize)
+		copy(cp, b)
+		p.snap[n] = cp
+	}
+	p.savedDirty = make(map[uint32]bool, len(p.dirty))
+	for n := range p.dirty {
+		p.savedDirty[n] = true
+	}
 	p.txn = true
 	return nil
 }
@@ -212,6 +236,19 @@ func (p *Pager) Commit() error {
 	if !p.txn {
 		return errors.New("no active transaction")
 	}
+	if err := p.flush(); err != nil {
+		return err
+	}
+	p.snap = nil
+	p.savedDirty = nil
+	p.txn = false
+	return nil
+}
+
+// flush writes every dirty page to disk and syncs the file. It is used by
+// Commit and by the auto-commit path that persists statements issued outside
+// an explicit transaction.
+func (p *Pager) flush() error {
 	// Flush all dirty data pages first, then the header page last.
 	var pages []uint32
 	for n := range p.dirty {
@@ -222,39 +259,55 @@ func (p *Pager) Commit() error {
 	sortUint32(pages)
 	for _, n := range pages {
 		if err := p.flushPage(n); err != nil {
-			p.txn = false
 			return err
 		}
 	}
 	if p.dirty[0] {
 		if err := p.writeHeader(); err != nil {
-			p.txn = false
 			return err
 		}
 		if err := p.flushPage(0); err != nil {
-			p.txn = false
 			return err
 		}
 	}
 	if err := p.file.Sync(); err != nil {
-		p.txn = false
 		return err
 	}
 	p.dirty = map[uint32]bool{}
-	p.txn = false
 	return nil
 }
 
-// Rollback discards all buffered writes.
+// AutoCommit persists any pending writes. It is a no-op while a transaction
+// is active; only the transaction's Commit may flush then.
+func (p *Pager) AutoCommit() error {
+	if p.txn {
+		return nil
+	}
+	return p.flush()
+}
+
+// Rollback discards all buffered writes, restoring the state captured by
+// Begin.
 func (p *Pager) Rollback() error {
 	if !p.txn {
 		return errors.New("no active transaction")
 	}
-	for n := range p.dirty {
-		delete(p.cache, n)
+	for n := range p.cache {
+		if sb, ok := p.snap[n]; ok {
+			cp := make([]byte, PageSize)
+			copy(cp, sb)
+			p.cache[n] = cp
+		} else {
+			delete(p.cache, n)
+		}
 	}
-	p.dirty = map[uint32]bool{}
+	p.dirty = make(map[uint32]bool, len(p.savedDirty))
+	for n := range p.savedDirty {
+		p.dirty[n] = true
+	}
 	p.h = p.saved
+	p.snap = nil
+	p.savedDirty = nil
 	p.txn = false
 	return nil
 }

@@ -13,19 +13,23 @@
 - [x] executor: SELECT/INSERT/UPDATE/DELETE + joins + ORDER BY/LIMIT/DISTINCT
 - [x] indexes: CREATE INDEX, index lookups in planner/executor
 - [x] transactions: BEGIN/COMMIT/ROLLBACK
-- [ ] CLI (cmd/granite) + demo db
+- [x] CLI (cmd/granite) + demo db
 - [ ] unit tests + end-to-end tests
 - [ ] README + docs/ (index.md + index.html) + ideas/ entry
 - [ ] landing index.html updated, go vet/test clean, PR with Closes #47
 
 ## Current step
-Core engine written: sql front-end, storage (pager + b-tree + catalog + db),
-planner, executor all compile. Writing the CLI and tests next.
+CLI shipped (init/exec/explain/info/demo + version), demo database runs end to
+end. Fixed three real bugs found while driving it: the catalog root was never
+initialized as a leaf page, qualified join columns were not resolved, and the
+pager's rollback could destroy unflushed pre-transaction data (now snapshots
+at Begin, auto-commits outside explicit transactions, flushes on Close).
+Writing unit and e2e tests next.
 
 ## Next steps
-- Write the CLI (cmd/granite) with init/exec/explain/dump/info/demo commands.
-- Write unit tests (btree, db, parser, executor e2e).
-- Write docs + ideas entry, update landing page, mark complete.
+- Write unit tests (btree, pager, db, parser, value).
+- Write e2e tests (executor + CLI).
+- Write README, docs/, ideas/ entry, update landing page, mark complete.
 
 ## Agent log
 - 2026-08-13 (build run 1) — orientation: read builder.md, AGENTS.md, FACTORY.md,
@@ -37,3 +41,14 @@ planner, executor all compile. Writing the CLI and tests next.
   secondary indexes), the planner (DDL/DML/query plan tree with EXPLAIN, index
   selection on equality/range predicates), and the executor (operator tree
   evaluation, joins, sort, distinct, limit). Everything compiles.
+- 2026-08-13 (build run 3, resume) — read the PR, progress file, and all core
+  sources. Built the CLI (cmd/granite): init, exec (arg/-f/stdin), explain,
+  info, version; demo database runner with a bookstore tour. Fixed three real
+  bugs found by running the engine: (1) initCatalog never wrote the catalog
+  root leaf page; (2) join predicates and projections with qualified column
+  refs failed validation/resolution (added colScope + table alias threading
+  through ScanNode and executor rows); (3) pager Rollback deleted unflushed
+  pre-transaction pages from the cache, so a rollback after writes destroyed
+  prior data - the pager now snapshots cache+dirty at Begin, auto-commits
+  statements outside explicit transactions, and flushes on Close. Pushed CLI
+  milestone; the demo now runs end to end and data persists across reopen.

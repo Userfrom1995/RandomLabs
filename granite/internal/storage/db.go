@@ -224,6 +224,12 @@ func (db *Database) initCatalog() error {
 	if err != nil {
 		return err
 	}
+	page := make([]byte, PageSize)
+	page[0] = nodeLeaf
+	binary.BigEndian.PutUint16(page[1:3], 0)
+	if err := db.pager.writePage(root, page); err != nil {
+		return err
+	}
 	db.pager.h.catalogRoot = root
 	db.pager.markHeaderDirty()
 	db.catalog = newBTree(db.pager, root)
@@ -233,14 +239,41 @@ func (db *Database) initCatalog() error {
 // inTxn reports whether a transaction is active.
 func (db *Database) inTxn() bool { return db.pager.inTxn() }
 
+// InTxn reports whether a transaction is active.
+func (db *Database) InTxn() bool { return db.inTxn() }
+
+// Pages returns the number of pages the database file currently occupies.
+func (db *Database) Pages() int { return db.pager.pageBytes() / PageSize }
+
+// FileSize returns the database file size in bytes.
+func (db *Database) FileSize() int { return db.pager.pageBytes() }
+
 // Begin starts a transaction.
 func (db *Database) Begin() error { return db.pager.Begin() }
 
-// Commit commits the active transaction.
-func (db *Database) Commit() error { return db.pager.Commit() }
+// Commit commits the active transaction. Buffered metadata is dropped so the
+// next lookup is read from the freshly committed catalog.
+func (db *Database) Commit() error {
+	if err := db.pager.Commit(); err != nil {
+		return err
+	}
+	db.cache = map[string]*TableMeta{}
+	return nil
+}
 
-// Rollback rolls back the active transaction.
-func (db *Database) Rollback() error { return db.pager.Rollback() }
+// Rollback rolls back the active transaction, restoring the exact pre-
+// transaction state including the in-memory table catalog.
+func (db *Database) Rollback() error {
+	if err := db.pager.Rollback(); err != nil {
+		return err
+	}
+	db.cache = map[string]*TableMeta{}
+	return nil
+}
+
+// AutoCommit persists any pending writes made outside an explicit
+// transaction.
+func (db *Database) AutoCommit() error { return db.pager.AutoCommit() }
 
 // ---------- table management ----------
 
