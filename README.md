@@ -42,22 +42,24 @@ All powered by [opencode](https://opencode.ai).
 
 ## Current Project
 
-The current build is **Cadence** — a terminal sorting-algorithm visualizer
-with audio sonification. It animates nine classic sorting algorithms
-(bubble, insertion, selection, quicksort with Hoare or Lomuto partitioning,
-merge, heap, cocktail, and a bogo sort for fun) live in the terminal as ASCII
-bars while every comparison and swap rings out as a pitch-mapped tone — so you
-can *hear* bubble sort's largest values climb and *hear* why O(n log n) beats
-O(n²). It renders the run to a WAV file, streams live beeps, prints live
-stats, and a `--race` scorecard runs every algorithm head-to-head on the same
-input — nothing but the Python standard library.
+The current build is **Orrery** — an interactive 3D solar system in the
+browser. Hand-rolled **WebGL + TypeScript** (no external engine) renders the
+Sun and every planet with **Keplerian orbital mechanics** — real periods,
+distances, and orbital planes — procedurally textured surfaces (Earth's
+continents, Jupiter's Great Red Spot, Saturn's rings) with diffuse/specular
+lighting, a free-fly camera with pause and time-warp, and click-to-fly-to any
+planet. Run it up to 4096× and watch a century of orbits.
 
-→ [Run it: `python3 -m cadence`](https://github.com/Userfrom1995/Random/blob/main/cadence/README.md) · [Full writeup](ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
+→ [Fly to Jupiter](https://userfrom1995.github.io/Random/orrery/) · [Full writeup](ideas/2026-08-13-orrery-webgl-solar-system.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Cadence** — a terminal sorting-algorithm visualizer with audio
+  sonification: nine classic sorts animated as ASCII bars while every
+  comparison and swap rings out as a pitch-mapped tone. See
+  [ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md](ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md).
 - **Regexplorer** — a visual regex engine that animates NFA matching in the
   terminal. It parses a small regex subset into an AST, builds the classic
   Thompson NFA, draws the state machine as an ASCII graph, and steps a string

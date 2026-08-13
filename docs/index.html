@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>The Random Factory — a self-maintaining project repository</title>
-<meta name="description" content="The Random Factory: a repo that runs itself. The Maintainer (Mae), the Ideator, the Builder, the Fixer, and the Reviewer continuously produce, review, and ship projects — zero human interaction, strict review gate." />
+<title>Orrery — an interactive 3D solar system</title>
+<meta name="description" content="Orrery: a WebGL/TypeScript solar system with Keplerian orbital mechanics, procedural planet textures, per-pixel lighting, and a free-fly camera. No external engine." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -33,6 +33,17 @@
   }
   header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
   header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
   main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
   h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
   h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
@@ -76,17 +87,7 @@
   }
   .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
   .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
-  .term {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-family: "JetBrains Mono", Consolas, monospace;
-    font-size: 0.8rem;
-    color: var(--accent);
-    overflow-x: auto;
-    white-space: pre;
-  }
+  ul { padding-left: 22px; }
   footer {
     text-align: center;
     color: var(--muted);
@@ -98,95 +99,120 @@
 </head>
 <body>
 <header class="hero">
-  <h1>The Random Factory</h1>
-  <p><strong>This repository is itself the product.</strong> It runs a project
-  factory: a team of coding agents — the Maintainer, the Ideator, the Builder,
-  the Fixer, the Reviewer, and General — that continuously produces, reviews,
-  and ships projects into this repo with zero human interaction. Quality is
-  the only deadline.</p>
+  <h1>Orrery</h1>
+  <p>A living solar system in the browser: real <strong>Keplerian orbital
+  mechanics</strong>, procedurally textured planets, per-pixel lighting, and a
+  free-fly camera — all hand-rolled in <strong>TypeScript on WebGL</strong>
+  with no external engine. Distances are honest, sizes are exaggerated so you
+  can see the worlds.</p>
+  <div class="launch"><a href="https://userfrom1995.github.io/Random/orrery/">Fly to Jupiter →</a></div>
 </header>
 
 <main>
   <section class="cards">
     <div class="card">
-      <h4>Maintainer (Mae)</h4>
-      <p>The brain. Surveys the repo 2×/day and on every event, resumes
-      in-progress builds, dispatches the Ideator when idle, picks ideas, pings
-      stalled work, and <em>merges every approved PR</em>.</p>
+      <h4>Keplerian orbits</h4>
+      <p>Real J2000 elements — semi-major axis, eccentricity, inclination,
+      node, perihelion — with mean anomaly integrated from each body's actual
+      sidereal period and Kepler's equation solved by Newton–Raphson.</p>
     </div>
     <div class="card">
-      <h4>Ideator</h4>
-      <p>The brainstorm engine. Posts 2–3 diverse candidate projects per run
-      on the Brainstorm Board. No category/language twice in the last 3 picks;
-      fresh languages and ambition welcome.</p>
+      <h4>Procedural textures</h4>
+      <p>Every surface is painted at startup from seeded value noise: Earth's
+      continents and ice caps, Jupiter's bands and Great Red Spot, Saturn's
+      rings, Mars's craters. Same seed, same universe.</p>
     </div>
     <div class="card">
-      <h4>Builder &amp; Fixer</h4>
-      <p>Implement <code>opencode/&lt;issue&gt;-&lt;slug&gt;</code> branches in
-      resume mode with <code>progress/</code> files and <code>ideas/</code>
-      writeups. The Fixer applies reviewer findings on review rounds.</p>
+      <h4>Lighting</h4>
+      <p>Per-pixel diffuse + specular Phong shading with the Sun as the single
+      light source; an emissive Sun wrapped in a layered additive glow.</p>
     </div>
     <div class="card">
-      <h4>Reviewer</h4>
-      <p>The strict, read-only quality gate. Every PR — bot or human — is
-      checked against a hard checklist; findings are code-first
-      (<code>file:line</code> + corrected code).</p>
+      <h4>Free-fly camera</h4>
+      <p>Drag to look, WASD to fly, wheel for speed. Click any planet to fly
+      to it and ride along as it orbits — pause or run up to 4096×.</p>
     </div>
   </section>
 
-  <h2>The review loop</h2>
-  <div class="term">push (work complete) ──► Reviewer ──► "/oc fix: …" ──► Fixer ──► push
-     ▲                                                    │
-     └────────────────────────────────────────────────────┘
-     └── "/oc approve" ──► Maintainer merges (rebase, bot identity), closes issues</div>
-  <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
-  PRs are reviewed too — findings are guidance for the human to apply; the bot
-  never pushes to forks (guidance only).</p>
-
-  <h2>Running the factory</h2>
-  <pre><code># First run — dispatch the Maintainer once (Actions tab: maintainer → Run workflow)
-bash setup.sh --secrets --dispatch
-
-# Talk to it with /oc comments on issues/PRs
-/oc build this        # have the Builder implement an issue
-/oc continue          # resume an in-progress build
-/oc fix               # consent to a review round applying findings
-/oc review            # request a review (also fully automatic on PR pushes)
-/oc approve · /oc decline · /oc help
-
-# Undo everything (backs up, removes the factory, restores human control)
-bash shutdown.sh</code></pre>
-  <p><strong>Approval duty (first ~14 days):</strong> GitHub may hold workflow
-  runs on the bot's PRs. <code>opencode.yml</code> auto-approves held runs
-  after every push; if it cannot, a comment asks for one manual click — the
-  loop resumes after it.</p>
-
-  <h2>Where things live</h2>
+  <h2>Controls</h2>
   <table>
-    <tr><th>Path</th><th>What it is</th></tr>
-    <tr><td><code>FACTORY.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
-    <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
-    <tr><td><code>.github/agents/</code></td><td>The prompts themselves + <code>REGISTRY.md</code> roster; the Maintainer may edit and extend them via reviewed PRs.</td></tr>
-    <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> — every run catches up from it.</td></tr>
-    <tr><td><code>BOARD.md</code> · <code>CHANGELOG.md</code></td><td>Live pipeline status · daily factory work updates.</td></tr>
-    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-review-trigger.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+    <tr><th>Input</th><th>Action</th></tr>
+    <tr><td>Left-drag</td><td>Look around</td></tr>
+    <tr><td>Right-drag</td><td>Pan</td></tr>
+    <tr><td>WASD + Q/E</td><td>Fly forward/back/strafe/down/up</td></tr>
+    <tr><td>Mouse wheel</td><td>Flight speed</td></tr>
+    <tr><td>Ctrl + wheel</td><td>Time warp</td></tr>
+    <tr><td>Click a planet</td><td>Select and fly to it</td></tr>
+    <tr><td>Space</td><td>Pause / resume</td></tr>
+    <tr><td><code>-</code> / <code>+</code></td><td>Slower / faster warp</td></tr>
+    <tr><td><code>H</code></td><td>Toggle the HUD</td></tr>
+    <tr><td><code>Esc</code></td><td>Return to free camera</td></tr>
   </table>
 
-  <h2>Security &amp; fail-safes</h2>
+  <h2>How it works</h2>
+  <p>The orbital core is pure TypeScript, unit-tested in Node with no
+  browser:</p>
   <ul>
-    <li>The owner's PAT lives only in hardcoded workflow steps — never in an
-    agent's environment, prompt, or git config. Agents act as
-    <code>github-actions[bot]</code>, never as the owner.</li>
-    <li>The Reviewer is read-only by construction; nothing merges without its
-    approval; timers are evaluation triggers, not deadlines; every decision is
-    logged with rationale.</li>
-    <li>Fork PRs: review + guidance only (the bot cannot push to forks);
-    approved fork PRs merge with credit preserved.</li>
-    <li><code>bash shutdown.sh --purge</code> removes the factory including
-    its secrets.</li>
+    <li><code>src/kepler.ts</code> — Kepler's equation solver, mean-anomaly
+    integration, orbital position/velocity/path in the J2000 ecliptic frame.</li>
+    <li><code>src/bodies.ts</code> — the catalog: six Keplerian elements plus a
+    visual config (texture kind, exaggerated radius, base color, albedo,
+    specular, optional ring spec).</li>
+    <li><code>src/math.ts</code> — vectors, 4×4 column-major matrices,
+    look-at/perspective, inverse, easing.</li>
+    <li><code>src/noise.ts</code> — seeded 2D value noise + fBm for
+    deterministic textures.</li>
   </ul>
+  <p>The render layer is plain WebGL1:</p>
+  <ul>
+    <li><code>src/shaders.ts</code> — three GLSL programs: textured Phong
+    (<em>lit</em>), flat color (<em>unlit</em>), and additive sprite for the
+    Sun's glow billboards.</li>
+    <li><code>src/geometry.ts</code> — UV sphere, ring annulus, quads,
+    polylines, point clouds.</li>
+    <li><code>src/textures.ts</code> — procedural painters (ImageData → WebGL
+    texture, no canvas).</li>
+    <li><code>src/renderer.ts</code> — scene draw calls + a ray-casting
+    picker for click-to-fly.</li>
+    <li><code>src/camera.ts</code> — free-fly camera with exponential follow
+    damping.</li>
+    <li><code>src/ui.ts</code> / <code>src/main.ts</code> — the HUD, control
+    bar, input, and the frame loop.</li>
+  </ul>
+
+  <h2>Design choices</h2>
+  <ul>
+    <li><strong>Distances are honest, sizes are not.</strong> Orbital radii
+    keep their real relative distances (1 AU = 100 world units); planet radii
+    are scaled up so they are visible.</li>
+    <li><strong>Real periods.</strong> The catalog stores actual sidereal
+    periods rather than a Kepler-third-law fit, so the relative orbital speeds
+    are accurate.</li>
+    <li><strong>Determinism.</strong> The PRNG, noise, and painters are all
+    seeded, so every visit renders the same universe — and the orbital math is
+    unit-tested.</li>
+    <li><strong>Portability.</strong> WebGL1 and ES2020 output; no pointer
+    lock, so it works embedded in an iframe.</li>
+  </ul>
+
+  <h2>Running it locally</h2>
+  <pre><code>cd orrery
+npm install        # dev-only: TypeScript + esbuild
+npm run test       # 43 unit tests (orbital core)
+npm run typecheck  # strict TS
+npm run build      # bundle src/main.ts → app.js</code></pre>
+  <p>The bundled <code>app.js</code> is committed, so the site needs no build
+  step on GitHub Pages.</p>
+
+  <h2>Source</h2>
+  <p>The project lives in
+  <a href="https://github.com/Userfrom1995/Random/tree/main/orrery"><code>orrery/</code></a>
+  with a
+  <a href="https://github.com/Userfrom1995/Random/blob/main/orrery/README.md">README</a>
+  and a full writeup in
+  <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md"><code>ideas/</code></a>.</p>
 </main>
 
-<footer>The Random Factory · part of the Random repo · MIT License</footer>
+<footer>Orrery · part of the Random repo · MIT License</footer>
 </body>
 </html>

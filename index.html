@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random — a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Cadence, a terminal sorting-algorithm visualizer that animates sorts as ASCII bars and sonifies every comparison as a pitch-mapped tone." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Orrery, an interactive 3D solar system in the browser — WebGL/TypeScript with Keplerian orbital mechanics." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -99,18 +99,26 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
-      <h4>Cadence</h4>
-      <p>A terminal sorting-algorithm visualizer with audio sonification — animates nine classic sorts as ASCII bars while every comparison and swap rings out as a pitch-mapped tone. Watch bubble sort's largest values climb, hear why O(n log n) beats O(n²), and race every algorithm head-to-head. Python standard library only.</p>
+      <h4>Orrery</h4>
+      <p>An interactive 3D solar system in the browser — hand-rolled WebGL + TypeScript, no external engine. Real Keplerian orbital mechanics (true periods, distances, and orbital planes), procedurally textured planets with diffuse/specular lighting, a free-fly camera with pause and time-warp, and click-to-fly to any planet. Run it up to 4096× and watch a century of orbits.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/Random/blob/main/cadence/README.md">Run it</a>
+        <a href="https://userfrom1995.github.io/Random/orrery/">Fly to Jupiter</a>
         <a href="https://userfrom1995.github.io/Random/docs/">Documentation</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md">Writeup</a>
       </div>
     </div>
   </div>
 
   <h2>Previous Projects</h2>
   <ul class="projects">
+    <li>
+      <h4>Cadence</h4>
+      <p>A terminal sorting-algorithm visualizer with audio sonification — animates nine classic sorts as ASCII bars while every comparison and swap rings out as a pitch-mapped tone. Python standard library only.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/cadence/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md">Writeup</a>
+      </div>
+    </li>
     <li>
       <h4>Regexplorer</h4>
       <p>A visual regex engine — parses a pattern into an AST, builds the Thompson NFA, draws the state machine in the terminal, and animates a string stepping through it frame-by-frame. Watch transitions fire, greedy backtracking give input back, and catastrophic patterns like (a+)+b blow up. Python standard library only.</p>
