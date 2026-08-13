@@ -120,22 +120,5 @@ jobs:
             echo "Reviewer did not approve, skipping handover"
             exit 0
           fi
-          approve_msg=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("/oc approve")))] | last | .body' 2>/dev/null || echo "/oc approve")
-          printf '%s\n' "$approve_msg" > /tmp/approve.txt
-          if gh workflow view maintainer.yml --repo "${{ github.repository }}" --json id --jq '.id' >/dev/null 2>&1; then
-            echo "Dispatching the Maintainer to merge PR #$pr"
-            gh workflow run maintainer.yml --repo "${{ github.repository }}" \
-              -f pr_number="$pr" -F reason="@/tmp/approve.txt" 2>&1 | tail -2 || true
-          else
-            echo "maintainer.yml unavailable; fallback: merging as bot"
-            gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1 | tail -5
-            closed=$(gh pr view "$pr" --repo "${{ github.repository }}" --json body --jq '.body' 2>/dev/null | grep -oE '(Closes|Fixes|Resolves) #[0-9]+' | grep -oE '[0-9]+' || true)
-            for n in $closed; do
-              state=$(gh issue view "$n" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
-              if [ "$state" = "OPEN" ]; then
-                echo "Closing issue #$n (linked by #$pr)"
-                gh issue close "$n" --repo "${{ github.repository }}" --comment "Auto-closed: #$pr merged." 2>&1 | tail -1 || true
-              fi
-            done
-          fi
+          echo "Posting /oc maintainer to hand over approved PR #$pr"
+          gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer" || true
