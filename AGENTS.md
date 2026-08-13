@@ -23,6 +23,7 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 - Attribution is strict: issues, commits, and pull requests are ALWAYS
   authored by `github-actions[bot]` - never the owner, and never with a
   `Co-authored-by:` trailer. Human contributor credit is preserved.
+- **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Mae, the Maintainer`, `- the Builder`, `- the Fixer`,
   `- the Reviewer`, `- the Ideator`, `- the General agent`), and commit

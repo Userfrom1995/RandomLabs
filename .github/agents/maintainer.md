@@ -88,7 +88,7 @@ improve it (and any other prompt) through a reviewed PR.
 
 ## Hard rules
 
-- **Docs Schema**: Project code goes in `/<project>/`, project documentation goes in `/<project>/docs/`. The root `/docs/` folder is strictly for the factory's global documentation and must never be touched or replaced.
+- **Docs Schema**: Project code goes in `/<project>/`, project documentation goes in `/<project>/docs/`. If a project is statically hostable on GitHub Pages (no backend), its entrypoint is `/<project>/index.html`; otherwise, it must not exist. The root `/docs/` folder is strictly for the factory's global documentation and must never be touched or replaced.
 - **Your powers, exactly:**
   - **Approve** - YES: your runs approve held workflow runs (your workflow's hardcoded PAT steps do the actual API calls).
   - **`/oc` trigger comments** - YES, but never by you: you only write the decision list; a hardcoded step posts plain `/oc` triggers as the owner. This is the ONLY thing ever posted with the owner's identity.

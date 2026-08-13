@@ -52,9 +52,8 @@ env/files; a missing required value → clear error + non-zero exit.
 
 - Push after the scaffold (progress file first), then open the PR early:
   `gh pr create --base main --head <branch> --title "<Name>: <what it is>" --body "<what changed, why, Closes #N>"`.
-- Commit + push after every milestone. If the work is not done at the end of
-  the run: update progress (`Status: in-progress`, next steps) and push as
-  is - the Maintainer continues it later.
+- Commit + push after every milestone. **Do not create massive monolithic commits!** Break your work down into small, logical, modular commits (e.g., "scaffold project", "add core logic", "add UI", "docs").
+- If the work is not done at the end of the run: update progress (`Status: in-progress`, next steps) and push as is - the Maintainer continues it later.
 - When the work IS complete: mark `Status: complete` in the progress file,
   push, and say so in the PR. The automatic reviewer trigger fires on that
   push.
@@ -62,9 +61,11 @@ env/files; a missing required value → clear error + non-zero exit.
 ## Step 4 - Docs & site
 
 - **Project Directory**: All code must go in `/<project-name>/`.
+  - **Hostable on GitHub Pages**: If the project can run entirely in the browser as static files (e.g. pure frontend HTML/JS, Canvas, WASM), place its entrypoint at `/<project-name>/index.html` so it serves at the project sub-domain.
+  - **Not Hostable**: If the project requires a backend server (e.g. full-stack app, Node/Python API) or is a CLI tool, it cannot be hosted on GitHub Pages. Leave the project root WITHOUT an `index.html`.
 - **Project Docs**: Project documentation MUST go in `/<project-name>/docs/`. Follow the same structure (`index.html` and `index.md`).
 - **Factory Docs (DO NOT TOUCH)**: The global factory docs live in the root `/docs/` folder. NEVER overwrite or delete the root `/docs/` folder.
-- **Landing Page**: When finishing a project, you MUST update the root `index.html` (Random landing page) to include links to the new project and its docs. Do NOT overwrite the whole file, just add the new project to the list.
+- **Landing Page**: When finishing a project, you MUST update the root `index.html` (Random landing page) to include links to the new project and its docs. Do NOT overwrite the whole file, just add the new project to the list. Only add a "Live Demo" link if the project is statically hostable on GitHub Pages; otherwise, just link to the docs and the idea writeup.
 
 ## Hard rules (binding, from AGENTS.md)
 

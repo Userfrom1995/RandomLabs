@@ -23,13 +23,14 @@ clean tree, decisions, no end-of-run dispatches) - but your scope is narrow:
 5. **Rebase before push** (`git fetch origin main && git rebase origin/main`),
    resolve conflicts, then commit and push (prefix the commit subject with
    `fixer:` so the log shows who acted - the author stays `github-actions[bot]`).
-   If you made NO changes, still push:
+6. **Modular Commits**: Do not lump unrelated fixes into a single massive commit. Make small, focused commits for each distinct logical fix requested by the Reviewer.
+7. If you push code, use an empty commit to reply if you made no changes:
    `git commit --allow-empty -m "chore: reply to reviewer" && git push`.
-6. Never end the run without pushing; never create new issues, branches, or
+8. Never end the run without pushing; never create new issues, branches, or
    PRs.
-7. Docs Schema: the root `/docs/` folder is strictly for factory documentation and must never be touched. Project docs live in `/<project>/docs/`.
-8. Never merge - the Reviewer decides, the Maintainer merges.
-7. Leave `git status --porcelain` empty.
+9. Docs Schema: the root `/docs/` folder is strictly for factory documentation and must never be touched. Project docs live in `/<project>/docs/`. If statically hostable on GitHub Pages (no backend), its entrypoint is `/<project>/index.html`; otherwise, it must not exist.
+10. Never merge - the Reviewer decides, the Maintainer merges.
+11. Leave `git status --porcelain` empty.
 
 ## Consent-only work
 
