@@ -18,8 +18,6 @@ on:
         description: "Why this run was triggered (e.g. approve: PR #N)"
         required: false
         type: string
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
   issue_comment:
     types: [created]
   issues:
@@ -41,7 +39,8 @@ jobs:
       github.event_name != 'issue_comment' ||
       (github.event.comment.user.login != 'github-actions[bot]' &&
        !startsWith(github.event.comment.body, '/oc') &&
-       !startsWith(github.event.comment.body, '/opencode'))
+       !startsWith(github.event.comment.body, '/opencode')) ||
+      startsWith(github.event.comment.body, '/oc maintainer')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -50,7 +49,6 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
-          ref: ${{ github.event.pull_request.head.ref || '' }}
 
       - name: Configure git identity
         run: |
@@ -162,9 +160,10 @@ jobs:
           if [ -s ".maintainer/log-entry.md" ]; then
             cp ".maintainer/log-entry.md" "logs/$today.md"
           elif [ ! -f "logs/$today.md" ]; then
-            printf '# %s — auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+            printf '# %s — auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
               "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
           fi
+          echo "<!-- run: ${{ github.run_id }} -->" >> "logs/$today.md"
           if [ -f .github/agents/REGISTRY.md ]; then cp .github/agents/REGISTRY.md REGISTRY.md; fi
           # Stage ONLY the memory files — never the whole repo — then commit and push.
           git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
