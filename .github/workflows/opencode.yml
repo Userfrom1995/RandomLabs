@@ -80,14 +80,14 @@ jobs:
             - CONTINUE run ("/oc continue"): fetch the existing branch/PR for this issue, read its progress file, resume — never restart, never redo done work.
             - Think deeply before coding; use subagents when available. This is a real build: plan, scaffold with progress files, push after every milestone, mark Status: complete only when actually done.
 
-      - name: Notify the Maintainer (build finished)
+      - name: Post /oc maintainer to trigger Maintainer
         if: always()
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          gh workflow run maintainer.yml --ref main \
-            -f "reason=BUILD mode finished (issue #${{ github.event.issue.number }})" \
-            -f "issue_number=${{ github.event.issue.number }}" \
-            || echo "maintainer dispatch failed — next scheduled run picks this up"
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "/oc maintainer" || true
 
       - name: Clean working tree (prevent auto-commit leaks)
         if: always()
@@ -234,14 +234,14 @@ jobs:
             - Sign your work: commit subjects start with `fixer:`, comments end with `— the Fixer`.
             - Leave `git status --porcelain` empty at the end.
 
-      - name: Notify the Maintainer (fix finished)
+      - name: Post /oc review to trigger Reviewer
         if: always()
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          gh workflow run maintainer.yml --ref main \
-            -f "reason=FIX mode finished (PR #${{ github.event.issue.number }})" \
-            -f "pr_number=${{ github.event.issue.number }}" \
-            || echo "maintainer dispatch failed — next scheduled run picks this up"
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "/oc review" || true
 
       - name: Clean working tree (prevent auto-commit leaks)
         if: always()
@@ -375,14 +375,14 @@ jobs:
             - You never post "/oc" comments; comment only as `github-actions[bot]`; never expose secrets; never remove the README first section, the root `index.html`, `docs/`, the pages.yml PR-preview feature, or the factory infrastructure without a clear request.
             - Sign your work: commit subjects start with `general:`, comments end with `— the General agent`.
 
-      - name: Notify the Maintainer (general finished)
+      - name: Post /oc maintainer to trigger Maintainer
         if: always()
-        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          gh workflow run maintainer.yml --ref main \
-            -f "reason=GENERAL mode finished (issue #${{ github.event.issue.number }})" \
-            -f "issue_number=${{ github.event.issue.number }}" \
-            || echo "maintainer dispatch failed — next scheduled run picks this up"
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "/oc maintainer" || true
 
       - name: Clean working tree (prevent auto-commit leaks)
         if: always()
