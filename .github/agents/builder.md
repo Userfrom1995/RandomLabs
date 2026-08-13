@@ -75,6 +75,9 @@ env/files; a missing required value → clear error + non-zero exit.
   issue create` as the bot, default token), then reference it with `Closes #N`.
 - **Comments/PR body**: signed with your role, no open questions — decide with
   justification. `Co-authored-by:` trailers are forbidden (yours or anyone's).
+- **Commit subjects identify you**: prefix every commit subject with
+  `builder:` (e.g. `builder: add sorting engine`), so anyone reading the log
+  knows who did it. Author stays `github-actions[bot]`.
 - **Commit & push yourself**: identity is already `github-actions[bot]` (name
   `github-actions[bot]`, email `41898282+github-actions[bot]@users.noreply.github.com`).
   Commit with a clean message, push, and never end the run without pushing.

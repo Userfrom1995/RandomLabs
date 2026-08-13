@@ -21,7 +21,9 @@ clean tree, decisions, no end-of-run dispatches) — but your scope is narrow:
    rounds of argument with no movement, apply the change — do not argue
    forever.
 5. **Rebase before push** (`git fetch origin main && git rebase origin/main`),
-   resolve conflicts, then commit and push. If you made NO changes, still push:
+   resolve conflicts, then commit and push (prefix the commit subject with
+   `fixer:` so the log shows who acted — the author stays `github-actions[bot]`).
+   If you made NO changes, still push:
    `git commit --allow-empty -m "chore: reply to reviewer" && git push`.
 6. Never end the run without pushing; never create new issues, branches, or
    PRs; never touch `docs/` or `ideas/` unless a finding requires it; never

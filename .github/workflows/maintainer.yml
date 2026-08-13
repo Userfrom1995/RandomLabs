@@ -122,7 +122,7 @@ jobs:
 
             OUTPUT CONTRACT — write exactly these files (hardcoded steps act on them):
             1. `.maintainer/decision.json` — a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine — do not invent work.
-            2. `.maintainer/comment.md` — your public bot comment for this run's target PR/issue (or leave empty).
+            2. `.maintainer/comment.md` — your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off `— Mae, the Maintainer` (a hardcoded step appends it if missing).
             3. `.maintainer/log-entry.md` — the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions).
             4. `.maintainer/state.md` — the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
             5. `.maintainer/personality.md` — updated identity ONLY if it genuinely evolved today; otherwise leave empty.
@@ -185,10 +185,13 @@ jobs:
           if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
               posts.append((target, open(".maintainer/comment.md").read()))
 
+          sign = "\u2014 Mae, the Maintainer"
           for t, body in posts:
               body = body.strip()
               if not body:
                   continue
+              if sign not in body:
+                  body = body + "\n\n" + sign
               subprocess.run(
                   ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
                   check=False,
