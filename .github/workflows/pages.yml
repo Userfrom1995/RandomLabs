@@ -55,7 +55,7 @@ jobs:
           # Automatically stage web apps OR project documentation
           for dir in */; do
             dir=${dir%/}
-            if [ "$dir" != "docs" ] && [ "$dir" != "_site" ] && [ "$dir" != "preview" ] && [ -d "$dir" ] && [ ! "$dir" == .* ]; then
+            if [ "$dir" != "docs" ] && [ "$dir" != "_site" ] && [ "$dir" != "preview" ] && [ -d "$dir" ]; then
               if [ -f "$dir/index.html" ]; then
                 cp -r "$dir" "_site/$dir"
                 rm -f "_site/$dir/"*.test.js "_site/$dir/README.md"
@@ -103,7 +103,7 @@ jobs:
             fi
             # Optional: stage web app or docs directory into the preview if the PR has one
             for dir in $(git ls-tree -d pr-$pr --name-only); do
-              if [ "$dir" != "docs" ] && [ "$dir" != "_site" ] && [ -d "$dir" ] && [ ! "$dir" == .* ]; then
+              if [ "$dir" != "docs" ] && [ "$dir" != "_site" ] && [ -d "$dir" ] && [[ ! "$dir" == .* ]]; then
                 if git archive pr-$pr "$dir/index.html" 2>/dev/null >/dev/null; then
                   if git archive pr-$pr "$dir/" 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
                     rm -f "_site/preview/pr-$pr/$dir/"*.test.js "_site/preview/pr-$pr/$dir/README.md"
