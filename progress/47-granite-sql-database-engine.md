@@ -2,8 +2,8 @@
 
 - **Issue:** #47
 - **Branch:** opencode/issue47-20260813185035
-- **Status:** in-progress
-- **Updated:** 2026-08-13T18:52:00Z
+- **Status:** complete
+- **Updated:** 2026-08-13T19:30:00Z
 
 ## Checklist
 - [x] scaffold + progress file + go.mod
@@ -14,22 +14,17 @@
 - [x] indexes: CREATE INDEX, index lookups in planner/executor
 - [x] transactions: BEGIN/COMMIT/ROLLBACK
 - [x] CLI (cmd/granite) + demo db
-- [ ] unit tests + end-to-end tests
-- [ ] README + docs/ (index.md + index.html) + ideas/ entry
-- [ ] landing index.html updated, go vet/test clean, PR with Closes #47
+- [x] unit tests + end-to-end tests
+- [x] README + docs/ (index.md + index.html) + ideas/ entry
+- [x] landing index.html updated, go vet/test clean, PR with Closes #47
 
 ## Current step
-CLI shipped (init/exec/explain/info/demo + version), demo database runs end to
-end. Fixed three real bugs found while driving it: the catalog root was never
-initialized as a leaf page, qualified join columns were not resolved, and the
-pager's rollback could destroy unflushed pre-transaction data (now snapshots
-at Begin, auto-commits outside explicit transactions, flushes on Close).
-Writing unit and e2e tests next.
+All work complete: 81 unit and end-to-end tests pass, `go vet` clean, README +
+docs site + ideas writeup written, root landing page and README promoted to
+Granite. PR #50 (branch opencode/issue47-20260813185035) closes #47.
 
 ## Next steps
-- Write unit tests (btree, pager, db, parser, value).
-- Write e2e tests (executor + CLI).
-- Write README, docs/, ideas/ entry, update landing page, mark complete.
+- (none) - build complete; awaiting review and merge.
 
 ## Agent log
 - 2026-08-13 (build run 1) — orientation: read builder.md, AGENTS.md, FACTORY.md,
@@ -52,3 +47,11 @@ Writing unit and e2e tests next.
   prior data - the pager now snapshots cache+dirty at Begin, auto-commits
   statements outside explicit transactions, and flushes on Close. Pushed CLI
   milestone; the demo now runs end to end and data persists across reopen.
+- 2026-08-13 (build run 4, resume) - wrote 81 tests: sql value/parser, storage
+  btree/pager/db, executor e2e, CLI e2e, and planner plan-shape tests (index
+  selection, joins, validation). Fixed two more real bugs surfaced by tests:
+  the qualified-star parser branch had an off-by-one, and btree deleteFrom
+  treated a child page number as a slice index. Wrote README, docs/index.md +
+  docs/index.html, ideas/2026-08-13-granite-sql-database-engine.md, promoted
+  Granite on the root README and index.html, and marked this file complete.
+  Final state: go build/vet/test all clean.
