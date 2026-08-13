@@ -52,10 +52,15 @@ jobs:
       - name: Notify the Maintainer (candidates posted)
         if: always()
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          gh workflow run maintainer.yml --ref main \
-            -f "reason=ideator finished — candidates on the Brainstorm Board" \
-            || echo "maintainer dispatch failed — next scheduled run picks this up"
+          board=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=brainstorm" --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$board" ] && [ "$board" != "null" ]; then
+            gh issue comment "$board" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "maintainer notification failed"
+          else
+            echo "no Brainstorm Board issue found to notify"
+          fi
 
       - name: Verify board comment was posted
         env:
