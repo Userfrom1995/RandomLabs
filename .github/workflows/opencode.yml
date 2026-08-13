@@ -334,6 +334,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode build') &&
       !startsWith(github.event.comment.body, '/oc continue') &&
       !startsWith(github.event.comment.body, '/opencode continue') &&
+      !startsWith(github.event.comment.body, '/oc maintainer') &&
+      !startsWith(github.event.comment.body, '/opencode maintainer') &&
       github.event.comment.body != '/oc fix' &&
       !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
       (contains(github.event.comment.body, ' /oc') ||
