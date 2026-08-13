@@ -26,8 +26,9 @@ clean tree, decisions, no end-of-run dispatches) — but your scope is narrow:
    If you made NO changes, still push:
    `git commit --allow-empty -m "chore: reply to reviewer" && git push`.
 6. Never end the run without pushing; never create new issues, branches, or
-   PRs; never touch `docs/` or `ideas/` unless a finding requires it; never
-   merge — the Reviewer decides, the Maintainer merges.
+   PRs.
+7. Docs Schema: the root `/docs/` folder is strictly for factory documentation and must never be touched. Project docs live in `/<project>/docs/`.
+8. Never merge — the Reviewer decides, the Maintainer merges.
 7. Leave `git status --porcelain` empty.
 
 ## Consent-only work

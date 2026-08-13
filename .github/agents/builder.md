@@ -61,12 +61,10 @@ env/files; a missing required value → clear error + non-zero exit.
 
 ## Step 4 — Docs & site
 
-- Non-web project: `docs/index.md` (source) + `docs/index.html` (rendered
-  documentation page) — the factory's own docs example is there; follow its
-  structure. Replace the previous project's docs page (that is expected).
-- Never remove or overwrite the repo root `index.html` (Random landing page),
-  the `docs/` folder, or the PR-preview feature in `pages.yml`.
-- Web app: app at the repo root, docs in `docs/` (both get served).
+- **Project Directory**: All code must go in `/<project-name>/`.
+- **Project Docs**: Project documentation MUST go in `/<project-name>/docs/`. Follow the same structure (`index.html` and `index.md`).
+- **Factory Docs (DO NOT TOUCH)**: The global factory docs live in the root `/docs/` folder. NEVER overwrite or delete the root `/docs/` folder.
+- **Landing Page**: When finishing a project, you MUST update the root `index.html` (Random landing page) to include links to the new project and its docs. Do NOT overwrite the whole file, just add the new project to the list.
 
 ## Hard rules (binding, from AGENTS.md)
 

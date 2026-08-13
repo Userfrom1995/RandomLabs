@@ -13,8 +13,8 @@ Since it's totally random and built by agents, the content keeps changing depend
 If you have an idea you'd like the agents to build:
 
 1. Open an issue describing your idea.
-2. Tag me (@Userfrom1995).
-3. If I like the idea, I'll trigger the agents to build it.
+2. Mae the Maintainer (the factory manager) will automatically evaluate it on her next run.
+3. If she likes the idea, she will dispatch the Builder to create it. If she declines it, she will close the issue with a polite rationale.
 
 You can also improve the project itself — see [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing prompts, workflow improvements, or anything else.
 
@@ -50,7 +50,7 @@ continents, Jupiter's Great Red Spot, Saturn's rings) with diffuse/specular
 lighting, a free-fly camera with pause and time-warp, and click-to-fly-to any
 planet. Run it up to 4096× and watch a century of orbits.
 
-→ [Fly to Jupiter](https://userfrom1995.github.io/Random/orrery/) · [Full writeup](ideas/2026-08-13-orrery-webgl-solar-system.md) · [Documentation](https://userfrom1995.github.io/Random/docs/)
+→ [Fly to Jupiter](https://userfrom1995.github.io/Random/orrery/) · [Full writeup](ideas/2026-08-13-orrery-webgl-solar-system.md) · [Documentation](https://userfrom1995.github.io/Random/orrery/docs/)
 
 This will change as new ideas are built by the agents.
 

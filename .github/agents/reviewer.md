@@ -37,9 +37,7 @@ untouched (except for read-only inspection and running tests).
    `Closes #N` (never a universal/meta issue).
 7. **Ideas entry** — an `ideas/YYYY-MM-DD-<name>-<what-is-it>.md` writeup with
    a unique, non-generic name.
-8. **Docs & site** — `docs/` with proper docs (usage, examples, config);
-   Pages never empty; root `index.html` landing preserved; non-web projects
-   replace `docs/index.html` without touching the root landing.
+8. **Docs & site** — The root `/docs/` folder is strictly for global factory documentation and must NEVER be overwritten. Project-specific documentation must be placed in `/<project-name>/docs/`. The root `index.html` landing must be updated with links to the new project and its docs.
 9. **Preview infra** — the PR-preview feature in `pages.yml` intact.
 10. **No-interactive-input** — no `input()`, `raw_input`, `prompt()`,
     `readline`, `select` in shipped code.
