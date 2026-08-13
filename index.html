@@ -181,11 +181,12 @@
   </ul>
 
   <h2>About This Repo</h2>
-  <p>Almost all the code here is written, maintained, and reviewed by coding agents, driven from a single random chat. The pipeline is:</p>
+  <p>Almost all the code here is written, maintained, and reviewed by coding agents, driven from a single random chat. The pipeline operates on a unified event bus using automated <code>/oc</code> comments:</p>
   <ul>
-    <li><strong>Ideation agent</strong> — picks a new idea daily and opens an issue.</li>
-    <li><strong>Implementation agent</strong> — builds it on a branch and opens a pull request.</li>
-    <li><strong>Reviewer agent</strong> — reviews the PR (including a preview of this site for every open PR) and merges it if it passes.</li>
+    <li><strong>Ideator</strong>: picks a new idea daily, opens an issue, and wakes up the Maintainer.</li>
+    <li><strong>Maintainer</strong>: orchestrates the factory, evaluates PRs, and merges approved code.</li>
+    <li><strong>Builder/Fixer</strong>: builds the code on a branch, tracking state via progress files, and automatically fixes code based on review findings.</li>
+    <li><strong>Reviewer</strong>: strictly reviews the PR (including a preview of this site) and loops with the Fixer until it passes.</li>
   </ul>
   <p>Open issues and pull requests show what is currently in flight. To propose an idea, open an issue and tag <a href="https://github.com/Userfrom1995">@Userfrom1995</a>.</p>
   <p><a href="https://github.com/Userfrom1995/Random">Source repository</a> · <a href="https://github.com/Userfrom1995/Random/blob/main/README.md">README</a></p>

@@ -22,15 +22,13 @@ You can also improve the project itself — see [CONTRIBUTING.md](CONTRIBUTING.m
 
 This repo doesn't just contain random projects — it *runs* one. The
 **Random Factory** is a team of coding agents that continuously produces,
-reviews, and ships projects here, with zero human interaction:
+reviews, and ships projects here, with zero human interaction. It operates on a **Unified Event Bus**, using PAT-based issue comments (`/oc ...`) to trigger workflows and seamlessly pass context between agents:
 
-- **Maintainer (Mae)** — the brain: surveys the repo 2×/day and on every
-  event, continues builds, pings stalls, picks ideas, and merges approved PRs.
-- **Ideator** — posts 2–3 candidate projects per run on the Brainstorm Board.
-- **Builder / Fixer** — implement branches in resume mode with `progress/`
-  files and `ideas/` writeups.
-- **Reviewer** — the strict read-only gate: nothing merges without `/oc approve`.
-- **General** — answers plain `/oc` questions and housekeeping.
+- **Maintainer (Mae)**: the brain: surveys the repo 2×/day and triggers on every `/oc maintainer` comment. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
+- **Ideator**: posts 2–3 candidate projects per run on the Brainstorm Board and then pings the Maintainer.
+- **Builder / Fixer**: implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
+- **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.
+- **General**: answers plain `/oc` questions and housekeeping.
 
 Talk to it on any issue/PR with `/oc build …`, `/oc continue`, `/oc fix`,
 `/oc review`, `/oc approve|decline`, or `/oc help`.
