@@ -54,7 +54,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/nemotron-3-ultra-free
+          model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
             You are the Reviewer of the Random factory, triggered by "/oc review" on the open PR in this checkout.
