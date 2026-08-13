@@ -123,7 +123,7 @@ jobs:
             OUTPUT CONTRACT — write exactly these files (hardcoded steps act on them):
             1. `.maintainer/decision.json` — a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine — do not invent work.
             2. `.maintainer/comment.md` — your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off `— Mae, the Maintainer` (a hardcoded step appends it if missing).
-            3. `.maintainer/log-entry.md` — the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions).
+            3. `.maintainer/log-entry.md` — the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY — write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
             4. `.maintainer/state.md` — the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
             5. `.maintainer/personality.md` — updated identity ONLY if it genuinely evolved today; otherwise leave empty.
 
@@ -132,9 +132,9 @@ jobs:
       - name: Commit Maintainer memory (maintainer/logs)
         if: always()
         run: |
-          git fetch origin maintainer/logs --quiet || true
+          git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || true
           if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then
-            git checkout --detach refs/remotes/origin/logs --quiet
+            git checkout --force --detach refs/remotes/origin/logs --quiet
           else
             git checkout --orphan logs-bootstrap --quiet
             git rm -rf . --quiet 2>/dev/null || true
@@ -145,6 +145,9 @@ jobs:
           today="$(date -u +%Y-%m-%d)"
           if [ -s ".maintainer/log-entry.md" ]; then
             cp ".maintainer/log-entry.md" "logs/$today.md"
+          elif [ ! -f "logs/$today.md" ]; then
+            printf '# %s — auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+              "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
           fi
           if [ -f .github/agents/REGISTRY.md ]; then cp .github/agents/REGISTRY.md REGISTRY.md; fi
           # Stage ONLY the memory files — never the whole repo — then commit and push.
@@ -152,7 +155,10 @@ jobs:
           if ! git diff --cached --quiet; then
             git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
               commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push origin "HEAD:maintainer/logs" --quiet
+            git push origin "HEAD:maintainer/logs" --quiet || {
+              git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet
+              git rebase refs/remotes/origin/logs --quiet && git push origin "HEAD:maintainer/logs" --quiet
+            }
             echo "memory pushed to maintainer/logs"
           else
             echo "no memory changes"
