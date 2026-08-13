@@ -7,6 +7,7 @@ permissions:
   contents: read
   issues: write
   pull-requests: read
+  actions: write
 
 concurrency:
   group: ideate
@@ -46,6 +47,14 @@ jobs:
             - You NEVER post "/oc" comments; you never run the implementer. The Maintainer picks from your candidates.
             - Comment as `github-actions[bot]` only (default GITHUB_TOKEN — never a PAT); never expose secrets; never modify repo files.
             - Keep candidates ambitious and diverse (§14 of FACTORY.md): fresh languages welcome, no category/language twice in the last 3 picks.
+
+      - name: Notify the Maintainer (candidates posted)
+        if: always()
+        continue-on-error: true
+        run: |
+          gh workflow run maintainer.yml --ref main \
+            -f "reason=ideator finished — candidates on the Brainstorm Board" \
+            || echo "maintainer dispatch failed — next scheduled run picks this up"
 
       - name: Verify board comment was posted
         env:

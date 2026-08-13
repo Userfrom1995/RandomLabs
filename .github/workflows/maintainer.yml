@@ -129,6 +129,22 @@ jobs:
 
             When you finish, print a one-line summary of what you decided (the decision list is the deliverable).
 
+      - name: Remove maintainer stray PRs and branches (the Maintainer never opens PRs)
+        if: always()
+        run: |
+          gh pr list --author app/github-actions --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-")) | .number' \
+            | while read num; do
+                gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs — its state lives on the maintainer/logs branch." || true
+              done
+          gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
+            | grep -E '^opencode/(schedule-|dispatch-)' \
+            | while read br; do
+                enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
+                gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$enc" || true
+              done
+          echo "stray cleanup complete"
+
       - name: Commit Maintainer memory (maintainer/logs)
         if: always()
         run: |
