@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -16,11 +15,18 @@ import (
 // version is printed by the version command and in usage text.
 const version = "1.0.0"
 
+// stdout and stderr are the CLI's output streams; they are swapped in tests.
+var stdout io.Writer = os.Stdout
+var stderr io.Writer = os.Stderr
+
+// exit is how main terminates; it is swappable so tests can capture the code.
+var exit = os.Exit
+
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		usage(os.Stderr)
-		os.Exit(2)
+		usage(stderr)
+		exit(2)
 	}
 	cmd := args[0]
 	rest := args[1:]
@@ -29,26 +35,26 @@ func main() {
 	case "init":
 		err = cmdInit(rest)
 	case "exec":
-		err = cmdExec(rest, os.Stdout)
+		err = cmdExec(rest, stdout)
 	case "explain":
-		err = cmdExplain(rest, os.Stdout)
+		err = cmdExplain(rest, stdout)
 	case "info":
-		err = cmdInfo(rest, os.Stdout)
+		err = cmdInfo(rest, stdout)
 	case "demo":
-		err = cmdDemo(rest, os.Stdout)
+		err = cmdDemo(rest, stdout)
 	case "version", "--version", "-v":
-		fmt.Fprintf(os.Stdout, "granite %s\n", version)
+		fmt.Fprintf(stdout, "granite %s\n", version)
 		return
 	case "help", "-h", "--help":
-		usage(os.Stdout)
+		usage(stdout)
 		return
 	default:
-		usage(os.Stderr)
-		os.Exit(2)
+		usage(stderr)
+		exit(2)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "granite: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "granite: %v\n", err)
+		exit(1)
 	}
 }
 
@@ -85,7 +91,7 @@ func cmdInit(args []string) error {
 		return err
 	}
 	defer db.Close()
-	fmt.Printf("created %s (%d pages)\n", path, db.Pages())
+	fmt.Fprintf(stdout, "created %s (%d pages)\n", path, db.Pages())
 	return nil
 }
 
@@ -108,32 +114,42 @@ func cmdExec(args []string, out io.Writer) error {
 }
 
 func resolveInput(args []string) (path, src string, err error) {
-	fs := flag.NewFlagSet("exec", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	file := fs.String("f", "", "read SQL from a file")
-	if err := fs.Parse(args); err != nil {
-		return "", "", err
+	var file string
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "-f":
+			if i+1 >= len(args) {
+				return "", "", fmt.Errorf("-f expects a file path")
+			}
+			file = args[i+1]
+			i++
+		case args[i] == "-":
+			// stdin marker, handled below
+			rest = append(rest, args[i])
+		default:
+			rest = append(rest, args[i])
+		}
 	}
-	pos := fs.Args()
-	if len(pos) == 0 {
+	if len(rest) == 0 {
 		return "", "", fmt.Errorf("exec expects a database path")
 	}
-	path = pos[0]
+	path = rest[0]
 	switch {
-	case *file != "":
-		b, err := os.ReadFile(*file)
+	case file != "":
+		b, err := os.ReadFile(file)
 		if err != nil {
 			return "", "", err
 		}
 		return path, string(b), nil
-	case len(pos) >= 2 && pos[1] == "-":
+	case len(rest) >= 2 && rest[1] == "-":
 		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return "", "", err
 		}
 		return path, string(b), nil
-	case len(pos) >= 2:
-		return path, strings.Join(pos[1:], " "), nil
+	case len(rest) >= 2:
+		return path, strings.Join(rest[1:], " "), nil
 	}
 	return "", "", fmt.Errorf("exec expects SQL (or -f <file> or - for stdin)")
 }
