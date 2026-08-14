@@ -30,6 +30,7 @@ Player tuning. Keys:
 | --- | --- | --- |
 | `speed` | 260 | Movement speed in px/s. |
 | `fire_rate` | 0.16 | Seconds between shots. |
+| `focus_speed` | 0.5 | Fraction of `speed` while focusing (Shift); 0..1. |
 | `lives` | 3 | Starting lives. |
 | `life_every` | 10000 | Score interval that awards a bonus life; 0 disables it. |
 | `bombs` | 0 | Smart bombs the player starts with; 0 disables the mechanic. |
@@ -117,6 +118,27 @@ of the arena.
   (but does not hit it) scores `50` points multiplied by the current combo
   multiplier and rings a soft tick. Each bullet grazes at most once. The HUD
   shows the graze count, so a level can encourage risky close dodging.
+
+## Focus mode
+
+Holding Shift (either shift key) puts the ship in focus mode: it moves at
+`focus_speed` of its normal speed (default 0.5) for precise dodging through a
+bullet wall, the shot pattern tightens (twin shots converge into a beam, the
+triple spread narrows to a tight cone), and a cyan reticle marks the ship's
+true hitbox. A soft blip sounds on toggle. `focus_speed` is data, so a level
+can tune how dramatic the trade-off is.
+
+## Rank
+
+The game scales its difficulty to the player's performance. A rank meter
+(0-100, shown in the HUD, colored by heat) rises by 2 for every enemy
+destroyed and 1 for every graze, and drops by 25 whenever the player is hit
+(shield break or death). At rank 100 enemy fire rate and enemy bullet speed are
+1.6x their base values; at rank 0 they are unchanged. The result is a classic
+bullet-hell feedback loop: a hot clean run gets harder, while a struggling
+player gets a breather. Rank is derived from play, not from the level script,
+so it needs no keys - but its effects combine with everything else in the
+format, so a dense level pushes rank up faster.
 
 ## Smart bombs
 

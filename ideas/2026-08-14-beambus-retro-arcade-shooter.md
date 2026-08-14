@@ -5,9 +5,10 @@ first Zig project. A deterministic, headless-testable game core pairs with an
 SDL2 platform layer: scripted `.beam` level files, seven enemy movement
 patterns, configurable enemy shot volleys, boss enrage phases, power-up weapon
 tiers and one-hit shields, bomb-refill drops, smart bombs, a combo scoring
-multiplier, bonus lives, near-miss grazes, a procedural pixel-art renderer, and
-a tiny subtractive audio synth. The core never allocates during a frame, so the
-entire simulation is unit-testable without SDL.
+multiplier, bonus lives, near-miss grazes, a focus mode with a precise hitbox
+reticle, a performance-scaled rank difficulty meter, a procedural pixel-art
+renderer, and a tiny subtractive audio synth. The core never allocates during
+a frame, so the entire simulation is unit-testable without SDL.
 
 ## What Was Built
 
@@ -17,8 +18,8 @@ A self-contained arcade game (`beambus/`):
   fixed-capacity 1024-slot entity arena pool with a free list, circle
   collision, and the full game simulation: waves, bosses, player movement and
   firing, enemy bullets, collisions, scoring, lives, power-up weapon tiers and
-  shields, a combo multiplier, bonus lives, near-miss grazes, and win/lose
-  states. No SDL, no
+  shields, a combo multiplier, bonus lives, near-miss grazes, focus mode, the
+  rank system, and win/lose states. No SDL, no
   allocator in the per-frame hot path; the same seed and input stream always
   reproduce the same run.
 - **Scripted level format** (`src/core/level.zig`): a strict line/brace
@@ -34,18 +35,19 @@ A self-contained arcade game (`beambus/`):
   `SDL_PIXELFORMAT_ARGB8888`): hand-rolled rect/circle/stroke/triangle
   primitives, procedural sprites (triangle ship, circled enemies, bullet
   bolts, fading particles, pulsing power-up diamonds, an enraged-boss red
-  aura), a 3x5 bitmap font, a two-layer seeded parallax starfield, and a HUD
-  with score, combo multiplier, lives, weapon tier, shield, bombs, and level
+  aura, a focus hitbox reticle, a level-title intro banner), a 3x5 bitmap
+  font, a two-layer seeded parallax starfield, and a HUD with score, combo
+  multiplier, lives, weapon tier, shield, bombs, grazes, rank, and level
   name.
 - **Procedural audio** (`src/platform/synth.zig`, `audio.zig`): a
   subtractive-style synth with a fixed 12-voice pool (square, saw, noise,
   frequency slide, TTL-shaped decay envelopes) synthesizing shoot, hit,
   explosion, player-hit, power-up, shield-break, bonus-life, bomb, graze,
-  enrage, win, and lose effects. Fed to SDL via `SDL_QueueAudio` (no callback,
-  no threads); degrades to silence with no audio device.
+  enrage, focus, win, and lose effects. Fed to SDL via `SDL_QueueAudio` (no
+  callback, no threads); degrades to silence with no audio device.
 - **SDL platform layer** (`src/platform/sdl.zig`): window, renderer,
-  streaming ARGB texture, and input mapping (arrows/WASD, space/Z/X, P/Esc,
-  R).
+  streaming ARGB texture, and input mapping (arrows/WASD, shift, space/Z/X,
+  B/V, P/Esc, R).
 - **Game loop** (`src/main.zig`): a fixed-timestep 60 Hz accumulator, audio
   triggers on game-state transitions, and three run modes: windowed play,
   `--headless` simulation summary, and `--self-check` invariant assertions.
@@ -54,7 +56,7 @@ A self-contained arcade game (`beambus/`):
 - **Sample levels** (`levels/level1.beam`, `levels/level2.beam`): "The Drone
   Swarm" and "The Nebula Empress", full scripts with three enemy archetypes,
   timed power-up drops, and a boss each.
-- **Tests**: 74 unit tests across vec, rng, rect, entity, level, game, render,
+- **Tests**: 79 unit tests across vec, rng, rect, entity, level, game, render,
   and synth - all headless, no SDL required.
 
 ## Why
@@ -113,6 +115,17 @@ as a real windowed desktop application.
   ship without hitting scores `50 * combo multiplier` points and rings a soft
   tick. Each bullet grazes at most once and the HUD counts grazes, rewarding
   the risky close dodging that defines the genre.
+- **Focus mode.** Holding Shift (either shift key) slows the ship to a
+  fraction of its speed - the level's `focus_speed` key, default 0.5 - so a
+  player can thread precise dodges through a bullet wall. The shot pattern
+  tightens with it: twin shots converge into a beam and the triple spread
+  narrows to a tight cone. A cyan reticle marks the ship's exact hitbox and a
+  soft blip sounds on toggle, so the trade-off reads instantly.
+- **Rank system.** A performance-scaled difficulty meter (0-100) rises by 2
+  per kill and 1 per graze and drops by 25 when the player is hit. At rank 100
+  enemy fire rate and bullet speed are 1.6x base, so a hot clean run plays
+  faster and nastier while a struggling player gets a breather. The HUD colors
+  it by heat.
 - **Smart bombs.** With `player { bombs N }` the player carries a small stock
   of screen-clearing bombs: detonating one (B/V) clears every enemy bullet on
   screen, deals two points of damage to every enemy (kills score through the
@@ -163,15 +176,15 @@ as a real windowed desktop application.
 - **Zig 0.15.2.** The build uses the current Build API (`root_module`,
   `b.addTest`), verified against the Zig 0.15.2 release and SDL2's C headers.
   The SDL2 C-import compiles cleanly under the new module system.
-- **Headless-first.** `zig build test` runs 74 tests with no SDL and no audio
+- **Headless-first.** `zig build test` runs 79 tests with no SDL and no audio
   device; the SDL glue is exercised only by the exe build. Everything in the
   core is plain data plus logic, which is what makes it exhaustively testable.
 - **A real build fix.** While finalizing, the headless test step was silently
   only collecting 9 tests (the `--dep core` module boundary swallowed the
   per-file test blocks). Moving to relative-path imports so all modules live
-  in one root made all 41 tests run, later grown to 74 by the power-up,
-  shield, scoring, bomb, invulnerability, volley, graze, enrage, chase, and
-  bomb-refill tests.
+  in one root made all 41 tests run, later grown to 79 by the power-up,
+  shield, scoring, bomb, invulnerability, volley, graze, enrage, chase,
+  bomb-refill, focus, and rank tests.
 - **Deterministic audio.** The synth renders deterministically for a given
   sequence of triggers, so audio behaviour is unit-testable too.
 - **Name origin.** A "beam" is both the player's energy ray and the core

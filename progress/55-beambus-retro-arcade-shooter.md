@@ -3,7 +3,7 @@
 - **Issue:** #55
 - **Branch:** opencode/55-beambus-retro-arcade-shooter
 - **Status:** complete
-- **Updated:** 2026-08-14T22:35:00Z
+- **Updated:** 2026-08-14T22:57:00Z
 
 ## Checklist
 - [x] scaffold project + progress file
@@ -170,6 +170,28 @@ push.
   reads rage_hp/chase, parser reads bomb kind), 3/3 self-checks pass, exe
   builds, byte-identical determinism per seed, 60-seed headless stress clean,
   windowed run verified under the dummy video driver.
+
+- **2026-08-14 (round 6, improvement window):** Focus mode, a rank difficulty
+  system, and a level-title intro banner. (1) Focus: holding Shift (new
+  `focus` input bit, SDL shift scancodes) slows the ship to a fraction of its
+  speed - the level's new `player { focus_speed }` key, default 0.5 - tightens
+  the shot pattern into a converging beam (twin shots converge, the triple
+  spread narrows to a tight cone), draws a cyan reticle on the ship's exact
+  hitbox, and plays a soft `focus` synth blip on toggle. (2) Rank: a
+  performance-scaled difficulty meter (0-100) that rises by 2 per kill and 1
+  per graze and drops by 25 on a hit (shield break or death); `rankMult`
+  scales enemy fire probability and enemy bullet speed by up to 1.6x, so a hot
+  clean run gets harder while a struggling player gets a breather. The HUD
+  shows RANK colored by heat. (3) Polish: a level-title intro banner plus a
+  controls hint fades in over the first 2.5s of a run (pure game-time, so
+  deterministic and pause-freezing). Docs (beambus/README, docs/index.md,
+  docs/index.html, level-format.md, ideas, root README, landing page) updated
+  to the real test count (79). All 79 tests pass (5 new: parser reads
+  focus_speed, focus slows the player, focused twin shots converge, rank rises
+  and falls, rank scales the threat multiplier), 3/3 self-checks pass, exe
+  builds, byte-identical determinism per seed, 80-seed headless stress clean
+  (40 per level), windowed runs verified under the dummy video driver for both
+  levels.
 
 - the Fixer
 

@@ -5,10 +5,11 @@ factory's first Zig project. It pairs a deterministic, headless-testable game
 core with an SDL2 platform layer: scripted `.beam` level files, seven enemy
 movement patterns, configurable enemy shot volleys, boss enrage phases,
 power-up weapon tiers and one-hit shields, bomb-refill drops, smart bombs, a
-combo scoring multiplier, bonus lives, near-miss grazes, a procedural
-pixel-art renderer, and a tiny subtractive audio synth. The core never
-allocates during a frame, so the entire simulation is unit-testable without
-SDL.
+combo scoring multiplier, bonus lives, near-miss grazes, a focus mode with a
+precise hitbox reticle, a performance-scaled rank difficulty meter, a
+procedural pixel-art renderer, and a tiny subtractive audio synth. The core
+never allocates during a frame, so the entire simulation is unit-testable
+without SDL.
 
 ## What it is
 
@@ -17,7 +18,7 @@ SDL.
   with a free list, circle collision, and the full game logic (waves, bosses,
   enemy bullets, collisions, scoring, lives, power-up weapon tiers and
   shields, smart bombs, combo multiplier, bonus lives, near-miss grazes,
-  win/lose states). There is no
+  focus mode, the rank system, win/lose states). There is no
   allocator in the per-frame hot path and no SDL dependency, so the same seed
   and input stream always reproduce the same run.
 - **Scripted levels.** A line/brace `.beam` format declares the player, enemy
@@ -29,13 +30,13 @@ SDL.
 - **Procedural renderer.** A pure-Zig software renderer draws every frame into
   a `u32` pixel buffer at arena resolution (480x600): procedural sprites
   (triangle ship, circled enemies, bullet bolts, fading particles, pulsing
-power-up diamonds), a 3x5 bitmap font, a two-layer parallax starfield, and a
-    HUD with score, combo multiplier, lives, weapon tier, shield, bombs, grazes,
-    a boss health bar, and level name.
+  power-up diamonds), a 3x5 bitmap font, a two-layer parallax starfield, a
+  level-title intro banner, and a HUD with score, combo multiplier, lives,
+  weapon tier, shield, bombs, grazes, rank, a boss health bar, and level name.
   The buffer is uploaded to an SDL streaming texture and scaled to the window.
 - **Procedural audio.** A subtractive-style synth with a fixed 12-voice pool
   synthesizes shoot, hit, explosion, player-hit, power-up, shield-break,
-  bonus-life, bomb, graze, win, and lose effects. SDL is fed via `SDL_QueueAudio` (no
+  bonus-life, bomb, graze, enrage, focus, win, and lose effects. SDL is fed via `SDL_QueueAudio` (no
   callback, no threads); with no audio device it degrades to silence, so CI
   runs stay headless.
 - **Three run modes.** Windowed play (fixed-timestep 60 Hz loop), a headless
@@ -47,7 +48,7 @@ power-up diamonds), a 3x5 bitmap font, a two-layer parallax starfield, and a
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 74 headless tests (no SDL needed)
+zig build test       # 79 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -61,8 +62,9 @@ zig build run        # play in an SDL window
 ./zig-out/bin/beambus --help
 ```
 
-Controls: arrow keys or WASD to move, Space/Z/X to fire, B/V to detonate a
-smart bomb, P/Esc to pause, R to restart after a win/lose, Esc to quit.
+Controls: arrow keys or WASD to move, Shift to focus (slow precise movement,
+tighter shot, hitbox reticle), Space/Z/X to fire, B/V to detonate a smart
+bomb, P/Esc to pause, R to restart after a win/lose, Esc to quit.
 Everything is passed on the command line; there is no interactive input.
 
 ## How it works
@@ -126,6 +128,16 @@ Everything is passed on the command line; there is no interactive input.
   ship without hitting scores `50 * combo multiplier` points and rings a soft
   tick, rewarding close dodges - the classic bullet-hell risk/reward. Each
   bullet grazes at most once, and the HUD counts grazes.
+- **Focus mode.** Holding Shift slows the ship to a fraction of its speed (the
+  level's `focus_speed` key, default 0.5) so the player can thread precise
+  dodges through a bullet wall. The shot pattern tightens too: the twin shots
+  converge into a beam and the triple spread narrows to a tight cone. A cyan
+  reticle marks the ship's exact hitbox, and a soft blip sounds on toggle.
+- **Rank system.** A performance-scaled difficulty meter (0-100, shown in the
+  HUD) that rises with kills and grazes and drops when the player is hit. At
+  max rank enemies fire up to 60% faster and their bullets fly up to 60%
+  faster. A hot clean run gets harder, while a struggling player gets a
+  breather - classic bullet-hell rank in data-free form.
 - **Respawn invulnerability.** After a death the ship respawns with a two-second
   invulnerability window (the sprite blinks), so a fresh spawn is never killed
   instantly by a bullet crossing the spawn point. Enemy bullets and body
@@ -147,7 +159,7 @@ Everything is passed on the command line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 74 unit tests that run anywhere, with no window
+  of the game is covered by 79 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM
@@ -170,7 +182,7 @@ The `.beam` format is documented with a full grammar in
 ```text
 name "The Drone Swarm"
 background #0b0e14
-player { speed 260 fire_rate 0.16 lives 3 life_every 10000 bombs 2 }
+player { speed 260 fire_rate 0.16 lives 3 life_every 10000 bombs 2 focus_speed 0.5 }
 enemy grunt { hp 1 speed 90 points 100 radius 8 fire_rate 0.5 color #e8594f }
 wave { at 2 kind grunt count 6 interval 0.4 pattern sine armed false }
 boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }

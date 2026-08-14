@@ -3,17 +3,18 @@
 A deterministic, headless-testable shoot 'em up: scripted `.beam` level files,
 seven enemy movement patterns, configurable enemy shot volleys, boss enrage
 phases, power-up weapon upgrades and one-hit shields, bomb-refill drops, smart
-bombs, a combo scoring multiplier, bonus lives, near-miss grazes, a procedural
-pixel-art renderer, and a tiny subtractive audio synth. The game core is pure
-Zig with no allocator in the per-frame hot path, so the whole simulation is
-unit-testable without SDL.
+bombs, a combo scoring multiplier, bonus lives, near-miss grazes, a focus mode
+with a precise hitbox reticle, a performance-scaled rank difficulty meter, a
+procedural pixel-art renderer, and a tiny subtractive audio synth. The game
+core is pure Zig with no allocator in the per-frame hot path, so the whole
+simulation is unit-testable without SDL.
 
 ## Build
 
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 74 headless tests (no SDL needed)
+zig build test       # 79 headless tests (no SDL needed)
 zig build check      # headless self-checks, exit 0/1
 zig build run        # play in an SDL window
 ```
@@ -41,6 +42,7 @@ Everything comes from the command line; there is no interactive input.
 | Key | Action |
 | --- | --- |
 | Arrow keys / WASD | Move the ship |
+| Shift | Focus: slow precise movement, tighter shot, hitbox reticle |
 | Space / Z / X | Fire |
 | B / V | Detonate a smart bomb |
 | P / Esc | Pause |
@@ -84,16 +86,25 @@ Everything comes from the command line; there is no interactive input.
 - **Grazing**: an enemy bullet that misses the ship by a hair scores points
   (scaled by the combo multiplier) and rings a soft tick, rewarding close
   dodging. The HUD shows the graze count.
+- **Focus mode**: holding Shift slows the ship to a fraction of its speed (the
+  level's `focus_speed` key, default 0.5) for precise dodging, tightens the
+  shot pattern into a converging beam, and draws a cyan reticle on the ship's
+  true hitbox. A soft blip sounds on toggle.
+- **Rank system**: a performance-scaled difficulty meter (0-100, shown in the
+  HUD) that rises with kills and grazes and drops when you are hit. At max rank
+  enemies fire up to 60% faster and their bullets fly up to 60% faster, so a
+  hot clean run gets harder while a struggling player gets a breather.
 - **Respawn invulnerability**: a fresh spawn gets a two-second blink window in
   which enemy bullets and body contact are ignored.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, two-layer
-  parallax starfield, HUD with score/combo/lives/weapon tier/shield/bombs/
-  graze/boss bar) which SDL scales to the window. Pure Zig, no SDL.
+  parallax starfield, level-title intro banner, HUD with score/combo/lives/
+  weapon tier/shield/bombs/graze/rank/boss bar) which SDL scales to the window.
+  Pure Zig, no SDL.
 - **Audio synth** (`src/platform/synth.zig`, `audio.zig`): a deterministic
   subtractive-style synth with a fixed 12-voice pool, fed to SDL via
   `SDL_QueueAudio` (no callback, no threads). Shoot/hit/explosion/player-hit/
-  power-up/shield-break/bonus-life/bomb/graze/enrage/win/lose effects.
+  power-up/shield-break/bonus-life/bomb/graze/enrage/focus/win/lose effects.
   Degrades to silent with no audio device.
 - **Platform layer** (`src/platform/sdl.zig`): window, renderer, streaming
   ARGB texture, and input mapping.
