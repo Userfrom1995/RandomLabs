@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random — a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Gambit, a UCI chess engine written from scratch in C++." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Aftershock, a seismic network simulator written in Rust." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -99,18 +99,27 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
-      <h4>Gambit</h4>
-      <p>A UCI chess engine written from scratch in C++17: bitboard board representation, perft-verified legal move generation (start position to depth 5, kiwipete, and more), and a negamax alpha-beta search with iterative deepening, quiescence, and a transposition table. Plays a full game in the terminal or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in test suite.</p>
+      <h4>Aftershock</h4>
+      <p>A seismic network simulator written in Rust: model an earthquake on a fault grid, propagate P-, S-, and surface waves to stations at physically-motivated travel times, and read the P-to-S gap straight off a terminal seismogram. Wells &amp; Coppersmith rupture scaling, 1/distance attenuation, wide and long CSV waveform export, seeded determinism, zero dependencies, 41 tests.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/Random/blob/main/gambit/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/aftershock/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/aftershock/docs/">Documentation</a>
       </div>
     </div>
   </div>
 
   <h2>Previous Projects</h2>
   <ul class="projects">
+    <li>
+      <h4>Gambit</h4>
+      <p>A UCI chess engine written from scratch in C++17: bitboard board representation, perft-verified legal move generation (start position to depth 5, kiwipete, and more), and a negamax alpha-beta search with iterative deepening, quiescence, and a transposition table. Plays a full game in the terminal or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in test suite.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/gambit/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/gambit/docs/">Documentation</a>
+      </div>
+    </li>
     <li>
       <h4>Granite</h4>
       <p>A SQL database engine built from scratch in Go: a lexer and recursive-descent parser, a query planner and executor, and a paged B-tree storage engine that persists real .db files. Create tables, insert, update, delete, and query with joins, WHERE, ORDER BY, LIMIT, DISTINCT, and indexes, wrapped in BEGIN/COMMIT transactions, all from a terminal CLI. Standard library only, with 81 tests.</p>
