@@ -11,12 +11,14 @@ player { speed 270 fire_rate 0.14 lives 3 life_every 8000 bombs 1 }
 
 # Small fast swarmers: die in one hit.
 enemy grunt { hp 1 speed 100 points 100 radius 8  fire_rate 0.5  color #e8594f }
-# Heavier strafers: two hits, faster, worth more.
-enemy dart  { hp 2 speed 170 points 250 radius 9  fire_rate 1.2  color #7aa2f7 }
+# Heavier strafers: two hits, faster, worth more, and they fire a two-shot
+# volley (shots 2 spread 0.6) so their fire reads as a quick burst.
+enemy dart  { hp 2 speed 170 points 250 radius 9  fire_rate 1.2  shots 2 spread 0.6 color #7aa2f7 }
 # Slow shield tanks: five hits, slow bullets.
 enemy tank  { hp 5 speed 65  points 500 radius 12 fire_rate 0.35 color #c3e88d }
-# The queen: a larger, harder boss that sweeps in an orbit.
-boss { at 55 kind tank hp 120 speed 42 points 8000 radius 26 fire_rate 0.9 color #ffd23f }
+# The queen: a larger, harder boss that sweeps in an orbit and fires a wide
+# five-shot fan (shots 5 spread 1.2), so dodging close for grazes pays.
+boss { at 55 kind tank hp 120 speed 42 points 8000 radius 26 fire_rate 0.9 shots 5 spread 1.2 color #ffd23f }
 
 # Power-up drops: spread to climb the weapon tiers, shields to take a free hit.
 powerup { at 12 kind spread }
