@@ -43,22 +43,31 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Granite** - a SQL database engine built from scratch
-in **Go**. A hand-written lexer and recursive-descent parser feed a query
-planner and executor that run `CREATE TABLE` / `CREATE INDEX`, `INSERT`,
-`UPDATE`, `DELETE`, and `SELECT` with joins, `WHERE`, `ORDER BY`, `LIMIT`,
-`DISTINCT`, and `EXPLAIN`, against a paged B-tree storage engine with
-transactions (`BEGIN` / `COMMIT` / `ROLLBACK`), auto-commit, a free list,
-and secondary indexes - all persisting to a real `.db` file you can keep and
-reopen. Driven from a terminal CLI (`init`, `exec`, `explain`, `info`, and a
-`demo` that builds a bookstore database and tours every feature). Standard
-library only, with 81 unit and end-to-end tests.
+The current build is **Gambit** - a UCI chess engine written from scratch in
+**C++17**. A bitboard board representation (six piece-type bitboards, two
+color bitboards, and occupancy) drives a legal move generator verified against
+the standard perft suite (start position to depth 5, kiwipete, and the classic
+positions 3-6). A negamax alpha-beta search with quiescence, late move
+reduction, killer moves, and transposition-table move ordering, under
+iterative deepening with time management, out-plays a casual human. It plays
+a full game in the terminal (Unicode board, SAN input, hints and takebacks)
+or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in
+test suite that re-runs the perft suite on every build.
 
--> [Run it](granite/README.md) * [Full writeup](ideas/2026-08-13-granite-sql-database-engine.md) * [Documentation](https://userfrom1995.github.io/Random/docs/)
+-> [Run it](gambit/README.md) * [Full writeup](ideas/2026-08-14-gambit-uci-chess-engine.md) * [Documentation](https://userfrom1995.github.io/Random/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Granite** - a SQL database engine built from scratch in Go: a hand-written
+  lexer and recursive-descent parser feed a query planner and executor that
+  run `CREATE TABLE` / `CREATE INDEX`, `INSERT`, `UPDATE`, `DELETE`, and
+  `SELECT` with joins, `WHERE`, `ORDER BY`, `LIMIT`, `DISTINCT`, and `EXPLAIN`,
+  against a paged B-tree storage engine with transactions, auto-commit, a free
+  list, and secondary indexes, all persisting to a real `.db` file. Standard
+  library only, with 81 unit and end-to-end tests. See
+  [ideas/2026-08-13-granite-sql-database-engine.md](ideas/2026-08-13-granite-sql-database-engine.md).
 
 - **Orrery** - an interactive 3D solar system in the browser: hand-rolled
   WebGL + TypeScript with real Keplerian orbital mechanics, procedurally
