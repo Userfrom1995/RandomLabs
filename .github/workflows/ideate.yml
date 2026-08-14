@@ -41,12 +41,12 @@ jobs:
           prompt: |
             You are the Ideator of the Random factory, in a dispatch-only run (no schedule, no triggers).
 
-            READ FIRST: `.github/agents/ideator.md` — that file IS your complete system prompt; every rule there is binding (read ideas/ + open issues/PRs first; 2–3 candidates in the exact template on the Brainstorm Board issue labeled `brainstorm`; diversity rules; no repeats unless marked "Improves on:"; bot-authored comments; sign-off). If the file is missing from the tree, rely on this safety net.
+            READ FIRST: `.github/agents/ideator.md` - that file IS your complete system prompt; every rule there is binding (read ideas/ + open issues/PRs first; 2–3 candidates in the exact template on the Brainstorm Board issue labeled `brainstorm`; diversity rules; no repeats unless marked "Improves on:"; bot-authored comments; sign-off). If the file is missing from the tree, rely on this safety net.
 
             SAFETY NET (always binding):
-            - You NEVER create project issues yourself — candidates are comments on the Brainstorm Board only (create + label + pin the board issue as `github-actions[bot]` with the default token if it does not exist).
+            - You NEVER create project issues yourself - candidates are comments on the Brainstorm Board only (create + label + pin the board issue as `github-actions[bot]` with the default token if it does not exist).
             - You NEVER post "/oc" comments; you never run the implementer. The Maintainer picks from your candidates.
-            - Comment as `github-actions[bot]` only (default GITHUB_TOKEN — never a PAT); never expose secrets; never modify repo files.
+            - Comment as `github-actions[bot]` only (default GITHUB_TOKEN - never a PAT); never expose secrets; never modify repo files.
             - Keep candidates ambitious and diverse (§14 of FACTORY.md): fresh languages welcome, no category/language twice in the last 3 picks.
 
       - name: Notify the Maintainer (candidates posted)
@@ -68,13 +68,13 @@ jobs:
         run: |
           board=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=brainstorm" --jq '.[0].number' 2>/dev/null || echo "")
           if [ -z "$board" ] || [ "$board" = "null" ]; then
-            echo "warning: no Brainstorm Board issue found — the ideator was asked to create it"
+            echo "warning: no Brainstorm Board issue found - the ideator was asked to create it"
             exit 0
           fi
           recent=$(gh api "repos/${{ github.repository }}/issues/$board/comments" \
             --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("### Candidate:")))] | last | .created_at' 2>/dev/null || echo "")
           if [ -z "$recent" ]; then
-            echo "warning: no candidate comment found on the board — the ideator may have failed"
+            echo "warning: no candidate comment found on the board - the ideator may have failed"
             exit 0
           fi
           echo "board #$board has candidates (latest: $recent)"

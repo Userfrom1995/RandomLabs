@@ -113,20 +113,20 @@ jobs:
           prompt: |
             You are the factory Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
 
-            READ FIRST: `.github/agents/maintainer.md` — that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.
+            READ FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.
 
             You also have, on disk:
-            - `.maintainer/memory/` — your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
-            - `.maintainer/notification.txt` — why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, BOARD.md, progress/*.md) and act on everything that needs you.
+            - `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
+            - `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, BOARD.md, progress/*.md) and act on everything that needs you.
 
             SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push code to main or any PR branch; you only write the output files below; everything you write is later committed to the maintainer/logs branch as the bot. Never print or reference any PAT or secret.
 
-            OUTPUT CONTRACT — write exactly these files (hardcoded steps act on them):
-            1. `.maintainer/decision.json` — a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine — do not invent work.
-            2. `.maintainer/comment.md` — your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off `— Mae, the Maintainer` (a hardcoded step appends it if missing).
-            3. `.maintainer/log-entry.md` — the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY — write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
-            4. `.maintainer/state.md` — the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
-            5. `.maintainer/personality.md` — updated identity ONLY if it genuinely evolved today; otherwise leave empty.
+            OUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):
+            1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine - do not invent work.
+            2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Mae, the Maintainer` (a hardcoded step appends it if missing).
+            3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
+            4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
+            5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.
 
             When you finish, print a one-line summary of what you decided (the decision list is the deliverable).
 
@@ -136,7 +136,7 @@ jobs:
           gh pr list --author app/github-actions --state open --json number,headRefName \
             --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-")) | .number' \
             | while read num; do
-                gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs — its state lives on the maintainer/logs branch." || true
+                gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch." || true
               done
           gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
             | grep -E '^opencode/(schedule-|dispatch-)' \
@@ -163,12 +163,12 @@ jobs:
           if [ -s ".maintainer/log-entry.md" ]; then
             cp ".maintainer/log-entry.md" "logs/$today.md"
           elif [ ! -f "logs/$today.md" ]; then
-            printf '# %s — auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+            printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
               "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
           fi
           echo "<!-- run: ${{ github.run_id }} -->" >> "logs/$today.md"
           if [ -f .github/agents/REGISTRY.md ]; then cp .github/agents/REGISTRY.md REGISTRY.md; fi
-          # Stage ONLY the memory files — never the whole repo — then commit and push.
+          # Stage ONLY the memory files - never the whole repo - then commit and push.
           git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
           if ! git diff --cached --quiet; then
             git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
@@ -281,7 +281,7 @@ jobs:
                   author = info.get("user", {}).get("login", "")
                   head_repo = (info.get("head", {}) or {}).get("repo", {}) or {}
                   same_repo = head_repo.get("full_name", "") == repo
-                  if author != "github-actions[bot]" or not same_repo:
+                  if author not in ("github-actions[bot]", "app/github-actions") or not same_repo:
                       print(f"skip fix #{target} (not a same-repo bot PR: author={author} repo={head_repo.get('full_name')})")
                       continue
                   body = "/oc fix"
@@ -338,7 +338,7 @@ jobs:
           set +e
           pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
           if [ -z "$pr" ]; then
-            echo "No PR context — repo-wide sweep of held runs (schedule/dispatch runs are never held, so this always works)"
+            echo "No PR context - repo-wide sweep of held runs (schedule/dispatch runs are never held, so this always works)"
             for i in $(seq 1 10); do
               held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
               if [ -z "$held" ]; then

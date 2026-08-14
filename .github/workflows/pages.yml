@@ -140,7 +140,7 @@ jobs:
 
           ${marker}
 
-          This PR's site is live at **${url}** — deploying now; GitHub Pages can take ~30-60s to start serving it.
+          This PR's site is live at **${url}** - deploying now; GitHub Pages can take ~30-60s to start serving it.
 
           - GitHub Pages only permits the default branch to deploy (the \`github-pages\` environment protection rules), so PRs cannot deploy directly; this job stages the production site plus previews of every open PR into a single artifact and re-deploys it whenever this PR opens or updates.
           - The preview is served under \`/preview/pr-${pr}/\`, so it never touches the production site."
