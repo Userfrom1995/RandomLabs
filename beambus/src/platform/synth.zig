@@ -17,6 +17,7 @@ pub const Sfx = enum {
     bomb,
     graze,
     enrage,
+    focus,
     win,
     lose,
 };
@@ -107,6 +108,11 @@ pub const Synth = struct {
                 self.play(.saw, 160, 240, 0.42, 0.35);
                 self.play(.saw, 240, 320, 0.34, 0.3);
                 self.play(.noise, 1, 0, 0.2, 0.25);
+            },
+            .focus => {
+                // A short soft blip when focus mode engages or releases.
+                self.play(.square, 560, 0, 0.1, 0.05);
+                self.play(.square, 720, 0, 0.08, 0.06);
             },
             .win => {
                 self.play(.square, 523, 0, 0.3, 0.12);

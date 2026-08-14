@@ -86,6 +86,7 @@ pub const Renderer = struct {
     pub fn drawGame(self: *Renderer, g: *const Game) void {
         self.drawEntities(g);
         self.drawHud(g);
+        self.drawIntroBanner(g);
         self.drawBombFlash(g);
     }
 
@@ -96,7 +97,7 @@ pub const Renderer = struct {
                 .player => {
                     // Blink while respawn-invulnerable.
                     if (g.invuln_timer > 0 and @mod(g.time, 0.25) < 0.125) continue;
-                    self.drawPlayer(e, g.has_shield);
+                    self.drawPlayer(e, g.has_shield, g.focusing);
                 },
                 .enemy => self.drawEnemy(e),
                 .bullet => self.drawBullet(e),
@@ -108,7 +109,7 @@ pub const Renderer = struct {
         }
     }
 
-    fn drawPlayer(self: *Renderer, e: *const Entity, has_shield: bool) void {
+    fn drawPlayer(self: *Renderer, e: *const Entity, has_shield: bool, focusing: bool) void {
         const c: i32 = @intFromFloat(e.pos.x);
         const r: i32 = @intFromFloat(e.pos.y);
         // Triangle ship pointing up, sized from its collision radius.
@@ -127,6 +128,12 @@ pub const Renderer = struct {
         // One-hit shield bubble.
         if (has_shield) {
             self.strokeCircle(c, r, @as(i32, @intFromFloat(e.radius)) + 5, 0x4FD6D6);
+        }
+        // Focus reticle: a cyan cross marking the ship's true hitbox, shown
+        // while focus is held so the player can read their exact dodge point.
+        if (focusing) {
+            self.fillRect(c - 2, r - 1, 5, 3, 0x4FD6D6);
+            self.fillRect(c - 1, r - 2, 3, 5, 0x4FD6D6);
         }
     }
 
@@ -237,6 +244,12 @@ pub const Renderer = struct {
             self.drawString(.{ .x = 6, .y = 56 }, graze, 0x4FD6D6, 1);
         }
 
+        // Rank: the performance-scaled difficulty meter. Colored by heat so a
+        // hot run reads as dangerous (cyan low, yellow mid, red maxed).
+        const rank_str = std.fmt.bufPrint(&buf, "RANK {d}", .{g.rank}) catch return;
+        const rank_col: u32 = if (g.rank < 34) 0x4FD6D6 else if (g.rank < 67) 0xFFD23F else 0xFF6B57;
+        self.drawString(.{ .x = 6, .y = 66 }, rank_str, rank_col, 1);
+
         // Boss health bar: find the largest alive enemy and draw its gauge.
         var boss: ?*const Entity = null;
         for (&g.pool.entities) |*e| {
@@ -280,6 +293,18 @@ pub const Renderer = struct {
         const w = textWidth(text) * scale;
         const x = @as(f32, @floatFromInt(arena_w)) / 2.0 - @as(f32, @floatFromInt(w)) / 2.0;
         self.drawString(.{ .x = x, .y = at.y }, text, color, scale);
+    }
+
+    /// Fades a level-title banner and a controls hint in over the first moments
+    /// of a run. Driven purely by game time, so it is deterministic and freezes
+    /// with the game while paused.
+    fn drawIntroBanner(self: *Renderer, g: *const Game) void {
+        if (g.state != .running or g.time >= 2.5) return;
+        const k = @min(1.0, @max(0.0, @min(g.time / 0.4, (2.5 - g.time) / 0.6)));
+        const title_col = darkenRgb(0xFFFFFF, k);
+        const hint_col = darkenRgb(0x9AA5CE, k);
+        self.drawCentered(.{ .x = 0, .y = 210 }, g.level.name, title_col, 2);
+        self.drawCentered(.{ .x = 0, .y = 236 }, "SHIFT FOCUS  B BOMB  P PAUSE", hint_col, 1);
     }
 
     /// Full-screen white flash that fades out after a bomb detonation.

@@ -292,6 +292,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
     var prev_score: u32 = 0;
     var prev_state: GameState = .running;
     var prev_player_hit = false;
+    var prev_focus = false;
 
     var last = sdl.now();
     var paused = false;
@@ -312,6 +313,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
             prev_score = 0;
             prev_state = .running;
             prev_player_hit = false;
+            prev_focus = false;
             paused = false;
         }
         if (ks.pause) paused = !paused;
@@ -327,6 +329,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
                     .down = ks.down,
                     .fire = ks.fire,
                     .bomb = ks.bomb,
+                    .focus = ks.focus,
                 };
                 game.step(fixed_dt, &inp);
             }
@@ -342,6 +345,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
             if (game.bomb_just_fired) synth.trigger(.bomb);
             if (game.graze_just_happened) synth.trigger(.graze);
             if (game.boss_enraged) synth.trigger(.enrage);
+            if (game.focusing != prev_focus) synth.trigger(.focus);
             if (game.shield_broke and !prev_player_hit) {
                 synth.trigger(.shield_break);
             } else if (game.player_just_hit and !prev_player_hit) {
@@ -356,6 +360,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
             prev_score = game.score;
             prev_state = game.state;
             prev_player_hit = game.player_just_hit;
+            prev_focus = game.focusing;
 
             // Queue a fixed chunk of audio for the frame.
             const frames: usize = @intFromFloat(fixed_dt * audio.sample_rate);
