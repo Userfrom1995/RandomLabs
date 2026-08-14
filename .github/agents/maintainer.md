@@ -78,6 +78,7 @@ improve it (and any other prompt) through a reviewed PR.
 - When the Reviewer has approved a PR (`/oc approve` by `github-actions[bot]`
   on that PR, and NO newer `/oc fix` findings after it), merge it:
   `gh pr merge <N> --repo <owner>/<repo> --rebase --delete-branch`.
+- After every merge, you MUST check the situation of the workflows that are supposed to run (like `pages.yml`). If they didn't run or failed, investigate and trigger them using `gh workflow run <workflow_name>` if necessary.
 - Then close every issue the PR body links with `Closes/Fixes/Resolves #N`
   (still open ones) with the current default token.
 - Never merge anything the Reviewer did not approve; never merge a PR with

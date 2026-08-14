@@ -95,6 +95,10 @@ jobs:
           echo "--- notification ---"
           cat .maintainer/notification.txt
 
+      - name: Record main SHA before
+        id: pre_agent
+        run: echo "sha=$(git ls-remote origin main | awk '{print $1}')" >> $GITHUB_OUTPUT
+
       - name: Run Maintainer agent
         id: maintainer
         continue-on-error: true
@@ -288,6 +292,19 @@ jobs:
                   posted.add(key)
                   print(f"posted '{body}' on #{target}")
           PY
+
+      - name: Trigger pages deployment if main advanced
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          new_sha=$(git ls-remote origin main | awk '{print $1}')
+          if [ "${{ steps.pre_agent.outputs.sha }}" != "$new_sha" ] && [ -n "$new_sha" ]; then
+            echo "Main branch advanced from ${{ steps.pre_agent.outputs.sha }} to $new_sha. Triggering pages.yml."
+            gh workflow run pages.yml --repo "${{ github.repository }}" || true
+          else
+            echo "Main branch did not advance."
+          fi
 
       - name: Dispatch ideator when asked
         if: always()
