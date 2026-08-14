@@ -15,6 +15,7 @@ pub const Sfx = enum {
     shield_break,
     life,
     bomb,
+    graze,
     win,
     lose,
 };
@@ -94,6 +95,11 @@ pub const Synth = struct {
                 self.play(.saw, 200, -120, 0.5, 0.35);
                 self.play(.noise, 1, 0, 0.6, 0.4);
                 self.play(.square, 80, -40, 0.4, 0.3);
+            },
+            .graze => {
+                // A soft rising tick for a near-miss dodge.
+                self.play(.square, 1240, 220, 0.14, 0.06);
+                self.play(.square, 1560, 220, 0.1, 0.05);
             },
             .win => {
                 self.play(.square, 523, 0, 0.3, 0.12);

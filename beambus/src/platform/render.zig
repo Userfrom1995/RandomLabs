@@ -189,6 +189,12 @@ pub const Renderer = struct {
             self.drawString(.{ .x = 6, .y = 46 }, bombs, 0xF7768E, 1);
         }
 
+        // Grazes: near-miss bullets dodged. Shown once one has been scored.
+        if (g.graze > 0) {
+            const graze = std.fmt.bufPrint(&buf, "GRAZE {d}", .{g.graze}) catch return;
+            self.drawString(.{ .x = 6, .y = 56 }, graze, 0x4FD6D6, 1);
+        }
+
         // Boss health bar: find the largest alive enemy and draw its gauge.
         var boss: ?*const Entity = null;
         for (&g.pool.entities) |*e| {
