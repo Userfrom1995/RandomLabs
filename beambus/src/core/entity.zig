@@ -46,6 +46,10 @@ pub const Entity = struct {
     rage_hp: f32 = 0,
     /// True once this boss has enraged (fire rate and volley buffed).
     enraged: bool = false,
+    /// Whether this enemy's bullets steer toward the player (from the level
+    /// def's `homing` key). Homing is a capped turn, so the shots stay
+    /// dodgeable; it never snaps onto the ship.
+    homing: bool = false,
     /// Opaque per-kind tuning/state payload.
     data: u32 = 0,
     /// RGB colour for the sprite renderer.

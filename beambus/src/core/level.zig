@@ -41,6 +41,9 @@ pub const EnemyDef = struct {
     /// Total fan angle in radians for a multi-shot volley, centered on the
     /// player. 0 = all shots aimed straight at the player.
     spread: f32 = 0,
+    /// Whether this enemy's shots curve toward the player. Homing turns at a
+    /// fixed capped rate, so a shot is a threat that can still be dodged.
+    homing: bool = false,
     color: u32 = 0xE8594F,
 };
 
@@ -71,6 +74,8 @@ pub const Boss = struct {
     /// HP fraction (0..1) at which the boss enters its enrage phase; 0 = never.
     /// Enraged bosses double their fire rate and add two bullets per volley.
     rage_hp: f32 = 0,
+    /// Whether this boss's shots curve toward the player (capped turn rate).
+    homing: bool = false,
 };
 
 /// What a power-up pickup grants. `spread` raises the player's fire level
@@ -324,6 +329,8 @@ fn parseEnemy(line: []const u8) !EnemyDef {
             def.shots = try std.fmt.parseInt(u32, kv.value, 10);
         } else if (std.mem.eql(u8, kv.key, "spread")) {
             def.spread = try std.fmt.parseFloat(f32, kv.value);
+        } else if (std.mem.eql(u8, kv.key, "homing")) {
+            def.homing = std.mem.eql(u8, kv.value, "true");
         } else if (std.mem.eql(u8, kv.key, "color")) {
             def.color = try parseHexColor(kv.value);
         } else {
@@ -384,6 +391,8 @@ fn parseBoss(line: []const u8) !Boss {
             b.color = try parseHexColor(kv.value);
         } else if (std.mem.eql(u8, kv.key, "rage_hp")) {
             b.rage_hp = try std.fmt.parseFloat(f32, kv.value);
+        } else if (std.mem.eql(u8, kv.key, "homing")) {
+            b.homing = std.mem.eql(u8, kv.value, "true");
         } else {
             return error.UnknownDirective;
         }
@@ -630,4 +639,24 @@ test "parse boss rage_hp and chase pattern" {
     defer level.deinit(gpa.allocator());
     try std.testing.expectEqual(@as(f32, 0.4), level.bosses.items[0].rage_hp);
     try std.testing.expectEqual(Pattern.chase, level.waves.items[0].pattern);
+}
+
+test "parser reads homing for enemies and bosses" {
+    const src =
+        \\name "Homing"
+        \\enemy seeker { hp 2 fire_rate 0.6 homing true }
+        \\enemy plain  { hp 1 fire_rate 0.6 }
+        \\wave { at 0 kind seeker count 1 }
+        \\boss { at 1 kind plain hp 80 fire_rate 0.8 homing true }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    const seeker = level.enemyDef("seeker").?;
+    try std.testing.expect(seeker.homing);
+    const plain = level.enemyDef("plain").?;
+    try std.testing.expect(!plain.homing);
+    try std.testing.expect(level.bosses.items[0].homing);
 }
