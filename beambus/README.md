@@ -1,11 +1,11 @@
 # Beambus: a retro arcade shooter in Zig
 
 A deterministic, headless-testable shoot 'em up: scripted `.beam` level files,
-six enemy movement patterns, configurable enemy shot volleys, power-up weapon
-upgrades and one-hit shields, smart bombs, a combo scoring multiplier, bonus
-lives, near-miss grazes, a procedural pixel-art renderer, and a tiny
-subtractive audio synth. The game core is pure Zig with
-no allocator in the per-frame hot path, so the whole simulation is
+seven enemy movement patterns, configurable enemy shot volleys, boss enrage
+phases, power-up weapon upgrades and one-hit shields, bomb-refill drops, smart
+bombs, a combo scoring multiplier, bonus lives, near-miss grazes, a procedural
+pixel-art renderer, and a tiny subtractive audio synth. The game core is pure
+Zig with no allocator in the per-frame hot path, so the whole simulation is
 unit-testable without SDL.
 
 ## Build
@@ -13,7 +13,7 @@ unit-testable without SDL.
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 68 headless tests (no SDL needed)
+zig build test       # 74 headless tests (no SDL needed)
 zig build check      # headless self-checks, exit 0/1
 zig build run        # play in an SDL window
 ```
@@ -55,17 +55,24 @@ Everything comes from the command line; there is no interactive input.
   collisions, scoring, lives, power-up weapon tiers and shields, combo
   multiplier, bonus lives, win/lose). No SDL, no allocation during a step.
 - **Scripted levels** (`levels/*.beam`): a line/brace format declaring the
-  player, enemy defs, waves, bosses, and power-up drops, with six movement
-  patterns: sine, zigzag, swoop, drift, orbit, spiral. Strict validation with
-  clear errors. Ships with two levels (`level1.beam`, `level2.beam`).
+  player, enemy defs, waves, bosses, and power-up drops, with seven movement
+  patterns: sine, zigzag, swoop, drift, orbit, spiral, chase. Strict
+  validation with clear errors. Ships with two levels (`level1.beam`,
+  `level2.beam`).
 - **Weapon upgrades**: touching a `spread` drop raises the fire level from
   single to twin to triple spread (capped at 3). Dying resets the tier to
   single.
 - **Enemy volleys**: enemy defs and bosses accept `shots` and `spread`, so a
   level can hand any enemy a fan volley (e.g. a dart firing a two-shot burst,
   a boss throwing a five-way spread). Defaults stay single-shot.
+- **Boss enrage**: a `rage_hp` fraction on a boss def makes it enter an enrage
+  phase once it drops to that HP level - double fire rate, +2 bullets per
+  volley, a red pulsing aura, and a growling sound. A boss fight gets a
+  climactic second half.
 - **Shields**: a `shield` drop equips a one-hit bubble that absorbs the next
   hit instead of costing a life, drawn as a ring around the ship.
+- **Bomb refills**: a `bomb` power-up drop restores one smart-bomb stock
+  (rendered as a pinwheel), so levels can reward bombs as well as spend them.
 - **Combo scoring**: consecutive kills without taking a hit build a multiplier
   (x2 at 5, x3 at 10, capped at x4) shown next to the score. Any hit resets it.
 - **Bonus lives**: the player's `life_every N` key awards an extra life each
@@ -80,14 +87,14 @@ Everything comes from the command line; there is no interactive input.
 - **Respawn invulnerability**: a fresh spawn gets a two-second blink window in
   which enemy bullets and body contact are ignored.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
-  software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, seeded
-  starfield, HUD with score/combo/lives/weapon tier/shield/bombs/graze/boss
-  bar) which SDL scales to the window. Pure Zig, no SDL.
+  software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, two-layer
+  parallax starfield, HUD with score/combo/lives/weapon tier/shield/bombs/
+  graze/boss bar) which SDL scales to the window. Pure Zig, no SDL.
 - **Audio synth** (`src/platform/synth.zig`, `audio.zig`): a deterministic
   subtractive-style synth with a fixed 12-voice pool, fed to SDL via
   `SDL_QueueAudio` (no callback, no threads). Shoot/hit/explosion/player-hit/
-  power-up/shield-break/bonus-life/bomb/graze/win/lose effects. Degrades to
-  silent with no audio device.
+  power-up/shield-break/bonus-life/bomb/graze/enrage/win/lose effects.
+  Degrades to silent with no audio device.
 - **Platform layer** (`src/platform/sdl.zig`): window, renderer, streaming
   ARGB texture, and input mapping.
 - **Game loop** (`src/main.zig`): fixed-timestep 60 Hz accumulator, audio

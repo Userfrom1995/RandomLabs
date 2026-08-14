@@ -71,6 +71,15 @@ Spawns a single large enemy at a fixed time. Keys mirror the enemy def plus
 fire. `shots`/`spread` work exactly as for enemies, so a boss can throw a wide
 fan (e.g. `shots 5 spread 1.2`).
 
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `rage_hp` | 0 | HP fraction (0..1) at which the boss enrages; 0 disables it. |
+
+When the boss drops to or below `rage_hp` of its maximum HP it enters an enrage
+phase exactly once: fire rate doubles, the volley gains two bullets, it glows
+with a red pulsing aura, and a growling sound plays. The threshold is data, so
+a level tunes how long the calm opening half of the fight lasts.
+
 ### `powerup { ... }`
 
 Spawns a power-up drop at a fixed time. The drop falls down the arena; the
@@ -81,12 +90,14 @@ player picks it up by touching it. Keys:
 | `at` | 0 | Seconds into the level when the drop appears. |
 | `kind` | `spread` | What the drop grants. |
 
-`kind` currently supports two drop types:
+`kind` currently supports three drop types:
 
 - `spread`: raises the player's fire level by one: single -> twin -> triple
   spread (capped at 3).
 - `shield`: equips a one-hit bubble that absorbs the next hit instead of
   costing a life.
+- `bomb`: refills one smart-bomb stock (capped at 9), drawn as a pinwheel so
+  it reads differently from the other drops at a glance.
 
 Dying resets the fire level to single, so a level can place `spread` drops
 along its curve to pace the player's power. A missed drop drifts off the bottom
@@ -128,6 +139,7 @@ walls rather than a primary weapon.
 | `drift` | Fall with a slow horizontal sway. |
 | `orbit` | Boss sweep: move side to side, hold altitude near the top. |
 | `spiral` | Combined horizontal cosine and damped vertical sine. |
+| `chase` | Steer onto the player's column while falling - a dive bomber. |
 
 ## Example
 
@@ -141,12 +153,13 @@ player { speed 260 fire_rate 0.16 lives 3 life_every 10000 }
 enemy grunt { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f }
 enemy dart  { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  shots 2 spread 0.6 color #7aa2f7 }
 enemy tank  { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
-boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 3 spread 0.8 color #ffd23f }
+boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 3 spread 0.8 rage_hp 0.4 color #ffd23f }
 
 powerup { at 16 kind spread }
 powerup { at 22 kind shield }
 powerup { at 30 kind spread }
 powerup { at 42 kind spread }
+powerup { at 46 kind bomb }
 
 wave { at 2  kind grunt count 6  interval 0.4 pattern sine    armed false }
 wave { at 8  kind grunt count 8  interval 0.3 pattern zigzag  armed false }

@@ -2,11 +2,11 @@
 
 A retro arcade shoot 'em up written from scratch in **Zig** - the factory's
 first Zig project. A deterministic, headless-testable game core pairs with an
-SDL2 platform layer: scripted `.beam` level files, six enemy movement
-patterns, configurable enemy shot volleys, power-up weapon tiers and one-hit
-shields, smart bombs, a combo scoring multiplier, bonus lives, near-miss
-grazes, a procedural pixel-art renderer, and a tiny
-subtractive audio synth. The core never allocates during a frame, so the
+SDL2 platform layer: scripted `.beam` level files, seven enemy movement
+patterns, configurable enemy shot volleys, boss enrage phases, power-up weapon
+tiers and one-hit shields, bomb-refill drops, smart bombs, a combo scoring
+multiplier, bonus lives, near-miss grazes, a procedural pixel-art renderer, and
+a tiny subtractive audio synth. The core never allocates during a frame, so the
 entire simulation is unit-testable without SDL.
 
 ## What Was Built
@@ -23,23 +23,26 @@ A self-contained arcade game (`beambus/`):
   reproduce the same run.
 - **Scripted level format** (`src/core/level.zig`): a strict line/brace
   `.beam` script declaring the player, enemy defs, waves, bosses, and power-up
-  drops, with six movement patterns (sine, zigzag, swoop, drift, orbit,
-  spiral) and per-enemy `shots`/`spread` so any enemy can throw a fan volley.
-  Unknown directives, bad numbers, unknown enemies, duplicate names,
-  and unclosed blocks all fail with clear errors.
+  drops, with seven movement patterns (sine, zigzag, swoop, drift, orbit,
+  spiral, chase) and per-enemy `shots`/`spread` so any enemy can throw a fan
+  volley. Boss defs carry a `rage_hp` threshold for enrage phases, and
+  power-up drops come in three kinds (spread, shield, bomb). Unknown
+  directives, bad numbers, unknown enemies, duplicate names, and unclosed
+  blocks all fail with clear errors.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (0xAARRGGBB, ready for
   `SDL_PIXELFORMAT_ARGB8888`): hand-rolled rect/circle/stroke/triangle
   primitives, procedural sprites (triangle ship, circled enemies, bullet
-  bolts, fading particles, pulsing power-up diamonds), a 3x5 bitmap font, a
-  seeded twinkling starfield, and a HUD with score, combo multiplier, lives,
-  weapon tier, shield, and level name.
+  bolts, fading particles, pulsing power-up diamonds, an enraged-boss red
+  aura), a 3x5 bitmap font, a two-layer seeded parallax starfield, and a HUD
+  with score, combo multiplier, lives, weapon tier, shield, bombs, and level
+  name.
 - **Procedural audio** (`src/platform/synth.zig`, `audio.zig`): a
   subtractive-style synth with a fixed 12-voice pool (square, saw, noise,
   frequency slide, TTL-shaped decay envelopes) synthesizing shoot, hit,
-  explosion, player-hit, power-up, shield-break, bonus-life, bomb, graze, win,
-  and lose effects. Fed to SDL via `SDL_QueueAudio` (no callback, no threads);
-  degrades to silence with no audio device.
+  explosion, player-hit, power-up, shield-break, bonus-life, bomb, graze,
+  enrage, win, and lose effects. Fed to SDL via `SDL_QueueAudio` (no callback,
+  no threads); degrades to silence with no audio device.
 - **SDL platform layer** (`src/platform/sdl.zig`): window, renderer,
   streaming ARGB texture, and input mapping (arrows/WASD, space/Z/X, P/Esc,
   R).
@@ -51,7 +54,7 @@ A self-contained arcade game (`beambus/`):
 - **Sample levels** (`levels/level1.beam`, `levels/level2.beam`): "The Drone
   Swarm" and "The Nebula Empress", full scripts with three enemy archetypes,
   timed power-up drops, and a boss each.
-- **Tests**: 68 unit tests across vec, rng, rect, entity, level, game, render,
+- **Tests**: 74 unit tests across vec, rng, rect, entity, level, game, render,
   and synth - all headless, no SDL required.
 
 ## Why
@@ -82,8 +85,9 @@ as a real windowed desktop application.
 - **Movement patterns.** Each pattern is a small closed-form update: sine
   oscillates horizontally as the enemy falls, zigzag alternates direction
   every 80px, swoop arcs across, drift sways slowly, orbit is the boss sweep
-  that holds altitude near the top, and spiral combines a horizontal cosine
-  with a damped vertical sine. Patterns are chosen per wave in the script.
+  that holds altitude near the top, spiral combines a horizontal cosine with
+  a damped vertical sine, and chase steers the enemy onto the player's column
+  as a dive bomber. Patterns are chosen per wave in the script.
 - **Simulation loop.** Each `step` advances time, updates the player from a
   normalized input snapshot (diagonals are not boosted), spawns waves and
   bosses on timers, moves enemies by their pattern, moves bullets, runs circle
@@ -97,6 +101,14 @@ as a real windowed desktop application.
 - **Enemy shot volleys.** Enemy defs and bosses carry `shots` and `spread`, so
   a level can hand any enemy a fan volley - a two-shot burst, a three-way
   spread, or a wide five-shot fan - without new code.
+- **Boss enrage.** A `rage_hp` fraction on a boss def turns a fight into two
+  acts: once the boss drops to that HP it enrages once, doubling its fire rate
+  and adding two bullets per volley. The renderer glows it red and the synth
+  growls, so the climax of a boss fight is unmistakable.
+- **Power-up kinds.** Drops come in three kinds: `spread` (raise the weapon
+  tier), `shield` (one-hit bubble), and `bomb` (refill one smart-bomb stock,
+  drawn as a pinwheel). A level can spend bombs as a panic button and reward
+  them as pickups.
 - **Grazing.** An enemy bullet that passes within a narrow band around the
   ship without hitting scores `50 * combo multiplier` points and rings a soft
   tick. Each bullet grazes at most once and the HUD counts grazes, rewarding
@@ -116,8 +128,9 @@ as a real windowed desktop application.
   and fires its own break effect.
 - **Renderer.** Pure Zig over a `u32` pixel buffer. Primitives (rect, circle,
   circle stroke, triangle) are hand-rolled; text uses a 3x5 bitmap glyph set;
-  the starfield is seeded per run and scrolls downward with wrap. The buffer
-  is uploaded to an SDL streaming texture and scaled to the window.
+  a two-layer parallax starfield (slow dim far stars, faster bright near
+  stars) is seeded per run and scrolls downward with wrap. The buffer is
+  uploaded to an SDL streaming texture and scaled to the window.
 - **Audio.** The synth keeps a fixed pool of voices, each with a wave, base
   frequency, frequency slide, amplitude, and a TTL that shapes the decay
   envelope. Effects are layered voice stacks (e.g. an explosion is a noise
@@ -150,14 +163,15 @@ as a real windowed desktop application.
 - **Zig 0.15.2.** The build uses the current Build API (`root_module`,
   `b.addTest`), verified against the Zig 0.15.2 release and SDL2's C headers.
   The SDL2 C-import compiles cleanly under the new module system.
-- **Headless-first.** `zig build test` runs 68 tests with no SDL and no audio
+- **Headless-first.** `zig build test` runs 74 tests with no SDL and no audio
   device; the SDL glue is exercised only by the exe build. Everything in the
   core is plain data plus logic, which is what makes it exhaustively testable.
 - **A real build fix.** While finalizing, the headless test step was silently
   only collecting 9 tests (the `--dep core` module boundary swallowed the
   per-file test blocks). Moving to relative-path imports so all modules live
-  in one root made all 41 tests run, later grown to 68 by the power-up,
-  shield, scoring, bomb, invulnerability, volley, and graze tests.
+  in one root made all 41 tests run, later grown to 74 by the power-up,
+  shield, scoring, bomb, invulnerability, volley, graze, enrage, chase, and
+  bomb-refill tests.
 - **Deterministic audio.** The synth renders deterministically for a given
   sequence of triggers, so audio behaviour is unit-testable too.
 - **Name origin.** A "beam" is both the player's energy ray and the core

@@ -152,6 +152,25 @@ push.
   correct (61 named blocks + 2 anonymous aggregator blocks), and the count is
   now 68 after this round.
 
+- **2026-08-14 (round 5, improvement window):** Boss enrage phases, a chase
+  movement pattern, bomb-refill drops, and a parallax starfield. (1) Enrage:
+  boss defs accept `rage_hp` (HP fraction); when a boss drops to that level it
+  enrages exactly once - fire rate doubles, volley gains two bullets, a red
+  pulsing aura renders, and a growling `enrage` synth effect plays (new entity
+  `enraged`/`rage_hp` fields, checkEnrage in game.zig, wired into the windowed
+  loop). (2) Chase: a seventh movement pattern that steers an enemy onto the
+  player's column while falling (a dive bomber), used by darts in both sample
+  levels. (3) Bomb drops: a third power-up kind that refills one smart-bomb
+  stock (capped at 9), drawn as a pinwheel; both levels gained a bomb drop.
+  (4) Renderer polish: a two-layer parallax starfield (slow dim far stars,
+  faster bright near stars) replaces the single layer. Docs (beambus/README,
+  docs/index.md, docs/index.html, level-format.md, ideas, root README, landing
+  page) updated to the real test count (74). All 74 tests pass (6 new: boss
+  enrage below threshold, enrage fires once, bomb drop refills stock, parser
+  reads rage_hp/chase, parser reads bomb kind), 3/3 self-checks pass, exe
+  builds, byte-identical determinism per seed, 60-seed headless stress clean,
+  windowed run verified under the dummy video driver.
+
 - the Fixer
 
 - the Builder

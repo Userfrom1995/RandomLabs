@@ -2,12 +2,13 @@
 
 **Beambus** is a retro arcade shoot 'em up written in **Zig**, and the
 factory's first Zig project. It pairs a deterministic, headless-testable game
-core with an SDL2 platform layer: scripted `.beam` level files, six enemy
-movement patterns, configurable enemy shot volleys, power-up weapon tiers and
-one-hit shields, smart bombs, a combo scoring multiplier, bonus lives,
-near-miss grazes, a procedural pixel-art renderer, and a
-tiny subtractive audio synth. The core never allocates during a frame, so the
-entire simulation is unit-testable without SDL.
+core with an SDL2 platform layer: scripted `.beam` level files, seven enemy
+movement patterns, configurable enemy shot volleys, boss enrage phases,
+power-up weapon tiers and one-hit shields, bomb-refill drops, smart bombs, a
+combo scoring multiplier, bonus lives, near-miss grazes, a procedural
+pixel-art renderer, and a tiny subtractive audio synth. The core never
+allocates during a frame, so the entire simulation is unit-testable without
+SDL.
 
 ## What it is
 
@@ -20,15 +21,15 @@ entire simulation is unit-testable without SDL.
   allocator in the per-frame hot path and no SDL dependency, so the same seed
   and input stream always reproduce the same run.
 - **Scripted levels.** A line/brace `.beam` format declares the player, enemy
-  defs, waves, bosses, and power-up drops. Six movement patterns (sine, zigzag,
-  swoop, drift, orbit, spiral) drive how enemies curve through the field. The
-  parser is strict: unknown directives, bad numbers, unknown enemies, duplicate
-  names, and malformed levels all fail with a clear error. Two levels ship with
-  the game (`level1.beam`, `level2.beam`).
+  defs, waves, bosses, and power-up drops. Seven movement patterns (sine,
+  zigzag, swoop, drift, orbit, spiral, chase) drive how enemies curve through
+  the field. The parser is strict: unknown directives, bad numbers, unknown
+  enemies, duplicate names, and malformed levels all fail with a clear error.
+  Two levels ship with the game (`level1.beam`, `level2.beam`).
 - **Procedural renderer.** A pure-Zig software renderer draws every frame into
   a `u32` pixel buffer at arena resolution (480x600): procedural sprites
   (triangle ship, circled enemies, bullet bolts, fading particles, pulsing
-power-up diamonds), a 3x5 bitmap font, a seeded twinkling starfield, and a
+power-up diamonds), a 3x5 bitmap font, a two-layer parallax starfield, and a
     HUD with score, combo multiplier, lives, weapon tier, shield, bombs, grazes,
     a boss health bar, and level name.
   The buffer is uploaded to an SDL streaming texture and scaled to the window.
@@ -46,7 +47,7 @@ power-up diamonds), a 3x5 bitmap font, a seeded twinkling starfield, and a
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 68 headless tests (no SDL needed)
+zig build test       # 74 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -80,8 +81,10 @@ Everything is passed on the command line; there is no interactive input.
 - **Movement patterns.** Each pattern is a small closed-form update: sine
   oscillates horizontally as the enemy falls, zigzag alternates direction
   every 80px, swoop arcs across, drift sways slowly, orbit is the boss sweep
-  that holds altitude near the top, and spiral combines horizontal cosine with
-  a damped vertical sine. Patterns are chosen per wave in the level script.
+  that holds altitude near the top, spiral combines horizontal cosine with
+  a damped vertical sine, and chase steers the enemy onto the player's column
+  (a dive bomber that can still be dodged). Patterns are chosen per wave in the
+  level script.
 - **Simulation loop.** Each `step` advances time, updates the player from the
   input snapshot, spawns waves and bosses on their timers, moves enemies by
   their pattern, moves bullets, runs circle collisions, updates particles, and
@@ -95,9 +98,17 @@ Everything is passed on the command line; there is no interactive input.
   trigger) and `spread` (fan angle in radians, centered on the player). A
   level can give any enemy a volley, from a two-shot burst to a wide five-way
   fan, without new code.
+- **Boss enrage.** A `rage_hp` fraction on a boss def turns the fight into two
+  acts: once the boss drops to that HP level it enters an enrage phase, with
+  double fire rate, two extra bullets per volley, a red pulsing aura, and a
+  growling sound. The threshold is data, not code - a level tunes how long the
+  calm opening lasts.
 - **Shields.** A `shield` drop equips a one-hit bubble that absorbs the next
   hit instead of costing a life. The renderer draws it as a ring around the
   ship; a break triggers its own sound effect.
+- **Bomb refills.** A `bomb` power-up drop restores one smart-bomb stock
+  (drawn as a pinwheel), letting a level reward bombs as well as spend them.
+  Stock is capped at 9.
 - **Combo scoring.** Every enemy destroyed without the player taking a hit
   increments a combo counter. The score multiplier climbs to x2 at 5 kills,
   x3 at 10, and x4 at 15 (capped). It is shown next to the score in the HUD and
@@ -122,7 +133,8 @@ Everything is passed on the command line; there is no interactive input.
 - **Renderer.** The renderer is pure Zig over a `u32` pixel buffer
   (0xAARRGGBB, ready for `SDL_PIXELFORMAT_ARGB8888`). Primitives (rect, circle,
   circle stroke, triangle) are hand-rolled; text uses a 3x5 bitmap glyph set.
-  The starfield is seeded per run and scrolls downward with wrap.
+  A two-layer parallax starfield (slow dim far stars, faster bright near
+  stars) scrolls downward with wrap, seeded per run.
 - **Audio.** The synth keeps a fixed pool of voices, each with a wave (square,
   saw, noise), frequency, slide, amplitude, and a time-to-live that shapes the
   decay envelope. Effects are layered voice stacks (e.g. an explosion is a
@@ -135,7 +147,7 @@ Everything is passed on the command line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 68 unit tests that run anywhere, with no window
+  of the game is covered by 74 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM
