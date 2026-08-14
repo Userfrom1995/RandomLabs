@@ -120,6 +120,9 @@ pub const Game = struct {
     boss_enraged: bool = false,
     /// Total enemies destroyed this run, for the result screen.
     kills: u32 = 0,
+    /// Seconds of timed fire-rate boost remaining (from a `rapid` drop); 0 =
+    /// normal fire rate.
+    rapid_timer: f32 = 0,
 
     /// Width of the near-miss band around the player, in pixels.
     pub const graze_band: f32 = 5;
@@ -128,6 +131,10 @@ pub const Game = struct {
     /// Max turn rate (radians/second) for homing enemy bullets. Capped so a
     /// homing shot curves toward the player but never snaps onto them.
     pub const homing_turn_rate: f32 = 2.5;
+    /// How long a `rapid` drop boosts the fire rate, in seconds.
+    pub const rapid_duration: f32 = 8.0;
+    /// Fire-rate multiplier while a `rapid` drop is active.
+    pub const rapid_mult: f32 = 2.0;
 
     pub fn init(level: *const Level, seed: u64) Game {
         var g = Game{
@@ -210,6 +217,7 @@ pub const Game = struct {
         }
 
         if (self.invuln_timer > 0) self.invuln_timer = @max(0, self.invuln_timer - dt);
+        if (self.rapid_timer > 0) self.rapid_timer = @max(0, self.rapid_timer - dt);
 
         self.updatePlayer(dt, input);
         if (input.bomb) self.detonateBomb();
@@ -252,7 +260,9 @@ pub const Game = struct {
 
         self.fire_cooldown -= dt;
         if (input.fire and self.fire_cooldown <= 0) {
-            self.fire_cooldown = self.player_fire_rate;
+            // A `rapid` drop halves the gap between shots for a few seconds.
+            self.fire_cooldown = self.player_fire_rate /
+                (if (self.rapid_timer > 0) Game.rapid_mult else 1.0);
             self.firePlayer(p);
         }
     }
@@ -405,7 +415,7 @@ pub const Game = struct {
             .homing = b.homing,
             .rage_hp = b.rage_hp,
             .armed = true,
-            .data = @intFromEnum(Pattern.orbit),
+            .data = @intFromEnum(b.pattern),
             .color = b.color,
         };
     }
@@ -443,6 +453,7 @@ pub const Game = struct {
             .spread => 0xBB9AF7,
             .shield => 0x4FD6D6,
             .bomb => 0xF7768E,
+            .rapid => 0x8CE99A,
         };
         e.* = .{
             .kind = .powerup,
@@ -459,13 +470,15 @@ pub const Game = struct {
 
     /// Applies what a picked-up drop grants. `spread` raises the fire tier;
     /// `shield` equips a one-hit shield (refreshing an existing one); `bomb`
-    /// refills one smart bomb stock.
+    /// refills one smart bomb stock; `rapid` grants a timed fire-rate boost
+    /// (the timer restarts on a fresh drop).
     fn applyPowerup(self: *Game, e: *const Entity) void {
         const kind: PowerKind = @enumFromInt(e.data);
         switch (kind) {
             .spread => self.upgradePlayerFire(),
             .shield => self.has_shield = true,
             .bomb => self.bombs = @min(self.bombs + 1, 9),
+            .rapid => self.rapid_timer = Game.rapid_duration,
         }
     }
 
@@ -555,6 +568,24 @@ pub const Game = struct {
                     e.vel.y = fall_speed;
                 }
                 e.pos = e.pos.add(e.vel.scale(dt));
+            },
+            .sweep => {
+                // Boss dive: descends into the field, sweeps side to side, then
+                // retreats to the top. A timed cycle (pure game time, so fully
+                // deterministic), turning the fight into a dive bomber that
+                // spends part of each pass in firing range.
+                const phase = @mod(self.time, 4.8);
+                if (phase < 1.2) {
+                    e.vel.y = 110;
+                } else if (phase < 3.6) {
+                    e.vel.y = 0;
+                } else {
+                    e.vel.y = -110;
+                }
+                e.vel.x = @sin(self.time * 2.2) * 240;
+                e.pos = e.pos.add(e.vel.scale(dt));
+                e.pos.y = std.math.clamp(e.pos.y, 30, 175);
+                e.pos.x = std.math.clamp(e.pos.x, 24, @as(f32, @floatFromInt(arena_w)) - 24);
             },
             .none => {
                 e.pos = e.pos.add(e.vel.scale(dt));
@@ -1252,6 +1283,95 @@ test "shield power-up grants the player a shield" {
     try std.testing.expect(!g.has_shield);
     g.applyPowerup(pu);
     try std.testing.expect(g.has_shield);
+}
+
+test "rapid drop grants a timed fire-rate boost" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(f32, 0), g.rapid_timer);
+
+    const pu = g.pool.spawn().?;
+    pu.* = .{
+        .kind = .powerup,
+        .alive = true,
+        .pos = .{ .x = 0, .y = 0 },
+        .data = @intFromEnum(PowerKind.rapid),
+    };
+    g.applyPowerup(pu);
+    try std.testing.expectEqual(Game.rapid_duration, g.rapid_timer);
+
+    // With rapid active a single trigger fires at double the rate: the
+    // cooldown it sets is half the level's base value.
+    var input = Input{ .fire = true };
+    g.updatePlayer(1.0 / 60.0, &input);
+    try std.testing.expectApproxEqAbs(g.player_fire_rate / Game.rapid_mult, g.fire_cooldown, 1e-4);
+}
+
+test "rapid expires and fire rate returns to normal" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.rapid_timer = 0.12;
+    var input = Input{ .fire = true };
+    var n: usize = 0;
+    while (n < 12) : (n += 1) {
+        g.step(1.0 / 60.0, &input);
+    }
+    try std.testing.expectEqual(@as(f32, 0), g.rapid_timer);
+    // Once expired, the next trigger sets the base cooldown again.
+    g.fire_cooldown = 0;
+    g.step(1.0 / 60.0, &input);
+    try std.testing.expectApproxEqAbs(g.player_fire_rate, g.fire_cooldown, 1e-4);
+}
+
+test "sweep boss descends into the field and returns to the top" {
+    const src =
+        \\name "Sweep"
+        \\enemy bug { hp 1 }
+        \\boss { at 0 kind bug hp 500 speed 42 points 100 radius 24 fire_rate 0 pattern sweep color #ffd23f }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const dt: f32 = 1.0 / 60.0;
+    var input = Input{};
+    var deepest: f32 = 0;
+    const frames: usize = @intFromFloat(4.8 * 2.0 / dt); // two full dive cycles
+    var n: usize = 0;
+    while (n < frames) : (n += 1) {
+        g.step(dt, &input);
+        for (&g.pool.entities) |*e| {
+            if (e.alive and e.kind == .enemy and e.pos.y > deepest) deepest = e.pos.y;
+        }
+    }
+    // It must dive below the top third of the arena each pass...
+    try std.testing.expect(deepest > 120);
+    // ...and a full cycle must end with the boss back near the top.
+    var final_y: f32 = 0;
+    for (&g.pool.entities) |*e| {
+        if (e.alive and e.kind == .enemy) final_y = e.pos.y;
+    }
+    try std.testing.expect(final_y <= 80);
 }
 
 test "shield absorbs a hit without costing a life" {

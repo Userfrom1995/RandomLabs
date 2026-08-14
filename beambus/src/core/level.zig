@@ -11,6 +11,7 @@ pub const Pattern = enum {
     orbit,
     spiral,
     chase,
+    sweep,
 
     pub fn parse(s: []const u8) !Pattern {
         const map = std.StaticStringMap(Pattern).initComptime(.{
@@ -22,6 +23,7 @@ pub const Pattern = enum {
             .{ "orbit", .orbit },
             .{ "spiral", .spiral },
             .{ "chase", .chase },
+            .{ "sweep", .sweep },
         });
         return map.get(s) orelse error.UnknownPattern;
     }
@@ -76,22 +78,28 @@ pub const Boss = struct {
     rage_hp: f32 = 0,
     /// Whether this boss's shots curve toward the player (capped turn rate).
     homing: bool = false,
+    /// Movement pattern the boss follows once it enters. Defaults to `orbit`
+    /// (sweep side to side near the top); `sweep` turns the fight into a dive
+    /// bomber that descends into the field, sweeps, and retreats to the top.
+    pattern: Pattern = .orbit,
 };
 
 /// What a power-up pickup grants. `spread` raises the player's fire level
 /// (single -> double -> triple) up to a cap of 3; `shield` grants a one-hit
 /// shield that absorbs the next hit instead of a life; `bomb` refills one smart
-/// bomb stock.
+/// bomb stock; `rapid` grants a timed fire-rate boost.
 pub const PowerKind = enum {
     spread,
     shield,
     bomb,
+    rapid,
 
     pub fn parse(s: []const u8) !PowerKind {
         const map = std.StaticStringMap(PowerKind).initComptime(.{
             .{ "spread", .spread },
             .{ "shield", .shield },
             .{ "bomb", .bomb },
+            .{ "rapid", .rapid },
         });
         return map.get(s) orelse error.UnknownPowerup;
     }
@@ -393,6 +401,8 @@ fn parseBoss(line: []const u8) !Boss {
             b.rage_hp = try std.fmt.parseFloat(f32, kv.value);
         } else if (std.mem.eql(u8, kv.key, "homing")) {
             b.homing = std.mem.eql(u8, kv.value, "true");
+        } else if (std.mem.eql(u8, kv.key, "pattern")) {
+            b.pattern = try Pattern.parse(kv.value);
         } else {
             return error.UnknownDirective;
         }
@@ -625,6 +635,23 @@ test "parse bomb powerup kind" {
     try std.testing.expectEqual(PowerKind.bomb, level.powerups.items[0].kind);
 }
 
+test "parse rapid powerup kind" {
+    const src =
+        \\name "Rapid"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\powerup { at 5 kind rapid }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(usize, 1), level.powerups.items.len);
+    try std.testing.expectEqual(PowerKind.rapid, level.powerups.items[0].kind);
+    try std.testing.expectEqual(@as(u32, 3), @intFromEnum(PowerKind.rapid));
+}
+
 test "parse boss rage_hp and chase pattern" {
     const src =
         \\name "Rage"
@@ -639,6 +666,23 @@ test "parse boss rage_hp and chase pattern" {
     defer level.deinit(gpa.allocator());
     try std.testing.expectEqual(@as(f32, 0.4), level.bosses.items[0].rage_hp);
     try std.testing.expectEqual(Pattern.chase, level.waves.items[0].pattern);
+}
+
+test "boss pattern key defaults to orbit and accepts sweep" {
+    const src =
+        \\name "BossP"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\boss { at 1 kind bug hp 80 }
+        \\boss { at 2 kind bug hp 80 pattern sweep }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(Pattern.orbit, level.bosses.items[0].pattern);
+    try std.testing.expectEqual(Pattern.sweep, level.bosses.items[1].pattern);
 }
 
 test "parser reads homing for enemies and bosses" {
