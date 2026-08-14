@@ -42,6 +42,10 @@ pub const Entity = struct {
     shots: u32 = 1,
     /// Total fan angle in radians for a volley, centered on the player.
     spread: f32 = 0,
+    /// HP fraction (0..1) at which a boss enters its enrage phase; 0 = never.
+    rage_hp: f32 = 0,
+    /// True once this boss has enraged (fire rate and volley buffed).
+    enraged: bool = false,
     /// Opaque per-kind tuning/state payload.
     data: u32 = 0,
     /// RGB colour for the sprite renderer.

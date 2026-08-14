@@ -104,6 +104,8 @@ pub const Game = struct {
     graze: u32 = 0,
     /// Set when a bullet scored a graze this step (audio/vfx hook).
     graze_just_happened: bool = false,
+    /// Set when a boss entered its enrage phase this step (audio/vfx hook).
+    boss_enraged: bool = false,
 
     /// Width of the near-miss band around the player, in pixels.
     pub const graze_band: f32 = 5;
@@ -162,6 +164,7 @@ pub const Game = struct {
         self.extra_life_just_awarded = false;
         self.bomb_just_fired = false;
         self.graze_just_happened = false;
+        self.boss_enraged = false;
         if (self.bomb_flash > 0) self.bomb_flash -= dt;
 
         if (self.state == .lost or self.state == .won) {
@@ -356,6 +359,7 @@ pub const Game = struct {
             .points = b.points,
             .shots = b.shots,
             .spread = b.spread,
+            .rage_hp = b.rage_hp,
             .armed = true,
             .data = @intFromEnum(Pattern.orbit),
             .color = b.color,
@@ -394,6 +398,7 @@ pub const Game = struct {
         const color: u32 = switch (kind) {
             .spread => 0xBB9AF7,
             .shield => 0x4FD6D6,
+            .bomb => 0xF7768E,
         };
         e.* = .{
             .kind = .powerup,
@@ -409,12 +414,14 @@ pub const Game = struct {
     }
 
     /// Applies what a picked-up drop grants. `spread` raises the fire tier;
-    /// `shield` equips a one-hit shield (refreshing an existing one).
+    /// `shield` equips a one-hit shield (refreshing an existing one); `bomb`
+    /// refills one smart bomb stock.
     fn applyPowerup(self: *Game, e: *const Entity) void {
         const kind: PowerKind = @enumFromInt(e.data);
         switch (kind) {
             .spread => self.upgradePlayerFire(),
             .shield => self.has_shield = true,
+            .bomb => self.bombs = @min(self.bombs + 1, 9),
         }
     }
 
@@ -433,10 +440,24 @@ pub const Game = struct {
                 self.pool.kill(e);
                 continue;
             }
+            self.checkEnrage(e);
             if (e.armed and self.rng.nextF32() < dt * self.fireRateFor(e)) {
                 self.enemyFire(e);
             }
         }
+    }
+
+    /// Boss enrage: when an enemy with a rage threshold drops to or below it,
+    /// it enters an enraged phase once - fire rate doubles and the volley gains
+    /// two bullets. Set in the .beam boss def via `rage_hp 0.4`.
+    fn checkEnrage(self: *Game, e: *Entity) void {
+        if (e.enraged or e.rage_hp <= 0 or e.max_hp <= 0) return;
+        if (e.hp / e.max_hp > e.rage_hp) return;
+        e.enraged = true;
+        e.fire_rate *= 2.0;
+        e.shots += 2;
+        self.boss_enraged = true;
+        self.spawnBurst(e.pos, 0xFF3B30);
     }
 
     fn fireRateFor(self: *const Game, e: *const Entity) f32 {
@@ -477,6 +498,18 @@ pub const Game = struct {
                 const ang = self.time * 4.0 + e.pos.y * 0.02;
                 e.vel.x = @cos(ang) * 200;
                 e.vel.y = @sin(ang) * 40 + fall_speed * 0.3;
+                e.pos = e.pos.add(e.vel.scale(dt));
+            },
+            .chase => {
+                // Home in on the player's column while descending: the enemy
+                // steers its horizontal velocity toward the ship (capped so it
+                // can still be dodged), giving a deliberate dive bomber.
+                if (self.player()) |p| {
+                    const dx = p.pos.x - e.pos.x;
+                    const target: f32 = std.math.clamp(dx * 2.0, -220, 220);
+                    e.vel.x += (target - e.vel.x) * @min(1.0, dt * 4.0);
+                    e.vel.y = fall_speed;
+                }
                 e.pos = e.pos.add(e.vel.scale(dt));
             },
             .none => {
@@ -1534,4 +1567,124 @@ test "level parser reads shots and spread for enemies and bosses" {
     try std.testing.expectApproxEqAbs(@as(f32, 0.9), def.spread, 1e-4);
     try std.testing.expectEqual(@as(u32, 5), level.bosses.items[0].shots);
     try std.testing.expectApproxEqAbs(@as(f32, 1.2), level.bosses.items[0].spread, 1e-4);
+}
+
+test "boss enrages below its rage threshold" {
+    const src =
+        \\name "T"
+        \\enemy tank { hp 4 }
+        \\boss { at 0 kind tank hp 100 speed 40 points 5000 radius 24 fire_rate 0.5 shots 3 spread 0.8 rage_hp 0.4 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    // Spawn the boss immediately (at 0).
+    g.step(1.0 / 60.0, &Input{});
+    var boss: ?*Entity = null;
+    for (&g.pool.entities) |*e| {
+        if (e.alive and e.kind == .enemy and e.radius >= 20) boss = e;
+    }
+    const b = boss.?;
+    try std.testing.expect(!b.enraged);
+    try std.testing.expectEqual(@as(f32, 0.5), b.fire_rate);
+    // Drop the boss to 30% HP and step: it must enrage once.
+    b.hp = 30;
+    b.fire_rate = 0.5; // discard any drift from prior steps
+    b.shots = 3;
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expect(b.enraged);
+    try std.testing.expectEqual(@as(f32, 1.0), b.fire_rate);
+    try std.testing.expectEqual(@as(u32, 5), b.shots);
+    try std.testing.expect(g.boss_enraged);
+}
+
+test "enrage fires exactly once" {
+    const src =
+        \\name "T"
+        \\enemy tank { hp 4 }
+        \\boss { at 0 kind tank hp 100 speed 40 points 5000 radius 24 fire_rate 0.5 rage_hp 0.5 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.step(1.0 / 60.0, &Input{});
+    var boss: ?*Entity = null;
+    for (&g.pool.entities) |*e| {
+        if (e.alive and e.kind == .enemy and e.radius >= 20) boss = e;
+    }
+    const b = boss.?;
+    b.hp = 40;
+    b.fire_rate = 0.5;
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expect(b.enraged);
+    const rate_after_enrage = b.fire_rate;
+    // Keep it below the threshold; the second step must not re-buff.
+    b.hp = 10;
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(rate_after_enrage, b.fire_rate);
+    try std.testing.expect(!g.boss_enraged);
+}
+
+test "chase pattern steers toward the player's column" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 pattern chase }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const p = g.player().?;
+    // Move the player well left of center so the chase target is clear.
+    p.pos = .{ .x = 60, .y = 500 };
+    g.step(1.0 / 60.0, &Input{});
+    var e: ?*Entity = null;
+    for (&g.pool.entities) |*ent| {
+        if (ent.alive and ent.kind == .enemy) e = ent;
+    }
+    const enemy = e.?;
+    const start_x = enemy.pos.x;
+    try std.testing.expect(start_x != p.pos.x);
+    var n: usize = 0;
+    while (n < 90) : (n += 1) g.step(1.0 / 60.0, &Input{});
+    // After ~1.5s of chase it must have homed toward x=60 (arena center is 240).
+    const diff_start = @abs(start_x - p.pos.x);
+    const diff_now = @abs(enemy.pos.x - p.pos.x);
+    try std.testing.expect(diff_now < diff_start);
+    try std.testing.expect(enemy.pos.x < 240);
+}
+
+test "bomb power-up refills one bomb stock" {
+    const src =
+        \\name "T"
+        \\player { bombs 1 }
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\powerup { at 0 kind bomb }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 1), g.bombs);
+    const pu = g.pool.spawn().?;
+    pu.* = .{
+        .kind = .powerup,
+        .alive = true,
+        .pos = .{ .x = 0, .y = 0 },
+        .data = @intFromEnum(PowerKind.bomb),
+    };
+    g.applyPowerup(pu);
+    try std.testing.expectEqual(@as(u32, 2), g.bombs);
 }

@@ -10,6 +10,7 @@ pub const Pattern = enum {
     drift,
     orbit,
     spiral,
+    chase,
 
     pub fn parse(s: []const u8) !Pattern {
         const map = std.StaticStringMap(Pattern).initComptime(.{
@@ -20,6 +21,7 @@ pub const Pattern = enum {
             .{ "drift", .drift },
             .{ "orbit", .orbit },
             .{ "spiral", .spiral },
+            .{ "chase", .chase },
         });
         return map.get(s) orelse error.UnknownPattern;
     }
@@ -66,19 +68,25 @@ pub const Boss = struct {
     shots: u32 = 1,
     spread: f32 = 0,
     color: u32 = 0xFFD23F,
+    /// HP fraction (0..1) at which the boss enters its enrage phase; 0 = never.
+    /// Enraged bosses double their fire rate and add two bullets per volley.
+    rage_hp: f32 = 0,
 };
 
 /// What a power-up pickup grants. `spread` raises the player's fire level
 /// (single -> double -> triple) up to a cap of 3; `shield` grants a one-hit
-/// shield that absorbs the next hit instead of a life.
+/// shield that absorbs the next hit instead of a life; `bomb` refills one smart
+/// bomb stock.
 pub const PowerKind = enum {
     spread,
     shield,
+    bomb,
 
     pub fn parse(s: []const u8) !PowerKind {
         const map = std.StaticStringMap(PowerKind).initComptime(.{
             .{ "spread", .spread },
             .{ "shield", .shield },
+            .{ "bomb", .bomb },
         });
         return map.get(s) orelse error.UnknownPowerup;
     }
@@ -369,6 +377,8 @@ fn parseBoss(line: []const u8) !Boss {
             b.spread = try std.fmt.parseFloat(f32, kv.value);
         } else if (std.mem.eql(u8, kv.key, "color")) {
             b.color = try parseHexColor(kv.value);
+        } else if (std.mem.eql(u8, kv.key, "rage_hp")) {
+            b.rage_hp = try std.fmt.parseFloat(f32, kv.value);
         } else {
             return error.UnknownDirective;
         }
@@ -567,4 +577,36 @@ test "parse shield powerup kind" {
     defer level.deinit(gpa.allocator());
     try std.testing.expectEqual(@as(usize, 1), level.powerups.items.len);
     try std.testing.expectEqual(PowerKind.shield, level.powerups.items[0].kind);
+}
+
+test "parse bomb powerup kind" {
+    const src =
+        \\name "Bomb"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\powerup { at 5 kind bomb }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(usize, 1), level.powerups.items.len);
+    try std.testing.expectEqual(PowerKind.bomb, level.powerups.items[0].kind);
+}
+
+test "parse boss rage_hp and chase pattern" {
+    const src =
+        \\name "Rage"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 pattern chase }
+        \\boss { at 1 kind bug hp 80 rage_hp 0.4 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(f32, 0.4), level.bosses.items[0].rage_hp);
+    try std.testing.expectEqual(Pattern.chase, level.waves.items[0].pattern);
 }
