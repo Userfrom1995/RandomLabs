@@ -67,7 +67,7 @@ pub const Renderer = struct {
         for (&g.pool.entities) |*e| {
             if (!e.alive) continue;
             switch (e.kind) {
-                .player => self.drawPlayer(e),
+                .player => self.drawPlayer(e, g.has_shield),
                 .enemy => self.drawEnemy(e),
                 .bullet => self.drawBullet(e),
                 .ebullet => self.drawEBullet(e),
@@ -78,7 +78,7 @@ pub const Renderer = struct {
         }
     }
 
-    fn drawPlayer(self: *Renderer, e: *const Entity) void {
+    fn drawPlayer(self: *Renderer, e: *const Entity, has_shield: bool) void {
         const c: i32 = @intFromFloat(e.pos.x);
         const r: i32 = @intFromFloat(e.pos.y);
         // Triangle ship pointing up, sized from its collision radius.
@@ -94,6 +94,10 @@ pub const Renderer = struct {
         // Engine glow: a pair of small squares under the wings.
         self.fillRect(c - s + 1, r + s - 2, 2, 2, 0x7AA2F7);
         self.fillRect(c + s - 3, r + s - 2, 2, 2, 0x7AA2F7);
+        // One-hit shield bubble.
+        if (has_shield) {
+            self.strokeCircle(c, r, @as(i32, @intFromFloat(e.radius)) + 5, 0x4FD6D6);
+        }
     }
 
     fn drawEnemy(self: *Renderer, e: *const Entity) void {
@@ -155,9 +159,13 @@ pub const Renderer = struct {
     }
 
     fn drawHud(self: *Renderer, g: *const Game) void {
-        // Top bar: score (left), lives (center), level name (right).
-        var buf: [16]u8 = undefined;
-        const score = std.fmt.bufPrint(&buf, "SCORE {d}", .{g.score}) catch return;
+        // Top bar: score (left), lives, weapon tier, shield (center), level name (right).
+        var buf: [24]u8 = undefined;
+        const mult = g.comboMult();
+        const score: []const u8 = if (mult > 1)
+            std.fmt.bufPrint(&buf, "SCORE {d} x{d}", .{ g.score, mult }) catch return
+        else
+            std.fmt.bufPrint(&buf, "SCORE {d}", .{g.score}) catch return;
         self.drawString(.{ .x = 6, .y = 6 }, score, 0x9AA5CE, 1);
 
         const lives = std.fmt.bufPrint(&buf, "LIVES {d}", .{g.lives}) catch return;
@@ -165,6 +173,10 @@ pub const Renderer = struct {
 
         const pwr = std.fmt.bufPrint(&buf, "PWR {d}", .{g.player_fire_level}) catch return;
         self.drawString(.{ .x = 6, .y = 26 }, pwr, 0xBB9AF7, 1);
+
+        if (g.has_shield) {
+            self.drawString(.{ .x = 6, .y = 36 }, "SHLD", 0x4FD6D6, 1);
+        }
 
         if (g.level.name.len > 0) {
             const name = g.level.name;

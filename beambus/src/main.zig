@@ -336,7 +336,13 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
             if (bullets > prev_bullets) synth.trigger(.shoot);
             if (enemies < prev_enemies) synth.trigger(.explosion);
             if (game.score > prev_score and enemies == prev_enemies) synth.trigger(.hit);
-            if (game.player_just_hit and !prev_player_hit) synth.trigger(.player_hit);
+            if (game.pickup_just_taken) synth.trigger(.powerup);
+            if (game.extra_life_just_awarded) synth.trigger(.life);
+            if (game.shield_broke and !prev_player_hit) {
+                synth.trigger(.shield_break);
+            } else if (game.player_just_hit and !prev_player_hit) {
+                synth.trigger(.player_hit);
+            }
             if (game.state != prev_state) {
                 if (game.state == .won) synth.trigger(.win);
                 if (game.state == .lost) synth.trigger(.lose);

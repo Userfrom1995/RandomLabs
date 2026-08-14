@@ -11,6 +11,9 @@ pub const Sfx = enum {
     hit,
     explosion,
     player_hit,
+    powerup,
+    shield_break,
+    life,
     win,
     lose,
 };
@@ -73,6 +76,18 @@ pub const Synth = struct {
             .player_hit => {
                 self.play(.saw, 320, -380, 0.4, 0.5);
                 self.play(.noise, 1, 0, 0.4, 0.3);
+            },
+            .powerup => {
+                self.play(.square, 660, 320, 0.22, 0.09);
+                self.play(.square, 880, 320, 0.22, 0.12);
+            },
+            .shield_break => {
+                self.play(.saw, 500, -640, 0.32, 0.16);
+                self.play(.noise, 1, 0, 0.26, 0.12);
+            },
+            .life => {
+                self.play(.square, 784, 0, 0.26, 0.1);
+                self.play(.square, 1046, 0, 0.26, 0.16);
             },
             .win => {
                 self.play(.square, 523, 0, 0.3, 0.12);
