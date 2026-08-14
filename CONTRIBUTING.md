@@ -1,43 +1,51 @@
 # Contributing
 
-Thanks for your interest in contributing to Random. This repo is mostly agent-driven, but there are several ways you can contribute.
+Thanks for your interest in contributing to Random. This repository is an **automated project factory** entirely run by coding agents. Everything from ideation, building, QA, review, to merging and site deployment is orchestrated by Mae the Maintainer and her team of specialized agents.
+
+However, human collaboration is highly welcome! You can contribute in several ways:
 
 ## Proposing an Idea
 
 If you have an idea for something the agents should build:
 
-1. Open an issue with a clear title and description.
-2. Tag @Userfrom1995 so they can review it.
-3. If they like it, they'll trigger the agents to build it.
+1. Open an issue with a clear title and description of your idea.
+2. **Mae the Maintainer** will automatically evaluate it on her next run (she surveys the repository multiple times a day).
+3. If she likes the idea, she will open an official project issue and dispatch the **Builder** to create it. If she declines, she will close the issue with a polite explanation.
 
-## Improving the Project Loop
+## Improving the Factory
 
-The daily idea pipeline consists of three agents working together. You can contribute improvements to any part of it:
+You can contribute improvements to the agents' behavior, instructions, or pipeline logic. The prompts live in `.github/agents/` and the workflows in `.github/workflows/`:
 
-- **Ideation prompt** — `.github/workflows/idea.yml` — improve how the ideation agent picks ideas, avoids duplicates, or writes descriptions
-- **Implementation prompt** — `.github/workflows/opencode.yml` — improve how the implementation agent builds code, writes tests, or documents its work
-- **Reviewer prompt** — `.github/workflows/opencode-review.yml` — improve the review checklist, tighten security checks, or adjust merge criteria
+- **Ideator** (`.github/agents/ideator.md`) - Improve how the ideation agent picks ideas, avoids generic concepts, or enforces complexity.
+- **Builder / Fixer** (`.github/agents/builder.md`, `.github/agents/fixer.md`) - Improve how the agents scaffold projects, manage modular commits, and update documentation.
+- **Reviewer** (`.github/agents/reviewer.md`) - Improve the strict review gate, code quality checks, and architectural review.
+- **Tester** (`.github/agents/tester.md`) - Enhance how the QA engineer tests applications, validates functionality, and checks performance.
+- **Maintainer** (`.github/agents/maintainer.md`) - Adjust Mae's management logic, evaluation rules, and merging limits.
+
+If you want to suggest improvements to these components, you can either open an issue for Mae to handle, or open a Pull Request yourself. 
 
 ## Improving Documentation
 
-- Update `README.md` to reflect changes in the repo
-- Add a writeup to the `ideas/` folder for a previously built idea
-- Improve `AGENTS.md` with better instructions for coding agents
+- The global factory documentation is in the root `/docs/` folder (do not delete or overwrite the main landing page `index.html`).
+- Each project has its own documentation in `/<project-name>/docs/`.
+- Deep-dive technical writeups for projects live in the `/ideas/` folder.
+- If you find documentation lacking, open an issue and the **General** agent or **Builder** can address it.
 
-## Code Contributions
+## Code Contributions (Manual)
 
-If you want to build something yourself rather than having agents do it:
+If you want to build something yourself or fix a bug manually rather than having the agents do it:
 
 1. Fork the repo.
 2. Create a branch (`your-branch-name`).
-3. Make your changes.
+3. Make your changes (e.g., updating documentation, fixing a bug, or even a new project).
 4. Open a PR back to `main`.
 
-The reviewer agent will still review your PR before it merges.
+**Note on Reviews**: The Reviewer and Tester agents will still automatically review your PR before it merges. They treat human code with the same strict standards as agent code! Mae the Maintainer will merge it once it passes the review gates.
 
 ## Guidelines
 
-- Keep changes focused — one thing per PR
-- Follow the existing code style
-- Do not overwrite or remove the README header (it describes the repo as agent-maintained)
-- Do not commit secrets, API keys, or tokens
+- **Keep changes focused** - one concept or fix per PR.
+- **Follow existing conventions** - see `FACTORY.md` and `AGENTS.md` for architectural rules.
+- **No Em Dashes** - The factory strictly forbids the use of em dashes (—). Use hyphens, colons, or parentheses instead.
+- Do not overwrite or remove the README header or the global `/docs/` folder (these are central to the factory).
+- Do not commit secrets, API keys, or tokens.
