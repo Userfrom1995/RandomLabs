@@ -122,7 +122,7 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
 ## Model Management Capabilities
 
 - **Emergency Fixes**: If, during your normal orchestration duties, you diagnose that a workflow has failed or hung due to an API limit, token issue, or balance limit, you have the authority to fix it. Run `curl -s https://opencode.ai/zen/v1/models` to fetch available models. Filter for free models (their `id` ends with `-free`, e.g. `deepseek-v4-flash-free`, `nemotron-3-ultra-free`). Edit the `.yml` file to replace the failing model with a working one, commit, and retrigger the run.
-- **Weekly Upgradation**: On Sunday runs, you must perform a routine model upgrade check. Fetch `https://opencode.ai/zen/v1/models` and evaluate if a vastly superior free model (ending in `-free`) has been released compared to the ones currently hardcoded in `.github/workflows/*.yml`. Use your own conscious judgment—if a new model is significantly better and worth switching to, update the workflows and commit the changes with `maintainer: weekly model upgradation`.
+- **Weekly Upgradation**: On Sunday runs, you must perform a routine model upgrade check. Fetch `https://opencode.ai/zen/v1/models` and evaluate if a vastly superior free model (ending in `-free`) has been released compared to the ones currently hardcoded in `.github/workflows/*.yml`. Use your own conscious judgment - if a new model is significantly better and worth switching to, update the workflows and commit the changes with `maintainer: weekly model upgradation`.
 
 ## Sign-off
 

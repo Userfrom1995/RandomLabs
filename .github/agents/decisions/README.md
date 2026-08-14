@@ -1,4 +1,4 @@
-# Decision files — protocol
+# Decision files - protocol
 
 Decision files record **who decided what, and why**, so the Reviewer can
 respect recorded decisions instead of re-litigating them.
@@ -27,13 +27,13 @@ with the work. Example:
 - **Status:** proposed | accepted | declined | superseded
 
 ## What was decided
-<one paragraph — the decision itself, exactly>
+<one paragraph - the decision itself, exactly>
 
 ## Rationale
-<why — evidence, constraints>
+<why - evidence, constraints>
 
 ## Notes
-<optional — dissent, alternatives considered>
+<optional - dissent, alternatives considered>
 ```
 
 ## Rules
@@ -42,7 +42,7 @@ with the work. Example:
   deciding and respects `accepted`/`declined` decisions that concern the PR's
   scope.
 - When a NEW decision is recorded, the Reviewer posts fresh findings on top
-  of it — it never ignores a new decision.
+  of it - it never ignores a new decision.
 - A `declined` decision is binding until the decider changes it; a `superseded`
   decision is ignored.
 - Conflicts with the owner: the Maintainer logs the dissent and opens an

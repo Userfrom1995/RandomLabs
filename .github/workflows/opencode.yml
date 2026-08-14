@@ -79,8 +79,35 @@ jobs:
             - CONTINUE run ("/oc continue"): fetch the existing branch/PR for this issue, read its progress file, resume — never restart, never redo done work.
             - Think deeply before coding; use subagents when available. This is a real build: plan, scaffold with progress files, push after every milestone, mark Status: complete only when actually done.
 
+      - name: Verify build pushed, else auto-retry
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_BRANCHES: ${{ steps.baseline.outputs.branches_before }}
+          BASELINE_PRS: ${{ steps.baseline.outputs.prs_before }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          branches_after=$(git ls-remote origin 'refs/heads/opencode/*' 2>/dev/null | sort | sha256sum | cut -c1-16)
+          prs_after=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null | sort | tr '\n' ',')
+          if [ "$branches_after" != "$BASELINE_BRANCHES" ] || [ "$prs_after" != "$BASELINE_PRS" ]; then
+            echo "Build pushed (branch/PR change detected)"
+            exit 0
+          fi
+          echo "No push detected"
+          retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || echo "0")
+          if [ "$retries" -lt 3 ]; then
+            n=$((retries + 1))
+            echo "Posting auto-retry $n"
+            echo "retry=true" >> "$GITHUB_OUTPUT"
+            gh api "repos/${{ github.repository }}/issues/$issue/comments" -f body="/oc build this (auto-retry $n)"
+            exit 0
+          fi
+          echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+          exit 1
+
       - name: Post /oc maintainer to trigger Maintainer
-        if: always()
+        if: always() && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -97,8 +124,37 @@ jobs:
           if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
           exit 0
 
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          [ -z "$pr" ] && exit 0
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
       - name: Approve held CI runs on the PR
         continue-on-error: true
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -156,31 +212,6 @@ jobs:
             -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
           exit 0
 
-      - name: Verify build pushed, else auto-retry
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          BASELINE_BRANCHES: ${{ steps.baseline.outputs.branches_before }}
-          BASELINE_PRS: ${{ steps.baseline.outputs.prs_before }}
-        run: |
-          issue="${{ github.event.issue.number }}"
-          branches_after=$(git ls-remote origin 'refs/heads/opencode/*' 2>/dev/null | sort | sha256sum | cut -c1-16)
-          prs_after=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null | sort | tr '\n' ',')
-          if [ "$branches_after" != "$BASELINE_BRANCHES" ] || [ "$prs_after" != "$BASELINE_PRS" ]; then
-            echo "Build pushed (branch/PR change detected)"
-            exit 0
-          fi
-          echo "No push detected"
-          retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
-            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || echo "0")
-          if [ "$retries" -lt 3 ]; then
-            n=$((retries + 1))
-            echo "Posting auto-retry $n"
-            gh api "repos/${{ github.repository }}/issues/$issue/comments" -f body="/oc build this (auto-retry $n)"
-            exit 0
-          fi
-          echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
-          exit 1
-
   fix:
     if: |
       (github.event.comment.body == '/oc fix' ||
@@ -233,8 +264,33 @@ jobs:
             - Sign your work: commit subjects start with `fixer:`, comments end with `— the Fixer`.
             - Leave `git status --porcelain` empty at the end.
 
+      - name: Verify fix pushed, else auto-retry
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then
+            echo "Fix pushed (PR head moved)"
+            exit 0
+          fi
+          echo "No push detected"
+          retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || echo "0")
+          if [ "$retries" -lt 3 ]; then
+            n=$((retries + 1))
+            echo "Posting auto-retry $n"
+            echo "retry=true" >> "$GITHUB_OUTPUT"
+            gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc fix (auto-retry $n)"
+            exit 0
+          fi
+          echo "::error::Fix agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+          exit 1
+
       - name: Post /oc review to trigger Reviewer
-        if: always()
+        if: always() && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -274,6 +330,7 @@ jobs:
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -300,29 +357,6 @@ jobs:
           GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
             -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
           exit 0
-
-      - name: Verify fix pushed, else auto-retry
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
-        run: |
-          pr="${{ github.event.issue.number }}"
-          head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-          if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then
-            echo "Fix pushed (PR head moved)"
-            exit 0
-          fi
-          echo "No push detected"
-          retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || echo "0")
-          if [ "$retries" -lt 3 ]; then
-            n=$((retries + 1))
-            echo "Posting auto-retry $n"
-            gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc fix (auto-retry $n)"
-            exit 0
-          fi
-          echo "::error::Fix agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
-          exit 1
 
   general:
     if: |
@@ -396,8 +430,37 @@ jobs:
           if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
           exit 0
 
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          [ -z "$pr" ] && exit 0
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
       - name: Approve held CI runs on the PR
         continue-on-error: true
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
