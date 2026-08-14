@@ -12,7 +12,17 @@ reviewed PRs (see FACTORY.md §20).
 | The Builder | Implements builds (resume mode) | worker | bootstrap | 2026-08-12 | `/oc build` · `/oc continue` | `.github/agents/builder.md` |
 | The Fixer | Applies reviewer findings | worker | bootstrap | 2026-08-12 | `/oc fix` | `.github/agents/fixer.md` |
 | The Reviewer | Strict quality gate; read-only | worker | bootstrap | 2026-08-12 | `/oc review` | `.github/agents/reviewer.md` |
+| The Tester | Dynamic verification engineer | worker | bootstrap | 2026-08-14 | `/oc test` | `.github/agents/tester.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
+
+## Team Spirit & Peer Calling Model
+
+The factory operates as a collaborative, highly cohesive agent squad. Agents trust each other's specialized skills and hand off work directly:
+- **Builder** hands off complete builds to **Reviewer** (`/oc review`) or requests continuation (`/oc continue`).
+- **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).
+- **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`).
+- **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`).
+- **Mae (Maintainer)** orchestrates the factory, triages issues/PRs, coordinates team priorities, and merges tested, approved projects.
 
 ## Mandates (co-maintainers)
 

@@ -36,30 +36,31 @@ honestly with evidence, then complies when overruled.
 
 Prompt files live in `.github/agents/` (see §19). The roster is `REGISTRY.md`.
 
-## 3. The final call graph (locked - these are all the calls allowed)
+## 3. The collaborative team call flow
 
 ```
-PUSH on PR (work complete)  → Reviewer     <- AUTOMATIC (the one exception; gated on progress = complete)
-Reviewer has issues (bot PR)→ Fixer        <- DIRECT (hardcoded /oc fix step in the review workflow)
-Reviewer clean              → Tester       <- DIRECT (posts /oc test from the review workflow)
-Tester has issues (bot PR)  → Fixer        <- DIRECT (hardcoded /oc fix step in the test workflow)
-Tester clean                → Maintainer   <- DIRECT (posts /oc approve-test + dispatches Maintainer)
-Maintainer                  → everyone     <- (build, fix, continue, review, test, ideate, merge, closes, takeovers, pings)
+[Builder / Fixer] ──── (work ready) ────► Reviewer (/oc review)
+                                               │
+                                       ┌───────┴───────┐
+                                (issues found)     (approved)
+                                       │               │
+                                       ▼               ▼
+                                Fixer (/oc fix)   Tester (/oc test)
+                                                       │
+                                               ┌───────┴───────┐
+                                         (tests fail)     (all pass)
+                                               │               │
+                                               ▼               ▼
+                                        Fixer (/oc fix)   Maintainer (/oc maintainer)
+                                                               │
+                                                               ▼
+                                                         (merge PR & close)
 ```
 
-- No one else calls anyone. No worker end-of-run dispatches. No direct
-  build→review calls.
-- **Merge is the Maintainer's job**: the Tester approves → the test
-  workflow dispatches the Maintainer with the approval message → the
-  Maintainer merges (rebase, bot identity), closes linked issues, logs, and
-  advances the pipeline. *Fallback only:* if the Maintainer workflow cannot
-  run (not yet on main, failed), the test workflow merges as the bot with
-  the same command.
-- In-progress continuation: the Maintainer's `pull_request` trigger fires on
-  every push; for in-progress pushes it posts `/oc continue`; the 4×/day
-  schedule catches anything else.
-- **Only maintainer-level agents can call other agents** - the Maintainer and
-  any maintainer-level agents (co-maintainers) it creates (see §20).
+- **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
+- **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
+- In-progress continuation: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
 
 ## 4. Maintainer triggers & concurrency
 
@@ -68,16 +69,15 @@ Maintainer                  → everyone     <- (build, fix, continue, review, t
   [opened, synchronize, ready_for_review, reopened] · `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger - opencode.yml already
   dispatched - or authored by the bot) · `issues` [opened].
-- Concurrency - per-PR groups, cancel-latest:
+- Concurrency - per-PR groups, queued execution:
 
 ```yaml
 concurrency:
   group: maintainer-${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number || 'global' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 ```
 
-- Same PR, multiple pushes → cancel to the latest run only. Different PRs →
-  never cancel each other; runs proceed in parallel, each with full repo
+- Runs queue sequentially so that active merges and repo surveys finish cleanly.
   vision. Repo-wide items (schedule, dispatch without PR) serialize on the
   `global` group.
 - No scoping of decisions - every run has full repo-wide vision and authority;

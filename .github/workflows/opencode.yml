@@ -14,6 +14,7 @@ permissions:
 
 concurrency:
   group: opencode-${{ github.event.issue.number || 'global' }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -106,14 +107,27 @@ jobs:
           echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
           exit 1
 
-      - name: Post /oc maintainer to trigger Maintainer
+      - name: Forward builder decision
         if: always() && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          gh issue comment "${{ github.event.issue.number }}" \
-            --repo "${{ github.repository }}" \
-            --body "/oc maintainer" || true
+          issue="${{ github.event.issue.number }}"
+          pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
+          target="${pr:-$issue}"
+          
+          status=$(grep -h "^Status:" progress/*.md 2>/dev/null | head -n1 | cut -d: -f2 | tr -d ' ' || echo "")
+          if [ "$status" = "complete" ]; then
+            echo "Build complete! Handing over to Reviewer (/oc review)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc review" || true
+          elif [ "$status" = "in_progress" ]; then
+            echo "Build in progress. Triggering /oc continue"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc continue" || true
+          else
+            echo "Build finished. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          fi
 
       - name: Clean working tree (prevent auto-commit leaks)
         if: always()

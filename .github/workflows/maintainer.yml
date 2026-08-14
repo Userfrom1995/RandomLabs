@@ -30,7 +30,7 @@ permissions:
 
 concurrency:
   group: maintainer-${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number || 'global' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   maintainer:

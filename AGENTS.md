@@ -31,60 +31,38 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
   `maintainer:` for memory updates) - the author stays `github-actions[bot]`.
 - Only create issues and pull requests when a real change is warranted.
 
-## The call graph (locked)
+## The collaborative team call flow
 
 ```
-PUSH on PR (work complete)  → Reviewer     ← AUTOMATIC (the one exception; gated on progress = complete)
-Reviewer has issues (bot PR)→ Fixer        ← DIRECT (hardcoded /oc fix step in the review workflow)
-Reviewer clean              → Tester       ← DIRECT (/oc test from the review workflow)
-Tester has issues (bot PR)  → Fixer        ← DIRECT (hardcoded /oc fix step in the test workflow)
-Tester clean                → Maintainer   ← DIRECT (/oc approve-test + dispatch of the Maintainer)
-Maintainer                  → everyone     ← (build, fix, continue, review, test, ideate, merge, closes, takeovers, pings)
+[Builder / Fixer] ──── (work ready) ────► Reviewer (/oc review)
+                                               │
+                                       ┌───────┴───────┐
+                                (issues found)     (approved)
+                                       │               │
+                                       ▼               ▼
+                                Fixer (/oc fix)   Tester (/oc test)
+                                                       │
+                                               ┌───────┴───────┐
+                                         (tests fail)     (all pass)
+                                               │               │
+                                               ▼               ▼
+                                        Fixer (/oc fix)   Maintainer (/oc maintainer)
+                                                               │
+                                                               ▼
+                                                         (merge PR & close)
 ```
 
-- No one else calls anyone. No worker end-of-run dispatches. Only
-  maintainer-level agents (the Maintainer and any co-maintainers it creates)
-  can call other agents.
-- **Merge is the Maintainer's job**: the Reviewer approves (`/oc approve`) →
-  the review workflow dispatches the Maintainer with the approval message →
-  the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot),
-  closes linked issues, logs, advances the pipeline. Fallback only: if the
-  Maintainer workflow cannot run, the review workflow merges as the bot with
-  the same command.
-- In-progress pushes: the Maintainer's `pull_request` trigger fires on every
-  push and posts `/oc continue`; the 4×/day schedule catches anything else.
+- **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
+- **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
+- In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
 
 ## The multi-stage review & testing loop
 
-- A reviewer workflow (different model) reviews every non-draft same-repo PR
-  (bot and human alike). The reviewer is strictly read-only: it never
-  commits, pushes, rebases, or merges, and it must leave the working tree
-  untouched. It posts either an `/oc approve` comment (all checks pass) or an
-  `/oc fix: ...` comment listing required changes with exact file:line and
-  corrected code.
-- The reviewer runs with the `github.token` identity, so its comments appear
-  as `github-actions[bot]`.
-- `opencode-review-trigger.yml` is the single automatic exception: on every
-  PR push it posts `/oc review` on the PR with the owner's PAT - but for bot
-  PRs only when the work is complete (a `progress/*.md` file with
-  `Status: complete`; branches without progress files are legacy and always
-  reviewed). In-progress bot PRs are continued by the Maintainer instead.
-  Human same-repo PRs are always reviewed on every push. Fork PRs are never
-  trigger-raced: they are picked up at the next scheduled Maintainer run.
-- `opencode-review.yml` restores the PR head if the reviewer run dirtied the
-  branch, posts a short `/oc fix` trigger using the owner's PAT when the
-  reviewer has a pending `/oc fix` **and the PR is a same-repo bot PR**
-  (human PRs get findings as guidance; fork PRs never get triggers), and on
-  `/oc approve` posts `/oc test` to trigger the Tester agent. The owner's account
-  only ever posts `/oc` trigger comments - never full comments.
-- `opencode-test.yml` (the Tester workflow) dynamically tests the running application
-  end-to-end. If issues are found, it posts `/oc fix` to trigger the Fixer; if all tests
-  and performance checks pass, it posts `/oc approve-test` and dispatches the Maintainer
-  to merge.
-- The implementer commits and pushes its own work itself with a clean message
-  and no `Co-authored-by:` trailer. A hardcoded clean-tree step prevents the
-  action's auto-commit from leaking trailers; the fix job strips any leaked
-  owner trailers off the PR branch.
+- A reviewer workflow (different model) reviews every non-draft same-repo PR (bot and human alike). The reviewer is strictly read-only: it never commits, pushes, rebases, or merges, and it leaves the working tree untouched. It posts either an `/oc approve` comment (all checks pass) or an `/oc fix: ...` comment listing required changes with exact file:line and corrected code.
+- When the Reviewer approves (`/oc approve`), the review workflow automatically forwards the PR to the Tester via `/oc test`. When the Reviewer requests changes (`/oc fix`), the workflow triggers the Fixer via `/oc fix`.
+- `opencode-test.yml` (the Tester workflow) dynamically tests the running application end-to-end. If issues are found, it posts `/oc fix` to trigger the Fixer; if all tests and performance checks pass, it posts `/oc approve-test` and triggers the Maintainer (`/oc maintainer`) to merge.
+- The implementer commits and pushes its own work itself with a clean message and no `Co-authored-by:` trailer. A hardcoded clean-tree step prevents the action's auto-commit from leaking trailers; the fix job strips any leaked owner trailers off the PR branch.
 - `opencode.yml` (the implementer workflow) runs in these modes, selected by
   the triggering comment:
   - `/oc build …` → BUILD mode: full build rules (new issue per task, branch,

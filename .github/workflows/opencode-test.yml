@@ -6,6 +6,7 @@ on:
 
 concurrency:
   group: opencode-test-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -61,47 +62,23 @@ jobs:
 
             READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
 
-            SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting; you post ONE decision comment per run - "/oc approve-test" when everything is flawless, or "/oc fix: ..." otherwise. End every decision comment with your sign-off: ` -  the Tester`. Never post more than one decision comment.
+            SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting; you post ONE decision comment per run - "/oc approve-test" when everything is flawless, or "/oc fix: ..." otherwise. End every decision comment with your sign-off: `- the Tester`. Never post more than one decision comment.
 
-      - name: Post /oc fix trigger as owner (if test failed)
+      - name: Forward tester decision
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.pull_request.number || github.event.issue.number }}"
-          author="${{ steps.pr-info.outputs.author }}"
-          head_repo="${{ steps.pr-info.outputs.head_repo }}"
-          if [ "$author" != "github-actions[bot]" ] && [ "$author" != "app/github-actions" ] || [ "$head_repo" != "${{ github.repository }}" ]; then
-            echo "PR #$pr is not a same-repo bot PR (author=$author repo=$head_repo); findings are guidance only - no /oc fix trigger"
-            exit 0
-          fi
+          latest_bot_comment=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
+            --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "app/github-actions") and (.body | startswith("/oc")) and ((.body | startswith("/oc test")) | not))] | last | .body' 2>/dev/null || true)
           
-          bot_time=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "app/github-actions") and (.body | startswith("/oc")) and ((.body | startswith("/oc test")) | not) and ((.body | startswith("/oc approve-test")) | not))] | last | .created_at' 2>/dev/null || true)
-          if [ -z "$bot_time" ]; then
-            echo "No /oc fix comment found from github-actions[bot]"
-            exit 0
+          if [[ "$latest_bot_comment" =~ ^/oc\ approve-test ]]; then
+            echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          elif [[ "$latest_bot_comment" =~ ^/oc\ fix ]]; then
+            echo "Tester requested fixes. Posting /oc fix to trigger Fixer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+          else
+            echo "No actionable tester decision found ($latest_bot_comment)"
           fi
-          user_time=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select(.user.login != "github-actions[bot]" and .user.login != "app/github-actions" and .body == "/oc fix")] | last | .created_at' 2>/dev/null || true)
-          if [ -n "$user_time" ] && [ "$user_time" \> "$bot_time" ]; then
-            echo "User /oc fix already posted for this test round, skipping"
-            exit 0
-          fi
-          echo "Posting short /oc fix trigger as owner"
-          gh api "repos/${{ github.repository }}/issues/${pr}/comments" -f body="/oc fix"
-
-      - name: Hand over approved test PR to the Maintainer
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-        run: |
-          pr="${{ github.event.pull_request.number || github.event.issue.number }}"
-          approved=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "app/github-actions") and (.body | startswith("/oc approve-test")))] | length' 2>/dev/null || echo "0")
-          if [ "$approved" -eq 0 ]; then
-            echo "Tester did not approve, skipping handover"
-            exit 0
-          fi
-          echo "Posting /oc maintainer to hand over test-approved PR #$pr"
-          gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer" || true
