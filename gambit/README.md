@@ -1,4 +1,4 @@
-# Gambit — a UCI chess engine in C++
+# Gambit: a UCI chess engine in C++
 
 A UCI chess engine with a bitboard board representation, legal move
 generation verified by perft, and an alpha-beta search with iterative
