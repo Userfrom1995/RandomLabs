@@ -100,6 +100,15 @@ pub const Game = struct {
     invuln_timer: f32 = 0,
     /// Seconds of white screen flash after a bomb detonation.
     bomb_flash: f32 = 0,
+    /// Enemy bullets that passed within the graze band without hitting.
+    graze: u32 = 0,
+    /// Set when a bullet scored a graze this step (audio/vfx hook).
+    graze_just_happened: bool = false,
+
+    /// Width of the near-miss band around the player, in pixels.
+    pub const graze_band: f32 = 5;
+    /// Points awarded per grazed bullet.
+    pub const graze_points: u32 = 50;
 
     pub fn init(level: *const Level, seed: u64) Game {
         var g = Game{
@@ -152,6 +161,7 @@ pub const Game = struct {
         self.shield_broke = false;
         self.extra_life_just_awarded = false;
         self.bomb_just_fired = false;
+        self.graze_just_happened = false;
         if (self.bomb_flash > 0) self.bomb_flash -= dt;
 
         if (self.state == .lost or self.state == .won) {
@@ -198,6 +208,23 @@ pub const Game = struct {
         const axis = input.axis();
         p.vel = axis.scale(self.player_speed);
         p.pos = p.pos.add(p.vel.scale(dt)).clamp(0, 0, @as(f32, @floatFromInt(arena_w)), @as(f32, @floatFromInt(arena_h)));
+
+        // Thruster trail: a tiny drifting ember behind the ship, emitted on
+        // alternating frames with a deterministic time-based jitter so it does
+        // not consume the RNG stream (keeping gameplay outcomes unchanged).
+        if (@mod(self.time, 0.03) < dt) {
+            const part = self.pool.spawn() orelse return;
+            part.* = .{
+                .kind = .particle,
+                .alive = true,
+                .pos = .{ .x = p.pos.x + @sin(self.time * 40.0) * 2.0, .y = p.pos.y + p.radius + 2 },
+                .vel = .{ .x = 0, .y = 60 },
+                .radius = 0,
+                .hp = 1,
+                .ttl = 0.22,
+                .color = 0x7AA2F7,
+            };
+        }
 
         self.fire_cooldown -= dt;
         if (input.fire and self.fire_cooldown <= 0) {
@@ -292,6 +319,8 @@ pub const Game = struct {
             .max_hp = def.hp,
             .fire_rate = def.fire_rate,
             .points = def.points,
+            .shots = def.shots,
+            .spread = def.spread,
             .armed = w.armed,
             .data = @intFromEnum(w.pattern),
             .color = def.color,
@@ -325,6 +354,8 @@ pub const Game = struct {
             .max_hp = b.hp,
             .fire_rate = b.fire_rate,
             .points = b.points,
+            .shots = b.shots,
+            .spread = b.spread,
             .armed = true,
             .data = @intFromEnum(Pattern.orbit),
             .color = b.color,
@@ -456,14 +487,20 @@ pub const Game = struct {
 
     fn enemyFire(self: *Game, e: *const Entity) void {
         const p = self.player() orelse return;
-        const dir = p.pos.sub(e.pos).normalized();
-        if (e.radius >= 20) {
-            // Bosses fire a three-way spread.
-            self.spawnEBullet(e.pos, dir, 200);
-            self.spawnEBullet(e.pos, dir.rotate(-0.35), 200);
-            self.spawnEBullet(e.pos, dir.rotate(0.35), 200);
-        } else {
-            self.spawnEBullet(e.pos, dir, 200);
+        const base = p.pos.sub(e.pos).normalized();
+        const shots = @max(e.shots, 1);
+        if (shots == 1) {
+            self.spawnEBullet(e.pos, base, 200);
+            return;
+        }
+        // Fan volley: `shots` bullets spread across `spread` radians, centered
+        // on the direction to the player.
+        const start = -e.spread / 2.0;
+        var i: u32 = 0;
+        while (i < shots) : (i += 1) {
+            const t = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(shots - 1));
+            const ang = start + e.spread * t;
+            self.spawnEBullet(e.pos, base.rotate(ang), 200);
         }
     }
 
@@ -500,13 +537,21 @@ pub const Game = struct {
             }
         }
 
-        // Enemy bullets vs player.
+        // Enemy bullets vs player. A bullet that misses by a hair grazes:
+        // it scores small points once, rewarding close dodging (the classic
+        // bullet-hell risk/reward). Only bullets, never particles.
         if (self.invuln_timer <= 0) {
             for (&self.pool.entities) |*b| {
                 if (!b.alive or b.kind != .ebullet) continue;
                 if (Entity.isColliding(p, b)) {
                     b.ttl = 0;
                     self.damagePlayer(p);
+                } else if (!b.grazed) {
+                    const dist = p.pos.sub(b.pos).length();
+                    const hit_dist = p.radius + b.radius;
+                    if (dist < hit_dist + Game.graze_band) {
+                        self.grazeBullet(b);
+                    }
                 }
             }
         }
@@ -522,6 +567,19 @@ pub const Game = struct {
                 }
             }
         }
+    }
+
+    /// Scores a graze: a bullet that passed within the near-miss band without
+    /// hitting. Awards points scaled by the combo multiplier (a long clean run
+    /// makes dodging pay), and marks the bullet so it only grazes once.
+    fn grazeBullet(self: *Game, b: *Entity) void {
+        b.grazed = true;
+        self.graze += 1;
+        self.graze_just_happened = true;
+        const gained = Game.graze_points * self.comboMult();
+        self.score += gained;
+        self.spawnScoreText(b.pos, gained);
+        self.spawnBurst(b.pos, 0x4FD6D6);
     }
 
     /// Applies a hit to the player. A shield absorbs it; otherwise the player
@@ -982,7 +1040,7 @@ test "player death resets the fire level" {
     try std.testing.expectEqual(@as(u32, 1), g.player_fire_level);
 }
 
-test "bosses fire a spread of three, regular enemies a single shot" {
+test "enemy shot volleys fire the configured number of bullets" {
     const src =
         \\name "T"
         \\enemy bug { hp 1 }
@@ -1013,6 +1071,8 @@ test "bosses fire a spread of three, regular enemies a single shot" {
         .pos = .{ .x = 200, .y = 80 },
         .radius = 24,
         .hp = 10,
+        .shots = 3,
+        .spread = 0.8,
     };
     g.enemyFire(boss);
     try std.testing.expectEqual(@as(usize, 4), g.pool.countByKind(.ebullet));
@@ -1329,4 +1389,149 @@ test "enemies and bosses carry their max_hp at spawn" {
     }
     try std.testing.expect(saw_wave_max);
     try std.testing.expect(saw_boss_max);
+}
+
+test "a near-miss bullet grazes and scores points" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 0), g.graze);
+    const score_before = g.score;
+
+    // Place an enemy bullet just outside the player's hit circle but inside
+    // the graze band.
+    const p = g.player().?;
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = p.pos.x + p.radius + 4, .y = p.pos.y },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(@as(u32, 1), g.graze);
+    try std.testing.expect(g.graze_just_happened);
+    try std.testing.expectEqual(score_before + Game.graze_points, g.score);
+    try std.testing.expect(!g.player_dead);
+    try std.testing.expectEqual(@as(u32, 3), g.lives);
+}
+
+test "each bullet grazes at most once" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+
+    const p = g.player().?;
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = p.pos.x + p.radius + 4, .y = p.pos.y },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    // One step grazes; a second step must not double-count.
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(@as(u32, 1), g.graze);
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(@as(u32, 1), g.graze);
+}
+
+test "graze points scale with the combo multiplier" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.combo = 10; // x3 multiplier
+
+    const p = g.player().?;
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = p.pos.x + p.radius + 4, .y = p.pos.y },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(Game.graze_points * 3, g.score);
+}
+
+test "wave enemies and bosses inherit shots and spread from the level" {
+    const src =
+        \\name "T"
+        \\enemy gunner { hp 1 points 100 radius 8 fire_rate 0.5 shots 3 spread 0.9 }
+        \\wave { at 0 kind gunner count 1 interval 0.01 pattern drift armed true }
+        \\boss { at 1 kind gunner hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 5 spread 1.2 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    var input = Input{};
+    g.step(1.0 / 60.0, &input);
+    var n: usize = 0;
+    while (g.boss_idx == 0 and n < 60 * 60) : (n += 1) {
+        g.step(1.0 / 60.0, &input);
+    }
+    var saw_wave_shots = false;
+    var saw_boss_shots = false;
+    for (&g.pool.entities) |*e| {
+        if (!e.alive or e.kind != .enemy) continue;
+        if (e.radius >= 20) {
+            if (e.shots == 5 and e.spread > 1.1) saw_boss_shots = true;
+        } else {
+            if (e.shots == 3 and e.spread > 0.8) saw_wave_shots = true;
+        }
+    }
+    try std.testing.expect(saw_wave_shots);
+    try std.testing.expect(saw_boss_shots);
+}
+
+test "level parser reads shots and spread for enemies and bosses" {
+    const src =
+        \\name "T"
+        \\enemy gunner { hp 1 shots 3 spread 0.9 }
+        \\wave { at 0 kind gunner count 1 }
+        \\boss { at 1 kind gunner hp 80 shots 5 spread 1.2 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    const def = level.enemyDef("gunner").?;
+    try std.testing.expectEqual(@as(u32, 3), def.shots);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.9), def.spread, 1e-4);
+    try std.testing.expectEqual(@as(u32, 5), level.bosses.items[0].shots);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.2), level.bosses.items[0].spread, 1e-4);
 }

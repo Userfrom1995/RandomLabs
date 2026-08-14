@@ -36,6 +36,12 @@ pub const Entity = struct {
     ttl: f32 = 0,
     /// Whether enemies fire at the player (set from the spawning wave).
     armed: bool = true,
+    /// Whether this enemy bullet has already scored a near-miss graze.
+    grazed: bool = false,
+    /// Volley size: bullets fired per enemy trigger (1 = single aimed shot).
+    shots: u32 = 1,
+    /// Total fan angle in radians for a volley, centered on the player.
+    spread: f32 = 0,
     /// Opaque per-kind tuning/state payload.
     data: u32 = 0,
     /// RGB colour for the sprite renderer.

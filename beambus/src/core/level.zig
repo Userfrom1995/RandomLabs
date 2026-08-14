@@ -34,6 +34,11 @@ pub const EnemyDef = struct {
     radius: f32 = 8,
     /// Base shots per second; 0 = never fires.
     fire_rate: f32 = 0.5,
+    /// Bullets fired per trigger (1 = single aimed shot).
+    shots: u32 = 1,
+    /// Total fan angle in radians for a multi-shot volley, centered on the
+    /// player. 0 = all shots aimed straight at the player.
+    spread: f32 = 0,
     color: u32 = 0xE8594F,
 };
 
@@ -58,6 +63,8 @@ pub const Boss = struct {
     points: u32 = 5000,
     radius: f32 = 24,
     fire_rate: f32 = 0.8,
+    shots: u32 = 1,
+    spread: f32 = 0,
     color: u32 = 0xFFD23F,
 };
 
@@ -300,6 +307,10 @@ fn parseEnemy(line: []const u8) !EnemyDef {
             def.radius = try std.fmt.parseFloat(f32, kv.value);
         } else if (std.mem.eql(u8, kv.key, "fire_rate")) {
             def.fire_rate = try std.fmt.parseFloat(f32, kv.value);
+        } else if (std.mem.eql(u8, kv.key, "shots")) {
+            def.shots = try std.fmt.parseInt(u32, kv.value, 10);
+        } else if (std.mem.eql(u8, kv.key, "spread")) {
+            def.spread = try std.fmt.parseFloat(f32, kv.value);
         } else if (std.mem.eql(u8, kv.key, "color")) {
             def.color = try parseHexColor(kv.value);
         } else {
@@ -352,6 +363,10 @@ fn parseBoss(line: []const u8) !Boss {
             b.radius = try std.fmt.parseFloat(f32, kv.value);
         } else if (std.mem.eql(u8, kv.key, "fire_rate")) {
             b.fire_rate = try std.fmt.parseFloat(f32, kv.value);
+        } else if (std.mem.eql(u8, kv.key, "shots")) {
+            b.shots = try std.fmt.parseInt(u32, kv.value, 10);
+        } else if (std.mem.eql(u8, kv.key, "spread")) {
+            b.spread = try std.fmt.parseFloat(f32, kv.value);
         } else if (std.mem.eql(u8, kv.key, "color")) {
             b.color = try parseHexColor(kv.value);
         } else {
