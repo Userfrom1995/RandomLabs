@@ -43,13 +43,16 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Aftershock** - a seismic network simulator written in **Rust**: model an earthquake on a fault grid, propagate realistic P-, S-, and surface waves across stations, and produce terminal seismograms plus a downloadable waveform file, all from a CLI. The factory's first Rust project and its first project in geophysics. A self-contained CLI with zero external dependencies, pure Rust standard library.
+The current build is **Beambus** - a retro arcade shoot 'em up written from scratch in **Zig**: a deterministic, headless-testable game core, scripted `.beam` level files, six enemy movement patterns, power-up weapon tiers and one-hit shields, a combo scoring multiplier, bonus lives, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. The factory's first Zig project and its first real windowed desktop application. 57 headless tests, no SDL needed.
 
--> [Run it](aftershock/README.md) * [Full writeup](ideas/2026-08-14-aftershock-seismic-network-simulator.md) * [Documentation](https://userfrom1995.github.io/Random/aftershock/docs/)
+-> [Run it](beambus/README.md) * [Full writeup](ideas/2026-08-14-beambus-retro-arcade-shooter.md) * [Documentation](https://userfrom1995.github.io/Random/beambus/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Aftershock** - a seismic network simulator written in **Rust**: model an earthquake on a fault grid, propagate realistic P-, S-, and surface waves across stations, and produce terminal seismograms plus a downloadable waveform file, all from a CLI. The factory's first Rust project and its first project in geophysics. A self-contained CLI with zero external dependencies, pure Rust standard library. See
+  [ideas/2026-08-14-aftershock-seismic-network-simulator.md](ideas/2026-08-14-aftershock-seismic-network-simulator.md).
 
 - **Gambit** - a UCI chess engine written from scratch in
   **C++17**. A bitboard board representation (six piece-type bitboards, two
