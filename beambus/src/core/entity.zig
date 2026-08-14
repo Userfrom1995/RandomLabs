@@ -1,6 +1,5 @@
 const std = @import("std");
 const Vec2 = @import("vec.zig").Vec2;
-const Rng = @import("rng.zig").Rng;
 
 /// Identifies what an entity is and which behaviour it gets. Kept as a flat
 /// enum so the core loop can dispatch with a single switch (no vtables, no

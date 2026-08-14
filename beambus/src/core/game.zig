@@ -2,7 +2,6 @@ const std = @import("std");
 const Vec2 = @import("vec.zig").Vec2;
 const Rng = @import("rng.zig").Rng;
 const Entity = @import("entity.zig").Entity;
-const Kind = @import("entity.zig").Kind;
 const Pool = @import("entity.zig").Pool;
 const level_mod = @import("level.zig");
 const Level = level_mod.Level;

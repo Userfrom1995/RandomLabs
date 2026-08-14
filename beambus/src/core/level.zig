@@ -1,5 +1,4 @@
 const std = @import("std");
-const Vec2 = @import("vec.zig").Vec2;
 
 /// Movement pattern an enemy follows once spawned. Drives how the entity
 /// curves through the play field; defined in the scripted level format.
