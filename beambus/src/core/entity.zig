@@ -26,6 +26,10 @@ pub const Entity = struct {
     radius: f32 = 0,
     /// Health; <= 0 entities are culled by the core loop.
     hp: f32 = 1,
+    /// Base shots per second for enemies, from the level def; 0 = never fires.
+    fire_rate: f32 = 0,
+    /// Points awarded when this enemy is destroyed, from the level def.
+    points: u32 = 0,
     /// Life left in ticks-ish seconds; <= 0 kills the entity (e.g. particles).
     ttl: f32 = 0,
     /// Whether enemies fire at the player (set from the spawning wave).

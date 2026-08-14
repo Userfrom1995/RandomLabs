@@ -231,6 +231,8 @@ pub const Game = struct {
             .vel = .{ .x = 0, .y = def.speed },
             .radius = def.radius,
             .hp = def.hp,
+            .fire_rate = def.fire_rate,
+            .points = def.points,
             .armed = w.armed,
             .data = @intFromEnum(w.pattern),
             .color = def.color,
@@ -261,6 +263,8 @@ pub const Game = struct {
             .vel = .{ .x = 0, .y = b.speed },
             .radius = b.radius,
             .hp = b.hp,
+            .fire_rate = b.fire_rate,
+            .points = b.points,
             .armed = true,
             .data = @intFromEnum(Pattern.orbit),
             .color = b.color,
@@ -286,9 +290,7 @@ pub const Game = struct {
 
     fn fireRateFor(self: *const Game, e: *const Entity) f32 {
         _ = self;
-        const radius = e.radius;
-        if (radius >= 20) return 0.8; // boss
-        return 0.5;
+        return e.fire_rate;
     }
 
     fn applyPattern(self: *Game, e: *Entity, pattern: Pattern, dt: f32) void {
@@ -404,11 +406,7 @@ pub const Game = struct {
 
     fn pointsFor(self: *const Game, e: *const Entity) u32 {
         _ = self;
-        // Derive points from radius, matching the level's tuning scale.
-        if (e.radius >= 20) return 5000;
-        if (e.radius >= 12) return 500;
-        if (e.radius >= 9) return 250;
-        return 100;
+        return e.points;
     }
 
     fn spawnBurst(self: *Game, pos: Vec2, color: u32) void {
@@ -657,4 +655,56 @@ test "input axis normalization prevents diagonal boost" {
     try std.testing.expectApproxEqAbs(@as(f32, 1), axis.length(), 1e-4);
     var straight = Input{ .right = true };
     try std.testing.expectEqual(@as(f32, 1), straight.axis().x);
+}
+
+test "wave enemies inherit fire rate and points from the level def" {
+    const src =
+        \\name "T"
+        \\enemy dart { hp 2 speed 160 points 250 radius 9 fire_rate 1.2 }
+        \\wave { at 0 kind dart count 1 interval 0.01 pattern drift armed true }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 7);
+    var input = Input{};
+    g.step(1.0 / 60.0, &input);
+    var checked: usize = 0;
+    for (&g.pool.entities) |*e| {
+        if (!e.alive or e.kind != .enemy) continue;
+        checked += 1;
+        try std.testing.expectApproxEqAbs(@as(f32, 1.2), e.fire_rate, 1e-4);
+        try std.testing.expectEqual(@as(u32, 250), e.points);
+    }
+    try std.testing.expectEqual(@as(usize, 1), checked);
+}
+
+test "bosses inherit fire rate and points from the boss def" {
+    const src =
+        \\name "T"
+        \\enemy tank { hp 4 speed 60 points 500 radius 12 fire_rate 0.35 }
+        \\boss { at 1 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    var input = Input{};
+    var n: usize = 0;
+    while (g.boss_idx == 0 and n < 60 * 60) : (n += 1) {
+        g.step(1.0 / 60.0, &input);
+    }
+    try std.testing.expect(g.boss_idx == 1);
+    var checked: usize = 0;
+    for (&g.pool.entities) |*e| {
+        if (!e.alive or e.kind != .enemy) continue;
+        checked += 1;
+        try std.testing.expectApproxEqAbs(@as(f32, 0.8), e.fire_rate, 1e-4);
+        try std.testing.expectEqual(@as(u32, 5000), e.points);
+    }
+    try std.testing.expectEqual(@as(usize, 1), checked);
 }

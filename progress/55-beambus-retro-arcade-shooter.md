@@ -68,5 +68,12 @@ push.
   Beambus to the current project on the landing page (Aftershock moved to
   previous projects). Re-verified everything: 41/41 tests, exe builds,
   self-checks pass. Marked this file complete.
+- 2026-08-14 (fixer, review round 1): applied the reviewer's finding that
+  `fireRateFor`/`pointsFor` ignored the level-defined `fire_rate` and `points`.
+  Added `fire_rate` and `points` fields to `Entity` (entity.zig), populated
+  them at spawn time from the enemy/boss defs (spawnEnemy/spawnBoss in
+  game.zig), and made `fireRateFor`/`pointsFor` read them. Added two tests
+  asserting wave enemies and bosses inherit the def values. All 43 tests pass,
+  self-checks pass, exe builds.
 
 - the Builder
