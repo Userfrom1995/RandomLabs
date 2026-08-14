@@ -16,6 +16,9 @@ enemy grunt  { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f 
 enemy dart   { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  shots 2 spread 0.6 color #7aa2f7 }
 # Slow shield tanks: four hits, slow bullets.
 enemy tank   { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
+# Seekers: their shots home in on the ship (homing true), curving toward the
+# player at a capped rate so they pressure without being unavoidable.
+enemy seeker { hp 2 speed 130 points 300 radius 9  fire_rate 0.6  homing true color #c792ea }
 # The queen: a mid-level boss that sweeps in an orbit and fires a three-way
 # fan (shots 3 spread 0.8), so dodging close for grazes pays. Below 40% HP it
 # enrages: double fire rate and a five-way volley, marked by a red aura.
@@ -45,8 +48,11 @@ wave { at 24 kind grunt count 6  interval 0.3 pattern spiral   armed true }
 wave { at 26 kind dart  count 6  interval 0.35 pattern chase   armed true }
 
 # Tank line: the meat of the level.
-wave { at 32 kind tank count 5 interval 0.6 pattern drift     armed true }
-wave { at 36 kind dart  count 8 interval 0.25 pattern sine     armed true }
+wave { at 32 kind tank   count 5 interval 0.6  pattern drift     armed true }
+wave { at 36 kind dart   count 8 interval 0.25 pattern sine      armed true }
+
+# Seeker line: a taste of homing fire before the queen.
+wave { at 38 kind seeker count 5 interval 0.45 pattern drift     armed true }
 
 # Final swarm before the queen arrives.
 wave { at 40 kind grunt count 12 interval 0.2 pattern spiral   armed true }
