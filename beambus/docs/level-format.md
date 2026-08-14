@@ -32,6 +32,7 @@ Player tuning. Keys:
 | `fire_rate` | 0.16 | Seconds between shots. |
 | `lives` | 3 | Starting lives. |
 | `life_every` | 10000 | Score interval that awards a bonus life; 0 disables it. |
+| `bombs` | 0 | Smart bombs the player starts with; 0 disables the mechanic. |
 
 ### `enemy <name> { ... }`
 
@@ -98,6 +99,16 @@ of the arena.
 - **Bonus lives.** With `life_every N` in the player block, the player earns an
   extra life each time the score crosses another multiple of `N`. Setting
   `life_every 0` disables bonus lives.
+
+## Smart bombs
+
+With `bombs N` in the player block the player starts with N smart bombs. A bomb
+detonates instantly (B/V): every enemy bullet on screen is cleared and every
+enemy takes two points of damage, with kills scoring normally through the combo
+multiplier. The screen flashes white and the HUD shows the remaining stock.
+Setting `bombs 0` (the default) disables the mechanic entirely. Bombs are a
+finite resource, so a level places them as a panic button against bullet
+walls rather than a primary weapon.
 
 ## Movement patterns
 

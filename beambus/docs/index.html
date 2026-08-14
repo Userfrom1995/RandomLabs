@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Beambus: a retro arcade shooter in Zig</title>
-<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, six enemy movement patterns, power-up weapon tiers and shields, combo scoring, bonus lives, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
+<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, six enemy movement patterns, power-up weapon tiers and shields, smart bombs, combo scoring, bonus lives, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -103,9 +103,9 @@
   <p>A retro arcade shoot 'em up written in <strong>Zig</strong>: a
   deterministic, headless-testable game core, scripted <code>.beam</code>
   levels, six enemy movement patterns, power-up weapon tiers and one-hit
-  shields, a combo scoring multiplier, bonus lives, a procedural pixel-art
-  renderer, and a tiny subtractive audio synth, all on an SDL2 platform
-  layer.</p>
+  shields, smart bombs, a combo scoring multiplier, bonus lives, a procedural
+  pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2
+  platform layer.</p>
   <div class="launch"><a href="https://github.com/Userfrom1995/Random/tree/main/beambus">Open the project →</a></div>
 </header>
 
@@ -115,7 +115,7 @@
       <h4>Deterministic core</h4>
       <p>The whole simulation lives in pure Zig with no allocator in the
       per-frame hot path: the same seed and input stream always reproduce the
-      same run, and every rule is covered by 57 headless unit tests.</p>
+      same run, and every rule is covered by 63 headless unit tests.</p>
     </div>
     <div class="card">
       <h4>Scripted levels</h4>
@@ -139,7 +139,7 @@
   <h2>Try it</h2>
   <pre><code>cd beambus
 zig build            # debug build
-zig build test       # 57 headless tests (no SDL needed)
+zig build test       # 63 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -154,6 +154,7 @@ zig build run        # play in an SDL window
     <tr><th>Key</th><th>Action</th></tr>
     <tr><td>Arrow keys / WASD</td><td>Move the ship</td></tr>
     <tr><td>Space / Z / X</td><td>Fire</td></tr>
+    <tr><td>B / V</td><td>Detonate a smart bomb</td></tr>
     <tr><td>P / Esc</td><td>Pause</td></tr>
     <tr><td>R</td><td>Restart after a win/lose</td></tr>
     <tr><td>Esc</td><td>Quit</td></tr>
@@ -194,6 +195,14 @@ zig build run        # play in an SDL window
     the score. Any hit resets it.</li>
     <li><strong>Bonus lives.</strong> The <code>player { life_every N }</code>
     key awards an extra life each time the score crosses another N points.</li>
+    <li><strong>Smart bombs.</strong> The <code>player { bombs N }</code> key
+    starts the player with N bombs; detonating one (B/V) clears every enemy
+    bullet on screen and deals two points of damage to every enemy, with kills
+    scoring through the combo multiplier. A white flash and a dedicated sound
+    sell the detonation; the HUD tracks the stock.</li>
+    <li><strong>Respawn invulnerability.</strong> A fresh spawn gets a
+    two-second invulnerability window (the ship blinks), so a bullet crossing
+    the spawn point can never kill you instantly.</li>
     <li><strong>Renderer.</strong> Pure Zig over a <code>u32</code> pixel
     buffer (0xAARRGGBB, ready for <code>SDL_PIXELFORMAT_ARGB8888</code>).
     Rect, circle, circle-stroke, and triangle primitives are hand-rolled; text
@@ -202,8 +211,8 @@ zig build run        # play in an SDL window
     <li><strong>Audio.</strong> A fixed 12-voice synth, each voice a wave
     (square, saw, noise) with frequency, slide, amplitude, and a TTL-shaped
     decay envelope. Shoot, hit, explosion, player-hit, power-up,
-    shield-break, and bonus-life effects are layered voice stacks; output is
-    deterministic and clamped to [-1, 1]. SDL is fed via
+    shield-break, bonus-life, and bomb effects are layered voice stacks; output
+    is deterministic and clamped to [-1, 1]. SDL is fed via
     <code>SDL_QueueAudio</code> (no callback, no threads).</li>
     <li><strong>CLI.</strong> A hand-rolled arg parser handles
     <code>--level</code>, <code>--seed</code>, <code>--scale</code>,
@@ -215,7 +224,7 @@ zig build run        # play in an SDL window
   <h2>Design choices</h2>
   <ul>
     <li><strong>Zig, and headless-first.</strong> The core is deliberately
-    SDL-free so every rule of the game is covered by 57 unit tests that run
+    SDL-free so every rule of the game is covered by 63 unit tests that run
     anywhere, with no window and no audio device.</li>
     <li><strong>No allocator in the hot path.</strong> The entity arena is
     fixed at compile time: deterministic, cache-friendly, and free of OOM
@@ -236,7 +245,7 @@ zig build run        # play in an SDL window
   <a href="level-format.md">level-format.md</a>. A short example:</p>
   <pre><code>name "The Drone Swarm"
 background #0b0e14
-player { speed 260 fire_rate 0.16 lives 3 life_every 10000 }
+player { speed 260 fire_rate 0.16 lives 3 life_every 10000 bombs 2 }
 enemy grunt { hp 1 speed 90 points 100 radius 8 fire_rate 0.5 color #e8594f }
 wave { at 2 kind grunt count 6 interval 0.4 pattern sine armed false }
 boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }

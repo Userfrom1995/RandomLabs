@@ -3,8 +3,8 @@
 A retro arcade shoot 'em up written from scratch in **Zig** - the factory's
 first Zig project. A deterministic, headless-testable game core pairs with an
 SDL2 platform layer: scripted `.beam` level files, six enemy movement
-patterns, power-up weapon tiers and one-hit shields, a combo scoring
-multiplier, bonus lives, a procedural pixel-art renderer, and a tiny
+patterns, power-up weapon tiers and one-hit shields, smart bombs, a combo
+scoring multiplier, bonus lives, a procedural pixel-art renderer, and a tiny
 subtractive audio synth. The core never allocates during a frame, so the
 entire simulation is unit-testable without SDL.
 
@@ -48,7 +48,7 @@ A self-contained arcade game (`beambus/`):
 - **Sample levels** (`levels/level1.beam`, `levels/level2.beam`): "The Drone
   Swarm" and "The Nebula Empress", full scripts with three enemy archetypes,
   timed power-up drops, and a boss each.
-- **Tests**: 57 unit tests across vec, rng, rect, entity, level, game, render,
+- **Tests**: 63 unit tests across vec, rng, rect, entity, level, game, render,
   and synth - all headless, no SDL required.
 
 ## Why
@@ -91,6 +91,16 @@ as a real windowed desktop application.
   player has not been hit, driving the score multiplier to x4 (shown in the
   HUD); any hit resets it. The `player { life_every N }` key awards a bonus
   life each time the score crosses another N points.
+- **Smart bombs.** With `player { bombs N }` the player carries a small stock
+  of screen-clearing bombs: detonating one (B/V) clears every enemy bullet on
+  screen, deals two points of damage to every enemy (kills score through the
+  combo multiplier), flashes the screen white, and plays a dedicated sound.
+  The HUD shows the remaining stock and a boss health bar appears while a boss
+  is on screen.
+- **Respawn invulnerability.** A fresh spawn gets a two-second invulnerability
+  window (the ship blinks) in which enemy bullets and body contact are
+  ignored, so a bullet crossing the spawn point can never kill the player
+  instantly.
 - **Shields.** A `shield` power-up drop equips a one-hit bubble drawn around
   the ship; when a hit lands the shield absorbs it instead of costing a life
   and fires its own break effect.
@@ -130,14 +140,14 @@ as a real windowed desktop application.
 - **Zig 0.15.2.** The build uses the current Build API (`root_module`,
   `b.addTest`), verified against the Zig 0.15.2 release and SDL2's C headers.
   The SDL2 C-import compiles cleanly under the new module system.
-- **Headless-first.** `zig build test` runs 57 tests with no SDL and no audio
+- **Headless-first.** `zig build test` runs 63 tests with no SDL and no audio
   device; the SDL glue is exercised only by the exe build. Everything in the
   core is plain data plus logic, which is what makes it exhaustively testable.
 - **A real build fix.** While finalizing, the headless test step was silently
   only collecting 9 tests (the `--dep core` module boundary swallowed the
   per-file test blocks). Moving to relative-path imports so all modules live
-  in one root made all 41 tests run, later grown to 57 by the power-up,
-  shield, and scoring tests.
+  in one root made all 41 tests run, later grown to 63 by the power-up,
+  shield, scoring, bomb, and invulnerability tests.
 - **Deterministic audio.** The synth renders deterministically for a given
   sequence of triggers, so audio behaviour is unit-testable too.
 - **Name origin.** A "beam" is both the player's energy ray and the core

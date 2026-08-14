@@ -1,17 +1,18 @@
 # Beambus: a retro arcade shooter in Zig
 
 A deterministic, headless-testable shoot 'em up: scripted `.beam` level files,
-six enemy movement patterns, power-up weapon upgrades and one-hit shields, a
-combo scoring multiplier, bonus lives, a procedural pixel-art renderer, and a
-tiny subtractive audio synth. The game core is pure Zig with no allocator in
-the per-frame hot path, so the whole simulation is unit-testable without SDL.
+six enemy movement patterns, power-up weapon upgrades and one-hit shields,
+smart bombs, a combo scoring multiplier, bonus lives, a procedural pixel-art
+renderer, and a tiny subtractive audio synth. The game core is pure Zig with
+no allocator in the per-frame hot path, so the whole simulation is
+unit-testable without SDL.
 
 ## Build
 
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 57 headless tests (no SDL needed)
+zig build test       # 63 headless tests (no SDL needed)
 zig build check      # headless self-checks, exit 0/1
 zig build run        # play in an SDL window
 ```
@@ -40,6 +41,7 @@ Everything comes from the command line; there is no interactive input.
 | --- | --- |
 | Arrow keys / WASD | Move the ship |
 | Space / Z / X | Fire |
+| B / V | Detonate a smart bomb |
 | P / Esc | Pause |
 | R | Restart after a win/lose |
 | Esc | Quit |
@@ -64,15 +66,21 @@ Everything comes from the command line; there is no interactive input.
   (x2 at 5, x3 at 10, capped at x4) shown next to the score. Any hit resets it.
 - **Bonus lives**: the player's `life_every N` key awards an extra life each
   time the score crosses another N points.
+- **Smart bombs**: with `bombs N` in the player block, B/V detonates a bomb
+  that clears every enemy bullet and deals two points of damage to every enemy
+  (kills score through the combo multiplier), with a white screen flash and a
+  dedicated sound effect. `bombs 0` (default) disables the mechanic.
+- **Respawn invulnerability**: a fresh spawn gets a two-second blink window in
+  which enemy bullets and body contact are ignored.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, seeded
-  starfield, HUD with score/combo/lives/weapon tier/shield) which SDL scales to
-  the window. Pure Zig, no SDL.
+  starfield, HUD with score/combo/lives/weapon tier/shield/bombs/boss bar)
+  which SDL scales to the window. Pure Zig, no SDL.
 - **Audio synth** (`src/platform/synth.zig`, `audio.zig`): a deterministic
   subtractive-style synth with a fixed 12-voice pool, fed to SDL via
   `SDL_QueueAudio` (no callback, no threads). Shoot/hit/explosion/player-hit/
-  power-up/shield-break/bonus-life/win/lose effects. Degrades to silent with no
-  audio device.
+  power-up/shield-break/bonus-life/bomb/win/lose effects. Degrades to silent
+  with no audio device.
 - **Platform layer** (`src/platform/sdl.zig`): window, renderer, streaming
   ARGB texture, and input mapping.
 - **Game loop** (`src/main.zig`): fixed-timestep 60 Hz accumulator, audio

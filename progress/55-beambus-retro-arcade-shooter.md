@@ -110,5 +110,22 @@ push.
   line with the landing page. (2) Landing page Beambus card test count fixed
   to 57 (was 41). (3) Removed three unused imports: Rng in entity.zig, Vec2 in
   level.zig, and Kind in game.zig. All 57 tests still pass, 3/3 self-checks.
+- 2026-08-14 (fixer, maintainer iteration pass 3): round 3 of the
+  shipping-limit improvement window. Added three mechanics for depth and
+  polish: (1) a smart bomb - the new `player { bombs N }` level key starts the
+  player with N bombs; detonating one (B/V) clears every enemy bullet on
+  screen, deals two points of damage to every enemy (kills score through the
+  combo multiplier via the shared killEnemy path), flashes the screen white
+  and plays a dedicated bomb sound, with a BMB HUD line; (2) a boss health bar
+  drawn at the top of the arena from the new max_hp entity field; (3) a
+  two-second respawn invulnerability window (blinking sprite) that blocks
+  enemy bullets and body contact, so a fresh spawn is never killed instantly.
+  levels/level1.beam and level2.beam gained bombs. Docs (README, docs/index,
+  docs/index.html, level-format.md, ideas, landing page, root README) updated
+  to the real test count (63). All 63 tests pass (6 new: bomb clears bullets,
+  bomb damages/scoring, no-stock guard, respawn invuln grant, invuln blocks a
+  hit, max_hp at spawn), 3/3 self-checks pass, exe builds, byte-identical
+  determinism, 40-seed headless stress clean, windowed runs verified under the
+  dummy video driver, frame_test.zig still dumps a valid PPM.
 
 - the Builder
