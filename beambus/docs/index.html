@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Beambus: a retro arcade shooter in Zig</title>
-<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, seven enemy movement patterns, boss enrage phases, power-up weapon tiers and shields, bomb refills, smart bombs, combo scoring, bonus lives, homing enemy shots, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
+<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, eight enemy movement patterns, boss enrage phases and dive patterns, power-up weapon tiers, shields, and timed rapid-fire boosts, bomb refills, smart bombs, combo scoring, bonus lives, homing enemy shots, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -102,12 +102,13 @@
   <h1>Beambus</h1>
   <p>A retro arcade shoot 'em up written in <strong>Zig</strong>: a
   deterministic, headless-testable game core, scripted <code>.beam</code>
-  levels, seven enemy movement patterns, configurable enemy shot volleys,
-  boss enrage phases, power-up weapon tiers and one-hit shields, bomb-refill
-  drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss
-  grazes, homing enemy shots, a focus mode with a hitbox reticle, a
-  performance-scaled rank difficulty meter, a procedural pixel-art renderer,
-  and a tiny subtractive audio synth, all on an SDL2 platform layer.</p>
+  levels, eight enemy movement patterns, configurable enemy shot volleys,
+  boss enrage phases and dive patterns, power-up weapon tiers, one-hit
+  shields, and timed rapid-fire boosts, bomb-refill drops, smart bombs, a
+  combo scoring multiplier, bonus lives, near-miss grazes, homing enemy
+  shots, a focus mode with a hitbox reticle, a performance-scaled rank
+  difficulty meter, a procedural pixel-art renderer, and a tiny subtractive
+  audio synth, all on an SDL2 platform layer.</p>
   <div class="launch"><a href="https://github.com/Userfrom1995/Random/tree/main/beambus">Open the project →</a></div>
 </header>
 
@@ -117,7 +118,7 @@
       <h4>Deterministic core</h4>
       <p>The whole simulation lives in pure Zig with no allocator in the
       per-frame hot path: the same seed and input stream always reproduce the
-      same run, and every rule is covered by 87 headless unit tests.</p>
+      same run, and every rule is covered by 92 headless unit tests.</p>
     </div>
     <div class="card">
       <h4>Scripted levels</h4>
@@ -141,7 +142,7 @@
   <h2>Try it</h2>
   <pre><code>cd beambus
 zig build            # debug build
-zig build test       # 87 headless tests (no SDL needed)
+zig build test       # 92 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -181,9 +182,10 @@ zig build run        # play in an SDL window
     update: <code>sine</code> oscillates while falling, <code>zigzag</code>
     alternates direction, <code>swoop</code> arcs across, <code>drift</code>
     sways slowly, <code>orbit</code> is the boss sweep that holds altitude,
-    <code>spiral</code> combines cosine and sine motion, and
+    <code>spiral</code> combines cosine and sine motion,
     <code>chase</code> steers onto the player's column (a dodgeable dive
-    bomber).</li>
+    bomber), and <code>sweep</code> dives into the field, sweeps, and
+    retreats (a boss cycle).</li>
     <li><strong>Simulation loop.</strong> Each step advances time, updates the
     player from a normalized input snapshot, spawns waves and bosses, moves
     enemies by pattern, moves bullets, runs circle collisions, updates
@@ -192,6 +194,10 @@ zig build run        # play in an SDL window
     <li><strong>Weapon tiers.</strong> Touching a <code>spread</code> power-up
     raises the fire level from single to twin to triple spread (capped at 3).
     Dying resets the tier to single.</li>
+    <li><strong>Rapid-fire boosts.</strong> A <code>rapid</code> drop doubles the
+    fire rate for a few seconds (a timed buff, drawn as a double speed chevron,
+    with the remaining seconds in the HUD). The timer restarts on a fresh
+    drop.</li>
     <li><strong>Enemy volleys.</strong> Enemy defs and bosses accept
     <code>shots</code> (bullets per trigger) and <code>spread</code> (fan angle
     in radians), so any enemy can throw a volley, from a two-shot burst to a
@@ -205,6 +211,11 @@ zig build run        # play in an SDL window
     def turns a fight into two acts: below that HP the boss enrages - double
     fire rate, +2 bullets per volley, a red pulsing aura, and a growling
     sound.</li>
+    <li><strong>Boss patterns.</strong> A boss def's <code>pattern</code> key
+    picks its movement: <code>orbit</code> (the default) sweeps side to side
+    near the top, while <code>sweep</code> turns the fight into a dive bomber
+    that descends into the field, sweeps, and retreats. The cycle is pure game
+    time, so it is deterministic.</li>
     <li><strong>Shields.</strong> A <code>shield</code> drop equips a one-hit
     bubble that absorbs the next hit instead of costing a life, drawn as a ring
     around the ship.</li>
@@ -264,7 +275,7 @@ zig build run        # play in an SDL window
   <h2>Design choices</h2>
   <ul>
     <li><strong>Zig, and headless-first.</strong> The core is deliberately
-    SDL-free so every rule of the game is covered by 87 unit tests that run
+    SDL-free so every rule of the game is covered by 92 unit tests that run
     anywhere, with no window and no audio device.</li>
     <li><strong>No allocator in the hot path.</strong> The entity arena is
     fixed at compile time: deterministic, cache-friendly, and free of OOM

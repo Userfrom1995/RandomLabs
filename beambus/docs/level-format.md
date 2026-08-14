@@ -69,14 +69,15 @@ Spawns `count` enemies of a kind, one at a time. Keys:
 ### `boss { ... }`
 
 Spawns a single large enemy at a fixed time. Keys mirror the enemy def plus
-`at` (seconds into the level). Bosses always use the `orbit` pattern and always
-fire. `shots`/`spread` work exactly as for enemies, so a boss can throw a wide
-fan (e.g. `shots 5 spread 1.2`).
+`at` (seconds into the level). Bosses always fire. `shots`/`spread` work
+exactly as for enemies, so a boss can throw a wide fan (e.g. `shots 5 spread
+1.2`). A boss's movement is chosen by the `pattern` key (default `orbit`).
 
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `rage_hp` | 0 | HP fraction (0..1) at which the boss enrages; 0 disables it. |
 | `homing` | `false` | Whether the boss's shots curve toward the player (as for enemies). |
+| `pattern` | `orbit` | Movement pattern (see below). `orbit` sweeps side to side near the top; `sweep` dives into the field, sweeps, and retreats. |
 
 When the boss drops to or below `rage_hp` of its maximum HP it enters an enrage
 phase exactly once: fire rate doubles, the volley gains two bullets, it glows
@@ -103,7 +104,7 @@ player picks it up by touching it. Keys:
 | `at` | 0 | Seconds into the level when the drop appears. |
 | `kind` | `spread` | What the drop grants. |
 
-`kind` currently supports three drop types:
+`kind` currently supports four drop types:
 
 - `spread`: raises the player's fire level by one: single -> twin -> triple
   spread (capped at 3).
@@ -111,6 +112,9 @@ player picks it up by touching it. Keys:
   costing a life.
 - `bomb`: refills one smart-bomb stock (capped at 9), drawn as a pinwheel so
   it reads differently from the other drops at a glance.
+- `rapid`: doubles the fire rate for a few seconds (8 by default), drawn as a
+  double speed chevron. The HUD shows the remaining seconds, and a fresh drop
+  restarts the timer. A timed burst of burst damage at a clutch moment.
 
 Dying resets the fire level to single, so a level can place `spread` drops
 along its curve to pace the player's power. A missed drop drifts off the bottom
@@ -178,6 +182,7 @@ walls rather than a primary weapon.
 | `orbit` | Boss sweep: move side to side, hold altitude near the top. |
 | `spiral` | Combined horizontal cosine and damped vertical sine. |
 | `chase` | Steer onto the player's column while falling - a dive bomber. |
+| `sweep` | Boss dive: descend into the field, sweep, then retreat to the top. |
 
 ## Example
 
@@ -195,6 +200,7 @@ boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8
 
 powerup { at 16 kind spread }
 powerup { at 22 kind shield }
+powerup { at 28 kind rapid }
 powerup { at 30 kind spread }
 powerup { at 42 kind spread }
 powerup { at 46 kind bomb }

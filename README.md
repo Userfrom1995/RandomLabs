@@ -43,7 +43,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Beambus** - a retro arcade shoot 'em up written from scratch in **Zig**: a deterministic, headless-testable game core, scripted `.beam` level files, seven enemy movement patterns, configurable enemy shot volleys, boss enrage phases, power-up weapon tiers and one-hit shields, bomb-refill drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. The factory's first Zig project and its first real windowed desktop application. 87 headless tests, no SDL needed.
+The current build is **Beambus** - a retro arcade shoot 'em up written from scratch in **Zig**: a deterministic, headless-testable game core, scripted `.beam` level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire boosts, bomb-refill drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. The factory's first Zig project and its first real windowed desktop application. 92 headless tests, no SDL needed.
 
 -> [Run it](beambus/README.md) * [Full writeup](ideas/2026-08-14-beambus-retro-arcade-shooter.md) * [Documentation](https://userfrom1995.github.io/Random/beambus/docs/)
 

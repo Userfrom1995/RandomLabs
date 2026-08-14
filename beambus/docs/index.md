@@ -2,14 +2,15 @@
 
 **Beambus** is a retro arcade shoot 'em up written in **Zig**, and the
 factory's first Zig project. It pairs a deterministic, headless-testable game
-core with an SDL2 platform layer: scripted `.beam` level files, seven enemy
-movement patterns, configurable enemy shot volleys, boss enrage phases,
-power-up weapon tiers and one-hit shields, bomb-refill drops, smart bombs, a
-combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots,
-a focus mode with a precise hitbox reticle, a performance-scaled rank
-difficulty meter, a procedural pixel-art renderer, and a tiny subtractive
-audio synth. The core never allocates during a frame, so the entire
-simulation is unit-testable without SDL.
+core with an SDL2 platform layer: scripted `.beam` level files, eight enemy
+movement patterns, configurable enemy shot volleys, boss enrage phases and
+dive patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire
+boosts, bomb-refill drops, smart bombs, a combo scoring multiplier, bonus
+lives, near-miss grazes, homing enemy shots, a focus mode with a precise
+hitbox reticle, a performance-scaled rank difficulty meter, a procedural
+pixel-art renderer, and a tiny subtractive audio synth. The core never
+allocates during a frame, so the entire simulation is unit-testable without
+SDL.
 
 ## What it is
 
@@ -22,17 +23,18 @@ simulation is unit-testable without SDL.
   allocator in the per-frame hot path and no SDL dependency, so the same seed
   and input stream always reproduce the same run.
 - **Scripted levels.** A line/brace `.beam` format declares the player, enemy
-  defs, waves, bosses, and power-up drops. Seven movement patterns (sine,
-  zigzag, swoop, drift, orbit, spiral, chase) drive how enemies curve through
-  the field. The parser is strict: unknown directives, bad numbers, unknown
-  enemies, duplicate names, and malformed levels all fail with a clear error.
-  Two levels ship with the game (`level1.beam`, `level2.beam`).
+  defs, waves, bosses, and power-up drops. Eight movement patterns (sine,
+  zigzag, swoop, drift, orbit, spiral, chase, sweep) drive how enemies curve
+  through the field. The parser is strict: unknown directives, bad numbers,
+  unknown enemies, duplicate names, and malformed levels all fail with a clear
+  error. Two levels ship with the game (`level1.beam`, `level2.beam`).
 - **Procedural renderer.** A pure-Zig software renderer draws every frame into
   a `u32` pixel buffer at arena resolution (480x600): procedural sprites
   (triangle ship, circled enemies, bullet bolts, fading particles, pulsing
-  power-up diamonds), a 3x5 bitmap font, a two-layer parallax starfield, a
-  level-title intro banner, and a HUD with score, combo multiplier, lives,
-  weapon tier, shield, bombs, grazes, rank, a boss health bar, and level name.
+  power-up diamonds and chevrons), a 3x5 bitmap font, a two-layer parallax
+  starfield, a level-title intro banner, and a HUD with score, combo
+  multiplier, lives, weapon tier, shield, bombs, grazes, rank, rapid-boost
+  timer, a boss health bar, and level name.
   The buffer is uploaded to an SDL streaming texture and scaled to the window.
 - **Procedural audio.** A subtractive-style synth with a fixed 12-voice pool
   synthesizes shoot, hit, explosion, player-hit, power-up, shield-break,
@@ -48,7 +50,7 @@ simulation is unit-testable without SDL.
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 87 headless tests (no SDL needed)
+zig build test       # 92 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -84,8 +86,9 @@ Everything is passed on the command line; there is no interactive input.
   oscillates horizontally as the enemy falls, zigzag alternates direction
   every 80px, swoop arcs across, drift sways slowly, orbit is the boss sweep
   that holds altitude near the top, spiral combines horizontal cosine with
-  a damped vertical sine, and chase steers the enemy onto the player's column
-  (a dive bomber that can still be dodged). Patterns are chosen per wave in the
+  a damped vertical sine, chase steers the enemy onto the player's column
+  (a dive bomber that can still be dodged), and sweep dives into the field,
+  sweeps, and retreats (a boss-only cycle). Patterns are chosen per wave in the
   level script.
 - **Simulation loop.** Each `step` advances time, updates the player from the
   input snapshot, spawns waves and bosses on their timers, moves enemies by
@@ -96,6 +99,10 @@ Everything is passed on the command line; there is no interactive input.
 - **Weapon tiers.** Touching a `spread` power-up drop raises the player's fire
   level: single -> twin -> triple spread (capped at 3). Dying resets the tier
   to single, so a level's drops pace the run.
+- **Rapid-fire boosts.** A `rapid` drop doubles the fire rate for a few seconds
+  (a timed buff, drawn as a double speed chevron, with the remaining seconds in
+  the HUD). It is a burst of burst damage at a clutch moment; the timer
+  restarts on a fresh drop.
 - **Enemy shot volleys.** Enemy defs and bosses accept `shots` (bullets per
   trigger) and `spread` (fan angle in radians, centered on the player). A
   level can give any enemy a volley, from a two-shot burst to a wide five-way
@@ -110,6 +117,11 @@ Everything is passed on the command line; there is no interactive input.
   double fire rate, two extra bullets per volley, a red pulsing aura, and a
   growling sound. The threshold is data, not code - a level tunes how long the
   calm opening lasts.
+- **Boss patterns.** A boss def's `pattern` key picks its movement. `orbit`
+  (the default) sweeps side to side near the top; `sweep` turns the fight into
+  a dive bomber that descends into the field, sweeps, and retreats, spending
+  part of each pass in firing range. The cycle is pure game time, so it is
+  deterministic. level2's boss uses `sweep`.
 - **Shields.** A `shield` drop equips a one-hit bubble that absorbs the next
   hit instead of costing a life. The renderer draws it as a ring around the
   ship; a break triggers its own sound effect.
@@ -169,7 +181,7 @@ Everything is passed on the command line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 87 unit tests that run anywhere, with no window
+  of the game is covered by 92 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM

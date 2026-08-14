@@ -3,7 +3,7 @@
 - **Issue:** #55
 - **Branch:** opencode/55-beambus-retro-arcade-shooter
 - **Status:** complete
-- **Updated:** 2026-08-14T22:57:00Z
+- **Updated:** 2026-08-15T00:45:00Z
 
 ## Checklist
 - [x] scaffold project + progress file
@@ -214,6 +214,25 @@ push.
   draws), 3/3 self-checks pass, exe builds, byte-identical determinism per
   seed for both levels, headless stress clean, windowed runs verified under
   the dummy video driver, frame_test.zig still dumps a valid PPM.
+
+- **2026-08-14 (round 8, improvement window):** Timed rapid-fire boosts and a
+  boss movement-pattern key. (1) Rapid: a fourth power-up kind - a `rapid` drop
+  doubles the fire rate for 8 seconds (new `rapid_timer` field, constants
+  `rapid_duration` 8.0 and `rapid_mult` 2.0), drawn as a double speed chevron,
+  with the remaining seconds shown in a RAPID HUD line; a fresh drop restarts
+  the timer. (2) Boss patterns: boss defs accept a `pattern` key (default
+  `orbit`); a new `sweep` pattern turns a boss into a dive bomber that
+  descends into the field, sweeps, and retreats on a 4.8s pure-game-time cycle
+  (so it stays deterministic). level1 and level2 both gained a `rapid` drop and
+  level2's boss now uses `sweep`. Docs (beambus/README, docs/index.md,
+  docs/index.html, level-format.md, ideas, root README, landing page) updated
+  to the real test count (92). All 92 tests pass (5 new: parser reads the rapid
+  power-up kind, parser reads the boss pattern key, rapid drop grants a timed
+  fire-rate boost, rapid expires and fire rate returns to normal, sweep boss
+  descends into the field and returns to the top), 3/3 self-checks pass, exe
+  builds, byte-identical determinism per seed for both levels, 60-seed headless
+  stress clean, windowed runs verified under the dummy video driver,
+  frame_test.zig still dumps a valid PPM.
 
 - the Fixer
 

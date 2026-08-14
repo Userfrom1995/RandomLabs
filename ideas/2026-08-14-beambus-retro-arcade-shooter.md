@@ -2,14 +2,14 @@
 
 A retro arcade shoot 'em up written from scratch in **Zig** - the factory's
 first Zig project. A deterministic, headless-testable game core pairs with an
-SDL2 platform layer: scripted `.beam` level files, seven enemy movement
-patterns, configurable enemy shot volleys, boss enrage phases, power-up weapon
-tiers and one-hit shields, bomb-refill drops, smart bombs, a combo scoring
-multiplier, bonus lives, near-miss grazes, homing enemy shots, a focus mode
-with a precise hitbox reticle, a performance-scaled rank difficulty meter, a
-procedural pixel-art renderer, and a tiny subtractive audio synth. The core
-never allocates during a frame, so the entire simulation is unit-testable
-without SDL.
+SDL2 platform layer: scripted `.beam` level files, eight enemy movement
+patterns, configurable enemy shot volleys, boss enrage phases and dive
+patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire boosts,
+bomb-refill drops, smart bombs, a combo scoring multiplier, bonus lives,
+near-miss grazes, homing enemy shots, a focus mode with a precise hitbox
+reticle, a performance-scaled rank difficulty meter, a procedural pixel-art
+renderer, and a tiny subtractive audio synth. The core never allocates during
+a frame, so the entire simulation is unit-testable without SDL.
 
 ## What Was Built
 
@@ -25,12 +25,13 @@ A self-contained arcade game (`beambus/`):
   reproduce the same run.
 - **Scripted level format** (`src/core/level.zig`): a strict line/brace
   `.beam` script declaring the player, enemy defs, waves, bosses, and power-up
-  drops, with seven movement patterns (sine, zigzag, swoop, drift, orbit,
-  spiral, chase) and per-enemy `shots`/`spread` so any enemy can throw a fan
-  volley, plus a `homing` key so enemies can fire curving shots. Boss defs
-  carry a `rage_hp` threshold for enrage phases, and power-up drops come in
-  three kinds (spread, shield, bomb). Unknown directives, bad numbers, unknown
-  enemies, duplicate names, and unclosed blocks all fail with clear errors.
+  drops, with eight movement patterns (sine, zigzag, swoop, drift, orbit,
+  spiral, chase, sweep) and per-enemy `shots`/`spread` so any enemy can throw a
+  fan volley, plus a `homing` key so enemies can fire curving shots. Boss defs
+  carry a `rage_hp` threshold for enrage phases and a `pattern` key (orbit or
+  sweep), and power-up drops come in four kinds (spread, shield, bomb, rapid).
+  Unknown directives, bad numbers, unknown enemies, duplicate names, and
+  unclosed blocks all fail with clear errors.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (0xAARRGGBB, ready for
   `SDL_PIXELFORMAT_ARGB8888`): hand-rolled rect/circle/stroke/triangle
@@ -59,7 +60,7 @@ A self-contained arcade game (`beambus/`):
   Swarm" and "The Nebula Empress", full scripts with four enemy archetypes
   (grunt, dart, tank, and a homing-firing seeker), timed power-up drops, and
   a boss each.
-- **Tests**: 87 unit tests across vec, rng, rect, entity, level, game, render,
+- **Tests**: 92 unit tests across vec, rng, rect, entity, level, game, render,
   and synth - all headless, no SDL required.
 
 ## Why
@@ -91,8 +92,9 @@ as a real windowed desktop application.
   oscillates horizontally as the enemy falls, zigzag alternates direction
   every 80px, swoop arcs across, drift sways slowly, orbit is the boss sweep
   that holds altitude near the top, spiral combines a horizontal cosine with
-  a damped vertical sine, and chase steers the enemy onto the player's column
-  as a dive bomber. Patterns are chosen per wave in the script.
+  a damped vertical sine, chase steers the enemy onto the player's column as a
+  dive bomber, and sweep dives into the field, sweeps, and retreats (a
+  boss-only cycle). Patterns are chosen per wave in the script.
 - **Simulation loop.** Each `step` advances time, updates the player from a
   normalized input snapshot (diagonals are not boosted), spawns waves and
   bosses on timers, moves enemies by their pattern, moves bullets, runs circle
@@ -110,10 +112,17 @@ as a real windowed desktop application.
   acts: once the boss drops to that HP it enrages once, doubling its fire rate
   and adding two bullets per volley. The renderer glows it red and the synth
   growls, so the climax of a boss fight is unmistakable.
-- **Power-up kinds.** Drops come in three kinds: `spread` (raise the weapon
-  tier), `shield` (one-hit bubble), and `bomb` (refill one smart-bomb stock,
-  drawn as a pinwheel). A level can spend bombs as a panic button and reward
-  them as pickups.
+- **Boss patterns.** A boss def's `pattern` key picks its movement: `orbit`
+  (the default) sweeps side to side near the top, while `sweep` turns the
+  fight into a dive bomber that descends into the field, sweeps, and retreats,
+  spending part of each pass in firing range. The cycle is pure game time, so
+  it is deterministic. level2's boss uses `sweep`.
+- **Power-up kinds.** Drops come in four kinds: `spread` (raise the weapon
+  tier), `shield` (one-hit bubble), `bomb` (refill one smart-bomb stock,
+  drawn as a pinwheel), and `rapid` (double the fire rate for a few seconds,
+  drawn as a double speed chevron, with the remaining seconds in the HUD). A
+  level can spend bombs as a panic button and reward them as pickups, and time
+  rapid boosts for clutch moments.
 - **Grazing.** An enemy bullet that passes within a narrow band around the
   ship without hitting scores `50 * combo multiplier` points and rings a soft
   tick. Each bullet grazes at most once and the HUD counts grazes, rewarding
@@ -179,15 +188,16 @@ as a real windowed desktop application.
 - **Zig 0.15.2.** The build uses the current Build API (`root_module`,
   `b.addTest`), verified against the Zig 0.15.2 release and SDL2's C headers.
   The SDL2 C-import compiles cleanly under the new module system.
-- **Headless-first.** `zig build test` runs 87 tests with no SDL and no audio
+- **Headless-first.** `zig build test` runs 92 tests with no SDL and no audio
   device; the SDL glue is exercised only by the exe build. Everything in the
   core is plain data plus logic, which is what makes it exhaustively testable.
 - **A real build fix.** While finalizing, the headless test step was silently
   only collecting 9 tests (the `--dep core` module boundary swallowed the
   per-file test blocks). Moving to relative-path imports so all modules live
-  in one root made all 41 tests run, later grown to 87 by the power-up,
+  in one root made all 41 tests run, later grown to 92 by the power-up,
   shield, scoring, bomb, invulnerability, volley, graze, enrage, chase,
-  bomb-refill, focus, rank, homing, and result-screen tests.
+  bomb-refill, focus, rank, homing, result-screen, rapid-fire, and boss-pattern
+  tests.
 - **Deterministic audio.** The synth renders deterministically for a given
   sequence of triggers, so audio behaviour is unit-testable too.
 - **Name origin.** A "beam" is both the player's energy ray and the core

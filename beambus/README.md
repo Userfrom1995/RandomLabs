@@ -1,20 +1,21 @@
 # Beambus: a retro arcade shooter in Zig
 
 A deterministic, headless-testable shoot 'em up: scripted `.beam` level files,
-seven enemy movement patterns, configurable enemy shot volleys, boss enrage
-phases, power-up weapon upgrades and one-hit shields, bomb-refill drops, smart
-bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing
-enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled
-rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive
-audio synth. The game core is pure Zig with no allocator in the per-frame hot
-path, so the whole simulation is unit-testable without SDL.
+eight enemy movement patterns, configurable enemy shot volleys, boss enrage
+phases and dive patterns, power-up weapon upgrades, one-hit shields, and timed
+rapid-fire boosts, bomb-refill drops, smart bombs, a combo scoring multiplier,
+bonus lives, near-miss grazes, homing enemy shots, a focus mode with a precise
+hitbox reticle, a performance-scaled rank difficulty meter, a procedural
+pixel-art renderer, and a tiny subtractive audio synth. The game core is pure
+Zig with no allocator in the per-frame hot path, so the whole simulation is
+unit-testable without SDL.
 
 ## Build
 
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 87 headless tests (no SDL needed)
+zig build test       # 92 headless tests (no SDL needed)
 zig build check      # headless self-checks, exit 0/1
 zig build run        # play in an SDL window
 ```
@@ -57,13 +58,16 @@ Everything comes from the command line; there is no interactive input.
   collisions, scoring, lives, power-up weapon tiers and shields, combo
   multiplier, bonus lives, win/lose). No SDL, no allocation during a step.
 - **Scripted levels** (`levels/*.beam`): a line/brace format declaring the
-  player, enemy defs, waves, bosses, and power-up drops, with seven movement
-  patterns: sine, zigzag, swoop, drift, orbit, spiral, chase. Strict
+  player, enemy defs, waves, bosses, and power-up drops, with eight movement
+  patterns: sine, zigzag, swoop, drift, orbit, spiral, chase, sweep. Strict
   validation with clear errors. Ships with two levels (`level1.beam`,
   `level2.beam`).
 - **Weapon upgrades**: touching a `spread` drop raises the fire level from
   single to twin to triple spread (capped at 3). Dying resets the tier to
   single.
+- **Rapid-fire boosts**: a `rapid` drop doubles the fire rate for a few seconds
+  (the HUD shows the remaining time), letting a level reward a burst of burst
+  damage at a clutch moment. Drawn as a double speed chevron.
 - **Enemy volleys**: enemy defs and bosses accept `shots` and `spread`, so a
   level can hand any enemy a fan volley (e.g. a dart firing a two-shot burst,
   a boss throwing a five-way spread). Defaults stay single-shot.
@@ -75,6 +79,10 @@ Everything comes from the command line; there is no interactive input.
   phase once it drops to that HP level - double fire rate, +2 bullets per
   volley, a red pulsing aura, and a growling sound. A boss fight gets a
   climactic second half.
+- **Boss patterns**: a boss def's `pattern` key picks its movement - `orbit`
+  (the default) sweeps side to side near the top, while `sweep` turns the
+  fight into a dive bomber that descends into the field, sweeps, and retreats.
+  level2's boss uses `sweep`.
 - **Shields**: a `shield` drop equips a one-hit bubble that absorbs the next
   hit instead of costing a life, drawn as a ring around the ship.
 - **Bomb refills**: a `bomb` power-up drop restores one smart-bomb stock
@@ -106,7 +114,7 @@ Everything comes from the command line; there is no interactive input.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, two-layer
   parallax starfield, level-title intro banner, HUD with score/combo/lives/
-  weapon tier/shield/bombs/graze/rank/boss bar) which SDL scales to the window.
+  weapon tier/shield/bombs/graze/rank/rapid/boss bar) which SDL scales to the window.
   Pure Zig, no SDL.
 - **Audio synth** (`src/platform/synth.zig`, `audio.zig`): a deterministic
   subtractive-style synth with a fixed 12-voice pool, fed to SDL via
