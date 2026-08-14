@@ -43,22 +43,25 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Gambit** - a UCI chess engine written from scratch in
-**C++17**. A bitboard board representation (six piece-type bitboards, two
-color bitboards, and occupancy) drives a legal move generator verified against
-the standard perft suite (start position to depth 5, kiwipete, and the classic
-positions 3-6). A negamax alpha-beta search with quiescence, late move
-reduction, killer moves, and transposition-table move ordering, under
-iterative deepening with time management, out-plays a casual human. It plays
-a full game in the terminal (Unicode board, SAN input, hints and takebacks)
-or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in
-test suite that re-runs the perft suite on every build.
+The current build is **Aftershock** - a seismic network simulator written in **Rust**: model an earthquake on a fault grid, propagate realistic P-, S-, and surface waves across stations, and produce terminal seismograms plus a downloadable waveform file, all from a CLI. The factory's first Rust project and its first project in geophysics. A self-contained CLI with zero external dependencies, pure Rust standard library.
 
--> [Run it](gambit/README.md) * [Full writeup](ideas/2026-08-14-gambit-uci-chess-engine.md) * [Documentation](https://userfrom1995.github.io/Random/docs/)
+-> [Run it](aftershock/README.md) * [Full writeup](ideas/2026-08-14-aftershock-seismic-network-simulator.md) * [Documentation](https://userfrom1995.github.io/Random/aftershock/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Gambit** - a UCI chess engine written from scratch in
+  **C++17**. A bitboard board representation (six piece-type bitboards, two
+  color bitboards, and occupancy) drives a legal move generator verified against
+  the standard perft suite (start position to depth 5, kiwipete, and the classic
+  positions 3-6). A negamax alpha-beta search with quiescence, late move
+  reduction, killer moves, and transposition-table move ordering, under
+  iterative deepening with time management, out-plays a casual human. It plays
+  a full game in the terminal (Unicode board, SAN input, hints and takebacks)
+  or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in
+  test suite that re-runs the perft suite on every build. See
+  [ideas/2026-08-14-gambit-uci-chess-engine.md](ideas/2026-08-14-gambit-uci-chess-engine.md).
 
 - **Granite** - a SQL database engine built from scratch in Go: a hand-written
   lexer and recursive-descent parser feed a query planner and executor that

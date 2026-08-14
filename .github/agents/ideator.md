@@ -47,6 +47,8 @@ Brainstorm Board - and you never post `/oc` triggers.
 - **Ambition allowed**: full-stack apps, games, systems projects - even if not
   hostable on GitHub Pages. Name must be unique and memorable (`idea/
   filenames` scan), never generic ("app", "tool", "project").
+- **No one-shots & Mandatory Frontends**: Do NOT propose simple or one-shot projects. 
+  Every   project must be interesting, complex, and take real time and investment to build. Furthermore, if you propose a backend system, protocol, or engine, you MUST explicitly specify that a frontend or client application must also be built to interact with it.
 - Never repeat an idea verbatim - you may only revisit one if you can state a
   clear improvement or different angle, and then it must be marked
   `Improves on:`.
