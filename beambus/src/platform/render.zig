@@ -61,13 +61,18 @@ pub const Renderer = struct {
     pub fn drawGame(self: *Renderer, g: *const Game) void {
         self.drawEntities(g);
         self.drawHud(g);
+        self.drawBombFlash(g);
     }
 
     fn drawEntities(self: *Renderer, g: *const Game) void {
         for (&g.pool.entities) |*e| {
             if (!e.alive) continue;
             switch (e.kind) {
-                .player => self.drawPlayer(e, g.has_shield),
+                .player => {
+                    // Blink while respawn-invulnerable.
+                    if (g.invuln_timer > 0 and @mod(g.time, 0.25) < 0.125) continue;
+                    self.drawPlayer(e, g.has_shield);
+                },
                 .enemy => self.drawEnemy(e),
                 .bullet => self.drawBullet(e),
                 .ebullet => self.drawEBullet(e),
@@ -178,6 +183,31 @@ pub const Renderer = struct {
             self.drawString(.{ .x = 6, .y = 36 }, "SHLD", 0x4FD6D6, 1);
         }
 
+        // Bombs remaining.
+        if (g.bombs > 0) {
+            const bombs = std.fmt.bufPrint(&buf, "BMB {d}", .{g.bombs}) catch return;
+            self.drawString(.{ .x = 6, .y = 46 }, bombs, 0xF7768E, 1);
+        }
+
+        // Boss health bar: find the largest alive enemy and draw its gauge.
+        var boss: ?*const Entity = null;
+        for (&g.pool.entities) |*e| {
+            if (!e.alive or e.kind != .enemy) continue;
+            if (e.radius >= 20) {
+                boss = e;
+                break;
+            }
+        }
+        if (boss) |b| {
+            const bar_w = 200;
+            const bx = (@as(i32, arena_w) - bar_w) / 2;
+            const by: i32 = 6;
+            const frac = @max(0, @min(1, b.hp / b.max_hp));
+            self.fillRect(bx - 1, by - 1, bar_w + 2, 6, 0x1A1B26);
+            const fill_w: i32 = @intFromFloat(frac * @as(f32, @floatFromInt(bar_w)));
+            self.fillRect(bx, by, fill_w, 4, 0xFFD23F);
+        }
+
         if (g.level.name.len > 0) {
             const name = g.level.name;
             const w = textWidth(name);
@@ -202,6 +232,25 @@ pub const Renderer = struct {
         const w = textWidth(text) * scale;
         const x = @as(f32, @floatFromInt(arena_w)) / 2.0 - @as(f32, @floatFromInt(w)) / 2.0;
         self.drawString(.{ .x = x, .y = at.y }, text, color, scale);
+    }
+
+    /// Full-screen white flash that fades out after a bomb detonation.
+    fn drawBombFlash(self: *Renderer, g: *const Game) void {
+        if (g.bomb_flash <= 0) return;
+        const t = g.bomb_flash / 0.25;
+        const k = @min(1.0, t * 1.5);
+        const white = packRgb(
+            @intFromFloat(255 * k),
+            @intFromFloat(255 * k),
+            @intFromFloat(255 * k),
+        );
+        // Blend the whole frame toward white by adding the flash shade.
+        for (&self.pixels) |*px| {
+            const r: u32 = @min(255, (px.* >> 16 & 0xFF) + (white >> 16 & 0xFF));
+            const gg: u32 = @min(255, (px.* >> 8 & 0xFF) + (white >> 8 & 0xFF));
+            const b: u32 = @min(255, (px.* & 0xFF) + (white & 0xFF));
+            px.* = 0xFF000000 | (r << 16) | (gg << 8) | b;
+        }
     }
 
     /// Draws text at a world-space position using the 3x5 bitmap font.
