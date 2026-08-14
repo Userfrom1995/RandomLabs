@@ -20,3 +20,4 @@ dist/
 *.swp
 .DS_Store
 .maintainer/
+gambit/gambit
