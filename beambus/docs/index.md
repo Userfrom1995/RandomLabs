@@ -3,33 +3,37 @@
 **Beambus** is a retro arcade shoot 'em up written in **Zig**, and the
 factory's first Zig project. It pairs a deterministic, headless-testable game
 core with an SDL2 platform layer: scripted `.beam` level files, six enemy
-movement patterns, a procedural pixel-art renderer, and a tiny subtractive
-audio synth. The core never allocates during a frame, so the entire simulation
-is unit-testable without SDL.
+movement patterns, power-up weapon tiers and one-hit shields, a combo scoring
+multiplier, bonus lives, a procedural pixel-art renderer, and a tiny
+subtractive audio synth. The core never allocates during a frame, so the entire
+simulation is unit-testable without SDL.
 
 ## What it is
 
 - **Deterministic core.** The game simulation lives in `src/core/`: a `Vec2`,
   `Rect`, a SplitMix64 `Rng`, a fixed-capacity (1024 slot) entity arena pool
   with a free list, circle collision, and the full game logic (waves, bosses,
-  enemy bullets, collisions, scoring, lives, power-up weapon tiers, win/lose
-  states). There is no allocator in the per-frame hot path and no SDL
-  dependency, so the same seed and input stream always reproduce the same run.
+  enemy bullets, collisions, scoring, lives, power-up weapon tiers and
+  shields, combo multiplier, bonus lives, win/lose states). There is no
+  allocator in the per-frame hot path and no SDL dependency, so the same seed
+  and input stream always reproduce the same run.
 - **Scripted levels.** A line/brace `.beam` format declares the player, enemy
   defs, waves, bosses, and power-up drops. Six movement patterns (sine, zigzag,
   swoop, drift, orbit, spiral) drive how enemies curve through the field. The
   parser is strict: unknown directives, bad numbers, unknown enemies, duplicate
-  names, and malformed levels all fail with a clear error.
+  names, and malformed levels all fail with a clear error. Two levels ship with
+  the game (`level1.beam`, `level2.beam`).
 - **Procedural renderer.** A pure-Zig software renderer draws every frame into
   a `u32` pixel buffer at arena resolution (480x600): procedural sprites
   (triangle ship, circled enemies, bullet bolts, fading particles, pulsing
   power-up diamonds), a 3x5 bitmap font, a seeded twinkling starfield, and a
-  HUD with score, lives, weapon tier, and level name. The buffer is uploaded to
-  an SDL streaming texture and scaled to the window.
+  HUD with score, combo multiplier, lives, weapon tier, shield, and level name.
+  The buffer is uploaded to an SDL streaming texture and scaled to the window.
 - **Procedural audio.** A subtractive-style synth with a fixed 12-voice pool
-  synthesizes shoot, hit, explosion, player-hit, win, and lose effects. SDL is
-  fed via `SDL_QueueAudio` (no callback, no threads); with no audio device it
-  degrades to silence, so CI runs stay headless.
+  synthesizes shoot, hit, explosion, player-hit, power-up, shield-break,
+  bonus-life, win, and lose effects. SDL is fed via `SDL_QueueAudio` (no
+  callback, no threads); with no audio device it degrades to silence, so CI
+  runs stay headless.
 - **Three run modes.** Windowed play (fixed-timestep 60 Hz loop), a headless
   simulation that prints a summary, and a self-check mode that asserts core
   invariants and exits 0/1.
@@ -39,7 +43,7 @@ is unit-testable without SDL.
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 50 headless tests (no SDL needed)
+zig build test       # 57 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -85,6 +89,16 @@ line; there is no interactive input.
   level: single -> twin -> triple spread (capped at 3). Bosses fire a three-way
   spread at the player. Dying resets the tier to single, so a level's drops
   pace the run.
+- **Shields.** A `shield` drop equips a one-hit bubble that absorbs the next
+  hit instead of costing a life. The renderer draws it as a ring around the
+  ship; a break triggers its own sound effect.
+- **Combo scoring.** Every enemy destroyed without the player taking a hit
+  increments a combo counter. The score multiplier climbs to x2 at 5 kills,
+  x3 at 10, and x4 at 15 (capped). It is shown next to the score in the HUD and
+  resets to x1 on any hit.
+- **Bonus lives.** The `player { life_every N }` key awards an extra life each
+  time the score crosses another N points (0 disables it). The classic arcade
+  reward for a long, clean run.
 - **Renderer.** The renderer is pure Zig over a `u32` pixel buffer
   (0xAARRGGBB, ready for `SDL_PIXELFORMAT_ARGB8888`). Primitives (rect, circle,
   circle stroke, triangle) are hand-rolled; text uses a 3x5 bitmap glyph set.
@@ -101,7 +115,7 @@ line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 50 unit tests that run anywhere, with no window
+  of the game is covered by 57 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM
@@ -124,11 +138,12 @@ The `.beam` format is documented with a full grammar in
 ```text
 name "The Drone Swarm"
 background #0b0e14
-player { speed 260 fire_rate 0.16 lives 3 }
+player { speed 260 fire_rate 0.16 lives 3 life_every 10000 }
 enemy grunt { hp 1 speed 90 points 100 radius 8 fire_rate 0.5 color #e8594f }
 wave { at 2 kind grunt count 6 interval 0.4 pattern sine armed false }
 boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }
 powerup { at 16 kind spread }
+powerup { at 22 kind shield }
 ```
 
 ## Key files
@@ -143,6 +158,7 @@ powerup { at 16 kind spread }
 - `beambus/src/platform/synth.zig`, `audio.zig`: the synth and SDL audio glue.
 - `beambus/src/platform/sdl.zig`: the SDL window/renderer/input wrapper.
 - `beambus/levels/level1.beam`: the sample level ("The Drone Swarm").
+- `beambus/levels/level2.beam`: a second level ("The Nebula Empress").
 - `beambus/frame_test.zig`: a standalone frame dump to PPM (dev tool).
 - `beambus/build.zig`: build, run, check, and test steps.
 - `beambus/README.md`: quickstart; `beambus/docs/`: this documentation.

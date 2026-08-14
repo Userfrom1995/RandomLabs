@@ -87,5 +87,21 @@ push.
   README/docs now reference the real test count (50, up from 43). All 50 tests
   pass, 3/3 self-checks pass, exe builds, windowed run verified under the dummy
   video driver.
+- 2026-08-14 (fixer, maintainer iteration pass 2): round 2 of the
+  shipping-limit improvement window. Added three mechanics for depth and
+  polish: (1) a combo scoring multiplier - consecutive kills without a hit
+  climb the score multiplier to x4 (comboMult in game.zig), resets on any hit,
+  shown next to the score in the HUD; (2) bonus lives via the new
+  `player { life_every N }` key (awardBonusLife, 0 disables); (3) a second
+  power-up kind, `shield`, which equips a one-hit bubble (damagePlayer absorbs
+  the hit, renderer draws a shield ring + SHLD HUD line). Also: spawnScoreText
+  now shows the actual points gained, three new synth effects (powerup,
+  shield_break, life) wired into the windowed loop, shield drops added to
+  level1.beam, and a second sample level (levels/level2.beam) added. Fixed a
+  subtle `@min` u2-overflow in comboMult. Docs (README, docs/index.md,
+  docs/index.html, level-format.md) describe the new mechanics and the real
+  test count (57). All 57 tests pass, 3/3 self-checks pass, exe builds, 40-seed
+  headless stress is clean, determinism byte-identical, windowed run verified
+  under the dummy video driver.
 
 - the Builder

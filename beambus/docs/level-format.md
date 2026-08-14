@@ -31,6 +31,7 @@ Player tuning. Keys:
 | `speed` | 260 | Movement speed in px/s. |
 | `fire_rate` | 0.16 | Seconds between shots. |
 | `lives` | 3 | Starting lives. |
+| `life_every` | 10000 | Score interval that awards a bonus life; 0 disables it. |
 
 ### `enemy <name> { ... }`
 
@@ -76,10 +77,27 @@ player picks it up by touching it. Keys:
 | `at` | 0 | Seconds into the level when the drop appears. |
 | `kind` | `spread` | What the drop grants. |
 
-`kind` currently supports `spread`, which raises the player's fire level by
-one: single -> twin -> triple spread (capped at 3). Dying resets the fire
-level to single, so a level can place drops along its curve to pace the
-player's power. A missed drop drifts off the bottom of the arena.
+`kind` currently supports two drop types:
+
+- `spread`: raises the player's fire level by one: single -> twin -> triple
+  spread (capped at 3).
+- `shield`: equips a one-hit bubble that absorbs the next hit instead of
+  costing a life.
+
+Dying resets the fire level to single, so a level can place `spread` drops
+along its curve to pace the player's power. A missed drop drifts off the bottom
+of the arena.
+
+## Scoring
+
+- **Combo multiplier.** Each enemy destroyed while the player has not taken a
+  hit increments a combo counter. The score multiplier climbs by one every five
+  consecutive kills, capped at x4 (x2 at 5, x3 at 10, x4 at 15). The HUD shows
+  it next to the score. Taking a hit (shield break or death) resets the combo
+  to zero.
+- **Bonus lives.** With `life_every N` in the player block, the player earns an
+  extra life each time the score crosses another multiple of `N`. Setting
+  `life_every 0` disables bonus lives.
 
 ## Movement patterns
 
@@ -100,7 +118,7 @@ player's power. A missed drop drifts off the bottom of the arena.
 name "The Drone Swarm"
 background #0b0e14
 
-player { speed 260 fire_rate 0.16 lives 3 }
+player { speed 260 fire_rate 0.16 lives 3 life_every 10000 }
 
 enemy grunt { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f }
 enemy dart  { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  color #7aa2f7 }
@@ -108,6 +126,7 @@ enemy tank  { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
 boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 color #ffd23f }
 
 powerup { at 16 kind spread }
+powerup { at 22 kind shield }
 powerup { at 30 kind spread }
 powerup { at 42 kind spread }
 

@@ -9,6 +9,7 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile("levels/level1.beam", .{});
     defer file.close();
     const src = try file.readToEndAlloc(alloc, 1 << 20);
+    defer alloc.free(src);
     var level = try core.level.parse(alloc, src);
     defer level.deinit(alloc);
     var g = core.Game.init(&level, 42);
@@ -25,7 +26,9 @@ pub fn main() !void {
     // write PPM
     const out = try std.fs.cwd().createFile("/tmp/opencode/frame.ppm", .{});
     defer out.close();
-    try out.writer().print("P6\n{d} {d}\n255\n", .{ core.arena_w, core.arena_h });
+    var hdr: [64]u8 = undefined;
+    const header = try std.fmt.bufPrint(&hdr, "P6\n{d} {d}\n255\n", .{ core.arena_w, core.arena_h });
+    try out.writeAll(header);
     var buf: [core.arena_w * core.arena_h * 3]u8 = undefined;
     for (ren.pixels, 0..) |px, i| {
         buf[i*3] = @truncate(px >> 16);
