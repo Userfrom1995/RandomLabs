@@ -341,6 +341,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
             if (game.extra_life_just_awarded) synth.trigger(.life);
             if (game.bomb_just_fired) synth.trigger(.bomb);
             if (game.graze_just_happened) synth.trigger(.graze);
+            if (game.boss_enraged) synth.trigger(.enrage);
             if (game.shield_broke and !prev_player_hit) {
                 synth.trigger(.shield_break);
             } else if (game.player_just_hit and !prev_player_hit) {

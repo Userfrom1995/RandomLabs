@@ -16,6 +16,7 @@ pub const Sfx = enum {
     life,
     bomb,
     graze,
+    enrage,
     win,
     lose,
 };
@@ -100,6 +101,12 @@ pub const Synth = struct {
                 // A soft rising tick for a near-miss dodge.
                 self.play(.square, 1240, 220, 0.14, 0.06);
                 self.play(.square, 1560, 220, 0.1, 0.05);
+            },
+            .enrage => {
+                // A growling double slide for a boss entering its rage phase.
+                self.play(.saw, 160, 240, 0.42, 0.35);
+                self.play(.saw, 240, 320, 0.34, 0.3);
+                self.play(.noise, 1, 0, 0.2, 0.25);
             },
             .win => {
                 self.play(.square, 523, 0, 0.3, 0.12);

@@ -16,8 +16,10 @@ pub const Pixel = u32;
 
 pub const Renderer = struct {
     pixels: [arena_w * arena_h]Pixel = undefined,
-    /// Number of stars and their layout, seeded so the backdrop is stable.
+    /// Near star layer: drifts faster, brighter.
     stars: [64]Star = undefined,
+    /// Far star layer: parallax background that scrolls slower and dimmer.
+    stars_far: [40]Star = undefined,
 
     pub const Star = struct {
         x: i32,
@@ -26,7 +28,9 @@ pub const Renderer = struct {
         lvl: u8,
     };
 
-    /// Seeds the starfield from a hash of `seed`; call once before first frame.
+    /// Seeds the two starfield layers from a hash of `seed`; call once before
+    /// first frame. Far stars are seeded from a different hash chain so the
+    /// layers never overlap 1:1.
     pub fn seedStars(self: *Renderer, seed: u64) void {
         var s = seed;
         for (&self.stars) |*st| {
@@ -37,13 +41,34 @@ pub const Renderer = struct {
             s = splitmix(s);
             st.lvl = @intCast(@mod(@as(u64, s), 4));
         }
+        s = splitmix(s);
+        for (&self.stars_far) |*st| {
+            s = splitmix(s);
+            st.x = @intCast(@mod(@as(u64, s), arena_w));
+            s = splitmix(s);
+            st.y = @intCast(@mod(@as(u64, s), arena_h));
+            s = splitmix(s);
+            st.lvl = @intCast(@mod(@as(u64, s), 4));
+        }
     }
 
-    /// Clears the buffer to the background color and redraws the starfield
-    /// scrolled by `time` seconds (stars drift slowly downward, wrapping).
+    /// Clears the buffer to the background color and redraws the two starfield
+    /// layers scrolled by `time` seconds: the far layer drifts slowly and is
+    /// dimmer, the near layer faster and brighter, giving depth.
     pub fn clear(self: *Renderer, bg: [3]u8, time: f32) void {
         const bg_px = packRgb(bg[0], bg[1], bg[2]);
         for (&self.pixels) |*px| px.* = bg_px;
+        const scroll_far: i32 = @intFromFloat(@mod(time * 1.5, @as(f32, @floatFromInt(arena_h))));
+        for (self.stars_far) |st| {
+            const y = @mod(st.y + scroll_far, @as(i32, arena_h));
+            const shade: u8 = switch (st.lvl) {
+                0 => 12,
+                1 => 18,
+                2 => 26,
+                else => 34,
+            };
+            self.plot(st.x, y, packRgb(shade, shade, shade + 4));
+        }
         const scroll: i32 = @intFromFloat(@mod(time * 4.0, @as(f32, @floatFromInt(arena_h))));
         for (self.stars) |st| {
             const y = @mod(st.y + scroll, @as(i32, arena_h));
@@ -115,6 +140,12 @@ pub const Renderer = struct {
         if (rad >= 20) {
             self.strokeCircle(c, r, rad + 2, 0xFFFFFF);
         }
+        // Enraged bosses pulse with a red aura and glow.
+        if (e.enraged) {
+            const pulse: i32 = @intFromFloat(@sin(e.pos.y * 0.2) * 2.0);
+            self.strokeCircle(c, r, rad + 4 + pulse, 0xFF3B30);
+            self.strokeCircle(c, r, rad + 6 + pulse, 0xFF6B57);
+        }
         // Detail dots: two "eyes", tinted toward white for contrast.
         self.fillRect(c - @divTrunc(rad, 2), r - 1, 2, 2, 0x1A1B26);
         self.fillRect(c + @divTrunc(rad, 2) - 1, r - 1, 2, 2, 0x1A1B26);
@@ -146,12 +177,23 @@ pub const Renderer = struct {
     }
 
     /// Pulsing diamond: a power-up pickup. Pumps with game time so it reads as
-    /// "grab me" without any animation state.
+    /// "grab me" without any animation state. Bomb drops render as a pinwheel
+    /// burst instead so the two are distinguishable at a glance.
     fn drawPowerup(self: *Renderer, e: *const Entity, time: f32) void {
         const c: i32 = @intFromFloat(e.pos.x);
         const r: i32 = @intFromFloat(e.pos.y);
         const pulse: i32 = @intFromFloat(@sin(time * 6.0) * 2.0);
         const s: i32 = 7 + pulse;
+        const kind: u32 = e.data;
+        if (kind == 2) {
+            // Bomb: pinwheel of four triangles around a bright core.
+            self.fillTriangle(.{ .x = c, .y = r - s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
+            self.fillTriangle(.{ .x = c, .y = r + s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
+            self.fillTriangle(.{ .x = c - s, .y = r }, .{ .x = c, .y = r - s }, .{ .x = c, .y = r + s }, e.color);
+            self.fillTriangle(.{ .x = c + s, .y = r }, .{ .x = c, .y = r - s }, .{ .x = c, .y = r + s }, e.color);
+            self.fillCircle(c, r, 3, 0xFFFFFF);
+            return;
+        }
         self.fillTriangle(.{ .x = c, .y = r - s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
         self.fillTriangle(.{ .x = c, .y = r + s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
         self.fillRect(c - 1, r - 1, 2, 2, 0xFFFFFF);
