@@ -80,6 +80,18 @@ pub const Game = struct {
     player_fire_rate: f32 = 0.16,
     /// Bookkeeping for "player hit this frame" to let audio/react visually.
     player_just_hit: bool = false,
+    /// Consecutive kills without taking a hit; drives the combo multiplier.
+    combo: u32 = 0,
+    /// Whether the player carries a shield that absorbs one hit.
+    has_shield: bool = false,
+    /// Score at which the next bonus life is awarded (0 = disabled).
+    next_life_at: u32 = 0,
+    /// Set when the player collects a power-up drop this step.
+    pickup_just_taken: bool = false,
+    /// Set when a shield absorbed a hit this step.
+    shield_broke: bool = false,
+    /// Set when a bonus life was awarded this step.
+    extra_life_just_awarded: bool = false,
 
     pub fn init(level: *const Level, seed: u64) Game {
         var g = Game{
@@ -90,6 +102,7 @@ pub const Game = struct {
         g.lives = level.lives;
         g.player_speed = level.player_speed;
         g.player_fire_rate = level.player_fire_rate;
+        g.next_life_at = level.life_every;
         g.spawnPlayer();
         g.boss_timer = if (level.bosses.items.len > 0) level.bosses.items[0].at else std.math.inf(f32);
         return g;
@@ -126,6 +139,9 @@ pub const Game = struct {
     pub fn step(self: *Game, dt: f32, input: *const Input) void {
         self.time += dt;
         self.player_just_hit = false;
+        self.pickup_just_taken = false;
+        self.shield_broke = false;
+        self.extra_life_just_awarded = false;
 
         if (self.state == .lost or self.state == .won) {
             // Still let particles tick so death/powerup effects finish.
@@ -315,7 +331,8 @@ pub const Game = struct {
             const p = self.player() orelse continue;
             if (Entity.isColliding(p, e)) {
                 e.ttl = 0;
-                self.upgradePlayerFire();
+                self.applyPowerup(e);
+                self.pickup_just_taken = true;
                 self.spawnBurst(e.pos, e.color);
             }
         }
@@ -324,6 +341,10 @@ pub const Game = struct {
     fn spawnPowerup(self: *Game, kind: PowerKind) void {
         const e = self.pool.spawn() orelse return;
         const x = self.rng.range(40, @as(f32, @floatFromInt(arena_w)) - 40);
+        const color: u32 = switch (kind) {
+            .spread => 0xBB9AF7,
+            .shield => 0x4FD6D6,
+        };
         e.* = .{
             .kind = .powerup,
             .alive = true,
@@ -332,9 +353,19 @@ pub const Game = struct {
             .radius = 8,
             .hp = 1,
             .ttl = 20,
-            .color = 0xBB9AF7,
+            .color = color,
             .data = @intFromEnum(kind),
         };
+    }
+
+    /// Applies what a picked-up drop grants. `spread` raises the fire tier;
+    /// `shield` equips a one-hit shield (refreshing an existing one).
+    fn applyPowerup(self: *Game, e: *const Entity) void {
+        const kind: PowerKind = @enumFromInt(e.data);
+        switch (kind) {
+            .spread => self.upgradePlayerFire(),
+            .shield => self.has_shield = true,
+        }
     }
 
     fn upgradePlayerFire(self: *Game) void {
@@ -442,10 +473,13 @@ pub const Game = struct {
                     b.ttl = 0;
                     e.hp -= 1;
                     if (e.hp <= 0) {
-                        self.score += self.pointsFor(e);
+                        self.combo += 1;
+                        const gained = self.pointsFor(e) * self.comboMult();
+                        self.score += gained;
                         self.spawnBurst(e.pos, e.color);
                         e.ttl = 0;
-                        self.spawnScoreText(e.pos);
+                        self.spawnScoreText(e.pos, gained);
+                        self.awardBonusLife();
                     } else {
                         self.spawnBurst(e.pos, 0x888888);
                     }
@@ -458,7 +492,7 @@ pub const Game = struct {
             if (!b.alive or b.kind != .ebullet) continue;
             if (Entity.isColliding(p, b)) {
                 b.ttl = 0;
-                self.hitPlayer(p);
+                self.damagePlayer(p);
             }
         }
 
@@ -467,10 +501,24 @@ pub const Game = struct {
             if (!e.alive or e.kind != .enemy) continue;
             if (Entity.isColliding(p, e)) {
                 e.ttl = 0;
-                self.hitPlayer(p);
+                self.damagePlayer(p);
                 break;
             }
         }
+    }
+
+    /// Applies a hit to the player. A shield absorbs it; otherwise the player
+    /// takes the full death. Either way the combo resets.
+    fn damagePlayer(self: *Game, p: *Entity) void {
+        self.combo = 0;
+        if (self.has_shield) {
+            self.has_shield = false;
+            self.shield_broke = true;
+            self.player_just_hit = true;
+            self.spawnBurst(p.pos, 0x4FD6D6);
+            return;
+        }
+        self.hitPlayer(p);
     }
 
     fn hitPlayer(self: *Game, p: *Entity) void {
@@ -478,6 +526,8 @@ pub const Game = struct {
         self.player_dead = true;
         self.respawn_timer = 1.2;
         self.player_just_hit = true;
+        self.combo = 0;
+        self.has_shield = false;
         // Death costs the current weapon tier; classic arcade reset.
         self.player_fire_level = 1;
         self.spawnBurst(p.pos, 0xFFFFFF);
@@ -486,6 +536,23 @@ pub const Game = struct {
     fn pointsFor(self: *const Game, e: *const Entity) u32 {
         _ = self;
         return e.points;
+    }
+
+    /// Combo multiplier: x1 base, +1 every 5 consecutive kills, capped at x4.
+    pub fn comboMult(self: *const Game) u32 {
+        const extra: u32 = @min(self.combo / 5, @as(u32, 3));
+        return 1 + extra;
+    }
+
+    /// Awards a bonus life each time the score crosses a multiple of the
+    /// level's `life_every` threshold (skipped when the level disables it).
+    fn awardBonusLife(self: *Game) void {
+        if (self.next_life_at == 0) return;
+        while (self.score >= self.next_life_at) {
+            self.lives += 1;
+            self.next_life_at += self.level.life_every;
+            self.extra_life_just_awarded = true;
+        }
     }
 
     fn spawnBurst(self: *Game, pos: Vec2, color: u32) void {
@@ -506,7 +573,7 @@ pub const Game = struct {
         }
     }
 
-    fn spawnScoreText(self: *Game, pos: Vec2) void {
+    fn spawnScoreText(self: *Game, pos: Vec2, points: u32) void {
         const t = self.pool.spawn() orelse return;
         t.* = .{
             .kind = .text,
@@ -517,7 +584,7 @@ pub const Game = struct {
             .hp = 1,
             .ttl = 0.8,
             .color = 0xFFFFFF,
-            .data = self.score,
+            .data = points,
         };
     }
 
@@ -890,4 +957,124 @@ test "bosses fire a spread of three, regular enemies a single shot" {
     };
     g.enemyFire(boss);
     try std.testing.expectEqual(@as(usize, 4), g.pool.countByKind(.ebullet));
+}
+
+test "combo multiplier scales with consecutive kills" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.combo = 0;
+    try std.testing.expectEqual(@as(u32, 1), g.comboMult());
+    g.combo = 4;
+    try std.testing.expectEqual(@as(u32, 1), g.comboMult());
+    g.combo = 5;
+    try std.testing.expectEqual(@as(u32, 2), g.comboMult());
+    g.combo = 10;
+    try std.testing.expectEqual(@as(u32, 3), g.comboMult());
+    g.combo = 20;
+    try std.testing.expectEqual(@as(u32, 4), g.comboMult());
+}
+
+test "shield power-up grants the player a shield" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\powerup { at 0 kind shield }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const pu = g.pool.spawn().?;
+    pu.* = .{
+        .kind = .powerup,
+        .alive = true,
+        .pos = .{ .x = 0, .y = 0 },
+        .data = @intFromEnum(PowerKind.shield),
+    };
+    try std.testing.expect(!g.has_shield);
+    g.applyPowerup(pu);
+    try std.testing.expect(g.has_shield);
+}
+
+test "shield absorbs a hit without costing a life" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.has_shield = true;
+    g.combo = 8;
+    const lives_before = g.lives;
+    g.damagePlayer(g.player().?);
+    try std.testing.expectEqual(lives_before, g.lives);
+    try std.testing.expect(!g.has_shield);
+    try std.testing.expect(!g.player_dead);
+    try std.testing.expect(g.player() != null);
+    try std.testing.expectEqual(@as(u32, 0), g.combo);
+    try std.testing.expect(g.shield_broke);
+}
+
+test "bonus life awarded when score crosses the life_every threshold" {
+    const src =
+        \\name "T"
+        \\player { lives 3 life_every 500 }
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 3), g.lives);
+    try std.testing.expectEqual(@as(u32, 500), g.next_life_at);
+    g.score = 499;
+    g.awardBonusLife();
+    try std.testing.expectEqual(@as(u32, 3), g.lives);
+    g.score = 500;
+    g.awardBonusLife();
+    try std.testing.expectEqual(@as(u32, 4), g.lives);
+    try std.testing.expect(g.extra_life_just_awarded);
+    // Crossing two thresholds at once awards both lives.
+    g.score = 1500;
+    g.awardBonusLife();
+    try std.testing.expectEqual(@as(u32, 6), g.lives);
+}
+
+test "player death resets the combo" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.combo = 12;
+    g.has_shield = false;
+    g.hitPlayer(g.player().?);
+    try std.testing.expectEqual(@as(u32, 0), g.combo);
+    try std.testing.expect(g.player_dead);
 }

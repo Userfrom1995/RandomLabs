@@ -63,13 +63,16 @@ pub const Boss = struct {
 };
 
 /// What a power-up pickup grants. `spread` raises the player's fire level
-/// (single -> double -> triple) up to a cap of 3.
+/// (single -> double -> triple) up to a cap of 3; `shield` grants a one-hit
+/// shield that absorbs the next hit instead of a life.
 pub const PowerKind = enum {
     spread,
+    shield,
 
     pub fn parse(s: []const u8) !PowerKind {
         const map = std.StaticStringMap(PowerKind).initComptime(.{
             .{ "spread", .spread },
+            .{ "shield", .shield },
         });
         return map.get(s) orelse error.UnknownPowerup;
     }
@@ -89,6 +92,8 @@ pub const Level = struct {
     player_speed: f32 = 260,
     player_fire_rate: f32 = 0.16,
     lives: u32 = 3,
+    /// Score at which a bonus life is awarded; 0 disables bonus lives.
+    life_every: u32 = 10000,
     bg: [3]u8 = .{ 0x0B, 0x0E, 0x14 },
     enemies: std.ArrayList(EnemyDef),
     waves: std.ArrayList(Wave),
@@ -171,6 +176,8 @@ pub fn parse(alloc: std.mem.Allocator, src: []const u8) !Level {
                     level.player_fire_rate = try std.fmt.parseFloat(f32, kv.value);
                 } else if (std.mem.eql(u8, kv.key, "lives")) {
                     level.lives = try std.fmt.parseInt(u32, kv.value, 10);
+                } else if (std.mem.eql(u8, kv.key, "life_every")) {
+                    level.life_every = try std.fmt.parseInt(u32, kv.value, 10);
                 } else {
                     return error.UnknownDirective;
                 }
@@ -509,4 +516,36 @@ test "pattern parse" {
     try std.testing.expectEqual(Pattern.sine, try Pattern.parse("sine"));
     try std.testing.expectEqual(Pattern.orbit, try Pattern.parse("orbit"));
     try std.testing.expectError(error.UnknownPattern, Pattern.parse("blob"));
+}
+
+test "parse player life_every" {
+    const src =
+        \\name "Life"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\player { lives 5 life_every 5000 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(u32, 5), level.lives);
+    try std.testing.expectEqual(@as(u32, 5000), level.life_every);
+}
+
+test "parse shield powerup kind" {
+    const src =
+        \\name "Shield"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\powerup { at 5 kind shield }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(usize, 1), level.powerups.items.len);
+    try std.testing.expectEqual(PowerKind.shield, level.powerups.items[0].kind);
 }
