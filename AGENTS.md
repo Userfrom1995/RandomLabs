@@ -54,7 +54,7 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
 - In-progress pushes: the Maintainer's `pull_request` trigger fires on every
   push and posts `/oc continue`; the 4×/day schedule catches anything else.
 
-## The two-model review loop
+## The multi-stage review & testing loop
 
 - A reviewer workflow (different model) reviews every non-draft same-repo PR
   (bot and human alike). The reviewer is strictly read-only: it never
@@ -75,9 +75,12 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
   branch, posts a short `/oc fix` trigger using the owner's PAT when the
   reviewer has a pending `/oc fix` **and the PR is a same-repo bot PR**
   (human PRs get findings as guidance; fork PRs never get triggers), and on
-  `/oc approve` dispatches the Maintainer to merge (fallback: merges as the
-  bot). The owner's account only ever posts `/oc` trigger comments - never
-  full comments.
+  `/oc approve` posts `/oc test` to trigger the Tester agent. The owner's account
+  only ever posts `/oc` trigger comments - never full comments.
+- `opencode-test.yml` (the Tester workflow) dynamically tests the running application
+  end-to-end. If issues are found, it posts `/oc fix` to trigger the Fixer; if all tests
+  and performance checks pass, it posts `/oc approve-test` and dispatches the Maintainer
+  to merge.
 - The implementer commits and pushes its own work itself with a clean message
   and no `Co-authored-by:` trailer. A hardcoded clean-tree step prevents the
   action's auto-commit from leaking trailers; the fix job strips any leaked
@@ -120,9 +123,10 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
 - When you receive a `/oc` comment on a pull request while implementing, treat
   it as a review finding: apply all requested fixes to the PR's branch and
   push. Never self-merge; the reviewer decides when the PR is done.
-- When the reviewer approves, the review workflow hands the PR to the
-  Maintainer, which merges it and auto-closes every linked `Closes #N`
-  (or `Fixes #N` / `Resolves #N`) issue.
+- When the Reviewer approves (`/oc approve`), the review workflow dispatches the
+  Tester via `/oc test`. When the Tester approves (`/oc approve-test`), the test
+  workflow hands the PR to the Maintainer, which merges it and auto-closes every
+  linked `Closes #N` (or `Fixes #N` / `Resolves #N`) issue.
 
 ## The Maintainer (`maintainer.yml`)
 
