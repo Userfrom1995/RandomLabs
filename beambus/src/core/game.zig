@@ -23,6 +23,9 @@ pub const Input = struct {
     down: bool = false,
     fire: bool = false,
     bomb: bool = false,
+    /// Focus mode (Shift): the ship slows to a fraction of its speed for
+    /// precise dodging and the shot pattern tightens into a precise beam.
+    focus: bool = false,
 
     pub fn axis(self: *const Input) Vec2 {
         var x: f32 = 0;
@@ -78,6 +81,15 @@ pub const Game = struct {
     player_speed: f32 = 260,
     /// Player fire rate (shots/sec).
     player_fire_rate: f32 = 0.16,
+    /// Fraction of full speed while focusing, from the level's `focus_speed`.
+    focus_speed: f32 = 0.5,
+    /// Whether the player is holding focus this frame (drives the tighter
+    /// shot pattern and the renderer's hitbox reticle).
+    focusing: bool = false,
+    /// Performance-scaled difficulty meter, 0..100. Rises with kills and
+    /// grazes and falls when the player is hit, so a hot run gets harder and
+    /// a struggling player gets a breather. Scales enemy fire and bullet speed.
+    rank: u32 = 0,
     /// Bookkeeping for "player hit this frame" to let audio/react visually.
     player_just_hit: bool = false,
     /// Consecutive kills without taking a hit; drives the combo multiplier.
@@ -121,6 +133,7 @@ pub const Game = struct {
         g.lives = level.lives;
         g.player_speed = level.player_speed;
         g.player_fire_rate = level.player_fire_rate;
+        g.focus_speed = level.focus_speed;
         g.next_life_at = level.life_every;
         g.bombs = level.bombs;
         g.spawnPlayer();
@@ -209,7 +222,10 @@ pub const Game = struct {
     fn updatePlayer(self: *Game, dt: f32, input: *const Input) void {
         const p = self.player() orelse return;
         const axis = input.axis();
-        p.vel = axis.scale(self.player_speed);
+        self.focusing = input.focus;
+        // Focus trades movement speed for precise dodging (and a tighter shot).
+        const speed = self.player_speed * (if (input.focus) self.focus_speed else 1.0);
+        p.vel = axis.scale(speed);
         p.pos = p.pos.add(p.vel.scale(dt)).clamp(0, 0, @as(f32, @floatFromInt(arena_w)), @as(f32, @floatFromInt(arena_h)));
 
         // Thruster trail: a tiny drifting ember behind the ship, emitted on
@@ -239,6 +255,26 @@ pub const Game = struct {
     fn firePlayer(self: *Game, p: *const Entity) void {
         const speed: f32 = 520;
         const y = p.pos.y - 10;
+        if (self.focusing) {
+            // Focus fire: the twin/triple shots converge into a tight beam so
+            // the player can thread a precise line through a bullet wall.
+            switch (self.player_fire_level) {
+                1 => self.spawnBullet(.{ .x = p.pos.x, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7),
+                2 => {
+                    const ang: f32 = 0.06;
+                    const up = Vec2{ .x = 0, .y = -1 };
+                    self.spawnBullet(.{ .x = p.pos.x - 6, .y = y }, up.rotate(ang), speed, 0x7AA2F7);
+                    self.spawnBullet(.{ .x = p.pos.x + 6, .y = y }, up.rotate(-ang), speed, 0x7AA2F7);
+                },
+                else => {
+                    // Tight cone: the two canted shots stay nearly parallel.
+                    self.spawnBullet(.{ .x = p.pos.x, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7);
+                    self.spawnBullet(.{ .x = p.pos.x - 4, .y = y }, .{ .x = -1, .y = -6 }, speed, 0x7AA2F7);
+                    self.spawnBullet(.{ .x = p.pos.x + 4, .y = y }, .{ .x = 1, .y = -6 }, speed, 0x7AA2F7);
+                },
+            }
+            return;
+        }
         switch (self.player_fire_level) {
             1 => self.spawnBullet(.{ .x = p.pos.x, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7),
             2 => {
@@ -441,7 +477,7 @@ pub const Game = struct {
                 continue;
             }
             self.checkEnrage(e);
-            if (e.armed and self.rng.nextF32() < dt * self.fireRateFor(e)) {
+            if (e.armed and self.rng.nextF32() < dt * self.fireRateFor(e) * self.rankMult()) {
                 self.enemyFire(e);
             }
         }
@@ -521,9 +557,10 @@ pub const Game = struct {
     fn enemyFire(self: *Game, e: *const Entity) void {
         const p = self.player() orelse return;
         const base = p.pos.sub(e.pos).normalized();
+        const speed: f32 = 200 * self.rankMult();
         const shots = @max(e.shots, 1);
         if (shots == 1) {
-            self.spawnEBullet(e.pos, base, 200);
+            self.spawnEBullet(e.pos, base, speed);
             return;
         }
         // Fan volley: `shots` bullets spread across `spread` radians, centered
@@ -533,7 +570,7 @@ pub const Game = struct {
         while (i < shots) : (i += 1) {
             const t = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(shots - 1));
             const ang = start + e.spread * t;
-            self.spawnEBullet(e.pos, base.rotate(ang), 200);
+            self.spawnEBullet(e.pos, base.rotate(ang), speed);
         }
     }
 
@@ -613,12 +650,16 @@ pub const Game = struct {
         self.score += gained;
         self.spawnScoreText(b.pos, gained);
         self.spawnBurst(b.pos, 0x4FD6D6);
+        // Close dodges feed the rank meter: the better you play, the harder
+        // the game gets (classic bullet-hell rank).
+        self.rank = @min(self.rank + 1, 100);
     }
 
     /// Applies a hit to the player. A shield absorbs it; otherwise the player
-    /// takes the full death. Either way the combo resets.
+    /// takes the full death. Either way the combo resets and rank drops.
     fn damagePlayer(self: *Game, p: *Entity) void {
         self.combo = 0;
+        self.rank = @max(self.rank, 25) - 25;
         if (self.has_shield) {
             self.has_shield = false;
             self.shield_broke = true;
@@ -657,6 +698,21 @@ pub const Game = struct {
         e.ttl = 0;
         self.spawnScoreText(e.pos, gained);
         self.awardBonusLife();
+        // Kills push the rank meter up, tightening the bullet-hell screws.
+        self.rank = @min(self.rank + 2, 100);
+    }
+
+    /// Combo multiplier: x1 base, +1 every 5 consecutive kills, capped at x4.
+    pub fn comboMult(self: *const Game) u32 {
+        const extra: u32 = @min(self.combo / 5, @as(u32, 3));
+        return 1 + extra;
+    }
+
+    /// Performance-scaled difficulty multiplier driven by `rank` (0..100):
+    /// x1.0 at rank 0 up to x1.6 at rank 100. Scales enemy fire rate and
+    /// bullet speed, so a clean hot run plays noticeably faster and nastier.
+    pub fn rankMult(self: *const Game) f32 {
+        return 1.0 + @as(f32, @floatFromInt(self.rank)) / 100.0 * 0.6;
     }
 
     /// Detonates a smart bomb: clears every enemy bullet on screen and deals
@@ -686,12 +742,6 @@ pub const Game = struct {
                 self.spawnBurst(e.pos, 0x888888);
             }
         }
-    }
-
-    /// Combo multiplier: x1 base, +1 every 5 consecutive kills, capped at x4.
-    pub fn comboMult(self: *const Game) u32 {
-        const extra: u32 = @min(self.combo / 5, @as(u32, 3));
-        return 1 + extra;
     }
 
     /// Awards a bonus life each time the score crosses a multiple of the
@@ -1687,4 +1737,129 @@ test "bomb power-up refills one bomb stock" {
     };
     g.applyPowerup(pu);
     try std.testing.expectEqual(@as(u32, 2), g.bombs);
+}
+
+test "focus mode slows the player" {
+    const src =
+        \\name "T"
+        \\player { speed 260 }
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+
+    var g = Game.init(&level, 3);
+    var n: usize = 0;
+    while (n < 60) : (n += 1) g.step(1.0 / 60.0, &Input{ .up = true });
+    const fast_y = g.player().?.pos.y;
+
+    g.reset(3);
+    n = 0;
+    while (n < 60) : (n += 1) g.step(1.0 / 60.0, &Input{ .up = true, .focus = true });
+    const slow_y = g.player().?.pos.y;
+
+    // After one second the focused ship has moved half as far (default
+    // focus_speed 0.5), so it sits further down the arena.
+    try std.testing.expect(slow_y > fast_y);
+    try std.testing.expectApproxEqAbs(slow_y - fast_y, @as(f32, 130), 3);
+}
+
+test "focused twin shots converge toward the center line" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.player_fire_level = 2;
+    g.step(1.0 / 60.0, &Input{ .fire = true, .focus = true });
+    const px = g.player().?.pos.x;
+    var left: ?f32 = null;
+    var right: ?f32 = null;
+    for (&g.pool.entities) |*b| {
+        if (!b.alive or b.kind != .bullet) continue;
+        if (b.pos.x < px) {
+            left = b.vel.x;
+        } else {
+            right = b.vel.x;
+        }
+    }
+    // The left shot points up-right (+x) and the right shot up-left (-x), so
+    // the pair converges ahead of the ship (a normal twin shot is parallel,
+    // with both x velocities zero).
+    try std.testing.expect(left != null);
+    try std.testing.expect(right != null);
+    try std.testing.expect(left.? > 0);
+    try std.testing.expect(right.? < 0);
+}
+
+test "rank rises with kills and grazes and falls on a hit" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 0), g.rank);
+
+    const e = g.pool.spawn().?;
+    e.* = .{
+        .kind = .enemy,
+        .alive = true,
+        .pos = .zero,
+        .radius = 8,
+        .hp = 1,
+        .points = 100,
+    };
+    g.killEnemy(e);
+    try std.testing.expectEqual(@as(u32, 2), g.rank);
+
+    const p = g.player().?;
+    const b = g.pool.spawn().?;
+    b.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = p.pos.x + p.radius + 4, .y = p.pos.y },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(@as(u32, 3), g.rank);
+
+    g.damagePlayer(g.player().?);
+    try std.testing.expectEqual(@as(u32, 0), g.rank);
+}
+
+test "rank scales the enemy threat multiplier" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectApproxEqAbs(@as(f32, 1.0), g.rankMult(), 1e-4);
+    g.rank = 50;
+    try std.testing.expectApproxEqAbs(@as(f32, 1.3), g.rankMult(), 1e-4);
+    g.rank = 100;
+    try std.testing.expectApproxEqAbs(@as(f32, 1.6), g.rankMult(), 1e-4);
 }

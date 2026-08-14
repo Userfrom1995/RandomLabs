@@ -105,6 +105,9 @@ pub const Level = struct {
     name: []const u8 = "untitled",
     player_speed: f32 = 260,
     player_fire_rate: f32 = 0.16,
+    /// Fraction of full speed the player moves at while focusing (0..1).
+    /// Focus mode trades speed for precise dodging and a tighter shot.
+    focus_speed: f32 = 0.5,
     lives: u32 = 3,
     /// Score at which a bonus life is awarded; 0 disables bonus lives.
     life_every: u32 = 10000,
@@ -191,6 +194,8 @@ pub fn parse(alloc: std.mem.Allocator, src: []const u8) !Level {
                     level.player_speed = try std.fmt.parseFloat(f32, kv.value);
                 } else if (std.mem.eql(u8, kv.key, "fire_rate")) {
                     level.player_fire_rate = try std.fmt.parseFloat(f32, kv.value);
+                } else if (std.mem.eql(u8, kv.key, "focus_speed")) {
+                    level.focus_speed = try std.fmt.parseFloat(f32, kv.value);
                 } else if (std.mem.eql(u8, kv.key, "lives")) {
                     level.lives = try std.fmt.parseInt(u32, kv.value, 10);
                 } else if (std.mem.eql(u8, kv.key, "life_every")) {
@@ -561,6 +566,22 @@ test "parse player life_every" {
     defer level.deinit(gpa.allocator());
     try std.testing.expectEqual(@as(u32, 5), level.lives);
     try std.testing.expectEqual(@as(u32, 5000), level.life_every);
+}
+
+test "parse player focus_speed" {
+    const src =
+        \\name "Focus"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\player { lives 5 focus_speed 0.4 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(u32, 5), level.lives);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.4), level.focus_speed, 1e-4);
 }
 
 test "parse shield powerup kind" {
