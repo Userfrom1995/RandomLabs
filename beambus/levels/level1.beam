@@ -16,6 +16,12 @@ enemy tank   { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d 
 # The queen: a mid-level boss that sweeps in an orbit.
 boss { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 color #ffd23f }
 
+# Power-up drops: each one raises the fire level (single -> twin -> triple).
+# Spread generously so a fresh run can reach triple fire before the queen.
+powerup { at 16 kind spread }
+powerup { at 30 kind spread }
+powerup { at 42 kind spread }
+
 # Opening lull: unarmed scouts drift down so the player can warm up.
 wave { at 2  kind grunt count 6  interval 0.4 pattern sine    armed false }
 wave { at 8  kind grunt count 8  interval 0.3 pattern zigzag  armed false }

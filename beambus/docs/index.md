@@ -12,20 +12,20 @@ is unit-testable without SDL.
 - **Deterministic core.** The game simulation lives in `src/core/`: a `Vec2`,
   `Rect`, a SplitMix64 `Rng`, a fixed-capacity (1024 slot) entity arena pool
   with a free list, circle collision, and the full game logic (waves, bosses,
-  enemy bullets, collisions, scoring, lives, win/lose states). There is no
-  allocator in the per-frame hot path and no SDL dependency, so the same seed
-  and input stream always reproduce the same run.
+  enemy bullets, collisions, scoring, lives, power-up weapon tiers, win/lose
+  states). There is no allocator in the per-frame hot path and no SDL
+  dependency, so the same seed and input stream always reproduce the same run.
 - **Scripted levels.** A line/brace `.beam` format declares the player, enemy
-  defs, waves, and bosses. Six movement patterns (sine, zigzag, swoop, drift,
-  orbit, spiral) drive how enemies curve through the field. The parser is
-  strict: unknown directives, bad numbers, unknown enemies, duplicate names,
-  and malformed levels all fail with a clear error.
+  defs, waves, bosses, and power-up drops. Six movement patterns (sine, zigzag,
+  swoop, drift, orbit, spiral) drive how enemies curve through the field. The
+  parser is strict: unknown directives, bad numbers, unknown enemies, duplicate
+  names, and malformed levels all fail with a clear error.
 - **Procedural renderer.** A pure-Zig software renderer draws every frame into
   a `u32` pixel buffer at arena resolution (480x600): procedural sprites
-  (triangle ship, circled enemies, bullet bolts, fading particles), a 3x5
-  bitmap font, a seeded twinkling starfield, and a HUD with score, lives, and
-  level name. The buffer is uploaded to an SDL streaming texture and scaled to
-  the window.
+  (triangle ship, circled enemies, bullet bolts, fading particles, pulsing
+  power-up diamonds), a 3x5 bitmap font, a seeded twinkling starfield, and a
+  HUD with score, lives, weapon tier, and level name. The buffer is uploaded to
+  an SDL streaming texture and scaled to the window.
 - **Procedural audio.** A subtractive-style synth with a fixed 12-voice pool
   synthesizes shoot, hit, explosion, player-hit, win, and lose effects. SDL is
   fed via `SDL_QueueAudio` (no callback, no threads); with no audio device it
@@ -39,7 +39,7 @@ is unit-testable without SDL.
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 41 headless tests (no SDL needed)
+zig build test       # 50 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -60,16 +60,16 @@ line; there is no interactive input.
 ## How it works
 
 - **Entity pool.** All entities (player, enemies, player/enemy bullets,
-  particles, floating score text) live in one fixed-capacity arena. A free
-  list hands out slots in O(1); spawning never allocates, and the cull pass
-  returns dead entities to the pool. The core loop is a single switch on an
-  entity's `kind` (no vtables, no interface indirection).
+  particles, power-up drops, floating score text) live in one fixed-capacity
+  arena. A free list hands out slots in O(1); spawning never allocates, and
+  the cull pass returns dead entities to the pool. The core loop is a single
+  switch on an entity's `kind` (no vtables, no interface indirection).
 - **Level script.** `name`, `background`, `player { ... }`, `enemy <name> {
-  ... }`, `wave { ... }`, and `boss { ... }` directives are parsed line by
-  line; `#` starts a comment (a `#` followed by whitespace, so hex colors
-  like `#0b0e14` are not eaten). Waves spawn enemies one at a time on an
-  interval; bosses enter on a timer. Every wave and boss references a defined
-  enemy, enforced at parse time.
+  ... }`, `wave { ... }`, `boss { ... }`, and `powerup { ... }` directives are
+  parsed line by line; `#` starts a comment (a `#` followed by whitespace, so
+  hex colors like `#0b0e14` are not eaten). Waves spawn enemies one at a time
+  on an interval; bosses and power-up drops enter on a timer. Every wave and
+  boss references a defined enemy, enforced at parse time.
 - **Movement patterns.** Each pattern is a small closed-form update: sine
   oscillates horizontally as the enemy falls, zigzag alternates direction
   every 80px, swoop arcs across, drift sways slowly, orbit is the boss sweep
@@ -81,6 +81,10 @@ line; there is no interactive input.
   culls the pool. The player's input is normalized so diagonal movement is not
   boosted. Determinism comes from the seeded SplitMix64 PRNG and the absence
   of allocation or SDL state in the hot path.
+- **Weapon tiers.** Touching a `spread` power-up drop raises the player's fire
+  level: single -> twin -> triple spread (capped at 3). Bosses fire a three-way
+  spread at the player. Dying resets the tier to single, so a level's drops
+  pace the run.
 - **Renderer.** The renderer is pure Zig over a `u32` pixel buffer
   (0xAARRGGBB, ready for `SDL_PIXELFORMAT_ARGB8888`). Primitives (rect, circle,
   circle stroke, triangle) are hand-rolled; text uses a 3x5 bitmap glyph set.
@@ -97,7 +101,7 @@ line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 41 unit tests that run anywhere, with no window
+  of the game is covered by 50 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM
@@ -124,6 +128,7 @@ player { speed 260 fire_rate 0.16 lives 3 }
 enemy grunt { hp 1 speed 90 points 100 radius 8 fire_rate 0.5 color #e8594f }
 wave { at 2 kind grunt count 6 interval 0.4 pattern sine armed false }
 boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }
+powerup { at 16 kind spread }
 ```
 
 ## Key files

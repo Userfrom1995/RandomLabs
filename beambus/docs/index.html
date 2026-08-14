@@ -102,8 +102,9 @@
   <h1>Beambus</h1>
   <p>A retro arcade shoot 'em up written in <strong>Zig</strong>: a
   deterministic, headless-testable game core, scripted <code>.beam</code>
-  levels, six enemy movement patterns, a procedural pixel-art renderer, and a
-  tiny subtractive audio synth, all on an SDL2 platform layer.</p>
+  levels, six enemy movement patterns, power-up weapon upgrades, a procedural
+  pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2
+  platform layer.</p>
   <div class="launch"><a href="https://github.com/Userfrom1995/Random/tree/main/beambus">Open the project →</a></div>
 </header>
 
@@ -113,13 +114,13 @@
       <h4>Deterministic core</h4>
       <p>The whole simulation lives in pure Zig with no allocator in the
       per-frame hot path: the same seed and input stream always reproduce the
-      same run, and every rule is covered by 41 headless unit tests.</p>
+      same run, and every rule is covered by 50 headless unit tests.</p>
     </div>
     <div class="card">
       <h4>Scripted levels</h4>
       <p>A strict line/brace <code>.beam</code> format declares the player,
-      enemy defs, waves, and bosses. Tune levels as text; bad scripts fail
-      with clear errors.</p>
+      enemy defs, waves, bosses, and power-up drops. Tune levels as text; bad
+      scripts fail with clear errors.</p>
     </div>
     <div class="card">
       <h4>Procedural everything</h4>
@@ -137,7 +138,7 @@
   <h2>Try it</h2>
   <pre><code>cd beambus
 zig build            # debug build
-zig build test       # 41 headless tests (no SDL needed)
+zig build test       # 50 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -160,16 +161,17 @@ zig build run        # play in an SDL window
   <h2>How it works</h2>
   <ul>
     <li><strong>Entity pool.</strong> Player, enemies, player/enemy bullets,
-    particles, and floating score text all live in one fixed-capacity
-    (1024-slot) arena with an O(1) free list. Spawning never allocates; a cull
-    pass returns dead entities. The loop is a single switch on entity
-    <code>kind</code>.</li>
+    particles, power-up drops, and floating score text all live in one
+    fixed-capacity (1024-slot) arena with an O(1) free list. Spawning never
+    allocates; a cull pass returns dead entities. The loop is a single switch
+    on entity <code>kind</code>.</li>
     <li><strong>Level script.</strong> <code>name</code>,
     <code>background</code>, <code>player { ... }</code>,
-    <code>enemy &lt;name&gt; { ... }</code>, <code>wave { ... }</code>, and
-    <code>boss { ... }</code> directives are parsed line by line. Waves spawn
-    enemies one at a time on an interval; bosses enter on a timer; every
-    reference to an enemy is validated at parse time.</li>
+    <code>enemy &lt;name&gt; { ... }</code>, <code>wave { ... }</code>,
+    <code>boss { ... }</code>, and <code>powerup { ... }</code> directives are
+    parsed line by line. Waves spawn enemies one at a time on an interval;
+    bosses and power-up drops enter on a timer; every reference to an enemy is
+    validated at parse time.</li>
     <li><strong>Movement patterns.</strong> Each pattern is a small closed-form
     update: <code>sine</code> oscillates while falling, <code>zigzag</code>
     alternates direction, <code>swoop</code> arcs across, <code>drift</code>
@@ -180,6 +182,9 @@ zig build run        # play in an SDL window
     enemies by pattern, moves bullets, runs circle collisions, updates
     particles, and culls the pool. Determinism comes from the seeded SplitMix64
     PRNG and the absence of allocation or SDL state in the hot path.</li>
+    <li><strong>Weapon tiers.</strong> Touching a <code>spread</code> power-up
+    raises the fire level from single to twin to triple spread (capped at 3);
+    bosses fire a three-way spread. Dying resets the tier to single.</li>
     <li><strong>Renderer.</strong> Pure Zig over a <code>u32</code> pixel
     buffer (0xAARRGGBB, ready for <code>SDL_PIXELFORMAT_ARGB8888</code>).
     Rect, circle, circle-stroke, and triangle primitives are hand-rolled; text
@@ -200,7 +205,7 @@ zig build run        # play in an SDL window
   <h2>Design choices</h2>
   <ul>
     <li><strong>Zig, and headless-first.</strong> The core is deliberately
-    SDL-free so every rule of the game is covered by 41 unit tests that run
+    SDL-free so every rule of the game is covered by 50 unit tests that run
     anywhere, with no window and no audio device.</li>
     <li><strong>No allocator in the hot path.</strong> The entity arena is
     fixed at compile time: deterministic, cache-friendly, and free of OOM
@@ -224,7 +229,8 @@ background #0b0e14
 player { speed 260 fire_rate 0.16 lives 3 }
 enemy grunt { hp 1 speed 90 points 100 radius 8 fire_rate 0.5 color #e8594f }
 wave { at 2 kind grunt count 6 interval 0.4 pattern sine armed false }
-boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }</code></pre>
+boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }
+powerup { at 16 kind spread }</code></pre>
 
   <h2>Source</h2>
   <p>The project lives in

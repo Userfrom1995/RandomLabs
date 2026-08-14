@@ -1,16 +1,17 @@
 # Beambus: a retro arcade shooter in Zig
 
 A deterministic, headless-testable shoot 'em up: scripted `.beam` level files,
-six enemy movement patterns, a procedural pixel-art renderer, and a tiny
-subtractive audio synth. The game core is pure Zig with no allocator in the
-per-frame hot path, so the whole simulation is unit-testable without SDL.
+six enemy movement patterns, power-up weapon upgrades, a procedural pixel-art
+renderer, and a tiny subtractive audio synth. The game core is pure Zig with no
+allocator in the per-frame hot path, so the whole simulation is unit-testable
+without SDL.
 
 ## Build
 
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 41 headless tests (no SDL needed)
+zig build test       # 50 headless tests (no SDL needed)
 zig build check      # headless self-checks, exit 0/1
 zig build run        # play in an SDL window
 ```
@@ -48,13 +49,19 @@ Everything comes from the command line; there is no interactive input.
 - **Deterministic core** (`src/core/`): `Vec2`, `Rect`, SplitMix64 `Rng`, a
   fixed-capacity 1024-slot entity arena pool with a free list, circle
   collision, and the full game simulation (waves, bosses, enemy bullets,
-  collisions, scoring, lives, win/lose). No SDL, no allocation during a step.
+  collisions, scoring, lives, power-up weapon tiers, win/lose). No SDL, no
+  allocation during a step.
 - **Scripted levels** (`levels/*.beam`): a line/brace format declaring the
-  player, enemy defs, waves, and bosses, with six movement patterns: sine,
-  zigzag, swoop, drift, orbit, spiral. Strict validation with clear errors.
+  player, enemy defs, waves, bosses, and power-up drops, with six movement
+  patterns: sine, zigzag, swoop, drift, orbit, spiral. Strict validation with
+  clear errors.
+- **Weapon upgrades**: touching a `spread` drop raises the fire level from
+  single to twin to triple spread (capped at 3); bosses fire a three-way
+  spread. Dying resets the tier to single.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, seeded
-  starfield, HUD) which SDL scales to the window. Pure Zig, no SDL.
+  starfield, HUD with score/lives/weapon tier) which SDL scales to the window.
+  Pure Zig, no SDL.
 - **Audio synth** (`src/platform/synth.zig`, `audio.zig`): a deterministic
   subtractive-style synth with a fixed 12-voice pool, fed to SDL via
   `SDL_QueueAudio` (no callback, no threads). Degrades to silent with no

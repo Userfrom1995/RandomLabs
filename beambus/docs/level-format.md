@@ -63,8 +63,23 @@ Spawns `count` enemies of a kind, one at a time. Keys:
 ### `boss { ... }`
 
 Spawns a single large enemy at a fixed time. Keys mirror the enemy def plus
-`at` (seconds into the level). Bosses always use the `orbit` pattern and
-always fire.
+`at` (seconds into the level). Bosses always use the `orbit` pattern, always
+fire, and fire a three-way spread at the player.
+
+### `powerup { ... }`
+
+Spawns a power-up drop at a fixed time. The drop falls down the arena; the
+player picks it up by touching it. Keys:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `at` | 0 | Seconds into the level when the drop appears. |
+| `kind` | `spread` | What the drop grants. |
+
+`kind` currently supports `spread`, which raises the player's fire level by
+one: single -> twin -> triple spread (capped at 3). Dying resets the fire
+level to single, so a level can place drops along its curve to pace the
+player's power. A missed drop drifts off the bottom of the arena.
 
 ## Movement patterns
 
@@ -91,6 +106,10 @@ enemy grunt { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f }
 enemy dart  { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  color #7aa2f7 }
 enemy tank  { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
 boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 color #ffd23f }
+
+powerup { at 16 kind spread }
+powerup { at 30 kind spread }
+powerup { at 42 kind spread }
 
 wave { at 2  kind grunt count 6  interval 0.4 pattern sine    armed false }
 wave { at 8  kind grunt count 8  interval 0.3 pattern zigzag  armed false }
