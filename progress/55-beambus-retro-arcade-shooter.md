@@ -104,4 +104,11 @@ push.
   headless stress is clean, determinism byte-identical, windowed run verified
   under the dummy video driver.
 
+- 2026-08-14 (fixer, review round 4 findings): applied the reviewer's three
+  round-4 findings. (1) Root README "Current Project" section now names
+  Beambus (was still Aftershock) and Aftershock moved to Previous Ideas, in
+  line with the landing page. (2) Landing page Beambus card test count fixed
+  to 57 (was 41). (3) Removed three unused imports: Rng in entity.zig, Vec2 in
+  level.zig, and Kind in game.zig. All 57 tests still pass, 3/3 self-checks.
+
 - the Builder
