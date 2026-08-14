@@ -23,6 +23,7 @@ pub const KeyState = struct {
     up: bool = false,
     down: bool = false,
     fire: bool = false,
+    bomb: bool = false,
     pause: bool = false,
     quit: bool = false,
     restart: bool = false,
@@ -117,6 +118,7 @@ pub const Platform = struct {
         out.up = keys[c.SDL_SCANCODE_UP] or keys[c.SDL_SCANCODE_W];
         out.down = keys[c.SDL_SCANCODE_DOWN] or keys[c.SDL_SCANCODE_S];
         out.fire = keys[c.SDL_SCANCODE_SPACE] or keys[c.SDL_SCANCODE_Z] or keys[c.SDL_SCANCODE_X];
+        out.bomb = keys[c.SDL_SCANCODE_B] or keys[c.SDL_SCANCODE_V];
         out.pause = keys[c.SDL_SCANCODE_P] or keys[c.SDL_SCANCODE_ESCAPE];
         out.restart = keys[c.SDL_SCANCODE_R];
         return out;

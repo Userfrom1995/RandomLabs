@@ -326,6 +326,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
                     .up = ks.up,
                     .down = ks.down,
                     .fire = ks.fire,
+                    .bomb = ks.bomb,
                 };
                 game.step(fixed_dt, &inp);
             }
@@ -338,6 +339,7 @@ fn runWindowed(alloc: std.mem.Allocator, opts: *const Options) !void {
             if (game.score > prev_score and enemies == prev_enemies) synth.trigger(.hit);
             if (game.pickup_just_taken) synth.trigger(.powerup);
             if (game.extra_life_just_awarded) synth.trigger(.life);
+            if (game.bomb_just_fired) synth.trigger(.bomb);
             if (game.shield_broke and !prev_player_hit) {
                 synth.trigger(.shield_break);
             } else if (game.player_just_hit and !prev_player_hit) {
