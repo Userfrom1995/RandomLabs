@@ -118,11 +118,16 @@ pub const Game = struct {
     graze_just_happened: bool = false,
     /// Set when a boss entered its enrage phase this step (audio/vfx hook).
     boss_enraged: bool = false,
+    /// Total enemies destroyed this run, for the result screen.
+    kills: u32 = 0,
 
     /// Width of the near-miss band around the player, in pixels.
     pub const graze_band: f32 = 5;
     /// Points awarded per grazed bullet.
     pub const graze_points: u32 = 50;
+    /// Max turn rate (radians/second) for homing enemy bullets. Capped so a
+    /// homing shot curves toward the player but never snaps onto them.
+    pub const homing_turn_rate: f32 = 2.5;
 
     pub fn init(level: *const Level, seed: u64) Game {
         var g = Game{
@@ -304,7 +309,7 @@ pub const Game = struct {
         };
     }
 
-    fn spawnEBullet(self: *Game, origin: Vec2, dir: Vec2, speed: f32) void {
+    fn spawnEBullet(self: *Game, origin: Vec2, dir: Vec2, speed: f32, homing: bool) void {
         const b = self.pool.spawn() orelse return;
         b.* = .{
             .kind = .ebullet,
@@ -314,6 +319,7 @@ pub const Game = struct {
             .radius = 3,
             .hp = 1,
             .ttl = 6,
+            .homing = homing,
             .color = 0xFF6B57,
         };
     }
@@ -360,6 +366,7 @@ pub const Game = struct {
             .points = def.points,
             .shots = def.shots,
             .spread = def.spread,
+            .homing = def.homing,
             .armed = w.armed,
             .data = @intFromEnum(w.pattern),
             .color = def.color,
@@ -395,6 +402,7 @@ pub const Game = struct {
             .points = b.points,
             .shots = b.shots,
             .spread = b.spread,
+            .homing = b.homing,
             .rage_hp = b.rage_hp,
             .armed = true,
             .data = @intFromEnum(Pattern.orbit),
@@ -560,7 +568,7 @@ pub const Game = struct {
         const speed: f32 = 200 * self.rankMult();
         const shots = @max(e.shots, 1);
         if (shots == 1) {
-            self.spawnEBullet(e.pos, base, speed);
+            self.spawnEBullet(e.pos, base, speed, e.homing);
             return;
         }
         // Fan volley: `shots` bullets spread across `spread` radians, centered
@@ -570,7 +578,7 @@ pub const Game = struct {
         while (i < shots) : (i += 1) {
             const t = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(shots - 1));
             const ang = start + e.spread * t;
-            self.spawnEBullet(e.pos, base.rotate(ang), speed);
+            self.spawnEBullet(e.pos, base.rotate(ang), speed, e.homing);
         }
     }
 
@@ -578,6 +586,9 @@ pub const Game = struct {
         for (&self.pool.entities) |*e| {
             if (!e.alive) continue;
             if (e.kind != .bullet and e.kind != .ebullet) continue;
+            if (e.kind == .ebullet and e.homing) {
+                if (self.player()) |p| steerHoming(e, p.pos, dt);
+            }
             e.pos = e.pos.add(e.vel.scale(dt));
             if (e.pos.y < -20 or e.pos.y > arena_h + 20 or
                 e.pos.x < -20 or e.pos.x > arena_w + 20)
@@ -585,6 +596,25 @@ pub const Game = struct {
                 e.ttl = 0;
             }
         }
+    }
+
+    /// Curves a homing enemy bullet toward `target`. The turn is capped at
+    /// `homing_turn_rate` radians per second and the bullet keeps its speed,
+    /// so a homing shot is a persistent threat that still cannot snap onto the
+    /// ship: strafing in focus mode or a sharp break shakes it off.
+    fn steerHoming(e: *Entity, target: Vec2, dt: f32) void {
+        const cur = e.vel.normalized();
+        if (cur.lengthSq() <= 0) return;
+        const desired = target.sub(e.pos).normalized();
+        const dot = std.math.clamp(cur.x * desired.x + cur.y * desired.y, -1.0, 1.0);
+        const angle = std.math.acos(dot);
+        // Signed turn direction: which way the velocity must rotate to reach
+        // the target (cross product of current and desired directions).
+        const cross = cur.x * desired.y - cur.y * desired.x;
+        const dir_sign: f32 = if (cross >= 0) 1 else -1;
+        const turn = @min(angle, Game.homing_turn_rate * dt) * dir_sign;
+        const speed = e.vel.length();
+        e.vel = cur.rotate(turn).scale(speed);
     }
 
     fn updateCollisions(self: *Game) void {
@@ -691,10 +721,18 @@ pub const Game = struct {
     /// the combo multiplier), spawns a burst and floating score, and may grant
     /// a bonus life. Used by bullet kills and bomb kills alike.
     fn killEnemy(self: *Game, e: *Entity) void {
+        self.kills += 1;
         self.combo += 1;
         const gained = self.pointsFor(e) * self.comboMult();
         self.score += gained;
-        self.spawnBurst(e.pos, e.color);
+        // Big enemies die loudly: a wide multi-ring burst that reads as the
+        // payoff for burning a boss down.
+        if (e.radius >= 20) {
+            self.spawnBurstSized(e.pos, e.color, 36, 280);
+            self.spawnBurstSized(e.pos, 0xFFFFFF, 14, 140);
+        } else {
+            self.spawnBurst(e.pos, e.color);
+        }
         e.ttl = 0;
         self.spawnScoreText(e.pos, gained);
         self.awardBonusLife();
@@ -756,15 +794,21 @@ pub const Game = struct {
     }
 
     fn spawnBurst(self: *Game, pos: Vec2, color: u32) void {
+        self.spawnBurstSized(pos, color, 12, 180);
+    }
+
+    /// Spawns `count` radial particles at `pos` with random speeds up to
+    /// `max_speed`. Sized bursts let big kills read as bigger explosions.
+    fn spawnBurstSized(self: *Game, pos: Vec2, color: u32, count: usize, max_speed: f32) void {
         var i: usize = 0;
-        while (i < 12) : (i += 1) {
+        while (i < count) : (i += 1) {
             const part = self.pool.spawn() orelse return;
             const dir = self.rng.onUnitCircle();
             part.* = .{
                 .kind = .particle,
                 .alive = true,
                 .pos = pos,
-                .vel = dir.scale(self.rng.range(40, 180)),
+                .vel = dir.scale(self.rng.range(40, max_speed)),
                 .radius = 0,
                 .hp = 1,
                 .ttl = self.rng.range(0.3, 0.8),
@@ -1862,4 +1906,195 @@ test "rank scales the enemy threat multiplier" {
     try std.testing.expectApproxEqAbs(@as(f32, 1.3), g.rankMult(), 1e-4);
     g.rank = 100;
     try std.testing.expectApproxEqAbs(@as(f32, 1.6), g.rankMult(), 1e-4);
+}
+
+test "homing enemy bullets steer toward the player" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const p = g.player().?;
+    p.pos = .{ .x = 240, .y = 500 };
+    // A bullet to the right of the player flying straight down: it must turn
+    // left (-x) toward the ship over time.
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = 400, .y = 100 },
+        .vel = .{ .x = 0, .y = 200 },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 6,
+        .homing = true,
+    };
+    var n: usize = 0;
+    while (n < 120) : (n += 1) g.step(1.0 / 60.0, &Input{});
+    try std.testing.expect(eb.vel.x < -10);
+    // After two seconds of homing it has curved well into the player's half
+    // of the arena (it started at x=400, the arena is 480 wide).
+    try std.testing.expect(eb.pos.x < 320);
+}
+
+test "homing turn is capped per second" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const p = g.player().?;
+    p.pos = .{ .x = 240, .y = 500 };
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = 400, .y = 100 },
+        .vel = .{ .x = 0, .y = 200 },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 6,
+        .homing = true,
+    };
+    const before = eb.vel.normalized();
+    // A single frame may rotate the velocity by at most the capped rate.
+    g.step(1.0 / 60.0, &Input{});
+    const after = eb.vel.normalized();
+    const dot = std.math.clamp(before.x * after.x + before.y * after.y, -1.0, 1.0);
+    const turned = std.math.acos(dot);
+    try std.testing.expect(turned <= Game.homing_turn_rate / 60.0 + 1e-4);
+    // Speed is preserved: homing bends the shot, it never throttles it.
+    try std.testing.expectApproxEqAbs(@as(f32, 200), eb.vel.length(), 1e-3);
+}
+
+test "non-homing enemy bullets fly straight" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const p = g.player().?;
+    p.pos = .{ .x = 240, .y = 500 };
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = 400, .y = 100 },
+        .vel = .{ .x = 0, .y = 200 },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 6,
+        .homing = false,
+    };
+    var n: usize = 0;
+    while (n < 30) : (n += 1) g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectApproxEqAbs(@as(f32, 0), eb.vel.x, 1e-4);
+    try std.testing.expectApproxEqAbs(@as(f32, 200), eb.vel.y, 1e-3);
+}
+
+test "enemies and bosses inherit homing at spawn" {
+    const src =
+        \\name "T"
+        \\enemy seeker { hp 2 fire_rate 0.6 homing true }
+        \\wave { at 0 kind seeker count 1 interval 0.01 pattern drift armed true }
+        \\boss { at 1 kind seeker hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 homing true }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    var input = Input{};
+    g.step(1.0 / 60.0, &input);
+    var n: usize = 0;
+    while (g.boss_idx == 0 and n < 60 * 60) : (n += 1) {
+        g.step(1.0 / 60.0, &input);
+    }
+    var saw_wave = false;
+    var saw_boss = false;
+    for (&g.pool.entities) |*e| {
+        if (!e.alive or e.kind != .enemy) continue;
+        if (e.radius >= 20) {
+            if (e.homing) saw_boss = true;
+        } else {
+            if (e.homing) saw_wave = true;
+        }
+    }
+    try std.testing.expect(saw_wave);
+    try std.testing.expect(saw_boss);
+}
+
+test "kills counter increments for every destroyed enemy" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 0), g.kills);
+    const e = g.pool.spawn().?;
+    e.* = .{
+        .kind = .enemy,
+        .alive = true,
+        .pos = .zero,
+        .radius = 8,
+        .hp = 1,
+        .points = 100,
+    };
+    g.killEnemy(e);
+    try std.testing.expectEqual(@as(u32, 1), g.kills);
+    g.killEnemy(e);
+    try std.testing.expectEqual(@as(u32, 2), g.kills);
+}
+
+test "boss kills spawn a larger explosion burst" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const e = g.pool.spawn().?;
+    e.* = .{
+        .kind = .enemy,
+        .alive = true,
+        .pos = .zero,
+        .radius = 24,
+        .hp = 1,
+        .points = 5000,
+    };
+    const before = g.pool.countByKind(.particle);
+    g.killEnemy(e);
+    // A boss death throws a wide ring plus a bright inner ring (36 + 14).
+    const gained = g.pool.countByKind(.particle) - before;
+    try std.testing.expect(gained >= 50);
 }
