@@ -1,9 +1,9 @@
-# Progress — Beambus
+# Progress - Beambus
 
 - **Issue:** #55
 - **Branch:** opencode/55-beambus-retro-arcade-shooter
-- **Status:** in-progress
-- **Updated:** 2026-08-14T16:30:00Z
+- **Status:** complete
+- **Updated:** 2026-08-14T16:45:00Z
 
 ## Checklist
 - [x] scaffold project + progress file
@@ -16,30 +16,23 @@
 - [x] procedural audio (SDL audio callback, synth)
 - [x] headless CLI mode (replay/self-check)
 - [x] tests green (zig build test)
-- [ ] README + docs/ (index.md + index.html) + ideas/ entry + landing page update
-- [ ] final push, Status: complete, PR with Closes #55
+- [x] README + docs/ (index.md + index.html + level-format.md) + ideas/ entry + landing page update
+- [x] final push, Status: complete, PR with Closes #55
 
 ## Current step
-The SDL platform layer is in and green: window/renderer/input wrapper, a pure-Zig
-software renderer (procedural sprites, 3x5 bitmap font, seeded starfield, HUD),
-a subtractive-style synth with a fixed voice pool fed to SDL via SDL_QueueAudio
-(no callback, no threads), and main.zig with a fixed-timestep 60 Hz loop plus
-`--headless`, `--self-check`, `--level`, `--seed`, `--scale`, `--seconds` modes
-and a sample levels/level1.beam. This run fixed two real issues before the
-final pass: (1) the previous commit had committed the build cache and zig-out
-artifacts - they are now untracked behind beambus/.gitignore; (2) `zig build
-test` only ran 9 tests because the separate `core` module boundary swallowed
-the per-file test blocks - everything now lives in one module (relative path
-imports) and all 41 tests run. exe builds, self-checks pass, windowed mode
-runs under the dummy video driver. Next: README, docs/, ideas/ entry, landing
-page, final push with Status: complete.
+Done. The full Beambus build is complete and pushed on this PR: deterministic
+headless-testable core (vec/rng/rect/entity/level/game, 41 tests, no SDL), SDL2
+platform layer (window/renderer/input), procedural software renderer (sprites,
+3x5 font, starfield, HUD), procedural audio synth (SDL_QueueAudio glue that
+degrades to silent), fixed-timestep game loop, windowed/headless/self-check
+modes, sample levels/level1.beam, README, docs site (index + level-format),
+ideas entry, and the landing page promotes Beambus as the current project. All
+verification passes: 41/41 tests, exe builds, self-checks pass, windowed run
+verified under the dummy video driver.
 
 ## Next steps
-- beambus/README.md (quickstart, build, usage, controls)
-- beambus/docs/index.md + index.html (docs site)
-- ideas/2026-08-14-beambus-retro-arcade-shooter.md
-- root index.html landing page: add Beambus, promote to current project
-- final push, mark Status: complete, PR body update
+None - ready for review. The automatic reviewer trigger fires on the final
+push.
 
 ## Agent log
 - 2026-08-14 (run 1): read builder.md, AGENTS.md, FACTORY.md, README, and
@@ -66,5 +59,14 @@ page, final push with Status: complete.
   test blocks - removed the module boundary, switched to relative-path imports
   throughout (main, render, sdl, test_all), and all 41 tests now run. Verified
   exe build, 41/41 tests, self-check, and windowed mode under the dummy driver.
+- 2026-08-14 (run 4, finalize): discovered origin/main had been squashed to a
+  single commit, leaving the PR branch history unrelated to main. Rebuilt the
+  PR branch cleanly on top of the current main (3 modular commits: core
+  scaffold, SDL platform layer, build-artifact/test-collection fixes) and
+  force-pushed so the PR diff shows only the Beambus work. Wrote README, docs
+  (index.md, index.html, level-format.md), and the ideas entry; promoted
+  Beambus to the current project on the landing page (Aftershock moved to
+  previous projects). Re-verified everything: 41/41 tests, exe builds,
+  self-checks pass. Marked this file complete.
 
 - the Builder

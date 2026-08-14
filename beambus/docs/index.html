@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Beambus: a retro arcade shooter in Zig</title>
+<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, six enemy movement patterns, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 22px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Beambus</h1>
+  <p>A retro arcade shoot 'em up written in <strong>Zig</strong>: a
+  deterministic, headless-testable game core, scripted <code>.beam</code>
+  levels, six enemy movement patterns, a procedural pixel-art renderer, and a
+  tiny subtractive audio synth, all on an SDL2 platform layer.</p>
+  <div class="launch"><a href="https://github.com/Userfrom1995/Random/tree/main/beambus">Open the project →</a></div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>Deterministic core</h4>
+      <p>The whole simulation lives in pure Zig with no allocator in the
+      per-frame hot path: the same seed and input stream always reproduce the
+      same run, and every rule is covered by 41 headless unit tests.</p>
+    </div>
+    <div class="card">
+      <h4>Scripted levels</h4>
+      <p>A strict line/brace <code>.beam</code> format declares the player,
+      enemy defs, waves, and bosses. Tune levels as text; bad scripts fail
+      with clear errors.</p>
+    </div>
+    <div class="card">
+      <h4>Procedural everything</h4>
+      <p>Sprites, a 3x5 bitmap font, a seeded starfield, and a subtractive
+      12-voice synth are all generated in code. No assets, no external
+      audio files.</p>
+    </div>
+    <div class="card">
+      <h4>Zig, first for the factory</h4>
+      <p>The factory's first Zig project. SDL2 is the only dependency, and
+      only the platform layer touches it; CI stays headless.</p>
+    </div>
+  </section>
+
+  <h2>Try it</h2>
+  <pre><code>cd beambus
+zig build            # debug build
+zig build test       # 41 headless tests (no SDL needed)
+zig build check      # headless self-checks
+zig build run        # play in an SDL window
+
+./zig-out/bin/beambus                  # play in a window (480x600 x2)
+./zig-out/bin/beambus --headless       # simulate, print a summary
+./zig-out/bin/beambus --self-check     # run invariant checks
+./zig-out/bin/beambus --level levels/level1.beam
+./zig-out/bin/beambus --seed 42        # fixed seed, deterministic replay</code></pre>
+
+  <h2>Controls</h2>
+  <table>
+    <tr><th>Key</th><th>Action</th></tr>
+    <tr><td>Arrow keys / WASD</td><td>Move the ship</td></tr>
+    <tr><td>Space / Z / X</td><td>Fire</td></tr>
+    <tr><td>P / Esc</td><td>Pause</td></tr>
+    <tr><td>R</td><td>Restart after a win/lose</td></tr>
+    <tr><td>Esc</td><td>Quit</td></tr>
+  </table>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Entity pool.</strong> Player, enemies, player/enemy bullets,
+    particles, and floating score text all live in one fixed-capacity
+    (1024-slot) arena with an O(1) free list. Spawning never allocates; a cull
+    pass returns dead entities. The loop is a single switch on entity
+    <code>kind</code>.</li>
+    <li><strong>Level script.</strong> <code>name</code>,
+    <code>background</code>, <code>player { ... }</code>,
+    <code>enemy &lt;name&gt; { ... }</code>, <code>wave { ... }</code>, and
+    <code>boss { ... }</code> directives are parsed line by line. Waves spawn
+    enemies one at a time on an interval; bosses enter on a timer; every
+    reference to an enemy is validated at parse time.</li>
+    <li><strong>Movement patterns.</strong> Each pattern is a small closed-form
+    update: <code>sine</code> oscillates while falling, <code>zigzag</code>
+    alternates direction, <code>swoop</code> arcs across, <code>drift</code>
+    sways slowly, <code>orbit</code> is the boss sweep that holds altitude, and
+    <code>spiral</code> combines cosine and sine motion.</li>
+    <li><strong>Simulation loop.</strong> Each step advances time, updates the
+    player from a normalized input snapshot, spawns waves and bosses, moves
+    enemies by pattern, moves bullets, runs circle collisions, updates
+    particles, and culls the pool. Determinism comes from the seeded SplitMix64
+    PRNG and the absence of allocation or SDL state in the hot path.</li>
+    <li><strong>Renderer.</strong> Pure Zig over a <code>u32</code> pixel
+    buffer (0xAARRGGBB, ready for <code>SDL_PIXELFORMAT_ARGB8888</code>).
+    Rect, circle, circle-stroke, and triangle primitives are hand-rolled; text
+    uses a 3x5 bitmap glyph set; the starfield is seeded per run and scrolls
+    downward.</li>
+    <li><strong>Audio.</strong> A fixed 12-voice synth, each voice a wave
+    (square, saw, noise) with frequency, slide, amplitude, and a TTL-shaped
+    decay envelope. Effects are layered voice stacks; output is deterministic
+    and clamped to [-1, 1]. SDL is fed via <code>SDL_QueueAudio</code> (no
+    callback, no threads).</li>
+    <li><strong>CLI.</strong> A hand-rolled arg parser handles
+    <code>--level</code>, <code>--seed</code>, <code>--scale</code>,
+    <code>--seconds</code>, <code>--headless</code>, <code>--self-check</code>,
+    <code>--version</code>, and <code>--help</code>; bad values produce a
+    clear message and a non-zero exit.</li>
+  </ul>
+
+  <h2>Design choices</h2>
+  <ul>
+    <li><strong>Zig, and headless-first.</strong> The core is deliberately
+    SDL-free so every rule of the game is covered by 41 unit tests that run
+    anywhere, with no window and no audio device.</li>
+    <li><strong>No allocator in the hot path.</strong> The entity arena is
+    fixed at compile time: deterministic, cache-friendly, and free of OOM
+    states.</li>
+    <li><strong>Deterministic by default.</strong> Windowed mode seeds from the
+    clock unless <code>--seed</code> is given; headless and self-check modes
+    use fixed seeds so replays are exact.</li>
+    <li><strong>Scriptable levels.</strong> Levels are data, not code; the
+    strict parser catches mistakes at load time.</li>
+    <li><strong>Self-verifying.</strong> <code>zig build check</code> re-runs
+    core invariants (bounded simulation, seed determinism, distinct-seed
+    validity) at runtime, and <code>zig build test</code> covers every
+    SDL-free module.</li>
+  </ul>
+
+  <h2>Level format</h2>
+  <p>The <code>.beam</code> format has its own reference page:
+  <a href="level-format.md">level-format.md</a>. A short example:</p>
+  <pre><code>name "The Drone Swarm"
+background #0b0e14
+player { speed 260 fire_rate 0.16 lives 3 }
+enemy grunt { hp 1 speed 90 points 100 radius 8 fire_rate 0.5 color #e8594f }
+wave { at 2 kind grunt count 6 interval 0.4 pattern sine armed false }
+boss { at 45 kind tank hp 80 speed 40 points 5000 fire_rate 0.8 color #ffd23f }</code></pre>
+
+  <h2>Source</h2>
+  <p>The project lives in
+  <a href="https://github.com/Userfrom1995/Random/tree/main/beambus"><code>beambus/</code></a>
+  with a
+  <a href="https://github.com/Userfrom1995/Random/blob/main/beambus/README.md">README</a>
+  and a full writeup in
+  <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md"><code>ideas/</code></a>.</p>
+</main>
+
+<footer>Beambus · part of the Random repo · MIT License</footer>
+</body>
+</html>

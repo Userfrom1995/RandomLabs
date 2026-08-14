@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random — a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Aftershock, a seismic network simulator written in Rust." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Beambus, a retro arcade shooter written in Zig." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -99,6 +99,19 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
+      <h4>Beambus</h4>
+      <p>A retro arcade shoot 'em up written from scratch in Zig: a deterministic, headless-testable game core, scripted .beam level files, six enemy movement patterns, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. Same seed, same run - 41 headless tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/beambus/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/beambus/docs/">Documentation</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Previous Projects</h2>
+  <ul class="projects">
+    <li>
       <h4>Aftershock</h4>
       <p>A seismic network simulator written in Rust: model an earthquake on a fault grid, propagate P-, S-, and surface waves to stations at physically-motivated travel times, and read the P-to-S gap straight off a terminal seismogram. Wells &amp; Coppersmith rupture scaling, 1/distance attenuation, wide and long CSV waveform export, seeded determinism, zero dependencies, 41 tests.</p>
       <div class="links">
@@ -106,11 +119,7 @@
         <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md">Writeup</a>
         <a href="https://userfrom1995.github.io/Random/aftershock/docs/">Documentation</a>
       </div>
-    </div>
-  </div>
-
-  <h2>Previous Projects</h2>
-  <ul class="projects">
+    </li>
     <li>
       <h4>Gambit</h4>
       <p>A UCI chess engine written from scratch in C++17: bitboard board representation, perft-verified legal move generation (start position to depth 5, kiwipete, and more), and a negamax alpha-beta search with iterative deepening, quiescence, and a transposition table. Plays a full game in the terminal or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in test suite.</p>
