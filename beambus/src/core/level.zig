@@ -93,6 +93,9 @@ pub const Level = struct {
     lives: u32 = 3,
     /// Score at which a bonus life is awarded; 0 disables bonus lives.
     life_every: u32 = 10000,
+    /// Smart bombs the player starts with. A bomb clears every enemy bullet on
+    /// screen and deals heavy damage to all enemies; 0 disables the mechanic.
+    bombs: u32 = 0,
     bg: [3]u8 = .{ 0x0B, 0x0E, 0x14 },
     enemies: std.ArrayList(EnemyDef),
     waves: std.ArrayList(Wave),
@@ -177,6 +180,8 @@ pub fn parse(alloc: std.mem.Allocator, src: []const u8) !Level {
                     level.lives = try std.fmt.parseInt(u32, kv.value, 10);
                 } else if (std.mem.eql(u8, kv.key, "life_every")) {
                     level.life_every = try std.fmt.parseInt(u32, kv.value, 10);
+                } else if (std.mem.eql(u8, kv.key, "bombs")) {
+                    level.bombs = try std.fmt.parseInt(u32, kv.value, 10);
                 } else {
                     return error.UnknownDirective;
                 }

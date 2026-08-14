@@ -22,6 +22,7 @@ pub const Input = struct {
     up: bool = false,
     down: bool = false,
     fire: bool = false,
+    bomb: bool = false,
 
     pub fn axis(self: *const Input) Vec2 {
         var x: f32 = 0;
@@ -91,6 +92,14 @@ pub const Game = struct {
     shield_broke: bool = false,
     /// Set when a bonus life was awarded this step.
     extra_life_just_awarded: bool = false,
+    /// Remaining smart bombs.
+    bombs: u32 = 0,
+    /// Set when a bomb detonated this step (audio/vfx hook).
+    bomb_just_fired: bool = false,
+    /// Seconds of invulnerability remaining after a respawn.
+    invuln_timer: f32 = 0,
+    /// Seconds of white screen flash after a bomb detonation.
+    bomb_flash: f32 = 0,
 
     pub fn init(level: *const Level, seed: u64) Game {
         var g = Game{
@@ -102,6 +111,7 @@ pub const Game = struct {
         g.player_speed = level.player_speed;
         g.player_fire_rate = level.player_fire_rate;
         g.next_life_at = level.life_every;
+        g.bombs = level.bombs;
         g.spawnPlayer();
         g.boss_timer = if (level.bosses.items.len > 0) level.bosses.items[0].at else std.math.inf(f32);
         return g;
@@ -141,6 +151,8 @@ pub const Game = struct {
         self.pickup_just_taken = false;
         self.shield_broke = false;
         self.extra_life_just_awarded = false;
+        self.bomb_just_fired = false;
+        if (self.bomb_flash > 0) self.bomb_flash -= dt;
 
         if (self.state == .lost or self.state == .won) {
             // Still let particles tick so death/powerup effects finish.
@@ -156,6 +168,9 @@ pub const Game = struct {
                     self.lives -= 1;
                     self.spawnPlayer();
                     self.player_dead = false;
+                    // Brief invulnerability so a fresh spawn is not instantly
+                    // killed by a bullet crossing the spawn point.
+                    self.invuln_timer = 2.0;
                 } else {
                     self.state = .lost;
                 }
@@ -163,7 +178,10 @@ pub const Game = struct {
             return;
         }
 
+        if (self.invuln_timer > 0) self.invuln_timer = @max(0, self.invuln_timer - dt);
+
         self.updatePlayer(dt, input);
+        if (input.bomb) self.detonateBomb();
         self.updateWaves(dt);
         self.updateBosses(dt);
         self.updatePowerups(dt);
@@ -271,6 +289,7 @@ pub const Game = struct {
             .vel = .{ .x = 0, .y = def.speed },
             .radius = def.radius,
             .hp = def.hp,
+            .max_hp = def.hp,
             .fire_rate = def.fire_rate,
             .points = def.points,
             .armed = w.armed,
@@ -303,6 +322,7 @@ pub const Game = struct {
             .vel = .{ .x = 0, .y = b.speed },
             .radius = b.radius,
             .hp = b.hp,
+            .max_hp = b.hp,
             .fire_rate = b.fire_rate,
             .points = b.points,
             .armed = true,
@@ -472,13 +492,7 @@ pub const Game = struct {
                     b.ttl = 0;
                     e.hp -= 1;
                     if (e.hp <= 0) {
-                        self.combo += 1;
-                        const gained = self.pointsFor(e) * self.comboMult();
-                        self.score += gained;
-                        self.spawnBurst(e.pos, e.color);
-                        e.ttl = 0;
-                        self.spawnScoreText(e.pos, gained);
-                        self.awardBonusLife();
+                        self.killEnemy(e);
                     } else {
                         self.spawnBurst(e.pos, 0x888888);
                     }
@@ -487,21 +501,25 @@ pub const Game = struct {
         }
 
         // Enemy bullets vs player.
-        for (&self.pool.entities) |*b| {
-            if (!b.alive or b.kind != .ebullet) continue;
-            if (Entity.isColliding(p, b)) {
-                b.ttl = 0;
-                self.damagePlayer(p);
+        if (self.invuln_timer <= 0) {
+            for (&self.pool.entities) |*b| {
+                if (!b.alive or b.kind != .ebullet) continue;
+                if (Entity.isColliding(p, b)) {
+                    b.ttl = 0;
+                    self.damagePlayer(p);
+                }
             }
         }
 
         // Enemies vs player (body contact).
-        for (&self.pool.entities) |*e| {
-            if (!e.alive or e.kind != .enemy) continue;
-            if (Entity.isColliding(p, e)) {
-                e.ttl = 0;
-                self.damagePlayer(p);
-                break;
+        if (self.invuln_timer <= 0) {
+            for (&self.pool.entities) |*e| {
+                if (!e.alive or e.kind != .enemy) continue;
+                if (Entity.isColliding(p, e)) {
+                    e.ttl = 0;
+                    self.damagePlayer(p);
+                    break;
+                }
             }
         }
     }
@@ -535,6 +553,48 @@ pub const Game = struct {
     fn pointsFor(self: *const Game, e: *const Entity) u32 {
         _ = self;
         return e.points;
+    }
+
+    /// Shared enemy-destruction path: bumps the combo, awards points (scaled by
+    /// the combo multiplier), spawns a burst and floating score, and may grant
+    /// a bonus life. Used by bullet kills and bomb kills alike.
+    fn killEnemy(self: *Game, e: *Entity) void {
+        self.combo += 1;
+        const gained = self.pointsFor(e) * self.comboMult();
+        self.score += gained;
+        self.spawnBurst(e.pos, e.color);
+        e.ttl = 0;
+        self.spawnScoreText(e.pos, gained);
+        self.awardBonusLife();
+    }
+
+    /// Detonates a smart bomb: clears every enemy bullet on screen and deals
+    /// heavy damage to every enemy. Costs one bomb; the level's `bombs` count
+    /// gates how often this can be used.
+    fn detonateBomb(self: *Game) void {
+        if (self.bombs == 0) return;
+        if (self.state != .running or self.player_dead) return;
+        self.bombs -= 1;
+        self.bomb_just_fired = true;
+        self.bomb_flash = 0.25;
+
+        // Clear enemy bullets on screen.
+        for (&self.pool.entities) |*b| {
+            if (!b.alive or b.kind != .ebullet) continue;
+            b.ttl = 0;
+        }
+
+        // Damage every enemy; survivors take a stun burst, kills score.
+        for (&self.pool.entities) |*e| {
+            if (!e.alive or e.kind != .enemy) continue;
+            e.hp -= 2;
+            self.spawnBurst(e.pos, 0xFFFFFF);
+            if (e.hp <= 0) {
+                self.killEnemy(e);
+            } else {
+                self.spawnBurst(e.pos, 0x888888);
+            }
+        }
     }
 
     /// Combo multiplier: x1 base, +1 every 5 consecutive kills, capped at x4.
@@ -1076,4 +1136,197 @@ test "player death resets the combo" {
     g.hitPlayer(g.player().?);
     try std.testing.expectEqual(@as(u32, 0), g.combo);
     try std.testing.expect(g.player_dead);
+}
+
+test "bomb clears enemy bullets and costs a stock" {
+    const src =
+        \\name "T"
+        \\player { bombs 2 }
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 2), g.bombs);
+
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = 100, .y = 100 },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    var input = Input{ .bomb = true };
+    g.step(1.0 / 60.0, &input);
+    try std.testing.expectEqual(@as(u32, 1), g.bombs);
+    try std.testing.expectEqual(@as(usize, 0), g.pool.countByKind(.ebullet));
+    try std.testing.expect(g.bomb_just_fired);
+}
+
+test "bomb damages enemies and awards points for kills" {
+    const src =
+        \\name "T"
+        \\player { bombs 1 }
+        \\enemy weak { hp 1 points 100 }
+        \\enemy tough { hp 5 points 500 }
+        \\wave { at 0 kind weak count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    const weak = g.pool.spawn().?;
+    weak.* = .{ .kind = .enemy, .alive = true, .pos = .{ .x = 100, .y = 100 }, .radius = 8, .hp = 1, .points = 100 };
+    const tough = g.pool.spawn().?;
+    tough.* = .{ .kind = .enemy, .alive = true, .pos = .{ .x = 200, .y = 100 }, .radius = 12, .hp = 5, .points = 500 };
+    var input = Input{ .bomb = true };
+    g.step(1.0 / 60.0, &input);
+    // The 1-hp enemy dies and scores; the 5-hp enemy drops to 3.
+    try std.testing.expectEqual(@as(f32, 3), tough.hp);
+    try std.testing.expectEqual(@as(u32, 0), g.bombs);
+    try std.testing.expect(g.score > 0);
+}
+
+test "bomb with no stock does nothing" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 0), g.bombs);
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = .{ .x = 100, .y = 100 },
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    var input = Input{ .bomb = true };
+    g.step(1.0 / 60.0, &input);
+    try std.testing.expectEqual(@as(usize, 1), g.pool.countByKind(.ebullet));
+    try std.testing.expect(!g.bomb_just_fired);
+}
+
+test "respawn grants a short invulnerability window" {
+    const src =
+        \\name "T"
+        \\player { lives 3 }
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.hitPlayer(g.player().?);
+    try std.testing.expectEqual(@as(f32, 0), g.invuln_timer);
+    var n: usize = 0;
+    while (n < 60 * 5 and g.player_dead) : (n += 1) {
+        g.step(1.0 / 60.0, &Input{});
+    }
+    try std.testing.expect(!g.player_dead);
+    try std.testing.expect(g.invuln_timer > 1.0);
+}
+
+test "invulnerability window blocks a hit" {
+    const src =
+        \\name "T"
+        \\player { lives 3 }
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.invuln_timer = 2.0;
+    const lives_before = g.lives;
+
+    // Fire an enemy bullet straight at the player during the window.
+    const p = g.player().?;
+    const eb = g.pool.spawn().?;
+    eb.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = p.pos,
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expectEqual(lives_before, g.lives);
+    try std.testing.expect(!g.player_dead);
+    try std.testing.expect(g.player() != null);
+
+    // After the window elapses the same bullet hurts the player.
+    var n: usize = 0;
+    while (n < 60 * 5 and g.invuln_timer > 0) : (n += 1) {
+        g.step(1.0 / 60.0, &Input{});
+    }
+    try std.testing.expectEqual(@as(f32, 0), g.invuln_timer);
+    const p2 = g.player().?;
+    const eb2 = g.pool.spawn().?;
+    eb2.* = .{
+        .kind = .ebullet,
+        .alive = true,
+        .pos = p2.pos,
+        .radius = 3,
+        .hp = 1,
+        .ttl = 5,
+    };
+    g.step(1.0 / 60.0, &Input{});
+    try std.testing.expect(g.player_dead or g.lives < lives_before);
+}
+
+test "enemies and bosses carry their max_hp at spawn" {
+    const src =
+        \\name "T"
+        \\enemy tank { hp 4 speed 60 points 500 radius 12 fire_rate 0.35 }
+        \\wave { at 0 kind tank count 1 interval 0.01 pattern drift armed true }
+        \\boss { at 1 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    var input = Input{};
+    g.step(1.0 / 60.0, &input);
+    var n: usize = 0;
+    while (g.boss_idx == 0 and n < 60 * 60) : (n += 1) {
+        g.step(1.0 / 60.0, &input);
+    }
+    var saw_wave_max = false;
+    var saw_boss_max = false;
+    for (&g.pool.entities) |*e| {
+        if (!e.alive or e.kind != .enemy) continue;
+        if (e.radius >= 20) {
+            if (e.max_hp == 80) saw_boss_max = true;
+        } else {
+            if (e.max_hp == 4) saw_wave_max = true;
+        }
+    }
+    try std.testing.expect(saw_wave_max);
+    try std.testing.expect(saw_boss_max);
 }

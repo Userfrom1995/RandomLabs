@@ -7,7 +7,7 @@
 name "The Nebula Empress"
 background #141024
 
-player { speed 270 fire_rate 0.14 lives 3 life_every 8000 }
+player { speed 270 fire_rate 0.14 lives 3 life_every 8000 bombs 1 }
 
 # Small fast swarmers: die in one hit.
 enemy grunt { hp 1 speed 100 points 100 radius 8  fire_rate 0.5  color #e8594f }
