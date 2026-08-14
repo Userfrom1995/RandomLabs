@@ -10,7 +10,7 @@
 - [x] bitboard core: types, attack tables, move encoding, position + make/unmake, zobrist
 - [x] move generation (all pieces, castling, ep, promotion) + legal filtering
 - [x] perft verification against known node counts
-- [ ] search: negamax alpha-beta, quiescence, transposition table, iterative deepening, eval
+- [x] search: negamax alpha-beta, quiescence, transposition table, iterative deepening, eval
 - [ ] UCI protocol interface
 - [ ] CLI: play / analyze / perft / divide / test / uci modes
 - [ ] tests: perft suite, make/unmake symmetry, FEN round-trip, search sanity
@@ -18,17 +18,15 @@
 - [ ] final build clean, tests pass, PR with Closes #51
 
 ## Current step
-Core engine complete: bitboard attack tables, move encoding, position with
-make/unmake + zobrist, full legal move generation, perft verified against the
-standard suite (startpos to depth 5, kiwipete, pos3, pos4, pos5 all pass).
-Make/unmake symmetry also verified. Next: search.
+Search complete: eval (material + PSTs), transposition table, negamax with
+alpha-beta + quiescence + LMR + killers, iterative deepening, time management,
+mate/back-rank mate detection verified. Next: UCI + CLI front ends.
 
 ## Next steps
-1. Evaluation (material + PSTs).
-2. Transposition table + negamax alpha-beta + quiescence + iterative deepening.
-3. UCI interface + CLI (play/analyze/perft/divide/test) + main.
-4. Test suite (perft, symmetry, FEN round-trip, search sanity).
-5. README + docs/ + ideas/ + landing page.
+1. UCI protocol interface (uci/isready/position/go/stop/quit, search thread).
+2. CLI: play / analyze / perft / divide / test modes + main dispatch.
+3. Test suite (perft, symmetry, FEN round-trip, search sanity).
+4. README + docs/ + ideas/ + landing page.
 
 ## Agent log
 - 2026-08-14 (build run 1) — orientation: read builder.md, AGENTS.md, FACTORY.md,
@@ -43,3 +41,9 @@ Make/unmake symmetry also verified. Next: search.
   sliding-attack blocker logic (nearest blocker is lsb/msb by direction sign),
   transposed DIR_DELTAS (file/rank order), castling rook-occupancy check, is_legal
   king-side check. Full perft suite passes; make/unmake symmetry passes.
+- 2026-08-14 (build run 2, part 2) — search: eval.h/.cpp (material + piece-square
+  tables), tt.h/.cpp (transposition table, always-replace), search.h/.cpp
+  (negamax alpha-beta, quiescence, LMR, killers, TT move ordering, iterative
+  deepening, time management, mate scoring). Debugged PV-table overwrite (last
+  move clobbering) and all-illegal-move handling. Verified: startpos depth 8,
+  back-rank mate-in-1 finds Ra8#/Re8#.
