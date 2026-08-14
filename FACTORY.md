@@ -53,14 +53,14 @@ Maintainer                  → everyone     <- (build, fix, continue, review, i
   run (not yet on main, failed), the review workflow merges as the bot with
   the same command.
 - In-progress continuation: the Maintainer's `pull_request` trigger fires on
-  every push; for in-progress pushes it posts `/oc continue`; the 2×/day
+  every push; for in-progress pushes it posts `/oc continue`; the 4×/day
   schedule catches anything else.
 - **Only maintainer-level agents can call other agents** — the Maintainer and
   any maintainer-level agents (co-maintainers) it creates (see §20).
 
 ## 4. Maintainer triggers & concurrency
 
-- Triggers: schedule 09:00 + 18:00 UTC (2×/day) · `workflow_dispatch`
+- Triggers: schedule every 6 hours (4×/day) · `workflow_dispatch`
   (inputs: `pr_number`, `issue_number`, `reason`) · `pull_request`
   [opened, synchronize, ready_for_review, reopened] · `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger — opencode.yml already
@@ -112,7 +112,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 2. The automatic push→reviewer trigger (opencode-review-trigger.yml)
 3. The reviewer→fixer short `/oc fix` trigger (opencode-review.yml)
 4. Approve-CI API calls (stable-head polling on PRs; non-held runs also do a
-   repo-wide sweep of ALL held runs — so the Maintainer's 2×/day schedule and
+   repo-wide sweep of ALL held runs — so the Maintainer's 4×/day schedule and
    every `/oc`-comment run unblock everything by themselves)
 5. Dispatching the Maintainer with the approval message (review workflow end)
 

@@ -50,7 +50,7 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
   Maintainer workflow cannot run, the review workflow merges as the bot with
   the same command.
 - In-progress pushes: the Maintainer's `pull_request` trigger fires on every
-  push and posts `/oc continue`; the 2×/day schedule catches anything else.
+  push and posts `/oc continue`; the 4×/day schedule catches anything else.
 
 ## The two-model review loop
 
@@ -106,7 +106,7 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
   stable-head polling). Runs without a PR context (Maintainer schedule/
   dispatch runs, PR-less build runs) sweep and approve ALL held runs
   repo-wide - so once any non-held run happens (a `/oc` comment run, or the
-  2×/day schedule), everything held is approved without a human. If approval
+  4×/day schedule), everything held is approved without a human. If approval
   still cannot be completed it posts a `github-actions[bot]` comment asking
   the owner to approve manually, and the loop resumes after that approval.
 - If the implementer disagrees with a finding, it applies the changes it
@@ -124,7 +124,7 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
 
 ## The Maintainer (`maintainer.yml`)
 
-- Runs at 09:00 + 18:00 UTC, on every PR push/open, on human comments, on
+- Runs every 6 hours, on every PR push/open, on human comments, on
   opened issues, and via manual dispatch (`pr_number`, `issue_number`,
   `reason` - the review workflow dispatches it with the approval message).
 - Per-PR concurrency (cancel-latest), 60-minute timeout, bot identity.
