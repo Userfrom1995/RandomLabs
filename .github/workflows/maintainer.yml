@@ -236,34 +236,6 @@ jobs:
               r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=check)
               return r.stdout.strip(), r
 
-          def comments(n):
-              out, _ = api(f"repos/{repo}/issues/{n}/comments", "--paginate", check=False)
-              try:
-                  return json.loads(out) if out else []
-              except Exception:
-                  return []
-
-          def owner_review_trigger(n, head):
-              for c in comments(n):
-                  if c.get("user", {}).get("login") == owner and c.get("body", "").startswith("/oc review"):
-                      if head in c.get("body", ""):
-                          return True
-              return False
-
-          def last_owner_trigger(n, prefix):
-              latest = ""
-              for c in comments(n):
-                  if c.get("user", {}).get("login") == owner and c.get("body", "").startswith(prefix):
-                      latest = max(latest, c.get("created_at", ""))
-              return latest
-
-          def pr_updated(n):
-              out, _ = api(f"repos/{repo}/pulls/{n}", check=False)
-              try:
-                  return json.loads(out).get("updated_at", "")
-              except Exception:
-                  return ""
-
           def pr_info(n):
               out, _ = api(f"repos/{repo}/pulls/{n}", check=False)
               try:
@@ -294,21 +266,10 @@ jobs:
               body = None
               if action == "review":
                   head = d.get("head", "")
-                  if not head or owner_review_trigger(target, head):
-                      print(f"skip review #{target} (already triggered for head {head})")
-                      continue
                   body = f"/oc review (head {head})"
               elif action == "continue":
-                  last = last_owner_trigger(target, "/oc continue")
-                  if last and last >= pr_updated(target):
-                      print(f"skip continue #{target} (already triggered after latest update)")
-                      continue
                   body = "/oc continue"
               elif action == "build":
-                  last = last_owner_trigger(target, "/oc build")
-                  if last:
-                      print(f"skip build #{target} (already triggered)")
-                      continue
                   body = "/oc build this"
               elif action == "fix":
                   info = pr_info(target)
@@ -317,10 +278,6 @@ jobs:
                   same_repo = head_repo.get("full_name", "") == repo
                   if author != "github-actions[bot]" or not same_repo:
                       print(f"skip fix #{target} (not a same-repo bot PR: author={author} repo={head_repo.get('full_name')})")
-                      continue
-                  last = last_owner_trigger(target, "/oc fix")
-                  if last and last >= pr_updated(target):
-                      print(f"skip fix #{target} (already triggered after latest update)")
                       continue
                   body = "/oc fix"
 

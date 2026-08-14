@@ -132,9 +132,7 @@ Maintainer                  → everyone     ← (build, fix, continue, review, 
   checkpoint, `logs/YYYY-MM-DD.md` for the last 7 days, `personality.md`,
   `REGISTRY.md`), re-surveys GitHub fresh, writes a decision list
   (`.maintainer/decision.json`) + its comment (`comment.md`) + memory updates,
-  and a hardcoded PAT step posts the `/oc` triggers (deduped, max one trigger
-  per PR per run). Pings and the public comment post as the bot; `ideate`
-  dispatches `ideate.yml`.
+  and a hardcoded PAT step posts the `/oc` triggers. There are NO hardcoded spam guards preventing duplicate triggers. You have complete freedom and autonomy. You must analyze the state of the repo (e.g., using `gh run list` or checking comments). If you determine that a previous command failed, crashed, or didn't work, you are fully authorized to re-trigger it. Use your intelligence to avoid spamming duplicate triggers if a run is already actively queued or in-progress. Pings and the public comment post as the bot; `ideate` dispatches `ideate.yml`.
 - The Maintainer never posts `/oc` comments itself, never creates issues or
   PRs directly, never pushes code to main or PR branches - only its memory
   files, which a hardcoded step commits to `maintainer/logs`.
