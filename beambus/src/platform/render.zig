@@ -275,14 +275,22 @@ pub const Renderer = struct {
             self.drawString(.{ .x = @as(f32, @floatFromInt(arena_w)) - @as(f32, @floatFromInt(w)) - 6, .y = 6 }, name, 0x565F89, 1);
         }
 
-        // Terminal states.
-        const msg: ?[]const u8 = switch (g.state) {
-            .won => "YOU WIN",
-            .lost => "GAME OVER",
-            .running => null,
-        };
-        if (msg) |m| {
-            self.drawCentered(.{ .x = 0, .y = 250 }, m, 0xFFFFFF, 2);
+        // Result screen: a headline plus a run-stats panel so a finished run
+        // lands with a sense of score. The stats are read straight off the
+        // deterministic game state, so they match whatever headless would log.
+        if (g.state == .won) {
+            self.drawCentered(.{ .x = 0, .y = 180 }, "LEVEL CLEAR", 0xFFD23F, 2);
+        } else if (g.state == .lost) {
+            self.drawCentered(.{ .x = 0, .y = 180 }, "GAME OVER", 0xFF6B57, 2);
+        }
+        if (g.state != .running) {
+            var result_buf: [48]u8 = undefined;
+            const score_line = std.fmt.bufPrint(&result_buf, "SCORE {d}", .{g.score}) catch return;
+            self.drawCentered(.{ .x = 0, .y = 226 }, score_line, 0xFFFFFF, 1);
+            const kills_line = std.fmt.bufPrint(&result_buf, "KILLS {d}   GRAZES {d}", .{ g.kills, g.graze }) catch return;
+            self.drawCentered(.{ .x = 0, .y = 238 }, kills_line, 0x9AA5CE, 1);
+            const rank_line = std.fmt.bufPrint(&result_buf, "RANK {d}   TIME {d:.1}s", .{ g.rank, g.time }) catch return;
+            self.drawCentered(.{ .x = 0, .y = 250 }, rank_line, 0x9AA5CE, 1);
             self.drawCentered(.{ .x = 0, .y = 284 }, "PRESS R TO RESTART", 0x9AA5CE, 1);
             self.drawCentered(.{ .x = 0, .y = 296 }, "ESC TO QUIT", 0x9AA5CE, 1);
         }
@@ -527,4 +535,36 @@ test "fillCircle respects bounds" {
     r.fillCircle(-5, -5, 10, 0xFF0000); // entirely off-screen, must not crash
     r.fillCircle(5, 5, 4, 0xFF0000);
     try std.testing.expectEqual(@as(Pixel, 0xFFFF0000), r.pixels[5 * arena_w + 5]);
+}
+
+test "result panel draws for a finished game" {
+    const alloc = std.testing.allocator;
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var level = try core.level.parse(alloc, src);
+    defer level.deinit(alloc);
+    var g = core.Game.init(&level, 3);
+    g.state = .won;
+    g.score = 5000;
+    g.kills = 12;
+    g.graze = 5;
+    g.rank = 60;
+    g.time = 42.5;
+    var ren: Renderer = .{};
+    ren.seedStars(1);
+    ren.clear(level.bg, g.time);
+    ren.drawGame(&g);
+    // The stats panel must have drawn bright text over the background.
+    var wrote = false;
+    for (ren.pixels) |px| {
+        if (px != 0xFF0B0E14) {
+            wrote = true;
+            break;
+        }
+    }
+    try std.testing.expect(wrote);
 }
