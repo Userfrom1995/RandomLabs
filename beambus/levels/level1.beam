@@ -15,17 +15,20 @@ enemy dart   { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  shots 2 spread
 # Slow shield tanks: four hits, slow bullets.
 enemy tank   { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
 # The queen: a mid-level boss that sweeps in an orbit and fires a three-way
-# fan (shots 3 spread 0.8), so dodging close for grazes pays.
-boss { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 3 spread 0.8 color #ffd23f }
+# fan (shots 3 spread 0.8), so dodging close for grazes pays. Below 40% HP it
+# enrages: double fire rate and a five-way volley, marked by a red aura.
+boss { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 3 spread 0.8 rage_hp 0.4 color #ffd23f }
 
 # Power-up drops: each spread raises the fire level (single -> twin -> triple),
-# and each shield grants a one-hit bubble that absorbs a hit instead of a life.
+# each shield grants a one-hit bubble that absorbs a hit instead of a life, and
+# a bomb drop refills one smart-bomb stock.
 # Spread generously so a fresh run can reach triple fire before the queen.
 powerup { at 16 kind spread }
 powerup { at 22 kind shield }
 powerup { at 30 kind spread }
 powerup { at 37 kind shield }
 powerup { at 42 kind spread }
+powerup { at 46 kind bomb }
 
 # Opening lull: unarmed scouts drift down so the player can warm up.
 wave { at 2  kind grunt count 6  interval 0.4 pattern sine    armed false }
@@ -37,7 +40,7 @@ wave { at 18 kind dart  count 6  interval 0.5 pattern swoop    armed true }
 
 # Mixed pressure wave.
 wave { at 24 kind grunt count 6  interval 0.3 pattern spiral   armed true }
-wave { at 26 kind dart  count 6  interval 0.35 pattern zigzag  armed true }
+wave { at 26 kind dart  count 6  interval 0.35 pattern chase   armed true }
 
 # Tank line: the meat of the level.
 wave { at 32 kind tank count 5 interval 0.6 pattern drift     armed true }
