@@ -5,11 +5,11 @@ factory's first Zig project. It pairs a deterministic, headless-testable game
 core with an SDL2 platform layer: scripted `.beam` level files, seven enemy
 movement patterns, configurable enemy shot volleys, boss enrage phases,
 power-up weapon tiers and one-hit shields, bomb-refill drops, smart bombs, a
-combo scoring multiplier, bonus lives, near-miss grazes, a focus mode with a
-precise hitbox reticle, a performance-scaled rank difficulty meter, a
-procedural pixel-art renderer, and a tiny subtractive audio synth. The core
-never allocates during a frame, so the entire simulation is unit-testable
-without SDL.
+combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots,
+a focus mode with a precise hitbox reticle, a performance-scaled rank
+difficulty meter, a procedural pixel-art renderer, and a tiny subtractive
+audio synth. The core never allocates during a frame, so the entire
+simulation is unit-testable without SDL.
 
 ## What it is
 
@@ -48,7 +48,7 @@ without SDL.
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 79 headless tests (no SDL needed)
+zig build test       # 87 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -100,6 +100,11 @@ Everything is passed on the command line; there is no interactive input.
   trigger) and `spread` (fan angle in radians, centered on the player). A
   level can give any enemy a volley, from a two-shot burst to a wide five-way
   fan, without new code.
+- **Homing shots.** Enemy defs and bosses accept `homing true`: their bullets
+  steer toward the player at a capped turn rate (radians/second). A homing
+  shot curves onto the ship but never snaps onto it, so a sharp break or a
+  strafe in focus mode shakes it off. The turn is a deterministic closed-form
+  update, so the core stays fully reproducible.
 - **Boss enrage.** A `rage_hp` fraction on a boss def turns the fight into two
   acts: once the boss drops to that HP level it enters an enrage phase, with
   double fire rate, two extra bullets per volley, a red pulsing aura, and a
@@ -142,6 +147,11 @@ Everything is passed on the command line; there is no interactive input.
   invulnerability window (the sprite blinks), so a fresh spawn is never killed
   instantly by a bullet crossing the spawn point. Enemy bullets and body
   contact are ignored while it lasts.
+- **Result screen.** A finished run ends on a stats panel instead of a bare
+  "game over": the level-clear or game-over headline, then score, kills,
+  grazes, rank, and time survived, all read straight off the deterministic
+  game state. A boss kill throws a wide multi-ring explosion so the biggest
+  kills read biggest.
 - **Renderer.** The renderer is pure Zig over a `u32` pixel buffer
   (0xAARRGGBB, ready for `SDL_PIXELFORMAT_ARGB8888`). Primitives (rect, circle,
   circle stroke, triangle) are hand-rolled; text uses a 3x5 bitmap glyph set.
@@ -159,7 +169,7 @@ Everything is passed on the command line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 79 unit tests that run anywhere, with no window
+  of the game is covered by 87 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM

@@ -48,6 +48,7 @@ Defines an enemy archetype referenced by waves and bosses. Keys:
 | `fire_rate` | 0.5 | Base shots per second (0 = never fires). |
 | `shots` | 1 | Bullets fired per trigger (1 = single aimed shot). |
 | `spread` | 0 | Total fan angle in radians for a multi-shot volley, centered on the player. |
+| `homing` | `false` | Whether shots curve toward the player (capped turn rate; see below). |
 | `color` | `#e8594f` | Sprite color. |
 
 Enemy names must be unique within a level.
@@ -75,11 +76,22 @@ fan (e.g. `shots 5 spread 1.2`).
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `rage_hp` | 0 | HP fraction (0..1) at which the boss enrages; 0 disables it. |
+| `homing` | `false` | Whether the boss's shots curve toward the player (as for enemies). |
 
 When the boss drops to or below `rage_hp` of its maximum HP it enters an enrage
 phase exactly once: fire rate doubles, the volley gains two bullets, it glows
 with a red pulsing aura, and a growling sound plays. The threshold is data, so
 a level tunes how long the calm opening half of the fight lasts.
+
+## Homing shots
+
+With `homing true` on an enemy def or boss, every shot that enemy fires curves
+toward the ship. The turn is applied at a fixed, capped rate (2.5 radians per
+second) and never changes the bullet's speed, so a homing bullet bends onto the
+player's line but cannot snap onto them: a sharp break, a strafe in focus
+mode, or a juke just before impact shakes it off. Homing bullets still graze
+and still count toward rank, so they reward the same close dodging as any other
+shot. A seeker archetype using homing fire is defined in both sample levels.
 
 ### `powerup { ... }`
 
@@ -118,6 +130,10 @@ of the arena.
   (but does not hit it) scores `50` points multiplied by the current combo
   multiplier and rings a soft tick. Each bullet grazes at most once. The HUD
   shows the graze count, so a level can encourage risky close dodging.
+- **Result screen.** When a run ends the game shows a stats panel with the
+  final score, kills, grazes, rank, and time survived. Nothing here is
+  level-configurable; the numbers are read straight off the deterministic game
+  state, so the panel always matches what a headless run would report.
 
 ## Focus mode
 

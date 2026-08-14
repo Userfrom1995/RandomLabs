@@ -3,18 +3,18 @@
 A deterministic, headless-testable shoot 'em up: scripted `.beam` level files,
 seven enemy movement patterns, configurable enemy shot volleys, boss enrage
 phases, power-up weapon upgrades and one-hit shields, bomb-refill drops, smart
-bombs, a combo scoring multiplier, bonus lives, near-miss grazes, a focus mode
-with a precise hitbox reticle, a performance-scaled rank difficulty meter, a
-procedural pixel-art renderer, and a tiny subtractive audio synth. The game
-core is pure Zig with no allocator in the per-frame hot path, so the whole
-simulation is unit-testable without SDL.
+bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing
+enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled
+rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive
+audio synth. The game core is pure Zig with no allocator in the per-frame hot
+path, so the whole simulation is unit-testable without SDL.
 
 ## Build
 
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 79 headless tests (no SDL needed)
+zig build test       # 87 headless tests (no SDL needed)
 zig build check      # headless self-checks, exit 0/1
 zig build run        # play in an SDL window
 ```
@@ -67,6 +67,10 @@ Everything comes from the command line; there is no interactive input.
 - **Enemy volleys**: enemy defs and bosses accept `shots` and `spread`, so a
   level can hand any enemy a fan volley (e.g. a dart firing a two-shot burst,
   a boss throwing a five-way spread). Defaults stay single-shot.
+- **Homing shots**: enemy defs and bosses accept `homing true`, making their
+  bullets curve toward the ship at a capped turn rate. A homing shot bends
+  toward you but never snaps onto you, so a sharp break or strafe in focus
+  mode shakes it off. Both sample levels include a seeker that uses them.
 - **Boss enrage**: a `rage_hp` fraction on a boss def makes it enter an enrage
   phase once it drops to that HP level - double fire rate, +2 bullets per
   volley, a red pulsing aura, and a growling sound. A boss fight gets a
@@ -96,6 +100,9 @@ Everything comes from the command line; there is no interactive input.
   hot clean run gets harder while a struggling player gets a breather.
 - **Respawn invulnerability**: a fresh spawn gets a two-second blink window in
   which enemy bullets and body contact are ignored.
+- **Result screen**: a finished run ends on a stats panel - score, kills,
+  grazes, rank, and time survived - read straight off the deterministic game
+  state. A boss kill throws a wide multi-ring explosion so big kills read big.
 - **Procedural renderer** (`src/platform/render.zig`): draws the game into a
   software `u32` pixel buffer (procedural sprites, 3x5 bitmap font, two-layer
   parallax starfield, level-title intro banner, HUD with score/combo/lives/

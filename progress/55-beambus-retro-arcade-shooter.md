@@ -193,6 +193,28 @@ push.
   (40 per level), windowed runs verified under the dummy video driver for both
   levels.
 
+- **2026-08-14 (round 7, improvement window):** Homing shots, a result screen,
+  and boss-scale explosions. (1) Homing: enemy defs and bosses accept a
+  `homing` key; their bullets steer toward the player at a capped turn rate
+  (`homing_turn_rate` 2.5 rad/s, speed preserved), so a homing shot bends onto
+  the ship but never snaps onto it - a sharp break or a focus-mode strafe
+  shakes it off. New `homing` entity field populated at spawn; the steering is
+  a deterministic closed-form turn, so the core stays reproducible. Both
+  sample levels gained a `seeker` archetype that fires homing shots. (2)
+  Result screen: a finished run ends on a stats panel - "LEVEL CLEAR"/"GAME
+  OVER" headline plus score, kills, grazes, rank, and time survived, read
+  straight off the deterministic game state (new `kills` counter). (3)
+  Explosion polish: boss kills throw a wide multi-ring burst (36 + 14
+  particles) so the biggest kills read biggest. Docs (beambus/README,
+  docs/index.md, docs/index.html, level-format.md, ideas, root README, landing
+  page) updated to the real test count (87). All 87 tests pass (8 new: parser
+  reads homing, homing bullets steer toward the player, homing turn is capped,
+  non-homing bullets fly straight, enemies/bosses inherit homing at spawn,
+  kills counter increments, boss kills spawn a larger burst, result panel
+  draws), 3/3 self-checks pass, exe builds, byte-identical determinism per
+  seed for both levels, headless stress clean, windowed runs verified under
+  the dummy video driver, frame_test.zig still dumps a valid PPM.
+
 - the Fixer
 
 - the Builder

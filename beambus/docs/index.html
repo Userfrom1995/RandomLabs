@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Beambus: a retro arcade shooter in Zig</title>
-<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, seven enemy movement patterns, boss enrage phases, power-up weapon tiers and shields, bomb refills, smart bombs, combo scoring, bonus lives, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
+<meta name="description" content="Beambus: a retro arcade shoot 'em up written in Zig - deterministic headless-testable game core, scripted .beam levels, seven enemy movement patterns, boss enrage phases, power-up weapon tiers and shields, bomb refills, smart bombs, combo scoring, bonus lives, homing enemy shots, a procedural pixel-art renderer and a tiny subtractive audio synth, all on an SDL2 platform layer." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -105,9 +105,9 @@
   levels, seven enemy movement patterns, configurable enemy shot volleys,
   boss enrage phases, power-up weapon tiers and one-hit shields, bomb-refill
   drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss
-  grazes, a focus mode with a hitbox reticle, a performance-scaled rank
-  difficulty meter, a procedural pixel-art renderer, and a tiny subtractive
-  audio synth, all on an SDL2 platform layer.</p>
+  grazes, homing enemy shots, a focus mode with a hitbox reticle, a
+  performance-scaled rank difficulty meter, a procedural pixel-art renderer,
+  and a tiny subtractive audio synth, all on an SDL2 platform layer.</p>
   <div class="launch"><a href="https://github.com/Userfrom1995/Random/tree/main/beambus">Open the project →</a></div>
 </header>
 
@@ -117,7 +117,7 @@
       <h4>Deterministic core</h4>
       <p>The whole simulation lives in pure Zig with no allocator in the
       per-frame hot path: the same seed and input stream always reproduce the
-      same run, and every rule is covered by 79 headless unit tests.</p>
+      same run, and every rule is covered by 87 headless unit tests.</p>
     </div>
     <div class="card">
       <h4>Scripted levels</h4>
@@ -141,7 +141,7 @@
   <h2>Try it</h2>
   <pre><code>cd beambus
 zig build            # debug build
-zig build test       # 79 headless tests (no SDL needed)
+zig build test       # 87 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -196,6 +196,11 @@ zig build run        # play in an SDL window
     <code>shots</code> (bullets per trigger) and <code>spread</code> (fan angle
     in radians), so any enemy can throw a volley, from a two-shot burst to a
     wide five-way fan, without new code.</li>
+    <li><strong>Homing shots.</strong> Enemy defs and bosses accept
+    <code>homing true</code>: their bullets steer toward the player at a capped
+    turn rate. A homing shot bends onto the ship but never snaps onto it, so a
+    sharp break or a focus-mode strafe shakes it off. The turn is a closed-form
+    deterministic update.</li>
     <li><strong>Boss enrage.</strong> A <code>rage_hp</code> fraction on a boss
     def turns a fight into two acts: below that HP the boss enrages - double
     fire rate, +2 bullets per volley, a red pulsing aura, and a growling
@@ -233,6 +238,10 @@ zig build run        # play in an SDL window
     <li><strong>Respawn invulnerability.</strong> A fresh spawn gets a
     two-second invulnerability window (the ship blinks), so a bullet crossing
     the spawn point can never kill you instantly.</li>
+    <li><strong>Result screen.</strong> A finished run ends on a stats panel:
+    the level-clear or game-over headline plus score, kills, grazes, rank, and
+    time survived, read straight off the deterministic game state. A boss kill
+    throws a wide multi-ring explosion so the biggest kills read biggest.</li>
     <li><strong>Renderer.</strong> Pure Zig over a <code>u32</code> pixel
     buffer (0xAARRGGBB, ready for <code>SDL_PIXELFORMAT_ARGB8888</code>).
     Rect, circle, circle-stroke, and triangle primitives are hand-rolled; text
@@ -255,7 +264,7 @@ zig build run        # play in an SDL window
   <h2>Design choices</h2>
   <ul>
     <li><strong>Zig, and headless-first.</strong> The core is deliberately
-    SDL-free so every rule of the game is covered by 79 unit tests that run
+    SDL-free so every rule of the game is covered by 87 unit tests that run
     anywhere, with no window and no audio device.</li>
     <li><strong>No allocator in the hot path.</strong> The entity arena is
     fixed at compile time: deterministic, cache-friendly, and free of OOM
