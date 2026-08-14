@@ -21,13 +21,13 @@
 
 ## Current step
 Done. The full Beambus build is complete and pushed on this PR: deterministic
-headless-testable core (vec/rng/rect/entity/level/game, 41 tests, no SDL), SDL2
+headless-testable core (vec/rng/rect/entity/level/game, 50 tests, no SDL), SDL2
 platform layer (window/renderer/input), procedural software renderer (sprites,
 3x5 font, starfield, HUD), procedural audio synth (SDL_QueueAudio glue that
 degrades to silent), fixed-timestep game loop, windowed/headless/self-check
 modes, sample levels/level1.beam, README, docs site (index + level-format),
 ideas entry, and the landing page promotes Beambus as the current project. All
-verification passes: 41/41 tests, exe builds, self-checks pass, windowed run
+verification passes: 50/50 tests, exe builds, self-checks pass, windowed run
 verified under the dummy video driver.
 
 ## Next steps
@@ -75,5 +75,17 @@ push.
   game.zig), and made `fireRateFor`/`pointsFor` read them. Added two tests
   asserting wave enemies and bosses inherit the def values. All 43 tests pass,
   self-checks pass, exe builds.
+- 2026-08-14 (fixer, maintainer iteration pass): responded to the Maintainer's
+  `fix` trigger (shipping limit reached, iterate before merge). Added a
+  power-up weapon-tier system for depth: `powerup { at N kind spread }`
+  directive in the .beam format (level.zig), a new `.powerup` entity kind
+  (entity.zig), timed drops that fall and are picked up on contact, fire levels
+  single -> twin -> triple spread capped at 3 (game.zig), and a tier reset on
+  death. Bosses now fire a three-way spread (Vec2.rotate helper added).
+  Renderer: pulsing power-up diamond sprite + PWR HUD line. level1.beam gained
+  three drops pacing the run. Also fixed the reviewer-noted stale doc count:
+  README/docs now reference the real test count (50, up from 43). All 50 tests
+  pass, 3/3 self-checks pass, exe builds, windowed run verified under the dummy
+  video driver.
 
 - the Builder
