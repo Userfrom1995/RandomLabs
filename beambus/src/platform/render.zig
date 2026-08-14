@@ -72,6 +72,7 @@ pub const Renderer = struct {
                 .bullet => self.drawBullet(e),
                 .ebullet => self.drawEBullet(e),
                 .particle => self.drawParticle(e),
+                .powerup => self.drawPowerup(e, g.time),
                 .text => self.drawFloatingScore(e),
             }
         }
@@ -135,6 +136,18 @@ pub const Renderer = struct {
         self.fillRect(c, r, 2, 2, col);
     }
 
+    /// Pulsing diamond: a power-up pickup. Pumps with game time so it reads as
+    /// "grab me" without any animation state.
+    fn drawPowerup(self: *Renderer, e: *const Entity, time: f32) void {
+        const c: i32 = @intFromFloat(e.pos.x);
+        const r: i32 = @intFromFloat(e.pos.y);
+        const pulse: i32 = @intFromFloat(@sin(time * 6.0) * 2.0);
+        const s: i32 = 7 + pulse;
+        self.fillTriangle(.{ .x = c, .y = r - s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
+        self.fillTriangle(.{ .x = c, .y = r + s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
+        self.fillRect(c - 1, r - 1, 2, 2, 0xFFFFFF);
+    }
+
     fn drawFloatingScore(self: *Renderer, e: *const Entity) void {
         var buf: [16]u8 = undefined;
         const text = std.fmt.bufPrint(&buf, "{d}", .{e.data}) catch return;
@@ -149,6 +162,9 @@ pub const Renderer = struct {
 
         const lives = std.fmt.bufPrint(&buf, "LIVES {d}", .{g.lives}) catch return;
         self.drawString(.{ .x = 6, .y = 16 }, lives, 0x9AA5CE, 1);
+
+        const pwr = std.fmt.bufPrint(&buf, "PWR {d}", .{g.player_fire_level}) catch return;
+        self.drawString(.{ .x = 6, .y = 26 }, pwr, 0xBB9AF7, 1);
 
         if (g.level.name.len > 0) {
             const name = g.level.name;
