@@ -10,6 +10,7 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+*.o
 
 # Generated audio
 *.wav
