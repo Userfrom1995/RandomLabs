@@ -9,6 +9,7 @@ const Level = level_mod.Level;
 const Wave = level_mod.Wave;
 const Boss = level_mod.Boss;
 const Pattern = level_mod.Pattern;
+const PowerKind = level_mod.PowerKind;
 
 pub const arena_w = 480;
 pub const arena_h = 600;
@@ -64,6 +65,11 @@ pub const Game = struct {
     wave_remaining: usize = 0,
     /// Set when the final boss has been defeated and the field is empty.
     level_done: bool = false,
+    /// Index of the next power-up drop to spawn (into level.powerups).
+    powerup_idx: usize = 0,
+    /// Player weapon tier: 1 = single, 2 = twin, 3 = triple spread.
+    /// Reset to 1 whenever the player dies.
+    player_fire_level: u32 = 1,
     /// Entities to render as text: "{points}".
     /// Player's paused/explosion flash state.
     player_dead: bool = false,
@@ -145,6 +151,7 @@ pub const Game = struct {
         self.updatePlayer(dt, input);
         self.updateWaves(dt);
         self.updateBosses(dt);
+        self.updatePowerups(dt);
         self.updateEnemies(dt);
         self.updateBullets(dt);
         self.updateCollisions();
@@ -162,7 +169,25 @@ pub const Game = struct {
         self.fire_cooldown -= dt;
         if (input.fire and self.fire_cooldown <= 0) {
             self.fire_cooldown = self.player_fire_rate;
-            self.spawnBullet(p.pos, .{ .x = 0, .y = -1 }, 520, 0x7AA2F7);
+            self.firePlayer(p);
+        }
+    }
+
+    fn firePlayer(self: *Game, p: *const Entity) void {
+        const speed: f32 = 520;
+        const y = p.pos.y - 10;
+        switch (self.player_fire_level) {
+            1 => self.spawnBullet(.{ .x = p.pos.x, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7),
+            2 => {
+                self.spawnBullet(.{ .x = p.pos.x - 6, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7);
+                self.spawnBullet(.{ .x = p.pos.x + 6, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7);
+            },
+            else => {
+                // Triple spread: straight plus two canted shots.
+                self.spawnBullet(.{ .x = p.pos.x, .y = y }, .{ .x = 0, .y = -1 }, speed, 0x7AA2F7);
+                self.spawnBullet(.{ .x = p.pos.x - 5, .y = y }, .{ .x = -1, .y = -1 }, speed, 0x7AA2F7);
+                self.spawnBullet(.{ .x = p.pos.x + 5, .y = y }, .{ .x = 1, .y = -1 }, speed, 0x7AA2F7);
+            },
         }
     }
 
@@ -271,6 +296,51 @@ pub const Game = struct {
         };
     }
 
+    fn updatePowerups(self: *Game, dt: f32) void {
+        if (self.powerup_idx < self.level.powerups.items.len) {
+            const ps = &self.level.powerups.items[self.powerup_idx];
+            if (self.time >= ps.at) {
+                self.spawnPowerup(ps.kind);
+                self.powerup_idx += 1;
+            }
+        }
+        for (&self.pool.entities) |*e| {
+            if (!e.alive or e.kind != .powerup) continue;
+            e.pos = e.pos.add(e.vel.scale(dt));
+            // Missed drops drift off the bottom of the arena.
+            if (e.pos.y > arena_h + 30) {
+                e.ttl = 0;
+                continue;
+            }
+            const p = self.player() orelse continue;
+            if (Entity.isColliding(p, e)) {
+                e.ttl = 0;
+                self.upgradePlayerFire();
+                self.spawnBurst(e.pos, e.color);
+            }
+        }
+    }
+
+    fn spawnPowerup(self: *Game, kind: PowerKind) void {
+        const e = self.pool.spawn() orelse return;
+        const x = self.rng.range(40, @as(f32, @floatFromInt(arena_w)) - 40);
+        e.* = .{
+            .kind = .powerup,
+            .alive = true,
+            .pos = .{ .x = x, .y = -16 },
+            .vel = .{ .x = 0, .y = 90 },
+            .radius = 8,
+            .hp = 1,
+            .ttl = 20,
+            .color = 0xBB9AF7,
+            .data = @intFromEnum(kind),
+        };
+    }
+
+    fn upgradePlayerFire(self: *Game) void {
+        self.player_fire_level = @min(self.player_fire_level + 1, 3);
+    }
+
     fn updateEnemies(self: *Game, dt: f32) void {
         for (&self.pool.entities) |*e| {
             if (!e.alive or e.kind != .enemy) continue;
@@ -337,7 +407,14 @@ pub const Game = struct {
     fn enemyFire(self: *Game, e: *const Entity) void {
         const p = self.player() orelse return;
         const dir = p.pos.sub(e.pos).normalized();
-        self.spawnEBullet(e.pos, dir, 200);
+        if (e.radius >= 20) {
+            // Bosses fire a three-way spread.
+            self.spawnEBullet(e.pos, dir, 200);
+            self.spawnEBullet(e.pos, dir.rotate(-0.35), 200);
+            self.spawnEBullet(e.pos, dir.rotate(0.35), 200);
+        } else {
+            self.spawnEBullet(e.pos, dir, 200);
+        }
     }
 
     fn updateBullets(self: *Game, dt: f32) void {
@@ -401,6 +478,8 @@ pub const Game = struct {
         self.player_dead = true;
         self.respawn_timer = 1.2;
         self.player_just_hit = true;
+        // Death costs the current weapon tier; classic arcade reset.
+        self.player_fire_level = 1;
         self.spawnBurst(p.pos, 0xFFFFFF);
     }
 
@@ -707,4 +786,108 @@ test "bosses inherit fire rate and points from the boss def" {
         try std.testing.expectEqual(@as(u32, 5000), e.points);
     }
     try std.testing.expectEqual(@as(usize, 1), checked);
+}
+
+test "picking up a power-up upgrades the player's fire level" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 9999 kind bug count 1 }
+        \\powerup { at 0 kind spread }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expectEqual(@as(u32, 1), g.player_fire_level);
+    var input = Input{};
+    var n: usize = 0;
+    while (n < 60 * 10 and g.player_fire_level == 1) : (n += 1) {
+        // Steer the player under the falling power-up.
+        var target_x: f32 = arena_w / 2;
+        for (&g.pool.entities) |*e| {
+            if (e.alive and e.kind == .powerup) target_x = e.pos.x;
+        }
+        const p = g.player().?;
+        input.left = p.pos.x > target_x + 2;
+        input.right = p.pos.x < target_x - 2;
+        g.step(1.0 / 60.0, &input);
+    }
+    try std.testing.expectEqual(@as(u32, 2), g.player_fire_level);
+}
+
+test "fire level three fires a three-way spread" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.player_fire_level = 3;
+    var input = Input{ .fire = true };
+    var n: usize = 0;
+    while (n < 5) : (n += 1) {
+        g.step(1.0 / 60.0, &input);
+    }
+    try std.testing.expectEqual(@as(usize, 3), g.pool.countByKind(.bullet));
+}
+
+test "player death resets the fire level" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    g.player_fire_level = 3;
+    g.hitPlayer(g.player().?);
+    try std.testing.expectEqual(@as(u32, 1), g.player_fire_level);
+}
+
+test "bosses fire a spread of three, regular enemies a single shot" {
+    const src =
+        \\name "T"
+        \\enemy bug { hp 1 }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try level_mod.parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    var g = Game.init(&level, 3);
+    try std.testing.expect(g.player() != null);
+
+    const regular = g.pool.spawn().?;
+    regular.* = .{
+        .kind = .enemy,
+        .alive = true,
+        .pos = .{ .x = 100, .y = 100 },
+        .radius = 8,
+        .hp = 1,
+    };
+    g.enemyFire(regular);
+    try std.testing.expectEqual(@as(usize, 1), g.pool.countByKind(.ebullet));
+
+    const boss = g.pool.spawn().?;
+    boss.* = .{
+        .kind = .enemy,
+        .alive = true,
+        .pos = .{ .x = 200, .y = 80 },
+        .radius = 24,
+        .hp = 10,
+    };
+    g.enemyFire(boss);
+    try std.testing.expectEqual(@as(usize, 4), g.pool.countByKind(.ebullet));
 }

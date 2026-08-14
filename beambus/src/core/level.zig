@@ -62,6 +62,26 @@ pub const Boss = struct {
     color: u32 = 0xFFD23F,
 };
 
+/// What a power-up pickup grants. `spread` raises the player's fire level
+/// (single -> double -> triple) up to a cap of 3.
+pub const PowerKind = enum {
+    spread,
+
+    pub fn parse(s: []const u8) !PowerKind {
+        const map = std.StaticStringMap(PowerKind).initComptime(.{
+            .{ "spread", .spread },
+        });
+        return map.get(s) orelse error.UnknownPowerup;
+    }
+};
+
+/// A timed power-up drop declared in the level script.
+pub const PowerupSpawn = struct {
+    /// Wall-clock seconds into the level when the drop appears.
+    at: f32 = 0,
+    kind: PowerKind = .spread,
+};
+
 /// A fully parsed level. Strings point into the caller-provided source buffer
 /// (the level file text), so `Level` borrows from it and must not outlive it.
 pub const Level = struct {
@@ -73,12 +93,14 @@ pub const Level = struct {
     enemies: std.ArrayList(EnemyDef),
     waves: std.ArrayList(Wave),
     bosses: std.ArrayList(Boss),
+    powerups: std.ArrayList(PowerupSpawn),
 
     pub fn init() Level {
         return .{
             .enemies = .empty,
             .waves = .empty,
             .bosses = .empty,
+            .powerups = .empty,
         };
     }
 
@@ -86,6 +108,7 @@ pub const Level = struct {
         self.enemies.deinit(alloc);
         self.waves.deinit(alloc);
         self.bosses.deinit(alloc);
+        self.powerups.deinit(alloc);
     }
 
     pub fn enemyDef(self: *const Level, name: []const u8) ?EnemyDef {
@@ -168,6 +191,10 @@ pub fn parse(alloc: std.mem.Allocator, src: []const u8) !Level {
         }
         if (std.mem.eql(u8, directive, "boss")) {
             try level.bosses.append(alloc, try parseBoss(line));
+            continue;
+        }
+        if (std.mem.eql(u8, directive, "powerup")) {
+            try level.powerups.append(alloc, try parsePowerup(line));
             continue;
         }
         return error.UnknownDirective;
@@ -323,6 +350,22 @@ fn parseBoss(line: []const u8) !Boss {
     return b;
 }
 
+fn parsePowerup(line: []const u8) !PowerupSpawn {
+    const body = try blockBody(line, "powerup");
+    var p = PowerupSpawn{};
+    var it = KvIter{ .line = body };
+    while (it.next()) |kv| {
+        if (std.mem.eql(u8, kv.key, "at")) {
+            p.at = try std.fmt.parseFloat(f32, kv.value);
+        } else if (std.mem.eql(u8, kv.key, "kind")) {
+            p.kind = try PowerKind.parse(kv.value);
+        } else {
+            return error.UnknownDirective;
+        }
+    }
+    return p;
+}
+
 /// Returns the text inside `{ ... }` following the directive keyword.
 fn blockBody(line: []const u8, directive: []const u8) ![]const u8 {
     const rest = std.mem.trim(u8, line[directive.len..], " \t");
@@ -431,6 +474,35 @@ test "duplicate enemy name errors" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     try std.testing.expectError(error.DuplicateName, parse(gpa.allocator(), src));
+}
+
+test "parse powerup drops" {
+    const src =
+        \\name "Power"
+        \\enemy bug { hp 1 }
+        \\wave { at 0 kind bug count 1 }
+        \\powerup { at 15 kind spread }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    var level = try parse(gpa.allocator(), src);
+    defer level.deinit(gpa.allocator());
+    try std.testing.expectEqual(@as(usize, 1), level.powerups.items.len);
+    try std.testing.expectEqual(@as(f32, 15), level.powerups.items[0].at);
+    try std.testing.expectEqual(PowerKind.spread, level.powerups.items[0].kind);
+}
+
+test "unknown powerup kind errors" {
+    const src =
+        \\name "Bad"
+        \\enemy bug { hp 1 }
+        \\powerup { at 0 kind nuke }
+        \\
+    ;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    try std.testing.expectError(error.UnknownPowerup, parse(gpa.allocator(), src));
 }
 
 test "pattern parse" {

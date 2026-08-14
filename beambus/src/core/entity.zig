@@ -11,6 +11,7 @@ pub const Kind = enum {
     bullet,
     ebullet,
     particle,
+    powerup,
     text,
 };
 

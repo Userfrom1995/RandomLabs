@@ -46,6 +46,13 @@ pub const Vec2 = struct {
             .y = std.math.clamp(v.y, min_y, max_y),
         };
     }
+
+    /// Rotates a vector by `ang` radians (counter-clockwise).
+    pub fn rotate(v: Vec2, ang: f32) Vec2 {
+        const c = @cos(ang);
+        const s = @sin(ang);
+        return .{ .x = v.x * c - v.y * s, .y = v.x * s + v.y * c };
+    }
 };
 
 test "vec arithmetic" {
@@ -64,4 +71,13 @@ test "vec zero normalized is zero" {
     const z = Vec2.zero.normalized();
     try std.testing.expectEqual(@as(f32, 0), z.x);
     try std.testing.expectEqual(@as(f32, 0), z.y);
+}
+
+test "vec rotate keeps length" {
+    const v = Vec2{ .x = 1, .y = 0 };
+    const r = v.rotate(0.5);
+    try std.testing.expectApproxEqAbs(@as(f32, 1), r.length(), 1e-5);
+    const quarter = v.rotate(0.5 * std.math.pi);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), quarter.x, 1e-5);
+    try std.testing.expectApproxEqAbs(@as(f32, 1), quarter.y, 1e-5);
 }
