@@ -3,8 +3,9 @@
 **Beambus** is a retro arcade shoot 'em up written in **Zig**, and the
 factory's first Zig project. It pairs a deterministic, headless-testable game
 core with an SDL2 platform layer: scripted `.beam` level files, six enemy
-movement patterns, power-up weapon tiers and one-hit shields, smart bombs, a
-combo scoring multiplier, bonus lives, a procedural pixel-art renderer, and a
+movement patterns, configurable enemy shot volleys, power-up weapon tiers and
+one-hit shields, smart bombs, a combo scoring multiplier, bonus lives,
+near-miss grazes, a procedural pixel-art renderer, and a
 tiny subtractive audio synth. The core never allocates during a frame, so the
 entire simulation is unit-testable without SDL.
 
@@ -14,7 +15,8 @@ entire simulation is unit-testable without SDL.
   `Rect`, a SplitMix64 `Rng`, a fixed-capacity (1024 slot) entity arena pool
   with a free list, circle collision, and the full game logic (waves, bosses,
   enemy bullets, collisions, scoring, lives, power-up weapon tiers and
-  shields, smart bombs, combo multiplier, bonus lives, win/lose states). There is no
+  shields, smart bombs, combo multiplier, bonus lives, near-miss grazes,
+  win/lose states). There is no
   allocator in the per-frame hot path and no SDL dependency, so the same seed
   and input stream always reproduce the same run.
 - **Scripted levels.** A line/brace `.beam` format declares the player, enemy
@@ -26,13 +28,13 @@ entire simulation is unit-testable without SDL.
 - **Procedural renderer.** A pure-Zig software renderer draws every frame into
   a `u32` pixel buffer at arena resolution (480x600): procedural sprites
   (triangle ship, circled enemies, bullet bolts, fading particles, pulsing
-   power-up diamonds), a 3x5 bitmap font, a seeded twinkling starfield, and a
-   HUD with score, combo multiplier, lives, weapon tier, shield, bombs, a boss
-   health bar, and level name.
+power-up diamonds), a 3x5 bitmap font, a seeded twinkling starfield, and a
+    HUD with score, combo multiplier, lives, weapon tier, shield, bombs, grazes,
+    a boss health bar, and level name.
   The buffer is uploaded to an SDL streaming texture and scaled to the window.
 - **Procedural audio.** A subtractive-style synth with a fixed 12-voice pool
   synthesizes shoot, hit, explosion, player-hit, power-up, shield-break,
-  bonus-life, bomb, win, and lose effects. SDL is fed via `SDL_QueueAudio` (no
+  bonus-life, bomb, graze, win, and lose effects. SDL is fed via `SDL_QueueAudio` (no
   callback, no threads); with no audio device it degrades to silence, so CI
   runs stay headless.
 - **Three run modes.** Windowed play (fixed-timestep 60 Hz loop), a headless
@@ -44,7 +46,7 @@ entire simulation is unit-testable without SDL.
 ```sh
 cd beambus
 zig build            # debug build
-zig build test       # 63 headless tests (no SDL needed)
+zig build test       # 68 headless tests (no SDL needed)
 zig build check      # headless self-checks
 zig build run        # play in an SDL window
 
@@ -87,9 +89,12 @@ Everything is passed on the command line; there is no interactive input.
   boosted. Determinism comes from the seeded SplitMix64 PRNG and the absence
   of allocation or SDL state in the hot path.
 - **Weapon tiers.** Touching a `spread` power-up drop raises the player's fire
-  level: single -> twin -> triple spread (capped at 3). Bosses fire a three-way
-  spread at the player. Dying resets the tier to single, so a level's drops
-  pace the run.
+  level: single -> twin -> triple spread (capped at 3). Dying resets the tier
+  to single, so a level's drops pace the run.
+- **Enemy shot volleys.** Enemy defs and bosses accept `shots` (bullets per
+  trigger) and `spread` (fan angle in radians, centered on the player). A
+  level can give any enemy a volley, from a two-shot burst to a wide five-way
+  fan, without new code.
 - **Shields.** A `shield` drop equips a one-hit bubble that absorbs the next
   hit instead of costing a life. The renderer draws it as a ring around the
   ship; a break triggers its own sound effect.
@@ -106,6 +111,10 @@ Everything is passed on the command line; there is no interactive input.
   multiplier. A white screen flash and a dedicated sound effect sell the
   detonation; the HUD tracks the remaining stock. `bombs 0` (the default)
   disables the mechanic, so a level opts in.
+- **Grazing.** An enemy bullet that passes within a narrow band around the
+  ship without hitting scores `50 * combo multiplier` points and rings a soft
+  tick, rewarding close dodges - the classic bullet-hell risk/reward. Each
+  bullet grazes at most once, and the HUD counts grazes.
 - **Respawn invulnerability.** After a death the ship respawns with a two-second
   invulnerability window (the sprite blinks), so a fresh spawn is never killed
   instantly by a bullet crossing the spawn point. Enemy bullets and body
@@ -126,7 +135,7 @@ Everything is passed on the command line; there is no interactive input.
 ## Design choices
 
 - **Zig, and headless-first.** The core is deliberately SDL-free so every rule
-  of the game is covered by 63 unit tests that run anywhere, with no window
+  of the game is covered by 68 unit tests that run anywhere, with no window
   and no audio device. The platform layer is a thin typed wrapper over SDL.
 - **No allocator in the hot path.** The entity arena is fixed at compile time,
   which makes the simulation deterministic, cache-friendly, and free of OOM

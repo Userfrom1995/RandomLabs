@@ -3,7 +3,7 @@
 - **Issue:** #55
 - **Branch:** opencode/55-beambus-retro-arcade-shooter
 - **Status:** complete
-- **Updated:** 2026-08-14T16:45:00Z
+- **Updated:** 2026-08-14T22:35:00Z
 
 ## Checklist
 - [x] scaffold project + progress file
@@ -127,5 +127,31 @@ push.
   hit, max_hp at spawn), 3/3 self-checks pass, exe builds, byte-identical
   determinism, 40-seed headless stress clean, windowed runs verified under the
   dummy video driver, frame_test.zig still dumps a valid PPM.
+
+## Iteration log
+
+- **2026-08-14 (round 4, improvement window):** Graze mechanic and enemy shot
+  volleys. (1) Grazing: an enemy bullet that passes within the graze band
+  around the ship (without hitting) scores `50 * combo multiplier` points,
+  rings a soft tick, spawns a cyan burst and floating score, and counts toward
+  a GRAZE HUD line; each bullet grazes at most once (new `grazed` entity
+  flag). (2) Configurable enemy volleys: enemy defs and bosses accept `shots`
+  (bullets per trigger) and `spread` (fan angle in radians) via new level keys,
+  so any enemy can throw a fan volley; the old hardcoded boss three-way is now
+  data-driven. (3) Polish: a deterministic, RNG-free thruster-trail ember
+  behind the ship (uses time, not the RNG stream, so gameplay outcomes are
+  unchanged). (4) Synth gained a `graze` effect, wired into the windowed loop;
+  sample levels demonstrate volleys (level1 dart/boss, level2 dart/tank/boss).
+  Docs (beambus/README, docs/index.md, docs/index.html, level-format.md,
+  ideas, root README, landing page) updated to the real test count (68). All
+  68 tests pass (5 new: graze scores once, one-graze-per-bullet, graze scaled
+  by combo, shots/spread inheritance, parser shots/spread), 3/3 self-checks
+  pass, exe builds, byte-identical determinism, 30-seed headless stress clean,
+  windowed run verified under the dummy video driver, frame_test.zig valid.
+  Note: the Reviewer's "63 vs 61 tests" grep miscounted - the docs' 63 was
+  correct (61 named blocks + 2 anonymous aggregator blocks), and the count is
+  now 68 after this round.
+
+- the Fixer
 
 - the Builder

@@ -45,6 +45,8 @@ Defines an enemy archetype referenced by waves and bosses. Keys:
 | `points` | 100 | Score awarded when destroyed. |
 | `radius` | 8 | Collision radius (also the sprite size). |
 | `fire_rate` | 0.5 | Base shots per second (0 = never fires). |
+| `shots` | 1 | Bullets fired per trigger (1 = single aimed shot). |
+| `spread` | 0 | Total fan angle in radians for a multi-shot volley, centered on the player. |
 | `color` | `#e8594f` | Sprite color. |
 
 Enemy names must be unique within a level.
@@ -65,8 +67,9 @@ Spawns `count` enemies of a kind, one at a time. Keys:
 ### `boss { ... }`
 
 Spawns a single large enemy at a fixed time. Keys mirror the enemy def plus
-`at` (seconds into the level). Bosses always use the `orbit` pattern, always
-fire, and fire a three-way spread at the player.
+`at` (seconds into the level). Bosses always use the `orbit` pattern and always
+fire. `shots`/`spread` work exactly as for enemies, so a boss can throw a wide
+fan (e.g. `shots 5 spread 1.2`).
 
 ### `powerup { ... }`
 
@@ -99,6 +102,10 @@ of the arena.
 - **Bonus lives.** With `life_every N` in the player block, the player earns an
   extra life each time the score crosses another multiple of `N`. Setting
   `life_every 0` disables bonus lives.
+- **Grazes.** An enemy bullet that passes within a narrow band around the ship
+  (but does not hit it) scores `50` points multiplied by the current combo
+  multiplier and rings a soft tick. Each bullet grazes at most once. The HUD
+  shows the graze count, so a level can encourage risky close dodging.
 
 ## Smart bombs
 
@@ -132,9 +139,9 @@ background #0b0e14
 player { speed 260 fire_rate 0.16 lives 3 life_every 10000 }
 
 enemy grunt { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f }
-enemy dart  { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  color #7aa2f7 }
+enemy dart  { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  shots 2 spread 0.6 color #7aa2f7 }
 enemy tank  { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
-boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 color #ffd23f }
+boss        { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 3 spread 0.8 color #ffd23f }
 
 powerup { at 16 kind spread }
 powerup { at 22 kind shield }
