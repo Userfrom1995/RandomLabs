@@ -5,7 +5,9 @@
 name "The Drone Swarm"
 background #0b0e14
 
-player { speed 260 fire_rate 0.16 lives 3 bombs 2 }
+# focus_speed 0.5 (the default) slows the ship to half speed while Shift is
+# held, trading speed for precise dodging and a tighter shot pattern.
+player { speed 260 fire_rate 0.16 lives 3 bombs 2 focus_speed 0.5 }
 
 # Small fast swarmers: die in one hit.
 enemy grunt  { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f }
