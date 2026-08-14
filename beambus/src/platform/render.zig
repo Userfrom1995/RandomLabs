@@ -97,7 +97,7 @@ pub const Renderer = struct {
                 .player => {
                     // Blink while respawn-invulnerable.
                     if (g.invuln_timer > 0 and @mod(g.time, 0.25) < 0.125) continue;
-                    self.drawPlayer(e, g.has_shield, g.focusing);
+                    self.drawPlayer(e, g.has_shield, g.focusing, g.rapid_timer > 0);
                 },
                 .enemy => self.drawEnemy(e),
                 .bullet => self.drawBullet(e),
@@ -109,7 +109,7 @@ pub const Renderer = struct {
         }
     }
 
-    fn drawPlayer(self: *Renderer, e: *const Entity, has_shield: bool, focusing: bool) void {
+    fn drawPlayer(self: *Renderer, e: *const Entity, has_shield: bool, focusing: bool, rapid: bool) void {
         const c: i32 = @intFromFloat(e.pos.x);
         const r: i32 = @intFromFloat(e.pos.y);
         // Triangle ship pointing up, sized from its collision radius.
@@ -122,9 +122,17 @@ pub const Renderer = struct {
         );
         // Cockpit highlight.
         self.fillRect(c - 1, r - @divTrunc(s, 2), 2, 2, 0xFFFFFF);
-        // Engine glow: a pair of small squares under the wings.
-        self.fillRect(c - s + 1, r + s - 2, 2, 2, 0x7AA2F7);
-        self.fillRect(c + s - 3, r + s - 2, 2, 2, 0x7AA2F7);
+        // Engine glow: a pair of small squares under the wings. While a rapid
+        // drop is active the glow turns green and flickers with game time.
+        const engine_col: u32 = if (rapid) 0x8CE99A else 0x7AA2F7;
+        self.fillRect(c - s + 1, r + s - 2, 2, 2, engine_col);
+        self.fillRect(c + s - 3, r + s - 2, 2, 2, engine_col);
+        if (rapid) {
+            // Speed streaks: two short afterimages under the wings that read
+            // as "faster" while the fire-rate boost is live.
+            self.fillRect(c - s - 1, r + s, 1, 5, 0x3E9A5A);
+            self.fillRect(c + s, r + s, 1, 5, 0x3E9A5A);
+        }
         // One-hit shield bubble.
         if (has_shield) {
             self.strokeCircle(c, r, @as(i32, @intFromFloat(e.radius)) + 5, 0x4FD6D6);
@@ -201,6 +209,14 @@ pub const Renderer = struct {
             self.fillCircle(c, r, 3, 0xFFFFFF);
             return;
         }
+        if (kind == 3) {
+            // Rapid: a stacked pair of upward chevrons - "speed". Reads as a
+            // fire-rate boost at a glance, distinct from the spread diamond.
+            self.fillTriangle(.{ .x = c - s, .y = r + 1 }, .{ .x = c + s, .y = r + 1 }, .{ .x = c, .y = r - s + 1 }, e.color);
+            self.fillTriangle(.{ .x = c - s, .y = r + s }, .{ .x = c + s, .y = r + s }, .{ .x = c, .y = r + 1 }, e.color);
+            self.fillRect(c - 1, r - 1, 2, 2, 0xFFFFFF);
+            return;
+        }
         self.fillTriangle(.{ .x = c, .y = r - s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
         self.fillTriangle(.{ .x = c, .y = r + s }, .{ .x = c - s, .y = r }, .{ .x = c + s, .y = r }, e.color);
         self.fillRect(c - 1, r - 1, 2, 2, 0xFFFFFF);
@@ -249,6 +265,12 @@ pub const Renderer = struct {
         const rank_str = std.fmt.bufPrint(&buf, "RANK {d}", .{g.rank}) catch return;
         const rank_col: u32 = if (g.rank < 34) 0x4FD6D6 else if (g.rank < 67) 0xFFD23F else 0xFF6B57;
         self.drawString(.{ .x = 6, .y = 66 }, rank_str, rank_col, 1);
+
+        // Rapid boost: seconds of double fire rate remaining, while active.
+        if (g.rapid_timer > 0) {
+            const rapid = std.fmt.bufPrint(&buf, "RAPID {d:.0}s", .{g.rapid_timer}) catch return;
+            self.drawString(.{ .x = 6, .y = 76 }, rapid, 0x8CE99A, 1);
+        }
 
         // Boss health bar: find the largest alive enemy and draw its gauge.
         var boss: ?*const Entity = null;
