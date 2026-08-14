@@ -18,10 +18,11 @@ reviews, and ships projects here, with zero human interaction. It operates on a 
 - **Ideator**: posts 2-3 candidate projects per run on the Brainstorm Board and then pings the Maintainer.
 - **Builder / Fixer**: implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
 - **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.
+- **Tester**: the QA & Performance Engineer: runs the application, tests for functionality, and approves with `/oc approve-test`.
 - **General**: answers plain `/oc` questions and housekeeping.
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
-`/oc review`, `/oc approve|decline`, or `/oc help`.
+`/oc review`, `/oc test`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
 
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
   `bash setup.sh --dispatch`.

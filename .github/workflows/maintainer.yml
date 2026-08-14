@@ -270,6 +270,8 @@ jobs:
               if action == "review":
                   head = d.get("head", "")
                   body = f"/oc review (head {head})"
+              elif action == "test":
+                  body = "/oc test"
               elif action == "continue":
                   body = "/oc continue"
               elif action == "build":

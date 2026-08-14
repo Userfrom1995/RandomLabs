@@ -26,6 +26,7 @@ honestly with evidence, then complies when overruled.
 | Builder | Implements projects (resume mode) | Production-quality, decisive |
 | Fixer | Applies reviewer findings | Same as Builder |
 | Reviewer | Strict quality gate; code-first findings | Stern but fair |
+| Tester | QA & Performance testing of running app | Obsessed with quality, thorough |
 | General | Chat/assistant/answers | Helpful |
 
 - Every comment is signed with the role so it is always clear who said what.
@@ -40,17 +41,19 @@ Prompt files live in `.github/agents/` (see §19). The roster is `REGISTRY.md`.
 ```
 PUSH on PR (work complete)  → Reviewer     <- AUTOMATIC (the one exception; gated on progress = complete)
 Reviewer has issues (bot PR)→ Fixer        <- DIRECT (hardcoded /oc fix step in the review workflow)
-Reviewer clean              → Maintainer   <- DIRECT (posts /oc approve + dispatches Maintainer)
-Maintainer                  → everyone     <- (build, fix, continue, review, ideate, merge, closes, takeovers, pings)
+Reviewer clean              → Tester       <- DIRECT (posts /oc test from the review workflow)
+Tester has issues (bot PR)  → Fixer        <- DIRECT (hardcoded /oc fix step in the test workflow)
+Tester clean                → Maintainer   <- DIRECT (posts /oc approve-test + dispatches Maintainer)
+Maintainer                  → everyone     <- (build, fix, continue, review, test, ideate, merge, closes, takeovers, pings)
 ```
 
 - No one else calls anyone. No worker end-of-run dispatches. No direct
   build→review calls.
-- **Merge is the Maintainer's job**: the Reviewer approves → the review
+- **Merge is the Maintainer's job**: the Tester approves → the test
   workflow dispatches the Maintainer with the approval message → the
   Maintainer merges (rebase, bot identity), closes linked issues, logs, and
   advances the pipeline. *Fallback only:* if the Maintainer workflow cannot
-  run (not yet on main, failed), the review workflow merges as the bot with
+  run (not yet on main, failed), the test workflow merges as the bot with
   the same command.
 - In-progress continuation: the Maintainer's `pull_request` trigger fires on
   every push; for in-progress pushes it posts `/oc continue`; the 4×/day
@@ -164,12 +167,19 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
   (owner PAT) → the Fixer runs.
 - Human PRs → the review is posted and the human is asked to fix it (never a
   Fixer call). Fork PRs: never — guidance only (see §22).
-- Clean → posts `/oc approve: <message>` → the Maintainer is dispatched.
+- Clean → posts `/oc approve: <message>` → the Tester is dispatched via `/oc test`.
 - Rebuttal etiquette: honest evaluation, withdraw valid pushbacks,
   2×-then-apply, approve trivial leftovers after 2+ rounds.
 - No merge step — the Maintainer merges.
 
-## 11. Human PR playbook
+## 11. The Tester
+
+- Triggered by `/oc test` after the Reviewer approves.
+- Focuses on E2E functionality and performance of the running application.
+- If issues are found, posts `/oc fix: <details>` → the Fixer runs.
+- If clean, posts `/oc approve-test` → the Maintainer is dispatched to merge.
+
+## 12. Human PR playbook
 
 - Never merged as-is — the review gate applies to everyone.
 - Human PR events → the review-trigger posts `/oc review` on every push
@@ -186,7 +196,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 - Drafts: wait for `ready_for_review`. Fork PRs with held runs: picked up at
   the next schedule.
 
-## 12. Stalls & takeovers (Maintainer judgment)
+## 13. Stalls & takeovers (Maintainer judgment)
 
 No rigid timers — timers are only "hasn't been touched in N days" triggers
 for evaluation: 3 days bot work / 7 days human (fork 7).
@@ -197,7 +207,7 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
   reopen with credit intact → finish → merge.
 - Every decision logged with rationale.
 
-## 13. The Brainstorm Board
+## 14. The Brainstorm Board
 
 - Pinned "Brainstorm Board" issue (label `brainstorm`) — the idea pipeline.
 - The Ideator (dispatched by the Maintainer when the factory is idle): reads
@@ -211,7 +221,7 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
   candidates older than ~14 days.
 - If nothing is viable → the Maintainer dispatches the Ideator for a new batch.
 
-## 14. Idea diversity (Ideator rules)
+## 15. Idea diversity (Ideator rules)
 
 - Removed constraints: "small enough for one session", "Python script/CLI".
 - New rules: no category twice in the last 3 picks, no language twice in the
@@ -221,7 +231,7 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
   hostable on GitHub Pages (code + docs live in the repo; Pages hosts docs).
 - Unique, memorable names; dedup scan of `ideas/`; reads open issues/PRs.
 
-## 15. Logging & transparency
+## 16. Logging & transparency
 
 - **`maintainer/logs` branch** (bot-authored): `logs/YYYY-MM-DD.md` — state
   snapshots, decisions, rationale, agent callbacks, run links. `STATE.md` —
@@ -233,7 +243,7 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
 - `FACTORY.md` at the repo root — this architecture document.
 - `AGENTS.md` — the agent blueprint.
 
-## 16. Prompt files (prompts out of YAML)
+## 17. Prompt files (prompts out of YAML)
 
 New folder `.github/agents/`:
 
@@ -257,7 +267,7 @@ and create new agents (new `.md` + trigger wiring + registry entry) via its
 own PRs through the review loop (see §20). Only its own domain (log branch,
 personality, CHANGELOG) is direct-commit.
 
-## 17. Decision files
+## 18. Decision files
 
 - When the Builder/Fixer records a decision or receives a consent
   (approve/decline), it drops a file at
@@ -271,7 +281,7 @@ personality, CHANGELOG) is direct-commit.
 - Conflicts with the owner: logged and recorded in an open issue titled
   `subject: the user is the boss`.
 
-## 18. Workflow files
+## 19. Workflow files
 
 | File | Role |
 |---|---|
@@ -285,7 +295,7 @@ personality, CHANGELOG) is direct-commit.
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also
 removed the PAT that used to sit in the ideation agent's env).
 
-## 19. File map
+## 20. File map
 
 ```
 FACTORY.md                     this document
@@ -300,7 +310,7 @@ CHANGELOG.md                   daily factory work updates
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
-## 20. Co-maintainers & new agent workers (the Maintainer's meta-power)
+## 21. Co-maintainers & new agent workers (the Maintainer's meta-power)
 
 - The Maintainer is maintainer-level: the only level that can call other
   agents; it can create new workers and even co-maintainers when the factory
@@ -321,7 +331,7 @@ maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md 
 - New agents only go live through reviewed PRs; `REGISTRY.md` is mirrored on
   the `maintainer/logs` branch so every run knows the exact roster.
 
-## 21. Maintainer memory (context from old runs)
+## 22. Maintainer memory (context from old runs)
 
 Every Maintainer run starts by fetching `origin maintainer/logs` and reading:
 
@@ -338,7 +348,7 @@ files) — the log branch is memory, GitHub is truth. Every run appends today's
 log and rewrites `STATE.md` before finishing; a brand-new model instance
 catches up in seconds. `CHANGELOG.md` on main stays the public daily summary.
 
-## 22. Fork PRs (external contributors)
+## 23. Fork PRs (external contributors)
 
 - The bot cannot push to a fork's branch → the Fixer never runs on fork PRs;
   policy is review + guidance only ("fix it" consent → polite decline + exact

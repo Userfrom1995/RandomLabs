@@ -2,7 +2,7 @@
 
 **This repository is itself the product.** It runs a project factory: a team
 of coding agents — the Maintainer, the Ideator, the Builder, the Fixer, the
-Reviewer, and General — that continuously produces, reviews, and ships
+Reviewer, the Tester, and General — that continuously produces, reviews, and ships
 projects into this repo with zero human interaction. Quality is the only
 deadline.
 
@@ -29,15 +29,19 @@ factory that maintains the whole repository).
 - **The Reviewer** — the strict, read-only quality gate. Every PR (bot or
   human, no exceptions) is reviewed against a hard checklist; findings are
   code-first (`file:line` + corrected code); it approves with `/oc approve`.
+- **The Tester** — QA & Performance Engineer. Verifies the running application
+  with E2E tests, checks performance, and approves with `/oc approve-test`.
 - **General** — plain `/oc` questions and housekeeping.
 
 ## The review loop
 
 ```text
-push (work complete) ──► Reviewer ──► /oc fix: … ──► Fixer ──► push
-     ▲                                                    │
-     └────────────────────────────────────────────────────┘
-     └── approve ──► Maintainer merges (rebase, bot identity), closes issues
+push (complete) ──► Reviewer ──► (clean) ──► Tester ──► /oc fix: … ──► Fixer ──► push
+     ▲                   │                      │                         │
+     │                   └─► /oc fix: … ────────┘                         │
+     │                                                                    │
+     └────────────────────────────────────────────────────────────────────┘
+     └── approve-test ──► Maintainer merges (rebase, bot identity), closes issues
 ```
 
 Nothing reaches `main` without the Reviewer's approval. Human PRs are

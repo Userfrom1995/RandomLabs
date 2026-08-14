@@ -101,7 +101,7 @@
   <h1>The Random Factory</h1>
   <p><strong>This repository is itself the product.</strong> It runs a project
   factory: a team of coding agents — the Maintainer, the Ideator, the Builder,
-  the Fixer, the Reviewer, and General — that continuously produces, reviews,
+  the Fixer, the Reviewer, the Tester, and General — that continuously produces, reviews,
   and ships projects into this repo with zero human interaction. Quality is
   the only deadline.</p>
 </header>
@@ -132,13 +132,19 @@
       checked against a hard checklist; findings are code-first
       (<code>file:line</code> + corrected code).</p>
     </div>
+    <div class="card">
+      <h4>Tester</h4>
+      <p>The QA and Performance Engineer. Verifies the running application with E2E tests, checks performance, and approves with <code>/oc approve-test</code>.</p>
+    </div>
   </section>
 
   <h2>The review loop</h2>
-  <div class="term">push (work complete) ──► Reviewer ──► "/oc fix: …" ──► Fixer ──► push
-     ▲                                                    │
-     └────────────────────────────────────────────────────┘
-     └── "/oc approve" ──► Maintainer merges (rebase, bot identity), closes issues</div>
+  <div class="term">push (complete) ──► Reviewer ──► (clean) ──► Tester ──► "/oc fix: …" ──► Fixer ──► push
+     ▲                   │                      │                              │
+     │                   └─► "/oc fix: …" ──────┘                              │
+     │                                                                         │
+     └─────────────────────────────────────────────────────────────────────────┘
+     └── "/oc approve-test" ──► Maintainer merges (rebase, bot identity), closes issues</div>
   <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
   PRs are reviewed too — findings are guidance for the human to apply; the bot
   never pushes to forks (guidance only).</p>

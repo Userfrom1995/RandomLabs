@@ -36,8 +36,10 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 ```
 PUSH on PR (work complete)  → Reviewer     ← AUTOMATIC (the one exception; gated on progress = complete)
 Reviewer has issues (bot PR)→ Fixer        ← DIRECT (hardcoded /oc fix step in the review workflow)
-Reviewer clean              → Maintainer   ← DIRECT (/oc approve + dispatch of the Maintainer)
-Maintainer                  → everyone     ← (build, fix, continue, review, ideate, merge, closes, takeovers, pings)
+Reviewer clean              → Tester       ← DIRECT (/oc test from the review workflow)
+Tester has issues (bot PR)  → Fixer        ← DIRECT (hardcoded /oc fix step in the test workflow)
+Tester clean                → Maintainer   ← DIRECT (/oc approve-test + dispatch of the Maintainer)
+Maintainer                  → everyone     ← (build, fix, continue, review, test, ideate, merge, closes, takeovers, pings)
 ```
 
 - No one else calls anyone. No worker end-of-run dispatches. Only

@@ -38,6 +38,7 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
 
 ```json
 [ {"action": "review", "pr": 33, "head": "<sha>"},
+  {"action": "test", "pr": 34},
   {"action": "continue", "pr": 35},
   {"action": "build", "issue": 41},
   {"action": "fix", "pr": 36},
@@ -47,6 +48,7 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
 
    - `review` → `/oc review (head <sha>)` - for PRs whose work looks complete
      and whose push did not already trigger the automatic reviewer.
+   - `test` → `/oc test` - explicitly demand a QA and performance test from the Tester agent on a PR.
    - `continue` → `/oc continue` - in-progress bot builds that need resuming.
    - `build` → `/oc build this` on the issue - new builds you initiate.
    - `fix` → `/oc fix` - only for same-repo bot PRs with pending review
