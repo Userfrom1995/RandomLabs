@@ -31,11 +31,6 @@ std::string square_name(int sq) {
   return s;
 }
 
-bool is_check_suffix(std::string s) {
-  (void)s;
-  return false;
-}
-
 std::string trim_suffixes(const std::string& s) {
   size_t n = s.size();
   while (n > 0 && (s[n - 1] == '!' || s[n - 1] == '?' || s[n - 1] == '+' ||
