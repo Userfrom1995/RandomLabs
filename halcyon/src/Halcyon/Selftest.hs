@@ -264,6 +264,14 @@ parserTests =
   , check "parse: defs-only module"    (parsesOk "let x = 5\nlet y = 6")
   , check "parse: import then defs"    (parsesOk "import \"a.hly\"\nlet x = 1\nx")
   , check "parse: defs then import"    (parseFails "let x = 1\nimport \"a.hly\"\nx")
+  , check "parse: record decl"        (parsesOk "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }")
+  , check "parse: record polymorphic" (parsesOk "record Pair a b = { fst : a, snd : b }\n1")
+  , check "parse: record literal"     (parsesOk "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }")
+  , check "parse: record projection"  (parsesOk "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }.x")
+  , check "parse: record update"      (parsesOk "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 3 }")
+  , check "parse: record pattern"     (parsesOk "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = a, y = b } => a")
+  , check "parse: reject record no equals" (parseFails "record T x\n1")
+  , check "parse: reject record bad field" (parseFails "record T = { x }\n1")
   ]
 
 typeTests :: Harness
@@ -326,6 +334,30 @@ typeTests =
   , check "type: top-level poly str" (inferredAs "let id = fn x => x\nid \"s\"" "String")
   , check "type: defs generalize after earlier def" (inferredAs "data Pair a b = Pair a b\nlet fst = fn p => match p with | Pair a b => a\nlet snd = fn p => match p with | Pair a b => b\nfst (Pair 1 \"s\")" "Int")
   , check "type: reject duplicate def" (inferFails "let x = 5\nlet x = 6\nx")
+  , check "type: record literal"     (inferredAs "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }" "Point")
+  , check "type: record projection"  (inferredAs "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }.x" "Int")
+  , check "type: record projection str" (inferredAs "record P = { x : Int, s : String }\n{ x = 1, s = \"a\" }.s" "String")
+  , check "type: record proj order-independent" (inferredAs "record P = { x : Int, y : Int }\n{ y = 1, x = 2 }.y" "Int")
+  , check "type: record update"      (inferredAs "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 3 }.y" "Int")
+  , check "type: record update keeps type" (inferredAs "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with x = 5 }" "Point")
+  , check "type: record polymorphic" (inferredAs "record Pair a b = { fst : a, snd : b }\n{ fst = 1, snd = \"s\" }" "Pair Int String")
+  , check "type: record poly reusage" (inferredAs "record Pair a b = { fst : a, snd : b }\nlet p1 = { fst = 1, snd = 2 } in let p2 = { fst = true, snd = 1.5 } in p2.fst" "Bool")
+  , check "type: record nested field type" (inferredAs "record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\n{ tag = 1, inner = { v = 2 } }.inner.v" "Int")
+  , check "type: record pattern"     (inferredAs "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = a, y = b } => a + b" "Int")
+  , check "type: record pattern poly" (inferredAs "record Pair a b = { fst : a, snd : b }\nlet get = fn p => match p with | { fst = a, snd = b } => a in get { fst = 1, snd = 2 }" "Int")
+  , check "type: record pattern order-independent" (inferredAs "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { y = b, x = a } => a" "Int")
+  , check "type: reject proj unknown field" (inferFails "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }.z")
+  , check "type: reject proj on non-record" (inferFails "record Point = { x : Int, y : Int }\n5.x")
+  , check "type: reject proj on bare var" (inferFails "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in fn q => q.x")
+  , check "type: reject missing field" (inferFails "record Point = { x : Int, y : Int }\n{ x = 1 }")
+  , check "type: reject extra field"  (inferFails "record Point = { x : Int, y : Int }\n{ x = 1, y = 2, z = 3 }")
+  , check "type: reject duplicate literal field" (inferFails "record Point = { x : Int, y : Int }\n{ x = 1, x = 2, y = 3 }")
+  , check "type: reject dup field set" (inferFails "record A = { x : Int }\nrecord B = { x : Int }\n1")
+  , check "type: reject dup record name" (inferFails "record A = { x : Int }\nrecord A = { x : Int, y : Int }\n1")
+  , check "type: reject update wrong type" (inferFails "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with x = \"s\" }")
+  , check "type: reject update unknown field" (inferFails "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with z = 3 }")
+  , check "type: reject update non-record" (inferFails "record Point = { x : Int, y : Int }\n{ 5 with x = 1 }")
+  , check "type: reject pattern unknown field" (inferFails "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { z = a } => a")
   ]
 
 evalTests :: Harness
@@ -396,6 +428,21 @@ evalTests =
   , check "eval: top-level poly"    (evalsTo "let id = fn x => x\nlet a = id 1\nlet b = id \"s\"\nin b" "s")
   , check "eval: top-level forward ref" (evalsTo "let x = 5\nlet y = x + 1\nin y" "6")
   , check "eval: defs generalized after earlier def" (evalsTo "data Pair a b = Pair a b\nlet fst = fn p => match p with | Pair a b => a\nlet rec foldl = fn f acc xs => match xs with | [] => acc | x :: rest => foldl f (f acc x) rest\nlet rev = fn xs => foldl (fn acc x => cons x acc) [] xs\nrev [1, 2, 3]" "[3, 2, 1]")
+  , check "eval: record literal"      (evalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }" "{ x = 1, y = 2 }")
+  , check "eval: record order-independent" (evalsTo "record Point = { x : Int, y : Int }\n{ y = 2, x = 1 }" "{ x = 1, y = 2 }")
+  , check "eval: record projection"   (evalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }.x" "1")
+  , check "eval: record proj on var"  (evalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 10, y = 20 } in p.y" "20")
+  , check "eval: record proj on call" (evalsTo "record Point = { x : Int, y : Int }\nlet mk = fn a b => { x = a, y = b } in (mk 1 2).x" "1")
+  , check "eval: record nested proj"  (evalsTo "record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\n{ tag = 5, inner = { v = 3 } }.inner.v" "3")
+  , check "eval: record update"       (evalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 99 }" "{ x = 1, y = 99 }")
+  , check "eval: record update immutable" (evalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in let q = { p with y = 99 } in p.y" "2")
+  , check "eval: record equality"     (evalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 } == { y = 2, x = 1 }" "true")
+  , check "eval: record inequality"   (evalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 } /= { x = 1, y = 3 }" "true")
+  , check "eval: record polymorphic"  (evalsTo "record Pair a b = { fst : a, snd : b }\nlet p1 = { fst = 1, snd = 2 } in let p2 = { fst = true, snd = 1.5 } in if p2.fst then p1.snd else 0" "2")
+  , check "eval: record pattern"      (evalsTo "record Point = { x : Int, y : Int }\nmatch { y = 2, x = 1 } with | { x = a, y = b } => a + b" "3")
+  , check "eval: record pattern fallback" (evalsTo "record Maybe = { just : Bool, val : Int }\nmatch { val = 7, just = true } with | { just = false, val = _ } => 0 | { just = true, val = v } => v" "7")
+  , check "eval: record pattern no match" (evalFails "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = 9, y = 9 } => 0")
+  , check "eval: record in list"      (evalsTo "record Point = { x : Int, y : Int }\n(head [{ x = 1, y = 2 }, { x = 3, y = 4 }]).x" "1")
   ]
 
 vmTests :: IO Harness
@@ -460,6 +507,21 @@ vmTests = sequence
   , checkIO "vm: tail call million (constant stack)" (vmEvalsTo "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 1000000" "500000500000")
   , checkIO "vm: tail call through nested if" (vmEvalsTo "let rec loop = fn n => if n < 0 then 42 else if n == 0 then 0 else loop (n - 1) in loop 1000000" "0")
   , checkIO "vm: tail call through match" (vmEvalsTo "let rec sum = fn acc xs => match xs with | [] => acc | x :: rest => sum (acc + x) rest in sum 0 [1, 2, 3, 4, 5]" "15")
+  , checkIO "vm: record literal"      (vmEvalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }" "{ x = 1, y = 2 }")
+  , checkIO "vm: record order-independent" (vmEvalsTo "record Point = { x : Int, y : Int }\n{ y = 2, x = 1 }" "{ x = 1, y = 2 }")
+  , checkIO "vm: record reversed declared order" (vmEvalsTo "record R = { b : Int, a : Int }\n{ b = 1, a = 2 }" "{ b = 1, a = 2 }")
+  , checkIO "vm: record projection"   (vmEvalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }.x" "1")
+  , checkIO "vm: record proj on var"  (vmEvalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 10, y = 20 } in p.y" "20")
+  , checkIO "vm: record proj on call" (vmEvalsTo "record Point = { x : Int, y : Int }\nlet mk = fn a b => { x = a, y = b } in (mk 1 2).x" "1")
+  , checkIO "vm: record nested proj"  (vmEvalsTo "record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\n{ tag = 5, inner = { v = 3 } }.inner.v" "3")
+  , checkIO "vm: record update"       (vmEvalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 99 }" "{ x = 1, y = 99 }")
+  , checkIO "vm: record update immutable" (vmEvalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in let q = { p with y = 99 } in p.y" "2")
+  , checkIO "vm: record equality"     (vmEvalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 } == { y = 2, x = 1 }" "true")
+  , checkIO "vm: record polymorphic"  (vmEvalsTo "record Pair a b = { fst : a, snd : b }\nlet p1 = { fst = 1, snd = 2 } in let p2 = { fst = true, snd = 1.5 } in if p2.fst then p1.snd else 0" "2")
+  , checkIO "vm: record pattern"      (vmEvalsTo "record Point = { x : Int, y : Int }\nmatch { y = 2, x = 1 } with | { x = a, y = b } => a + b" "3")
+  , checkIO "vm: record pattern fallback" (vmEvalsTo "record Maybe = { just : Bool, val : Int }\nmatch { val = 7, just = true } with | { just = false, val = _ } => 0 | { just = true, val = v } => v" "7")
+  , checkIO "vm: record pattern no match" (vmFails "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = 9, y = 9 } => 0")
+  , checkIO "vm: record proj on call result" (vmEvalsTo "record Point = { x : Int, y : Int }\n(head [{ x = 5, y = 6 }]).x" "5")
   ]
 
 diffTests :: IO Harness
@@ -490,6 +552,13 @@ diffTests = sequence
   , checkIO "diff: match map-like" (differential "let rec mapM = fn xs => match xs with | [] => [] | x :: rest => cons (x * 2) (mapM rest) in mapM [1, 2, 3]" "[2, 4, 6]")
   , checkIO "diff: tail call"      (differential "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 10000" "50005000")
   , checkIO "diff: tail call match" (differential "let rec sum = fn acc xs => match xs with | [] => acc | x :: rest => sum (acc + x) rest in sum 0 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]" "55")
+  , checkIO "diff: record literal" (differential "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 }" "{ x = 1, y = 2 }")
+  , checkIO "diff: record proj"    (differential "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in p.x + p.y" "3")
+  , checkIO "diff: record update"  (differential "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 5 }.y" "5")
+  , checkIO "diff: record pattern" (differential "record Point = { x : Int, y : Int }\nmatch { y = 3, x = 4 } with | { x = a, y = b } => a * b" "12")
+  , checkIO "diff: record equality" (differential "record Point = { x : Int, y : Int }\n{ y = 2, x = 1 } == { x = 1, y = 2 }" "true")
+  , checkIO "diff: record poly"     (differential "record Pair a b = { fst : a, snd : b }\nlet p = { fst = [1, 2], snd = \"hi\" } in length (reverse p.fst)" "2")
+  , checkIO "diff: record nested"   (differential "record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\nlet o = { tag = 1, inner = { v = 9 } } in o.inner.v" "9")
   ]
 
 -- | A disassembly check: the tail position of a recursive function must
@@ -567,6 +636,13 @@ optTests = sequence
   , checkIO "opt: differential match"        (optDifferential "data Maybe a = Nothing | Just a\nlet f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)" "7")
   , checkIO "opt: differential tail call"    (optDifferential "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 10000" "50005000")
   , checkIO "opt: differential stdlib"       (optDifferential "take 2 (append [1] (drop 1 [2, 3, 4]))" "[1, 3]")
+  , checkIO "opt: record literal"           (optVmEvalsTo "record Point = { x : Int, y : Int }\n{ y = 2, x = 1 }" "{ x = 1, y = 2 }")
+  , checkIO "opt: record proj survives"     (optVmEvalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in p.y" "2")
+  , checkIO "opt: record update survives"   (optVmEvalsTo "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with x = 7 }.x" "7")
+  , checkIO "opt: record pattern survives"  (optVmEvalsTo "record Point = { x : Int, y : Int }\nmatch { y = 3, x = 4 } with | { x = a, y = b } => a * b" "12")
+  , checkIO "opt: record proj fold"         (optVmEvalsTo "record Point = { x : Int, y : Int }\n{ x = 1 + 2, y = 3 }.x" "3")
+  , checkIO "opt: differential record"      (optDifferential "record Pair a b = { fst : a, snd : b }\nlet p = { fst = [1, 2], snd = \"hi\" } in length (reverse p.fst)" "2")
+  , checkIO "opt: differential record update" (optDifferential "record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 5 }.y" "5")
   ]
 
 -- | The whole corpus, re-run through the optimizer: every program must still

@@ -269,4 +269,58 @@ corpus =
         , "   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)"
         ])
       "1601"
+  , CorpusEntry "record-point"
+      (unlines
+        [ "-- Record construction, order-independent projection, and update."
+        , "record Point = { x : Int, y : Int }"
+        , "let origin = { x = 0, y = 0 } in"
+        , "let mk = fn x y => { y = y, x = x } in"
+        , "let p = mk 3 4 in"
+        , "(p.x * p.x + p.y * p.y) + (match { y = 9, x = 1 } with | { x = a, y = b } => a + b)"
+        , "  + ({ origin with x = 5 }.x * 10)"
+        ])
+      "85"
+  , CorpusEntry "record-pair"
+      (unlines
+        [ "-- Polymorphic records: the same shape reused at different types."
+        , "record Pair a b = { fst : a, snd : b }"
+        , "let swp = fn p => { snd = p.fst, fst = p.snd } in"
+        , "let ints = swp { fst = 1, snd = 2 } in"
+        , "let strs = swp { fst = [3, 4], snd = \"hi\" } in"
+        , "let bools = { fst = true, snd = false } in"
+        , "ints.fst + (head strs.snd) + length strs.snd + (if bools.fst then 100 else 0)"
+        ])
+      "107"
+  , CorpusEntry "record-nested"
+      (unlines
+        [ "-- Nested records: a record stored as a field of another record."
+        , "record Vec = { dx : Int, dy : Int }"
+        , "record Ball = { pos : Vec, vel : Vec, id : Int }"
+        , "let move = fn b => { pos = { dx = b.pos.dx + b.vel.dx, dy = b.pos.dy + b.vel.dy }, vel = b.vel, id = b.id } in"
+        , "let b = { id = 7, pos = { dx = 1, dy = 2 }, vel = { dx = 3, dy = 4 } } in"
+        , "let b2 = move b in"
+        , "b2.pos.dx * 100 + b2.pos.dy * 10 + b2.id"
+        ])
+      "467"
+  , CorpusEntry "record-shape-list"
+      (unlines
+        [ "-- Records inside lists: project a field out of a computed record."
+        , "record Item = { name : String, qty : Int }"
+        , "let rec sumQty = fn xs => match xs with"
+        , "  | [] => 0"
+        , "  | i :: rest => i.qty + sumQty rest"
+        , "in let stock = [ { qty = 3, name = \"apple\" }, { name = \"pear\", qty = 5 }, { qty = 2, name = \"plum\" } ] in"
+        , "sumQty stock + (head (reverse stock)).qty * 10"
+        ])
+      "30"
+  , CorpusEntry "record-equality"
+      (unlines
+        [ "-- Record equality ignores literal field order."
+        , "record Point = { x : Int, y : Int }"
+        , "let a = { y = 1, x = 2 } in"
+        , "let b = { x = 2, y = 1 } in"
+        , "let c = { x = 2, y = 3 } in"
+        , "if a == b then (if a /= c then 42 else 0) else 0"
+        ])
+      "42"
   ]
