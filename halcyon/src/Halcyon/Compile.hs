@@ -12,12 +12,14 @@ module Halcyon.Compile
 import Control.Monad (forM_, when)
 import qualified Data.Map.Strict as Map
 import Data.List (intersperse, nub)
+import qualified Data.Set as Set
 
 import qualified Halcyon.Ast as Ast
-import Halcyon.Ast (Expr(..), DataDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..))
-import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, progDataEnv, checkProgram, ctorFor, CtorInfo(..))
+import Halcyon.Ast (Expr(..), DataDecl(..), RecordDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..))
+import Halcyon.Data (DataEnv, emptyDataEnv, progEnvs, checkProgram, ctorFor, CtorInfo(..))
 import Halcyon.Op
 import Halcyon.Parser (parseProgram, ParseError(..))
+import Halcyon.Record (RecordEnv, recordFor, recordForFields, RecordInfo(..))
 import Halcyon.Token (Pos(..))
 import Halcyon.Value
 
@@ -43,34 +45,35 @@ compileProgramIn prog = do
   case checkProgram prog of
     Left m  -> Left (CompileError (Pos 0 0) m)
     Right _ -> Right ()
-  denv <- case progDataEnv prog of
+  (denv, renv) <- case progEnvs prog of
     Left m  -> Left (CompileError (Pos 0 0) m)
-    Right d -> Right d
+    Right e -> Right e
   (_, st) <- runC
-    (compileDefs denv (Ast.progDefs prog) >> compileMaybeExpr denv (Ast.progExpr prog) >> emit Halt >> resolvePatches)
+    (compileDefs denv renv (Ast.progDefs prog) >> compileMaybeExpr denv renv (Ast.progExpr prog) >> emit Halt >> resolvePatches)
     initState
   let entry = Func "main" [] (csCode st) (csConsts st) [] []
   Right (Program entry)
   where
-    compileDefs denv = mapM_ $ \case
+    compileDefs denv renv = mapM_ $ \case
       DefData _      -> return ()
-      DefLet p rec name bound -> compileTopLet p rec name denv bound
+      DefRecord _    -> return ()
+      DefLet p rec name bound -> compileTopLet p rec name denv renv bound
 
-    compileMaybeExpr _ Nothing   = return ()
-    compileMaybeExpr denv (Just e) = compileExpr denv True e
+    compileMaybeExpr _ _ Nothing   = return ()
+    compileMaybeExpr denv renv (Just e) = compileExpr denv renv True e
 
 -- | Compile one top-level @let@ binding into the current (entry) function's
 -- scope, without a body. Mirror of 'compileLet' for the definition form.
-compileTopLet :: Pos -> Bool -> String -> DataEnv -> Expr -> CompileM ()
-compileTopLet p rec name denv bound = case bound of
+compileTopLet :: Pos -> Bool -> String -> DataEnv -> RecordEnv -> Expr -> CompileM ()
+compileTopLet p rec name denv renv bound = case bound of
   ELambda _ params body' -> do
     s <- registerLocal name
     when rec (emit (NewCell s))
-    compileLambda p denv params body'
+    compileLambda p denv renv params body'
     emit (StoreLocal s)
   _ | rec -> compileError p ("let rec requires a function value for " <> name)
     | otherwise -> do
-        compileExpr denv False bound
+        compileExpr denv renv False bound
         s <- registerLocal name
         emit (StoreLocal s)
 
@@ -159,44 +162,47 @@ emit i = modify' (\s -> s { csCode = csCode s ++ [i] })
 -- tail position compiles to @TailCall@ so the VM reuses the current frame
 -- (constant-stack recursion). Sub-expressions whose result is consumed by a
 -- surrounding operation are never in tail position.
-compileExpr :: DataEnv -> Bool -> Expr -> CompileM ()
-compileExpr denv inTail = \case
+compileExpr :: DataEnv -> RecordEnv -> Bool -> Expr -> CompileM ()
+compileExpr denv renv inTail = \case
   EInt _ i      -> emitConst (CValue (VInt i))
   EFloat _ d    -> emitConst (CValue (VFloat d))
   EBool _ b     -> emitConst (CValue (VBool b))
   EStr _ s      -> emitConst (CValue (VStr s))
   EList _ es    -> do
-    mapM_ (compileExpr denv False) es
+    mapM_ (compileExpr denv renv False) es
     emit (MakeList (length es))
   EVar p name   -> resolveRef p name
   EConstr p name -> compileConstr p denv name
   EBuiltin _ b  -> emitConst (CValue (VBuiltin b))
-  ELambda p params body -> compileLambda p denv params body
+  ELambda p params body -> compileLambda p denv renv params body
   EApply p fn arg -> case saturatedConstr denv fn arg of
     Just (name, ar, args) -> do
-      mapM_ (compileExpr denv False) args
+      mapM_ (compileExpr denv renv False) args
       idx <- dataIdx name ar
       emit (MakeData idx)
     Nothing -> do
-      compileExpr denv False fn
-      compileExpr denv False arg
+      compileExpr denv renv False fn
+      compileExpr denv renv False arg
       emit (if inTail then TailCall else Call)
-  ELet p rec name bound body -> compileLet p rec name denv bound inTail body
+  ELet p rec name bound body -> compileLet p rec name denv renv bound inTail body
   EIf p c t e   -> do
-    compileExpr denv False c
+    compileExpr denv renv False c
     labFalse <- emitJump JKJumpIfFalse
-    compileExpr denv inTail t
+    compileExpr denv renv inTail t
     labEnd <- emitJump JKJump
     defineLabel labFalse
-    compileExpr denv inTail e
+    compileExpr denv renv inTail e
     defineLabel labEnd
-  EMatch p scrut branches -> compileMatch p denv inTail scrut branches
+  EMatch p scrut branches -> compileMatch p denv renv inTail scrut branches
+  ERecord p fields -> compileRecord p denv renv fields
+  EProj p e name -> compileProj p denv renv e name
+  EUpdate p e name ne -> compileUpdate p denv renv e name ne
   EBin p op a b -> do
-    compileExpr denv False a
-    compileExpr denv False b
+    compileExpr denv renv False a
+    compileExpr denv renv False b
     emit (opToInstr p op)
-  ENeg p x      -> compileExpr denv False x >> emit Neg
-  ENot p x      -> compileExpr denv False x >> emit Not
+  ENeg p x      -> compileExpr denv renv False x >> emit Neg
+  ENot p x      -> compileExpr denv renv False x >> emit Not
 
 -- | Compile a data constructor reference. A nullary constructor is already
 -- a complete data value (MakeData pops zero values); a curried reference to
@@ -223,6 +229,71 @@ dataIdx name ar = do
       modify' (\s -> s { csConsts = csConsts s ++ [CData name ar], csConstMap = Map.insert (constEquiv (CData name ar)) i (csConstMap s) })
       return i
 
+-- | Register a @CRec@ constant for a record type (name + declared field
+-- names) and return its pool index.
+recIdx :: String -> [String] -> CompileM Int
+recIdx name fields = do
+  st <- get
+  case Map.lookup (constEquiv (CRec name fields)) (csConstMap st) of
+    Just i  -> return i
+    Nothing -> do
+      let i = length (csConsts st)
+      modify' (\s -> s { csConsts = csConsts s ++ [CRec name fields], csConstMap = Map.insert (constEquiv (CRec name fields)) i (csConstMap s) })
+      return i
+
+-- | @{ f1 = e1, ..., fn = en }@: evaluate the fields in declared order,
+-- then @MakeRecord@ pairs the declared field names with the pushed values.
+-- The field set must match a declared record exactly (checked by the type
+-- checker), so every declared field is present in the literal.
+compileRecord :: Pos -> DataEnv -> RecordEnv -> [(String, Expr)] -> CompileM ()
+compileRecord p denv renv fields = do
+  let fm = Map.fromList fields
+      fset = Map.keysSet fm
+  (name, ri) <- case recordForFields fset renv of
+    Nothing -> compileError p ("no record with fields " <> show (Set.toList fset))
+    Just x  -> return x
+  forM_ (riFields ri) $ \(f, _) ->
+    case Map.lookup f fm of
+      Nothing -> compileError p ("record literal is missing field " <> f)
+      Just e  -> compileExpr denv renv False e
+  idx <- recIdx name (map fst (riFields ri))
+  emit (MakeRecord idx (length (riFields ri)))
+
+-- | @e.f@: compile @e@, then @GetField@ with the field name. The VM looks
+-- the field up by name, so this works on any record-valued expression. A
+-- projection of a record literal is folded to the literal field expression
+-- (Halcyon is pure, so evaluation order cannot be observed).
+compileProj :: Pos -> DataEnv -> RecordEnv -> Expr -> String -> CompileM ()
+compileProj p denv renv e name = case e of
+  ERecord _ fields -> case lookup name fields of
+    Just fe  -> compileExpr denv renv False fe
+    Nothing  -> compileError p ("no field " <> name <> " in record literal")
+  _ -> do
+    compileExpr denv renv False e
+    c <- fieldIdx name
+    emit (GetField c)
+
+-- | @{ e with f = e' }@: compile the record, the new value, then
+-- @UpdateField@ to rebuild the record.
+compileUpdate :: Pos -> DataEnv -> RecordEnv -> Expr -> String -> Expr -> CompileM ()
+compileUpdate p denv renv e name ne = do
+  compileExpr denv renv False e
+  compileExpr denv renv False ne
+  c <- fieldIdx name
+  emit (UpdateField c)
+
+-- | Register a @CField@ constant for a record field name and return its
+-- pool index.
+fieldIdx :: String -> CompileM Int
+fieldIdx name = do
+  st <- get
+  case Map.lookup (constEquiv (CField name)) (csConstMap st) of
+    Just i  -> return i
+    Nothing -> do
+      let i = length (csConsts st)
+      modify' (\s -> s { csConsts = csConsts s ++ [CField name], csConstMap = Map.insert (constEquiv (CField name)) i (csConstMap s) })
+      return i
+
 -- | When an application spine is a constructor applied to exactly its arity
 -- of arguments, compile it to @MakeData@; otherwise fall back to the generic
 -- curried call path.
@@ -236,20 +307,20 @@ saturatedConstr denv fn arg = go fn [arg]
         _ -> Nothing
     go _ _ = Nothing
 
-compileLet :: Pos -> Bool -> String -> DataEnv -> Expr -> Bool -> Expr -> CompileM ()
-compileLet p rec name denv bound inTail body = case bound of
+compileLet :: Pos -> Bool -> String -> DataEnv -> RecordEnv -> Expr -> Bool -> Expr -> CompileM ()
+compileLet p rec name denv renv bound inTail body = case bound of
   ELambda _ params body' -> do
     s <- registerLocal name
     when rec (emit (NewCell s))
-    compileLambda p denv params body'
+    compileLambda p denv renv params body'
     emit (StoreLocal s)
-    compileExpr denv inTail body
+    compileExpr denv renv inTail body
   _ | rec -> compileError p ("let rec requires a function value for " <> name)
     | otherwise -> do
-        compileExpr denv False bound
+        compileExpr denv renv False bound
         s <- registerLocal name
         emit (StoreLocal s)
-        compileExpr denv inTail body
+        compileExpr denv renv inTail body
 
 -- | Compile a @match@ expression. Layout:
 --
@@ -274,11 +345,11 @@ compileLet p rec name denv bound inTail body = case bound of
 -- Each branch's pattern tests pop the scrutinee and, when the pattern fully
 -- matches, fall through to a jump into that branch's body. Every test that
 -- fails jumps to the next branch's start (or @Fail@ for the last branch).
-compileMatch :: Pos -> DataEnv -> Bool -> Expr -> [(Pattern, Expr)] -> CompileM ()
-compileMatch p denv inTail scrut branches = case branches of
+compileMatch :: Pos -> DataEnv -> RecordEnv -> Bool -> Expr -> [(Pattern, Expr)] -> CompileM ()
+compileMatch p denv renv inTail scrut branches = case branches of
   [] -> compileError p "empty match"
   _ -> do
-    compileExpr denv False scrut
+    compileExpr denv renv False scrut
     scr <- registerLocal "$scr"
     emit (StoreLocal scr)
     let names = nub (concatMap (patternVars . fst) branches)
@@ -295,13 +366,13 @@ compileMatch p denv inTail scrut branches = case branches of
       let failTarget = case drop (i + 1) startLabs of
             (nextLab : _) -> nextLab
             []            -> failLab
-      compilePattern denv varSlot failTarget pat
+      compilePattern denv renv varSlot failTarget pat
       emitJumpTo (bodyLabs !! i)
     defineLabel failLab
     emit Fail
     forM_ (zip bodyLabs branches) $ \(bodyLab, (_, body)) -> do
       defineLabel bodyLab
-      compileExpr denv inTail body
+      compileExpr denv renv inTail body
       emitJumpTo endLab
     defineLabel endLab
 
@@ -318,6 +389,7 @@ patternVars = \case
   PCons _ h t   -> patternVars h ++ patternVars t
   PList _ ps    -> concatMap patternVars ps
   PConstr _ _ ps -> concatMap patternVars ps
+  PRecord _ fs  -> concatMap (patternVars . snd) fs
 
 -- | Compile a pattern's test chain against the value on top of the operand
 -- stack. Each test pops the current value and jumps to the fail target on
@@ -326,8 +398,8 @@ patternVars = \case
 -- fail the operand stack holds only the value under test: a failed test
 -- always falls out of the chain with a clean stack, ready for the next
 -- branch.
-compilePattern :: DataEnv -> Map.Map String Int -> Int -> Pattern -> CompileM ()
-compilePattern denv varSlot failLab = \case
+compilePattern :: DataEnv -> RecordEnv -> Map.Map String Int -> Int -> Pattern -> CompileM ()
+compilePattern denv renv varSlot failLab = \case
   PWild _       -> emit Pop
   PVar _ n      -> case Map.lookup n varSlot of
     Just s  -> emit (BindLocal s)
@@ -344,9 +416,9 @@ compilePattern denv varSlot failLab = \case
     emit (BindLocal headTmp)
     emit (BindLocal tailTmp)
     emit (PushLocal headTmp)
-    compilePattern denv varSlot failLab h
+    compilePattern denv renv varSlot failLab h
     emit (PushLocal tailTmp)
-    compilePattern denv varSlot failLab t
+    compilePattern denv renv varSlot failLab t
   PList _ ps    -> compilePList ps
   PConstr _ name ps -> do
     c <- dataIdx name (length ps)
@@ -355,7 +427,8 @@ compilePattern denv varSlot failLab = \case
     mapM_ (\s -> emit (BindLocal s)) temps
     forM_ (zip temps ps) $ \(s, sub) -> do
       emit (PushLocal s)
-      compilePattern denv varSlot failLab sub
+      compilePattern denv renv varSlot failLab sub
+  PRecord _ fields -> compilePRecord fields
   where
     compilePList [] = emitTestTo failLab TestNil
     compilePList (pat : rest) = do
@@ -365,14 +438,36 @@ compilePattern denv varSlot failLab = \case
       emit (BindLocal headTmp)
       emit (BindLocal tailTmp)
       emit (PushLocal headTmp)
-      compilePattern denv varSlot failLab pat
+      compilePattern denv renv varSlot failLab pat
       emit (PushLocal tailTmp)
       compilePList rest
 
+    -- A record pattern: the field set resolves the record, @TestRecord@
+    -- pops the record and pushes its declared-ordered fields, and each
+    -- declared field's sub-pattern is matched against the corresponding
+    -- pushed value (the pattern's fields must equal the declared set, so the
+    -- pairing by name is total).
+    compilePRecord fields = do
+      let fset = Set.fromList (map fst fields)
+      (_, ri) <- case recordForFields fset renv of
+        Nothing -> compileError posZero ("no record with fields " <> show (Set.toList fset))
+        Just x  -> return x
+      let declared = map fst (riFields ri)
+      c <- recIdx (riName ri) declared
+      emitTestTo failLab (\t -> TestRecord c t)
+      temps <- mapM (const registerTempSlot) declared
+      mapM_ (\s -> emit (BindLocal s)) temps
+      forM_ (zip declared temps) $ \(f, s) ->
+        case lookup f fields of
+          Nothing -> emit Pop -- unreachable: pattern field set equals declared set
+          Just sub -> do
+            emit (PushLocal s)
+            compilePattern denv renv varSlot failLab sub
+
 -- | Compile a lambda. Builds the function, stores it in the enclosing
 -- function's constant pool, and emits the closure-construction sequence.
-compileLambda :: Pos -> DataEnv -> [String] -> Expr -> CompileM ()
-compileLambda _ denv params body = do
+compileLambda :: Pos -> DataEnv -> RecordEnv -> [String] -> Expr -> CompileM ()
+compileLambda _ denv renv params body = do
   outer <- get
   let scope = CScope (zip params [0 ..]) []
   modify' (\s -> s
@@ -385,7 +480,7 @@ compileLambda _ denv params body = do
     , csLabels = Map.empty
     , csPatches = []
     })
-  compileExpr denv True body
+  compileExpr denv renv True body
   emit Return
   resolvePatches
   finished <- get
@@ -443,7 +538,21 @@ addConst c = do
           let i = length (csConsts st)
           modify' (\s -> s { csConsts = csConsts s ++ [c], csConstMap = Map.insert (constEquiv c) i (csConstMap s) })
           return i
-    CData _ _ -> do
+    CData _ _ ->
+      case Map.lookup (constEquiv c) (csConstMap st) of
+        Just i  -> return i
+        Nothing -> do
+          let i = length (csConsts st)
+          modify' (\s -> s { csConsts = csConsts s ++ [c], csConstMap = Map.insert (constEquiv c) i (csConstMap s) })
+          return i
+    CRec _ _ ->
+      case Map.lookup (constEquiv c) (csConstMap st) of
+        Just i  -> return i
+        Nothing -> do
+          let i = length (csConsts st)
+          modify' (\s -> s { csConsts = csConsts s ++ [c], csConstMap = Map.insert (constEquiv c) i (csConstMap s) })
+          return i
+    CField _ ->
       case Map.lookup (constEquiv c) (csConstMap st) of
         Just i  -> return i
         Nothing -> do
@@ -580,6 +689,7 @@ resolvePatches = do
              TestFloat c 0 -> replaceAt pos (TestFloat c tgt) code
              TestBool c 0  -> replaceAt pos (TestBool c tgt) code
              TestStr c 0   -> replaceAt pos (TestStr c tgt) code
+             TestRecord c 0 -> replaceAt pos (TestRecord c tgt) code
              _             -> code
   modify' (\s -> s { csCode = foldl (\code p -> patch p code) (csCode s) (csPatches s), csPatches = [] })
 

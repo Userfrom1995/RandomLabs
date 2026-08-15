@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, TupleSections #-}
 -- | Import resolution for the v3 module system. A source string is parsed;
 -- each @import "path"@ is resolved to source text via a provider (which
 -- knows the importing file's directory for relative paths, falling back to a

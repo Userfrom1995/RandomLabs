@@ -243,7 +243,11 @@ instrRefs = \case
   MakeClosure i  -> [i]
   MakeData i     -> [i]
   PushConstr i   -> [i]
+  MakeRecord c _ -> [c]
+  GetField c     -> [c]
+  UpdateField c  -> [c]
   TestConstr c _ -> [c]
+  TestRecord c _ -> [c]
   TestInt c _    -> [c]
   TestFloat c _  -> [c]
   TestBool c _   -> [c]
@@ -259,6 +263,7 @@ patchTarget pm = \case
   TestNil t       -> TestNil (Map.findWithDefault t t pm)
   TestCons t      -> TestCons (Map.findWithDefault t t pm)
   TestConstr c t  -> TestConstr c (Map.findWithDefault t t pm)
+  TestRecord c t  -> TestRecord c (Map.findWithDefault t t pm)
   TestInt c t     -> TestInt c (Map.findWithDefault t t pm)
   TestFloat c t   -> TestFloat c (Map.findWithDefault t t pm)
   TestBool c t    -> TestBool c (Map.findWithDefault t t pm)
@@ -272,7 +277,11 @@ patchConst rm = \case
   MakeClosure i  -> MakeClosure (Map.findWithDefault i i rm)
   MakeData i     -> MakeData (Map.findWithDefault i i rm)
   PushConstr i   -> PushConstr (Map.findWithDefault i i rm)
+  MakeRecord c a -> MakeRecord (Map.findWithDefault c c rm) a
+  GetField c     -> GetField (Map.findWithDefault c c rm)
+  UpdateField c  -> UpdateField (Map.findWithDefault c c rm)
   TestConstr c t -> TestConstr (Map.findWithDefault c c rm) t
+  TestRecord c t -> TestRecord (Map.findWithDefault c c rm) t
   TestInt c t    -> TestInt (Map.findWithDefault c c rm) t
   TestFloat c t  -> TestFloat (Map.findWithDefault c c rm) t
   TestBool c t   -> TestBool (Map.findWithDefault c c rm) t
