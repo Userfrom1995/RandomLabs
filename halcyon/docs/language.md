@@ -7,10 +7,10 @@ JavaScript playground.
 
 ## 1. Lexical structure
 
-Programs are sequences of whitespace- and comment-separated tokens. The two
-calling conventions for comments are supported:
+Programs are sequences of whitespace- and comment-separated tokens. Comments:
 
-- `# ...` to end of line
+- `-- ...` to end of line
+- `{- ... -}` for block comments (nestable)
 
 Tokens:
 

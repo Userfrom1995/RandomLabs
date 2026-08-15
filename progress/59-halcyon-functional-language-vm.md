@@ -171,6 +171,11 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   examples, exit codes 1 (missing file, type error, lex error, runtime
   division by zero on both evaluators) and 2 (usage) confirmed, piped REPL
   echoes 5 and 7, --help/--version OK. Status set to complete.
+- 2026-08-15 (fixer, review round 1): applied the reviewer's documentation
+  finding in halcyon/docs/language.md (lexical structure). The doc claimed
+  `# ...` line comments, but the lexer (Lexer.hs) uses `--` for line
+  comments and `{- ... -}` for nested block comments; corrected the section
+  to document both forms accurately.
 
 - the Builder
 
