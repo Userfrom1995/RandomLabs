@@ -304,4 +304,318 @@ root `index.html` updated. Final pass: `make test`, `make smoke`,
 `cabal test`, `node js/corpus-check.js examples` all green, exit codes 0/1/2,
 clean tree, `Status: complete`.
 
+## Next-level evolution: Halcyon v3 - modules, records, type classes, strings
+
+Dispatched by Mae (second shipping-limit round, 2026-08-15): the merge is
+again held by the daily cap (2/2 on Aug 15; cap resets 00:00Z Aug 16), and
+per the owner's playbook the Architect designs the next level instead of a
+Fixer round. v2 made Halcyon a proper ML-flavored language (ADTs, structural
+pattern matching, TCO, a deterministic optimizer, a self-hosted stdlib). v3
+evolves it from "a language you write one expression in" into "a language you
+write real programs in": **top-level definitions and a module system**, so
+programs become sequences of bindings and can import a growing standard
+library; **record types**, the classic named-field data-modeling feature that
+complements ADTs; **type classes with dictionary passing**, the defining
+feature of the Haskell family, giving overloaded methods with principal
+typing; **Char and string operations**, filling the last data-type gap; and a
+**VM profiler plus optimizer expansion**, giving observable performance
+instrumentation and stronger dead-code elimination. Every milestone lands
+end-to-end (Haskell core, JS mirror, playground, differential corpus, docs)
+so the existing byte-identical guarantees hold across all three evaluators.
+
+### Milestone 17 - Top-level definitions and a module system
+
+**Top-level definitions.** A Halcyon program currently is `dataDecl* expr`,
+forcing every binding into one giant nested `let ... in`. v3 generalizes the
+program grammar to a sequence of top-level definitions followed by an
+optional final expression:
+
+```
+program  := decl* expr
+decl     := dataDecl | recordDecl | classDecl | instanceDecl
+          | 'let' name '=' expr          -- non-recursive top-level binding
+          | 'let' 'rec' name '=' expr    -- recursive top-level binding
+```
+
+The final `expr` may be absent when the last `let` defines a function (the
+program then has no printed result; useful for libraries). Each top-level
+binding generalizes like a `let` (schemes, polymorphic), is visible to every
+later definition and the final expression, and must be used consistently.
+Ambiguity rule for the parser: after parsing `let <name> = <bindingExpr>`, a
+following `in` token means it was an expression (the existing form); any other
+next token (a definition keyword or EOF) means it was a top-level definition.
+Every existing program (a single `let ... in ...` expression) parses
+unchanged, so the 29-program corpus is untouched.
+
+**Module system.** New `import` declaration at the top of a file:
+
+```
+import "lib/list.hly"
+import "lib/maybe.hly"
+```
+
+`import "..."` resolves the path (relative to the current file when it is a
+file, else relative to the lib directory given by `--lib <dir>`, defaulting to
+`halcyon/lib/`), lexes, parses, and merges the imported file's top-level
+definitions into the importing program's data/record/class/instance
+environments and the type/value environments. Imports are transitive and
+order-independent; a definition name imported twice (or colliding with a local
+definition) is a positioned error. A `.hly` file that contains only
+definitions (no final expression) is a valid *module*; importing one runs no
+code. The CLI gains `--lib <dir>` on the file commands and `run`/`run-vm`/
+`check`/`compile` all resolve imports. The self-hosted stdlib
+(`examples/stdlib.hly`) is split into real importable modules under
+`halcyon/lib/` (e.g. `list.hly`, `maybe.hly`, `pair.hly`, `compose.hly`) and
+rewritten with top-level `let rec` definitions instead of nested `let ... in`
+chains; `examples/stdlib.hly` becomes a thin `import`-based demo.
+
+**Interpreter / compiler / VM.** The tree-walking interpreter threads one
+environment: evaluate definitions in order, bind each name, then evaluate the
+final expression (nothing printed when there is none). The compiler lowers
+the definition list to the entry function by emitting each binding as
+`NewCell`+`StoreLocal` (or `MakeClosure` for `let rec`) into the entry frame's
+cell space and then compiling the final expression; the REPL and `eval` treat
+a definitions-only program as type-check-and-reject-with-no-result instead of
+a runtime error.
+
+**Tests.** New selftests: top-level generalization (a top-level polymorphic
+function used at two types), definition ordering, duplicate-name errors,
+import resolution, transitive imports, module-with-no-expression, and the
+rewritten stdlib still yielding the pinned result. The differential corpus
+grows with multi-definition programs and an import-based program, all
+verified byte-identical across interpreter, VM, and (after M18's JS sync) the
+JS mirror. `make test`, `make smoke`, `make smoke --opt` green.
+
+### Milestone 18 - Record types (named fields)
+
+**Syntax.** The classic named-field data type, complementing positional ADTs:
+
+```
+record Point = { x : Int, y : Int }
+{ x = 1, y = 2 }          -- construction
+p.x                        -- projection
+{ p with x = 3 }           -- functional update (new record, p unchanged)
+```
+
+- `record <Name> <tyvar>* = { <field> : <type> , ... }` with the existing
+  field-type grammar (primitives, `[T]`, type variables, data-type
+  application, parenthesized, function types).
+- A record literal `{ f1 = e1, ..., fn = en }` requires every declared field,
+  in any order, and resolves its type by the *globally unique field set*
+  (the parser/environment rejects two records sharing a field name set, like
+  the existing global-uniqueness rule for constructors). If no declared
+  record has exactly that field set, it is a positioned type error.
+- Projection `e.f` selects field `f`; `f` must exist in the record's declared
+  field set. Functional update `{ e with f = e' }` returns a new record with
+  exactly field `f` replaced; `with` is already a keyword (match syntax), so
+  no new keyword is needed.
+- Record patterns in `match`: `| { x = a, y = b } => ...` binds `a`, `b` to
+  the field values; the pattern's field set must equal the scrutinee record's
+  declared set (a `_` or a record pattern with all fields is the exhaustive
+  idiom).
+
+**Lexer / parser / AST.** New tokens `{`, `}`, `.`. Lexer care: `{-` still
+starts a block comment; a bare `{` becomes the record-open token, `}` the
+record-close token, `.` the dot token (no other operator uses `.`). Parser:
+`record` declarations, record literals, projection as a postfix at
+application precedence, functional update via the existing `with` token
+disambiguated from `match ... with`, record patterns in the pattern grammar.
+AST: `DataDecl` gains a sibling `RecordDecl` (name, tyvars, fields); `Expr`
+gains `ERecord`, `EProj`, `EUpdate`; `Pattern` gains `PRecord`.
+
+**Type system.** `Type` gains `TRec String [Type]` (nominal, like `TData`),
+with a new `Halcyon.Record` environment mirroring `Halcyon.Data`: record
+name -> field list with polymorphic field types (fields may depend on the
+record's type parameters, e.g. `record Pair a b = { fst : a, snd : b }`).
+Unification on `TRec` compares name + applied arguments pointwise. Record
+literal inference: collect the field names, find the unique declared record
+with that field set, unify each literal field's inferred type with the
+declared field type (instantiating the record's scheme). Projection: unify
+the scrutinee's type with `TRec n args` where `n` declares field `f`, return
+the field's instantiated type. Update: unify scrutinee and the replacement
+with the record type; result type is the record type.
+
+**Values / interpreter.** `Value` gains `VRec String [(String, Value)]`
+(record name + ordered declared fields). `showValue` renders `{ x = 1, y = 2 }`
+with the field values in declared order. Interpreter: literal evaluation,
+projection (lookup by field name with a positioned "no such field" error),
+functional update (rebuild the field list), record pattern matching in
+`matchValue` (compare names, then match each field's sub-pattern).
+
+**Compiler / VM.** Constant pool gains `CRec String [String]` (record name +
+field names in declared order). Opcodes: `MakeRecord Int` (pop the declared
+number of field values, push `VmRec`), `GetField Int` (field index), and
+`UpdateField Int` (pop the replacement, pop the record, push the rebuilt
+record). Projection compiles to `PushLocal/PushUpvalue/PushConst` for the
+scrutinee then `GetField`; update compiles scrutinee, push replacement,
+`UpdateField`. Records participate in equality (deep structural comparison on
+both evaluators), and the differential corpus and optimizer are extended for
+records (record constant folding is a no-op only for literal-symmetric cases;
+field projection of a literal can fold to the field value).
+
+**Tests.** Selftests for construction/order-independence, projection, update
+immutability, record types and unification (incl. polymorphic records),
+record patterns in match, duplicate-field-set errors, missing-field errors,
+projection type errors; 4+ new differential corpus programs (point math, a
+`Pair` record, a nested record, record-with-list). JS mirror, playground AST
+renderer, and docs (`language.md` record section, `vm.md` opcode table) follow
+in M21's sync milestone; corpus-check keeps the JS mirror honest until then.
+
+### Milestone 19 - Type classes with dictionary passing
+
+**Syntax.** The Haskell-family defining feature: overloaded methods with
+principal typing, implemented by dictionary passing.
+
+```
+class Show a where
+  show : a -> String
+
+instance Show Int where
+  show = fn x => intToStr x
+
+instance Show a => Show [a] where
+  show = fn xs => "[" ++ joinWith ", " (map show xs) ++ "]"
+```
+
+- `class <Name> <tyvar> where <method> : <type>`: one or more method
+  signatures. Method signatures are function types mentioning the class type
+  variable at least once.
+- `instance <Name> <head> where <method> = <expr>`: `<head>` is a closed type
+  (a primitive, a data/record type applied to type variables, a list type).
+  Instance contexts `instance Ctx => Name T` are allowed with a single
+  `ClassName tyvar` constraint. Instance heads must be unique per class
+  (deterministic resolution; the checker rejects overlapping heads).
+- Method references are first-class values; inside `instance` bodies the
+  method's own name is *not* recursively re-dispatched (the implementation
+  expression is used directly), but other class methods and all top-level
+  definitions are in scope.
+
+**Type system.** `Scheme` gains a constraint context `[(String, Type)]` (class
+name + type argument). New `Halcyon.Classes` module builds the class
+environment: class name -> methods with polymorphic types over the class
+variable; instance name -> dictionary schema (head type, method
+implementations, instance context). Inference changes:
+
+- Referencing a class method `m` instantiates its scheme and emits a
+  constraint `(Class, t)` where `t` unifies with the method's argument type
+  (e.g. `show x` with `x : Int` emits `(Show, Int)`).
+- Constraints on variables that stay free in a `let`/top-level binding are
+  generalized into the binding's scheme context (so `let f = fn x => show x`
+  gets scheme `forall a. Show a => a -> String`).
+- After inference, constraints with fully resolved (concrete or
+  type-constructor) types are solved against the instance environment by
+  head-type unification (with recursive context resolution for instance
+  contexts, depth-bounded). An unsolved non-variable constraint is a
+  positioned type error: `no instance for Show (Pair Int Int)`.
+
+**Dictionaries.** For each instance, the compiler/interpreter builds a
+dictionary: a record-like value mapping method name -> method closure for
+that instance (`VDict`/`VmDict`). A method call compiles to: push the
+resolved instance's dictionary, `DictGet <methodIndex>`, then apply the
+resulting closure to the arguments. A *constrained polymorphic function*
+(e.g. `let f = fn x => show x`, scheme `forall a. Show a => a -> String`)
+takes the dictionary as an extra leading argument: its closure captures the
+dictionary, and every `show` inside it indexes that captured dictionary. A
+call site whose argument type is concrete passes the concrete instance's
+dictionary; a call site inside another constrained function re-threads the
+in-scope dictionary. This is the standard dictionary-passing translation,
+done deterministically and verified by the differential corpus.
+
+**Builtins.** `intToStr`, `floatToStr`, `boolToStr`, `strToStr` (identity),
+`listToStr` (renders `[...]`), and `concat`/`joinWith` string helpers (from
+M20's string work where applicable) give instance bodies something to call;
+the Show instances for the primitives are provided automatically as
+built-in instances so `show` works out of the box on `Int`, `Float`, `Bool`,
+`String`, lists, and user data/record types (whose instances users define).
+
+**Tests.** New selftest group: constraint generation and generalization,
+instance head resolution, context recursion (`Show a => Show [a]`), overlap
+rejection, dictionary correctness in the interpreter, and VM
+(dictionary-indexed method calls through polymorphic functions and at
+concrete call sites), plus differential tests proving interpreter output ==
+VM output for class-using programs. The self-hosted stdlib gains a `Show`
+class with instances for the `lib/` data types (Maybe, Pair) and a demo
+`show`-based `toStr`. JS mirror and corpus-check sync happens in M21.
+
+### Milestone 20 - Char type and string operations
+
+**Char.** New primitive type `Char` with single-quoted literals `'a'`, `'\n'`
+(escape set matching the string escapes). Lexer rule: a `'` followed by a
+single character (or escape) and a closing `'` is a char literal; a `'` inside
+an identifier (`x'`) remains an identifier character, matching Haskell's
+convention. `Type` gains `TChar`; `Value` gains `VChar`; show renders `'a'`.
+Char participates in equality and (no ordering operators yet, documented as a
+future step). Char in patterns: `match c with | 'a' => ...`.
+
+**String operations.** Builtins `strLen : String -> Int`, `charAt : String ->
+Int -> Char`, `substr : String -> Int -> Int -> String`, `strAppend : String
+-> String -> String`, `strContains : String -> String -> Bool`, and `str :
+a -> String` (canonical `showValue` as a string, the same rendering the CLI
+prints, so `str` is the observable-reflection escape hatch). All are
+first-class and curried like the existing builtins, present in the
+interpreter, the VM (with `VmPartialBuiltin` arity handling), and the JS
+mirror. `intToStr`/`floatToStr`/`boolToStr` (from M19) are aliases layered on
+`str` where the type allows.
+
+**Self-hosted stdlib growth.** `halcyon/lib/` gains `string.hly`
+(`strLen`, `charAt`, `substr`, `split` by a separator implemented over the
+builtins, `joinWith`, `toUpper`/`toLower` via char comparisons), `list.hly`
+expands with `zipWith`, `flatten`, `last`, `init`, `takeWhile`, `dropWhile`,
+`any`/`all` (already present) and `show`-based formatting helpers, and
+`maybe.hly` expands with `fromMaybe`, `mapMaybe`, `catMaybes`. Every stdlib
+function is exercised by a pinned example and a corpus entry.
+
+**Tests.** Lexer/parser char tests, type tests (TChar in unification, `str`
+polymorphism), eval + VM string-op tests, differential tests across all new
+ops, and a corpus program printing a formatted table built purely from
+strings and records. `make test`, `make smoke`, `cabal test` green.
+
+### Milestone 21 - VM profiler, optimizer expansion, JS sync, playground, docs, polish
+
+**VM profiler.** New `halcyon run-vm --profile <file>` mode. The VM counts,
+per run: total instructions executed, per-opcode counts, per-function call
+counts (by `fName`), peak operand-stack depth, and peak frame depth. Output
+is a deterministic, sorted report to stdout (or stderr) with a `--stats`
+sibling flag that prints only the summary line. Profiling adds no observable
+behavior change (output of `run-vm` with and without `--profile` is
+identical). The corpus's optimizer differential is re-verified under
+profiling. JS mirror gains a matching `countOps`-style hook used by the
+playground's new stats panel.
+
+**Optimizer expansion.** `Halcyon.Optimize` gains two total,
+semantics-preserving passes: **dead-code elimination** (remove unreachable
+instruction blocks behind unconditional jumps, and drop the trailing
+`Jump`/`Halt` dead paths), and **copy/constant propagation through locals**
+(a `store_local` of a `push_const` followed by a single `push_local` read of
+that slot folds to a direct `push_const`, removing the store; a `store_local`
+feeding only `push_local` and never re-stored is a pure copy, resolved to the
+source slot). Both passes keep the existing fixpoint coordinate discipline so
+jump targets stay correct; every corpus program is re-verified byte-identical
+with and without `--opt`, and `make smoke --opt` and the opt-corpus cover the
+new rules.
+
+**JS mirror + playground sync (records, modules, classes, chars, strings,
+profiler).** Port to `js/halcyon.js`: top-level definitions and import
+resolution (a bundled module map for the `lib/` files so the browser needs no
+network), record types/literals/projection/update and record patterns, the
+type-class checker (constraints, instance resolution) and dictionary passing
+in both the CPS interpreter and `makeVm`, Char + string ops, and the
+`countOps` profiler hook. `js/corpus-check.js` grows to run the full expanded
+corpus (now ~40 programs) plus feature checks for every v3 addition, keeping
+JS == Haskell byte-identical. Playground (`halcyon/index.html`): the editor's
+example selector gains the new `lib/`-based examples, record/class/string
+samples, a stats panel showing instruction/frame counts from the profiler
+hook, and the AST renderer shows `record`, `class`/`instance`, top-level `let`,
+record literals/projection/update, char literals, and string-op call nodes.
+
+**Docs + polish.** `docs/language.md`: top-level definitions, imports, records,
+type classes (constraints, instances, dictionaries), Char, string builtins,
+updated grammar and precedence. `docs/vm.md`: `MakeRecord`/`GetField`/
+`UpdateField`/`DictGet`, import lowering, profiler report format, new
+optimizer rules. `docs/index.md`/`docs/index.html`, `README.md`, and the root
+pages updated with the v3 feature list and correct test/corpus counts. Final
+pass: `make test`, `make smoke`, `make smoke --opt`, `cabal test`,
+`node js/corpus-check.js examples` all green, exit codes 0/1/2, clean tree,
+`Status: complete`, decision file written.
+
 - the Architect

@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** complete
-- **Updated:** 2026-08-15T17:50:00Z
+- **Status:** in-progress
+- **Updated:** 2026-08-15T17:55:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -31,28 +31,41 @@
 - [x] 16. JS mirror + playground for data/match/TCO/--opt, self-hosted
   stdlib (map/filter/foldl/foldr/zip/...), docs + root pages, final polish,
   Status: complete
+- [ ] 17. Top-level definitions + module system: program = decl* expr
+  (let/let rec top-level bindings), `import "..."` resolution with --lib,
+  split the self-hosted stdlib into halcyon/lib/*.hly modules, differential
+  corpus entries
+- [ ] 18. Record types: record decls, { f = e } literals, e.f projection,
+  { e with f = e' } update, record patterns, TRec + VRec + MakeRecord/
+  GetField/UpdateField opcodes, selftests + corpus
+- [ ] 19. Type classes with dictionary passing: class/instance decls,
+  constraint contexts on schemes, instance resolution, VDict/VmDict +
+  DictGet, intToStr/floatToStr/boolToStr builtins, Show class in stdlib,
+  differential tests
+- [ ] 20. Char type + string operations: 'a' literals, TChar/VChar, strLen/
+  charAt/substr/strAppend/strContains/str builtins, stdlib growth
+  (string.hly, list.hly, maybe.hly), corpus entries
+- [ ] 21. VM profiler (--profile/--stats), optimizer expansion (DCE + copy/
+  constant propagation), JS mirror + playground sync for all v3 features,
+  docs, final polish, Status: complete
 
 ## Current step
-Milestone 16 is complete. M16a ported data/match/TCO/--opt to the JS mirror
-and extended js/corpus-check.js (91 checks standalone, 101 with examples);
-M16b added a self-hosted stdlib written in Halcyon (examples/stdlib.hly,
-29th corpus entry, 322 Haskell selftests); M16c upgraded the playground
-(data/match AST rendering, an --opt toggle, the inferProgram export alias)
-and refreshed language.md, vm.md, and the docs index; M16d moved Halcyon to
-Current Project / Live now on the root README.md and index.html (Beambus to
-Previous); M16e did the final polish. make test 322 green, make smoke green,
-JS corpus-check 104 checks green with the examples dir. PR #61 carries all
-commits and stays open for the Maintainer to merge after the shipping cap
-resets at 00:00Z Aug 16, then closes #59.
+v3 enhancement round (shipping-limit round 2) is designed and ready for the
+Builder. Milestones 17-21 were added to the checklist: M17 top-level
+definitions + module system, M18 record types, M19 type classes with
+dictionary passing, M20 Char + string operations, M21 VM profiler +
+optimizer expansion + JS/playground/docs sync. The merge is still held by the
+Aug 15 shipping cap (2/2); the v3 round must land and pass a fresh review +
+test on the new head before the Maintainer merges after the 00:00Z Aug 16 cap
+reset.
 
 ## Next steps
-Merging and closing. The PR #61 remains open until the daily shipping cap
-resets (00:00Z Aug 16); the Maintainer merges on standing approval and
-closes issue #59. All milestone-16 work is committed and pushed on the
-branch: M16a (JS data/match/TCO/--opt port + corpus-check), M16a part 2
-(JS optimizer), M16b (self-hosted stdlib), M16c (playground + docs), M16d
-(root page placement fix), M16e (final polish, Status: complete). No
-further builder work is planned unless the Reviewer or Tester requests it.
+Builder to implement M17 (top-level definitions + module system + lib/
+stdlib split) on the existing branch, pushing milestone-by-milestone and
+updating this tracker as it goes. M18-M21 follow in order, each landing
+end-to-end (Haskell core, JS mirror where applicable, corpus, docs). After
+M21, the Reviewer + Tester cycle runs on the fresh head and the Maintainer
+merges once the cap resets, closing #59.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -448,3 +461,25 @@ and make smoke still green.
   resets at 00:00Z Aug 16 and to close issue #59.
 
 - the Builder
+- 2026-08-15 (architect, v3 enhancement round) - dispatched by the Maintainer
+  after PR #61 re-cleared review + test on head b1897b1 (322/322, Reviewer
+  approve 16:36Z, Tester approve-test 16:41Z) and the Aug 15 shipping cap
+  (2/2) again held the merge. Per the owner's playbook (f1fbae9), designed
+  the v3 next-level evolution and appended the spec to
+  ideas/2026-08-15-halcyon-functional-language-vm.md (Milestones 17-21
+  below). Updated this tracker: Status back to in-progress, checklist items
+  17-21 added. The plan: top-level definitions + a module system (`import`
+  with `--lib`, the self-hosted stdlib split into `halcyon/lib/*.hly`
+  modules); record types with named fields (construction, projection,
+  functional update, record patterns, TRec/VRec/MakeRecord/GetField/
+  UpdateField); type classes with dictionary passing (class/instance decls,
+  constraint contexts on schemes, instance resolution, VDict/VmDict/DictGet,
+  the standard dictionary-passing translation); a Char type + string
+  operations (strLen/charAt/substr/strAppend/strContains/str builtins);
+  and a VM profiler (`--profile`/`--stats`) plus optimizer expansion
+  (dead-code elimination, copy/constant propagation). Every milestone lands
+  end-to-end (Haskell core, JS mirror, playground, differential corpus,
+  docs) so the byte-identical guarantees hold. Decision file written with
+  action build for the workflow to trigger the Builder.
+
+- the Architect
