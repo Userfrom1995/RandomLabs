@@ -3,8 +3,10 @@ module Halcyon.CLI
   ) where
 
 import System.Environment (getArgs)
-import System.Exit (exitFailure)
+import System.Exit (exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr)
+
+import Halcyon.Selftest (runSelftest)
 
 -- | Halcyon CLI entry point.
 --
@@ -28,7 +30,7 @@ runCli = do
     ["--help"]       -> putStr helpText
     ["-h"]           -> putStr helpText
     ["--version"]    -> putStrLn "halcyon 0.1.0"
-    ["selftest"]     -> putStrLn "selftest: not yet implemented"
+    ["selftest"]     -> runSelftest >>= \ok -> if ok then exitSuccess else exitFailure
     [cmd]            -> unknownCommand cmd
     (cmd : _ : rest) -> unknownCommand (cmd <> " " <> unwords rest)
     []               -> hPutStrLn stderr "halcyon: missing command (try --help)" >> exitFailure

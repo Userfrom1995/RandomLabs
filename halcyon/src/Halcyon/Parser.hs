@@ -4,7 +4,7 @@ module Halcyon.Parser
   , ParseError(..)
   ) where
 
-import Halcyon.Ast
+import Halcyon.Ast (Expr(..), Op(..), Builtin(..), builtinForName)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Token
 
@@ -150,7 +150,7 @@ parseAtom = do
     TStr s    -> consumeTok >> return (EStr p s)
     TTrue     -> consumeTok >> return (EBool p True)
     TFalse    -> consumeTok >> return (EBool p False)
-    TIdent n  -> consumeTok >> return (EVar p n)
+    TIdent n  -> consumeTok >> return (maybe (EVar p n) (EBuiltin p) (builtinForName n))
     TLParen   -> consumeTok >> parseExpr >>= \e -> consumeT TRParen >> return e
     TLBracket -> parseList
     _         -> failAt p ("expected an expression, found " <> describe t)

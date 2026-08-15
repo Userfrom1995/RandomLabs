@@ -37,13 +37,20 @@ lexSource src = go 1 1 src
 
     -- Nested block comment. Returns Left on an unterminated comment.
     skipBlock :: Int -> Int -> String -> Either LexError [Token]
-    skipBlock l c s
-      | isPrefixOf' "{-" s = skipBlock (stepLine l c (take 2 s)) (stepCol l c (take 2 s)) (drop 2 s)
-      | isPrefixOf' "-}" s = go (stepLine l c (take 2 s)) (stepCol l c (take 2 s)) (drop 2 s)
-      | otherwise =
-          case s of
-            [] -> Left (LexError (Pos l c) "unterminated block comment")
-            (ch : rest) -> skipBlock (newline l ch) (newlineCol c ch) rest
+    skipBlock l c s = descend 1 l c s
+      where
+        descend :: Int -> Int -> Int -> String -> Either LexError [Token]
+        descend depth cl cc cs
+          | isPrefixOf' "{-" cs =
+              descend (depth + 1) (stepLine cl cc (take 2 cs)) (stepCol cl cc (take 2 cs)) (drop 2 cs)
+          | isPrefixOf' "-}" cs =
+              if depth == 1
+                then go (stepLine cl cc (take 2 cs)) (stepCol cl cc (take 2 cs)) (drop 2 cs)
+                else descend (depth - 1) (stepLine cl cc (take 2 cs)) (stepCol cl cc (take 2 cs)) (drop 2 cs)
+          | otherwise =
+              case cs of
+                [] -> Left (LexError (Pos cl cc) "unterminated block comment")
+                (ch : rest) -> descend depth (newline cl ch) (newlineCol cc ch) rest
 
     token :: Int -> Int -> String -> Either LexError [Token]
     token l c s = case s of

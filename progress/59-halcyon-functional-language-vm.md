@@ -8,7 +8,7 @@
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
 - [x] 2. Core domain: Token + Lexer + AST + Parser (positioned errors, precedence climbing)
-- [ ] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
+- [x] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
 - [ ] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
 - [ ] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
 - [ ] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
@@ -19,8 +19,8 @@
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Core domain done (Token/Lexer/AST/Parser, positioned errors, precedence
-climbing); type system (HM inference) next
+Type system done (HM inference with let polymorphism + numeric promotion,
+45 embedded selftests passing); interpreter + bytecode VM next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -51,5 +51,16 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   lists, unary -/!, positioned parse errors). Verified by ghc scratch harness
   over 15 sample programs incl. fib, curried closures, comments, floats.
   Removed Halcyon.Main in favor of src/Main.hs entry.
+- 2026-08-15 (builder) - Milestone 3 (type system): Type.hs (Type with
+  TVar/TInt/TFloat/TBool/TStr/TList/TFun, Scheme with explicit quantified
+  vars), Infer.hs (Algorithm W in an Infer monad over subst+counter:
+  unification with occurs check, let polymorphism, let rec, numeric
+  promotion Int+Float -> Float with metavariable binding/sharing,
+  positioned errors, final substitution applied to the reported principal
+  type). Builtin names now parse to EBuiltin and typecheck via polymorphic
+  schemes. First embedded selftest suite (Halcyon.Selftest wired into
+  `halcyon selftest` + Makefile test target): 45 tests (lexer 9, parser 14,
+  types 22) all passing. Pretty-printer renders right-assoc function types
+  (a -> a -> a).
 
 - the Architect

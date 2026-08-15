@@ -5,6 +5,7 @@ module Halcyon.Ast
   , Builtin(..)
   , opName
   , builtinName
+  , builtinForName
   ) where
 
 import Halcyon.Token (Pos)
@@ -73,3 +74,12 @@ builtinName = \case
   BHead  -> "head"
   BTail  -> "tail"
   BIsNil -> "isNil"
+
+-- | Resolve a builtin by name, if it is one.
+builtinForName :: String -> Maybe Builtin
+builtinForName = \case
+  "cons"  -> Just BCons
+  "head"  -> Just BHead
+  "tail"  -> Just BTail
+  "isNil" -> Just BIsNil
+  _       -> Nothing
