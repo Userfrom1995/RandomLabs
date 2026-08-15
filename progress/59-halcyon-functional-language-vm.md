@@ -12,20 +12,21 @@
 - [x] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
 - [x] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
 - [x] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
-- [ ] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
+- [x] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
 - [ ] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
 - [ ] 9. Cross-language corpus: JS mirror output == Haskell output
 - [ ] 10. Docs: README, docs/index.html + index.md, language.md, vm.md; root landing page + root README entries
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Differential corpus done (Halcyon.Corpus module: 15 canonical programs with
-expected output; examples/fib.hly, map.hly, filter.hly, closures.hly,
-lists.hly, promotion.hly, recursion.hly mirroring the corpus; corpusTests
-runs every entry through BOTH evaluators, asserting interpreter == VM ==
-expected; 15 corpus tests added, 129 total all passing; 100k-step tail
-recursion + 5000-frame deep recursion verified on both evaluators). CLI +
-REPL next
+CLI + REPL done (Halcyon.Repl: stdin-driven line-buffered loop with
+multi-line continuation via "end of input" parse-error detection, prompt
+only on a tty, piped input scriptable; CLI dispatch for repl/run/run-vm/
+run-vm --trace/check/compile/corpus/corpus --examples/selftest/help/version;
+strict arg validation with exit code 2 for usage errors and 1 for
+lex/parse/type/runtime/IO errors; positioned error messages; Makefile smoke
+target exercising every command; verified all exit codes and traces).
+Web playground next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -109,6 +110,20 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   Halcyon.Corpus in halcyon.cabal. Verified both evaluators agree on all 15
   programs including the 100k-step accumulator recursion and the 5000-frame
   deep recursion.
+- 2026-08-15 (builder) - Milestone 7 (CLI + REPL): added Halcyon.Repl
+  (stdin-driven loop, buffer + parse each line, keep buffering while the
+  parse error mentions end of input so multi-line programs work, prompt only
+  on a tty, blank-line reset, typecheck-then-evaluate printing the value),
+  rewrote Halcyon.CLI with full command dispatch (repl/run/run-vm/
+  run-vm --trace/check/compile/corpus/corpus --examples <dir>/selftest/
+  --help/--version), strict argument counts, positioned errors
+  (line L, col C), exit codes 0/1/2 (success/error/usage), readSource with
+  IOException handling, corpus runner + examples-dir checker reusing one
+  runBoth (interpreter output == VM output). Verified every command and
+  every exit code by hand; added Makefile smoke target (set -e; corpus,
+  corpus --examples, run, run-vm, check, compile, piped repl, bad-input
+  non-zero exits). cabal now depends on directory + filepath for the
+  examples checker.
 
 - the Builder
 
