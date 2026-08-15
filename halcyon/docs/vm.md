@@ -28,8 +28,10 @@ disassembly.
   - a single-parameter closure starts a new frame immediately;
   - a multi-parameter closure produces a partial application value that
     accumulates arguments until the arity is satisfied;
-  - builtins dispatch directly; the curried `cons` builtin likewise forms a
-    partial application for its first argument.
+  - builtins dispatch directly; the curried builtins (`cons`, `append`,
+    `take`, `drop`) form partial applications that accumulate arguments
+    until the arity is satisfied, and unary builtins (`length`, `reverse`,
+    `head`, `tail`, `isNil`) complete immediately.
 
 A program is a single entry function whose body is a whole expression; the
 top-level executes it and `Halt`s.

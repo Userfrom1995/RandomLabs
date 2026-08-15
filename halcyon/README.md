@@ -7,8 +7,8 @@ language runs in a static web page.
 
 The pipeline is `lex` -> `parse` -> `infer` -> `eval`, or `lex` -> `parse`
 -> `compile` -> `vm`. Two Haskell evaluators (tree-walking interpreter and
-stack VM) and one JavaScript mirror all agree byte-for-byte, proven by a
-15-program differential corpus.
+stack VM) and one JavaScript mirror all agree byte-for-byte, proven by an
+18-program differential corpus.
 
 ## Features
 
@@ -22,9 +22,15 @@ stack VM) and one JavaScript mirror all agree byte-for-byte, proven by a
   functions, and partial application.
 - A real bytecode VM: operand stack, frames, mutable upvalue cells shared
   with the defining frame, closures, and a single-steppable machine.
-- A differential corpus of 15 programs whose outputs are pinned, plus 7
+- A standard library of nine polymorphic list builtins (`cons`, `head`,
+  `tail`, `isNil`, `length`, `reverse`, `append`, `take`, `drop`), the
+  curried ones supporting partial application like any other function.
+- Caret diagnostics: every lexer, parser, type, and runtime error in the
+  CLI and REPL shows the offending source line with a `^` at the column.
+- A differential corpus of 18 programs whose outputs are pinned, plus 10
   example programs.
-- A REPL and a browser playground with a step-through VM debugger.
+- A REPL, an `eval` command for inline expressions, and a browser
+  playground with a step-through VM debugger.
 
 ## Build
 
@@ -32,7 +38,7 @@ Requires only GHC (boot libraries plus `containers`).
 
 ```sh
 make            # build build/halcyon
-make test       # build and run the 129-test self-test suite
+make test       # build and run the 166-test self-test suite
 make smoke      # exercise every CLI command and exit code
 make clean
 ```
@@ -43,9 +49,10 @@ make clean
 halcyon run <file.hly>            # interpret
 halcyon run-vm <file.hly>         # run the bytecode VM
 halcyon run-vm --trace <file.hly> # ... with a per-instruction trace
+halcyon eval '<expr>'             # typecheck and evaluate inline
 halcyon check <file.hly>          # typecheck only
 halcyon compile <file.hly>        # print the compiled program disassembly
-halcyon corpus                    # run the 15-program differential corpus
+halcyon corpus                    # run the 18-program differential corpus
 halcyon corpus --examples <dir>   # run a directory of .hly example files
 halcyon selftest                  # full self-test suite
 halcyon repl                      # interactive loop (piped input supported)
@@ -77,13 +84,13 @@ in any browser or serve the `halcyon/` directory statically.
 
 ## Correctness
 
-- 129 Haskell self-tests cover the lexer, parser, type inference, both
+- 166 Haskell self-tests cover the lexer, parser, type inference, both
   evaluators, and the corpus.
-- The differential corpus runs the same 15 programs through the
+- The differential corpus runs the same 18 programs through the
   interpreter and the VM and compares against pinned expected output.
 - `js/corpus-check.js` verifies the JavaScript mirror: JS interpreter ==
   JS VM == Haskell expected output across corpus programs, examples, types,
-  and disassembly determinism (25 checks), and the VM disassembly is
+  and disassembly determinism (31 checks), and the VM disassembly is
   byte-identical to the Haskell compiler.
 
 ## Layout
@@ -101,6 +108,7 @@ src/Halcyon/Op.hs         bytecode instructions, constants, programs
 src/Halcyon/Compile.hs    expression-to-bytecode compiler
 src/Halcyon/Vm.hs         stack machine
 src/Halcyon/Corpus.hs     differential corpus
+src/Halcyon/Diag.hs       caret source diagnostics
 src/Halcyon/Selftest.hs   self-test suite
 src/Halcyon/Repl.hs       REPL
 src/Halcyon/CLI.hs        command dispatch

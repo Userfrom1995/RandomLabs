@@ -15,5 +15,5 @@ the whole implementation in plain JavaScript.
 - [Web playground](https://userfrom1995.github.io/Random/halcyon/) - edit,
   typecheck, run, disassemble, and step through the VM in the browser.
 - CLI (see the [project README](../README.md)): `halcyon run`, `halcyon
-  check`, `halcyon compile`, `halcyon run-vm`, `halcyon corpus`,
-  `halcyon selftest`, `halcyon repl`.
+  check`, `halcyon compile`, `halcyon run-vm`, `halcyon eval`, `halcyon
+  corpus`, `halcyon selftest`, `halcyon repl`.

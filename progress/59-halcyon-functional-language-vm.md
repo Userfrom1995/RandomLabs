@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** in-progress
-- **Updated:** 2026-08-15T14:45:00Z
+- **Status:** complete
+- **Updated:** 2026-08-15T15:15:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -17,6 +17,9 @@
 - [x] 9. Cross-language corpus: JS mirror output == Haskell output
 - [x] 10. Docs: README, docs/index.html + index.md, language.md, vm.md; root landing page + root README entries
 - [x] 11. Iteration/improvement cycle + final polish, Status: complete, final push
+- [x] 12. Shipping-limit iteration round: standard library list builtins
+  (length/reverse/append/take/drop) in both evaluators + JS mirror with
+  partial application, `halcyon eval`, caret source diagnostics, docs
 
 ## Current step
 COMPLETE. Milestone 11 (final polish): found and fixed a cabal build bug -
@@ -198,7 +201,19 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   application, and length/reverse/append/take/drop in both the CPS
   interpreter and the makeVm machine. js/corpus-check.js: 31/31 checks
   pass (18 corpus + 10 examples + 3 type/disasm), JS == Haskell on every
-  entry. TODO: `halcyon eval` + caret source diagnostics, docs update.
+  entry.
+- 2026-08-15 (fixer, shipping-limit iteration round, completed): `halcyon
+  eval '<expr>'` evaluates an inline expression (same typecheck-then-run
+  pipeline and exit codes as `run`). New Halcyon.Diag module renders the
+  offending source line with a caret at the error column; applied to every
+  positioned lexer/parser/type/runtime error in the CLI and REPL, so errors
+  now point at the exact character. Both wired into the Makefile smoke
+  target. Docs updated (language.md builtins table with arity and clamping
+  semantics, vm.md calling convention, docs/index.md CLI list, README with
+  the 166-test suite, 18-program corpus, 31-check JS verification, eval and
+  diagnostics). Full verification: make test 166/166, make smoke clean
+  (exit codes 0/1/2), cabal test PASS, node js/corpus-check.js 31/31 with
+  examples. Status restored to complete.
 
 - the Builder
 

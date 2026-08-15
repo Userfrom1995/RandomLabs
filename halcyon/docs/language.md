@@ -118,18 +118,33 @@ type error at line 3, col 9: cannot unify Bool with Int
 
 ## 5. Builtins
 
-Four first-class list functions, exposed as names that resolve to builtin
+Nine first-class list functions, exposed as names that resolve to builtin
 values in expressions:
 
-| Name    | Type                       | Behavior                              |
-|---------|----------------------------|---------------------------------------|
-| `cons`  | `a -> [a] -> [a]`          | curried cons: `cons 1 (cons 2 [])`    |
-| `head`  | `[a] -> a`                 | first element; errors on `[]`         |
-| `tail`  | `[a] -> [a]`               | rest of the list; errors on `[]`      |
-| `isNil` | `[a] -> Bool`              | true when the list is empty           |
+| Name       | Type                        | Behavior                                    |
+|------------|-----------------------------|---------------------------------------------|
+| `cons`     | `a -> [a] -> [a]`           | curried cons: `cons 1 (cons 2 [])`          |
+| `head`     | `[a] -> a`                  | first element; errors on `[]`               |
+| `tail`     | `[a] -> [a]`                | rest of the list; errors on `[]`            |
+| `isNil`    | `[a] -> Bool`               | true when the list is empty                 |
+| `length`   | `[a] -> Int`                | number of elements                          |
+| `reverse`  | `[a] -> [a]`                | the list in reverse order                   |
+| `append`   | `[a] -> [a] -> [a]`         | concatenate two lists                       |
+| `take`     | `Int -> [a] -> [a]`         | the first `n` elements                      |
+| `drop`     | `Int -> [a] -> [a]`         | the list without its first `n` elements     |
 
-`cons` is curried via partial application: applying it to one argument
-yields a partial application that completes when given the list.
+`length`, `reverse`, `head`, `tail`, and `isNil` are unary. The curried
+builtins (`cons`, `append`, `take`, `drop`) apply one argument at a time:
+`cons 1` or `append [1]` is a partial application that completes when the
+remaining argument arrives. `take`/`drop` clamp negative counts to zero, so
+`take (-1) xs` is `[]` and `drop (-1) xs` is `xs`; counts past the end
+behave as expected (`take 9 [1]` is `[1]`, `drop 9 [1]` is `[]`).
+
+All nine are polymorphic: `length` and `take`/`drop` work on lists of any
+element type, `reverse`/`append` preserve it, and `let`-generalization
+means `let l = fn xs => length xs in l [true]` typechecks. Runtime misuse
+still errors precisely: `length 5` is a type error, while
+`head []` / `tail []` are runtime errors.
 
 ## 6. Evaluation semantics
 
