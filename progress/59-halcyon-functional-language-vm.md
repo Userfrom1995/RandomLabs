@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T20:10:00Z
+- **Updated:** 2026-08-15T22:40:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -48,7 +48,8 @@
 - [ ] 21. VM profiler (--profile/--stats), optimizer expansion (DCE + copy/
   constant propagation), JS mirror + playground sync for all v3 features,
   docs, final polish, Status: complete (Haskell core done: profiler +
-  optimizer expansion + selftests)
+  optimizer expansion + selftests; JS mirror done: records, classes,
+  chars/strings, string lib, profiler, optimizer expansion - M21b)
 
 ## Current step
 v3 enhancement round (shipping-limit round 2) is designed and ready for the
@@ -70,6 +71,43 @@ updating this tracker as it goes. After M21, the Reviewer + Tester cycle runs
 on the fresh head and the Maintainer merges once the cap resets, closing #59.
 
 ## Agent log
+- 2026-08-15 (builder, M21b - JS mirror for all v3 features) - ported the
+  entire v3 feature set to the JS mirror (js/halcyon.js) so interpreter,
+  plain VM, and optimized VM all agree with the Haskell core. Records:
+  record decls, literals, projection, update, and record patterns across
+  lexer/parser, type inference (inferRecord/inferProj/inferUpdate/
+  checkRecordPattern), the CPS interpreter (VRec), and the compiler/VM
+  (make_record/get_field/update_field/test_record, CRec/CField consts).
+  Type classes: class/instance decls, a class env (buildClassEnv,
+  methodClass, unifyHead, findInstance, headBindings), scheme ctx +
+  constraint solving (solveConstraints/resolveInstance/partitionCtx/
+  dischargeCtx), method dispatch in the interpreter (current-env threading
+  via applyCPS) and the VM (dispatchMethod through the dict table). Chars
+  and strings: char literal/pattern tokens, TChar, VChar/VmChar, the seven
+  string builtins plus the polymorphic str, and string + concat. Profiler:
+  runVmProfiled/renderProfile/statsLine matching the Haskell report layout,
+  with instruction and call counts plus peak stack/frame depth; profiling
+  is value-identical to a plain run. Optimizer expansion: optimizeProgram
+  preserves dicts/ctors and keeps instance-method consts as rebuildPool
+  roots, dce with reachability + target remapping, copy/constant
+  propagation with dominators, closeTargets resolving removed jump
+  targets, and push_local/push_upvalue;pop cleanup rules. Also fixed two
+  parser bugs: `->` was never lexed as one token (the bare `-` rule ran
+  first, breaking every type signature arrow), and parseOptionalCtx
+  crashed on null / only accepted `->` when Haskell accepts both arrows;
+  and a null-return crash in solveConstraints callers. Bundled the
+  self-hosted string library into libModules and synced maybe.hly's
+  `Show a => Show (Maybe a)` instance. New examples: records-classes.hly
+  and string-lib.hly (both verified in Haskell and JS). js/corpus-check.js
+  grew from 110 to 183 checks (records, classes, builtin Show, chars,
+  string builtins, string library imports, profiler determinism/value-
+  parity, and every program also run on the optimized VM); 196 checks
+  with the examples dir. Haskell make test: 596 pass; make smoke green;
+  examples verified on the Haskell CLI. Committed and pushed in two
+  commits (mirror port, then corpus-check + examples).
+
+- the Builder
+
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
   project conventions (Glyphforge, Gambit, Granite), confirmed prior Builder PR
   #60 for #59 was closed without merging and its branch deleted; created branch
