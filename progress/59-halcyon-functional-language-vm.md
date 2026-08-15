@@ -1016,4 +1016,13 @@ and make smoke still green.
   file updated: M26 [x], Status complete, Current step + Next steps
   rewritten. All 26 milestones complete.
 
+- 2026-08-16 (fixer) - applied the Reviewer's stale-test-count finding in
+  full. README.md:47 and index.html:126 still said "596 tests" while the
+  suite grew to 684 during the v3/v4 enhancement rounds (M22-M26 added
+  effect, prelude, artifact, and operator/synonym tests). Changed both to
+  "684 tests", matching halcyon/README.md and the actual selftest run
+  (make test 684/684). No other stale "596" references remain in shipped
+  docs (the ones in the progress file's historical agent-log entries are
+  accurate for the state at the time). Committed and pushed.
+
 - the Builder
