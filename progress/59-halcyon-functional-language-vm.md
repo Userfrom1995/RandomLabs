@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T23:40:00Z
+- **Updated:** 2026-08-16T00:35:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -52,7 +52,7 @@
   chars/strings, string lib, profiler, optimizer expansion - M21b;
   playground sync done: v3 AST/pattern/type renderers, Profile panel -
   M21c; docs done: language/vm references, READMEs, root pages - M21d)
-- [ ] 22. Effect system: TUnit/()/VUnit + TEffect, do { } blocks with
+- [x] 22. Effect system: TUnit/()/VUnit + TEffect, do { } blocks with
   let/<-/sequence stmts desugaring to bind, first-class return/bind/print/
   printLine/readLine builtins, VEffect values + pure runEffect driver
   (scripted stdin, deterministic), Effect-typed program entries in
@@ -78,27 +78,68 @@
   Status: complete
 
 ## Current step
-v4 enhancement round (shipping-limit round 3) is designed and ready for the
-Builder. Milestones 22-26 were added to the checklist: M22 effect system,
-M23 user-defined operators + type synonyms, M24 auto-imported prelude +
-REPL colon commands, M25 serialized bytecode artifact + benchmark harness,
-M26 JS mirror + playground + docs + root pages + final polish. M22 is the
-first milestone to implement on the existing branch (effect system: TUnit/
-TEffect, do blocks, return/bind/print/printLine/readLine, VEffect +
-runEffect, Effect-typed program entries, selftests + corpus), pushing
-milestone-by-milestone. The merge is still held by the Aug 15 shipping cap
-(2/2); the v4 round must land and pass a fresh review + test on the new head
-before the Maintainer merges after the 00:00Z Aug 16 cap reset.
+v4 enhancement round (shipping-limit round 3). Milestones 22-26 were added
+to the checklist: M22 effect system, M23 user-defined operators + type
+synonyms, M24 auto-imported prelude + REPL colon commands, M25 serialized
+bytecode artifact + benchmark harness, M26 JS mirror + playground + docs +
+root pages + final polish. M22 is DONE (four commits on the branch: core,
+corpus + selftests, JS mirror + CLI corpus, docs; make test 604, make smoke
+green, corpus 51/51 both ways, JS corpus-check 205 checks with the examples
+dir). M23 is next for the Builder: user-defined operators
+(infixl/infixr/infix declarations + TOpName lexer rule + dynamic precedence
+table) + type synonyms (type Name = type, parse-time expansion), selftests
++ differential corpus entries, JS mirror, docs, pushed milestone-by-milestone.
+The merge is still held by the Aug 15 shipping cap (2/2); the v4 round must
+land and pass a fresh review + test on the new head before the Maintainer
+merges after the 00:00Z Aug 16 cap reset.
 
 ## Next steps
-Builder to implement M22 (effect system) first on the existing branch,
-pushing milestone-by-milestone and updating this tracker as it goes. After
-M22, M23 (operators + synonyms), M24 (prelude + REPL), M25 (bytecode artifact
-+ bench), M26 (JS mirror + playground + docs + polish). After M26, the
-Reviewer + Tester cycle runs on the fresh head and the Maintainer merges once
-the cap resets, closing #59.
+Builder to implement M23 (user-defined operators + type synonyms) next on
+the existing branch, pushing milestone-by-milestone and updating this
+tracker as it goes. After M23, M24 (prelude + REPL colon commands), M25
+(bytecode artifact + bench), M26 (JS mirror + playground + docs + polish).
+After M26, the Reviewer + Tester cycle runs on the fresh head and the
+Maintainer merges once the cap resets, closing #59.
 
 ## Agent log
+- 2026-08-15/16 (builder, M22 - effect system) - implemented milestone 22 in
+  four committed, pushed steps. (1) Haskell core: TUnit/()/VUnit + TEffect,
+  do { } blocks with `<-`/let/final stmts desugaring onto return/bind,
+  first-class return/bind/print/printLine/readLine builtins, VEffect values
+  + a pure deterministic runEffect driver over scripted stdin (bind chains,
+  readLine pops one line then the empty string, defs-only modules return
+  Nothing), Effect-typed program entries in run/run-vm/eval/repl (all of
+  stdin read up front, unit result prints nothing), and the VM effect
+  builtins with no new opcodes (readLine compiles to a constant VEffect
+  'readLine' [], bind is a 2-ary curried builtin, VmUnit/VmEffect + eq2 unit
+  case, runVmEffect driving bind continuation closures in fresh machines
+  with slot 0 bound). Includes a top-level runMachine refactor of Vm.hs so
+  runVm/runVmEffect/runVmProfiled share one instruction loop. make test 596
+  green on this step. (2) Corpus + selftests: CorpusEntry gained cInput
+  (input list on its own line, all 47 existing entries migrated to
+  positional []), four pinned effect entries (effect-print-loop, effect-echo,
+  effect-echo-loop, effect-line-count), corpusCheck/optCorpusCheck
+  effect-aware comparing CLI-visible output (out + rendered result, unit
+  contributing nothing) via evalProgramEffect + runVmEffect; make test 604.
+  (3) JS mirror + CLI corpus: ported the whole effect system to js/halcyon.js
+  (VUnit/VEffect + showValue/vmShowValue, do tokens and desugaring,
+  Unit/Effect types, builtin schemes, evalCPS effect cases, VM constants,
+  bind=2/readLine=0 arity, runEffect + evalProgramEffect + runVmEffect with
+  makeVm initialFrame support for continuation machines), four effect corpus
+  entries with inputs, effect-aware corpus-check.js runBoth/runOptBoth
+  (cliOutput), and made the Haskell `halcyon corpus`/`corpus --opt` command
+  effect-aware (runBothOpt takes inputs + renders CLI-visible output). (4)
+  Docs + example: language.md (do grammar, Unit/Effect types, effect builtin
+  table, section 5.1 on do blocks, scripted stdin, line-count example), vm.md
+  (VmUnit/VmEffect, readLine constant, runVmEffect driver), examples/effects.hly.
+  Full verification: make test 604/604, make smoke green, halcyon corpus and
+  corpus --opt 51/51, node js/corpus-check.js examples 205 checks 0 failures,
+  halcyon corpus --examples 14/14. Commits 59bb29b (core), db581ab
+  (corpus + selftests), 02d0b8c (JS mirror + CLI corpus), plus the docs
+  commit, all pushed on the branch.
+
+- the Builder
+
 - 2026-08-15 (builder, M21b - JS mirror for all v3 features) - ported the
   entire v3 feature set to the JS mirror (js/halcyon.js) so interpreter,
   plain VM, and optimized VM all agree with the Haskell core. Records:
