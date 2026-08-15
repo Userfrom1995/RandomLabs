@@ -118,6 +118,7 @@
   }
   function isIdentChar(ch) { return isIdentStart(ch) || isDigit(ch) || ch === "'"; }
   function isDigit(ch) { return ch >= '0' && ch <= '9'; }
+  function isOpChar(ch) { return '+-*/<>=!&|:.'.indexOf(ch) >= 0; }
   function countNewlines(s) {
     var n = 0;
     for (var i = 0; i < s.length; i++) { if (s[i] === '\n') n++; }
@@ -130,7 +131,17 @@
     then: 'then', else: 'else', true: 'true', false: 'false',
     data: 'data', match: 'match', with: 'with', import: 'import',
     record: 'record', class: 'class', instance: 'instance', where: 'where',
+    infixl: 'infixl', infixr: 'infixr', infix: 'infix', type: 'type',
     do: 'do'
+  };
+
+  // Fixed operator symbols (their token kinds) plus the built-in operator
+  // characters; any other run of symbol characters is a user operator.
+  var FIXED_OPS = {
+    '->': '->', '<-': '<-', '<=': '<=', '>=': '>=', '==': '==', '=>': '=>',
+    '/=': '!=', '::': '::', '&&': '&&', '||': '||',
+    '+': '+', '-': '-', '*': '*', '/': '/', '<': '<', '>': '>',
+    '=': '=', '!': '!', '|': '|', '.': '.', ':': ':'
   };
 
   // Lex an entire source string to a token list. Fails fast on the first
@@ -164,37 +175,52 @@
       if (isDigit(ch)) { return numberTok(); }
       if (ch === '"') { return stringTok(); }
       if (ch === "'") { return charTok(); }
-      if (ch === '+') { return simpleTok('+', 1); }
-      if (ch === '-' && startsWith('->', s)) { return simpleTok('->', 2); }
-      if (ch === '-') { return simpleTok('-', 1); }
-      if (ch === '*') { return simpleTok('*', 1); }
-      if (ch === '/' && !startsWith('/=', s)) { return simpleTok('/', 1); }
-      if (ch === '/' && startsWith('/=', s)) { return simpleTok('!=', 2); }
-      if (ch === '<' && startsWith('<-', s)) { return simpleTok('<-', 2); }
-      if (ch === '<' && !startsWith('<=', s)) { return simpleTok('<', 1); }
-      if (ch === '<' && startsWith('<=', s)) { return simpleTok('<=', 2); }
-      if (ch === '>' && !startsWith('>=', s)) { return simpleTok('>', 1); }
-      if (ch === '>' && startsWith('>=', s)) { return simpleTok('>=', 2); }
-      if (ch === '=' && startsWith('==', s)) { return simpleTok('==', 2); }
-      if (ch === '=' && startsWith('=>', s)) { return simpleTok('=>', 2); }
-      if (ch === '=') { return simpleTok('=', 1); }
-      if (ch === '-' && startsWith('->', s)) { return simpleTok('->', 2); }
-      if (ch === ':' && startsWith('::', s)) { return simpleTok('::', 2); }
-      if (ch === ':' && !startsWith('::', s)) { return simpleTok(':', 1); }
-      if (ch === '&' && startsWith('&&', s)) { return simpleTok('&&', 2); }
-      if (ch === '|' && startsWith('||', s)) { return simpleTok('||', 2); }
-      if (ch === '|') { return simpleTok('|', 1); }
-      if (ch === '!') { return simpleTok('!', 1); }
+      if (ch === '+' && startsWith('+', s)) { return operatorTok(); }
+      if (ch === '-' && startsWith('->', s)) { return operatorTok(); }
+      if (ch === '-') { return operatorTok(); }
+      if (ch === '*') { return operatorTok(); }
+      if (ch === '/') { return operatorTok(); }
+      if (ch === '<') { return operatorTok(); }
+      if (ch === '>') { return operatorTok(); }
+      if (ch === '=') { return operatorTok(); }
+      if (ch === ':') { return operatorTok(); }
+      if (ch === '&') { return operatorTok(); }
+      if (ch === '|') { return operatorTok(); }
+      if (ch === '!') { return operatorTok(); }
+      if (ch === '.') { return operatorTok(); }
       if (ch === '(') { return simpleTok('(', 1); }
       if (ch === ')') { return simpleTok(')', 1); }
       if (ch === '[') { return simpleTok('[', 1); }
       if (ch === ']') { return simpleTok(']', 1); }
       if (ch === '{') { return simpleTok('{', 1); }
       if (ch === '}') { return simpleTok('}', 1); }
-      if (ch === '.') { return simpleTok('.', 1); }
       if (ch === ',') { return simpleTok(',', 1); }
       if (ch === ';') { return simpleTok(';', 1); }
       return HErr('lex', Pos(l, c), 'unexpected character: ' + ch);
+    }
+
+    // An operator token: a maximal run of symbol characters. Fixed
+    // multi-character operators and the single built-in operator characters
+    // keep their existing tokens; any other run lexes as one TOpName (a
+    // user-defined operator), e.g. '++', '<+>'. A run consisting only of '!'
+    // characters lexes as that many '!' tokens, so '!!false' is double
+    // negation (mirrors the Haskell scanner).
+    function operatorTok() {
+      var i = 0;
+      while (i < s.length && isOpChar(s[i])) { i++; }
+      var ops = s.slice(0, i);
+      var toks;
+      if (/^!+$/.test(ops)) {
+        toks = [];
+        for (var j = 0; j < ops.length; j++) { toks.push({ p: Pos(l, c), k: '!' }); }
+      } else {
+        var kind = FIXED_OPS[ops];
+        toks = [{ p: Pos(l, c), k: kind ? kind : 'opname', v: kind ? undefined : ops }];
+      }
+      var nl = stepLine(l, ops), nc = stepCol(c, ops);
+      l = nl; c = nc; s = s.slice(i);
+      for (var j = 0; j < toks.length; j++) { result.push(toks[j]); }
+      return scan();
     }
 
     function identTok() {
@@ -390,6 +416,7 @@
       case 'str':     return 'string';
       case 'char':    return 'character ' + showCharLit(t.v);
       case 'ident':   return "name '" + t.v + "'";
+      case 'opname':  return "operator '" + t.v + "'";
       case 'eof':     return 'end of input';
       default:        return "'" + t.k + "'";
     }
@@ -439,8 +466,14 @@
     var ts = toks;
     var pos = 0;
     var bound = false;
+    // Dynamic user-operator table (name -> [level, assoc]) and type-synonym
+    // table (name -> [arity, rhs]); both are registered by @infixl@/@infixr@/
+    // @infix@ and @type@ declarations before the final expression parses.
+    var ops = {};
+    var syns = {};
 
     function peek() { return pos < ts.length ? ts[pos].k : 'eof'; }
+    function peekT() { return pos < ts.length ? ts[pos] : { k: 'eof', p: POS_EOF }; }
     function peekPos() { return pos < ts.length ? ts[pos].p : POS_EOF; }
     function advance() { var t = ts[pos]; pos += 1; return t; }
 
@@ -696,6 +729,9 @@
       if (a.kind === 'parse') { return a; }
       if (t === '(' || t === '[') { return a; }
       if (t === 'ident' && isDataName(tval)) {
+        // A registered type synonym already consumed its own arguments inside
+        // parseTypeAtom, so it is complete on its own.
+        if (Object.prototype.hasOwnProperty.call(syns, tval)) { return a; }
         var name = tval;
         var args = [];
         while (peekPos().line === p.line && typeAtomStart(peek())) {
@@ -710,6 +746,24 @@
 
     function isDataName(n) {
       return isCapitalized(n) && n !== 'Int' && n !== 'Float' && n !== 'Bool' && n !== 'String' && n !== 'Char' && n !== 'Unit' && n !== 'Effect';
+    }
+
+    // Expand a type synonym: substitute each declared type variable
+    // (@TVar 0..n-1@) with the corresponding argument type.
+    function expandSynonym(rhs, args) {
+      return substType(args, rhs);
+    }
+
+    function substType(m, ty) {
+      switch (ty.k) {
+        case 'var': return Object.prototype.hasOwnProperty.call(m, ty.n) ? m[ty.n] : ty;
+        case 'list': return TT.list(substType(m, ty.t));
+        case 'data': return TData(ty.n, ty.args.map(function (a) { return substType(m, a); }));
+        case 'rec': return TRec(ty.n, ty.args.map(function (a) { return substType(m, a); }));
+        case 'fun': return TT.fun(substType(m, ty.a), substType(m, ty.b));
+        case 'effect': return TT.EFFECT(substType(m, ty.t));
+        default: return ty;
+      }
     }
 
     // Resolve a lowercase type-variable name against the environment, which
@@ -741,7 +795,19 @@
           if (typeAtomStart(peek())) { return TT.EFFECT(parseTypeApp(tyvars)); }
           return failAt(p, "expected a type after 'Effect', found " + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
         }
-        if (isCapitalized(n)) { return TData(n, []); }
+        if (isCapitalized(n)) {
+          var ent = Object.prototype.hasOwnProperty.call(syns, n) ? syns[n] : null;
+          if (ent !== null) {
+            var args = [];
+            for (var ai = 0; ai < ent[0]; ai++) {
+              var arg = parseTypeAtom(tyvars);
+              if (arg.kind === 'parse') { return arg; }
+              args.push(arg);
+            }
+            return expandSynonym(ent[1], args);
+          }
+          return TData(n, []);
+        }
         var idx = findTypeVar(tyvars, n);
         if (idx !== null) { return TT.var_(idx); }
         return failAt(p, 'undeclared type variable: ' + n);
@@ -860,8 +926,9 @@
     function parseLet() {
       var p = consume('let');
       var rec = isRec();
-      var name = expectIdent();
+      var name = parseBindingName();
       if (name.kind === 'parse') { return name; }
+      name = name.name;
       var eq = consume('=');
       if (eq.kind === 'parse') { return eq; }
       var bound = parseExpr();
@@ -906,12 +973,20 @@
     }
 
     function parseBinary(level) {
-      if (level > 6) { return parseUnary(); }
+      if (level > 9) { return parseUnary(); }
       var left = parseBinary(level + 1);
       if (left.kind === 'parse') { return left; }
       return parseBinRest(level, left);
     }
 
+    // Precedence climbing over levels 0-9. Built-ins occupy levels 1-6; user
+    // operators registered with @infixl@/@infixr@/@infix@ may occupy any
+    // level 0-9. Right-associative operators recurse on the same level (so
+    // @a ** b ** c@ groups as @a ** (b ** c)@); a non-associative operator
+    // rejects a second use on the same level. User operators desugar to
+    // ordinary application (@a ++ b@ becomes @(++) a b@); an operator used in
+    // infix position without an @infixl@/@infixr@/@infix@ declaration is a
+    // positioned error.
     function parseBinRest(level, left) {
       while (true) {
         var t = peek();
@@ -921,9 +996,33 @@
           var right = parseBinary(level + 1);
           if (right.kind === 'parse') { return right; }
           left = { kind: 'bin', pos: opPos, op: op, a: left, b: right };
-        } else {
+          continue;
+        }
+        if (t === 'opname') {
+          var ent = ops[peekT().v];
+          if (ent !== undefined && ent[0] === level) {
+            var opTok = advance();
+            var lvl = ent[0], assoc = ent[1];
+            var right2 = parseBinary(assoc === 'right' ? level : level + 1);
+            if (right2.kind === 'parse') { return right2; }
+            left = EApply(opTok.p, EApply(opTok.p, EVar(opTok.p, opTok.v), left), right2);
+            if (assoc === 'non') {
+              var t2 = peek();
+              if (t2 === 'opname') {
+                var ent2 = ops[peekT().v];
+                if (ent2 !== undefined && ent2[0] === level) {
+                  return failAt(opTok.p, "non-associative operator '" + opTok.v + "' cannot be chained");
+                }
+              }
+            }
+            continue;
+          }
+          if (ent === undefined) {
+            return failAt(peekT().p, "operator '" + peekT().v + "' is not declared with infixl/infixr/infix");
+          }
           return left;
         }
+        return left;
       }
     }
 
@@ -981,6 +1080,15 @@
           if (peek() === ')') {
             advance();
             a = { kind: 'unit', pos: p };
+            break;
+          }
+          // A parenthesized operator reference @(<op>)@ is an ordinary
+          // variable reference to the operator's function; it does not
+          // require an @infixl@/@infixr@/@infix@ declaration.
+          if (peek() === 'opname' && pos + 1 < ts.length && ts[pos + 1].k === ')') {
+            var opTok = advance();
+            advance();
+            a = EVar(opTok.p, opTok.v);
             break;
           }
           var e = parseExpr();
@@ -1115,6 +1223,14 @@
           var id = parseInstanceDecl();
           if (id.kind === 'parse') { return id; }
           defs.push({ kind: 'definstance', decl: id });
+        } else if (t === 'infixl' || t === 'infixr' || t === 'infix') {
+          var inf = parseInfixDecl(t);
+          if (inf.kind === 'parse') { return inf; }
+          defs.push(inf);
+        } else if (t === 'type') {
+          var syn = parseSynonymDecl();
+          if (syn.kind === 'parse') { return syn; }
+          defs.push(syn);
         } else if (t === 'let') {
           var ld = parseLetOrDef();
           if (ld.kind === 'parse') { return ld; }
@@ -1128,6 +1244,120 @@
           return { defs: defs, expr: e };
         }
       }
+    }
+
+    // @infixl|infixr|infix <N> <op>@: register a user-defined operator with
+    // the dynamic precedence table (levels 0-9; built-ins occupy 1-6).
+    // Redeclaring a built-in operator symbol or declaring the same operator
+    // twice is a positioned error. The operator's function is defined
+    // separately with @let (<op>) = ...@.
+    var BUILTIN_OP_SYMBOLS = ['||', '&&', '==', '/=', '<', '<=', '>', '>=', '+', '-', '*', '/'];
+    var FIXED_TOK_BY_OP = {
+      '->': '->', '<-': '<-', '<=': '<=', '>=': '>=', '==': '==', '=>': '=>',
+      '/=': '!=', '::': '::', '&&': '&&', '||': '||',
+      '+': '+', '-': '-', '*': '*', '/': '/', '<': '<', '>': '>',
+      '=': '=', '!': '!', '|': '|', '.': '.', ':': ':'
+    };
+    function parseInfixDecl(kw) {
+      var p = consume(kw);
+      if (p.kind === 'parse') { return p; }
+      var lvl = peek();
+      if (lvl !== 'int') {
+        return failAt(peekPos(), 'expected a precedence level (0-9), found ' + describeTok(peekT()));
+      }
+      var level = advance().v;
+      if (level < 0 || level > 9) {
+        return failAt(p, 'operator precedence must be between 0 and 9, found ' + level);
+      }
+      var nameRes = parseOperatorName();
+      if (nameRes.kind === 'parse') { return nameRes; }
+      var name = nameRes.name, opP = nameRes.pos;
+      if (BUILTIN_OP_SYMBOLS.indexOf(name) >= 0) {
+        return failAt(opP, "cannot redeclare the built-in operator '" + name + "'");
+      }
+      if (Object.prototype.hasOwnProperty.call(ops, name)) {
+        return failAt(opP, "duplicate operator declaration for '" + name + "'");
+      }
+      var assoc = kw === 'infixl' ? 'left' : (kw === 'infixr' ? 'right' : 'non');
+      ops[name] = [level, assoc];
+      return { kind: 'definfix', pos: p, assoc: assoc, level: level, name: name };
+    }
+
+    // An operator name: a 'opname' token or a built-in operator token (the
+    // latter so @infixl 4 ==@ is rejected with a clear redeclaration message).
+    function parseOperatorName() {
+      var t = peekT();
+      if (t.k === 'opname') { advance(); return { kind: 'ok', name: t.v, pos: t.p }; }
+      if (Object.prototype.hasOwnProperty.call(FIXED_TOK_BY_OP, t.k)) { advance(); return { kind: 'ok', name: t.k, pos: t.p }; }
+      return failAt(t.p, 'expected an operator name, found ' + describeTok(t));
+    }
+
+    // @type <Name> <tyvar>* = <type>@: register a parse-time type synonym and
+    // record it as a top-level definition (so the program checker can reject
+    // duplicate names and name collisions). The RHS is parsed in terms of the
+    // declared type variables (@TVar 0..n-1@) and expanded (with substitution)
+    // at every use. Recursion, duplicate names, and redefinition of a
+    // primitive are rejected here; collisions with @data@/@record@/class
+    // names are rejected by the program checker.
+    var PRIMITIVE_TYPE_NAMES = ['Int', 'Float', 'Bool', 'String', 'Char', 'Unit', 'Effect'];
+    function parseSynonymDecl() {
+      var p = consume('type');
+      if (p.kind === 'parse') { return p; }
+      var name = expectCapitalized('type');
+      if (name.kind === 'parse') { return name; }
+      if (PRIMITIVE_TYPE_NAMES.indexOf(name) >= 0) {
+        return failAt(p, "cannot redefine the built-in type '" + name + "'");
+      }
+      var tyvars = [];
+      while (peek() === 'ident' && !isCapitalized(peekVal())) { tyvars.push(advance().v); }
+      var tvs = tyvars.map(function (n, i) { return [n, i]; });
+      var eq = consume('=');
+      if (eq.kind === 'parse') { return eq; }
+      var rhs = parseTypeExpr(tvs);
+      if (rhs.kind === 'parse') { return rhs; }
+      if (mentionsName(name, rhs)) {
+        return failAt(p, 'recursive type synonym: ' + name);
+      }
+      if (Object.prototype.hasOwnProperty.call(syns, name)) {
+        return failAt(p, 'duplicate type synonym: ' + name);
+      }
+      syns[name] = [tyvars.length, rhs];
+      return { kind: 'defsynonym', pos: p, name: name, tyvars: tyvars, ty: rhs };
+    }
+
+    function mentionsName(n, ty) {
+      switch (ty.k) {
+        case 'data': return ty.n === n || ty.args.some(function (a) { return mentionsName(n, a); });
+        case 'rec': return ty.n === n || ty.args.some(function (a) { return mentionsName(n, a); });
+        case 'list': return mentionsName(n, ty.t);
+        case 'fun': return mentionsName(n, ty.a) || mentionsName(n, ty.b);
+        case 'effect': return mentionsName(n, ty.t);
+        default: return false;
+      }
+    }
+
+    // A @let@ binding name: a plain identifier, or a parenthesized operator
+    // reference @(<op>)@ defining the operator's function (e.g. @let (++) =
+    // fn a b => append a b@). The operator's own name is bound like any
+    // top-level name, so @(<op>)@ in expressions is an ordinary variable
+    // reference.
+    function parseBindingName() {
+      if (peek() === '(') {
+        var save = pos;
+        advance();
+        var t2 = peekT();
+        if (t2.k === 'opname') {
+          advance();
+          if (peek() === ')') {
+            advance();
+            return { kind: 'ok', name: t2.v };
+          }
+        }
+        pos = save;
+      }
+      var nm = expectIdent();
+      if (nm.kind === 'parse') { return nm; }
+      return { kind: 'ok', name: nm };
     }
 
     var CLASSTYPEVAR = 2000000000;
@@ -1257,6 +1487,8 @@
       if (t === 'ident' && isCapitalized(ts[pos - 1].v)) {
         var name = ts[pos - 1].v;
         if (name !== 'Int' && name !== 'Float' && name !== 'Bool' && name !== 'String' && name !== 'Char' && name !== 'Unit' && name !== 'Effect') {
+          // A registered type synonym already consumed its own arguments.
+          if (Object.prototype.hasOwnProperty.call(syns, name)) { return a; }
           var args = [];
           while (peekPos().line === p.line && typeAtomStart(peek())) {
             var arg = parseHeadAtom();
@@ -1284,7 +1516,19 @@
           if (typeAtomStart(peek())) { return TT.EFFECT(parseHeadApp()); }
           return failAt(p, "expected a type after 'Effect', found " + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
         }
-        if (isCapitalized(n)) { return TData(n, []); }
+        if (isCapitalized(n)) {
+          var ent = Object.prototype.hasOwnProperty.call(syns, n) ? syns[n] : null;
+          if (ent !== null) {
+            var args = [];
+            for (var ai = 0; ai < ent[0]; ai++) {
+              var arg = parseHeadAtom();
+              if (arg.kind === 'parse') { return arg; }
+              args.push(arg);
+            }
+            return expandSynonym(ent[1], args);
+          }
+          return TData(n, []);
+        }
         return TT.var_(CLASSTYPEVAR);
       }
       if (t === '[') {
@@ -1332,8 +1576,9 @@
       var p = consume('let');
       if (p.kind === 'parse') { return p; }
       var rec = isRec();
-      var name = expectIdent();
+      var name = parseBindingName();
       if (name.kind === 'parse') { return name; }
+      name = name.name;
       var eq = consume('=');
       if (eq.kind === 'parse') { return eq; }
       bound = true;
@@ -1966,6 +2211,8 @@
     if (cenv.kind === 'type') { return cenv; }
     var dup = dupLetName(prog.defs);
     if (dup) { return HErr('type', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var coll = synonymCollision(prog.defs);
+    if (coll) { return HErr('type', POS_EOF, 'type synonym name collides with a data/record/class name: ' + coll); }
     var st = { subst: {}, counter: 0, cenv: cenv, constraints: [] };
     var env = {};
     for (var i = 0; i < prog.defs.length; i++) {
@@ -2005,6 +2252,25 @@
       var n = defs[i].name;
       if (seen[n]) { return n; }
       seen[n] = true;
+    }
+    return null;
+  }
+
+  // Reject type synonyms whose names collide with a data/record/class name
+  // (mirrors checkProgram). Duplicate synonyms, recursion, and redefinition
+  // of primitives are already rejected at parse time.
+  function synonymCollision(defs) {
+    var syns2 = {};
+    var taken = {};
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      if (d.kind === 'defdata') { taken[d.decl.name] = true; }
+      else if (d.kind === 'defrecord') { taken[d.decl.name] = true; }
+      else if (d.kind === 'defclass') { taken[d.decl.name] = true; }
+      else if (d.kind === 'defsynonym') { syns2[d.name] = true; }
+    }
+    for (var n in syns2) {
+      if (Object.prototype.hasOwnProperty.call(taken, n)) { return n; }
     }
     return null;
   }
@@ -2717,6 +2983,8 @@
     if (cenv.kind === 'type') { return HErr('eval', cenv.pos, cenv.message); }
     var dup = dupLetName(prog.defs);
     if (dup) { return HErr('eval', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var coll = synonymCollision(prog.defs);
+    if (coll) { return HErr('eval', POS_EOF, 'type synonym name collides with a data/record/class name: ' + coll); }
     var env = evalDefs({}, denv, renv, cenv, prog.defs);
     if (env.kind === 'eval') { return env; }
     if (prog.expr === null) { return undefined; }
@@ -2736,6 +3004,8 @@
     if (cenv.kind === 'type') { return HErr('eval', cenv.pos, cenv.message); }
     var dup = dupLetName(prog.defs);
     if (dup) { return HErr('eval', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var coll = synonymCollision(prog.defs);
+    if (coll) { return HErr('eval', POS_EOF, 'type synonym name collides with a data/record/class name: ' + coll); }
     var env = evalDefs({}, denv, renv, cenv, prog.defs);
     if (env.kind === 'eval') { return env; }
     if (prog.expr === null) { return undefined; }
@@ -2806,7 +3076,7 @@
     var e = env;
     for (var i = 0; i < defs.length; i++) {
       var d = defs[i];
-      if (d.kind === 'defdata' || d.kind === 'defrecord' || d.kind === 'defclass' || d.kind === 'definstance') { continue; }
+      if (d.kind === 'defdata' || d.kind === 'defrecord' || d.kind === 'defclass' || d.kind === 'definstance' || d.kind === 'definfix' || d.kind === 'defsynonym') { continue; }
       if (d.bound.kind === 'lambda') {
         var env2 = Object.assign({}, e);
         var captured = d.rec ? env2 : e;
@@ -3405,6 +3675,8 @@
     if (cenv.kind === 'type') { return HErr('compile', cenv.pos, cenv.message); }
     var dup = dupLetName(prog.defs);
     if (dup) { return HErr('compile', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var coll = synonymCollision(prog.defs);
+    if (coll) { return HErr('compile', POS_EOF, 'type synonym name collides with a data/record/class name: ' + coll); }
     var st = CompileState();
     st.cenv = cenv;
     var r = compileDefs(denv, renv, prog.defs, st);
@@ -3437,7 +3709,7 @@
   function compileDefs(denv, renv, defs, st) {
     for (var i = 0; i < defs.length; i++) {
       var d = defs[i];
-      if (d.kind === 'defdata' || d.kind === 'defrecord' || d.kind === 'defclass' || d.kind === 'definstance') { continue; }
+      if (d.kind === 'defdata' || d.kind === 'defrecord' || d.kind === 'defclass' || d.kind === 'definstance' || d.kind === 'definfix' || d.kind === 'defsynonym') { continue; }
       var r = compileTopLet(d.pos, d.rec, d.name, denv, renv, d.bound, st);
       if (r) { return r; }
     }
@@ -5838,7 +6110,11 @@
     { name: 'effect-echo-loop', expected: 'one\ntwo\ndone', inputs: ['one', 'two'],
       source: '-- A bind chain over stdin: two reads, two writes, one print.\ndo { x <- readLine; printLine x; y <- readLine; printLine y; print "done" }\n' },
     { name: 'effect-line-count', expected: '2\n', inputs: ['a', 'b'],
-      source: '-- Effects combine with pure recursion: count stdin lines.\nlet rec loop = fn n => do { line <- readLine;\n  if line == "" then do { printLine n } else do { loop (n + 1) } }\nin loop 0\n' }
+      source: '-- Effects combine with pure recursion: count stdin lines.\nlet rec loop = fn n => do { line <- readLine;\n  if line == "" then do { printLine n } else do { loop (n + 1) } }\nin loop 0\n' },
+    { name: 'user-operator', expected: '6',
+      source: '-- A user-defined right-associative operator with its own function.\ninfixr 8 <->\nlet (<->) = fn a b => a - b\nlet (<+>) = fn a b => a + b\ninfixl 5 <+>\nlet apply = fn op a b => op a b\nlet pick = (<->)\nin apply pick (10 <-> 3 <-> 2) (1 <+> 2)\n' },
+    { name: 'type-synonym', expected: '13',
+      source: '-- A type synonym expands to its underlying type at parse time.\ntype Dict = [Int]\ntype Table k v = Dict\nrecord Env = { table : Table Int Int, seed : Int }\nlet env = { seed = 10, table = [1, 2, 3] }\nin length env.table + env.seed\n' }
   ];
 
   // Example programs shown in the web playground editor.
