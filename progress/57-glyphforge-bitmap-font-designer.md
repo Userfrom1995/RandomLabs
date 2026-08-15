@@ -7,23 +7,25 @@
 
 ## Checklist
 - [x] scaffold project + progress file + ideas entry + branch + Makefile (builds, jar runs, --version/--selftest stubs)
-- [ ] core: Glyph, Rect, Font, Raster (autotrace RLE), FontIO (.gff), Metrics
-- [ ] renderer: ascii/blocks/ansi modes, scaling, newline/undefined handling
-- [ ] codegen: Kotlin/Java/C/text exporters (deterministic, round-trip tested)
-- [ ] editor: headless state machine + script commands + undo/redo/clipboard
-- [ ] TUI: ANSI interactive editor frontend (keyboard-driven, no prompts)
-- [ ] CLI: new/edit/import-art/render/export/info/list/validate/dump + --selftest
+- [x] core: Glyph, Rect, Font, Raster (autotrace RLE), FontIO (.gff), Metrics
+- [x] renderer: ascii/blocks/ansi modes, scaling, newline/undefined handling
+- [x] codegen: Kotlin/Java/C/text exporters (deterministic, round-trip tested)
+- [x] editor: headless state machine + script commands + undo/redo/clipboard
+- [x] TUI: ANSI interactive editor frontend (keyboard-driven, no prompts)
+- [x] CLI: new/edit/import-art/render/export/info/list/validate/dump + --selftest
 - [ ] sample fonts: micro5x7 (95 ASCII) + pico3x5, generated .gff + exported code
-- [ ] tests: full suite green via self-test harness
+- [x] tests: full suite green via self-test harness (109 tests)
 - [ ] iteration/improvement cycle (no one-shot)
 - [ ] docs: README, docs/index.md + index.html, format.md, codegen.md, landing page, root README
 - [ ] final push, Status: complete, PR with Closes #57
 
 ## Current step
-Scaffolding done: project tree (core/codegen/editor/cli + tests + sample),
-Makefile (kotlinc, zero deps), README skeleton, .gitignore entry, and a
-minimal CLI stub that compiles and runs (`--version`, `--help`,
-`--selftest`). Next: the core domain classes.
+Core, renderer, exporters, editor, TUI, CLI, and the full self-test suite are
+done and green (109/109). Next: author the sample fonts (micro5x7 = 95
+printable-ASCII glyphs, pico3x5 = digits+letters) as ASCII art, run
+import-art to produce the .gff artifacts, and export the embeddable code
+artifacts; then the docs, the iteration/improvement cycle, and the landing
+page.
 
 ## Next steps
 - Write core domain classes with bit-packed glyph storage.
@@ -37,4 +39,16 @@ minimal CLI stub that compiles and runs (`--version`, `--help`,
   opencode/57-glyphforge-bitmap-font-designer, scaffolded the project tree
   (core/codegen/editor/cli + tests + sample), Makefile (kotlinc, zero deps),
   README skeleton, .gitignore entry, minimal compiling CLI stub, progress
-  file, and ideas entry. Pushed scaffold milestone.
+  file, and ideas entry. Pushed scaffold milestone, opened PR #58.
+- 2026-08-15 (run 2): implemented the full engine: core domain (bit-packed
+  Glyph with 17 tests, Font, Rect, Raster RLE autotrace + packRle compact
+  byte streams, strict .gff FontIO with line-numbered errors, Metrics),
+  Renderer (ascii/blocks/ansi, scale, advance, undefined chars), codegen
+  exporters (kotlin/java/c/text + kotlin-rle/c-rle, deterministic, arrays
+  re-parsed to rebuild original pixels in tests), headless Editor state
+  machine + ScriptParser/ScriptRunner + ANSI TermUI frontend, and the full
+  CLI (new/edit/import-art/render/export/info/list/validate/dump, --selftest,
+  strict arg validation). Fixed bugs found by the suite (art '#' pixel vs
+  comment conflict switched to '//', glyph-line colon split, working-glyph
+  aliasing on commit, row ordering in canonical runs). 109/109 tests green.
+  Pushed milestone.
