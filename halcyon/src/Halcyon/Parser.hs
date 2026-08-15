@@ -4,7 +4,7 @@ module Halcyon.Parser
   , ParseError(..)
   ) where
 
-import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), Pattern(..), Op(..), Builtin(..), builtinForName)
+import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), builtinForName)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Token
 import qualified Halcyon.Type as T
@@ -14,35 +14,88 @@ import Halcyon.Type (Type)
 data ParseError = ParseError Pos String
   deriving (Eq, Show)
 
--- | Parse a full program: zero or more top-level @data@ declarations
--- followed by an expression and end of input. Lexes first, so a source
--- string is lexed and parsed in one call.
+-- | Parse a full program (v3 grammar): optional @import@ lines, zero or more
+-- top-level definitions, and an optional final expression. Lexes first, so a
+-- source string is lexed and parsed in one call.
 parseProgram :: String -> Either ParseError Program
 parseProgram src = do
   toks <- case lexSource src of
     Left (LexError p m) -> Left (ParseError p m)
     Right t             -> Right t
-  (prog, rest) <- runParser parseModule toks
-  case rest of
+  (prog, rest) <- runParser parseModule (PState toks (Pos 0 0) False)
+  case psTokens rest of
     [Token _ TEOF] -> Right prog
     (Token p t : _) -> Left (ParseError p ("unexpected token after expression: " <> describe t))
     []              -> Left (ParseError (Pos 0 0) "unexpected end of input")
 
--- | A module: @dataDecl* expr@. The zero-decl case is a bare expression, so
--- every pre-v2 program parses unchanged.
+-- | A module (v3 grammar): @import* decl* expr?@. Import lines come first;
+-- then zero or more top-level definitions (data declarations and @let@
+-- bindings); then an optional final expression. Every pre-v3 program (a
+-- @dataDecl* expr@ shape) still parses unchanged.
 parseModule :: Parser Program
 parseModule = do
-  decls <- parseDataDecls
-  expr <- parseExpr
-  return (Program decls expr)
+  imports <- parseImports
+  (defs, expr) <- parseDefsAndExpr
+  return (Program imports defs expr)
 
--- | Zero or more consecutive top-level @data@ declarations.
-parseDataDecls :: Parser [DataDecl]
-parseDataDecls = do
+-- | @import "path"@ lines, zero or more.
+parseImports :: Parser [String]
+parseImports = do
   t <- peek
   case t of
-    TData -> do { d <- parseDataDecl; (d :) <$> parseDataDecls }
-    _     -> return []
+    TImport -> do
+      consumeTok
+      Token p (TStr path) <- expectString
+      rest <- parseImports
+      return (path : rest)
+    _ -> return []
+
+expectString :: Parser Token
+expectString = Parser $ \s -> case psTokens s of
+  (tk@(Token _ (TStr _)) : rest) -> Right (tk, s { psTokens = rest, psPrev = tokenPos tk })
+  (Token p t : _) -> Left (ParseError p ("expected a string import path, found " <> describe t))
+  []              -> Left (ParseError (Pos 0 0) "expected a string import path, found end of input")
+
+-- | Top-level definitions followed by an optional final expression. A
+-- leading @let@ is parsed with @parseLetOrDef@: when the token after the
+-- bound expression is @in@, the whole @let ... in ...@ is the final
+-- expression (the pre-v3 form); any other next token makes it a top-level
+-- definition.
+parseDefsAndExpr :: Parser ([TopDef], Maybe Expr)
+parseDefsAndExpr = do
+  t <- peek
+  case t of
+    TData -> do
+      d <- parseDataDecl
+      (ds, e) <- parseDefsAndExpr
+      return (DefData d : ds, e)
+    TLet  -> parseLetOrDef
+    TEOF  -> return ([], Nothing)
+    _     -> do
+      e <- parseExpr
+      return ([], Just e)
+
+-- | Resolve the @let@ ambiguity described in 'parseDefsAndExpr'. The bound
+-- expression is parsed with the line-bound application rule so a following
+-- top-level expression is never swallowed.
+parseLetOrDef :: Parser ([TopDef], Maybe Expr)
+parseLetOrDef = do
+  p <- consumeT TLet
+  rec <- isRec
+  Token _ (TIdent name) <- expectIdent
+  consumeT TAssign
+  setBound True
+  bound <- parseExpr
+  setBound False
+  t' <- peek
+  case t' of
+    TIn -> do
+      consumeTok
+      body <- parseExpr
+      return ([], Just (ELet p rec name bound body))
+    _ -> do
+      (ds, e) <- parseDefsAndExpr
+      return (DefLet p rec name bound : ds, e)
 
 -- | @data <TypeName> <tyvar>* = ('|'? <Ctor> <fieldType>*)+@
 parseDataDecl :: Parser DataDecl
@@ -184,28 +237,39 @@ typeAtomStart = \case
   _          -> False
 
 -- | Minimal parser monad: threads the token stream and fails fast.
-newtype Parser a = Parser { runParser :: [Token] -> Either ParseError (a, [Token]) }
+-- | Parser state: the remaining token stream, the position of the last
+-- consumed token (for the same-line application rule in top-level binding
+-- bodies), and the @bound@ flag marking that parsing is inside the body of a
+-- top-level @let@ definition (where application must not swallow a following
+-- expression across a line boundary).
+data PState = PState
+  { psTokens :: [Token]
+  , psPrev   :: Pos
+  , psBound  :: Bool
+  }
+
+newtype Parser a = Parser { runParser :: PState -> Either ParseError (a, PState) }
 
 instance Functor Parser where
-  fmap f (Parser g) = Parser $ \ts -> case g ts of
+  fmap f (Parser g) = Parser $ \s -> case g s of
     Left e         -> Left e
-    Right (a, ts') -> Right (f a, ts')
+    Right (a, s')  -> Right (f a, s')
 
 instance Applicative Parser where
-  pure a = Parser $ \ts -> Right (a, ts)
-  Parser f <*> Parser g = Parser $ \ts -> case f ts of
+  pure a = Parser $ \s -> Right (a, s)
+  Parser f <*> Parser g = Parser $ \s -> case f s of
     Left e         -> Left e
-    Right (fn, ts1) -> case g ts1 of
+    Right (fn, s1) -> case g s1 of
       Left e         -> Left e
-      Right (a, ts2) -> Right (fn a, ts2)
+      Right (a, s2) -> Right (fn a, s2)
 
 instance Monad Parser where
-  Parser g >>= f = Parser $ \ts -> case g ts of
+  Parser g >>= f = Parser $ \s -> case g s of
     Left e         -> Left e
-    Right (a, ts1) -> runParser (f a) ts1
+    Right (a, s1) -> runParser (f a) s1
 
 instance MonadFail Parser where
-  fail msg = Parser $ \ts -> case ts of
+  fail msg = Parser $ \s -> case psTokens s of
     (Token p _ : _) -> Left (ParseError p msg)
     []              -> Left (ParseError (Pos 0 0) msg)
 
@@ -409,13 +473,25 @@ parseApplication = do
   fn <- parseAtom
   go fn
   where
+    -- Inside a top-level @let@ binding body the application may not cross a
+    -- line boundary, so a following top-level expression is never swallowed
+    -- as an argument. (Plain expressions and @let ... in ...@ bodies keep the
+    -- unrestricted grammar.)
     go fn = do
-      t <- peek
-      if atomStart t
-        then do
-          arg <- parseAtom
-          go (EApply (exprPos fn) fn arg)
-        else return fn
+      lastLine <- Parser $ \s -> Right (posLine (psPrev s), s)
+      nextLine <- Parser $ \s -> case psTokens s of
+        (Token p _ : _) -> Right (posLine p, s)
+        []              -> Right (posLine (psPrev s), s)
+      bound <- Parser $ \s -> Right (psBound s, s)
+      if bound && nextLine > lastLine
+        then return fn
+        else do
+          t <- peek
+          if atomStart t
+            then do
+              arg <- parseAtom
+              go (EApply (exprPos fn) fn arg)
+            else return fn
 
 parseAtom :: Parser Expr
 parseAtom = do
@@ -467,8 +543,8 @@ someIdent = do
 
 -- | A capitalized identifier (type or constructor name).
 expectCapitalized :: String -> Parser Token
-expectCapitalized what = Parser $ \ts -> case ts of
-  (tk@(Token _ (TIdent n)) : rest) | isCapitalized n -> Right (tk, rest)
+expectCapitalized what = Parser $ \s -> case psTokens s of
+  (tk@(Token _ (TIdent n)) : rest) | isCapitalized n -> Right (tk, s { psTokens = rest, psPrev = tokenPos tk })
   (Token p t : _) -> Left (ParseError p ("expected a capitalized " <> what <> " name, found " <> describe t))
   []              -> Left (ParseError (Pos 0 0) ("expected a capitalized " <> what <> " name, found end of input"))
 
@@ -546,41 +622,52 @@ exprPos = \case
 -- ---------------------------------------------------------------------
 
 peek :: Parser Tok
-peek = Parser $ \ts -> case ts of
-  (Token _ t : _) -> Right (t, ts)
+peek = Parser $ \s -> case psTokens s of
+  (Token _ t : _) -> Right (t, s)
   []              -> Left (ParseError (Pos 0 0) "unexpected end of input")
 
 peekPos :: Parser Pos
-peekPos = Parser $ \ts -> case ts of
-  (Token p _ : _) -> Right (p, ts)
+peekPos = Parser $ \s -> case psTokens s of
+  (Token p _ : _) -> Right (p, s)
   []              -> Left (ParseError (Pos 0 0) "unexpected end of input")
 
+peekTok :: Parser (Maybe Token)
+peekTok = Parser $ \s -> case psTokens s of
+  (tk : _) -> Right (Just tk, s)
+  []       -> Right (Nothing, s)
+
 consumeTok :: Parser ()
-consumeTok = Parser $ \ts -> case ts of
-  (_ : rest) -> Right ((), rest)
-  []         -> Left (ParseError (Pos 0 0) "unexpected end of input")
+consumeTok = Parser $ \s -> case psTokens s of
+  (Token p _ : rest) -> Right ((), s { psTokens = rest, psPrev = p })
+  []                 -> Left (ParseError (Pos 0 0) "unexpected end of input")
 
 consumeTokPos :: Parser Pos
-consumeTokPos = Parser $ \ts -> case ts of
-  (Token p _ : rest) -> Right (p, rest)
+consumeTokPos = Parser $ \s -> case psTokens s of
+  (Token p _ : rest) -> Right (p, s { psTokens = rest, psPrev = p })
   []                 -> Left (ParseError (Pos 0 0) "unexpected end of input")
 
 consumeT :: Tok -> Parser Pos
-consumeT t = Parser $ \ts -> case ts of
-  (Token p t' : rest) | t' == t -> Right (p, rest)
+consumeT t = Parser $ \s -> case psTokens s of
+  (Token p t' : rest) | t' == t -> Right (p, s { psTokens = rest, psPrev = p })
   (Token p t' : _)   -> Left (ParseError p ("expected " <> describe t <> ", found " <> describe t'))
   []                 -> Left (ParseError (Pos 0 0) ("expected " <> describe t <> ", found end of input"))
 
 expectIdent :: Parser Token
-expectIdent = Parser $ \ts -> case ts of
-  (tk@(Token _ (TIdent _)) : rest) -> Right (tk, rest)
+expectIdent = Parser $ \s -> case psTokens s of
+  (tk@(Token _ (TIdent _)) : rest) -> Right (tk, s { psTokens = rest, psPrev = tokenPos tk })
   (Token p t : _) -> Left (ParseError p ("expected a name, found " <> describe t))
   []              -> Left (ParseError (Pos 0 0) "expected a name, found end of input")
 
 isRec :: Parser Bool
-isRec = Parser $ \ts -> case ts of
-  (Token _ TRec : rest) -> Right (True, rest)
-  _                     -> Right (False, ts)
+isRec = Parser $ \s -> case psTokens s of
+  (Token _ TRec : rest) -> Right (True, s { psTokens = rest, psPrev = posOfHead s })
+  _                     -> Right (False, s)
+  where posOfHead s = case psTokens s of { (Token p _ : _) -> p; [] -> Pos 0 0 }
+
+-- | Set the top-level-binding flag: inside a bound body, application stops
+-- across line boundaries.
+setBound :: Bool -> Parser ()
+setBound b = Parser $ \s -> Right ((), s { psBound = b })
 
 failAt :: Pos -> String -> Parser a
 failAt p msg = Parser $ \_ -> Left (ParseError p msg)
@@ -599,6 +686,7 @@ describe = \case
   TThen       -> "'then'"
   TElse       -> "'else'"
   TData       -> "'data'"
+  TImport     -> "'import'"
   TMatch      -> "'match'"
   TWith       -> "'with'"
   TTrue       -> "'true'"

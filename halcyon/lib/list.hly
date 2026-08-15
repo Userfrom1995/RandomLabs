@@ -1,0 +1,37 @@
+-- The self-hosted list library: higher-order list combinators written in
+-- Halcyon itself with let rec and match, layered on the core list primitives.
+-- Imports pair.hly for zip's Pair result.
+import "pair.hly"
+
+let rec foldl = fn f acc xs => match xs with
+  | [] => acc
+  | x :: rest => foldl f (f acc x) rest
+let rec foldr = fn f acc xs => match xs with
+  | [] => acc
+  | x :: rest => f x (foldr f acc rest)
+let rec map = fn f xs => match xs with
+  | [] => []
+  | x :: rest => cons (f x) (map f rest)
+let rec filter = fn p xs => match xs with
+  | [] => []
+  | x :: rest => if p x then cons x (filter p rest) else filter p rest
+let rec zip = fn xs ys => match xs with
+  | [] => []
+  | x :: rest => match ys with
+    | [] => []
+    | y :: rest2 => cons (Pair x y) (zip rest rest2)
+let rec range = fn lo hi => if lo > hi then [] else cons lo (range (lo + 1) hi)
+let sum = fn xs => foldl (fn acc x => acc + x) 0 xs
+let product = fn xs => foldl (fn acc x => acc * x) 1 xs
+let myLength = fn xs => foldl (fn acc _ => acc + 1) 0 xs
+let myReverse = fn xs => foldl (fn acc x => cons x acc) [] xs
+let all = fn p xs => foldl (fn acc x => acc && p x) true xs
+let any = fn p xs => foldl (fn acc x => acc || p x) false xs
+let elem = fn x xs => any (fn y => y == x) xs
+let append = fn xs ys => foldr cons ys xs
+let rec take = fn n xs => if n < 1 then [] else match xs with
+  | [] => []
+  | x :: rest => cons x (take (n - 1) rest)
+let rec drop = fn n xs => if n < 1 then xs else match xs with
+  | [] => []
+  | x :: rest => drop (n - 1) rest

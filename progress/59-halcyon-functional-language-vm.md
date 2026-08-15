@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T17:55:00Z
+- **Updated:** 2026-08-15T18:40:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -31,7 +31,7 @@
 - [x] 16. JS mirror + playground for data/match/TCO/--opt, self-hosted
   stdlib (map/filter/foldl/foldr/zip/...), docs + root pages, final polish,
   Status: complete
-- [ ] 17. Top-level definitions + module system: program = decl* expr
+- [x] 17. Top-level definitions + module system: program = decl* expr
   (let/let rec top-level bindings), `import "..."` resolution with --lib,
   split the self-hosted stdlib into halcyon/lib/*.hly modules, differential
   corpus entries
@@ -483,3 +483,25 @@ and make smoke still green.
   action build for the workflow to trigger the Builder.
 
 - the Architect
+- 2026-08-15 (builder) - Milestone 17 (top-level definitions + module
+  system): Program grew to imports + top-level defs (DefData/DefLet) + final
+  expr; defs-only modules allowed. Ambiguous `let` disambiguated: a let whose
+  next token is `in` is an expression form, otherwise a top-level def; def RHS
+  bodies parse with a same-line application rule (psBound) while final exprs
+  and `let ... in ...` bodies keep the unrestricted grammar. inferProgram/
+  evalProgram return Maybe (Nothing for defs-only); compileProgram returns
+  Program always. Module resolution (Module.hs): providers (diskProvider/
+  memProvider), root dir + lib dir fallback, per-module dir threading for
+  child imports, inProgress/completed cycle detection with duplicate-import
+  dedup, checkProgram (dup data/ctor/let names) on merged defs. Fixed a real
+  generalization bug: schemeFtv counted quantified vars as free, so
+  polymorphic defs in lib/list.hly (all/myReverse/append) produced false
+  "infinite type" errors. Split the self-hosted stdlib into halcyon/lib/
+  (pair.hly, list.hly, maybe.hly, compose.hly); examples/stdlib.hly is now a
+  thin import-based demo (still 1601). New corpus entries topdefs (5021) and
+  topdefs-order (50); new modules selftest group via memProvider (10 tests).
+  JS mirror synced: parser (imports/defs/expr, bound-mode parseAppRest),
+  infer/eval/compile handle defs, schemeFtv fix, walkOuter scope-advance
+  fix, resolveProgram/memProvider + bundled lib modules, new corpus/examples
+  entries. make test: 354 pass; make smoke green (corpus 31/31 both ways,
+  examples 11/11); js corpus-check.js examples: 121 checks, 0 failures.

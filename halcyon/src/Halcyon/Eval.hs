@@ -1,15 +1,17 @@
 {-# LANGUAGE LambdaCase #-}
 module Halcyon.Eval
   ( evalProgram
+  , evalProgramIn
   , evalExpr
   , EvalError(..)
   , showValue
   ) where
 
+import Control.Monad (foldM)
 import qualified Data.Map.Strict as Map
 
 import Halcyon.Ast
-import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, ctorFor, CtorInfo(..))
+import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, progDataEnv, checkProgram, ctorFor, CtorInfo(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Token (Pos(..), Tok(..))
 import Halcyon.Value
@@ -20,14 +22,46 @@ data EvalError = EvalError Pos String
 
 type Env = Map.Map String Value
 
--- | Parse and evaluate a source string in the empty environment.
-evalProgram :: String -> Either EvalError Value
+-- | Parse and evaluate a source string in the empty environment. Returns
+-- @Nothing@ when the program is a definitions-only module with no final
+-- expression to evaluate.
+evalProgram :: String -> Either EvalError (Maybe Value)
 evalProgram src = case parseProgram src of
   Left (ParseError p m) -> Left (EvalError p m)
-  Right (Program decls expr) ->
-    case buildDataEnv decls of
-      Left m    -> Left (EvalError (Pos 0 0) m)
-      Right denv -> evalExpr denv Map.empty expr
+  Right prog            -> evalProgramIn prog
+
+-- | Evaluate an already-parsed, fully-resolved program: evaluate the merged
+-- top-level definitions in order (extending the environment), then the final
+-- expression if present.
+evalProgramIn :: Program -> Either EvalError (Maybe Value)
+evalProgramIn prog = do
+  case checkProgram prog of
+    Left m  -> Left (EvalError (Pos 0 0) m)
+    Right _ -> Right ()
+  denv <- case progDataEnv prog of
+    Left m  -> Left (EvalError (Pos 0 0) m)
+    Right d -> Right d
+  env <- foldM (evalDef denv) Map.empty (progDefs prog)
+  case progExpr prog of
+    Nothing -> return Nothing
+    Just e  -> Just <$> eval denv env e
+
+-- | Evaluate one top-level definition, extending the environment. The
+-- semantics match the interpreter's @let@: the recursive form captures the
+-- environment being built (a lazy knot); the plain form captures the outer
+-- environment.
+evalDef :: DataEnv -> Env -> TopDef -> Either EvalError Env
+evalDef denv env = \case
+  DefData _ -> Right env
+  DefLet p rec name bound -> case bound of
+    ELambda _ params body' ->
+      let captured = if rec then env' else env
+          env'     = Map.insert name (VClosure params body' captured) env
+      in Right env'
+    _ | rec -> Left (EvalError p ("let rec requires a function value for " <> name))
+      | otherwise -> do
+          vb <- eval denv env bound
+          Right (Map.insert name vb env)
 
 -- | Evaluate a parsed expression in the given environments.
 evalExpr :: DataEnv -> Env -> Expr -> Either EvalError Value

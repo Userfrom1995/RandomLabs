@@ -3,6 +3,7 @@ module Halcyon.Type
   ( Type(..)
   , Scheme(..)
   , freeVars
+  , freeVarsScheme
   , showType
   , showScheme
   ) where
@@ -38,6 +39,11 @@ freeVars = \case
   TData _ ts -> Set.unions (map freeVars ts)
   TFun a b -> freeVars a `Set.union` freeVars b
   _        -> Set.empty
+
+-- | The set of type variables occurring free in a scheme (its quantified
+-- variables are bound, everything else is free).
+freeVarsScheme :: Scheme -> Set.Set Int
+freeVarsScheme (Scheme qvars t) = freeVars t `Set.difference` qvars
 
 -- | Pretty-print a type. Free variables render as lowercase letters.
 -- Function types are right-associative; the argument of a function type is

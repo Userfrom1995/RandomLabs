@@ -1,32 +1,12 @@
--- Self-hosted standard library: higher-order list combinators written in
--- Halcyon itself, defined with let rec and match and exercised end-to-end.
-data Pair a b = Pair a b
-let rec foldl = fn f acc xs => match xs with
-  | [] => acc
-  | x :: rest => foldl f (f acc x) rest
-in let rec foldr = fn f acc xs => match xs with
-  | [] => acc
-  | x :: rest => f x (foldr f acc rest)
-in let rec map = fn f xs => match xs with
-  | [] => []
-  | x :: rest => cons (f x) (map f rest)
-in let rec filter = fn p xs => match xs with
-  | [] => []
-  | x :: rest => if p x then cons x (filter p rest) else filter p rest
-in let rec zip = fn xs ys => match xs with
-  | [] => []
-  | x :: rest => match ys with
-    | [] => []
-    | y :: rest2 => cons (Pair x y) (zip rest rest2)
-in let rec range = fn lo hi => if lo > hi then [] else cons lo (range (lo + 1) hi)
-in let sum = fn xs => foldl (fn acc x => acc + x) 0 xs
-in let product = fn xs => foldl (fn acc x => acc * x) 1 xs
-in let myLength = fn xs => foldl (fn acc _ => acc + 1) 0 xs
-in let myReverse = fn xs => foldl (fn acc x => cons x acc) [] xs
-in let all = fn p xs => foldl (fn acc x => acc && p x) true xs
-in let any = fn p xs => foldl (fn acc x => acc || p x) false xs
-in let elem = fn x xs => any (fn y => y == x) xs
-in sum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))
+-- Self-hosted standard library: the combinators live in halcyon/lib/ as
+-- real importable modules, and this file is a thin import-based demo that
+-- exercises them end-to-end (result stays pinned at 1601).
+import "../lib/list.hly"
+import "../lib/pair.hly"
+import "../lib/maybe.hly"
+import "../lib/compose.hly"
+
+sum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))
    + myLength [1, 2, 3, 4] * 100
    + (match head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b)
    + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)

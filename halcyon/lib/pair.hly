@@ -1,0 +1,6 @@
+-- Pair: a two-field product type with projection helpers. The basic importable
+-- building block used by the list combinators.
+data Pair a b = Pair a b
+
+let fst = fn p => match p with | Pair a b => a
+let snd = fn p => match p with | Pair a b => b

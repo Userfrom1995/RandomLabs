@@ -215,6 +215,24 @@ corpus =
         , "in height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))"
         ])
       "3"
+  , CorpusEntry "topdefs"
+      (unlines
+        [ "-- Multiple top-level definitions with polymorphism."
+        , "let id = fn x => x"
+        , "let x = id 5"
+        , "let rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)"
+        , "x * 1000 + count 21"
+        ])
+      "5021"
+  , CorpusEntry "topdefs-order"
+      (unlines
+        [ "-- Later defs can use earlier ones; final expr sees all defs."
+        , "let base = 10"
+        , "let double = fn x => x * 2"
+        , "let triple = fn x => x * 3"
+        , "double base + triple base"
+        ])
+      "50"
   , CorpusEntry "stdlib"
       (unlines
         [ "-- Self-hosted standard library: higher-order list combinators"

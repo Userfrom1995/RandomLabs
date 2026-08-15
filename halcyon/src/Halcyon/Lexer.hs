@@ -192,6 +192,7 @@ keywordOrIdent = \case
   "then"  -> TThen
   "else"  -> TElse
   "data"  -> TData
+  "import" -> TImport
   "match" -> TMatch
   "with"  -> TWith
   "true"  -> TTrue

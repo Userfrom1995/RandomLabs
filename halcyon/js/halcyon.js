@@ -96,7 +96,7 @@
   var KEYWORDS = {
     let: 'let', rec: 'rec', in: 'in', fn: 'fn', if: 'if',
     then: 'then', else: 'else', true: 'true', false: 'false',
-    data: 'data', match: 'match', with: 'with'
+    data: 'data', match: 'match', with: 'with', import: 'import'
   };
 
   // Lex an entire source string to a token list. Fails fast on the first
@@ -340,16 +340,15 @@
   function parseProgram(src) {
     var lexed = lexSource(src);
     if (lexed.kind === 'lex') { return HErr('parse', lexed.pos, lexed.message); }
-    var toks = lexed;
-    var P = Parser(toks);
-    var decls = P.parseDataDecls();
-    if (decls.kind === 'parse') { return decls; }
-    var e = P.parseExpr();
-    if (e.kind === 'parse') { return e; }
+    var P = Parser(lexed);
+    var imports = P.parseImports();
+    if (imports.kind === 'parse') { return imports; }
+    var res = P.parseDefsAndExpr();
+    if (res.kind === 'parse') { return res; }
     var rest = P.rest();
     if (rest.length === 0) { return HErr('parse', POS_EOF, 'unexpected end of input'); }
     var t = rest[0];
-    if (t.k === 'eof') { return { decls: decls, expr: e }; }
+    if (t.k === 'eof') { return { imports: imports, defs: res.defs, expr: res.expr }; }
     return HErr('parse', t.p, 'unexpected token after expression: ' + describeTok(t));
   }
 
@@ -358,10 +357,16 @@
   function Parser(toks) {
     var ts = toks;
     var pos = 0;
+    var bound = false;
 
     function peek() { return pos < ts.length ? ts[pos].k : 'eof'; }
     function peekPos() { return pos < ts.length ? ts[pos].p : POS_EOF; }
     function advance() { var t = ts[pos]; pos += 1; return t; }
+
+    // The position of the last consumed token (mirrors psPrev).
+    function lastConsumedPos() {
+      return pos > 0 ? ts[pos - 1].p : POS_EOF;
+    }
 
     function failAt(p, msg) { return HErr('parse', p, msg); }
 
@@ -736,13 +741,24 @@
     function parseApplication() {
       var fn = parseAtom();
       if (fn.kind === 'parse') { return fn; }
-      var result = fn;
-      while (atomStart(peek())) {
+      return parseAppRest(fn);
+    }
+
+    // Inside a top-level @let@ binding body the application may not cross a
+    // line boundary, so a following top-level expression is never swallowed
+    // as an argument. (Plain expressions and @let ... in ...@ bodies keep the
+    // unrestricted grammar.) Mirrors the Haskell parseApplication.
+    function parseAppRest(fn) {
+      var lastLine = lastConsumedPos().line;
+      var nextTok = pos < ts.length ? ts[pos] : null;
+      var nextLine = nextTok ? nextTok.p.line : lastLine;
+      if (bound && nextLine > lastLine) { return fn; }
+      if (atomStart(peek())) {
         var arg = parseAtom();
         if (arg.kind === 'parse') { return arg; }
-        result = { kind: 'apply', pos: result.pos, fn: result, arg: arg };
+        return parseAppRest({ kind: 'apply', pos: fn.pos, fn: fn, arg: arg });
       }
-      return result;
+      return fn;
     }
 
     function parseAtom() {
@@ -793,9 +809,80 @@
       return { kind: 'list', pos: p, items: items };
     }
 
+    // ---- imports and top-level definitions (v3) ---------------------------
+
+    // @import "path"@ lines, zero or more, before any definition.
+    function parseImports() {
+      var acc = [];
+      while (peek() === 'import') {
+        advance();
+        var str = peek();
+        if (str !== 'str') {
+          return failAt(peekPos(), 'expected a string import path, found ' +
+            describeTok(pos < ts.length ? ts[pos] : { k: 'eof', p: POS_EOF }));
+        }
+        acc.push(advance().v);
+      }
+      return acc;
+    }
+
+    // Top-level definitions followed by an optional final expression. A
+    // leading @let@ is parsed with @parseLetOrDef@: when the token after the
+    // bound expression is @in@, the whole @let ... in ...@ is the final
+    // expression (the pre-v3 form); any other next token makes it a top-level
+    // definition.
+    function parseDefsAndExpr() {
+      var defs = [];
+      while (true) {
+        var t = peek();
+        if (t === 'data') {
+          var d = parseDataDecl();
+          if (d.kind === 'parse') { return d; }
+          defs.push({ kind: 'defdata', decl: d });
+        } else if (t === 'let') {
+          var ld = parseLetOrDef();
+          if (ld.kind === 'parse') { return ld; }
+          if (ld.expr) { return { defs: defs, expr: ld.expr }; }
+          defs.push(ld.def);
+        } else if (t === 'eof') {
+          return { defs: defs, expr: null };
+        } else {
+          var e = parseExpr();
+          if (e.kind === 'parse') { return e; }
+          return { defs: defs, expr: e };
+        }
+      }
+    }
+
+    // Resolve the @let@ ambiguity described in 'parseDefsAndExpr'. The bound
+    // expression is parsed with the line-bound application rule so a following
+    // top-level expression is never swallowed.
+    function parseLetOrDef() {
+      var p = consume('let');
+      if (p.kind === 'parse') { return p; }
+      var rec = isRec();
+      var name = expectIdent();
+      if (name.kind === 'parse') { return name; }
+      var eq = consume('=');
+      if (eq.kind === 'parse') { return eq; }
+      bound = true;
+      var b = parseExpr();
+      bound = false;
+      if (b.kind === 'parse') { return b; }
+      if (peek() === 'in') {
+        advance();
+        var body = parseExpr();
+        if (body.kind === 'parse') { return body; }
+        return { expr: { kind: 'let', pos: p, rec: rec, name: name, bound: b, body: body } };
+      }
+      return { def: { kind: 'deflet', pos: p, rec: rec, name: name, bound: b } };
+    }
+
     return {
       parseExpr: parseExpr,
       parseDataDecls: parseDataDecls,
+      parseImports: parseImports,
+      parseDefsAndExpr: parseDefsAndExpr,
       rest: function () { return ts.slice(pos); }
     };
   }
@@ -891,13 +978,218 @@
     return go(t);
   }
 
+  // =====================================================================
+  // Module system (v3): imports are resolved through a provider to a
+  // canonical key + source, merged depth-first, deduplicated by key, with
+  // genuine cycles rejected. Imported modules contribute only definitions;
+  // their own final expressions (if any) are ignored.
+  // =====================================================================
+
+  // An in-memory provider backed by a static module map. The canonical key is
+  // the import path itself (mirrors memProvider).
+  function memProvider(modules) {
+    return function (dir, path) {
+      var src = modules[path];
+      if (src === undefined) { return null; }
+      return { key: path, src: src };
+    };
+  }
+
+  // Fully resolve a program from its source text (mirrors resolveProgram).
+  // provider :: (dir, path) -> { key, src } | null
+  function resolveProgram(provider, rootDir, src) {
+    var p = parseProgram(src);
+    if (p.kind === 'parse') { return p; }
+    var inProgress = {};
+    var completed = {};
+    var mergedDefs = [];
+    var expr = p.expr;
+
+    function go(dir, prg) {
+      for (var i = 0; i < prg.imports.length; i++) {
+        var path = prg.imports[i];
+        var found = provider(dir, path);
+        if (!found) { return HErr('module', prg.pos, 'module not found: ' + path); }
+        if (inProgress[found.key]) { return HErr('module', prg.pos, 'circular import: ' + path); }
+        if (completed[found.key]) { continue; }
+        var child = parseProgram(found.src);
+        if (child.kind === 'parse') { return child; }
+        inProgress[found.key] = true;
+        var r = go(dirOf(found.key), child);
+        delete inProgress[found.key];
+        if (r) { return r; }
+        completed[found.key] = true;
+        mergedDefs = mergedDefs.concat(child.defs);
+      }
+      return null;
+    }
+
+    var err = go(rootDir, p);
+    if (err) { return err; }
+    mergedDefs = mergedDefs.concat(p.defs);
+    var dup = dupLetName(mergedDefs);
+    if (dup) { return HErr('module', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    return { kind: 'resolved', imports: [], defs: mergedDefs, expr: expr };
+  }
+
+  function dirOf(key) {
+    var i = key.lastIndexOf('/');
+    return i >= 0 ? key.slice(0, i) : '';
+  }
+
+  // The bundled standard-library modules (mirrors halcyon/lib/*.hly).
+  var libModules = {
+    'pair.hly': [
+      '-- Pair: a two-field product type with projection helpers.',
+      'data Pair a b = Pair a b',
+      '',
+      'let fst = fn p => match p with | Pair a b => a',
+      'let snd = fn p => match p with | Pair a b => b'
+    ].join('\n'),
+    'list.hly': [
+      '-- The self-hosted list library: higher-order list combinators.',
+      'import "pair.hly"',
+      '',
+      'let rec foldl = fn f acc xs => match xs with',
+      '  | [] => acc',
+      '  | x :: rest => foldl f (f acc x) rest',
+      'let rec foldr = fn f acc xs => match xs with',
+      '  | [] => acc',
+      '  | x :: rest => f x (foldr f acc rest)',
+      'let rec map = fn f xs => match xs with',
+      '  | [] => []',
+      '  | x :: rest => cons (f x) (map f rest)',
+      'let rec filter = fn p xs => match xs with',
+      '  | [] => []',
+      '  | x :: rest => if p x then cons x (filter p rest) else filter p rest',
+      'let rec zip = fn xs ys => match xs with',
+      '  | [] => []',
+      '  | x :: rest => match ys with',
+      '    | [] => []',
+      '    | y :: rest2 => cons (Pair x y) (zip rest rest2)',
+      'let rec range = fn lo hi => if lo > hi then [] else cons lo (range (lo + 1) hi)',
+      'let sum = fn xs => foldl (fn acc x => acc + x) 0 xs',
+      'let product = fn xs => foldl (fn acc x => acc * x) 1 xs',
+      'let myLength = fn xs => foldl (fn acc _ => acc + 1) 0 xs',
+      'let myReverse = fn xs => foldl (fn acc x => cons x acc) [] xs',
+      'let all = fn p xs => foldl (fn acc x => acc && p x) true xs',
+      'let any = fn p xs => foldl (fn acc x => acc || p x) false xs',
+      'let elem = fn x xs => any (fn y => y == x) xs',
+      'let append = fn xs ys => foldr cons ys xs',
+      'let rec take = fn n xs => if n < 1 then [] else match xs with',
+      '  | [] => []',
+      '  | x :: rest => cons x (take (n - 1) rest)',
+      'let rec drop = fn n xs => if n < 1 then xs else match xs with',
+      '  | [] => []',
+      '  | x :: rest => drop (n - 1) rest'
+    ].join('\n'),
+    'maybe.hly': [
+      '-- Maybe: an optional value, with the usual helpers.',
+      'data Maybe a = Nothing | Just a',
+      '',
+      'let fromMaybe = fn d m => match m with | Nothing => d | Just x => x',
+      'let isJust = fn m => match m with | Nothing => false | Just _ => true',
+      'let isNothing = fn m => match m with | Nothing => true | Just _ => false'
+    ].join('\n'),
+    'compose.hly': [
+      '-- Function composition helpers.',
+      'let id = fn x => x',
+      'let compose = fn f g => fn x => f (g x)',
+      'let const = fn x => fn _ => x',
+      'let flip = fn f => fn a => fn b => f b a'
+    ].join('\n')
+  };
+
+  // Resolve imports against the bundled library (mirrors the CLI's
+  // --lib default). Import paths are tried as-is, then by basename, so both
+  // "list.hly" and "../lib/list.hly" resolve to the bundled list library.
+  function bundledProvider(dir, path) {
+    var candidates = [path, basenameOf(path)];
+    for (var i = 0; i < candidates.length; i++) {
+      var src = libModules[candidates[i]];
+      if (src !== undefined) { return { key: candidates[i], src: src }; }
+    }
+    return null;
+  }
+
+  function basenameOf(p) {
+    var i = p.lastIndexOf('/');
+    return i >= 0 ? p.slice(i + 1) : p;
+  }
+
+  function resolveWithBundled(src) {
+    return resolveProgram(bundledProvider, '', src);
+  }
+
+  // =====================================================================
+
   function inferProgram(src) {
-    var parsed = parseProgram(src);
-    if (parsed.kind === 'parse') { return HErr('type', parsed.pos, parsed.message); }
-    var denv = buildDataEnv(parsed.decls);
+    var resolved = resolveWithBundled(src);
+    if (resolved.kind === 'module' || resolved.kind === 'parse') {
+      return HErr('type', resolved.pos, resolved.message);
+    }
+    return inferResolved(resolved);
+  }
+
+  function inferResolved(prog) {
+    var denv = buildDataEnv(dataDecls(prog.defs));
     if (denv.kind === 'type') { return denv; }
-    var res = inferExprWith(parsed.expr, denv);
-    return res;
+    var dup = dupLetName(prog.defs);
+    if (dup) { return HErr('type', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var st = { subst: {}, counter: 0 };
+    var env = {};
+    for (var i = 0; i < prog.defs.length; i++) {
+      var d = prog.defs[i];
+      if (d.kind === 'deflet') {
+        var r = inferDef(st, env, denv, d);
+        if (r.kind === 'type') { return r; }
+        env = r;
+      }
+    }
+    if (prog.expr === null) { return { ok: true, type: null }; }
+    var res = infer(st, env, denv, prog.expr);
+    if (res.kind === 'type') { return res; }
+    return { ok: true, type: resolveIn(st.subst, res) };
+  }
+
+  // The top-level data declarations (defdata entries) of a parsed program.
+  function dataDecls(defs) {
+    var out = [];
+    for (var i = 0; i < defs.length; i++) {
+      if (defs[i].kind === 'defdata') { out.push(defs[i].decl); }
+    }
+    return out;
+  }
+
+  // Reject duplicate top-level let names (mirrors checkProgram).
+  function dupLetName(defs) {
+    var seen = {};
+    for (var i = 0; i < defs.length; i++) {
+      if (defs[i].kind !== 'deflet') { continue; }
+      var n = defs[i].name;
+      if (seen[n]) { return n; }
+      seen[n] = true;
+    }
+    return null;
+  }
+
+  // Infer one top-level deflet, extending the environment with its
+  // generalized scheme (mirrors inferDef).
+  function inferDef(st, env, denv, d) {
+    var t0 = fresh(st);
+    var envRec = Object.assign({}, env);
+    envRec[d.name] = { qvars: new Set(), body: t0 };
+    var envBound = d.rec ? envRec : env;
+    var tb = infer(st, envBound, denv, d.bound);
+    if (tb.kind === 'type') { return tb; }
+    var u = unify(st, d.pos, t0, tb);
+    if (u) { return u; }
+    var tbR = resolve(st, tb);
+    var ftv = schemeFtv(env);
+    var sch = generalize(ftv, tbR);
+    var env2 = Object.assign({}, env);
+    env2[d.name] = sch;
+    return env2;
   }
 
   function inferExpr(expr) {
@@ -997,7 +1289,10 @@
   function schemeFtv(env) {
     var s = new Set();
     Object.keys(env).forEach(function (name) {
-      freeVars(env[name].body).forEach(function (n) { s.add(n); });
+      var sch = env[name];
+      freeVars(sch.body).forEach(function (n) {
+        if (!sch.qvars.has(n)) { s.add(n); }
+      });
     });
     return s;
   }
@@ -1266,11 +1561,49 @@
   // =====================================================================
 
   function evalProgram(src) {
-    var parsed = parseProgram(src);
-    if (parsed.kind === 'parse') { return HErr('eval', parsed.pos, parsed.message); }
-    var denv = buildDataEnv(parsed.decls);
+    var resolved = resolveWithBundled(src);
+    if (resolved.kind === 'module' || resolved.kind === 'parse') {
+      return HErr('eval', resolved.pos, resolved.message);
+    }
+    return evalResolved(resolved);
+  }
+
+  function evalResolved(prog) {
+    var denv = buildDataEnv(dataDecls(prog.defs));
     if (denv.kind === 'type') { return HErr('eval', denv.pos, denv.message); }
-    return drive(evalCPS({}, denv, parsed.expr, function (v) { return v; }));
+    var dup = dupLetName(prog.defs);
+    if (dup) { return HErr('eval', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var env = evalDefs({}, denv, prog.defs);
+    if (env.kind === 'eval') { return env; }
+    if (prog.expr === null) { return undefined; }
+    return drive(evalCPS(env, denv, prog.expr, function (v) { return v; }));
+  }
+
+  // Evaluate the top-level definitions in order into an environment (mirrors
+  // evalDef). @let rec@ with a lambda binds the closure capturing the env that
+  // already contains the name (the lazy knot); @let rec@ with a non-function
+  // is an error, matching the let rule.
+  function evalDefs(env, denv, defs) {
+    var e = env;
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      if (d.kind === 'defdata') { continue; }
+      if (d.bound.kind === 'lambda') {
+        var env2 = Object.assign({}, e);
+        var captured = d.rec ? env2 : e;
+        env2[d.name] = VClosure(d.bound.params, d.bound.body, captured);
+        e = env2;
+      } else if (d.rec) {
+        return HErr('eval', d.pos, 'let rec requires a function value for ' + d.name);
+      } else {
+        var vb = drive(evalCPS(e, denv, d.bound, function (v) { return v; }));
+        if (vb.kind === 'eval') { return vb; }
+        var env3 = Object.assign({}, e);
+        env3[d.name] = vb;
+        e = env3;
+      }
+    }
+    return e;
   }
 
   // The trampoline: repeatedly run thunks until a final value or error.
@@ -1654,13 +1987,25 @@
   }
 
   function compileProgram(src, opt) {
-    var parsed = parseProgram(src);
-    if (parsed.kind === 'parse') { return HErr('compile', parsed.pos, parsed.message); }
-    var denv = buildDataEnv(parsed.decls);
+    var resolved = resolveWithBundled(src);
+    if (resolved.kind === 'module' || resolved.kind === 'parse') {
+      return HErr('compile', resolved.pos, resolved.message);
+    }
+    return compileResolved(resolved, opt);
+  }
+
+  function compileResolved(prog, opt) {
+    var denv = buildDataEnv(dataDecls(prog.defs));
     if (denv.kind === 'type') { return HErr('compile', denv.pos, denv.message); }
+    var dup = dupLetName(prog.defs);
+    if (dup) { return HErr('compile', POS_EOF, 'duplicate top-level definition: ' + dup); }
     var st = CompileState();
-    var r = compileExpr(denv, true, parsed.expr, st);
+    var r = compileDefs(denv, prog.defs, st);
     if (r) { return r; }
+    if (prog.expr !== null) {
+      var r2 = compileExpr(denv, true, prog.expr, st);
+      if (r2) { return r2; }
+    }
     st.code.push({ op: 'halt' });
     resolvePatches(st);
     var entry = {
@@ -1670,6 +2015,35 @@
     var program = { entry: entry };
     if (opt) { program = optimizeProgram(program); }
     return { ok: true, program: program };
+  }
+
+  // Compile the top-level definitions into the entry function's scope
+  // (mirrors compileDefs/compileTopLet).
+  function compileDefs(denv, defs, st) {
+    for (var i = 0; i < defs.length; i++) {
+      var d = defs[i];
+      if (d.kind === 'defdata') { continue; }
+      var r = compileTopLet(d.pos, d.rec, d.name, denv, d.bound, st);
+      if (r) { return r; }
+    }
+    return null;
+  }
+
+  function compileTopLet(pos, rec, name, denv, bound, st) {
+    if (bound.kind === 'lambda') {
+      var slot = registerLocal(name, st);
+      if (rec) { emit(st, { op: 'new_cell', s: slot }); }
+      var r = compileLambda(denv, bound.params, bound.body, st);
+      if (r) { return r; }
+      emit(st, { op: 'store_local', s: slot });
+      return null;
+    }
+    if (rec) { return HErr('compile', pos, 'let rec requires a function value for ' + name); }
+    var r2 = compileExpr(denv, false, bound, st);
+    if (r2) { return r2; }
+    var slot2 = registerLocal(name, st);
+    emit(st, { op: 'store_local', s: slot2 });
+    return null;
   }
 
   function emit(st, instr) { st.code.push(instr); }
@@ -2084,7 +2458,7 @@
   }
 
   function walkOuter(k, name, st) {
-    var rest = st.scopes.slice(1);
+    var rest = st.scopes.slice(k);
     if (rest.length === 0) {
       return HErr('compile', POS_EOF, 'unbound name: ' + name);
     }
@@ -3245,7 +3619,11 @@
     { name: 'match-tree', expected: '3',
       source: '-- Matching a recursive data type picks a branch by constructor.\ndata Tree = Leaf Int | Node (Tree) (Tree)\nlet rec height = fn t => match t with\n  | Leaf n => 1\n  | Node l r =>\n      let h1 = height l in\n      let h2 = height r in\n      if h1 > h2 then h1 + 1 else h2 + 1\nin height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))\n' },
     { name: 'stdlib', expected: '1601',
-      source: '-- Self-hosted standard library: higher-order list combinators\n-- written in Halcyon itself with let rec and match.\ndata Pair a b = Pair a b\nlet rec foldl = fn f acc xs => match xs with\n  | [] => acc\n  | x :: rest => foldl f (f acc x) rest\nin let rec foldr = fn f acc xs => match xs with\n  | [] => acc\n  | x :: rest => f x (foldr f acc rest)\nin let rec map = fn f xs => match xs with\n  | [] => []\n  | x :: rest => cons (f x) (map f rest)\nin let rec filter = fn p xs => match xs with\n  | [] => []\n  | x :: rest => if p x then cons x (filter p rest) else filter p rest\nin let rec zip = fn xs ys => match xs with\n  | [] => []\n  | x :: rest => match ys with\n    | [] => []\n    | y :: rest2 => cons (Pair x y) (zip rest rest2)\nin let rec range = fn lo hi => if lo > hi then [] else cons lo (range (lo + 1) hi)\nin let sum = fn xs => foldl (fn acc x => acc + x) 0 xs\nin let product = fn xs => foldl (fn acc x => acc * x) 1 xs\nin let myLength = fn xs => foldl (fn acc _ => acc + 1) 0 xs\nin let myReverse = fn xs => foldl (fn acc x => cons x acc) [] xs\nin let all = fn p xs => foldl (fn acc x => acc && p x) true xs\nin let any = fn p xs => foldl (fn acc x => acc || p x) false xs\nin let elem = fn x xs => any (fn y => y == x) xs\nin sum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))\n   + myLength [1, 2, 3, 4] * 100\n   + (match head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b)\n   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)\n' }
+      source: '-- Self-hosted standard library: higher-order list combinators\n-- written in Halcyon itself with let rec and match.\ndata Pair a b = Pair a b\nlet rec foldl = fn f acc xs => match xs with\n  | [] => acc\n  | x :: rest => foldl f (f acc x) rest\nin let rec foldr = fn f acc xs => match xs with\n  | [] => acc\n  | x :: rest => f x (foldr f acc rest)\nin let rec map = fn f xs => match xs with\n  | [] => []\n  | x :: rest => cons (f x) (map f rest)\nin let rec filter = fn p xs => match xs with\n  | [] => []\n  | x :: rest => if p x then cons x (filter p rest) else filter p rest\nin let rec zip = fn xs ys => match xs with\n  | [] => []\n  | x :: rest => match ys with\n    | [] => []\n    | y :: rest2 => cons (Pair x y) (zip rest rest2)\nin let rec range = fn lo hi => if lo > hi then [] else cons lo (range (lo + 1) hi)\nin let sum = fn xs => foldl (fn acc x => acc + x) 0 xs\nin let product = fn xs => foldl (fn acc x => acc * x) 1 xs\nin let myLength = fn xs => foldl (fn acc _ => acc + 1) 0 xs\nin let myReverse = fn xs => foldl (fn acc x => cons x acc) [] xs\nin let all = fn p xs => foldl (fn acc x => acc && p x) true xs\nin let any = fn p xs => foldl (fn acc x => acc || p x) false xs\nin let elem = fn x xs => any (fn y => y == x) xs\nin sum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))\n   + myLength [1, 2, 3, 4] * 100\n   + (match head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b)\n   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)\n' },
+    { name: 'topdefs', expected: '5021',
+      source: '-- Multiple top-level definitions with polymorphism.\nlet id = fn x => x\nlet x = id 5\nlet rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)\nx * 1000 + count 21\n' },
+    { name: 'topdefs-order', expected: '50',
+      source: '-- Later defs can use earlier ones; final expr sees all defs.\nlet base = 10\nlet double = fn x => x * 2\nlet triple = fn x => x * 3\ndouble base + triple base\n' }
   ];
 
   // Example programs shown in the web playground editor.
@@ -3261,7 +3639,7 @@
     'list-append-take-drop.hly': corpus[17].source,
     'match-maybe.hly': '-- Data declarations and pattern matching.\ndata Maybe a = Nothing | Just a\nlet rec sumList = fn xs => match xs with | [] => 0 | h :: t => h + sumList t\nin let safeHead = fn xs => match xs with | [] => Nothing | h :: _ => Just h\nin match safeHead [3, 4, 5] with | Nothing => 0 | Just h => sumList [1, 2, h]\n',
     'match-lists.hly': '-- Nested list patterns and guards by order of branches.\nmatch [[1, 2], [3, 4]] with | [] => 0 | [a, b] :: rest => a + b | xs => -1\n',
-    'stdlib.hly': '-- Self-hosted standard library: higher-order list combinators.\ndata Pair a b = Pair a b\nlet rec foldl = fn f acc xs => match xs with\n  | [] => acc\n  | x :: rest => foldl f (f acc x) rest\nin let rec map = fn f xs => match xs with\n  | [] => []\n  | x :: rest => cons (f x) (map f rest)\nin let rec filter = fn p xs => match xs with\n  | [] => []\n  | x :: rest => if p x then cons x (filter p rest) else filter p rest\nin let rec zip = fn xs ys => match xs with\n  | [] => []\n  | x :: rest => match ys with\n    | [] => []\n    | y :: rest2 => cons (Pair x y) (zip rest rest2)\nin let rec range = fn lo hi => if lo > hi then [] else cons lo (range (lo + 1) hi)\nin let sum = fn xs => foldl (fn acc x => acc + x) 0 xs\nin sum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))\n   + sum (map (fn p => match p with | Pair a b => a * b) (zip [1, 2, 3] [4, 5, 6]))\n'
+    'stdlib.hly': '-- Self-hosted standard library: the combinators live in\n-- halcyon/lib/ as real importable modules, and this file is a thin\n-- import-based demo that exercises them end-to-end.\nimport "../lib/list.hly"\nimport "../lib/pair.hly"\nimport "../lib/maybe.hly"\nimport "../lib/compose.hly"\n\nsum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))\n   + myLength [1, 2, 3, 4] * 100\n   + (match head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b)\n   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)\n'
   };
 
   return {
@@ -3281,6 +3659,13 @@
     vmShowValue: vmShowValue,
     showInstr: showInstr,
     disassemble: disassemble,
+    resolveProgram: resolveProgram,
+    memProvider: memProvider,
+    resolveWithBundled: resolveWithBundled,
+    libModules: libModules,
+    evalResolved: evalResolved,
+    compileResolved: compileResolved,
+    inferResolved: inferResolved,
     corpus: corpus,
     examples: examples
   };

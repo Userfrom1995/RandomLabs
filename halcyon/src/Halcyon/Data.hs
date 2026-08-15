@@ -9,13 +9,16 @@ module Halcyon.Data
   , emptyDataEnv
   , buildDataEnv
   , ctorFor
+  , progDataDecls
+  , progDataEnv
+  , checkProgram
   ) where
 
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import Halcyon.Ast (DataDecl(..))
+import Halcyon.Ast (DataDecl(..), Program(..), TopDef(..), progLetNames)
 import Halcyon.Type (Type(..), Scheme(..))
 
 -- | Constructor metadata: the scheme a bare constructor reference has (e.g.
@@ -38,6 +41,31 @@ emptyDataEnv = DataEnv Map.empty
 -- | Look up a constructor's metadata.
 ctorFor :: String -> DataEnv -> Maybe CtorInfo
 ctorFor name (DataEnv m) = Map.lookup name m
+
+-- | The @data@ declarations of a program, in order.
+progDataDecls :: Program -> [DataDecl]
+progDataDecls p = [d | DefData d <- progDefs p]
+
+-- | Build the data environment from a program's @data@ declarations.
+progDataEnv :: Program -> Either String DataEnv
+progDataEnv = buildDataEnv . progDataDecls
+
+-- | Validate a fully-resolved program's top-level namespace: no duplicate
+-- data type names, no duplicate constructor names (both caught by
+-- 'buildDataEnv'), and no duplicate top-level @let@ binding names.
+checkProgram :: Program -> Either String ()
+checkProgram p = do
+  _ <- buildDataEnv (progDataDecls p)
+  case dupes (progLetNames p) of
+    (x : _) -> Left ("duplicate top-level definition: " <> x)
+    []      -> Right ()
+  where
+    dupes :: Ord a => [a] -> [a]
+    dupes = go . sort
+      where
+        go (x : y : rest) | x == y    = x : go (y : rest)
+                          | otherwise = go (y : rest)
+        go _                          = []
 
 -- | Build the data environment from a program's declarations. Fails when a
 -- type name is declared twice or a constructor name is used by two

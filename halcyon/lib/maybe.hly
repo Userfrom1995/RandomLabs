@@ -1,0 +1,6 @@
+-- Maybe: an optional value, with the usual helpers.
+data Maybe a = Nothing | Just a
+
+let fromMaybe = fn d m => match m with | Nothing => d | Just x => x
+let isJust = fn m => match m with | Nothing => false | Just _ => true
+let isNothing = fn m => match m with | Nothing => true | Just _ => false

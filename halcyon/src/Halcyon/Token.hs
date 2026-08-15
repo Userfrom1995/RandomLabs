@@ -32,6 +32,7 @@ data Tok
   | TThen
   | TElse
   | TData
+  | TImport
   | TMatch
   | TWith
   | TTrue

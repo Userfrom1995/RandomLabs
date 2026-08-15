@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Halcyon.Compile
   ( compileProgram
+  , compileProgramIn
   , CompileError(..)
   , disassemble
   , Program(..)
@@ -13,8 +14,8 @@ import qualified Data.Map.Strict as Map
 import Data.List (intersperse, nub)
 
 import qualified Halcyon.Ast as Ast
-import Halcyon.Ast (Expr(..), DataDecl(..), Pattern(..), Op(..), Builtin(..))
-import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, ctorFor, CtorInfo(..))
+import Halcyon.Ast (Expr(..), DataDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..))
+import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, progDataEnv, checkProgram, ctorFor, CtorInfo(..))
 import Halcyon.Op
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Token (Pos(..))
@@ -30,13 +31,48 @@ data CompileError = CompileError Pos String
 compileProgram :: String -> Either CompileError Program
 compileProgram src = case parseProgram src of
   Left (ParseError p m) -> Left (CompileError p m)
-  Right (Ast.Program decls expr) -> do
-    denv <- case buildDataEnv decls of
-      Left m  -> Left (CompileError (Pos 0 0) m)
-      Right d -> Right d
-    (_, st) <- runC (compileExpr denv True expr >> emit Halt >> resolvePatches) initState
-    let entry = Func "main" [] (csCode st) (csConsts st) [] []
-    Right (Program entry)
+  Right prog            -> compileProgramIn prog
+
+-- | Compile an already-parsed, fully-resolved program. Top-level @let@
+-- definitions become cells in the entry function's scope (a recursive one
+-- gets a @NewCell@ first, mirroring 'compileLet'), so closures capturing a
+-- top-level name reach it as an upvalue of the entry frame; the final
+-- expression (if any) is compiled last, then @Halt@.
+compileProgramIn :: Ast.Program -> Either CompileError Program
+compileProgramIn prog = do
+  case checkProgram prog of
+    Left m  -> Left (CompileError (Pos 0 0) m)
+    Right _ -> Right ()
+  denv <- case progDataEnv prog of
+    Left m  -> Left (CompileError (Pos 0 0) m)
+    Right d -> Right d
+  (_, st) <- runC
+    (compileDefs denv (Ast.progDefs prog) >> compileMaybeExpr denv (Ast.progExpr prog) >> emit Halt >> resolvePatches)
+    initState
+  let entry = Func "main" [] (csCode st) (csConsts st) [] []
+  Right (Program entry)
+  where
+    compileDefs denv = mapM_ $ \case
+      DefData _      -> return ()
+      DefLet p rec name bound -> compileTopLet p rec name denv bound
+
+    compileMaybeExpr _ Nothing   = return ()
+    compileMaybeExpr denv (Just e) = compileExpr denv True e
+
+-- | Compile one top-level @let@ binding into the current (entry) function's
+-- scope, without a body. Mirror of 'compileLet' for the definition form.
+compileTopLet :: Pos -> Bool -> String -> DataEnv -> Expr -> CompileM ()
+compileTopLet p rec name denv bound = case bound of
+  ELambda _ params body' -> do
+    s <- registerLocal name
+    when rec (emit (NewCell s))
+    compileLambda p denv params body'
+    emit (StoreLocal s)
+  _ | rec -> compileError p ("let rec requires a function value for " <> name)
+    | otherwise -> do
+        compileExpr denv False bound
+        s <- registerLocal name
+        emit (StoreLocal s)
 
 initState :: CompileState
 initState = CompileState

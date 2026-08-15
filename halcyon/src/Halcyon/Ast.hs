@@ -2,6 +2,7 @@
 module Halcyon.Ast
   ( Expr(..)
   , Program(..)
+  , TopDef(..)
   , DataDecl(..)
   , Pattern(..)
   , Op(..)
@@ -9,6 +10,8 @@ module Halcyon.Ast
   , opName
   , builtinName
   , builtinForName
+  , progDataDecls
+  , progLetNames
   ) where
 
 import Halcyon.Token (Pos)
@@ -35,14 +38,32 @@ data Expr
   | EBuiltin Pos Builtin
   deriving (Eq, Show)
 
--- | A whole Halcyon program: zero or more top-level algebraic data type
--- declarations followed by the expression to evaluate. The zero-declaration
--- case is exactly a bare expression, so every pre-v2 program still parses.
+-- | A whole Halcyon program (v3 grammar: @decl* expr@). The imports are
+-- resolved before typechecking/evaluating (see 'Halcyon.Module'); the
+-- defs hold the merged top-level data declarations and @let@ bindings; the
+-- final expression may be absent, making the program a definitions-only
+-- module (valid to import, runnable as a type-checked no-result program).
 data Program = Program
-  { progData :: [DataDecl]
-  , progExpr :: Expr
+  { progImports :: [String]        -- ^ @import "path"@ list, not yet resolved
+  , progDefs    :: [TopDef]
+  , progExpr    :: Maybe Expr
   }
   deriving (Eq, Show)
+
+-- | A top-level definition. @data@ declarations and @let [rec] name = e@
+-- bindings share a namespace for names in the final expression.
+data TopDef
+  = DefData DataDecl
+  | DefLet Pos Bool String Expr
+  deriving (Eq, Show)
+
+-- | The @data@ declarations of a program, in order.
+progDataDecls :: Program -> [DataDecl]
+progDataDecls p = [d | DefData d <- progDefs p]
+
+-- | The names bound by top-level @let@ definitions, in order.
+progLetNames :: Program -> [String]
+progLetNames p = [n | DefLet _ _ n _ <- progDefs p]
 
 -- | A top-level @data@ declaration: @data <Name> <tyvar>* = <Ctor> <ty>* | ...@
 -- Field types are parsed into 'Halcyon.Type.Type' where declared type

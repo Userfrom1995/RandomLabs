@@ -68,12 +68,14 @@ repl = do
         Left (ParseError p m) -> putStrLn (renderError buf p ("parse error: " <> m))
         Right _ -> evalAndPrint buf
 
-    -- Typecheck then tree-walk evaluate, printing the value.
+    -- Typecheck then tree-walk evaluate, printing the value. A
+    -- definitions-only module prints nothing.
     evalAndPrint src = case inferProgram src of
       Left (TypeError p m) -> putStrLn (renderError src p ("type error: " <> m))
       Right _ -> case evalProgram src of
         Left (EvalError p m) -> putStrLn (renderError src p ("runtime error: " <> m))
-        Right v -> putStrLn (showValue v)
+        Right (Just v) -> putStrLn (showValue v)
+        Right Nothing  -> return ()
 
     trim = f . f
       where f = reverse . dropWhile (`elem` (" \t\n\r" :: String))

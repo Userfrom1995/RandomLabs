@@ -1,0 +1,5 @@
+-- Function composition helpers.
+let id = fn x => x
+let compose = fn f g => fn x => f (g x)
+let const = fn x => fn _ => x
+let flip = fn f => fn a => fn b => f b a

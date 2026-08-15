@@ -214,6 +214,81 @@ report('type: match type error rejected',
 // Bare constructor after data declaration.
 runBoth('data: bare nullary constructor', 'data Maybe a = Nothing | Just a\nNothing\n', 'Nothing');
 
+// ---- module system (milestone 17) -----------------------------------------
+
+// Import-based programs resolve through the bundled library and agree on
+// both evaluators.
+function runResolved(label, src, expected) {
+  var rr = Halcyon.resolveWithBundled(src);
+  if (rr.kind === 'module' || rr.kind === 'parse') {
+    report(label, false, 'resolve error: ' + rr.message);
+    return;
+  }
+  var ie = Halcyon.evalResolved(rr);
+  var io = ie.kind ? '<eval error: ' + ie.message + '>' : Halcyon.showValue(ie);
+  var cp = Halcyon.compileResolved(rr);
+  var vo, vmRes;
+  if (cp.kind) {
+    vo = '<compile error: ' + cp.message + '>';
+  } else {
+    vmRes = Halcyon.runVm(cp.program, false);
+    vo = vmRes.kind ? '<vm error: ' + vmRes.message + '>' : Halcyon.vmShowValue(vmRes.value);
+  }
+  if (expected !== null && expected !== undefined && (io !== expected || vo !== expected)) {
+    report(label, false, 'expected ' + expected + ', interpreter=' + io + ', vm=' + vo);
+    return;
+  }
+  if (io !== vo) {
+    report(label, false, 'interpreter=' + io + ' /= vm=' + vo);
+    return;
+  }
+  report(label, true, io);
+}
+
+runResolved('module: import list.hly',
+  'import "../lib/list.hly"\nsum (map (fn x => x * x) (range 1 8))\n', '204');
+runResolved('module: transitive import (list imports pair)',
+  'import "../lib/list.hly"\nmatch head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b\n', '11');
+runResolved('module: import maybe + compose',
+  'import "../lib/maybe.hly"\nimport "../lib/compose.hly"\ncompose (fromMaybe 0) id (Just 7)\n', '7');
+runResolved('module: duplicate import is deduplicated',
+  'import "../lib/list.hly"\nimport "../lib/list.hly"\nmyLength [1, 2, 3]\n', '3');
+
+// A genuine cycle must error (via an in-memory provider).
+var cyc = Halcyon.memProvider({
+  'c1.hly': 'import "c2.hly"\nlet a = 1\n',
+  'c2.hly': 'import "c1.hly"\nlet b = 2\n'
+});
+var circ = Halcyon.resolveProgram(cyc, '', 'import "c1.hly"\na\n');
+report('module: circular import rejected',
+  circ.kind === 'module' && /circular import/.test(circ.message), circ.message);
+
+// In-memory provider: the canonical key is the import path, and child
+// modules resolve relative to their own directory.
+var mem = Halcyon.memProvider({
+  'm1.hly': 'import "m2.hly"\nlet a = b * 2\n',
+  'm2.hly': 'let b = 21\n'
+});
+var resolvedMem = Halcyon.resolveProgram(mem, '', 'import "m1.hly"\na\n');
+report('module: memProvider relative resolution',
+  resolvedMem.kind !== 'module' && resolvedMem.kind !== 'parse'
+    && Halcyon.showValue(Halcyon.evalResolved(resolvedMem)) === '42',
+  resolvedMem.kind ? resolvedMem.message : '');
+var missing = Halcyon.resolveWithBundled('import "nope.hly"\n1\n');
+report('module: missing module rejected', missing.kind === 'module' && /not found/.test(missing.message), missing.message);
+var dupDef = Halcyon.resolveWithBundled('import "../lib/list.hly"\nlet sum = 5\nsum\n');
+report('module: duplicate top-level definition rejected',
+  dupDef.kind === 'module' && /duplicate top-level definition/.test(dupDef.message), dupDef.message);
+
+// Top-level definitions typecheck and evaluate on both evaluators.
+runBoth('topdefs', Halcyon.corpus[29].source, '5021');
+runBoth('topdefs-order', Halcyon.corpus[30].source, '50');
+runResolved('module: import-based stdlib example', Halcyon.examples['stdlib.hly'], '1601');
+report('type: top-level polymorphic def',
+  Halcyon.infer('let id = fn x => x\nlet x = id 5\nlet rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)\nx * 1000 + count 21\n').ok, '');
+report('type: duplicate top-level let rejected',
+  !Halcyon.infer('let x = 5\nlet x = 6\nx\n').ok, '');
+
 // Examples directory (optional argument)
 var dir = process.argv[2];
 if (dir) {

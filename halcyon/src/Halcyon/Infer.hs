@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Halcyon.Infer
   ( inferProgram
+  , inferProgramIn
   , inferExpr
   , InferError(..)
   , Scheme(..)
@@ -14,7 +15,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import Halcyon.Ast
-import Halcyon.Data (DataEnv, CtorInfo(..), emptyDataEnv, buildDataEnv, ctorFor)
+import Halcyon.Data (DataEnv, CtorInfo(..), emptyDataEnv, buildDataEnv, progDataEnv, checkProgram, ctorFor)
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Token (Pos(..))
 import Halcyon.Type
@@ -24,16 +25,56 @@ data InferError = TypeError Pos String
   deriving (Eq, Show)
 
 -- | Type inference over a source string: parse, resolve the data
--- declarations, then infer in the empty environment. Returns the inferred
--- top-level type.
-inferProgram :: String -> Either InferError Type
+-- declarations, then infer the top-level definitions (each generalized in
+-- order) followed by the final expression. Returns @Nothing@ when the
+-- program is a definitions-only module with no expression to infer.
+inferProgram :: String -> Either InferError (Maybe Type)
 inferProgram src = case parseProgram src of
   Left (ParseError p m) -> Left (TypeError p m)
-  Right (Program decls expr) -> do
-    denv <- case buildDataEnv decls of
-      Left m  -> Left (TypeError (Pos 0 0) m)
-      Right d -> Right d
-    inferExprIn denv expr
+  Right prog            -> inferProgramIn prog
+
+-- | Type inference over an already-parsed, fully-resolved program. Imports
+-- must be resolved before this (see 'Halcyon.Module'); the merged defs are
+-- inferred left to right with top-level generalization, exactly like the
+-- @let@ rule, then the final expression (if any).
+inferProgramIn :: Program -> Either InferError (Maybe Type)
+inferProgramIn prog = do
+  case checkProgram prog of
+    Left m  -> Left (TypeError (Pos 0 0) m)
+    Right _ -> Right ()
+  denv <- case progDataEnv prog of
+    Left m  -> Left (TypeError (Pos 0 0) m)
+    Right d -> Right d
+  env <- foldM (inferDef denv) Map.empty (progDefs prog)
+  case progExpr prog of
+    Nothing   -> return Nothing
+    Just expr -> do
+      (t, s) <- runInfer (infer env denv expr) (InferState Map.empty 0)
+      return (Just (resolveIn (isSubst s) t))
+
+-- | Infer one top-level definition and extend the environment with its
+-- generalized scheme. @data@ declarations add nothing; @let@ bindings are
+-- inferred exactly like an @inferLet@ without a body (so @let rec@ binds
+-- its name monomorphically while inferring the bound expression), and the
+-- resulting type is generalized so later defs and the final expression see
+-- the polymorphism.
+inferDef :: DataEnv -> Env -> TopDef -> Either InferError Env
+inferDef denv env = \case
+  DefData _ -> Right env
+  DefLet p rec name bound ->
+    case runInfer (inferTopDef denv env p rec name bound) (InferState Map.empty 0) of
+      Left e        -> Left e
+      Right (sch, _) -> Right (Map.insert name sch env)
+  where
+    inferTopDef :: DataEnv -> Env -> Pos -> Bool -> String -> Expr -> Infer Scheme
+    inferTopDef denv env p rec name bound = do
+      t <- fresh
+      let envRec    = Map.insert name (Scheme Set.empty t) env
+          envBound  = if rec then envRec else env
+      tb <- infer envBound denv bound
+      unify p t tb
+      tbR <- resolve tb
+      return (generalize (schemeFtv env) tbR)
 
 -- | Type inference over a parsed expression with an empty data environment.
 inferExpr :: Expr -> Either InferError Type
@@ -383,9 +424,11 @@ numericPromote p ta tb = do
     (TVar a, TVar b) -> bindVar p b (TVar a) >> return (TVar a)
     _ -> throwError (TypeError p (numericMismatch ra rb))
 
--- | Free type variables in every scheme of the environment.
+-- | Free type variables in every scheme of the environment. Quantified
+-- variables are bound and do not count, so a fully generalized scheme
+-- contributes nothing (only monomorphic, open schemes constrain later defs).
 schemeFtv :: Env -> Set.Set Int
-schemeFtv env = Set.unions (map (freeVars . schemeBody) (Map.elems env))
+schemeFtv env = Set.unions (map freeVarsScheme (Map.elems env))
 
 -- | Generalize a resolved type over all free variables not present in the
 -- environment, yielding a closed scheme.

@@ -7,12 +7,15 @@ module Halcyon.Selftest
 
 import Control.Monad (forM_, when)
 
+import qualified Data.Map.Strict as Map
+
 import Halcyon.Corpus (CorpusEntry(..), corpus)
 import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
+import Halcyon.Module (ModuleError(..), resolveProgram, memProvider)
 import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Parser (parseProgram, ParseError(..))
-import Halcyon.Eval (EvalError(..), evalProgram, showValue)
+import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, showValue)
 import Halcyon.Compile (compileProgram, CompileError(..), disassemble, Program(..))
 import Halcyon.Vm (runVm, VmError(..), vmShowValue)
 
@@ -73,30 +76,34 @@ parseFails src = case parseProgram src of
 inferredAs :: String -> String -> Either String ()
 inferredAs src expected = case inferProgram src of
   Left (TypeError _ m) -> Left ("type error: " <> m)
-  Right t              ->
+  Right (Just t)       ->
     let shown = showType t
     in if shown == expected
          then Right ()
          else Left ("expected type " <> expected <> ", got " <> shown)
+  Right Nothing        -> Left ("expected type " <> expected <> ", but the program has no expression")
 
 inferFails :: String -> Either String ()
 inferFails src = case inferProgram src of
-  Left _  -> Right ()
-  Right t -> Left ("expected a type error, but inferred " <> showType t)
+  Left _          -> Right ()
+  Right (Just t)  -> Left ("expected a type error, but inferred " <> showType t)
+  Right Nothing   -> Left "expected a type error, but the module typechecked with no result"
 
 evalsTo :: String -> String -> Either String ()
 evalsTo src expected = case evalProgram src of
   Left (EvalError _ m) -> Left ("eval error: " <> m)
-  Right v              ->
+  Right (Just v)       ->
     let shown = showValue v
     in if shown == expected
          then Right ()
          else Left ("expected " <> expected <> ", got " <> shown)
+  Right Nothing        -> Left ("expected " <> expected <> ", but the program has no result")
 
 evalFails :: String -> Either String ()
 evalFails src = case evalProgram src of
-  Left _  -> Right ()
-  Right v -> Left ("expected a runtime error, but got " <> showValue v)
+  Left _           -> Right ()
+  Right (Just v)   -> Left ("expected a runtime error, but got " <> showValue v)
+  Right Nothing    -> Left "expected a runtime error, but the program has no result"
 
 vmEvalsTo :: String -> String -> IO (Either String ())
 vmEvalsTo src expected = case compileProgram src of
@@ -125,7 +132,8 @@ differential :: String -> String -> IO (Either String ())
 differential src expected = do
   rEval <- case evalProgram src of
     Left (EvalError _ m) -> return (Left ("eval error: " <> m))
-    Right v              -> return (Right (showValue v))
+    Right (Just v)       -> return (Right (showValue v))
+    Right Nothing        -> return (Left "interpreter: program has no result")
   rVm <- case compileProgram src of
     Left (CompileError _ m) -> return (Left ("compile error: " <> m))
     Right prog -> do
@@ -179,7 +187,8 @@ optDifferential :: String -> String -> IO (Either String ())
 optDifferential src expected = do
   rEval <- case evalProgram src of
     Left (EvalError _ m) -> return (Left ("eval error: " <> m))
-    Right v              -> return (Right (showValue v))
+    Right (Just v)       -> return (Right (showValue v))
+    Right Nothing        -> return (Left "interpreter: program has no result")
   rVm <- case compileProgram src of
     Left (CompileError _ m) -> return (Left ("compile error: " <> m))
     Right prog -> do
@@ -248,6 +257,13 @@ parserTests =
   , check "parse: match cons"          (parsesOk "match xs with | h :: t => h | [] => 0")
   , check "parse: match list literal"  (parsesOk "match xs with | [a, b] => a | _ => 0")
   , check "parse: match ctor app"      (parsesOk "match m with | Just x => x")
+  , check "parse: import line"         (parsesOk "import \"list.hly\"\n1")
+  , check "parse: top-level let"       (parsesOk "let x = 5\nx + 1")
+  , check "parse: top-level rec"       (parsesOk "let rec f = fn n => f n\nf 1")
+  , check "parse: def then in-expr"    (parsesOk "let x = 5\nlet y = x + 1\nin y * 2")
+  , check "parse: defs-only module"    (parsesOk "let x = 5\nlet y = 6")
+  , check "parse: import then defs"    (parsesOk "import \"a.hly\"\nlet x = 1\nx")
+  , check "parse: defs then import"    (parseFails "let x = 1\nimport \"a.hly\"\nx")
   ]
 
 typeTests :: Harness
@@ -304,6 +320,12 @@ typeTests =
   , check "type: reject match arity" (inferFails "data Maybe a = Nothing | Just a\nmatch Just 5 with | Just a b => a")
   , check "type: reject match unbound ctor" (inferFails "match 5 with | Nope => 1")
   , check "type: reject branch mismatch" (inferFails "match 5 with | _ => 1 | _ => true")
+  , check "type: top-level let"      (inferredAs "let x = 5\nx + 1" "Int")
+  , check "type: top-level rec"      (inferredAs "let rec f = fn n => if n < 2 then n else f (n - 1)\nf 10" "Int")
+  , check "type: top-level poly"     (inferredAs "let id = fn x => x\nid 1" "Int")
+  , check "type: top-level poly str" (inferredAs "let id = fn x => x\nid \"s\"" "String")
+  , check "type: defs generalize after earlier def" (inferredAs "data Pair a b = Pair a b\nlet fst = fn p => match p with | Pair a b => a\nlet snd = fn p => match p with | Pair a b => b\nfst (Pair 1 \"s\")" "Int")
+  , check "type: reject duplicate def" (inferFails "let x = 5\nlet x = 6\nx")
   ]
 
 evalTests :: Harness
@@ -369,6 +391,11 @@ evalTests =
   , check "eval: match data fallback" (evalsTo "data Maybe a = Nothing | Just a\nmatch Nothing with | Just x => x | Nothing => 0" "0")
   , check "eval: match no fallthrough" (evalFails "match 5 with | 1 => 0")
   , check "eval: match bound in body" (evalsTo "match [1, 2] with | [a, b] => b | _ => 0" "2")
+  , check "eval: top-level def"     (evalsTo "let x = 5\nlet y = x + 1\nin y * 2" "12")
+  , check "eval: top-level rec"     (evalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2)\nfib 20" "6765")
+  , check "eval: top-level poly"    (evalsTo "let id = fn x => x\nlet a = id 1\nlet b = id \"s\"\nin b" "s")
+  , check "eval: top-level forward ref" (evalsTo "let x = 5\nlet y = x + 1\nin y" "6")
+  , check "eval: defs generalized after earlier def" (evalsTo "data Pair a b = Pair a b\nlet fst = fn p => match p with | Pair a b => a\nlet rec foldl = fn f acc xs => match xs with | [] => acc | x :: rest => foldl f (f acc x) rest\nlet rev = fn xs => foldl (fn acc x => cons x acc) [] xs\nrev [1, 2, 3]" "[3, 2, 1]")
   ]
 
 vmTests :: IO Harness
@@ -557,6 +584,58 @@ corpusTests = sequence
   ]
 
 -- ---------------------------------------------------------------------
+-- Module resolution (v3 imports), driven by an in-memory provider.
+-- ---------------------------------------------------------------------
+
+resolvedAs :: Map.Map FilePath String -> String -> String -> IO (Either String ())
+resolvedAs mods src expected = do
+  r <- resolveProgram (memProvider mods) "" src
+  return $ case r of
+    Left (ModuleError _ m) -> Left ("module error: " <> m)
+    Right prog -> case evalProgramIn prog of
+      Left (EvalError _ m)  -> Left ("eval error: " <> m)
+      Right (Just v) ->
+        let shown = showValue v
+        in if shown == expected
+             then Right ()
+             else Left ("expected " <> expected <> ", got " <> shown)
+      Right Nothing -> Left ("expected " <> expected <> ", but the module has no result")
+
+resolvedFails :: Map.Map FilePath String -> String -> IO (Either String ())
+resolvedFails mods src = do
+  r <- resolveProgram (memProvider mods) "" src
+  return $ case r of
+    Left _       -> Right ()
+    Right prog   -> case evalProgramIn prog of
+      Left _         -> Right ()
+      Right (Just v) -> Left ("expected a module/eval error, but got " <> showValue v)
+      Right Nothing  -> Left "expected a module error, but the module typechecked and ran"
+
+moduleTests :: IO Harness
+moduleTests = sequence
+  [ checkIO "module: simple import"
+      (resolvedAs (Map.fromList [("m.hly", "let y = 41\nlet z = y + 1\nz")]) "import \"m.hly\"\nz" "42")
+  , checkIO "module: import defs reused"
+      (resolvedAs (Map.fromList [("m.hly", "let add = fn a b => a + b")]) "import \"m.hly\"\nadd 1 2 + add 3 4" "10")
+  , checkIO "module: transitive import"
+      (resolvedAs (Map.fromList [("a.hly", "let x = 5"), ("b.hly", "import \"a.hly\"\nlet y = x + 1\ny")]) "import \"b.hly\"\ny" "6")
+  , checkIO "module: import order before defs"
+      (resolvedAs (Map.fromList [("m.hly", "let two = 2")]) "import \"m.hly\"\nlet x = two * 21\nx" "42")
+  , checkIO "module: duplicate import deduped"
+      (resolvedAs (Map.fromList [("a.hly", "let x = 5"), ("b.hly", "import \"a.hly\"\nlet y = x\ny"), ("c.hly", "import \"a.hly\"\nimport \"b.hly\"\nlet z = y\nz")]) "import \"a.hly\"\nimport \"b.hly\"\nimport \"c.hly\"\nz" "5")
+  , checkIO "module: defs-only import contributes no expr"
+      (resolvedAs (Map.fromList [("m.hly", "let x = 5")]) "import \"m.hly\"\nlet y = x + 1\nin y" "6")
+  , checkIO "module: missing module"
+      (resolvedFails (Map.fromList []) "import \"nope.hly\"\n1")
+  , checkIO "module: circular import"
+      (resolvedFails (Map.fromList [("a.hly", "import \"b.hly\"\nlet x = 1"), ("b.hly", "import \"a.hly\"\nlet y = 2")]) "import \"a.hly\"\nx")
+  , checkIO "module: duplicate def across imports"
+      (resolvedFails (Map.fromList [("a.hly", "let x = 1"), ("b.hly", "let x = 2")]) "import \"a.hly\"\nimport \"b.hly\"\n1")
+  , checkIO "module: imported module's expr ignored"
+      (resolvedAs (Map.fromList [("m.hly", "let x = 5\nx + 1")]) "import \"m.hly\"\nx" "5")
+  ]
+
+-- ---------------------------------------------------------------------
 -- Main
 -- ---------------------------------------------------------------------
 
@@ -568,6 +647,7 @@ runSelftest = do
   opt <- optTests
   corp <- corpusTests
   optCorp <- optCorpusTests
+  mods <- moduleTests
   let groups =
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
@@ -579,6 +659,7 @@ runSelftest = do
         , ("opt", opt)
         , ("corpus", corp)
         , ("opt-corpus", optCorp)
+        , ("modules", mods)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups
