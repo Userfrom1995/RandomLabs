@@ -17,6 +17,7 @@ import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, showValue)
 import Halcyon.Compile (compileProgram, CompileError(..), disassemble, Program(..))
+import Halcyon.Op (Func(..), showInstr)
 import Halcyon.Vm (runVm, VmError(..), vmShowValue)
 
 -- ---------------------------------------------------------------------
@@ -87,7 +88,10 @@ inferFails :: String -> Either String ()
 inferFails src = case inferProgram src of
   Left _          -> Right ()
   Right (Just t)  -> Left ("expected a type error, but inferred " <> showType t)
-  Right Nothing   -> Left "expected a type error, but the module typechecked with no result"
+  Right Nothing        -> Left "expected a type error, but the module typechecked with no result"
+
+entryCode :: Func -> String
+entryCode = unlines . map (("  " <>) . showInstr) . fCode
 
 evalsTo :: String -> String -> Either String ()
 evalsTo src expected = case evalProgram src of
@@ -296,7 +300,7 @@ typeTests =
   , check "type: reject int + bool"  (inferFails "1 + true")
   , check "type: reject if int cond" (inferFails "if 1 then 2 else 3")
   , check "type: reject unbound"     (inferFails "nope")
-  , check "type: reject string arith"(inferFails "\"a\" + \"b\"")
+  , check "type: string concat"        (inferredAs "\"a\" + \"b\"" "String")
   , check "type: reject apply arith" (inferFails "let g = fn f => f 1 in g (fn x => x + \"s\")")
   , check "type: length"             (inferredAs "length [1, 2, 3]" "Int")
   , check "type: length poly"        (inferredAs "let l = fn xs => length xs in l [true]" "Int")
@@ -439,11 +443,21 @@ evalTests =
   , check "eval: record equality"     (evalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 } == { y = 2, x = 1 }" "true")
   , check "eval: record inequality"   (evalsTo "record Point = { x : Int, y : Int }\n{ x = 1, y = 2 } /= { x = 1, y = 3 }" "true")
   , check "eval: record polymorphic"  (evalsTo "record Pair a b = { fst : a, snd : b }\nlet p1 = { fst = 1, snd = 2 } in let p2 = { fst = true, snd = 1.5 } in if p2.fst then p1.snd else 0" "2")
-  , check "eval: record pattern"      (evalsTo "record Point = { x : Int, y : Int }\nmatch { y = 2, x = 1 } with | { x = a, y = b } => a + b" "3")
-  , check "eval: record pattern fallback" (evalsTo "record Maybe = { just : Bool, val : Int }\nmatch { val = 7, just = true } with | { just = false, val = _ } => 0 | { just = true, val = v } => v" "7")
-  , check "eval: record pattern no match" (evalFails "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = 9, y = 9 } => 0")
-  , check "eval: record in list"      (evalsTo "record Point = { x : Int, y : Int }\n(head [{ x = 1, y = 2 }, { x = 3, y = 4 }]).x" "1")
-  ]
+   , check "eval: record pattern"      (evalsTo "record Point = { x : Int, y : Int }\nmatch { y = 2, x = 1 } with | { x = a, y = b } => a + b" "3")
+   , check "eval: record pattern fallback" (evalsTo "record Maybe = { just : Bool, val : Int }\nmatch { val = 7, just = true } with | { just = false, val = _ } => 0 | { just = true, val = v } => v" "7")
+   , check "eval: record pattern no match" (evalFails "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = 9, y = 9 } => 0")
+   , check "eval: show int"            (evalsTo "show 42" "42")
+   , check "eval: show float"          (evalsTo "show 3.5" "3.5")
+   , check "eval: show list"           (evalsTo "show [1, 2, 3]" "[1, 2, 3]")
+   , check "eval: show bool"           (evalsTo "show true" "true")
+   , check "eval: show nested list"    (evalsTo "show [[1, 2], [3]]" "[[1, 2], [3]]")
+   , check "eval: string concat"       (evalsTo "\"ab\" + \"cd\"" "abcd")
+   , check "eval: class basic instance" (evalsTo "class Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\nsize [1, 2, 3]" "3")
+   , check "eval: class instance with context" (evalsTo "data Pair a = MkPair a a\nlet fst = fn p => match p with | MkPair x y => x\nclass Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\ninstance Size a => Size (Pair a) where\n  size = fn p => size (fst p)\nsize (MkPair (MkPair 1 2) (MkPair 3 4))" "1")
+   , check "eval: class method via local" (evalsTo "class Eq a where\n  eq : a -> a -> Bool\ninstance Eq Int where\n  eq = fn a b => a == b\nlet f = fn x y => eq x y in f 3 3" "true")
+   , check "eval: class overlap rejected" (inferFails "class C a where\n  m : a -> Int\ninstance C Int where\n  m = fn x => 1\ninstance C Int where\n  m = fn x => 2\nm 1")
+   , check "eval: class missing instance rejected" (inferFails "class C a where\n  m : a -> Int\ninstance C Int where\n  m = fn x => 1\nm true")
+   ]
 
 vmTests :: IO Harness
 vmTests = sequence
@@ -521,8 +535,14 @@ vmTests = sequence
   , checkIO "vm: record pattern"      (vmEvalsTo "record Point = { x : Int, y : Int }\nmatch { y = 2, x = 1 } with | { x = a, y = b } => a + b" "3")
   , checkIO "vm: record pattern fallback" (vmEvalsTo "record Maybe = { just : Bool, val : Int }\nmatch { val = 7, just = true } with | { just = false, val = _ } => 0 | { just = true, val = v } => v" "7")
   , checkIO "vm: record pattern no match" (vmFails "record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = 9, y = 9 } => 0")
-  , checkIO "vm: record proj on call result" (vmEvalsTo "record Point = { x : Int, y : Int }\n(head [{ x = 5, y = 6 }]).x" "5")
-  ]
+   , checkIO "vm: record proj on call result" (vmEvalsTo "record Point = { x : Int, y : Int }\n(head [{ x = 5, y = 6 }]).x" "5")
+   , checkIO "vm: show int"        (vmEvalsTo "show 42" "42")
+   , checkIO "vm: show list"       (vmEvalsTo "show [1, 2, 3]" "[1, 2, 3]")
+   , checkIO "vm: string concat"   (vmEvalsTo "\"ab\" + \"cd\"" "abcd")
+   , checkIO "vm: class basic instance" (vmEvalsTo "class Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\nsize [1, 2, 3]" "3")
+   , checkIO "vm: class instance with context" (vmEvalsTo "data Pair a = MkPair a a\nlet fst = fn p => match p with | MkPair x y => x\nclass Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\ninstance Size a => Size (Pair a) where\n  size = fn p => size (fst p)\nsize (MkPair (MkPair 1 2) (MkPair 3 4))" "1")
+   , checkIO "vm: class method via local" (vmEvalsTo "class Eq a where\n  eq : a -> a -> Bool\ninstance Eq Int where\n  eq = fn a b => a == b\nlet f = fn x y => eq x y in f 3 3" "true")
+   ]
 
 diffTests :: IO Harness
 diffTests = sequence
@@ -558,8 +578,15 @@ diffTests = sequence
   , checkIO "diff: record pattern" (differential "record Point = { x : Int, y : Int }\nmatch { y = 3, x = 4 } with | { x = a, y = b } => a * b" "12")
   , checkIO "diff: record equality" (differential "record Point = { x : Int, y : Int }\n{ y = 2, x = 1 } == { x = 1, y = 2 }" "true")
   , checkIO "diff: record poly"     (differential "record Pair a b = { fst : a, snd : b }\nlet p = { fst = [1, 2], snd = \"hi\" } in length (reverse p.fst)" "2")
-  , checkIO "diff: record nested"   (differential "record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\nlet o = { tag = 1, inner = { v = 9 } } in o.inner.v" "9")
-  ]
+   , checkIO "diff: record nested"   (differential "record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\nlet o = { tag = 1, inner = { v = 9 } } in o.inner.v" "9")
+   , checkIO "diff: show int"      (differential "show 42" "42")
+   , checkIO "diff: show list"     (differential "show [1, 2, 3]" "[1, 2, 3]")
+   , checkIO "diff: string concat" (differential "\"ab\" + \"cd\"" "abcd")
+   , checkIO "diff: class basic"   (differential "class Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\nsize [1, 2, 3]" "3")
+   , checkIO "diff: class context" (differential "data Pair a = MkPair a a\nlet fst = fn p => match p with | MkPair x y => x\nclass Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\ninstance Size a => Size (Pair a) where\n  size = fn p => size (fst p)\nsize (MkPair (MkPair 1 2) (MkPair 3 4))" "1")
+   , checkIO "diff: class curried method" (differential "class Eq a where\n  eq : a -> a -> Bool\ninstance Eq Int where\n  eq = fn a b => a == b\nlet f = fn x y => eq x y in f 3 3" "true")
+   , checkIO "diff: class method tail position" (differential "class Eq a where\n  eq : a -> a -> Bool\ninstance Eq Int where\n  eq = fn a b => a == b\nlet rec loop = fn n => if n < 1 then eq n 0 else loop (n - 1) in loop 5000" "true")
+   ]
 
 -- | A disassembly check: the tail position of a recursive function must
 -- compile to a @tail_call@ instruction (not @call@), and the accumulator
@@ -609,7 +636,7 @@ optTests = sequence
       case compileProgram "1 + 2 * 3" of
         Left (CompileError _ m) -> return (Left ("compile error: " <> m))
         Right prog -> do
-          let d = disassemble (pEntry (optimizeProgram prog))
+          let d = entryCode (pEntry (optimizeProgram prog))
           if any (`elem` words d) ["add", "mul"]
             then return (Left ("arithmetic not folded:\n" <> d))
             else return (Right ())
@@ -617,7 +644,7 @@ optTests = sequence
       case compileProgram "let x = 5 in 42" of
         Left (CompileError _ m) -> return (Left ("compile error: " <> m))
         Right prog -> do
-          let d = disassemble (pEntry (optimizeProgram prog))
+          let d = entryCode (pEntry (optimizeProgram prog))
           if "store_local" `elem` words d
             then return (Left ("dead store not eliminated:\n" <> d))
             else return (Right ())

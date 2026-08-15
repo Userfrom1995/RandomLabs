@@ -4,3 +4,8 @@ data Maybe a = Nothing | Just a
 let fromMaybe = fn d m => match m with | Nothing => d | Just x => x
 let isJust = fn m => match m with | Nothing => false | Just _ => true
 let isNothing = fn m => match m with | Nothing => true | Just _ => false
+
+-- A user-defined Show instance: the element context is discharged against
+-- the head variable, so show threads a dictionary for the inner value.
+instance Show a => Show (Maybe a) where
+  show = fn m => match m with | Nothing => "Nothing" | Just x => "Just (" + show x + ")"

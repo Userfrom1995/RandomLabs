@@ -323,4 +323,46 @@ corpus =
         , "if a == b then (if a /= c then 42 else 0) else 0"
         ])
       "42"
+  , CorpusEntry "show-int"
+      (unlines
+        [ "-- The built-in Show class renders an Int via dictionary dispatch."
+        , "show 42"
+        ])
+      "42"
+  , CorpusEntry "show-float"
+      (unlines
+        [ "-- Show dispatches on the Float instance."
+        , "show 3.5"
+        ])
+      "3.5"
+  , CorpusEntry "show-list"
+      (unlines
+        [ "-- Show recurses over the list instance."
+        , "show [1, 2, 3]"
+        ])
+      "[1, 2, 3]"
+  , CorpusEntry "show-bool"
+      (unlines
+        [ "-- Show dispatches on the Bool instance."
+        , "show true"
+        ])
+      "true"
+  , CorpusEntry "class-size-pair"
+      (unlines
+        [ "-- A user class with a context (dictionary) instance: the Pair"
+        , "-- instance needs a Size dictionary for the element type, which"
+        , "-- the compiler synthesizes and threads at call sites."
+        , "data Pair a = MkPair a a"
+        , "let fst = fn p => match p with | MkPair x y => x"
+        , "class Size a where"
+        , "  size : a -> Int"
+        , "instance Size Int where"
+        , "  size = fn x => 1"
+        , "instance Size [a] where"
+        , "  size = fn xs => length xs"
+        , "instance Size a => Size (Pair a) where"
+        , "  size = fn p => size (fst p)"
+        , "size (MkPair (MkPair 1 2) (MkPair 3 4))"
+        ])
+      "1"
   ]

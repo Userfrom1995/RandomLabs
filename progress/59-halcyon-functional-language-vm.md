@@ -38,7 +38,7 @@
 - [x] 18. Record types: record decls, { f = e } literals, e.f projection,
   { e with f = e' } update, record patterns, TRec + VRec + MakeRecord/
   GetField/UpdateField opcodes, selftests + corpus
-- [ ] 19. Type classes with dictionary passing: class/instance decls,
+- [x] 19. Type classes with dictionary passing: class/instance decls,
   constraint contexts on schemes, instance resolution, VDict/VmDict +
   DictGet, intToStr/floatToStr/boolToStr builtins, Show class in stdlib,
   differential tests
@@ -54,11 +54,11 @@ v3 enhancement round (shipping-limit round 2) is designed and ready for the
 Builder. Milestones 17-21 were added to the checklist: M17 top-level
 definitions + module system, M18 record types, M19 type classes with
 dictionary passing, M20 Char + string operations, M21 VM profiler +
-optimizer expansion + JS/playground/docs sync. M17 and M18 are complete.
-Next up: M19 type classes with dictionary passing. The merge is still held
-by the Aug 15 shipping cap (2/2); the v3 round must land and pass a fresh
-review + test on the new head before the Maintainer merges after the 00:00Z
-Aug 16 cap reset.
+optimizer expansion + JS/playground/docs sync. M17, M18 and M19 are complete.
+Next up: M20 Char + string operations. The merge is still held by the
+Aug 15 shipping cap (2/2); the v3 round must land and pass a fresh review +
+test on the new head before the Maintainer merges after the 00:00Z Aug 16
+cap reset.
 
 ## Next steps
 Builder to implement M17 (top-level definitions + module system + lib/
@@ -506,3 +506,38 @@ and make smoke still green.
   fix, resolveProgram/memProvider + bundled lib modules, new corpus/examples
   entries. make test: 354 pass; make smoke green (corpus 31/31 both ways,
   examples 11/11); js corpus-check.js examples: 121 checks, 0 failures.
+
+- 2026-08-15 (builder) - Milestone 19 (type classes with dictionary passing):
+  new Classes.hs (ClassEnv/ClassDecl/InstanceDecl/InstanceInfo, buildClassEnv,
+  overlap rejection, builtinClass Show with Int/Float/Bool/String/List instances,
+  builtinShowList via string + concat). Lexer: class/instance/where keywords,
+  `->`/`=>` lex as a single TArrow token (for `size : a -> Int` signatures).
+  Parser: class decl (methods with type signatures), instance decl (optional
+  context `C a =>`, head with type args, where body), head strips a repeated
+  class name, head vars encode to the reserved classTypeVar (2000000000) so
+  they never collide with inference metavariables (which start at 0 again).
+  Type: Scheme gains a context field (cn, type) list; showType handles large
+  var ids. Infer: checkClass/checkInstance/checkMethod, dischargeCtx (contexts
+  on head vars are discharged; runtime vars keep constraints), solveConstraints
+  with per-class-var resolution + ambiguity/no-instance errors, resolveInstance
+  (head matching + head bindings + unification), unifyHead/unifyHeadB/partitionCtx.
+  Value: VMethod/VDict; Eval threads a ClassEnv, dispatchMethod dispatches by
+  value type tag (ctorFor/ciType) and runs method bodies in the entry context,
+  Add on two strings concatenates, new intToStr/floatToStr/boolToStr/
+  strToStr/listToStr builtins. Op/Compile: CMethod const, compileDicts emits
+  method funcs into the entry pool and returns the dict table, Program gains
+  pDicts + pCtors (constructor-name -> type map so VM dispatch tags match
+  instance heads); resolveRef falls back to a CMethod for class methods; entry
+  pool built from the post-dict state. Optimize: optimizeProgram keeps dict
+  method consts as extra rebuildPool roots and remaps pDicts indices.
+  Vm: VmVMethod/VmDict, dispatchMethod/dispatchMethodTail look up the dict by
+  runtime tag, then apply the method func as a curried closure (fixes a
+  no-local-at-slot-1 bug for 2-arg methods like `eq = fn a b => a == b`).
+  Class-var collision originally worked around with a 10000 inference start,
+  replaced by the dedicated classTypeVar sentinel so user-facing types stay
+  clean (`a -> a`, not `t10000 -> t10000`). Selftests: 33 new checks
+  (builtin Show, string concat, basic/context/curried/tail-position class
+  usage, overlap + missing-instance rejection) plus 5 new corpus entries
+  (show-int/float/list/bool, class-size-pair); lib/maybe.hly gained a
+  `Show a => Show (Maybe a)` instance demo. make test: 473 pass; make
+  smoke green; recursive-context Pair class verified on eval/run-vm/--opt.
