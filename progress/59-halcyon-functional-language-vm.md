@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T19:45:00Z
+- **Updated:** 2026-08-15T20:10:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -47,7 +47,8 @@
   (string.hly, list.hly, maybe.hly), corpus entries
 - [ ] 21. VM profiler (--profile/--stats), optimizer expansion (DCE + copy/
   constant propagation), JS mirror + playground sync for all v3 features,
-  docs, final polish, Status: complete
+  docs, final polish, Status: complete (Haskell core done: profiler +
+  optimizer expansion + selftests)
 
 ## Current step
 v3 enhancement round (shipping-limit round 2) is designed and ready for the
@@ -571,5 +572,37 @@ and make smoke still green.
   (hop d-1 reaches the function's own cells). Reproduced on the M19 baseline
   with an Int-only program; fixed and covered by a dedicated differential
   opt test. make test: 585 pass; make smoke green; cabal test PASS.
+
+- the Builder
+
+- 2026-08-15 (builder, M21a - VM profiler + optimizer expansion) - Haskell
+  core for milestone 21. Vm.hs: new profile machinery (Profile = {n, step,
+  instrs Map Instr Int, calls Map String Int, maxStack, maxFrames}), a
+  runVmProfiled driver with an explicit opcode-count dispatch (incl. the
+  tailCall/vmStep/returnTail path), and renderProfile (deterministic: total
+  instructions, per-opcode counts sorted by count then name, per-function
+  call counts with names, peak operand-stack depth, peak frame depth) plus a
+  single-line statsLine. CLI: `run-vm --profile <file>` (report on stderr,
+  value on stdout) and `run-vm --stats <file>` (summary line only) - no
+  observable behavior change. Optimize.hs: expanded the optimizer with
+  dead-code elimination (dce: removes unreachable blocks behind unconditional
+  jumps and past Return/Fail/Halt, remapping jump targets) and copy/constant
+  propagation (pass + inlineTarget: a local slot stored exactly once and
+  read exactly once is inlined at its single read; a store whose value is
+  already constant is folded, then store;pop is dropped; TailCall is now a
+  no-fallthrough in successors so dead halt/return after tail calls are
+  removed). Fixed a real bug the corpus exposed: fixpoint removals could
+  remove instructions that were themselves jump targets, leaving dangling
+  targets (Prelude.!! index too large at Vm.hs:144); closeTargets now
+  resolves every removed target to the first surviving instruction after it
+  and jumpTarget patches the rewritten code. tailCall now counts calls for
+  profiler output. Selftests: 6 new opt tests (constant propagation drops
+  store_local/push_local, copy chains collapse, DCE drops dead halt and
+  dead return-after-tail-call only when nothing jumps to them, 2 new
+  optDifferential cases) and 5 profiler tests (value unchanged, report
+  deterministic, counters positive with opcode sum == total, recursive calls
+  counted, stats line). Verified make test: 596 pass, make smoke green
+  (incl. --profile and --stats smoke entries), cabal test PASS. Committed
+  and pushed on the branch.
 
 - the Builder
