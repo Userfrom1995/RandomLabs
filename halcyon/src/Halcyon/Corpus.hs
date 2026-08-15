@@ -365,4 +365,57 @@ corpus =
         , "size (MkPair (MkPair 1 2) (MkPair 3 4))"
         ])
       "1"
+  , CorpusEntry "char-basics"
+      (unlines
+        [ "-- Char literals, equality, and escaped forms."
+        , "(if 'a' == 'a' then 1 else 0) + (if 'a' /= 'b' then 10 else 0)"
+        , "  + (if '\\n' == '\\n' then 100 else 0)"
+        ])
+      "111"
+  , CorpusEntry "char-pattern"
+      (unlines
+        [ "-- Char literals in match patterns, with the wildcard fallback."
+        , "let f = fn c => match c with"
+        , "  | 'a' => 1"
+        , "  | 'b' => 2"
+        , "  | '\\n' => 3"
+        , "  | _ => 0"
+        , "in f 'b' * 100 + f 'a' * 10 + f 'x'"
+        ])
+      "210"
+  , CorpusEntry "string-ops"
+      (unlines
+        [ "-- The string builtins combine into simple surgery."
+        , "let s = \"hello world\" in"
+        , "strLen s * 100"
+        , "  + (if charAt s 1 == 'e' then 10 else 0)"
+        , "  + (if substr s 6 5 == \"world\" then 1 else 0)"
+        ])
+      "1111"
+  , CorpusEntry "str-reflection"
+      (unlines
+        [ "-- str is the observable-reflection escape hatch: it renders any"
+        , "-- value exactly as the CLI prints it."
+        , "str 42 + \":\" + str true + \":\" + str [1, 2] + \":\" + str 'a'"
+        ])
+      "42:true:[1, 2]:'a'"
+  , CorpusEntry "char-string-show"
+      (unlines
+        [ "-- The built-in Show instances render chars, lists and bools."
+        , "show 'a' + show [1, 2] + show true"
+        ])
+      "'a'[1, 2]true"
+  , CorpusEntry "string-table"
+      (unlines
+        [ "-- A formatted table built purely from strings and records."
+        , "record Row = { name : String, qty : Int }"
+        , "let rows = [ { name = \"apple\", qty = 3 }, { name = \"pear\", qty = 5 } ] in"
+        , "let rec render = fn rs => match rs with"
+        , "  | [] => \"\""
+        , "  | r :: rest => strAppend r.name"
+        , "      (strAppend \": \""
+        , "        (strAppend (str r.qty) (if isNil rest then \"\" else \" | \" + render rest)))"
+        , "in render rows"
+        ])
+      "apple: 3 | pear: 5"
   ]

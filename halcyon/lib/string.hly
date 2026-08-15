@@ -1,0 +1,50 @@
+-- The self-hosted string library: string combinators written in Halcyon
+-- itself, layered on the core string builtins (strLen, charAt, substr,
+-- strAppend, strContains, str).
+
+-- Splits a string into a list of characters.
+let rec chars = fn s =>
+  let rec go = fn i acc =>
+    if i < 0 then acc else go (i - 1) (cons (charAt s i) acc)
+  in go (strLen s - 1) []
+
+-- The bare single-character string for a char: str renders quoted
+-- ('a', '\n', ...), so peel the surrounding quotes back off.
+let fromChar = fn c =>
+  let q = str c in substr q 1 (strLen q - 2)
+
+-- Builds a string from a list of characters.
+let rec fromChars = fn cs =>
+  match cs with
+  | [] => ""
+  | c :: rest => strAppend (fromChar c) (fromChars rest)
+
+-- Uppercases one character (a-z only, other characters pass through).
+let toUpper = fn c => match c with
+  | 'a' => 'A' | 'b' => 'B' | 'c' => 'C' | 'd' => 'D' | 'e' => 'E'
+  | 'f' => 'F' | 'g' => 'G' | 'h' => 'H' | 'i' => 'I' | 'j' => 'J'
+  | 'k' => 'K' | 'l' => 'L' | 'm' => 'M' | 'n' => 'N' | 'o' => 'O'
+  | 'p' => 'P' | 'q' => 'Q' | 'r' => 'R' | 's' => 'S' | 't' => 'T'
+  | 'u' => 'U' | 'v' => 'V' | 'w' => 'W' | 'x' => 'X' | 'y' => 'Y'
+  | 'z' => 'Z' | _ => c
+
+-- Uppercases every character of a string.
+let toUpperStr = fn s =>
+  let rec go = fn cs => match cs with
+    | [] => []
+    | c :: rest => cons (toUpper c) (go rest)
+  in fromChars (go (chars s))
+
+-- Counts how many times a character appears in a string.
+let countChar = fn c s =>
+  let rec go = fn i n =>
+    if i >= strLen s then n
+    else go (i + 1) (if charAt s i == c then n + 1 else n)
+  in go 0 0
+
+-- Repeats a string n times (n <= 0 yields the empty string).
+let rec repeat = fn n s =>
+  if n < 1 then "" else strAppend s (repeat (n - 1) s)
+
+-- True when the string starts with the given prefix.
+let startsWith = fn prefix s => substr s 0 (strLen prefix) == prefix

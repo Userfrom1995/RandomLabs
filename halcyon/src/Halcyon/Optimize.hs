@@ -52,7 +52,7 @@ optimizeFuncRoots :: [Int] -> Func -> (Func, Map.Map Int Int)
 optimizeFuncRoots extraRoots f =
   let pool0 = map optConst (fConstants f)
       readSlots  = [s | PushLocal s <- fCode f]
-      captured   = [i | CFunc g <- pool0, (0, i) <- fUpvals g]
+      captured   = capturedByNested pool0
       isDeadSlot s = s `notElem` readSlots && s `notElem` captured
       (code1, poolAdds, posMap) = fixpoint pool0 isDeadSlot (fCode f)
       pool1 = pool0 ++ poolAdds
@@ -67,6 +67,24 @@ optimizeFuncRoots extraRoots f =
 -- roots).
 optimizeFunc :: Func -> Func
 optimizeFunc f = fst (optimizeFuncRoots [] f)
+
+-- | The slots of this function's own frame context that are captured (read
+-- as upvalues) by any closure nested inside it, transitively. A closure
+-- nested @d@ levels below this function reaches this function's own cells
+-- at an upvalue hop of exactly @d - 1@ (each hop walks one context; a
+-- directly nested closure reads the parent frame at hop 0). Hop counts
+-- larger than @d - 1@ name ancestors of this function and never touch its
+-- cells, so only the exact matching hops count here.
+capturedByNested :: [Const] -> [Int]
+capturedByNested = nub . go 1
+  where
+    go _ [] = []
+    go d (c : cs) = case c of
+      CFunc g ->
+        [i | (h, i) <- fUpvals g, h == d - 1]
+          ++ go (d + 1) (fConstants g)
+          ++ go d cs
+      _       -> go d cs
 
 -- | Iterate the rewrite until no rule fires (each round strictly shrinks the
 -- code, so this terminates). Every round works in original-code coordinates
