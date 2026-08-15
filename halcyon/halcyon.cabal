@@ -1,0 +1,46 @@
+cabal-version:      2.4
+name:               halcyon
+version:            0.1.0.0
+synopsis:           A small functional programming language and bytecode VM in Haskell
+description:        Halcyon is a small, calm, well-typed functional language: lexer, parser,
+                    Hindley-Milner type inference, a tree-walking interpreter, and a bytecode VM
+                    with closures and upvalue cells. The core is headless and fully testable.
+homepage:           https://github.com/Userfrom1995/Random
+license:            MIT
+author:             Random factory
+maintainer:         github-actions[bot]@users.noreply.github.com
+build-type:         Simple
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Halcyon.Token
+                       Halcyon.Lexer
+                       Halcyon.Ast
+                       Halcyon.Parser
+                       Halcyon.Type
+                       Halcyon.Infer
+                       Halcyon.Value
+                       Halcyon.Eval
+                       Halcyon.Op
+                       Halcyon.Compile
+                       Halcyon.Vm
+                       Halcyon.Repl
+                       Halcyon.CLI
+  build-depends:       base >=4.14 && <5, containers
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+executable halcyon
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  build-depends:       base >=4.14 && <5, halcyon
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+test-suite halcyon-test
+  type:                exitcode-stdio-1.0
+  main-is:             Test.hs
+  hs-source-dirs:      test
+  build-depends:       base >=4.14 && <5, halcyon
+  default-language:    Haskell2010
+  ghc-options:         -Wall

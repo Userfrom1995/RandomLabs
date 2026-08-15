@@ -6,7 +6,7 @@
 - **Updated:** 2026-08-15T12:15:00Z
 
 ## Checklist
-- [ ] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
+- [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
 - [ ] 2. Core domain: Token + Lexer + AST + Parser (positioned errors, precedence climbing)
 - [ ] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
 - [ ] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
@@ -19,7 +19,7 @@
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Ready for initial build
+Scaffold complete; core domain (lexer/parser/AST) next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -35,5 +35,11 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   opencode/59-halcyon-functional-language-vm, wrote the architectural blueprint
   (ideas/2026-08-15-halcyon-functional-language-vm.md) and this progress
   tracker, committed, pushed, opened the blueprint PR (Closes #59).
+- 2026-08-15 (builder) - Milestone 1 (scaffold): halcyon/ with Makefile
+  (ghc --make, no deps beyond boot libs), halcyon.cabal, src/Main.hs + CLI
+  stub (help/version/unknown-command with exit codes), README skeleton,
+  examples/ js/ docs/ test/ dirs, build/ + obj .gitignore. Verified
+  `make` builds and CLI responds. Pushed milestone-by-milestone per the
+  Maintainer's continue mandate.
 
 - the Architect

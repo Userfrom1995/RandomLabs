@@ -1,0 +1,2 @@
+-- Halcyon example programs. The corpus is shared by the Haskell core
+-- (interpreter and VM), the differential checks, and the web playground.
