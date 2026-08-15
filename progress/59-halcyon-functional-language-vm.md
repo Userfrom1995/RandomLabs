@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T17:00:00Z
+- **Updated:** 2026-08-15T17:20:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -51,9 +51,9 @@ corpus-check port for data/match/TCO/--opt, (b) self-hosted stdlib in Halcyon
 root README/index.html placement fix (Halcyon -> Current, Beambus ->
 Previous), (e) final polish + Status: complete. The current PR #61 stays open
 until the daily shipping cap resets (00:00Z Aug 16); commits accumulate on the
-branch until then. M16a (JS data/match/TCO/--opt port + corpus-check) is
-done; next is M16b: the self-hosted stdlib written in Halcyon
-(map/filter/foldl/foldr/zip/range/...).
+branch until then. M16a (JS data/match/TCO/--opt port + corpus-check) and
+M16b (self-hosted stdlib in Halcyon) are done; next is M16c: playground +
+docs updates for data/match/TCO/--opt and the stdlib.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -366,7 +366,21 @@ done; next is M16b: the self-hosted stdlib written in Halcyon
   corpus) plus 30 feature checks (match patterns, TCO deep recursion, bounded
   frame depth via the stepper, data/match typechecking). 60/60 checks green;
   JS interpreter == JS VM == Haskell on every program; Haskell make test 320
-  and make smoke still green.
+and make smoke still green.
+
+- the Builder
+
+- 2026-08-15 (builder, M16b - self-hosted standard library) - wrote
+  examples/stdlib.hly, a standard library written entirely in Halcyon,
+  proving the language's expressiveness: foldl, foldr, map, filter, zip
+  (with a Pair data type), range, sum, product, myLength, myReverse, all,
+  any, and elem, all defined with let rec and match and chained with in.
+  The demo expression exercises them end-to-end (sum of squares filtered
+  through range, length, zip/destructure, and any), yielding 1601. Added it
+  as the 29th corpus entry in both Corpus.hs and the JS corpus, and as a
+  JS playground example (stdlib.hly). Verified run/run-vm/run-vm --opt all
+  give 1601; make test 322 (29 corpus + 29 opt-corpus) green; make smoke
+  green; JS corpus-check 104 checks green with the examples dir.
 
 - the Builder
 
