@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T18:40:00Z
+- **Updated:** 2026-08-15T19:10:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -35,7 +35,7 @@
   (let/let rec top-level bindings), `import "..."` resolution with --lib,
   split the self-hosted stdlib into halcyon/lib/*.hly modules, differential
   corpus entries
-- [ ] 18. Record types: record decls, { f = e } literals, e.f projection,
+- [x] 18. Record types: record decls, { f = e } literals, e.f projection,
   { e with f = e' } update, record patterns, TRec + VRec + MakeRecord/
   GetField/UpdateField opcodes, selftests + corpus
 - [ ] 19. Type classes with dictionary passing: class/instance decls,
@@ -54,10 +54,11 @@ v3 enhancement round (shipping-limit round 2) is designed and ready for the
 Builder. Milestones 17-21 were added to the checklist: M17 top-level
 definitions + module system, M18 record types, M19 type classes with
 dictionary passing, M20 Char + string operations, M21 VM profiler +
-optimizer expansion + JS/playground/docs sync. The merge is still held by the
-Aug 15 shipping cap (2/2); the v3 round must land and pass a fresh review +
-test on the new head before the Maintainer merges after the 00:00Z Aug 16 cap
-reset.
+optimizer expansion + JS/playground/docs sync. M17 and M18 are complete.
+Next up: M19 type classes with dictionary passing. The merge is still held
+by the Aug 15 shipping cap (2/2); the v3 round must land and pass a fresh
+review + test on the new head before the Maintainer merges after the 00:00Z
+Aug 16 cap reset.
 
 ## Next steps
 Builder to implement M17 (top-level definitions + module system + lib/
