@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** complete
-- **Updated:** 2026-08-15T15:15:00Z
+- **Status:** in-progress
+- **Updated:** 2026-08-15T15:30:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -20,26 +20,30 @@
 - [x] 12. Shipping-limit iteration round: standard library list builtins
   (length/reverse/append/take/drop) in both evaluators + JS mirror with
   partial application, `halcyon eval`, caret source diagnostics, docs
+- [ ] 13. Algebraic data types: `data` declarations, type grammar, TData +
+  constructor schemes, VData/VConstr, MakeData, selftests + differential
+  corpus entry
+- [ ] 14. Pattern matching: Pattern AST + EMatch, lexer/parser, inference,
+  matchValue, VM test-chain compilation, differential corpus, JS mirror
+- [ ] 15. Tail call optimization (TailCall, constant-stack recursion) +
+  Halcyon.Optimize deterministic pass (constant folding, dead stores),
+  `compile --opt` / `run-vm --opt`, corpus verified both ways
+- [ ] 16. JS mirror + playground for data/match/TCO/--opt, self-hosted
+  stdlib (map/filter/foldl/foldr/zip/...), docs + root pages, final polish,
+  Status: complete
 
 ## Current step
-COMPLETE. Milestone 11 (final polish): found and fixed a cabal build bug -
-the executable component pointed hs-source-dirs at src/, so it recompiled
-all library modules without `containers` and failed. Moved src/Main.hs to
-app/Main.hs (standard cabal layout), set the exe hs-source-dirs to app/,
-and updated the Makefile SRC list. `make`, `make test` (129 tests),
-`cabal build`, and `cabal test` all pass cleanly now, and the cabal-built
-binary runs programs. Final verification pass: disassembly deterministic
-(byte-identical across runs), run == run-vm byte-for-byte on all 7
-examples, error exit codes 1 (lex/parse/type/runtime/IO) and 2 (usage)
-confirmed, lexer unterminated-string and division-by-zero runtime errors
-both reported, piped REPL works, --help/--version fine. Status: complete
+Architect enhancement round (v2 design) complete: blueprint updated with the
+next-level evolution plan (data types, pattern matching, TCO + optimizer,
+self-hosted stdlib) in ideas/2026-08-15-halcyon-functional-language-vm.md.
+Ready for the Builder to implement milestones 13-16.
 
 ## Next steps
-Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
-js/, docs/) and implement core domain logic (lexer, parser, AST), then the
-type system, interpreter, bytecode VM, differential corpus, REPL/CLI, the JS
-web playground, docs, and the final iteration cycle, per the blueprint in
-ideas/2026-08-15-halcyon-functional-language-vm.md.
+Builder to implement milestone 13 (algebraic data types) first, then 14
+(pattern matching), 15 (tail call optimization + deterministic optimizer),
+and 16 (JS mirror + playground + self-hosted stdlib + docs + polish), per the
+v2 blueprint. Milestones 1-12 are done and merge-ready; the current PR #61
+stays open until the daily shipping cap resets (00:00Z Aug 16).
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -214,6 +218,28 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   diagnostics). Full verification: make test 166/166, make smoke clean
   (exit codes 0/1/2), cabal test PASS, node js/corpus-check.js 31/31 with
   examples. Status restored to complete.
+
+- 2026-08-15 (architect, v2 enhancement round) - dispatched by the Maintainer
+  after PR #61 re-cleared review + test (166/166) and the daily shipping cap
+  (2/2) held the merge. Read the full working core (Token/Lexer/Parser/Ast,
+  Type/Infer, Value/Eval, Op/Compile/Vm, Corpus, Repl, Diag, CLI, Selftest),
+  the JS mirror, the playground, the workflow wiring, and the maintainer's
+  dispatch playbook. Designed the v2 next-level evolution and appended the
+  spec to ideas/2026-08-15-halcyon-functional-language-vm.md (Milestones
+  13-16 below). Updated this tracker: Status back to in-progress, checklist
+  items 13-16 added. The plan: algebraic data types with top-level `data`
+  declarations and a field-type grammar (TData + polymorphic constructor
+  schemes, VData/VConstr, MakeData); structural pattern matching (`match ...
+  with | pat => e`, Pattern AST, ordered branches, test-chain VM compilation,
+  non-exhaustive runtime error with `_` idiom); tail call optimization
+  (TailCall reuses frames, constant-stack recursion) plus a deterministic
+  Halcyon.Optimize pass (constant folding, dead-store elimination) verified
+  byte-identical with and without --opt; and a self-hosted stdlib written in
+  Halcyon (map/filter/foldl/foldr/zip/range/...) proving the language's
+  expressiveness. Every milestone lands end-to-end (Haskell core, JS mirror,
+  playground, differential corpus, docs) so the differential guarantees
+  hold. Decision file written with action build for the workflow to trigger
+  the Builder.
 
 - the Builder
 
