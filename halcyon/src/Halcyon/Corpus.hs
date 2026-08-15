@@ -121,4 +121,22 @@ corpus =
         , "in count 5000"
         ])
       "5000"
+  , CorpusEntry "list-length"
+      (unlines
+        [ "-- The length builtin over a list literal."
+        , "let xs = [10, 20, 30] in length xs"
+        ])
+      "3"
+  , CorpusEntry "list-reverse"
+      (unlines
+        [ "-- reverse flips a list."
+        , "reverse [1, 2, 3]"
+        ])
+      "[3, 2, 1]"
+  , CorpusEntry "list-append-take-drop"
+      (unlines
+        [ "-- append, take, and drop combine into list surgery."
+        , "take 2 (append [1] (drop 1 [2, 3, 4]))"
+        ])
+      "[1, 3]"
   ]

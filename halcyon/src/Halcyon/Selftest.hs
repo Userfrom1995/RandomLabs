@@ -205,6 +205,15 @@ typeTests =
   , check "type: reject unbound"     (inferFails "nope")
   , check "type: reject string arith"(inferFails "\"a\" + \"b\"")
   , check "type: reject apply arith" (inferFails "let g = fn f => f 1 in g (fn x => x + \"s\")")
+  , check "type: length"             (inferredAs "length [1, 2, 3]" "Int")
+  , check "type: length poly"        (inferredAs "let l = fn xs => length xs in l [true]" "Int")
+  , check "type: reverse"            (inferredAs "reverse [1, 2, 3]" "[Int]")
+  , check "type: append"             (inferredAs "append [1] [2]" "[Int]")
+  , check "type: take"               (inferredAs "take 2 [1, 2, 3]" "[Int]")
+  , check "type: drop"               (inferredAs "drop 1 [1, 2]" "[Int]")
+  , check "type: reject length int"  (inferFails "length 5")
+  , check "type: reject append mixed"(inferFails "append [1] [true]")
+  , check "type: reject take float"  (inferFails "take 1.5 [1, 2]")
   ]
 
 evalTests :: Harness
@@ -239,6 +248,18 @@ evalTests =
   , check "eval: unbound"            (evalFails "nope")
   , check "eval: negate bool"        (evalFails "-true")
   , check "eval: arithmetic fib"     (evalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 25" "75025")
+  , check "eval: length"             (evalsTo "length [1, 2, 3]" "3")
+  , check "eval: length empty"       (evalsTo "length []" "0")
+  , check "eval: reverse"            (evalsTo "reverse [1, 2, 3]" "[3, 2, 1]")
+  , check "eval: append"             (evalsTo "append [1, 2] [3]" "[1, 2, 3]")
+  , check "eval: append partial"     (evalsTo "let a = append [1] in a [2]" "[1, 2]")
+  , check "eval: take"               (evalsTo "take 2 [1, 2, 3]" "[1, 2]")
+  , check "eval: take zero"          (evalsTo "take 0 [1, 2]" "[]")
+  , check "eval: take negative"      (evalsTo "take (-1) [1, 2]" "[]")
+  , check "eval: take beyond"        (evalsTo "take 9 [1]" "[1]")
+  , check "eval: drop"               (evalsTo "drop 1 [1, 2, 3]" "[2, 3]")
+  , check "eval: drop beyond"        (evalsTo "drop 9 [1]" "[]")
+  , check "eval: length non-list"    (evalFails "length 5")
   ]
 
 vmTests :: IO Harness
@@ -272,6 +293,14 @@ vmTests = sequence
   , checkIO "vm: arith fib"             (vmEvalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 25" "75025")
   , checkIO "vm: nested upvalues"       (vmEvalsTo "let rec makeCounter = fn n => fn step => n + step in let inc = makeCounter 10 in inc 5" "15")
   , checkIO "vm: mutual no (separate)"  (vmEvalsTo "let g = fn y => y * 2 in let f = fn x => g x in f 21" "42")
+  , checkIO "vm: length"              (vmEvalsTo "length [1, 2, 3]" "3")
+  , checkIO "vm: reverse"             (vmEvalsTo "reverse [1, 2, 3]" "[3, 2, 1]")
+  , checkIO "vm: append"              (vmEvalsTo "append [1, 2] [3]" "[1, 2, 3]")
+  , checkIO "vm: append partial"      (vmEvalsTo "let a = append [1] in a [2]" "[1, 2]")
+  , checkIO "vm: take"                (vmEvalsTo "take 2 [1, 2, 3]" "[1, 2]")
+  , checkIO "vm: take zero"           (vmEvalsTo "take 0 [1, 2]" "[]")
+  , checkIO "vm: drop"                (vmEvalsTo "drop 1 [1, 2, 3]" "[2, 3]")
+  , checkIO "vm: length non-list"     (vmFails "length 5")
   ]
 
 diffTests :: IO Harness
@@ -286,6 +315,11 @@ diffTests = sequence
   , checkIO "diff: strings"      (differential "if \"a\" == \"a\" then \"yes\" else \"no\"" "yes")
   , checkIO "diff: deep rec"     (differential "let rec count = fn n => if n < 1 then 0 else 1 + count (n - 1) in count 5000" "5000")
   , checkIO "diff: partial app"  (differential "let f = fn a b c => a * b + c in f 2 3 4" "10")
+  , checkIO "diff: length"       (differential "length [1, 2, 3, 4]" "4")
+  , checkIO "diff: reverse"      (differential "reverse [1, 2, 3]" "[3, 2, 1]")
+  , checkIO "diff: append"       (differential "append [1, 2] [3, 4]" "[1, 2, 3, 4]")
+  , checkIO "diff: take drop"    (differential "take 2 (drop 1 [1, 2, 3, 4])" "[2, 3]")
+  , checkIO "diff: stdlib mix"   (differential "let xs = append [1, 2] (reverse [3, 4]) in length (take 3 xs)" "3")
   ]
 
 corpusTests :: IO Harness

@@ -1,0 +1,2 @@
+-- reverse flips a list.
+reverse [1, 2, 3]
