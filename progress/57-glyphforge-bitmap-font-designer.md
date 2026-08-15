@@ -13,7 +13,7 @@
 - [x] editor: headless state machine + script commands + undo/redo/clipboard
 - [x] TUI: ANSI interactive editor frontend (keyboard-driven, no prompts)
 - [x] CLI: new/edit/import-art/render/export/info/list/validate/dump + --selftest
-- [ ] sample fonts: micro5x7 (95 ASCII) + pico3x5, generated .gff + exported code
+- [x] sample fonts: micro5x7 (95 ASCII) + pico3x5, generated .gff + exported code
 - [x] tests: full suite green via self-test harness (109 tests)
 - [ ] iteration/improvement cycle (no one-shot)
 - [ ] docs: README, docs/index.md + index.html, format.md, codegen.md, landing page, root README
@@ -21,11 +21,12 @@
 
 ## Current step
 Core, renderer, exporters, editor, TUI, CLI, and the full self-test suite are
-done and green (109/109). Next: author the sample fonts (micro5x7 = 95
-printable-ASCII glyphs, pico3x5 = digits+letters) as ASCII art, run
-import-art to produce the .gff artifacts, and export the embeddable code
-artifacts; then the docs, the iteration/improvement cycle, and the landing
-page.
+done and green (109/109). Sample fonts authored and generated: micro5x7
+(95 printable-ASCII glyphs, 5x7) and pico3x5 (38 glyphs, 3x5), each with a
+.gff artifact, validated, and exported to Kotlin/Java/C/text (+ RLE
+variants) with deterministic output. Next: the docs (README details,
+docs/index.md + index.html, format.md, codegen.md, landing page, root
+README), then the iteration/improvement cycle, then final push.
 
 ## Next steps
 - Write core domain classes with bit-packed glyph storage.
@@ -52,3 +53,9 @@ page.
   comment conflict switched to '//', glyph-line colon split, working-glyph
   aliasing on commit, row ordering in canonical runs). 109/109 tests green.
   Pushed milestone.
+- 2026-08-15 (run 3): authored the real font artifacts by hand: micro5x7
+  (all 95 printable-ASCII glyphs drawn in a 5x7 grid as ASCII art) and
+  pico3x5 (space, period, digits, A-Z in a 3x5 grid). import-art generated
+  Micro5x7.gff + Pico3x5.gff (both validate), eyeballed renders in blocks
+  mode, and exported deterministic code artifacts (Kotlin/Java/C/text, plus
+  kotlin-rle and c-rle). Committed sample fonts + exports milestone.
