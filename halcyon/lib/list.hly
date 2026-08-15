@@ -35,3 +35,17 @@ let rec take = fn n xs => if n < 1 then [] else match xs with
 let rec drop = fn n xs => if n < 1 then xs else match xs with
   | [] => []
   | x :: rest => drop (n - 1) rest
+let rec concat = fn xss => match xss with
+  | [] => []
+  | xs :: rest => foldr cons (concat rest) xs
+let rec zipWith = fn f xs ys => match xs with
+  | [] => []
+  | x :: rest => match ys with
+    | [] => []
+    | y :: rest2 => cons (f x y) (zipWith f rest rest2)
+let rec takeWhile = fn p xs => match xs with
+  | [] => []
+  | x :: rest => if p x then cons x (takeWhile p rest) else []
+let rec dropWhile = fn p xs => match xs with
+  | [] => []
+  | x :: rest => if p x then dropWhile p rest else xs

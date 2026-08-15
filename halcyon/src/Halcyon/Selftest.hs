@@ -866,6 +866,40 @@ moduleTests = sequence
               , "  | c :: rest => strAppend (fromChar c) (fromChars rest)"
               ]) ])
         "import \"string.hly\"\nlet cs = chars \"aab\" in length cs * 10 + (if fromChars cs == \"aab\" then 1 else 0)" "31")
+  , checkIO "module: list.hly concat/zipWith/takeWhile/dropWhile"
+      (resolvedAs
+        (Map.fromList
+          [ ("pair.hly", "data Pair a b = Pair a b")
+          , ("list.hly"
+            , unlines
+              [ "let rec foldr = fn f acc xs => match xs with"
+              , "  | [] => acc"
+              , "  | x :: rest => f x (foldr f acc rest)"
+              , "let rec concat = fn xss => match xss with"
+              , "  | [] => []"
+              , "  | xs :: rest => foldr cons (concat rest) xs"
+              , "let rec zipWith = fn f xs ys => match xs with"
+              , "  | [] => []"
+              , "  | x :: rest => match ys with"
+              , "    | [] => []"
+              , "    | y :: rest2 => cons (f x y) (zipWith f rest rest2)"
+              , "let rec takeWhile = fn p xs => match xs with"
+              , "  | [] => []"
+              , "  | x :: rest => if p x then cons x (takeWhile p rest) else []"
+              ]) ])
+        "import \"list.hly\"\nlength (concat [[1, 2], [3]]) * 100 + length (takeWhile (fn x => x < 4) [1, 2, 3, 4]) * 10 + length (zipWith (fn a b => a + b) [1, 2] [10, 20])" "332")
+  , checkIO "module: maybe.hly maybe/mapMaybe/join"
+      (resolvedAs
+        (Map.fromList
+          [ ("maybe.hly"
+            , unlines
+              [ "data Maybe a = Nothing | Just a"
+              , "let maybe = fn d f m => match m with | Nothing => d | Just x => f x"
+              , "let mapMaybe = fn f m => match m with | Nothing => Nothing | Just x => Just (f x)"
+              , "let join = fn m => match m with | Nothing => Nothing | Just x => x"
+              , "let isNothing = fn m => match m with | Nothing => true | Just _ => false"
+              ]) ])
+        "import \"maybe.hly\"\nmaybe 0 (fn x => x * 10) (Just 3) + maybe 0 (fn x => x * 10) Nothing + (if isNothing (join (Just Nothing)) then 1 else 0)" "31")
   ]
 
 -- ---------------------------------------------------------------------
