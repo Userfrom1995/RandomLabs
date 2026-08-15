@@ -188,6 +188,17 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
     selftests still pass.
   - TODO next: selftest coverage + corpus entries + example files, the JS
     mirror port, `halcyon eval` + caret source diagnostics, docs update.
+- 2026-08-15 (fixer, shipping-limit iteration round, continued): selftest
+  suite now covers every new builtin in all four suites (types, eval, vm,
+  differential; 166 total, all passing), three new pinned corpus programs
+  (list-length, list-reverse, list-append-take-drop; 18 total), and three
+  mirroring example files (10 total, all agreeing on interpreter and VM).
+  The JS mirror (js/halcyon.js) ports the same builtins: generalized
+  VPartial/VmPartialBuiltin to argument lists, arity-driven partial
+  application, and length/reverse/append/take/drop in both the CPS
+  interpreter and the makeVm machine. js/corpus-check.js: 31/31 checks
+  pass (18 corpus + 10 examples + 3 type/disasm), JS == Haskell on every
+  entry. TODO: `halcyon eval` + caret source diagnostics, docs update.
 
 - the Builder
 

@@ -31,7 +31,7 @@
   var VList  = function (v) { return { k: 'list', v: v }; };
   var VClosure = function (params, body, env) { return { k: 'closure', params: params, body: body, env: env }; };
   var VBuiltin = function (name) { return { k: 'builtin', name: name }; };
-  var VPartial = function (name, x) { return { k: 'partial', name: name, x: x }; };
+  var VPartial = function (name, args) { return { k: 'partial', name: name, args: args }; };
 
   // Deterministic float rendering, mirroring Halcyon.Value.showFloat:
   // whole floats render with a trailing ".0", ordinary magnitudes stay in
@@ -54,12 +54,12 @@
       case 'list':    return '[' + v.v.map(showValue).join(', ') + ']';
       case 'closure': return '<function>';
       case 'builtin': return '<builtin: ' + v.name + '>';
-      case 'partial': return '<builtin: ' + v.name + ' ' + showValue(v.x) + '>';
+      case 'partial': return '<builtin: ' + v.name + ' ' + v.args.map(showValue).join(' ') + '>';
       default:        return '<value>';
     }
   }
 
-  var BUILTINS = ['cons', 'head', 'tail', 'isNil'];
+  var BUILTINS = ['cons', 'head', 'tail', 'isNil', 'length', 'reverse', 'append', 'take', 'drop'];
 
   // =====================================================================
   // Positions
@@ -701,10 +701,15 @@
   function builtinScheme(name) {
     var a = TT.var_(0);
     switch (name) {
-      case 'cons':  return { qvars: new Set([0]), body: TT.fun(a, TT.fun(TT.list(a), TT.list(a))) };
-      case 'head':  return { qvars: new Set([0]), body: TT.fun(TT.list(a), a) };
-      case 'tail':  return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.list(a)) };
-      case 'isNil': return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.BOOL) };
+      case 'cons':   return { qvars: new Set([0]), body: TT.fun(a, TT.fun(TT.list(a), TT.list(a))) };
+      case 'head':   return { qvars: new Set([0]), body: TT.fun(TT.list(a), a) };
+      case 'tail':   return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.list(a)) };
+      case 'isNil':  return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.BOOL) };
+      case 'length': return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.INT) };
+      case 'reverse': return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.list(a)) };
+      case 'append': return { qvars: new Set([0]), body: TT.fun(TT.list(a), TT.fun(TT.list(a), TT.list(a))) };
+      case 'take':   return { qvars: new Set([0]), body: TT.fun(TT.INT, TT.fun(TT.list(a), TT.list(a))) };
+      case 'drop':   return { qvars: new Set([0]), body: TT.fun(TT.INT, TT.fun(TT.list(a), TT.list(a))) };
     }
   }
 
@@ -972,12 +977,14 @@
         if (vf.params.length === 1) { return evalCPS(envC, vf.body, k); }
         return k(VClosure(vf.params.slice(1), vf.body, envC));
       }
-      case 'partial':
-        if (vf.name === 'cons') {
-          if (va.k === 'list') { return k(VList([vf.x].concat(va.v))); }
-          return HErr('eval', pos, 'cons expects a list, got ' + showValue(va));
+      case 'partial': {
+        var args = vf.args.concat([va]);
+        if (args.length === builtinArity(vf.name)) {
+          var res = completeBuiltin(pos, vf.name, args);
+          return res.kind === 'eval' ? res : k(res);
         }
-        return HErr('eval', pos, 'internal error: unexpected partial builtin');
+        return k(VPartial(vf.name, args));
+      }
       case 'builtin': {
         var r = applyBuiltin(pos, vf.name, va);
         return r.kind === 'eval' ? r : k(r);
@@ -987,24 +994,68 @@
     }
   }
 
-  function applyBuiltin(pos, b, va) {
-    switch (b) {
-      case 'cons': return VPartial('cons', va);
+  // The number of arguments a builtin needs before it can run.
+  function builtinArity(name) {
+    switch (name) {
+      case 'cons': case 'append': case 'take': case 'drop': return 2;
+      default: return 1;
+    }
+  }
+
+  // Run a fully-applied builtin to a value (or an error). Mirrors the
+  // interpreter's completeBuiltin.
+  function completeBuiltin(pos, name, args) {
+    switch (name) {
+      case 'cons':
+        if (args[1].k === 'list') { return VList([args[0]].concat(args[1].v)); }
+        return HErr('eval', pos, 'cons expects a list, got ' + showValue(args[1]));
       case 'head':
-        if (va.k === 'list') {
-          if (va.v.length > 0) { return va.v[0]; }
+        if (args[0].k === 'list') {
+          if (args[0].v.length > 0) { return args[0].v[0]; }
           return HErr('eval', pos, 'head of empty list');
         }
-        return HErr('eval', pos, 'head expects a list, got ' + showValue(va));
+        return HErr('eval', pos, 'head expects a list, got ' + showValue(args[0]));
       case 'tail':
-        if (va.k === 'list') {
-          if (va.v.length > 0) { return VList(va.v.slice(1)); }
+        if (args[0].k === 'list') {
+          if (args[0].v.length > 0) { return VList(args[0].v.slice(1)); }
           return HErr('eval', pos, 'tail of empty list');
         }
-        return HErr('eval', pos, 'tail expects a list, got ' + showValue(va));
+        return HErr('eval', pos, 'tail expects a list, got ' + showValue(args[0]));
       case 'isNil':
-        if (va.k === 'list') { return VBool(va.v.length === 0); }
-        return HErr('eval', pos, 'isNil expects a list, got ' + showValue(va));
+        if (args[0].k === 'list') { return VBool(args[0].v.length === 0); }
+        return HErr('eval', pos, 'isNil expects a list, got ' + showValue(args[0]));
+      case 'length':
+        if (args[0].k === 'list') { return VInt(args[0].v.length); }
+        return HErr('eval', pos, 'length expects a list, got ' + showValue(args[0]));
+      case 'reverse':
+        if (args[0].k === 'list') { return VList(args[0].v.slice().reverse()); }
+        return HErr('eval', pos, 'reverse expects a list, got ' + showValue(args[0]));
+      case 'append':
+        if (args[0].k === 'list' && args[1].k === 'list') { return VList(args[0].v.concat(args[1].v)); }
+        return HErr('eval', pos, 'append expects lists, got ' + showValue(args[0]) + ' and ' + showValue(args[1]));
+      case 'take':
+        if (args[0].k === 'int' && args[1].k === 'list') {
+          var n = args[0].v;
+          return VList(n <= 0 ? [] : args[1].v.slice(0, n));
+        }
+        return HErr('eval', pos, 'take expects an Int and a list, got ' + showValue(args[0]) + ' and ' + showValue(args[1]));
+      case 'drop':
+        if (args[0].k === 'int' && args[1].k === 'list') {
+          var m = args[0].v;
+          return VList(m <= 0 ? args[1].v : args[1].v.slice(m));
+        }
+        return HErr('eval', pos, 'drop expects an Int and a list, got ' + showValue(args[0]) + ' and ' + showValue(args[1]));
+      default:
+        return HErr('eval', pos, 'internal error: unknown builtin');
+    }
+  }
+
+  function applyBuiltin(pos, b, va) {
+    switch (b) {
+      case 'cons': case 'append': case 'take': case 'drop':
+        return VPartial(b, [va]);
+      case 'head': case 'tail': case 'isNil': case 'length': case 'reverse':
+        return completeBuiltin(pos, b, [va]);
       default:
         return HErr('eval', pos, 'internal error: unknown builtin');
     }
@@ -1455,7 +1506,7 @@
       case 'vm_closure': return '<function>';
       case 'vm_partial': return '<function>';
       case 'vm_builtin': return '<builtin: ' + v.name + '>';
-      case 'vm_partial_builtin': return '<builtin: ' + v.name + ' ' + vmShowValue(v.x) + '>';
+      case 'vm_partial_builtin': return '<builtin: ' + v.name + ' ' + v.args.map(vmShowValue).join(' ') + '>';
       default:           return '<value>';
     }
   }
@@ -1468,7 +1519,7 @@
   function VmClosure(f, ctx) { return { k: 'vm_closure', f: f, ctx: ctx }; }
   function VmPartial(f, ctx, bound) { return { k: 'vm_partial', f: f, ctx: ctx, bound: bound }; }
   function VmBuiltin(n) { return { k: 'vm_builtin', name: n }; }
-  function VmPartialBuiltin(n, x) { return { k: 'vm_partial_builtin', name: n, x: x }; }
+  function VmPartialBuiltin(n, args) { return { k: 'vm_partial_builtin', name: n, args: args }; }
 
   // A cell is a mutable box (the JS counterpart of an IORef).
   function Cell(v) { return { box: v }; }
@@ -1481,7 +1532,7 @@
       case 'str':     return VmStr(v.v);
       case 'list':    return VmList(v.v.map(toVm));
       case 'builtin': return VmBuiltin(v.name);
-      case 'partial': return VmPartialBuiltin(v.name, toVm(v.x));
+      case 'partial': return VmPartialBuiltin(v.name, v.args.map(toVm));
       default:        return VmBuiltin('?');
     }
   }
@@ -1607,25 +1658,68 @@
       return VmBool(true);
     }
 
-    function applyBuiltin(name, arg) {
+    function vmArity(name) {
+      switch (name) {
+        case 'cons': case 'append': case 'take': case 'drop': return 2;
+        default: return 1;
+      }
+    }
+
+    // Run a fully-applied builtin (mirrors the Haskell VM's completeBuiltin).
+    function completeBuiltin(name, args) {
       switch (name) {
         case 'cons':
-          return VmPartialBuiltin('cons', arg);
+          if (args[1].k === 'vm_list') { return VmList([args[0]].concat(args[1].v)); }
+          return failVm('cons expects a list, got ' + vmShowValue(args[1]));
         case 'head':
-          if (arg.k === 'vm_list') {
-            if (arg.v.length > 0) { return arg.v[0]; }
+          if (args[0].k === 'vm_list') {
+            if (args[0].v.length > 0) { return args[0].v[0]; }
             return failVm('head of empty list');
           }
-          return failVm('head expects a list, got ' + vmShowValue(arg));
+          return failVm('head expects a list, got ' + vmShowValue(args[0]));
         case 'tail':
-          if (arg.k === 'vm_list') {
-            if (arg.v.length > 0) { return VmList(arg.v.slice(1)); }
+          if (args[0].k === 'vm_list') {
+            if (args[0].v.length > 0) { return VmList(args[0].v.slice(1)); }
             return failVm('tail of empty list');
           }
-          return failVm('tail expects a list, got ' + vmShowValue(arg));
+          return failVm('tail expects a list, got ' + vmShowValue(args[0]));
         case 'isNil':
-          if (arg.k === 'vm_list') { return VmBool(arg.v.length === 0); }
-          return failVm('isNil expects a list, got ' + vmShowValue(arg));
+          if (args[0].k === 'vm_list') { return VmBool(args[0].v.length === 0); }
+          return failVm('isNil expects a list, got ' + vmShowValue(args[0]));
+        case 'length':
+          if (args[0].k === 'vm_list') { return VmInt(args[0].v.length); }
+          return failVm('length expects a list, got ' + vmShowValue(args[0]));
+        case 'reverse':
+          if (args[0].k === 'vm_list') { return VmList(args[0].v.slice().reverse()); }
+          return failVm('reverse expects a list, got ' + vmShowValue(args[0]));
+        case 'append':
+          if (args[0].k === 'vm_list' && args[1].k === 'vm_list') {
+            return VmList(args[0].v.concat(args[1].v));
+          }
+          return failVm('append expects lists, got ' + vmShowValue(args[0]) + ' and ' + vmShowValue(args[1]));
+        case 'take':
+          if (args[0].k === 'vm_int' && args[1].k === 'vm_list') {
+            var n = args[0].v;
+            return VmList(n <= 0 ? [] : args[1].v.slice(0, n));
+          }
+          return failVm('take expects an Int and a list, got ' + vmShowValue(args[0]) + ' and ' + vmShowValue(args[1]));
+        case 'drop':
+          if (args[0].k === 'vm_int' && args[1].k === 'vm_list') {
+            var m = args[0].v;
+            return VmList(m <= 0 ? args[1].v : args[1].v.slice(m));
+          }
+          return failVm('drop expects an Int and a list, got ' + vmShowValue(args[0]) + ' and ' + vmShowValue(args[1]));
+        default:
+          return failVm('internal error: unknown builtin');
+      }
+    }
+
+    function applyBuiltin(name, arg) {
+      switch (name) {
+        case 'cons': case 'append': case 'take': case 'drop':
+          return VmPartialBuiltin(name, [arg]);
+        case 'head': case 'tail': case 'isNil': case 'length': case 'reverse':
+          return completeBuiltin(name, [arg]);
         default:
           return failVm('internal error: unknown builtin');
       }
@@ -1655,12 +1749,16 @@
           pushS(r); bumpIp();
           return null;
         }
-        case 'vm_partial_builtin':
-          if (fn.name === 'cons') {
-            if (arg.k === 'vm_list') { pushS(VmList([fn.x].concat(arg.v))); bumpIp(); return null; }
-            return failVm('cons expects a list, got ' + vmShowValue(arg));
+        case 'vm_partial_builtin': {
+          var args = fn.args.concat([arg]);
+          if (args.length === vmArity(fn.name)) {
+            var r = completeBuiltin(fn.name, args);
+            if (r.kind === 'vm') { return r; }
+            pushS(r); bumpIp(); return null;
           }
-          return failVm('internal error: unexpected partial builtin');
+          pushS(VmPartialBuiltin(fn.name, args)); bumpIp();
+          return null;
+        }
         default:
           return failVm('cannot apply ' + vmShowValue(fn));
       }
@@ -1914,7 +2012,13 @@
     { name: 'mixed-arithmetic', expected: '17',
       source: '-- Operator precedence and grouping.\n1 + 2 * 3 - 4 / 2 + (10 - 4) * 2\n' },
     { name: 'deep-recursion', expected: '5000',
-      source: '-- Deep non-tail recursion; 5000 frames deep exercises the frame stack.\nlet rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)\nin count 5000\n' }
+      source: '-- Deep non-tail recursion; 5000 frames deep exercises the frame stack.\nlet rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)\nin count 5000\n' },
+    { name: 'list-length', expected: '3',
+      source: '-- The length builtin over a list literal.\nlet xs = [10, 20, 30] in length xs\n' },
+    { name: 'list-reverse', expected: '[3, 2, 1]',
+      source: '-- reverse flips a list.\nreverse [1, 2, 3]\n' },
+    { name: 'list-append-take-drop', expected: '[1, 3]',
+      source: '-- append, take, and drop combine into list surgery.\ntake 2 (append [1] (drop 1 [2, 3, 4]))\n' }
   ];
 
   // Example programs shown in the web playground editor.
@@ -1924,7 +2028,10 @@
     'filter.hly': corpus[3].source,
     'closures.hly': '-- Closures and function composition.\nlet makeCounter = fn n => fn step => n + step\nin let compose = fn f g => fn x => f (g x)\nin compose (fn x => x + 1) (fn x => x * 2) 21\n',
     'promotion.hly': corpus[7].source,
-    'recursion.hly': corpus[12].source
+    'recursion.hly': corpus[12].source,
+    'list-length.hly': corpus[15].source,
+    'list-reverse.hly': corpus[16].source,
+    'list-append-take-drop.hly': corpus[17].source
   };
 
   return {
