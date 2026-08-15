@@ -3269,6 +3269,7 @@
     lex: lexSource,
     parse: parseProgram,
     infer: inferProgram,
+    inferProgram: inferProgram,
     inferExpr: inferExpr,
     showType: showType,
     evalProgram: evalProgram,

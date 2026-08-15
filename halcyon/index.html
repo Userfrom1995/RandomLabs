@@ -70,6 +70,10 @@
   }
   textarea:focus { outline: 2px solid var(--accent-soft); }
   .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+  .controls .opt-toggle {
+    font-size: 14px; color: var(--muted); display: inline-flex; align-items: center;
+    gap: 4px; padding: 7px 6px; user-select: none; cursor: pointer;
+  }
   button {
     font-family: inherit;
     font-size: 14px;
@@ -145,7 +149,8 @@
 <header>
   <h1>Halcyon</h1>
   <p>A small, calm, well-typed functional language: lexer, parser, Hindley-Milner type inference, a tree-walking
-  interpreter, and a bytecode VM with closures and upvalue cells. This playground runs a faithful JavaScript mirror of
+  interpreter, and a bytecode VM with closures and upvalue cells, algebraic data types, pattern matching, tail-call
+  optimization, and a deterministic optimizer. This playground runs a faithful JavaScript mirror of
   the Haskell core (cross-checked for byte-identical output), so what you see here is the verified behavior.</p>
 </header>
 
@@ -165,6 +170,9 @@
           <button id="type-btn">Typecheck</button>
           <button id="ast-btn">Show AST</button>
           <button id="bytecode-btn">Bytecode</button>
+          <label class="opt-toggle" title="Run the deterministic optimizer before executing or disassembling">
+            <input type="checkbox" id="opt-check"> --opt
+          </label>
         </div>
       </div>
     </div>
@@ -278,6 +286,7 @@
       case 'str':    return pad + 'str "' + e.v + '" ' + pos(e);
       case 'var':    return pad + 'var ' + e.name + ' ' + pos(e);
       case 'builtin': return pad + 'builtin ' + e.name + ' ' + pos(e);
+      case 'constr': return pad + 'constr ' + e.name + ' ' + pos(e);
       case 'list': {
         var lines = [pad + 'list ' + pos(e)];
         e.items.forEach(function (x) { lines.push(renderAst(x, depth + 1)); });
@@ -312,6 +321,19 @@
         l4.push(renderAst(e.els, depth + 2));
         return l4.join('\n');
       }
+      case 'match': {
+        var lm = [pad + 'match ' + pos(e)];
+        lm.push(pad + '  scrut:');
+        lm.push(renderAst(e.scrut, depth + 2));
+        e.branches.forEach(function (b) {
+          lm.push(pad + '  branch:');
+          lm.push(pad + '    pattern:');
+          lm.push(renderPattern(b[0], depth + 3));
+          lm.push(pad + '    body:');
+          lm.push(renderAst(b[1], depth + 3));
+        });
+        return lm.join('\n');
+      }
       case 'bin': {
         var l5 = [pad + 'bin ' + e.op + ' ' + pos(e)];
         l5.push(renderAst(e.a, depth + 1));
@@ -332,6 +354,64 @@
     }
   }
 
+  function renderPattern(pat, depth) {
+    var pad = new Array(depth * 2 + 1).join(' ');
+    function pos(p) { return p.pos ? '@' + p.pos.line + ':' + p.pos.col : ''; }
+    switch (pat.kind) {
+      case 'pint':   return pad + 'pint ' + pat.v + ' ' + pos(pat);
+      case 'pfloat': return pad + 'pfloat ' + pat.v + ' ' + pos(pat);
+      case 'pbool':  return pad + 'pbool ' + pat.v + ' ' + pos(pat);
+      case 'pstr':   return pad + 'pstr "' + pat.v + '" ' + pos(pat);
+      case 'pvar':   return pad + 'pvar ' + pat.name + ' ' + pos(pat);
+      case 'pwild':  return pad + 'pwild ' + pos(pat);
+      case 'pnil':   return pad + 'pnil ' + pos(pat);
+      case 'pcons': {
+        var pc = [pad + 'pcons ' + pos(pat)];
+        pc.push(renderPattern(pat.h, depth + 1));
+        pc.push(renderPattern(pat.t, depth + 1));
+        return pc.join('\n');
+      }
+      case 'plist': {
+        var pl = [pad + 'plist ' + pos(pat)];
+        pat.items.forEach(function (p) { pl.push(renderPattern(p, depth + 1)); });
+        return pl.join('\n');
+      }
+      case 'pconstr': {
+        var pk = [pad + 'pconstr ' + pat.name + ' ' + pos(pat)];
+        pat.args.forEach(function (p) { pk.push(renderPattern(p, depth + 1)); });
+        return pk.join('\n');
+      }
+      default: return pad + '?';
+    }
+  }
+
+  function renderProgram(prog) {
+    var lines = [];
+    prog.decls.forEach(function (d) {
+      var ctorParts = d.ctors.map(function (c) {
+        return c.name + (c.fields.length ? ' ' + c.fields.map(renderType).join(' ') : '');
+      });
+      lines.push('data ' + d.name + (d.tyvars.length ? ' ' + d.tyvars.join(' ') : '')
+        + ' = ' + ctorParts.join(' | '));
+    });
+    lines.push(renderAst(prog.expr, 0));
+    return lines.join('\n');
+  }
+
+  function renderType(t) {
+    switch (t.k) {
+      case 'int': return 'Int';
+      case 'float': return 'Float';
+      case 'bool': return 'Bool';
+      case 'str': return 'String';
+      case 'var': return 'a' + t.n;
+      case 'list': return '[' + renderType(t.item) + ']';
+      case 'fun': return renderType(t.from) + ' -> ' + renderType(t.to);
+      case 'data': return t.n + (t.args.length ? ' ' + t.args.map(renderType).join(' ') : '');
+      default: return '?';
+    }
+  }
+
   // -------------------------------------------------------------------
   // Actions
   // -------------------------------------------------------------------
@@ -349,7 +429,7 @@
     var src = source.value;
     var inf = H.inferProgram(src);
     if (!inf.ok) { showError('output', inf); activate('output'); return; }
-    var cp = H.compileProgram(src);
+    var cp = H.compileProgram(src, document.getElementById('opt-check').checked);
     if (cp.kind) { showError('output', cp); activate('output'); return; }
     var res = H.runVm(cp.program, false);
     if (res.kind) { showError('output', res); activate('output'); return; }
@@ -367,12 +447,12 @@
   document.getElementById('ast-btn').addEventListener('click', function () {
     var p = H.parse(source.value);
     if (p.kind) { showError('ast', p); activate('ast'); return; }
-    show('ast', renderAst(p, 0));
+    show('ast', renderProgram(p));
     activate('ast');
   });
 
   document.getElementById('bytecode-btn').addEventListener('click', function () {
-    var cp = H.compileProgram(source.value);
+    var cp = H.compileProgram(source.value, document.getElementById('opt-check').checked);
     if (cp.kind) { showError('bytecode', cp); activate('bytecode'); return; }
     show('bytecode', H.disassemble(cp.program.entry));
     activate('bytecode');
