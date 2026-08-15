@@ -27,6 +27,7 @@ library
                        Halcyon.Op
                        Halcyon.Compile
                        Halcyon.Optimize
+                       Halcyon.Artifact
                        Halcyon.Vm
                        Halcyon.Module
                        Halcyon.Corpus
