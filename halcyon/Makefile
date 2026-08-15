@@ -12,7 +12,7 @@
 GHC   ?= ghc
 BIN   := build/halcyon
 
-SRC := $(shell find src -name '*.hs')
+SRC := $(shell find src -name '*.hs') app/Main.hs
 TEST_SRC := $(shell find test -name '*.hs')
 
 .PHONY: all test smoke clean run

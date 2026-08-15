@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** in-progress
-- **Updated:** 2026-08-15T13:05:00Z
+- **Status:** complete
+- **Updated:** 2026-08-15T13:35:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -16,19 +16,20 @@
 - [x] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
 - [x] 9. Cross-language corpus: JS mirror output == Haskell output
 - [x] 10. Docs: README, docs/index.html + index.md, language.md, vm.md; root landing page + root README entries
-- [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
+- [x] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Docs done. halcyon/README.md documents build, every CLI command, exit
-codes, the web playground, correctness (129 selftests, differential
-corpus, cross-language check), and the source layout. halcyon/docs/
-contains language.md (lexical structure, grammar, precedence, values,
-type system, builtins, semantics), vm.md (execution model, single-
-stepping, full opcode reference, example disassembly), plus index.md and
-a browsable index.html. The root landing page index.html and root
-README.md now list Halcyon (playground + docs links); all documented
-examples verified end-to-end on interpreter, VM, and typechecker. Final
-iteration/polish next
+COMPLETE. Milestone 11 (final polish): found and fixed a cabal build bug -
+the executable component pointed hs-source-dirs at src/, so it recompiled
+all library modules without `containers` and failed. Moved src/Main.hs to
+app/Main.hs (standard cabal layout), set the exe hs-source-dirs to app/,
+and updated the Makefile SRC list. `make`, `make test` (129 tests),
+`cabal build`, and `cabal test` all pass cleanly now, and the cabal-built
+binary runs programs. Final verification pass: disassembly deterministic
+(byte-identical across runs), run == run-vm byte-for-byte on all 7
+examples, error exit codes 1 (lex/parse/type/runtime/IO) and 2 (usage)
+confirmed, lexer unterminated-string and division-by-zero runtime errors
+both reported, piped REPL works, --help/--version fine. Status: complete
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -157,6 +158,19 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   (a map example needed let rec, fixed in the docs); 129 selftests and
   25/25 cross-language checks still pass; inline scripts in both HTML pages
   syntax-checked.
+- 2026-08-15 (builder) - Milestone 11 (final polish): `cabal build` was
+  failing - the executable component pointed hs-source-dirs at src/, so GHC
+  recompiled every library module as exe home modules without `containers`
+  in the exe build-depends. Fixed by moving src/Main.hs to app/Main.hs
+  (standard layout), setting the exe hs-source-dirs to app/ (exe now links
+  the library), and updating the Makefile SRC to include app/Main.hs.
+  Verified `make` (17 modules), `make test` (129/129), `cabal build`
+  clean (no -Wmissing-home-modules warning), `cabal test` (PASS), and the
+  cabal-built binary runs programs. Final pass: disassembly deterministic
+  (byte-identical across runs), run == run-vm byte-for-byte on all 7
+  examples, exit codes 1 (missing file, type error, lex error, runtime
+  division by zero on both evaluators) and 2 (usage) confirmed, piped REPL
+  echoes 5 and 7, --help/--version OK. Status set to complete.
 
 - the Builder
 

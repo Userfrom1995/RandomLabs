@@ -104,6 +104,7 @@ src/Halcyon/Corpus.hs     differential corpus
 src/Halcyon/Selftest.hs   self-test suite
 src/Halcyon/Repl.hs       REPL
 src/Halcyon/CLI.hs        command dispatch
+app/Main.hs               entry point
 js/halcyon.js             the whole language, mirrored in JavaScript
 js/corpus-check.js        cross-language corpus check
 index.html                web playground
