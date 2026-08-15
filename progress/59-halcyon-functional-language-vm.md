@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T19:10:00Z
+- **Updated:** 2026-08-15T19:45:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -42,7 +42,7 @@
   constraint contexts on schemes, instance resolution, VDict/VmDict +
   DictGet, intToStr/floatToStr/boolToStr builtins, Show class in stdlib,
   differential tests
-- [ ] 20. Char type + string operations: 'a' literals, TChar/VChar, strLen/
+- [x] 20. Char type + string operations: 'a' literals, TChar/VChar, strLen/
   charAt/substr/strAppend/strContains/str builtins, stdlib growth
   (string.hly, list.hly, maybe.hly), corpus entries
 - [ ] 21. VM profiler (--profile/--stats), optimizer expansion (DCE + copy/
@@ -54,19 +54,19 @@ v3 enhancement round (shipping-limit round 2) is designed and ready for the
 Builder. Milestones 17-21 were added to the checklist: M17 top-level
 definitions + module system, M18 record types, M19 type classes with
 dictionary passing, M20 Char + string operations, M21 VM profiler +
-optimizer expansion + JS/playground/docs sync. M17, M18 and M19 are complete.
-Next up: M20 Char + string operations. The merge is still held by the
-Aug 15 shipping cap (2/2); the v3 round must land and pass a fresh review +
-test on the new head before the Maintainer merges after the 00:00Z Aug 16
-cap reset.
+optimizer expansion + JS/playground/docs sync. M17 through M20 are complete.
+Next up: M21 VM profiler + optimizer expansion + JS mirror/playground/docs
+sync. The merge is still held by the Aug 15 shipping cap (2/2); the v3 round
+must land and pass a fresh review + test on the new head before the Maintainer
+merges after the 00:00Z Aug 16 cap reset.
 
 ## Next steps
-Builder to implement M17 (top-level definitions + module system + lib/
-stdlib split) on the existing branch, pushing milestone-by-milestone and
-updating this tracker as it goes. M18-M21 follow in order, each landing
-end-to-end (Haskell core, JS mirror where applicable, corpus, docs). After
-M21, the Reviewer + Tester cycle runs on the fresh head and the Maintainer
-merges once the cap resets, closing #59.
+Builder to implement M21 (VM profiler --profile/--stats, optimizer expansion:
+DCE + copy/constant propagation, JS mirror + playground sync for ALL v3
+features - records, modules, classes, chars, strings, profiler - plus docs
+and final polish) on the existing branch, pushing milestone-by-milestone and
+updating this tracker as it goes. After M21, the Reviewer + Tester cycle runs
+on the fresh head and the Maintainer merges once the cap resets, closing #59.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -541,3 +541,35 @@ and make smoke still green.
   (show-int/float/list/bool, class-size-pair); lib/maybe.hly gained a
   `Show a => Show (Maybe a)` instance demo. make test: 473 pass; make
   smoke green; recursive-context Pair class verified on eval/run-vm/--opt.
+
+- 2026-08-15 (builder) - Milestone 20 (Char type + string operations):
+  end-to-end in the Haskell core. Lexer: `'a'` literals with escapes
+  (\n \t \r \\ \') and unterminated/empty/multi-char/bad-escape errors;
+  TChar token. Parser: char expression and pattern atoms, `Char` as a type
+  atom and (non-data) name. Type: TChar + "Char" rendering. Value: VChar with
+  a shared showCharLit so interpreter and VM render chars identically
+  ('a', '\n', ...). Eval/VM: char equality, char-list values, TestChar
+  bytecode for char patterns (with optimizer folding and constant remapping).
+  New first-class builtins (both evaluators): strLen (String->Int), charAt
+  (String->Int->Char, 0-based, bounds-checked), substr (String->Int->Int->
+  String, clamps start, rejects negative length), strAppend, strContains
+  (isInfixOf), and the polymorphic reflection builtin str (forall a. a->
+  String) that renders any value exactly as the CLI prints it. Classes.hs
+  gained a built-in `Show Char` instance (str-based) and TChar cases in
+  instance-head unification/shape enumeration. lib/string.hly added (chars,
+  fromChars with quote-stripping fromChar, toUpper/toUpperStr, countChar,
+  repeat, startsWith); list.hly grew concat/zipWith/takeWhile/dropWhile;
+  maybe.hly grew maybe/mapMaybe/join. Selftests: char/string coverage in
+  every suite (lexer, parser, types, eval, vm, differential, opt, modules)
+  plus 6 self-contained corpus entries (char-basics, char-pattern,
+  string-ops, str-reflection, char-string-show, string-table). Fixed a
+  pre-existing optimizer bug surfaced by toUpperStr: dead-store analysis
+  only counted depth-0 upvalues of directly nested closures, so a grandchild
+  closure capturing a slot of the outermost frame had its store dropped
+  ("upvalue cell not found"). capturedByNested now walks the full
+  nested-function tree matching each upvalue hop against its depth
+  (hop d-1 reaches the function's own cells). Reproduced on the M19 baseline
+  with an Int-only program; fixed and covered by a dedicated differential
+  opt test. make test: 585 pass; make smoke green; cabal test PASS.
+
+- the Builder
