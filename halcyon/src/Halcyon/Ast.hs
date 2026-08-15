@@ -10,6 +10,7 @@ module Halcyon.Ast
   , Pattern(..)
   , Op(..)
   , Builtin(..)
+  , Assoc(..)
   , opName
   , builtinName
   , builtinForName
@@ -18,6 +19,8 @@ module Halcyon.Ast
   , progLetNames
   , progClassDecls
   , progInstanceDecls
+  , progInfixDecls
+  , progSynonymDecls
   ) where
 
 import Halcyon.Token (Pos)
@@ -64,13 +67,17 @@ data Program = Program
 -- | A top-level definition. @data@/@record@ declarations and @let [rec]
 -- @name = e@ bindings share a namespace for names in the final expression.
 -- @class@/@instance@ declarations (v3, milestone 19) define type classes and
--- their instances.
+-- their instances. @infixl@/@infixr@/@infix@ declarations (v4, milestone 23)
+-- register a user-defined operator's precedence/associativity; @type@
+-- declarations (milestone 23) define parse-time type synonyms.
 data TopDef
   = DefData DataDecl
   | DefRecord RecordDecl
   | DefClass ClassDecl
   | DefInstance InstanceDecl
   | DefLet Pos Bool String Expr
+  | DefInfix Pos Assoc Int String        -- ^ @infix[l|r]? N <op>@
+  | DefSynonym Pos String [String] Type  -- ^ @type Name tyvar* = type@
   deriving (Eq, Show)
 
 -- | The @data@ declarations of a program, in order.
@@ -92,6 +99,14 @@ progClassDecls p = [d | DefClass d <- progDefs p]
 -- | The @instance@ declarations of a program, in order.
 progInstanceDecls :: Program -> [InstanceDecl]
 progInstanceDecls p = [d | DefInstance d <- progDefs p]
+
+-- | The user-defined operator declarations of a program, in order.
+progInfixDecls :: Program -> [(Assoc, Int, String)]
+progInfixDecls p = [(a, n, op) | DefInfix _ a n op <- progDefs p]
+
+-- | The type synonym declarations of a program, in order.
+progSynonymDecls :: Program -> [(String, [String], Type)]
+progSynonymDecls p = [(n, tvs, ty) | DefSynonym _ n tvs ty <- progDefs p]
 
 -- | A top-level @data@ declaration: @data <Name> <tyvar>* = <Ctor> <ty>* | ...@
 -- Field types are parsed into 'Halcyon.Type.Type' where declared type
@@ -161,6 +176,11 @@ data Pattern
   | PConstr Pos String [Pattern]
   | PRecord Pos [(String, Pattern)]  -- ^ record pattern @{ x = a, y = b }@
   deriving (Eq, Show)
+
+-- | Binary operator associativity, declared with @infixl@/@infixr@/@infix@.
+-- The built-in operators are all left-associative.
+data Assoc = LeftAssoc | RightAssoc | NonAssoc
+  deriving (Eq, Ord, Show)
 
 -- | Binary operators, in precedence order (lowest first).
 data Op

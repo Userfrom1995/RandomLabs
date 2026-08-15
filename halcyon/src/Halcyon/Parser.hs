@@ -4,7 +4,10 @@ module Halcyon.Parser
   , ParseError(..)
   ) where
 
-import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), RecordDecl(..), ClassDecl(..), InstanceDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), builtinForName)
+import Control.Monad (replicateM)
+import qualified Data.Map.Strict as Map
+
+import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), RecordDecl(..), ClassDecl(..), InstanceDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), Assoc(..), opName, builtinForName)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Token
 import qualified Halcyon.Type as T
@@ -22,7 +25,7 @@ parseProgram src = do
   toks <- case lexSource src of
     Left (LexError p m) -> Left (ParseError p m)
     Right t             -> Right t
-  (prog, rest) <- runParser parseModule (PState toks (Pos 0 0) False)
+  (prog, rest) <- runParser parseModule (PState toks (Pos 0 0) False Map.empty Map.empty)
   case psTokens rest of
     [Token _ TEOF] -> Right prog
     (Token p t : _) -> Left (ParseError p ("unexpected token after expression: " <> describe t))
@@ -60,7 +63,9 @@ expectString = Parser $ \s -> case psTokens s of
 -- leading @let@ is parsed with @parseLetOrDef@: when the token after the
 -- bound expression is @in@, the whole @let ... in ...@ is the final
 -- expression (the pre-v3 form); any other next token makes it a top-level
--- definition.
+-- definition. @infixl@/@infixr@/@infix@ declarations register user operators
+-- in the parser's dynamic precedence table; @type@ declarations register
+-- parse-time type synonyms (both before the final expression parses).
 parseDefsAndExpr :: Parser ([TopDef], Maybe Expr)
 parseDefsAndExpr = do
   t <- peek
@@ -81,11 +86,101 @@ parseDefsAndExpr = do
       d <- parseInstanceDecl
       (ds, e) <- parseDefsAndExpr
       return (DefInstance d : ds, e)
+    TInfixl -> do
+      d <- parseInfixDecl LeftAssoc
+      (ds, e) <- parseDefsAndExpr
+      return (d : ds, e)
+    TInfixr -> do
+      d <- parseInfixDecl RightAssoc
+      (ds, e) <- parseDefsAndExpr
+      return (d : ds, e)
+    TInfix  -> do
+      d <- parseInfixDecl NonAssoc
+      (ds, e) <- parseDefsAndExpr
+      return (d : ds, e)
+    TType   -> do
+      d <- parseSynonymDecl
+      (ds, e) <- parseDefsAndExpr
+      return (d : ds, e)
     TLet  -> parseLetOrDef
     TEOF  -> return ([], Nothing)
     _     -> do
       e <- parseExpr
       return ([], Just e)
+
+-- | @infixl|infixr|infix <N> <op>@: register a user-defined operator with
+-- the parser's dynamic precedence table (levels 0-9; the built-in operators
+-- occupy 1-6). Redeclaring a built-in operator symbol or declaring the same
+-- operator twice is a positioned error. The operator's function is defined
+-- separately with @let (<op>) = ...@.
+parseInfixDecl :: Assoc -> Parser TopDef
+parseInfixDecl assoc = do
+  p <- consumeT (case assoc of
+                    LeftAssoc  -> TInfixl
+                    RightAssoc -> TInfixr
+                    NonAssoc   -> TInfix)
+  Token _ (TInt lvl) <- expectInt
+  if lvl < 0 || lvl > 9
+    then failAt p ("operator precedence must be between 0 and 9, found " <> show lvl)
+    else return ()
+  (name, opP) <- parseOperatorName
+  if name `elem` builtinOpSymbols
+    then failAt opP ("cannot redeclare the built-in operator '" <> name <> "'")
+    else do
+      ops <- getOps
+      case Map.lookup name ops of
+        Just _  -> failAt opP ("duplicate operator declaration for '" <> name <> "'")
+        Nothing -> do
+          setOps (Map.insert name (fromInteger lvl, assoc) ops)
+          return (DefInfix p assoc (fromInteger lvl) name)
+
+-- | The built-in operator symbols (levels 1-6); user declarations may not
+-- override them.
+builtinOpSymbols :: [String]
+builtinOpSymbols = ["||", "&&", "==", "/=", "<", "<=", ">", ">=", "+", "-", "*", "/"]
+
+-- | @type <Name> <tyvar>* = <type>@: register a parse-time type synonym and
+-- record it as a top-level definition (so the program checker can reject
+-- duplicate names and name collisions). The RHS is parsed in terms of the
+-- declared type variables (@TVar 0..n-1@) and expanded (with substitution)
+-- at every use. Recursion and duplicate names are rejected here; collisions
+-- with @data@/@record@/class names are rejected by 'Halcyon.Data.checkProgram'.
+parseSynonymDecl :: Parser TopDef
+parseSynonymDecl = do
+  p <- consumeT TType
+  Token _ (TIdent name) <- expectCapitalized "type"
+  if name `elem` primitiveTypeNames
+    then failAt p ("cannot redefine the built-in type '" <> name <> "'")
+    else return ()
+  tyvars <- parseTyvars
+  let tvs = zip tyvars [0 ..]
+  consumeT TAssign
+  rhs <- parseTypeExpr tvs
+  if mentionsName name rhs
+    then failAt p ("recursive type synonym: " <> name)
+    else do
+      syns <- getSyns
+      case Map.lookup name syns of
+        Just _  -> failAt p ("duplicate type synonym: " <> name)
+        Nothing -> do
+          setSyns (Map.insert name (length tyvars, rhs) syns)
+          return (DefSynonym p name tyvars rhs)
+
+-- | The primitive type names, which no synonym may redefine.
+primitiveTypeNames :: [String]
+primitiveTypeNames = ["Int", "Float", "Bool", "String", "Char", "Unit", "Effect"]
+
+-- | Does a type mention a given data/record/synonym name (used to reject
+-- recursive type synonyms)?
+mentionsName :: String -> Type -> Bool
+mentionsName n = go
+  where
+    go (T.TData m ts) = m == n || any go ts
+    go (T.TRec m ts)  = m == n || any go ts
+    go (T.TList t)    = go t
+    go (T.TFun a b)   = go a || go b
+    go (T.TEffect t)  = go t
+    go _              = False
 
 -- | Resolve the @let@ ambiguity described in 'parseDefsAndExpr'. The bound
 -- expression is parsed with the line-bound application rule so a following
@@ -94,7 +189,7 @@ parseLetOrDef :: Parser ([TopDef], Maybe Expr)
 parseLetOrDef = do
   p <- consumeT TLet
   rec <- isRec
-  Token _ (TIdent name) <- expectIdent
+  name <- parseBindingName
   consumeT TAssign
   setBound True
   bound <- parseExpr
@@ -306,18 +401,21 @@ parseTypeApp tvs = do
   t <- peek
   a <- parseTypeAtom tvs
   case t of
-    -- Only a bare capitalized constructor name continues application on the
-    -- same source line (@Maybe Int@). A parenthesized type, a primitive, a
-    -- list type, or a type variable is complete on its own, so a following
-    -- atom begins a new field or a new argument.
-    TIdent n | isDataName n -> go p n []
+    -- A bare capitalized constructor name continues application on the same
+    -- source line (@Maybe Int@); a registered type synonym already consumed
+    -- its own arguments inside parseTypeAtom, so it is complete on its own.
+    TIdent n | isDataName n -> do
+      msyn <- lookupSynonym n
+      case msyn of
+        Just _  -> return a
+        Nothing -> go p n []
     _                       -> return a
   where
     -- Only a bare capitalized constructor name continues application on the
     -- same source line (@Maybe Int@). A parenthesized type, a primitive, a
     -- list type, or a type variable is complete on its own, so a following
     -- atom begins a new field or a new argument.
-    isDataName n = isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char", "Unit", "Effect"]
+    isDataName n = isCapitalized n && n `notElem` primitiveTypeNames
     -- A bare constructor name may be applied to following type atoms on the
     -- same source line (e.g. @Maybe Int@); a parenthesized or primitive
     -- type is complete on its own, so a following atom begins a new field.
@@ -329,6 +427,31 @@ parseTypeApp tvs = do
           b <- parseTypeAtom tvs
           go p n (as ++ [b])
         else return (T.TData n as)
+
+-- | A registered type synonym (arity, indexed RHS), if the name is one.
+lookupSynonym :: String -> Parser (Maybe (Int, Type))
+lookupSynonym n = do
+  syns <- getSyns
+  return (Map.lookup n syns)
+
+-- | Expand a type synonym: substitute each declared type variable
+-- (@TVar 0..n-1@) with the corresponding argument type.
+expandSynonym :: Type -> [Type] -> Type
+expandSynonym rhs args = substType subst rhs
+  where
+    subst = Map.fromList (zip [0 ..] args)
+
+substType :: Map.Map Int Type -> Type -> Type
+substType m = go
+  where
+    go t = case t of
+      T.TVar v     -> Map.findWithDefault t v m
+      T.TList u    -> T.TList (go u)
+      T.TData n us -> T.TData n (map go us)
+      T.TRec n us  -> T.TRec n (map go us)
+      T.TFun a b   -> T.TFun (go a) (go b)
+      T.TEffect u  -> T.TEffect (go u)
+      _            -> t
 
 parseTypeAtom :: [(String, Int)] -> Parser Type
 parseTypeAtom tvs = do
@@ -347,7 +470,13 @@ parseTypeAtom tvs = do
         if typeAtomStart t2
           then T.TEffect <$> parseTypeApp tvs
           else failAt p ("expected a type after 'Effect', found " <> describe t2)
-      _ | isCapitalized n -> return (T.TData n [])
+      _ | isCapitalized n -> do
+            msyn <- lookupSynonym n
+            case msyn of
+              Just (arity, rhs) -> do
+                args <- replicateM arity (parseTypeAtom tvs)
+                return (expandSynonym rhs args)
+              Nothing -> return (T.TData n [])
         | otherwise -> case lookup n tvs of
             Just idx -> return (T.TVar idx)
             Nothing  -> failAt p ("undeclared type variable: " <> n)
@@ -392,8 +521,11 @@ parseHeadApp = do
   t <- peek
   a <- parseHeadAtom
   case t of
-    TIdent n | isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char", "Unit", "Effect"] ->
-      go p n []
+    TIdent n | isCapitalized n && n `notElem` primitiveTypeNames -> do
+      msyn <- lookupSynonym n
+      case msyn of
+        Just _  -> return a
+        Nothing -> go p n []
     _ -> return a
   where
     go p n as = do
@@ -422,7 +554,13 @@ parseHeadAtom = do
         if typeAtomStart t2
           then T.TEffect <$> parseHeadApp
           else failAt p ("expected a type after 'Effect', found " <> describe t2)
-      _ | isCapitalized n -> return (T.TData n [])
+      _ | isCapitalized n -> do
+            msyn <- lookupSynonym n
+            case msyn of
+              Just (arity, rhs) -> do
+                args <- replicateM arity parseHeadAtom
+                return (expandSynonym rhs args)
+              Nothing -> return (T.TData n [])
         | otherwise -> return (T.TVar classTypeVar)
     TLBracket -> do
       consumeTok
@@ -447,14 +585,30 @@ typeAtomStart = \case
 -- | Minimal parser monad: threads the token stream and fails fast.
 -- | Parser state: the remaining token stream, the position of the last
 -- consumed token (for the same-line application rule in top-level binding
--- bodies), and the @bound@ flag marking that parsing is inside the body of a
+-- bodies), the @bound@ flag marking that parsing is inside the body of a
 -- top-level @let@ definition (where application must not swallow a following
--- expression across a line boundary).
+-- expression across a line boundary), the dynamic user-operator table
+-- (@infixl@/@infixr@/@infix@ declarations) and the type-synonym table
+-- (@type@ declarations), both registered before the final expression parses.
 data PState = PState
   { psTokens :: [Token]
   , psPrev   :: Pos
   , psBound  :: Bool
+  , psOps    :: Map.Map String (Int, Assoc)
+  , psSyns   :: Map.Map String (Int, Type)
   }
+
+getOps :: Parser (Map.Map String (Int, Assoc))
+getOps = Parser $ \s -> Right (psOps s, s)
+
+getSyns :: Parser (Map.Map String (Int, Type))
+getSyns = Parser $ \s -> Right (psSyns s, s)
+
+setOps :: Map.Map String (Int, Assoc) -> Parser ()
+setOps m = Parser $ \s -> Right ((), s { psOps = m })
+
+setSyns :: Map.Map String (Int, Type) -> Parser ()
+setSyns m = Parser $ \s -> Right ((), s { psSyns = m })
 
 newtype Parser a = Parser { runParser :: PState -> Either ParseError (a, PState) }
 
@@ -483,7 +637,7 @@ instance MonadFail Parser where
 
 -- | Expression grammar, precedence climbing for the binary layers.
 --
---   expr     := let | if | lambda | match | binary(1)
+--   expr     := let | if | lambda | match | binary(0)
 --   let      := 'let' 'rec'? name '=' expr 'in' expr
 --   if       := 'if' expr 'then' expr 'else' expr
 --   lambda   := 'fn' name+ '=>' expr
@@ -492,7 +646,7 @@ instance MonadFail Parser where
 --   patApp   := patAtom patAtom*              (constructor application only)
 --   patAtom  := '_' | name | literal | '(' pat ')' | '[' pat, ... ']'
 --   binary levels: 1 || , 2 && , 3 == /= , 4 < <= > >= ,
---                  5 + - , 6 * / (all left-associative)
+--                  5 + - , 6 * / (all left-associative), 0-9 user operators
 --   unary    := ('-' | '!') unary | application
 --   application := atom atom*  (left-associative)
 --   atom     := literal | name | '(' expr ')' | '[' list ']'
@@ -505,13 +659,13 @@ parseExpr = do
     TFn   -> parseLambda
     TMatch -> parseMatch
     TDo   -> parseDo
-    _     -> parseBinary 1
+    _     -> parseBinary 0
 
 parseLet :: Parser Expr
 parseLet = do
   p <- consumeT TLet
   rec <- isRec
-  Token _ (TIdent name) <- expectIdent
+  name <- parseBindingName
   consumeT TAssign
   bound <- parseExpr
   consumeT TIn
@@ -760,10 +914,17 @@ patAtomStart = \case
   TLBrace   -> True
   _         -> False
 
--- | Precedence climbing. Binary operators are all left-associative.
+-- | Precedence climbing over levels 0-9. The built-in operators occupy
+-- levels 1-6; user operators registered with @infixl@/@infixr@/@infix@ may
+-- occupy any level 0-9. Right-associative operators recurse on the same
+-- level (so @a ** b ** c@ groups as @a ** (b ** c)@); a non-associative
+-- operator rejects a second use on the same level. User operators desugar to
+-- ordinary application: @a ++ b@ becomes @(++) a b@; an operator used in
+-- infix position without an @infixl@/@infixr@/@infix@ declaration is a
+-- positioned error.
 parseBinary :: Int -> Parser Expr
 parseBinary level
-  | level > 6 = parseUnary
+  | level > 9 = parseUnary
   | otherwise = do
       left <- parseBinary (level + 1)
       parseBinRest level left
@@ -771,12 +932,41 @@ parseBinary level
 parseBinRest :: Int -> Expr -> Parser Expr
 parseBinRest level left = do
   t <- peek
-  case opForTok t of
-    Just op | opLevel op == level -> do
-      opPos <- consumeTokPos
-      right <- parseBinary (level + 1)
-      parseBinRest level (EBin opPos op left right)
-    _ -> return left
+  case t of
+    -- User-defined operators, looked up in the dynamic table. They desugar
+    -- to ordinary application so @a ++ b@ compiles to @(++) a b@.
+    TOpName n -> do
+      ops <- getOps
+      case Map.lookup n ops of
+        Just (lvl, assoc) | lvl == level -> do
+          opPos <- consumeTokPos
+          right <- parseBinary (if assoc == RightAssoc then level else level + 1)
+          let combined = EApply opPos (EApply opPos (EVar opPos n) left) right
+          if assoc == NonAssoc
+            then do
+              t2 <- peek
+              case t2 of
+                TOpName m -> do
+                  ops2 <- getOps
+                  case Map.lookup m ops2 of
+                    Just (lvl2, _) | lvl2 == level ->
+                      failAt opPos ("non-associative operator '" <> n <> "' cannot be chained")
+                    _ -> parseBinRest level combined
+                _ -> parseBinRest level combined
+            else parseBinRest level combined
+        Just _ -> return left
+        -- An operator not declared with infixl/infixr/infix cannot appear in
+        -- infix position; report it where it is found.
+        Nothing -> do
+          q <- peekPos
+          failAt q ("operator '" <> n <> "' is not declared with infixl/infixr/infix")
+    -- Built-in operators (levels 1-6, all left-associative).
+    _ -> case opForTok t of
+      Just op | opLevel op == level -> do
+        opPos <- consumeTokPos
+        right <- parseBinary (level + 1)
+        parseBinRest level (EBin opPos op left right)
+      _ -> return left
 
 parseUnary :: Parser Expr
 parseUnary = do
@@ -831,6 +1021,17 @@ parseAtom = do
       t' <- peek
       case t' of
         TRParen -> consumeTok >> return (EUnit p)
+        -- A parenthesized operator reference @(<op>)@ is an ordinary
+        -- variable reference to the operator's function; it does not require
+        -- an @infixl@/@infixr@/@infix@ declaration.
+        TOpName n -> do
+          t2 <- peek2
+          case t2 of
+            Just TRParen -> do
+              consumeTok
+              consumeTok
+              return (EVar p n)
+            _ -> parseExpr >>= \e -> consumeT TRParen >> return e
         _       -> parseExpr >>= \e -> consumeT TRParen >> return e
     TLBracket -> parseList
     TLBrace   -> consumeTok >> parseRecordOrUpdate p
@@ -1056,6 +1257,45 @@ expectIdent = Parser $ \s -> case psTokens s of
   (Token p t : _) -> Left (ParseError p ("expected a name, found " <> describe t))
   []              -> Left (ParseError (Pos 0 0) "expected a name, found end of input")
 
+-- | An integer literal (used for @infixl N <op>@ precedence levels).
+expectInt :: Parser Token
+expectInt = Parser $ \s -> case psTokens s of
+  (tk@(Token _ (TInt _)) : rest) -> Right (tk, s { psTokens = rest, psPrev = tokenPos tk })
+  (Token p t : _) -> Left (ParseError p ("expected a precedence level (0-9), found " <> describe t))
+  []              -> Left (ParseError (Pos 0 0) "expected a precedence level (0-9), found end of input")
+
+-- | An operator name: a @TOpName@ token or a built-in operator token (the
+-- latter so @infixl 4 ==@ is rejected with a clear redeclaration message).
+parseOperatorName :: Parser (String, Pos)
+parseOperatorName = Parser $ \s -> case psTokens s of
+  (Token p (TOpName n) : rest) -> Right ((n, p), s { psTokens = rest, psPrev = p })
+  (Token p t : rest) | Just op <- opForTok t -> Right ((opName op, p), s { psTokens = rest, psPrev = p })
+  (Token p t : _) -> Left (ParseError p ("expected an operator name, found " <> describe t))
+  []              -> Left (ParseError (Pos 0 0) "expected an operator name, found end of input")
+
+-- | A @let@ binding name: a plain identifier, or a parenthesized operator
+-- reference @(<op>)@ defining the operator's function (e.g. @let (++) = fn
+-- a b => append a b@). The operator's own name is bound like any top-level
+-- name, so @(<op>)@ in expressions is an ordinary variable reference.
+parseBindingName :: Parser String
+parseBindingName = do
+  t <- peek
+  case t of
+    TLParen -> do
+      t2 <- peek2
+      case t2 of
+        Just (TOpName n) -> do
+          consumeTok
+          consumeTok
+          consumeT TRParen
+          return n
+        _ -> do
+          Token _ (TIdent name) <- expectIdent
+          return name
+    _ -> do
+      Token _ (TIdent name) <- expectIdent
+      return name
+
 isRec :: Parser Bool
 isRec = Parser $ \s -> case psTokens s of
   (Token _ TRec : rest) -> Right (True, s { psTokens = rest, psPrev = posOfHead s })
@@ -1090,6 +1330,10 @@ describe = \case
   TClass      -> "'class'"
   TInstance   -> "'instance'"
   TWhere      -> "'where'"
+  TInfixl     -> "'infixl'"
+  TInfixr     -> "'infixr'"
+  TInfix      -> "'infix'"
+  TType       -> "'type'"
   TMatch      -> "'match'"
   TWith       -> "'with'"
   TDo         -> "'do'"
@@ -1114,6 +1358,7 @@ describe = \case
   TArrow      -> "'=>'"
   TCons       -> "'::'"
   TPipe       -> "'|'"
+  TOpName n   -> "operator '" <> n <> "'"
   TLParen     -> "'('"
   TRParen     -> "')'"
   TLBracket   -> "'['"

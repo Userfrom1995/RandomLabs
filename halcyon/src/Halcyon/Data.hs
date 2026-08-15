@@ -19,8 +19,8 @@ import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import Halcyon.Ast (DataDecl(..), Program(..), TopDef(..), progLetNames, progRecordDecls)
-import Halcyon.Record (RecordEnv, buildRecordEnv, recordNameSet)
+import Halcyon.Ast (DataDecl(..), ClassDecl(..), Program(..), TopDef(..), progLetNames, progRecordDecls, progClassDecls, progSynonymDecls)
+import Halcyon.Record (RecordEnv, buildRecordEnv, emptyRecordEnv, recordNameSet)
 import Halcyon.Type (Type(..), Scheme(..))
 
 -- | Constructor metadata: the scheme a bare constructor reference has (e.g.
@@ -83,8 +83,10 @@ normDataEnvRecs recs (DataEnv m) = DataEnv (Map.map normCtor m)
 -- | Validate a fully-resolved program's top-level namespace: no duplicate
 -- data type names, no duplicate constructor names (both caught by
 -- 'buildDataEnv'), no duplicate record names or shared field sets (caught by
--- 'Halcyon.Record.buildRecordEnv'), and no duplicate top-level @let@ binding
--- names.
+-- 'Halcyon.Record.buildRecordEnv'), no duplicate top-level @let@ binding
+-- names, no duplicate type synonyms, and no type synonym name that collides
+-- with a @data@/@record@/class name (recursive synonyms and redeclarations
+-- of primitives are rejected at parse time).
 checkProgram :: Program -> Either String ()
 checkProgram p = do
   _ <- buildDataEnv (progDataDecls p)
@@ -92,7 +94,25 @@ checkProgram p = do
   case dupes (progLetNames p) of
     (x : _) -> Left ("duplicate top-level definition: " <> x)
     []      -> Right ()
+  case dupes (map (\(n, _, _) -> n) (progSynonymDecls p)) of
+    (x : _) -> Left ("duplicate type synonym: " <> x)
+    []      -> checkSynCollisions p
   where
+    checkSynCollisions q =
+      let synNames   = Set.fromList [n | (n, _, _) <- progSynonymDecls q]
+          typeNames  = Set.fromList (map ddName (progDataDecls q))
+          recordNames = recordNameSet (buildRecordEnv (progRecordDecls q) `orElse` emptyRecordEnv)
+          classNames = Set.fromList [cdName c | c <- progClassDecls q]
+          collision = Set.toList (synNames `Set.intersection`
+                                   (typeNames `Set.union` recordNames `Set.union` classNames))
+      in case collision of
+           (x : _) -> Left ("type synonym name collides with a data/record/class name: " <> x)
+           []      -> Right ()
+
+    orElse :: Either String a -> a -> a
+    orElse (Right x) _ = x
+    orElse _ d         = d
+
     dupes :: Ord a => [a] -> [a]
     dupes = go . sort
       where

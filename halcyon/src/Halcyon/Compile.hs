@@ -67,6 +67,8 @@ compileProgramIn prog = do
       DefRecord _    -> return ()
       DefClass _     -> return ()
       DefInstance _  -> return ()
+      DefInfix _ _ _ _ -> return ()
+      DefSynonym _ _ _ _ -> return ()
       DefLet p rec name bound -> compileTopLet p rec name denv renv bound
 
     compileMaybeExpr _ _ Nothing   = return ()

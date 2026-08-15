@@ -130,6 +130,8 @@ evalDef denv renv cenv env = \case
   DefRecord _     -> Right env
   DefClass _      -> Right env
   DefInstance _   -> Right env
+  DefInfix _ _ _ _ -> Right env
+  DefSynonym _ _ _ _ -> Right env
   DefLet p rec name bound -> case bound of
     ELambda _ params body' ->
       let captured = if rec then env' else env

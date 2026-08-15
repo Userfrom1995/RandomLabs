@@ -43,6 +43,11 @@ data Tok
   | TDo
   | TLeftArrow        -- ^ @<-@ (do-block bind)
   | TSemi             -- ^ @;@ (do-block statement separator)
+  | TInfixl           -- ^ @infixl@ (user operator declaration)
+  | TInfixr           -- ^ @infixr@ (user operator declaration)
+  | TInfix            -- ^ @infix@ (user operator declaration)
+  | TType             -- ^ @type@ (type synonym declaration)
+  | TOpName String    -- ^ a user-defined operator name (maximal symbol run)
   | TTrue
   | TFalse
   | TPlus

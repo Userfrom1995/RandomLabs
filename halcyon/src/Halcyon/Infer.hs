@@ -82,6 +82,8 @@ inferDef denv renv env = \case
   DefRecord _     -> return env
   DefClass _      -> return env
   DefInstance inst -> checkInstance denv renv env inst >> return env
+  DefInfix _ _ _ _  -> return env
+  DefSynonym _ _ _ _ -> return env
   DefLet p rec name bound -> do
     t <- fresh
     let envRec    = Map.insert name (Scheme [] Set.empty t) env

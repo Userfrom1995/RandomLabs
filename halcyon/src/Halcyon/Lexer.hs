@@ -24,6 +24,7 @@ lexSource src = go 1 1 src
         | isSpace x       -> go (newline l x) (newlineCol c x) xs
         | x == '-' && isPrefixOf' "--" s -> skipLine l c (drop 2 s)
         | x == '{' && isPrefixOf' "{-" s -> skipBlock l c (drop 2 s)
+        | isOpChar x      -> operatorTok l c s
       _                   -> token l c s
 
     -- Line comment: skip to (and including) the newline, if any.
@@ -60,36 +61,54 @@ lexSource src = go 1 1 src
         | isDigit x      -> numberTok l c s
         | x == '"'       -> stringTok l c s
         | x == '\''      -> charTok l c s
-      (x : _) | x == '+' -> simpleTok l c TPlus 1 s
-      (x : _) | x == '-' && isPrefixOf' "->" s -> simpleTok l c TArrow 2 s
-      (x : _) | x == '-' -> simpleTok l c TMinus 1 s
-      (x : _) | x == '*' -> simpleTok l c TStar 1 s
-      (x : _) | x == '/' && not (isPrefixOf' "/=" s) -> simpleTok l c TSlash 1 s
-      (x : _) | x == '/' && isPrefixOf' "/=" s       -> simpleTok l c TNe 2 s
-      (x : _) | x == '<' && isPrefixOf' "<-" s -> simpleTok l c TLeftArrow 2 s
-      (x : _) | x == '<' && not (isPrefixOf' "<=" s) -> simpleTok l c TLt 1 s
-      (x : _) | x == '<' && isPrefixOf' "<=" s       -> simpleTok l c TLe 2 s
-      (x : _) | x == '>' && not (isPrefixOf' ">=" s) -> simpleTok l c TGt 1 s
-      (x : _) | x == '>' && isPrefixOf' ">=" s       -> simpleTok l c TGe 2 s
-      (x : _) | x == '=' && isPrefixOf' "==" s       -> simpleTok l c TEq 2 s
-      (x : _) | x == '=' && isPrefixOf' "=>" s       -> simpleTok l c TArrow 2 s
-      (x : _) | x == '='                             -> simpleTok l c TAssign 1 s
-      (x : _) | x == ':' && isPrefixOf' "::" s       -> simpleTok l c TCons 2 s
-      (x : _) | x == '&' && isPrefixOf' "&&" s       -> simpleTok l c TAnd 2 s
-      (x : _) | x == '|' && isPrefixOf' "||" s       -> simpleTok l c TOr 2 s
-      (x : _) | x == '|'                             -> simpleTok l c TPipe 1 s
-      (x : _) | x == '!'                             -> simpleTok l c TNot 1 s
       (x : _) | x == '(' -> simpleTok l c TLParen 1 s
       (x : _) | x == ')' -> simpleTok l c TRParen 1 s
       (x : _) | x == '[' -> simpleTok l c TLBracket 1 s
       (x : _) | x == ']' -> simpleTok l c TRBracket 1 s
       (x : _) | x == '{' -> simpleTok l c TLBrace 1 s
       (x : _) | x == '}' -> simpleTok l c TRBrace 1 s
-      (x : _) | x == '.' -> simpleTok l c TDot 1 s
       (x : _) | x == ',' -> simpleTok l c TComma 1 s
       (x : _) | x == ';' -> simpleTok l c TSemi 1 s
-      (x : _) | x == ':' && not (isPrefixOf' "::" s) -> simpleTok l c TColon 1 s
       (x : _)            -> Left (LexError (Pos l c) ("unexpected character: " <> show x))
+
+    -- An operator token: a maximal run of symbol characters. The fixed
+    -- multi-character operators (@->@ @<-@ @<=@ @>=@ @==@ @=>@ @/=@ @::@
+    -- @&&@ @||@) and the single built-in operator characters (@+@ @-@ @*@
+    -- @/@ @<@ @>@ @=@ @!@ @|@ @.@ @:@) keep their existing tokens; any other
+    -- run lexes as one @TOpName@ (a user-defined operator), e.g. @++@, @<=>@,
+    -- @<>@. A run consisting only of @!@ characters lexes as that many @TNot@
+    -- tokens, so @!!false@ is double negation (the @!@ character is reserved
+    -- for the unary @not@ builtin and may not head a user operator).
+    -- Line comments (@--@) and block comments (@{-@) are intercepted in
+    -- 'go' before this rule, so comment markers never become operator names.
+    operatorTok :: Int -> Int -> String -> Either LexError [Token]
+    operatorTok l c s =
+      let (ops, rest) = span isOpChar s
+          toks | all (== '!') ops = replicate (length ops) (Token (Pos l c) TNot)
+               | otherwise        = [Token (Pos l c) (case ops of
+                                       "->"  -> TArrow
+                                       "<-"  -> TLeftArrow
+                                       "<="  -> TLe
+                                       ">="  -> TGe
+                                       "=="  -> TEq
+                                       "=>"  -> TArrow
+                                       "/="  -> TNe
+                                       "::"  -> TCons
+                                       "&&"  -> TAnd
+                                       "||"  -> TOr
+                                       "+"   -> TPlus
+                                       "-"   -> TMinus
+                                       "*"   -> TStar
+                                       "/"   -> TSlash
+                                       "<"   -> TLt
+                                       ">"   -> TGt
+                                       "="   -> TAssign
+                                       "!"   -> TNot
+                                       "|"   -> TPipe
+                                       "."   -> TDot
+                                       ":"   -> TColon
+                                       _     -> TOpName ops)]
+      in consResults toks (go (stepLine l c ops) (stepCol l c ops) rest)
 
     -- Emit a single token after consuming n characters, continuing the scan.
     simpleTok :: Int -> Int -> Tok -> Int -> String -> Either LexError [Token]
@@ -190,6 +209,10 @@ lexSource src = go 1 1 src
 consResult :: Token -> Either LexError [Token] -> Either LexError [Token]
 consResult tok rest = fmap (tok :) rest
 
+-- | Prepend a list of tokens to the continuation.
+consResults :: [Token] -> Either LexError [Token] -> Either LexError [Token]
+consResults toks rest = fmap (toks ++) rest
+
 isSpace :: Char -> Bool
 isSpace ch = ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'
 
@@ -201,6 +224,12 @@ isIdentStart ch = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == 
 
 isIdentChar :: Char -> Bool
 isIdentChar ch = isIdentStart ch || isDigit ch || ch == '\''
+
+-- | The symbol characters that can form an operator name. A maximal run of
+-- these lexes as one operator token; fixed operators and comment/arrow/cons
+-- prefixes keep their existing tokens.
+isOpChar :: Char -> Bool
+isOpChar ch = ch `elem` "+-*/<>=!&|:."
 
 isDigit :: Char -> Bool
 isDigit ch = ch >= '0' && ch <= '9'
@@ -223,6 +252,10 @@ keywordOrIdent = \case
   "match" -> TMatch
   "with"  -> TWith
   "do"    -> TDo
+  "infixl" -> TInfixl
+  "infixr" -> TInfixr
+  "infix"  -> TInfix
+  "type"   -> TType
   "true"  -> TTrue
   "false" -> TFalse
   name    -> TIdent name
