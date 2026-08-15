@@ -1,13 +1,14 @@
 # Halcyon documentation index.
 
 Halcyon is a small, strictly-evaluated functional language with Hindley-Milner
-type inference, a bytecode VM, a CLI, and a browser playground that mirrors
-the whole implementation in plain JavaScript.
+type inference, algebraic data types, pattern matching, tail-call
+optimization, a deterministic optimizer, a bytecode VM, a CLI, and a browser
+playground that mirrors the whole implementation in plain JavaScript.
 
-- [language.md](language.md) - syntax, grammar, type system, builtins, and
-  evaluation semantics.
+- [language.md](language.md) - syntax, grammar, type system, data types and
+  pattern matching, builtins, and evaluation semantics.
 - [vm.md](vm.md) - the stack machine: frames, upvalue cells, closures,
-  calling convention, and the full opcode reference.
+  tail calls, data instructions, and the full opcode reference.
 - [index.html](index.html) - browsable documentation home.
 
 ## Try it
@@ -16,4 +17,5 @@ the whole implementation in plain JavaScript.
   typecheck, run, disassemble, and step through the VM in the browser.
 - CLI (see the [project README](../README.md)): `halcyon run`, `halcyon
   check`, `halcyon compile`, `halcyon run-vm`, `halcyon eval`, `halcyon
-  corpus`, `halcyon selftest`, `halcyon repl`.
+  corpus`, `halcyon selftest`, `halcyon repl`. `run-vm --opt` and
+  `compile --opt` exercise the deterministic optimizer.

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Halcyon: a functional language with a bytecode VM</title>
-<meta name="description" content="Halcyon: a strictly-evaluated functional language with Hindley-Milner type inference, a bytecode VM, a Haskell CLI, and a dependency-free JavaScript web playground with a single-stepping VM debugger. Zero dependencies, 129 self-tests, and a cross-language corpus that proves the JS mirror matches the Haskell core byte-for-byte." />
+<meta name="description" content="Halcyon: a strictly-evaluated functional language with Hindley-Milner type inference, algebraic data types, pattern matching, tail-call optimization, a bytecode VM, a Haskell CLI, and a dependency-free JavaScript web playground with a single-stepping VM debugger. Zero dependencies, 322 self-tests, and a 29-entry cross-language corpus that proves the JS mirror matches the Haskell core byte-for-byte." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -99,30 +99,34 @@
   <p>Halcyon is a from-scratch functional programming language: a lexer,
   recursive-descent parser, Algorithm W type inference (with
   <code>let</code>-polymorphism), a tree-walking interpreter, a bytecode
-  compiler, and a stack VM with frames, upvalue cells, and closures. Two
-  evaluators (interpreter and VM) plus a JavaScript mirror all agree
-  byte-for-byte, proven by an 18-program differential corpus.</p>
+  compiler, and a stack VM with frames, upvalue cells, closures, tail-call
+  optimization, and a deterministic optimizer. Algebraic data types and
+  pattern matching let programs define their own types. Two evaluators
+  (interpreter and VM) plus a JavaScript mirror all agree byte-for-byte,
+  proven by a 29-program differential corpus.</p>
 
   <div class="cards">
     <div class="card">
       <h4>Types</h4>
       <p>Full Hindley-Milner inference: <code>Int</code>, <code>Float</code>,
-      <code>Bool</code>, <code>String</code>, lists, functions, and real
-      polymorphism through <code>let</code>.</p>
+      <code>Bool</code>, <code>String</code>, lists, functions, user-defined
+      algebraic data types, and real polymorphism through <code>let</code>.</p>
     </div>
     <div class="card">
       <h4>VM</h4>
-      <p>A single-steppable stack machine. <code>halcyon run-vm --trace</code>
-      and the web debugger drive the exact same instruction set.</p>
+      <p>A single-steppable stack machine with tail-call optimization.
+      <code>halcyon run-vm --trace</code> and the web debugger drive the
+      exact same instruction set.</p>
     </div>
     <div class="card">
       <h4>Playground</h4>
       <p>A dependency-free <code>index.html</code> that runs the whole
-      language client-side: edit, typecheck, run, disassemble, and step.</p>
+      language client-side: edit, typecheck, run, disassemble, step, and
+      toggle the optimizer with <code>--opt</code>.</p>
     </div>
     <div class="card">
       <h4>Verified</h4>
-      <p>129 Haskell self-tests, a 15-entry differential corpus, and a
+      <p>322 Haskell self-tests, a 29-entry differential corpus, and a
       cross-language check (JS interpreter == JS VM == Haskell expected).</p>
     </div>
   </div>
@@ -155,12 +159,17 @@ in fib 25</code></pre>
   </ul>
 
   <h2>Example</h2>
-  <pre><code>let rec map = fn f xs =&gt;
-  if isNil xs then []
-  else cons (f (head xs)) (map f (tail xs))
-in map (fn x =&gt; x * x) [1, 2, 3, 4]</code></pre>
-  <p>prints <code>[1, 4, 9, 16]</code> on every backend: interpreter, VM,
-  and playground.</p>
+  <pre><code>data Tree = Leaf Int | Node Tree Tree
+let rec height = fn t =&gt; match t with
+  | Leaf n =&gt; 1
+  | Node l r =&gt;
+      let hl = height l in
+      let hr = height r in
+      if hl &gt; hr then hl + 1 else hr + 1
+in height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))</code></pre>
+  <p>prints <code>3</code> on every backend: interpreter, VM, and playground.
+  Data types, pattern matching, and recursion work identically across the
+  Haskell core and the JS mirror.</p>
 </main>
 
 <footer>Halcyon · part of the Random repo · MIT License</footer>

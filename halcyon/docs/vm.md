@@ -66,6 +66,7 @@ contexts to walk), `n` = count, `o` = instruction offset.
 | `jump`         | `o`      | `->`                              | unconditional jump to offset `o` |
 | `jump_if_false`| `o`      | `Bool ->`                         | pop; jump when false |
 | `call`         |          | `arg fn -> r`                     | apply one argument (curried) |
+| `tail_call`    |          | `arg fn -> r`                     | tail call: reuse the current frame when the caller has nothing pending |
 | `make_closure` | `i`      | `-> closure`                      | build closure from constant `i`, capturing current context |
 | `return`       |          | `r -> r`                          | pop frame; result stays on stack |
 | `cons`         |          | `x [xs] -> [x,xs...]`             | prepend |
@@ -73,7 +74,29 @@ contexts to walk), `n` = count, `o` = instruction offset.
 | `tail`         |          | `[a] -> [a]`                      | rest; `tail of empty list` on `[]` |
 | `is_nil`       |          | `[a] -> Bool`                     | true when empty |
 | `make_list`    | `n`      | `v1..vn -> [v1..vn]`              | pop `n` values in order, push list |
+| `make_data`    | `i`      | `args -> Data i args`             | build a constructor value for data-pool index `i` |
+| `test_constr`  | `i:o`    | `Data ->`                         | jump to `o` when the value's constructor index is `i`, else pop and continue |
+| `test_int` `test_float` `test_bool` `test_str` | `i:o` | `v ->` | jump to `o` when the value equals constant `i`, else pop |
+| `test_nil`     | `o`      | `[a] ->`                          | jump to `o` when the list is empty |
+| `test_cons`    | `o`      | `[a] ->`                          | jump to `o` when the list is non-empty |
+| `bind_local`   | `s`      | `v ->`                            | pop into slot `s` without creating a cell |
+| `fail`         |          | `v ->`                            | raise `no matching pattern` |
 | `halt`         |          | `->`                              | stop; result is the stack top |
+
+### Tail calls
+
+Calls in tail position compile to `tail_call`, which replaces the current
+frame instead of pushing a new one. Recursive tail calls therefore run in
+constant stack space: a program like `let rec loop = fn n => if n == 0 then
+0 else loop (n - 1) in loop 1000000` completes without growing frames.
+Non-tail calls still push frames as usual.
+
+### Data values
+
+Constructor values carry a tag (the data-pool index) and their fields, so
+`make_data` pops the fields in order and `test_constr` dispatches on the
+tag. `match` compiles each branch to a `test_*` + `jump` chain, exactly as
+documented in the language reference.
 
 ## 4. Example disassembly
 
