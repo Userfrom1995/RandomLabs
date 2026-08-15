@@ -34,6 +34,9 @@ data Tok
   | TData
   | TRecord
   | TImport
+  | TClass
+  | TInstance
+  | TWhere
   | TMatch
   | TWith
   | TTrue

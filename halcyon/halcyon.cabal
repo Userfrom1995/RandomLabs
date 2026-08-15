@@ -20,6 +20,7 @@ library
                        Halcyon.Type
                        Halcyon.Data
                        Halcyon.Record
+                       Halcyon.Classes
                        Halcyon.Infer
                        Halcyon.Value
                        Halcyon.Eval

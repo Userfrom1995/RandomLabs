@@ -4,11 +4,11 @@ module Halcyon.Parser
   , ParseError(..)
   ) where
 
-import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), RecordDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), builtinForName)
+import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), RecordDecl(..), ClassDecl(..), InstanceDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), builtinForName)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Token
 import qualified Halcyon.Type as T
-import Halcyon.Type (Type)
+import Halcyon.Type (Type, classTypeVar)
 
 -- | A parse error, positioned at the token where parsing failed.
 data ParseError = ParseError Pos String
@@ -73,6 +73,14 @@ parseDefsAndExpr = do
       d <- parseRecordDecl
       (ds, e) <- parseDefsAndExpr
       return (DefRecord d : ds, e)
+    TClass -> do
+      d <- parseClassDecl
+      (ds, e) <- parseDefsAndExpr
+      return (DefClass d : ds, e)
+    TInstance -> do
+      d <- parseInstanceDecl
+      (ds, e) <- parseDefsAndExpr
+      return (DefInstance d : ds, e)
     TLet  -> parseLetOrDef
     TEOF  -> return ([], Nothing)
     _     -> do
@@ -144,6 +152,89 @@ parseRecordFields tvs = do
       case t of
         TComma -> consumeTok >> parseRecordFields tvs
         _      -> return []
+
+-- | @class <Name> <tyvar> where <method> : <type>, ...@. Methods are
+-- @name : type@ pairs separated by commas (same line or newlines); a new
+-- line whose next token is a name NOT followed by @:@ ends the method list.
+parseClassDecl :: Parser ClassDecl
+parseClassDecl = do
+  p <- consumeT TClass
+  Token _ (TIdent name) <- expectCapitalized "class"
+  Token _ (TIdent tyvar) <- expectIdent
+  if isCapitalized tyvar
+    then failAt p ("expected a lowercase class type variable, found " <> tyvar)
+    else return ()
+  let tvs = [(tyvar, classTypeVar)]
+  consumeT TWhere
+  methods <- parseClassMethods tvs
+  return (ClassDecl p name tyvar methods)
+
+-- | A class method signature list: @name : type@ pairs, comma-separated. A
+-- following name not followed by @:@ (e.g. a top-level expression) ends the
+-- list, so the class declaration never swallows the next definition.
+parseClassMethods :: [(String, Int)] -> Parser [(String, Type)]
+parseClassMethods tvs = do
+  t <- peek
+  t2 <- peek2
+  case (t, t2) of
+    (TIdent n, Just TColon) -> do
+      consumeTok
+      consumeT TColon
+      ty <- parseTypeExpr tvs
+      rest <- parseClassMethods tvs
+      return ((n, ty) : rest)
+    _ -> return []
+
+-- | @instance Ctx? <Class> <head> where <method> = <expr>, ...@. The
+-- optional context is @ClassName tyvar =>@. The head type may optionally
+-- repeat the class name (Haskell convention, e.g. @instance Show (Pair a)@);
+-- when it does, the class name is stripped so the stored head is the type
+-- argument alone, matching the value-tag dispatch used at runtime. Every
+-- type variable in the head resolves to @'Halcyon.Type'.TVar 0@ (the head's
+-- leading variable). Methods are @name = expr@ pairs, comma-separated (a
+-- following name not followed by @=@ ends the list).
+parseInstanceDecl :: Parser InstanceDecl
+parseInstanceDecl = do
+  p <- consumeT TInstance
+  Token _ (TIdent classname) <- expectCapitalized "class"
+  mctx <- parseOptionalCtx classname
+  headT <- parseHeadType
+  let headT' = case headT of
+        T.TData cn [arg] | cn == classname -> arg
+        _                                  -> headT
+  consumeT TWhere
+  methods <- parseInstanceMethods
+  return (InstanceDecl p classname mctx headT' methods)
+
+-- | Parse the optional instance context @ClassName tyvar =>@. The tyvar is
+-- the head's leading type variable (@'Halcyon.Type'.TVar 0@).
+parseOptionalCtx :: String -> Parser (Maybe (String, Type))
+parseOptionalCtx classname = do
+  t <- peek
+  t2 <- peek2
+  case (t, t2) of
+    (TIdent n, Just TArrow) | not (isCapitalized n) -> do
+      consumeTok
+      consumeT TArrow
+      return (Just (classname, T.TVar classTypeVar))
+    _ -> return Nothing
+
+-- | An instance method list: @name = expr@ pairs, comma-separated. A
+-- following name not followed by @=@ (a top-level expression) ends the list.
+parseInstanceMethods :: Parser [(String, Expr)]
+parseInstanceMethods = do
+  t <- peek
+  t2 <- peek2
+  case (t, t2) of
+    (TIdent n, Just TAssign) -> do
+      consumeTok
+      consumeT TAssign
+      setBound True
+      e <- parseExpr
+      setBound False
+      rest <- parseInstanceMethods
+      return ((n, e) : rest)
+    _ -> return []
 
 -- | Constructor alternatives separated by @|@, with an optional leading @|@.
 parseCtorAlts :: [(String, Int)] -> Parser [(String, [Type])]
@@ -264,6 +355,72 @@ parseTypeAtom tvs = do
       consumeT TRParen
       return inner
     _ -> failAt p ("expected a type, found " <> describe t)
+
+-- ---------------------------------------------------------------------
+-- Instance head types
+--
+--   headType := headApp ('->' headType)?       (right-associative)
+--   headApp  := headAtom headAtom*             (left-associative)
+--   headAtom := 'Int' | 'Float' | 'Bool' | 'String'
+--            | '[' headType ']' | '(' headType ')'
+--            | <lowercase>  -> TVar 0 (the head's leading variable)
+--            | <Capitalized> (data/record type)
+--
+-- Every type variable in an instance head resolves to the leading variable
+-- (@'Halcyon.Type'.TVar 0@), matching the instance-head encoding used by
+-- the class environment and the runtime dispatcher.
+-- ---------------------------------------------------------------------
+
+parseHeadType :: Parser Type
+parseHeadType = do
+  a <- parseHeadApp
+  t <- peek
+  case t of
+    TArrow -> consumeTok >> (T.TFun a <$> parseHeadType)
+    _      -> return a
+
+parseHeadApp :: Parser Type
+parseHeadApp = do
+  p <- peekPos
+  t <- peek
+  a <- parseHeadAtom
+  case t of
+    TIdent n | isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String"] ->
+      go p n []
+    _ -> return a
+  where
+    go p n as = do
+      q <- peekPos
+      t <- peek
+      if posLine q == posLine p && typeAtomStart t
+        then do
+          b <- parseHeadAtom
+          go p n (as ++ [b])
+        else return (T.TData n as)
+
+parseHeadAtom :: Parser Type
+parseHeadAtom = do
+  p <- peekPos
+  t <- peek
+  case t of
+    TIdent n -> consumeTok >> case n of
+      "Int"    -> return T.TInt
+      "Float"  -> return T.TFloat
+      "Bool"   -> return T.TBool
+      "String" -> return T.TStr
+      _ | isCapitalized n -> return (T.TData n [])
+        | otherwise -> return (T.TVar classTypeVar)
+    TLBracket -> do
+      consumeTok
+      inner <- parseHeadType
+      consumeT TRBracket
+      return (T.TList inner)
+    TLParen -> do
+      consumeTok
+      inner <- parseHeadType
+      consumeT TRParen
+      return inner
+    _ -> failAt p ("expected an instance head type, found " <> describe t)
 
 -- | True when a token can begin a type atom (used to continue application).
 typeAtomStart :: Tok -> Bool
@@ -817,6 +974,9 @@ describe = \case
   TData       -> "'data'"
   TRecord     -> "'record'"
   TImport     -> "'import'"
+  TClass      -> "'class'"
+  TInstance   -> "'instance'"
+  TWhere      -> "'where'"
   TMatch      -> "'match'"
   TWith       -> "'with'"
   TTrue       -> "'true'"

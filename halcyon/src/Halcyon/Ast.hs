@@ -5,6 +5,8 @@ module Halcyon.Ast
   , TopDef(..)
   , DataDecl(..)
   , RecordDecl(..)
+  , ClassDecl(..)
+  , InstanceDecl(..)
   , Pattern(..)
   , Op(..)
   , Builtin(..)
@@ -14,6 +16,8 @@ module Halcyon.Ast
   , progDataDecls
   , progRecordDecls
   , progLetNames
+  , progClassDecls
+  , progInstanceDecls
   ) where
 
 import Halcyon.Token (Pos)
@@ -55,11 +59,15 @@ data Program = Program
   }
   deriving (Eq, Show)
 
--- | A top-level definition. @data@ declarations and @let [rec] name = e@
--- bindings share a namespace for names in the final expression.
+-- | A top-level definition. @data@/@record@ declarations and @let [rec]
+-- @name = e@ bindings share a namespace for names in the final expression.
+-- @class@/@instance@ declarations (v3, milestone 19) define type classes and
+-- their instances.
 data TopDef
   = DefData DataDecl
   | DefRecord RecordDecl
+  | DefClass ClassDecl
+  | DefInstance InstanceDecl
   | DefLet Pos Bool String Expr
   deriving (Eq, Show)
 
@@ -74,6 +82,14 @@ progRecordDecls p = [d | DefRecord d <- progDefs p]
 -- | The names bound by top-level @let@ definitions, in order.
 progLetNames :: Program -> [String]
 progLetNames p = [n | DefLet _ _ n _ <- progDefs p]
+
+-- | The @class@ declarations of a program, in order.
+progClassDecls :: Program -> [ClassDecl]
+progClassDecls p = [d | DefClass d <- progDefs p]
+
+-- | The @instance@ declarations of a program, in order.
+progInstanceDecls :: Program -> [InstanceDecl]
+progInstanceDecls p = [d | DefInstance d <- progDefs p]
 
 -- | A top-level @data@ declaration: @data <Name> <tyvar>* = <Ctor> <ty>* | ...@
 -- Field types are parsed into 'Halcyon.Type.Type' where declared type
@@ -96,6 +112,33 @@ data RecordDecl = RecordDecl
   , rdName   :: String
   , rdTyvars :: [String]
   , rdFields :: [(String, Type)]  -- ^ field name -> field type, in declaration order
+  }
+  deriving (Eq, Show)
+
+-- | A top-level @class@ declaration:
+-- @class <Name> <tyvar> where <method> : <type>, ...@. The class has exactly
+-- one type parameter; every method type is written over that parameter, which
+-- is represented as @'Halcyon.Type'.TVar 0@.
+data ClassDecl = ClassDecl
+  { cdPos     :: Pos
+  , cdName    :: String
+  , cdVar     :: String            -- ^ the single class type variable
+  , cdMethods :: [(String, Type)]  -- ^ method name -> declared type
+  }
+  deriving (Eq, Show)
+
+-- | A top-level @instance@ declaration:
+-- @instance Ctx? <Class> <head> where <method> = <expr>, ...@. The optional
+-- context is a single @ClassName tyvar@ constraint (the head's leading type
+-- variable). Instance heads are closed types built from primitives, data or
+-- record names, and list types; type variables in a head all resolve to the
+-- head's leading variable (@'Halcyon.Type'.TVar 0@).
+data InstanceDecl = InstanceDecl
+  { idPos     :: Pos
+  , idClass   :: String
+  , idCtx     :: Maybe (String, Type)  -- ^ context constraint (class, type), if any
+  , idHead    :: Type                  -- ^ the instance head type
+  , idMethods :: [(String, Expr)]      -- ^ method name -> implementation
   }
   deriving (Eq, Show)
 
@@ -161,6 +204,11 @@ data Builtin
   | BAppend
   | BTake
   | BDrop
+  | BIntToStr
+  | BFloatToStr
+  | BBoolToStr
+  | BStrToStr
+  | BListToStr
   deriving (Eq, Show)
 
 builtinName :: Builtin -> String
@@ -174,6 +222,11 @@ builtinName = \case
   BAppend  -> "append"
   BTake    -> "take"
   BDrop    -> "drop"
+  BIntToStr   -> "intToStr"
+  BFloatToStr -> "floatToStr"
+  BBoolToStr  -> "boolToStr"
+  BStrToStr   -> "strToStr"
+  BListToStr  -> "listToStr"
 
 -- | Resolve a builtin by name, if it is one.
 builtinForName :: String -> Maybe Builtin
@@ -187,4 +240,9 @@ builtinForName = \case
   "append"  -> Just BAppend
   "take"    -> Just BTake
   "drop"    -> Just BDrop
-  _         -> Nothing
+  "intToStr"   -> Just BIntToStr
+  "floatToStr" -> Just BFloatToStr
+  "boolToStr"  -> Just BBoolToStr
+  "strToStr"   -> Just BStrToStr
+  "listToStr"  -> Just BListToStr
+  _            -> Nothing

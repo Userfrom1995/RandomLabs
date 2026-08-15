@@ -4,7 +4,7 @@
 -- type checker, the interpreter, and the bytecode compiler so all three
 -- agree on constructor arities and types.
 module Halcyon.Data
-  ( DataEnv
+  ( DataEnv(..)
   , CtorInfo(..)
   , emptyDataEnv
   , buildDataEnv
@@ -69,8 +69,8 @@ normDataEnvRecs :: Set.Set String -> DataEnv -> DataEnv
 normDataEnvRecs recs (DataEnv m) = DataEnv (Map.map normCtor m)
   where
     normCtor (CtorInfo t ar sch) =
-      let Scheme qv b = sch
-      in CtorInfo t ar (Scheme qv (normType b))
+      let Scheme _ qv b = sch
+      in CtorInfo t ar (Scheme [] qv (normType b))
     normType = go
       where
         go (TData n ts) | n `Set.member` recs = TRec n (map go ts)
@@ -122,7 +122,7 @@ buildDataEnv decls = do
           let args  = [TVar i | i <- [0 .. length tyvars - 1]]
               body  = foldr TFun (TData tname args) fields
               qvars = Set.fromList [0 .. length tyvars - 1]
-          in CtorInfo tname (length fields) (Scheme qvars body)
+          in CtorInfo tname (length fields) (Scheme [] qvars body)
 
     dupes :: Ord a => [a] -> [a]
     dupes = go . sort

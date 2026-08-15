@@ -60,6 +60,7 @@ lexSource src = go 1 1 src
         | isDigit x      -> numberTok l c s
         | x == '"'       -> stringTok l c s
       (x : _) | x == '+' -> simpleTok l c TPlus 1 s
+      (x : _) | x == '-' && isPrefixOf' "->" s -> simpleTok l c TArrow 2 s
       (x : _) | x == '-' -> simpleTok l c TMinus 1 s
       (x : _) | x == '*' -> simpleTok l c TStar 1 s
       (x : _) | x == '/' && not (isPrefixOf' "/=" s) -> simpleTok l c TSlash 1 s
@@ -198,6 +199,9 @@ keywordOrIdent = \case
   "data"  -> TData
   "record" -> TRecord
   "import" -> TImport
+  "class" -> TClass
+  "instance" -> TInstance
+  "where" -> TWhere
   "match" -> TMatch
   "with"  -> TWith
   "true"  -> TTrue
