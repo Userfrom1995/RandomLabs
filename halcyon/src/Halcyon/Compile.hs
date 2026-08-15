@@ -219,7 +219,10 @@ compileExpr denv renv inTail = \case
     emit (MakeList (length es))
   EVar p name   -> resolveRef p name
   EConstr p name -> compileConstr p denv name
-  EBuiltin _ b  -> emitConst (CValue (VBuiltin b))
+  EBuiltin _ b  -> case b of
+    BReadLine -> emitConst (CValue (VEffect "readLine" []))
+    _         -> emitConst (CValue (VBuiltin b))
+  EUnit _     -> emitConst (CValue VUnit)
   ELambda p params body -> compileLambda p denv renv params body
   EApply p fn arg -> case saturatedConstr denv fn arg of
     Just (name, ar, args) -> do

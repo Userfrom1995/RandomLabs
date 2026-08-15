@@ -11,19 +11,20 @@ import System.Directory (getDirectoryContents)
 import System.Environment (getArgs)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess, exitWith)
 import System.FilePath (dropExtension, takeExtension, (</>))
-import System.IO (hPutStr, hPutStrLn, stderr)
+import System.IO (getContents, hPutStr, hPutStrLn, stderr)
 
 import Halcyon.Compile (CompileError(..), Program(..), compileProgram, compileProgramIn, disassemble)
 import Halcyon.Corpus (CorpusEntry(..), corpus)
 import Halcyon.Diag (renderError)
-import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, showValue)
+import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, evalProgramEffect, showValue)
 import Halcyon.Infer (InferError(..), inferProgramIn, showType)
 import Halcyon.Module (ModuleError(..), loadProgram, resolveProgram, diskProvider)
 import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Repl (repl)
 import Halcyon.Selftest (runSelftest)
-import Halcyon.Vm (VmError(..), runVm, runVmProfiled, renderProfile, statsLine, vmShowValue)
+import Halcyon.Vm (VmError(..), runVm, runVmProfiled, runVmEffect, renderProfile, statsLine, vmShowValue, VmVal(..))
 import Halcyon.Token (Pos(..))
+import Halcyon.Value (Value(..))
 import qualified Halcyon.Ast as Ast
 
 -- | Halcyon CLI entry point.
@@ -102,7 +103,10 @@ fromMaybeLib Nothing   = "halcyon/lib/"
 -- ---------------------------------------------------------------------
 
 -- | @halcyon run@: resolve imports, typecheck then tree-walk evaluate.
--- A definitions-only module typechecks and prints nothing.
+-- A definitions-only module typechecks and prints nothing. An effect
+-- program (its result is an effect value) drives the pure effect runner
+-- with scripted stdin and prints its accumulated output plus the final
+-- result (nothing when it is @()@).
 runFile :: FilePath -> FilePath -> IO ()
 runFile libDir file = do
   src <- readSource file
@@ -115,12 +119,30 @@ runFile libDir file = do
         Right _ ->
           case evalProgramIn prog of
             Left (EvalError p m) -> die (renderError s p (posStr p <> ": runtime error: " <> m))
-            Right (Just v)  -> putStrLn (showValue v) >> exitSuccess
+            Right (Just v)  -> case v of
+              VEffect{} -> runEffectFile s prog
+              _         -> putStrLn (showValue v) >> exitSuccess
             Right Nothing   -> exitSuccess
+
+-- | Drive an effect result through the pure effect runner with scripted
+-- stdin: read all of stdin up front as the input lines, run the effect,
+-- print the accumulated output, then the final result (nothing when it is
+-- the unit value). Exit codes match the plain run.
+runEffectFile :: String -> Ast.Program -> IO ()
+runEffectFile s prog = do
+  inputLines <- getContents >>= return . lines
+  case evalProgramEffect inputLines prog of
+    Left (EvalError p m) -> die (renderError s p (posStr p <> ": runtime error: " <> m))
+    Right (Just (out, res)) -> putStr out >> printResult res
+    Right Nothing -> exitSuccess
+  where
+    printResult VUnit  = exitSuccess
+    printResult r      = putStrLn (showValue r) >> exitSuccess
 
 -- | @halcyon eval@: typecheck then evaluate an inline expression and print
 -- the value. Imports resolve against the lib directory. Exit codes match the
--- file-based commands.
+-- file-based commands. An effect expression drives the pure effect runner
+-- with scripted stdin, like @run@.
 evalInline :: FilePath -> String -> IO ()
 evalInline libDir src = do
   prog <- resolveInline libDir src
@@ -129,7 +151,9 @@ evalInline libDir src = do
     Right _ ->
       case evalProgramIn prog of
         Left (EvalError p m) -> die (renderError src p (posStr p <> ": runtime error: " <> m))
-        Right (Just v)  -> putStrLn (showValue v) >> exitSuccess
+        Right (Just v)  -> case v of
+          VEffect{} -> runEffectFile src prog
+          _         -> putStrLn (showValue v) >> exitSuccess
         Right Nothing   -> exitSuccess
 
 -- | How a @run-vm@ profiling mode reports its results.
@@ -171,7 +195,22 @@ runVmFile libDir trace opt pmode file = do
                   Nothing -> runVm trace compiled'
                 case res of
                   Left (VmError m) -> die ("vm error: " <> m)
-                  Right v -> putStrLn (vmShowValue v) >> exitSuccess
+                  Right v -> case v of
+                    VmEffect{} -> runVmEffectFile s compiled'
+                    _          -> putStrLn (vmShowValue v) >> exitSuccess
+
+-- | Drive an effect result on the VM with scripted stdin: read all of stdin
+-- up front, run the compiled program as an effect, print the accumulated
+-- output, then the final result (nothing when it is the unit value).
+runVmEffectFile :: String -> Program -> IO ()
+runVmEffectFile s compiled = do
+  inputLines <- getContents >>= return . lines
+  r <- runVmEffect compiled inputLines
+  case r of
+    Left (VmError m) -> die ("vm error: " <> m)
+    Right (out, res) -> putStr out >> case res of
+      VmUnit -> exitSuccess
+      _      -> putStrLn (vmShowValue res) >> exitSuccess
 
 -- | @halcyon check@: typecheck only and print the inferred top-level type.
 -- A definitions-only module typechecks and prints nothing.
@@ -374,4 +413,7 @@ helpText = unlines
   , "(imports first resolve relative to the importing file)."
   , ""
   , "Exit codes: 0 success, 1 any error, 2 usage error."
+  , ""
+  , "Effect programs (do { } blocks, print/printLine/readLine) run against"
+  , "scripted stdin: all of stdin is read up front and supplies readLine."
   ]

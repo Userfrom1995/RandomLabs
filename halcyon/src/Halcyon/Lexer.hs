@@ -66,6 +66,7 @@ lexSource src = go 1 1 src
       (x : _) | x == '*' -> simpleTok l c TStar 1 s
       (x : _) | x == '/' && not (isPrefixOf' "/=" s) -> simpleTok l c TSlash 1 s
       (x : _) | x == '/' && isPrefixOf' "/=" s       -> simpleTok l c TNe 2 s
+      (x : _) | x == '<' && isPrefixOf' "<-" s -> simpleTok l c TLeftArrow 2 s
       (x : _) | x == '<' && not (isPrefixOf' "<=" s) -> simpleTok l c TLt 1 s
       (x : _) | x == '<' && isPrefixOf' "<=" s       -> simpleTok l c TLe 2 s
       (x : _) | x == '>' && not (isPrefixOf' ">=" s) -> simpleTok l c TGt 1 s
@@ -86,6 +87,7 @@ lexSource src = go 1 1 src
       (x : _) | x == '}' -> simpleTok l c TRBrace 1 s
       (x : _) | x == '.' -> simpleTok l c TDot 1 s
       (x : _) | x == ',' -> simpleTok l c TComma 1 s
+      (x : _) | x == ';' -> simpleTok l c TSemi 1 s
       (x : _) | x == ':' && not (isPrefixOf' "::" s) -> simpleTok l c TColon 1 s
       (x : _)            -> Left (LexError (Pos l c) ("unexpected character: " <> show x))
 
@@ -220,6 +222,7 @@ keywordOrIdent = \case
   "where" -> TWhere
   "match" -> TMatch
   "with"  -> TWith
+  "do"    -> TDo
   "true"  -> TTrue
   "false" -> TFalse
   name    -> TIdent name

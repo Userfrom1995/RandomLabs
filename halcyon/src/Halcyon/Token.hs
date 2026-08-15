@@ -40,6 +40,9 @@ data Tok
   | TWhere
   | TMatch
   | TWith
+  | TDo
+  | TLeftArrow        -- ^ @<-@ (do-block bind)
+  | TSemi             -- ^ @;@ (do-block statement separator)
   | TTrue
   | TFalse
   | TPlus

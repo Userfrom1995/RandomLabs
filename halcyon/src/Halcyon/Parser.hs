@@ -317,7 +317,7 @@ parseTypeApp tvs = do
     -- same source line (@Maybe Int@). A parenthesized type, a primitive, a
     -- list type, or a type variable is complete on its own, so a following
     -- atom begins a new field or a new argument.
-    isDataName n = isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char"]
+    isDataName n = isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char", "Unit", "Effect"]
     -- A bare constructor name may be applied to following type atoms on the
     -- same source line (e.g. @Maybe Int@); a parenthesized or primitive
     -- type is complete on its own, so a following atom begins a new field.
@@ -341,6 +341,12 @@ parseTypeAtom tvs = do
       "Bool"   -> return T.TBool
       "String" -> return T.TStr
       "Char"   -> return T.TChar
+      "Unit"   -> return T.TUnit
+      "Effect" -> do
+        t2 <- peek
+        if typeAtomStart t2
+          then T.TEffect <$> parseTypeApp tvs
+          else failAt p ("expected a type after 'Effect', found " <> describe t2)
       _ | isCapitalized n -> return (T.TData n [])
         | otherwise -> case lookup n tvs of
             Just idx -> return (T.TVar idx)
@@ -386,7 +392,7 @@ parseHeadApp = do
   t <- peek
   a <- parseHeadAtom
   case t of
-    TIdent n | isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char"] ->
+    TIdent n | isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char", "Unit", "Effect"] ->
       go p n []
     _ -> return a
   where
@@ -410,6 +416,12 @@ parseHeadAtom = do
       "Bool"   -> return T.TBool
       "String" -> return T.TStr
       "Char"   -> return T.TChar
+      "Unit"   -> return T.TUnit
+      "Effect" -> do
+        t2 <- peek
+        if typeAtomStart t2
+          then T.TEffect <$> parseHeadApp
+          else failAt p ("expected a type after 'Effect', found " <> describe t2)
       _ | isCapitalized n -> return (T.TData n [])
         | otherwise -> return (T.TVar classTypeVar)
     TLBracket -> do
@@ -492,6 +504,7 @@ parseExpr = do
     TIf   -> parseIf
     TFn   -> parseLambda
     TMatch -> parseMatch
+    TDo   -> parseDo
     _     -> parseBinary 1
 
 parseLet :: Parser Expr
@@ -532,6 +545,92 @@ parseMatch = do
   consumeT TWith
   branches <- parseBranches
   return (EMatch p scrut branches)
+
+-- ---------------------------------------------------------------------
+-- do-blocks (milestone 22)
+--
+--   do      := 'do' '{' stmt (';' stmt)* ';'? '}'
+--   stmt    := name '<-' expr        (bind, non-final)
+--            | 'let' name '=' expr   (local binding, non-final)
+--            | expr                  (final, or discarded when not last)
+--
+-- A do-block desugars onto the first-class effect builtins: a bind
+-- @x <- e@ followed by @rest@ becomes @bind e (fn x => rest)@, a
+-- discarded expression @e@ followed by @rest@ becomes @bind e (fn _ =>
+-- rest)@, a local @let x = e@ becomes @let x = e in rest@, and the final
+-- expression stands alone. An empty block @do { }@ is @return ()@. The
+-- last statement must be a plain expression.
+-- ---------------------------------------------------------------------
+
+data DoStmt
+  = DoBind Pos String Expr   -- ^ @name <- expr@
+  | DoLet Pos String Expr    -- ^ @let name = expr@
+  | DoFinal Expr             -- ^ a plain expression statement
+  deriving (Eq, Show)
+
+isFinal :: DoStmt -> Bool
+isFinal DoFinal{} = True
+isFinal _         = False
+
+parseDo :: Parser Expr
+parseDo = do
+  p <- consumeT TDo
+  consumeT TLBrace
+  stmts <- parseDoStmts
+  consumeT TRBrace
+  case stmts of
+    []  -> return (EApply p (EBuiltin p BReturn) (EUnit p))
+    _ | not (isFinal (last stmts)) -> failAt p "a do block must end with an expression"
+      | otherwise -> return (desugarDo p stmts)
+
+parseDoStmts :: Parser [DoStmt]
+parseDoStmts = do
+  t <- peek
+  case t of
+    TRBrace -> return []
+    _ -> do
+      s <- parseDoStmt
+      rest <- parseDoSemi
+      return (s : rest)
+
+parseDoSemi :: Parser [DoStmt]
+parseDoSemi = do
+  t <- peek
+  case t of
+    TSemi -> consumeTok >> parseDoStmts
+    _     -> return []
+
+parseDoStmt :: Parser DoStmt
+parseDoStmt = do
+  p <- peekPos
+  t <- peek
+  t2 <- peek2
+  case (t, t2) of
+    (TLet, _) -> do
+      consumeTok
+      Token _ (TIdent name) <- expectIdent
+      consumeT TAssign
+      e <- parseExpr
+      return (DoLet p name e)
+    (TIdent _, Just TLeftArrow) -> do
+      Token _ (TIdent name) <- expectIdent
+      consumeT TLeftArrow
+      e <- parseExpr
+      return (DoBind p name e)
+    _ -> do
+      e <- parseExpr
+      return (DoFinal e)
+
+desugarDo :: Pos -> [DoStmt] -> Expr
+desugarDo p = \case
+  [DoFinal e]        -> e
+  (DoBind bp x e : rest) ->
+    EApply p (EApply p (EBuiltin p BBind) e) (ELambda p [x] (desugarDo p rest))
+  (DoLet lp x e : rest) ->
+    ELet lp False x e (desugarDo p rest)
+  (DoFinal e : rest) ->
+    EApply p (EApply p (EBuiltin p BBind) e) (ELambda p ["_"] (desugarDo p rest))
+  []                 -> EUnit p
 
 parseBranches :: Parser [(Pattern, Expr)]
 parseBranches = do
@@ -727,7 +826,12 @@ parseAtom = do
     TIdent n
       | isCapitalized n -> consumeTok >> return (EConstr p n)
       | otherwise       -> consumeTok >> return (maybe (EVar p n) (EBuiltin p) (builtinForName n))
-    TLParen   -> consumeTok >> parseExpr >>= \e -> consumeT TRParen >> return e
+    TLParen   -> do
+      consumeTok
+      t' <- peek
+      case t' of
+        TRParen -> consumeTok >> return (EUnit p)
+        _       -> parseExpr >>= \e -> consumeT TRParen >> return e
     TLBracket -> parseList
     TLBrace   -> consumeTok >> parseRecordOrUpdate p
     _         -> failAt p ("expected an expression, found " <> describe t)
@@ -902,6 +1006,7 @@ exprPos = \case
   ENeg p _        -> p
   ENot p _        -> p
   EBuiltin p _    -> p
+  EUnit p         -> p
 
 -- ---------------------------------------------------------------------
 -- Token stream helpers
@@ -987,6 +1092,9 @@ describe = \case
   TWhere      -> "'where'"
   TMatch      -> "'match'"
   TWith       -> "'with'"
+  TDo         -> "'do'"
+  TLeftArrow  -> "'<-'"
+  TSemi       -> "';'"
   TTrue       -> "'true'"
   TFalse      -> "'false'"
   TPlus       -> "'+'"

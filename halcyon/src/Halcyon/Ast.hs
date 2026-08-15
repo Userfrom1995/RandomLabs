@@ -46,6 +46,7 @@ data Expr
   | ENeg     Pos Expr            -- ^ unary minus
   | ENot     Pos Expr            -- ^ boolean not
   | EBuiltin Pos Builtin
+  | EUnit Pos             -- ^ unit literal @()@
   deriving (Eq, Show)
 
 -- | A whole Halcyon program (v3 grammar: @decl* expr@). The imports are
@@ -219,6 +220,11 @@ data Builtin
   | BStrAppend
   | BStrContains
   | BStr
+  | BReturn     -- ^ @return : a -> Effect a@ (do-block return)
+  | BBind       -- ^ @bind : Effect a -> (a -> Effect b) -> Effect b@
+  | BPrint      -- ^ @print : a -> Effect Unit@ (no trailing newline)
+  | BPrintLine  -- ^ @printLine : a -> Effect Unit@ (trailing newline)
+  | BReadLine   -- ^ @readLine : Effect String@ (one line from stdin)
   deriving (Eq, Show)
 
 builtinName :: Builtin -> String
@@ -243,6 +249,11 @@ builtinName = \case
   BStrAppend  -> "strAppend"
   BStrContains -> "strContains"
   BStr        -> "str"
+  BReturn     -> "return"
+  BBind       -> "bind"
+  BPrint      -> "print"
+  BPrintLine  -> "printLine"
+  BReadLine   -> "readLine"
 
 -- | Resolve a builtin by name, if it is one.
 builtinForName :: String -> Maybe Builtin
@@ -267,4 +278,9 @@ builtinForName = \case
   "strAppend"  -> Just BStrAppend
   "strContains" -> Just BStrContains
   "str"        -> Just BStr
+  "return"     -> Just BReturn
+  "bind"       -> Just BBind
+  "print"      -> Just BPrint
+  "printLine"  -> Just BPrintLine
+  "readLine"   -> Just BReadLine
   _            -> Nothing

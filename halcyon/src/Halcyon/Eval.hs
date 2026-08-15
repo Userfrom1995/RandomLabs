@@ -2,6 +2,8 @@
 module Halcyon.Eval
   ( evalProgram
   , evalProgramIn
+  , evalProgramEffect
+  , runEffect
   , evalExpr
   , EvalError(..)
   , showValue
@@ -43,6 +45,16 @@ evalProgram src = case parseProgram src of
 -- @Show@ instances).
 evalProgramIn :: Program -> Either EvalError (Maybe Value)
 evalProgramIn prog = do
+  (denv, renv, cenv) <- programContexts prog
+  env <- foldM (evalDef denv renv cenv) Map.empty (progDefs prog)
+  case progExpr prog of
+    Nothing -> return Nothing
+    Just e  -> Just <$> eval denv renv cenv env e
+
+-- | The data, record, and class environments of a resolved program, checked
+-- and built in one step.
+programContexts :: Program -> Either EvalError (DataEnv, RecordEnv, ClassEnv)
+programContexts prog = do
   case checkProgram prog of
     Left m  -> Left (EvalError (Pos 0 0) m)
     Right _ -> Right ()
@@ -52,10 +64,61 @@ evalProgramIn prog = do
   cenv <- case buildClassEnv prog of
     Left m  -> Left (EvalError (Pos 0 0) m)
     Right c -> Right c
+  return (denv, renv, cenv)
+
+-- | Evaluate a resolved program as an effect run: evaluate the definitions
+-- and final expression, then drive any effect result through the pure effect
+-- runner with the given scripted input lines. Returns @Nothing@ when the
+-- program is a definitions-only module.
+evalProgramEffect :: [String] -> Program -> Either EvalError (Maybe (String, Value))
+evalProgramEffect inputs prog = do
+  (denv, renv, cenv) <- programContexts prog
   env <- foldM (evalDef denv renv cenv) Map.empty (progDefs prog)
   case progExpr prog of
     Nothing -> return Nothing
-    Just e  -> Just <$> eval denv renv cenv env e
+    Just e  -> do
+      v <- eval denv renv cenv env e
+      Just <$> runEffect denv renv cenv inputs v
+
+-- | Run an effect value against the scripted input lines, returning the
+-- accumulated output text and the final result value. A non-effect value is
+-- a pure result with no output. The effect protocol:
+--
+--   "return" v        -> finish with (out, v)
+--   "bind" e k        -> run e, feed its result into k (a closure), then run
+--                        the resulting effect
+--   "print" v         -> append the canonical rendering of v, continue
+--   "printLine" v     -> append the canonical rendering plus a newline
+--   "readLine"        -> take the next input line (end of input yields "")
+--
+-- Output is built purely; there is no I/O anywhere in the language runtime.
+runEffect :: DataEnv -> RecordEnv -> ClassEnv -> [String] -> Value -> Either EvalError (String, Value)
+runEffect denv renv cenv inputs v = case v of
+  VEffect{} -> do
+    (out, res, _) <- runOne v inputs
+    return (out, res)
+  _ -> Right ("", v)
+  where
+    runOne :: Value -> [String] -> Either EvalError (String, Value, [String])
+    runOne eff is = case eff of
+      VEffect "return" [r]     -> Right ("", r, is)
+      VEffect "print" [p]      -> Right (showValue p, VUnit, is)
+      VEffect "printLine" [p]  -> Right (showValue p <> "\n", VUnit, is)
+      VEffect "readLine" []    -> case is of
+        (l : ls) -> Right ("", VStr l, ls)
+        []       -> Right ("", VStr "", [])
+      VEffect "bind" [e, k]    -> do
+        (outE, vE, is') <- runOne e is
+        eff2 <- applyK k vE
+        (out2, v2, is'') <- runOne eff2 is'
+        return (outE <> out2, v2, is'')
+      _ -> Left (EvalError (Pos 0 0) ("not an effect: " <> showValue eff))
+
+    applyK :: Value -> Value -> Either EvalError Value
+    applyK k v = case k of
+      VClosure [param] body cenv' -> eval denv renv cenv (Map.insert param v cenv') body
+      VClosure{} -> Left (EvalError (Pos 0 0) "bind continuation must take exactly one argument")
+      _ -> Left (EvalError (Pos 0 0) ("bind continuation is not a function: " <> showValue k))
 
 -- | Evaluate one top-level definition, extending the environment. The
 -- semantics match the interpreter's @let@: the recursive form captures the
@@ -98,7 +161,10 @@ eval denv renv cenv env = \case
                      Nothing -> Left (EvalError p ("unbound constructor: " <> name))
                      Just ci -> let ar = ciArity ci
                                 in Right (if ar == 0 then VData name [] else VConstr name ar [])
-  EBuiltin _ b  -> Right (VBuiltin b)
+  EBuiltin p b  -> case b of
+    BReadLine -> Right (VEffect "readLine" [])
+    _         -> Right (VBuiltin b)
+  EUnit _     -> Right VUnit
   ELambda _ params body -> Right (VClosure params body env)
   EApply p fn arg -> do
     vf <- eval denv renv cenv env fn
@@ -310,6 +376,8 @@ builtinArity = \case
   BSubstr -> 3
   BStrAppend  -> 2
   BStrContains -> 2
+  BBind   -> 2
+  BReadLine -> 0
   _       -> 1
 
 -- | Apply a further argument to a partial builtin application, running the
@@ -384,6 +452,10 @@ completeBuiltin p b as = case (b, as) of
   (BStrContains, [_, v])     -> Left (EvalError p ("strContains expects a String, got " <> showValue v))
   (BStrContains, [v])        -> Left (EvalError p ("strContains expects a String, got " <> showValue v))
   (BStr, [v])                -> Right (VStr (showValue v))
+  (BReturn, [v])             -> Right (VEffect "return" [v])
+  (BBind, [e, k])            -> Right (VEffect "bind" [e, k])
+  (BPrint, [v])              -> Right (VEffect "print" [v])
+  (BPrintLine, [v])          -> Right (VEffect "printLine" [v])
   _                          -> Left (EvalError p "internal error: unexpected builtin application")
 
 binop :: Pos -> Op -> Value -> Value -> Either EvalError Value

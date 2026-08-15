@@ -34,6 +34,8 @@ data Type
   | TData String [Type]
   | TRec String [Type]
   | TFun Type Type
+  | TUnit
+  | TEffect Type
   deriving (Eq, Show)
 
 -- | A type scheme: an explicit list of universally quantified variables
@@ -52,6 +54,7 @@ freeVars = \case
   TData _ ts -> Set.unions (map freeVars ts)
   TRec _ ts  -> Set.unions (map freeVars ts)
   TFun a b -> freeVars a `Set.union` freeVars b
+  TEffect t -> freeVars t
   _        -> Set.empty
 
 -- | The set of type variables occurring free in a scheme (its quantified
@@ -76,6 +79,8 @@ showType = go
       TData n ts -> if null ts then n else n <> " " <> unwords (map goArg ts)
       TRec n ts  -> if null ts then n else n <> " " <> unwords (map goArg ts)
       TFun a b -> showArg a <> " -> " <> go b
+      TUnit    -> "Unit"
+      TEffect t -> "Effect " <> goArg t
     showArg t = case t of
       TFun _ _ -> "(" <> go t <> ")"
       _        -> go t

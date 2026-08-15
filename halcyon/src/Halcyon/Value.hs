@@ -32,6 +32,8 @@ data Value
   | VRec String [(String, Value)]
   | VMethod String           -- ^ a class method reference, dispatched by value type
   | VDict String [(String, Value)]  -- ^ an instance dictionary: method name -> implementation
+  | VUnit                    -- ^ the unit value @()@
+  | VEffect String [Value]   -- ^ an unevaluated effect: tag ("return"/"bind"/"print"/"printLine"/"readLine") and arguments
   deriving (Eq, Show)
 
 -- | Render a value as program output. This is the canonical, deterministic
@@ -54,6 +56,8 @@ showValue = \case
   VRec _ fs     -> "{ " <> intercalate ", " (map (\(f, v) -> f <> " = " <> showValue v) fs) <> " }"
   VMethod n     -> "<method: " <> n <> ">"
   VDict c _     -> "<dict: " <> c <> ">"
+  VUnit         -> "()"
+  VEffect tag as -> "<effect: " <> tag <> unwords (map showValue as) <> ">"
 
 -- | Deterministic float rendering: plain decimals, never scientific for
 -- ordinary magnitudes.

@@ -167,6 +167,7 @@ resolveIn sub = go
       TData n ts -> TData n (map go ts)
       TRec n ts  -> TRec n (map go ts)
       TFun a b -> TFun (go a) (go b)
+      TEffect t -> TEffect (go t)
       t        -> t
 
 -- ---------------------------------------------------------------------
@@ -259,6 +260,7 @@ resolve = \case
   TData n ts -> TData n <$> mapM resolve ts
   TRec n ts  -> TRec n <$> mapM resolve ts
   TFun a b -> TFun <$> resolve a <*> resolve b
+  TEffect t -> TEffect <$> resolve t
   t        -> return t
 
 throwError :: InferError -> Infer a
@@ -278,6 +280,8 @@ unify pos t1 t2 = do
     (TBool, TBool)   -> return ()
     (TStr, TStr)     -> return ()
     (TChar, TChar)   -> return ()
+    (TUnit, TUnit)   -> return ()
+    (TEffect x, TEffect y) -> unify pos x y
     (TList x, TList y) -> unify pos x y
     (TData n1 as, TData n2 bs)
       | n1 == n2 && length as == length bs ->
@@ -306,6 +310,7 @@ applyMeta m = \case
   TData n ts -> TData n (map (applyMeta m) ts)
   TRec n ts  -> TRec n (map (applyMeta m) ts)
   TFun a b -> TFun (applyMeta m a) (applyMeta m b)
+  TEffect t -> TEffect (applyMeta m t)
   t        -> t
 
 -- ---------------------------------------------------------------------
@@ -323,6 +328,7 @@ infer env denv renv e = case e of
   EVar p name  -> inferVar p env name
   EConstr p name -> inferConstr p denv name
   EBuiltin p b -> inferBuiltin p b
+  EUnit _     -> return TUnit
   ELambda p params body -> inferLambda p denv renv env params body
   EApply p fn arg -> inferApply p denv renv env fn arg
   ELet p rec name bound body -> inferLet p rec name denv renv env bound body
@@ -389,6 +395,13 @@ inferBuiltin _ b =
     BStrAppend  -> Scheme [] Set.empty (TFun TStr (TFun TStr TStr))
     BStrContains -> Scheme [] Set.empty (TFun TStr (TFun TStr TBool))
     BStr        -> Scheme [] (Set.singleton 0) (TFun (TVar 0) TStr)
+    BReturn     -> Scheme [] (Set.singleton 0) (TFun (TVar 0) (TEffect (TVar 0)))
+    BBind       -> Scheme [] (Set.fromList [0, 1])
+                     (TFun (TEffect (TVar 0))
+                       (TFun (TFun (TVar 0) (TEffect (TVar 1))) (TEffect (TVar 1))))
+    BPrint      -> Scheme [] (Set.singleton 0) (TFun (TVar 0) (TEffect TUnit))
+    BPrintLine  -> Scheme [] (Set.singleton 0) (TFun (TVar 0) (TEffect TUnit))
+    BReadLine   -> Scheme [] Set.empty (TEffect TStr)
 
 inferLambda :: Pos -> DataEnv -> RecordEnv -> Env -> [String] -> Expr -> Infer Type
 inferLambda _ denv renv env params body = do
