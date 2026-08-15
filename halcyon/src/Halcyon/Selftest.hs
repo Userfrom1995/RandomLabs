@@ -10,6 +10,7 @@ import Control.Monad (forM_, when)
 import Halcyon.Corpus (CorpusEntry(..), corpus)
 import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
+import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Eval (EvalError(..), evalProgram, showValue)
 import Halcyon.Compile (compileProgram, CompileError(..), disassemble, Program(..))
@@ -145,6 +146,58 @@ differential src expected = do
 -- expected output and agree with each other.
 corpusCheck :: CorpusEntry -> IO (Either String ())
 corpusCheck e = differential (cSource e) (cExpected e)
+
+-- | Compile, optimize, and run on the VM; the optimized program must produce
+-- the expected output (the interpreter output is checked separately by the
+-- differential tests).
+optVmEvalsTo :: String -> String -> IO (Either String ())
+optVmEvalsTo src expected = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> do
+    res <- runVm False (optimizeProgram prog)
+    return $ case res of
+      Left (VmError m) -> Left ("vm error: " <> m)
+      Right v ->
+        let shown = vmShowValue v
+        in if shown == expected
+             then Right ()
+             else Left ("expected " <> expected <> ", got " <> shown)
+
+-- | Optimized VM must still fail the way the plain VM does.
+optVmFails :: String -> IO (Either String ())
+optVmFails src = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> do
+    res <- runVm False (optimizeProgram prog)
+    return $ case res of
+      Left _  -> Right ()
+      Right v -> Left ("expected an optimized vm error, but got " <> vmShowValue v)
+
+-- | Interpreter, plain VM, and optimized VM must all agree with the expected
+-- output: the optimizer provably changes nothing observable.
+optDifferential :: String -> String -> IO (Either String ())
+optDifferential src expected = do
+  rEval <- case evalProgram src of
+    Left (EvalError _ m) -> return (Left ("eval error: " <> m))
+    Right v              -> return (Right (showValue v))
+  rVm <- case compileProgram src of
+    Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+    Right prog -> do
+      plain <- runVm False prog
+      opt   <- runVm False (optimizeProgram prog)
+      return $ case (plain, opt) of
+        (Left (VmError m), _) -> Left ("vm error: " <> m)
+        (_, Left (VmError m)) -> Left ("optimized vm error: " <> m)
+        (Right a, Right b)    -> Right (vmShowValue a, vmShowValue b)
+  case rEval of
+    Left e -> return (Left e)
+    Right ev -> case rVm of
+      Left e -> return (Left e)
+      Right (rv, ov) ->
+        if ev == expected && rv == expected && ov == expected
+          then return (Right ())
+          else return (Left ("interpreter: " <> ev <> ", vm: " <> rv
+                             <> ", optimized vm: " <> ov <> ", expected: " <> expected))
 
 -- ---------------------------------------------------------------------
 -- Tests
@@ -436,6 +489,67 @@ tcoTests = sequence
             else return (Left ("expected both call and tail_call in disassembly:\n" <> d))
   ]
 
+-- | The deterministic optimizer must preserve semantics and produce clean
+-- disassembly: folded arithmetic, no dead stores, no redundant jumps, and
+-- never a folded division by zero.
+optTests :: IO Harness
+optTests = sequence
+  [ checkIO "opt: folded arithmetic output" (optVmEvalsTo "1 + 2 * 3" "7")
+  , checkIO "opt: folded float promotion"   (optVmEvalsTo "1 + 2.5 * 2" "6.0")
+  , checkIO "opt: folded comparisons"       (optVmEvalsTo "1 < 2 && 3 >= 3" "true")
+  , checkIO "opt: folded neg"               (optVmEvalsTo "-5 + 2" "-3")
+  , checkIO "opt: folded not"               (optVmEvalsTo "!true" "false")
+  , checkIO "opt: folded equality"          (optVmEvalsTo "1 == 1 && \"a\" /= \"b\"" "true")
+  , checkIO "opt: div by zero not folded"   (optVmFails "1 / 0")
+  , checkIO "opt: dead let value"           (optVmEvalsTo "let x = 5 in 42" "42")
+  , checkIO "opt: used let value kept"      (optVmEvalsTo "let x = 5 in x + 1" "6")
+  , checkIO "opt: live closure capture kept" (optVmEvalsTo "let x = 5 in let f = fn y => x + y in f 1" "6")
+  , checkIO "opt: rec capture kept"         (optVmEvalsTo "let rec f = fn n => if n < 1 then 0 else f (n - 1) in f 1000" "0")
+  , checkIO "opt: if survives"              (optVmEvalsTo "if 2 > 1 then \"yes\" else \"no\"" "yes")
+  , checkIO "opt: match survives"           (optVmEvalsTo "match [1, 2, 3] with | [] => 0 | x :: rest => x + length rest" "3")
+  , checkIO "opt: data survives"            (optVmEvalsTo "data Maybe a = Nothing | Just a\nmatch Just 42 with | Nothing => 0 | Just x => x" "42")
+  , checkIO "opt: tail call survives"       (optVmEvalsTo "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 1000" "500500")
+  , checkIO "opt: no arithmetic instructions remain" $ do
+      case compileProgram "1 + 2 * 3" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = disassemble (pEntry (optimizeProgram prog))
+          if any (`elem` words d) ["add", "mul"]
+            then return (Left ("arithmetic not folded:\n" <> d))
+            else return (Right ())
+  , checkIO "opt: dead store eliminated" $ do
+      case compileProgram "let x = 5 in 42" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = disassemble (pEntry (optimizeProgram prog))
+          if "store_local" `elem` words d
+            then return (Left ("dead store not eliminated:\n" <> d))
+            else return (Right ())
+  , checkIO "opt: deterministic disassembly" $ do
+      case compileProgram "let rec sum = fn xs => match xs with | [] => 0 | x :: rest => x + sum rest in sum [1, 2, 3]" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d1 = disassemble (pEntry (optimizeProgram prog))
+              d2 = disassemble (pEntry (optimizeProgram prog))
+          if d1 == d2
+            then return (Right ())
+            else return (Left "optimized disassembly is not deterministic")
+  , checkIO "opt: differential arithmetic"   (optDifferential "1 + 2 * 3 - 4 / 2" "5")
+  , checkIO "opt: differential fib"          (optDifferential "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 15" "610")
+  , checkIO "opt: differential closures"     (optDifferential "let x = 3 in let y = 4 in let f = fn z => x * z + y in f 5" "19")
+  , checkIO "opt: differential match"        (optDifferential "data Maybe a = Nothing | Just a\nlet f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)" "7")
+  , checkIO "opt: differential tail call"    (optDifferential "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 10000" "50005000")
+  , checkIO "opt: differential stdlib"       (optDifferential "take 2 (append [1] (drop 1 [2, 3, 4]))" "[1, 3]")
+  ]
+
+-- | The whole corpus, re-run through the optimizer: every program must still
+-- produce its expected output on interpreter, VM, and optimized VM.
+optCorpusTests :: IO Harness
+optCorpusTests = sequence
+  [ checkIO ("opt-corpus: " <> cName e) (optDifferential (cSource e) (cExpected e))
+  | e <- corpus
+  ]
+
 corpusTests :: IO Harness
 corpusTests = sequence
   [ checkIO ("corpus: " <> cName e) (corpusCheck e)
@@ -451,7 +565,9 @@ runSelftest = do
   vm <- vmTests
   diff <- diffTests
   tco <- tcoTests
+  opt <- optTests
   corp <- corpusTests
+  optCorp <- optCorpusTests
   let groups =
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
@@ -460,7 +576,9 @@ runSelftest = do
         , ("vm", vm)
         , ("differential", diff)
         , ("tco", tco)
+        , ("opt", opt)
         , ("corpus", corp)
+        , ("opt-corpus", optCorp)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups

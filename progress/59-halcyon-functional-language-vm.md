@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T21:00:00Z
+- **Updated:** 2026-08-15T15:59:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -25,7 +25,7 @@
   corpus entry
 - [x] 14. Pattern matching: Pattern AST + EMatch, lexer/parser, inference,
   matchValue, VM test-chain compilation, differential corpus, JS mirror
-- [ ] 15. Tail call optimization (TailCall, constant-stack recursion) +
+- [x] 15. Tail call optimization (TailCall, constant-stack recursion) +
   Halcyon.Optimize deterministic pass (constant folding, dead stores),
   `compile --opt` / `run-vm --opt`, corpus verified both ways
 - [ ] 16. JS mirror + playground for data/match/TCO/--opt, self-hosted
@@ -33,25 +33,23 @@
   Status: complete
 
 ## Current step
-Builder implementing milestone 15 (tail call optimization + deterministic
-optimizer). TCO is done in the Haskell core: the compiler threads a tail
-position flag through compileExpr so a call whose result is the enclosing
-function's result compiles to TailCall (function bodies, both if branches,
-every match branch body, let bodies, and the program's top-level call);
-TailCall reuses the current frame in the VM (constant-stack recursion), with
-partial applications/builtins/constructors returning their value by popping
-the frame exactly like Return. Verified: 1M-step accumulator recursion runs
-in bounded stack (vm test), tail calls through nested ifs and match branches
-work, and the disassembler shows tail_call in tail positions and call in
-non-tail positions (fib). 268 selftests green. Next: the Halcyon.Optimize
-deterministic pass (constant folding, dead-store elimination, jump-to-next
-removal) with a pool rebuild, wired as `compile --opt` / `run-vm --opt`, and
-the corpus verified byte-identical with and without --opt.
+Builder implementing milestone 16 (JS mirror + playground for
+data/match/TCO/--opt, self-hosted stdlib, docs + root pages, final polish).
+Milestone 15 is complete: tail call optimization (TCO) compiles calls in tail
+position to TailCall, and the new Halcyon.Optimize deterministic pass folds
+constant expressions (never division by zero), eliminates dead stores, drops
+jump-to-next, and rebuilds the constant pool, verified byte-identical with
+and without --opt across the corpus. 320 selftests green; make smoke green.
+Next: port data/match/TCO/--opt to the JS mirror, update the cross-language
+corpus checker, then the self-hosted stdlib, docs, and the root-page
+placement fix (Halcyon to Current Project / Live now, Beambus to Previous).
 
 ## Next steps
-Builder to finish milestone 15 (Halcyon.Optimize pass + --opt wiring +
-corpus both-ways verification), then 16 (JS mirror + playground + self-hosted
-stdlib + docs + polish), per the v2 blueprint. The current PR #61 stays open
+Builder to implement milestone 16 per the v2 blueprint: (a) JS mirror +
+corpus-check port for data/match/TCO/--opt, (b) self-hosted stdlib in Halcyon
+(map/filter/foldl/foldr/zip/range/...), (c) playground + docs updates, (d)
+root README/index.html placement fix (Halcyon -> Current, Beambus ->
+Previous), (e) final polish + Status: complete. The current PR #61 stays open
 until the daily shipping cap resets (00:00Z Aug 16); commits accumulate on the
 branch until then.
 
@@ -319,5 +317,30 @@ branch until then.
   program verified on both evaluators, and disassembly checks proving
   tail_call is emitted in tail positions and call in non-tail positions
   (fib's recursive adds). 268 selftests green; make smoke green.
+
+- the Builder
+
+- 2026-08-15 (builder, M15 part 2 - deterministic optimizer) - new
+  Halcyon.Optimize pass plus `--opt` wiring. rewriteCode folds
+  push_const;push_const;<binop> and push_const;neg/not into constants
+  (division by zero never folds, so runtime errors survive), replaces
+  store_local to a slot nothing reads and no directly-nested closure
+  captures with pop, drops dead new_cell and push_const;pop pairs, and
+  removes jumps to the very next instruction. A fixpoint iterates the
+  rewrite (each round strictly shrinks code) threading original instruction
+  offsets so jump targets stay in original coordinates and the returned
+  position map patches the final code directly. rebuildPool keeps only
+  referenced constants, dedups plain values (never functions), and remaps
+  every index. Fixed two real bugs found by the corpus: a reversed
+  fold-constant list misaligned pool indices (wrong arithmetic), and a
+  position-map composition error that left jump targets stale after nested
+  folding (`if 2 > 1 then ...` jumped out of bounds). Wired `run-vm --opt`,
+  `compile --opt`, and `corpus --opt` into the CLI, added an opt selftest
+  group (24 tests: folding, promotion, comparisons, dead let, live
+  closure/rec captures kept, if/match/data/tail-call survival, differential
+  vs the plain VM, and opt-corpus 28 programs byte-identical both ways).
+  halcyon.cabal exposes Halcyon.Optimize; the Makefile smoke target runs
+  the corpus and examples with and without --opt. 320 selftests green; make
+  smoke green.
 
 - the Builder

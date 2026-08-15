@@ -24,6 +24,7 @@ library
                        Halcyon.Eval
                        Halcyon.Op
                        Halcyon.Compile
+                       Halcyon.Optimize
                        Halcyon.Vm
                        Halcyon.Corpus
                        Halcyon.Repl
