@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-16T00:35:00Z
+- **Updated:** 2026-08-16T01:30:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -58,7 +58,7 @@
   (scripted stdin, deterministic), Effect-typed program entries in
   run/run-vm/eval/repl, VM effect builtins (no new opcodes), JS mirror +
   runEffect, selftests + pinned corpus entries, docs
-- [ ] 23. User-defined operators (infixl/infixr/infix declarations,
+- [x] 23. User-defined operators (infixl/infixr/infix declarations,
   TOpName lexer rule, dynamic precedence table, parenthesized operator
   references) + type synonyms (type Name = type, parse-time expansion),
   selftests + differential corpus entries, JS mirror, docs
@@ -85,23 +85,76 @@ bytecode artifact + benchmark harness, M26 JS mirror + playground + docs +
 root pages + final polish. M22 is DONE (four commits on the branch: core,
 corpus + selftests, JS mirror + CLI corpus, docs; make test 604, make smoke
 green, corpus 51/51 both ways, JS corpus-check 205 checks with the examples
-dir). M23 is next for the Builder: user-defined operators
-(infixl/infixr/infix declarations + TOpName lexer rule + dynamic precedence
-table) + type synonyms (type Name = type, parse-time expansion), selftests
-+ differential corpus entries, JS mirror, docs, pushed milestone-by-milestone.
+dir). M23 is DONE too (see agent log: Haskell core, corpus + selftests, JS
+mirror + corpus entries, docs; make test 654, make smoke green, corpus
+53/53 both ways, JS corpus-check 209 checks with the examples dir). M24 is
+next for the Builder: auto-imported shadowable prelude
+(halcyon/lib/prelude.hly) + REPL colon commands (:type/:disasm/:opt/:import/
+:help), selftests + corpus + smoke entries, JS mirror bundled module map.
 The merge is still held by the Aug 15 shipping cap (2/2); the v4 round must
 land and pass a fresh review + test on the new head before the Maintainer
 merges after the 00:00Z Aug 16 cap reset.
 
 ## Next steps
-Builder to implement M23 (user-defined operators + type synonyms) next on
-the existing branch, pushing milestone-by-milestone and updating this
-tracker as it goes. After M23, M24 (prelude + REPL colon commands), M25
-(bytecode artifact + bench), M26 (JS mirror + playground + docs + polish).
-After M26, the Reviewer + Tester cycle runs on the fresh head and the
-Maintainer merges once the cap resets, closing #59.
+Builder to implement M24 (prelude + REPL colon commands) next on the
+existing branch, pushing milestone-by-milestone and updating this tracker
+as it goes. After M24, M25 (bytecode artifact + bench), M26 (JS mirror +
+playground + docs + polish). After M26, the Reviewer + Tester cycle runs on
+the fresh head and the Maintainer merges once the cap resets, closing #59.
 
 ## Agent log
+- 2026-08-15/16 (builder, M23 - user-defined operators + type synonyms) -
+  implemented milestone 23 end-to-end. (1) Haskell core: lexer
+  (TInfixl/TInfixr/TInfix/TType/TOpName tokens, maximal-munch operatorTok
+  over `+ - * / < > = ! & | : .`, all-`!` runs lex as repeated TNot so
+  `!!x` stays double negation), parser (PState gains psOps/psSyns dynamic
+  tables; parseInfixDecl registers operators at levels 0-9, rejects
+  redeclaring built-ins or duplicates; parseSynonymDecl registers synonyms,
+  rejecting recursion/duplicates/primitive names; parseBindingName accepts
+  `(<op>)` and plain idents so `let (<op>) = ...` defines an operator;
+  parseBinary/parseBinRest reimplemented as level climbing over 0-9,
+  right/non-assoc handled, unregistered infix use is a positioned parse
+  error, built-in ops keep EBin while user ops desugar to
+  EApply (EApply (EVar n) a) b), and parse-type synonym expansion
+  (lookupSynonym/expandSynonym/substType in parseTypeApp/parseTypeAtom/
+  parseHeadApp/parseHeadAtom, arity-exact argument consumption); Ast.hs
+  gained DefInfix/DefSynonym TopDefs + the Assoc type; Infer/Eval/Compile
+  skip both def kinds; Data.hs checkProgram rejects duplicate synonyms and
+  synonym collisions with data/record/class names. Fixed a regression along
+  the way where desugaring built-in `+` to a user call broke the whole
+  suite (built-ins stay EBin). (2) Corpus + selftests: pinned corpus
+  entries user-operator (expects 6) and type-synonym (expects 13); ~35 new
+  selftests covering operator levels/associativity/nonassoc chaining/
+  first-class `(<op>)`/unregistered-op error and synonym expansion/
+  arity/dedup/collision/recursion rejection (all-`!` `!!false` also now
+  passes thanks to the TNot lexer rule; test learnings: the language has no
+  `let x : T = e` annotations so synonym tests use record fields, `**` is
+  commutative so the right-assoc test uses subtraction, `@` is not an op
+  char so level 9 uses `<!>`, and "op declared but undefined" is an
+  inferFails not parseFails). make test 654/654. (3) JS mirror: ported the
+  whole feature to js/halcyon.js (keywords, isOpChar/FIXED_OPS/operatorTok,
+  describeTok opname, Parser ops/syns state, parseInfixDecl/
+  parseSynonymDecl/parseOperatorName/parseBindingName/mentionsName/
+  expandSynonym/substType using the mirror's real type schema (list = t,
+  var = n), parseBinary level climbing, parseAtom `(<op>)`, synonym
+  expansion in the four type-entry points, evalDefs/compileDefs skip the
+  new def kinds, synonymCollision in all four resolve paths). Two mirror
+  bugs found and fixed while testing: mentionsName/substType used the
+  Haskell field names (inner/v/fn) instead of the JS schema (t/n/fun),
+  crashing on list synonyms, and synonymCollision read d.decl.name where
+  the mirror def stores name directly. JS corpus entries added for both
+  new programs; node js/corpus-check.js examples: 209 checks, 0 failures.
+  (4) Docs: language.md gained the operator/synonym grammar, a section 3.1
+  (user-defined operators: declaration, levels 0-9, built-in levels 1-6,
+  desugaring, first-class references, reserved `!`, redeclaration rules)
+  and section 4.1 (type synonyms: parse-time expansion, exact arity,
+  recursion/forward-ref rejection, name uniqueness); vm.md gained a
+  section explaining both features leave no trace in the instruction set
+  (operators compile to ordinary function application, synonyms are gone
+  before inference). Full verification: make test 654/654, make smoke
+  green, halcyon corpus and corpus --opt 53/53, node js/corpus-check.js
+  examples 209 checks 0 failures. Committed and pushed on the branch in
+  milestone-sized steps; tracker updated, M23 checked off.
 - 2026-08-15/16 (builder, M22 - effect system) - implemented milestone 22 in
   four committed, pushed steps. (1) Haskell core: TUnit/()/VUnit + TEffect,
   do { } blocks with `<-`/let/final stmts desugaring onto return/bind,
