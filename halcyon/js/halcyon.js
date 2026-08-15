@@ -32,6 +32,8 @@
   var VClosure = function (params, body, env) { return { k: 'closure', params: params, body: body, env: env }; };
   var VBuiltin = function (name) { return { k: 'builtin', name: name }; };
   var VPartial = function (name, args) { return { k: 'partial', name: name, args: args }; };
+  var VData = function (name, fields) { return { k: 'data', name: name, fields: fields }; };
+  var VConstr = function (name, arity, args) { return { k: 'constr', name: name, arity: arity, args: args }; };
 
   // Deterministic float rendering, mirroring Halcyon.Value.showFloat:
   // whole floats render with a trailing ".0", ordinary magnitudes stay in
@@ -55,6 +57,8 @@
       case 'closure': return '<function>';
       case 'builtin': return '<builtin: ' + v.name + '>';
       case 'partial': return '<builtin: ' + v.name + ' ' + v.args.map(showValue).join(' ') + '>';
+      case 'data':    return [v.name].concat(v.fields.map(showValue)).join(' ');
+      case 'constr':  return '<constructor: ' + v.name + '>';
       default:        return '<value>';
     }
   }
@@ -91,7 +95,8 @@
 
   var KEYWORDS = {
     let: 'let', rec: 'rec', in: 'in', fn: 'fn', if: 'if',
-    then: 'then', else: 'else', true: 'true', false: 'false'
+    then: 'then', else: 'else', true: 'true', false: 'false',
+    data: 'data', match: 'match', with: 'with'
   };
 
   // Lex an entire source string to a token list. Fails fast on the first
@@ -136,8 +141,11 @@
       if (ch === '=' && startsWith('==', s)) { return simpleTok('==', 2); }
       if (ch === '=' && startsWith('=>', s)) { return simpleTok('=>', 2); }
       if (ch === '=') { return simpleTok('=', 1); }
+      if (ch === '-' && startsWith('->', s)) { return simpleTok('->', 2); }
+      if (ch === ':' && startsWith('::', s)) { return simpleTok('::', 2); }
       if (ch === '&' && startsWith('&&', s)) { return simpleTok('&&', 2); }
       if (ch === '|' && startsWith('||', s)) { return simpleTok('||', 2); }
+      if (ch === '|') { return simpleTok('|', 1); }
       if (ch === '!') { return simpleTok('!', 1); }
       if (ch === '(') { return simpleTok('(', 1); }
       if (ch === ')') { return simpleTok(')', 1); }
@@ -334,14 +342,18 @@
     if (lexed.kind === 'lex') { return HErr('parse', lexed.pos, lexed.message); }
     var toks = lexed;
     var P = Parser(toks);
+    var decls = P.parseDataDecls();
+    if (decls.kind === 'parse') { return decls; }
     var e = P.parseExpr();
     if (e.kind === 'parse') { return e; }
     var rest = P.rest();
     if (rest.length === 0) { return HErr('parse', POS_EOF, 'unexpected end of input'); }
     var t = rest[0];
-    if (t.k === 'eof') { return e; }
+    if (t.k === 'eof') { return { decls: decls, expr: e }; }
     return HErr('parse', t.p, 'unexpected token after expression: ' + describeTok(t));
   }
+
+  function isCapitalized(s) { return s.length > 0 && s[0] >= 'A' && s[0] <= 'Z'; }
 
   function Parser(toks) {
     var ts = toks;
@@ -365,6 +377,8 @@
       switch (tok) {
         case '=': return "'='";
         case '=>': return "'=>'";
+        case '::': return "'::'";
+        case '|': return "'|'";
         case '(': return "'('";
         case ')': return "')'";
         case '[': return "'['";
@@ -375,8 +389,9 @@
         case 'in': return "'in'";
         case 'fn': return "'fn'";
         case 'if': return "'if'";
-        case 'then': return "'then'";
-        case 'else': return "'else'";
+        case 'data': return "'data'";
+        case 'match': return "'match'";
+        case 'with': return "'with'";
         default: return "'" + tok + "'";
       }
     }
@@ -408,7 +423,236 @@
       if (t === 'let') { return parseLet(); }
       if (t === 'if') { return parseIf(); }
       if (t === 'fn') { return parseLambda(); }
+      if (t === 'match') { return parseMatch(); }
       return parseBinary(1);
+    }
+
+    function parseMatch() {
+      var p = consume('match');
+      var scrut = parseExpr();
+      if (scrut.kind === 'parse') { return scrut; }
+      var withT = consume('with');
+      if (withT.kind === 'parse') { return withT; }
+      var branches = [];
+      var pipe = consume('|');
+      if (pipe.kind === 'parse') { return pipe; }
+      while (true) {
+        var pat = parsePattern();
+        if (pat.kind === 'parse') { return pat; }
+        var arrow = consume('=>');
+        if (arrow.kind === 'parse') { return arrow; }
+        var body = parseExpr();
+        if (body.kind === 'parse') { return body; }
+        branches.push([pat, body]);
+        if (peek() === '|') { advance(); continue; }
+        break;
+      }
+      return { kind: 'match', pos: p, scrut: scrut, branches: branches };
+    }
+
+    // ---- data declarations -------------------------------------------------
+
+    function parseDataDecls() {
+      var decls = [];
+      while (peek() === 'data') {
+        var d = parseDataDecl();
+        if (d.kind === 'parse') { return d; }
+        decls.push(d);
+      }
+      return decls;
+    }
+
+    function parseDataDecl() {
+      var p = consume('data');
+      var name = expectCapitalized('type');
+      if (name.kind === 'parse') { return name; }
+      var tyvars = [];
+      while (peek() === 'ident' && !isCapitalized(peekVal())) {
+        tyvars.push(advance().v);
+      }
+      var assign = consume('=');
+      if (assign.kind === 'parse') { return assign; }
+      if (peek() === '|') { advance(); }
+      var ctors = [];
+      while (true) {
+        var ctor = parseCtor(tyvars);
+        if (ctor.kind === 'parse') { return ctor; }
+        ctors.push(ctor);
+        if (peek() === '|') { advance(); continue; }
+        break;
+      }
+      return { kind: 'data', pos: p, name: name, tyvars: tyvars, ctors: ctors };
+    }
+
+    function peekVal() { return pos < ts.length && ts[pos].k === 'ident' ? ts[pos].v : ''; }
+
+    function expectCapitalized(what) {
+      if (pos < ts.length && ts[pos].k === 'ident' && isCapitalized(ts[pos].v)) {
+        return advance().v;
+      }
+      if (pos < ts.length) {
+        return failAt(ts[pos].p, 'expected a ' + what + ' name (capitalized), found ' + describeTok(ts[pos]));
+      }
+      return failAt(POS_EOF, 'expected a ' + what + ' name (capitalized), found end of input');
+    }
+
+    // A constructor: a capitalized name followed by field types on the SAME
+    // source line (parenthesize to span lines).
+    function parseCtor(tyvars) {
+      var p = peekPos();
+      var name = expectCapitalized('constructor');
+      if (name.kind === 'parse') { return name; }
+      var fields = [];
+      while (pos < ts.length && ts[pos].p.line === p.line && typeAtomStart(ts[pos].k)) {
+        var ty = parseTypeExpr(tyvars);
+        if (ty.kind === 'parse') { return ty; }
+        fields.push(ty);
+      }
+      return { name: name, fields: fields };
+    }
+
+    function typeAtomStart(k) {
+      return k === 'ident' || k === '[' || k === '(';
+    }
+
+    // typeExpr := typeApp ('->' typeExpr)?  (right-associative)
+    function parseTypeExpr(tyvars) {
+      var a = parseTypeApp(tyvars);
+      if (a.kind === 'parse') { return a; }
+      if (peek() === '->') { advance(); var b = parseTypeExpr(tyvars); if (b.kind === 'parse') { return b; } return TT.fun(a, b); }
+      return a;
+    }
+
+    function parseTypeApp(tyvars) {
+      var p = peekPos();
+      var t = peek();
+      var tval = peekVal();
+      var a = parseTypeAtom(tyvars);
+      if (a.kind === 'parse') { return a; }
+      if (t === '(' || t === '[') { return a; }
+      if (t === 'ident' && isDataName(tval)) {
+        var name = tval;
+        var args = [];
+        while (peekPos().line === p.line && typeAtomStart(peek())) {
+          var arg = parseTypeAtom(tyvars);
+          if (arg.kind === 'parse') { return arg; }
+          args.push(arg);
+        }
+        return TData(name, args);
+      }
+      return a;
+    }
+
+    function isDataName(n) {
+      return isCapitalized(n) && n !== 'Int' && n !== 'Float' && n !== 'Bool' && n !== 'String';
+    }
+
+    function parseTypeAtom(tyvars) {
+      var p = peekPos();
+      var t = peek();
+      if (t === 'ident') {
+        var n = advance().v;
+        if (n === 'Int') { return TT.INT; }
+        if (n === 'Float') { return TT.FLOAT; }
+        if (n === 'Bool') { return TT.BOOL; }
+        if (n === 'String') { return TT.STR; }
+        if (isCapitalized(n)) { return TData(n, []); }
+        var idx = tyvars.indexOf(n);
+        if (idx >= 0) { return TT.var_(idx); }
+        return failAt(p, 'undeclared type variable: ' + n);
+      }
+      if (t === '[') {
+        advance();
+        var inner = parseTypeExpr(tyvars);
+        if (inner.kind === 'parse') { return inner; }
+        var close = consume(']');
+        if (close.kind === 'parse') { return close; }
+        return TT.list(inner);
+      }
+      if (t === '(') {
+        advance();
+        var in2 = parseTypeExpr(tyvars);
+        if (in2.kind === 'parse') { return in2; }
+        var close2 = consume(')');
+        if (close2.kind === 'parse') { return close2; }
+        return in2;
+      }
+      return failAt(p, 'expected a type, found ' + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
+    }
+
+    // ---- patterns ----------------------------------------------------------
+
+    // pat := patApp ('::' pat)?  (right-associative cons)
+    function parsePattern() {
+      var p = peekPos();
+      var a = parsePatternApp();
+      if (a.kind === 'parse') { return a; }
+      if (peek() === '::') {
+        advance();
+        var b = parsePattern();
+        if (b.kind === 'parse') { return b; }
+        return { kind: 'pcons', pos: p, h: a, t: b };
+      }
+      return a;
+    }
+
+    function parsePatternApp() {
+      var p = peekPos();
+      var a = parsePatternAtom();
+      if (a.kind === 'parse') { return a; }
+      if (a.kind === 'pconstr') {
+        while (patAtomStart(peek())) {
+          var arg = parsePatternAtom();
+          if (arg.kind === 'parse') { return arg; }
+          a = { kind: 'pconstr', pos: p, name: a.name, args: a.args.concat([arg]) };
+        }
+      }
+      return a;
+    }
+
+    function parsePatternAtom() {
+      var p = peekPos();
+      var t = peek();
+      if (t === 'ident') {
+        var n = advance().v;
+        if (n === '_') { return { kind: 'pwild', pos: p }; }
+        if (isCapitalized(n)) { return { kind: 'pconstr', pos: p, name: n, args: [] }; }
+        return { kind: 'pvar', pos: p, name: n };
+      }
+      if (t === 'int') { advance(); return { kind: 'pint', pos: p, v: ts[pos - 1].v }; }
+      if (t === 'float') { advance(); return { kind: 'pfloat', pos: p, v: ts[pos - 1].v }; }
+      if (t === 'true') { advance(); return { kind: 'pbool', pos: p, v: true }; }
+      if (t === 'false') { advance(); return { kind: 'pbool', pos: p, v: false }; }
+      if (t === 'str') { advance(); return { kind: 'pstr', pos: p, v: ts[pos - 1].v }; }
+      if (t === '[') {
+        advance();
+        var items = [];
+        if (peek() === ']') { advance(); return { kind: 'pnil', pos: p }; }
+        while (true) {
+          var e = parsePattern();
+          if (e.kind === 'parse') { return e; }
+          items.push(e);
+          if (peek() === ',') { advance(); continue; }
+          break;
+        }
+        var close = consume(']');
+        if (close.kind === 'parse') { return close; }
+        return { kind: 'plist', pos: p, items: items };
+      }
+      if (t === '(') {
+        advance();
+        var pat = parsePattern();
+        if (pat.kind === 'parse') { return pat; }
+        var close2 = consume(')');
+        if (close2.kind === 'parse') { return close2; }
+        return pat;
+      }
+      return failAt(p, 'expected a pattern, found ' + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
+    }
+
+    function patAtomStart(k) {
+      return k === 'ident' || k === 'int' || k === 'float' || k === 'true'
+        || k === 'false' || k === 'str' || k === '[' || k === '(';
     }
 
     function parseLet() {
@@ -512,6 +756,7 @@
         case 'false':   advance(); return { kind: 'bool', pos: p, v: false };
         case 'ident': {
           var name = advance().v;
+          if (isCapitalized(name)) { return { kind: 'constr', pos: p, name: name }; }
           if (BUILTINS.indexOf(name) >= 0) { return { kind: 'builtin', pos: p, name: name }; }
           return { kind: 'var', pos: p, name: name };
         }
@@ -550,6 +795,7 @@
 
     return {
       parseExpr: parseExpr,
+      parseDataDecls: parseDataDecls,
       rest: function () { return ts.slice(pos); }
     };
   }
@@ -563,16 +809,59 @@
     function var_(n) { return { k: 'var', n: n }; }
     function list(t) { return { k: 'list', t: t }; }
     function fun(a, b) { return { k: 'fun', a: a, b: b }; }
+    function data(n, args) { return { k: 'data', n: n, args: args }; }
     var INT = { k: 'int' }, FLOAT = { k: 'float' }, BOOL = { k: 'bool' }, STR = { k: 'str' };
-    return { var_: var_, list: list, fun: fun, INT: INT, FLOAT: FLOAT, BOOL: BOOL, STR: STR };
+    return { var_: var_, list: list, fun: fun, data: data, INT: INT, FLOAT: FLOAT, BOOL: BOOL, STR: STR };
   }
   var TT = T();
+  function TData(n, args) { return { k: 'data', n: n, args: args }; }
+
+  // The data environment: constructor name -> { type, arity, scheme }.
+  function DataEnv() { return {}; }
+  function ctorFor(name, denv) { return denv[name] !== undefined ? denv[name] : null; }
+
+  // Build the data environment from a parsed program's declarations.
+  function buildDataEnv(decls) {
+    var denv = DataEnv();
+    var typeNames = {};
+    var ctorCount = {};
+    for (var i = 0; i < decls.length; i++) {
+      var d = decls[i];
+      if (typeNames[d.name] !== undefined) {
+        return HErr('type', d.pos, 'duplicate data type name: ' + d.name);
+      }
+      typeNames[d.name] = true;
+      for (var j = 0; j < d.ctors.length; j++) {
+        var c = d.ctors[j];
+        if (ctorCount[c.name] === undefined) { ctorCount[c.name] = 0; }
+        ctorCount[c.name] += 1;
+        if (ctorCount[c.name] > 1) {
+          return HErr('type', d.pos, 'duplicate constructor name: ' + c.name);
+        }
+        var args = [];
+        for (var t = 0; t < d.tyvars.length; t++) { args.push(TT.var_(t)); }
+        var body = TData(d.name, args);
+        for (var f = c.fields.length - 1; f >= 0; f--) { body = TT.fun(c.fields[f], body); }
+        var qvars = new Set();
+        for (var t2 = 0; t2 < d.tyvars.length; t2++) { qvars.add(t2); }
+        denv[c.name] = { type: d.name, arity: c.fields.length, scheme: { qvars: qvars, body: body } };
+      }
+    }
+    return denv;
+  }
 
   function freeVars(t) {
     switch (t.k) {
       case 'var':  var s = new Set(); s.add(t.n); return s;
       case 'list': return freeVars(t.t);
       case 'fun':  return union(freeVars(t.a), freeVars(t.b));
+      case 'data': {
+        var acc = new Set();
+        t.args.forEach(function (a) {
+          freeVars(a).forEach(function (x) { acc.add(x); });
+        });
+        return acc;
+      }
       default:     return new Set();
     }
   }
@@ -589,6 +878,11 @@
         case 'bool': return 'Bool';
         case 'str':  return 'String';
         case 'list': return '[' + go(t.t) + ']';
+        case 'data': {
+          if (t.args.length === 0) { return t.n; }
+          var as = t.args.map(function (a) { return go(a); });
+          return t.n + ' ' + as.join(' ');
+        }
         case 'fun':  return showArg(t.a) + ' -> ' + go(t.b);
         default:     return '?';
       }
@@ -600,13 +894,19 @@
   function inferProgram(src) {
     var parsed = parseProgram(src);
     if (parsed.kind === 'parse') { return HErr('type', parsed.pos, parsed.message); }
-    var res = inferExpr(parsed);
+    var denv = buildDataEnv(parsed.decls);
+    if (denv.kind === 'type') { return denv; }
+    var res = inferExprWith(parsed.expr, denv);
     return res;
   }
 
   function inferExpr(expr) {
+    return inferExprWith(expr, DataEnv());
+  }
+
+  function inferExprWith(expr, denv) {
     var st = { subst: {}, counter: 0 };
-    var r = infer(st, {}, expr);
+    var r = infer(st, {}, denv, expr);
     if (r.kind === 'type') { return r; }
     return { ok: true, type: resolveIn(st.subst, r) };
   }
@@ -618,6 +918,7 @@
         return t;
       case 'list': return { k: 'list', t: resolveIn(sub, t.t) };
       case 'fun':  return { k: 'fun', a: resolveIn(sub, t.a), b: resolveIn(sub, t.b) };
+      case 'data': return { k: 'data', n: t.n, args: t.args.map(function (a) { return resolveIn(sub, a); }) };
       default:     return t;
     }
   }
@@ -643,6 +944,7 @@
         return t;
       case 'list': return { k: 'list', t: resolve(st, t.t) };
       case 'fun':  return { k: 'fun', a: resolve(st, t.a), b: resolve(st, t.b) };
+      case 'data': return { k: 'data', n: t.n, args: t.args.map(function (a) { return resolve(st, a); }) };
       default:     return t;
     }
   }
@@ -663,6 +965,13 @@
       if (a) { return a; }
       return unify(st, pos, r1.b, r2.b);
     }
+    if (r1.k === 'data' && r2.k === 'data' && r1.n === r2.n && r1.args.length === r2.args.length) {
+      for (var i = 0; i < r1.args.length; i++) {
+        var u = unify(st, pos, r1.args[i], r2.args[i]);
+        if (u) { return u; }
+      }
+      return null;
+    }
     return HErr('type', pos, 'type mismatch: cannot unify ' + showType(r1) + ' with ' + showType(r2));
   }
 
@@ -679,6 +988,7 @@
         return m[t.n] !== undefined ? m[t.n] : t;
       case 'list': return { k: 'list', t: applyMeta(m, t.t) };
       case 'fun':  return { k: 'fun', a: applyMeta(m, t.a), b: applyMeta(m, t.b) };
+      case 'data': return { k: 'data', n: t.n, args: t.args.map(function (a) { return applyMeta(m, a); }) };
       default:     return t;
     }
   }
@@ -733,7 +1043,7 @@
       + showType(ra) + ' and ' + showType(rb));
   }
 
-  function infer(st, env, e) {
+  function infer(st, env, denv, e) {
     switch (e.kind) {
       case 'int':    return TT.INT;
       case 'float':  return TT.FLOAT;
@@ -742,7 +1052,7 @@
       case 'list': {
         var et = fresh(st);
         for (var i = 0; i < e.items.length; i++) {
-          var t = infer(st, env, e.items[i]);
+          var t = infer(st, env, denv, e.items[i]);
           if (t.kind === 'type') { return t; }
           var u = unify(st, e.pos, t, et);
           if (u) { return u; }
@@ -754,21 +1064,26 @@
           return HErr('type', e.pos, 'unbound name: ' + e.name);
         }
         return instantiate(st, env[e.name]);
+      case 'constr': {
+        var info = ctorFor(e.name, denv);
+        if (!info) { return HErr('type', e.pos, 'unbound constructor: ' + e.name); }
+        return instantiate(st, info.scheme);
+      }
       case 'builtin': return instantiate(st, builtinScheme(e.name));
       case 'lambda': {
         var paramTypes = e.params.map(function () { return fresh(st); });
         var env2 = Object.assign({}, env);
         e.params.forEach(function (p, i) { env2[p] = { qvars: new Set(), body: paramTypes[i] }; });
-        var bodyT = infer(st, env2, e.body);
+        var bodyT = infer(st, env2, denv, e.body);
         if (bodyT.kind === 'type') { return bodyT; }
         var res = bodyT;
         for (var j = paramTypes.length - 1; j >= 0; j--) { res = TT.fun(paramTypes[j], res); }
         return res;
       }
       case 'apply': {
-        var tf = infer(st, env, e.fn);
+        var tf = infer(st, env, denv, e.fn);
         if (tf.kind === 'type') { return tf; }
-        var ta = infer(st, env, e.arg);
+        var ta = infer(st, env, denv, e.arg);
         if (ta.kind === 'type') { return ta; }
         var tr = fresh(st);
         var u2 = unify(st, e.pos, tf, TT.fun(ta, tr));
@@ -780,7 +1095,7 @@
         var envRec = Object.assign({}, env);
         envRec[e.name] = { qvars: new Set(), body: t0 };
         var envBound = e.rec ? envRec : env;
-        var tb = infer(st, envBound, e.bound);
+        var tb = infer(st, envBound, denv, e.bound);
         if (tb.kind === 'type') { return tb; }
         var u3 = unify(st, e.pos, t0, tb);
         if (u3) { return u3; }
@@ -789,29 +1104,46 @@
         var sch = generalize(ftv, tbR);
         var env3 = Object.assign({}, env);
         env3[e.name] = sch;
-        return infer(st, env3, e.body);
+        return infer(st, env3, denv, e.body);
       }
       case 'if': {
-        var tc = infer(st, env, e.cond);
+        var tc = infer(st, env, denv, e.cond);
         if (tc.kind === 'type') { return tc; }
         var u4 = unify(st, e.pos, tc, TT.BOOL);
         if (u4) { return u4; }
-        var tt = infer(st, env, e.then);
+        var tt = infer(st, env, denv, e.then);
         if (tt.kind === 'type') { return tt; }
-        var te = infer(st, env, e.els);
+        var te = infer(st, env, denv, e.els);
         if (te.kind === 'type') { return te; }
         var u5 = unify(st, e.pos, tt, te);
         if (u5) { return u5; }
         return tt;
+      }
+      case 'match': {
+        if (e.branches.length === 0) { return HErr('type', e.pos, 'empty match'); }
+        var ts = infer(st, env, denv, e.scrut);
+        if (ts.kind === 'type') { return ts; }
+        var rt = fresh(st);
+        for (var b = 0; b < e.branches.length; b++) {
+          var pat = e.branches[b][0];
+          var body = e.branches[b][1];
+          var envB = checkPattern(st, denv, e.pos, env, pat, ts);
+          if (envB.kind === 'type') { return envB; }
+          var bt = infer(st, envB, denv, body);
+          if (bt.kind === 'type') { return bt; }
+          var u = unify(st, e.pos, bt, rt);
+          if (u) { return u; }
+        }
+        return rt;
       }
       case 'bin': {
         var op = e.op;
         var arith = op === 'add' || op === 'sub' || op === 'mul' || op === 'div';
         var cmp = op === 'lt' || op === 'le' || op === 'gt' || op === 'ge';
         var eq = op === 'eq' || op === 'ne';
-        var ta2 = infer(st, env, e.a);
+        var ta2 = infer(st, env, denv, e.a);
         if (ta2.kind === 'type') { return ta2; }
-        var tb2 = infer(st, env, e.b);
+        var tb2 = infer(st, env, denv, e.b);
         if (tb2.kind === 'type') { return tb2; }
         if (arith) { return numericPromote(st, e.pos, ta2, tb2); }
         if (cmp) {
@@ -832,7 +1164,7 @@
         return TT.BOOL;
       }
       case 'neg': {
-        var tx = infer(st, env, e.x);
+        var tx = infer(st, env, denv, e.x);
         if (tx.kind === 'type') { return tx; }
         var rx = resolve(st, tx);
         if (rx.k === 'int') { return TT.INT; }
@@ -841,7 +1173,7 @@
         return HErr('type', e.pos, 'unary minus requires a numeric operand');
       }
       case 'not': {
-        var ty = infer(st, env, e.x);
+        var ty = infer(st, env, denv, e.x);
         if (ty.kind === 'type') { return ty; }
         var u10 = unify(st, e.pos, ty, TT.BOOL);
         if (u10) { return u10; }
@@ -850,6 +1182,77 @@
       default:
         return HErr('type', e.pos || POS_EOF, 'internal error: unknown expression');
     }
+  }
+
+  // Check a pattern against the scrutinee type, returning the environment
+  // extended with the pattern's variable bindings (bound monomorphically).
+  function checkPattern(st, denv, pos, env, pat, ty) {
+    switch (pat.kind) {
+      case 'pwild': return env;
+      case 'pvar': {
+        var env1 = Object.assign({}, env);
+        env1[pat.name] = { qvars: new Set(), body: ty };
+        return env1;
+      }
+      case 'pint':  { var u1 = unify(st, pos, ty, TT.INT); if (u1) { return u1; } return env; }
+      case 'pfloat': { var u2 = unify(st, pos, ty, TT.FLOAT); if (u2) { return u2; } return env; }
+      case 'pbool': { var u3 = unify(st, pos, ty, TT.BOOL); if (u3) { return u3; } return env; }
+      case 'pstr':  { var u4 = unify(st, pos, ty, TT.STR); if (u4) { return u4; } return env; }
+      case 'pnil': {
+        var et = fresh(st);
+        var u5 = unify(st, pos, ty, TT.list(et));
+        if (u5) { return u5; }
+        return env;
+      }
+      case 'pcons': {
+        var et2 = fresh(st);
+        var u6 = unify(st, pos, ty, TT.list(et2));
+        if (u6) { return u6; }
+        var envH = checkPattern(st, denv, pos, env, pat.h, et2);
+        if (envH.kind === 'type') { return envH; }
+        return checkPattern(st, denv, pos, envH, pat.t, TT.list(et2));
+      }
+      case 'plist': {
+        var et3 = fresh(st);
+        var u7 = unify(st, pos, ty, TT.list(et3));
+        if (u7) { return u7; }
+        var envP = env;
+        for (var i = 0; i < pat.items.length; i++) {
+          envP = checkPattern(st, denv, pos, envP, pat.items[i], et3);
+          if (envP.kind === 'type') { return envP; }
+        }
+        return envP;
+      }
+      case 'pconstr': {
+        var info = ctorFor(pat.name, denv);
+        if (!info) { return HErr('type', pos, 'unbound constructor: ' + pat.name); }
+        var inst = instantiate(st, info.scheme);
+        var split = splitFun(inst);
+        var u8 = unify(st, pos, split.result, ty);
+        if (u8) { return u8; }
+        if (split.fields.length !== pat.args.length) {
+          return HErr('type', pos, 'constructor ' + pat.name + ' takes '
+            + split.fields.length + ' arguments, but the pattern has ' + pat.args.length);
+        }
+        var envC = env;
+        for (var j = 0; j < split.fields.length; j++) {
+          envC = checkPattern(st, denv, pos, envC, pat.args[j], split.fields[j]);
+          if (envC.kind === 'type') { return envC; }
+        }
+        return envC;
+      }
+      default:
+        return HErr('type', pos || POS_EOF, 'internal error: unknown pattern');
+    }
+  }
+
+  // Split a function type into its argument types and the result type.
+  function splitFun(t) {
+    if (t.k === 'fun') {
+      var s = splitFun(t.b);
+      return { fields: [t.a].concat(s.fields), result: s.result };
+    }
+    return { fields: [], result: t };
   }
 
   // =====================================================================
@@ -865,7 +1268,9 @@
   function evalProgram(src) {
     var parsed = parseProgram(src);
     if (parsed.kind === 'parse') { return HErr('eval', parsed.pos, parsed.message); }
-    return drive(evalCPS({}, parsed, function (v) { return v; }));
+    var denv = buildDataEnv(parsed.decls);
+    if (denv.kind === 'type') { return HErr('eval', denv.pos, denv.message); }
+    return drive(evalCPS({}, denv, parsed.expr, function (v) { return v; }));
   }
 
   // The trampoline: repeatedly run thunks until a final value or error.
@@ -874,8 +1279,8 @@
     return thunk;
   }
 
-  // evalCPS :: env -> expr -> (value -> answer) -> answer-or-thunk
-  function evalCPS(env, e, k) {
+  // evalCPS :: env -> dataEnv -> expr -> (value -> answer) -> answer-or-thunk
+  function evalCPS(env, denv, e, k) {
     switch (e.kind) {
       case 'int':    return k(VInt(e.v));
       case 'float':  return k(VFloat(e.v));
@@ -886,7 +1291,7 @@
         return function () {
           function loop(i, acc) {
             if (i >= items.length) { return k(VList(acc)); }
-            return evalCPS(env, items[i], function (v) {
+            return evalCPS(env, denv, items[i], function (v) {
               acc.push(v);
               return loop(i + 1, acc);
             });
@@ -897,14 +1302,20 @@
       case 'var':
         if (env[e.name] === undefined) { return HErr('eval', e.pos, 'unbound name: ' + e.name); }
         return k(env[e.name]);
+      case 'constr': {
+        var info = ctorFor(e.name, denv);
+        if (!info) { return HErr('eval', e.pos, 'unbound constructor: ' + e.name); }
+        if (info.arity === 0) { return k(VData(e.name, [])); }
+        return k(VConstr(e.name, info.arity, []));
+      }
       case 'builtin': return k(VBuiltin(e.name));
       case 'lambda': return k(VClosure(e.params, e.body, env));
       case 'apply':
         return function () {
-          return evalCPS(env, e.fn, function (vf) {
+          return evalCPS(env, denv, e.fn, function (vf) {
             return function () {
-              return evalCPS(env, e.arg, function (va) {
-                return applyCPS(e.pos, k, vf, va);
+              return evalCPS(env, denv, e.arg, function (va) {
+                return applyCPS(e.pos, denv, k, vf, va);
               });
             };
           });
@@ -914,31 +1325,37 @@
           var env2 = Object.assign({}, env);
           var captured = e.rec ? env2 : env;
           env2[e.name] = VClosure(e.bound.params, e.bound.body, captured);
-          return evalCPS(env2, e.body, k);
+          return evalCPS(env2, denv, e.body, k);
         }
         if (e.rec) { return HErr('eval', e.pos, 'let rec requires a function value for ' + e.name); }
         return function () {
-          return evalCPS(env, e.bound, function (vb) {
+          return evalCPS(env, denv, e.bound, function (vb) {
             var env3 = Object.assign({}, env);
             env3[e.name] = vb;
-            return evalCPS(env3, e.body, k);
+            return evalCPS(env3, denv, e.body, k);
           });
         };
       }
       case 'if':
         return function () {
-          return evalCPS(env, e.cond, function (vc) {
+          return evalCPS(env, denv, e.cond, function (vc) {
             if (vc.k !== 'bool') {
               return HErr('eval', e.pos, 'if condition must be a boolean, got ' + showValue(vc));
             }
-            return evalCPS(env, vc.v ? e.then : e.els, k);
+            return evalCPS(env, denv, vc.v ? e.then : e.els, k);
+          });
+        };
+      case 'match':
+        return function () {
+          return evalCPS(env, denv, e.scrut, function (vs) {
+            return matchBranches(e.pos, env, denv, k, vs, e.branches);
           });
         };
       case 'bin':
         return function () {
-          return evalCPS(env, e.a, function (va) {
+          return evalCPS(env, denv, e.a, function (va) {
             return function () {
-              return evalCPS(env, e.b, function (vb) {
+              return evalCPS(env, denv, e.b, function (vb) {
                 return k(binop(e.pos, e.op, va, vb));
               });
             };
@@ -946,7 +1363,7 @@
         };
       case 'neg':
         return function () {
-          return evalCPS(env, e.x, function (v) {
+          return evalCPS(env, denv, e.x, function (v) {
             if (v.k === 'int') { return k(VInt(-v.v)); }
             if (v.k === 'float') { return k(VFloat(-v.v)); }
             return HErr('eval', e.pos, 'cannot negate ' + showValue(v));
@@ -954,7 +1371,7 @@
         };
       case 'not':
         return function () {
-          return evalCPS(env, e.x, function (v) {
+          return evalCPS(env, denv, e.x, function (v) {
             if (v.k !== 'bool') { return HErr('eval', e.pos, 'cannot apply ! to ' + showValue(v)); }
             return k(VBool(!v.v));
           });
@@ -964,9 +1381,64 @@
     }
   }
 
+  // Match a value against branches in order; the first match wins.
+  function matchBranches(pos, env, denv, k, v, branches) {
+    if (branches.length === 0) { return HErr('eval', pos, 'no matching pattern'); }
+    var binds = matchValue(v, branches[0][0]);
+    if (binds === null) { return matchBranches(pos, env, denv, k, v, branches.slice(1)); }
+    var envM = Object.assign({}, env);
+    for (var i = 0; i < binds.length; i++) { envM[binds[i][0]] = binds[i][1]; }
+    return evalCPS(envM, denv, branches[0][1], k);
+  }
+
+  // Attempt to match a value against a pattern, returning the variable
+  // bindings on success or null.
+  function matchValue(v, pat) {
+    switch (pat.kind) {
+      case 'pwild': return [];
+      case 'pvar':  return [[pat.name, v]];
+      case 'pint':  return (v.k === 'int' && v.v === pat.v) ? [] : null;
+      case 'pfloat': return (v.k === 'float' && v.v === pat.v) ? [] : null;
+      case 'pbool': return (v.k === 'bool' && v.v === pat.v) ? [] : null;
+      case 'pstr':  return (v.k === 'str' && v.v === pat.v) ? [] : null;
+      case 'pnil':  return (v.k === 'list' && v.v.length === 0) ? [] : null;
+      case 'pcons': {
+        if (v.k !== 'list' || v.v.length === 0) { return null; }
+        var b1 = matchValue(v.v[0], pat.h);
+        if (b1 === null) { return null; }
+        var b2 = matchValue(VList(v.v.slice(1)), pat.t);
+        if (b2 === null) { return null; }
+        return b1.concat(b2);
+      }
+      case 'plist': {
+        if (v.k !== 'list' || v.v.length !== pat.items.length) { return null; }
+        var acc = [];
+        for (var i = 0; i < pat.items.length; i++) {
+          var b = matchValue(v.v[i], pat.items[i]);
+          if (b === null) { return null; }
+          acc = acc.concat(b);
+        }
+        return acc;
+      }
+      case 'pconstr': {
+        if (v.k !== 'data' || v.name !== pat.name || v.fields.length !== pat.args.length) { return null; }
+        var acc2 = [];
+        for (var j = 0; j < pat.args.length; j++) {
+          var b2 = matchValue(v.fields[j], pat.args[j]);
+          if (b2 === null) { return null; }
+          acc2 = acc2.concat(b2);
+        }
+        return acc2;
+      }
+      default:
+        return null;
+    }
+  }
+
   // Curried application in CPS: lambdas bind the first remaining parameter;
-  // a partially applied cons completes into a list.
-  function applyCPS(pos, k, vf, va) {
+  // a partially applied cons completes into a list; a partially applied data
+  // constructor accumulates arguments until it has all of them.
+  function applyCPS(pos, denv, k, vf, va) {
     switch (vf.k) {
       case 'closure': {
         if (vf.params.length === 0) {
@@ -974,7 +1446,7 @@
         }
         var envC = Object.assign({}, vf.env);
         envC[vf.params[0]] = va;
-        if (vf.params.length === 1) { return evalCPS(envC, vf.body, k); }
+        if (vf.params.length === 1) { return evalCPS(envC, denv, vf.body, k); }
         return k(VClosure(vf.params.slice(1), vf.body, envC));
       }
       case 'partial': {
@@ -984,6 +1456,11 @@
           return res.kind === 'eval' ? res : k(res);
         }
         return k(VPartial(vf.name, args));
+      }
+      case 'constr': {
+        var as = vf.args.concat([va]);
+        if (as.length === vf.arity) { return k(VData(vf.name, as)); }
+        return k(VConstr(vf.name, vf.arity, as));
       }
       case 'builtin': {
         var r = applyBuiltin(pos, vf.name, va);
@@ -1094,6 +1571,17 @@
       }
       return true;
     }
+    if (a.k === 'data' && b.k === 'data') {
+      if (a.name !== b.name || a.fields.length !== b.fields.length) { return false; }
+      for (var j = 0; j < a.fields.length; j++) {
+        if (!equalValues(a.fields[j], b.fields[j])) { return false; }
+      }
+      return true;
+    }
+    if (a.k === 'constr' || b.k === 'constr') {
+      // Constructors are functions; they never compare equal.
+      return false;
+    }
     if (a.k === 'closure' || b.k === 'closure' || a.k === 'partial' || b.k === 'partial') {
       // Comparing functions is rejected by the VM but not the interpreter;
       // functions never compare equal.
@@ -1168,8 +1656,10 @@
   function compileProgram(src) {
     var parsed = parseProgram(src);
     if (parsed.kind === 'parse') { return HErr('compile', parsed.pos, parsed.message); }
+    var denv = buildDataEnv(parsed.decls);
+    if (denv.kind === 'type') { return HErr('compile', denv.pos, denv.message); }
     var st = CompileState();
-    var r = compileExpr(parsed, st);
+    var r = compileExpr(denv, true, parsed.expr, st);
     if (r) { return r; }
     st.code.push({ op: 'halt' });
     resolvePatches(st);
@@ -1182,7 +1672,7 @@
 
   function emit(st, instr) { st.code.push(instr); }
 
-  function compileExpr(e, st) {
+  function compileExpr(denv, inTail, e, st) {
     switch (e.kind) {
       case 'int':    return emitConst(st, { c: 'value', v: VInt(e.v) });
       case 'float':  return emitConst(st, { c: 'value', v: VFloat(e.v) });
@@ -1190,58 +1680,111 @@
       case 'str':    return emitConst(st, { c: 'value', v: VStr(e.v) });
       case 'list':
         for (var i = 0; i < e.items.length; i++) {
-          var r0 = compileExpr(e.items[i], st);
+          var r0 = compileExpr(denv, false, e.items[i], st);
           if (r0) { return r0; }
         }
         emit(st, { op: 'make_list', n: e.items.length });
         return null;
       case 'var':    return resolveRef(e.pos, e.name, st);
+      case 'constr': return compileConstr(e.pos, denv, e.name, st);
       case 'builtin': return emitConst(st, { c: 'value', v: VBuiltin(e.name) });
-      case 'lambda': return compileLambda(e.pos, e.params, e.body, st);
+      case 'lambda': return compileLambda(denv, e.params, e.body, st);
       case 'apply': {
-        var r1 = compileExpr(e.fn, st);
+        var sat = saturatedConstr(denv, e.fn, e.arg);
+        if (sat) {
+          var ar = sat.arity;
+          var args = sat.args;
+          for (var j = 0; j < args.length; j++) {
+            var rj = compileExpr(denv, false, args[j], st);
+            if (rj) { return rj; }
+          }
+          var dIdx = dataIdx(sat.name, ar, st);
+          emit(st, { op: 'make_data', i: dIdx });
+          return null;
+        }
+        var r1 = compileExpr(denv, false, e.fn, st);
         if (r1) { return r1; }
-        var r2 = compileExpr(e.arg, st);
+        var r2 = compileExpr(denv, false, e.arg, st);
         if (r2) { return r2; }
-        emit(st, { op: 'call' });
+        emit(st, { op: inTail ? 'tail_call' : 'call' });
         return null;
       }
-      case 'let':    return compileLet(e.pos, e.rec, e.name, e.bound, e.body, st);
+      case 'let':    return compileLet(e.pos, e.rec, e.name, denv, e.bound, inTail, e.body, st);
       case 'if': {
-        var r3 = compileExpr(e.cond, st);
+        var r3 = compileExpr(denv, false, e.cond, st);
         if (r3) { return r3; }
         var labFalse = emitJump(st, 'jump_if_false');
-        var r4 = compileExpr(e.then, st);
+        var r4 = compileExpr(denv, inTail, e.then, st);
         if (r4) { return r4; }
         var labEnd = emitJump(st, 'jump');
         defineLabel(st, labFalse);
-        var r5 = compileExpr(e.els, st);
+        var r5 = compileExpr(denv, inTail, e.els, st);
         if (r5) { return r5; }
         defineLabel(st, labEnd);
         return null;
       }
+      case 'match':  return compileMatch(e.pos, denv, inTail, e.scrut, e.branches, st);
       case 'bin': {
-        var r6 = compileExpr(e.a, st);
+        var r6 = compileExpr(denv, false, e.a, st);
         if (r6) { return r6; }
-        var r7 = compileExpr(e.b, st);
+        var r7 = compileExpr(denv, false, e.b, st);
         if (r7) { return r7; }
         emit(st, { op: opToInstr(e.op) });
         return null;
       }
       case 'neg': {
-        var r8 = compileExpr(e.x, st);
+        var r8 = compileExpr(denv, false, e.x, st);
         if (r8) { return r8; }
         emit(st, { op: 'neg' });
         return null;
       }
       case 'not': {
-        var r9 = compileExpr(e.x, st);
+        var r9 = compileExpr(denv, false, e.x, st);
         if (r9) { return r9; }
         emit(st, { op: 'not' });
         return null;
       }
       default:
         return HErr('compile', e.pos || POS_EOF, 'internal error: unknown expression');
+    }
+  }
+
+  // Compile a constructor reference: a nullary constructor is already a
+  // complete data value; a curried reference to a non-nullary constructor is
+  // pushed as a value so partial application works like the interpreter.
+  function compileConstr(pos, denv, name, st) {
+    var info = ctorFor(name, denv);
+    if (!info) { return HErr('compile', pos, 'unbound constructor: ' + name); }
+    var idx = dataIdx(name, info.arity, st);
+    if (info.arity === 0) { emit(st, { op: 'make_data', i: idx }); }
+    else { emit(st, { op: 'push_constr', i: idx }); }
+    return null;
+  }
+
+  // Register a CData constant (constructor name + total arity).
+  function dataIdx(name, arity, st) {
+    var key = 'd:' + name + ':' + arity;
+    if (st.constMap[key] !== undefined) { return st.constMap[key]; }
+    var idx = st.consts.length;
+    st.consts.push({ c: 'data', name: name, arity: arity });
+    st.constMap[key] = idx;
+    return idx;
+  }
+
+  // When an application spine is a constructor applied to exactly its arity
+  // of arguments, compile it to MakeData; otherwise null (generic call path).
+  function saturatedConstr(denv, fn, arg) {
+    return go(fn, [arg]);
+    function go(f, as) {
+      if (f.kind === 'apply') { return go(f.fn, [f.arg].concat(as)); }
+      if (f.kind === 'constr') {
+        var info = ctorFor(f.name, denv);
+        if (info && info.arity === as.length && info.arity > 0) {
+          return { name: f.name, arity: info.arity, args: as };
+        }
+        return null;
+      }
+      return null;
     }
   }
 
@@ -1263,24 +1806,24 @@
     }
   }
 
-  function compileLet(pos, rec, name, bound, body, st) {
+  function compileLet(pos, rec, name, denv, bound, inTail, body, st) {
     if (bound.kind === 'lambda') {
       var slot = registerLocal(name, st);
       if (rec) { emit(st, { op: 'new_cell', s: slot }); }
-      var r = compileLambda(bound.pos, bound.params, bound.body, st);
+      var r = compileLambda(denv, bound.params, bound.body, st);
       if (r) { return r; }
       emit(st, { op: 'store_local', s: slot });
-      return compileExpr(body, st);
+      return compileExpr(denv, inTail, body, st);
     }
     if (rec) { return HErr('compile', pos, 'let rec requires a function value for ' + name); }
-    var r2 = compileExpr(bound, st);
+    var r2 = compileExpr(denv, false, bound, st);
     if (r2) { return r2; }
     var slot2 = registerLocal(name, st);
     emit(st, { op: 'store_local', s: slot2 });
-    return compileExpr(body, st);
+    return compileExpr(denv, inTail, body, st);
   }
 
-  function compileLambda(pos, params, body, st) {
+  function compileLambda(denv, params, body, st) {
     var outer = {
       scopes: st.scopes, code: st.code, nextCell: st.nextCell,
       consts: st.consts, constMap: st.constMap, lambda: st.lambda,
@@ -1297,7 +1840,7 @@
     st.nextLabel = 0;
     st.patches = [];
 
-    var r = compileExpr(body, st);
+    var r = compileExpr(denv, true, body, st);
     if (r) { return r; }
     emit(st, { op: 'return' });
     resolvePatches(st);
@@ -1325,10 +1868,172 @@
     return null;
   }
 
+  // Compile a match expression: store the scrutinee, run each branch's pattern
+// test chain, jump into the matching body. Mirrors the Haskell layout.
+  function compileMatch(pos, denv, inTail, scrut, branches, st) {
+    if (branches.length === 0) { return HErr('compile', pos, 'empty match'); }
+    var r = compileExpr(denv, false, scrut, st);
+    if (r) { return r; }
+    var scr = registerLocal('$scr', st);
+    emit(st, { op: 'store_local', s: scr });
+    var names = [];
+    branches.forEach(function (b) {
+      patternVars(b[0]).forEach(function (n) { if (names.indexOf(n) < 0) { names.push(n); } });
+    });
+    var slots = {};
+    names.forEach(function (n) { slots[n] = registerLocal(n, st); });
+    var n = branches.length;
+    var startLabs = [], bodyLabs = [];
+    for (var i = 0; i < n; i++) { startLabs.push(newLabel(st)); bodyLabs.push(newLabel(st)); }
+    var endLab = newLabel(st);
+    var failLab = newLabel(st);
+    for (var b = 0; b < n; b++) {
+      defineLabel(st, startLabs[b]);
+      emit(st, { op: 'push_local', s: scr });
+      var failTarget = (b + 1 < n) ? startLabs[b + 1] : failLab;
+      var rp = compilePattern(denv, slots, failTarget, branches[b][0], st);
+      if (rp) { return rp; }
+      emitJumpTo(st, bodyLabs[b]);
+    }
+    defineLabel(st, failLab);
+    emit(st, { op: 'fail' });
+    for (var bb = 0; bb < n; bb++) {
+      defineLabel(st, bodyLabs[bb]);
+      var rb = compileExpr(denv, inTail, branches[bb][1], st);
+      if (rb) { return rb; }
+      emitJumpTo(st, endLab);
+    }
+    defineLabel(st, endLab);
+    return null;
+  }
+
+  // All variable names bound by a pattern.
+  function patternVars(pat) {
+    switch (pat.kind) {
+      case 'pwild': case 'pint': case 'pfloat': case 'pbool': case 'pstr': case 'pnil':
+        return [];
+      case 'pvar': return [pat.name];
+      case 'pcons': return patternVars(pat.h).concat(patternVars(pat.t));
+      case 'plist':
+        return pat.items.reduce(function (a, p) { return a.concat(patternVars(p)); }, []);
+      case 'pconstr':
+        return pat.args.reduce(function (a, p) { return a.concat(patternVars(p)); }, []);
+      default: return [];
+    }
+  }
+
+  // Compile a pattern's test chain against the value on top of the operand
+  // stack. Each test pops the current value and jumps to the fail target on
+  // mismatch; structural patterns bind their subvalues into anonymous temp
+  // slots and re-push them one at a time.
+  function compilePattern(denv, varSlot, failLab, pat, st) {
+    switch (pat.kind) {
+      case 'pwild': emit(st, { op: 'pop' }); return null;
+      case 'pvar': {
+        if (varSlot[pat.name] === undefined) { return HErr('compile', POS_EOF, 'unbound pattern variable: ' + pat.name); }
+        emit(st, { op: 'bind_local', s: varSlot[pat.name] });
+        return null;
+      }
+      case 'pint': {
+        var ci = addConst(st, { c: 'value', v: VInt(pat.v) });
+        emitTestTo(st, failLab, 'test_int', ci);
+        return null;
+      }
+      case 'pfloat': {
+        var cf = addConst(st, { c: 'value', v: VFloat(pat.v) });
+        emitTestTo(st, failLab, 'test_float', cf);
+        return null;
+      }
+      case 'pbool': {
+        var cb = addConst(st, { c: 'value', v: VBool(pat.v) });
+        emitTestTo(st, failLab, 'test_bool', cb);
+        return null;
+      }
+      case 'pstr': {
+        var cs = addConst(st, { c: 'value', v: VStr(pat.v) });
+        emitTestTo(st, failLab, 'test_str', cs);
+        return null;
+      }
+      case 'pnil':
+        emitTestTo(st, failLab, 'test_nil', 0);
+        return null;
+      case 'pcons': {
+        emitTestTo(st, failLab, 'test_cons', 0);
+        var headTmp = registerTempSlot(st);
+        var tailTmp = registerTempSlot(st);
+        emit(st, { op: 'bind_local', s: headTmp });
+        emit(st, { op: 'bind_local', s: tailTmp });
+        emit(st, { op: 'push_local', s: headTmp });
+        var r1 = compilePattern(denv, varSlot, failLab, pat.h, st);
+        if (r1) { return r1; }
+        emit(st, { op: 'push_local', s: tailTmp });
+        return compilePattern(denv, varSlot, failLab, pat.t, st);
+      }
+      case 'plist': {
+        return compilePList(pat.items);
+      }
+      case 'pconstr': {
+        var dIdx = dataIdx(pat.name, pat.args.length, st);
+        emitTestTo(st, failLab, 'test_constr', dIdx);
+        var temps = [];
+        for (var i = 0; i < pat.args.length; i++) { temps.push(registerTempSlot(st)); }
+        temps.forEach(function (s) { emit(st, { op: 'bind_local', s: s }); });
+        for (var j = 0; j < pat.args.length; j++) {
+          emit(st, { op: 'push_local', s: temps[j] });
+          var r2 = compilePattern(denv, varSlot, failLab, pat.args[j], st);
+          if (r2) { return r2; }
+        }
+        return null;
+      }
+      default:
+        return HErr('compile', POS_EOF, 'internal error: unknown pattern');
+    }
+    function compilePList(items) {
+      if (items.length === 0) {
+        emitTestTo(st, failLab, 'test_nil', 0);
+        return null;
+      }
+      emitTestTo(st, failLab, 'test_cons', 0);
+      var headTmp = registerTempSlot(st);
+      var tailTmp = registerTempSlot(st);
+      emit(st, { op: 'bind_local', s: headTmp });
+      emit(st, { op: 'bind_local', s: tailTmp });
+      emit(st, { op: 'push_local', s: headTmp });
+      var r3 = compilePattern(denv, varSlot, failLab, items[0], st);
+      if (r3) { return r3; }
+      emit(st, { op: 'push_local', s: tailTmp });
+      return compilePList(items.slice(1));
+    }
+  }
+
+  function emitTestTo(st, failLab, kind, ci) {
+    st.patches.push([failLab, st.code.length]);
+    emit(st, { op: kind, c: ci, target: 0 });
+  }
+
+  function emitJumpTo(st, lab) {
+    st.patches.push([lab, st.code.length]);
+    st.code.push({ op: 'jump', target: 0 });
+  }
+
+  function newLabel(st) {
+    var lab = st.nextLabel;
+    st.nextLabel += 1;
+    return lab;
+  }
+
   function registerLocal(name, st) {
     var scope = st.scopes[0];
     var slot = st.nextCell;
     scope.locals.push({ name: name, slot: slot });
+    st.nextCell += 1;
+    return slot;
+  }
+
+  // Allocate an anonymous cell slot for match temporaries (invisible to
+  // resolveRef, just a unique cell-safe index).
+  function registerTempSlot(st) {
+    var slot = st.nextCell;
     st.nextCell += 1;
     return slot;
   }
@@ -1458,7 +2163,19 @@
       case 'jump':          return 'jump ' + instr.target;
       case 'jump_if_false': return 'jump_if_false ' + instr.target;
       case 'call':          return 'call';
+      case 'tail_call':     return 'tail_call';
       case 'make_closure':  return 'make_closure ' + instr.i;
+      case 'make_data':     return 'make_data ' + instr.i;
+      case 'push_constr':   return 'push_constr ' + instr.i;
+      case 'bind_local':    return 'bind_local ' + instr.s;
+      case 'test_nil':      return 'test_nil ' + instr.target;
+      case 'test_cons':     return 'test_cons ' + instr.target;
+      case 'test_constr':   return 'test_constr ' + instr.c + ' ' + instr.target;
+      case 'test_int':      return 'test_int ' + instr.c + ' ' + instr.target;
+      case 'test_float':    return 'test_float ' + instr.c + ' ' + instr.target;
+      case 'test_bool':     return 'test_bool ' + instr.c + ' ' + instr.target;
+      case 'test_str':      return 'test_str ' + instr.c + ' ' + instr.target;
+      case 'fail':          return 'fail';
       case 'return':        return 'return';
       case 'cons':          return 'cons';
       case 'head':          return 'head';
@@ -1471,7 +2188,9 @@
   }
 
   function showConst(c) {
-    return c.c === 'value' ? showValue(c.v) : '<fn ' + c.f.name + '>';
+    if (c.c === 'value') { return showValue(c.v); }
+    if (c.c === 'data') { return c.name + '/' + c.arity; }
+    return '<fn ' + c.f.name + '>';
   }
 
   function disassemble(func) {
@@ -1503,6 +2222,8 @@
       case 'vm_bool':   return v.v ? 'true' : 'false';
       case 'vm_str':    return v.v;
       case 'vm_list':   return '[' + v.v.map(vmShowValue).join(', ') + ']';
+      case 'vm_data':   return [v.name].concat(v.fields.map(vmShowValue)).join(' ');
+      case 'vm_constr': return '<constructor: ' + v.name + '>';
       case 'vm_closure': return '<function>';
       case 'vm_partial': return '<function>';
       case 'vm_builtin': return '<builtin: ' + v.name + '>';
@@ -1516,6 +2237,8 @@
   function VmBool(v) { return { k: 'vm_bool', v: v }; }
   function VmStr(v) { return { k: 'vm_str', v: v }; }
   function VmList(v) { return { k: 'vm_list', v: v }; }
+  function VmData(name, fields) { return { k: 'vm_data', name: name, fields: fields }; }
+  function VmConstr(name, arity, args) { return { k: 'vm_constr', name: name, arity: arity, args: args }; }
   function VmClosure(f, ctx) { return { k: 'vm_closure', f: f, ctx: ctx }; }
   function VmPartial(f, ctx, bound) { return { k: 'vm_partial', f: f, ctx: ctx, bound: bound }; }
   function VmBuiltin(n) { return { k: 'vm_builtin', name: n }; }
@@ -1533,6 +2256,8 @@
       case 'list':    return VmList(v.v.map(toVm));
       case 'builtin': return VmBuiltin(v.name);
       case 'partial': return VmPartialBuiltin(v.name, v.args.map(toVm));
+      case 'data':    return VmData(v.name, v.fields.map(toVm));
+      case 'constr':  return VmConstr(v.name, v.arity, v.args.map(toVm));
       default:        return VmBuiltin('?');
     }
   }
@@ -1643,7 +2368,17 @@
       if (a.k === 'vm_bool' && b.k === 'vm_bool') { return VmBool(a.v === b.v); }
       if (a.k === 'vm_str' && b.k === 'vm_str') { return VmBool(a.v === b.v); }
       if (a.k === 'vm_list' && b.k === 'vm_list') { return eqLists(a.v, b.v); }
-      if (a.k === 'vm_closure' || b.k === 'vm_closure' || a.k === 'vm_partial' || b.k === 'vm_partial') {
+      if (a.k === 'vm_data' && b.k === 'vm_data') {
+        if (a.name !== b.name || a.fields.length !== b.fields.length) { return VmBool(false); }
+        for (var i = 0; i < a.fields.length; i++) {
+          var rd = eq2(a.fields[i], b.fields[i]);
+          if (rd.kind === 'vm') { return rd; }
+          if (!rd.v) { return VmBool(false); }
+        }
+        return VmBool(true);
+      }
+      if (a.k === 'vm_closure' || b.k === 'vm_closure' || a.k === 'vm_partial' || b.k === 'vm_partial'
+          || a.k === 'vm_constr' || b.k === 'vm_constr') {
         return failVm('cannot compare functions');
       }
       return failVm('cannot compare ' + vmShowValue(a) + ' and ' + vmShowValue(b));
@@ -1743,6 +2478,12 @@
           else { pushS(VmPartial(fn.f, fn.ctx, bound2)); bumpIp(); }
           return null;
         }
+        case 'vm_constr': {
+          var as = fn.args.concat([arg]);
+          if (as.length === fn.arity) { pushS(VmData(fn.name, as)); bumpIp(); }
+          else { pushS(VmConstr(fn.name, fn.arity, as)); bumpIp(); }
+          return null;
+        }
         case 'vm_builtin': {
           var r = applyBuiltin(fn.name, arg);
           if (r.kind === 'vm') { return r; }
@@ -1762,6 +2503,57 @@
         default:
           return failVm('cannot apply ' + vmShowValue(fn));
       }
+    }
+
+    // Tail call: apply one argument and, when the call completes a function,
+    // reuse the current frame instead of pushing a new one (constant-stack
+    // recursion). Partial applications in tail position cannot reuse the
+    // frame; their partial value is simply returned by popping the frame.
+    function tailCall(arg, fn) {
+      switch (fn.k) {
+        case 'vm_closure': {
+          var n = fn.f.params.length;
+          if (n === 1) { runTailFrame(fn.f, fn.ctx, [{ slot: 0, val: arg }]); return null; }
+          else if (n > 1) { pushS(VmPartial(fn.f, fn.ctx, [{ slot: 0, val: arg }])); frames.shift(); return null; }
+          else { return failVm('function with no parameters'); }
+        }
+        case 'vm_partial': {
+          var n2 = fn.f.params.length;
+          var nextSlot = fn.bound.length;
+          var bound2 = fn.bound.concat([{ slot: nextSlot, val: arg }]);
+          if (nextSlot + 1 === n2) { runTailFrame(fn.f, fn.ctx, bound2); return null; }
+          else { pushS(VmPartial(fn.f, fn.ctx, bound2)); frames.shift(); return null; }
+        }
+        case 'vm_constr': {
+          var as = fn.args.concat([arg]);
+          if (as.length === fn.arity) { pushS(VmData(fn.name, as)); frames.shift(); return null; }
+          else { pushS(VmConstr(fn.name, fn.arity, as)); frames.shift(); return null; }
+        }
+        case 'vm_builtin': {
+          var r = applyBuiltin(fn.name, arg);
+          if (r.kind === 'vm') { return r; }
+          pushS(r); frames.shift();
+          return null;
+        }
+        case 'vm_partial_builtin': {
+          var args = fn.args.concat([arg]);
+          if (args.length === vmArity(fn.name)) {
+            var r2 = completeBuiltin(fn.name, args);
+            if (r2.kind === 'vm') { return r2; }
+            pushS(r2); frames.shift(); return null;
+          }
+          pushS(VmPartialBuiltin(fn.name, args)); frames.shift();
+          return null;
+        }
+        default:
+          return failVm('cannot apply ' + vmShowValue(fn));
+      }
+    }
+
+    function runTailFrame(func, captured, bound) {
+      var cells = {};
+      bound.forEach(function (b) { cells[b.slot] = Cell(b.val); });
+      frames[0] = { f: func, ctx: { cells: cells, outer: captured }, ip: 0 };
     }
 
     function execute(instr) {
@@ -1886,12 +2678,106 @@
           if (rfn.kind === 'vm') { return rfn; }
           return call(f, rarg, rfn);
         }
+        case 'tail_call': {
+          var ta = popS();
+          if (ta.kind === 'vm') { return ta; }
+          var tf = popS();
+          if (tf.kind === 'vm') { return tf; }
+          return tailCall(ta, tf);
+        }
         case 'make_closure': {
           var c2 = f.f.consts[instr.i];
           if (c2.c !== 'func') { return failVm('make_closure on non-function constant'); }
           pushS(VmClosure(c2.f, f.ctx)); bumpIp();
           return null;
         }
+        case 'make_data': {
+          var dc = f.f.consts[instr.i];
+          if (dc.c !== 'data') { return failVm('make_data on non-constructor constant'); }
+          var rv = popN(dc.arity);
+          if (rv.kind === 'vm') { return rv; }
+          pushS(VmData(dc.name, rv.reverse())); bumpIp();
+          return null;
+        }
+        case 'push_constr': {
+          var pc = f.f.consts[instr.i];
+          if (pc.c !== 'data') { return failVm('push_constr on non-constructor constant'); }
+          pushS(VmConstr(pc.name, pc.arity, [])); bumpIp();
+          return null;
+        }
+        case 'bind_local': {
+          var bv = popS();
+          if (bv.kind === 'vm') { return bv; }
+          storeCell(instr.s, bv); bumpIp();
+          return null;
+        }
+        case 'test_nil': {
+          var tn = popS();
+          if (tn.kind === 'vm') { return tn; }
+          if (tn.k !== 'vm_list') { return failVm('test_nil on non-list ' + vmShowValue(tn)); }
+          if (tn.v.length === 0) { bumpIp(); } else { setIp(instr.target); }
+          return null;
+        }
+        case 'test_cons': {
+          var tc = popS();
+          if (tc.kind === 'vm') { return tc; }
+          if (tc.k !== 'vm_list') { return failVm('test_cons on non-list ' + vmShowValue(tc)); }
+          if (tc.v.length === 0) { setIp(instr.target); }
+          else { pushS(VmList(tc.v.slice(1))); pushS(tc.v[0]); bumpIp(); }
+          return null;
+        }
+        case 'test_constr': {
+          var cc = f.f.consts[instr.c];
+          if (cc.c !== 'data') { return failVm('test_constr on non-constructor constant'); }
+          var cv = popS();
+          if (cv.kind === 'vm') { return cv; }
+          if (cv.k !== 'vm_data' || cv.name !== cc.name || cv.fields.length !== cc.arity) {
+            if (cv.k !== 'vm_data') { return failVm('test_constr on non-data value ' + vmShowValue(cv)); }
+            setIp(instr.target);
+            return null;
+          }
+          cv.fields.slice().reverse().forEach(function (x) { pushS(x); });
+          bumpIp();
+          return null;
+        }
+        case 'test_int': {
+          var ti = popS();
+          if (ti.kind === 'vm') { return ti; }
+          var ic = f.f.consts[instr.c];
+          var lit = ic.c === 'value' ? toVm(ic.v) : null;
+          if (ti.k === 'vm_int' && lit && lit.k === 'vm_int' && ti.v === lit.v) { bumpIp(); }
+          else { setIp(instr.target); }
+          return null;
+        }
+        case 'test_float': {
+          var tg = popS();
+          if (tg.kind === 'vm') { return tg; }
+          var fc = f.f.consts[instr.c];
+          var fl = fc.c === 'value' ? toVm(fc.v) : null;
+          if (tg.k === 'vm_float' && fl && fl.k === 'vm_float' && tg.v === fl.v) { bumpIp(); }
+          else { setIp(instr.target); }
+          return null;
+        }
+        case 'test_bool': {
+          var tb = popS();
+          if (tb.kind === 'vm') { return tb; }
+          var bc = f.f.consts[instr.c];
+          var bl = bc.c === 'value' ? toVm(bc.v) : null;
+          if (tb.k === 'vm_bool' && bl && bl.k === 'vm_bool' && tb.v === bl.v) { bumpIp(); }
+          else { setIp(instr.target); }
+          return null;
+        }
+        case 'test_str': {
+          var ts = popS();
+          if (ts.kind === 'vm') { return ts; }
+          var sc = f.f.consts[instr.c];
+          var sl = sc.c === 'value' ? toVm(sc.v) : null;
+          if (ts.k === 'vm_str' && sl && sl.k === 'vm_str' && ts.v === sl.v) { bumpIp(); }
+          else { setIp(instr.target); }
+          return null;
+        }
+        case 'fail':
+          return failVm('no matching pattern');
         case 'cons': case 'head': case 'tail': case 'is_nil': {
           var r12 = popS();
           if (r12.kind === 'vm') { return r12; }
@@ -1915,7 +2801,14 @@
     // Execute one instruction (unless halted) and return a snapshot.
     function step() {
       if (halted) { return snapshot(); }
-      if (frames.length === 0) { halted = true; result = failVm('frame stack exhausted'); return snapshot(); }
+      if (frames.length === 0) {
+        // A return or tail call emptied the frame stack: mirror the Haskell
+        // VM by returning the top of the operand stack.
+        halted = true;
+        if (stack.length === 0) { result = failVm('operand stack empty at return'); }
+        else { result = { ok: true, value: stack[stack.length - 1] }; }
+        return snapshot();
+      }
       var cf = frames[0];
       var code = cf.f.code;
       if (cf.ip >= code.length) { halted = true; result = failVm('program counter out of range'); return snapshot(); }
@@ -1928,10 +2821,23 @@
       }
       if (instr.op === 'return') {
         frames.shift();
+        if (frames.length === 0) {
+          // The entry function (tail-replaced main) returned: return the top
+          // of the operand stack, exactly like the Haskell VM.
+          halted = true;
+          if (stack.length === 0) { result = failVm('operand stack empty at return'); }
+          else { result = { ok: true, value: stack[stack.length - 1] }; }
+        }
         return snapshot();
       }
       var err = execute(instr);
       if (err) { halted = true; result = err; }
+      else if (frames.length === 0) {
+        // A tail call popped the last frame; return the stack top.
+        halted = true;
+        if (stack.length === 0) { result = failVm('operand stack empty at return'); }
+        else { result = { ok: true, value: stack[stack.length - 1] }; }
+      }
       return snapshot();
     }
 
@@ -2018,7 +2924,27 @@
     { name: 'list-reverse', expected: '[3, 2, 1]',
       source: '-- reverse flips a list.\nreverse [1, 2, 3]\n' },
     { name: 'list-append-take-drop', expected: '[1, 3]',
-      source: '-- append, take, and drop combine into list surgery.\ntake 2 (append [1] (drop 1 [2, 3, 4]))\n' }
+      source: '-- append, take, and drop combine into list surgery.\ntake 2 (append [1] (drop 1 [2, 3, 4]))\n' },
+    { name: 'data-maybe', expected: 'Just 42',
+      source: '-- Algebraic data types: Maybe with two constructors.\ndata Maybe a = Nothing | Just a\nJust 42\n' },
+    { name: 'data-pair-partial', expected: 'Pair 1 2',
+      source: '-- Constructors are curried first-class functions.\ndata Pair a b = Pair a b\nlet p = Pair 1 in p 2\n' },
+    { name: 'data-tree', expected: 'Node Node Leaf 1 Leaf 2 Leaf',
+      source: '-- A recursive data type with nested constructor application.\ndata Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf\n' },
+    { name: 'data-equality', expected: 'true',
+      source: '-- Data values compare by constructor and fields.\ndata Maybe a = Nothing | Just a\nJust 5 == Just 5\n' },
+    { name: 'data-color', expected: 'Red',
+      source: '-- Nullary constructors are complete values.\ndata Color = Red | Green\nlet c = Red in c\n' },
+    { name: 'match-list', expected: '3',
+      source: '-- Pattern matching destructures a list with a cons pattern.\nmatch [1, 2, 3] with | [] => 0 | x :: rest => x + length rest\n' },
+    { name: 'match-data', expected: '7',
+      source: '-- Pattern matching on an algebraic data type, binding fields.\ndata Maybe a = Nothing | Just a\nlet f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)\n' },
+    { name: 'match-nested', expected: '20',
+      source: '-- A nested cons pattern destructures two elements.\nmatch [10, 20, 30] with | a :: b :: rest => b | _ => 0\n' },
+    { name: 'match-map', expected: '[2, 4, 6]',
+      source: '-- Pattern matching drives a recursive map, replacing the guards.\nlet rec mapM = fn xs => match xs with\n  | [] => []\n  | x :: rest => cons (x * 2) (mapM rest)\nin mapM [1, 2, 3]\n' },
+    { name: 'match-tree', expected: '3',
+      source: '-- Matching a recursive data type picks a branch by constructor.\ndata Tree = Leaf Int | Node (Tree) (Tree)\nlet rec height = fn t => match t with\n  | Leaf n => 1\n  | Node l r =>\n      let h1 = height l in\n      let h2 = height r in\n      if h1 > h2 then h1 + 1 else h2 + 1\nin height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))\n' }
   ];
 
   // Example programs shown in the web playground editor.
@@ -2031,7 +2957,9 @@
     'recursion.hly': corpus[12].source,
     'list-length.hly': corpus[15].source,
     'list-reverse.hly': corpus[16].source,
-    'list-append-take-drop.hly': corpus[17].source
+    'list-append-take-drop.hly': corpus[17].source,
+    'match-maybe.hly': '-- Data declarations and pattern matching.\ndata Maybe a = Nothing | Just a\nlet rec sumList = fn xs => match xs with | [] => 0 | h :: t => h + sumList t\nin let safeHead = fn xs => match xs with | [] => Nothing | h :: _ => Just h\nin match safeHead [3, 4, 5] with | Nothing => 0 | Just h => sumList [1, 2, h]\n',
+    'match-lists.hly': '-- Nested list patterns and guards by order of branches.\nmatch [[1, 2], [3, 4]] with | [] => 0 | [a, b] :: rest => a + b | xs => -1\n'
   };
 
   return {

@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T15:59:00Z
+- **Updated:** 2026-08-15T16:35:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -51,7 +51,9 @@ corpus-check port for data/match/TCO/--opt, (b) self-hosted stdlib in Halcyon
 root README/index.html placement fix (Halcyon -> Current, Beambus ->
 Previous), (e) final polish + Status: complete. The current PR #61 stays open
 until the daily shipping cap resets (00:00Z Aug 16); commits accumulate on the
-branch until then.
+branch until then. M16a (JS data/match/TCO port + corpus-check) is done;
+still open in part (a): the JS --opt optimizer port and its corpus-check
+coverage.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -342,5 +344,28 @@ branch until then.
   halcyon.cabal exposes Halcyon.Optimize; the Makefile smoke target runs
   the corpus and examples with and without --opt. 320 selftests green; make
   smoke green.
+
+- the Builder
+
+- 2026-08-15 (builder, M16a - JS mirror for data/match/TCO) - ported the
+  v2 core to the JS mirror (js/halcyon.js): values (VData/VConstr + showValue),
+  lexer tokens (`data`/`match`/`with`, `::`, `|`, `=>`), parser (`parseProgram`
+  now returns `{decls, expr}`; data declarations with a same-line field-type
+  grammar, `match ... with | pat => e` branches, constructor/list/literal/
+  wildcard patterns), typechecker (TData, DataEnv with duplicate detection,
+  constructor schemes instantiated like functions, checkPattern per branch),
+  interpreter (curried VConstr, matchValue), and compiler/VM (CData consts,
+  MakeData/PushConstr/Test*/BindLocal/Fail ops, Test* patch resolution, tail
+  position threading incl. tail_call in the JS VM with constant-stack
+  recursion and empty-frame return semantics). Fixed port bugs found by the
+  new tests: test-* fail labels were never patched; parseTypeApp greedily
+  swallowed a following capitalized name across lines; saturatedConstr built
+  args in the wrong order (P 1 true came out as P true 1); the entry
+  function's trailing return emptied the frame stack. js/corpus-check.js now
+  has 28 corpus entries (10 data/match programs mirroring the Haskell
+  corpus) plus 30 feature checks (match patterns, TCO deep recursion, bounded
+  frame depth via the stepper, data/match typechecking). 60/60 checks green;
+  JS interpreter == JS VM == Haskell on every program; Haskell make test 320
+  and make smoke still green.
 
 - the Builder
