@@ -60,26 +60,44 @@ opName = \case
   OpMul -> "*"
   OpDiv -> "/"
 
--- | Builtin functions over lists, exposed as first-class references.
+-- | Builtin functions, exposed as first-class references. The first four
+-- are the classic list primitives; the rest form a small standard library
+-- over lists. @length@/@reverse@ are unary, @append@/@take@/@drop@ are
+-- curried like @cons@.
 data Builtin
   = BCons
   | BHead
   | BTail
   | BIsNil
+  | BLength
+  | BReverse
+  | BAppend
+  | BTake
+  | BDrop
   deriving (Eq, Show)
 
 builtinName :: Builtin -> String
 builtinName = \case
-  BCons  -> "cons"
-  BHead  -> "head"
-  BTail  -> "tail"
-  BIsNil -> "isNil"
+  BCons    -> "cons"
+  BHead    -> "head"
+  BTail    -> "tail"
+  BIsNil   -> "isNil"
+  BLength  -> "length"
+  BReverse -> "reverse"
+  BAppend  -> "append"
+  BTake    -> "take"
+  BDrop    -> "drop"
 
 -- | Resolve a builtin by name, if it is one.
 builtinForName :: String -> Maybe Builtin
 builtinForName = \case
-  "cons"  -> Just BCons
-  "head"  -> Just BHead
-  "tail"  -> Just BTail
-  "isNil" -> Just BIsNil
-  _       -> Nothing
+  "cons"    -> Just BCons
+  "head"    -> Just BHead
+  "tail"    -> Just BTail
+  "isNil"   -> Just BIsNil
+  "length"  -> Just BLength
+  "reverse" -> Just BReverse
+  "append"  -> Just BAppend
+  "take"    -> Just BTake
+  "drop"    -> Just BDrop
+  _         -> Nothing

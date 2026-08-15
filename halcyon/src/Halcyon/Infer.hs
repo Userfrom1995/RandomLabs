@@ -191,10 +191,15 @@ inferVar p env name =
 inferBuiltin :: Pos -> Builtin -> Infer Type
 inferBuiltin _ b =
   instantiate $ case b of
-    BCons  -> Scheme (Set.singleton 0) (TFun (TVar 0) (TFun (TList (TVar 0)) (TList (TVar 0))))
-    BHead  -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TVar 0))
-    BTail  -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
-    BIsNil -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) TBool)
+    BCons    -> Scheme (Set.singleton 0) (TFun (TVar 0) (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BHead    -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TVar 0))
+    BTail    -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
+    BIsNil   -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) TBool)
+    BLength  -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) TInt)
+    BReverse -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
+    BAppend  -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BTake    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BDrop    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
 
 inferLambda :: Pos -> Env -> [String] -> Expr -> Infer Type
 inferLambda _ env params body = do

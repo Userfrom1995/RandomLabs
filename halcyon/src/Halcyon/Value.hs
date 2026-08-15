@@ -11,8 +11,9 @@ import Halcyon.Ast (Expr, Builtin, builtinName)
 import qualified Data.Map.Strict as Map
 
 -- | Runtime values. Closures capture their defining environment; recursive
--- bindings use a lazy self-referential environment so `let rec` works.
--- @VPartial@ records a partially applied curried builtin (cons).
+-- bindings use a lazy self-referential environment so @let rec@ works.
+-- @VPartial@ records a partially applied curried builtin (e.g. @cons@,
+-- @append@, @take@) with the arguments accumulated so far.
 data Value
   = VInt Integer
   | VFloat Double
@@ -21,7 +22,7 @@ data Value
   | VList [Value]
   | VClosure [String] Expr (Map.Map String Value)
   | VBuiltin Builtin
-  | VPartial Builtin Value
+  | VPartial Builtin [Value]
   deriving (Eq, Show)
 
 -- | Render a value as program output. This is the canonical, deterministic
@@ -37,7 +38,7 @@ showValue = \case
   VList vs      -> "[" <> intercalate ", " (map showValue vs) <> "]"
   VClosure{}    -> "<function>"
   VBuiltin b    -> "<builtin: " <> builtinName b <> ">"
-  VPartial b x  -> "<builtin: " <> builtinName b <> " " <> showValue x <> ">"
+  VPartial b as -> "<builtin: " <> builtinName b <> " " <> unwords (map showValue as) <> ">"
 
 -- | Deterministic float rendering: plain decimals, never scientific for
 -- ordinary magnitudes.

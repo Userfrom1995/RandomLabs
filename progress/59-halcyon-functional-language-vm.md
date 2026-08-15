@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** complete
-- **Updated:** 2026-08-15T13:35:00Z
+- **Status:** in-progress
+- **Updated:** 2026-08-15T14:45:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -176,6 +176,18 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   `# ...` line comments, but the lexer (Lexer.hs) uses `--` for line
   comments and `{- ... -}` for nested block comments; corrected the section
   to document both forms accurately.
+- 2026-08-15 (fixer, shipping-limit iteration round): the Maintainer held
+  the merge for the daily shipping cap and asked the team to iterate. This
+  round adds a standard library of list builtins plus CLI diagnostics:
+  - New first-class builtins `length`, `reverse`, `append`, `take`, `drop`
+    with polymorphic HM schemes, curried where multi-argument (append,
+    take, drop form partial applications exactly like cons). Implemented
+    in the interpreter (Ast/Infer/Value/Eval) and the bytecode VM
+    (generalized VmPartialBuiltin to accumulate argument lists).
+    Verified interpreter == VM on all cases; `make` clean, 129 existing
+    selftests still pass.
+  - TODO next: selftest coverage + corpus entries + example files, the JS
+    mirror port, `halcyon eval` + caret source diagnostics, docs update.
 
 - the Builder
 
