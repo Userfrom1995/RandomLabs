@@ -16,27 +16,28 @@
 - [x] sample fonts: micro5x7 (95 ASCII) + pico3x5, generated .gff + exported code
 - [x] tests: full suite green via self-test harness (126 tests)
 - [x] iteration/improvement cycle, part 1: kerning pairs (format, renderer, exporters, editor script command, tests)
-- [ ] iteration/improvement cycle, part 2: HTML specimen page generator (frontend) + sample artifacts
+- [x] iteration/improvement cycle, part 2: HTML specimen page generator (frontend) + sample artifacts
 - [ ] docs: README, docs/index.md + index.html, format.md, codegen.md, landing page, root README
 - [ ] final push, Status: complete, PR with Closes #57
 
 ## Current step
-Run 4 landed the first half of the mandatory iteration/improvement cycle:
-kerning pairs. The core Font gained a per-pair kern table (validated: drawable
-chars, both glyphs must exist, amount in 1-cellWidth..cellWidth), .gff now
-carries `kern:U+0041:U+0056=-1` lines (strictly parsed with line numbers), the
-renderer honors kerning with overlapping-column composition, all six
-exporters emit kern tables (kotlin/java/c/text and the rle variants; generated
-kotlin renderText is kern-aware), and the editor gained a `kern <c1> <c2>
-<amount|clear>` script command. 17 new tests (126 total) cover round trips,
-rejections, exports, rendering, and the script surface. Next: the HTML
-specimen generator (the frontend half of the iteration), then docs, then the
-final push.
+Run 4 finished the mandatory iteration cycle with two shipped
+improvements. Part 1: kerning pairs across the whole stack (core Font table,
+.gff kern: lines, kerning-aware renderer, kern tables in all six exporters,
+editor `kern` script command, 17 tests). Part 2: the HTML specimen frontend -
+a new `specimen` command generates a self-contained, zero-dependency HTML
+page (embedded font data + a kerning-aware live preview in ascii/blocks modes
+at any scale + a glyph gallery), verified headless with node and covered by 7
+suite tests + 2 CLI tests; the sample fonts now ship Micro5x7.html and
+Pico3x5.html. The sample fonts also gained real kern tables (10 pairs for
+micro5x7, 5 for pico3x5) applied through the new editor script commands, and
+every code artifact was regenerated and compile-checked (kotlinc + javac);
+the generated Kotlin renderText honors kerning. 135/135 tests green. Next:
+the docs (README details, docs/index.md + index.html, format.md, codegen.md,
+landing page, root README), then the final push.
 
 ## Next steps
-- Build the HTML specimen/sandbox generator (specimen command + tests).
 - Write the docs (README details, docs/index.md + index.html, format.md, codegen.md, landing page, root README).
-- Add kern pairs + a specimen page to the sample fonts and regenerate artifacts.
 - Mark Status: complete and push.
 
 ## Agent log
@@ -75,3 +76,14 @@ final push.
   Kotlin renderText became kern-aware with offset-based column painting.
   Editor gained a `kern <c1> <c2> <amount|clear>` script command; Metrics
   summarizes kern count. 17 new tests, 126/126 green. Committed milestone.
+- 2026-08-15 (run 4): iteration cycle part 2 - the HTML specimen frontend.
+  New `Specimen.kt` generator + `specimen` CLI command emit a self-contained
+  zero-dependency HTML page (embedded font data as JS, kerning-aware live
+  preview in ascii/blocks modes at any scale, glyph gallery). Verified the
+  embedded JS headless with node (AV kerns to 9 cols, AO stays 10); 7 suite
+  tests + 2 CLI tests. Generated sample/export/Micro5x7.html and
+  Pico3x5.html. Sample fonts gained real kern tables (micro5x7: 10 pairs,
+  pico3x5: 5) applied via the new editor kern script commands; all export
+  artifacts regenerated and compile-checked (kotlinc + javac); generated
+  Kotlin renderText verified kern-aware (AV renders 9 wide). 135/135 green.
+  Committed milestone.

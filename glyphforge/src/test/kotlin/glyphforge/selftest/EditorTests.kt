@@ -250,7 +250,7 @@ object EditorTests {
             val e = Editor(font(), 'A')
             val r = e.apply(Command.Kern('A', 'B', -99))
             Check.isFalse(r.ok, "bad kern rejected")
-            Check.isTrue((r.message ?: "").contains("kern"), "message explains")
+            Check.isTrue(r.message.contains("kern"), "message explains")
         }
 
         s.test("script parser reads kern lines") {

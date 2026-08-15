@@ -314,7 +314,7 @@ s.test("edit reports a missing font") {
         s.test("global help lists every command") {
             val (so, se, _) = cap()
             Check.eq(0, runCli(listOf("--help"), so, se), "exit 0")
-            for (cmd in listOf("new", "edit", "import-art", "render", "export", "info", "list", "validate", "dump")) {
+            for (cmd in listOf("new", "edit", "import-art", "render", "export", "specimen", "info", "list", "validate", "dump")) {
                 Check.isTrue(so.toString().contains("  $cmd"), "help lists $cmd")
             }
         }
@@ -329,6 +329,27 @@ s.test("edit reports a missing font") {
             val (so, se, _) = cap()
             Check.eq(1, runCli(listOf("validate", "--font", "/nonexistent/missing.gff"), so, se), "exit 1")
             Check.isTrue(se.toString().contains("cannot read font"), "read error")
+        }
+
+        s.test("specimen writes a self-contained html file") {
+            val dir = tmpDir()
+            val fontPath = dir.resolve("font.gff").toString()
+            runCli(listOf("new", "--name", "Spec", "--cell-width", "5", "--cell-height", "7", "--out", fontPath), ByteArrayOutputStream(), ByteArrayOutputStream())
+            val outPath = dir.resolve("spec.html").toString()
+            val (so, se, _) = cap()
+            Check.eq(0, runCli(listOf("specimen", "--font", fontPath, "--out", outPath), so, se), "exit 0")
+            val html = Files.readString(Path.of(outPath))
+            Check.isTrue(html.contains("<title>Spec - Glyphforge specimen</title>"), "title in output")
+            Check.isTrue(html.contains("const FONT = {"), "embedded data")
+            Files.deleteIfExists(Path.of(fontPath))
+            Files.deleteIfExists(Path.of(outPath))
+            Files.deleteIfExists(dir)
+        }
+
+        s.test("specimen requires a font") {
+            val (so, se, _) = cap()
+            Check.eq(1, runCli(listOf("specimen"), so, se), "exit 1")
+            Check.isTrue(se.toString().contains("missing required option --font"), "error message")
         }
 
         return s

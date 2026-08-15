@@ -2,6 +2,7 @@ package glyphforge.cli
 
 import glyphforge.codegen.ExportFormat
 import glyphforge.codegen.Exporter
+import glyphforge.codegen.Specimen
 import glyphforge.core.Font
 import glyphforge.core.FontIO
 import glyphforge.core.Metrics
@@ -52,6 +53,7 @@ fun run(args: List<String>, out: PrintStream, err: PrintStream): Int {
             "import-art" -> cmdImportArt(a, out, err)
             "render" -> cmdRender(a, out, err)
             "export" -> cmdExport(a, out, err)
+            "specimen" -> cmdSpecimen(a, out, err)
             "info" -> cmdInfo(a, out, err)
             "list" -> cmdList(a, out, err)
             "validate" -> cmdValidate(a, out, err)
@@ -79,7 +81,7 @@ class UsageError(message: String) : Exception(message)
 private val VALUE_FLAGS = setOf(
     "name", "cell-width", "cell-height", "baseline", "default-advance", "out",
     "art", "font", "glyph", "script", "text", "mode", "scale", "on", "off",
-    "format", "package",
+    "format", "package", "title",
 )
 
 class Args(tokens: List<String>, val out: PrintStream, val err: PrintStream) {
@@ -326,6 +328,26 @@ private fun cmdExport(a: Args, out: PrintStream, err: PrintStream): Int {
     return 0
 }
 
+private fun cmdSpecimen(a: Args, out: PrintStream, err: PrintStream): Int {
+    if (a.helpRequested()) {
+        out.println(
+            """
+            usage: glyphforge specimen --font <file> [--out <file>] [--title <string>]
+
+            Generates a self-contained HTML specimen page for a font: a live,
+            kerning-aware preview (text, mode, scale) plus a gallery of every
+            glyph. The page embeds the font and needs no server or network.
+            """.trimIndent()
+        )
+        return 0
+    }
+    a.checkNoPositionals()
+    val font = loadFont(Path.of(a.valueRequired("font")))
+    val html = Specimen.generate(font, a.value("title"))
+    writeFileOrStdout(a.value("out"), html, out)
+    return 0
+}
+
 private fun cmdInfo(a: Args, out: PrintStream, err: PrintStream): Int {
     if (a.helpRequested()) {
         out.println(
@@ -453,6 +475,7 @@ private fun printGlobalHelp(out: PrintStream) {
           import-art   autotrace ASCII-art glyphs into a compact .gff font
           render       draw text with a font (ascii / blocks / ansi)
           export       generate embeddable code (kotlin / java / c / text)
+          specimen     generate an interactive HTML specimen page for a font
           info         font metadata and per-glyph metrics
           list         list all glyphs with metrics
           validate     lint a .gff font file

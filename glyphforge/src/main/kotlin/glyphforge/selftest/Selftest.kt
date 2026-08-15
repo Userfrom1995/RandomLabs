@@ -107,6 +107,7 @@ object Selftest {
         RasterTests.suite(),
         FontIOTests.suite(),
         ExporterTests.suite(),
+        SpecimenTests.suite(),
         RendererTests.suite(),
         EditorTests.suite(),
         CliTests.suite(),
