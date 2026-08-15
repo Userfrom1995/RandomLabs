@@ -36,6 +36,7 @@ data VmVal
   | VmPartialBuiltin Builtin [VmVal]       -- ^ partial curried builtin: accumulated args
   | VmData String [VmVal]
   | VmConstr String Int [VmVal]
+  | VmRec String [(String, VmVal)]
 
 -- | A context: the cells of one frame's locals plus the captured context
 -- of the closure that created the frame (the lexical chain).
@@ -240,6 +241,56 @@ runVm trace (Program entry) = do
               testLit f c target (\lit v -> case (lit, v) of
                 (VmStr a, VmStr b) -> a == b
                 _                  -> False)
+            MakeRecord c ar -> do
+              case fConstants (frFunc f) !! c of
+                CRec name fields -> do
+                  rvals <- popN ar
+                  case rvals of
+                    Left e      -> return (Left e)
+                    Right vals  -> do
+                      -- The compiler pushes field values in declared order,
+                      -- so values already line up with the field names.
+                      let rec = VmRec name (zip fields (reverse vals))
+                      pushS rec >> bumpIp f >> step
+                _ -> failVm "make_record on non-record constant"
+            GetField c -> do
+              case fConstants (frFunc f) !! c of
+                CField name -> do
+                  rv <- popS
+                  case rv of
+                    Left e -> return (Left e)
+                    Right (VmRec _ fs) -> case lookup name fs of
+                      Just v  -> pushS v >> bumpIp f >> step
+                      Nothing -> failVm ("no field " <> name <> " in record value")
+                    Right v -> failVm ("get_field on non-record value " <> vmShowValue v)
+                _ -> failVm "get_field on non-field constant"
+            UpdateField c -> do
+              case fConstants (frFunc f) !! c of
+                CField name -> do
+                  rnv <- popS
+                  rv <- popS
+                  case (rnv, rv) of
+                    (Left e, _)    -> return (Left e)
+                    (_, Left e)    -> return (Left e)
+                    (Right nv, Right (VmRec rn fs)) -> do
+                      let fs' = map (\case
+                                      (f, v) | f == name -> (name, nv)
+                                      other               -> other) fs
+                      pushS (VmRec rn fs') >> bumpIp f >> step
+                    (_, Right v) -> failVm ("update_field on non-record value " <> vmShowValue v)
+                _ -> failVm "update_field on non-field constant"
+            TestRecord c target -> do
+              case fConstants (frFunc f) !! c of
+                CRec name fields -> do
+                  rv <- popS
+                  case rv of
+                    Left e -> return (Left e)
+                    Right (VmRec rn fs)
+                      | rn == name && length fs == length fields ->
+                          mapM_ pushS (reverse (map snd fs)) >> bumpIp f >> step
+                      | otherwise -> setIp target
+                    Right v -> failVm ("test_record on non-record value " <> vmShowValue v)
+                _ -> failVm "test_record on non-record constant"
             Fail -> failVm "no matching pattern"
             TailCall -> do
               rarg <- popS
@@ -499,6 +550,10 @@ runVm trace (Program entry) = do
           (VmData n1 x, VmData n2 y)
             | n1 == n2  -> eqLists x y
             | otherwise -> Right (VmBool False)
+          (VmRec n1 x, VmRec n2 y)
+            | n1 == n2 && length x == length y ->
+                eqRecs x y
+            | otherwise -> Right (VmBool False)
           (VmConstr n1 a1 x, VmConstr n2 a2 y)
             | n1 == n2 && a1 == a2 -> eqLists x y
             | otherwise            -> Right (VmBool False)
@@ -517,6 +572,18 @@ runVm trace (Program entry) = do
           Right _              -> Right (VmBool False)
           Left e               -> Left e
         eqLists _ _ = Right (VmBool False)
+
+        -- Records compare by field values in declared order (both sides are
+        -- declared-ordered; the compiler guarantees matching names).
+        eqRecs [] [] = Right (VmBool True)
+        eqRecs ((f1, x) : xs) ((f2, y) : ys)
+          | f1 == f2  = case eq2 x y of
+              Right (VmBool True)  -> eqRecs xs ys
+              Right (VmBool False) -> Right (VmBool False)
+              Right _              -> Right (VmBool False)
+              Left e               -> Left e
+          | otherwise = Right (VmBool False)
+        eqRecs _ _ = Right (VmBool False)
 
         vmNot (VmBool b) = VmBool (not b)
         vmNot v = v
@@ -595,6 +662,7 @@ toVm = \case
   VPartial b vs -> VmPartialBuiltin b (map toVm vs)
   VData n vs -> VmData n (map toVm vs)
   VConstr n ar as -> VmConstr n ar (map toVm as)
+  VRec n fs -> VmRec n [(f, toVm v) | (f, v) <- fs]
   VClosure{} -> error "interpreter closure cannot enter VM constants"
 
 -- | Render a VM value as program output, mirroring 'Halcyon.Value.showValue'
@@ -613,3 +681,4 @@ vmShowValue = \case
   VmPartialBuiltin b xs -> "<builtin: " <> builtinName b <> " " <> unwords (map vmShowValue xs) <> ">"
   VmData n fs    -> unwords (n : map vmShowValue fs)
   VmConstr n _ _ -> "<constructor: " <> n <> ">"
+  VmRec _ fs     -> "{ " <> intercalate ", " (map (\(f, v) -> f <> " = " <> vmShowValue v) fs) <> " }"

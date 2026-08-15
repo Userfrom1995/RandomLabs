@@ -56,6 +56,10 @@ data Instr
   | TestFloat Int Int        -- ^ const index, fail target; literal Float test
   | TestBool Int Int         -- ^ const index, fail target; literal Bool test
   | TestStr Int Int          -- ^ const index, fail target; literal String test
+  | MakeRecord Int Int       -- ^ const index (CRec), arity; pop n field values, push a record
+  | GetField Int             -- ^ const index (CField); pop record, push field value
+  | UpdateField Int          -- ^ const index (CField); pop record and new value, push updated record
+  | TestRecord Int Int       -- ^ const index (CRec), fail target; pop record, push fields, jump on match
   | Fail                     -- ^ abort with "no matching pattern"
   | Halt
   deriving (Eq, Show)
@@ -65,6 +69,8 @@ data Const
   = CValue Value
   | CFunc Func
   | CData String Int          -- ^ a constructor reference: name + total arity
+  | CRec String [String]      -- ^ a record reference: type name + field names in declared order
+  | CField String             -- ^ a record field name (for projection/update)
   deriving (Show)
 
 -- | An immutable compiled function.
@@ -129,6 +135,10 @@ showInstr = \case
   TestFloat c t  -> "test_float " <> show c <> " " <> show t
   TestBool c t   -> "test_bool " <> show c <> " " <> show t
   TestStr c t    -> "test_str " <> show c <> " " <> show t
+  MakeRecord c a -> "make_record " <> show c <> " " <> show a
+  GetField c     -> "get_field " <> show c
+  UpdateField c  -> "update_field " <> show c
+  TestRecord c t -> "test_record " <> show c <> " " <> show t
   Fail           -> "fail"
   Halt            -> "halt"
 
@@ -138,6 +148,8 @@ showConst = \case
   CValue v -> showValue v
   CFunc f  -> "<fn " <> fName f <> ">"
   CData n a -> n <> "/" <> show a
+  CRec n fs -> n <> " {" <> unwords fs <> "}"
+  CField f  -> "." <> f
 
 -- | A canonical form of a constant used for deduplication in the constant
 -- pool. Values compare by rendered form; functions always get their own
@@ -146,3 +158,5 @@ constEquiv :: Const -> String
 constEquiv (CValue v) = "v:" <> showValue v
 constEquiv (CFunc f)  = "f:" <> fName f <> ":" <> show (length (fCode f))
 constEquiv (CData n a) = "d:" <> n <> ":" <> show a
+constEquiv (CRec n fs) = "r:" <> n <> ":" <> unwords fs
+constEquiv (CField f)  = "f:" <> f
