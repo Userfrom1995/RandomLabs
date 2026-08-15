@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T22:40:00Z
+- **Updated:** 2026-08-15T23:05:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -45,20 +45,21 @@
 - [x] 20. Char type + string operations: 'a' literals, TChar/VChar, strLen/
   charAt/substr/strAppend/strContains/str builtins, stdlib growth
   (string.hly, list.hly, maybe.hly), corpus entries
-- [ ] 21. VM profiler (--profile/--stats), optimizer expansion (DCE + copy/
+- [x] 21. VM profiler (--profile/--stats), optimizer expansion (DCE + copy/
   constant propagation), JS mirror + playground sync for all v3 features,
   docs, final polish, Status: complete (Haskell core done: profiler +
   optimizer expansion + selftests; JS mirror done: records, classes,
-  chars/strings, string lib, profiler, optimizer expansion - M21b)
+  chars/strings, string lib, profiler, optimizer expansion - M21b;
+  playground sync done: v3 AST/pattern/type renderers, Profile panel -
+  M21c; docs done: language/vm references, READMEs, root pages - M21d)
 
 ## Current step
 v3 enhancement round (shipping-limit round 2) is designed and ready for the
 Builder. Milestones 17-21 were added to the checklist: M17 top-level
 definitions + module system, M18 record types, M19 type classes with
 dictionary passing, M20 Char + string operations, M21 VM profiler +
-optimizer expansion + JS/playground/docs sync. M17 through M20 are complete.
-Next up: M21 VM profiler + optimizer expansion + JS mirror/playground/docs
-sync. The merge is still held by the Aug 15 shipping cap (2/2); the v3 round
+optimizer expansion + JS/playground/docs sync. M17 through M21 are complete.
+The merge is still held by the Aug 15 shipping cap (2/2); the v3 round
 must land and pass a fresh review + test on the new head before the Maintainer
 merges after the 00:00Z Aug 16 cap reset.
 
@@ -69,6 +70,10 @@ features - records, modules, classes, chars, strings, profiler - plus docs
 and final polish) on the existing branch, pushing milestone-by-milestone and
 updating this tracker as it goes. After M21, the Reviewer + Tester cycle runs
 on the fresh head and the Maintainer merges once the cap resets, closing #59.
+M21 is complete (Haskell core M21a, JS mirror M21b, playground M21c, docs
+M21d). The branch head is pushed and ready for a fresh Reviewer + Tester
+cycle; once they pass, the Maintainer merges after the 00:00Z Aug 16 cap
+reset.
 
 ## Agent log
 - 2026-08-15 (builder, M21b - JS mirror for all v3 features) - ported the
@@ -105,6 +110,36 @@ on the fresh head and the Maintainer merges once the cap resets, closing #59.
   with the examples dir. Haskell make test: 596 pass; make smoke green;
   examples verified on the Haskell CLI. Committed and pushed in two
   commits (mirror port, then corpus-check + examples).
+
+- the Builder
+
+- 2026-08-15 (builder, M21c - playground sync + M21d - docs) - finished the
+  v3 round. Playground (halcyon/index.html): renderAst gained char/record/
+  proj/update/method cases, renderPattern gained pchar/precord, renderProgram
+  was rewritten for imports plus the new def kinds (defdata/defrecord/
+  defclass/definstance/deflet) via a new renderDef, renderType handles
+  Char and rec (fixed its fun/list keys to the mirror's a/b/t schema and
+  renders the reserved class type var as the bare `a`), and a Profile tab
+  runs runVmProfiled and renders renderProfile. While testing the new
+  renderers, found and fixed a real mirror bug: solveConstraints crashed
+  when a constraint resolved to a context-free instance (resolveInstance
+  returns null on success and the caller dereferenced r.kind); now guarded
+  like the inferResolved caller. Docs (M21d): language.md gained the import/
+  record/class/instance grammar, Char literals and the Char base type,
+  record/char patterns, the string builtins with their real names
+  (strLen/charAt/substr/strAppend/strContains/str) and the self-hosted
+  string module functions, the Show class and its exact instances (with
+  user data types needing their own instance and str as the
+  class-free renderer), and a records-and-classes example verified on the
+  CLI; vm.md gained make_record/get_field/update_field/test_record/
+  test_char/vm_method, the class dictionary and method dispatch model, and
+  a profiler section; READMEs and the root pages updated with the new
+  feature set and the current counts (596 tests, 47-program corpus, 13
+  examples, 196 JS checks). Verified make test 596, make smoke green,
+  node js/corpus-check.js examples 196 checks 0 failures, and the new
+  doc examples end-to-end on the CLI (records-and-classes example prints
+  2, contextual instance C a => C (Maybe a) prints 3). Committed and
+  pushed on the branch; tracker updated with M21c/M21d.
 
 - the Builder
 
