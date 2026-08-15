@@ -618,4 +618,233 @@ pass: `make test`, `make smoke`, `make smoke --opt`, `cabal test`,
 `node js/corpus-check.js examples` all green, exit codes 0/1/2, clean tree,
 `Status: complete`, decision file written.
 
+## Next-level evolution: Halcyon v4 - effects, operators, prelude, bytecode
+
+Dispatched by Mae (third shipping-limit round, 2026-08-15): the merge is again
+held by the daily cap (2/2 on Aug 15; cap resets 00:00Z Aug 16), and per the
+owner's playbook the Architect designs the next level instead of a Fixer
+round. v3 made Halcyon "a language you write real programs in" with modules,
+records, type classes, and strings. v4 makes it "a language whose programs can
+*do* things": an **effect system** (`Effect a` type, `do` notation, `print`/
+`readLine` builtins, `main`-style effectful entries), **user-defined operators
+and type synonyms** (the two most-requested language-ergonomics features),
+an **auto-imported standard prelude**, a **serialized bytecode artifact
+format** (`compile -o out.hbc` + `run out.hbc`, no re-parse at load), and a
+**benchmark harness** (`bench` comparing interpreter, VM, and optimized VM by
+deterministic profiler instruction counts). The final milestone syncs the JS
+mirror, playground, docs, and root pages and polishes everything. The
+differential guarantee (interpreter output == VM output == JS output, both
+plain and `--opt`) continues to gate every milestone.
+
+### Milestone 22 - Effect system (programs that print and read)
+
+**The gap.** Today every Halcyon program is pure: the only observable output
+is the printed value of the final expression. There is no way to print from
+inside a function, read input, or sequence operations. v4's headline is a
+small, deterministic, purely-functional effect system in the ML/Haskell mold.
+
+**Type and values.** New primitive type `TUnit` (rendered `Unit`) with the
+literal `()` and value `VUnit` (rendered `()`, mirroring the interpreter and
+JS). New type constructor `TEffect t` (rendered `Effect t`). The free-variable
+rules and `showType` gain the two constructors; unification treats `TEffect`
+like any other type constructor (invariant in its argument).
+
+**Grammar.**
+
+```
+expr ::= ... | 'do' '{' stmt+ '}' | '(' ')'           -- () is VUnit
+stmt  ::= 'let' name '=' expr ';'                     -- local, non-recursive
+        | name '<-' expr ';'                          -- bind
+        | expr ';'                                    -- sequence, discard result
+```
+
+`do { ... }` desugars in the parser to a chain of `bind` applications over
+first-class effect builtins (see below), so the type checker, evaluators, and
+VM need only the builtins, exactly like `cons`/`append`. The trailing
+statement is the final effect value; `x <- e` binds within the rest; a bare
+`expr ;` sequences with a discarded unit continuation. Rules: the block must
+end in an expression (not a `<-` bind), and the whole block must have a single
+`Effect t` type.
+
+**Builtins (curried, first-class, in `Ast.Builtin`).**
+
+- `return : a -> Effect a` - the unit of the monad.
+- `bind : Effect a -> (a -> Effect b) -> Effect b` - sequencing.
+- `print : a -> Effect Unit` - writes `showValue a` to stdout, no newline.
+- `printLine : a -> Effect Unit` - writes `showValue a` plus a newline.
+- `readLine : Effect String` - reads one line from stdin (a scripted,
+  piped stream; the program never opens an interactive prompt).
+
+**Representation.** Effects are *data*, not control flow. `Value` gains
+`VEffect String [Value]` (tagged effect action; the builtin `print "hi"`
+evaluates to `VEffect "print" [VStr "hi", VEffect "return" [VUnit]]`), and the
+tree-walking interpreter's `bind`/`return`/`print`/`printLine`/`readLine`
+cases build these values. A single pure driver
+`runEffect :: Value -> Either EvalError String` interprets the tree in
+deterministic order: `print`/`printLine` append to an output accumulator,
+`readLine` draws from a supplied input list (consumed in order; running out is
+a positioned runtime error), `bind` threads the accumulator through its left
+effect then applies the continuation closure, `return` yields the value and
+the accumulated output. The CLI feeds `getContents`-style scripted stdin as
+the input list, so effect programs are fully scriptable and deterministic
+(the existing REPL already reads stdin with `getLine`/`isEOF`; no interactive
+prompts anywhere).
+
+**Program entry.** When the inferred type of the program's final expression is
+`Effect t`, `run`/`run-vm`/`eval` execute the effect (writing the output
+stream) and then print the resulting `t` value (nothing when `t` is `Unit`);
+when the final type is not an effect, behavior is exactly as today, so every
+existing program and every pinned corpus entry is unchanged. A
+definitions-only module stays no-output. The REPL runs a typed effect line the
+same way.
+
+**VM.** `Op.Const` gains nothing new (effects are built from the builtin
+primitives), so the compiler needs only the existing `Call`/`TailCall`
+machinery plus the five new builtin names in `builtinForName`/the VM builtin
+table; the VM builds the same `VEffect` values and a
+`runVmEffect` (mirroring `runEffect`) executes them, byte-identical to the
+interpreter. No new opcodes, which keeps the optimizer's fixpoint rules,
+disassembler, and profiler unchanged.
+
+**JS mirror.** The five builtins and `VEffect`/`runEffect` port 1:1. The JS
+`readLine` draws from a scripted input array (the playground supplies an input
+box), never `prompt()`, keeping the no-interactive-input gate clean.
+
+**Tests + corpus.** New selftest group: `()` literal typing, `do`-block
+desugaring shapes, `return`/`bind` laws on small examples, `print`/
+`printLine` output accumulation, `readLine` consuming a scripted input list,
+exhausted-input error, effect-final-type vs pure-final-type program dispatch,
+and differential tests (interpreter effect output == VM effect output). New
+pinned corpus entries: a print loop, a read-then-echo program, a
+do-block with local `let`, and a line-count program reading stdin. `make
+test`, `make smoke` (piped stdin to an effect program), `cabal test` green.
+
+### Milestone 23 - User-defined operators and type synonyms
+
+**Operators.** Top-level declarations register an operator with the parser's
+precedence table (levels 0-9; the built-in operators occupy 1-6):
+
+```
+infixl 3 <op>      -- left-associative at level N
+infixr 6 <op>      -- right-associative at level N
+infix  4 <op>      -- non-associative at level N
+let (<op>) = fn a b => ...   -- define the operator's function
+```
+
+The lexer gains a rule for operator names: a maximal run of the symbol
+characters `+ - * / < > = ! & | : .` (excluding comment/arrow/cons prefixes,
+which keep their existing tokens) lexes as a `TOpName String` token. The
+parser keeps a dynamic operator table: `infixl`/`infixr`/`infix`
+declarations (collected with the other top-level defs before the final
+expression parses) register name -> (level, assoc); precedence climbing then
+parses `a <op> b` by looking up the table, and `(<op>)` parses as a parenthesized
+operator reference (a first-class function). An operator used before it is
+registered is a positioned parse error. Overriding the built-in symbol for a
+built-in op (`+`, `*`, ...) is rejected; all other symbols are free. The
+existing built-in operators keep their fixed table, so every current program
+parses unchanged.
+
+**Type synonyms.** Top-level `type <Name> <tyvar>* = <type>` declarations add
+abbreviations (e.g. `type Pair a b = (a, b)` style records already exist, so
+synonyms target concrete shapes like `type Dict = [String]`). Synonyms are
+expanded at parse time into the existing `Type` constructors (no new `Type`
+constructor, no inference change, no runtime cost); a synonym name may not
+collide with a `data`/`record`/class name, and recursion/forward references
+are rejected with positioned errors. `showType` renders the expanded form.
+
+**Tests + corpus.** Lexer operator-name cases (longest-run, comment/arrow
+interaction), parser precedence/associativity trees for user ops, operator
+usage as a function reference, registration-before-use errors, synonym
+expansion and name-collision errors, and differential corpus entries using a
+user-defined operator and a synonym (byte-identical across interpreter, VM,
+and `--opt`). `make test`, `make smoke` green.
+
+### Milestone 24 - Auto-imported standard prelude and REPL enhancements
+
+**Prelude.** A new `halcyon/lib/prelude.hly` is auto-imported ahead of every
+user program by the module resolver (a synthetic first import that the
+`diskProvider`/`memProvider` chain resolves; an explicit `import
+"lib/prelude.hly"` is a harmless dedup). The prelude provides, written in
+Halcyon itself and typechecked like any module: `id`, `const`, `flip`,
+`compose`/`then`, `map`/`filter`/`foldl`/`foldr`/`zip`/`range`/`sum`/
+`product` (re-exported or defined), `show` via the `Show` class, `when`/
+`forever`/`seq_` effect combinators from M22, and the common list/string
+helpers. The prelude is shadowable: a user top-level `let` or imported module
+with the same name wins (documented, with a selftest proving shadowing). Every
+prelude function is exercised by a corpus entry or an example, and the JS
+mirror bundles it in its module map so the playground sees it too.
+
+**REPL enhancements.** The REPL gains colon commands (all non-interactive,
+stdin-driven): `:type <expr>` prints the inferred scheme, `:disasm <expr>`
+prints the bytecode disassembly, `:opt <expr>` prints the optimized
+disassembly, `:import "mod"` resolves and merges a module into the session,
+and `:help`. Effect-typed expressions run as in `run`.
+
+**Tests + corpus.** Prelude resolution order (prelude before user defs, user
+defs shadow), prelude functions on the CLI (`eval`, `run`, `repl`), corpus
+entries exercising `map`/`filter`/`foldl`/`seq_`/`when`, REPL `:type`/
+`:disasm`/`:import` smoke entries, JS corpus-check including prelude examples.
+`make test`, `make smoke` green.
+
+### Milestone 25 - Serialized bytecode artifact and benchmark harness
+
+**Bytecode format.** `halcyon compile -o out.hbc file.hly` writes a
+deterministic, versioned artifact: a magic header (`HALCYONBC1`), the entry
+`Func` (name, params, opcode list with constant indices), the recursively
+nested function pool, the constant pool (values, data/record/field/method
+constants by rendered form, functions by their sub-serialization), the dict
+table, and the ctor map. The encoding is a stable, line-oriented text form
+(no floats-as-text ambiguity: reuses the canonical `showValue` rendering that
+already makes output byte-deterministic). `halcyon run out.hbc` (and
+`run-vm out.hbc` / `run-vm --opt out.hbc`) detects the `.hbc` extension, loads
+the artifact, rebuilds the `Op.Program` (no lex/parse/typecheck: the artifact
+was produced from an already-typechecked program), and runs it on the VM;
+`--opt` runs the loaded program through the existing optimizer (which operates
+on the `Op.Program` structure, so it works unchanged). A round-trip selftest
+serializes, loads, and re-runs every corpus program asserting byte-identical
+output; a header/version mismatch or truncation is a positioned-ish IO error
+with exit code 1.
+
+**Benchmark harness.** `halcyon bench <file>` runs the program on the
+interpreter, the VM, and the optimized VM, reporting deterministic metrics:
+for each evaluator, total instructions executed and per-opcode top counts
+(reusing the profiler machinery from v3, which already yields deterministic
+counts) plus elapsed wall time (informational). `bench` exits 0 and prints a
+stable report layout; a `--n N` repeats flag is optional. The smoke target
+runs `bench` on `fib.hly` and greps the report.
+
+**Tests + corpus.** Serialize/load/run round-trips for every corpus program
+(both plain and `--opt`), corrupt-header and truncated-file errors, `.hbc`
+dispatch in `run`/`run-vm`, and `bench` report shape. `make test`, `make
+smoke` green.
+
+### Milestone 26 - JS mirror, playground, docs, root pages, polish
+
+**JS mirror.** Port to `js/halcyon.js`: the `Effect` type and the five effect
+builtins with `VEffect`/`runEffect` (scripted input array, no `prompt()`),
+`()` literal, user-defined operators (lexer `TOpName`, dynamic precedence
+table, parenthesized operator references), type synonyms (parse-time
+expansion), the auto-imported prelude in the bundled module map, and a
+bytecode serializer/loader so `compile`-style artifacts can be produced and
+loaded in the browser. `js/corpus-check.js` grows to cover every v4 feature
+(effect programs with scripted input, operator/synonym programs, prelude
+programs, and a bytecode round-trip), keeping JS == Haskell byte-identical.
+
+**Playground.** `halcyon/index.html`: an Input/Output panel for effect programs
+(scripted stdin box + stdout area, wired to `runEffect`), the prelude in the
+example selector, operator-aware AST/type rendering, a type-synonym panel, a
+Bytecode Artifact tab producing/downloading `.hbc` text, and the existing
+tabs kept intact.
+
+**Docs + polish.** `docs/language.md`: `Effect`/`do`/`()`, the five effect
+builtins with exact signatures, operator declarations and precedence, type
+synonyms, the auto-imported prelude, `bench`, `.hbc` usage, and the new REPL
+commands. `docs/vm.md`: effect builtins (no new opcodes), the bytecode format,
+`bench` report layout. `docs/index.md`/`docs/index.html`, `README.md`, and the
+root `index.html`/`README.md` updated with the v4 feature list and the correct
+test/corpus counts (Halcyon stays the Current Project/Live now entry). Final
+pass: `make test`, `make smoke`, `make smoke --opt`, `cabal test`,
+`node js/corpus-check.js examples` all green, exit codes 0/1/2, clean tree,
+`Status: complete`, decision file written.
+
 - the Architect

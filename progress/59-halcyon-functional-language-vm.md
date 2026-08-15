@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T23:05:00Z
+- **Updated:** 2026-08-15T23:40:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -52,28 +52,51 @@
   chars/strings, string lib, profiler, optimizer expansion - M21b;
   playground sync done: v3 AST/pattern/type renderers, Profile panel -
   M21c; docs done: language/vm references, READMEs, root pages - M21d)
+- [ ] 22. Effect system: TUnit/()/VUnit + TEffect, do { } blocks with
+  let/<-/sequence stmts desugaring to bind, first-class return/bind/print/
+  printLine/readLine builtins, VEffect values + pure runEffect driver
+  (scripted stdin, deterministic), Effect-typed program entries in
+  run/run-vm/eval/repl, VM effect builtins (no new opcodes), JS mirror +
+  runEffect, selftests + pinned corpus entries, docs
+- [ ] 23. User-defined operators (infixl/infixr/infix declarations,
+  TOpName lexer rule, dynamic precedence table, parenthesized operator
+  references) + type synonyms (type Name = type, parse-time expansion),
+  selftests + differential corpus entries, JS mirror, docs
+- [ ] 24. Auto-imported standard prelude (halcyon/lib/prelude.hly with
+  id/const/flip/compose/map/filter/foldl/foldr/zip/range/sum/product/show/
+  when/forever/seq_, shadowable, bundled in the JS mirror module map) +
+  REPL colon commands (:type/:disasm/:opt/:import/:help), selftests +
+  corpus + smoke entries
+- [ ] 25. Serialized bytecode artifact (compile -o out.hbc, HALCYONBC1
+  deterministic text format, run/run-vm out.hbc loads without
+  lex/parse/typecheck, --opt on loaded programs, round-trip selftests) +
+  benchmark harness (bench <file>: interpreter vs VM vs opt-VM, deterministic
+  profiler counts), smoke entries
+- [ ] 26. JS mirror + playground sync for ALL v4 features (effect I/O panel,
+  operator/synonym rendering, prelude examples, bytecode artifact tab),
+  docs (language.md/vm.md/index/READMEs/root pages), final polish,
+  Status: complete
 
 ## Current step
-v3 enhancement round (shipping-limit round 2) is designed and ready for the
-Builder. Milestones 17-21 were added to the checklist: M17 top-level
-definitions + module system, M18 record types, M19 type classes with
-dictionary passing, M20 Char + string operations, M21 VM profiler +
-optimizer expansion + JS/playground/docs sync. M17 through M21 are complete.
-The merge is still held by the Aug 15 shipping cap (2/2); the v3 round
-must land and pass a fresh review + test on the new head before the Maintainer
-merges after the 00:00Z Aug 16 cap reset.
+v4 enhancement round (shipping-limit round 3) is designed and ready for the
+Builder. Milestones 22-26 were added to the checklist: M22 effect system,
+M23 user-defined operators + type synonyms, M24 auto-imported prelude +
+REPL colon commands, M25 serialized bytecode artifact + benchmark harness,
+M26 JS mirror + playground + docs + root pages + final polish. M22 is the
+first milestone to implement on the existing branch (effect system: TUnit/
+TEffect, do blocks, return/bind/print/printLine/readLine, VEffect +
+runEffect, Effect-typed program entries, selftests + corpus), pushing
+milestone-by-milestone. The merge is still held by the Aug 15 shipping cap
+(2/2); the v4 round must land and pass a fresh review + test on the new head
+before the Maintainer merges after the 00:00Z Aug 16 cap reset.
 
 ## Next steps
-Builder to implement M21 (VM profiler --profile/--stats, optimizer expansion:
-DCE + copy/constant propagation, JS mirror + playground sync for ALL v3
-features - records, modules, classes, chars, strings, profiler - plus docs
-and final polish) on the existing branch, pushing milestone-by-milestone and
-updating this tracker as it goes. After M21, the Reviewer + Tester cycle runs
-on the fresh head and the Maintainer merges once the cap resets, closing #59.
-M21 is complete (Haskell core M21a, JS mirror M21b, playground M21c, docs
-M21d). The branch head is pushed and ready for a fresh Reviewer + Tester
-cycle; once they pass, the Maintainer merges after the 00:00Z Aug 16 cap
-reset.
+Builder to implement M22 (effect system) first on the existing branch,
+pushing milestone-by-milestone and updating this tracker as it goes. After
+M22, M23 (operators + synonyms), M24 (prelude + REPL), M25 (bytecode artifact
++ bench), M26 (JS mirror + playground + docs + polish). After M26, the
+Reviewer + Tester cycle runs on the fresh head and the Maintainer merges once
+the cap resets, closing #59.
 
 ## Agent log
 - 2026-08-15 (builder, M21b - JS mirror for all v3 features) - ported the
@@ -679,3 +702,29 @@ and make smoke still green.
   and pushed on the branch.
 
 - the Builder
+
+- 2026-08-15 (architect, v4 enhancement round) - dispatched by the Maintainer
+  after PR #61 re-cleared review + test on the final v3 head 861830bb
+  (596/596, Reviewer approve 20:20Z, Tester approve-test 20:24Z) and the Aug
+  15 shipping cap (2/2) again held the merge. Per the owner's playbook
+  (f1fbae9), designed the v4 next-level evolution and appended the spec to
+  ideas/2026-08-15-halcyon-functional-language-vm.md (Milestones 22-26
+  below). Updated this tracker: Status in-progress, checklist items 22-26
+  added, Current step and Next steps rewritten for the Builder. The plan:
+  an effect system (TUnit/TEffect, do { } blocks desugaring to bind,
+  return/bind/print/printLine/readLine as first-class builtins, VEffect
+  values with a pure deterministic runEffect driver over scripted stdin,
+  Effect-typed program entries, no new VM opcodes); user-defined operators
+  (infixl/infixr/infix declarations + TOpName lexer rule + dynamic precedence)
+  and type synonyms (parse-time expansion); an auto-imported shadowable
+  prelude (halcyon/lib/prelude.hly) plus REPL colon commands (:type/:disasm/
+  :opt/:import/:help); a serialized bytecode artifact (compile -o out.hbc,
+  HALCYONBC1 deterministic text format, run/run-vm out.hbc loads without
+  re-lex/parse/typecheck, --opt on loaded programs) and a benchmark harness
+  (bench <file> with deterministic profiler counts); and the final milestone
+  bundles the JS mirror + playground + docs + root pages sync and final
+  polish. Every milestone lands end-to-end with selftests, differential
+  corpus, and the JS mirror so the byte-identical guarantees hold. Decision
+  file written with action build for the workflow to trigger the Builder.
+
+- the Architect
