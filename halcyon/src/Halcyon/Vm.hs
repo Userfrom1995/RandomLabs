@@ -31,7 +31,7 @@ data VmVal
   | VmClosure Func Context
   | VmPartial Func Context [(Int, VmVal)]  -- ^ partially applied: bound param slots
   | VmBuiltin Builtin
-  | VmPartialBuiltin Builtin VmVal
+  | VmPartialBuiltin Builtin [VmVal]       -- ^ partial curried builtin: accumulated args
 
 -- | A context: the cells of one frame's locals plus the captured context
 -- of the closure that created the frame (the lexical chain).
@@ -201,11 +201,7 @@ runVm trace (Program entry) = do
                  then runFrame func captured bound'
                  else pushS (VmPartial func captured bound') >> bumpIp f >> step
           VmBuiltin b -> applyBuiltin f b arg
-          VmPartialBuiltin b x -> case b of
-            BCons -> case arg of
-              VmList l -> pushS (VmList (x : l)) >> bumpIp f >> step
-              _        -> failVm ("cons expects a list, got " <> vmShowValue arg)
-            _ -> failVm "internal error: unexpected partial builtin"
+          VmPartialBuiltin b xs -> applyPartialBuiltin f b (xs ++ [arg])
           _ -> failVm ("cannot apply " <> vmShowValue fn)
 
         -- Build a context for a function call and push a fresh frame at ip 0,
@@ -287,19 +283,53 @@ runVm trace (Program entry) = do
             VmFloat d -> pushS (VmFloat (negate d)) >> bumpIp f >> step
             _         -> failVm ("cannot negate " <> vmShowValue v)
 
-        applyBuiltin f b arg = case b of
-          BCons  -> pushS (VmPartialBuiltin BCons arg) >> bumpIp f >> step
-          BHead  -> case arg of
-            VmList (x : _) -> pushS x >> bumpIp f >> step
-            VmList []      -> failVm "head of empty list"
-            _              -> failVm ("head expects a list, got " <> vmShowValue arg)
-          BTail  -> case arg of
-            VmList (_ : xs) -> pushS (VmList xs) >> bumpIp f >> step
-            VmList []       -> failVm "tail of empty list"
-            _               -> failVm ("tail expects a list, got " <> vmShowValue arg)
-          BIsNil -> case arg of
-            VmList l -> pushS (VmBool (null l)) >> bumpIp f >> step
-            _        -> failVm ("isNil expects a list, got " <> vmShowValue arg)
+        -- The number of arguments a builtin needs before it can run.
+        vmArity :: Builtin -> Int
+        vmArity = \case
+          BCons   -> 2
+          BAppend -> 2
+          BTake   -> 2
+          BDrop   -> 2
+          _       -> 1
+
+        -- Apply one more argument to a curried builtin partial, completing
+        -- once it has accumulated enough arguments (mirrors the
+        -- interpreter's applyPartial).
+        applyPartialBuiltin f b xs
+          | length xs < vmArity b = pushS (VmPartialBuiltin b xs) >> bumpIp f >> step
+          | otherwise             = completeBuiltin f b xs
+
+        -- Run a fully-applied builtin, pushing the result (mirrors the
+        -- interpreter's completeBuiltin).
+        completeBuiltin :: Frame -> Builtin -> [VmVal] -> IO (Either VmError ())
+        completeBuiltin f b xs = case (b, xs) of
+          (BCons, [x, VmList l])     -> pushS (VmList (x : l)) >> bumpIp f >> step
+          (BCons, [_, v])            -> failVm ("cons expects a list, got " <> vmShowValue v)
+          (BHead, [VmList (x : _)])  -> pushS x >> bumpIp f >> step
+          (BHead, [VmList []])       -> failVm "head of empty list"
+          (BHead, [v])               -> failVm ("head expects a list, got " <> vmShowValue v)
+          (BTail, [VmList (_ : l)])  -> pushS (VmList l) >> bumpIp f >> step
+          (BTail, [VmList []])       -> failVm "tail of empty list"
+          (BTail, [v])               -> failVm ("tail expects a list, got " <> vmShowValue v)
+          (BIsNil, [VmList l])       -> pushS (VmBool (null l)) >> bumpIp f >> step
+          (BIsNil, [v])              -> failVm ("isNil expects a list, got " <> vmShowValue v)
+          (BLength, [VmList l])      -> pushS (VmInt (fromIntegral (length l))) >> bumpIp f >> step
+          (BLength, [v])             -> failVm ("length expects a list, got " <> vmShowValue v)
+          (BReverse, [VmList l])     -> pushS (VmList (reverse l)) >> bumpIp f >> step
+          (BReverse, [v])            -> failVm ("reverse expects a list, got " <> vmShowValue v)
+          (BAppend, [VmList l1, VmList l2]) -> pushS (VmList (l1 <> l2)) >> bumpIp f >> step
+          (BAppend, [_, v])          -> failVm ("append expects a list, got " <> vmShowValue v)
+          (BTake, [VmInt n, VmList l]) -> pushS (VmList (take (max 0 (fromIntegral n)) l)) >> bumpIp f >> step
+          (BTake, [_, v])            -> failVm ("take expects a list, got " <> vmShowValue v)
+          (BTake, [v])               -> failVm ("take expects an Int count, got " <> vmShowValue v)
+          (BDrop, [VmInt n, VmList l]) -> pushS (VmList (drop (max 0 (fromIntegral n)) l)) >> bumpIp f >> step
+          (BDrop, [_, v])            -> failVm ("drop expects a list, got " <> vmShowValue v)
+          (BDrop, [v])               -> failVm ("drop expects an Int count, got " <> vmShowValue v)
+          _                          -> failVm "internal error: unexpected builtin application"
+
+        applyBuiltin f b arg
+          | vmArity b > 1 = pushS (VmPartialBuiltin b [arg]) >> bumpIp f >> step
+          | otherwise     = completeBuiltin f b [arg]
 
         -- Numeric promotion (Int + Float -> Float within an arithmetic op).
         num2 a b fi ff = case (a, b) of
@@ -425,7 +455,7 @@ toVm = \case
   VStr s     -> VmStr s
   VList vs   -> VmList (map toVm vs)
   VBuiltin b -> VmBuiltin b
-  VPartial b v -> VmPartialBuiltin b (toVm v)
+  VPartial b vs -> VmPartialBuiltin b (map toVm vs)
   VClosure{} -> error "interpreter closure cannot enter VM constants"
 
 -- | Render a VM value as program output, mirroring 'Halcyon.Value.showValue'
@@ -441,4 +471,4 @@ vmShowValue = \case
   VmClosure{}    -> "<function>"
   VmPartial{}    -> "<function>"
   VmBuiltin b    -> "<builtin: " <> builtinName b <> ">"
-  VmPartialBuiltin b x -> "<builtin: " <> builtinName b <> " " <> vmShowValue x <> ">"
+  VmPartialBuiltin b xs -> "<builtin: " <> builtinName b <> " " <> unwords (map vmShowValue xs) <> ">"
