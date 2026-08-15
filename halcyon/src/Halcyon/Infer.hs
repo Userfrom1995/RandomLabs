@@ -15,8 +15,9 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import Halcyon.Ast
-import Halcyon.Data (DataEnv, CtorInfo(..), emptyDataEnv, buildDataEnv, progDataEnv, checkProgram, ctorFor)
+import Halcyon.Data (DataEnv, CtorInfo(..), emptyDataEnv, progEnvs, checkProgram, ctorFor)
 import Halcyon.Parser (parseProgram, ParseError(..))
+import Halcyon.Record (RecordEnv, emptyRecordEnv, recordFor, recordForFields, RecordInfo(..))
 import Halcyon.Token (Pos(..))
 import Halcyon.Type
 
@@ -42,48 +43,51 @@ inferProgramIn prog = do
   case checkProgram prog of
     Left m  -> Left (TypeError (Pos 0 0) m)
     Right _ -> Right ()
-  denv <- case progDataEnv prog of
+  (denv, renv) <- case progEnvs prog of
     Left m  -> Left (TypeError (Pos 0 0) m)
-    Right d -> Right d
-  env <- foldM (inferDef denv) Map.empty (progDefs prog)
+    Right e -> Right e
+  env <- foldM (inferDef denv renv) Map.empty (progDefs prog)
   case progExpr prog of
     Nothing   -> return Nothing
     Just expr -> do
-      (t, s) <- runInfer (infer env denv expr) (InferState Map.empty 0)
+      (t, s) <- runInfer (infer env denv renv expr) (InferState Map.empty 0)
       return (Just (resolveIn (isSubst s) t))
 
 -- | Infer one top-level definition and extend the environment with its
--- generalized scheme. @data@ declarations add nothing; @let@ bindings are
--- inferred exactly like an @inferLet@ without a body (so @let rec@ binds
--- its name monomorphically while inferring the bound expression), and the
--- resulting type is generalized so later defs and the final expression see
--- the polymorphism.
-inferDef :: DataEnv -> Env -> TopDef -> Either InferError Env
-inferDef denv env = \case
+-- generalized scheme. @data@ and @record@ declarations add nothing; @let@
+-- bindings are inferred exactly like an @inferLet@ without a body (so
+-- @let rec@ binds its name monomorphically while inferring the bound
+-- expression), and the resulting type is generalized so later defs and the
+-- final expression see the polymorphism.
+inferDef :: DataEnv -> RecordEnv -> Env -> TopDef -> Either InferError Env
+inferDef denv renv env = \case
   DefData _ -> Right env
+  DefRecord _ -> Right env
   DefLet p rec name bound ->
-    case runInfer (inferTopDef denv env p rec name bound) (InferState Map.empty 0) of
+    case runInfer (inferTopDef denv renv env p rec name bound) (InferState Map.empty 0) of
       Left e        -> Left e
       Right (sch, _) -> Right (Map.insert name sch env)
   where
-    inferTopDef :: DataEnv -> Env -> Pos -> Bool -> String -> Expr -> Infer Scheme
-    inferTopDef denv env p rec name bound = do
+    inferTopDef :: DataEnv -> RecordEnv -> Env -> Pos -> Bool -> String -> Expr -> Infer Scheme
+    inferTopDef denv renv env p rec name bound = do
       t <- fresh
       let envRec    = Map.insert name (Scheme Set.empty t) env
           envBound  = if rec then envRec else env
-      tb <- infer envBound denv bound
+      tb <- infer envBound denv renv bound
       unify p t tb
       tbR <- resolve tb
       return (generalize (schemeFtv env) tbR)
 
--- | Type inference over a parsed expression with an empty data environment.
+-- | Type inference over a parsed expression with an empty data and record
+-- environment.
 inferExpr :: Expr -> Either InferError Type
-inferExpr = inferExprIn emptyDataEnv
+inferExpr = inferExprIn emptyDataEnv emptyRecordEnv
 
--- | Type inference over a parsed expression in a given data environment.
-inferExprIn :: DataEnv -> Expr -> Either InferError Type
-inferExprIn denv expr = do
-  (t, s) <- runInfer (infer Map.empty denv expr) (InferState Map.empty 0)
+-- | Type inference over a parsed expression in given data and record
+-- environments.
+inferExprIn :: DataEnv -> RecordEnv -> Expr -> Either InferError Type
+inferExprIn denv renv expr = do
+  (t, s) <- runInfer (infer Map.empty denv renv expr) (InferState Map.empty 0)
   return (resolveIn (isSubst s) t)
 
 -- | Apply the final substitution to a type (used at the top level so the
@@ -97,6 +101,7 @@ resolveIn sub = go
         Nothing -> TVar v
       TList t  -> TList (go t)
       TData n ts -> TData n (map go ts)
+      TRec n ts  -> TRec n (map go ts)
       TFun a b -> TFun (go a) (go b)
       t        -> t
 
@@ -169,6 +174,7 @@ resolve = \case
       Nothing -> return (TVar v)
   TList t  -> TList <$> resolve t
   TData n ts -> TData n <$> mapM resolve ts
+  TRec n ts  -> TRec n <$> mapM resolve ts
   TFun a b -> TFun <$> resolve a <*> resolve b
   t        -> return t
 
@@ -192,6 +198,9 @@ unify pos t1 t2 = do
     (TData n1 as, TData n2 bs)
       | n1 == n2 && length as == length bs ->
           mapM_ (\case { (a, b) -> unify pos a b }) (zip as bs)
+    (TRec n1 as, TRec n2 bs)
+      | n1 == n2 && length as == length bs ->
+          mapM_ (\case { (a, b) -> unify pos a b }) (zip as bs)
     (TFun a1 b1, TFun a2 b2) -> unify pos a1 a2 >> unify pos b1 b2
     _ -> throwError (TypeError pos (mismatch r1 r2))
 
@@ -209,6 +218,7 @@ applyMeta m = \case
   TVar v   -> Map.findWithDefault (TVar v) v m
   TList t  -> TList (applyMeta m t)
   TData n ts -> TData n (map (applyMeta m) ts)
+  TRec n ts  -> TRec n (map (applyMeta m) ts)
   TFun a b -> TFun (applyMeta m a) (applyMeta m b)
   t        -> t
 
@@ -216,24 +226,27 @@ applyMeta m = \case
 -- Inference
 -- ---------------------------------------------------------------------
 
-infer :: Env -> DataEnv -> Expr -> Infer Type
-infer env denv e = case e of
+infer :: Env -> DataEnv -> RecordEnv -> Expr -> Infer Type
+infer env denv renv e = case e of
   EInt _ _     -> return TInt
   EFloat _ _   -> return TFloat
   EBool _ _    -> return TBool
   EStr _ _     -> return TStr
-  EList p es   -> inferList p denv env es
+  EList p es   -> inferList p denv renv env es
   EVar p name  -> inferVar p env name
   EConstr p name -> inferConstr p denv name
   EBuiltin p b -> inferBuiltin p b
-  ELambda p params body -> inferLambda p denv env params body
-  EApply p fn arg -> inferApply p denv env fn arg
-  ELet p rec name bound body -> inferLet p rec name denv env bound body
-  EIf p c t e   -> inferIf p denv env c t e
-  EMatch p s bs -> inferMatch p denv env s bs
-  EBin p op a b -> inferBin p op denv env a b
-  ENeg p x      -> inferNeg p denv env x
-  ENot p x      -> inferNot p denv env x
+  ELambda p params body -> inferLambda p denv renv env params body
+  EApply p fn arg -> inferApply p denv renv env fn arg
+  ELet p rec name bound body -> inferLet p rec name denv renv env bound body
+  EIf p c t e   -> inferIf p denv renv env c t e
+  EMatch p s bs -> inferMatch p denv renv env s bs
+  ERecord p fields -> inferRecord p denv renv env fields
+  EProj p e name -> inferProj p denv renv env e name
+  EUpdate p e name ne -> inferUpdate p denv renv env e name ne
+  EBin p op a b -> inferBin p op denv renv env a b
+  ENeg p x      -> inferNeg p denv renv env x
+  ENot p x      -> inferNot p denv renv env x
 
 -- | A bare constructor reference has its declared polymorphic scheme, so
 -- @Just@ alone is a function and @Nothing@ is a value.
@@ -243,10 +256,10 @@ inferConstr p denv name =
     Nothing   -> throwError (TypeError p ("unbound constructor: " <> name))
     Just info -> instantiate (ciScheme info)
 
-inferList :: Pos -> DataEnv -> Env -> [Expr] -> Infer Type
-inferList p denv env es = do
+inferList :: Pos -> DataEnv -> RecordEnv -> Env -> [Expr] -> Infer Type
+inferList p denv renv env es = do
   et <- fresh
-  mapM_ (\e -> do { t <- infer env denv e; unify p t et }) es
+  mapM_ (\e -> do { t <- infer env denv renv e; unify p t et }) es
   return (TList et)
 
 inferVar :: Pos -> Env -> String -> Infer Type
@@ -268,64 +281,64 @@ inferBuiltin _ b =
     BTake    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
     BDrop    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
 
-inferLambda :: Pos -> DataEnv -> Env -> [String] -> Expr -> Infer Type
-inferLambda _ denv env params body = do
+inferLambda :: Pos -> DataEnv -> RecordEnv -> Env -> [String] -> Expr -> Infer Type
+inferLambda _ denv renv env params body = do
   paramTypes <- replicateM (length params) fresh
   let env' = foldr (\(n, t) acc -> Map.insert n (Scheme Set.empty t) acc) env (zip params paramTypes)
-  bodyT <- infer env' denv body
+  bodyT <- infer env' denv renv body
   return (foldr TFun bodyT paramTypes)
 
-inferApply :: Pos -> DataEnv -> Env -> Expr -> Expr -> Infer Type
-inferApply p denv env fn arg = do
-  tf <- infer env denv fn
-  ta <- infer env denv arg
+inferApply :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> Expr -> Infer Type
+inferApply p denv renv env fn arg = do
+  tf <- infer env denv renv fn
+  ta <- infer env denv renv arg
   tr <- fresh
   unify p tf (TFun ta tr)
   return tr
 
-inferLet :: Pos -> Bool -> String -> DataEnv -> Env -> Expr -> Expr -> Infer Type
-inferLet p rec name denv env bound body = do
+inferLet :: Pos -> Bool -> String -> DataEnv -> RecordEnv -> Env -> Expr -> Expr -> Infer Type
+inferLet p rec name denv renv env bound body = do
   t <- fresh
   let envRec = Map.insert name (Scheme Set.empty t) env
       envBound = if rec then envRec else env
-  tb <- infer envBound denv bound
+  tb <- infer envBound denv renv bound
   unify p t tb
   tbR <- resolve tb
   let ftv = schemeFtv env
       sch = generalize ftv tbR
-  bodyT <- infer (Map.insert name sch env) denv body
+  bodyT <- infer (Map.insert name sch env) denv renv body
   return bodyT
 
-inferIf :: Pos -> DataEnv -> Env -> Expr -> Expr -> Expr -> Infer Type
-inferIf p denv env c t e = do
-  tc <- infer env denv c
+inferIf :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> Expr -> Expr -> Infer Type
+inferIf p denv renv env c t e = do
+  tc <- infer env denv renv c
   unify p tc TBool
-  tt <- infer env denv t
-  te <- infer env denv e
+  tt <- infer env denv renv t
+  te <- infer env denv renv e
   unify p tt te
   return tt
 
 -- | @match scrut with | pat => e@. The scrutinee type is matched against
 -- each pattern; pattern variables bind monomorphically inside their branch
 -- body, and every branch body must share one result type.
-inferMatch :: Pos -> DataEnv -> Env -> Expr -> [(Pattern, Expr)] -> Infer Type
-inferMatch p denv env scrut branches = case branches of
+inferMatch :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> [(Pattern, Expr)] -> Infer Type
+inferMatch p denv renv env scrut branches = case branches of
   [] -> throwError (TypeError p "empty match")
   _  -> do
-    ts <- infer env denv scrut
+    ts <- infer env denv renv scrut
     rt <- fresh
     mapM_ (checkBranch ts rt) branches
     return rt
   where
     checkBranch ts rt (pat, body) = do
-      env' <- checkPattern p denv env pat ts
-      bt <- infer env' denv body
+      env' <- checkPattern p denv renv env pat ts
+      bt <- infer env' denv renv body
       unify p bt rt
 
 -- | Check a pattern against a scrutinee type, returning the environment
 -- extended with the pattern's variable bindings (bound monomorphically).
-checkPattern :: Pos -> DataEnv -> Env -> Pattern -> Type -> Infer Env
-checkPattern p denv env pat ty = case pat of
+checkPattern :: Pos -> DataEnv -> RecordEnv -> Env -> Pattern -> Type -> Infer Env
+checkPattern p denv renv env pat ty = case pat of
   PWild _       -> return env
   PVar _ name   -> return (Map.insert name (Scheme Set.empty ty) env)
   PInt _ _      -> unify p ty TInt >> return env
@@ -339,12 +352,12 @@ checkPattern p denv env pat ty = case pat of
   PCons _ h t   -> do
     et <- fresh
     unify p ty (TList et)
-    env1 <- checkPattern p denv env h et
-    checkPattern p denv env1 t (TList et)
+    env1 <- checkPattern p denv renv env h et
+    checkPattern p denv renv env1 t (TList et)
   PList _ ps    -> do
     et <- fresh
     unify p ty (TList et)
-    foldM (\e pat -> checkPattern p denv e pat et) env ps
+    foldM (\e pat -> checkPattern p denv renv e pat et) env ps
   PConstr _ name ps -> case ctorFor name denv of
     Nothing -> throwError (TypeError p ("unbound constructor: " <> name))
     Just ci -> do
@@ -355,7 +368,8 @@ checkPattern p denv env pat ty = case pat of
         then throwError (TypeError p
                ("constructor " <> name <> " takes " <> show (length fields)
                 <> " arguments, but the pattern has " <> show (length ps)))
-        else foldM (\e (ft, fpat) -> checkPattern p denv e fpat ft) env (zip fields ps)
+        else foldM (\e (ft, fpat) -> checkPattern p denv renv e fpat ft) env (zip fields ps)
+  PRecord _ fields -> checkRecordPattern p denv renv env ty fields
 
 -- | Split a function type into its argument types and the result type.
 splitFun :: Type -> ([Type], Type)
@@ -364,32 +378,132 @@ splitFun (TFun a b) =
   in (a : as, r)
 splitFun t = ([], t)
 
-inferBin :: Pos -> Op -> DataEnv -> Env -> Expr -> Expr -> Infer Type
-inferBin p op denv env a b
+-- | Instantiate a record's field types: fresh type variables for the
+-- record's type parameters, applied to every field's declared type. The
+-- record type of a literal @{ ... }@ is @TRec name tyvarInsts@.
+instantiateFields :: RecordInfo -> Infer ([Type], [(String, Type)])
+instantiateFields ri = do
+  tvs <- replicateM (riArity ri) fresh
+  let m = Map.fromList (zip [0 .. riArity ri - 1] tvs)
+  return (tvs, [(f, applyMeta m ft) | (f, ft) <- riFields ri])
+
+-- | @{ f1 = e1, ..., fn = en }@. Every declared field must appear exactly
+-- once (any order); the literal resolves to the unique record owning its
+-- field set, and each field's inferred type unifies with the declared field
+-- type.
+inferRecord :: Pos -> DataEnv -> RecordEnv -> Env -> [(String, Expr)] -> Infer Type
+inferRecord p denv renv env fields = do
+  checkFields p renv fields
+  let fs = Set.fromList (map fst fields)
+  (name, ri) <- case recordForFields fs renv of
+    Nothing -> throwError (TypeError p ("no record with fields " <> show (Set.toList fs)))
+    Just x  -> return x
+  (tvs, fieldTys) <- instantiateFields ri
+  let ftys = Map.fromList fieldTys
+  mapM_ (\case
+    (f, e) -> do
+      t <- infer env denv renv e
+      unify p t (ftys Map.! f)) fields
+  return (TRec name tvs)
+
+-- | Field-set validity shared by literals and record patterns: no duplicate
+-- field, and the set must be exactly a declared record's field set.
+checkFields :: Pos -> RecordEnv -> [(String, a)] -> Infer ()
+checkFields p renv fields = do
+  let fs = Set.fromList (map fst fields)
+  if length fields /= Set.size fs
+    then throwError (TypeError p "duplicate field in record literal")
+    else case recordForFields fs renv of
+      Nothing -> throwError (TypeError p ("no record with fields " <> show (Set.toList fs)))
+      Just _  -> return ()
+
+-- | @e.f@: @e@ must have a known record type; the result is the declared
+-- field type instantiated over the record's type arguments.
+inferProj :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> String -> Infer Type
+inferProj p denv renv env e name = do
+  te <- infer env denv renv e
+  rte <- resolve te
+  case rte of
+    TRec rn ts -> do
+      case recordFor rn renv of
+        Nothing -> throwError (TypeError p ("unknown record type: " <> rn))
+        Just ri -> do
+          if riArity ri /= length ts
+            then throwError (TypeError p ("record " <> rn <> " expects " <> show (riArity ri) <> " type arguments"))
+            else do
+              let m = Map.fromList (zip [0 ..] ts)
+              case lookup name (riFields ri) of
+                Nothing -> throwError (TypeError p ("no field " <> name <> " in record " <> rn))
+                Just ft -> return (applyMeta m ft)
+    _ -> throwError (TypeError p ("field projection requires a record, found " <> showType rte))
+
+-- | @{ e with f = e' }@: @e@ must be a record; the result keeps @e@'s type
+-- and binds field @f@ to @e'@ (whose type unifies with the declared field
+-- type).
+inferUpdate :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> String -> Expr -> Infer Type
+inferUpdate p denv renv env e name ne = do
+  te <- infer env denv renv e
+  rte <- resolve te
+  case rte of
+    TRec rn ts -> do
+      case recordFor rn renv of
+        Nothing -> throwError (TypeError p ("unknown record type: " <> rn))
+        Just ri -> do
+          if riArity ri /= length ts
+            then throwError (TypeError p ("record " <> rn <> " expects " <> show (riArity ri) <> " type arguments"))
+            else do
+              let m = Map.fromList (zip [0 ..] ts)
+              case lookup name (riFields ri) of
+                Nothing -> throwError (TypeError p ("no field " <> name <> " in record " <> rn))
+                Just ft -> do
+                  tn <- infer env denv renv ne
+                  unify p tn (applyMeta m ft)
+                  return (TRec rn ts)
+    _ -> throwError (TypeError p ("record update requires a record, found " <> showType rte))
+
+-- | @{ x = a, y = b }@ pattern: the pattern's field set must equal a
+-- declared record's field set, the scrutinee type unifies with that record
+-- type, and each sub-pattern is checked against the declared field type.
+checkRecordPattern :: Pos -> DataEnv -> RecordEnv -> Env -> Type -> [(String, Pattern)] -> Infer Env
+checkRecordPattern p denv renv env ty fields = do
+  let fs = Set.fromList (map fst fields)
+  if length fields /= Set.size fs
+    then throwError (TypeError p "duplicate field in record pattern")
+    else return ()
+  (name, ri) <- case recordForFields fs renv of
+    Nothing -> throwError (TypeError p ("no record with fields " <> show (Set.toList fs)))
+    Just x  -> return x
+  (tvs, fieldTys) <- instantiateFields ri
+  unify p ty (TRec name tvs)
+  let ftys = Map.fromList fieldTys
+  foldM (\e (f, fpat) -> checkPattern p denv renv e fpat (ftys Map.! f)) env fields
+
+inferBin :: Pos -> Op -> DataEnv -> RecordEnv -> Env -> Expr -> Expr -> Infer Type
+inferBin p op denv renv env a b
   | op `elem` [OpAdd, OpSub, OpMul, OpDiv] = do
-      ta <- infer env denv a
-      tb <- infer env denv b
+      ta <- infer env denv renv a
+      tb <- infer env denv renv b
       numericPromote p ta tb
   | op `elem` [OpLt, OpLe, OpGt, OpGe] = do
-      ta <- infer env denv a
-      tb <- infer env denv b
+      ta <- infer env denv renv a
+      tb <- infer env denv renv b
       _ <- numericPromote p ta tb
       return TBool
   | op `elem` [OpEq, OpNe] = do
-      ta <- infer env denv a
-      tb <- infer env denv b
+      ta <- infer env denv renv a
+      tb <- infer env denv renv b
       unify p ta tb
       return TBool
   | otherwise = do -- OpAnd, OpOr
-      ta <- infer env denv a
+      ta <- infer env denv renv a
       unify p ta TBool
-      tb <- infer env denv b
+      tb <- infer env denv renv b
       unify p tb TBool
       return TBool
 
-inferNeg :: Pos -> DataEnv -> Env -> Expr -> Infer Type
-inferNeg p denv env x = do
-  tx <- infer env denv x
+inferNeg :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> Infer Type
+inferNeg p denv renv env x = do
+  tx <- infer env denv renv x
   rx <- resolve tx
   case rx of
     TInt    -> return TInt
@@ -397,9 +511,9 @@ inferNeg p denv env x = do
     TVar _  -> return rx
     _       -> throwError (TypeError p "unary minus requires a numeric operand")
 
-inferNot :: Pos -> DataEnv -> Env -> Expr -> Infer Type
-inferNot p denv env x = do
-  tx <- infer env denv x
+inferNot :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> Infer Type
+inferNot p denv renv env x = do
+  tx <- infer env denv renv x
   unify p tx TBool
   return TBool
 

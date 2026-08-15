@@ -4,7 +4,7 @@ module Halcyon.Parser
   , ParseError(..)
   ) where
 
-import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), builtinForName)
+import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), RecordDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), builtinForName)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Token
 import qualified Halcyon.Type as T
@@ -69,6 +69,10 @@ parseDefsAndExpr = do
       d <- parseDataDecl
       (ds, e) <- parseDefsAndExpr
       return (DefData d : ds, e)
+    TRecord -> do
+      d <- parseRecordDecl
+      (ds, e) <- parseDefsAndExpr
+      return (DefRecord d : ds, e)
     TLet  -> parseLetOrDef
     TEOF  -> return ([], Nothing)
     _     -> do
@@ -107,6 +111,39 @@ parseDataDecl = do
   consumeT TAssign
   ctors <- parseCtorAlts tvs
   return (DataDecl p name tyvars ctors)
+
+-- | @record <TypeName> <tyvar>* = { <field> : <type> , ... }@
+parseRecordDecl :: Parser RecordDecl
+parseRecordDecl = do
+  p <- consumeT TRecord
+  Token _ (TIdent name) <- expectCapitalized "record"
+  tyvars <- parseTyvars
+  let tvs = zip tyvars [0 ..]
+  consumeT TAssign
+  consumeT TLBrace
+  fields <- parseRecordFields tvs
+  consumeT TRBrace
+  return (RecordDecl p name tyvars fields)
+
+-- | A record's field list: @name : type@ pairs separated by commas. Runs
+-- until the closing brace, so fields may span lines freely.
+parseRecordFields :: [(String, Int)] -> Parser [(String, Type)]
+parseRecordFields tvs = do
+  t <- peek
+  case t of
+    TRBrace -> return []
+    _ -> do
+      Token _ (TIdent name) <- expectIdent
+      consumeT TColon
+      ty <- parseTypeExpr tvs
+      rest <- commaFields
+      return ((name, ty) : rest)
+  where
+    commaFields = do
+      t <- peek
+      case t of
+        TComma -> consumeTok >> parseRecordFields tvs
+        _      -> return []
 
 -- | Constructor alternatives separated by @|@, with an optional leading @|@.
 parseCtorAlts :: [(String, Int)] -> Parser [(String, [Type])]
@@ -402,8 +439,29 @@ parsePatternAtom = do
     TFalse    -> consumeTok >> return (PBool p False)
     TStr s    -> consumeTok >> return (PStr p s)
     TLBracket -> parsePList
+    TLBrace   -> parseRecordPattern
     TLParen   -> consumeTok >> parsePattern >>= \pat -> consumeT TRParen >> return pat
     _         -> failAt p ("expected a pattern, found " <> describe t)
+
+-- | @{ x = a, y = b }@ record pattern: binds each field's sub-pattern.
+parseRecordPattern :: Parser Pattern
+parseRecordPattern = do
+  p <- consumeT TLBrace
+  entries <- go
+  consumeT TRBrace
+  return (PRecord p entries)
+  where
+    go = do
+      t <- peek
+      case t of
+        TRBrace -> return []
+        TComma  -> consumeTok >> go
+        _ -> do
+          Token _ (TIdent name) <- expectIdent
+          consumeT TAssign
+          sub <- parsePattern
+          rest <- go
+          return ((name, sub) : rest)
 
 parsePList :: Parser Pattern
 parsePList = do
@@ -439,6 +497,7 @@ patAtomStart = \case
   TIdent _  -> True
   TLParen   -> True
   TLBracket -> True
+  TLBrace   -> True
   _         -> False
 
 -- | Precedence climbing. Binary operators are all left-associative.
@@ -497,7 +556,7 @@ parseAtom :: Parser Expr
 parseAtom = do
   p <- peekPos
   t <- peek
-  case t of
+  a <- case t of
     TInt i    -> consumeTok >> return (EInt p i)
     TFloat d  -> consumeTok >> return (EFloat p d)
     TStr s    -> consumeTok >> return (EStr p s)
@@ -508,7 +567,66 @@ parseAtom = do
       | otherwise       -> consumeTok >> return (maybe (EVar p n) (EBuiltin p) (builtinForName n))
     TLParen   -> consumeTok >> parseExpr >>= \e -> consumeT TRParen >> return e
     TLBracket -> parseList
+    TLBrace   -> consumeTok >> parseRecordOrUpdate p
     _         -> failAt p ("expected an expression, found " <> describe t)
+  parsePostfix a
+  where
+    -- Postfix record projection @e.f@, chained (left-associative) and
+    -- binding tighter than application so @f a.b@ reads @f (a.b)@.
+    parsePostfix e = do
+      t <- peek
+      case t of
+        TDot -> do
+          q <- consumeTokPos
+          Token _ (TIdent name) <- expectIdent
+          parsePostfix (EProj q e name)
+        _ -> return e
+
+-- | @{ f1 = e1, ..., fn = en }@ (record literal) or @{ e with f = e' }@
+-- (functional update). A literal starts with a field name followed by @=@;
+-- anything else is an update whose base expression is followed by @with@.
+parseRecordOrUpdate :: Pos -> Parser Expr
+parseRecordOrUpdate p = do
+  t <- peek
+  case t of
+    TIdent _ -> do
+      t2 <- peek2
+      case t2 of
+        Just TAssign -> ERecord p <$> parseRecordEntries
+        _            -> parseUpdate p
+    _ -> parseUpdate p
+
+-- | Record literal entries: @name = expr@ pairs separated by commas, ending
+-- at the closing brace.
+parseRecordEntries :: Parser [(String, Expr)]
+parseRecordEntries = do
+  entries <- go
+  consumeT TRBrace
+  return entries
+  where
+    go = do
+      t <- peek
+      case t of
+        TRBrace -> return []
+        TComma  -> consumeTok >> go
+        _ -> do
+          Token _ (TIdent name) <- expectIdent
+          consumeT TAssign
+          e <- parseExpr
+          (rest) <- go
+          return ((name, e) : rest)
+
+-- | @{ e with f = e' }@: the base expression, then @with@, then the single
+-- field update.
+parseUpdate :: Pos -> Parser Expr
+parseUpdate p = do
+  e <- parseExpr
+  consumeT TWith
+  Token _ (TIdent name) <- expectIdent
+  consumeT TAssign
+  e' <- parseExpr
+  consumeT TRBrace
+  return (EUpdate p e name e')
 
 parseList :: Parser Expr
 parseList = do
@@ -565,6 +683,7 @@ atomStart = \case
   TIdent _  -> True
   TLParen   -> True
   TLBracket -> True
+  TLBrace   -> True
   _         -> False
 
 opForTok :: Tok -> Maybe Op
@@ -612,6 +731,9 @@ exprPos = \case
   ELet p _ _ _ _  -> p
   EIf p _ _ _     -> p
   EMatch p _ _    -> p
+  ERecord p _     -> p
+  EProj p _ _     -> p
+  EUpdate p _ _ _ -> p
   EBin p _ _ _    -> p
   ENeg p _        -> p
   ENot p _        -> p
@@ -635,6 +757,13 @@ peekTok :: Parser (Maybe Token)
 peekTok = Parser $ \s -> case psTokens s of
   (tk : _) -> Right (Just tk, s)
   []       -> Right (Nothing, s)
+
+-- | The token after the next one (second token in the stream), used to
+-- disambiguate record literals from record updates.
+peek2 :: Parser (Maybe Tok)
+peek2 = Parser $ \s -> case psTokens s of
+  (_ : Token _ t : _) -> Right (Just t, s)
+  _                   -> Right (Nothing, s)
 
 consumeTok :: Parser ()
 consumeTok = Parser $ \s -> case psTokens s of
@@ -686,6 +815,7 @@ describe = \case
   TThen       -> "'then'"
   TElse       -> "'else'"
   TData       -> "'data'"
+  TRecord     -> "'record'"
   TImport     -> "'import'"
   TMatch      -> "'match'"
   TWith       -> "'with'"
@@ -712,5 +842,9 @@ describe = \case
   TRParen     -> "')'"
   TLBracket   -> "'['"
   TRBracket   -> "']'"
+  TLBrace     -> "'{'"
+  TRBrace     -> "'}'"
+  TDot        -> "'.'"
+  TColon      -> "':'"
   TComma      -> "','"
   TEOF        -> "end of input"
