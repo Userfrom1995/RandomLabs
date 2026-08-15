@@ -16,11 +16,12 @@ import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Module (ModuleError(..), resolveProgram, memProvider)
 import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Parser (parseProgram, ParseError(..))
-import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, showValue)
+import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, evalProgramEffect, showValue)
 import Halcyon.Compile (compileProgram, CompileError(..), disassemble, Program(..))
 import Halcyon.Op (Func(..), Const(..), showInstr)
 import Halcyon.Op hiding (Fail)
-import Halcyon.Vm (runVm, runVmProfiled, Profile(..), renderProfile, statsLine, VmError(..), vmShowValue)
+import Halcyon.Value (Value(..))
+import Halcyon.Vm (runVm, runVmProfiled, runVmEffect, Profile(..), renderProfile, statsLine, VmError(..), vmShowValue, VmVal(..))
 
 -- ---------------------------------------------------------------------
 -- Tiny assertion framework
@@ -156,10 +157,47 @@ differential src expected = do
           then return (Right ())
           else return (Left ("interpreter: " <> ev <> ", vm: " <> rv <> ", expected: " <> expected))
 
+-- | The CLI-visible rendering of a result: the accumulated effect output plus
+-- the final value rendered, with nothing appended for the unit value (both
+-- evaluators print nothing for it).
+effectOutputPart :: Value -> String
+effectOutputPart VUnit = ""
+effectOutputPart v     = showValue v
+
+effectOutputPartV :: VmVal -> String
+effectOutputPartV VmUnit = ""
+effectOutputPartV v     = vmShowValue v
+
 -- | Run one corpus entry through both evaluators; both must produce the
--- expected output and agree with each other.
+-- expected output and agree with each other. The expected output is the
+-- CLI-visible result: the accumulated effect output plus the final value
+-- rendered (nothing when it is the unit value), which is exactly what the
+-- tree-walking interpreter and the bytecode VM produce for both pure and
+-- effect programs.
 corpusCheck :: CorpusEntry -> IO (Either String ())
-corpusCheck e = differential (cSource e) (cExpected e)
+corpusCheck e = do
+  let inputs = cInput e
+  rEval <- case parseProgram (cSource e) of
+    Left (ParseError _ m) -> return (Left ("parse error: " <> m))
+    Right prog -> case evalProgramEffect inputs prog of
+      Left (EvalError _ m) -> return (Left ("eval error: " <> m))
+      Right (Just (out, v)) -> return (Right (out <> effectOutputPart v))
+      Right Nothing -> return (Left "interpreter: program has no result")
+  rVm <- case compileProgram (cSource e) of
+    Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+    Right prog -> do
+      res <- runVmEffect prog inputs
+      return $ case res of
+        Left (VmError m) -> Left ("vm error: " <> m)
+        Right (out, v)   -> Right (out <> effectOutputPartV v)
+  case rEval of
+    Left err -> return (Left err)
+    Right ev -> case rVm of
+      Left err -> return (Left err)
+      Right rv ->
+        if ev == cExpected e && rv == cExpected e
+          then return (Right ())
+          else return (Left ("interpreter: " <> ev <> ", vm: " <> rv <> ", expected: " <> cExpected e))
 
 -- | Compile, optimize, and run on the VM; the optimized program must produce
 -- the expected output (the interpreter output is checked separately by the
@@ -839,9 +877,40 @@ optTests = sequence
 -- produce its expected output on interpreter, VM, and optimized VM.
 optCorpusTests :: IO Harness
 optCorpusTests = sequence
-  [ checkIO ("opt-corpus: " <> cName e) (optDifferential (cSource e) (cExpected e))
+  [ checkIO ("opt-corpus: " <> cName e) (optCorpusCheck e)
   | e <- corpus
   ]
+
+-- | A corpus entry through the interpreter, the plain VM, and the optimized
+-- VM; all three must produce the expected CLI-visible output.
+optCorpusCheck :: CorpusEntry -> IO (Either String ())
+optCorpusCheck e = do
+  let inputs = cInput e
+  rEval <- case parseProgram (cSource e) of
+    Left (ParseError _ m) -> return (Left ("parse error: " <> m))
+    Right prog -> case evalProgramEffect inputs prog of
+      Left (EvalError _ m) -> return (Left ("eval error: " <> m))
+      Right (Just (out, v)) -> return (Right (out <> effectOutputPart v))
+      Right Nothing -> return (Left "interpreter: program has no result")
+  rVm <- case compileProgram (cSource e) of
+    Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+    Right prog -> do
+      plain <- runVmEffect prog inputs
+      opt   <- runVmEffect (optimizeProgram prog) inputs
+      return $ case (plain, opt) of
+        (Left (VmError m), _) -> Left ("vm error: " <> m)
+        (_, Left (VmError m)) -> Left ("optimized vm error: " <> m)
+        (Right (outA, vA), Right (outB, vB)) ->
+          Right (outA <> effectOutputPartV vA, outB <> effectOutputPartV vB)
+  case rEval of
+    Left err -> return (Left err)
+    Right ev -> case rVm of
+      Left err -> return (Left err)
+      Right (rv, ov) ->
+        if ev == cExpected e && rv == cExpected e && ov == cExpected e
+          then return (Right ())
+          else return (Left ("interpreter: " <> ev <> ", vm: " <> rv
+                             <> ", optimized vm: " <> ov <> ", expected: " <> cExpected e))
 
 -- | The VM profiler: profiling must not change the program's value, the
 -- report must be deterministic, and the counters must be consistent.

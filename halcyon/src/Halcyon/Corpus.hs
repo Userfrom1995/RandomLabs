@@ -16,6 +16,7 @@ data CorpusEntry = CorpusEntry
   { cName     :: String
   , cSource   :: String
   , cExpected :: String
+  , cInput    :: [String]
   }
 
 corpus :: [CorpusEntry]
@@ -27,6 +28,7 @@ corpus =
         , "in fib 25"
         ])
       "75025"
+      []
   , CorpusEntry "fact"
       (unlines
         [ "-- Factorial via a single let rec."
@@ -34,6 +36,7 @@ corpus =
         , "in fact 10"
         ])
       "3628800"
+      []
   , CorpusEntry "map"
       (unlines
         [ "-- A hand-rolled map over a list literal."
@@ -41,6 +44,7 @@ corpus =
         , "in map (fn x => x * 2) [1, 2, 3, 4, 5]"
         ])
       "[2, 4, 6, 8, 10]"
+      []
   , CorpusEntry "filter"
       (unlines
         [ "-- A hand-rolled filter: keep elements greater than 2."
@@ -50,6 +54,7 @@ corpus =
         , "in keep [1, 2, 3, 4, 5]"
         ])
       "[3, 4, 5]"
+      []
   , CorpusEntry "closure-counter"
       (unlines
         [ "-- Closures: makeCounter captures its argument in the returned fn."
@@ -57,6 +62,7 @@ corpus =
         , "in let inc = makeCounter 10 in inc 5"
         ])
       "15"
+      []
   , CorpusEntry "compose"
       (unlines
         [ "-- Function composition built from nested closures."
@@ -64,6 +70,7 @@ corpus =
         , "in compose (fn x => x + 1) (fn x => x * 2) 21"
         ])
       "43"
+      []
   , CorpusEntry "partial-application"
       (unlines
         [ "-- Curried lambdas apply one argument at a time."
@@ -71,36 +78,42 @@ corpus =
         , "in let inc = add 1 in inc 41"
         ])
       "42"
+      []
   , CorpusEntry "numeric-promotion"
       (unlines
         [ "-- Int + Float promotes to Float; the multiplication promotes too."
         , "1 + 2.5 * 2"
         ])
       "6.0"
+      []
   , CorpusEntry "function-promotion"
       (unlines
         [ "-- A function parameter is shared: scale 4 becomes 4 * 1.5 = Float."
         , "let scale = fn x => x * 1.5 in scale 4"
         ])
       "6.0"
+      []
   , CorpusEntry "list-surgery"
       (unlines
         [ "-- cons/head/tail over a list literal."
         , "let xs = [1, 2, 3, 4] in cons (head (tail xs)) (tail (tail xs))"
         ])
       "[2, 3, 4]"
+      []
   , CorpusEntry "lists-of-lists"
       (unlines
         [ "-- Nested lists, built via partially applied cons."
         , "cons (cons 1 []) (cons (cons 2 []) [])"
         ])
       "[[1], [2]]"
+      []
   , CorpusEntry "string-conditional"
       (unlines
         [ "-- String equality in a conditional."
         , "if \"halcyon\" == \"halcyon\" then \"calm\" else \"storm\""
         ])
       "calm"
+      []
   , CorpusEntry "tail-recursive-sum"
       (unlines
         [ "-- Tail recursion with an accumulator; 100000 frames deep on both evaluators."
@@ -108,12 +121,14 @@ corpus =
         , "in sumTo 0 100000"
         ])
       "5000050000"
+      []
   , CorpusEntry "mixed-arithmetic"
       (unlines
         [ "-- Operator precedence and grouping."
         , "1 + 2 * 3 - 4 / 2 + (10 - 4) * 2"
         ])
       "17"
+      []
   , CorpusEntry "deep-recursion"
       (unlines
         [ "-- Deep non-tail recursion; 5000 frames deep exercises the frame stack."
@@ -121,24 +136,28 @@ corpus =
         , "in count 5000"
         ])
       "5000"
+      []
   , CorpusEntry "list-length"
       (unlines
         [ "-- The length builtin over a list literal."
         , "let xs = [10, 20, 30] in length xs"
         ])
       "3"
+      []
   , CorpusEntry "list-reverse"
       (unlines
         [ "-- reverse flips a list."
         , "reverse [1, 2, 3]"
         ])
       "[3, 2, 1]"
+      []
   , CorpusEntry "list-append-take-drop"
       (unlines
         [ "-- append, take, and drop combine into list surgery."
         , "take 2 (append [1] (drop 1 [2, 3, 4]))"
         ])
       "[1, 3]"
+      []
   , CorpusEntry "data-maybe"
       (unlines
         [ "-- Algebraic data types: Maybe with two constructors."
@@ -146,6 +165,7 @@ corpus =
         , "Just 42"
         ])
       "Just 42"
+      []
   , CorpusEntry "data-pair-partial"
       (unlines
         [ "-- Constructors are curried first-class functions."
@@ -153,6 +173,7 @@ corpus =
         , "let p = Pair 1 in p 2"
         ])
       "Pair 1 2"
+      []
   , CorpusEntry "data-tree"
       (unlines
         [ "-- A recursive data type with nested constructor application."
@@ -160,6 +181,7 @@ corpus =
         , "Node (Node Leaf 1 Leaf) 2 Leaf"
         ])
       "Node Node Leaf 1 Leaf 2 Leaf"
+      []
   , CorpusEntry "data-equality"
       (unlines
         [ "-- Data values compare by constructor and fields."
@@ -167,6 +189,7 @@ corpus =
         , "Just 5 == Just 5"
         ])
       "true"
+      []
   , CorpusEntry "data-color"
       (unlines
         [ "-- Nullary constructors are complete values."
@@ -174,12 +197,14 @@ corpus =
         , "let c = Red in c"
         ])
       "Red"
+      []
   , CorpusEntry "match-list"
       (unlines
         [ "-- Pattern matching destructures a list with a cons pattern."
         , "match [1, 2, 3] with | [] => 0 | x :: rest => x + length rest"
         ])
       "3"
+      []
   , CorpusEntry "match-data"
       (unlines
         [ "-- Pattern matching on an algebraic data type, binding fields."
@@ -187,12 +212,14 @@ corpus =
         , "let f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)"
         ])
       "7"
+      []
   , CorpusEntry "match-nested"
       (unlines
         [ "-- A nested cons pattern destructures two elements."
         , "match [10, 20, 30] with | a :: b :: rest => b | _ => 0"
         ])
       "20"
+      []
   , CorpusEntry "match-map"
       (unlines
         [ "-- Pattern matching drives a recursive map, replacing the guards."
@@ -202,6 +229,7 @@ corpus =
         , "in mapM [1, 2, 3]"
         ])
       "[2, 4, 6]"
+      []
   , CorpusEntry "match-tree"
       (unlines
         [ "-- Matching a recursive data type picks a branch by constructor."
@@ -215,6 +243,7 @@ corpus =
         , "in height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))"
         ])
       "3"
+      []
   , CorpusEntry "topdefs"
       (unlines
         [ "-- Multiple top-level definitions with polymorphism."
@@ -224,6 +253,7 @@ corpus =
         , "x * 1000 + count 21"
         ])
       "5021"
+      []
   , CorpusEntry "topdefs-order"
       (unlines
         [ "-- Later defs can use earlier ones; final expr sees all defs."
@@ -233,6 +263,7 @@ corpus =
         , "double base + triple base"
         ])
       "50"
+      []
   , CorpusEntry "stdlib"
       (unlines
         [ "-- Self-hosted standard library: higher-order list combinators"
@@ -269,6 +300,7 @@ corpus =
         , "   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)"
         ])
       "1601"
+      []
   , CorpusEntry "record-point"
       (unlines
         [ "-- Record construction, order-independent projection, and update."
@@ -280,6 +312,7 @@ corpus =
         , "  + ({ origin with x = 5 }.x * 10)"
         ])
       "85"
+      []
   , CorpusEntry "record-pair"
       (unlines
         [ "-- Polymorphic records: the same shape reused at different types."
@@ -291,6 +324,7 @@ corpus =
         , "ints.fst + (head strs.snd) + length strs.snd + (if bools.fst then 100 else 0)"
         ])
       "107"
+      []
   , CorpusEntry "record-nested"
       (unlines
         [ "-- Nested records: a record stored as a field of another record."
@@ -302,6 +336,7 @@ corpus =
         , "b2.pos.dx * 100 + b2.pos.dy * 10 + b2.id"
         ])
       "467"
+      []
   , CorpusEntry "record-shape-list"
       (unlines
         [ "-- Records inside lists: project a field out of a computed record."
@@ -313,6 +348,7 @@ corpus =
         , "sumQty stock + (head (reverse stock)).qty * 10"
         ])
       "30"
+      []
   , CorpusEntry "record-equality"
       (unlines
         [ "-- Record equality ignores literal field order."
@@ -323,30 +359,35 @@ corpus =
         , "if a == b then (if a /= c then 42 else 0) else 0"
         ])
       "42"
+      []
   , CorpusEntry "show-int"
       (unlines
         [ "-- The built-in Show class renders an Int via dictionary dispatch."
         , "show 42"
         ])
       "42"
+      []
   , CorpusEntry "show-float"
       (unlines
         [ "-- Show dispatches on the Float instance."
         , "show 3.5"
         ])
       "3.5"
+      []
   , CorpusEntry "show-list"
       (unlines
         [ "-- Show recurses over the list instance."
         , "show [1, 2, 3]"
         ])
       "[1, 2, 3]"
+      []
   , CorpusEntry "show-bool"
       (unlines
         [ "-- Show dispatches on the Bool instance."
         , "show true"
         ])
       "true"
+      []
   , CorpusEntry "class-size-pair"
       (unlines
         [ "-- A user class with a context (dictionary) instance: the Pair"
@@ -365,6 +406,7 @@ corpus =
         , "size (MkPair (MkPair 1 2) (MkPair 3 4))"
         ])
       "1"
+      []
   , CorpusEntry "char-basics"
       (unlines
         [ "-- Char literals, equality, and escaped forms."
@@ -372,6 +414,7 @@ corpus =
         , "  + (if '\\n' == '\\n' then 100 else 0)"
         ])
       "111"
+      []
   , CorpusEntry "char-pattern"
       (unlines
         [ "-- Char literals in match patterns, with the wildcard fallback."
@@ -383,6 +426,7 @@ corpus =
         , "in f 'b' * 100 + f 'a' * 10 + f 'x'"
         ])
       "210"
+      []
   , CorpusEntry "string-ops"
       (unlines
         [ "-- The string builtins combine into simple surgery."
@@ -392,6 +436,7 @@ corpus =
         , "  + (if substr s 6 5 == \"world\" then 1 else 0)"
         ])
       "1111"
+      []
   , CorpusEntry "str-reflection"
       (unlines
         [ "-- str is the observable-reflection escape hatch: it renders any"
@@ -399,12 +444,14 @@ corpus =
         , "str 42 + \":\" + str true + \":\" + str [1, 2] + \":\" + str 'a'"
         ])
       "42:true:[1, 2]:'a'"
+      []
   , CorpusEntry "char-string-show"
       (unlines
         [ "-- The built-in Show instances render chars, lists and bools."
         , "show 'a' + show [1, 2] + show true"
         ])
       "'a'[1, 2]true"
+      []
   , CorpusEntry "string-table"
       (unlines
         [ "-- A formatted table built purely from strings and records."
@@ -418,4 +465,36 @@ corpus =
         , "in render rows"
         ])
       "apple: 3 | pear: 5"
+      []
+  , CorpusEntry "effect-print-loop"
+      (unlines
+        [ "-- A do block desugars onto return/bind; printLine drives output."
+        , "let rec loop = fn n => if n < 1 then do { } else do { printLine n; loop (n - 1) }"
+        , "in loop 3"
+        ])
+      "3\n2\n1\n"
+      []
+  , CorpusEntry "effect-echo"
+      (unlines
+        [ "-- readLine consumes scripted stdin; printLine emits it back."
+        , "do { x <- readLine; printLine x }"
+        ])
+      "hello\n"
+      ["hello"]
+  , CorpusEntry "effect-echo-loop"
+      (unlines
+        [ "-- A bind chain over stdin: two reads, two writes, one print."
+        , "do { x <- readLine; printLine x; y <- readLine; printLine y; print \"done\" }"
+        ])
+      "one\ntwo\ndone"
+      ["one", "two"]
+  , CorpusEntry "effect-line-count"
+      (unlines
+        [ "-- Effects combine with pure recursion: count stdin lines."
+        , "let rec loop = fn n => do { line <- readLine;"
+        , "  if line == \"\" then do { printLine n } else do { loop (n + 1) } }"
+        , "in loop 0"
+        ])
+      "2\n"
+      ["a", "b"]
   ]
