@@ -11,7 +11,7 @@
 - [x] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
 - [x] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
 - [x] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
-- [ ] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
+- [x] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
 - [ ] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
 - [ ] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
 - [ ] 9. Cross-language corpus: JS mirror output == Haskell output
@@ -19,10 +19,13 @@
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Bytecode VM done (Op/Compile/Vm, frame stack, upvalue cells shared via IORef,
-curried Call with partial application, rec via NewCell+MakeClosure+StoreLocal,
-jump patching, disassembler, trace mode; 29 VM tests + 10 interpreter-vs-VM
-differential tests added, 114 total); differential corpus next
+Differential corpus done (Halcyon.Corpus module: 15 canonical programs with
+expected output; examples/fib.hly, map.hly, filter.hly, closures.hly,
+lists.hly, promotion.hly, recursion.hly mirroring the corpus; corpusTests
+runs every entry through BOTH evaluators, asserting interpreter == VM ==
+expected; 15 corpus tests added, 129 total all passing; 100k-step tail
+recursion + 5000-frame deep recursion verified on both evaluators). CLI +
+REPL next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -94,6 +97,18 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   fib 25 = 75025 on both evaluators. Known limitation documented: mutual
   recursion between separate let recs is rejected by the typechecker on both
   sides.
+- 2026-08-15 (builder) - Milestone 6 (differential corpus): added
+  Halcyon.Corpus (15 canonical programs with cName/cSource/cExpected - fib,
+  fact, map, filter, closure-counter, compose, partial-application, numeric
+  and function promotion, list surgery, lists-of-lists, string conditional,
+  100k-step tail-recursive sum, mixed arithmetic, 5000-frame deep recursion),
+  wrote examples/fib.hly, map.hly, filter.hly, closures.hly, lists.hly,
+  promotion.hly, recursion.hly as the on-disk mirror of the corpus, wired
+  corpusTests into Selftest (each entry must produce interpreter output == VM
+  output == expected; 15 corpus tests, 129 total all passing), exposed
+  Halcyon.Corpus in halcyon.cabal. Verified both evaluators agree on all 15
+  programs including the 100k-step accumulator recursion and the 5000-frame
+  deep recursion.
 
 - the Builder
 

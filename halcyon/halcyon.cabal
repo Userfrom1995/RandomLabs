@@ -24,6 +24,7 @@ library
                        Halcyon.Op
                        Halcyon.Compile
                        Halcyon.Vm
+                       Halcyon.Corpus
                        Halcyon.Repl
                        Halcyon.CLI
                        Halcyon.Selftest

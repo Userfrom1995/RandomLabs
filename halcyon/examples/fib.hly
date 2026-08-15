@@ -1,0 +1,9 @@
+-- Fibonacci, the canonical recursive program.
+--
+--   halcyon run examples/fib.hly
+--   halcyon run-vm examples/fib.hly
+--
+-- output: 75025
+
+let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2)
+in fib 25

@@ -7,6 +7,7 @@ module Halcyon.Selftest
 
 import Control.Monad (forM_, when)
 
+import Halcyon.Corpus (CorpusEntry(..), corpus)
 import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
@@ -139,6 +140,11 @@ differential src expected = do
         if ev == expected && rv == expected
           then return (Right ())
           else return (Left ("interpreter: " <> ev <> ", vm: " <> rv <> ", expected: " <> expected))
+
+-- | Run one corpus entry through both evaluators; both must produce the
+-- expected output and agree with each other.
+corpusCheck :: CorpusEntry -> IO (Either String ())
+corpusCheck e = differential (cSource e) (cExpected e)
 
 -- ---------------------------------------------------------------------
 -- Tests
@@ -282,6 +288,12 @@ diffTests = sequence
   , checkIO "diff: partial app"  (differential "let f = fn a b c => a * b + c in f 2 3 4" "10")
   ]
 
+corpusTests :: IO Harness
+corpusTests = sequence
+  [ checkIO ("corpus: " <> cName e) (corpusCheck e)
+  | e <- corpus
+  ]
+
 -- ---------------------------------------------------------------------
 -- Main
 -- ---------------------------------------------------------------------
@@ -290,6 +302,7 @@ runSelftest :: IO Bool
 runSelftest = do
   vm <- vmTests
   diff <- diffTests
+  corp <- corpusTests
   let groups =
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
@@ -297,6 +310,7 @@ runSelftest = do
         , ("eval", evalTests)
         , ("vm", vm)
         , ("differential", diff)
+        , ("corpus", corp)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups
