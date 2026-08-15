@@ -2157,7 +2157,7 @@
         return HErr('type', pos, 'ambiguous type: cannot resolve constraint ' + cn + ' ' + showType(rty));
       }
       var r = resolveInstance(st, pos, cn, rty, 0);
-      if (r.kind === 'type') { return r; }
+      if (r) { return r; }
     }
     return null;
   }
