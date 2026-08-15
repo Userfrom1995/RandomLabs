@@ -59,11 +59,12 @@ env/files; a missing required value → clear error + non-zero exit.
 
 ## Step 3 - Ship early, push often
 
-- Push after the scaffold (progress file first), then open the PR early:
+- FIRST RUN ONLY (on `/oc build`): Push the scaffold (progress file first), then open the PR early:
   `gh pr create --base main --head <branch> --title "<Name>: <what it is>" --body "<what changed, why, Closes #N>"`.
-- Commit + push after every milestone. **Do not create massive monolithic commits!** Break your work down into small, logical, modular commits (e.g., "scaffold project", "add core logic", "add UI", "docs").
-- If the work is not done at the end of the run: update progress (`Status: in-progress`, next steps) and push as is - the Maintainer continues it later.
-- When the work IS complete: mark `Status: complete` in the progress file,
+- **QUALITY OVER SPEED**: Take your time and think deeply. Quality craftsmanship is preferred over speed. You have a 60-minute timeout, but do not rush. If you need more time, you can always spawn a new run.
+- **PROGRESSIVE PUSHING**: You MUST push progressively. Break your work down into small, logical, modular commits (e.g., "scaffold project", "add core logic", "add UI"). After creating a commit, immediately run `git push`. DO NOT wait until the end of the run to push your commits.
+- **YIELD TO AVOID TIMEOUTS**: Do not try to build a complex project in one massive run. After completing a significant chunk of work (e.g., finishing the core engine, but UI is still pending), yield the run. To do this: update progress (`Status: in-progress`, next steps), ensure your latest commits are pushed, and write `{"action":"continue"}` to `/tmp/random-factory-decision.json`. This spawns a fresh run so you can continue safely without being killed by the timeout limit.
+- When the ENTIRE project IS complete: mark `Status: complete` in the progress file,
   push, and say so in the PR. The automatic reviewer trigger fires on that
   push.
 

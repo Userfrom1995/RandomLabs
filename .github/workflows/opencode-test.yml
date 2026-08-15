@@ -12,7 +12,7 @@ jobs:
   test:
     if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc test')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     permissions:
       contents: write
       pull-requests: write
@@ -52,7 +52,8 @@ jobs:
         run: rm -f /tmp/random-factory-decision.json
 
       - name: Run opencode tester
-        timeout-minutes: 35
+        continue-on-error: true
+        timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
