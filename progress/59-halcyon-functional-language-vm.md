@@ -33,24 +33,26 @@
   Status: complete
 
 ## Current step
-Builder implementing milestone 14 (pattern matching). The Haskell core is
-done: `match scrut with | pat => e` with the Pattern AST (wildcard, variable,
-literals, `[]`, `x :: xs`, `[a, b]`, constructor patterns, arbitrary
-nesting), type inference (per-branch monomorphic binding, branch result
-unification, non-exhaustive allowed with a positioned runtime error), the
-interpreter's `matchValue` (first match wins), and a deterministic VM test
-chain (scrutinee stored to a local, per-branch TestNil/TestCons/TestConstr/
-TestInt/Float/Bool/Str chains jumping to the next branch on failure, Fail
-after the last, temps bound so failures leave a clean stack). Fixed a
-pre-existing parser bug where a parenthesized or primitive field type was
-mistakenly treated as a bare constructor and continued application (so
-`data Tree = Leaf Int | Node (Tree) (Tree)` parsed `Node (Tree (Tree))`).
+Builder implementing milestone 15 (tail call optimization + deterministic
+optimizer). TCO is done in the Haskell core: the compiler threads a tail
+position flag through compileExpr so a call whose result is the enclosing
+function's result compiles to TailCall (function bodies, both if branches,
+every match branch body, let bodies, and the program's top-level call);
+TailCall reuses the current frame in the VM (constant-stack recursion), with
+partial applications/builtins/constructors returning their value by popping
+the frame exactly like Return. Verified: 1M-step accumulator recursion runs
+in bounded stack (vm test), tail calls through nested ifs and match branches
+work, and the disassembler shows tail_call in tail positions and call in
+non-tail positions (fib). 268 selftests green. Next: the Halcyon.Optimize
+deterministic pass (constant folding, dead-store elimination, jump-to-next
+removal) with a pool rebuild, wired as `compile --opt` / `run-vm --opt`, and
+the corpus verified byte-identical with and without --opt.
 
 ## Next steps
-Builder to implement milestone 15 (tail call optimization + deterministic
-optimizer) next, then 16 (JS mirror + playground + self-hosted stdlib + docs
-+ polish), per the v2 blueprint. The current PR #61 stays open until the
-daily shipping cap resets (00:00Z Aug 16); M13+M14 commits accumulate on the
+Builder to finish milestone 15 (Halcyon.Optimize pass + --opt wiring +
+corpus both-ways verification), then 16 (JS mirror + playground + self-hosted
+stdlib + docs + polish), per the v2 blueprint. The current PR #61 stays open
+until the daily shipping cap resets (00:00Z Aug 16); commits accumulate on the
 branch until then.
 
 ## Agent log
@@ -302,3 +304,20 @@ branch until then.
 - the Builder
 
 - the Architect
+
+- 2026-08-15 (builder, M15 part 1 - tail call optimization) - compiler
+  threads a tail-position flag through compileExpr: a call whose result is
+  immediately the enclosing function's result compiles to TailCall instead of
+  Call. Tail positions are the lambda body, both if branches, every match
+  branch body, let/let-rec bodies, and the program's top-level call;
+  subexpressions consumed by an operation (call arguments, operator operands,
+  scrutinees, bound values) stay non-tail. The VM's existing TailCall handler
+  reuses the current frame (constant-stack recursion) and returns partial
+  applications/builtins/constructors by popping the frame exactly like
+  Return. Added selftests: 1M-step accumulator recursion in bounded stack,
+  tail calls through nested ifs and match branches, a differential corpus
+  program verified on both evaluators, and disassembly checks proving
+  tail_call is emitted in tail positions and call in non-tail positions
+  (fib's recursive adds). 268 selftests green; make smoke green.
+
+- the Builder

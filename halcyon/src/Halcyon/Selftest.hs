@@ -12,7 +12,7 @@ import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Eval (EvalError(..), evalProgram, showValue)
-import Halcyon.Compile (compileProgram, CompileError(..))
+import Halcyon.Compile (compileProgram, CompileError(..), disassemble, Program(..))
 import Halcyon.Vm (runVm, VmError(..), vmShowValue)
 
 -- ---------------------------------------------------------------------
@@ -376,6 +376,10 @@ vmTests = sequence
   , checkIO "vm: match no fallthrough" (vmFails "match 5 with | 1 => 0")
   , checkIO "vm: match bound in body" (vmEvalsTo "match [1, 2] with | [a, b] => b | _ => 0" "2")
   , checkIO "vm: match rec sum"      (vmEvalsTo "let rec sum = fn xs => match xs with | [] => 0 | x :: rest => x + sum rest in sum [1, 2, 3, 4]" "10")
+  , checkIO "vm: tail call sum"      (vmEvalsTo "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 1000" "500500")
+  , checkIO "vm: tail call million (constant stack)" (vmEvalsTo "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 1000000" "500000500000")
+  , checkIO "vm: tail call through nested if" (vmEvalsTo "let rec loop = fn n => if n < 0 then 42 else if n == 0 then 0 else loop (n - 1) in loop 1000000" "0")
+  , checkIO "vm: tail call through match" (vmEvalsTo "let rec sum = fn acc xs => match xs with | [] => acc | x :: rest => sum (acc + x) rest in sum 0 [1, 2, 3, 4, 5]" "15")
   ]
 
 diffTests :: IO Harness
@@ -404,6 +408,32 @@ diffTests = sequence
   , checkIO "diff: match cons"   (differential "match [1, 2, 3] with | [] => 0 | x :: xs => x + length xs" "3")
   , checkIO "diff: match data"   (differential "data Maybe a = Nothing | Just a\nlet f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)" "7")
   , checkIO "diff: match map-like" (differential "let rec mapM = fn xs => match xs with | [] => [] | x :: rest => cons (x * 2) (mapM rest) in mapM [1, 2, 3]" "[2, 4, 6]")
+  , checkIO "diff: tail call"      (differential "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 10000" "50005000")
+  , checkIO "diff: tail call match" (differential "let rec sum = fn acc xs => match xs with | [] => acc | x :: rest => sum (acc + x) rest in sum 0 [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]" "55")
+  ]
+
+-- | A disassembly check: the tail position of a recursive function must
+-- compile to a @tail_call@ instruction (not @call@), and the accumulator
+-- loop's tail-recursive self-call must reuse the frame.
+tcoTests :: IO Harness
+tcoTests = sequence
+  [ checkIO "tco: disassembly uses tail_call" $ do
+      case compileProgram "let rec loop = fn n => if n < 1 then n else loop (n - 1) in loop 5" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = disassemble (pEntry prog)
+          if "tail_call" `elem` words d
+            then return (Right ())
+            else return (Left ("no tail_call in disassembly:\n" <> d))
+  , checkIO "tco: non-tail recursion stays call" $ do
+      case compileProgram "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 10" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = disassemble (pEntry prog)
+              ws = words d
+          if "call" `elem` ws && "tail_call" `elem` ws
+            then return (Right ())
+            else return (Left ("expected both call and tail_call in disassembly:\n" <> d))
   ]
 
 corpusTests :: IO Harness
@@ -420,6 +450,7 @@ runSelftest :: IO Bool
 runSelftest = do
   vm <- vmTests
   diff <- diffTests
+  tco <- tcoTests
   corp <- corpusTests
   let groups =
         [ ("lexer", lexerTests)
@@ -428,6 +459,7 @@ runSelftest = do
         , ("eval", evalTests)
         , ("vm", vm)
         , ("differential", diff)
+        , ("tco", tco)
         , ("corpus", corp)
         ]
       total = sum (map (length . snd) groups)

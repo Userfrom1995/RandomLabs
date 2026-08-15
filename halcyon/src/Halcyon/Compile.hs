@@ -34,7 +34,7 @@ compileProgram src = case parseProgram src of
     denv <- case buildDataEnv decls of
       Left m  -> Left (CompileError (Pos 0 0) m)
       Right d -> Right d
-    (_, st) <- runC (compileExpr denv expr >> emit Halt >> resolvePatches) initState
+    (_, st) <- runC (compileExpr denv True expr >> emit Halt >> resolvePatches) initState
     let entry = Func "main" [] (csCode st) (csConsts st) [] []
     Right (Program entry)
 
@@ -119,14 +119,18 @@ emit i = modify' (\s -> s { csCode = csCode s ++ [i] })
 -- Compilation
 -- ---------------------------------------------------------------------
 
-compileExpr :: DataEnv -> Expr -> CompileM ()
-compileExpr denv = \case
+-- | Compile an expression. The @inTail@ flag marks tail position: a call in
+-- tail position compiles to @TailCall@ so the VM reuses the current frame
+-- (constant-stack recursion). Sub-expressions whose result is consumed by a
+-- surrounding operation are never in tail position.
+compileExpr :: DataEnv -> Bool -> Expr -> CompileM ()
+compileExpr denv inTail = \case
   EInt _ i      -> emitConst (CValue (VInt i))
   EFloat _ d    -> emitConst (CValue (VFloat d))
   EBool _ b     -> emitConst (CValue (VBool b))
   EStr _ s      -> emitConst (CValue (VStr s))
   EList _ es    -> do
-    mapM_ (compileExpr denv) es
+    mapM_ (compileExpr denv False) es
     emit (MakeList (length es))
   EVar p name   -> resolveRef p name
   EConstr p name -> compileConstr p denv name
@@ -134,29 +138,29 @@ compileExpr denv = \case
   ELambda p params body -> compileLambda p denv params body
   EApply p fn arg -> case saturatedConstr denv fn arg of
     Just (name, ar, args) -> do
-      mapM_ (compileExpr denv) args
+      mapM_ (compileExpr denv False) args
       idx <- dataIdx name ar
       emit (MakeData idx)
     Nothing -> do
-      compileExpr denv fn
-      compileExpr denv arg
-      emit Call
-  ELet p rec name bound body -> compileLet p rec name denv bound body
+      compileExpr denv False fn
+      compileExpr denv False arg
+      emit (if inTail then TailCall else Call)
+  ELet p rec name bound body -> compileLet p rec name denv bound inTail body
   EIf p c t e   -> do
-    compileExpr denv c
+    compileExpr denv False c
     labFalse <- emitJump JKJumpIfFalse
-    compileExpr denv t
+    compileExpr denv inTail t
     labEnd <- emitJump JKJump
     defineLabel labFalse
-    compileExpr denv e
+    compileExpr denv inTail e
     defineLabel labEnd
-  EMatch p scrut branches -> compileMatch p denv scrut branches
+  EMatch p scrut branches -> compileMatch p denv inTail scrut branches
   EBin p op a b -> do
-    compileExpr denv a
-    compileExpr denv b
+    compileExpr denv False a
+    compileExpr denv False b
     emit (opToInstr p op)
-  ENeg p x      -> compileExpr denv x >> emit Neg
-  ENot p x      -> compileExpr denv x >> emit Not
+  ENeg p x      -> compileExpr denv False x >> emit Neg
+  ENot p x      -> compileExpr denv False x >> emit Not
 
 -- | Compile a data constructor reference. A nullary constructor is already
 -- a complete data value (MakeData pops zero values); a curried reference to
@@ -196,20 +200,20 @@ saturatedConstr denv fn arg = go fn [arg]
         _ -> Nothing
     go _ _ = Nothing
 
-compileLet :: Pos -> Bool -> String -> DataEnv -> Expr -> Expr -> CompileM ()
-compileLet p rec name denv bound body = case bound of
+compileLet :: Pos -> Bool -> String -> DataEnv -> Expr -> Bool -> Expr -> CompileM ()
+compileLet p rec name denv bound inTail body = case bound of
   ELambda _ params body' -> do
     s <- registerLocal name
     when rec (emit (NewCell s))
     compileLambda p denv params body'
     emit (StoreLocal s)
-    compileExpr denv body
+    compileExpr denv inTail body
   _ | rec -> compileError p ("let rec requires a function value for " <> name)
     | otherwise -> do
-        compileExpr denv bound
+        compileExpr denv False bound
         s <- registerLocal name
         emit (StoreLocal s)
-        compileExpr denv body
+        compileExpr denv inTail body
 
 -- | Compile a @match@ expression. Layout:
 --
@@ -234,11 +238,11 @@ compileLet p rec name denv bound body = case bound of
 -- Each branch's pattern tests pop the scrutinee and, when the pattern fully
 -- matches, fall through to a jump into that branch's body. Every test that
 -- fails jumps to the next branch's start (or @Fail@ for the last branch).
-compileMatch :: Pos -> DataEnv -> Expr -> [(Pattern, Expr)] -> CompileM ()
-compileMatch p denv scrut branches = case branches of
+compileMatch :: Pos -> DataEnv -> Bool -> Expr -> [(Pattern, Expr)] -> CompileM ()
+compileMatch p denv inTail scrut branches = case branches of
   [] -> compileError p "empty match"
   _ -> do
-    compileExpr denv scrut
+    compileExpr denv False scrut
     scr <- registerLocal "$scr"
     emit (StoreLocal scr)
     let names = nub (concatMap (patternVars . fst) branches)
@@ -261,7 +265,7 @@ compileMatch p denv scrut branches = case branches of
     emit Fail
     forM_ (zip bodyLabs branches) $ \(bodyLab, (_, body)) -> do
       defineLabel bodyLab
-      compileExpr denv body
+      compileExpr denv inTail body
       emitJumpTo endLab
     defineLabel endLab
 
@@ -345,7 +349,7 @@ compileLambda _ denv params body = do
     , csLabels = Map.empty
     , csPatches = []
     })
-  compileExpr denv body
+  compileExpr denv True body
   emit Return
   resolvePatches
   finished <- get
