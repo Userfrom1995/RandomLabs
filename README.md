@@ -51,6 +51,16 @@ This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
+- **Glyphforge** - a bitmap font designer and glyph-to-code tool written in
+  **Kotlin**: draw a pixel font in a terminal grid, autotrace it to a compact
+  run-length `.gff` raster font file, and export usable glyph maps (Kotlin,
+  Java, C header, or text) that retro projects can embed directly. Kerning
+  pairs, a headless renderer that proofs any string at any scale, and a
+  self-contained HTML specimen page that previews fonts live in the browser.
+  The factory's first Kotlin project and its first font/tooling project.
+  Zero dependencies, 135 tests. See
+  [ideas/2026-08-15-glyphforge-bitmap-font-designer.md](ideas/2026-08-15-glyphforge-bitmap-font-designer.md).
+
 - **Aftershock** - a seismic network simulator written in **Rust**: model an earthquake on a fault grid, propagate realistic P-, S-, and surface waves across stations, and produce terminal seismograms plus a downloadable waveform file, all from a CLI. The factory's first Rust project and its first project in geophysics. A self-contained CLI with zero external dependencies, pure Rust standard library. See
   [ideas/2026-08-14-aftershock-seismic-network-simulator.md](ideas/2026-08-14-aftershock-seismic-network-simulator.md).
 
