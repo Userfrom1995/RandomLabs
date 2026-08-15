@@ -6,6 +6,7 @@ module Halcyon.Selftest
   ) where
 
 import Control.Monad (forM_, when)
+import Data.List (isInfixOf)
 
 import qualified Data.Map.Strict as Map
 
@@ -17,8 +18,9 @@ import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, showValue)
 import Halcyon.Compile (compileProgram, CompileError(..), disassemble, Program(..))
-import Halcyon.Op (Func(..), showInstr)
-import Halcyon.Vm (runVm, VmError(..), vmShowValue)
+import Halcyon.Op (Func(..), Const(..), showInstr)
+import Halcyon.Op hiding (Fail)
+import Halcyon.Vm (runVm, runVmProfiled, Profile(..), renderProfile, statsLine, VmError(..), vmShowValue)
 
 -- ---------------------------------------------------------------------
 -- Tiny assertion framework
@@ -184,6 +186,15 @@ optVmFails src = case compileProgram src of
     return $ case res of
       Left _  -> Right ()
       Right v -> Left ("expected an optimized vm error, but got " <> vmShowValue v)
+
+-- | Run a compiled program under the profiler, returning its value and the
+-- profiling report.
+vmProfiled :: Program -> IO (Either String (String, Profile))
+vmProfiled prog = do
+  res <- runVmProfiled False prog
+  return $ case res of
+    Left (VmError m) -> Left ("vm error: " <> m)
+    Right (v, p)     -> Right (vmShowValue v, p)
 
 -- | Interpreter, plain VM, and optimized VM must all agree with the expected
 -- output: the optimizer provably changes nothing observable.
@@ -766,6 +777,62 @@ optTests = sequence
     , checkIO "opt: differential chars"    (optDifferential "match 'b' with | 'a' => 1 | 'b' => 2 | _ => 0" "2")
     , checkIO "opt: differential string ops" (optDifferential "strLen (strAppend \"he\" \"llo\") + (if strContains \"hi\" \"i\" then 1 else 0)" "6")
     , checkIO "opt: differential deep capture" (optDifferential "let rec nums = fn s => let rec go = fn i acc => if i < 0 then acc else go (i - 1) (cons i acc) in go (s - 1) []\nlet rec fromNums = fn cs => match cs with | [] => 0 | c :: rest => c + fromNums rest\nlet bump = fn c => match c with | 1 => 2 | _ => c\nlet bumpAll = fn s => let rec go = fn cs => match cs with | [] => [] | c :: rest => cons (bump c) (go rest) in fromNums (go (nums s))\nbumpAll 3" "4")
+    , checkIO "opt: constant propagation inlines slot" $ do
+      case compileProgram "let x = 5 in x + 1" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = entryCode (pEntry (optimizeProgram prog))
+          if any (`elem` words d) ["store_local", "push_local"]
+            then return (Left ("constant not propagated:\n" <> d))
+            else return (Right ())
+    , checkIO "opt: copy propagation inlines slot" $ do
+      case compileProgram "let a = 3 in let b = a in b + 1" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = entryCode (pEntry (optimizeProgram prog))
+          if any (`elem` words d) ["store_local", "push_local"]
+            then return (Left ("copy not propagated:\n" <> d))
+            else return (Right ())
+    , checkIO "opt: DCE drops dead halt after tail call" $ do
+      case compileProgram "let f = fn x => x * 2 in f 21" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let d = entryCode (pEntry (optimizeProgram prog))
+          if "halt" `elem` words d
+            then return (Left ("dead halt not removed:\n" <> d))
+            else return (Right ())
+    , checkIO "opt: DCE drops dead return after tail call" $ do
+      case compileProgram "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in show (sumTo 0 10)" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          let o = optimizeProgram prog
+              allFuncs = concatMap funcsOf (fConstants (pEntry o))
+              funcsOf c = case c of
+                CFunc g -> g : concatMap funcsOf (fConstants g)
+                _       -> []
+              targetOf i = case i of
+                Jump t          -> Just t
+                JumpIfFalse t   -> Just t
+                TestNil t       -> Just t
+                TestCons t      -> Just t
+                TestConstr _ t  -> Just t
+                TestRecord _ t  -> Just t
+                TestInt _ t     -> Just t
+                TestFloat _ t   -> Just t
+                TestBool _ t    -> Just t
+                TestStr _ t     -> Just t
+                TestChar _ t    -> Just t
+                _               -> Nothing
+              deadTailReturns = [ (fName g, showInstr a <> " ; " <> showInstr b)
+                                | g <- allFuncs
+                                , let targets = [ t | i <- fCode g, Just t <- [targetOf i] ]
+                                , (n, (a, b)) <- zip [0 ..] (zip (fCode g) (drop 1 (fCode g)))
+                                , a == TailCall, b == Return, n + 1 `notElem` targets ]
+          if null deadTailReturns
+            then return (Right ())
+            else return (Left ("dead return after tail call survives: " <> show deadTailReturns))
+    , checkIO "opt: differential copy propagation" (optDifferential "let a = 3 in let b = a in b + 1" "4")
+    , checkIO "opt: differential prop then tail call" (optDifferential "let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1) in sumTo 0 1000" "500500")
     ]
 
 -- | The whole corpus, re-run through the optimizer: every program must still
@@ -774,6 +841,77 @@ optCorpusTests :: IO Harness
 optCorpusTests = sequence
   [ checkIO ("opt-corpus: " <> cName e) (optDifferential (cSource e) (cExpected e))
   | e <- corpus
+  ]
+
+-- | The VM profiler: profiling must not change the program's value, the
+-- report must be deterministic, and the counters must be consistent.
+profilerTests :: IO Harness
+profilerTests = sequence
+  [ checkIO "prof: value unchanged under profiling" $ do
+      case compileProgram "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 12" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          plain <- runVm False prog
+          profiled <- vmProfiled prog
+          return $ case (plain, profiled) of
+            (Left (VmError m), _) -> Left ("vm error: " <> m)
+            (_, Left m)           -> Left m
+            (Right v, Right (pv, _)) ->
+              if vmShowValue v == pv
+                then Right ()
+                else Left ("value changed under profiling: " <> vmShowValue v <> " vs " <> pv)
+    , checkIO "prof: report deterministic" $ do
+      case compileProgram "let rec sum = fn xs => match xs with | [] => 0 | x :: rest => x + sum rest in sum [1, 2, 3, 4]" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          r1 <- vmProfiled prog
+          r2 <- vmProfiled prog
+          return $ case (r1, r2) of
+            (Left m, _)          -> Left m
+            (_, Left m)          -> Left m
+            (Right (_, p1), Right (_, p2)) ->
+              if renderProfile p1 == renderProfile p2
+                then Right ()
+                else Left "profile report is not deterministic"
+    , checkIO "prof: counters positive and consistent" $ do
+      case compileProgram "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 10" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          r <- vmProfiled prog
+          return $ case r of
+            Left m -> Left m
+            Right (_, p) ->
+              let total = pTotal p
+                  opSum = sum (map snd (pOpCounts p))
+                  sane = total > 0 && pPeakStack p > 0 && pPeakFrames p > 0
+              in if not sane
+                   then Left ("implausible counts: total=" <> show total)
+                   else if opSum /= total
+                     then Left ("opcode counts sum to " <> show opSum <> ", total is " <> show total)
+                     else Right ()
+    , checkIO "prof: recursive calls counted" $ do
+      case compileProgram "let rec f = fn n => if n < 1 then 0 else f (n - 1) in f 100" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          r <- vmProfiled prog
+          return $ case r of
+            Left m -> Left m
+            Right (_, p) ->
+              if any ((> 1) . snd) (pCallCounts p)
+                then Right ()
+                else Left ("no recursive calls counted: " <> show (pCallCounts p))
+    , checkIO "prof: stats line renders" $ do
+      case compileProgram "1 + 2" of
+        Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+        Right prog -> do
+          r <- vmProfiled prog
+          return $ case r of
+            Left m -> Left m
+            Right (_, p) ->
+              let s = statsLine p
+              in if "instructions" `isInfixOf` s
+                   then Right ()
+                   else Left ("stats line malformed: " <> s)
   ]
 
 corpusTests :: IO Harness
@@ -914,6 +1052,7 @@ runSelftest = do
   opt <- optTests
   corp <- corpusTests
   optCorp <- optCorpusTests
+  prof <- profilerTests
   mods <- moduleTests
   let groups =
         [ ("lexer", lexerTests)
@@ -926,6 +1065,7 @@ runSelftest = do
         , ("opt", opt)
         , ("corpus", corp)
         , ("opt-corpus", optCorp)
+        , ("profiler", prof)
         , ("modules", mods)
         ]
       total = sum (map (length . snd) groups)

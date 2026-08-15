@@ -35,6 +35,12 @@ smoke: $(BIN)
 	$(BIN) run examples/fib.hly; \
 	$(BIN) run-vm examples/fib.hly; \
 	$(BIN) run-vm --opt examples/fib.hly; \
+	$(BIN) run-vm --profile examples/fib.hly > /tmp/halcyon-prof.out 2> /tmp/halcyon-prof.err; \
+	grep -q '^profile: .* instructions executed' /tmp/halcyon-prof.err; \
+	[ "$$(cat /tmp/halcyon-prof.out)" = "75025" ]; \
+	$(BIN) run-vm --stats examples/fib.hly > /tmp/halcyon-stats.out 2> /tmp/halcyon-stats.err; \
+	grep -q '^profile: .* instructions, peak stack' /tmp/halcyon-stats.err; \
+	[ "$$(cat /tmp/halcyon-stats.out)" = "75025" ]; \
 	$(BIN) eval '1 + 2 * 3'; \
 	$(BIN) eval 'let xs = [1, 2, 3] in length (append xs (reverse xs))'; \
 	$(BIN) check examples/map.hly; \

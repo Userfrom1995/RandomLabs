@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Halcyon.CLI
   ( runCli
@@ -10,7 +11,7 @@ import System.Directory (getDirectoryContents)
 import System.Environment (getArgs)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess, exitWith)
 import System.FilePath (dropExtension, takeExtension, (</>))
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPutStr, hPutStrLn, stderr)
 
 import Halcyon.Compile (CompileError(..), Program(..), compileProgram, compileProgramIn, disassemble)
 import Halcyon.Corpus (CorpusEntry(..), corpus)
@@ -21,7 +22,7 @@ import Halcyon.Module (ModuleError(..), loadProgram, resolveProgram, diskProvide
 import Halcyon.Optimize (optimizeProgram)
 import Halcyon.Repl (repl)
 import Halcyon.Selftest (runSelftest)
-import Halcyon.Vm (VmError(..), runVm, vmShowValue)
+import Halcyon.Vm (VmError(..), runVm, runVmProfiled, renderProfile, statsLine, vmShowValue)
 import Halcyon.Token (Pos(..))
 import qualified Halcyon.Ast as Ast
 
@@ -34,6 +35,8 @@ import qualified Halcyon.Ast as Ast
 --   halcyon run-vm <file>      typecheck then execute on the bytecode VM
 --   halcyon run-vm --trace <file>  as above, tracing every executed instruction
 --   halcyon run-vm --opt <file> as run-vm, but run the optimized bytecode
+--   halcyon run-vm --profile <file>  as run-vm, printing a profiling report
+--   halcyon run-vm --stats <file>  as run-vm, printing the summary line only
 --   halcyon eval <expr>        typecheck then evaluate an inline expression
 --   halcyon check <file>       typecheck only; print the inferred top-level type
 --   halcyon compile <file>     compile to bytecode; print the disassembly
@@ -66,9 +69,11 @@ runCli = do
     ["corpus", "--opt"]            -> runCorpus True
     ["corpus", "--examples", dir]  -> runCorpusExamples libDir dir
     ["run", file]                  -> runFile libDir file
-    ["run-vm", file]               -> runVmFile libDir False False file
-    ["run-vm", "--trace", file]    -> runVmFile libDir True False file
-    ["run-vm", "--opt", file]      -> runVmFile libDir False True file
+    ["run-vm", file]               -> runVmFile libDir False False Nothing file
+    ["run-vm", "--trace", file]    -> runVmFile libDir True False Nothing file
+    ["run-vm", "--opt", file]      -> runVmFile libDir False True Nothing file
+    ["run-vm", "--profile", file]  -> runVmFile libDir False False (Just ProfileFull) file
+    ["run-vm", "--stats", file]    -> runVmFile libDir False False (Just ProfileSummary) file
     ["eval", expr]                 -> evalInline libDir expr
     ["check", file]                -> checkFile libDir file
     ["compile", file]              -> compileFile libDir False file
@@ -127,12 +132,19 @@ evalInline libDir src = do
         Right (Just v)  -> putStrLn (showValue v) >> exitSuccess
         Right Nothing   -> exitSuccess
 
+-- | How a @run-vm@ profiling mode reports its results.
+data ProfileMode = ProfileFull | ProfileSummary
+  deriving (Eq)
+
 -- | @halcyon run-vm@: typecheck then compile and execute on the bytecode VM.
 -- With @--trace@ every executed instruction is printed to stderr; with
--- @--opt@ the deterministic optimizer pass runs before execution. A
--- definitions-only module compiles and prints nothing.
-runVmFile :: FilePath -> Bool -> Bool -> FilePath -> IO ()
-runVmFile libDir trace opt file = do
+-- @--opt@ the deterministic optimizer pass runs before execution. With
+-- @--profile@ (or @--stats@) the run additionally produces a deterministic
+-- profiling report on stderr: instruction totals, per-opcode counts,
+-- per-function call counts, and peak stack/frame depths. A definitions-only
+-- module compiles and prints nothing.
+runVmFile :: FilePath -> Bool -> Bool -> Maybe ProfileMode -> FilePath -> IO ()
+runVmFile libDir trace opt pmode file = do
   src <- readSource file
   case src of
     Left e -> die e
@@ -147,7 +159,16 @@ runVmFile libDir trace opt file = do
               Nothing -> exitSuccess
               Just _ -> do
                 let compiled' = if opt then optimizeProgram compiled else compiled
-                res <- runVm trace compiled'
+                res <- case pmode of
+                  Just ProfileFull ->
+                    runVmProfiled trace compiled' >>= \case
+                      Left e        -> return (Left e)
+                      Right (v, p)  -> hPutStr stderr (renderProfile p) >> return (Right v)
+                  Just ProfileSummary ->
+                    runVmProfiled trace compiled' >>= \case
+                      Left e        -> return (Left e)
+                      Right (v, p)  -> hPutStrLn stderr (statsLine p) >> return (Right v)
+                  Nothing -> runVm trace compiled'
                 case res of
                   Left (VmError m) -> die ("vm error: " <> m)
                   Right v -> putStrLn (vmShowValue v) >> exitSuccess
@@ -336,6 +357,8 @@ helpText = unlines
   , "  run-vm <file>            typecheck then execute on the bytecode VM"
   , "  run-vm --trace <file>    as above, tracing every executed instruction"
   , "  run-vm --opt <file>      as run-vm, but run the optimized bytecode"
+  , "  run-vm --profile <file>  as run-vm, printing a profiling report to stderr"
+  , "  run-vm --stats <file>    as run-vm, printing the profile summary only"
   , "  eval <expr>              typecheck and evaluate an inline expression"
   , "  check <file>             typecheck only; print the inferred top-level type"
   , "  compile <file>           compile to bytecode; print the disassembly"

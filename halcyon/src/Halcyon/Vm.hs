@@ -1,6 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 module Halcyon.Vm
   ( runVm
+  , runVmProfiled
+  , Profile(..)
+  , renderProfile
+  , statsLine
   , VmError(..)
   , vmShowValue
   , VmVal(..)
@@ -10,7 +14,7 @@ import Control.Monad (foldM, mapM, when)
 import Data.IORef
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate, isInfixOf)
+import Data.List (intercalate, isInfixOf, sortBy)
 import System.IO (hPutStrLn, stderr)
 
 import Halcyon.Ast (Builtin(..), builtinName)
@@ -59,17 +63,72 @@ data Frame = Frame
   , frIp   :: Int
   }
 
+-- | A profiling report for a VM run: total instructions executed, per-opcode
+-- counts, per-function call counts, and the peak operand-stack and frame
+-- depths reached. The counts are deterministic: opcodes and functions are
+-- sorted by descending count (ties keep name order).
+data Profile = Profile
+  { pTotal      :: Int
+  , pOpCounts   :: [(String, Int)]
+  , pCallCounts :: [(String, Int)]
+  , pPeakStack  :: Int
+  , pPeakFrames :: Int
+  } deriving (Show)
+
+-- | Mutable profiling state threaded through the interpreter loop.
+data ProfileState = ProfileState
+  { psTotal      :: IORef Int
+  , psOps        :: IORef (Map.Map String Int)
+  , psCalls      :: IORef (Map.Map String Int)
+  , psPeakStack  :: IORef Int
+  , psPeakFrames :: IORef Int
+  }
+
 -- | Run a compiled program. Returns the value left on the operand stack at
 -- Halt. When @trace@ is True, every executed instruction is printed with
 -- the stack state (used by @halcyon run-vm --trace@). Method dispatch uses
 -- the program's dictionary table (@pDicts@) against the entry function.
 runVm :: Bool -> Program -> IO (Either VmError VmVal)
-runVm trace (Program entry dicts ctors) = do
+runVm trace prog = do
+  r <- runVmProfiled trace prog
+  return $ case r of
+    Left e        -> Left e
+    Right (v, _)  -> Right v
+
+-- | Like 'runVm' but also collects a profiling report. Profiling is pure
+-- bookkeeping: the returned value and every runtime error are identical to a
+-- non-profiled run, which the differential corpus verifies.
+runVmProfiled :: Bool -> Program -> IO (Either VmError (VmVal, Profile))
+runVmProfiled trace (Program entry dicts ctors) = do
   stackRef <- newIORef []
   framesRef <- newIORef [Frame entry (Context IntMap.empty Nothing) 0]
-  run stackRef framesRef
+  prof <- newProfileState
+  r <- run (Just prof) stackRef framesRef
+  case r of
+    Left e -> return (Left e)
+    Right v -> do
+      p <- freezeProfile prof
+      return (Right (v, p))
   where
-    run stackRef framesRef = loop
+    newProfileState = ProfileState
+      <$> newIORef 0
+      <*> newIORef Map.empty
+      <*> newIORef Map.empty
+      <*> newIORef 0
+      <*> newIORef 0
+
+    freezeProfile st = do
+      total <- readIORef (psTotal st)
+      ops <- readIORef (psOps st)
+      calls <- readIORef (psCalls st)
+      stack <- readIORef (psPeakStack st)
+      frames <- readIORef (psPeakFrames st)
+      return (Profile total (sortCounts ops) (sortCounts calls) stack frames)
+
+    -- Deterministic ordering: count descending, then name ascending.
+    sortCounts = sortBy (\a b -> compare (snd b) (snd a) <> compare (fst a) (fst b)) . Map.toList
+
+    run prof stackRef framesRef = loop
       where
         loop = do
           frames <- readIORef framesRef
@@ -82,7 +141,9 @@ runVm trace (Program entry dicts ctors) = do
             (f : rest) -> do
               let code = fCode (frFunc f)
                   ip = frIp f
-              case code !! ip of
+                  instr = code !! ip
+              recordProf prof instr frames
+              case instr of
                 Halt -> do
                   st <- readIORef stackRef
                   return $ case st of
@@ -97,6 +158,22 @@ runVm trace (Program entry dicts ctors) = do
                   case r of
                     Left e     -> return (Left e)
                     Right ()   -> loop
+
+        -- Per-instruction profiler bookkeeping (a no-op when not profiling).
+        recordProf Nothing _ _ = return ()
+        recordProf (Just st) instr frames = do
+          modifyIORef' (psTotal st) (+ 1)
+          modifyIORef' (psOps st) (Map.insertWith (+) (opName instr) 1)
+          modifyIORef' (psPeakFrames st) (max (length frames))
+
+        -- The mnemonic of an instruction (the first word of its disassembly).
+        opName = takeWhile (/= ' ') . showInstr
+
+        -- Count one function call in the profiler (keyed by function name).
+        countCall :: Maybe ProfileState -> String -> IO ()
+        countCall (Just st) name =
+          modifyIORef' (psCalls st) (Map.insertWith (+) name 1)
+        countCall Nothing _ = return ()
 
         traceStep instr = do
           stack <- readIORef stackRef
@@ -329,18 +406,20 @@ runVm trace (Program entry dicts ctors) = do
         call f arg fn = case fn of
           VmClosure func captured ->
             let n = length (fParams func)
-            in if n == 1
-                 then runFrame func captured [(0, arg)]
-                 else if n > 1
-                   then pushS (VmPartial func captured [(0, arg)]) >> bumpIp f >> step
-                   else failVm "function with no parameters"
+            in countCall prof (fName func) >>
+                 (if n == 1
+                    then runFrame func captured [(0, arg)]
+                    else if n > 1
+                      then pushS (VmPartial func captured [(0, arg)]) >> bumpIp f >> step
+                      else failVm "function with no parameters")
           VmPartial func captured bound ->
             let n = length (fParams func)
                 nextSlot = length bound
                 bound' = bound ++ [(nextSlot, arg)]
-            in if nextSlot + 1 == n
-                 then runFrame func captured bound'
-                 else pushS (VmPartial func captured bound') >> bumpIp f >> step
+            in countCall prof (fName func) >>
+                 (if nextSlot + 1 == n
+                    then runFrame func captured bound'
+                    else pushS (VmPartial func captured bound') >> bumpIp f >> step)
           VmConstr name ar as ->
             let as' = as ++ [arg]
             in if length as' == ar
@@ -368,6 +447,7 @@ runVm trace (Program entry dicts ctors) = do
                 Just idx -> case fConstants entry !! idx of
                   CFunc func -> do
                     let entryCtx = bottomCtx (frCtx f)
+                    countCall prof (fName func)
                     call f arg (VmClosure func entryCtx)
                   _ -> failVm ("instance method is not a function: " <> mname)
             [] -> failVm ("no instance for method " <> mname <> " on " <> vmShowValue arg)
@@ -388,7 +468,7 @@ runVm trace (Program entry dicts ctors) = do
           VmClosure func captured ->
             let n = length (fParams func)
             in if n == 1
-                 then runTailFrame func captured [(0, arg)]
+                 then countCall prof (fName func) >> runTailFrame func captured [(0, arg)]
                  else if n > 1
                    then pushS (VmPartial func captured [(0, arg)]) >> popFrame
                    else failVm "function with no parameters"
@@ -397,7 +477,7 @@ runVm trace (Program entry dicts ctors) = do
                 nextSlot = length bound
                 bound' = bound ++ [(nextSlot, arg)]
             in if nextSlot + 1 == n
-                 then runTailFrame func captured bound'
+                 then countCall prof (fName func) >> runTailFrame func captured bound'
                  else pushS (VmPartial func captured bound') >> popFrame
           VmConstr name ar as ->
             let as' = as ++ [arg]
@@ -423,6 +503,7 @@ runVm trace (Program entry dicts ctors) = do
                 Just idx -> case fConstants entry !! idx of
                   CFunc func -> do
                     let entryCtx = bottomCtx (frCtx f)
+                    countCall prof (fName func)
                     tailCall f arg (VmClosure func entryCtx)
                   _ -> failVm ("instance method is not a function: " <> mname)
             [] -> failVm ("no instance for method " <> mname <> " on " <> vmShowValue arg)
@@ -468,8 +549,15 @@ runVm trace (Program entry dicts ctors) = do
         step :: IO (Either VmError ())
         step = return (Right ())
 
-        -- Stack helpers
-        pushS v = modifyIORef' stackRef (v :)
+        -- Stack helpers. pushS also tracks the peak operand-stack depth for
+        -- the profiler.
+        pushS v = do
+          modifyIORef' stackRef (v :)
+          case prof of
+            Just st -> do
+              stk <- readIORef stackRef
+              modifyIORef' (psPeakStack st) (max (length stk))
+            Nothing -> return ()
         popS :: IO (Either VmError VmVal)
         popS = do
           st <- readIORef stackRef
@@ -754,6 +842,30 @@ runVm trace (Program entry dicts ctors) = do
 
         failVm :: String -> IO (Either VmError a)
         failVm msg = return (Left (VmError msg))
+
+-- | Render a profiling report as deterministic text (used by @halcyon
+-- run-vm --profile@).
+renderProfile :: Profile -> String
+renderProfile p = unlines
+  [ "profile: " <> show (pTotal p) <> " instructions executed"
+  , "profile: peak operand-stack depth " <> show (pPeakStack p)
+  , "profile: peak frame depth " <> show (pPeakFrames p)
+  , ""
+  , "calls by function:"
+  , renderCounts (pCallCounts p)
+  , "instructions by opcode:"
+  , renderCounts (pOpCounts p)
+  ]
+  where
+    renderCounts [] = "  (none)"
+    renderCounts cs = unlines [ "  " <> name <> ": " <> show n | (name, n) <- cs ]
+
+-- | A single-line summary of a profiling report (used by @halcyon run-vm
+-- --stats@).
+statsLine :: Profile -> String
+statsLine p =
+  "profile: " <> show (pTotal p) <> " instructions, peak stack "
+  <> show (pPeakStack p) <> ", peak frames " <> show (pPeakFrames p)
 
 -- | Convert a Value (used in constant pools) to a VM value.
 toVm :: Value -> VmVal
