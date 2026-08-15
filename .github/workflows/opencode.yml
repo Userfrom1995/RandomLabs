@@ -54,6 +54,9 @@ jobs:
           echo "branches_before=$branches_before" >> "$GITHUB_OUTPUT"
           echo "prs_before=$prs_before" >> "$GITHUB_OUTPUT"
 
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-factory-decision.json
+
       - name: Run opencode build agent
         id: opencode
         continue-on-error: true
@@ -75,6 +78,7 @@ jobs:
             - Branch `opencode/<issue-number>-<short-description>`; open your PR with `gh pr create --base main --head <branch> --title ... --body "Closes #N"` (rule: every task gets its OWN new issue; never a "universal" issue).
             - Rebase onto latest main before pushing; never leave the PR behind or conflicted.
             - You never post "/oc" comments (hardcoded steps post triggers; your comments are plain text, bot-signed).
+            - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"review"}` when complete, `{"action":"continue"}` when more build phases remain, or `{"action":"maintainer"}` when the run cannot safely decide the next build phase. The hardcoded workflow step reads this file instead of grepping Markdown status text.
             - Sign your work: every commit subject starts with `builder:`, every comment/PR body ends with your sign-off from builder.md (` -  the Builder`).
             - No interactive input in anything you build; production quality; docs/ + ideas/ entry required; never touch the root index.html landing, the docs folder's existence, or pages.yml's PR-preview feature.
             - CONTINUE run ("/oc continue"): fetch the existing branch/PR for this issue, read its progress file, resume - never restart, never redo done work.
@@ -117,15 +121,25 @@ jobs:
             --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
-          status=$(grep -h "^Status:" progress/*.md 2>/dev/null | head -n1 | cut -d: -f2 | tr -d ' ' || echo "")
-          if [ "$status" = "complete" ]; then
+          if [ ! -f /tmp/random-factory-decision.json ]; then
+            echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "review" ]; then
             echo "Build complete! Handing over to Reviewer (/oc review)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc review" || true
-          elif [ "$status" = "in_progress" ]; then
+          elif [ "$action" = "continue" ]; then
             echo "Build in progress. Triggering /oc continue"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc continue" || true
-          else
+          elif [ "$action" = "maintainer" ]; then
             echo "Build finished. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          else
+            echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
           fi
 

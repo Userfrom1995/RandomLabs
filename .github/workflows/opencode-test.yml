@@ -48,6 +48,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-factory-decision.json
+
       - name: Run opencode tester
         timeout-minutes: 35
         uses: anomalyco/opencode/github@latest
@@ -62,7 +65,9 @@ jobs:
 
             READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
 
-            SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting; you post ONE decision comment per run - "/oc approve-test" when everything is flawless, or "/oc fix: ..." otherwise. End every decision comment with your sign-off: `- the Tester`. Never post more than one decision comment.
+            SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-factory-decision.json`: `{"action":"maintainer"}` when all checks pass or `{"action":"fix"}` when a problem is found. The hardcoded workflow step reads this file; it never parses your prose comment.
+            You post ONE plain text decision comment per run containing your findings. End every decision comment with your sign-off: `- the Tester`.
 
       - name: Forward tester decision
         if: always()
@@ -70,15 +75,19 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.pull_request.number || github.event.issue.number }}"
-          latest_bot_comment=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" \
-            --jq '[.[] | select((.user.login == "github-actions[bot]" or .user.login == "app/github-actions") and (.body | startswith("/oc")) and ((.body | startswith("/oc test")) | not))] | last | .body' 2>/dev/null || true)
+          if [ ! -f /tmp/random-factory-decision.json ]; then
+            echo "No decision file found. Assuming no actionable decision."
+            exit 0
+          fi
           
-          if [[ "$latest_bot_comment" =~ ^/oc\ approve-test ]]; then
+          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "maintainer" ]; then
             echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
-          elif [[ "$latest_bot_comment" =~ ^/oc\ fix ]]; then
+          elif [ "$action" = "fix" ]; then
             echo "Tester requested fixes. Posting /oc fix to trigger Fixer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
           else
-            echo "No actionable tester decision found ($latest_bot_comment)"
+            echo "No actionable tester decision found (action: $action)"
           fi
