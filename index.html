@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Beambus, a retro arcade shooter written in Zig." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Glyphforge, a bitmap font designer written in Kotlin." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -29,7 +29,26 @@
     text-align: center;
     border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+    position: relative;
   }
+  .github-link {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 0.88rem;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .github-link:hover { color: var(--text); border-color: var(--accent-2); }
+  .github-link svg { width: 16px; height: 16px; fill: currentColor; }
   header.hero h1 { margin: 0 0 10px; font-size: 2.8rem; letter-spacing: -0.02em; }
   header.hero p { margin: 0 auto; max-width: 640px; color: var(--muted); font-size: 1.05rem; }
   main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
@@ -90,6 +109,10 @@
 </head>
 <body>
 <header class="hero">
+  <a class="github-link" href="https://github.com/Userfrom1995/Random" target="_blank" rel="noopener noreferrer" aria-label="Random on GitHub">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    GitHub
+  </a>
   <h1>Random</h1>
   <p>A repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Whatever I feel like asking for - a game, a protocol, a CLI - ends up here. Content changes without notice; nothing here should be taken seriously.</p>
 </header>
@@ -99,12 +122,12 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
-      <h4>Beambus</h4>
-      <p>A retro arcade shoot 'em up written from scratch in Zig: a deterministic, headless-testable game core, scripted .beam level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up tiers, shields, and timed rapid-fire boosts, bomb refills, smart bombs, combo scoring, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. Same seed, same run - 92 headless tests.</p>
+      <h4>Glyphforge</h4>
+      <p>A bitmap font designer and glyph-to-code tool written in Kotlin: draw a pixel font in a terminal grid, autotrace it to a compact run-length .gff raster font file, and export embeddable glyph maps (Kotlin, Java, C header, or text). Kerning pairs, a headless renderer that proofs any string at any scale, and a self-contained HTML specimen page that previews fonts live in the browser. The factory's first Kotlin project, zero dependencies, 135 tests.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/Random/blob/main/beambus/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/beambus/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/glyphforge/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-15-glyphforge-bitmap-font-designer.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/glyphforge/docs/">Documentation</a>
       </div>
     </div>
   </div>
@@ -112,12 +135,12 @@
   <h2>Previous Projects</h2>
   <ul class="projects">
     <li>
-      <h4>Glyphforge</h4>
-      <p>A bitmap font designer and glyph-to-code tool written in Kotlin: draw a pixel font in a terminal grid, autotrace it to a compact run-length .gff raster font file, and export embeddable glyph maps (Kotlin, Java, C header, or text). Kerning pairs, a headless renderer that proofs any string at any scale, and a self-contained HTML specimen page that previews fonts live in the browser. The factory's first Kotlin project, zero dependencies, 135 tests.</p>
+      <h4>Beambus</h4>
+      <p>A retro arcade shoot 'em up written from scratch in Zig: a deterministic, headless-testable game core, scripted .beam level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up tiers, shields, and timed rapid-fire boosts, bomb refills, smart bombs, combo scoring, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. Same seed, same run - 92 headless tests.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/Random/blob/main/glyphforge/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-15-glyphforge-bitmap-font-designer.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/glyphforge/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/beambus/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/beambus/docs/">Documentation</a>
       </div>
     </li>
     <li>

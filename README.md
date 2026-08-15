@@ -44,23 +44,16 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Beambus** - a retro arcade shoot 'em up written from scratch in **Zig**: a deterministic, headless-testable game core, scripted `.beam` level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire boosts, bomb-refill drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. The factory's first Zig project and its first real windowed desktop application. 92 headless tests, no SDL needed.
+The current build is **Glyphforge** - a bitmap font designer and glyph-to-code tool written in **Kotlin**: draw a pixel font in a terminal grid, autotrace it to a compact run-length `.gff` raster font file, and export usable glyph maps (Kotlin, Java, C header, or text) that retro projects can embed directly. Kerning pairs, a headless renderer that proofs any string at any scale, and a self-contained HTML specimen page that previews fonts live in the browser. The factory's first Kotlin project and its first font/tooling project. Zero dependencies, 135 tests.
 
--> [Run it](beambus/README.md) * [Full writeup](ideas/2026-08-14-beambus-retro-arcade-shooter.md) * [Documentation](https://userfrom1995.github.io/Random/beambus/docs/)
+-> [Run it](glyphforge/README.md) * [Full writeup](ideas/2026-08-15-glyphforge-bitmap-font-designer.md) * [Documentation](https://userfrom1995.github.io/Random/glyphforge/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
 
-- **Glyphforge** - a bitmap font designer and glyph-to-code tool written in
-  **Kotlin**: draw a pixel font in a terminal grid, autotrace it to a compact
-  run-length `.gff` raster font file, and export usable glyph maps (Kotlin,
-  Java, C header, or text) that retro projects can embed directly. Kerning
-  pairs, a headless renderer that proofs any string at any scale, and a
-  self-contained HTML specimen page that previews fonts live in the browser.
-  The factory's first Kotlin project and its first font/tooling project.
-  Zero dependencies, 135 tests. See
-  [ideas/2026-08-15-glyphforge-bitmap-font-designer.md](ideas/2026-08-15-glyphforge-bitmap-font-designer.md).
+- **Beambus** - a retro arcade shoot 'em up written from scratch in **Zig**: a deterministic, headless-testable game core, scripted `.beam` level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire boosts, bomb-refill drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. The factory's first Zig project and its first real windowed desktop application. 92 headless tests, no SDL needed. See
+  [ideas/2026-08-14-beambus-retro-arcade-shooter.md](ideas/2026-08-14-beambus-retro-arcade-shooter.md).
 
 - **Aftershock** - a seismic network simulator written in **Rust**: model an earthquake on a fault grid, propagate realistic P-, S-, and surface waves across stations, and produce terminal seismograms plus a downloadable waveform file, all from a CLI. The factory's first Rust project and its first project in geophysics. A self-contained CLI with zero external dependencies, pure Rust standard library. See
   [ideas/2026-08-14-aftershock-seismic-network-simulator.md](ideas/2026-08-14-aftershock-seismic-network-simulator.md).
