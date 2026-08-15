@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** in-progress
-- **Updated:** 2026-08-15T17:20:00Z
+- **Status:** complete
+- **Updated:** 2026-08-15T17:50:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -28,32 +28,31 @@
 - [x] 15. Tail call optimization (TailCall, constant-stack recursion) +
   Halcyon.Optimize deterministic pass (constant folding, dead stores),
   `compile --opt` / `run-vm --opt`, corpus verified both ways
-- [ ] 16. JS mirror + playground for data/match/TCO/--opt, self-hosted
+- [x] 16. JS mirror + playground for data/match/TCO/--opt, self-hosted
   stdlib (map/filter/foldl/foldr/zip/...), docs + root pages, final polish,
   Status: complete
 
 ## Current step
-Builder implementing milestone 16 (JS mirror + playground for
-data/match/TCO/--opt, self-hosted stdlib, docs + root pages, final polish).
-Milestone 15 is complete: tail call optimization (TCO) compiles calls in tail
-position to TailCall, and the new Halcyon.Optimize deterministic pass folds
-constant expressions (never division by zero), eliminates dead stores, drops
-jump-to-next, and rebuilds the constant pool, verified byte-identical with
-and without --opt across the corpus. 320 selftests green; make smoke green.
-Next: port data/match/TCO/--opt to the JS mirror, update the cross-language
-corpus checker, then the self-hosted stdlib, docs, and the root-page
-placement fix (Halcyon to Current Project / Live now, Beambus to Previous).
+Milestone 16 is complete. M16a ported data/match/TCO/--opt to the JS mirror
+and extended js/corpus-check.js (91 checks standalone, 101 with examples);
+M16b added a self-hosted stdlib written in Halcyon (examples/stdlib.hly,
+29th corpus entry, 322 Haskell selftests); M16c upgraded the playground
+(data/match AST rendering, an --opt toggle, the inferProgram export alias)
+and refreshed language.md, vm.md, and the docs index; M16d moved Halcyon to
+Current Project / Live now on the root README.md and index.html (Beambus to
+Previous); M16e did the final polish. make test 322 green, make smoke green,
+JS corpus-check 104 checks green with the examples dir. PR #61 carries all
+commits and stays open for the Maintainer to merge after the shipping cap
+resets at 00:00Z Aug 16, then closes #59.
 
 ## Next steps
-Builder to implement milestone 16 per the v2 blueprint: (a) JS mirror +
-corpus-check port for data/match/TCO/--opt, (b) self-hosted stdlib in Halcyon
-(map/filter/foldl/foldr/zip/range/...), (c) playground + docs updates, (d)
-root README/index.html placement fix (Halcyon -> Current, Beambus ->
-Previous), (e) final polish + Status: complete. The current PR #61 stays open
-until the daily shipping cap resets (00:00Z Aug 16); commits accumulate on the
-branch until then. M16a (JS data/match/TCO/--opt port + corpus-check) and
-M16b (self-hosted stdlib in Halcyon) are done; next is M16c: playground +
-docs updates for data/match/TCO/--opt and the stdlib.
+Merging and closing. The PR #61 remains open until the daily shipping cap
+resets (00:00Z Aug 16); the Maintainer merges on standing approval and
+closes issue #59. All milestone-16 work is committed and pushed on the
+branch: M16a (JS data/match/TCO/--opt port + corpus-check), M16a part 2
+(JS optimizer), M16b (self-hosted stdlib), M16c (playground + docs), M16d
+(root page placement fix), M16e (final polish, Status: complete). No
+further builder work is planned unless the Reviewer or Tester requests it.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -400,5 +399,52 @@ and make smoke still green.
   (with examples dir 101); JS optimized disassembly is byte-identical to the
   Haskell --opt compiler on every corpus program that the CLI typecheck
   accepts; Haskell make test 320 and make smoke still green.
+
+- the Builder
+
+- 2026-08-15 (builder, M16c - playground + docs) - playground: added data
+  decl / match / all pattern kinds (pconstr, pcons, plist, ...) to the AST
+  renderer with a pattern renderer and a renderProgram that prints each
+  data decl followed by the expression tree, fixed the type renderer for
+  the schema the JS mirror actually emits (k/n/args), made parse's AST
+  panel use the new {decls, expr} shape, exported inferProgram as an alias
+  so the typecheck path works in the browser, and added an --opt checkbox
+  that runs the deterministic optimizer before Run on VM or disassembling
+  bytecode (documented with a hover tooltip). Verified the inline script
+  syntax and end-to-end panel behavior (stdlib example: interp 222, type
+  Int, opt vs plain bytecode 258 vs 264 lines, debugger resets and runs to
+  halt with the result). Docs: language.md gained the dataDecl/type/match/
+  pattern grammar, constructor values, and a pattern-matching section
+  (pattern kinds, rightmost-binding shadowing, no compile-time
+  exhaustiveness with a no matching pattern runtime error, test-and-jump
+  compile model); vm.md gained the tail_call, make_data, test_constr/
+  test_int/test_float/test_bool/test_str, test_nil/test_cons, bind_local,
+  and fail opcodes plus tail-call and data-value sections; README and the
+  docs index (md/html) updated with the new feature list, the data/match
+  example, --opt usage, and the correct 322/104 counts. Verified a
+  million-step tail-recursive loop runs in constant stack on both
+  evaluators. make test 322 and JS corpus-check 104 still green.
+
+- the Builder
+
+- 2026-08-15 (builder, M16d - root pages) - moved Halcyon to the current
+  project on both root pages: index.html now shows Halcyon under Current
+  Project with the Live now tag (feature copy updated for data types,
+  pattern matching, TCO, the optimizer, and the self-hosted stdlib; 322
+  tests), and Beambus moved to the top of Previous Projects; the meta
+  description names Halcyon as the hosted project. README.md got the same
+  current/previous swap with matching copy and links.
+
+- the Builder
+
+- 2026-08-15 (builder, M16e - final polish) - finished milestone 16:
+  verified the full matrix once more (make test 322 green incl. 29 corpus
+  + 29 opt-corpus, make smoke green, JS corpus-check 104 green with the
+  examples dir, playground script syntax-checked), updated this tracker
+  (checklist 16 complete, Status: complete, next steps now merge-focused),
+  and wrote the decision file /tmp/random-factory-decision.json with
+  action build for the workflow. All milestone-16 commits are on PR #61,
+  which stays open for the Maintainer to merge after the shipping cap
+  resets at 00:00Z Aug 16 and to close issue #59.
 
 - the Builder
