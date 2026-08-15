@@ -15,6 +15,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import Halcyon.Ast
+import Halcyon.Classes (ClassEnv(..), ClassInfo(..), InstanceInfo(..), emptyClassEnv, buildClassEnv, methodClass, unifyHeadB, findInstance)
 import Halcyon.Data (DataEnv, CtorInfo(..), emptyDataEnv, progEnvs, checkProgram, ctorFor)
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Record (RecordEnv, emptyRecordEnv, recordFor, recordForFields, RecordInfo(..))
@@ -37,7 +38,9 @@ inferProgram src = case parseProgram src of
 -- | Type inference over an already-parsed, fully-resolved program. Imports
 -- must be resolved before this (see 'Halcyon.Module'); the merged defs are
 -- inferred left to right with top-level generalization, exactly like the
--- @let@ rule, then the final expression (if any).
+-- @let@ rule, then the final expression (if any). Class constraints are
+-- accumulated while inferring, generalized into schemes at @let@/top-level
+-- definitions, and discharged against the class environment afterwards.
 inferProgramIn :: Program -> Either InferError (Maybe Type)
 inferProgramIn prog = do
   case checkProgram prog of
@@ -46,37 +49,96 @@ inferProgramIn prog = do
   (denv, renv) <- case progEnvs prog of
     Left m  -> Left (TypeError (Pos 0 0) m)
     Right e -> Right e
-  env <- foldM (inferDef denv renv) Map.empty (progDefs prog)
-  case progExpr prog of
+  cenv <- case buildClassEnv prog of
+    Left m  -> Left (TypeError (Pos 0 0) m)
+    Right c -> Right c
+  case runInfer (inferDefs denv renv (progDefs prog) (progExpr prog))
+               (InferState Map.empty 0 cenv []) of
+    Left e         -> Left e
+    Right (mt, s)  ->
+      case runInfer (solveConstraints (isConstraints s)) s of
+        Left e -> Left e
+        Right (_, s') -> Right (fmap (\t -> resolveIn (isSubst s') t) mt)
+
+-- | Infer all top-level definitions (generalized in order), then the final
+-- expression if present. One 'Infer' run so the constraint accumulator and
+-- substitution are shared across defs.
+inferDefs :: DataEnv -> RecordEnv -> [TopDef] -> Maybe Expr -> Infer (Maybe Type)
+inferDefs denv renv defs mexpr = do
+  env <- foldM (inferDef denv renv) Map.empty defs
+  case mexpr of
     Nothing   -> return Nothing
-    Just expr -> do
-      (t, s) <- runInfer (infer env denv renv expr) (InferState Map.empty 0)
-      return (Just (resolveIn (isSubst s) t))
+    Just expr -> Just <$> infer env denv renv expr
 
 -- | Infer one top-level definition and extend the environment with its
--- generalized scheme. @data@ and @record@ declarations add nothing; @let@
--- bindings are inferred exactly like an @inferLet@ without a body (so
--- @let rec@ binds its name monomorphically while inferring the bound
--- expression), and the resulting type is generalized so later defs and the
+-- generalized scheme. @data@/@record@/@class@ declarations add nothing;
+-- @instance@ declarations are validated and add nothing; @let@ bindings are
+-- inferred exactly like an @inferLet@ without a body, and the resulting type
+-- is generalized (with its pending class constraints) so later defs and the
 -- final expression see the polymorphism.
-inferDef :: DataEnv -> RecordEnv -> Env -> TopDef -> Either InferError Env
+inferDef :: DataEnv -> RecordEnv -> Env -> TopDef -> Infer Env
 inferDef denv renv env = \case
-  DefData _ -> Right env
-  DefRecord _ -> Right env
-  DefLet p rec name bound ->
-    case runInfer (inferTopDef denv renv env p rec name bound) (InferState Map.empty 0) of
-      Left e        -> Left e
-      Right (sch, _) -> Right (Map.insert name sch env)
+  DefData _       -> return env
+  DefRecord _     -> return env
+  DefClass _      -> return env
+  DefInstance inst -> checkInstance denv renv env inst >> return env
+  DefLet p rec name bound -> do
+    t <- fresh
+    let envRec    = Map.insert name (Scheme [] Set.empty t) env
+        envBound  = if rec then envRec else env
+    tb <- infer envBound denv renv bound
+    unify p t tb
+    tbR <- resolve tb
+    pending <- getConstraints
+    let ftv = schemeFtv env
+        qvars = freeVars tbR `Set.difference` ftv
+    (ctx, keep) <- partitionCtx qvars pending
+    setConstraints keep
+    return (Map.insert name (Scheme ctx qvars tbR) env)
+
+-- | Validate an @instance@ declaration: every class method must be
+-- implemented with a body whose type matches the class's declared method
+-- type with the class variable replaced by the instance head. Class
+-- constraints the method bodies raise on the instance head's type variables
+-- are discharged against the instance's declared context.
+checkInstance :: DataEnv -> RecordEnv -> Env -> InstanceDecl -> Infer ()
+checkInstance denv renv env inst = do
+  cenv <- getCenv
+  ci <- case Map.lookup (idClass inst) (ceClasses cenv) of
+    Nothing -> throwError (TypeError (idPos inst) ("unknown class: " <> idClass inst))
+    Just c  -> return c
+  before <- getConstraints
+  mapM_ (checkMethod ci) (idMethods inst)
+  pending <- getConstraints
+  let added = drop (length before) pending
+  (_, keep) <- dischargeCtx (idCtx inst) added
+  setConstraints (take (length before) pending <> keep)
   where
-    inferTopDef :: DataEnv -> RecordEnv -> Env -> Pos -> Bool -> String -> Expr -> Infer Scheme
-    inferTopDef denv renv env p rec name bound = do
-      t <- fresh
-      let envRec    = Map.insert name (Scheme Set.empty t) env
-          envBound  = if rec then envRec else env
-      tb <- infer envBound denv renv bound
-      unify p t tb
-      tbR <- resolve tb
-      return (generalize (schemeFtv env) tbR)
+    checkMethod ci (mname, mbody) =
+      case lookup mname (clMethods ci) of
+        Nothing -> throwError (TypeError (idPos inst) ("class " <> clName ci <> " has no method " <> mname))
+        Just mty -> do
+          let expected = applyMeta (Map.singleton classTypeVar (idHead inst)) mty
+          mt <- infer env denv renv mbody
+          unify (idPos inst) mt expected
+
+-- | Discharge constraints whose resolved type mentions only the instance
+-- head's type variables against the instance's declared context. The
+-- instance context justifies constraints on its own type variable for its
+-- class; constraints on other classes or on concrete types stay pending.
+-- Constraint types are resolved against the current substitution first, so
+-- a constraint raised on the head's element (e.g. @Size a@ for the head
+-- @Pair a@) is seen to mention only the head variable.
+dischargeCtx :: Maybe (String, Type) -> Constraints -> Infer ([(String, Type)], Constraints)
+dischargeCtx Nothing  cs          = return ([], cs)
+dischargeCtx (Just (cn, _)) cs    = foldM step ([], []) cs
+  where
+    step (dis, keep) (pos, c, ty) = do
+      rty <- resolve ty
+      if c == cn && not (Set.null (freeVars rty)) && freeVars rty `Set.isSubsetOf` headVars
+        then return (dis, keep)
+        else return (dis, (pos, c, rty) : keep)
+    headVars = Set.singleton classTypeVar
 
 -- | Type inference over a parsed expression with an empty data and record
 -- environment.
@@ -84,10 +146,12 @@ inferExpr :: Expr -> Either InferError Type
 inferExpr = inferExprIn emptyDataEnv emptyRecordEnv
 
 -- | Type inference over a parsed expression in given data and record
--- environments.
+-- environments. Class constraints are discharged after inference.
 inferExprIn :: DataEnv -> RecordEnv -> Expr -> Either InferError Type
 inferExprIn denv renv expr = do
-  (t, s) <- runInfer (infer Map.empty denv renv expr) (InferState Map.empty 0)
+  (t, s0) <- runInfer (infer Map.empty denv renv expr)
+                     (InferState Map.empty 0 emptyClassEnv [])
+  (_, s) <- runInfer (solveConstraints (isConstraints s0)) s0
   return (resolveIn (isSubst s) t)
 
 -- | Apply the final substitution to a type (used at the top level so the
@@ -111,9 +175,15 @@ resolveIn sub = go
 
 type Subst = Map.Map Int Type
 
+-- | A pending class constraint: its source position, the class name, and
+-- the type the class is demanded at.
+type Constraints = [(Pos, String, Type)]
+
 data InferState = InferState
-  { isSubst   :: Subst
-  , isCounter :: Int
+  { isSubst       :: Subst
+  , isCounter     :: Int
+  , isCenv        :: ClassEnv
+  , isConstraints :: Constraints
   }
 
 newtype Infer a = Infer { runInfer :: InferState -> Either InferError (a, InferState) }
@@ -149,6 +219,19 @@ getCounter = Infer $ \s -> Right (isCounter s, s)
 
 setCounter :: Int -> Infer ()
 setCounter n = Infer $ \s -> Right ((), s { isCounter = n })
+
+getCenv :: Infer ClassEnv
+getCenv = Infer $ \s -> Right (isCenv s, s)
+
+getConstraints :: Infer Constraints
+getConstraints = Infer $ \s -> Right (isConstraints s, s)
+
+setConstraints :: Constraints -> Infer ()
+setConstraints cs = Infer $ \s -> Right ((), s { isConstraints = cs })
+
+addConstraint :: Pos -> String -> Type -> Infer ()
+addConstraint pos cn ty = Infer $ \s ->
+  Right ((), s { isConstraints = isConstraints s ++ [(pos, cn, ty)] })
 
 -- | Allocate a fresh, unconstrained type variable.
 fresh :: Infer Type
@@ -205,12 +288,14 @@ unify pos t1 t2 = do
     _ -> throwError (TypeError pos (mismatch r1 r2))
 
 -- | Instantiate a scheme: replace every quantified variable with a fresh
--- one. Non-quantified variables remain live metavariables of the enclosing
--- inference.
-instantiate :: Scheme -> Infer Type
-instantiate (Scheme qvars t) = do
+-- one and re-emit the scheme's class context as pending constraints on the
+-- fresh variables. Non-quantified variables remain live metavariables of the
+-- enclosing inference.
+instantiate :: Pos -> Scheme -> Infer Type
+instantiate pos (Scheme ctx qvars t) = do
   freshVars <- mapM (const fresh) (Set.toList qvars)
   let m = Map.fromList (zip (Set.toList qvars) freshVars)
+  mapM_ (\(cn, cty) -> addConstraint pos cn (applyMeta m cty)) ctx
   return (applyMeta m t)
 
 applyMeta :: Map.Map Int Type -> Type -> Type
@@ -254,7 +339,7 @@ inferConstr :: Pos -> DataEnv -> String -> Infer Type
 inferConstr p denv name =
   case ctorFor name denv of
     Nothing   -> throwError (TypeError p ("unbound constructor: " <> name))
-    Just info -> instantiate (ciScheme info)
+    Just info -> instantiate p (ciScheme info)
 
 inferList :: Pos -> DataEnv -> RecordEnv -> Env -> [Expr] -> Infer Type
 inferList p denv renv env es = do
@@ -262,29 +347,45 @@ inferList p denv renv env es = do
   mapM_ (\e -> do { t <- infer env denv renv e; unify p t et }) es
   return (TList et)
 
+-- | A variable reference. Environment names win; a name that is not bound
+-- but is a class method (e.g. @show@) becomes a method reference with a
+-- class constraint on a fresh type variable, so applying it demands an
+-- instance.
 inferVar :: Pos -> Env -> String -> Infer Type
 inferVar p env name =
   case Map.lookup name env of
-    Nothing   -> throwError (TypeError p ("unbound name: " <> name))
-    Just sch  -> instantiate sch
+    Just sch  -> instantiate p sch
+    Nothing   -> do
+      cenv <- getCenv
+      case methodClass name cenv of
+        Nothing -> throwError (TypeError p ("unbound name: " <> name))
+        Just (cn, mty) -> do
+          a <- fresh
+          addConstraint p cn a
+          return (applyMeta (Map.singleton classTypeVar a) mty)
 
 inferBuiltin :: Pos -> Builtin -> Infer Type
 inferBuiltin _ b =
-  instantiate $ case b of
-    BCons    -> Scheme (Set.singleton 0) (TFun (TVar 0) (TFun (TList (TVar 0)) (TList (TVar 0))))
-    BHead    -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TVar 0))
-    BTail    -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
-    BIsNil   -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) TBool)
-    BLength  -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) TInt)
-    BReverse -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
-    BAppend  -> Scheme (Set.singleton 0) (TFun (TList (TVar 0)) (TFun (TList (TVar 0)) (TList (TVar 0))))
-    BTake    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
-    BDrop    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
+  instantiate (Pos 0 0) $ case b of
+    BCons    -> Scheme [] (Set.singleton 0) (TFun (TVar 0) (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BHead    -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) (TVar 0))
+    BTail    -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
+    BIsNil   -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) TBool)
+    BLength  -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) TInt)
+    BReverse -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) (TList (TVar 0)))
+    BAppend  -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BTake    -> Scheme [] (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BDrop    -> Scheme [] (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
+    BIntToStr   -> Scheme [] Set.empty (TFun TInt TStr)
+    BFloatToStr -> Scheme [] Set.empty (TFun TFloat TStr)
+    BBoolToStr  -> Scheme [] Set.empty (TFun TBool TStr)
+    BStrToStr   -> Scheme [] Set.empty (TFun TStr TStr)
+    BListToStr  -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) TStr)
 
 inferLambda :: Pos -> DataEnv -> RecordEnv -> Env -> [String] -> Expr -> Infer Type
 inferLambda _ denv renv env params body = do
   paramTypes <- replicateM (length params) fresh
-  let env' = foldr (\(n, t) acc -> Map.insert n (Scheme Set.empty t) acc) env (zip params paramTypes)
+  let env' = foldr (\(n, t) acc -> Map.insert n (Scheme [] Set.empty t) acc) env (zip params paramTypes)
   bodyT <- infer env' denv renv body
   return (foldr TFun bodyT paramTypes)
 
@@ -299,13 +400,17 @@ inferApply p denv renv env fn arg = do
 inferLet :: Pos -> Bool -> String -> DataEnv -> RecordEnv -> Env -> Expr -> Expr -> Infer Type
 inferLet p rec name denv renv env bound body = do
   t <- fresh
-  let envRec = Map.insert name (Scheme Set.empty t) env
+  let envRec = Map.insert name (Scheme [] Set.empty t) env
       envBound = if rec then envRec else env
   tb <- infer envBound denv renv bound
   unify p t tb
   tbR <- resolve tb
+  pending <- getConstraints
   let ftv = schemeFtv env
-      sch = generalize ftv tbR
+      qvars = freeVars tbR `Set.difference` ftv
+  (ctx, keep) <- partitionCtx qvars pending
+  setConstraints keep
+  let sch = Scheme ctx qvars tbR
   bodyT <- infer (Map.insert name sch env) denv renv body
   return bodyT
 
@@ -340,7 +445,7 @@ inferMatch p denv renv env scrut branches = case branches of
 checkPattern :: Pos -> DataEnv -> RecordEnv -> Env -> Pattern -> Type -> Infer Env
 checkPattern p denv renv env pat ty = case pat of
   PWild _       -> return env
-  PVar _ name   -> return (Map.insert name (Scheme Set.empty ty) env)
+  PVar _ name   -> return (Map.insert name (Scheme [] Set.empty ty) env)
   PInt _ _      -> unify p ty TInt >> return env
   PFloat _ _    -> unify p ty TFloat >> return env
   PBool _ _     -> unify p ty TBool >> return env
@@ -361,7 +466,7 @@ checkPattern p denv renv env pat ty = case pat of
   PConstr _ name ps -> case ctorFor name denv of
     Nothing -> throwError (TypeError p ("unbound constructor: " <> name))
     Just ci -> do
-      inst <- instantiate (ciScheme ci)
+      inst <- instantiate p (ciScheme ci)
       let (fields, resultT) = splitFun inst
       unify p resultT ty
       if length fields /= length ps
@@ -480,7 +585,21 @@ checkRecordPattern p denv renv env ty fields = do
 
 inferBin :: Pos -> Op -> DataEnv -> RecordEnv -> Env -> Expr -> Expr -> Infer Type
 inferBin p op denv renv env a b
-  | op `elem` [OpAdd, OpSub, OpMul, OpDiv] = do
+  | op == OpAdd = do
+      ta <- infer env denv renv a
+      tb <- infer env denv renv b
+      ra <- resolve ta
+      rb <- resolve tb
+      case (ra, rb) of
+        (TStr, TStr)       -> return TStr
+        (TStr, TVar _)     -> unify p tb TStr >> return TStr
+        (TVar _, TStr)     -> unify p ta TStr >> return TStr
+        (TStr, _)          -> throwError (TypeError p ("operator + requires string operands, found "
+                                   <> showType ra <> " and " <> showType rb))
+        (_, TStr)          -> throwError (TypeError p ("operator + requires string operands, found "
+                                   <> showType ra <> " and " <> showType rb))
+        _                  -> numericPromote p ta tb
+  | op `elem` [OpSub, OpMul, OpDiv] = do
       ta <- infer env denv renv a
       tb <- infer env denv renv b
       numericPromote p ta tb
@@ -544,10 +663,70 @@ numericPromote p ta tb = do
 schemeFtv :: Env -> Set.Set Int
 schemeFtv env = Set.unions (map freeVarsScheme (Map.elems env))
 
--- | Generalize a resolved type over all free variables not present in the
--- environment, yielding a closed scheme.
-generalize :: Set.Set Int -> Type -> Scheme
-generalize ftv t = Scheme (freeVars t `Set.difference` ftv) t
+-- | Partition the pending constraints at a generalization point into the
+-- scheme's context (constraints whose resolved type mentions only the
+-- quantified variables, i.e. the constraints @let@-generalization keeps on
+-- the scheme) and the constraints that stay pending for later solving.
+partitionCtx :: Set.Set Int -> Constraints -> Infer ([(String, Type)], Constraints)
+partitionCtx qvars = foldM step ([], [])
+  where
+    step (ctx, keep) (pos, cn, ty) = do
+      rty <- resolve ty
+      let fv = freeVars rty
+      if not (Set.null fv) && fv `Set.isSubsetOf` qvars
+        then return ((cn, rty) : ctx, keep)
+        else return (ctx, (pos, cn, rty) : keep)
+
+-- ---------------------------------------------------------------------
+-- Constraint solving
+-- ---------------------------------------------------------------------
+
+-- | Discharge every remaining class constraint against the class
+-- environment. Constraints whose type still contains free variables cannot
+-- be discharged (ambiguous); concrete constraints resolve through the
+-- instances, following context constraints recursively.
+solveConstraints :: Constraints -> Infer ()
+solveConstraints = mapM_ solveOne
+
+solveOne :: (Pos, String, Type) -> Infer ()
+solveOne (pos, cn, ty) = do
+  rty <- resolve ty
+  case freeVars rty of
+    vs | not (Set.null vs) ->
+          throwError (TypeError pos
+            ("ambiguous type: cannot resolve constraint " <> cn <> " " <> showType rty))
+    _ -> resolveInstance pos cn rty 0
+
+-- | Resolve one concrete class constraint. The instance's head variables
+-- are bound from the concrete type, and its context constraint (if any) is
+-- resolved recursively (depth-bounded).
+resolveInstance :: Pos -> String -> Type -> Int -> Infer ()
+resolveInstance pos cn ty depth
+  | depth > maxDepth =
+      throwError (TypeError pos ("too much recursion resolving " <> cn <> " " <> showType ty))
+  | otherwise = do
+      cenv <- getCenv
+      case findInstance cn ty cenv of
+        Nothing -> throwError (TypeError pos ("no instance for " <> cn <> " " <> showType ty))
+        Just inst -> case iiCtx inst of
+          Nothing -> return ()
+          Just (cc, cty) -> do
+            let arg = applyMeta (headBindings (iiHead inst) ty) cty
+            resolveInstance pos cc arg (depth + 1)
+
+-- | The bindings of an instance head's type variables against a concrete
+-- type (used to substitute the context constraint). The head's variables are
+-- all @'Halcyon.Type'.TVar 0@ in the head encoding.
+headBindings :: Type -> Type -> Map.Map Int Type
+headBindings h t = case (h, t) of
+  (TList hh, TList tt)  -> headBindings hh tt
+  (TData n1 as, TData n2 bs) | n1 == n2 -> Map.unions (zipWith headBindings as bs)
+  (TRec n1 as, TRec n2 bs) | n1 == n2 -> Map.unions (zipWith headBindings as bs)
+  (TVar v, tt)          -> Map.singleton v tt
+  _                     -> Map.empty
+
+maxDepth :: Int
+maxDepth = 20
 
 mismatch :: Type -> Type -> String
 mismatch t1 t2 =

@@ -28,6 +28,8 @@ data Value
   | VData String [Value]
   | VConstr String Int [Value]
   | VRec String [(String, Value)]
+  | VMethod String           -- ^ a class method reference, dispatched by value type
+  | VDict String [(String, Value)]  -- ^ an instance dictionary: method name -> implementation
   deriving (Eq, Show)
 
 -- | Render a value as program output. This is the canonical, deterministic
@@ -47,6 +49,8 @@ showValue = \case
   VData n fs    -> unwords (n : map showValue fs)
   VConstr n _ _ -> "<constructor: " <> n <> ">"
   VRec _ fs     -> "{ " <> intercalate ", " (map (\(f, v) -> f <> " = " <> showValue v) fs) <> " }"
+  VMethod n     -> "<method: " <> n <> ">"
+  VDict c _     -> "<dict: " <> c <> ">"
 
 -- | Deterministic float rendering: plain decimals, never scientific for
 -- ordinary magnitudes.
