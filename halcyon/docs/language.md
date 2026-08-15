@@ -428,6 +428,35 @@ argument with the same deterministic `show` used everywhere else
 (closures render as `<function>`, and so on). `readLine` is nullary, and it
 consumes exactly one line of the scripted input.
 
+### 5.0.1 The auto-imported standard prelude
+
+Every program is compiled against a standard prelude that is auto-imported
+ahead of its own source (the module resolver treats it as a synthetic first
+import resolving against the library directory, or the JavaScript mirror's
+bundled copy). No `import` statement is needed for the common helpers:
+
+- the composition module: `id`, `compose`, `const`, `flip`;
+- the list module: `foldl`, `foldr`, `map`, `filter`, `zip`, `range`,
+  `sum`, `product`, `myLength`, `myReverse`, `all`, `any`, `elem`,
+  `append`, `take`, `drop`;
+- `Pair` and `Maybe` with `fst`, `snd`, `fromMaybe`, `isJust`,
+  `isNothing`, `maybe`, `mapMaybe`, `join`;
+- the string module: `chars`, `fromChar`, `fromChars`, `toUpper`,
+  `toUpperStr`, `countChar`, `repeat`, `startsWith`;
+- the effect combinators built on the effect builtins: `when`, `seq_`,
+  `forever`.
+
+Because the prelude is auto-imported, an explicit `import "prelude.hly"` is
+a harmless deduplication. If a program or an imported module defines a
+top-level `let`, `data`, `record`, `class`, or type synonym (or a data
+constructor) with the same name, that definition shadows the prelude's and
+the prelude's is dropped from the merged program. So `let map = fn f xs =>
+99 in ...` is not a duplicate-definition error; it replaces the prelude's
+`map` for the rest of the program. Shadowing a data type whose constructors
+the prelude's own functions use (for example defining your own `Pair`)
+makes those prelude functions uncompilable, which is the natural
+consequence of the flat namespace.
+
 ## 5.1 Effects and `do` blocks
 
 Halcyon models effectful programs with a pure, first-class `Effect a`
@@ -497,6 +526,28 @@ extra). The `repl` runs each entered effect with no scripted input.
 `do { x <- readLine; return x }` is the echo-without-print idiom: it reads
 a line and returns it as the block's result, so `run` prints just the
 consumed line.
+
+### 5.1.1 The REPL
+
+`halcyon repl` reads definitions and expressions line by line from standard
+input. Each input is resolved against the same auto-imported prelude and
+evaluated, and its result is printed (the unit value prints nothing). A
+definition entered at the prompt stays in scope for the rest of the
+session, and user definitions shadow the prelude exactly as in a file.
+Beyond plain expressions, the REPL understands the following commands:
+
+| Command            | Behavior                                              |
+|--------------------|-------------------------------------------------------|
+| `:help`, `:h`, `:?` | print the command help                               |
+| `:quit`, `:q`      | exit the REPL                                         |
+| `:type <expr>`     | print the expression's inferred type (`forall a b. ...`) |
+| `:disasm <expr>`   | compile the expression and print its disassembly      |
+| `:opt <expr>`      | compile the expression with the optimizer and print it |
+| `:import <file>`   | import a library file, merging its definitions into the session |
+
+`:import "string.hly"` is the same import resolution used by files: the
+path resolves relative to the current directory and falls back to the
+library directory, and the merged definitions are added to the session.
 
 ## 6. Evaluation semantics
 

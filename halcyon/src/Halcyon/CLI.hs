@@ -7,7 +7,7 @@ module Halcyon.CLI
 import Control.Exception (IOException, try)
 import Control.Monad (forM_)
 import Data.List (find, sort)
-import System.Directory (getDirectoryContents)
+import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.Environment (getArgs)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess, exitWith)
 import System.FilePath (dropExtension, takeExtension, (</>))
@@ -60,12 +60,12 @@ runCli :: IO ()
 runCli = do
   args <- getArgs
   let (clean, libDir') = splitLib args
-      libDir = fromMaybeLib libDir'
+  libDir <- fromMaybeLib libDir'
   case clean of
     ["--help"]                     -> putStr helpText >> exitSuccess
     ["-h"]                         -> putStr helpText >> exitSuccess
     ["--version"]                  -> putStrLn "halcyon 0.1.0" >> exitSuccess
-    ["repl"]                       -> repl
+    ["repl"]                       -> repl libDir
     ["selftest"]                   -> runSelftest >>= \ok -> if ok then exitSuccess else exitFailure
     ["corpus"]                     -> runCorpus False
     ["corpus", "--opt"]            -> runCorpus True
@@ -95,9 +95,14 @@ splitLib (a : rest) =
 
 -- | The default lib directory: "halcyon/lib/" when present (repo-root
 -- layout), otherwise "lib/" (package-local layout).
-fromMaybeLib :: Maybe FilePath -> FilePath
-fromMaybeLib (Just d)  = d
-fromMaybeLib Nothing   = "halcyon/lib/"
+fromMaybeLib :: Maybe FilePath -> IO FilePath
+fromMaybeLib (Just d) = return d
+fromMaybeLib Nothing = do
+  root <- doesDirectoryExist "halcyon/lib"
+  if root then return "halcyon/lib/"
+  else do
+    local <- doesDirectoryExist "lib"
+    return (if local then "lib/" else "halcyon/lib/")
 
 -- ---------------------------------------------------------------------
 -- Subcommands
@@ -427,7 +432,9 @@ helpText = unlines
   , "  --version                show the version"
   , ""
   , "Any file command accepts --lib <dir> to set the import fallback directory"
-  , "(imports first resolve relative to the importing file)."
+  , "(imports first resolve relative to the importing file; default is"
+  , "\"halcyon/lib/\" when present, else \"lib/\"). The standard prelude is"
+  , "auto-imported; a repl accepts :help/:type/:disasm/:opt/:import/:quit."
   , ""
   , "Exit codes: 0 success, 1 any error, 2 usage error."
   , ""

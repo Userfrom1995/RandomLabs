@@ -761,7 +761,7 @@
         case 'data': return TData(ty.n, ty.args.map(function (a) { return substType(m, a); }));
         case 'rec': return TRec(ty.n, ty.args.map(function (a) { return substType(m, a); }));
         case 'fun': return TT.fun(substType(m, ty.a), substType(m, ty.b));
-        case 'effect': return TT.EFFECT(substType(m, ty.t));
+        case 'effect': return TT.effect(substType(m, ty.t));
         default: return ty;
       }
     }
@@ -792,7 +792,7 @@
         if (n === 'Char') { return TT.CHAR; }
         if (n === 'Unit') { return TT.UNIT; }
         if (n === 'Effect') {
-          if (typeAtomStart(peek())) { return TT.EFFECT(parseTypeApp(tyvars)); }
+          if (typeAtomStart(peek())) { return TT.effect(parseTypeApp(tyvars)); }
           return failAt(p, "expected a type after 'Effect', found " + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
         }
         if (isCapitalized(n)) {
@@ -1513,7 +1513,7 @@
         if (n === 'Char') { return TT.CHAR; }
         if (n === 'Unit') { return TT.UNIT; }
         if (n === 'Effect') {
-          if (typeAtomStart(peek())) { return TT.EFFECT(parseHeadApp()); }
+          if (typeAtomStart(peek())) { return TT.effect(parseHeadApp()); }
           return failAt(p, "expected a type after 'Effect', found " + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
         }
         if (isCapitalized(n)) {
@@ -2025,11 +2025,43 @@
 
   // Fully resolve a program from its source text (mirrors resolveProgram).
   // provider :: (dir, path) -> { key, src } | null
+  //
+  // The auto-imported standard prelude (PRELUDE_PATH, resolved from the lib
+  // directory) is loaded ahead of the user program; when the provider cannot
+  // resolve it the prelude is skipped silently, and every module it loaded is
+  // marked completed before the user program resolves so the user's own
+  // imports deduplicate against it. User definitions shadow prelude
+  // definitions (see applyShadowing).
   function resolveProgram(provider, rootDir, src) {
+    var pre = loadPrelude(provider);
+    if (pre.kind === 'module' || pre.kind === 'parse') { return pre; }
     var p = parseProgram(src);
     if (p.kind === 'parse') { return p; }
+    var r = resolveImportsAll(provider, pre.completed, rootDir, p);
+    if (r.kind === 'parse' || r.kind === 'module') { return r; }
+    var merged = applyShadowing(pre.defs, r.defs);
+    var dup = dupLetName(merged);
+    if (dup) { return HErr('module', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    return { kind: 'resolved', imports: [], defs: merged, expr: r.expr };
+  }
+
+  // Resolve a program's imports without the auto-imported prelude (mirrors
+  // resolveProgramNoPrelude). Used by the REPL, which keeps the prelude
+  // separate so it is never duplicated across a session.
+  function resolveProgramNoPrelude(provider, rootDir, src) {
+    var p = parseProgram(src);
+    if (p.kind === 'parse') { return p; }
+    var r = resolveImportsAll(provider, {}, rootDir, p);
+    if (r.kind === 'parse' || r.kind === 'module') { return r; }
+    var dup = dupLetName(r.defs);
+    if (dup) { return HErr('module', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    return { kind: 'resolved', imports: [], defs: r.defs, expr: r.expr };
+  }
+
+  // Resolve a parsed program's imports (recursively), returning its merged
+  // user definitions and expression (mirrors go in the Haskell core).
+  function resolveImportsAll(provider, completed, rootDir, p) {
     var inProgress = {};
-    var completed = {};
     var mergedDefs = [];
     var expr = p.expr;
 
@@ -2047,18 +2079,100 @@
         delete inProgress[found.key];
         if (r) { return r; }
         completed[found.key] = true;
-        mergedDefs = mergedDefs.concat(child.defs);
+        for (var j = 0; j < child.defs.length; j++) { mergedDefs.push(child.defs[j]); }
       }
       return null;
     }
 
     var err = go(rootDir, p);
     if (err) { return err; }
-    mergedDefs = mergedDefs.concat(p.defs);
-    var dup = dupLetName(mergedDefs);
-    if (dup) { return HErr('module', POS_EOF, 'duplicate top-level definition: ' + dup); }
-    return { kind: 'resolved', imports: [], defs: mergedDefs, expr: expr };
+    return { kind: 'ok', defs: mergedDefs.concat(p.defs), expr: expr };
   }
+
+  // Resolve the auto-imported standard prelude (mirrors loadPrelude): a
+  // synthetic first import resolved from the lib directory. Returns the
+  // prelude's merged definitions and the set of module keys it completed, or
+  // an empty prelude when the provider cannot resolve it.
+  function loadPrelude(provider) {
+    var found = provider('', PRELUDE_PATH);
+    if (!found) { return { kind: 'ok', defs: [], completed: {} }; }
+    var p = parseProgram('import "' + PRELUDE_PATH + '"\n');
+    if (p.kind === 'parse') { return p; }
+    var inProgress = {};
+    var completed = {};
+    var mergedDefs = [];
+    var err = resolveImports(provider, inProgress, completed, mergedDefs, '', p);
+    if (err) { return err; }
+    return { kind: 'ok', defs: mergedDefs, completed: completed };
+  }
+
+  // Resolve one module's imports (recursively), appending their definitions
+  // to mergedDefs in import order (mirrors go/importOne in the Haskell core).
+  function resolveImports(provider, inProgress, completed, mergedDefs, dir, prg) {
+    for (var i = 0; i < prg.imports.length; i++) {
+      var path = prg.imports[i];
+      var found = provider(dir, path);
+      if (!found) { return HErr('module', prg.pos, 'module not found: ' + path); }
+      if (inProgress[found.key]) { return HErr('module', prg.pos, 'circular import: ' + path); }
+      if (completed[found.key]) { continue; }
+      var child = parseProgram(found.src);
+      if (child.kind === 'parse') { return child; }
+      inProgress[found.key] = true;
+      var r = resolveImports(provider, inProgress, completed, mergedDefs, dirOf(found.key), child);
+      delete inProgress[found.key];
+      if (r) { return r; }
+      completed[found.key] = true;
+      for (var j = 0; j < child.defs.length; j++) { mergedDefs.push(child.defs[j]); }
+    }
+    return null;
+  }
+
+  // Drop prelude definitions shadowed by the user part (mirrors
+  // applyShadowing): a user top-level let/data/record/class/synonym (or a
+  // data constructor) with the same name wins over the prelude's definition.
+  // Instances and infix declarations never collide and are kept as-is.
+  function applyShadowing(pre, user) {
+    var letNames = {};
+    var dataNames = {};
+    var ctorNames = {};
+    var recNames = {};
+    var classNames = {};
+    var synNames = {};
+    for (var i = 0; i < user.length; i++) {
+      var d = user[i];
+      if (d.kind === 'deflet') {
+        letNames[d.name] = true;
+      } else if (d.kind === 'defdata') {
+        dataNames[d.decl.name] = true;
+        for (var j = 0; j < d.decl.ctors.length; j++) { ctorNames[d.decl.ctors[j].name] = true; }
+      } else if (d.kind === 'defrecord') {
+        recNames[d.decl.name] = true;
+      } else if (d.kind === 'defclass') {
+        classNames[d.decl.name] = true;
+      } else if (d.kind === 'defsynonym') {
+        synNames[d.name] = true;
+      }
+    }
+    function keep(d) {
+      if (d.kind === 'deflet') { return !letNames[d.name]; }
+      if (d.kind === 'defdata') {
+        if (dataNames[d.decl.name]) { return false; }
+        for (var j = 0; j < d.decl.ctors.length; j++) {
+          if (ctorNames[d.decl.ctors[j].name]) { return false; }
+        }
+        return true;
+      }
+      if (d.kind === 'defrecord') { return !recNames[d.decl.name]; }
+      if (d.kind === 'defclass') { return !classNames[d.decl.name]; }
+      if (d.kind === 'defsynonym') { return !synNames[d.name]; }
+      return true;
+    }
+    var kept = [];
+    for (var i = 0; i < pre.length; i++) { if (keep(pre[i])) { kept.push(pre[i]); } }
+    return kept.concat(user);
+  }
+
+  var PRELUDE_PATH = 'prelude.hly';
 
   function dirOf(key) {
     var i = key.lastIndexOf('/');
@@ -2067,6 +2181,21 @@
 
   // The bundled standard-library modules (mirrors halcyon/lib/*.hly).
   var libModules = {
+    'prelude.hly': [
+      '-- The auto-imported standard prelude (mirrors halcyon/lib/prelude.hly).',
+      '-- Every program gets these bindings in scope before its own source;',
+      '-- a user top-level definition with the same name shadows the prelude.',
+      'import "compose.hly"',
+      'import "list.hly"',
+      'import "pair.hly"',
+      'import "maybe.hly"',
+      'import "string.hly"',
+      '',
+      '-- Effect combinators layered on the core effect builtins.',
+      'let when = fn b e => if b then e else return ()',
+      'let seq_ = fn a b => bind a (fn _ => b)',
+      'let rec forever = fn e => bind e (fn _ => forever e)'
+    ].join('\n'),
     'pair.hly': [
       '-- Pair: a two-field product type with projection helpers.',
       'data Pair a b = Pair a b',
@@ -2566,11 +2695,11 @@
       case 'strAppend':  return { ctx: [], qvars: new Set(), body: TT.fun(TT.STR, TT.fun(TT.STR, TT.STR)) };
       case 'strContains': return { ctx: [], qvars: new Set(), body: TT.fun(TT.STR, TT.fun(TT.STR, TT.BOOL)) };
       case 'str':        return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.STR) };
-      case 'return':    return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.EFFECT(a)) };
-      case 'bind':      return { ctx: [], qvars: new Set([0, 1]), body: TT.fun(TT.EFFECT(a), TT.fun(TT.fun(a, TT.EFFECT(b)), TT.EFFECT(b))) };
-      case 'print':     return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.EFFECT(TT.UNIT)) };
-      case 'printLine': return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.EFFECT(TT.UNIT)) };
-      case 'readLine':  return { ctx: [], qvars: new Set(), body: TT.EFFECT(TT.STR) };
+      case 'return':    return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.effect(a)) };
+      case 'bind':      return { ctx: [], qvars: new Set([0, 1]), body: TT.fun(TT.effect(a), TT.fun(TT.fun(a, TT.effect(b)), TT.effect(b))) };
+      case 'print':     return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.effect(TT.UNIT)) };
+      case 'printLine': return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.effect(TT.UNIT)) };
+      case 'readLine':  return { ctx: [], qvars: new Set(), body: TT.effect(TT.STR) };
       default:           return null;
     }
   }
@@ -3752,7 +3881,7 @@
             return HErr('compile', inst.pos, 'instance method ' + mname + ' must be a function');
           }
           var func = buildFunc(denv, renv, body.params, body.body, st);
-          if (func.kind === 'type') { return func; }
+          if (func.kind) { return func; }
           var idx = addConst(st, { c: 'func', f: func });
           methods.push([mname, idx]);
         }
@@ -3992,7 +4121,7 @@
 
   function compileLambda(denv, renv, params, body, st) {
     var func = buildFunc(denv, renv, params, body, st);
-    if (func.kind === 'type') { return func; }
+    if (func.kind) { return func; }
     var idx = addConst(st, { c: 'func', f: func });
     emit(st, { op: 'make_closure', i: idx });
     return null;
@@ -4242,7 +4371,7 @@
   function registerLocal(name, st) {
     var scope = st.scopes[0];
     var slot = st.nextCell;
-    scope.locals.push({ name: name, slot: slot });
+    scope.locals.unshift({ name: name, slot: slot });
     st.nextCell += 1;
     return slot;
   }
@@ -6158,10 +6287,15 @@
     showInstr: showInstr,
     disassemble: disassemble,
     resolveProgram: resolveProgram,
+    resolveProgramNoPrelude: resolveProgramNoPrelude,
     memProvider: memProvider,
+    bundledProvider: bundledProvider,
     resolveWithBundled: resolveWithBundled,
     libModules: libModules,
+    applyShadowing: applyShadowing,
+    preludePath: PRELUDE_PATH,
     evalResolved: evalResolved,
+    evalResolvedEffect: evalResolvedEffect,
     compileResolved: compileResolved,
     inferResolved: inferResolved,
     corpus: corpus,

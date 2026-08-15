@@ -34,11 +34,16 @@ function cliOutput(eff, show) {
 
 function runBoth(label, src, expected, inputs) {
   var ins = inputs || [];
+  var rr = Halcyon.resolveProgramNoPrelude(Halcyon.bundledProvider, '', src);
+  if (rr.kind === 'module' || rr.kind === 'parse') {
+    report(label, false, 'resolve error: ' + rr.message);
+    return;
+  }
   // interpreter
-  var ie = Halcyon.evalProgramEffect(ins, src);
+  var ie = Halcyon.evalResolvedEffect(ins, rr);
   var io = ie && ie.kind ? '<eval error: ' + ie.message + '>' : cliOutput(ie, Halcyon.showValue);
   // compiler + VM
-  var cp = Halcyon.compileProgram(src);
+  var cp = Halcyon.compileResolved(rr, false);
   var vo, vmRes;
   if (cp.kind) {
     vo = '<compile error: ' + cp.message + '>';
@@ -82,9 +87,14 @@ report('disassemble: deterministic',
 // Every corpus program must also run byte-identically on the optimized VM.
 function runOptBoth(label, src, expected, inputs) {
   var ins = inputs || [];
-  var ie = Halcyon.evalProgramEffect(ins, src);
+  var rr = Halcyon.resolveProgramNoPrelude(Halcyon.bundledProvider, '', src);
+  if (rr.kind === 'module' || rr.kind === 'parse') {
+    report(label, false, 'resolve error: ' + rr.message);
+    return;
+  }
+  var ie = Halcyon.evalResolvedEffect(ins, rr);
   var io = ie && ie.kind ? '<eval error: ' + ie.message + '>' : cliOutput(ie, Halcyon.showValue);
-  var cp = Halcyon.compileProgram(src, true);
+  var cp = Halcyon.compileResolved(rr, true);
   var vo, vmRes;
   if (cp.kind) {
     vo = '<compile error: ' + cp.message + '>';
@@ -287,9 +297,64 @@ report('module: memProvider relative resolution',
   resolvedMem.kind ? resolvedMem.message : '');
 var missing = Halcyon.resolveWithBundled('import "nope.hly"\n1\n');
 report('module: missing module rejected', missing.kind === 'module' && /not found/.test(missing.message), missing.message);
-var dupDef = Halcyon.resolveWithBundled('import "../lib/list.hly"\nlet sum = 5\nsum\n');
+var dupDef = Halcyon.resolveWithBundled('let sum = 5\nlet sum = 6\nsum\n');
 report('module: duplicate top-level definition rejected',
   dupDef.kind === 'module' && /duplicate top-level definition/.test(dupDef.message), dupDef.message);
+
+// ---- auto-imported prelude (milestone 24) ----------------------------------
+
+// The prelude is auto-imported, so lib functions are available without an
+// explicit import statement, on both evaluators.
+runResolved('prelude: auto-imported list helpers',
+  'sum (map (fn x => x * x) (range 1 8))\n', '204');
+runResolved('prelude: auto-imported compose',
+  'compose (fn x => x + 1) (fn x => x * 2) 21\n', '43');
+runResolved('prelude: auto-imported maybe helpers',
+  'fromMaybe 0 Nothing + fromMaybe 7 (Just 5)\n', '5');
+runResolved('prelude: auto-imported string helpers',
+  'toUpperStr (repeat 2 "hi")\n', 'HIHI');
+// Effectful prelude combinators run their effects (output + unit result).
+function runResolvedEffect(label, src, expected) {
+  var rr = Halcyon.resolveWithBundled(src);
+  if (rr.kind === 'module' || rr.kind === 'parse') {
+    report(label, false, 'resolve error: ' + rr.message);
+    return;
+  }
+  var ie = Halcyon.evalResolvedEffect([], rr);
+  var io = ie && ie.kind ? '<eval error: ' + ie.message + '>' : cliOutput(ie, Halcyon.showValue);
+  var cp = Halcyon.compileResolved(rr, false);
+  var vo, vmRes;
+  if (cp.kind) {
+    vo = '<compile error: ' + cp.message + '>';
+  } else {
+    vmRes = Halcyon.runVmEffect(cp.program, []);
+    vo = vmRes && vmRes.kind ? '<vm error: ' + vmRes.message + '>' : cliOutput(vmRes, Halcyon.vmShowValue);
+  }
+  if (io !== vo || (expected !== null && expected !== undefined && io !== expected)) {
+    report(label, false, 'expected ' + expected + ', interpreter=' + io + ', vm=' + vo);
+    return;
+  }
+  report(label, true, io);
+}
+runResolvedEffect('prelude: effect output',
+  'seq_ (when true (printLine "first")) (when true (printLine "second"))\n', 'first\nsecond\n');
+runResolvedEffect('prelude: when false skips',
+  'seq_ (when false (printLine "skip")) (printLine "kept")\n', 'kept\n');
+
+// A user definition shadows the prelude's same-named definition; the
+// prelude's definition is dropped, so redefining sum is not a duplicate.
+runResolved('prelude: let binding shadows sum',
+  'let sum = fn xs => 99 in sum [1, 2, 3]\n', '99');
+runResolved('prelude: let binding shadows map',
+  'let map = fn f xs => 99 in map (fn x => x) [1, 2]\n', '99');
+runResolved('prelude: let binding shadows id',
+  'let id = fn x => 100 in id 1\n', '100');
+runResolved('prelude: redefining a prelude name is allowed',
+  'import "../lib/list.hly"\nlet sum = 5\nsum\n', '5');
+runResolved('prelude: shadowed let does not affect prelude folding',
+  'let rec foldl = fn f acc xs => match xs with | [] => acc | x :: t => foldl f (f acc x) t\nin foldl (fn acc x => acc + x) 0 (range 1 5)\n', '15');
+runResolved('prelude: explicit import of prelude is harmless',
+  'import "../lib/prelude.hly"\ncompose (fn x => x + 1) (fn x => x * 2) 21\n', '43');
 
 // Top-level definitions typecheck and evaluate on both evaluators.
 runBoth('topdefs', Halcyon.corpus[29].source, '5021');

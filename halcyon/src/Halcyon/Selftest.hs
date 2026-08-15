@@ -5,8 +5,10 @@ module Halcyon.Selftest
   ( runSelftest
   ) where
 
+import Control.Exception (IOException, try)
 import Control.Monad (forM_, when)
 import Data.List (isInfixOf)
+import System.FilePath ((</>))
 
 import qualified Data.Map.Strict as Map
 
@@ -1156,6 +1158,64 @@ moduleTests = sequence
   ]
 
 -- ---------------------------------------------------------------------
+-- Auto-imported shadowable prelude (M24), driven by the real lib/ files.
+-- ---------------------------------------------------------------------
+
+-- Read the real lib/ prelude and its dependencies into an in-memory
+-- provider so the auto-import resolution path is exercised end to end.
+preludeProvider :: IO (Either String (Map.Map FilePath String))
+preludeProvider = do
+  rs <- mapM load ["prelude.hly", "compose.hly", "list.hly", "pair.hly", "maybe.hly", "string.hly"]
+  return $ case [m | Left m <- rs] of
+    (m : _) -> Left m
+    []      -> Right (Map.fromList [(f, s) | Right (f, s) <- rs])
+  where
+    load f = do
+      r <- try (readFile ("lib" </> f)) :: IO (Either IOException String)
+      return $ case r of
+        Left e  -> Left ("cannot read lib/" <> f <> ": " <> show e)
+        Right s -> Right (f, s)
+
+preludeAs :: Map.Map FilePath String -> String -> String -> IO (Either String ())
+preludeAs = resolvedAs
+
+preludeEffectAs :: Map.Map FilePath String -> String -> String -> String -> IO (Either String ())
+preludeEffectAs mods src expOut expVal = do
+  r <- resolveProgram (memProvider mods) "" src
+  return $ case r of
+    Left (ModuleError _ m) -> Left ("module error: " <> m)
+    Right prog -> case evalProgramEffect [] prog of
+      Left (EvalError _ m) -> Left ("eval error: " <> m)
+      Right Nothing        -> Left ("expected output " <> show expOut <> ", but the program has no result")
+      Right (Just (out, v)) ->
+        let shown = showValue v
+        in if out == expOut && shown == expVal
+             then Right ()
+             else Left ("expected out=" <> show expOut <> " val=" <> expVal <> ", got out=" <> show out <> " val=" <> shown)
+
+preludeFails :: Map.Map FilePath String -> String -> IO (Either String ())
+preludeFails = resolvedFails
+
+preludeTests :: IO Harness
+preludeTests = do
+  files <- preludeProvider
+  case files of
+    Left m -> return [check "prelude: fixture readable" (Left m)]
+    Right mods -> sequence
+      [ checkIO "prelude: auto-imported list helpers" (preludeAs mods "sum (map (fn x => x * x) (range 1 8))" "204")
+      , checkIO "prelude: auto-imported compose" (preludeAs mods "compose (fn x => x + 1) (fn x => x * 2) 21" "43")
+      , checkIO "prelude: auto-imported maybe helpers" (preludeAs mods "fromMaybe 0 Nothing + fromMaybe 7 (Just 5)" "5")
+      , checkIO "prelude: auto-imported string helpers" (preludeAs mods "toUpperStr (repeat 2 \"hi\")" "HIHI")
+      , checkIO "prelude: effects run (when true)" (preludeEffectAs mods "seq_ (when true (printLine \"hi\")) (return ())" "hi\n" "()")
+      , checkIO "prelude: when false skips" (preludeEffectAs mods "seq_ (when false (printLine \"skip\")) (printLine \"kept\")" "kept\n" "()")
+      , checkIO "prelude: let shadows map" (preludeAs mods "let map = fn f xs => 99 in map (fn x => x) [1, 2]" "99")
+      , checkIO "prelude: let shadows id" (preludeAs mods "let id = fn x => 100 in id 1" "100")
+      , checkIO "prelude: redefining a prelude name is not a duplicate" (preludeAs mods "let sum = 5\nsum" "5")
+      , checkIO "prelude: shadowed foldl still folds" (preludeAs mods "let rec foldl = fn f acc xs => match xs with | [] => acc | x :: t => foldl f (f acc x) t\nin foldl (fn acc x => acc + x) 0 (range 1 5)" "15")
+      , checkIO "prelude: explicit import of prelude dedups" (preludeAs mods "import \"prelude.hly\"\nsum (map (fn x => x) (range 1 5))" "15")
+      ]
+
+-- ---------------------------------------------------------------------
 -- Main
 -- ---------------------------------------------------------------------
 
@@ -1169,6 +1229,7 @@ runSelftest = do
   optCorp <- optCorpusTests
   prof <- profilerTests
   mods <- moduleTests
+  prel <- preludeTests
   let groups =
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
@@ -1182,6 +1243,7 @@ runSelftest = do
         , ("opt-corpus", optCorp)
         , ("profiler", prof)
         , ("modules", mods)
+        , ("prelude", prel)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups

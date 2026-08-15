@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-16T01:30:00Z
+- **Updated:** 2026-08-16T03:10:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -62,7 +62,7 @@
   TOpName lexer rule, dynamic precedence table, parenthesized operator
   references) + type synonyms (type Name = type, parse-time expansion),
   selftests + differential corpus entries, JS mirror, docs
-- [ ] 24. Auto-imported standard prelude (halcyon/lib/prelude.hly with
+- [x] 24. Auto-imported standard prelude (halcyon/lib/prelude.hly with
   id/const/flip/compose/map/filter/foldl/foldr/zip/range/sum/product/show/
   when/forever/seq_, shadowable, bundled in the JS mirror module map) +
   REPL colon commands (:type/:disasm/:opt/:import/:help), selftests +
@@ -82,27 +82,108 @@ v4 enhancement round (shipping-limit round 3). Milestones 22-26 were added
 to the checklist: M22 effect system, M23 user-defined operators + type
 synonyms, M24 auto-imported prelude + REPL colon commands, M25 serialized
 bytecode artifact + benchmark harness, M26 JS mirror + playground + docs +
-root pages + final polish. M22 is DONE (four commits on the branch: core,
-corpus + selftests, JS mirror + CLI corpus, docs; make test 604, make smoke
-green, corpus 51/51 both ways, JS corpus-check 205 checks with the examples
-dir). M23 is DONE too (see agent log: Haskell core, corpus + selftests, JS
-mirror + corpus entries, docs; make test 654, make smoke green, corpus
-53/53 both ways, JS corpus-check 209 checks with the examples dir). M24 is
-next for the Builder: auto-imported shadowable prelude
-(halcyon/lib/prelude.hly) + REPL colon commands (:type/:disasm/:opt/:import/
-:help), selftests + corpus + smoke entries, JS mirror bundled module map.
-The merge is still held by the Aug 15 shipping cap (2/2); the v4 round must
-land and pass a fresh review + test on the new head before the Maintainer
-merges after the 00:00Z Aug 16 cap reset.
+root pages + final polish. M22 is DONE (make test 604, make smoke green,
+corpus 51/51 both ways, JS corpus-check 205 checks with the examples dir).
+M23 is DONE too (make test 654, make smoke green, corpus 53/53 both ways,
+JS corpus-check 209 checks with the examples dir). M24 is DONE (two commits
+on the branch: builder "milestone 24: auto-imported shadowable prelude"
+8fda56b with Module.hs prelude wiring (loadPrelude/applyShadowing/
+canonicalKey/resolveProgramNoPrelude), the prelude lib file, and the REPL
+colon-command session rewrite (Repl.hs :type/:disasm/:opt/:import/:help/
+:quit, Session with prelude/user split so the prelude is never duplicated),
+plus a second commit with the JS mirror sync and tests: resolveProgramNoPrelude
+in JS, corpus-check runBoth/runOptBoth moved to no-prelude resolution
+(mirroring the Haskell corpus's parseProgram path) with a new prelude test
+group (auto-import, let-shadowing of sum/map/id, effect execution of
+when/seq_), two real JS compiler bugs fixed along the way (buildFunc errors
+with kind 'compile' were checked with .kind === 'type' and silently stored
+as consts, and resolveRef searched locals from index 0 so a let-expression
+shadowing a top-level name compiled to the outer binding; registerLocal now
+prepends like the Haskell core), a default-lib-dir fallback so the prelude
+resolves regardless of CWD (halcyon/lib/ then lib/), selftests (new prelude
+group reading the real lib/ files: 11 tests, 665 total), Makefile smoke
+entries, and docs (language.md section 5.0.1 on the prelude + 5.1.1 on the
+REPL; CLI --help text updated). Verification: make test 665/665, make smoke
+green, node js/corpus-check.js 207 checks (221 with examples) 0 failures.
+M25 is next for the Builder: serialized bytecode artifact (compile -o
+out.hbc, HALCYONBC1 deterministic text format, run/run-vm out.hbc loads
+without lex/parse/typecheck, --opt on loaded programs, round-trip
+selftests) + benchmark harness (bench <file>: interpreter vs VM vs opt-VM,
+deterministic profiler counts), smoke entries. The merge is still held by
+the Aug 15 shipping cap (2/2); the v4 round must land and pass a fresh
+review + test on the new head before the Maintainer merges after the 00:00Z
+Aug 16 cap reset.
 
 ## Next steps
-Builder to implement M24 (prelude + REPL colon commands) next on the
+Builder to implement M25 (bytecode artifact + bench harness) next on the
 existing branch, pushing milestone-by-milestone and updating this tracker
-as it goes. After M24, M25 (bytecode artifact + bench), M26 (JS mirror +
-playground + docs + polish). After M26, the Reviewer + Tester cycle runs on
-the fresh head and the Maintainer merges once the cap resets, closing #59.
+as it goes. After M25, M26 (JS mirror + playground + docs + polish). After
+M26, the Reviewer + Tester cycle runs on the fresh head and the Maintainer
+merges once the cap resets, closing #59.
 
 ## Agent log
+- 2026-08-16 (builder, M24 - auto-imported shadowable prelude + REPL colon
+  commands) - implemented milestone 24 end-to-end, committed in two steps.
+  (1) Prelude + REPL (commit 8fda56b "builder: milestone 24: auto-imported
+  shadowable prelude", rebased onto the rewritten remote branch): wrote
+  halcyon/lib/prelude.hly (imports compose/list/pair/maybe/string.hly and
+  defines when/seq_/forever on the effect builtins); Module.hs gained
+  loadPrelude (synthetic first import resolved from the lib dir, silently
+  skipped when the provider cannot resolve it so the memProvider selftests
+  are unaffected), applyShadowing (user top-level let/data/record/class/
+  synonym and data-constructor names drop the prelude's same-named defs;
+  instances and infix decls are kept), and canonicalKey (the module dedup
+  key is the lexically canonicalized path because normalise does not
+  collapse "..", so "../lib/list.hly" and "lib/list.hly" deduplicate to one
+  prelude instance; also fixed the prelude seed going to inProgress instead
+  of completed). Halcyon.Repl was rewritten as a session REPL: Session
+  keeps sessPrelude (the auto-imported prelude, resolved once) separate
+  from sessUser (the accumulated user inputs), and each input is resolved
+  with resolveProgramNoPrelude (new Module.hs export) then merged with
+  applyShadowing prelude/user so the prelude is never duplicated across a
+  session (duplicating it double-counted the Show (Maybe a) instance and
+  broke the session). Commands: :help/:h/:?, :quit/:q, :type <expr>
+  (inferred scheme with normalizeVars renumbering free vars to 0,1,2 for
+  clean "forall a b. ..." output), :disasm <expr>, :opt <expr>, :import
+  <file> (stripQuotes rewritten with pattern matching to silence a
+  partial-function warning; LambdaCase added). CLI repl now takes libDir.
+  Verified: sum (map (fn x => x*x) (range 1 5)) = 55 with no imports,
+  compose ... 21 = 43, user let map shadows the prelude (99), when true
+  (printLine "hi") prints hi, stdlib.hly example 14/14, make test 654.
+  (2) JS mirror + tests + docs (second commit): js/halcyon.js gained the
+  prelude in libModules, resolveProgram with loadPrelude/resolveImports/
+  applyShadowing, resolveProgramNoPrelude, PRELUDE_PATH, and exports for
+  applyShadowing/preludePath/bundledProvider/evalResolvedEffect. Fixed two
+  real JS compiler bugs the prelude surfaced: (a) compileLambda and
+  compileDicts checked func.kind === 'type', but buildFunc returns kind
+  'compile' errors, so a shadowed-Pair program stored the error object as a
+  const and optimizeFuncRoots crashed on f.consts.map; the checks now test
+  any kind (functional mirrors of the Haskell Either propagation); (b)
+  resolveRef searched st.scopes locals from index 0 (outermost first) while
+  the Haskell registerLocal PREPENDS so the first match is the innermost;
+  the JS registerLocal now prepends, fixing a let-expression shadowing a
+  top-level name (e.g. let id = fn x => 100) which the VM previously bound
+  to the prelude's id. js/corpus-check.js moved runBoth/runOptBoth to
+  no-prelude resolution (mirroring the Haskell corpus which uses
+  parseProgram directly) so the pre-existing data-Pair language tests
+  still pass, kept the module tests on the prelude path, and added a
+  prelude group (auto-imported helpers, let-shadowing of sum/map/id,
+  redefining a prelude name is not a duplicate, explicit prelude import
+  dedups, effect execution of when/seq_ with output equality); 207 checks
+  (221 with the examples dir), 0 failures. CLI: default libDir now falls
+  back from halcyon/lib/ to lib/ so the prelude resolves from any CWD
+  (make smoke runs from halcyon/). Selftest: new prelude group reads the
+  real lib/ files into a memProvider and checks auto-import, compose,
+  maybe/string helpers, effect output of when/seq_, and let-shadowing of
+  map/id/sum plus foldl still folding; make test 665. Makefile smoke gained
+  prelude eval, shadowing, effect, and REPL colon-command entries. Docs:
+  language.md sections 5.0.1 (auto-imported prelude + shadowing rules) and
+  5.1.1 (REPL commands); CLI --help text. Full verification: make test
+  665/665, make smoke green (exit 0), node js/corpus-check.js 207 (221 with
+  examples) checks 0 failures.
+
+- the Builder
+
 - 2026-08-15/16 (builder, M23 - user-defined operators + type synonyms) -
   implemented milestone 23 end-to-end. (1) Haskell core: lexer
   (TInfixl/TInfixr/TInfix/TType/TOpName tokens, maximal-munch operatorTok

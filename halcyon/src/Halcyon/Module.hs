@@ -9,6 +9,7 @@
 module Halcyon.Module
   ( loadProgram
   , resolveProgram
+  , resolveProgramNoPrelude
   , ModuleError(..)
   , ImportProvider
   , diskProvider
@@ -73,7 +74,7 @@ resolveProgram provider rootDir src = do
   case pre of
     Left e -> return (Left e)
     Right (preDefs, preComp) -> do
-      r <- go Set.empty preComp rootDir src
+      r <- go provider Set.empty preComp rootDir src
       return $ case r of
         Left e               -> Left e
         Right (defs, expr, _) ->
@@ -81,61 +82,75 @@ resolveProgram provider rootDir src = do
           in case checkProgram (Program [] merged expr) of
                Left m  -> Left (ModuleError (Pos 0 0) m)
                Right _ -> Right (Program [] merged expr)
-  where
-    -- Load one module: parse it, merge its own imports (in order, before its
-    -- own definitions), and return the merged definitions, the module's own
-    -- final expression (if any), and the set of completed module keys.
-    -- @inProgress@ holds the keys of modules being loaded right now, so a
-    -- genuine cycle errors while a repeated import of an already-completed
-    -- module is silently deduplicated.
-    go :: Set.Set String -> Set.Set String -> FilePath -> String -> IO (Either ModuleError ([TopDef], Maybe Expr, Set.Set String))
-    go inProgress completed dir src = case parseProgram src of
-      Left (ParseError p m) -> return (Left (ModuleError p m))
-      Right (Program imports defs expr) -> do
-        acc <- foldM (importOne inProgress completed dir) (Right ([], completed)) imports
-        case acc of
-          Left e              -> return (Left e)
-          Right (defs', comp') -> return (Right (defs' <> defs, expr, comp'))
 
-    importOne :: Set.Set String -> Set.Set String -> FilePath -> (Either ModuleError ([TopDef], Set.Set String)) -> String -> IO (Either ModuleError ([TopDef], Set.Set String))
-    importOne _ _ _ (Left e) _ = return (Left e)
-    importOne inProgress completed dir (Right (acc, comp)) path = do
-      found <- provider dir path
-      case found of
-        Nothing -> return (Left (ModuleError (Pos 0 0) ("module not found: " <> path)))
-        Just (key, src')
-          | key `Set.member` inProgress ->
-              return (Left (ModuleError (Pos 0 0) ("circular import: " <> path)))
-          | key `Set.member` comp ->
-              -- Already imported and merged; nothing to add.
-              return (Right (acc, comp))
-          | otherwise -> do
-              -- The imported module resolves its own imports relative to its
-              -- own directory (the directory of its canonical key).
-              r <- go (Set.insert key inProgress) comp (takeDirectory key) src'
-              return $ case r of
-                Left e                -> Left e
-                Right (defs', _expr, comp') -> Right (acc <> defs', Set.insert key comp')
+-- | Fully resolve a program's imports and definitions without the
+-- auto-imported prelude: only the source's own @import@ statements and its
+-- own top-level definitions are merged. Used by the REPL, which keeps the
+-- prelude separate so it is never duplicated across a session.
+resolveProgramNoPrelude :: ImportProvider -> FilePath -> String -> IO (Either ModuleError Program)
+resolveProgramNoPrelude provider rootDir src = do
+  r <- go provider Set.empty Set.empty rootDir src
+  return $ case r of
+    Left e               -> Left e
+    Right (defs, expr, _) ->
+      case checkProgram (Program [] defs expr) of
+        Left m  -> Left (ModuleError (Pos 0 0) m)
+        Right _ -> Right (Program [] defs expr)
 
-    -- Resolve the auto-imported standard prelude: a synthetic first import
-    -- resolved from the lib directory (an empty root directory, so a user
-    -- program's own directory never shadows the prelude). Returns the
-    -- prelude's merged definitions and the set of module keys it completed,
-    -- so the user program's imports deduplicate against it. When the
-    -- provider cannot resolve the prelude at all (e.g. an in-memory map
-    -- without the file) the prelude is skipped silently: production runs
-    -- always resolve it through the disk provider, and test providers opt
-    -- in explicitly.
-    loadPrelude :: ImportProvider -> IO (Either ModuleError ([TopDef], Set.Set String))
-    loadPrelude prov = do
-      found <- prov "" preludePath
-      case found of
-        Nothing -> return (Right ([], Set.empty))
-        Just _  -> do
-          r <- go Set.empty Set.empty "" ("import \"" <> preludePath <> "\"\n")
+-- | Load one module: parse it, merge its own imports (in order, before its
+-- own definitions), and return the merged definitions, the module's own
+-- final expression (if any), and the set of completed module keys.
+-- @inProgress@ holds the keys of modules being loaded right now, so a
+-- genuine cycle errors while a repeated import of an already-completed
+-- module is silently deduplicated.
+go :: ImportProvider -> Set.Set String -> Set.Set String -> FilePath -> String -> IO (Either ModuleError ([TopDef], Maybe Expr, Set.Set String))
+go provider inProgress completed dir src = case parseProgram src of
+  Left (ParseError p m) -> return (Left (ModuleError p m))
+  Right (Program imports defs expr) -> do
+    acc <- foldM (importOne provider inProgress completed dir) (Right ([], completed)) imports
+    case acc of
+      Left e              -> return (Left e)
+      Right (defs', comp') -> return (Right (defs' <> defs, expr, comp'))
+
+importOne :: ImportProvider -> Set.Set String -> Set.Set String -> FilePath -> (Either ModuleError ([TopDef], Set.Set String)) -> String -> IO (Either ModuleError ([TopDef], Set.Set String))
+importOne _ _ _ _ (Left e) _ = return (Left e)
+importOne provider inProgress completed dir (Right (acc, comp)) path = do
+  found <- provider dir path
+  case found of
+    Nothing -> return (Left (ModuleError (Pos 0 0) ("module not found: " <> path)))
+    Just (key, src')
+      | key `Set.member` inProgress ->
+          return (Left (ModuleError (Pos 0 0) ("circular import: " <> path)))
+      | key `Set.member` comp ->
+          -- Already imported and merged; nothing to add.
+          return (Right (acc, comp))
+      | otherwise -> do
+          -- The imported module resolves its own imports relative to its
+          -- own directory (the directory of its canonical key).
+          r <- go provider (Set.insert key inProgress) comp (takeDirectory key) src'
           return $ case r of
             Left e                -> Left e
-            Right (defs, _, comp) -> Right (defs, comp)
+            Right (defs', _expr, comp') -> Right (acc <> defs', Set.insert key comp')
+
+-- | Resolve the auto-imported standard prelude: a synthetic first import
+-- resolved from the lib directory (an empty root directory, so a user
+-- program's own directory never shadows the prelude). Returns the
+-- prelude's merged definitions and the set of module keys it completed,
+-- so the user program's imports deduplicate against it. When the
+-- provider cannot resolve the prelude at all (e.g. an in-memory map
+-- without the file) the prelude is skipped silently: production runs
+-- always resolve it through the disk provider, and test providers opt
+-- in explicitly.
+loadPrelude :: ImportProvider -> IO (Either ModuleError ([TopDef], Set.Set String))
+loadPrelude prov = do
+  found <- prov "" preludePath
+  case found of
+    Nothing -> return (Right ([], Set.empty))
+    Just _  -> do
+      r <- go prov Set.empty Set.empty "" ("import \"" <> preludePath <> "\"\n")
+      return $ case r of
+        Left e                -> Left e
+        Right (defs, _, comp) -> Right (defs, comp)
 
 -- | A disk-backed provider: try the importing directory, then the lib
 -- directory. The canonical key is the lexically canonicalized file path, so

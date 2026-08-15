@@ -43,10 +43,16 @@ smoke: $(BIN)
 	[ "$$(cat /tmp/halcyon-stats.out)" = "75025" ]; \
 	$(BIN) eval '1 + 2 * 3'; \
 	$(BIN) eval 'let xs = [1, 2, 3] in length (append xs (reverse xs))'; \
+	[ "$$($(BIN) eval 'sum (map (fn x => x * x) (range 1 5))')" = "55" ]; \
+	[ "$$($(BIN) eval 'compose (fn x => x + 1) (fn x => x * 2) 21')" = "43" ]; \
+	[ "$$($(BIN) eval 'let sum = fn xs => 99 in sum [1, 2, 3]')" = "99" ]; \
+	[ "$$($(BIN) eval 'when true (printLine "hi")')" = "hi" ]; \
 	$(BIN) check examples/map.hly; \
 	$(BIN) compile examples/promotion.hly > /dev/null; \
 	$(BIN) compile --opt examples/promotion.hly > /dev/null; \
 	printf '1 + 2\nlet rec f = fn n => if n < 2 then n else f (n - 1) + f (n - 2) in f 10\n' | $(BIN) repl; \
+	printf ':help\n:type map\n:disasm sum\n:opt sum\n:import "string.hly"\ntoUpperStr "hi"\n:quit\n' | $(BIN) repl | grep -q HI; \
+	printf ':type map\n' | $(BIN) repl | grep -Fq 'forall a b. (b -> a) -> [b] -> [a]'; \
 	$(BIN) --version; \
 	$(BIN) --help > /dev/null; \
 	printf '1 + @\n' > /tmp/halcyon-bad.hly; \
