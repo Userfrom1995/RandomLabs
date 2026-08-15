@@ -17,6 +17,7 @@ import System.IO
   , stdout
   )
 
+import Halcyon.Diag (renderError)
 import Halcyon.Eval (EvalError(..), evalProgram, showValue)
 import Halcyon.Infer (InferError(..), inferProgram)
 import Halcyon.Parser (ParseError(..), parseProgram)
@@ -55,23 +56,23 @@ repl = do
             then loop interactive ""              -- blank line: reset
             else case parseProgram buf' of
               Right _ -> evalAndPrint buf' >> loop interactive ""
-              Left (ParseError _ m)
+              Left (ParseError p m)
                 -- A parse error reporting end of input means the program is
                 -- truncated, not wrong; keep accumulating.
                 | "end of input" `isInfixOf` m -> loop interactive buf'
-                | otherwise -> putStrLn ("parse error: " <> m) >> loop interactive ""
+                | otherwise -> putStrLn (renderError buf' p ("parse error: " <> m)) >> loop interactive ""
 
     -- Input ended while the buffer was still incomplete; report the error.
     reportIncomplete buf =
       case parseProgram buf of
-        Left (ParseError _ m) -> putStrLn ("parse error: " <> m)
+        Left (ParseError p m) -> putStrLn (renderError buf p ("parse error: " <> m))
         Right _ -> evalAndPrint buf
 
     -- Typecheck then tree-walk evaluate, printing the value.
     evalAndPrint src = case inferProgram src of
-      Left (TypeError _ m) -> putStrLn ("type error: " <> m)
+      Left (TypeError p m) -> putStrLn (renderError src p ("type error: " <> m))
       Right _ -> case evalProgram src of
-        Left (EvalError _ m) -> putStrLn ("runtime error: " <> m)
+        Left (EvalError p m) -> putStrLn (renderError src p ("runtime error: " <> m))
         Right v -> putStrLn (showValue v)
 
     trim = f . f

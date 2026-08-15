@@ -14,6 +14,7 @@ import System.IO (hPutStrLn, stderr)
 
 import Halcyon.Compile (CompileError(..), Program(..), compileProgram, disassemble)
 import Halcyon.Corpus (CorpusEntry(..), corpus)
+import Halcyon.Diag (renderError)
 import Halcyon.Eval (EvalError(..), evalProgram, showValue)
 import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Repl (repl)
@@ -29,6 +30,7 @@ import Halcyon.Token (Pos(..))
 --   halcyon run <file>         typecheck then tree-walk evaluate a .hly file
 --   halcyon run-vm <file>      typecheck then execute on the bytecode VM
 --   halcyon run-vm --trace <file>  as above, tracing every executed instruction
+--   halcyon eval <expr>        typecheck then evaluate an inline expression
 --   halcyon check <file>       typecheck only; print the inferred top-level type
 --   halcyon compile <file>     compile to bytecode; print the disassembly
 --   halcyon corpus             run the differential corpus through both evaluators
@@ -53,6 +55,7 @@ runCli = do
     ["run", file]                  -> runFile file
     ["run-vm", file]               -> runVmFile False file
     ["run-vm", "--trace", file]    -> runVmFile True file
+    ["eval", expr]                 -> evalInline expr
     ["check", file]                -> checkFile file
     ["compile", file]              -> compileFile file
     [cmd]                          -> usageError cmd
@@ -71,11 +74,23 @@ runFile file = do
     Left e -> die e
     Right s ->
       case inferProgram s of
-        Left (TypeError p m) -> die (posStr p <> ": type error: " <> m)
+        Left (TypeError p m) -> die (renderError s p (posStr p <> ": type error: " <> m))
         Right _ ->
           case evalProgram s of
-            Left (EvalError p m) -> die (posStr p <> ": runtime error: " <> m)
+            Left (EvalError p m) -> die (renderError s p (posStr p <> ": runtime error: " <> m))
             Right v -> putStrLn (showValue v) >> exitSuccess
+
+-- | @halcyon eval@: typecheck then evaluate an inline expression and print
+-- the value. No file needed, so pipelines and scripting can use it
+-- directly; exit codes match the file-based commands.
+evalInline :: String -> IO ()
+evalInline src =
+  case inferProgram src of
+    Left (TypeError p m) -> die (renderError src p (posStr p <> ": type error: " <> m))
+    Right _ ->
+      case evalProgram src of
+        Left (EvalError p m) -> die (renderError src p (posStr p <> ": runtime error: " <> m))
+        Right v -> putStrLn (showValue v) >> exitSuccess
 
 -- | @halcyon run-vm@: typecheck then compile and execute on the bytecode VM.
 -- With @--trace@ every executed instruction is printed to stderr.
@@ -86,10 +101,10 @@ runVmFile trace file = do
     Left e -> die e
     Right s ->
       case inferProgram s of
-        Left (TypeError p m) -> die (posStr p <> ": type error: " <> m)
+        Left (TypeError p m) -> die (renderError s p (posStr p <> ": type error: " <> m))
         Right _ ->
           case compileProgram s of
-            Left (CompileError p m) -> die (posStr p <> ": compile error: " <> m)
+            Left (CompileError p m) -> die (renderError s p (posStr p <> ": compile error: " <> m))
             Right prog -> do
               res <- runVm trace prog
               case res of
@@ -104,7 +119,7 @@ checkFile file = do
     Left e -> die e
     Right s ->
       case inferProgram s of
-        Left (TypeError p m) -> die (posStr p <> ": type error: " <> m)
+        Left (TypeError p m) -> die (renderError s p (posStr p <> ": type error: " <> m))
         Right t -> putStrLn (showType t) >> exitSuccess
 
 -- | @halcyon compile@: typecheck then compile and print the disassembly.
@@ -115,10 +130,10 @@ compileFile file = do
     Left e -> die e
     Right s ->
       case inferProgram s of
-        Left (TypeError p m) -> die (posStr p <> ": type error: " <> m)
+        Left (TypeError p m) -> die (renderError s p (posStr p <> ": type error: " <> m))
         Right _ ->
           case compileProgram s of
-            Left (CompileError p m) -> die (posStr p <> ": compile error: " <> m)
+            Left (CompileError p m) -> die (renderError s p (posStr p <> ": compile error: " <> m))
             Right prog -> putStr (disassemble (pEntry prog)) >> exitSuccess
 
 -- | @halcyon corpus@: run the embedded corpus through both evaluators; each
@@ -223,6 +238,7 @@ helpText = unlines
   , "  run <file>               typecheck then tree-walk evaluate a .hly file"
   , "  run-vm <file>            typecheck then execute on the bytecode VM"
   , "  run-vm --trace <file>    as above, tracing every executed instruction"
+  , "  eval <expr>              typecheck and evaluate an inline expression"
   , "  check <file>             typecheck only; print the inferred top-level type"
   , "  compile <file>           compile to bytecode; print the disassembly"
   , "  corpus                   run the differential corpus through both evaluators"

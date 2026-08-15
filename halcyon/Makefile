@@ -33,6 +33,8 @@ smoke: $(BIN)
 	$(BIN) corpus --examples examples; \
 	$(BIN) run examples/fib.hly; \
 	$(BIN) run-vm examples/fib.hly; \
+	$(BIN) eval '1 + 2 * 3'; \
+	$(BIN) eval 'let xs = [1, 2, 3] in length (append xs (reverse xs))'; \
 	$(BIN) check examples/map.hly; \
 	$(BIN) compile examples/promotion.hly > /dev/null; \
 	printf '1 + 2\nlet rec f = fn n => if n < 2 then n else f (n - 1) + f (n - 2) in f 10\n' | $(BIN) repl; \
