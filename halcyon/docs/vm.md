@@ -32,6 +32,12 @@ disassembly.
     `take`, `drop`) form partial applications that accumulate arguments
     until the arity is satisfied, and unary builtins (`length`, `reverse`,
     `head`, `tail`, `isNil`) complete immediately.
+  - method calls (`show v`, `size v`) dispatch through the dictionary that
+    inference attached to the value. The compiler resolves the class and
+    method to a constant and the VM looks the method up in the value's
+    dictionary at the call site (`vm_method`); with `--opt` the compiler
+    rewrites the site into a direct `call` to the resolved instance's
+    method, skipping the runtime lookup entirely.
 
 A program is a single entry function whose body is a whole expression; the
 top-level executes it and `Halt`s.
@@ -76,9 +82,14 @@ contexts to walk), `n` = count, `o` = instruction offset.
 | `make_list`    | `n`      | `v1..vn -> [v1..vn]`              | pop `n` values in order, push list |
 | `make_data`    | `i`      | `args -> Data i args`             | build a constructor value for data-pool index `i` |
 | `test_constr`  | `i:o`    | `Data ->`                         | jump to `o` when the value's constructor index is `i`, else pop and continue |
-| `test_int` `test_float` `test_bool` `test_str` | `i:o` | `v ->` | jump to `o` when the value equals constant `i`, else pop |
+| `test_int` `test_float` `test_bool` `test_str` `test_char` | `i:o` | `v ->` | jump to `o` when the value equals constant `i`, else pop |
 | `test_nil`     | `o`      | `[a] ->`                          | jump to `o` when the list is empty |
 | `test_cons`    | `o`      | `[a] ->`                          | jump to `o` when the list is non-empty |
+| `make_record`  | `i`      | `args -> Record i args`           | build a record value for record-pool index `i` |
+| `get_field`    | `i`      | `Rec -> v`                        | push the field at constant index `i`; `get_field on non-record value` on a non-record |
+| `update_field` | `i`      | `Rec v -> Rec'`                   | replace field `i` with `v` in a new record |
+| `test_record`  | `i:o`    | `Rec ->`                          | jump to `o` when the value's record index is `i`, else pop and continue |
+| `vm_method`    | `i`      | `dict v -> fn`                    | look up method constant `i` in `dict`, push it applied to `v` |
 | `bind_local`   | `s`      | `v ->`                            | pop into slot `s` without creating a cell |
 | `fail`         |          | `v ->`                            | raise `no matching pattern` |
 | `halt`         |          | `->`                              | stop; result is the stack top |
@@ -97,6 +108,37 @@ Constructor values carry a tag (the data-pool index) and their fields, so
 `make_data` pops the fields in order and `test_constr` dispatches on the
 tag. `match` compiles each branch to a `test_*` + `jump` chain, exactly as
 documented in the language reference.
+
+### Records
+
+Record values carry a tag (the record-pool index) and their fields, in
+declaration order. `make_record` pops the fields in order; `get_field`
+picks one field out by constant index; `update_field` pops the new value
+and the record and pushes a fresh record with that field replaced (the
+original is untouched, matching the immutable semantics). `test_record`
+dispatches on the record tag for record patterns. Field and record-pool
+constants render in disassembly as `(field x)` and `(record Point)`.
+
+### Classes and dictionaries
+
+Class method calls compile to `vm_method`, whose constant is the resolved
+method entry (class name plus method name). The value's dictionary carries
+the method as a closure; `vm_method` looks it up and applies it to the
+value, so `size rect` executes `size` with `rect` bound. Dictionaries are
+built at program start from the `instance` declarations. The optimizer
+replaces `vm_method` with a direct `call` to the specific instance's
+method when it can resolve the constraint at compile time; the output is
+identical, only faster.
+
+### Profiling
+
+`halcyon run-vm --profile` (and the playground's Profile panel) count
+instructions executed, calls made, and peak operand-stack and frame depth.
+The profiler wraps the machine without changing its execution: the same
+programs produce byte-identical output with and without profiling, and the
+reported counters are stable across runs of the same input. The summary is
+a one-line `profile: N instructions, peak stack S, peak frames F` followed
+by per-function call counts and per-opcode instruction counts.
 
 ## 4. Example disassembly
 

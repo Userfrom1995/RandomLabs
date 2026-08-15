@@ -19,10 +19,11 @@ Tokens:
 | Integer   | `0` `42` `-7` `1000000000000`                   |
 | Float     | `3.14` `-0.5` `2.0` (written with a `.`)        |
 | String    | `"hello"` `"a\nb"` (escape sequences supported) |
+| Char      | `'a'` `'0'` `'\n'` (escape sequences supported) |
 | Ident     | `x` `fib` `myVar` `isNil`                       |
-| Keywords  | `let` `rec` `in` `fn` `if` `then` `else` `true` `false` |
-| Operators | `+` `-` `*` `/` `<` `<=` `>` `>=` `==` `/=` `&&` `\|\|` `!` |
-| Symbols   | `=` `=>` `(` `)` `[` `]` `,`                   |
+| Keywords  | `let` `rec` `in` `fn` `if` `then` `else` `true` `false` `data` `match` `with` `class` `instance` `record` |
+| Operators | `+` `-` `*` `/` `<` `<=` `>` `>=` `==` `/=` `&&` `\|\|` `!` `.` |
+| Symbols   | `=` `=>` `(` `)` `[` `]` `,` `:` `{` `}` `|`   |
 
 Integers are arbitrary precision. Every token carries a 1-based `line:col`
 position so lexer, parser, type, and runtime errors all point at the exact
@@ -31,15 +32,26 @@ source location.
 ## 2. Grammar
 
 ```
-program   := dataDecl* expr EOF
+program   := import* decl* expr EOF
+import    := 'import' '"' fileName '"'
+decl      := dataDecl | recordDecl | classDecl | instanceDecl | letDecl
 dataDecl  := 'data' TypeName tyvar* '=' ['|'] ctor ('|' ctor)*
 ctor      := CtorName type*
-type      := tyvar | TypeName type* | '[' type ']' | '(' type ')' | Int | Float | Bool | String
-expr      := letExpr | ifExpr | lambda | matchExpr | orExpr
+recordDecl := 'record' TypeName tyvar* '=' '{' field (',' field)* '}'
+field     := ident ':' type
+classDecl := 'class' TypeName tyvar 'where' sig+
+sig       := ident ':' type
+instanceDecl := 'instance' tyvar '=>' TypeName type 'where' method+
+method    := ident '=' expr
+letDecl   := 'let' ['rec'] ident '=' expr
+type      := tyvar | TypeName type* | '[' type ']' | 'Char' | 'Int' | 'Float' | 'Bool' | 'String'
+expr      := letExpr | ifExpr | lambda | matchExpr | recordExpr | orExpr
 letExpr   := 'let' ['rec'] ident '=' expr 'in' expr
 ifExpr    := 'if' expr 'then' expr 'else' expr
 lambda    := 'fn' ident+ '=>' expr
 matchExpr := 'match' expr 'with' '|' pattern '=>' expr ('|' pattern '=>' expr)*
+recordExpr := '{' field ('=' expr) (',' field '=' expr)* '}'
+fieldAssign := ident '=' expr
 orExpr    := andExpr ('||' andExpr)*
 andExpr   := cmpExpr ('&&' cmpExpr)*
 cmpExpr   := addExpr (('==' | '/=' | '<' | '<=' | '>' | '>=') addExpr)*
@@ -47,10 +59,12 @@ addExpr   := mulExpr (('+' | '-') mulExpr)*
 mulExpr   := unary (('*' | '/') unary)*
 unary     := ('!' | '-') unary | apply
 apply     := atom (atom)*                 (left-associative application)
-atom      := int | float | string | ident | CtorName | 'true' | 'false'
+atom      := int | float | string | char | ident | CtorName | 'true' | 'false'
            | '(' expr ')' | '[' (expr (',' expr)*)? ']'
-pattern   := int | float | string | 'true' | 'false' | '_' | ident | '[]'
+           | recordExpr | expr '.' ident | expr '#' ident
+pattern   := int | float | string | char | 'true' | 'false' | '_' | ident | '[]'
            | CtorName pattern* | pattern '::' pattern | '[' pattern (',' pattern)* ']'
+           | '{' field '=' ident (',' field '=' ident)* '}'
 ```
 
 Notes:
@@ -60,16 +74,18 @@ Notes:
 - `fn a b => e` is sugar for a curried function; it typechecks as
   `a -> b -> T`.
 - Operator precedence, lowest to highest: `||`, `&&`, comparison/equality,
-  `+` `-`, `*` `/`, unary `!` and `-`, application.
+  `+` `-`, `*` `/`, unary `!` and `-`, application, and field projection
+  `.` (and record update `#`) bind tightest of all.
 - `==` and `/=` are structural: they work on any value of the same type.
 - Type names and constructor names start with a capital letter and are
   distinguished from ordinary identifiers by that case. Constructor
   application uses the same syntax as function application: `Pair 1 2`.
-- `data` declarations may appear anywhere before the closing expression;
-  a program has one or more optional declarations followed by exactly one
-  expression. Inside a constructor, uppercase names mean a constructor,
-  lowercase names mean type variables, and `Int`/`Float`/`Bool`/`String`
-  are the base types. `[T]` is the list type.
+- `data`, `record`, `class`, `instance`, and `let` declarations may appear
+  in any order before the closing expression; a program has zero or more
+  optional declarations followed by exactly one expression. Inside a
+  constructor, uppercase names mean a constructor, lowercase names mean
+  type variables, and `Char`/`Int`/`Float`/`Bool`/`String` are the base
+  types. `[T]` is the list type.
 
 ## 3. Values and literals
 
@@ -79,7 +95,9 @@ Notes:
 | `3.14`        | Float        |
 | `true`/`false`| Bool         |
 | `"hi"`        | String       |
+| `'a'`         | Char         |
 | `[1, 2, 3]`   | List of Int  |
+| `{ x = 1 }`   | Record with field `x` |
 | `Pair 1 2`    | `Pair Int Int` (a constructor value) |
 | `fn x => x`   | Closure      |
 
@@ -88,16 +106,17 @@ tests for emptiness.
 
 Output rendering is deterministic and shared by the interpreter, the VM, and
 the playground: integers plain, floats always with a `.0` when integral
-(`2.0` not `2`), strings printed raw (no quotes), lists as `[a, b, c]`,
-closures as `<function>`, builtins as `<builtin: name>`, and constructor
-values as `Name a b ...` (the constructor name followed by its rendered
-fields, space separated).
+(`2.0` not `2`), strings printed raw (no quotes), chars printed with quotes
+(`'a'`), lists as `[a, b, c]`, closures as `<function>`, builtins as
+`<builtin: name>`, constructor values as `Name a b ...` (the constructor
+name followed by its rendered fields, space separated), and records as
+`{ x = v, y = w }` with the fields sorted by name.
 
 ## 4. Type system
 
 Halcyon uses Hindley-Milner type inference (Algorithm W) with:
 
-- Base types: `Int`, `Float`, `Bool`, `String`.
+- Base types: `Int`, `Float`, `Bool`, `String`, `Char`.
 - List types: `[T]`.
 - Function types: `A -> B`, right-associative.
 - User-defined algebraic data types from `data` declarations. A data type
@@ -122,6 +141,46 @@ if id true then id 1 else 0
 ```
 
   infers `id : forall a. a -> a` and uses it at both `Bool` and `Int`.
+
+- Records are nominal, immutable structs declared with `record`:
+
+```
+record Point = { x : Int, y : Int }
+```
+
+  A record value is written `{ x = 1, y = 2 }`; fields are projected with
+  `.` (`p.x`), and a new record with one field changed is written with `#`
+  (`p # y = 5` keeps `p.x`). Field order is irrelevant: `{ y = 2, x = 1 }`
+  is the same value as `{ x = 1, y = 2 }`. Record types may be
+  polymorphic (`record Box a = { item : a, tag : Int }`) and are nominal,
+  so `{ x = 1 }` only typechecks against a declared `record` type. A
+  `record` and a `data` type with the same name collide; two declarations
+  of the same record name, or two records with the same field, are errors.
+
+- Type classes provide bounded (ad-hoc) polymorphism through dictionaries:
+
+```
+class Size a where
+  size : a -> Int
+
+instance Size Int where
+  size = fn n => n
+
+instance Size Shape where
+  size = fn s => match s with
+    | Circle => 1
+    | Rect => 2
+```
+
+  A `class` declares a type variable and one or more method signatures.
+  An `instance` picks a concrete type (or a constrained type variable,
+  `instance Show a => Show (Maybe a) where ...`) and gives a definition
+  for every method. Calling a method `size v` dispatches on the dictionary
+  attached to `v`'s type. The interpreter and VM implement instances as
+  dictionaries passed alongside the value, so method dispatch is a
+  first-class runtime lookup. Class and instance names must be unique,
+  instance heads cannot be record types or duplicate, and a method body
+  must use only its own class's other methods.
 
 - Lambda parameters are monomorphic: a parameter has one type per
   `let`-binding occurrence, so the classic
@@ -156,12 +215,13 @@ and its body runs with the pattern's variables bound. Patterns can be:
 
 | Pattern            | Matches                                |
 |--------------------|----------------------------------------|
-| `42`, `3.14`, `"s"`, `true` | that literal value           |
+| `42`, `3.14`, `"s"`, `'a'`, `true` | that literal value       |
 | `_`                | anything (wildcard, binds nothing)     |
 | `x` (lowercase)    | anything, bound to name `x`            |
 | `[]`               | the empty list                         |
 | `h :: t`           | a non-empty list (head and tail)       |
 | `[a, b]`           | a list of exactly that many elements   |
+| `{ x = a, y = b }` | a record with those fields bound       |
 | `Nothing`          | a constructor with no fields           |
 | `Just x`           | a constructor with fields              |
 | `Pair x y`         | nested constructor patterns            |
@@ -190,8 +250,19 @@ type error at line 3, col 9: cannot unify Bool with Int
 
 ## 5. Builtins
 
-Nine first-class list functions, exposed as names that resolve to builtin
-values in expressions:
+The standard library ships as Halcyon source modules plus a set of
+first-class list and string functions exposed as builtin values. Modules
+are imported with `import "path"` at the top of a program; the import
+resolves relative to the importing file, then falls back to the library
+directory (`halcyon/lib/`, or `--lib DIR`). The CLI loads modules from
+disk; the JavaScript mirror bundles the same modules (`stdlib`, `string`,
+`maybe`, ...) so `import "string.hly"` works identically in the
+playground. The library modules are written in Halcyon itself and layer
+`chars`/`fromChars`, `repeat`, `countChar`, `startsWith` (string), and
+the `Maybe` type and helpers (maybe), over the core builtins.
+
+The builtin list functions, exposed as names that resolve to builtin values
+in expressions:
 
 | Name       | Type                        | Behavior                                    |
 |------------|-----------------------------|---------------------------------------------|
@@ -218,6 +289,39 @@ means `let l = fn xs => length xs in l [true]` typechecks. Runtime misuse
 still errors precisely: `length 5` is a type error, while
 `head []` / `tail []` are runtime errors.
 
+The builtin string functions (also available as names that resolve to
+builtin values):
+
+| Name          | Type                  | Behavior                                    |
+|---------------|-----------------------|---------------------------------------------|
+| `strLen`      | `String -> Int`       | number of characters                        |
+| `charAt`      | `String -> Int -> Char` | the character at an index; errors out of range |
+| `substr`      | `String -> Int -> Int -> String` | characters from `i` up to `j`    |
+| `strAppend`   | `String -> String -> String` | concatenate two strings             |
+| `strContains` | `String -> String -> Bool` | whether the first contains the second |
+| `str`         | `a -> String`         | the canonical rendering of any value        |
+
+The `string` module (`lib/string.hly`) layers `chars`/`fromChars` (String
+to `[Char]` and back), `fromChar`, `toUpper`/`toLower` (Char to Char),
+`toUpperStr`/`toLowerStr` (String to String), `repeat`, `countChar`, and
+`startsWith` over these. String literals support the same escapes as
+Haskell char/string literals (`\n`, `\t`, `\\`, `\"`, `\'`). The `str`
+builtin renders a char with quotes (`str 'a'` is `"'a'"`), so a single
+character's text is `substr (str c) 1 (strLen (str c) - 2)`; that is
+exactly what the `string` module's `fromChar` does.
+
+A builtin `Show` class with a single `show : a -> String` method renders
+any value to its canonical output form; `show 42` is `"42"`, `show 'a'` is
+`"'a'"`, and `show [1, 2]` is `"[1, 2]"`. The class ships with instances
+for `Int`, `Float`, `Bool`, `String`, `Char`, and the polymorphic
+`Show a => Show [a]` list instance (which dispatches `show` on elements, so
+user element instances are honored). It is always available (no import
+needed). Declaring your own `class Show` is a duplicate-class error, and
+records (like all nominal types) are not instance heads. For user data
+types, write your own `instance Show MyType where ...`; the `str` builtin
+additionally renders any value (closures as `<function>`, data values as
+`Name f1 f2`) without going through the class.
+
 ## 6. Evaluation semantics
 
 - Strict (eager) evaluation, left-to-right. There is no laziness.
@@ -233,6 +337,15 @@ still errors precisely: `length 5` is a type error, while
   `tail of empty list` at runtime.
 - Type errors are caught before execution by `check`; the VM never sees an
   ill-typed program.
+- Records evaluate all fields, then project or update field by field.
+  Field updates keep every other field and rebind the pattern-bound
+  fields in record patterns (later bindings shadow earlier ones, as with
+  any pattern).
+- Class method dispatch is a runtime dictionary lookup: calling `size v`
+  looks up `size` in the dictionary that inference attached to the value.
+  With `--opt`, method call sites become direct calls to the resolved
+  instance's method, so the dictionary lookup is done once at compile time
+  (this is an optimization: the observable result is identical).
 
 ## 7. Example
 
@@ -244,3 +357,28 @@ in fib 25
 ```
 
 prints `75025`.
+
+A records-and-classes example (see `examples/records-classes.hly`):
+
+```
+record Point = { x : Int, y : Int }
+
+data Shape = Circle | Rect
+
+class Size a where
+  size : a -> Int
+
+instance Size Int where
+  size = fn n => n
+
+instance Size Shape where
+  size = fn s => match s with
+    | Circle => 1
+    | Rect => 2
+
+let p = { x = 3, y = 4 } in
+let moved = { p with x = 10 } in
+size (if size Rect + moved.x > 12 then Circle else Rect)
+```
+
+prints `2`.

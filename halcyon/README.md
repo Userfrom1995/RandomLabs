@@ -8,38 +8,49 @@ language runs in a static web page.
 The pipeline is `lex` -> `parse` -> `infer` -> `eval`, or `lex` -> `parse`
 -> `compile` -> `vm`. Two Haskell evaluators (tree-walking interpreter and
 stack VM) and one JavaScript mirror all agree byte-for-byte, proven by a
-29-program differential corpus.
+differential corpus.
 
 ## Features
 
 - Hand-written lexer and recursive-descent parser with exact `line:col`
   error positions.
 - Full Hindley-Milner type inference (Algorithm W): `Int`, `Float`, `Bool`,
-  `String`, lists, functions, `let`-polymorphism, `let rec`, numeric
-  Int/Float promotion, and readable error messages like
+  `String`, `Char`, lists, functions, `let`-polymorphism, `let rec`,
+  numeric Int/Float promotion, and readable error messages like
   `cannot unify Bool with Int`.
 - User-defined algebraic data types and pattern matching: `data Maybe a =
   Nothing | Just a` plus `match` with literal, wildcard, variable, list,
-  cons, and nested constructor patterns.
+  cons, record, and nested constructor patterns.
+- Nominal records: `record Point = { x : Int, y : Int }`, immutable field
+  projection (`p.x`) and functional update (`{ p with x = 5 }`), and
+  record patterns.
+- Type classes with dictionaries: `class`/`instance`, method dispatch at
+  runtime, and contextual instances like `instance Show a => Show (Maybe a)`.
+- A builtin `Show` class with instances for every base type, lists, and
+  data types, plus char and string literals and a full string builtin set.
 - Tail-call optimization: calls in tail position reuse the current frame,
   so recursive loops run in constant stack space.
 - A deterministic optimizer (`--opt`) that runs before the VM: constant
-  folding, dead-code elimination, and jump threading that never changes
-  the result.
+  folding, dead-code elimination, jump threading, and method resolution
+  that never changes the result.
 - Strict evaluation, first-class closures, curried multi-parameter
   functions, and partial application.
 - A real bytecode VM: operand stack, frames, mutable upvalue cells shared
-  with the defining frame, closures, and a single-steppable machine.
-- A standard library of nine polymorphic list builtins (`cons`, `head`,
-  `tail`, `isNil`, `length`, `reverse`, `append`, `take`, `drop`), the
-  curried ones supporting partial application like any other function.
+  with the defining frame, closures, a single-steppable machine, and an
+  instruction profiler (`--profile`).
+- A standard library of polymorphic list builtins (`cons`, `head`,
+  `tail`, `isNil`, `length`, `reverse`, `append`, `take`, `drop`) and
+  string functions (`charAt`, `stringLength`, `concat`, `substring`,
+  `toUpper`, and friends), the curried ones supporting partial application
+  like any other function.
 - Caret diagnostics: every lexer, parser, type, and runtime error in the
   CLI and REPL shows the offending source line with a `^` at the column.
-- A differential corpus of 29 programs whose outputs are pinned, plus 11
-  example programs (including a self-hosted standard library written in
-  Halcyon itself: foldl, foldr, map, filter, zip, range, and friends).
+- A differential corpus of programs whose outputs are pinned, plus example
+  programs (including a self-hosted standard library written in Halcyon
+  itself: foldl, foldr, map, filter, zip, range, and friends).
 - A REPL, an `eval` command for inline expressions, and a browser
-  playground with a step-through VM debugger and an `--opt` toggle.
+  playground with a step-through VM debugger, an `--opt` toggle, and a
+  profiler panel.
 
 ## Build
 
@@ -47,7 +58,7 @@ Requires only GHC (boot libraries plus `containers`).
 
 ```sh
 make            # build build/halcyon
-make test       # build and run the 322-test self-test suite
+make test       # build and run the 596-test self-test suite
 make smoke      # exercise every CLI command and exit code
 make clean
 ```
@@ -62,7 +73,8 @@ halcyon eval '<expr>'             # typecheck and evaluate inline
 halcyon check <file.hly>          # typecheck only
 halcyon compile <file.hly>        # print the compiled program disassembly
 halcyon run-vm --opt <file.hly>   # optimize, then run the bytecode VM
-halcyon corpus                    # run the 29-program differential corpus
+halcyon run-vm --profile <file.hly> # run with instruction/call profiling
+halcyon corpus                    # run the differential corpus
 halcyon corpus --examples <dir>   # run a directory of .hly example files
 halcyon selftest                  # full self-test suite
 halcyon repl                      # interactive loop (piped input supported)
@@ -96,22 +108,25 @@ Halcyon itself: `foldl`, `foldr`, `map`, `filter`, `zip`, `range`, `sum`,
 
 `index.html` is a dependency-free page that embeds the entire language as
 `js/halcyon.js`: an editor with example selector, panels to Run / Run on
-VM / Typecheck / show the AST / show the Bytecode, an `--opt` toggle that
-optimizes before running or disassembling, and a single-stepping VM
-debugger with the live operand stack, frame depth, and result. Open it in
-any browser or serve the `halcyon/` directory statically.
+VM / Typecheck / show the AST / show the Bytecode / Profile, an `--opt`
+toggle that optimizes before running or disassembling, and a
+single-stepping VM debugger with the live operand stack, frame depth, and
+result. Open it in any browser or serve the `halcyon/` directory
+statically.
 
 ## Correctness
 
-- 322 Haskell self-tests cover the lexer, parser, type inference, both
-  evaluators, the optimizer, and the corpus.
-- The differential corpus runs the same 29 programs through the
-  interpreter and the VM (plain and `--opt`) and compares against pinned
-  expected output.
+- 596 Haskell self-tests cover the lexer, parser, type inference, both
+  evaluators, the optimizer, the profiler, records, classes, chars, and
+  the corpus.
+- The differential corpus runs the same programs through the interpreter
+  and the VM (plain and `--opt`) and compares against pinned expected
+  output.
 - `js/corpus-check.js` verifies the JavaScript mirror: JS interpreter ==
-  JS VM == Haskell expected output across corpus programs, examples, types,
-  and disassembly determinism (104 checks), and the VM disassembly is
-  byte-identical to the Haskell compiler (plain and optimized).
+  JS VM == Haskell expected output across corpus programs, examples,
+  types, disassembly, and profiler output (196 checks), and the VM
+  disassembly is byte-identical to the Haskell compiler (plain and
+  optimized).
 
 ## Layout
 
