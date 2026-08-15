@@ -22,3 +22,6 @@ dist/
 .DS_Store
 .maintainer/
 gambit/gambit
+
+# Glyphforge build output
+glyphforge/build/
