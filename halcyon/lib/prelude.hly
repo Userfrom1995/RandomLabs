@@ -1,0 +1,25 @@
+-- The auto-imported standard prelude. Every program gets these bindings in
+-- scope before its own source: the identity/constant/composition helpers,
+-- the higher-order list combinators, Pair and Maybe with their helpers, the
+-- string library, and the effect combinators layered on the core effect
+-- builtins. `show` is the built-in Show class method and needs no definition
+-- here; calling it dispatches on the value's runtime type.
+--
+-- The prelude is shadowable: a user top-level `let` (or an imported module)
+-- with the same name wins over the prelude's binding, because definitions
+-- merged later take precedence. This file is auto-imported by the module
+-- resolver ahead of every program (a synthetic first import that resolves
+-- against the lib directory, or against the bundled copy when no provider
+-- has the file), so an explicit `import "prelude.hly"` is a harmless dedup.
+
+import "compose.hly"
+import "list.hly"
+import "pair.hly"
+import "maybe.hly"
+import "string.hly"
+
+-- Effect combinators layered on the core effect builtins (return/bind are
+-- builtins, not defined here).
+let when = fn b e => if b then e else return ()
+let seq_ = fn a b => bind a (fn _ => b)
+let rec forever = fn e => bind e (fn _ => forever e)
