@@ -567,6 +567,10 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode maintainer') &&
       !startsWith(github.event.comment.body, '/oc test') &&
       !startsWith(github.event.comment.body, '/opencode test') &&
+      !startsWith(github.event.comment.body, '/oc architect') &&
+      !startsWith(github.event.comment.body, '/opencode architect') &&
+      !startsWith(github.event.comment.body, '/oc plan') &&
+      !startsWith(github.event.comment.body, '/opencode plan') &&
       github.event.comment.body != '/oc fix' &&
       !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
       (contains(github.event.comment.body, ' /oc') ||
