@@ -15,20 +15,20 @@
 - [x] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
 - [x] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
 - [x] 9. Cross-language corpus: JS mirror output == Haskell output
-- [ ] 10. Docs: README, docs/index.html + index.md, language.md, vm.md; root landing page + root README entries
+- [x] 10. Docs: README, docs/index.html + index.md, language.md, vm.md; root landing page + root README entries
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Web playground + cross-language corpus done. halcyon/js/halcyon.js is a
-faithful, dependency-free port of the entire Haskell core (lexer, parser,
-HM typechecker, trampolined-CPS tree-walking interpreter, bytecode
-compiler, stack VM refactored into a single-steppable makeVm machine, and
-the 15-program corpus). halcyon/index.html provides the editor with
-example selector, Run / Run on VM / Typecheck / AST / Bytecode panels, and
-a step-through VM debugger with stack + frame depth + result. The VM
-disassembly is byte-identical to the Haskell compiler, and js/corpus-check.js
-verifies the mirror: 25 checks pass (15 corpus + examples + types + disasm
-determinism), JS interpreter == JS VM == expected. Docs next
+Docs done. halcyon/README.md documents build, every CLI command, exit
+codes, the web playground, correctness (129 selftests, differential
+corpus, cross-language check), and the source layout. halcyon/docs/
+contains language.md (lexical structure, grammar, precedence, values,
+type system, builtins, semantics), vm.md (execution model, single-
+stepping, full opcode reference, example disassembly), plus index.md and
+a browsable index.html. The root landing page index.html and root
+README.md now list Halcyon (playground + docs links); all documented
+examples verified end-to-end on interpreter, VM, and typechecker. Final
+iteration/polish next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -143,6 +143,20 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   step-through VM debugger showing current instruction, operand stack (top
   highlighted), frame depth, and result; tabs, calm aesthetic, responsive.
   Inline script syntax-checked and AST renderer verified.
+- 2026-08-15 (builder) - Milestone 10 (docs): halcyon/README.md covers
+  build, CLI usage, exit codes, the playground, correctness claims, and
+  source layout. halcyon/docs/language.md: lexical structure, grammar,
+  precedence table, values, HM type system (let-polymorphism, monomorphic
+  lambda params, Int/Float promotion), builtins, evaluation semantics.
+  halcyon/docs/vm.md: execution model, frames/contexts/upvalue cells,
+  curried calling convention, full opcode reference, single-stepping, and
+  a disassembly example verified against the real compiler output.
+  docs/index.md and docs/index.html (browsable home). Root index.html and
+  root README.md list Halcyon with playground and docs links. Every
+  documented example was run end-to-end on interpreter, VM, and typechecker
+  (a map example needed let rec, fixed in the docs); 129 selftests and
+  25/25 cross-language checks still pass; inline scripts in both HTML pages
+  syntax-checked.
 
 - the Builder
 

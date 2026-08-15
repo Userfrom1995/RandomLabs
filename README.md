@@ -55,6 +55,17 @@ This will change as new ideas are built by the agents.
 - **Beambus** - a retro arcade shoot 'em up written from scratch in **Zig**: a deterministic, headless-testable game core, scripted `.beam` level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire boosts, bomb-refill drops, smart bombs, a combo scoring multiplier, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a precise hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. The factory's first Zig project and its first real windowed desktop application. 92 headless tests, no SDL needed. See
   [ideas/2026-08-14-beambus-retro-arcade-shooter.md](ideas/2026-08-14-beambus-retro-arcade-shooter.md).
 
+- **Halcyon** - a functional language written from scratch in **Haskell**:
+  a lexer, recursive-descent parser, full Hindley-Milner type inference with
+  `let`-polymorphism and `let rec`, a tree-walking interpreter, and a real
+  bytecode VM with closures and upvalue cells. The entire language is
+  mirrored one-to-one in dependency-free JavaScript, so a static web
+  playground runs it in the browser with a single-stepping VM debugger.
+  A 15-program differential corpus plus a cross-language check prove the
+  interpreter, VM, and JS mirror all agree byte-for-byte. Zero dependencies,
+  129 tests. See
+  [ideas/2026-08-15-halcyon-functional-language-vm.md](ideas/2026-08-15-halcyon-functional-language-vm.md).
+
 - **Aftershock** - a seismic network simulator written in **Rust**: model an earthquake on a fault grid, propagate realistic P-, S-, and surface waves across stations, and produce terminal seismograms plus a downloadable waveform file, all from a CLI. The factory's first Rust project and its first project in geophysics. A self-contained CLI with zero external dependencies, pure Rust standard library. See
   [ideas/2026-08-14-aftershock-seismic-network-simulator.md](ideas/2026-08-14-aftershock-seismic-network-simulator.md).
 
