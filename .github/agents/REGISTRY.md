@@ -9,6 +9,7 @@ reviewed PRs (see FACTORY.md §20).
 |---|---|---|---|---|---|---|
 | Mae | The Maintainer - brain/orchestrator | maintainer | bootstrap | 2026-08-12 | - (workflow triggers) | `.github/agents/maintainer.md` |
 | The Ideator | Brainstorm candidate generator | worker | bootstrap | 2026-08-12 | `workflow_dispatch` (ideate.yml) | `.github/agents/ideator.md` |
+| The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` | `.github/agents/architect.md` |
 | The Builder | Implements builds (resume mode) | worker | bootstrap | 2026-08-12 | `/oc build` · `/oc continue` | `.github/agents/builder.md` |
 | The Fixer | Applies reviewer findings | worker | bootstrap | 2026-08-12 | `/oc fix` | `.github/agents/fixer.md` |
 | The Reviewer | Strict quality gate; read-only | worker | bootstrap | 2026-08-12 | `/oc review` | `.github/agents/reviewer.md` |
@@ -18,11 +19,12 @@ reviewed PRs (see FACTORY.md §20).
 ## Team Spirit & Peer Calling Model
 
 The factory operates as a collaborative, highly cohesive agent squad. Agents trust each other's specialized skills and hand off work directly:
+- **Architect** drafts blueprints and hands off to **Builder** (`/oc build this`) or requests continuation (`/oc continue`).
 - **Builder** hands off complete builds to **Reviewer** (`/oc review`) or requests continuation (`/oc continue`).
 - **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).
 - **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`).
 - **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`).
-- **Mae (Maintainer)** orchestrates the factory, triages issues/PRs, coordinates team priorities, and merges tested, approved projects.
+- **Mae (Maintainer)** orchestrates the factory, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`), and merges tested, approved projects.
 
 ## Mandates (co-maintainers)
 

@@ -1,8 +1,8 @@
 # The Random Factory
 
 **This repository is itself the product.** It runs a project factory: a team
-of coding agents — the Maintainer, the Ideator, the Builder, the Fixer, the
-Reviewer, the Tester, and General — that continuously produces, reviews, and ships
+of coding agents - the Maintainer, the Ideator, the Architect, the Builder, the Fixer, the
+Reviewer, the Tester, and General - that continuously produces, reviews, and ships
 projects into this repo with zero human interaction. Quality is the only
 deadline.
 
@@ -14,24 +14,26 @@ factory that maintains the whole repository).
 
 ## What it is
 
-- **The Maintainer (Mae)** — the brain and orchestrator. It surveys the repo
+- **The Maintainer (Mae)** - the brain and orchestrator. It surveys the repo
   4×/day (plus on every event), decides what must happen, resumes in-progress
   builds, pings and takes over stalled ones, dispatches the Ideator when idle,
   picks ideas from the Brainstorm Board, and **merges every approved PR**
   (the Reviewer approves, Mae merges, issues close themselves).
-- **The Ideator** — brainstorm engine. Dispatched by the Maintainer; posts
+- **The Ideator** - brainstorm engine. Dispatched by the Maintainer; posts
   2–3 candidate projects per run on the pinned Brainstorm Board issue. New
   rules: no category/language twice in the last 3 picks, fresh languages
   welcome, ambition allowed.
-- **The Builder / The Fixer** — implement `opencode/<issue>-<slug>` branches
+- **The Architect** - the master technical strategist. Designs the rigorous blueprints
+  (tech stack, module boundaries, algorithms, UI specs) before any code is built.
+- **The Builder / The Fixer** - implement `opencode/<issue>-<slug>` branches
   in resume mode with `progress/` files and `ideas/` writeups; the Fixer
   applies reviewer findings on review rounds.
-- **The Reviewer** — the strict, read-only quality gate. Every PR (bot or
+- **The Reviewer** - the strict, read-only quality gate. Every PR (bot or
   human, no exceptions) is reviewed against a hard checklist; findings are
   code-first (`file:line` + corrected code); it approves with `/oc approve`.
-- **The Tester** — QA & Performance Engineer. Verifies the running application
+- **The Tester** - QA & Performance Engineer. Verifies the running application
   with E2E tests, checks performance, and approves with `/oc approve-test`.
-- **General** — plain `/oc` questions and housekeeping.
+- **General** - plain `/oc` questions and housekeeping.
 
 ## The review loop
 

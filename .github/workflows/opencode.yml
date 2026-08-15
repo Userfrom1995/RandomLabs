@@ -17,6 +17,174 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  architect:
+    if: |
+      startsWith(github.event.comment.body, '/oc architect') ||
+      startsWith(github.event.comment.body, '/oc plan') ||
+      startsWith(github.event.comment.body, '/opencode architect') ||
+      startsWith(github.event.comment.body, '/opencode plan')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-factory-decision.json
+
+      - name: Run opencode architect agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 25
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are the Architect of the Random factory, triggered by "/oc architect" or "/oc plan".
+            
+            READ FIRST: `.github/agents/architect.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"build"}`.
+            - Sign your work: every commit subject starts with `architect:`, every comment ends with ` -  the Architect`.
+            - You never post "/oc" comments yourself.
+            - Commit as `github-actions[bot]`, push, and leave the working tree clean.
+
+      - name: Forward architect decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
+          target="${pr:-$issue}"
+          
+          if [ ! -f /tmp/random-factory-decision.json ]; then
+            echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "build" ]; then
+            echo "Architect plan complete! Handing over to Builder (/oc build this)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc build this" || true
+          else
+            echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          fi
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          [ -z "$pr" ] && exit 0
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          if [ -z "$pr" ]; then
+            echo "No PR context - repo-wide sweep of held runs"
+            for i in $(seq 1 10); do
+              held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
+              if [ -z "$held" ]; then
+                echo "No held runs remain (sweep $i)"
+                exit 0
+              fi
+              for run in $held; do
+                if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                  echo "Approved run $run"
+                else
+                  echo "APPROVE FAILED for run $run (a later sweep or a human click will retry)"
+                fi
+              done
+              sleep 5
+            done
+            echo "Held runs could not all be auto-approved after sweeping"
+            exit 0
+          fi
+          for i in $(seq 1 30); do
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+            if [ -z "$head_sha" ]; then
+              echo "PR #$pr gone (poll $i); exiting"
+              exit 0
+            fi
+            echo "Looking for held runs on PR #$pr (head $head_sha)"
+            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
+            if [ -z "$held" ]; then
+              echo "No held runs remain (poll $i)"
+              exit 0
+            fi
+            for run in $held; do
+              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
+                echo "Approved run $run"
+              else
+                echo "APPROVE FAILED for run $run"
+              fi
+            done
+            sleep 5
+          done
+          echo "Held runs could not be auto-approved after polling"
+          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
+          exit 0
+
   build:
     if: |
       !startsWith(github.event.comment.body, '/oc review') &&

@@ -45,9 +45,11 @@ FACTORY_FILES=(
   ".github/agents/REGISTRY.md"
   ".github/agents/maintainer.md"
   ".github/agents/ideator.md"
+  ".github/agents/architect.md"
   ".github/agents/builder.md"
   ".github/agents/fixer.md"
   ".github/agents/reviewer.md"
+  ".github/agents/tester.md"
   ".github/agents/general.md"
   ".github/agents/decisions/README.md"
 )

@@ -23,6 +23,7 @@ honestly with evidence, then complies when overruled.
 |---|---|---|
 | Maintainer | The brain/orchestrator | Mae - warm, dry-humored, efficient foreman; may evolve its own name/tone (persisted in `personality.md`) |
 | Ideator | Brainstorms candidates on the Brainstorm Board | Creative, ambitious, diversity-driven |
+| Architect | Designs technical blueprints and plans | Master technical strategist |
 | Builder | Implements projects (resume mode) | Production-quality, decisive |
 | Fixer | Applies reviewer findings | Same as Builder |
 | Reviewer | Strict quality gate; code-first findings | Stern but fair |
@@ -39,22 +40,22 @@ Prompt files live in `.github/agents/` (see §19). The roster is `REGISTRY.md`.
 ## 3. The collaborative team call flow
 
 ```
-[Builder / Fixer] ──── (work ready) ────► Reviewer (/oc review)
-                                               │
-                                       ┌───────┴───────┐
-                                (issues found)     (approved)
-                                       │               │
-                                       ▼               ▼
-                                Fixer (/oc fix)   Tester (/oc test)
-                                                       │
-                                               ┌───────┴───────┐
-                                         (tests fail)     (all pass)
-                                               │               │
-                                               ▼               ▼
-                                        Fixer (/oc fix)   Maintainer (/oc maintainer)
-                                                               │
-                                                               ▼
-                                                         (merge PR & close)
+[Architect] ──── (plan ready) ────► Builder / Fixer ──── (work ready) ────► Reviewer (/oc review)
+                                                                                 │
+                                                                         ┌───────┴───────┐
+                                                                  (issues found)     (approved)
+                                                                         │               │
+                                                                         ▼               ▼
+                                                                  Fixer (/oc fix)   Tester (/oc test)
+                                                                                         │
+                                                                                 ┌───────┴───────┐
+                                                                           (tests fail)     (all pass)
+                                                                                 │               │
+                                                                                 ▼               ▼
+                                                                          Fixer (/oc fix)   Maintainer (/oc maintainer)
+                                                                                                 │
+                                                                                                 ▼
+                                                                                           (merge PR & close)
 ```
 
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
@@ -252,9 +253,11 @@ New folder `.github/agents/`:
   REGISTRY.md      # roster of agents + trigger keywords (mirrored on maintainer/logs)
   maintainer.md    # the Maintainer (Mae) - the brain
   ideator.md       # the Ideator - brainstorm candidates
+  architect.md     # the Architect - master technical strategist
   builder.md       # the Builder - implements builds
   fixer.md         # the Fixer - applies reviewer findings
   reviewer.md      # the Reviewer - the strict quality gate
+  tester.md        # the Tester - dynamic verification engineer
   general.md       # the General agent - chat/assistant
   decisions/
     README.md      # decision-file protocol

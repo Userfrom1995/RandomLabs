@@ -122,7 +122,7 @@ jobs:
             SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push code to main or any PR branch; you only write the output files below; everything you write is later committed to the maintainer/logs branch as the bot. Never print or reference any PAT or secret.
 
             OUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):
-            1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine - do not invent work.
+            1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | build | fix | ideate | ping. One entry max per PR/issue. Empty array [] is fine - do not invent work.
             2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Mae, the Maintainer` (a hardcoded step appends it if missing).
             3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
             4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
@@ -276,6 +276,8 @@ jobs:
                   body = "/oc continue"
               elif action == "build":
                   body = "/oc build this"
+              elif action == "architect":
+                  body = "/oc architect"
               elif action == "fix":
                   info = pr_info(target)
                   author = info.get("user", {}).get("login", "")

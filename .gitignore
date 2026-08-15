@@ -25,3 +25,6 @@ gambit/gambit
 
 # Glyphforge build output
 glyphforge/build/
+
+# Specstory
+.specstory/
