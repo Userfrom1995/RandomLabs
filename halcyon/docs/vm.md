@@ -29,9 +29,11 @@ disassembly.
   - a multi-parameter closure produces a partial application value that
     accumulates arguments until the arity is satisfied;
   - builtins dispatch directly; the curried builtins (`cons`, `append`,
-    `take`, `drop`) form partial applications that accumulate arguments
-    until the arity is satisfied, and unary builtins (`length`, `reverse`,
-    `head`, `tail`, `isNil`) complete immediately.
+    `take`, `drop`, `bind`) form partial applications that accumulate
+    arguments until the arity is satisfied, unary builtins (`length`,
+    `reverse`, `head`, `tail`, `isNil`) complete immediately, and
+    `readLine` is nullary (it compiles to a constant effect value rather
+    than a call).
   - method calls (`show v`, `size v`) dispatch through the dictionary that
     inference attached to the value. The compiler resolves the class and
     method to a constant and the VM looks the method up in the value's
@@ -139,6 +141,44 @@ programs produce byte-identical output with and without profiling, and the
 reported counters are stable across runs of the same input. The summary is
 a one-line `profile: N instructions, peak stack S, peak frames F` followed
 by per-function call counts and per-opcode instruction counts.
+
+### Effects on the VM
+
+Effect values are ordinary stack values. The unit value `()` is a
+`VmUnit`; the effect builtins produce `VmEffect` values tagged by name
+(`return`, `bind`, `print`, `printLine`, `readLine`) carrying their
+arguments, and the renderer shows them as `<effect: ...>`. `readLine` is
+nullary, so the compiler emits it as a constant `VmEffect 'readLine' []`
+(the interpreter special-cases it the same way); every other builtin is a
+call. `bind` is a 2-ary curried builtin like `append`, so `bind e` is a
+partial application that completes when the continuation arrives.
+
+A `do` block desugars (language reference, section 5.1) into applications
+of `return` and `bind`, so the compiled block is just function application:
+`bind` applied to the first effect and a closure. Running it happens
+through `runVmEffect`, which extends the plain `runVm` with a pure effect
+driver:
+
+1. run the compiled program normally; a non-effect result returns
+   unchanged with no output;
+2. for a `VmEffect`, walk the `bind` chain. Each bind runs its first
+   effect (accumulating output text), then applies the continuation
+   closure to the effect's result and runs the resulting effect;
+3. `readLine` consumes one line of the scripted input, then reads the
+   empty string;
+4. `return` ends the chain, leaving its value as the result.
+
+Applying a continuation is a function call, so the driver executes it in a
+fresh machine whose frame is the continuation's compiled body with its
+first local cell bound to the carried value (slot 0, upvalue cells intact).
+The driver is pure: given the same program and input lines it always
+produces the same output, and the optimized bytecode is run through the
+same driver, so `--opt` changes nothing observable.
+
+`halcyon run-vm` reads all of standard input up front to script
+`readLine`. The printed output is the accumulated effect text plus the
+rendered final value, with the unit value contributing nothing (exactly
+what the interpreter prints for the same program).
 
 ## 4. Example disassembly
 

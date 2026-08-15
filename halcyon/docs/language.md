@@ -21,9 +21,9 @@ Tokens:
 | String    | `"hello"` `"a\nb"` (escape sequences supported) |
 | Char      | `'a'` `'0'` `'\n'` (escape sequences supported) |
 | Ident     | `x` `fib` `myVar` `isNil`                       |
-| Keywords  | `let` `rec` `in` `fn` `if` `then` `else` `true` `false` `data` `match` `with` `class` `instance` `record` |
-| Operators | `+` `-` `*` `/` `<` `<=` `>` `>=` `==` `/=` `&&` `\|\|` `!` `.` |
-| Symbols   | `=` `=>` `(` `)` `[` `]` `,` `:` `{` `}` `|`   |
+| Keywords  | `let` `rec` `in` `fn` `if` `then` `else` `true` `false` `data` `match` `with` `class` `instance` `record` `do` |
+| Operators | `+` `-` `*` `/` `<` `<=` `>` `>=` `==` `/=` `&&` `\|\|` `!` `.` `<-` |
+| Symbols   | `=` `=>` `(` `)` `[` `]` `,` `:` `{` `}` `|` `;` `()` |
 
 Integers are arbitrary precision. Every token carries a 1-based `line:col`
 position so lexer, parser, type, and runtime errors all point at the exact
@@ -44,11 +44,16 @@ sig       := ident ':' type
 instanceDecl := 'instance' tyvar '=>' TypeName type 'where' method+
 method    := ident '=' expr
 letDecl   := 'let' ['rec'] ident '=' expr
-type      := tyvar | TypeName type* | '[' type ']' | 'Char' | 'Int' | 'Float' | 'Bool' | 'String'
-expr      := letExpr | ifExpr | lambda | matchExpr | recordExpr | orExpr
+type      := tyvar | TypeName type* | '[' type ']' | 'Char' | 'Int' | 'Float' | 'Bool' | 'String' | 'Unit' | 'Effect' type
+expr      := letExpr | ifExpr | lambda | matchExpr | recordExpr | doExpr | orExpr
 letExpr   := 'let' ['rec'] ident '=' expr 'in' expr
 ifExpr    := 'if' expr 'then' expr 'else' expr
 lambda    := 'fn' ident+ '=>' expr
+doExpr    := 'do' '{' doStmt (';' doStmt)* '}'
+doStmt    := doBind | doLet | doFinal
+doBind    := ident '<-' expr
+doLet     := 'let' ident '=' expr
+doFinal   := expr
 matchExpr := 'match' expr 'with' '|' pattern '=>' expr ('|' pattern '=>' expr)*
 recordExpr := '{' field ('=' expr) (',' field '=' expr)* '}'
 fieldAssign := ident '=' expr
@@ -59,7 +64,7 @@ addExpr   := mulExpr (('+' | '-') mulExpr)*
 mulExpr   := unary (('*' | '/') unary)*
 unary     := ('!' | '-') unary | apply
 apply     := atom (atom)*                 (left-associative application)
-atom      := int | float | string | char | ident | CtorName | 'true' | 'false'
+atom      := int | float | string | char | ident | CtorName | 'true' | 'false' | '()'
            | '(' expr ')' | '[' (expr (',' expr)*)? ']'
            | recordExpr | expr '.' ident | expr '#' ident
 pattern   := int | float | string | char | 'true' | 'false' | '_' | ident | '[]'
@@ -77,6 +82,9 @@ Notes:
   `+` `-`, `*` `/`, unary `!` and `-`, application, and field projection
   `.` (and record update `#`) bind tightest of all.
 - `==` and `/=` are structural: they work on any value of the same type.
+- `do { ... }` blocks (section 5.1) are separated by semicolons, whether
+  written on one line or across several; newlines alone do not separate
+  statements.
 - Type names and constructor names start with a capital letter and are
   distinguished from ordinary identifiers by that case. Constructor
   application uses the same syntax as function application: `Pair 1 2`.
@@ -100,9 +108,14 @@ Notes:
 | `{ x = 1 }`   | Record with field `x` |
 | `Pair 1 2`    | `Pair Int Int` (a constructor value) |
 | `fn x => x`   | Closure      |
+| `()`          | Unit         |
 
 Empty lists write as `[]`. There is no `nil` literal; the builtin `isNil`
-tests for emptiness.
+tests for emptiness. The unit value `()` has type `Unit` and carries no
+information; it is what a `do` block of only effect statements produces.
+Effect values (the `Effect a` type) are not written directly; they are
+produced by effect builtins and by `do` blocks (section 5.1), and their
+internal form shows as `<effect: ...>` when rendered without being run.
 
 Output rendering is deterministic and shared by the interpreter, the VM, and
 the playground: integers plain, floats always with a `.0` when integral
@@ -116,7 +129,13 @@ name followed by its rendered fields, space separated), and records as
 
 Halcyon uses Hindley-Milner type inference (Algorithm W) with:
 
-- Base types: `Int`, `Float`, `Bool`, `String`, `Char`.
+- Base types: `Int`, `Float`, `Bool`, `String`, `Char`, and the empty
+  `Unit` type (whose only value is `()`).
+- Effect types: `Effect a`, the type of a computation that produces a value
+  of type `a` while performing deterministic, scripted effects. `Effect`
+  is a nullary kind-1 type constructor, so `Effect Int`, `Effect (Effect a)`,
+  and `[Effect Int]` are all valid; the last typechecks only if you handle
+  the effects (section 5.1).
 - List types: `[T]`.
 - Function types: `A -> B`, right-associative.
 - User-defined algebraic data types from `data` declarations. A data type
@@ -322,6 +341,92 @@ types, write your own `instance Show MyType where ...`; the `str` builtin
 additionally renders any value (closures as `<function>`, data values as
 `Name f1 f2`) without going through the class.
 
+The effect builtins, exposed as names that resolve to builtin values:
+
+| Name         | Type                       | Behavior                              |
+|--------------|----------------------------|---------------------------------------|
+| `return`     | `a -> Effect a`            | wrap a pure value as an effect result |
+| `bind`       | `Effect a -> (a -> Effect b) -> Effect b` | run an effect, feed its result into a continuation |
+| `print`      | `a -> Effect Unit`         | append the rendered value to output   |
+| `printLine`  | `a -> Effect Unit`         | append the rendered value plus newline|
+| `readLine`   | `Effect String`            | read one scripted input line; the empty string when none remain |
+
+`return` and `bind` are what `do` blocks desugar to (section 5.1), so you
+never call them by name in practice. `print`/`printLine` render their
+argument with the same deterministic `show` used everywhere else
+(closures render as `<function>`, and so on). `readLine` is nullary, and it
+consumes exactly one line of the scripted input.
+
+## 5.1 Effects and `do` blocks
+
+Halcyon models effectful programs with a pure, first-class `Effect a`
+type. An effect value is a description of what to do; nothing actually
+happens until a program entry point runs it. There is no implicit I/O:
+`print 5` alone is a value of type `Effect Unit` and does nothing by
+itself, which is why a `do` block must be used to sequence it.
+
+A `do` block sequences effect statements:
+
+```
+do { printLine "one"; printLine "two" }
+```
+
+The statements are separated by semicolons (newlines alone do not separate
+them). Three kinds of statement are allowed:
+
+- `name <- effect`: bind the effect's result to `name` for the rest of the
+  block (`do { x <- readLine; printLine x }` echoes one input line).
+- `let name = expr`: bind a pure expression, available for the rest of the
+  block.
+- a final expression: the block's result. The final statement must have an
+  `Effect` type (using `return x` to finish with a pure value); a block
+  whose last statement is a bare effect is a type error.
+
+A block with statements but no final expression is a type error unless it
+contains only `let` statements (then it is `return ()`). The block
+desugars onto the effect builtins:
+
+```
+do { }                        ==>  return ()
+do { e }                      ==>  e
+do { x <- e; rest }           ==>  bind e (fn x => rest)
+do { let x = e; rest }        ==>  let x = e in rest
+do { e; rest }                ==>  bind e (fn _ => rest)   -- non-final effect
+```
+
+`bind`'s continuation is a closure, so `x` is captured for the rest of the
+block and each statement's effect runs in order. Because the desugaring is
+pure, effect programs compose with the rest of the language: recursion and
+conditionals work inside and around blocks:
+
+```
+let rec loop = fn n =>
+  if n < 1 then do { }
+  else do { printLine n; loop (n - 1) }
+in loop 3
+```
+
+prints `3`, `2`, `1`. When the interpreter or VM drives an effect, it walks
+the `bind` chain with the continuation applied, so nested and recursive
+effects run exactly as written (an effect result that is itself an effect
+is run to completion).
+
+Effect runs are deterministic and scripted. `run`, `run-vm`, and `eval`
+read all of standard input up front; `readLine` consumes one line per call,
+and reads the empty string once the input is exhausted:
+
+```
+$ printf 'hello\n' | halcyon run echo.hly     # do { x <- readLine; printLine x }
+hello
+```
+
+The final result of the block is printed after the effect output, unless it
+is the unit value `()` (a block of only effect statements prints nothing
+extra). The `repl` runs each entered effect with no scripted input.
+`do { x <- readLine; return x }` is the echo-without-print idiom: it reads
+a line and returns it as the block's result, so `run` prints just the
+consumed line.
+
 ## 6. Evaluation semantics
 
 - Strict (eager) evaluation, left-to-right. There is no laziness.
@@ -335,6 +440,11 @@ additionally renders any value (closures as `<function>`, data values as
   (`division by zero`). Any `Float` operand makes the result `Float`.
 - `head`/`tail` on an empty list raise `head of empty list` /
   `tail of empty list` at runtime.
+- Effects are values like any other: building one has no side effects, and
+  only running it (a program entry point, or `runEffect`) produces output.
+  The effect driver is pure: output is accumulated as a string and the
+  scripted input lines are consumed in order, so the same program with the
+  same input always produces the same output.
 - Type errors are caught before execution by `check`; the VM never sees an
   ill-typed program.
 - Records evaluate all fields, then project or update field by field.
@@ -357,6 +467,20 @@ in fib 25
 ```
 
 prints `75025`.
+
+An effects example (see `examples/effects.hly`): a recursive loop that
+reads input lines and counts them, then reports the count.
+
+```
+let rec loop = fn n => do {
+  line <- readLine;
+  if line == "" then do { printLine n }
+  else do { loop (n + 1) }
+}
+in loop 0
+```
+
+with input lines `a` and `b` prints `2`.
 
 A records-and-classes example (see `examples/records-classes.hly`):
 
