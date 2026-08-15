@@ -32,26 +32,41 @@ import Halcyon.Op
 import Halcyon.Value (Value(..), showValue)
 
 -- | Optimize a compiled program in place, function by function (nested
--- functions first, then their enclosing function).
+-- functions first, then their enclosing function). The instance-dictionary
+-- table survives the pass: its method-function constants are kept in the
+-- (rebuilt) entry constant pool and every index is remapped, so optimized
+-- programs still dispatch methods.
 optimizeProgram :: Program -> Program
-optimizeProgram (Program entry) = Program (optimizeFunc entry)
+optimizeProgram (Program entry dicts ctors) =
+  let dictIdx = concatMap (map snd . deMethods) (concatMap snd dicts)
+      (entry', remap) = optimizeFuncRoots dictIdx entry
+      remapDict (cn, entries) =
+        (cn, [e { deMethods = [(m, Map.findWithDefault i i remap) | (m, i) <- deMethods e] } | e <- entries])
+  in Program entry' (map remapDict dicts) ctors
 
 -- | Optimize one function: fold constant expressions, drop dead stores and
 -- redundant jumps, then rebuild the constant pool and remap every index.
-optimizeFunc :: Func -> Func
-optimizeFunc f =
+-- Returns the entry's index-remap map so callers can remap dictionary
+-- references into the entry pool.
+optimizeFuncRoots :: [Int] -> Func -> (Func, Map.Map Int Int)
+optimizeFuncRoots extraRoots f =
   let pool0 = map optConst (fConstants f)
       readSlots  = [s | PushLocal s <- fCode f]
       captured   = [i | CFunc g <- pool0, (0, i) <- fUpvals g]
       isDeadSlot s = s `notElem` readSlots && s `notElem` captured
       (code1, poolAdds, posMap) = fixpoint pool0 isDeadSlot (fCode f)
       pool1 = pool0 ++ poolAdds
-      (pool2, remap) = rebuildPool pool1 code1
+      (pool2, remap) = rebuildPool extraRoots pool1 code1
       code2 = map (patchTarget posMap . patchConst remap) code1
-  in f { fCode = code2, fConstants = pool2 }
+  in (f { fCode = code2, fConstants = pool2 }, remap)
   where
     optConst (CFunc g) = CFunc (optimizeFunc g)
     optConst c         = c
+
+-- | Optimize a function that is not the program entry (no extra constant
+-- roots).
+optimizeFunc :: Func -> Func
+optimizeFunc f = fst (optimizeFuncRoots [] f)
 
 -- | Iterate the rewrite until no rule fires (each round strictly shrinks the
 -- code, so this terminates). Every round works in original-code coordinates
@@ -215,11 +230,12 @@ boolFold a b f = case (a, b) of
 -- ---------------------------------------------------------------------
 
 -- | Rebuild the constant pool so only constants referenced by the final code
--- survive, deduplicating plain values (never functions), and remap every
--- old pool index to its new one.
-rebuildPool :: [Const] -> [Instr] -> ([Const], Map.Map Int Int)
-rebuildPool pool code =
-  let refs = nub (concatMap instrRefs code)
+-- (plus any extra roots, e.g. instance-method functions referenced only by
+-- the dictionary table) survive, deduplicating plain values (never
+-- functions), and remap every old pool index to its new one.
+rebuildPool :: [Int] -> [Const] -> [Instr] -> ([Const], Map.Map Int Int)
+rebuildPool extra pool code =
+  let refs = nub (extra ++ concatMap instrRefs code)
       (pool', _, remap) = foldl step ([], Map.empty, Map.empty) refs
   in (pool', remap)
   where

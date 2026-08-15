@@ -9,12 +9,15 @@ module Halcyon.Vm
 import Control.Monad (foldM, mapM, when)
 import Data.IORef
 import qualified Data.IntMap.Strict as IntMap
+import qualified Data.Map.Strict as Map
 import Data.List (intercalate)
 import System.IO (hPutStrLn, stderr)
 
 import Halcyon.Ast (Builtin(..), builtinName)
 import Halcyon.Op
+import Halcyon.Classes (unifyHead)
 import Halcyon.Value (Value(..), showFloat)
+import qualified Halcyon.Type
 
 -- | A VM error (message only; instructions carry no source positions).
 newtype VmError = VmError String
@@ -37,6 +40,8 @@ data VmVal
   | VmData String [VmVal]
   | VmConstr String Int [VmVal]
   | VmRec String [(String, VmVal)]
+  | VmVMethod String                -- ^ a class method reference, dispatched by value type
+  | VmDict String [(String, VmVal)] -- ^ an instance dictionary: method name -> implementation
 
 -- | A context: the cells of one frame's locals plus the captured context
 -- of the closure that created the frame (the lexical chain).
@@ -55,9 +60,10 @@ data Frame = Frame
 
 -- | Run a compiled program. Returns the value left on the operand stack at
 -- Halt. When @trace@ is True, every executed instruction is printed with
--- the stack state (used by @halcyon run-vm --trace@).
+-- the stack state (used by @halcyon run-vm --trace@). Method dispatch uses
+-- the program's dictionary table (@pDicts@) against the entry function.
 runVm :: Bool -> Program -> IO (Either VmError VmVal)
-runVm trace (Program entry) = do
+runVm trace (Program entry dicts ctors) = do
   stackRef <- newIORef []
   framesRef <- newIORef [Frame entry (Context IntMap.empty Nothing) 0]
   run stackRef framesRef
@@ -116,6 +122,7 @@ runVm trace (Program entry) = do
                 CValue v -> pushS (toVm v) >> bumpIp f >> step
                 CData _ _ -> failVm "push_const on a constructor constant"
                 CFunc _  -> failVm "push_const on a function constant"
+                CMethod m -> pushS (VmVMethod m) >> bumpIp f >> step
             PushLocal s ->
               readCellAt (frCtx f) s >>=? \v -> pushS v >> bumpIp f >> step
             StoreLocal s ->
@@ -128,7 +135,7 @@ runVm trace (Program entry) = do
                 Just outer -> readCellAtWalk h outer i
                   >>=? \v -> pushS v >> bumpIp f >> step
             Pop -> popS >>=? \_ -> bumpIp f >> step
-            Add  -> binNum f (+) (+)
+            Add  -> binAdd f
             Sub  -> binNum f (-) (-)
             Mul  -> binNum f (*) (*)
             Div  -> binDiv f
@@ -336,7 +343,37 @@ runVm trace (Program entry) = do
                  else pushS (VmConstr name ar as') >> bumpIp f >> step
           VmBuiltin b -> applyBuiltin f b arg
           VmPartialBuiltin b xs -> applyPartialBuiltin f b (xs ++ [arg])
+          VmVMethod mname -> dispatchMethod f arg mname
           _ -> failVm ("cannot apply " <> vmShowValue fn)
+
+        -- Dispatch a class method reference to the argument value: find the
+        -- instance dictionary whose head matches the argument's runtime type
+        -- tag, look up the compiled method function (an entry constant), and
+        -- run it in a frame capturing the entry context (so instance method
+        -- bodies can reach top-level definitions as entry-frame upvalues).
+        dispatchMethod :: Frame -> VmVal -> String -> IO (Either VmError ())
+        dispatchMethod f arg mname = do
+          let tag = vmTypeOf ctors arg
+              hits = [(cn, e) | (cn, es) <- dicts, e <- es,
+                       mname `elem` map fst (deMethods e), unifyHead (deHead e) tag]
+          case hits of
+            ((cn, de) : _) ->
+              case lookup mname (deMethods de) of
+                Nothing -> failVm ("class " <> cn <> " has no method " <> mname)
+                Just idx -> case fConstants entry !! idx of
+                  CFunc func -> do
+                    let entryCtx = bottomCtx (frCtx f)
+                    call f arg (VmClosure func entryCtx)
+                  _ -> failVm ("instance method is not a function: " <> mname)
+            [] -> failVm ("no instance for method " <> mname <> " on " <> vmShowValue arg)
+
+        -- The entry context: walk the current frame's captured context chain
+        -- to its root (top-level frame), whose cells hold the compiled
+        -- top-level definitions.
+        bottomCtx :: Context -> Context
+        bottomCtx ctx = case ctxOuter ctx of
+          Just o  -> bottomCtx o
+          Nothing -> ctx
 
         -- Tail call: apply one argument and, when the call completes a
         -- function, reuse the current frame instead of pushing a new one
@@ -364,7 +401,26 @@ runVm trace (Program entry) = do
                  else pushS (VmConstr name ar as') >> popFrame
           VmBuiltin b -> applyBuiltin f b arg >>=? \_ -> popFrame
           VmPartialBuiltin b xs -> applyPartialBuiltin f b (xs ++ [arg]) >>=? \_ -> popFrame
+          VmVMethod mname -> dispatchMethodTail f arg mname
           _ -> failVm ("cannot apply " <> vmShowValue fn)
+
+        -- Tail-position method dispatch: like 'dispatchMethod' but the method
+        -- frame replaces the current one (constant-stack recursive dispatch).
+        dispatchMethodTail :: Frame -> VmVal -> String -> IO (Either VmError ())
+        dispatchMethodTail f arg mname = do
+          let tag = vmTypeOf ctors arg
+              hits = [(cn, e) | (cn, es) <- dicts, e <- es,
+                       mname `elem` map fst (deMethods e), unifyHead (deHead e) tag]
+          case hits of
+            ((_, de) : _) ->
+              case lookup mname (deMethods de) of
+                Nothing -> failVm ("no method " <> mname <> " in instance")
+                Just idx -> case fConstants entry !! idx of
+                  CFunc func -> do
+                    let entryCtx = bottomCtx (frCtx f)
+                    tailCall f arg (VmClosure func entryCtx)
+                  _ -> failVm ("instance method is not a function: " <> mname)
+            [] -> failVm ("no instance for method " <> mname <> " on " <> vmShowValue arg)
 
         -- Build a context for a function call and push a fresh frame at ip 0,
         -- advancing the caller's ip past the Call instruction.
@@ -431,6 +487,7 @@ runVm trace (Program entry) = do
 
         -- Numeric / comparison / boolean helpers (mirroring the interpreter).
         binNum f fi ff = twoArg (\a b -> num2 a b fi ff) (\v -> pushS v >> bumpIp f >> step)
+        binAdd f = twoArg add2 (\v -> pushS v >> bumpIp f >> step)
         binDiv f = twoArg div2 (\v -> pushS v >> bumpIp f >> step)
         binCmp f fi ff = twoArg (\a b -> cmp2 a b fi ff) (\v -> pushS v >> bumpIp f >> step)
         binEq f negateRes = twoArg eq2 (\v -> pushS (if negateRes then vmNot v else v) >> bumpIp f >> step)
@@ -505,6 +562,16 @@ runVm trace (Program entry) = do
           (BDrop, [VmInt n, VmList l]) -> pushS (VmList (drop (max 0 (fromIntegral n)) l)) >> bumpIp f >> step
           (BDrop, [_, v])            -> failVm ("drop expects a list, got " <> vmShowValue v)
           (BDrop, [v])               -> failVm ("drop expects an Int count, got " <> vmShowValue v)
+          (BIntToStr, [VmInt i])     -> pushS (VmStr (show i)) >> bumpIp f >> step
+          (BIntToStr, [v])           -> failVm ("intToStr expects an Int, got " <> vmShowValue v)
+          (BFloatToStr, [VmFloat d]) -> pushS (VmStr (showFloat d)) >> bumpIp f >> step
+          (BFloatToStr, [v])         -> failVm ("floatToStr expects a Float, got " <> vmShowValue v)
+          (BBoolToStr, [VmBool b])   -> pushS (VmStr (if b then "true" else "false")) >> bumpIp f >> step
+          (BBoolToStr, [v])          -> failVm ("boolToStr expects a Bool, got " <> vmShowValue v)
+          (BStrToStr, [VmStr s])     -> pushS (VmStr s) >> bumpIp f >> step
+          (BStrToStr, [v])           -> failVm ("strToStr expects a String, got " <> vmShowValue v)
+          (BListToStr, [v@(VmList _)]) -> pushS (VmStr (vmShowValue v)) >> bumpIp f >> step
+          (BListToStr, [v])          -> failVm ("listToStr expects a list, got " <> vmShowValue v)
           _                          -> failVm "internal error: unexpected builtin application"
 
         applyBuiltin f b arg
@@ -519,6 +586,12 @@ runVm trace (Program entry) = do
           (VmFloat x, VmInt y)   -> Right (VmFloat (ff x (fromIntegral y)))
           _ -> Left ("operator + requires numeric operands, got "
                      <> vmShowValue a <> " and " <> vmShowValue b)
+
+        -- @+@: numeric with promotion, or string concatenation when both
+        -- operands are strings (used by the built-in list Show instance).
+        add2 a b = case (a, b) of
+          (VmStr x, VmStr y) -> Right (VmStr (x <> y))
+          _                  -> num2 a b (+) (+)
 
         div2 a b = case (a, b) of
           (VmInt x, VmInt y)     | y == 0 -> Left "division by zero"
@@ -664,6 +737,26 @@ toVm = \case
   VConstr n ar as -> VmConstr n ar (map toVm as)
   VRec n fs -> VmRec n [(f, toVm v) | (f, v) <- fs]
   VClosure{} -> error "interpreter closure cannot enter VM constants"
+  VMethod m  -> VmVMethod m
+  VDict c ms -> VmDict c [(m, toVm v) | (m, v) <- ms]
+
+-- | The runtime type tag of a VM value, used to dispatch class methods.
+-- Empty lists have no element type; a list instance head matches any list,
+-- so the tag only needs the shape. Data values carry their constructor name
+-- as the tag; the @ctors@ map translates it to the type name so instance
+-- heads (written against the type) match.
+vmTypeOf :: Map.Map String String -> VmVal -> Halcyon.Type.Type
+vmTypeOf ctors = \case
+  VmInt _     -> Halcyon.Type.TInt
+  VmFloat _   -> Halcyon.Type.TFloat
+  VmBool _    -> Halcyon.Type.TBool
+  VmStr _     -> Halcyon.Type.TStr
+  VmList vs   -> case vs of
+    (x : _) -> Halcyon.Type.TList (vmTypeOf ctors x)
+    []      -> Halcyon.Type.TList (Halcyon.Type.TVar 0)
+  VmData n fs -> Halcyon.Type.TData (Map.findWithDefault n n ctors) (map (vmTypeOf ctors) fs)
+  VmRec n fs  -> Halcyon.Type.TRec n (map (vmTypeOf ctors . snd) fs)
+  _           -> Halcyon.Type.TFun (Halcyon.Type.TVar 0) (Halcyon.Type.TVar 0)
 
 -- | Render a VM value as program output, mirroring 'Halcyon.Value.showValue'
 -- so interpreter and VM produce byte-identical output.
@@ -682,3 +775,5 @@ vmShowValue = \case
   VmData n fs    -> unwords (n : map vmShowValue fs)
   VmConstr n _ _ -> "<constructor: " <> n <> ">"
   VmRec _ fs     -> "{ " <> intercalate ", " (map (\(f, v) -> f <> " = " <> vmShowValue v) fs) <> " }"
+  VmVMethod m    -> "<method: " <> m <> ">"
+  VmDict c _     -> "<dict: " <> c <> ">"

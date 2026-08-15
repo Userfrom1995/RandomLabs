@@ -4,13 +4,16 @@ module Halcyon.Op
   , Const(..)
   , Func(..)
   , Program(..)
+  , DictEntry(..)
   , showInstr
   , showConst
   , constEquiv
   ) where
 
+import qualified Data.Map.Strict as Map
 import Halcyon.Value (showValue)
 import Halcyon.Value (Value)
+import Halcyon.Type (Type)
 
 -- | Bytecode instructions for the Halcyon VM, a stack machine with frames,
 -- upvalue cells shared with the defining frame, and closures.
@@ -71,6 +74,7 @@ data Const
   | CData String Int          -- ^ a constructor reference: name + total arity
   | CRec String [String]      -- ^ a record reference: type name + field names in declared order
   | CField String             -- ^ a record field name (for projection/update)
+  | CMethod String            -- ^ a class method reference, dispatched by value type
   deriving (Show)
 
 -- | An immutable compiled function.
@@ -85,9 +89,25 @@ data Func = Func
   deriving (Show)
 
 -- | A compiled program: the entry (top-level) function; nested functions
--- live recursively in its constant pool.
+-- live recursively in its constant pool. The @pDicts@ table maps each class
+-- name to its instance dictionaries (head type + method -> entry constant
+-- index), which the VM uses to dispatch method references dynamically. The
+-- @pCtors@ map translates a runtime constructor name (the tag carried by
+-- data values) to its type name, so method dispatch can match an instance
+-- head against the value's type.
 data Program = Program
   { pEntry :: Func
+  , pDicts :: [(String, [DictEntry])]
+  , pCtors :: Map.Map String String
+  }
+  deriving (Show)
+
+-- | One compiled instance dictionary entry: the instance head type and a
+-- mapping from method name to the constant-pool index of the compiled method
+-- function (in the entry function's constant pool).
+data DictEntry = DictEntry
+  { deHead    :: Type
+  , deMethods :: [(String, Int)]
   }
   deriving (Show)
 
@@ -150,6 +170,7 @@ showConst = \case
   CData n a -> n <> "/" <> show a
   CRec n fs -> n <> " {" <> unwords fs <> "}"
   CField f  -> "." <> f
+  CMethod m -> "<method " <> m <> ">"
 
 -- | A canonical form of a constant used for deduplication in the constant
 -- pool. Values compare by rendered form; functions always get their own
@@ -160,3 +181,4 @@ constEquiv (CFunc f)  = "f:" <> fName f <> ":" <> show (length (fCode f))
 constEquiv (CData n a) = "d:" <> n <> ":" <> show a
 constEquiv (CRec n fs) = "r:" <> n <> ":" <> unwords fs
 constEquiv (CField f)  = "f:" <> f
+constEquiv (CMethod m) = "m:" <> m

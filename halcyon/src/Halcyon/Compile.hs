@@ -9,14 +9,15 @@ module Halcyon.Compile
   , Instr(..)
   ) where
 
-import Control.Monad (forM_, when)
+import Control.Monad (forM, forM_, when)
 import qualified Data.Map.Strict as Map
 import Data.List (intersperse, nub)
 import qualified Data.Set as Set
 
 import qualified Halcyon.Ast as Ast
-import Halcyon.Ast (Expr(..), DataDecl(..), RecordDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..))
-import Halcyon.Data (DataEnv, emptyDataEnv, progEnvs, checkProgram, ctorFor, CtorInfo(..))
+import Halcyon.Ast (Expr(..), DataDecl(..), RecordDecl(..), Pattern(..), Op(..), Builtin(..), TopDef(..), InstanceDecl(..))
+import Halcyon.Classes (ClassEnv(..), emptyClassEnv, buildClassEnv, methodClass, InstanceInfo(..))
+import Halcyon.Data (DataEnv(..), emptyDataEnv, progEnvs, checkProgram, ctorFor, CtorInfo(..))
 import Halcyon.Op
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Record (RecordEnv, recordFor, recordForFields, RecordInfo(..))
@@ -39,7 +40,9 @@ compileProgram src = case parseProgram src of
 -- definitions become cells in the entry function's scope (a recursive one
 -- gets a @NewCell@ first, mirroring 'compileLet'), so closures capturing a
 -- top-level name reach it as an upvalue of the entry frame; the final
--- expression (if any) is compiled last, then @Halt@.
+-- expression (if any) is compiled last, then @Halt@. Class instances are
+-- compiled into dictionary entries in the entry function's constant pool,
+-- and the dictionary table is attached to the compiled program.
 compileProgramIn :: Ast.Program -> Either CompileError Program
 compileProgramIn prog = do
   case checkProgram prog of
@@ -48,19 +51,59 @@ compileProgramIn prog = do
   (denv, renv) <- case progEnvs prog of
     Left m  -> Left (CompileError (Pos 0 0) m)
     Right e -> Right e
+  cenv <- case buildClassEnv prog of
+    Left m  -> Left (CompileError (Pos 0 0) m)
+    Right c -> Right c
   (_, st) <- runC
     (compileDefs denv renv (Ast.progDefs prog) >> compileMaybeExpr denv renv (Ast.progExpr prog) >> emit Halt >> resolvePatches)
-    initState
-  let entry = Func "main" [] (csCode st) (csConsts st) [] []
-  Right (Program entry)
+    initState { csCenv = cenv }
+  (dicts, st') <- runCDicts (compileDicts denv renv cenv) st
+  let entry = Func "main" [] (csCode st) (csConsts st') [] []
+      ctors = Map.map ciType (deCtors denv)
+  Right (Program entry dicts ctors)
   where
     compileDefs denv renv = mapM_ $ \case
       DefData _      -> return ()
       DefRecord _    -> return ()
+      DefClass _     -> return ()
+      DefInstance _  -> return ()
       DefLet p rec name bound -> compileTopLet p rec name denv renv bound
 
     compileMaybeExpr _ _ Nothing   = return ()
     compileMaybeExpr denv renv (Just e) = compileExpr denv renv True e
+
+-- | Compile every class instance's method functions into the entry function's
+-- constant pool, returning the dictionary table (class name -> entries with
+-- method name -> entry constant index). Method implementations must be
+-- function values.
+compileDicts :: DataEnv -> RecordEnv -> ClassEnv -> CompileM [(String, [DictEntry])]
+compileDicts denv renv cenv =
+  forM (Map.keys (ceClasses cenv)) $ \cn -> do
+    let insts = Map.findWithDefault [] cn (ceInstances cenv)
+    entries <- forM insts $ \inst -> do
+      methods <- forM (iiMethods inst) $ \(mname, body) ->
+        case dictLambda body of
+          Nothing -> compileError (iiPos inst) ("instance method " <> mname <> " must be a function")
+          Just (params, inner) -> do
+            func <- buildFunc denv renv params inner
+            idx <- addConst (CFunc func)
+            return (mname, idx)
+      return (DictEntry (iiHead inst) methods)
+    return (cn, entries)
+
+-- | The parameter list and body of an instance method implementation (a
+-- lambda).
+dictLambda :: Expr -> Maybe ([String], Expr)
+dictLambda (ELambda _ params body) = Just (params, body)
+dictLambda _                       = Nothing
+
+-- | Run a @CompileM@ action against a known initial state, returning both
+-- the action's result and the final state (used to compile the instance
+-- dictionaries after the entry function is finished).
+runCDicts :: CompileM a -> CompileState -> Either CompileError (a, CompileState)
+runCDicts m st = case runC m st of
+  Left e      -> Left e
+  Right (a, st') -> Right (a, st')
 
 -- | Compile one top-level @let@ binding into the current (entry) function's
 -- scope, without a body. Mirror of 'compileLet' for the definition form.
@@ -88,6 +131,7 @@ initState = CompileState
   , csLabels = Map.empty
   , csNextLabel = 0
   , csPatches = []
+  , csCenv = emptyClassEnv
   }
 
 emptyScope :: CScope
@@ -114,6 +158,7 @@ data CompileState = CompileState
   , csLabels    :: Map.Map Int Int
   , csNextLabel :: Int
   , csPatches   :: [(Int, Int)]      -- (label, instruction offset) to patch
+  , csCenv      :: ClassEnv          -- class environment for method references
   }
 
 newtype CompileM a = CompileM { runC :: CompileState -> Either CompileError (a, CompileState) }
@@ -468,6 +513,17 @@ compilePattern denv renv varSlot failLab = \case
 -- function's constant pool, and emits the closure-construction sequence.
 compileLambda :: Pos -> DataEnv -> RecordEnv -> [String] -> Expr -> CompileM ()
 compileLambda _ denv renv params body = do
+  func <- buildFunc denv renv params body
+  funcIdx <- addConst (CFunc func)
+  emit (MakeClosure funcIdx)
+
+-- | Build a compiled function from a parameter list and body, isolating the
+-- compilation in a fresh function scope and restoring the enclosing
+-- function's state afterwards. The result is not registered anywhere; callers
+-- either store it (as a closure constant) or, for instance methods, record
+-- its constant-pool index in a dictionary.
+buildFunc :: DataEnv -> RecordEnv -> [String] -> Expr -> CompileM Func
+buildFunc denv renv params body = do
   outer <- get
   let scope = CScope (zip params [0 ..]) []
   modify' (\s -> s
@@ -479,6 +535,7 @@ compileLambda _ denv renv params body = do
     , csLambda = csLambda s + 1
     , csLabels = Map.empty
     , csPatches = []
+    , csCenv = csCenv s
     })
   compileExpr denv renv True body
   emit Return
@@ -490,7 +547,7 @@ compileLambda _ denv renv params body = do
       upvals = [(h, i) | (_, h, i) <- csUpvals headScope]
       upvalNames = [n | (n, _, _) <- csUpvals headScope]
       func = Func ("<lambda" <> show (csLambda finished) <> ">") params code consts upvals upvalNames
-  -- restore the enclosing function's state, then register the func
+  -- restore the enclosing function's state
   modify' (\s -> s
     { csScopes = csScopes outer
     , csCode = csCode outer
@@ -500,9 +557,9 @@ compileLambda _ denv renv params body = do
     , csLambda = csLambda outer
     , csLabels = csLabels outer
     , csPatches = csPatches outer
+    , csCenv = csCenv outer
     })
-  funcIdx <- addConst (CFunc func)
-  emit (MakeClosure funcIdx)
+  return func
 
 -- | Register a local binding in the current function's scope.
 registerLocal :: String -> CompileM Int
@@ -559,6 +616,13 @@ addConst c = do
           let i = length (csConsts st)
           modify' (\s -> s { csConsts = csConsts s ++ [c], csConstMap = Map.insert (constEquiv c) i (csConstMap s) })
           return i
+    CMethod _ ->
+      case Map.lookup (constEquiv c) (csConstMap st) of
+        Just i  -> return i
+        Nothing -> do
+          let i = length (csConsts st)
+          modify' (\s -> s { csConsts = csConsts s ++ [c], csConstMap = Map.insert (constEquiv c) i (csConstMap s) })
+          return i
     CFunc _ -> do
       let i = length (csConsts st)
       modify' (\s -> s { csConsts = csConsts s ++ [c] })
@@ -584,7 +648,11 @@ resolveRef p name = do
       []      -> Nothing
 
     walkOuter :: Int -> [CScope] -> CompileM ()
-    walkOuter k [] = compileError p ("unbound name: " <> name)
+    walkOuter k [] = do
+      st <- get
+      case methodClass name (csCenv st) of
+        Just _  -> emitConst (CMethod name)
+        Nothing -> compileError p ("unbound name: " <> name)
     walkOuter k (scope : rest) =
       case lookup name (csLocalNames scope) of
         Just j -> do
