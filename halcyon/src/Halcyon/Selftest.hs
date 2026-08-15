@@ -1328,6 +1328,23 @@ artifactRoundTripFeatureful = artifactRoundTrip (unlines
 artifactTests :: IO Harness
 artifactTests = sequence
   [ checkIO "artifact: round trip fib" (artifactRoundTrip "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 15")
+  , checkIO "artifact: round trip operators" (artifactRoundTrip (unlines
+      [ "infixr 8 <->"
+      , "let (<->) = fn a b => a - b"
+      , "infixl 5 <+>"
+      , "let (<+>) = fn a b => a + b"
+      , "10 <-> 3 <-> 2 <+> 1"
+      ]))
+  , checkIO "artifact: round trip type synonym" (artifactRoundTrip (unlines
+      [ "type Table k v = [Int]"
+      , "record Env = { table : Table Int Int, seed : Int }"
+      , "let env = { seed = 10, table = [1, 2, 3] } in length env.table + env.seed"
+      ]))
+  , checkIO "artifact: round trip effects" (artifactRoundTrip (unlines
+      [ "let rec loop = fn n => do { line <- readLine;"
+      , "  if line == \"\" then do { printLine n } else do { loop (n + 1) } }"
+      , "in loop 0"
+      ]))
   , checkIO "artifact: round trip recursion" (artifactRoundTrip "let rec loop = fn n => if n < 1 then 0 else 1 + loop (n - 1) in loop 100")
   , checkIO "artifact: round trip closures" (artifactRoundTrip "let x = 3 in let f = fn y => x * y in f 14")
   , checkIO "artifact: round trip lists" (artifactRoundTrip "reverse [1, 2, 3, 4]")

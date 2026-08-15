@@ -1,2 +1,14 @@
 -- Halcyon example programs. The corpus is shared by the Haskell core
 -- (interpreter and VM), the differential checks, and the web playground.
+--
+-- Each file runs identically through the CLI (`halcyon run <file>`), the
+-- web playground, and the cross-language corpus check
+-- (`node js/corpus-check.js examples`). A few highlights:
+--
+--   fib.hly, map.hly, filter.hly     canonical recursion and higher-order code
+--   records-classes.hly              records and type classes
+--   string-lib.hly                   the self-hosted string library
+--   stdlib.hly                       the self-hosted list/pair/maybe library
+--   effects.hly                      effects and `do` blocks (reads stdin)
+--   prelude.hly                      the auto-imported standard prelude
+--   operators-synonyms.hly           user-defined operators and type synonyms

@@ -452,6 +452,75 @@ report('class: duplicate method rejected',
 report('type: char is Char', Halcyon.infer("'c'").ok
   && Halcyon.showType(Halcyon.infer("'c'").type) === 'Char', '');
 
+// ---- bytecode artifact round-trip (milestone 25) ------------------------------
+
+// Every corpus program must survive a serialize -> parse -> run round-trip:
+// the artifact bytes are deterministic and the parsed program runs exactly
+// like the original compiled program, on the effect runner too.
+function runArtifactBoth(label, src, expected, inputs) {
+  var ins = inputs || [];
+  var rr = Halcyon.resolveProgramNoPrelude(Halcyon.bundledProvider, '', src);
+  if (rr.kind === 'module' || rr.kind === 'parse') {
+    report(label, false, 'resolve error: ' + rr.message);
+    return;
+  }
+  var cp = Halcyon.compileResolved(rr, false);
+  if (cp.kind) { report(label, false, 'compile error: ' + cp.message); return; }
+  var ser = Halcyon.serializeProgram(cp.program);
+  if (!ser.ok) { report(label, false, 'serialize error: ' + ser.message); return; }
+  // deterministic serialization
+  var ser2 = Halcyon.serializeProgram(cp.program);
+  if (ser.text !== ser2.text) { report(label, false, 'serialization is not deterministic'); return; }
+  var par = Halcyon.parseArtifact(ser.text);
+  if (!par.ok) { report(label, false, 'parse error: ' + par.message); return; }
+  var direct = Halcyon.runVmEffect(cp.program, ins);
+  var viaArt = Halcyon.runVmEffect(par.program, ins);
+  var dOut = direct && direct.kind ? '<vm error: ' + direct.message + '>' : cliOutput(direct, Halcyon.vmShowValue);
+  var aOut = viaArt && viaArt.kind ? '<vm error: ' + viaArt.message + '>' : cliOutput(viaArt, Halcyon.vmShowValue);
+  if (expected !== null && expected !== undefined && (dOut !== expected || aOut !== expected)) {
+    report(label, false, 'expected ' + expected + ', direct=' + dOut + ', artifact=' + aOut);
+    return;
+  }
+  if (dOut !== aOut) {
+    report(label, false, 'direct=' + dOut + ' /= artifact=' + aOut);
+    return;
+  }
+  report(label, true, dOut);
+}
+
+Halcyon.corpus.forEach(function (e) {
+  runArtifactBoth('artifact: ' + e.name, e.source, e.expected, e.inputs);
+});
+
+// Artifact header and magic.
+var trivSer = Halcyon.serializeProgram(Halcyon.compileProgram('40 + 2').program);
+report('artifact: header', trivSer.ok && trivSer.text.slice(0, Halcyon.artifactMagic.length) === Halcyon.artifactMagic
+  && /^HALCYONBC1\n# Halcyon bytecode artifact, format version 1\nversion 1\n/.test(trivSer.text), '');
+report('artifact: magic constant', Halcyon.artifactMagic === 'HALCYONBC1', Halcyon.artifactMagic);
+
+// Malformed and truncated artifacts are rejected, never misparsed.
+var bads = [
+  ['empty', ''],
+  ['not an artifact', 'garbage'],
+  ['wrong magic', 'NOTHING1\nversion 1\n'],
+  ['truncated after header', 'HALCYONBC1\n# Halcyon bytecode artifact, format version 1\nversion 1\nentry '],
+  ['bad version', 'HALCYONBC1\nversion 99\n'],
+  ['bad const kind', 'HALCYONBC1\n# Halcyon bytecode artifact, format version 1\nversion 1\nentry func "main" 0\ncode 1\n  cvalue vint 1\n']
+];
+bads.forEach(function (t) {
+  var p = Halcyon.parseArtifact(t[1]);
+  report('artifact: rejects ' + t[0], !p.ok, p.ok ? '' : p.message);
+});
+
+// An artifact with a runtime-only value in its constant pool cannot be
+// serialized (mirrors the Haskell CValue restriction).
+var rtProg = { entry: { name: 'main', params: [], upvals: [], upvalNames: [],
+    consts: [{ c: 'value', v: { k: 'vm_method', name: 'foo' } }],
+    code: [{ op: 'push_const', i: 0 }, { op: 'halt' }] },
+  dicts: [], ctors: {} };
+var rtSer = Halcyon.serializeProgram(rtProg);
+report('artifact: rejects runtime-only consts', !rtSer.ok && /runtime-only/.test(rtSer.message), rtSer.ok ? '' : rtSer.message);
+
 // ---- profiler (milestone 21) -------------------------------------------------
 
 // Profiling is pure bookkeeping: the value is identical to a plain run, the
@@ -475,7 +544,9 @@ report('profiler: stats line summary',
     === 'profile: ' + profR.profile.total + ' instructions, peak stack '
       + profR.profile.peakStack + ', peak frames ' + profR.profile.peakFrames, '');
 
-// Examples directory (optional argument)
+// Examples directory (optional argument). The CLI auto-imports the prelude,
+// so examples are resolved with the bundled provider exactly like `halcyon
+// run examples/foo.hly`.
 var dir = process.argv[2];
 if (dir) {
   var names = fs.readdirSync(dir).filter(function (n) { return n.slice(-4) === '.hly'; }).sort();
@@ -485,7 +556,7 @@ if (dir) {
     for (var i = 0; i < Halcyon.corpus.length; i++) {
       if (Halcyon.corpus[i].name === n.slice(0, -4)) { expected = Halcyon.corpus[i].expected; }
     }
-    runBoth('example: ' + n, src, expected);
+    runResolvedEffect('example: ' + n, src, expected);
   });
 }
 

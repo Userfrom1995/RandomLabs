@@ -6165,6 +6165,462 @@
   }
 
   // =====================================================================
+  // Bytecode artifacts (mirrors Halcyon.Artifact): a deterministic text
+  // format (magic HALCYONBC1, version 1) that serializes a compiled program
+  // to a complete program image and parses it back. The same bytes are
+  // produced for the same program every time, and parse(serialize(p)) == p.
+  // =====================================================================
+
+  var ARTIFACT_MAGIC = 'HALCYONBC1';
+  var ARTIFACT_VERSION = 1;
+
+  function artifactQuote(s) {
+    var out = '"';
+    for (var i = 0; i < s.length; i++) {
+      var c = s[i];
+      if (c === '\\') { out += '\\\\'; }
+      else if (c === '"') { out += '\\"'; }
+      else if (c === '\n') { out += '\\n'; }
+      else if (c === '\t') { out += '\\t'; }
+      else if (c === '\r') { out += '\\r'; }
+      else { out += c; }
+    }
+    return out + '"';
+  }
+
+  // Render a Float exactly like Haskell's 'show' on Double for the values
+  // the compiler ever puts in a constant pool (whole floats keep ".0").
+  function artifactFloat(d) {
+    if (d === Math.round(d) && isFinite(d) && Math.abs(d) < 1e21) {
+      return String(Math.round(d)) + '.0';
+    }
+    return String(d);
+  }
+
+  // Serialize a program to artifact text; returns { ok: true, text } or
+  // { ok: false, message }.
+  function serializeProgram(program) {
+    var out = '';
+    try {
+      var entry = serializeFunc(program.entry, '');
+      var dicts = serializeDicts(program.dicts);
+      var ctorNames = Object.keys(program.ctors || {}).sort();
+      var ctorS = '';
+      for (var i = 0; i < ctorNames.length; i++) {
+        ctorS += 'ctor ' + artifactQuote(ctorNames[i]) + ' ' + artifactQuote(program.ctors[ctorNames[i]]) + '\n';
+      }
+      out = ARTIFACT_MAGIC + '\n'
+        + '# Halcyon bytecode artifact, format version ' + ARTIFACT_VERSION + '\n'
+        + 'version ' + ARTIFACT_VERSION + '\n'
+        + 'entry ' + entry + '\n'
+        + 'dicts ' + program.dicts.length + '\n'
+        + dicts
+        + 'ctors ' + ctorNames.length + '\n'
+        + ctorS;
+      return { ok: true, text: out };
+    } catch (e) {
+      return { ok: false, message: e.message || String(e) };
+    }
+  }
+
+  function serializeFunc(f, indent) {
+    var c = indent;
+    var s = c + 'func ' + artifactQuote(f.name) + ' ' + f.params.length
+      + f.params.map(artifactQuote).map(function (p) { return ' ' + p; }).join('') + '\n';
+    s += c + 'upvals ' + f.upvals.length
+      + f.upvals.map(function (u) { return ' ' + u[0] + ' ' + u[1]; }).join('') + '\n';
+    s += c + 'upnames ' + f.upvalNames.length
+      + f.upvalNames.map(artifactQuote).map(function (u) { return ' ' + u; }).join('') + '\n';
+    s += c + 'code ' + f.code.length + '\n';
+    for (var i = 0; i < f.code.length; i++) {
+      s += '  ' + c + serializeInstrArtifact(f.code[i]) + '\n';
+    }
+    s += c + 'consts ' + f.consts.length + '\n';
+    for (var j = 0; j < f.consts.length; j++) {
+      var k = f.consts[j];
+      s += '  ' + c + serializeConst(k, c + '  ') + '\n';
+    }
+    s += c + 'endfunc';
+    return s;
+  }
+
+  function serializeConst(k, indent) {
+    if (k.c === 'value') { return 'cvalue ' + serializeValue(k.v); }
+    if (k.c === 'func') { return 'cfunc ' + serializeFunc(k.f, indent); }
+    if (k.c === 'data') { return 'cdata ' + artifactQuote(k.name) + ' ' + k.arity; }
+    if (k.c === 'rec') {
+      return 'crec ' + artifactQuote(k.name) + ' ' + k.fields.length
+        + k.fields.map(artifactQuote).map(function (f) { return ' ' + f; }).join('');
+    }
+    if (k.c === 'field') { return 'cfield ' + artifactQuote(k.name); }
+    if (k.c === 'method') { return 'cmethod ' + artifactQuote(k.name); }
+    throw new Error('unknown constant kind: ' + k.c);
+  }
+
+  function serializeValue(v) {
+    switch (v.k) {
+      case 'int':     return 'vint ' + v.v;
+      case 'float':   return 'vfloat ' + artifactFloat(v.v);
+      case 'bool':    return 'vbool ' + (v.v ? 'true' : 'false');
+      case 'str':     return 'vstr ' + artifactQuote(v.v);
+      case 'char':    return 'vchar ' + v.v.charCodeAt(0);
+      case 'list':
+        return 'vlist ' + v.v.length + v.v.map(function (x) { return ' ' + serializeValue(x); }).join('');
+      case 'data':
+        return 'vdata ' + artifactQuote(v.name) + ' ' + v.fields.length
+          + v.fields.map(function (x) { return ' ' + serializeValue(x); }).join('');
+      case 'rec':
+        return 'vrec ' + artifactQuote(v.name) + ' ' + v.fields.length
+          + v.fields.map(function (f) { return ' ' + artifactQuote(f[0]) + ' ' + serializeValue(f[1]); }).join('');
+      case 'unit':    return 'vunit';
+      case 'effect':
+        return 'veffect ' + artifactQuote(v.tag) + ' ' + v.args.length
+          + v.args.map(function (x) { return ' ' + serializeValue(x); }).join('');
+      case 'builtin': return 'vbuiltin ' + artifactQuote(v.name);
+      default:
+        throw new Error('cannot serialize a runtime-only value (' + v.k + ') into a bytecode artifact');
+    }
+  }
+
+  function serializeType(t) {
+    switch (t.k) {
+      case 'var':  return 'tvar ' + t.n;
+      case 'int':  return 'tint';
+      case 'float': return 'tfloat';
+      case 'bool': return 'tbool';
+      case 'str':  return 'tstr';
+      case 'char': return 'tchar';
+      case 'unit': return 'tunit';
+      case 'list': return 'tlist ' + serializeType(t.t);
+      case 'data':
+        return 'tdata ' + artifactQuote(t.n) + ' ' + t.args.length
+          + t.args.map(function (a) { return ' ' + serializeType(a); }).join('');
+      case 'rec':
+        return 'trec ' + artifactQuote(t.n) + ' ' + t.args.length
+          + t.args.map(function (a) { return ' ' + serializeType(a); }).join('');
+      case 'fun':  return 'tfun ' + serializeType(t.a) + ' ' + serializeType(t.b);
+      case 'effect': return 'teffect ' + serializeType(t.t);
+      default: throw new Error('unknown type kind: ' + t.k);
+    }
+  }
+
+  function serializeDicts(dicts) {
+    var out = '';
+    for (var i = 0; i < dicts.length; i++) {
+      var cn = dicts[i][0];
+      var es = dicts[i][1];
+      out += 'dict ' + artifactQuote(cn) + ' ' + es.length + '\n';
+      for (var j = 0; j < es.length; j++) {
+        var de = es[j];
+        out += '  type ' + serializeType(de.head) + '\n';
+        out += '  methods ' + de.methods.length + '\n';
+        for (var m = 0; m < de.methods.length; m++) {
+          out += '  method ' + artifactQuote(de.methods[m][0]) + ' ' + de.methods[m][1] + '\n';
+        }
+      }
+    }
+    return out;
+  }
+
+  function serializeInstrArtifact(instr) {
+    switch (instr.op) {
+      case 'push_const':    return 'push_const ' + instr.i;
+      case 'push_local':    return 'push_local ' + instr.s;
+      case 'store_local':   return 'store_local ' + instr.s;
+      case 'new_cell':      return 'new_cell ' + instr.s;
+      case 'push_upvalue':  return 'push_upvalue ' + instr.h + ' ' + instr.i;
+      case 'jump':          return 'jump ' + instr.target;
+      case 'jump_if_false': return 'jump_if_false ' + instr.target;
+      case 'make_closure':  return 'make_closure ' + instr.i;
+      case 'make_list':     return 'make_list ' + instr.n;
+      case 'push_constr':   return 'push_constr ' + instr.i;
+      case 'make_data':     return 'make_data ' + instr.i;
+      case 'bind_local':    return 'bind_local ' + instr.s;
+      case 'test_nil':      return 'test_nil ' + instr.target;
+      case 'test_cons':     return 'test_cons ' + instr.target;
+      case 'test_constr':   return 'test_constr ' + instr.c + ' ' + instr.target;
+      case 'test_int':      return 'test_int ' + instr.c + ' ' + instr.target;
+      case 'test_float':    return 'test_float ' + instr.c + ' ' + instr.target;
+      case 'test_bool':     return 'test_bool ' + instr.c + ' ' + instr.target;
+      case 'test_str':      return 'test_str ' + instr.c + ' ' + instr.target;
+      case 'test_char':     return 'test_char ' + instr.c + ' ' + instr.target;
+      case 'test_record':   return 'test_record ' + instr.c + ' ' + instr.target;
+      case 'make_record':   return 'make_record ' + instr.i + ' ' + instr.n;
+      case 'get_field':     return 'get_field ' + instr.c;
+      case 'update_field':  return 'update_field ' + instr.c;
+      default:              return instr.op;
+    }
+  }
+
+  // Parse artifact text back into a program; returns { ok: true, program }
+  // or { ok: false, message }.
+  function parseArtifact(text) {
+    var toks = tokenizeArtifact(text);
+    if (toks.kind === 'error') { return toks; }
+    var i = 0;
+    function next() {
+      if (i >= toks.length) { throw new Error('unexpected end of artifact'); }
+      return toks[i++];
+    }
+    function word(w) {
+      var t = next();
+      if (t !== w) { throw new Error('expected ' + w + ', got ' + (t.length > 30 ? t.slice(0, 30) + '...' : t)); }
+    }
+    function name() { return next(); }
+    function integer() {
+      var t = next();
+      if (!/^-?\d+$/.test(t)) { throw new Error('expected an integer, got ' + t); }
+      return parseInt(t, 10);
+    }
+    function integerBig() {
+      var t = next();
+      if (!/^-?\d+$/.test(t)) { throw new Error('expected an integer, got ' + t); }
+      return parseInt(t, 10);
+    }
+    function float_() {
+      var t = next();
+      var d = parseFloat(t);
+      if (isNaN(d)) { throw new Error('expected a float, got ' + t); }
+      return d;
+    }
+    function bool_() {
+      var t = next();
+      if (t === 'true') { return true; }
+      if (t === 'false') { return false; }
+      throw new Error('expected true or false, got ' + t);
+    }
+    function many(n, f) {
+      var out = [];
+      for (var j = 0; j < n; j++) { out.push(f()); }
+      return out;
+    }
+    function program() {
+      word(ARTIFACT_MAGIC);
+      word('version');
+      var v = integer();
+      if (v !== ARTIFACT_VERSION) { throw new Error('unsupported artifact version ' + v); }
+      word('entry');
+      var entry = func();
+      word('dicts');
+      var nd = integer();
+      var dicts = many(nd, dict_);
+      word('ctors');
+      var nc = integer();
+      var ctors = {};
+      many(nc, function () {
+        word('ctor');
+        ctors[name()] = name();
+      });
+      return { entry: entry, dicts: dicts, ctors: ctors };
+    }
+    function dict_() {
+      word('dict');
+      var cn = name();
+      var ne = integer();
+      var es = many(ne, function () {
+        word('type');
+        var head = type_();
+        word('methods');
+        var nm = integer();
+        var methods = many(nm, function () {
+          word('method');
+          return [name(), integer()];
+        });
+        return { head: head, methods: methods };
+      });
+      return [cn, es];
+    }
+    function type_() {
+      var w = next();
+      switch (w) {
+        case 'tvar':  return TT.var_(integer());
+        case 'tint':  return TT.INT;
+        case 'tfloat': return TT.FLOAT;
+        case 'tbool': return TT.BOOL;
+        case 'tstr':  return TT.STR;
+        case 'tchar': return TT.CHAR;
+        case 'tunit': return TT.UNIT;
+        case 'tlist': return TT.list(type_());
+        case 'tdata': {
+          var dn = name();
+          var na = integer();
+          return TData(dn, many(na, type_));
+        }
+        case 'trec': {
+          var rn = name();
+          var nr = integer();
+          return TRec(rn, many(nr, type_));
+        }
+        case 'tfun': {
+          var a = type_();
+          var b = type_();
+          return TT.fun(a, b);
+        }
+        case 'teffect': return TT.effect(type_());
+        default: throw new Error('expected a type, got ' + w);
+      }
+    }
+    function const_() {
+      var w = next();
+      switch (w) {
+        case 'cvalue': return { c: 'value', v: value() };
+        case 'cfunc':  return { c: 'func', f: func() };
+        case 'cdata':  return { c: 'data', name: name(), arity: integer() };
+        case 'crec': {
+          var cn = name();
+          var nf = integer();
+          return { c: 'rec', name: cn, fields: many(nf, name) };
+        }
+        case 'cfield': return { c: 'field', name: name() };
+        case 'cmethod': return { c: 'method', name: name() };
+        default: throw new Error('expected a constant, got ' + w);
+      }
+    }
+    function value() {
+      var w = next();
+      switch (w) {
+        case 'vint':   return VInt(integerBig());
+        case 'vfloat': return VFloat(float_());
+        case 'vbool':  return VBool(bool_());
+        case 'vstr':   return VStr(name());
+        case 'vchar':  return VChar(String.fromCharCode(integer()));
+        case 'vlist':  return VList(many(integer(), value));
+        case 'vdata': {
+          var dn = name();
+          var nv = integer();
+          return VData(dn, many(nv, value));
+        }
+        case 'vrec': {
+          var rn = name();
+          var nr = integer();
+          var fs = [];
+          for (var j = 0; j < nr; j++) { fs.push([name(), value()]); }
+          return VRec(rn, fs);
+        }
+        case 'vunit':  return VUnit();
+        case 'veffect': {
+          var tag = name();
+          var na = integer();
+          return VEffect(tag, many(na, value));
+        }
+        case 'vbuiltin': return VBuiltin(name());
+        default: throw new Error('expected a value, got ' + w);
+      }
+    }
+    function func() {
+      word('func');
+      var fname = name();
+      var np = integer();
+      var params = many(np, name);
+      word('upvals');
+      var nu = integer();
+      var upvals = many(nu, function () { return [integer(), integer()]; });
+      word('upnames');
+      var nun = integer();
+      var upvalNames = many(nun, name);
+      word('code');
+      var nc = integer();
+      var code = many(nc, instr);
+      word('consts');
+      var nk = integer();
+      var consts = many(nk, const_);
+      word('endfunc');
+      return { name: fname, params: params, code: code, consts: consts, upvals: upvals, upvalNames: upvalNames };
+    }
+    function instr() {
+      var op = next();
+      switch (op) {
+        case 'push_const':    return { op: 'push_const', i: integer() };
+        case 'push_local':    return { op: 'push_local', s: integer() };
+        case 'store_local':   return { op: 'store_local', s: integer() };
+        case 'new_cell':      return { op: 'new_cell', s: integer() };
+        case 'push_upvalue':  return { op: 'push_upvalue', h: integer(), i: integer() };
+        case 'jump':          return { op: 'jump', target: integer() };
+        case 'jump_if_false': return { op: 'jump_if_false', target: integer() };
+        case 'make_closure':  return { op: 'make_closure', i: integer() };
+        case 'make_list':     return { op: 'make_list', n: integer() };
+        case 'push_constr':   return { op: 'push_constr', i: integer() };
+        case 'make_data':     return { op: 'make_data', i: integer() };
+        case 'bind_local':    return { op: 'bind_local', s: integer() };
+        case 'test_nil':      return { op: 'test_nil', target: integer() };
+        case 'test_cons':     return { op: 'test_cons', target: integer() };
+        case 'test_constr':   return { op: 'test_constr', c: integer(), target: integer() };
+        case 'test_int':      return { op: 'test_int', c: integer(), target: integer() };
+        case 'test_float':    return { op: 'test_float', c: integer(), target: integer() };
+        case 'test_bool':     return { op: 'test_bool', c: integer(), target: integer() };
+        case 'test_str':      return { op: 'test_str', c: integer(), target: integer() };
+        case 'test_char':     return { op: 'test_char', c: integer(), target: integer() };
+        case 'test_record':   return { op: 'test_record', c: integer(), target: integer() };
+        case 'make_record':   return { op: 'make_record', i: integer(), n: integer() };
+        case 'get_field':     return { op: 'get_field', c: integer() };
+        case 'update_field':  return { op: 'update_field', c: integer() };
+        default:
+          return { op: op };
+      }
+    }
+    try {
+      var prog = program();
+      if (i < toks.length) { throw new Error('trailing tokens after artifact: ' + toks[i]); }
+      return { ok: true, program: prog };
+    } catch (e) {
+      return { ok: false, message: e.message || String(e) };
+    }
+  }
+
+  // Tokenize artifact text: strip # comments, split on whitespace, and
+  // unescape quoted strings (mirrors Halcyon.Artifact.tokenize).
+  function tokenizeArtifact(text) {
+    var toks = [];
+    var lines = String(text).split('\n');
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li];
+      var hash = line.indexOf('#');
+      if (hash >= 0) { line = line.slice(0, hash); }
+      var i = 0;
+      while (i < line.length) {
+        while (i < line.length && (line[i] === ' ' || line[i] === '\t')) { i++; }
+        if (i >= line.length) { break; }
+        if (line[i] === '"') {
+          var r = readQuoted(line, i + 1);
+          if (r.err) { return { kind: 'error', ok: false, message: r.err }; }
+          toks.push(r.s);
+          i = r.next;
+        } else {
+          var j = i;
+          while (j < line.length && line[j] !== ' ' && line[j] !== '\t') { j++; }
+          toks.push(line.slice(i, j));
+          i = j;
+        }
+      }
+    }
+    return toks;
+  }
+
+  function readQuoted(line, start) {
+    var out = '';
+    var i = start;
+    for (;;) {
+      if (i >= line.length) { return { err: 'unterminated string in artifact' }; }
+      var c = line[i];
+      if (c === '"') { return { s: out, next: i + 1 }; }
+      if (c === '\\') {
+        if (i + 1 >= line.length) { return { err: 'unterminated escape in artifact string' }; }
+        var e = line[i + 1];
+        if (e === '\\') { out += '\\'; }
+        else if (e === '"') { out += '"'; }
+        else if (e === 'n') { out += '\n'; }
+        else if (e === 't') { out += '\t'; }
+        else if (e === 'r') { out += '\r'; }
+        else { return { err: 'bad escape in artifact string: \\' + e }; }
+        i += 2;
+      } else {
+        out += c;
+        i += 1;
+      }
+    }
+  }
+
+  // =====================================================================
   // Corpus (mirrors Halcyon.Corpus): the canonical differential programs
   // shared with the Haskell core and the cross-language check.
   // =====================================================================
@@ -6261,7 +6717,10 @@
     'match-lists.hly': '-- Nested list patterns and guards by order of branches.\nmatch [[1, 2], [3, 4]] with | [] => 0 | [a, b] :: rest => a + b | xs => -1\n',
     'stdlib.hly': '-- Self-hosted standard library: the combinators live in\n-- halcyon/lib/ as real importable modules, and this file is a thin\n-- import-based demo that exercises them end-to-end.\nimport "../lib/list.hly"\nimport "../lib/pair.hly"\nimport "../lib/maybe.hly"\nimport "../lib/compose.hly"\n\nsum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))\n   + myLength [1, 2, 3, 4] * 100\n   + (match head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b)\n   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)\n',
     'records-classes.hly': '-- Records and type classes: a Point record plus a user-defined Show\n-- instance for a data type, composing the string library.\nrecord Point = { x : Int, y : Int }\n\ndata Shape = Circle | Rect\n\nclass Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn n => n\ninstance Size Shape where\n  size = fn s => match s with | Circle => 1 | Rect => 2\n\nlet p = { x = 3, y = 4 } in\n  let moved = { p with x = 10 } in\n    size (if size Rect + moved.x > 12 then Circle else Rect)\n',
-    'string-lib.hly': '-- The self-hosted string library: chars, fromChars, toUpperStr, countChar,\n-- and repeat layered over the core string builtins.\nimport "../lib/string.hly"\n\nlet shout = fn s => toUpperStr s + "!"\nin if startsWith "HEL" (shout "hello") then countChar \'L\' (shout "hello") else -1\n'
+    'string-lib.hly': '-- The self-hosted string library: chars, fromChars, toUpperStr, countChar,\n-- and repeat layered over the core string builtins.\nimport "../lib/string.hly"\n\nlet shout = fn s => toUpperStr s + "!"\nin if startsWith "HEL" (shout "hello") then countChar \'L\' (shout "hello") else -1\n',
+    'effects.hly': '-- Effects: readLine consumes scripted stdin (one line per read, then\n-- the empty string), printLine and print drive stdout. Type your input\n-- in the Input box below before running.\nlet rec loop = fn n => do { line <- readLine;\n  if line == "" then do { printLine n } else do { loop (n + 1) } }\nin loop 0\n',
+    'prelude.hly': '-- The prelude is auto-imported, so lib helpers are available without an\n-- import statement: sum, map, filter, range, foldl, compose, fromMaybe,\n-- toUpperStr, repeat, and the effectful combinators seq_ and when.\nsum (map (fn x => x * x) (range 1 8)) + (if startsWith "HEL" (toUpperStr "hello") then 100 else 0)\n',
+    'operators-synonyms.hly': '-- User-defined operators (infixl/infixr with a dynamic precedence table)\n-- and parse-time type synonyms (type Name = ...).\ninfixr 8 <->\nlet (<->) = fn a b => a - b\ninfixl 5 <+>\nlet (<+>) = fn a b => a + b\ntype Table k v = [Int]\nrecord Env = { table : Table Int Int, seed : Int }\nlet env = { seed = 10, table = [1, 2, 3] }\nin length env.table + env.seed + (10 <-> 3 <-> 2 <+> 1)\n'
   };
 
   return {
@@ -6286,6 +6745,9 @@
     vmShowValue: vmShowValue,
     showInstr: showInstr,
     disassemble: disassemble,
+    serializeProgram: serializeProgram,
+    parseArtifact: parseArtifact,
+    artifactMagic: ARTIFACT_MAGIC,
     resolveProgram: resolveProgram,
     resolveProgramNoPrelude: resolveProgramNoPrelude,
     memProvider: memProvider,

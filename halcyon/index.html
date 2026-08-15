@@ -150,7 +150,9 @@
   <h1>Halcyon</h1>
   <p>A small, calm, well-typed functional language: lexer, parser, Hindley-Milner type inference, a tree-walking
   interpreter, and a bytecode VM with closures and upvalue cells, algebraic data types, pattern matching, tail-call
-  optimization, records, type classes, a Char type with string builtins, a profiler, and a deterministic optimizer.
+  optimization, records, type classes, user-defined operators, type synonyms, an auto-imported prelude, effects
+  with <code>do</code> blocks, serialized bytecode artifacts, a Char type with string builtins, a profiler, and a
+  deterministic optimizer.
   This playground runs a faithful JavaScript mirror of the Haskell core (cross-checked for byte-identical output),
   so what you see here is the verified behavior.</p>
 </header>
@@ -175,6 +177,10 @@
           <label class="opt-toggle" title="Run the deterministic optimizer before executing or disassembling">
             <input type="checkbox" id="opt-check"> --opt
           </label>
+        </div>
+        <div class="controls" style="margin-top:10px;">
+          <label class="muted">input (stdin for effects):</label>
+          <textarea id="stdin" rows="3" spellcheck="false" placeholder="one line per readLine; the rest of the program reads the empty string"></textarea>
         </div>
       </div>
     </div>
@@ -209,12 +215,19 @@
         <button class="tab" data-panel="type">Type</button>
         <button class="tab" data-panel="ast">AST</button>
         <button class="tab" data-panel="bytecode">Bytecode</button>
+        <button class="tab" data-panel="artifact">Artifact</button>
         <button class="tab" data-panel="profile">Profile</button>
       </div>
       <div class="panel active" id="panel-output"><pre id="out-output" class="muted">Run a program to see its output.</pre></div>
       <div class="panel" id="panel-type"><pre id="out-type" class="muted">Typecheck a program to see its inferred top-level type.</pre></div>
       <div class="panel" id="panel-ast"><pre id="out-ast" class="muted">Show the AST to see the parsed structure.</pre></div>
       <div class="panel" id="panel-bytecode"><pre id="out-bytecode" class="muted">Compile a program to see its bytecode disassembly.</pre></div>
+      <div class="panel" id="panel-artifact">
+        <pre id="out-artifact" class="muted">Compile a program to see its serialized .hbc bytecode artifact.</pre>
+        <div class="controls" style="margin-top:8px;">
+          <button id="artifact-dl">Download .hbc</button>
+        </div>
+      </div>
       <div class="panel" id="panel-profile"><pre id="out-profile" class="muted">Run a program on the profiled VM to see instruction and call counts.</pre></div>
     </div>
   </div>
@@ -231,6 +244,7 @@
   'use strict';
   var H = window.Halcyon;
   var source = document.getElementById('source');
+  var stdin = document.getElementById('stdin');
   var select = document.getElementById('example-select');
 
   var exampleNames = Object.keys(H.examples).sort();
@@ -246,6 +260,21 @@
   select.addEventListener('change', function () {
     source.value = H.examples[select.value] || '';
   });
+
+  function stdinLines() {
+    var t = stdin.value;
+    if (t === '') { return []; }
+    return t.split('\n');
+  }
+
+  // Effect-aware CLI output: effect output plus the rendered final value
+  // (nothing when it is the unit value), mirroring the Haskell CLI.
+  function cliText(res, show) {
+    if (!res || res.kind) { return ''; }
+    var v = res.value;
+    var unitK = v && (v.k === 'unit' || v.k === 'vm_unit');
+    return (res.out || '') + (unitK ? '' : show(v));
+  }
 
   // -------------------------------------------------------------------
   // Tabs
@@ -289,6 +318,7 @@
       case 'bool':   return pad + 'bool ' + e.v + ' ' + pos(e);
       case 'str':    return pad + 'str "' + e.v + '" ' + pos(e);
       case 'char':   return pad + 'char ' + e.v + ' ' + pos(e);
+      case 'unit':   return pad + 'unit ' + pos(e);
       case 'var':    return pad + 'var ' + e.name + ' ' + pos(e);
       case 'builtin': return pad + 'builtin ' + e.name + ' ' + pos(e);
       case 'constr': return pad + 'constr ' + e.name + ' ' + pos(e);
@@ -466,6 +496,12 @@
       }
       case 'deflet':
         return 'let' + (d.rec ? ' rec' : '') + ' ' + d.name + ' = ' + renderAst(d.bound, 0);
+      case 'definfix':
+        return (d.assoc === 'left' ? 'infixl ' : (d.assoc === 'right' ? 'infixr ' : 'infix '))
+          + d.level + ' ' + d.name;
+      case 'defsynonym':
+        return 'type ' + d.name + (d.tyvars.length ? ' ' + d.tyvars.join(' ') : '')
+          + ' = ' + renderType(d.ty);
       default:
         return '?';
     }
@@ -478,6 +514,8 @@
       case 'bool': return 'Bool';
       case 'str': return 'String';
       case 'char': return 'Char';
+      case 'unit': return '()';
+      case 'effect': return 'Effect ' + renderType(t.t);
       case 'var': return t.n >= 2000000000 ? 'a' : 'a' + t.n;
       case 'list': return '[' + renderType(t.t) + ']';
       case 'fun': return renderType(t.a) + ' -> ' + renderType(t.b);
@@ -492,23 +530,29 @@
   // -------------------------------------------------------------------
   document.getElementById('run-btn').addEventListener('click', function () {
     var src = source.value;
+    var ins = stdinLines();
     var inf = H.inferProgram(src);
     if (!inf.ok) { showError('output', inf); activate('output'); return; }
-    var r = H.evalProgram(src);
+    var r = H.evalProgramEffect(ins, src);
     if (r.kind === 'eval') { showError('output', r); activate('output'); return; }
-    show('output', H.showValue(r));
+    var v = r.value;
+    var unitK = v && (v.k === 'unit' || v.k === 'vm_unit');
+    show('output', r.out + (unitK ? '' : H.showValue(v)));
     activate('output');
   });
 
   document.getElementById('run-vm-btn').addEventListener('click', function () {
     var src = source.value;
+    var ins = stdinLines();
     var inf = H.inferProgram(src);
     if (!inf.ok) { showError('output', inf); activate('output'); return; }
     var cp = H.compileProgram(src, document.getElementById('opt-check').checked);
     if (cp.kind) { showError('output', cp); activate('output'); return; }
-    var res = H.runVm(cp.program, false);
+    var res = H.runVmEffect(cp.program, ins);
     if (res.kind) { showError('output', res); activate('output'); return; }
-    show('output', H.vmShowValue(res.value));
+    var v = res.value;
+    var unitK = v && (v.k === 'unit' || v.k === 'vm_unit');
+    show('output', res.out + (unitK ? '' : H.vmShowValue(v)));
     activate('output');
   });
 
@@ -542,6 +586,33 @@
     if (cp.kind) { showError('bytecode', cp); activate('bytecode'); return; }
     show('bytecode', H.disassemble(cp.program.entry));
     activate('bytecode');
+  });
+
+  // Serialize the compiled program to a .hbc artifact (same format the CLI
+  // emits with `compile -o`); the Download button saves it as a file.
+  var artifactText = null;
+  function buildArtifact() {
+    var cp = H.compileProgram(source.value, document.getElementById('opt-check').checked);
+    if (cp.kind) { showError('artifact', cp); activate('artifact'); return false; }
+    var ser = H.serializeProgram(cp.program);
+    if (!ser.ok) { showError('artifact', ser); activate('artifact'); return false; }
+    artifactText = ser.text;
+    show('artifact', ser.text);
+    activate('artifact');
+    return true;
+  }
+  var artifactTab = document.querySelector('.tab[data-panel="artifact"]');
+  artifactTab.addEventListener('click', buildArtifact);
+  document.getElementById('artifact-dl').addEventListener('click', function () {
+    if (artifactText === null) {
+      if (!buildArtifact()) { return; }
+    }
+    var blob = new Blob([artifactText], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'program.hbc';
+    a.click();
+    URL.revokeObjectURL(a.href);
   });
 
   // -------------------------------------------------------------------
