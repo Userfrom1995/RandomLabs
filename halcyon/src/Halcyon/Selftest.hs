@@ -11,6 +11,8 @@ import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Eval (EvalError(..), evalProgram, showValue)
+import Halcyon.Compile (compileProgram, CompileError(..))
+import Halcyon.Vm (runVm, VmError(..), vmShowValue)
 
 -- ---------------------------------------------------------------------
 -- Tiny assertion framework
@@ -34,6 +36,14 @@ check name act =
   case act of
     Left err  -> Fail name err
     Right ()  -> Ok name
+
+-- | Run a named check in IO (for the VM-backed tests).
+checkIO :: String -> IO (Either String ()) -> IO Result
+checkIO name act = do
+  r <- act
+  return $ case r of
+    Left err -> Fail name err
+    Right () -> Ok name
 
 lexesOk :: String -> Either String ()
 lexesOk src = case lexSource src of
@@ -85,6 +95,50 @@ evalFails :: String -> Either String ()
 evalFails src = case evalProgram src of
   Left _  -> Right ()
   Right v -> Left ("expected a runtime error, but got " <> showValue v)
+
+vmEvalsTo :: String -> String -> IO (Either String ())
+vmEvalsTo src expected = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> do
+    res <- runVm False prog
+    return $ case res of
+      Left (VmError m) -> Left ("vm error: " <> m)
+      Right v ->
+        let shown = vmShowValue v
+        in if shown == expected
+             then Right ()
+             else Left ("expected " <> expected <> ", got " <> shown)
+
+vmFails :: String -> IO (Either String ())
+vmFails src = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> do
+    res <- runVm False prog
+    return $ case res of
+      Left _  -> Right ()
+      Right v -> Left ("expected a vm error, but got " <> vmShowValue v)
+
+-- | Interpreter and VM must agree on a program's output (differential).
+differential :: String -> String -> IO (Either String ())
+differential src expected = do
+  rEval <- case evalProgram src of
+    Left (EvalError _ m) -> return (Left ("eval error: " <> m))
+    Right v              -> return (Right (showValue v))
+  rVm <- case compileProgram src of
+    Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+    Right prog -> do
+      res <- runVm False prog
+      return $ case res of
+        Left (VmError m) -> Left ("vm error: " <> m)
+        Right v          -> Right (vmShowValue v)
+  case rEval of
+    Left e -> return (Left e)
+    Right ev -> case rVm of
+      Left e -> return (Left e)
+      Right rv ->
+        if ev == expected && rv == expected
+          then return (Right ())
+          else return (Left ("interpreter: " <> ev <> ", vm: " <> rv <> ", expected: " <> expected))
 
 -- ---------------------------------------------------------------------
 -- Tests
@@ -181,17 +235,68 @@ evalTests =
   , check "eval: arithmetic fib"     (evalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 25" "75025")
   ]
 
+vmTests :: IO Harness
+vmTests = sequence
+  [ checkIO "vm: arithmetic"            (vmEvalsTo "1 + 2 * 3" "7")
+  , checkIO "vm: promote int+float"     (vmEvalsTo "1 + 2.5" "3.5")
+  , checkIO "vm: promote float+int"     (vmEvalsTo "2.5 * 2" "5.0")
+  , checkIO "vm: int division"          (vmEvalsTo "7 / 2" "3")
+  , checkIO "vm: float division"        (vmEvalsTo "7.0 / 2" "3.5")
+  , checkIO "vm: div by zero"           (vmFails "1 / 0")
+  , checkIO "vm: comparison"            (vmEvalsTo "3 < 4 && 4 <= 4" "true")
+  , checkIO "vm: equality"              (vmEvalsTo "1 == 1 && \"a\" /= \"b\"" "true")
+  , checkIO "vm: not"                   (vmEvalsTo "!false" "true")
+  , checkIO "vm: unary minus"           (vmEvalsTo "-5 + 2" "-3")
+  , checkIO "vm: if"                    (vmEvalsTo "if 2 > 1 then \"yes\" else \"no\"" "yes")
+  , checkIO "vm: let"                   (vmEvalsTo "let x = 10 in x * 2" "20")
+  , checkIO "vm: let rec fib"           (vmEvalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 10" "55")
+  , checkIO "vm: curried lambda"        (vmEvalsTo "let f = fn x y => x + y in f 3 4" "7")
+  , checkIO "vm: partial application"   (vmEvalsTo "let f = fn x y => x + y in let g = f 10 in g 5" "15")
+  , checkIO "vm: closures capture"      (vmEvalsTo "let x = 5 in let f = fn y => x + y in f 1" "6")
+  , checkIO "vm: let rec capture"       (vmEvalsTo "let x = 2 in let rec f = fn n => if n < 2 then n else f (n - 1) + x in f 5" "9")
+  , checkIO "vm: higher-order"          (vmEvalsTo "let twice = fn f x => f (f x) in twice (fn x => x * 2) 3" "12")
+  , checkIO "vm: cons/head/tail"        (vmEvalsTo "let xs = cons 1 (cons 2 []) in head xs" "1")
+  , checkIO "vm: tail"                  (vmEvalsTo "tail (cons 1 (cons 2 []))" "[2]")
+  , checkIO "vm: isNil"                 (vmEvalsTo "isNil []" "true")
+  , checkIO "vm: list literal"          (vmEvalsTo "[1, 2, 3]" "[1, 2, 3]")
+  , checkIO "vm: list ops"              (vmEvalsTo "let xs = [1, 2, 3] in cons 0 (tail xs)" "[0, 2, 3]")
+  , checkIO "vm: string value"          (vmEvalsTo "let s = \"hello\" in s" "hello")
+  , checkIO "vm: head empty"            (vmFails "head []")
+  , checkIO "vm: negate bool"           (vmFails "-true")
+  , checkIO "vm: arith fib"             (vmEvalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 25" "75025")
+  , checkIO "vm: nested upvalues"       (vmEvalsTo "let rec makeCounter = fn n => fn step => n + step in let inc = makeCounter 10 in inc 5" "15")
+  , checkIO "vm: mutual no (separate)"  (vmEvalsTo "let g = fn y => y * 2 in let f = fn x => g x in f 21" "42")
+  ]
+
+diffTests :: IO Harness
+diffTests = sequence
+  [ checkIO "diff: fib 20"       (differential "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 20" "6765")
+  , checkIO "diff: map-like"     (differential "let rec loop = fn f xs => if isNil xs then [] else cons (f (head xs)) (loop f (tail xs)) in loop (fn x => x * 2) [1, 2, 3, 4]" "[2, 4, 6, 8]")
+  , checkIO "diff: filter-like"  (differential "let rec loop = fn xs => if isNil xs then [] else if head xs > 2 then cons (head xs) (loop (tail xs)) else loop (tail xs) in loop [1, 2, 3, 4, 5]" "[3, 4, 5]")
+  , checkIO "diff: arithmetic"   (differential "1 + 2 * 3 - 4 / 2" "5")
+  , checkIO "diff: floats"       (differential "1.5 + 2.25 * 2" "6.0")
+  , checkIO "diff: nested calls" (differential "let rec sum = fn n => if n < 1 then 0 else n + sum (n - 1) in sum 100" "5050")
+  , checkIO "diff: closures"     (differential "let x = 3 in let y = 4 in let f = fn z => x * z + y in f 5" "19")
+  , checkIO "diff: strings"      (differential "if \"a\" == \"a\" then \"yes\" else \"no\"" "yes")
+  , checkIO "diff: deep rec"     (differential "let rec count = fn n => if n < 1 then 0 else 1 + count (n - 1) in count 5000" "5000")
+  , checkIO "diff: partial app"  (differential "let f = fn a b c => a * b + c in f 2 3 4" "10")
+  ]
+
 -- ---------------------------------------------------------------------
 -- Main
 -- ---------------------------------------------------------------------
 
 runSelftest :: IO Bool
 runSelftest = do
+  vm <- vmTests
+  diff <- diffTests
   let groups =
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
         , ("types", typeTests)
         , ("eval", evalTests)
+        , ("vm", vm)
+        , ("differential", diff)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups

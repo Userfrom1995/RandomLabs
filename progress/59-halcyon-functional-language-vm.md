@@ -3,15 +3,14 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T12:15:00Z
+- **Updated:** 2026-08-15T13:05:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
 - [x] 2. Core domain: Token + Lexer + AST + Parser (positioned errors, precedence climbing)
 - [x] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
 - [x] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
-- [ ] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
-- [ ] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
+- [x] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
 - [ ] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
 - [ ] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
 - [ ] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
@@ -20,8 +19,10 @@
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Interpreter done (Value/Env/closures/let rec lazy knot/curried builtins,
-30 eval tests passing, 75 total); bytecode VM next
+Bytecode VM done (Op/Compile/Vm, frame stack, upvalue cells shared via IORef,
+curried Call with partial application, rec via NewCell+MakeClosure+StoreLocal,
+jump patching, disassembler, trace mode; 29 VM tests + 10 interpreter-vs-VM
+differential tests added, 114 total); differential corpus next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -72,5 +73,28 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   promotion at runtime incl. truncating Int division, positioned runtime
   errors). Verified: fib 25, count 100000 (deep recursion), map/filter over
   lists, closures. 30 eval selftests added (75 total).
+- 2026-08-15 (builder) - Milestone 5 (bytecode VM): Op.hs (Instr set incl.
+  PushUpvalue hops:index, NewCell, MakeClosure, Call, MakeList, Halt; Const
+  CValue/CFunc; Func with code/constants/upvals; constEquiv dedup; showInstr),
+  Compile.hs (CompileM over CompileState, per-function scope chains with
+  locals + upvalues, resolveRef emitting PushLocal/PushUpvalue with
+  (hops,index) capture paths, lambda compile with save/restore + MakeClosure
+  into enclosing pool, rec as NewCell+MakeClosure+StoreLocal, jump labels +
+  forward patch resolution, EList to MakeList, disassemble), Vm.hs (frame
+  stack machine in IO; Context = cells IntMap of IORefs + captured outer
+  chain; closures capture defining frame's Context by reference so recursion
+  via the rec cell works; MakeClosure resolves upvalue paths from the frame
+  context; PushUpvalue walks hops then reads cell; curried Call applying one
+  arg per Call with VmPartial for multi-param lambdas; arithmetic/comparison/
+  builtins mirroring the interpreter incl. Int/Float promotion and truncating
+  Int div; trace mode printing ip+instruction+stack; vmShowValue byte-equal
+  to showValue). 29 VM selftests + 10 differential (interpreter==VM) tests
+  added, 114 total all passing. Verified: deep recursion 100k in ~0.55s,
+  10-level nested closure captures, closures created inside called functions,
+  fib 25 = 75025 on both evaluators. Known limitation documented: mutual
+  recursion between separate let recs is rejected by the typechecker on both
+  sides.
+
+- the Builder
 
 - the Architect

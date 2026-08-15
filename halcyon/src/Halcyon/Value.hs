@@ -2,6 +2,7 @@
 module Halcyon.Value
   ( Value(..)
   , showValue
+  , showFloat
   ) where
 
 import Data.List (intercalate)
