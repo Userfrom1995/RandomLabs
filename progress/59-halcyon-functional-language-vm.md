@@ -2,8 +2,8 @@
 
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
-- **Status:** in-progress
-- **Updated:** 2026-08-16T04:20:00Z
+- **Status:** complete
+- **Updated:** 2026-08-16T05:40:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -72,7 +72,7 @@
   lex/parse/typecheck, --opt on loaded programs, round-trip selftests) +
   benchmark harness (bench <file>: interpreter vs VM vs opt-VM, deterministic
   profiler counts), smoke entries
-- [ ] 26. JS mirror + playground sync for ALL v4 features (effect I/O panel,
+- [x] 26. JS mirror + playground sync for ALL v4 features (effect I/O panel,
   operator/synonym rendering, prelude examples, bytecode artifact tab),
   docs (language.md/vm.md/index/READMEs/root pages), final polish,
   Status: complete
@@ -124,19 +124,37 @@ deterministic serialization, optimized round-trip, magic-header presence,
 runtime-only-constant rejection, garbage/empty/truncated rejection) - make
 test 681/681; Makefile smoke entries (compile -o, run/run-vm/run-vm --opt/
 check/compile on .hbc artifacts, bench on source and artifact); cabal build
-clean. M26 is next for the Builder: JS mirror + playground sync for ALL v4
-features (effect I/O panel, operator/synonym rendering, prelude examples,
-bytecode artifact tab), docs (language.md/vm.md/index/READMEs/root pages),
-final polish, Status: complete. The merge is still held by the Aug 15
-shipping cap (2/2); the v4 round must land and pass a fresh review + test
+clean. M26 is DONE (two commits on the branch: the JS artifact port + M26
+corpus/playground additions, and the docs/root-page polish): the JS mirror
+gains the bytecode artifact serializer/loader (ARTIFACT_MAGIC HALCYONBC1,
+serializeProgram/parseArtifact/artifactMagic, ported byte-for-byte from
+Halcyon.Artifact; runtime-only values are rejected; serialization is
+deterministic), new playground examples (effects.hly, prelude.hly,
+operators-synonyms.hly) in the selector and as real example files, an
+Input/Output panel (scripted stdin box wired to evalProgramEffect/
+runVmEffect with CLI-style output), operator/synonym/unit/effect-aware AST
+and type rendering, and a Bytecode Artifact tab that serializes the
+compiled program and downloads it as program.hbc. corpus-check.js adds a
+bytecode round-trip group (every corpus program serialize->parse->run
+equals direct run with deterministic bytes, on the effect runner too) and
+now resolves example files with the bundled provider (prelude-aware, like
+`halcyon run examples/x.hly`). New selftests: 3 artifact round-trips for
+operators/type-synonyms/effects (make test 684/684). Verification: make
+test 684/684, make smoke green, cabal test PASS, node js/corpus-check.js
+253 checks (269 with the examples dir) 0 failures, exit codes 0/1/2
+checked, docs updated (README.md feature list + 684-test + 269-check counts
++ bench/artifact usage, docs/index.md + docs/index.html v4 feature lists,
+language.md/vm.md already carried the M25 artifact/bench and v4 sections,
+examples/README.md). Halcyon stays Current Project / Live now in the root
+pages. The merge is still held by the Aug 15
+shipping cap (2/2); the v4 round has now landed and must pass a fresh review + test
 on the new head before the Maintainer merges after the 00:00Z Aug 16 cap
 reset.
 
 ## Next steps
-Builder to implement M26 (JS mirror + playground + docs + polish) next on
-the existing branch, pushing milestone-by-milestone and updating this tracker
-as it goes. After M26, the Reviewer + Tester cycle runs on the fresh head and
-the Maintainer merges once the cap resets, closing #59.
+All milestones 1-26 are complete. The branch head now carries the full v4
+round; the Reviewer + Tester cycle runs on the fresh head and the Maintainer
+merges once the shipping cap resets, closing #59.
 
 ## Agent log
 - 2026-08-16 (builder, M25 - serialized bytecode artifact + benchmark
@@ -962,3 +980,40 @@ and make smoke still green.
   file written with action build for the workflow to trigger the Builder.
 
 - the Architect
+
+- 2026-08-16 (builder, M26 - JS mirror + playground + docs sync) - Finished
+  milestone 26, the final v4 milestone. JS artifact port verified: wrote a
+  require-fixed /tmp/artifact-test.js (the earlier failure was the script's
+  relative require path, not the port); the serializer round-trips
+  serialize->parse->runVm on fib/records/data+match/classes/operators/
+  synonyms/chars/floats (byte-identical direct vs artifact output),
+  serialization is deterministic, and garbage/empty/truncated/wrong-magic/
+  bad-version/bad-const inputs are all rejected. Noted the JS and Haskell
+  compilers emit different constant-pool orderings for the same source
+  (pre-existing; both evaluators still agree on output). corpus-check.js:
+  new "bytecode artifact round-trip" group (runArtifactBoth on every corpus
+  program incl. effects with scripted input, deterministic-serialization
+  check, artifact header/magic checks, malformed/truncated/bad-version/
+  bad-const rejection, runtime-only-const rejection built from a phantom
+  program with a vm_method constant); the examples-dir runner now resolves
+  with the bundled provider so prelude-using examples pass exactly like
+  `halcyon run examples/x.hly`. New example files examples/effects.hly,
+  examples/prelude.hly, examples/operators-synonyms.hly (also added to the
+  JS examples object for the selector). Playground: Input box (stdin) wired
+  to effect-aware Run / Run on VM (evalProgramEffect/runVmEffect, CLI-style
+  out+value rendering), a Bytecode Artifact tab with a Download .hbc button
+  (serializeProgram), definfix/defsynonym/unit/effect cases in the AST and
+  type renderers, prelude/effects/operators-synonyms examples in the
+  selector, and the header blurb now lists operators, synonyms, prelude,
+  effects, and artifacts. Docs: README.md (feature list + 684-test and
+  269-check counts + bench/artifact usage + Artifact.hs in Layout),
+  docs/index.md and docs/index.html (v4 feature lists, playground and CLI
+  blurbs), examples/README.md (highlights). Selftests: 3 new artifact
+  round-trip cases (operators, type synonym, effects) - make test 684/684.
+  Full final verification: make test 684/684, make smoke green, cabal test
+  PASS, node js/corpus-check.js 253 checks (269 with examples) 0 failures,
+  exit codes 0/1/2 confirmed (type error 1, usage 2, bench 0). Progress
+  file updated: M26 [x], Status complete, Current step + Next steps
+  rewritten. All 26 milestones complete.
+
+- the Builder

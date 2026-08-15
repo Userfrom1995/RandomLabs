@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Halcyon: a functional language with a bytecode VM</title>
-<meta name="description" content="Halcyon: a strictly-evaluated functional language with Hindley-Milner type inference, algebraic data types, records, type classes, pattern matching, tail-call optimization, a bytecode VM with a profiler, a Haskell CLI, and a dependency-free JavaScript web playground with a single-stepping VM debugger. Zero dependencies, 596 self-tests, and a cross-language corpus that proves the JS mirror matches the Haskell core byte-for-byte." />
+<meta name="description" content="Halcyon: a strictly-evaluated functional language with Hindley-Milner type inference, algebraic data types, records, type classes, user operators, type synonyms, an auto-imported prelude, effects, bytecode artifacts, pattern matching, tail-call optimization, a bytecode VM with a profiler, a Haskell CLI, and a dependency-free JavaScript web playground with a single-stepping VM debugger. Zero dependencies, 684 self-tests, and a cross-language corpus that proves the JS mirror matches the Haskell core byte-for-byte." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -102,17 +102,19 @@
   compiler, and a stack VM with frames, upvalue cells, closures, tail-call
   optimization, an instruction profiler, and a deterministic optimizer.
   Algebraic data types, nominal records, and type classes let programs
-  define their own types. Two evaluators (interpreter and VM) plus a
-  JavaScript mirror all agree byte-for-byte, proven by a differential
-  corpus.</p>
+  define their own types; user-defined operators, parse-time type
+  synonyms, an auto-imported standard prelude, effects with
+  <code>do</code> blocks, and serialized bytecode artifacts round out the
+  language. Two evaluators (interpreter and VM) plus a JavaScript mirror
+  all agree byte-for-byte, proven by a differential corpus.</p>
 
   <div class="cards">
     <div class="card">
       <h4>Types</h4>
       <p>Full Hindley-Milner inference: <code>Int</code>, <code>Float</code>,
       <code>Bool</code>, <code>String</code>, <code>Char</code>, lists,
-      functions, user-defined algebraic data types, nominal records, and
-      real polymorphism through <code>let</code>.</p>
+      functions, user-defined algebraic data types, nominal records, type
+      synonyms, and real polymorphism through <code>let</code>.</p>
     </div>
     <div class="card">
       <h4>Classes</h4>
@@ -131,13 +133,14 @@
       <h4>Playground</h4>
       <p>A dependency-free <code>index.html</code> that runs the whole
       language client-side: edit, typecheck, run, disassemble, profile,
-      step, and toggle the optimizer with <code>--opt</code>.</p>
+      step, script stdin for effects, and download bytecode artifacts,
+      with an <code>--opt</code> toggle.</p>
     </div>
     <div class="card">
       <h4>Verified</h4>
-      <p>596 Haskell self-tests, a differential corpus, and a cross-language
+      <p>684 Haskell self-tests, a differential corpus, and a cross-language
       check (JS interpreter == JS VM == Haskell expected, including the
-      profiler and disassembly).</p>
+      profiler, disassembly, and bytecode artifact round-trips).</p>
     </div>
   </div>
 
@@ -155,12 +158,14 @@ in fib 25</code></pre>
     <li>
       <h4><a href="language.md">Language reference</a></h4>
       <p>Grammar, operator precedence, the type system, data types, records,
-      type classes, builtins, and evaluation semantics.</p>
+      type classes, user operators, type synonyms, builtins, the prelude,
+      effects, bytecode artifacts, and evaluation semantics.</p>
     </li>
     <li>
       <h4><a href="vm.md">Virtual machine reference</a></h4>
       <p>Frames, contexts, upvalue cells, the calling convention, records,
-      method dispatch, profiling, and the full opcode table.</p>
+      method dispatch, user operators and synonyms, effects, artifacts and
+      benchmarking, profiling, and the full opcode table.</p>
     </li>
     <li>
       <h4><a href="../README.md">Project README</a></h4>
