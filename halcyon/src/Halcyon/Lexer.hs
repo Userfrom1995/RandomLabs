@@ -80,7 +80,11 @@ lexSource src = go 1 1 src
       (x : _) | x == ')' -> simpleTok l c TRParen 1 s
       (x : _) | x == '[' -> simpleTok l c TLBracket 1 s
       (x : _) | x == ']' -> simpleTok l c TRBracket 1 s
+      (x : _) | x == '{' -> simpleTok l c TLBrace 1 s
+      (x : _) | x == '}' -> simpleTok l c TRBrace 1 s
+      (x : _) | x == '.' -> simpleTok l c TDot 1 s
       (x : _) | x == ',' -> simpleTok l c TComma 1 s
+      (x : _) | x == ':' && not (isPrefixOf' "::" s) -> simpleTok l c TColon 1 s
       (x : _)            -> Left (LexError (Pos l c) ("unexpected character: " <> show x))
 
     -- Emit a single token after consuming n characters, continuing the scan.
@@ -192,6 +196,7 @@ keywordOrIdent = \case
   "then"  -> TThen
   "else"  -> TElse
   "data"  -> TData
+  "record" -> TRecord
   "import" -> TImport
   "match" -> TMatch
   "with"  -> TWith

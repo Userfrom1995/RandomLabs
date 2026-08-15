@@ -4,6 +4,7 @@ module Halcyon.Ast
   , Program(..)
   , TopDef(..)
   , DataDecl(..)
+  , RecordDecl(..)
   , Pattern(..)
   , Op(..)
   , Builtin(..)
@@ -11,6 +12,7 @@ module Halcyon.Ast
   , builtinName
   , builtinForName
   , progDataDecls
+  , progRecordDecls
   , progLetNames
   ) where
 
@@ -32,6 +34,9 @@ data Expr
   | ELet     Pos Bool String Expr Expr  -- ^ @let [rec] x = e in b@
   | EIf      Pos Expr Expr Expr
   | EMatch   Pos Expr [(Pattern, Expr)]  -- ^ @match e with | pat => e@
+  | ERecord  Pos [(String, Expr)]   -- ^ record literal @{ f1 = e1, ..., fn = en }@
+  | EProj    Pos Expr String        -- ^ field projection @e.f@
+  | EUpdate  Pos Expr String Expr   -- ^ functional update @{ e with f = e' }@
   | EBin     Pos Op Expr Expr
   | ENeg     Pos Expr            -- ^ unary minus
   | ENot     Pos Expr            -- ^ boolean not
@@ -54,12 +59,17 @@ data Program = Program
 -- bindings share a namespace for names in the final expression.
 data TopDef
   = DefData DataDecl
+  | DefRecord RecordDecl
   | DefLet Pos Bool String Expr
   deriving (Eq, Show)
 
 -- | The @data@ declarations of a program, in order.
 progDataDecls :: Program -> [DataDecl]
 progDataDecls p = [d | DefData d <- progDefs p]
+
+-- | The @record@ declarations of a program, in order.
+progRecordDecls :: Program -> [RecordDecl]
+progRecordDecls p = [d | DefRecord d <- progDefs p]
 
 -- | The names bound by top-level @let@ definitions, in order.
 progLetNames :: Program -> [String]
@@ -73,6 +83,19 @@ data DataDecl = DataDecl
   , ddName   :: String            -- ^ capitalized type name
   , ddTyvars :: [String]          -- ^ declared type parameters
   , ddCtors  :: [(String, [Type])] -- ^ constructor name -> field types
+  }
+  deriving (Eq, Show)
+
+-- | A top-level @record@ declaration: @record <Name> <tyvar>* =
+-- @{ <field> : <type>, ... }@. Field types are parsed into
+-- 'Halcyon.Type.Type' where declared type variables are 'TVar' indices and
+-- concrete/data types are names. Fields resolve the record by their globally
+-- unique field name set (two records may not share a field set).
+data RecordDecl = RecordDecl
+  { rdPos    :: Pos
+  , rdName   :: String
+  , rdTyvars :: [String]
+  , rdFields :: [(String, Type)]  -- ^ field name -> field type, in declaration order
   }
   deriving (Eq, Show)
 
@@ -90,6 +113,7 @@ data Pattern
   | PCons  Pos Pattern Pattern   -- ^ @x :: xs@
   | PList  Pos [Pattern]
   | PConstr Pos String [Pattern]
+  | PRecord Pos [(String, Pattern)]  -- ^ record pattern @{ x = a, y = b }@
   deriving (Eq, Show)
 
 -- | Binary operators, in precedence order (lowest first).

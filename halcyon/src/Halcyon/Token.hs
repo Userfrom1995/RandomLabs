@@ -32,6 +32,7 @@ data Tok
   | TThen
   | TElse
   | TData
+  | TRecord
   | TImport
   | TMatch
   | TWith
@@ -58,6 +59,10 @@ data Tok
   | TRParen
   | TLBracket
   | TRBracket
+  | TLBrace            -- ^ @{@ (record-open)
+  | TRBrace            -- ^ @}@ (record-close)
+  | TDot               -- ^ @.@ (record projection)
+  | TColon             -- ^ @:@ (record field type separator)
   | TComma
   | TEOF
   deriving (Eq, Show)

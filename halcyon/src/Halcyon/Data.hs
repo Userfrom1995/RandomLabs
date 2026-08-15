@@ -11,6 +11,7 @@ module Halcyon.Data
   , ctorFor
   , progDataDecls
   , progDataEnv
+  , progEnvs
   , checkProgram
   ) where
 
@@ -18,7 +19,8 @@ import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
-import Halcyon.Ast (DataDecl(..), Program(..), TopDef(..), progLetNames)
+import Halcyon.Ast (DataDecl(..), Program(..), TopDef(..), progLetNames, progRecordDecls)
+import Halcyon.Record (RecordEnv, buildRecordEnv, recordNameSet)
 import Halcyon.Type (Type(..), Scheme(..))
 
 -- | Constructor metadata: the scheme a bare constructor reference has (e.g.
@@ -50,12 +52,43 @@ progDataDecls p = [d | DefData d <- progDefs p]
 progDataEnv :: Program -> Either String DataEnv
 progDataEnv = buildDataEnv . progDataDecls
 
+-- | Build both the data and record environments for a program, resolving
+-- record references (@TData n@ -> @TRec n@) in constructor schemes and
+-- record fields. All of type checking, evaluation, and compilation go
+-- through this so the three agree on record types.
+progEnvs :: Program -> Either String (DataEnv, RecordEnv)
+progEnvs p = do
+  d <- progDataEnv p
+  r <- buildRecordEnv (progRecordDecls p)
+  return (normDataEnvRecs (recordNameSet r) d, r)
+
+-- | Normalize @TData n@ references to declared record names into @TRec n@
+-- inside constructor schemes, so constructors whose fields mention records
+-- unify with record literal types.
+normDataEnvRecs :: Set.Set String -> DataEnv -> DataEnv
+normDataEnvRecs recs (DataEnv m) = DataEnv (Map.map normCtor m)
+  where
+    normCtor (CtorInfo t ar sch) =
+      let Scheme qv b = sch
+      in CtorInfo t ar (Scheme qv (normType b))
+    normType = go
+      where
+        go (TData n ts) | n `Set.member` recs = TRec n (map go ts)
+        go (TData n ts)                       = TData n (map go ts)
+        go (TList t)                          = TList (go t)
+        go (TFun a b)                         = TFun (go a) (go b)
+        go (TRec n ts)                        = TRec n (map go ts)
+        go t                                  = t
+
 -- | Validate a fully-resolved program's top-level namespace: no duplicate
 -- data type names, no duplicate constructor names (both caught by
--- 'buildDataEnv'), and no duplicate top-level @let@ binding names.
+-- 'buildDataEnv'), no duplicate record names or shared field sets (caught by
+-- 'Halcyon.Record.buildRecordEnv'), and no duplicate top-level @let@ binding
+-- names.
 checkProgram :: Program -> Either String ()
 checkProgram p = do
   _ <- buildDataEnv (progDataDecls p)
+  _ <- buildRecordEnv (progRecordDecls p)
   case dupes (progLetNames p) of
     (x : _) -> Left ("duplicate top-level definition: " <> x)
     []      -> Right ()

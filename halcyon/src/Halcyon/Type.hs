@@ -22,6 +22,7 @@ data Type
   | TStr
   | TList Type
   | TData String [Type]
+  | TRec String [Type]
   | TFun Type Type
   deriving (Eq, Show)
 
@@ -37,6 +38,7 @@ freeVars = \case
   TVar v   -> Set.singleton v
   TList t  -> freeVars t
   TData _ ts -> Set.unions (map freeVars ts)
+  TRec _ ts  -> Set.unions (map freeVars ts)
   TFun a b -> freeVars a `Set.union` freeVars b
   _        -> Set.empty
 
@@ -59,6 +61,7 @@ showType = go
       TStr     -> "String"
       TList t  -> "[" <> go t <> "]"
       TData n ts -> if null ts then n else n <> " " <> unwords (map goArg ts)
+      TRec n ts  -> if null ts then n else n <> " " <> unwords (map goArg ts)
       TFun a b -> showArg a <> " -> " <> go b
     showArg t = case t of
       TFun _ _ -> "(" <> go t <> ")"
@@ -67,6 +70,7 @@ showType = go
       TFun _ _   -> "(" <> go t <> ")"
       TList _    -> go t
       TData _ _  -> go t
+      TRec _ _   -> go t
       _          -> go t
     chr' n = toEnum (fromEnum 'a' + n)
 
