@@ -14,24 +14,30 @@
 - [x] TUI: ANSI interactive editor frontend (keyboard-driven, no prompts)
 - [x] CLI: new/edit/import-art/render/export/info/list/validate/dump + --selftest
 - [x] sample fonts: micro5x7 (95 ASCII) + pico3x5, generated .gff + exported code
-- [x] tests: full suite green via self-test harness (109 tests)
-- [ ] iteration/improvement cycle (no one-shot)
+- [x] tests: full suite green via self-test harness (126 tests)
+- [x] iteration/improvement cycle, part 1: kerning pairs (format, renderer, exporters, editor script command, tests)
+- [ ] iteration/improvement cycle, part 2: HTML specimen page generator (frontend) + sample artifacts
 - [ ] docs: README, docs/index.md + index.html, format.md, codegen.md, landing page, root README
 - [ ] final push, Status: complete, PR with Closes #57
 
 ## Current step
-Core, renderer, exporters, editor, TUI, CLI, and the full self-test suite are
-done and green (109/109). Sample fonts authored and generated: micro5x7
-(95 printable-ASCII glyphs, 5x7) and pico3x5 (38 glyphs, 3x5), each with a
-.gff artifact, validated, and exported to Kotlin/Java/C/text (+ RLE
-variants) with deterministic output. Next: the docs (README details,
-docs/index.md + index.html, format.md, codegen.md, landing page, root
-README), then the iteration/improvement cycle, then final push.
+Run 4 landed the first half of the mandatory iteration/improvement cycle:
+kerning pairs. The core Font gained a per-pair kern table (validated: drawable
+chars, both glyphs must exist, amount in 1-cellWidth..cellWidth), .gff now
+carries `kern:U+0041:U+0056=-1` lines (strictly parsed with line numbers), the
+renderer honors kerning with overlapping-column composition, all six
+exporters emit kern tables (kotlin/java/c/text and the rle variants; generated
+kotlin renderText is kern-aware), and the editor gained a `kern <c1> <c2>
+<amount|clear>` script command. 17 new tests (126 total) cover round trips,
+rejections, exports, rendering, and the script surface. Next: the HTML
+specimen generator (the frontend half of the iteration), then docs, then the
+final push.
 
 ## Next steps
-- Write core domain classes with bit-packed glyph storage.
-- Add Raster RLE autotrace encode/decode + FontIO .gff round trip.
-- Build Renderer, exporters, Editor, TUI, CLI, sample fonts, tests, docs.
+- Build the HTML specimen/sandbox generator (specimen command + tests).
+- Write the docs (README details, docs/index.md + index.html, format.md, codegen.md, landing page, root README).
+- Add kern pairs + a specimen page to the sample fonts and regenerate artifacts.
+- Mark Status: complete and push.
 
 ## Agent log
 - 2026-08-15 (run 1): oriented (builder.md, AGENTS.md, FACTORY.md, README,
@@ -59,3 +65,13 @@ README), then the iteration/improvement cycle, then final push.
   Micro5x7.gff + Pico3x5.gff (both validate), eyeballed renders in blocks
   mode, and exported deterministic code artifacts (Kotlin/Java/C/text, plus
   kotlin-rle and c-rle). Committed sample fonts + exports milestone.
+- 2026-08-15 (run 4): iteration cycle part 1 - kerning pairs. Core Font now
+  has a validated per-pair kern table (drawable chars, glyphs must exist,
+  amount in 1-cellWidth..cellWidth). .gff gained `kern:` lines (canonical
+  sorted output, strict line-numbered parsing, duplicate/range/unknown-char
+  rejection). Renderer composes glyphs with per-pair offsets (overlap paints
+  in order), so kerning shifts text left/right deterministically. All six
+  exporters emit kern tables (kotlin/java/c/text + rle variants); generated
+  Kotlin renderText became kern-aware with offset-based column painting.
+  Editor gained a `kern <c1> <c2> <amount|clear>` script command; Metrics
+  summarizes kern count. 17 new tests, 126/126 green. Committed milestone.

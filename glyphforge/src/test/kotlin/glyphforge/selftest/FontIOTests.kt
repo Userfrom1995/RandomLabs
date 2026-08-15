@@ -135,6 +135,56 @@ object FontIOTests {
             Check.glyphEq(g, parsed.glyph('Ω')!!, "omega glyph")
         }
 
+        s.test("kern pairs round trip and sort by code point") {
+            val f = sampleFont()
+            f.setKern('A', ' ', -1)
+            f.setKern(' ', 'A', -2)
+            val parsed = FontIO.parse(FontIO.write(f))
+            Check.eq(-1, parsed.kern('A', ' '), "A-space kern")
+            Check.eq(-2, parsed.kern(' ', 'A'), "space-A kern")
+            Check.eq(0, parsed.kern('A', 'A'), "unset pair is 0")
+            Check.eq(listOf(' ' to 'A', 'A' to ' '), parsed.kernPairs().map { it.first to it.second }, "sorted pairs")
+            Check.eq(2, parsed.kernCount(), "kern count")
+        }
+
+        s.test("kern write emits canonical lines") {
+            val f = sampleFont()
+            f.setKern('A', ' ', -1)
+            val text = FontIO.write(f)
+            Check.isTrue(text.contains("kern:U+0041:U+0020=-1"), "kern line")
+            Check.isTrue(text.contains("# kern pairs: 1"), "kern count comment")
+        }
+
+        s.test("parse rejects malformed kern lines") {
+            val base = "GF1\nname=T\ncellWidth=5\ncellHeight=7\nbaseline=6\ndefaultAdvance=5\nglyph:U+0041:adv=5:runs=-\nglyph:U+0056:adv=5:runs=-"
+            val cases = listOf(
+                "$base\nkern:U+0041:U+0056=x" to "not an integer",
+                "$base\nkern:U+0041:U+0056=-9" to "kern",
+                "$base\nkern:U+0041:U+0000=1" to "out of range",
+                "$base\nkern:U+0041:U+0056=-1\nkern:U+0041:U+0056=1" to "duplicate kern pair",
+                "$base\nkern:U+0041:U+0059=1" to "U+0059",
+                "$base\nkern:U+0041=1" to "malformed kern",
+            )
+            for ((text, expected) in cases) {
+                Check.throws("reject kern: $expected", expected) { FontIO.parse(text) }
+            }
+        }
+
+        s.test("setKern rejects pairs whose glyphs are not in the font") {
+            val f = sampleFont()
+            Check.throws("unknown left", "not a glyph") { f.setKern('V', 'A', -1) }
+            Check.throws("unknown right", "not a glyph") { f.setKern('A', 'V', -1) }
+        }
+
+        s.test("removeKern clears a pair") {
+            val f = sampleFont()
+            f.setKern('A', ' ', -1)
+            Check.eq(1, f.kernCount(), "pair present")
+            f.removeKern('A', ' ')
+            Check.eq(0, f.kernCount(), "pair cleared")
+            Check.eq(0, f.kern('A', ' '), "kern back to 0")
+        }
+
         return s
     }
 }

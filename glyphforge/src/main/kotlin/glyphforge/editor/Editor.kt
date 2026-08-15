@@ -33,6 +33,7 @@ sealed class Command {
     object Copy : Command()
     object Cut : Command()
     object Paste : Command()
+    data class Kern(val a: Char, val b: Char, val amount: Int) : Command()
     object Undo : Command()
     object Redo : Command()
     object Save : Command()
@@ -86,6 +87,7 @@ class Editor(val font: Font, initialChar: Char) {
               rotate / rotateccw  (square grids)    shift <dx> <dy>
               fillrow <y> / fillcol <x>             autofit          center content in grid
               copy / cut / paste                    undo / redo
+              kern <c1> <c2> <n|clear>  set/clear a kerning pair
               save           write glyph to font    load             reload from font
               status / print                        help / quit
         """.trimIndent()
@@ -129,6 +131,7 @@ class Editor(val font: Font, initialChar: Char) {
             mutate("cut ${working.countSet()} px") { it.clearAll() }
         }
         is Command.Paste -> paste()
+        is Command.Kern -> kern(cmd.a, cmd.b, cmd.amount)
         is Command.Undo -> undo()
         is Command.Redo -> redo()
         is Command.Save -> save()
@@ -208,6 +211,20 @@ class Editor(val font: Font, initialChar: Char) {
         }
         dirty = true
         return EditorResult(true, "pasted ${clip.countSet()} px")
+    }
+
+    /** Sets (or with amount 0 clears) a kerning pair on the whole font. */
+    private fun kern(a: Char, b: Char, amount: Int): EditorResult {
+        return try {
+            if (amount == 0) font.removeKern(a, b) else font.setKern(a, b, amount)
+            EditorResult(
+                true,
+                if (amount == 0) "kern ${displayChar(a)} ${displayChar(b)} cleared"
+                else "kern ${displayChar(a)} ${displayChar(b)} = $amount"
+            )
+        } catch (e: IllegalArgumentException) {
+            EditorResult(false, e.message ?: "bad kern")
+        }
     }
 
     private fun mutate(label: String, f: (Glyph) -> Unit): EditorResult {

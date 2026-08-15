@@ -2,9 +2,10 @@ package glyphforge.core
 
 /**
  * A pixel font: a uniform grid size (cellWidth x cellHeight), shared metrics,
- * and a collection of glyphs keyed by character. Every glyph stored in a font
- * must exactly match the font's grid size. The optional per-glyph advance
- * width defaults to [defaultAdvance].
+ * a collection of glyphs keyed by character, and an optional kerning table of
+ * per-pair advance adjustments. Every glyph stored in a font must exactly
+ * match the font's grid size. The optional per-glyph advance width defaults
+ * to [defaultAdvance].
  */
 class Font(
     val name: String,
@@ -32,6 +33,7 @@ class Font(
 
     private val glyphs = LinkedHashMap<Char, Glyph>()
     private val advances = HashMap<Char, Int>()
+    private val kerns = HashMap<Pair<Char, Char>, Int>()
 
     companion object {
         /** An empty font with the given metrics, ready for glyphs. */
@@ -73,6 +75,44 @@ class Font(
         advances[c] = advance
     }
 
+    /** The kerning adjustment for the pair (a, b); 0 when no pair is set. */
+    fun kern(a: Char, b: Char): Int = kerns[a to b] ?: 0
+
+    /**
+     * Sets the kerning adjustment for the pair (a, b): a negative amount pulls
+     * [b] left (toward [a]) when rendering, a positive amount pushes it right.
+     * The amount is bounded so the pair's effective advance never exceeds the
+     * grid; both characters must be drawable.
+     */
+    fun setKern(a: Char, b: Char, amount: Int) {
+        requireDrawable(a)
+        requireDrawable(b)
+        require(has(a)) { "kern left ${FontIO.cp(a)} is not a glyph in this font" }
+        require(has(b)) { "kern right ${FontIO.cp(b)} is not a glyph in this font" }
+        require(amount in 1 - cellWidth..cellWidth) {
+            "kern for ${FontIO.cp(a)}/${FontIO.cp(b)} must be in ${1 - cellWidth}..$cellWidth, got $amount"
+        }
+        kerns[a to b] = amount
+    }
+
+    /** Removes any kerning adjustment for the pair (a, b). */
+    fun removeKern(a: Char, b: Char) {
+        kerns.remove(a to b)
+    }
+
+    /** All kern pairs sorted by (left, right) code point, for deterministic output. */
+    fun kernPairs(): List<Triple<Char, Char, Int>> =
+        kerns.entries.map { Triple(it.key.first, it.key.second, it.value) }
+            .sortedWith(compareBy({ it.first.code }, { it.second.code }))
+
+    fun kernCount(): Int = kerns.size
+
+    private fun requireDrawable(c: Char) {
+        require(!c.isISOControl() && c != '\uFFFF') {
+            "unsupported character for a kern pair: U+${c.code.toString(16).uppercase().padStart(4, '0')}"
+        }
+    }
+
     fun glyphCount(): Int = glyphs.size
 
     /** All character codes sorted by code point, for deterministic output. */
@@ -82,6 +122,7 @@ class Font(
     fun copy(): Font {
         val f = Font(name, cellWidth, cellHeight, baseline, defaultAdvance)
         for (c in chars()) f.put(c, glyphs.getValue(c).copy(), advance(c))
+        for ((a, b, amount) in kernPairs()) f.setKern(a, b, amount)
         return f
     }
 

@@ -21,6 +21,7 @@ import java.nio.file.Path
  * defaultAdvance=5
  * glyph:U+0041:adv=5:runs=1:1-4;2:0-4;3:1-3
  * glyph:U+0020:adv=5:runs=-
+ * kern:U+0041:U+0056=-1
  * ```
  */
 object FontIO {
@@ -48,6 +49,12 @@ object FontIO {
             sb.append("glyph:").append(cp(c)).append(":adv=").append(font.advance(c))
                 .append(":runs=").append(runs).append('\n')
         }
+        if (font.kernCount() > 0) {
+            sb.append("# kern pairs: ").append(font.kernCount()).append('\n')
+            for ((a, b, amount) in font.kernPairs()) {
+                sb.append("kern:").append(cp(a)).append(':').append(cp(b)).append('=').append(amount).append('\n')
+            }
+        }
         return sb.toString()
     }
 
@@ -59,6 +66,7 @@ object FontIO {
         var baseline: Int? = null
         var defaultAdvance: Int? = null
         val glyphLines = mutableListOf<Pair<Int, String>>()
+        val kernLines = mutableListOf<Pair<Int, String>>()
 
         val lines = text.split('\n')
         for ((idx, raw) in lines.withIndex()) {
@@ -68,6 +76,10 @@ object FontIO {
             if (line == MAGIC) continue
             if (line.startsWith("glyph:")) {
                 glyphLines.add(n to line)
+                continue
+            }
+            if (line.startsWith("kern:")) {
+                kernLines.add(n to line)
                 continue
             }
             val eq = line.indexOf('=')
@@ -118,37 +130,64 @@ object FontIO {
         for ((n, line) in glyphLines) {
             parseGlyphLine(font, line, n)
         }
+        for ((n, line) in kernLines) {
+            parseKernLine(font, line, n)
+        }
         return font
+    }
+
+    private fun parseKernLine(font: Font, line: String, n: Int) {
+        // kern:U+0041:U+0056=-1
+        val parts = line.split(':', limit = 3)
+        if (parts.size != 3) throw FontFormatException("malformed kern line '$line'", n)
+        val a = parseCodePoint(parts[1], n, "kern")
+        val eq = parts[2].lastIndexOf('=')
+        if (eq <= 0) throw FontFormatException("malformed kern line '$line'", n)
+        val bText = parts[2].substring(0, eq)
+        val b = parseCodePoint(bText, n, "kern")
+        val amount = parts[2].substring(eq + 1).toIntOrNull()
+            ?: throw FontFormatException("kern $a/$b amount is not an integer: '${parts[2].substring(eq + 1)}'", n)
+        if (font.kern(a, b) != 0) throw FontFormatException("duplicate kern pair $a/$b", n)
+        try {
+            font.setKern(a, b, amount)
+        } catch (e: IllegalArgumentException) {
+            throw FontFormatException("kern $a/$b ${e.message}", n)
+        }
+    }
+
+    /** Parses a U+XXXX code-point token used in glyph and kern lines. */
+    private fun parseCodePoint(text: String, n: Int, kind: String): Char {
+        if (!text.startsWith("U+") || text.length < 4) throw FontFormatException("bad code point '$text' in $kind line", n)
+        val code = text.substring(2).toIntOrNull(16)
+            ?: throw FontFormatException("bad code point '$text' in $kind line", n)
+        if (code < 0x20 || code > 0x10FFFF || code in 0xD800..0xDFFF) {
+            throw FontFormatException("code point $text in $kind line out of range (printable, non-surrogate)", n)
+        }
+        val ch = Char(code)
+        if (ch.isISOControl() || ch == '\uFFFF') throw FontFormatException("code point $text in $kind line is not drawable", n)
+        return ch
     }
 
     private fun parseGlyphLine(font: Font, line: String, n: Int) {
         // glyph:U+0041:adv=5:runs=...
         val parts = line.split(':', limit = 4)
         if (parts.size != 4) throw FontFormatException("malformed glyph line '$line'", n)
-        val cp = parts[1]
-        if (!cp.startsWith("U+") || cp.length < 4) throw FontFormatException("bad code point '$cp'", n)
-        val code = cp.substring(2).toIntOrNull(16)
-            ?: throw FontFormatException("bad code point '$cp'", n)
-        if (code < 0x20 || code > 0x10FFFF || code in 0xD800..0xDFFF) {
-            throw FontFormatException("code point $cp out of range (printable, non-surrogate)", n)
-        }
-        val ch = Char(code)
-        if (ch.isISOControl() || ch == '\uFFFF') throw FontFormatException("code point $cp is not drawable", n)
-        if (font.has(ch)) throw FontFormatException("duplicate glyph $cp", n)
+        val ch = parseCodePoint(parts[1], n, "glyph")
+        if (font.has(ch)) throw FontFormatException("duplicate glyph ${parts[1]}", n)
 
-        if (!parts[2].startsWith("adv=")) throw FontFormatException("glyph $cp missing advance", n)
+        if (!parts[2].startsWith("adv=")) throw FontFormatException("glyph ${parts[1]} missing advance", n)
         val advance = parts[2].substring(4).toIntOrNull()
-            ?: throw FontFormatException("glyph $cp bad advance '${parts[2]}'", n)
+            ?: throw FontFormatException("glyph ${parts[1]} bad advance '${parts[2]}'", n)
         if (advance !in 0..font.cellWidth) {
-            throw FontFormatException("glyph $cp advance $advance out of range 0..${font.cellWidth}", n)
+            throw FontFormatException("glyph ${parts[1]} advance $advance out of range 0..${font.cellWidth}", n)
         }
 
-        if (!parts[3].startsWith("runs=")) throw FontFormatException("glyph $cp missing runs", n)
+        if (!parts[3].startsWith("runs=")) throw FontFormatException("glyph ${parts[1]} missing runs", n)
         val runsText = parts[3].substring(5)
         val runs = try {
             Raster.parseRuns(runsText, font.cellWidth, font.cellHeight)
         } catch (e: IllegalArgumentException) {
-            throw FontFormatException("glyph $cp ${e.message}", n)
+            throw FontFormatException("glyph ${parts[1]} ${e.message}", n)
         }
         val glyph = Raster.decodeRows(font.cellWidth, font.cellHeight, runs)
         font.put(ch, glyph, advance)

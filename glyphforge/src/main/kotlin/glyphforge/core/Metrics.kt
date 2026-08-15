@@ -47,7 +47,8 @@ object Metrics {
         val avg = if (chars.isEmpty()) 0.0 else font.totalPixels().toDouble() / chars.size
         return "${font.name}: ${font.cellWidth}x${font.cellHeight} grid, ${chars.size} glyphs " +
             "(range $first..$last, $empty empty), baseline ${font.baseline}, " +
-            "default advance ${font.defaultAdvance}, avg ${String.format("%.1f", avg)} px/glyph, " +
+            "default advance ${font.defaultAdvance}, ${font.kernCount()} kern pairs, " +
+            "avg ${String.format("%.1f", avg)} px/glyph, " +
             "${font.totalPixels()} total px"
     }
 }

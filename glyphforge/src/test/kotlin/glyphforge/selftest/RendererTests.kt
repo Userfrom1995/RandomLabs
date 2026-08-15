@@ -89,6 +89,31 @@ object RendererTests {
             Check.eq(listOf(".@.", "@@@", ".@."), rows, "custom chars")
         }
 
+        s.test("negative kern pulls the next glyph left") {
+            val f = font()
+            f.setKern('A', 'B', -1)
+            // A (adv 3) at 0, then B (adv 2) at 2 instead of 3: row 0 = ".#" + "##" overlapping at col 2.
+            val rows = Renderer.render(f, "AB", RenderMode.ASCII, 1, onChar = '#', offChar = '.')
+            Check.eq(listOf(".###", "####", ".#.."), rows, "kerned AB")
+        }
+
+        s.test("positive kern pushes the next glyph right") {
+            val f = font()
+            f.setKern('A', 'B', 1)
+            val rows = Renderer.render(f, "AB", RenderMode.ASCII, 1, onChar = '#', offChar = '.')
+            Check.eq(listOf(".#..##", "###.##", ".#...."), rows, "spread AB")
+        }
+
+        s.test("kern applies per pair, not globally") {
+            val f = font()
+            f.setKern('A', 'B', -1)
+            // A space B: no kern touches the space's neighbours, so it matches the plain font.
+            val kerned = Renderer.render(f, "A B", RenderMode.ASCII, 1, onChar = '#', offChar = '.')
+            val plain = Renderer.render(font(), "A B", RenderMode.ASCII, 1, onChar = '#', offChar = '.')
+            Check.eq(plain, kerned, "no kern between space and neighbours")
+            Check.eq(listOf(".###", "####", ".#.."), Renderer.render(f, "AB", RenderMode.ASCII, 1, onChar = '#', offChar = '.'), "pair kern still applies on AB")
+        }
+
         return s
     }
 }

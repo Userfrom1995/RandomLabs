@@ -189,6 +189,64 @@ object ExporterTests {
             Check.throws("unknown format") { ExportFormat.parse("rust") }
         }
 
+        fun kernedFont(): Font {
+            val f = Font.create("Kern", 5, 7, 6, 5)
+            f.put('A', Glyph(5, 7), 5)
+            f.put('V', Glyph(5, 7), 5)
+            f.setKern('A', 'V', -1)
+            f.setKern('V', 'A', -2)
+            return f
+        }
+
+        s.test("kotlin export emits the kern table") {
+            val src = Exporter.export(kernedFont(), ExportFormat.KOTLIN, rle = false)
+            Check.isTrue(src.contains("val KERN_LEFT: CharArray = charArrayOf('A', 'V')"), "kern left chars")
+            Check.isTrue(src.contains("val KERN_RIGHT: CharArray = charArrayOf('V', 'A')"), "kern right chars")
+            Check.isTrue(src.contains("val KERN_AMOUNT: IntArray = intArrayOf(-1, -2)"), "kern amounts")
+            Check.isTrue(src.contains("fun kern(a: Char, b: Char): Int"), "kern lookup")
+        }
+
+        s.test("kotlin RLE export emits the kern table") {
+            val src = Exporter.export(kernedFont(), ExportFormat.KOTLIN, rle = true)
+            Check.isTrue(src.contains("val KERN_LEFT: CharArray = charArrayOf('A', 'V')"), "kern left chars")
+            Check.isTrue(src.contains("val KERN_AMOUNT: IntArray = intArrayOf(-1, -2)"), "kern amounts")
+        }
+
+        s.test("java export emits the kern table") {
+            val src = Exporter.export(kernedFont(), ExportFormat.JAVA, rle = false)
+            Check.isTrue(src.contains("public static final char[] KERN_LEFT = { 'A', 'V' };"), "kern left chars")
+            Check.isTrue(src.contains("public static final int[] KERN_AMOUNT = { -1, -2 };"), "kern amounts")
+            Check.isTrue(src.contains("public static int kern(char a, char b)"), "kern lookup")
+        }
+
+        s.test("C export emits the kern table") {
+            val src = Exporter.export(kernedFont(), ExportFormat.C, rle = false)
+            Check.isTrue(src.contains("#define KERN_KERN_COUNT 2"), "kern count define")
+            Check.isTrue(src.contains("kern_kern_left"), "kern left table")
+            Check.isTrue(src.contains("{ 'A', 'V' };"), "kern left values")
+            Check.isTrue(src.contains("kern_kern_amount"), "kern amount table")
+            Check.isTrue(src.contains("{ -1, -2 };"), "kern amounts")
+            Check.isTrue(src.contains("static int kern_kern(int a, int b)"), "kern lookup")
+        }
+
+        s.test("text export lists kern pairs") {
+            val src = Exporter.export(kernedFont(), ExportFormat.TEXT, rle = false)
+            Check.isTrue(src.contains("Kerning pairs (left, right, amount):"), "kern section")
+            Check.isTrue(src.contains("kern 'A' 'V' -1"), "first pair")
+            Check.isTrue(src.contains("kern 'V' 'A' -2"), "second pair")
+        }
+
+        s.test("kerned exports are deterministic") {
+            val font = kernedFont()
+            for (fmt in ExportFormat.values()) {
+                Check.eq(
+                    Exporter.export(font, fmt, rle = false),
+                    Exporter.export(font, fmt, rle = false),
+                    "deterministic ${fmt.display}"
+                )
+            }
+        }
+
         return s
     }
 }

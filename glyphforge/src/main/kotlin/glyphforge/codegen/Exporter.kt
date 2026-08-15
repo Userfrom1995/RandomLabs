@@ -125,7 +125,17 @@ object $cls {
         sb.append("    )\n\n")
         sb.append("    /** Advance widths, parallel to CODEPOINTS. */\n")
         sb.append("    val ADVANCE: IntArray = intArrayOf(${font.chars().joinToString(", ") { font.advance(it).toString() }})\n")
+        val pairs = font.kernPairs()
+        sb.append("\n    /** Kerning pairs, parallel: left char, right char, advance adjustment. */\n")
+        sb.append("    val KERN_LEFT: CharArray = charArrayOf(${pairs.joinToString(", ") { ktChar(it.first) }})\n")
+        sb.append("    val KERN_RIGHT: CharArray = charArrayOf(${pairs.joinToString(", ") { ktChar(it.second) }})\n")
+        sb.append("    val KERN_AMOUNT: IntArray = intArrayOf(${pairs.joinToString(", ") { it.third.toString() }})\n")
         sb.append("""
+
+    fun kern(a: Char, b: Char): Int {
+        for (i in KERN_LEFT.indices) if (KERN_LEFT[i] == a && KERN_RIGHT[i] == b) return KERN_AMOUNT[i]
+        return 0
+    }
 
     fun index(c: Char): Int {
         for (i in CODEPOINTS.indices) if (CODEPOINTS[i] == c) return i
@@ -151,20 +161,29 @@ object $cls {
         }
     }
 
-    /** Renders a string, honoring per-glyph advance widths. */
+    /** Renders a string, honoring per-glyph advance widths and kerning. */
     fun renderText(text: String, on: Char = '#', off: Char = ' '): List<String> {
         val out = mutableListOf<String>()
         for (line in text.split('\n')) {
-            val width = line.sumOf { advance(it) }
+            val pos = IntArray(line.length)
+            var col = 0
+            for (i in line.indices) {
+                pos[i] = col
+                col += advance(line[i])
+                if (i + 1 < line.length) col += kern(line[i], line[i + 1])
+            }
+            val width = if (line.isEmpty()) 0 else col.coerceAtLeast(1)
             for (y in 0 until CELL_HEIGHT) {
-                val row = StringBuilder(width)
-                for (c in line) {
-                    val r = rows(c)
-                    for (x in 0 until advance(c)) {
-                        row.append(if ((r[y] ushr x) and 1 == 1) on else off)
+                val grid = CharArray(width) { off }
+                for (i in line.indices) {
+                    val r = rows(line[i])
+                    val a = advance(line[i])
+                    for (x in 0 until a) {
+                        val idx = pos[i] + x
+                        if (idx in 0 until width) grid[idx] = if ((r[y] ushr x) and 1 == 1) on else off
                     }
                 }
-                out.add(row.toString())
+                out.add(grid.concatToString())
             }
         }
         return out
@@ -176,6 +195,7 @@ object $cls {
 
     fun kotlinRle(font: Font, packageName: String? = null): String {
         val cls = safeClassName(font.name) + "Rle"
+        val pairs = font.kernPairs()
         val sb = StringBuilder()
         sb.append(header(font, "RLE-packed streams"))
         if (!packageName.isNullOrBlank()) sb.append("\npackage $packageName\n")
@@ -193,6 +213,9 @@ object $cls {
 
     val CODEPOINTS: CharArray = charArrayOf(${font.chars().joinToString(", ") { ktChar(it) }})
     val ADVANCE: IntArray = intArrayOf(${font.chars().joinToString(", ") { font.advance(it).toString() }})
+    val KERN_LEFT: CharArray = charArrayOf(${pairs.joinToString(", ") { ktChar(it.first) }})
+    val KERN_RIGHT: CharArray = charArrayOf(${pairs.joinToString(", ") { ktChar(it.second) }})
+    val KERN_AMOUNT: IntArray = intArrayOf(${pairs.joinToString(", ") { it.third.toString() }})
 
     /** Compact run-length streams, parallel to CODEPOINTS. */
     val STREAMS: Array<ByteArray> = arrayOf(
@@ -212,6 +235,11 @@ object $cls {
     }
 
     fun advance(c: Char): Int = index(c).let { if (it < 0) DEFAULT_ADVANCE else ADVANCE[it] }
+
+    fun kern(a: Char, b: Char): Int {
+        for (i in KERN_LEFT.indices) if (KERN_LEFT[i] == a && KERN_RIGHT[i] == b) return KERN_AMOUNT[i]
+        return 0
+    }
 
     /** Decodes and tests one pixel from a glyph's RLE stream. */
     fun pixel(c: Char, x: Int, y: Int): Boolean {
@@ -281,7 +309,17 @@ public final class $cls {
         sb.append("    };\n\n")
         sb.append("    /** Advance widths, parallel to CODEPOINTS. */\n")
         sb.append("    public static final int[] ADVANCE = { ${font.chars().joinToString(", ") { font.advance(it).toString() }} };\n")
+        val pairs = font.kernPairs()
+        sb.append("\n    /** Kerning pairs, parallel: left char, right char, advance adjustment. */\n")
+        sb.append("    public static final char[] KERN_LEFT = { ${pairs.joinToString(", ") { javaChar(it.first) }} };\n")
+        sb.append("    public static final char[] KERN_RIGHT = { ${pairs.joinToString(", ") { javaChar(it.second) }} };\n")
+        sb.append("    public static final int[] KERN_AMOUNT = { ${pairs.joinToString(", ") { it.third.toString() }} };\n")
         sb.append("""
+
+    public static int kern(char a, char b) {
+        for (int i = 0; i < KERN_LEFT.length; i++) if (KERN_LEFT[i] == a && KERN_RIGHT[i] == b) return KERN_AMOUNT[i];
+        return 0;
+    }
 
     public static int index(char c) {
         for (int i = 0; i < CODEPOINTS.length; i++) if (CODEPOINTS[i] == c) return i;
@@ -352,6 +390,17 @@ public final class $cls {
             sb.append("    { ${cChar(c)}, ${font.advance(c)}, ${prefix}_${cGlyphId(c)} },\n")
         }
         sb.append("};\n\n")
+        val pairs = font.kernPairs()
+        val kernCount = pairs.size
+        sb.append("/* Kerning pairs (left, right) -> advance adjustment; empty when the font has none. */\n")
+        sb.append("#define ${up}_KERN_COUNT ${kernCount}\n")
+        sb.append("static const int ${prefix}_kern_left[${up}_KERN_COUNT > 0 ? ${up}_KERN_COUNT : 1] = { ${pairs.joinToString(", ") { cChar(it.first) }} };\n")
+        sb.append("static const int ${prefix}_kern_right[${up}_KERN_COUNT > 0 ? ${up}_KERN_COUNT : 1] = { ${pairs.joinToString(", ") { cChar(it.second) }} };\n")
+        sb.append("static const int8_t ${prefix}_kern_amount[${up}_KERN_COUNT > 0 ? ${up}_KERN_COUNT : 1] = { ${pairs.joinToString(", ") { it.third.toString() }} };\n")
+        sb.append("\nstatic int ${prefix}_kern(int a, int b) {\n")
+        sb.append("    for (int i = 0; i < ${up}_KERN_COUNT; i++) {\n")
+        sb.append("        if (${prefix}_kern_left[i] == a && ${prefix}_kern_right[i] == b) return ${prefix}_kern_amount[i];\n")
+        sb.append("    }\n    return 0;\n}\n\n")
         sb.append("static int ${prefix}_index(int c) {\n")
         sb.append("    for (int i = 0; i < ${up}_GLYPH_COUNT; i++) {\n")
         sb.append("        if (${prefix}_glyphs[i].codepoint == c) return i;\n")
@@ -400,6 +449,17 @@ public final class $cls {
         sb.append("static const uint8_t ${prefix}_advance[${up}_GLYPH_COUNT] = {\n    ")
         sb.append(font.chars().joinToString(", ") { font.advance(it).toString() })
         sb.append("\n};\n\n")
+        val pairs = font.kernPairs()
+        val kernCount = pairs.size
+        sb.append("/* Kerning pairs (left, right) -> advance adjustment; empty when the font has none. */\n")
+        sb.append("#define ${up}_KERN_COUNT ${kernCount}\n")
+        sb.append("static const int ${prefix}_kern_left[${up}_KERN_COUNT > 0 ? ${up}_KERN_COUNT : 1] = { ${pairs.joinToString(", ") { cChar(it.first) }} };\n")
+        sb.append("static const int ${prefix}_kern_right[${up}_KERN_COUNT > 0 ? ${up}_KERN_COUNT : 1] = { ${pairs.joinToString(", ") { cChar(it.second) }} };\n")
+        sb.append("static const int8_t ${prefix}_kern_amount[${up}_KERN_COUNT > 0 ? ${up}_KERN_COUNT : 1] = { ${pairs.joinToString(", ") { it.third.toString() }} };\n")
+        sb.append("\nstatic int ${prefix}_kern(int a, int b) {\n")
+        sb.append("    for (int i = 0; i < ${up}_KERN_COUNT; i++) {\n")
+        sb.append("        if (${prefix}_kern_left[i] == a && ${prefix}_kern_right[i] == b) return ${prefix}_kern_amount[i];\n")
+        sb.append("    }\n    return 0;\n}\n\n")
         sb.append("static int ${prefix}_index(int c) {\n")
         sb.append("    for (int i = 0; i < ${up}_GLYPH_COUNT; i++) {\n")
         sb.append("        if (${prefix}_codepoints[i] == c) return i;\n")
@@ -436,6 +496,14 @@ public final class $cls {
             for (line in Raster.toArt(g, '#', '.')) sb.append(line).append('\n')
             sb.append("rows ").append(Raster.rowHex(g).joinToString(" ")).append('\n')
             sb.append('\n')
+        }
+        if (font.kernCount() > 0) {
+            sb.append("Kerning pairs (left, right, amount):\n")
+            for ((a, b, amount) in font.kernPairs()) {
+                val la = if (a.isISOControl()) "U+${a.code.toString(16).uppercase().padStart(4, '0')}" else "'$a'"
+                val lb = if (b.isISOControl()) "U+${b.code.toString(16).uppercase().padStart(4, '0')}" else "'$b'"
+                sb.append("kern $la $lb $amount\n")
+            }
         }
         return sb.toString()
     }

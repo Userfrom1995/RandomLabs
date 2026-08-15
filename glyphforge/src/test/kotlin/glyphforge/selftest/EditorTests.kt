@@ -235,6 +235,31 @@ object EditorTests {
             Check.eq(5, e.glyph().countSet(), "second set never applied (4 initial + 1)")
         }
 
+        s.test("kern command sets and clears pairs on the font") {
+            val f = font()
+            val e = Editor(f, 'A')
+            val r = e.apply(Command.Kern('A', 'B', -1))
+            Check.isTrue(r.ok, "kern accepted")
+            Check.eq(-1, f.kern('A', 'B'), "pair stored")
+            val cleared = e.apply(Command.Kern('A', 'B', 0))
+            Check.isTrue(cleared.ok, "clear accepted")
+            Check.eq(0, f.kern('A', 'B'), "pair cleared")
+        }
+
+        s.test("kern command rejects out-of-range amounts") {
+            val e = Editor(font(), 'A')
+            val r = e.apply(Command.Kern('A', 'B', -99))
+            Check.isFalse(r.ok, "bad kern rejected")
+            Check.isTrue((r.message ?: "").contains("kern"), "message explains")
+        }
+
+        s.test("script parser reads kern lines") {
+            Check.eq(Command.Kern('A', 'V', -1), ScriptParser.parse("kern A V -1"), "set pair")
+            Check.eq(Command.Kern('A', 'V', 0), ScriptParser.parse("kern A V clear"), "clear pair")
+            Check.throws("bad amount") { ScriptParser.parse("kern A V lots") }
+            Check.throws("missing args") { ScriptParser.parse("kern A") }
+        }
+
         return s
     }
 }

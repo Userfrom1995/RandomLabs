@@ -46,6 +46,15 @@ object ScriptParser {
             "copy", "cp" -> Command.Copy
             "cut" -> Command.Cut
             "paste", "pv" -> Command.Paste
+            "kern", "kerning" -> {
+                val a = parseChar(cmd, arg(args, 0))
+                val b = parseChar(cmd, arg(args, 1))
+                val amountTok = arg(args, 2)
+                    ?: throw ScriptException("$cmd needs <left> <right> <amount|clear>")
+                val amount = if (amountTok.equals("clear", true)) 0
+                else amountTok.toIntOrNull() ?: throw ScriptException("$cmd bad kern amount '$amountTok'")
+                Command.Kern(a, b, amount)
+            }
             "undo", "z" -> Command.Undo
             "redo", "y" -> Command.Redo
             "save", "commit" -> Command.Save

@@ -32,32 +32,41 @@ object Renderer {
     /**
      * Renders [text] with [font], returning one string per output row.
      * Newlines start a fresh row group. Undefined characters render as blank
-     * cells of [font]'s default advance.
+     * cells of [font]'s default advance. Kerning pairs (see [Font.kern]) shift
+     * each glyph horizontally; overlapping pixels paint in glyph order, so a
+     * later glyph wins a column it shares with an earlier one.
      */
     fun render(font: Font, text: String, mode: RenderMode, scale: Int, onChar: Char = '#', offChar: Char = ' '): List<String> {
         require(scale >= 1) { "scale must be >= 1, got $scale" }
         if (text.isEmpty()) return emptyList()
         val rows = mutableListOf<String>()
         val empty = if (mode == RenderMode.ANSI) " " else offChar.toString()
+        val h = font.cellHeight
         for (line in text.split('\n')) {
-            val glyphs = line.map { c ->
-                val g = font.glyphOrEmpty(c)
-                GlyphRef(g, font.advance(c))
+            // Per-glyph starting column = sum of advances plus kerns before it.
+            val offsets = IntArray(line.length)
+            var col = 0
+            for (i in line.indices) {
+                offsets[i] = col
+                col += font.advance(line[i])
+                if (i + 1 < line.length) col += font.kern(line[i], line[i + 1])
             }
-            val pixels = mutableListOf<Boolean>()
-            for (g in glyphs) {
-                for (x in 0 until g.advance) {
-                    for (y in 0 until font.cellHeight) {
-                        pixels.add(g.glyph.get(x, y))
-                    }
+            val width = if (line.isEmpty()) 0 else col.coerceAtLeast(1)
+            val cols = MutableList(width) { BooleanArray(h) }
+            for (i in line.indices) {
+                val g = font.glyphOrEmpty(line[i])
+                val base = offsets[i]
+                val advance = font.advance(line[i])
+                for (x in 0 until advance) {
+                    val colIdx = base + x
+                    if (colIdx < 0 || colIdx >= width) continue
+                    for (y in 0 until h) cols[colIdx][y] = g.get(x, y)
                 }
             }
-            // Row-major pixel grid of this line.
-            for (sy in 0 until font.cellHeight) {
+            for (sy in 0 until h) {
                 val sb = StringBuilder()
-                for ((i, on) in pixels.withIndex()) {
-                    if (i % font.cellHeight != sy) continue
-                    repeat(scale) { sb.append(pixelChar(on, mode, onChar, offChar)) }
+                for (colIdx in cols.indices) {
+                    repeat(scale) { sb.append(pixelChar(cols[colIdx][sy], mode, onChar, offChar)) }
                 }
                 if (sb.isEmpty()) sb.append(empty.repeat(scale))
                 repeat(scale) { rows.add(sb.toString()) }
@@ -71,6 +80,4 @@ object Renderer {
         RenderMode.BLOCKS -> if (on) "█" else " "
         RenderMode.ANSI -> if (on) "$ANSI_ON█$ANSI_RESET" else "$ANSI_OFF█$ANSI_RESET"
     }
-
-    private data class GlyphRef(val glyph: Glyph, val advance: Int)
 }
