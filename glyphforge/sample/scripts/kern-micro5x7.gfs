@@ -1,0 +1,16 @@
+# Adds a small kerning table to Micro5x7. Pairs must reference glyphs that
+# exist in the font; every pair here is a real letter that ships in the font.
+# Used to regenerate sample/fonts/Micro5x7.gff:
+#   java -jar build/glyphforge.jar edit --font sample/fonts/Micro5x7.gff --script sample/scripts/kern-micro5x7.gfs
+kern A V -1
+kern A W -1
+kern A T -1
+kern A Y -1
+kern L T -1
+kern T o -1
+kern V a -1
+kern W a -1
+kern Y o -1
+kern r y -1
+status
+quit

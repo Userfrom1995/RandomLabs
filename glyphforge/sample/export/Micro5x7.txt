@@ -951,3 +951,14 @@ rows 03 02 02 0c 02 02 03
 .....
 rows 00 00 04 0a 0a 04 00
 
+Kerning pairs (left, right, amount):
+kern 'A' 'T' -1
+kern 'A' 'V' -1
+kern 'A' 'W' -1
+kern 'A' 'Y' -1
+kern 'L' 'T' -1
+kern 'T' 'o' -1
+kern 'V' 'a' -1
+kern 'W' 'a' -1
+kern 'Y' 'o' -1
+kern 'r' 'y' -1

@@ -211,6 +211,19 @@ static const struct micro5x7_glyph micro5x7_glyphs[MICRO5X7_GLYPH_COUNT] = {
     { '~', 5, micro5x7_u7e },
 };
 
+/* Kerning pairs (left, right) -> advance adjustment; empty when the font has none. */
+#define MICRO5X7_KERN_COUNT 10
+static const int micro5x7_kern_left[MICRO5X7_KERN_COUNT > 0 ? MICRO5X7_KERN_COUNT : 1] = { 'A', 'A', 'A', 'A', 'L', 'T', 'V', 'W', 'Y', 'r' };
+static const int micro5x7_kern_right[MICRO5X7_KERN_COUNT > 0 ? MICRO5X7_KERN_COUNT : 1] = { 'T', 'V', 'W', 'Y', 'T', 'o', 'a', 'a', 'o', 'y' };
+static const int8_t micro5x7_kern_amount[MICRO5X7_KERN_COUNT > 0 ? MICRO5X7_KERN_COUNT : 1] = { -1, -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+
+static int micro5x7_kern(int a, int b) {
+    for (int i = 0; i < MICRO5X7_KERN_COUNT; i++) {
+        if (micro5x7_kern_left[i] == a && micro5x7_kern_right[i] == b) return micro5x7_kern_amount[i];
+    }
+    return 0;
+}
+
 static int micro5x7_index(int c) {
     for (int i = 0; i < MICRO5X7_GLYPH_COUNT; i++) {
         if (micro5x7_glyphs[i].codepoint == c) return i;

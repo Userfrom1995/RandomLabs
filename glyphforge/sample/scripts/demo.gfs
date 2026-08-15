@@ -1,0 +1,25 @@
+# Glyphforge demo script: a headless editing session.
+# Run it with:
+#   java -jar build/glyphforge.jar edit --font sample/fonts/micro5x7.gff --out /tmp/demo.gff --script sample/scripts/demo.gfs
+# Every command here is also available interactively in the ANSI editor.
+
+# Paint a pixel into 'A', undo it, then redo it.
+glyph A
+move 2 3
+set
+save
+undo
+redo
+save
+
+# Mirror the working glyph horizontally, then restore it.
+mirrorx
+mirrorx
+
+# Tune a classic kern pair: AV should sit tight.
+kern A V -1
+kern T o -1
+
+# Show where we are and quit.
+status
+quit

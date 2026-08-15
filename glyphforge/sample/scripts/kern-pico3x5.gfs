@@ -1,0 +1,11 @@
+# Adds a small kerning table to Pico3x5. Pico3x5 ships uppercase letters,
+# digits, space, and period, so kern pairs stay within that alphabet.
+# Used to regenerate sample/fonts/Pico3x5.gff:
+#   java -jar build/glyphforge.jar edit --font sample/fonts/Pico3x5.gff --script sample/scripts/kern-pico3x5.gfs
+kern A V -1
+kern A W -1
+kern A T -1
+kern L T -1
+kern V A -1
+status
+quit

@@ -97,6 +97,19 @@ static const struct pico3x5_glyph pico3x5_glyphs[PICO3X5_GLYPH_COUNT] = {
     { 'Z', 3, pico3x5_Z },
 };
 
+/* Kerning pairs (left, right) -> advance adjustment; empty when the font has none. */
+#define PICO3X5_KERN_COUNT 5
+static const int pico3x5_kern_left[PICO3X5_KERN_COUNT > 0 ? PICO3X5_KERN_COUNT : 1] = { 'A', 'A', 'A', 'L', 'V' };
+static const int pico3x5_kern_right[PICO3X5_KERN_COUNT > 0 ? PICO3X5_KERN_COUNT : 1] = { 'T', 'V', 'W', 'T', 'A' };
+static const int8_t pico3x5_kern_amount[PICO3X5_KERN_COUNT > 0 ? PICO3X5_KERN_COUNT : 1] = { -1, -1, -1, -1, -1 };
+
+static int pico3x5_kern(int a, int b) {
+    for (int i = 0; i < PICO3X5_KERN_COUNT; i++) {
+        if (pico3x5_kern_left[i] == a && pico3x5_kern_right[i] == b) return pico3x5_kern_amount[i];
+    }
+    return 0;
+}
+
 static int pico3x5_index(int c) {
     for (int i = 0; i < PICO3X5_GLYPH_COUNT; i++) {
         if (pico3x5_glyphs[i].codepoint == c) return i;
