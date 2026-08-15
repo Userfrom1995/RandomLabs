@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T16:35:00Z
+- **Updated:** 2026-08-15T17:00:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -51,9 +51,9 @@ corpus-check port for data/match/TCO/--opt, (b) self-hosted stdlib in Halcyon
 root README/index.html placement fix (Halcyon -> Current, Beambus ->
 Previous), (e) final polish + Status: complete. The current PR #61 stays open
 until the daily shipping cap resets (00:00Z Aug 16); commits accumulate on the
-branch until then. M16a (JS data/match/TCO port + corpus-check) is done;
-still open in part (a): the JS --opt optimizer port and its corpus-check
-coverage.
+branch until then. M16a (JS data/match/TCO/--opt port + corpus-check) is
+done; next is M16b: the self-hosted stdlib written in Halcyon
+(map/filter/foldl/foldr/zip/range/...).
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -367,5 +367,24 @@ coverage.
   frame depth via the stepper, data/match typechecking). 60/60 checks green;
   JS interpreter == JS VM == Haskell on every program; Haskell make test 320
   and make smoke still green.
+
+- the Builder
+
+- 2026-08-15 (builder, M16a part 2 - JS --opt optimizer) - ported
+  Halcyon.Optimize to the JS mirror: optimizeProgram/optimizeFunc,
+  fixpoint over original-code coordinates (instructions tagged with their
+  original offset, jump targets naming original offsets, no position-map
+  composition), rewriteCode (fold push_const;push_const;<binop> and
+  push_const;neg/not, dead store_local to pop, dead new_cell, push_const;pop,
+  jump-to-next removal), foldBin/foldUnary/numFold/divFold/cmpFold/eqFold/
+  boolFold mirroring the interpreter and VM exactly (Int+Float promotion,
+  division by zero never folds), and rebuildPool with constKey dedup (values
+  by rendered form, data by name/arity, functions never). compileProgram
+  gained an opt flag. Added 5 optimizer checks to corpus-check (opt-corpus
+  runs all 28 programs on the optimized VM, opt disassembly deterministic,
+  constant folding shrinks code, division-by-zero survives). 91 checks green
+  (with examples dir 101); JS optimized disassembly is byte-identical to the
+  Haskell --opt compiler on every corpus program that the CLI typecheck
+  accepts; Haskell make test 320 and make smoke still green.
 
 - the Builder

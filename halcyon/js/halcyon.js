@@ -1653,7 +1653,7 @@
     };
   }
 
-  function compileProgram(src) {
+  function compileProgram(src, opt) {
     var parsed = parseProgram(src);
     if (parsed.kind === 'parse') { return HErr('compile', parsed.pos, parsed.message); }
     var denv = buildDataEnv(parsed.decls);
@@ -1667,7 +1667,9 @@
       name: 'main', params: [], code: st.code, consts: st.consts,
       upvals: [], upvalNames: []
     };
-    return { ok: true, program: { entry: entry } };
+    var program = { entry: entry };
+    if (opt) { program = optimizeProgram(program); }
+    return { ok: true, program: program };
   }
 
   function emit(st, instr) { st.code.push(instr); }
@@ -2132,6 +2134,303 @@
       st.code[pos].target = tgt;
     }
     st.patches = [];
+  }
+
+  // =====================================================================
+  // Optimizer (mirrors Halcyon.Optimize): deterministic, semantics-preserving
+  // rewrites over compiled functions - constant folding, dead-store
+  // elimination, redundant-jump removal, and a constant-pool rebuild.
+  // =====================================================================
+
+  // Optimize a compiled program in place, function by function (nested
+  // functions first, then their enclosing function).
+  function optimizeProgram(program) {
+    return { entry: optimizeFunc(program.entry) };
+  }
+
+  function optimizeFunc(f) {
+    var pool0 = f.consts.map(optConst);
+    var readSlots = f.code.filter(function (i) { return i.op === 'push_local'; })
+      .map(function (i) { return i.s; });
+    var captured = [];
+    pool0.forEach(function (c) {
+      if (c.c === 'func') {
+        c.f.upvals.forEach(function (uv) { if (uv[0] === 0) { captured.push(uv[1]); } });
+      }
+    });
+    function isDeadSlot(s) { return readSlots.indexOf(s) < 0 && captured.indexOf(s) < 0; }
+    var fix = fixpoint(pool0, isDeadSlot, f.code);
+    var pool1 = pool0.concat(fix.adds);
+    var rb = rebuildPool(pool1, fix.code);
+    var code2 = fix.code.map(function (i) { return patchConst(rb.remap, patchTarget(fix.posMap, i)); });
+    return {
+      name: f.name, params: f.params, code: code2, consts: rb.pool,
+      upvals: f.upvals, upvalNames: f.upvalNames
+    };
+    function optConst(c) {
+      return c.c === 'func' ? { c: 'func', f: optimizeFunc(c.f) } : c;
+    }
+  }
+
+  // Iterate the rewrite until no rule fires (each round strictly shrinks the
+  // code). Every round works in original-code coordinates: instructions carry
+  // their original offset and jump targets name original offsets, so the
+  // returned position map maps original offsets directly to final offsets.
+  function fixpoint(pool0, isDead, code0) {
+    function go(pool, tagged) {
+      var rw = rewriteCode(pool, isDead, tagged);
+      var code1 = rw.out.map(function (t) { return t[1]; });
+      var codeOld = tagged.map(function (t) { return t[1]; });
+      if (codeEq(code1, codeOld)) {
+        return { code: code1, adds: rw.adds, posMap: rw.posMap };
+      }
+      var inner = go(pool.concat(rw.adds), rw.out);
+      return { code: inner.code, adds: rw.adds.concat(inner.adds), posMap: inner.posMap };
+    }
+    return go(pool0, code0.map(function (i, idx) { return [idx, i]; }));
+  }
+
+  function codeEq(a, b) {
+    if (a.length !== b.length) { return false; }
+    for (var i = 0; i < a.length; i++) {
+      if (!instrEq(a[i], b[i])) { return false; }
+    }
+    return true;
+  }
+
+  function instrEq(x, y) {
+    var kx = Object.keys(x).sort().join(','), ky = Object.keys(y).sort().join(',');
+    if (kx !== ky) { return false; }
+    for (var k in x) { if (x[k] !== y[k]) { return false; } }
+    return true;
+  }
+
+  // Rewrite one function's code. Input instructions carry their original
+  // offset as the first component; the output keeps those offsets, appends
+  // any constants created by folding, and returns a map from original offset
+  // to new offset (removed instructions have no entry).
+  function rewriteCode(pool, isDead, instrs) {
+    var acc = [];
+    var adds = [];
+    var pm = {};
+    var i = 0;
+    while (i < instrs.length) {
+      var oi = instrs[i][0];
+      var instr = instrs[i][1];
+      var n1 = instrs[i + 1] ? instrs[i + 1][1] : null;
+      var n2 = instrs[i + 2] ? instrs[i + 2][1] : null;
+      var isBinOp = n2 && isBin(n2.op);
+      if (instr.op === 'push_const' && n1 && n1.op === 'push_const' && isBinOp) {
+        var c = foldBin(pool[instr.i], pool[n1.i], n2.op);
+        if (c) {
+          var ni = pool.length + adds.length;
+          adds.push(c);
+          acc.push([oi, { op: 'push_const', i: ni }]);
+          pm[oi] = acc.length - 1;
+          i += 3;
+          continue;
+        }
+      }
+      var isUn = n1 && (n1.op === 'neg' || n1.op === 'not');
+      if (instr.op === 'push_const' && isUn) {
+        var c2 = foldUnary(pool[instr.i], n1.op);
+        if (c2) {
+          var ni2 = pool.length + adds.length;
+          adds.push(c2);
+          acc.push([oi, { op: 'push_const', i: ni2 }]);
+          pm[oi] = acc.length - 1;
+          i += 2;
+          continue;
+        }
+      }
+      if (instr.op === 'push_const' && n1 && n1.op === 'pop') {
+        i += 2;
+        continue;
+      }
+      if (instr.op === 'store_local' && isDead(instr.s)) {
+        acc.push([oi, { op: 'pop' }]);
+        pm[oi] = acc.length - 1;
+        i += 1;
+        continue;
+      }
+      if (instr.op === 'new_cell' && isDead(instr.s)) {
+        i += 1;
+        continue;
+      }
+      if (instr.op === 'jump' && i + 1 < instrs.length && instr.target === instrs[i + 1][0]) {
+        i += 1;
+        continue;
+      }
+      acc.push([oi, instr]);
+      pm[oi] = acc.length - 1;
+      i += 1;
+    }
+    return { out: acc, adds: adds, posMap: pm };
+  }
+
+  // The binary operators whose constant operands can be folded.
+  function isBin(op) {
+    return ['add', 'sub', 'mul', 'div', 'lt', 'le', 'gt', 'ge', 'eq', 'ne', 'and', 'or'].indexOf(op) >= 0;
+  }
+
+  // Fold a binary operation on two constant values. Returns null when the
+  // operands are not both plain values or when folding would hide a runtime
+  // error (division by zero).
+  function foldBin(a, b, op) {
+    if (a.c !== 'value' || b.c !== 'value') { return null; }
+    switch (op) {
+      case 'add': return numFold(a.v, b.v, function (x, y) { return x + y; }, function (x, y) { return x + y; });
+      case 'sub': return numFold(a.v, b.v, function (x, y) { return x - y; }, function (x, y) { return x - y; });
+      case 'mul': return numFold(a.v, b.v, function (x, y) { return x * y; }, function (x, y) { return x * y; });
+      case 'div': return divFold(a.v, b.v);
+      case 'lt':  return cmpFold(a.v, b.v, function (x, y) { return x < y; });
+      case 'le':  return cmpFold(a.v, b.v, function (x, y) { return x <= y; });
+      case 'gt':  return cmpFold(a.v, b.v, function (x, y) { return x > y; });
+      case 'ge':  return cmpFold(a.v, b.v, function (x, y) { return x >= y; });
+      case 'eq':  return eqFold(a.v, b.v, false);
+      case 'ne':  return eqFold(a.v, b.v, true);
+      case 'and': return boolFold(a.v, b.v, function (x, y) { return x && y; });
+      case 'or':  return boolFold(a.v, b.v, function (x, y) { return x || y; });
+      default: return null;
+    }
+  }
+
+  // Fold a unary operation on a constant value.
+  function foldUnary(v, op) {
+    if (v.c !== 'value') { return null; }
+    switch (op) {
+      case 'neg':
+        if (v.v.k === 'int') { return { c: 'value', v: VInt(-v.v.v) }; }
+        if (v.v.k === 'float') { return { c: 'value', v: VFloat(-v.v.v) }; }
+        return null;
+      case 'not':
+        if (v.v.k === 'bool') { return { c: 'value', v: VBool(!v.v.v) }; }
+        return null;
+      default: return null;
+    }
+  }
+
+  // Numeric promotion, mirroring the interpreter and VM: Int + Float
+  // promotes to Float.
+  function numFold(a, b, fi, ff) {
+    if (a.k === 'int' && b.k === 'int') { return { c: 'value', v: VInt(fi(a.v, b.v)) }; }
+    if (a.k === 'float' && b.k === 'float') { return { c: 'value', v: VFloat(ff(a.v, b.v)) }; }
+    if (a.k === 'int' && b.k === 'float') { return { c: 'value', v: VFloat(ff(a.v, b.v)) }; }
+    if (a.k === 'float' && b.k === 'int') { return { c: 'value', v: VFloat(ff(a.v, b.v)) }; }
+    return null;
+  }
+
+  // Division folds only when the divisor is non-zero.
+  function divFold(a, b) {
+    if (a.k === 'int' && b.k === 'int' && b.v !== 0) { return { c: 'value', v: VInt(Math.trunc(a.v / b.v)) }; }
+    if (a.k === 'float' && b.k === 'float' && b.v !== 0) { return { c: 'value', v: VFloat(a.v / b.v) }; }
+    if (a.k === 'int' && b.k === 'float' && b.v !== 0) { return { c: 'value', v: VFloat(a.v / b.v) }; }
+    if (a.k === 'float' && b.k === 'int' && b.v !== 0) { return { c: 'value', v: VFloat(a.v / b.v) }; }
+    return null;
+  }
+
+  function cmpFold(a, b, f) {
+    if (a.k === 'int' && b.k === 'int') { return { c: 'value', v: VBool(f(a.v, b.v)) }; }
+    if (a.k === 'float' && b.k === 'float') { return { c: 'value', v: VBool(f(a.v, b.v)) }; }
+    if (a.k === 'int' && b.k === 'float') { return { c: 'value', v: VBool(f(a.v, b.v)) }; }
+    if (a.k === 'float' && b.k === 'int') { return { c: 'value', v: VBool(f(a.v, b.v)) }; }
+    return null;
+  }
+
+  function eqFold(a, b, neg) {
+    var b2 = eqConst(a, b);
+    if (b2 === null) { return null; }
+    return { c: 'value', v: VBool(neg ? !b2 : b2) };
+    function eqConst(x, y) {
+      if (x.k === 'int' && y.k === 'int') { return x.v === y.v; }
+      if (x.k === 'float' && y.k === 'float') { return x.v === y.v; }
+      if (x.k === 'int' && y.k === 'float') { return x.v === y.v; }
+      if (x.k === 'float' && y.k === 'int') { return x.v === y.v; }
+      if (x.k === 'bool' && y.k === 'bool') { return x.v === y.v; }
+      if (x.k === 'str' && y.k === 'str') { return x.v === y.v; }
+      if (x.k === 'list' && y.k === 'list') { return showValue(VList(x.v)) === showValue(VList(y.v)); }
+      return null;
+    }
+  }
+
+  function boolFold(a, b, f) {
+    if (a.k === 'bool' && b.k === 'bool') { return { c: 'value', v: VBool(f(a.v, b.v)) }; }
+    return null;
+  }
+
+  // Rebuild the constant pool so only constants referenced by the final code
+  // survive, deduplicating plain values (never functions), and remap every
+  // old pool index to its new one.
+  function rebuildPool(pool, code) {
+    var refs = [];
+    code.forEach(function (i) {
+      instrRefs(i).forEach(function (r) {
+        if (refs.indexOf(r) < 0) { refs.push(r); }
+      });
+    });
+    var acc = [], seen = {}, remap = {};
+    refs.forEach(function (oldIdx) {
+      var c = pool[oldIdx];
+      if (c.c === 'func') {
+        var ni = acc.length;
+        acc.push(c);
+        remap[oldIdx] = ni;
+      } else {
+        var key = constKey(c);
+        if (seen[key] !== undefined) {
+          remap[oldIdx] = seen[key];
+        } else {
+          var ni2 = acc.length;
+          acc.push(c);
+          seen[key] = ni2;
+          remap[oldIdx] = ni2;
+        }
+      }
+    });
+    return { pool: acc, remap: remap };
+  }
+
+  // Constant-pool equivalence key: values dedup by rendered form, data
+  // constructors by name and arity, functions never dedup.
+  function constKey(c) {
+    if (c.c === 'data') { return 'd:' + c.name + ':' + c.arity; }
+    return 'v:' + showValue(c.v);
+  }
+
+  // The constant-pool indices referenced by one instruction.
+  function instrRefs(instr) {
+    switch (instr.op) {
+      case 'push_const':
+      case 'make_closure':
+      case 'make_data':
+      case 'push_constr':
+        return [instr.i !== undefined ? instr.i : instr.c];
+      case 'test_constr':
+      case 'test_int':
+      case 'test_float':
+      case 'test_bool':
+      case 'test_str':
+        return [instr.c];
+      default:
+        return [];
+    }
+  }
+
+  // Remap a jump target through the position map (targets always name
+  // surviving instructions; anything unmapped is kept as-is defensively).
+  function patchTarget(pm, instr) {
+    if (instr.target === undefined) { return instr; }
+    var t = instr.target;
+    return Object.assign({}, instr, { target: pm[t] !== undefined ? pm[t] : t });
+  }
+
+  // Remap a constant-pool index through the pool rebuild map.
+  function patchConst(rm, instr) {
+    var idx = instr.i !== undefined ? instr.i : (instr.c !== undefined ? instr.c : null);
+    if (idx === null) { return instr; }
+    var ni = rm[idx] !== undefined ? rm[idx] : idx;
+    if (instr.i !== undefined) { return Object.assign({}, instr, { i: ni }); }
+    return Object.assign({}, instr, { c: ni });
   }
 
   // =====================================================================
@@ -2971,6 +3270,7 @@
     showType: showType,
     evalProgram: evalProgram,
     compileProgram: compileProgram,
+    optimizeProgram: optimizeProgram,
     runVm: runVm,
     makeStepper: makeStepper,
     showValue: showValue,

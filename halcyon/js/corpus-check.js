@@ -67,6 +67,62 @@ report('disassemble: deterministic',
 
 // ---- data declarations, match, and tail calls (milestone 16) --------------
 
+// ---- optimizer (milestone 16) ---------------------------------------------
+
+// Every corpus program must also run byte-identically on the optimized VM.
+function runOptBoth(label, src, expected) {
+  var ie = Halcyon.evalProgram(src);
+  var io = ie.kind ? '<eval error: ' + ie.message + '>' : Halcyon.showValue(ie);
+  var cp = Halcyon.compileProgram(src, true);
+  var vo, vmRes;
+  if (cp.kind) {
+    vo = '<compile error: ' + cp.message + '>';
+  } else {
+    vmRes = Halcyon.runVm(cp.program, false);
+    vo = vmRes.kind ? '<vm error: ' + vmRes.message + '>' : Halcyon.vmShowValue(vmRes.value);
+  }
+  if (expected !== null && expected !== undefined && (io !== expected || vo !== expected)) {
+    report(label, false, 'expected ' + expected + ', interpreter=' + io + ', vm=' + vo);
+    return;
+  }
+  if (io !== vo) {
+    report(label, false, 'interpreter=' + io + ' /= vm=' + vo);
+    return;
+  }
+  report(label, true, io);
+}
+
+Halcyon.corpus.forEach(function (e) {
+  runOptBoth('opt-corpus: ' + e.name, e.source, e.expected);
+});
+
+// Optimized disassembly is deterministic and differs from unoptimized only
+// where folding/stores were removed.
+var op1 = Halcyon.compileProgram('1 + 2.5 * 2', true);
+var op2 = Halcyon.compileProgram('1 + 2.5 * 2', true);
+report('opt: disassemble deterministic',
+  Halcyon.disassemble(op1.program.entry) === Halcyon.disassemble(op2.program.entry), '');
+
+// Constant folding removes instructions without changing the result.
+var foldSrc = 'let x = 4 in (x + 2 * 3) * 2';
+var foldPlain = Halcyon.compileProgram(foldSrc, false);
+var foldOpt = Halcyon.compileProgram(foldSrc, true);
+var foldPlainN = Halcyon.disassemble(foldPlain.program.entry).split('\n').length;
+var foldOptN = Halcyon.disassemble(foldOpt.program.entry).split('\n').length;
+var foldPlainR = Halcyon.runVm(foldPlain.program, false);
+var foldOptR = Halcyon.runVm(foldOpt.program, false);
+report('opt: constant folding shrinks code',
+  foldOptN < foldPlainN && foldPlainR.ok && foldOptR.ok && foldPlainR.value.v === foldOptR.value.v,
+  foldPlainN + ' -> ' + foldOptN + ' instructions');
+
+// Division by zero is never folded, so the runtime error survives.
+var dzSrc = 'let x = 5 in x + (1 / 0)';
+var dzOpt = Halcyon.compileProgram(dzSrc, true);
+var dzR = dzOpt.kind ? { kind: 'compile' } : Halcyon.runVm(dzOpt.program, false);
+report('opt: division by zero survives', !!dzR.kind, dzR.kind ? dzR.message : dzR);
+
+// ---- data declarations, match, and tail calls (milestone 16) --------------
+
 var dataProgs = [
   ['data: nullary constructor value',
     'data Bool = True | False\nTrue\n', 'True'],
