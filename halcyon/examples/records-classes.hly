@@ -1,0 +1,16 @@
+-- Records and type classes: a Point record plus a user-defined Show
+-- instance for a data type, composing the string library.
+record Point = { x : Int, y : Int }
+
+data Shape = Circle | Rect
+
+class Size a where
+  size : a -> Int
+instance Size Int where
+  size = fn n => n
+instance Size Shape where
+  size = fn s => match s with | Circle => 1 | Rect => 2
+
+let p = { x = 3, y = 4 } in
+  let moved = { p with x = 10 } in
+    size (if size Rect + moved.x > 12 then Circle else Rect)

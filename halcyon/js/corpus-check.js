@@ -284,10 +284,120 @@ report('module: duplicate top-level definition rejected',
 runBoth('topdefs', Halcyon.corpus[29].source, '5021');
 runBoth('topdefs-order', Halcyon.corpus[30].source, '50');
 runResolved('module: import-based stdlib example', Halcyon.examples['stdlib.hly'], '1601');
+runResolved('module: string.hly chars/fromChars',
+  'import "string.hly"\nfromChars (chars "hi")\n', 'hi');
+runResolved('module: string.hly defs compose',
+  'import "string.hly"\nlet cs = chars "aab" in length cs * 10 + (if fromChars cs == "aab" then 1 else 0)\n', '31');
+runResolved('module: string.hly toUpper',
+  'import "string.hly"\ntoUpperStr "hello"\n', 'HELLO');
+runResolved('module: string.hly countChar and repeat',
+  'import "string.hly"\ncountChar \'a\' "banana" * 10 + (if repeat 2 "ab" == "abab" then 1 else 0)\n', '31');
 report('type: top-level polymorphic def',
   Halcyon.infer('let id = fn x => x\nlet x = id 5\nlet rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)\nx * 1000 + count 21\n').ok, '');
 report('type: duplicate top-level let rejected',
   !Halcyon.infer('let x = 5\nlet x = 6\nx\n').ok, '');
+
+// ---- records, type classes, chars, and string builtins (milestone 21) ----
+
+var v3Progs = [
+  ['rec: literal and projection',
+    'record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in p.x + p.y', '3'],
+  ['rec: update',
+    'record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with y = 9 }.y', '9'],
+  ['rec: update keeps type',
+    'record Point = { x : Int, y : Int }\nlet p = { x = 1, y = 2 } in { p with x = 5 }', '{ x = 5, y = 2 }'],
+  ['rec: order-independent projection',
+    'record P = { x : Int, y : Int }\n{ y = 1, x = 2 }.y', '1'],
+  ['rec: polymorphic',
+    'record Pair a b = { fst : a, snd : b }\nlet p1 = { fst = 1, snd = 2 } in let p2 = { fst = true, snd = 1.5 } in p2.fst', 'true'],
+  ['rec: pattern',
+    'record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { x = a, y = b } => a * 10 + b', '12'],
+  ['rec: pattern order-independent',
+    'record Point = { x : Int, y : Int }\nmatch { x = 1, y = 2 } with | { y = b, x = a } => a * 10 + b', '12'],
+  ['rec: nested',
+    'record Inner = { v : Int }\nrecord Outer = { inner : Inner, tag : Int }\n{ tag = 1, inner = { v = 2 } }.inner.v', '2'],
+  ['class: basic instance',
+    'class Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\nsize [1, 2, 3]', '3'],
+  ['class: method via local',
+    'class Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\nlet f = fn xs => size xs in f [1, 2]', '2'],
+  ['class: instance with context',
+    'data Pair a = MkPair a a\nlet fst = fn p => match p with | MkPair x y => x\nclass Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\ninstance Size a => Size (Pair a) where\n  size = fn p => size (fst p)\nsize (MkPair (MkPair 1 2) (MkPair 3 4))', '1'],
+  ['class: curried method',
+    'class Eq a where\n  eq : a -> a -> Bool\ninstance Eq Int where\n  eq = fn a b => a == b\nlet f = fn x y => eq x y in f 3 3', 'true'],
+  ['class: method tail position',
+    'class Eq a where\n  eq : a -> a -> Bool\ninstance Eq Int where\n  eq = fn a b => a == b\nlet rec loop = fn n => if n < 1 then eq n 0 else loop (n - 1) in loop 5000', 'true'],
+  ['builtin Show: int',
+    'show 7', '7'],
+  ['builtin Show: float',
+    'show 2.5', '2.5'],
+  ['builtin Show: bool',
+    'show true', 'true'],
+  ['builtin Show: string',
+    'show "hi"', 'hi'],
+  ['builtin Show: char',
+    "show 'a'", "'a'"],
+  ['builtin Show: list',
+    'show [1, 2, 3]', '[1, 2, 3]'],
+  ['builtin Show: nested list',
+    'show [[1, 2], [3]]', '[[1, 2], [3]]'],
+  ['char: literal',
+    "'a'", "'a'"],
+  ['char: match pattern',
+    "match 'x' with | 'x' => 1 | _ => 0", '1'],
+  ['char: equality',
+    "'a' == 'a'", 'true'],
+  ['string: intToStr',
+    'intToStr 42', '42'],
+  ['string: strLen',
+    'strLen "hello"', '5'],
+  ['string: charAt',
+    'charAt "hello" 1', "'e'"],
+  ['string: substr',
+    'substr "hello" 1 3', 'ell'],
+  ['string: strAppend',
+    'strAppend "foo" "bar"', 'foobar'],
+  ['string: strContains',
+    'strContains "hello" "ell"', 'true'],
+  ['string: concat operator',
+    '"a" + "b"', 'ab']
+];
+v3Progs.forEach(function (t) { runBoth(t[0], t[1], t[2]); });
+v3Progs.forEach(function (t) { runOptBoth('opt-' + t[0], t[1], t[2]); });
+
+// Class overlap and missing-instance errors must be rejected at typecheck.
+report('class: overlapping instance heads rejected',
+  !Halcyon.infer('class C a where\n  m : a -> Int\ninstance C Int where\n  m = fn x => 1\ninstance C Int where\n  m = fn x => 2\nm 1\n').ok, '');
+report('class: missing instance rejected',
+  !Halcyon.infer('class C a where\n  m : a -> Int\ninstance C Int where\n  m = fn x => 1\nm true\n').ok, '');
+report('class: duplicate class name rejected',
+  !Halcyon.infer('class Show a where\n  show : a -> String\n1\n').ok, '');
+report('class: duplicate method rejected',
+  !Halcyon.infer('class C a where\n  m : a -> Int\n  m : a -> Int\n1\n').ok, '');
+report('type: char is Char', Halcyon.infer("'c'").ok
+  && Halcyon.showType(Halcyon.infer("'c'").type) === 'Char', '');
+
+// ---- profiler (milestone 21) -------------------------------------------------
+
+// Profiling is pure bookkeeping: the value is identical to a plain run, the
+// report is deterministic, and the one-line summary matches its prefix.
+var profSrc = 'let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 10';
+var profCp = Halcyon.compileProgram(profSrc);
+var profRun = Halcyon.runVm(profCp.program, false);
+var profR = Halcyon.runVmProfiled(profCp.program);
+report('profiler: value identical to plain run',
+  profRun.ok && !profR.kind && Halcyon.vmShowValue(profRun.value) === Halcyon.vmShowValue(profR.value),
+  profRun.ok ? Halcyon.vmShowValue(profRun.value) : profRun.message);
+report('profiler: report is deterministic',
+  profR.ok && Halcyon.renderProfile(Halcyon.runVmProfiled(profCp.program).profile)
+    === Halcyon.renderProfile(profR.profile), '');
+report('profiler: report has counts',
+  profR.ok && profR.profile.total > 0
+    && profR.profile.opCounts.length > 0
+    && profR.profile.callCounts.length > 0, '');
+report('profiler: stats line summary',
+  profR.ok && Halcyon.statsLine(profR.profile)
+    === 'profile: ' + profR.profile.total + ' instructions, peak stack '
+      + profR.profile.peakStack + ', peak frames ' + profR.profile.peakFrames, '');
 
 // Examples directory (optional argument)
 var dir = process.argv[2];

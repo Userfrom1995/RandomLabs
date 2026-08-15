@@ -1,0 +1,6 @@
+-- The self-hosted string library: chars, fromChars, toUpperStr, countChar,
+-- and repeat layered over the core string builtins.
+import "../lib/string.hly"
+
+let shout = fn s => toUpperStr s + "!"
+in if startsWith "HEL" (shout "hello") then countChar 'L' (shout "hello") else -1
