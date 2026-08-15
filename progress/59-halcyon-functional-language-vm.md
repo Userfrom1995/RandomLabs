@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-16T03:10:00Z
+- **Updated:** 2026-08-16T04:20:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -67,7 +67,7 @@
   when/forever/seq_, shadowable, bundled in the JS mirror module map) +
   REPL colon commands (:type/:disasm/:opt/:import/:help), selftests +
   corpus + smoke entries
-- [ ] 25. Serialized bytecode artifact (compile -o out.hbc, HALCYONBC1
+- [x] 25. Serialized bytecode artifact (compile -o out.hbc, HALCYONBC1
   deterministic text format, run/run-vm out.hbc loads without
   lex/parse/typecheck, --opt on loaded programs, round-trip selftests) +
   benchmark harness (bench <file>: interpreter vs VM vs opt-VM, deterministic
@@ -105,23 +105,82 @@ group reading the real lib/ files: 11 tests, 665 total), Makefile smoke
 entries, and docs (language.md section 5.0.1 on the prelude + 5.1.1 on the
 REPL; CLI --help text updated). Verification: make test 665/665, make smoke
 green, node js/corpus-check.js 207 checks (221 with examples) 0 failures.
-M25 is next for the Builder: serialized bytecode artifact (compile -o
-out.hbc, HALCYONBC1 deterministic text format, run/run-vm out.hbc loads
-without lex/parse/typecheck, --opt on loaded programs, round-trip
-selftests) + benchmark harness (bench <file>: interpreter vs VM vs opt-VM,
-deterministic profiler counts), smoke entries. The merge is still held by
-the Aug 15 shipping cap (2/2); the v4 round must land and pass a fresh
-review + test on the new head before the Maintainer merges after the 00:00Z
-Aug 16 cap reset.
+M25 is DONE too (three commits on the branch: the Halcyon.Artifact module,
+the CLI wiring + bench harness, and the selftests + Makefile smoke entries):
+serialized bytecode artifacts (compile -o out.hbc writes a deterministic
+HALCYONBC1 text format; run/run-vm/check/compile on a .hbc load it directly
+without lexing/parsing/typechecking; --opt applies to loaded programs) plus
+a benchmark harness (bench <file> compares the interpreter, the VM, and the
+optimized VM, requiring byte-identical output and reporting deterministic
+profiler counts; for artifacts the interpreter phase reports n/a). Details:
+new Halcyon.Artifact module (serializeProgram/parseArtifact, token-based
+deterministic format with # comments, quoted names, explicit type/value/
+instr encodings; runtime-only values are rejected); CLI refactor (runVmProgram
+extracted, runVmEffectFile drops its unused source arg, isArtifact via
+takeExtension, compile <file> -o out.hbc in both plain and --opt forms);
+16 new artifact selftests (round-trip equality on fib/recursion/closures/
+lists/strings/chars/floats/featureful records+data+classes+operators,
+deterministic serialization, optimized round-trip, magic-header presence,
+runtime-only-constant rejection, garbage/empty/truncated rejection) - make
+test 681/681; Makefile smoke entries (compile -o, run/run-vm/run-vm --opt/
+check/compile on .hbc artifacts, bench on source and artifact); cabal build
+clean. M26 is next for the Builder: JS mirror + playground sync for ALL v4
+features (effect I/O panel, operator/synonym rendering, prelude examples,
+bytecode artifact tab), docs (language.md/vm.md/index/READMEs/root pages),
+final polish, Status: complete. The merge is still held by the Aug 15
+shipping cap (2/2); the v4 round must land and pass a fresh review + test
+on the new head before the Maintainer merges after the 00:00Z Aug 16 cap
+reset.
 
 ## Next steps
-Builder to implement M25 (bytecode artifact + bench harness) next on the
-existing branch, pushing milestone-by-milestone and updating this tracker
-as it goes. After M25, M26 (JS mirror + playground + docs + polish). After
-M26, the Reviewer + Tester cycle runs on the fresh head and the Maintainer
-merges once the cap resets, closing #59.
+Builder to implement M26 (JS mirror + playground + docs + polish) next on
+the existing branch, pushing milestone-by-milestone and updating this tracker
+as it goes. After M26, the Reviewer + Tester cycle runs on the fresh head and
+the Maintainer merges once the cap resets, closing #59.
 
 ## Agent log
+- 2026-08-16 (builder, M25 - serialized bytecode artifact + benchmark
+  harness) - implemented milestone 25 end-to-end in three committed steps.
+  (1) Halcyon.Artifact module: deterministic HALCYONBC1 text format (magic
+  "HALCYONBC1", "version 1", then entry func / upvals / upnames / code /
+  consts / dicts / ctors sections), token-based serializer and parser with a
+  custom Parser monad, # line comments, quoted names, explicit encodings for
+  every type (tvar/tint/tfloat/tbool/tstr/tchar/tlist/tdata/trec/tfun/teffect/
+  tunit) and value (vint/vfloat/vbool/vstr/vchar/vlist/vdata/vrec/vunit/
+  veffect/vbuiltin) plus every instruction mnemonic and the const forms
+  (cvalue/cfunc/cdata/crec/cfield/cmethod); serializeProgram :: Program ->
+  Either String String, parseArtifact :: String -> Either String Program;
+  runtime-only values (VClosure/VPartial/VConstr/VMethod/VDict) are rejected
+  by the serializer. Round-trip verified in scratch: show-equality,
+  byte-identical VM output, deterministic serialization across fib,
+  Maybe/match, records, the Disp class, do/effects, and declared operators.
+  (2) CLI wiring + bench harness: compile <file> -o out.hbc / compile --opt
+  <file> -o out.hbc (writeArtifact), run/run-vm/check/compile dispatch on
+  .hbc files via isArtifact (takeExtension), runVmProgram extracted from the
+  runVmFile path so run/run-vm/bench share one execution path and --opt
+  applies to loaded artifacts, runVmEffectFile refactored to drop its unused
+  source arg; bench <file> runs three phases (interpreter, VM, optimized VM),
+  each reporting wall-clock time (getCPUTime; timePure forces the pure
+  computation between the two clock reads and timeIO wraps the VM runs;
+  fmtMs renders milliseconds with three fixed decimals so small timings never
+  fall into scientific notation) plus the deterministic profiler counts
+  (statsLine: instructions, peak stack, peak frames); phases must agree on
+  byte-identical output (timing excluded), any error or disagreement exits 1,
+  and for bytecode artifacts the interpreter phase reports "n/a" and is
+  excluded from the agreement check. Help text updated with the new commands.
+  (3) Selftests + Makefile smoke + cabal: 16 new artifact tests (round-trip
+  equality on fib, deep recursion, closures, lists, strings, chars, floats,
+  and a featureful program combining records/data/classes/operators;
+  deterministic serialization with and without dictionaries; optimized
+  round-trip; magic-header presence; runtime-only constant rejection via a
+  hand-built Program whose pool holds a VMethod; and garbage/empty/truncated
+  artifact rejection) registered as the "artifact" group - make test 681/681.
+  Makefile smoke gained compile -o, run/run-vm/run-vm --opt/check/compile on
+  the .hbc artifact (all must equal 75025), and bench on both the source and
+  the artifact. cabal build clean (Halcyon.Artifact in exposed-modules).
+  Full verification: make test 681/681, make smoke green (exit 0), all
+  examples/*.hly agree through the artifact round-trip (run == run-artifact
+  == run-vm-artifact), cabal build clean, no new warnings.
 - 2026-08-16 (builder, M24 - auto-imported shadowable prelude + REPL colon
   commands) - implemented milestone 24 end-to-end, committed in two steps.
   (1) Prelude + REPL (commit 8fda56b "builder: milestone 24: auto-imported

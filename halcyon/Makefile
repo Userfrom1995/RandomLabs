@@ -50,6 +50,16 @@ smoke: $(BIN)
 	$(BIN) check examples/map.hly; \
 	$(BIN) compile examples/promotion.hly > /dev/null; \
 	$(BIN) compile --opt examples/promotion.hly > /dev/null; \
+	$(BIN) compile examples/fib.hly -o /tmp/halcyon-fib.hbc; \
+	$(BIN) compile --opt examples/fib.hly -o /tmp/halcyon-fib-opt.hbc; \
+	[ "$$($(BIN) run /tmp/halcyon-fib.hbc)" = "75025" ]; \
+	[ "$$($(BIN) run-vm /tmp/halcyon-fib.hbc)" = "75025" ]; \
+	[ "$$($(BIN) run-vm --opt /tmp/halcyon-fib.hbc)" = "75025" ]; \
+	[ "$$($(BIN) run-vm /tmp/halcyon-fib-opt.hbc)" = "75025" ]; \
+	$(BIN) check /tmp/halcyon-fib.hbc; \
+	$(BIN) compile /tmp/halcyon-fib.hbc | grep -q 'tail_call'; \
+	$(BIN) bench examples/fib.hly; \
+	$(BIN) bench /tmp/halcyon-fib.hbc; \
 	printf '1 + 2\nlet rec f = fn n => if n < 2 then n else f (n - 1) + f (n - 2) in f 10\n' | $(BIN) repl; \
 	printf ':help\n:type map\n:disasm sum\n:opt sum\n:import "string.hly"\ntoUpperStr "hi"\n:quit\n' | $(BIN) repl | grep -q HI; \
 	printf ':type map\n' | $(BIN) repl | grep -Fq 'forall a b. (b -> a) -> [b] -> [a]'; \

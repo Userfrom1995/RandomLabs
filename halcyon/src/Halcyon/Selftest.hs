@@ -12,6 +12,8 @@ import System.FilePath ((</>))
 
 import qualified Data.Map.Strict as Map
 
+import Halcyon.Ast (builtinForName, builtinName)
+import Halcyon.Artifact (parseArtifact, serializeProgram, artifactMagic)
 import Halcyon.Corpus (CorpusEntry(..), corpus)
 import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
@@ -1216,6 +1218,134 @@ preludeTests = do
       ]
 
 -- ---------------------------------------------------------------------
+-- Bytecode artifacts: serialize -> parse round trips must preserve the
+-- program (VM output identical) and stay deterministic, while malformed
+-- input must be rejected.
+-- ---------------------------------------------------------------------
+
+-- | Compile the source, run it directly, then again after a serialize and
+-- parse round trip through the artifact format; both runs must agree.
+artifactRoundTrip :: String -> IO (Either String ())
+artifactRoundTrip src = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> do
+    rDirect <- runVm False prog
+    case rDirect of
+      Left (VmError m) -> return (Left ("vm error: " <> m))
+      Right vDirect -> case serializeProgram prog of
+        Left m -> return (Left ("serialize error: " <> m))
+        Right text -> case parseArtifact text of
+          Left m -> return (Left ("artifact parse error: " <> m))
+          Right prog' -> do
+            rRound <- runVm False prog'
+            return $ case rRound of
+              Left (VmError m) -> Left ("artifact vm error: " <> m)
+              Right vRound ->
+                if vmShowValue vDirect == vmShowValue vRound
+                  then Right ()
+                  else Left ("round trip " <> vmShowValue vRound <> " /= direct " <> vmShowValue vDirect)
+
+-- | The serialized artifact must be byte-for-byte deterministic.
+artifactDeterministic :: String -> IO (Either String ())
+artifactDeterministic src = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> case serializeProgram prog of
+    Left m -> return (Left ("serialize error: " <> m))
+    Right a -> case serializeProgram prog of
+      Left m -> return (Left ("second serialize error: " <> m))
+      Right b ->
+        if a == b
+          then return (Right ())
+          else return (Left "serialization is not deterministic")
+
+-- | Serializing an optimized program and round-tripping it must keep the
+-- optimized VM output identical to the plain run.
+artifactOptRoundTrip :: String -> IO (Either String ())
+artifactOptRoundTrip src = case compileProgram src of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> do
+    rPlain <- runVm False prog
+    case rPlain of
+      Left (VmError m) -> return (Left ("vm error: " <> m))
+      Right vPlain -> case serializeProgram (optimizeProgram prog) of
+        Left m -> return (Left ("serialize error: " <> m))
+        Right text -> case parseArtifact text of
+          Left m -> return (Left ("artifact parse error: " <> m))
+          Right prog' -> do
+            rOpt <- runVm False prog'
+            return $ case rOpt of
+              Left (VmError m) -> Left ("artifact vm error: " <> m)
+              Right vOpt ->
+                if vmShowValue vPlain == vmShowValue vOpt
+                  then Right ()
+                  else Left ("opt round trip " <> vmShowValue vOpt <> " /= direct " <> vmShowValue vPlain)
+
+artifactRejects :: String -> IO (Either String ())
+artifactRejects text = return $ case parseArtifact text of
+  Left _  -> Right ()
+  Right _ -> Left "expected the artifact to be rejected, but it parsed"
+
+artifactHeader :: IO (Either String ())
+artifactHeader = case compileProgram "1 + 2" of
+  Left (CompileError _ m) -> return (Left ("compile error: " <> m))
+  Right prog -> case serializeProgram prog of
+    Left m -> return (Left ("serialize error: " <> m))
+    Right text ->
+      if artifactMagic `isInfixOf` text
+        then return (Right ())
+        else return (Left ("no artifact magic " <> artifactMagic <> " in output"))
+
+-- | Malformed values (closures, method/constructor values) have no artifact
+-- encoding and must be refused by the serializer. Such values only reach the
+-- constant pool through hand-built programs, so build one directly.
+artifactRejectsRuntimeValues :: IO (Either String ())
+artifactRejectsRuntimeValues = return $ case serializeProgram phantom of
+  Left _  -> Right ()
+  Right _ -> Left "expected runtime-only constants to be rejected"
+  where
+    -- A program whose constant pool holds a runtime-only method value, which
+    -- has no artifact encoding and must be refused.
+    phantom = Program (Func "main" [] [] [CValue (VMethod "foo")] [] []) [] Map.empty
+
+-- | A source program that uses records, a data type, a class dictionary, and
+-- a declared operator must survive the full round trip and still typecheck.
+artifactRoundTripFeatureful :: IO (Either String ())
+artifactRoundTripFeatureful = artifactRoundTrip (unlines
+  [ "data Maybe a = Nothing | Just a"
+  , "record Point = { x : Int, y : Int }"
+  , "class Eq a where"
+  , "  eq : a -> a -> Bool"
+  , "instance Eq Int where"
+  , "  eq = fn a b => a == b"
+  , "infixl 5 <+>"
+  , "let (<+>) = fn a b => a + b"
+  , "let p = { x = 20, y = 22 } in"
+  , "  match (Just (eq p.x p.y)) with"
+  , "  | Nothing => 0"
+  , "  | Just b => if b then p.x <+> p.y else 0"
+  ])
+
+artifactTests :: IO Harness
+artifactTests = sequence
+  [ checkIO "artifact: round trip fib" (artifactRoundTrip "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 15")
+  , checkIO "artifact: round trip recursion" (artifactRoundTrip "let rec loop = fn n => if n < 1 then 0 else 1 + loop (n - 1) in loop 100")
+  , checkIO "artifact: round trip closures" (artifactRoundTrip "let x = 3 in let f = fn y => x * y in f 14")
+  , checkIO "artifact: round trip lists" (artifactRoundTrip "reverse [1, 2, 3, 4]")
+  , checkIO "artifact: round trip strings" (artifactRoundTrip "substr \"hello world\" 6 5")
+  , checkIO "artifact: round trip chars" (artifactRoundTrip "match 'b' with | 'a' => 1 | 'b' => 2 | _ => 0")
+  , checkIO "artifact: round trip floats" (artifactRoundTrip "1.5 * 2.0 + 0.25")
+  , checkIO "artifact: round trip featureful" artifactRoundTripFeatureful
+  , checkIO "artifact: deterministic serialization" (artifactDeterministic "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 20")
+  , checkIO "artifact: deterministic with dicts" (artifactDeterministic "class Size a where\n  size : a -> Int\ninstance Size Int where\n  size = fn x => 1\ninstance Size [a] where\n  size = fn xs => length xs\nsize [1, 2, 3]")
+  , checkIO "artifact: optimized round trip" (artifactOptRoundTrip "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 15")
+  , checkIO "artifact: header carries magic" artifactHeader
+  , checkIO "artifact: reject runtime-only constants" artifactRejectsRuntimeValues
+  , checkIO "artifact: reject garbage" (artifactRejects "this is not an artifact")
+  , checkIO "artifact: reject empty" (artifactRejects "")
+  , checkIO "artifact: reject truncated" (artifactRejects "HALCYONBC1\nversion 1\nentry func \"main\" 0")
+  ]
+
+-- ---------------------------------------------------------------------
 -- Main
 -- ---------------------------------------------------------------------
 
@@ -1230,6 +1360,7 @@ runSelftest = do
   prof <- profilerTests
   mods <- moduleTests
   prel <- preludeTests
+  art <- artifactTests
   let groups =
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
@@ -1244,6 +1375,7 @@ runSelftest = do
         , ("profiler", prof)
         , ("modules", mods)
         , ("prelude", prel)
+        , ("artifact", art)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups

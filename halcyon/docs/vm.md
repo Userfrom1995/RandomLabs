@@ -199,6 +199,27 @@ same driver, so `--opt` changes nothing observable.
 rendered final value, with the unit value contributing nothing (exactly
 what the interpreter prints for the same program).
 
+### Serialized bytecode artifacts and benchmarking
+
+`halcyon compile <file>.hly -o <out>.hbc` writes the compiled program as a
+deterministic `HALCYONBC1` text artifact: the entry function (upvalue
+layout, code, constants), the dictionary table, and the constructor map,
+each section with explicit encodings (see `Halcyon.Artifact`). Loading an
+artifact (`run`, `run-vm`, `run-vm --opt`, `check`, and `compile` on a
+`.hbc` file) reconstructs the `Program` directly, so nothing is re-lexed,
+re-parsed, or re-typechecked; `compile <out>.hbc` disassembles the loaded
+artifact. Because the artifact is the compiler's own output, an optimized
+artifact simply records the optimized program, and running it is identical
+to running the source with `--opt`.
+
+`halcyon bench <file>` times the interpreter, the VM, and the optimized VM
+on one program (for an artifact the interpreter phase is skipped, since
+bytecode has no source to walk). Every phase runs the same profiler used by
+`--profile`, reporting instructions executed, peak stack depth, and peak
+frame depth, which are deterministic for a given input. The benchmark exits
+0 only when every phase's output is byte-identical, making it a differential
+check between the two evaluators with and without optimization.
+
 ## 4. Example disassembly
 
 `halcyon compile` prints the program disassembly. For

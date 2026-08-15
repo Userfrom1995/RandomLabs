@@ -549,6 +549,33 @@ Beyond plain expressions, the REPL understands the following commands:
 path resolves relative to the current directory and falls back to the
 library directory, and the merged definitions are added to the session.
 
+### 5.2 Serialized bytecode artifacts
+
+`halcyon compile <file>.hly -o <out>.hbc` writes the compiled program to a
+serialized bytecode artifact in the deterministic `HALCYONBC1` text format
+(`compile --opt <file>.hly -o <out>.hbc` writes the optimized artifact).
+An artifact is a complete program image: entry function, upvalue layout,
+code, constant pool, dictionary table, and constructor map, rendered with
+explicit encodings for every type, value, and instruction. The same bytes
+are produced for the same source on every run.
+
+`run <out>.hbc`, `run-vm <out>.hbc`, `run-vm --opt <out>.hbc`, and
+`check <out>.hbc` load the artifact directly, skipping lexing, parsing,
+and typechecking entirely (the source file need not even exist). `compile
+<out>.hbc` disassembles the artifact instead of recompiling it. Because an
+artifact records the compiler's output, it runs exactly as the source did;
+runtime values that have no artifact encoding (closures, method values)
+never reach the constant pool, so every compiled program serializes.
+
+`halcyon bench <file>` compares every evaluator on one program: the
+tree-walking interpreter, the bytecode VM, and the optimized VM, each
+reporting its wall-clock time plus the deterministic profiler counts
+(instructions executed, peak stack depth, peak frame depth). The benchmark
+fails (exit code 1) unless all phases agree byte-for-byte, so it doubles
+as a differential check. For a `.hbc` artifact the interpreter phase
+reports `n/a` (there is no source to walk) and is excluded from the
+agreement check.
+
 ## 6. Evaluation semantics
 
 - Strict (eager) evaluation, left-to-right. There is no laziness.
