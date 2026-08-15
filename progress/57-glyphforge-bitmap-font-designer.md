@@ -1,5 +1,7 @@
 # Progress - Glyphforge
 
+Status: complete
+
 - **Issue:** #57
 - **Branch:** opencode/57-glyphforge-bitmap-font-designer
 - **Status:** complete
