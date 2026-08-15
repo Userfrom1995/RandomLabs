@@ -132,6 +132,25 @@ replaces `vm_method` with a direct `call` to the specific instance's
 method when it can resolve the constraint at compile time; the output is
 identical, only faster.
 
+### User operators and type synonyms
+
+Both milestone-23 features are handled entirely at compile time and leave no
+trace in the instruction set.
+
+- **User-defined operators** (`infixl`/`infixr`/`infix`): the parser
+  registers the operator in its precedence table, and every infix use
+  desugars to curried application `(<op>) a b`. Compiling the operator
+  name is a normal function reference: `infixl 5 <+>` with
+  `let (<+>) = fn a b => a + b` emits a `push`/`makeclosure`/`call` for the
+  `<+>` function just like any other top-level `let`, and `a <+> b` is
+  `call` twice with the constant for `<+>`. No opcode exists for user
+  operators.
+- **Type synonyms** (`type Name tyvar* = ...`) expand at parse time: each
+  use is substituted by the right-hand side before inference, so the
+  compiler only ever sees the expanded type. A synonym declaration
+  contributes nothing to the constant pool, and no runtime representation
+  of a synonym exists.
+
 ### Profiling
 
 `halcyon run-vm --profile` (and the playground's Profile panel) count

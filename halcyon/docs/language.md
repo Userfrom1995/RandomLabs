@@ -21,8 +21,8 @@ Tokens:
 | String    | `"hello"` `"a\nb"` (escape sequences supported) |
 | Char      | `'a'` `'0'` `'\n'` (escape sequences supported) |
 | Ident     | `x` `fib` `myVar` `isNil`                       |
-| Keywords  | `let` `rec` `in` `fn` `if` `then` `else` `true` `false` `data` `match` `with` `class` `instance` `record` `do` |
-| Operators | `+` `-` `*` `/` `<` `<=` `>` `>=` `==` `/=` `&&` `\|\|` `!` `.` `<-` |
+| Keywords  | `let` `rec` `in` `fn` `if` `then` `else` `true` `false` `data` `match` `with` `class` `instance` `record` `do` `infixl` `infixr` `infix` `type` |
+| Operators | `+` `-` `*` `/` `<` `<=` `>` `>=` `==` `/=` `&&` `\|\|` `!` `.` `<-` and any maximal run of the symbol characters `+ - * / < > = ! & \| : .` (a user-defined operator such as `++` or `<+>`, see section 3.1) |
 | Symbols   | `=` `=>` `(` `)` `[` `]` `,` `:` `{` `}` `|` `;` `()` |
 
 Integers are arbitrary precision. Every token carries a 1-based `line:col`
@@ -34,7 +34,7 @@ source location.
 ```
 program   := import* decl* expr EOF
 import    := 'import' '"' fileName '"'
-decl      := dataDecl | recordDecl | classDecl | instanceDecl | letDecl
+decl      := dataDecl | recordDecl | classDecl | instanceDecl | infixDecl | synonymDecl | letDecl
 dataDecl  := 'data' TypeName tyvar* '=' ['|'] ctor ('|' ctor)*
 ctor      := CtorName type*
 recordDecl := 'record' TypeName tyvar* '=' '{' field (',' field)* '}'
@@ -43,10 +43,13 @@ classDecl := 'class' TypeName tyvar 'where' sig+
 sig       := ident ':' type
 instanceDecl := 'instance' tyvar '=>' TypeName type 'where' method+
 method    := ident '=' expr
-letDecl   := 'let' ['rec'] ident '=' expr
+infixDecl := ('infixl' | 'infixr' | 'infix') int opName
+synonymDecl := 'type' TypeName tyvar* '=' type
+letDecl   := 'let' ['rec'] (ident | '(' opName ')') '=' expr
 type      := tyvar | TypeName type* | '[' type ']' | 'Char' | 'Int' | 'Float' | 'Bool' | 'String' | 'Unit' | 'Effect' type
+            (a type synonym name expands at parse time to its right-hand side)
 expr      := letExpr | ifExpr | lambda | matchExpr | recordExpr | doExpr | orExpr
-letExpr   := 'let' ['rec'] ident '=' expr 'in' expr
+letExpr   := 'let' ['rec'] (ident | '(' opName ')') '=' expr 'in' expr
 ifExpr    := 'if' expr 'then' expr 'else' expr
 lambda    := 'fn' ident+ '=>' expr
 doExpr    := 'do' '{' doStmt (';' doStmt)* '}'
@@ -80,7 +83,9 @@ Notes:
   `a -> b -> T`.
 - Operator precedence, lowest to highest: `||`, `&&`, comparison/equality,
   `+` `-`, `*` `/`, unary `!` and `-`, application, and field projection
-  `.` (and record update `#`) bind tightest of all.
+  `.` (and record update `#`) bind tightest of all. User-defined operators
+  (section 3.1) may sit at any level 0-9, including tighter than the
+  built-ins.
 - `==` and `/=` are structural: they work on any value of the same type.
 - `do { ... }` blocks (section 5.1) are separated by semicolons, whether
   written on one line or across several; newlines alone do not separate
@@ -124,6 +129,44 @@ the playground: integers plain, floats always with a `.0` when integral
 `<builtin: name>`, constructor values as `Name a b ...` (the constructor
 name followed by its rendered fields, space separated), and records as
 `{ x = v, y = w }` with the fields sorted by name.
+
+### 3.1 User-defined operators
+
+Any maximal run of the symbol characters `+ - * / < > = ! & | : .` that is
+not a fixed token (the arrows, comparisons, `::`, `&&`, `||`, and the single
+symbol characters, `!` included) lexes as one operator name and can be used
+infix after a precedence declaration:
+
+```
+infixl 3 <op>      -- left-associative at level N (0-9)
+infixr 6 <op>      -- right-associative at level N
+infix  4 <op>      -- non-associative at level N
+let (<op>) = fn a b => ...   -- define the operator's function
+```
+
+- The built-in operators occupy levels 1-6 (`||` 1, `&&` 2, `==`/`/=` 3,
+  comparisons 4, `+`/`-` 5, `*`/`/` 6); a user operator may be declared at
+  any level 0-9, including tighter than the built-ins.
+- `infixl`/`infixr`/`infix` register the operator in the parser's precedence
+  table before the final expression parses; using an operator infix without
+  a declaration is a positioned parse error.
+- `let (<op>) = ...` defines the operator as an ordinary top-level function,
+  and `(<op>)` anywhere in an expression is a first-class reference to it
+  (`let f = (<op>)`).
+- An infix use `a <op> b` desugars to application `(<op>) a b`, so operators
+  are ordinary functions (they can be passed around and partially applied).
+  Right-associative operators group `a <op> b <op> c` as `a <op> (b <op> c)`;
+  non-associative operators reject chaining.
+- Redeclaring a built-in operator symbol (`+`, `*`, ...) or declaring the
+  same operator twice is rejected.
+- `!` is reserved for unary `not` and never heads a user operator; `!!x` is
+  double negation.
+
+```
+infixr 8 <^>            -- declare at level 8, right-associative
+let (<^>) = fn a b => a * a
+in 3 <^> 2              -- = 3 * 3 = 9
+```
 
 ## 4. Type system
 
@@ -219,7 +262,35 @@ let f = fn g => (g 1, g true) in ...
 - Every free type variable renders as a lowercase letter (`a`, `b`, ...);
   schemes print as `forall a. ...`.
 
-### 4.1 Pattern matching
+### 4.1 Type synonyms
+
+`type` introduces a name for an existing type. The right-hand side may use
+the synonym's own type variables, other synonyms, and any type expression,
+but it may not name the synonym being defined (no recursion):
+
+```
+type Dict = [Int]
+type Table k v = Dict           -- synonyms may mention earlier synonyms
+record Env = { table : Table Int Int, seed : Int }
+```
+
+- Synonyms expand at parse time: every use is replaced by the right-hand
+  side with its type variables substituted, so `Table Int Int` in the
+  example above becomes `[Int]` and the rest of the pipeline (inference,
+  evaluation, VM) never sees the synonym. Rendering a type shows its
+  expanded form.
+- A synonym with N type variables consumes exactly N type arguments at
+  every use (`Table Int Int`), and applying it to the wrong number is a
+  parse error.
+- The right-hand side is checked at declaration time for errors and for
+  direct or indirect recursion (`type T = [T]` is rejected), and forward
+  references to not-yet-declared types surface as unknown-type errors.
+- Names are unique across the whole program: a synonym may not duplicate or
+  collide with a `data`, `record`, or `class` name, and may not be named
+  after a primitive type (`Int`, `Float`, `Bool`, `String`, `Char`, `Unit`,
+  `Effect`).
+
+### 4.2 Pattern matching
 
 `match` is the one way to inspect a data value. It has the form
 
