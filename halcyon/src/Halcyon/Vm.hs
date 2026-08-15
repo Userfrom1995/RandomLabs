@@ -10,13 +10,13 @@ import Control.Monad (foldM, mapM, when)
 import Data.IORef
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.Map.Strict as Map
-import Data.List (intercalate)
+import Data.List (intercalate, isInfixOf)
 import System.IO (hPutStrLn, stderr)
 
 import Halcyon.Ast (Builtin(..), builtinName)
 import Halcyon.Op
 import Halcyon.Classes (unifyHead)
-import Halcyon.Value (Value(..), showFloat)
+import Halcyon.Value (Value(..), showFloat, showCharLit)
 import qualified Halcyon.Type
 
 -- | A VM error (message only; instructions carry no source positions).
@@ -32,6 +32,7 @@ data VmVal
   | VmFloat Double
   | VmBool Bool
   | VmStr String
+  | VmChar Char
   | VmList [VmVal]
   | VmClosure Func Context
   | VmPartial Func Context [(Int, VmVal)]  -- ^ partially applied: bound param slots
@@ -248,6 +249,10 @@ runVm trace (Program entry dicts ctors) = do
               testLit f c target (\lit v -> case (lit, v) of
                 (VmStr a, VmStr b) -> a == b
                 _                  -> False)
+            TestChar c target ->
+              testLit f c target (\lit v -> case (lit, v) of
+                (VmChar a, VmChar b) -> a == b
+                _                    -> False)
             MakeRecord c ar -> do
               case fConstants (frFunc f) !! c of
                 CRec name fields -> do
@@ -527,6 +532,10 @@ runVm trace (Program entry dicts ctors) = do
           BAppend -> 2
           BTake   -> 2
           BDrop   -> 2
+          BCharAt -> 2
+          BSubstr -> 3
+          BStrAppend  -> 2
+          BStrContains -> 2
           _       -> 1
 
         -- Apply one more argument to a curried builtin partial, completing
@@ -572,6 +581,28 @@ runVm trace (Program entry dicts ctors) = do
           (BStrToStr, [v])           -> failVm ("strToStr expects a String, got " <> vmShowValue v)
           (BListToStr, [v@(VmList _)]) -> pushS (VmStr (vmShowValue v)) >> bumpIp f >> step
           (BListToStr, [v])          -> failVm ("listToStr expects a list, got " <> vmShowValue v)
+          (BStrLen, [VmStr s])       -> pushS (VmInt (fromIntegral (length s))) >> bumpIp f >> step
+          (BStrLen, [v])             -> failVm ("strLen expects a String, got " <> vmShowValue v)
+          (BCharAt, [VmStr s, VmInt i])
+            | i < 0 || i >= fromIntegral (length s) ->
+                failVm ("charAt index " <> show i <> " out of range for a string of length " <> show (length s))
+            | otherwise -> pushS (VmChar (s !! fromIntegral i)) >> bumpIp f >> step
+          (BCharAt, [VmStr s, v])    -> failVm ("charAt expects an Int index, got " <> vmShowValue v)
+          (BCharAt, [v])             -> failVm ("charAt expects a String, got " <> vmShowValue v)
+          (BSubstr, [VmStr s, VmInt start, VmInt len])
+            | len < 0 -> failVm "substr length must be non-negative"
+            | otherwise ->
+                pushS (VmStr (take (fromIntegral len) (drop (fromIntegral (max 0 start)) s))) >> bumpIp f >> step
+          (BSubstr, [VmStr s, v])    -> failVm ("substr expects an Int start, got " <> vmShowValue v)
+          (BSubstr, [v])             -> failVm ("substr expects a String, got " <> vmShowValue v)
+          (BStrAppend, [VmStr a, VmStr b]) -> pushS (VmStr (a <> b)) >> bumpIp f >> step
+          (BStrAppend, [_, v])       -> failVm ("strAppend expects a String, got " <> vmShowValue v)
+          (BStrAppend, [v])          -> failVm ("strAppend expects a String, got " <> vmShowValue v)
+          (BStrContains, [VmStr hay, VmStr needle]) ->
+              pushS (VmBool (needle `isInfixOf` hay)) >> bumpIp f >> step
+          (BStrContains, [_, v])     -> failVm ("strContains expects a String, got " <> vmShowValue v)
+          (BStrContains, [v])        -> failVm ("strContains expects a String, got " <> vmShowValue v)
+          (BStr, [v])                -> pushS (VmStr (vmShowValue v)) >> bumpIp f >> step
           _                          -> failVm "internal error: unexpected builtin application"
 
         applyBuiltin f b arg
@@ -619,6 +650,7 @@ runVm trace (Program entry dicts ctors) = do
           (VmFloat x, VmInt y)   -> Right (VmBool (x == fromIntegral y))
           (VmBool x, VmBool y)   -> Right (VmBool (x == y))
           (VmStr x, VmStr y)     -> Right (VmBool (x == y))
+          (VmChar x, VmChar y)     -> Right (VmBool (x == y))
           (VmList x, VmList y)   -> eqLists x y
           (VmData n1 x, VmData n2 y)
             | n1 == n2  -> eqLists x y
@@ -730,6 +762,7 @@ toVm = \case
   VFloat d   -> VmFloat d
   VBool b    -> VmBool b
   VStr s     -> VmStr s
+  VChar c    -> VmChar c
   VList vs   -> VmList (map toVm vs)
   VBuiltin b -> VmBuiltin b
   VPartial b vs -> VmPartialBuiltin b (map toVm vs)
@@ -751,6 +784,7 @@ vmTypeOf ctors = \case
   VmFloat _   -> Halcyon.Type.TFloat
   VmBool _    -> Halcyon.Type.TBool
   VmStr _     -> Halcyon.Type.TStr
+  VmChar _    -> Halcyon.Type.TChar
   VmList vs   -> case vs of
     (x : _) -> Halcyon.Type.TList (vmTypeOf ctors x)
     []      -> Halcyon.Type.TList (Halcyon.Type.TVar 0)
@@ -767,6 +801,7 @@ vmShowValue = \case
   VmBool True    -> "true"
   VmBool False   -> "false"
   VmStr s        -> s
+  VmChar c       -> showCharLit c
   VmList vs      -> "[" <> intercalate ", " (map vmShowValue vs) <> "]"
   VmClosure{}    -> "<function>"
   VmPartial{}    -> "<function>"

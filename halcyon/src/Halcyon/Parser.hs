@@ -317,7 +317,7 @@ parseTypeApp tvs = do
     -- same source line (@Maybe Int@). A parenthesized type, a primitive, a
     -- list type, or a type variable is complete on its own, so a following
     -- atom begins a new field or a new argument.
-    isDataName n = isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String"]
+    isDataName n = isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char"]
     -- A bare constructor name may be applied to following type atoms on the
     -- same source line (e.g. @Maybe Int@); a parenthesized or primitive
     -- type is complete on its own, so a following atom begins a new field.
@@ -340,6 +340,7 @@ parseTypeAtom tvs = do
       "Float"  -> return T.TFloat
       "Bool"   -> return T.TBool
       "String" -> return T.TStr
+      "Char"   -> return T.TChar
       _ | isCapitalized n -> return (T.TData n [])
         | otherwise -> case lookup n tvs of
             Just idx -> return (T.TVar idx)
@@ -385,7 +386,7 @@ parseHeadApp = do
   t <- peek
   a <- parseHeadAtom
   case t of
-    TIdent n | isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String"] ->
+    TIdent n | isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String", "Char"] ->
       go p n []
     _ -> return a
   where
@@ -408,6 +409,7 @@ parseHeadAtom = do
       "Float"  -> return T.TFloat
       "Bool"   -> return T.TBool
       "String" -> return T.TStr
+      "Char"   -> return T.TChar
       _ | isCapitalized n -> return (T.TData n [])
         | otherwise -> return (T.TVar classTypeVar)
     TLBracket -> do
@@ -595,6 +597,7 @@ parsePatternAtom = do
     TTrue     -> consumeTok >> return (PBool p True)
     TFalse    -> consumeTok >> return (PBool p False)
     TStr s    -> consumeTok >> return (PStr p s)
+    TChar c   -> consumeTok >> return (PChar p c)
     TLBracket -> parsePList
     TLBrace   -> parseRecordPattern
     TLParen   -> consumeTok >> parsePattern >>= \pat -> consumeT TRParen >> return pat
@@ -649,6 +652,7 @@ patAtomStart = \case
   TInt _    -> True
   TFloat _  -> True
   TStr _    -> True
+  TChar _   -> True
   TTrue     -> True
   TFalse    -> True
   TIdent _  -> True
@@ -717,6 +721,7 @@ parseAtom = do
     TInt i    -> consumeTok >> return (EInt p i)
     TFloat d  -> consumeTok >> return (EFloat p d)
     TStr s    -> consumeTok >> return (EStr p s)
+    TChar c   -> consumeTok >> return (EChar p c)
     TTrue     -> consumeTok >> return (EBool p True)
     TFalse    -> consumeTok >> return (EBool p False)
     TIdent n
@@ -835,6 +840,7 @@ atomStart = \case
   TInt _    -> True
   TFloat _  -> True
   TStr _    -> True
+  TChar _   -> True
   TTrue     -> True
   TFalse    -> True
   TIdent _  -> True
@@ -880,6 +886,7 @@ exprPos = \case
   EFloat p _      -> p
   EBool p _       -> p
   EStr p _        -> p
+  EChar p _       -> p
   EList p _       -> p
   EVar p _        -> p
   EConstr p _     -> p
@@ -963,6 +970,7 @@ describe = \case
   TInt i     -> "integer " <> show i
   TFloat d   -> "float " <> show d
   TStr _     -> "string"
+  TChar _    -> "character"
   TIdent n   -> "name '" <> n <> "'"
   TLet        -> "'let'"
   TRec        -> "'rec'"

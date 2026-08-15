@@ -277,6 +277,7 @@ unify pos t1 t2 = do
     (TFloat, TFloat) -> return ()
     (TBool, TBool)   -> return ()
     (TStr, TStr)     -> return ()
+    (TChar, TChar)   -> return ()
     (TList x, TList y) -> unify pos x y
     (TData n1 as, TData n2 bs)
       | n1 == n2 && length as == length bs ->
@@ -317,6 +318,7 @@ infer env denv renv e = case e of
   EFloat _ _   -> return TFloat
   EBool _ _    -> return TBool
   EStr _ _     -> return TStr
+  EChar _ _    -> return TChar
   EList p es   -> inferList p denv renv env es
   EVar p name  -> inferVar p env name
   EConstr p name -> inferConstr p denv name
@@ -381,6 +383,12 @@ inferBuiltin _ b =
     BBoolToStr  -> Scheme [] Set.empty (TFun TBool TStr)
     BStrToStr   -> Scheme [] Set.empty (TFun TStr TStr)
     BListToStr  -> Scheme [] (Set.singleton 0) (TFun (TList (TVar 0)) TStr)
+    BStrLen     -> Scheme [] Set.empty (TFun TStr TInt)
+    BCharAt     -> Scheme [] Set.empty (TFun TStr (TFun TInt TChar))
+    BSubstr     -> Scheme [] Set.empty (TFun TStr (TFun TInt (TFun TInt TStr)))
+    BStrAppend  -> Scheme [] Set.empty (TFun TStr (TFun TStr TStr))
+    BStrContains -> Scheme [] Set.empty (TFun TStr (TFun TStr TBool))
+    BStr        -> Scheme [] (Set.singleton 0) (TFun (TVar 0) TStr)
 
 inferLambda :: Pos -> DataEnv -> RecordEnv -> Env -> [String] -> Expr -> Infer Type
 inferLambda _ denv renv env params body = do
@@ -450,6 +458,7 @@ checkPattern p denv renv env pat ty = case pat of
   PFloat _ _    -> unify p ty TFloat >> return env
   PBool _ _     -> unify p ty TBool >> return env
   PStr _ _      -> unify p ty TStr >> return env
+  PChar _ _     -> unify p ty TChar >> return env
   PNil _        -> do
     et <- fresh
     unify p ty (TList et)

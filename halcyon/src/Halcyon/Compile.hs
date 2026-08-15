@@ -213,6 +213,7 @@ compileExpr denv renv inTail = \case
   EFloat _ d    -> emitConst (CValue (VFloat d))
   EBool _ b     -> emitConst (CValue (VBool b))
   EStr _ s      -> emitConst (CValue (VStr s))
+  EChar _ c     -> emitConst (CValue (VChar c))
   EList _ es    -> do
     mapM_ (compileExpr denv renv False) es
     emit (MakeList (length es))
@@ -430,6 +431,7 @@ patternVars = \case
   PFloat _ _    -> []
   PBool _ _     -> []
   PStr _ _      -> []
+  PChar _ _     -> []
   PNil _        -> []
   PCons _ h t   -> patternVars h ++ patternVars t
   PList _ ps    -> concatMap patternVars ps
@@ -453,6 +455,7 @@ compilePattern denv renv varSlot failLab = \case
   PFloat _ d    -> addConst (CValue (VFloat d)) >>= \c -> emitTestTo failLab (\t -> TestFloat c t)
   PBool _ b     -> addConst (CValue (VBool b)) >>= \c -> emitTestTo failLab (\t -> TestBool c t)
   PStr _ s      -> addConst (CValue (VStr s)) >>= \c -> emitTestTo failLab (\t -> TestStr c t)
+  PChar _ c     -> addConst (CValue (VChar c)) >>= \c -> emitTestTo failLab (\t -> TestChar c t)
   PNil _        -> emitTestTo failLab TestNil
   PCons _ h t   -> do
     emitTestTo failLab TestCons
@@ -757,6 +760,7 @@ resolvePatches = do
              TestFloat c 0 -> replaceAt pos (TestFloat c tgt) code
              TestBool c 0  -> replaceAt pos (TestBool c tgt) code
              TestStr c 0   -> replaceAt pos (TestStr c tgt) code
+             TestChar c 0  -> replaceAt pos (TestChar c tgt) code
              TestRecord c 0 -> replaceAt pos (TestRecord c tgt) code
              _             -> code
   modify' (\s -> s { csCode = foldl (\code p -> patch p code) (csCode s) (csPatches s), csPatches = [] })

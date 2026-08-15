@@ -59,6 +59,7 @@ data Instr
   | TestFloat Int Int        -- ^ const index, fail target; literal Float test
   | TestBool Int Int         -- ^ const index, fail target; literal Bool test
   | TestStr Int Int          -- ^ const index, fail target; literal String test
+  | TestChar Int Int         -- ^ const index, fail target; literal Char test
   | MakeRecord Int Int       -- ^ const index (CRec), arity; pop n field values, push a record
   | GetField Int             -- ^ const index (CField); pop record, push field value
   | UpdateField Int          -- ^ const index (CField); pop record and new value, push updated record
@@ -155,6 +156,7 @@ showInstr = \case
   TestFloat c t  -> "test_float " <> show c <> " " <> show t
   TestBool c t   -> "test_bool " <> show c <> " " <> show t
   TestStr c t    -> "test_str " <> show c <> " " <> show t
+  TestChar c t   -> "test_char " <> show c <> " " <> show t
   MakeRecord c a -> "make_record " <> show c <> " " <> show a
   GetField c     -> "get_field " <> show c
   UpdateField c  -> "update_field " <> show c

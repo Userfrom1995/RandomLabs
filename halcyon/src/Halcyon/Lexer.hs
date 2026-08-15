@@ -59,6 +59,7 @@ lexSource src = go 1 1 src
         | isIdentStart x -> identTok l c s
         | isDigit x      -> numberTok l c s
         | x == '"'       -> stringTok l c s
+        | x == '\''      -> charTok l c s
       (x : _) | x == '+' -> simpleTok l c TPlus 1 s
       (x : _) | x == '-' && isPrefixOf' "->" s -> simpleTok l c TArrow 2 s
       (x : _) | x == '-' -> simpleTok l c TMinus 1 s
@@ -148,6 +149,21 @@ lexSource src = go 1 1 src
           | otherwise =
               collect (newline cl x) (newlineCol cc x) startCol (x : acc) xs
 
+    -- Character literal (s starts at the opening quote): @'a'@, @'\\n'@, ... .
+    -- The escape set matches the string escapes. A single quote that follows
+    -- an identifier character is lexed as part of the identifier (Haskell's
+    -- convention: @x'@ stays an identifier); only a quote that begins a token
+    -- starts a char literal.
+    charTok :: Int -> Int -> String -> Either LexError [Token]
+    charTok l c s = case s of
+      ('\'' : ch : '\'' : rest) | ch /= '\\' ->
+        consResult (Token (Pos l c) (TChar ch)) (go l (c + 3) rest)
+      ('\'' : '\\' : esc : '\'' : rest) ->
+        case charEscape esc of
+          Nothing -> Left (LexError (Pos l (c + 2)) ("bad escape sequence: \\" <> [esc]))
+          Just ch -> consResult (Token (Pos l c) (TChar ch)) (go l (c + 4) rest)
+      _ -> Left (LexError (Pos l c) "unterminated character literal")
+
     -- Recompute line/column after consuming a chunk.
     stepLine :: Int -> Int -> String -> Int
     stepLine l _ chunk = l + countNewlines chunk
@@ -207,6 +223,19 @@ keywordOrIdent = \case
   "true"  -> TTrue
   "false" -> TFalse
   name    -> TIdent name
+
+-- | The escape characters accepted inside character literals (matching the
+-- string escape set). @\\n@/@\\t@/@\\r@ map to control characters; @\\@, @'@
+-- and @\"@ escape themselves.
+charEscape :: Char -> Maybe Char
+charEscape = \case
+  'n'  -> Just '\n'
+  't'  -> Just '\t'
+  'r'  -> Just '\r'
+  '\\' -> Just '\\'
+  '\'' -> Just '\''
+  '"'  -> Just '"'
+  _    -> Nothing
 
 -- | Read a numeric literal, deciding integer vs float. Supports a decimal
 -- point and an optional exponent (e/E [+/-] digits).

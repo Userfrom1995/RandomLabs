@@ -8,6 +8,7 @@ module Halcyon.Eval
   ) where
 
 import Control.Monad (foldM)
+import Data.List (isInfixOf)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -86,6 +87,7 @@ eval denv renv cenv env = \case
   EFloat _ d    -> Right (VFloat d)
   EBool _ b     -> Right (VBool b)
   EStr _ s      -> Right (VStr s)
+  EChar _ c     -> Right (VChar c)
   EList _ es    -> VList <$> mapM (eval denv renv cenv env) es
   EVar p name   -> case Map.lookup name env of
                      Just v  -> Right v
@@ -209,6 +211,7 @@ matchValue v pat = case (v, pat) of
   (VFloat d, PFloat _ x) | d == x -> Just []
   (VBool b, PBool _ c) | b == c -> Just []
   (VStr s, PStr _ t) | s == t -> Just []
+  (VChar c, PChar _ d) | c == d -> Just []
   (VList [], PNil _) -> Just []
   (VList (x : xs), PCons _ h t) -> do
     b1 <- matchValue x h
@@ -238,6 +241,7 @@ valueTypeOf denv = \case
   VFloat _   -> TFloat
   VBool _    -> TBool
   VStr _     -> TStr
+  VChar _    -> TChar
   VList vs   -> case vs of
     (x : _) -> TList (valueTypeOf denv x)
     []      -> TList (TVar 0)
@@ -302,6 +306,10 @@ builtinArity = \case
   BAppend -> 2
   BTake   -> 2
   BDrop   -> 2
+  BCharAt -> 2
+  BSubstr -> 3
+  BStrAppend  -> 2
+  BStrContains -> 2
   _       -> 1
 
 -- | Apply a further argument to a partial builtin application, running the
@@ -355,6 +363,27 @@ completeBuiltin p b as = case (b, as) of
   (BStrToStr, [v])           -> Left (EvalError p ("strToStr expects a String, got " <> showValue v))
   (BListToStr, [v@(VList _)]) -> Right (VStr (showValue v))
   (BListToStr, [v])          -> Left (EvalError p ("listToStr expects a list, got " <> showValue v))
+  (BStrLen, [VStr s])        -> Right (VInt (fromIntegral (length s)))
+  (BStrLen, [v])             -> Left (EvalError p ("strLen expects a String, got " <> showValue v))
+  (BCharAt, [VStr s, VInt i])
+    | i < 0 || i >= fromIntegral (length s) ->
+        Left (EvalError p ("charAt index " <> show i <> " out of range for a string of length " <> show (length s)))
+    | otherwise -> Right (VChar (s !! fromIntegral i))
+  (BCharAt, [VStr s, v])     -> Left (EvalError p ("charAt expects an Int index, got " <> showValue v))
+  (BCharAt, [v])             -> Left (EvalError p ("charAt expects a String, got " <> showValue v))
+  (BSubstr, [VStr s, VInt start, VInt len])
+    | len < 0 -> Left (EvalError p "substr length must be non-negative")
+    | otherwise ->
+        Right (VStr (take (fromIntegral len) (drop (fromIntegral (max 0 start)) s)))
+  (BSubstr, [VStr s, v])     -> Left (EvalError p ("substr expects an Int start, got " <> showValue v))
+  (BSubstr, [v])             -> Left (EvalError p ("substr expects a String, got " <> showValue v))
+  (BStrAppend, [VStr a, VStr b]) -> Right (VStr (a <> b))
+  (BStrAppend, [_, v])       -> Left (EvalError p ("strAppend expects a String, got " <> showValue v))
+  (BStrAppend, [v])          -> Left (EvalError p ("strAppend expects a String, got " <> showValue v))
+  (BStrContains, [VStr hay, VStr needle]) -> Right (VBool (needle `isInfixOf` hay))
+  (BStrContains, [_, v])     -> Left (EvalError p ("strContains expects a String, got " <> showValue v))
+  (BStrContains, [v])        -> Left (EvalError p ("strContains expects a String, got " <> showValue v))
+  (BStr, [v])                -> Right (VStr (showValue v))
   _                          -> Left (EvalError p "internal error: unexpected builtin application")
 
 binop :: Pos -> Op -> Value -> Value -> Either EvalError Value

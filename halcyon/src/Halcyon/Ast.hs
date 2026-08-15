@@ -30,6 +30,7 @@ data Expr
   | EFloat   Pos Double
   | EBool    Pos Bool
   | EStr     Pos String
+  | EChar    Pos Char
   | EList    Pos [Expr]
   | EVar     Pos String
   | EConstr  Pos String            -- ^ reference to a data constructor
@@ -152,6 +153,7 @@ data Pattern
   | PFloat Pos Double
   | PBool  Pos Bool
   | PStr   Pos String
+  | PChar  Pos Char
   | PNil   Pos
   | PCons  Pos Pattern Pattern   -- ^ @x :: xs@
   | PList  Pos [Pattern]
@@ -193,7 +195,9 @@ opName = \case
 -- | Builtin functions, exposed as first-class references. The first four
 -- are the classic list primitives; the rest form a small standard library
 -- over lists. @length@/@reverse@ are unary, @append@/@take@/@drop@ are
--- curried like @cons@.
+-- curried like @cons@. The string operations (milestone 20) mirror the
+-- interpreter's canonical rendering (@str@ is the reflection escape hatch,
+-- the same output the CLI prints).
 data Builtin
   = BCons
   | BHead
@@ -209,6 +213,12 @@ data Builtin
   | BBoolToStr
   | BStrToStr
   | BListToStr
+  | BStrLen
+  | BCharAt
+  | BSubstr
+  | BStrAppend
+  | BStrContains
+  | BStr
   deriving (Eq, Show)
 
 builtinName :: Builtin -> String
@@ -227,6 +237,12 @@ builtinName = \case
   BBoolToStr  -> "boolToStr"
   BStrToStr   -> "strToStr"
   BListToStr  -> "listToStr"
+  BStrLen     -> "strLen"
+  BCharAt     -> "charAt"
+  BSubstr     -> "substr"
+  BStrAppend  -> "strAppend"
+  BStrContains -> "strContains"
+  BStr        -> "str"
 
 -- | Resolve a builtin by name, if it is one.
 builtinForName :: String -> Maybe Builtin
@@ -245,4 +261,10 @@ builtinForName = \case
   "boolToStr"  -> Just BBoolToStr
   "strToStr"   -> Just BStrToStr
   "listToStr"  -> Just BListToStr
+  "strLen"     -> Just BStrLen
+  "charAt"     -> Just BCharAt
+  "substr"     -> Just BSubstr
+  "strAppend"  -> Just BStrAppend
+  "strContains" -> Just BStrContains
+  "str"        -> Just BStr
   _            -> Nothing

@@ -29,6 +29,7 @@ data Type
   | TFloat
   | TBool
   | TStr
+  | TChar
   | TList Type
   | TData String [Type]
   | TRec String [Type]
@@ -70,6 +71,7 @@ showType = go
       TFloat   -> "Float"
       TBool    -> "Bool"
       TStr     -> "String"
+      TChar    -> "Char"
       TList t  -> "[" <> go t <> "]"
       TData n ts -> if null ts then n else n <> " " <> unwords (map goArg ts)
       TRec n ts  -> if null ts then n else n <> " " <> unwords (map goArg ts)

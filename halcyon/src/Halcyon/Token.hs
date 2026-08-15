@@ -23,6 +23,7 @@ data Tok
   = TInt    Integer
   | TFloat  Double
   | TStr    String
+  | TChar   Char
   | TIdent  String
   | TLet
   | TRec

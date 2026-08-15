@@ -169,6 +169,7 @@ unifyHeadB h t = case (h, t) of
   (TFloat, TFloat) -> Just Map.empty
   (TBool, TBool)   -> Just Map.empty
   (TStr, TStr)     -> Just Map.empty
+  (TChar, TChar)   -> Just Map.empty
   (TList hh, TList tt) -> unifyHeadB hh tt
   (TData n1 as, TData n2 bs)
     | n1 == n2 && length as == length bs -> unifyMany (zip as bs)
@@ -193,6 +194,7 @@ unifyHead h t = case (h, t) of
   (TFloat, TFloat) -> True
   (TBool, TBool)   -> True
   (TStr, TStr)     -> True
+  (TChar, TChar)   -> True
   (TList _h, TList _t) -> True
   (TData n1 _, TData n2 _) -> n1 == n2
   (TRec n1 _, TRec n2 _)   -> n1 == n2
@@ -210,6 +212,7 @@ instanceHeadShape = go
       TFloat      -> "Float"
       TBool       -> "Bool"
       TStr        -> "String"
+      TChar       -> "Char"
       TList t     -> "[" <> go t <> "]"
       TData n ts  -> n <> (if null ts then "" else " " <> unwords (map go ts))
       TRec n ts   -> n <> (if null ts then "" else " " <> unwords (map go ts))
@@ -218,7 +221,7 @@ instanceHeadShape = go
 -- ---------------------------------------------------------------------
 -- Built-in Show instances
 --
---   Show Int, Show Float, Show Bool, Show String, and
+--   Show Int, Show Float, Show Bool, Show String, Show Char, and
 --   Show a => Show [a]  (recursive rendering that dispatches @show@ on
 --   elements so user instances are honored)
 -- ---------------------------------------------------------------------
@@ -232,6 +235,7 @@ builtinInstances =
   , InstanceDecl p "Show" Nothing TFloat [("show", showFloat)]
   , InstanceDecl p "Show" Nothing TBool [("show", showBool)]
   , InstanceDecl p "Show" Nothing TStr [("show", showStr)]
+  , InstanceDecl p "Show" Nothing TChar [("show", showCharExpr)]
   , InstanceDecl p "Show" (Just ("Show", TVar classTypeVar)) (TList (TVar classTypeVar)) [("show", builtinShowList)]
   ]
 
@@ -250,6 +254,10 @@ showBool = ELambda p ["x"] (EApply p (EBuiltin p BBoolToStr) (EVar p "x"))
 -- | @fn x => strToStr x@
 showStr :: Expr
 showStr = ELambda p ["x"] (EApply p (EBuiltin p BStrToStr) (EVar p "x"))
+
+-- | @fn x => str x@ (renders the character in quoted form, @'a'@)
+showCharExpr :: Expr
+showCharExpr = ELambda p ["x"] (EApply p (EBuiltin p BStr) (EVar p "x"))
 
 -- | The built-in list Show instance body:
 -- @fn xs => let rec go = fn ys => match ys with

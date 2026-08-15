@@ -3,6 +3,7 @@ module Halcyon.Value
   ( Value(..)
   , showValue
   , showFloat
+  , showCharLit
   ) where
 
 import Data.List (intercalate)
@@ -21,6 +22,7 @@ data Value
   | VFloat Double
   | VBool Bool
   | VStr String
+  | VChar Char
   | VList [Value]
   | VClosure [String] Expr (Map.Map String Value)
   | VBuiltin Builtin
@@ -42,6 +44,7 @@ showValue = \case
   VBool True    -> "true"
   VBool False   -> "false"
   VStr s        -> s
+  VChar c       -> showCharLit c
   VList vs      -> "[" <> intercalate ", " (map showValue vs) <> "]"
   VClosure{}    -> "<function>"
   VBuiltin b    -> "<builtin: " <> builtinName b <> ">"
@@ -60,3 +63,17 @@ showFloat d
       let whole = show (round d :: Integer)
       in whole <> ".0"
   | otherwise = show d
+
+-- | Render a character literal the way program output shows it: the quoted
+-- form @'a'@, @'\\n'@, @'\\''@, ... (shared by the interpreter and the VM so
+-- output stays byte-identical).
+showCharLit :: Char -> String
+showCharLit c = "'" <> escape c <> "'"
+  where
+    escape = \case
+      '\n' -> "\\n"
+      '\t' -> "\\t"
+      '\r' -> "\\r"
+      '\\' -> "\\\\"
+      '\'' -> "\\'"
+      ch   -> [ch]

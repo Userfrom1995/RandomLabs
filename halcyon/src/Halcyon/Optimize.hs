@@ -217,6 +217,7 @@ eqFold a b neg = case eqConst a b of
       (VFloat d, VInt i)         -> Just (d == fromIntegral i)
       (VBool p, VBool q)         -> Just (p == q)
       (VStr s, VStr t)           -> Just (s == t)
+      (VChar a, VChar b)           -> Just (a == b)
       (VList xs, VList ys)       -> Just (showValue (VList xs) == showValue (VList ys))
       _ -> Nothing
 
@@ -268,6 +269,7 @@ instrRefs = \case
   TestFloat c _  -> [c]
   TestBool c _   -> [c]
   TestStr c _    -> [c]
+  TestChar c _   -> [c]
   _              -> []
 
 -- | Remap a jump target through the position map (targets always name
@@ -284,6 +286,7 @@ patchTarget pm = \case
   TestFloat c t   -> TestFloat c (Map.findWithDefault t t pm)
   TestBool c t    -> TestBool c (Map.findWithDefault t t pm)
   TestStr c t     -> TestStr c (Map.findWithDefault t t pm)
+  TestChar c t    -> TestChar c (Map.findWithDefault t t pm)
   i               -> i
 
 -- | Remap a constant-pool index through the pool rebuild map.
@@ -302,4 +305,5 @@ patchConst rm = \case
   TestFloat c t  -> TestFloat (Map.findWithDefault c c rm) t
   TestBool c t   -> TestBool (Map.findWithDefault c c rm) t
   TestStr c t    -> TestStr (Map.findWithDefault c c rm) t
+  TestChar c t   -> TestChar (Map.findWithDefault c c rm) t
   i              -> i
