@@ -9,10 +9,12 @@ module Halcyon.Eval
 
 import Control.Monad (foldM)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 import Halcyon.Ast
-import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, progDataEnv, checkProgram, ctorFor, CtorInfo(..))
+import Halcyon.Data (DataEnv, emptyDataEnv, progEnvs, checkProgram, ctorFor, CtorInfo(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
+import Halcyon.Record (RecordEnv, emptyRecordEnv, recordFor, recordForFields, RecordInfo(..))
 import Halcyon.Token (Pos(..), Tok(..))
 import Halcyon.Value
 
@@ -38,21 +40,22 @@ evalProgramIn prog = do
   case checkProgram prog of
     Left m  -> Left (EvalError (Pos 0 0) m)
     Right _ -> Right ()
-  denv <- case progDataEnv prog of
+  (denv, renv) <- case progEnvs prog of
     Left m  -> Left (EvalError (Pos 0 0) m)
-    Right d -> Right d
-  env <- foldM (evalDef denv) Map.empty (progDefs prog)
+    Right e -> Right e
+  env <- foldM (evalDef denv renv) Map.empty (progDefs prog)
   case progExpr prog of
     Nothing -> return Nothing
-    Just e  -> Just <$> eval denv env e
+    Just e  -> Just <$> eval denv renv env e
 
 -- | Evaluate one top-level definition, extending the environment. The
 -- semantics match the interpreter's @let@: the recursive form captures the
 -- environment being built (a lazy knot); the plain form captures the outer
 -- environment.
-evalDef :: DataEnv -> Env -> TopDef -> Either EvalError Env
-evalDef denv env = \case
+evalDef :: DataEnv -> RecordEnv -> Env -> TopDef -> Either EvalError Env
+evalDef denv renv env = \case
   DefData _ -> Right env
+  DefRecord _ -> Right env
   DefLet p rec name bound -> case bound of
     ELambda _ params body' ->
       let captured = if rec then env' else env
@@ -60,20 +63,20 @@ evalDef denv env = \case
       in Right env'
     _ | rec -> Left (EvalError p ("let rec requires a function value for " <> name))
       | otherwise -> do
-          vb <- eval denv env bound
+          vb <- eval denv renv env bound
           Right (Map.insert name vb env)
 
 -- | Evaluate a parsed expression in the given environments.
 evalExpr :: DataEnv -> Env -> Expr -> Either EvalError Value
-evalExpr denv env expr = eval denv env expr
+evalExpr denv env expr = eval denv emptyRecordEnv env expr
 
-eval :: DataEnv -> Env -> Expr -> Either EvalError Value
-eval denv env = \case
+eval :: DataEnv -> RecordEnv -> Env -> Expr -> Either EvalError Value
+eval denv renv env = \case
   EInt _ i      -> Right (VInt i)
   EFloat _ d    -> Right (VFloat d)
   EBool _ b     -> Right (VBool b)
   EStr _ s      -> Right (VStr s)
-  EList _ es    -> VList <$> mapM (eval denv env) es
+  EList _ es    -> VList <$> mapM (eval denv renv env) es
   EVar p name   -> case Map.lookup name env of
                      Just v  -> Right v
                      Nothing -> Left (EvalError p ("unbound name: " <> name))
@@ -84,9 +87,9 @@ eval denv env = \case
   EBuiltin _ b  -> Right (VBuiltin b)
   ELambda _ params body -> Right (VClosure params body env)
   EApply p fn arg -> do
-    vf <- eval denv env fn
-    va <- eval denv env arg
-    apply p denv vf va
+    vf <- eval denv renv env fn
+    va <- eval denv renv env arg
+    apply p denv renv vf va
   ELet p rec name bound body ->
     case bound of
       ELambda _ params body' ->
@@ -95,43 +98,86 @@ eval denv env = \case
         -- captures the outer environment.
         let captured = if rec then env' else env
             env'     = Map.insert name (VClosure params body' captured) env
-        in eval denv env' body
+        in eval denv renv env' body
       _ | rec -> Left (EvalError p ("let rec requires a function value for " <> name))
         | otherwise -> do
-            vb <- eval denv env bound
-            eval denv (Map.insert name vb env) body
+            vb <- eval denv renv env bound
+            eval denv renv (Map.insert name vb env) body
   EIf p c t e -> do
-    vc <- eval denv env c
+    vc <- eval denv renv env c
     case vc of
-      VBool True  -> eval denv env t
-      VBool False -> eval denv env e
+      VBool True  -> eval denv renv env t
+      VBool False -> eval denv renv env e
       _ -> Left (EvalError p ("if condition must be a boolean, got " <> showValue vc))
   EBin p op a b -> do
-    va <- eval denv env a
-    vb <- eval denv env b
+    va <- eval denv renv env a
+    vb <- eval denv renv env b
     binop p op va vb
   ENeg p x -> do
-    v <- eval denv env x
+    v <- eval denv renv env x
     case v of
       VInt i   -> Right (VInt (negate i))
       VFloat d -> Right (VFloat (negate d))
       _        -> Left (EvalError p ("cannot negate " <> showValue v))
   ENot p x -> do
-    v <- eval denv env x
+    v <- eval denv renv env x
     case v of
       VBool b -> Right (VBool (not b))
       _       -> Left (EvalError p ("cannot apply ! to " <> showValue v))
-  EMatch p scrut branches -> evalMatch p denv env scrut branches
+  EMatch p scrut branches -> evalMatch p denv renv env scrut branches
+  ERecord p fields -> evalRecord p denv renv env fields
+  EProj p e name -> evalProj p denv renv env e name
+  EUpdate p e name ne -> evalUpdate p denv renv env e name ne
+
+-- | @{ f1 = e1, ..., fn = en }@: evaluate each field in any order, then
+-- store the record's fields in declared order under its resolved type name.
+evalRecord :: Pos -> DataEnv -> RecordEnv -> Env -> [(String, Expr)] -> Either EvalError Value
+evalRecord p denv renv env fields = do
+  let fs = Map.fromList fields
+      fset = Map.keysSet fs
+  (name, ri) <- case recordForFields fset renv of
+    Nothing -> Left (EvalError p ("no record with fields " <> show (Set.toList fset)))
+    Just x  -> Right x
+  vals <- mapM (\(f, e) -> do { v <- eval denv renv env e; return (f, v) }) (Map.toList fs)
+  let m = Map.fromList vals
+  let ordered = [(f, m Map.! f) | (f, _) <- riFields ri]
+  Right (VRec name ordered)
+
+-- | @e.f@: look up the field in the record value. The field is guaranteed to
+-- exist by the type checker; a runtime miss is an internal error.
+evalProj :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> String -> Either EvalError Value
+evalProj p denv renv env e name = do
+  v <- eval denv renv env e
+  case v of
+    VRec _ fs -> case lookup name fs of
+      Just x  -> Right x
+      Nothing -> Left (EvalError p ("no field " <> name <> " in record value"))
+    _ -> Left (EvalError p ("field projection requires a record, got " <> showValue v))
+
+-- | @{ e with f = e' }@: rebuild the record replacing one field. The
+-- original record is untouched (records are immutable); the result keeps the
+-- declared field order.
+evalUpdate :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> String -> Expr -> Either EvalError Value
+evalUpdate p denv renv env e name ne = do
+  v <- eval denv renv env e
+  nv <- eval denv renv env ne
+  case v of
+    VRec rn fs ->
+      let fs' = map (\case
+                        (f, _) | f == name -> (name, nv)
+                        other               -> other) fs
+      in Right (VRec rn fs')
+    _ -> Left (EvalError p ("record update requires a record, got " <> showValue v))
 
 -- | @match scrut with | pat => e@: evaluate the scrutinee, then run the
 -- first branch whose pattern matches, binding the pattern's variables in
 -- the branch body. A @_@ wildcard always matches; if nothing matches the
 -- whole match fails.
-evalMatch :: Pos -> DataEnv -> Env -> Expr -> [(Pattern, Expr)] -> Either EvalError Value
-evalMatch p denv env scrut branches = case branches of
+evalMatch :: Pos -> DataEnv -> RecordEnv -> Env -> Expr -> [(Pattern, Expr)] -> Either EvalError Value
+evalMatch p denv renv env scrut branches = case branches of
   [] -> Left (EvalError p "empty match")
   _  -> do
-    v <- eval denv env scrut
+    v <- eval denv renv env scrut
     go v branches
   where
     go _ [] = Left (EvalError p "no matching pattern")
@@ -140,7 +186,7 @@ evalMatch p denv env scrut branches = case branches of
         Nothing -> go v rest
         Just binds -> do
           let env' = foldr (\(n, x) acc -> Map.insert n x acc) env binds
-          eval denv env' body
+          eval denv renv env' body
 
 -- | Attempt to match a value against a pattern, returning the variable
 -- bindings on success. Variable patterns bind the whole scrutinee;
@@ -167,20 +213,27 @@ matchValue v pat = case (v, pat) of
     | n == name && length fs == length ps -> do
         bindLists <- sequence (zipWith matchValue fs ps)
         return (concat bindLists)
+  (VRec _ fs, PRecord _ fields)
+    | length fs == length fields -> do
+        -- Both lists are in declared field order; the pattern may write the
+        -- fields in any order, so pair them up by field name.
+        let m = Map.fromList fs
+        bindLists <- sequence [matchValue (m Map.! f) sub | (f, sub) <- fields]
+        return (concat bindLists)
   _ -> Nothing
 
 -- | Apply one argument. Lambdas bind the first remaining parameter
 -- (currying: @fn x y => e@ applied to one argument yields a closure over
 -- the rest); a partially applied curried builtin (@cons@, @append@, @take@,
 -- @drop@) or data constructor accumulates arguments until it has enough to
--- run. The data environment is threaded so closures can keep referencing
--- constructors.
-apply :: Pos -> DataEnv -> Value -> Value -> Either EvalError Value
-apply p denv vf va = case vf of
+-- run. The data and record environments are threaded so closures can keep
+-- referencing constructors and record types.
+apply :: Pos -> DataEnv -> RecordEnv -> Value -> Value -> Either EvalError Value
+apply p denv renv vf va = case vf of
   VClosure (param : rest) body cenv ->
     let cenv' = Map.insert param va cenv
     in if null rest
-         then eval denv cenv' body
+         then eval denv renv cenv' body
          else Right (VClosure rest body cenv')
   VClosure [] _ _ -> Left (EvalError p "function with no parameters")
   VPartial b as -> applyPartial p b (as ++ [va])

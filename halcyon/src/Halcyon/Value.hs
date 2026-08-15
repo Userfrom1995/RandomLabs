@@ -27,6 +27,7 @@ data Value
   | VPartial Builtin [Value]
   | VData String [Value]
   | VConstr String Int [Value]
+  | VRec String [(String, Value)]
   deriving (Eq, Show)
 
 -- | Render a value as program output. This is the canonical, deterministic
@@ -45,6 +46,7 @@ showValue = \case
   VPartial b as -> "<builtin: " <> builtinName b <> " " <> unwords (map showValue as) <> ">"
   VData n fs    -> unwords (n : map showValue fs)
   VConstr n _ _ -> "<constructor: " <> n <> ">"
+  VRec _ fs     -> "{ " <> intercalate ", " (map (\(f, v) -> f <> " = " <> showValue v) fs) <> " }"
 
 -- | Deterministic float rendering: plain decimals, never scientific for
 -- ordinary magnitudes.
