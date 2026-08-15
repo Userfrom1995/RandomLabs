@@ -7,7 +7,7 @@
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
-- [ ] 2. Core domain: Token + Lexer + AST + Parser (positioned errors, precedence climbing)
+- [x] 2. Core domain: Token + Lexer + AST + Parser (positioned errors, precedence climbing)
 - [ ] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
 - [ ] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
 - [ ] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
@@ -19,7 +19,8 @@
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Scaffold complete; core domain (lexer/parser/AST) next
+Core domain done (Token/Lexer/AST/Parser, positioned errors, precedence
+climbing); type system (HM inference) next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -41,5 +42,14 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   examples/ js/ docs/ test/ dirs, build/ + obj .gitignore. Verified
   `make` builds and CLI responds. Pushed milestone-by-milestone per the
   Maintainer's continue mandate.
+- 2026-08-15 (builder) - Milestone 2 (core domain): Token.hs (Pos/Token/Tok),
+  hand-written Lexer.hs (literals, names, operators, keywords, -- line and
+  {- -} nested block comments, string escapes, positioned lex errors, precise
+  numeric scanner so 1-2 is two tokens), Ast.hs (Expr/Op/Builtin with
+  per-node positions), Parser.hs (parser monad, recursive descent with
+  precedence climbing 1..6, left-assoc application, let/let rec, if, fn,
+  lists, unary -/!, positioned parse errors). Verified by ghc scratch harness
+  over 15 sample programs incl. fib, curried closures, comments, floats.
+  Removed Halcyon.Main in favor of src/Main.hs entry.
 
 - the Architect
