@@ -9,7 +9,8 @@
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
 - [x] 2. Core domain: Token + Lexer + AST + Parser (positioned errors, precedence climbing)
 - [x] 3. Type system: Type/Scheme/substitution, HM inference, let polymorphism, numeric promotion, error reporting
-- [ ] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
+- [x] 4. Tree-walking interpreter: Value, environments, closures, builtins, let rec
+- [ ] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
 - [ ] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
 - [ ] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
 - [ ] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
@@ -19,8 +20,8 @@
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-Type system done (HM inference with let polymorphism + numeric promotion,
-45 embedded selftests passing); interpreter + bytecode VM next
+Interpreter done (Value/Env/closures/let rec lazy knot/curried builtins,
+30 eval tests passing, 75 total); bytecode VM next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -62,5 +63,14 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   `halcyon selftest` + Makefile test target): 45 tests (lexer 9, parser 14,
   types 22) all passing. Pretty-printer renders right-assoc function types
   (a -> a -> a).
+- 2026-08-15 (builder) - Milestone 4 (tree-walking interpreter): Value.hs
+  (VInt/VFloat/VBool/VStr/VList/VClosure/VBuiltin/VPartial, canonical
+  deterministic showValue shared with VM and later JS mirror, whole-float
+  rendering 5.0 not 5), Eval.hs (pure eval over Map env, curried closures
+  binding one param at a time, let rec via lazy self-referential env knot,
+  cons/head/tail/isNil with VPartial for cons's second arg, Int/Float
+  promotion at runtime incl. truncating Int division, positioned runtime
+  errors). Verified: fib 25, count 100000 (deep recursion), map/filter over
+  lists, closures. 30 eval selftests added (75 total).
 
 - the Architect

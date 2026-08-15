@@ -10,6 +10,7 @@ import Control.Monad (forM_, when)
 import Halcyon.Infer (InferError(..), inferProgram, showType)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
+import Halcyon.Eval (EvalError(..), evalProgram, showValue)
 
 -- ---------------------------------------------------------------------
 -- Tiny assertion framework
@@ -70,6 +71,20 @@ inferFails :: String -> Either String ()
 inferFails src = case inferProgram src of
   Left _  -> Right ()
   Right t -> Left ("expected a type error, but inferred " <> showType t)
+
+evalsTo :: String -> String -> Either String ()
+evalsTo src expected = case evalProgram src of
+  Left (EvalError _ m) -> Left ("eval error: " <> m)
+  Right v              ->
+    let shown = showValue v
+    in if shown == expected
+         then Right ()
+         else Left ("expected " <> expected <> ", got " <> shown)
+
+evalFails :: String -> Either String ()
+evalFails src = case evalProgram src of
+  Left _  -> Right ()
+  Right v -> Left ("expected a runtime error, but got " <> showValue v)
 
 -- ---------------------------------------------------------------------
 -- Tests
@@ -132,6 +147,40 @@ typeTests =
   , check "type: reject apply arith" (inferFails "let g = fn f => f 1 in g (fn x => x + \"s\")")
   ]
 
+evalTests :: Harness
+evalTests =
+  [ check "eval: arithmetic"         (evalsTo "1 + 2 * 3" "7")
+  , check "eval: promote int+float"  (evalsTo "1 + 2.5" "3.5")
+  , check "eval: promote float+int"  (evalsTo "2.5 * 2" "5.0")
+  , check "eval: int division"       (evalsTo "7 / 2" "3")
+  , check "eval: float division"     (evalsTo "7.0 / 2" "3.5")
+  , check "eval: div by zero"        (evalFails "1 / 0")
+  , check "eval: comparison"         (evalsTo "3 < 4 && 4 <= 4" "true")
+  , check "eval: equality"           (evalsTo "1 == 1 && \"a\" /= \"b\"" "true")
+  , check "eval: not"                (evalsTo "!false" "true")
+  , check "eval: unary minus"        (evalsTo "-5 + 2" "-3")
+  , check "eval: if"                 (evalsTo "if 2 > 1 then \"yes\" else \"no\"" "yes")
+  , check "eval: let"                (evalsTo "let x = 10 in x * 2" "20")
+  , check "eval: let rec fib"        (evalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 10" "55")
+  , check "eval: curried lambda"     (evalsTo "let f = fn x y => x + y in f 3 4" "7")
+  , check "eval: partial application" (evalsTo "let f = fn x y => x + y in let g = f 10 in g 5" "15")
+  , check "eval: closures capture"   (evalsTo "let x = 5 in let f = fn y => x + y in f 1" "6")
+  , check "eval: higher-order"       (evalsTo "let twice = fn f x => f (f x) in twice (fn x => x * 2) 3" "12")
+  , check "eval: cons/head/tail"     (evalsTo "let xs = cons 1 (cons 2 []) in head xs" "1")
+  , check "eval: tail"               (evalsTo "tail (cons 1 (cons 2 []))" "[2]")
+  , check "eval: isNil"              (evalsTo "isNil []" "true")
+  , check "eval: list literal"       (evalsTo "[1, 2, 3]" "[1, 2, 3]")
+  , check "eval: list ops"           (evalsTo "let xs = [1, 2, 3] in cons 0 (tail xs)" "[0, 2, 3]")
+  , check "eval: string value"        (evalsTo "let s = \"hello\" in s" "hello")
+  , check "eval: string eq"           (evalsTo "\"a\" == \"a\"" "true")
+  , check "eval: head empty"         (evalFails "head []")
+  , check "eval: if needs bool"      (evalFails "if 1 then 2 else 3")
+  , check "eval: apply non-fn"       (evalFails "5 3")
+  , check "eval: unbound"            (evalFails "nope")
+  , check "eval: negate bool"        (evalFails "-true")
+  , check "eval: arithmetic fib"     (evalsTo "let rec fib = fn n => if n < 2 then n else fib (n - 1) + fib (n - 2) in fib 25" "75025")
+  ]
+
 -- ---------------------------------------------------------------------
 -- Main
 -- ---------------------------------------------------------------------
@@ -142,6 +191,7 @@ runSelftest = do
         [ ("lexer", lexerTests)
         , ("parser", parserTests)
         , ("types", typeTests)
+        , ("eval", evalTests)
         ]
       total = sum (map (length . snd) groups)
   failures <- foldl runGroup (return []) groups
