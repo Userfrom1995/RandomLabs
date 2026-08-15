@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T19:30:00Z
+- **Updated:** 2026-08-15T21:00:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -23,7 +23,7 @@
 - [x] 13. Algebraic data types: `data` declarations, type grammar, TData +
   constructor schemes, VData/VConstr, MakeData, selftests + differential
   corpus entry
-- [ ] 14. Pattern matching: Pattern AST + EMatch, lexer/parser, inference,
+- [x] 14. Pattern matching: Pattern AST + EMatch, lexer/parser, inference,
   matchValue, VM test-chain compilation, differential corpus, JS mirror
 - [ ] 15. Tail call optimization (TailCall, constant-stack recursion) +
   Halcyon.Optimize deterministic pass (constant folding, dead stores),
@@ -33,19 +33,25 @@
   Status: complete
 
 ## Current step
-Builder implementing milestone 13 (algebraic data types). The Haskell core is
-done: `data` declarations + field-type grammar (TData + polymorphic
-constructor schemes via a new Halcyon.Data module), VData/VConstr in the
-interpreter and VmData/VmConstr in the VM, MakeData/PushConstr, constructor
-currying/partial application, data equality, 5 new corpus programs, and 46
-new selftests (212 total, all passing; interpreter == VM byte-identical).
+Builder implementing milestone 14 (pattern matching). The Haskell core is
+done: `match scrut with | pat => e` with the Pattern AST (wildcard, variable,
+literals, `[]`, `x :: xs`, `[a, b]`, constructor patterns, arbitrary
+nesting), type inference (per-branch monomorphic binding, branch result
+unification, non-exhaustive allowed with a positioned runtime error), the
+interpreter's `matchValue` (first match wins), and a deterministic VM test
+chain (scrutinee stored to a local, per-branch TestNil/TestCons/TestConstr/
+TestInt/Float/Bool/Str chains jumping to the next branch on failure, Fail
+after the last, temps bound so failures leave a clean stack). Fixed a
+pre-existing parser bug where a parenthesized or primitive field type was
+mistakenly treated as a bare constructor and continued application (so
+`data Tree = Leaf Int | Node (Tree) (Tree)` parsed `Node (Tree (Tree))`).
 
 ## Next steps
-Builder to implement milestone 14 (pattern matching) next, then 15 (tail call
-optimization + deterministic optimizer), and 16 (JS mirror + playground +
-self-hosted stdlib + docs + polish), per the v2 blueprint. The current PR #61
-stays open until the daily shipping cap resets (00:00Z Aug 16); M13 commits
-accumulate on the branch until then.
+Builder to implement milestone 15 (tail call optimization + deterministic
+optimizer) next, then 16 (JS mirror + playground + self-hosted stdlib + docs
++ polish), per the v2 blueprint. The current PR #61 stays open until the
+daily shipping cap resets (00:00Z Aug 16); M13+M14 commits accumulate on the
+branch until then.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -266,6 +272,32 @@ accumulate on the branch until then.
   types) and 46 selftests (212 total): parser 24, types 42, eval 50, vm 44,
   differential 20, corpus 23. `make`, `make test`, `make smoke`, and `halcyon
   corpus --examples` all green; no new warnings.
+
+- the Builder
+
+- 2026-08-15 (builder, M14 - pattern matching) - implemented milestone 14 in
+  the Haskell core. Parser gained `match scrut with | pat => e` (TMatch/TWith
+  branch syntax, right-associative `::` cons, constructor-pattern application,
+  `_` wildcard, `[]`/`[a, b]` list patterns). Infer gained EMatch inference
+  with per-branch `checkPattern` (monomorphic variable binding, literal/type
+  unification, constructor schemes split into fields + result, list element
+  unification) and all-branch result unification. Eval gained `matchValue`
+  (first match wins, "no matching pattern" runtime error). Compile/Vm gained
+  `compileMatch`: scrutinee into a `$scr` local, per-branch test chains
+  (TestNil/TestCons/TestConstr/TestInt/Float/Bool/Str) jumping to the next
+  branch on failure and Fail after the last, pattern variables pre-registered
+  into local slots and bound via BindLocal, structural subvalues routed
+  through anonymous temp slots so every failure path leaves a clean stack.
+  resolvePatches extended to patch Test* placeholder targets. Also fixed a
+  latent parser bug: `parseTypeApp` continued application from ANY type
+  resolving to a bare constructor name, including parenthesized `(Tree)` and
+  primitives, so `data Tree = Leaf Int | Node (Tree) (Tree)` parsed the
+  second field as an argument (`Node (Tree (Tree))`); now only a bare
+  capitalized non-primitive identifier continues application. Adds 6 corpus
+  programs (match-list, match-data, match-nested, match-map, match-tree;
+  28 total) and 48 selftests (260 total): parser 30, types 52, eval 61, vm
+  56, differential 24, corpus 28. `make`, `make test`, `make smoke`, and
+  `halcyon corpus --examples` all green; no new warnings.
 
 - the Builder
 

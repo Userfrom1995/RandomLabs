@@ -189,6 +189,12 @@ parserTests =
   , check "parse: reject lower ctor"    (parseFails "data T = make\n1")
   , check "parse: reject undeclared tyvar" (parseFails "data Foo x = Bar y\n1")
   , check "parse: reject missing equals" (parseFails "data T A\n1")
+  , check "parse: match"               (parsesOk "match x with | Just a => a | Nothing => 0")
+  , check "parse: match no pipes"      (parseFails "match x with Just a => a")
+  , check "parse: match wildcard"      (parsesOk "match x with | _ => 0")
+  , check "parse: match cons"          (parsesOk "match xs with | h :: t => h | [] => 0")
+  , check "parse: match list literal"  (parsesOk "match xs with | [a, b] => a | _ => 0")
+  , check "parse: match ctor app"      (parsesOk "match m with | Just x => x")
   ]
 
 typeTests :: Harness
@@ -235,6 +241,16 @@ typeTests =
   , check "type: reject ctor extra arg" (inferFails "data Maybe a = Nothing | Just a\nJust 1 2")
   , check "type: reject dup type"   (inferFails "data T = A\ndata T = B\nA")
   , check "type: reject dup ctor"   (inferFails "data T = A\ndata U = A\nA")
+  , check "type: match int"         (inferredAs "match 5 with | 0 => 0 | n => n" "Int")
+  , check "type: match wildcard"    (inferredAs "match 5 with | _ => 5" "Int")
+  , check "type: match string"      (inferredAs "match \"a\" with | \"a\" => 1 | _ => 0" "Int")
+  , check "type: match data"        (inferredAs "data Maybe a = Nothing | Just a\nmatch Just 5 with | Nothing => 0 | Just x => x" "Int")
+  , check "type: match list"        (inferredAs "match [1, 2] with | [] => 0 | h :: t => h" "Int")
+  , check "type: match list literal" (inferredAs "match [1, 2] with | [a, b] => a | _ => 0" "Int")
+  , check "type: match cons"        (inferredAs "match [1, 2, 3] with | x :: y :: rest => y | _ => 0" "Int")
+  , check "type: reject match arity" (inferFails "data Maybe a = Nothing | Just a\nmatch Just 5 with | Just a b => a")
+  , check "type: reject match unbound ctor" (inferFails "match 5 with | Nope => 1")
+  , check "type: reject branch mismatch" (inferFails "match 5 with | _ => 1 | _ => true")
   ]
 
 evalTests :: Harness
@@ -289,6 +305,17 @@ evalTests =
   , check "eval: data inequality"   (evalsTo "data Maybe a = Nothing | Just a\nJust 5 /= Nothing" "true")
   , check "eval: nested data"       (evalsTo "data Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf" "Node Node Leaf 1 Leaf 2 Leaf")
   , check "eval: unbound ctor"      (evalFails "Nothing")
+  , check "eval: match int"         (evalsTo "match 5 with | 0 => 0 | n => n" "5")
+  , check "eval: match wildcard"    (evalsTo "match 5 with | 1 => 0 | _ => 42" "42")
+  , check "eval: match first branch" (evalsTo "match 5 with | 5 => 1 | _ => 2" "1")
+  , check "eval: match string"      (evalsTo "match \"hi\" with | \"hi\" => 1 | _ => 0" "1")
+  , check "eval: match cons"        (evalsTo "match [1, 2, 3] with | [] => 0 | x :: xs => x" "1")
+  , check "eval: match cons nested" (evalsTo "match [1, 2, 3] with | x :: y :: rest => y | _ => 0" "2")
+  , check "eval: match list literal" (evalsTo "match [1, 2] with | [a, b] => a + b | _ => 0" "3")
+  , check "eval: match data"        (evalsTo "data Maybe a = Nothing | Just a\nmatch Just 42 with | Nothing => 0 | Just x => x" "42")
+  , check "eval: match data fallback" (evalsTo "data Maybe a = Nothing | Just a\nmatch Nothing with | Just x => x | Nothing => 0" "0")
+  , check "eval: match no fallthrough" (evalFails "match 5 with | 1 => 0")
+  , check "eval: match bound in body" (evalsTo "match [1, 2] with | [a, b] => b | _ => 0" "2")
   ]
 
 vmTests :: IO Harness
@@ -337,6 +364,18 @@ vmTests = sequence
   , checkIO "vm: data equality"      (vmEvalsTo "data Maybe a = Nothing | Just a\nJust 5 == Just 5" "true")
   , checkIO "vm: data inequality"    (vmEvalsTo "data Maybe a = Nothing | Just a\nJust 5 /= Nothing" "true")
   , checkIO "vm: nested data"        (vmEvalsTo "data Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf" "Node Node Leaf 1 Leaf 2 Leaf")
+  , checkIO "vm: match int"          (vmEvalsTo "match 5 with | 0 => 0 | n => n" "5")
+  , checkIO "vm: match wildcard"     (vmEvalsTo "match 5 with | 1 => 0 | _ => 42" "42")
+  , checkIO "vm: match first branch" (vmEvalsTo "match 5 with | 5 => 1 | _ => 2" "1")
+  , checkIO "vm: match string"       (vmEvalsTo "match \"hi\" with | \"hi\" => 1 | _ => 0" "1")
+  , checkIO "vm: match cons"         (vmEvalsTo "match [1, 2, 3] with | [] => 0 | x :: xs => x" "1")
+  , checkIO "vm: match cons nested"  (vmEvalsTo "match [1, 2, 3] with | x :: y :: rest => y | _ => 0" "2")
+  , checkIO "vm: match list literal" (vmEvalsTo "match [1, 2] with | [a, b] => a + b | _ => 0" "3")
+  , checkIO "vm: match data"         (vmEvalsTo "data Maybe a = Nothing | Just a\nmatch Just 42 with | Nothing => 0 | Just x => x" "42")
+  , checkIO "vm: match data fallback" (vmEvalsTo "data Maybe a = Nothing | Just a\nmatch Nothing with | Just x => x | Nothing => 0" "0")
+  , checkIO "vm: match no fallthrough" (vmFails "match 5 with | 1 => 0")
+  , checkIO "vm: match bound in body" (vmEvalsTo "match [1, 2] with | [a, b] => b | _ => 0" "2")
+  , checkIO "vm: match rec sum"      (vmEvalsTo "let rec sum = fn xs => match xs with | [] => 0 | x :: rest => x + sum rest in sum [1, 2, 3, 4]" "10")
   ]
 
 diffTests :: IO Harness
@@ -361,6 +400,10 @@ diffTests = sequence
   , checkIO "diff: data partial" (differential "data Pair a b = Pair a b\nlet p = Pair 1 in p 2" "Pair 1 2")
   , checkIO "diff: data equality" (differential "data Maybe a = Nothing | Just a\nJust 5 == Just 5" "true")
   , checkIO "diff: data nullary" (differential "data Color = Red | Green\nRed" "Red")
+  , checkIO "diff: match int"    (differential "match 10 with | 0 => 0 | n => n * 2" "20")
+  , checkIO "diff: match cons"   (differential "match [1, 2, 3] with | [] => 0 | x :: xs => x + length xs" "3")
+  , checkIO "diff: match data"   (differential "data Maybe a = Nothing | Just a\nlet f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)" "7")
+  , checkIO "diff: match map-like" (differential "let rec mapM = fn xs => match xs with | [] => [] | x :: rest => cons (x * 2) (mapM rest) in mapM [1, 2, 3]" "[2, 4, 6]")
   ]
 
 corpusTests :: IO Harness

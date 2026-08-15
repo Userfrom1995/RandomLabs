@@ -174,4 +174,45 @@ corpus =
         , "let c = Red in c"
         ])
       "Red"
+  , CorpusEntry "match-list"
+      (unlines
+        [ "-- Pattern matching destructures a list with a cons pattern."
+        , "match [1, 2, 3] with | [] => 0 | x :: rest => x + length rest"
+        ])
+      "3"
+  , CorpusEntry "match-data"
+      (unlines
+        [ "-- Pattern matching on an algebraic data type, binding fields."
+        , "data Maybe a = Nothing | Just a"
+        , "let f = fn m => match m with | Nothing => 0 | Just x => x in f (Just 7)"
+        ])
+      "7"
+  , CorpusEntry "match-nested"
+      (unlines
+        [ "-- A nested cons pattern destructures two elements."
+        , "match [10, 20, 30] with | a :: b :: rest => b | _ => 0"
+        ])
+      "20"
+  , CorpusEntry "match-map"
+      (unlines
+        [ "-- Pattern matching drives a recursive map, replacing the guards."
+        , "let rec mapM = fn xs => match xs with"
+        , "  | [] => []"
+        , "  | x :: rest => cons (x * 2) (mapM rest)"
+        , "in mapM [1, 2, 3]"
+        ])
+      "[2, 4, 6]"
+  , CorpusEntry "match-tree"
+      (unlines
+        [ "-- Matching a recursive data type picks a branch by constructor."
+        , "data Tree = Leaf Int | Node (Tree) (Tree)"
+        , "let rec height = fn t => match t with"
+        , "  | Leaf n => 1"
+        , "  | Node l r =>"
+        , "      let h1 = height l in"
+        , "      let h2 = height r in"
+        , "      if h1 > h2 then h1 + 1 else h2 + 1"
+        , "in height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))"
+        ])
+      "3"
   ]

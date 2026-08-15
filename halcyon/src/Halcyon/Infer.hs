@@ -9,7 +9,7 @@ module Halcyon.Infer
   , showScheme
   ) where
 
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, foldM)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
@@ -189,6 +189,7 @@ infer env denv e = case e of
   EApply p fn arg -> inferApply p denv env fn arg
   ELet p rec name bound body -> inferLet p rec name denv env bound body
   EIf p c t e   -> inferIf p denv env c t e
+  EMatch p s bs -> inferMatch p denv env s bs
   EBin p op a b -> inferBin p op denv env a b
   ENeg p x      -> inferNeg p denv env x
   ENot p x      -> inferNot p denv env x
@@ -262,6 +263,65 @@ inferIf p denv env c t e = do
   te <- infer env denv e
   unify p tt te
   return tt
+
+-- | @match scrut with | pat => e@. The scrutinee type is matched against
+-- each pattern; pattern variables bind monomorphically inside their branch
+-- body, and every branch body must share one result type.
+inferMatch :: Pos -> DataEnv -> Env -> Expr -> [(Pattern, Expr)] -> Infer Type
+inferMatch p denv env scrut branches = case branches of
+  [] -> throwError (TypeError p "empty match")
+  _  -> do
+    ts <- infer env denv scrut
+    rt <- fresh
+    mapM_ (checkBranch ts rt) branches
+    return rt
+  where
+    checkBranch ts rt (pat, body) = do
+      env' <- checkPattern p denv env pat ts
+      bt <- infer env' denv body
+      unify p bt rt
+
+-- | Check a pattern against a scrutinee type, returning the environment
+-- extended with the pattern's variable bindings (bound monomorphically).
+checkPattern :: Pos -> DataEnv -> Env -> Pattern -> Type -> Infer Env
+checkPattern p denv env pat ty = case pat of
+  PWild _       -> return env
+  PVar _ name   -> return (Map.insert name (Scheme Set.empty ty) env)
+  PInt _ _      -> unify p ty TInt >> return env
+  PFloat _ _    -> unify p ty TFloat >> return env
+  PBool _ _     -> unify p ty TBool >> return env
+  PStr _ _      -> unify p ty TStr >> return env
+  PNil _        -> do
+    et <- fresh
+    unify p ty (TList et)
+    return env
+  PCons _ h t   -> do
+    et <- fresh
+    unify p ty (TList et)
+    env1 <- checkPattern p denv env h et
+    checkPattern p denv env1 t (TList et)
+  PList _ ps    -> do
+    et <- fresh
+    unify p ty (TList et)
+    foldM (\e pat -> checkPattern p denv e pat et) env ps
+  PConstr _ name ps -> case ctorFor name denv of
+    Nothing -> throwError (TypeError p ("unbound constructor: " <> name))
+    Just ci -> do
+      inst <- instantiate (ciScheme ci)
+      let (fields, resultT) = splitFun inst
+      unify p resultT ty
+      if length fields /= length ps
+        then throwError (TypeError p
+               ("constructor " <> name <> " takes " <> show (length fields)
+                <> " arguments, but the pattern has " <> show (length ps)))
+        else foldM (\e (ft, fpat) -> checkPattern p denv e fpat ft) env (zip fields ps)
+
+-- | Split a function type into its argument types and the result type.
+splitFun :: Type -> ([Type], Type)
+splitFun (TFun a b) =
+  let (as, r) = splitFun b
+  in (a : as, r)
+splitFun t = ([], t)
 
 inferBin :: Pos -> Op -> DataEnv -> Env -> Expr -> Expr -> Infer Type
 inferBin p op denv env a b

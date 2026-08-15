@@ -4,7 +4,7 @@ module Halcyon.Parser
   , ParseError(..)
   ) where
 
-import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), Op(..), Builtin(..), builtinForName)
+import Halcyon.Ast (Expr(..), Program(..), DataDecl(..), Pattern(..), Op(..), Builtin(..), builtinForName)
 import Halcyon.Lexer (lexSource, LexError(..))
 import Halcyon.Token
 import qualified Halcyon.Type as T
@@ -122,11 +122,21 @@ parseTypeExpr tvs = do
 parseTypeApp :: [(String, Int)] -> Parser Type
 parseTypeApp tvs = do
   p <- peekPos
+  t <- peek
   a <- parseTypeAtom tvs
-  case a of
-    T.TData n [] -> go p n []
-    _            -> return a
+  case t of
+    -- Only a bare capitalized constructor name continues application on the
+    -- same source line (@Maybe Int@). A parenthesized type, a primitive, a
+    -- list type, or a type variable is complete on its own, so a following
+    -- atom begins a new field or a new argument.
+    TIdent n | isDataName n -> go p n []
+    _                       -> return a
   where
+    -- Only a bare capitalized constructor name continues application on the
+    -- same source line (@Maybe Int@). A parenthesized type, a primitive, a
+    -- list type, or a type variable is complete on its own, so a following
+    -- atom begins a new field or a new argument.
+    isDataName n = isCapitalized n && n `notElem` ["Int", "Float", "Bool", "String"]
     -- A bare constructor name may be applied to following type atoms on the
     -- same source line (e.g. @Maybe Int@); a parenthesized or primitive
     -- type is complete on its own, so a following atom begins a new field.
@@ -201,10 +211,14 @@ instance MonadFail Parser where
 
 -- | Expression grammar, precedence climbing for the binary layers.
 --
---   expr     := let | if | lambda | binary(1)
+--   expr     := let | if | lambda | match | binary(1)
 --   let      := 'let' 'rec'? name '=' expr 'in' expr
 --   if       := 'if' expr 'then' expr 'else' expr
 --   lambda   := 'fn' name+ '=>' expr
+--   match    := 'match' expr 'with' '|' pat '=>' expr ('|' pat '=>' expr)*
+--   pat      := patApp ('::' pat)?            (cons is right-associative)
+--   patApp   := patAtom patAtom*              (constructor application only)
+--   patAtom  := '_' | name | literal | '(' pat ')' | '[' pat, ... ']'
 --   binary levels: 1 || , 2 && , 3 == /= , 4 < <= > >= ,
 --                  5 + - , 6 * / (all left-associative)
 --   unary    := ('-' | '!') unary | application
@@ -214,10 +228,11 @@ parseExpr :: Parser Expr
 parseExpr = do
   t <- peek
   case t of
-    TLet -> parseLet
-    TIf  -> parseIf
-    TFn  -> parseLambda
-    _    -> parseBinary 1
+    TLet  -> parseLet
+    TIf   -> parseIf
+    TFn   -> parseLambda
+    TMatch -> parseMatch
+    _     -> parseBinary 1
 
 parseLet :: Parser Expr
 parseLet = do
@@ -247,6 +262,120 @@ parseLambda = do
   consumeT TArrow
   body <- parseExpr
   return (ELambda p params body)
+
+-- | @match scrut with | pat => e | pat => e ...@. The scrutinee is a full
+-- expression; @with@ is a keyword so it naturally terminates the scrutinee.
+parseMatch :: Parser Expr
+parseMatch = do
+  p <- consumeT TMatch
+  scrut <- parseExpr
+  consumeT TWith
+  branches <- parseBranches
+  return (EMatch p scrut branches)
+
+parseBranches :: Parser [(Pattern, Expr)]
+parseBranches = do
+  p <- peekPos
+  t <- peek
+  case t of
+    TPipe -> consumeTok >> parseBranchesRest []
+    _     -> failAt p "expected '|' to start a match branch"
+
+parseBranchesRest :: [(Pattern, Expr)] -> Parser [(Pattern, Expr)]
+parseBranchesRest acc = do
+  pat <- parsePattern
+  consumeT TArrow
+  body <- parseExpr
+  let branch = (pat, body)
+  t <- peek
+  case t of
+    TPipe -> consumeTok >> parseBranchesRest (acc ++ [branch])
+    _     -> return (acc ++ [branch])
+
+-- | A pattern. Cons (@::@) is right-associative; @[a, b, c]@ is sugar for a
+-- nested @::@ chain ending in @[]@.
+parsePattern :: Parser Pattern
+parsePattern = do
+  p <- peekPos
+  a <- parsePatternApp
+  t <- peek
+  case t of
+    TCons -> consumeTok >> (PCons p a <$> parsePattern)
+    _     -> return a
+
+parsePatternApp :: Parser Pattern
+parsePatternApp = do
+  p <- peekPos
+  a <- parsePatternAtom
+  case a of
+    PConstr _ _ _ -> go p a
+    _             -> return a
+  where
+    go p a = do
+      t <- peek
+      if patAtomStart t
+        then do
+          arg <- parsePatternAtom
+          go p (appendArg p a arg)
+        else return a
+
+appendArg :: Pos -> Pattern -> Pattern -> Pattern
+appendArg p (PConstr _ n args) arg = PConstr p n (args ++ [arg])
+appendArg _ _ _ = PWild (Pos 0 0) -- unreachable; kept total
+
+parsePatternAtom :: Parser Pattern
+parsePatternAtom = do
+  p <- peekPos
+  t <- peek
+  case t of
+    TIdent n
+      | n == "_"      -> consumeTok >> return (PWild p)
+      | isCapitalized n -> consumeTok >> return (PConstr p n [])
+      | otherwise     -> consumeTok >> return (PVar p n)
+    TInt i    -> consumeTok >> return (PInt p i)
+    TFloat d  -> consumeTok >> return (PFloat p d)
+    TTrue     -> consumeTok >> return (PBool p True)
+    TFalse    -> consumeTok >> return (PBool p False)
+    TStr s    -> consumeTok >> return (PStr p s)
+    TLBracket -> parsePList
+    TLParen   -> consumeTok >> parsePattern >>= \pat -> consumeT TRParen >> return pat
+    _         -> failAt p ("expected a pattern, found " <> describe t)
+
+parsePList :: Parser Pattern
+parsePList = do
+  p <- consumeT TLBracket
+  items <- parsePItems
+  consumeT TRBracket
+  case items of
+    [] -> return (PNil p)
+    ps -> return (PList p ps)
+  where
+    parsePItems = do
+      t <- peek
+      case t of
+        TRBracket -> return []
+        _ -> do
+          first <- parsePattern
+          rest <- commaPItems
+          return (first : rest)
+    commaPItems = do
+      t <- peek
+      case t of
+        TComma -> consumeTok >> parsePattern >>= \x -> (x :) <$> commaPItems
+        _      -> return []
+
+-- | True when the token can begin a pattern.
+patAtomStart :: Tok -> Bool
+patAtomStart = \case
+  TInt _    -> True
+  TFloat _  -> True
+  TStr _    -> True
+  TTrue     -> True
+  TFalse    -> True
+  TIdent _  -> True
+  TLParen   -> True
+  TLBracket -> True
+  _         -> False
 
 -- | Precedence climbing. Binary operators are all left-associative.
 parseBinary :: Int -> Parser Expr

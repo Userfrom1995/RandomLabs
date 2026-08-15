@@ -8,12 +8,12 @@ module Halcyon.Compile
   , Instr(..)
   ) where
 
-import Control.Monad (when)
+import Control.Monad (forM_, when)
 import qualified Data.Map.Strict as Map
-import Data.List (intersperse)
+import Data.List (intersperse, nub)
 
 import qualified Halcyon.Ast as Ast
-import Halcyon.Ast (Expr(..), DataDecl(..), Op(..), Builtin(..))
+import Halcyon.Ast (Expr(..), DataDecl(..), Pattern(..), Op(..), Builtin(..))
 import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, ctorFor, CtorInfo(..))
 import Halcyon.Op
 import Halcyon.Parser (parseProgram, ParseError(..))
@@ -150,6 +150,7 @@ compileExpr denv = \case
     defineLabel labFalse
     compileExpr denv e
     defineLabel labEnd
+  EMatch p scrut branches -> compileMatch p denv scrut branches
   EBin p op a b -> do
     compileExpr denv a
     compileExpr denv b
@@ -210,6 +211,124 @@ compileLet p rec name denv bound body = case bound of
         emit (StoreLocal s)
         compileExpr denv body
 
+-- | Compile a @match@ expression. Layout:
+--
+-- @
+--   <scrutinee>
+--   StoreLocal $scr
+-- branch0:
+--   PushLocal $scr
+--   <pattern0 tests, each jumping to branch1 on failure>
+--   Jump body0
+-- branch1:
+--   PushLocal $scr
+--   <pattern1 tests, each jumping to fail on failure>
+--   Jump body1
+-- fail:
+--   Fail
+-- body0: <body0> ; Jump end
+-- body1: <body1> ; Jump end
+-- end:
+-- @
+--
+-- Each branch's pattern tests pop the scrutinee and, when the pattern fully
+-- matches, fall through to a jump into that branch's body. Every test that
+-- fails jumps to the next branch's start (or @Fail@ for the last branch).
+compileMatch :: Pos -> DataEnv -> Expr -> [(Pattern, Expr)] -> CompileM ()
+compileMatch p denv scrut branches = case branches of
+  [] -> compileError p "empty match"
+  _ -> do
+    compileExpr denv scrut
+    scr <- registerLocal "$scr"
+    emit (StoreLocal scr)
+    let names = nub (concatMap (patternVars . fst) branches)
+    slots <- mapM registerLocal names
+    let varSlot = Map.fromList (zip names slots)
+    let n = length branches
+    startLabs <- mapM (const newLabel) [1 .. n]
+    bodyLabs <- mapM (const newLabel) [1 .. n]
+    endLab <- newLabel
+    failLab <- newLabel
+    forM_ (zip3 [0 ..] startLabs branches) $ \(i, startLab, (pat, _)) -> do
+      defineLabel startLab
+      emit (PushLocal scr)
+      let failTarget = case drop (i + 1) startLabs of
+            (nextLab : _) -> nextLab
+            []            -> failLab
+      compilePattern denv varSlot failTarget pat
+      emitJumpTo (bodyLabs !! i)
+    defineLabel failLab
+    emit Fail
+    forM_ (zip bodyLabs branches) $ \(bodyLab, (_, body)) -> do
+      defineLabel bodyLab
+      compileExpr denv body
+      emitJumpTo endLab
+    defineLabel endLab
+
+-- | All variable names bound by a pattern.
+patternVars :: Pattern -> [String]
+patternVars = \case
+  PWild _       -> []
+  PVar _ n      -> [n]
+  PInt _ _      -> []
+  PFloat _ _    -> []
+  PBool _ _     -> []
+  PStr _ _      -> []
+  PNil _        -> []
+  PCons _ h t   -> patternVars h ++ patternVars t
+  PList _ ps    -> concatMap patternVars ps
+  PConstr _ _ ps -> concatMap patternVars ps
+
+-- | Compile a pattern's test chain against the value on top of the operand
+-- stack. Each test pops the current value and jumps to the fail target on
+-- mismatch. Structural patterns bind their subvalues into anonymous temp
+-- slots and re-push them one at a time, so at every point where a test can
+-- fail the operand stack holds only the value under test: a failed test
+-- always falls out of the chain with a clean stack, ready for the next
+-- branch.
+compilePattern :: DataEnv -> Map.Map String Int -> Int -> Pattern -> CompileM ()
+compilePattern denv varSlot failLab = \case
+  PWild _       -> emit Pop
+  PVar _ n      -> case Map.lookup n varSlot of
+    Just s  -> emit (BindLocal s)
+    Nothing -> compileError posZero ("unbound pattern variable: " <> n)
+  PInt _ i      -> addConst (CValue (VInt i)) >>= \c -> emitTestTo failLab (\t -> TestInt c t)
+  PFloat _ d    -> addConst (CValue (VFloat d)) >>= \c -> emitTestTo failLab (\t -> TestFloat c t)
+  PBool _ b     -> addConst (CValue (VBool b)) >>= \c -> emitTestTo failLab (\t -> TestBool c t)
+  PStr _ s      -> addConst (CValue (VStr s)) >>= \c -> emitTestTo failLab (\t -> TestStr c t)
+  PNil _        -> emitTestTo failLab TestNil
+  PCons _ h t   -> do
+    emitTestTo failLab TestCons
+    headTmp <- registerTempSlot
+    tailTmp <- registerTempSlot
+    emit (BindLocal headTmp)
+    emit (BindLocal tailTmp)
+    emit (PushLocal headTmp)
+    compilePattern denv varSlot failLab h
+    emit (PushLocal tailTmp)
+    compilePattern denv varSlot failLab t
+  PList _ ps    -> compilePList ps
+  PConstr _ name ps -> do
+    c <- dataIdx name (length ps)
+    emitTestTo failLab (\t -> TestConstr c t)
+    temps <- mapM (const registerTempSlot) ps
+    mapM_ (\s -> emit (BindLocal s)) temps
+    forM_ (zip temps ps) $ \(s, sub) -> do
+      emit (PushLocal s)
+      compilePattern denv varSlot failLab sub
+  where
+    compilePList [] = emitTestTo failLab TestNil
+    compilePList (pat : rest) = do
+      emitTestTo failLab TestCons
+      headTmp <- registerTempSlot
+      tailTmp <- registerTempSlot
+      emit (BindLocal headTmp)
+      emit (BindLocal tailTmp)
+      emit (PushLocal headTmp)
+      compilePattern denv varSlot failLab pat
+      emit (PushLocal tailTmp)
+      compilePList rest
+
 -- | Compile a lambda. Builds the function, stores it in the enclosing
 -- function's constant pool, and emits the closure-construction sequence.
 compileLambda :: Pos -> DataEnv -> [String] -> Expr -> CompileM ()
@@ -260,6 +379,16 @@ registerLocal name = do
     { csScopes = scope { csLocalNames = (name, slot) : csLocalNames scope } : tail (csScopes s)
     , csNextCell = slot + 1
     })
+  return slot
+
+-- | Allocate an anonymous cell slot for match temporaries. Not added to the
+-- scope's name list (no user reference can hit it), so it stays invisible to
+-- 'resolveRef' while providing a unique, cell-safe index.
+registerTempSlot :: CompileM Int
+registerTempSlot = do
+  st <- get
+  let slot = csNextCell st
+  modify' (\s -> s { csNextCell = slot + 1 })
   return slot
 
 -- | Add a constant to the current function's pool, deduplicating values.
@@ -343,6 +472,14 @@ opToInstr _ = \case
 
 data JumpKind = JKJump | JKJumpIfFalse
 
+-- | Allocate a fresh label id (for pre-planned branch/body/fail labels).
+newLabel :: CompileM Int
+newLabel = do
+  st <- get
+  let lab = csNextLabel st
+  modify' (\s -> s { csNextLabel = lab + 1 })
+  return lab
+
 -- | Emit a jump with a placeholder target and record the patch.
 emitJump :: JumpKind -> CompileM Int
 emitJump kind = do
@@ -357,6 +494,26 @@ emitJump kind = do
     , csPatches = (lab, length (csCode s)) : csPatches s
     })
   return lab
+
+-- | Emit an unconditional jump targeting an already-allocated label.
+emitJumpTo :: Int -> CompileM ()
+emitJumpTo lab = do
+  st <- get
+  modify' (\s -> s
+    { csCode = csCode s ++ [Jump 0]
+    , csPatches = (lab, length (csCode s)) : csPatches s
+    })
+
+-- | Emit a pattern test instruction with a placeholder target, patching it
+-- to an already-allocated fail label. @mk@ builds the instruction from its
+-- target operand (e.g. @\\t -> TestConstr idx t@).
+emitTestTo :: Int -> (Int -> Instr) -> CompileM ()
+emitTestTo lab mk = do
+  st <- get
+  modify' (\s -> s
+    { csCode = csCode s ++ [mk 0]
+    , csPatches = (lab, length (csCode s)) : csPatches s
+    })
 
 defineLabel :: Int -> CompileM ()
 defineLabel lab = do
@@ -376,6 +533,13 @@ resolvePatches = do
         in case code !! pos of
              Jump 0        -> replaceAt pos (Jump tgt) code
              JumpIfFalse 0 -> replaceAt pos (JumpIfFalse tgt) code
+             TestNil 0     -> replaceAt pos (TestNil tgt) code
+             TestCons 0    -> replaceAt pos (TestCons tgt) code
+             TestConstr c 0 -> replaceAt pos (TestConstr c tgt) code
+             TestInt c 0   -> replaceAt pos (TestInt c tgt) code
+             TestFloat c 0 -> replaceAt pos (TestFloat c tgt) code
+             TestBool c 0  -> replaceAt pos (TestBool c tgt) code
+             TestStr c 0   -> replaceAt pos (TestStr c tgt) code
              _             -> code
   modify' (\s -> s { csCode = foldl (\code p -> patch p code) (csCode s) (csPatches s), csPatches = [] })
 

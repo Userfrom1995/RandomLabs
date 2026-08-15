@@ -87,6 +87,53 @@ eval denv env = \case
     case v of
       VBool b -> Right (VBool (not b))
       _       -> Left (EvalError p ("cannot apply ! to " <> showValue v))
+  EMatch p scrut branches -> evalMatch p denv env scrut branches
+
+-- | @match scrut with | pat => e@: evaluate the scrutinee, then run the
+-- first branch whose pattern matches, binding the pattern's variables in
+-- the branch body. A @_@ wildcard always matches; if nothing matches the
+-- whole match fails.
+evalMatch :: Pos -> DataEnv -> Env -> Expr -> [(Pattern, Expr)] -> Either EvalError Value
+evalMatch p denv env scrut branches = case branches of
+  [] -> Left (EvalError p "empty match")
+  _  -> do
+    v <- eval denv env scrut
+    go v branches
+  where
+    go _ [] = Left (EvalError p "no matching pattern")
+    go v ((pat, body) : rest) =
+      case matchValue v pat of
+        Nothing -> go v rest
+        Just binds -> do
+          let env' = foldr (\(n, x) acc -> Map.insert n x acc) env binds
+          eval denv env' body
+
+-- | Attempt to match a value against a pattern, returning the variable
+-- bindings on success. Variable patterns bind the whole scrutinee;
+-- structural patterns (lists, constructor data) recurse field by field and
+-- succeed only when the shape and every sub-pattern agree.
+matchValue :: Value -> Pattern -> Maybe [(String, Value)]
+matchValue v pat = case (v, pat) of
+  (_, PWild _)       -> Just []
+  (_, PVar _ name)   -> Just [(name, v)]
+  (VInt i, PInt _ j) | i == j -> Just []
+  (VFloat d, PFloat _ x) | d == x -> Just []
+  (VBool b, PBool _ c) | b == c -> Just []
+  (VStr s, PStr _ t) | s == t -> Just []
+  (VList [], PNil _) -> Just []
+  (VList (x : xs), PCons _ h t) -> do
+    b1 <- matchValue x h
+    b2 <- matchValue (VList xs) t
+    return (b1 <> b2)
+  (VList vs, PList _ ps)
+    | length vs == length ps -> do
+        bindLists <- sequence (zipWith matchValue vs ps)
+        return (concat bindLists)
+  (VData n fs, PConstr _ name ps)
+    | n == name && length fs == length ps -> do
+        bindLists <- sequence (zipWith matchValue fs ps)
+        return (concat bindLists)
+  _ -> Nothing
 
 -- | Apply one argument. Lambdas bind the first remaining parameter
 -- (currying: @fn x y => e@ applied to one argument yields a closure over
