@@ -179,6 +179,16 @@ parserTests =
   , check "parse: missing else"         (parseFails "if true then 1")
   , check "parse: dangling operator"    (parseFails "1 +")
   , check "parse: stray paren"          (parseFails "1 + (2")
+  , check "parse: data decl"            (parsesOk "data Maybe a = Nothing | Just a\nJust 1")
+  , check "parse: data multi ctor"      (parsesOk "data Tree a = Leaf | Node (Tree a) a (Tree a)\nLeaf")
+  , check "parse: data leading pipe"    (parsesOk "data Color = | Red | Green\nRed")
+  , check "parse: data no fields"       (parsesOk "data Empty = Empty\nEmpty")
+  , check "parse: ctor app"             (parsesOk "data Pair a b = Pair a b\nPair 1 2")
+  , check "parse: data followed by ctor expr" (parsesOk "data Color = Red | Green\nRed")
+  , check "parse: reject lower type"    (parseFails "data maybe = Nothing\n1")
+  , check "parse: reject lower ctor"    (parseFails "data T = make\n1")
+  , check "parse: reject undeclared tyvar" (parseFails "data Foo x = Bar y\n1")
+  , check "parse: reject missing equals" (parseFails "data T A\n1")
   ]
 
 typeTests :: Harness
@@ -214,6 +224,17 @@ typeTests =
   , check "type: reject length int"  (inferFails "length 5")
   , check "type: reject append mixed"(inferFails "append [1] [true]")
   , check "type: reject take float"  (inferFails "take 1.5 [1, 2]")
+  , check "type: data just"         (inferredAs "data Maybe a = Nothing | Just a\nJust 5" "Maybe Int")
+  , check "type: data nothing"      (inferredAs "data Maybe a = Nothing | Just a\nNothing" "Maybe a")
+  , check "type: data pair"         (inferredAs "data Pair a b = Pair a b\nPair 1 \"s\"" "Pair Int String")
+  , check "type: data tree"         (inferredAs "data Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf" "Tree Int")
+  , check "type: data polymorphic"  (inferredAs "data Maybe a = Nothing | Just a\nlet id = fn x => x in id (Just true)" "Maybe Bool")
+  , check "type: data nullary value"(inferredAs "data Color = Red | Green\nRed" "Color")
+  , check "type: ctor in lambda"    (inferredAs "data Maybe a = Nothing | Just a\nlet f = fn x => Just x in f 1" "Maybe Int")
+  , check "type: reject unbound ctor"  (inferFails "Just 5")
+  , check "type: reject ctor extra arg" (inferFails "data Maybe a = Nothing | Just a\nJust 1 2")
+  , check "type: reject dup type"   (inferFails "data T = A\ndata T = B\nA")
+  , check "type: reject dup ctor"   (inferFails "data T = A\ndata U = A\nA")
   ]
 
 evalTests :: Harness
@@ -260,6 +281,14 @@ evalTests =
   , check "eval: drop"               (evalsTo "drop 1 [1, 2, 3]" "[2, 3]")
   , check "eval: drop beyond"        (evalsTo "drop 9 [1]" "[]")
   , check "eval: length non-list"    (evalFails "length 5")
+  , check "eval: data value"        (evalsTo "data Maybe a = Nothing | Just a\nJust 42" "Just 42")
+  , check "eval: data nullary"      (evalsTo "data Color = Red | Green\nRed" "Red")
+  , check "eval: ctor partial"      (evalsTo "data Pair a b = Pair a b\nlet p = Pair 1 in p 2" "Pair 1 2")
+  , check "eval: ctor as value"     (evalsTo "data Maybe a = Nothing | Just a\nlet f = Just in f 7" "Just 7")
+  , check "eval: data equality"     (evalsTo "data Maybe a = Nothing | Just a\nJust 5 == Just 5" "true")
+  , check "eval: data inequality"   (evalsTo "data Maybe a = Nothing | Just a\nJust 5 /= Nothing" "true")
+  , check "eval: nested data"       (evalsTo "data Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf" "Node Node Leaf 1 Leaf 2 Leaf")
+  , check "eval: unbound ctor"      (evalFails "Nothing")
   ]
 
 vmTests :: IO Harness
@@ -301,6 +330,13 @@ vmTests = sequence
   , checkIO "vm: take zero"           (vmEvalsTo "take 0 [1, 2]" "[]")
   , checkIO "vm: drop"                (vmEvalsTo "drop 1 [1, 2, 3]" "[2, 3]")
   , checkIO "vm: length non-list"     (vmFails "length 5")
+  , checkIO "vm: data value"         (vmEvalsTo "data Maybe a = Nothing | Just a\nJust 42" "Just 42")
+  , checkIO "vm: data nullary"       (vmEvalsTo "data Color = Red | Green\nRed" "Red")
+  , checkIO "vm: ctor partial"       (vmEvalsTo "data Pair a b = Pair a b\nlet p = Pair 1 in p 2" "Pair 1 2")
+  , checkIO "vm: ctor as value"      (vmEvalsTo "data Maybe a = Nothing | Just a\nlet f = Just in f 7" "Just 7")
+  , checkIO "vm: data equality"      (vmEvalsTo "data Maybe a = Nothing | Just a\nJust 5 == Just 5" "true")
+  , checkIO "vm: data inequality"    (vmEvalsTo "data Maybe a = Nothing | Just a\nJust 5 /= Nothing" "true")
+  , checkIO "vm: nested data"        (vmEvalsTo "data Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf" "Node Node Leaf 1 Leaf 2 Leaf")
   ]
 
 diffTests :: IO Harness
@@ -320,6 +356,11 @@ diffTests = sequence
   , checkIO "diff: append"       (differential "append [1, 2] [3, 4]" "[1, 2, 3, 4]")
   , checkIO "diff: take drop"    (differential "take 2 (drop 1 [1, 2, 3, 4])" "[2, 3]")
   , checkIO "diff: stdlib mix"   (differential "let xs = append [1, 2] (reverse [3, 4]) in length (take 3 xs)" "3")
+  , checkIO "diff: data value"  (differential "data Maybe a = Nothing | Just a\nJust 42" "Just 42")
+  , checkIO "diff: data nested" (differential "data Tree a = Leaf | Node (Tree a) a (Tree a)\nNode (Node Leaf 1 Leaf) 2 Leaf" "Node Node Leaf 1 Leaf 2 Leaf")
+  , checkIO "diff: data partial" (differential "data Pair a b = Pair a b\nlet p = Pair 1 in p 2" "Pair 1 2")
+  , checkIO "diff: data equality" (differential "data Maybe a = Nothing | Just a\nJust 5 == Just 5" "true")
+  , checkIO "diff: data nullary" (differential "data Color = Red | Green\nRed" "Red")
   ]
 
 corpusTests :: IO Harness

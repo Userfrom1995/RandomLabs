@@ -3,7 +3,7 @@
 - **Issue:** #59
 - **Branch:** opencode/59-halcyon-functional-language-vm
 - **Status:** in-progress
-- **Updated:** 2026-08-15T15:30:00Z
+- **Updated:** 2026-08-15T19:30:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cabal package + GHC toolchain pin, CLI stub, README skeleton, examples/ + js/ + docs/ dirs, progress + ideas entries, branch, PR
@@ -20,7 +20,7 @@
 - [x] 12. Shipping-limit iteration round: standard library list builtins
   (length/reverse/append/take/drop) in both evaluators + JS mirror with
   partial application, `halcyon eval`, caret source diagnostics, docs
-- [ ] 13. Algebraic data types: `data` declarations, type grammar, TData +
+- [x] 13. Algebraic data types: `data` declarations, type grammar, TData +
   constructor schemes, VData/VConstr, MakeData, selftests + differential
   corpus entry
 - [ ] 14. Pattern matching: Pattern AST + EMatch, lexer/parser, inference,
@@ -33,17 +33,19 @@
   Status: complete
 
 ## Current step
-Architect enhancement round (v2 design) complete: blueprint updated with the
-next-level evolution plan (data types, pattern matching, TCO + optimizer,
-self-hosted stdlib) in ideas/2026-08-15-halcyon-functional-language-vm.md.
-Ready for the Builder to implement milestones 13-16.
+Builder implementing milestone 13 (algebraic data types). The Haskell core is
+done: `data` declarations + field-type grammar (TData + polymorphic
+constructor schemes via a new Halcyon.Data module), VData/VConstr in the
+interpreter and VmData/VmConstr in the VM, MakeData/PushConstr, constructor
+currying/partial application, data equality, 5 new corpus programs, and 46
+new selftests (212 total, all passing; interpreter == VM byte-identical).
 
 ## Next steps
-Builder to implement milestone 13 (algebraic data types) first, then 14
-(pattern matching), 15 (tail call optimization + deterministic optimizer),
-and 16 (JS mirror + playground + self-hosted stdlib + docs + polish), per the
-v2 blueprint. Milestones 1-12 are done and merge-ready; the current PR #61
-stays open until the daily shipping cap resets (00:00Z Aug 16).
+Builder to implement milestone 14 (pattern matching) next, then 15 (tail call
+optimization + deterministic optimizer), and 16 (JS mirror + playground +
+self-hosted stdlib + docs + polish), per the v2 blueprint. The current PR #61
+stays open until the daily shipping cap resets (00:00Z Aug 16); M13 commits
+accumulate on the branch until then.
 
 ## Agent log
 - 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
@@ -240,6 +242,30 @@ stays open until the daily shipping cap resets (00:00Z Aug 16).
   playground, differential corpus, docs) so the differential guarantees
   hold. Decision file written with action build for the workflow to trigger
   the Builder.
+
+- 2026-08-15 (builder, M13 - algebraic data types) - implemented milestone 13
+  in the Haskell core: Parser now returns an AST `Program [DataDecl] Expr`
+  with top-level `data Name tyvar* = ctor*` declarations (optional leading
+  pipe, `|`-separated alternatives, lowercase type variables, capitalized
+  type and constructor names, field-type grammar `Int/Float/Bool/String/
+  lowercase-tyvar/[t]/ (t) /Capitalized applied` with a same-line rule so a
+  following expression never gets swallowed as a field; rejected lower-case
+  type/ctor names and undeclared type variables). Type.hs gained `TData
+  String [Type]` (freeVars/showType). New Halcyon.Data module builds a DataEnv
+  (duplicate type/ctor detection, per-ctor `CtorInfo` with polymorphic
+  scheme + arity). Infer threads the DataEnv everywhere; a bare constructor
+  reference instantiates its scheme (so `Just` is a curried function, `Nothing`
+  is a value). Interpreter gained `VData`/`VConstr` (curried accumulation);
+  Op/Compile/Vm gained `CData` + `MakeData`/`PushConstr` (saturated
+  constructor application compiles to a single MakeData) and VmData/VmConstr
+  in the VM. Data equality works on both evaluators (deep, struct-compare).
+  Fixed along the way: a same-line type-application continuation in the field
+  grammar, saturated-constr argument order, a `testLit` frame-scoping bug, the
+  Vm eq2 missing data cases, nullary-rendering trailing space, and the
+  overlapping-pattern warning in TestConstr. Adds 5 corpus programs (data
+  types) and 46 selftests (212 total): parser 24, types 42, eval 50, vm 44,
+  differential 20, corpus 23. `make`, `make test`, `make smoke`, and `halcyon
+  corpus --examples` all green; no new warnings.
 
 - the Builder
 

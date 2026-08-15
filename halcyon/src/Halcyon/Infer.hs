@@ -14,25 +14,35 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 import Halcyon.Ast
+import Halcyon.Data (DataEnv, CtorInfo(..), emptyDataEnv, buildDataEnv, ctorFor)
 import Halcyon.Parser (parseProgram, ParseError(..))
-import Halcyon.Token (Pos)
+import Halcyon.Token (Pos(..))
 import Halcyon.Type
 
 -- | A positioned type error.
 data InferError = TypeError Pos String
   deriving (Eq, Show)
 
--- | Type inference over a source string: parse, then infer in the empty
--- environment. Returns the inferred top-level type.
+-- | Type inference over a source string: parse, resolve the data
+-- declarations, then infer in the empty environment. Returns the inferred
+-- top-level type.
 inferProgram :: String -> Either InferError Type
 inferProgram src = case parseProgram src of
   Left (ParseError p m) -> Left (TypeError p m)
-  Right expr            -> inferExpr expr
+  Right (Program decls expr) -> do
+    denv <- case buildDataEnv decls of
+      Left m  -> Left (TypeError (Pos 0 0) m)
+      Right d -> Right d
+    inferExprIn denv expr
 
--- | Type inference over a parsed expression in the empty environment.
+-- | Type inference over a parsed expression with an empty data environment.
 inferExpr :: Expr -> Either InferError Type
-inferExpr expr = do
-  (t, s) <- runInfer (infer Map.empty expr) (InferState Map.empty 0)
+inferExpr = inferExprIn emptyDataEnv
+
+-- | Type inference over a parsed expression in a given data environment.
+inferExprIn :: DataEnv -> Expr -> Either InferError Type
+inferExprIn denv expr = do
+  (t, s) <- runInfer (infer Map.empty denv expr) (InferState Map.empty 0)
   return (resolveIn (isSubst s) t)
 
 -- | Apply the final substitution to a type (used at the top level so the
@@ -45,6 +55,7 @@ resolveIn sub = go
         Just t  -> go t
         Nothing -> TVar v
       TList t  -> TList (go t)
+      TData n ts -> TData n (map go ts)
       TFun a b -> TFun (go a) (go b)
       t        -> t
 
@@ -116,6 +127,7 @@ resolve = \case
       Just t  -> resolve t
       Nothing -> return (TVar v)
   TList t  -> TList <$> resolve t
+  TData n ts -> TData n <$> mapM resolve ts
   TFun a b -> TFun <$> resolve a <*> resolve b
   t        -> return t
 
@@ -136,6 +148,9 @@ unify pos t1 t2 = do
     (TBool, TBool)   -> return ()
     (TStr, TStr)     -> return ()
     (TList x, TList y) -> unify pos x y
+    (TData n1 as, TData n2 bs)
+      | n1 == n2 && length as == length bs ->
+          mapM_ (\case { (a, b) -> unify pos a b }) (zip as bs)
     (TFun a1 b1, TFun a2 b2) -> unify pos a1 a2 >> unify pos b1 b2
     _ -> throwError (TypeError pos (mismatch r1 r2))
 
@@ -152,6 +167,7 @@ applyMeta :: Map.Map Int Type -> Type -> Type
 applyMeta m = \case
   TVar v   -> Map.findWithDefault (TVar v) v m
   TList t  -> TList (applyMeta m t)
+  TData n ts -> TData n (map (applyMeta m) ts)
   TFun a b -> TFun (applyMeta m a) (applyMeta m b)
   t        -> t
 
@@ -159,27 +175,36 @@ applyMeta m = \case
 -- Inference
 -- ---------------------------------------------------------------------
 
-infer :: Env -> Expr -> Infer Type
-infer env e = case e of
+infer :: Env -> DataEnv -> Expr -> Infer Type
+infer env denv e = case e of
   EInt _ _     -> return TInt
   EFloat _ _   -> return TFloat
   EBool _ _    -> return TBool
   EStr _ _     -> return TStr
-  EList p es   -> inferList p env es
+  EList p es   -> inferList p denv env es
   EVar p name  -> inferVar p env name
+  EConstr p name -> inferConstr p denv name
   EBuiltin p b -> inferBuiltin p b
-  ELambda p params body -> inferLambda p env params body
-  EApply p fn arg -> inferApply p env fn arg
-  ELet p rec name bound body -> inferLet p rec name env bound body
-  EIf p c t e   -> inferIf p env c t e
-  EBin p op a b -> inferBin p op env a b
-  ENeg p x      -> inferNeg p env x
-  ENot p x      -> inferNot p env x
+  ELambda p params body -> inferLambda p denv env params body
+  EApply p fn arg -> inferApply p denv env fn arg
+  ELet p rec name bound body -> inferLet p rec name denv env bound body
+  EIf p c t e   -> inferIf p denv env c t e
+  EBin p op a b -> inferBin p op denv env a b
+  ENeg p x      -> inferNeg p denv env x
+  ENot p x      -> inferNot p denv env x
 
-inferList :: Pos -> Env -> [Expr] -> Infer Type
-inferList p env es = do
+-- | A bare constructor reference has its declared polymorphic scheme, so
+-- @Just@ alone is a function and @Nothing@ is a value.
+inferConstr :: Pos -> DataEnv -> String -> Infer Type
+inferConstr p denv name =
+  case ctorFor name denv of
+    Nothing   -> throwError (TypeError p ("unbound constructor: " <> name))
+    Just info -> instantiate (ciScheme info)
+
+inferList :: Pos -> DataEnv -> Env -> [Expr] -> Infer Type
+inferList p denv env es = do
   et <- fresh
-  mapM_ (\e -> do { t <- infer env e; unify p t et }) es
+  mapM_ (\e -> do { t <- infer env denv e; unify p t et }) es
   return (TList et)
 
 inferVar :: Pos -> Env -> String -> Infer Type
@@ -201,69 +226,69 @@ inferBuiltin _ b =
     BTake    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
     BDrop    -> Scheme (Set.singleton 0) (TFun TInt (TFun (TList (TVar 0)) (TList (TVar 0))))
 
-inferLambda :: Pos -> Env -> [String] -> Expr -> Infer Type
-inferLambda _ env params body = do
+inferLambda :: Pos -> DataEnv -> Env -> [String] -> Expr -> Infer Type
+inferLambda _ denv env params body = do
   paramTypes <- replicateM (length params) fresh
   let env' = foldr (\(n, t) acc -> Map.insert n (Scheme Set.empty t) acc) env (zip params paramTypes)
-  bodyT <- infer env' body
+  bodyT <- infer env' denv body
   return (foldr TFun bodyT paramTypes)
 
-inferApply :: Pos -> Env -> Expr -> Expr -> Infer Type
-inferApply p env fn arg = do
-  tf <- infer env fn
-  ta <- infer env arg
+inferApply :: Pos -> DataEnv -> Env -> Expr -> Expr -> Infer Type
+inferApply p denv env fn arg = do
+  tf <- infer env denv fn
+  ta <- infer env denv arg
   tr <- fresh
   unify p tf (TFun ta tr)
   return tr
 
-inferLet :: Pos -> Bool -> String -> Env -> Expr -> Expr -> Infer Type
-inferLet p rec name env bound body = do
+inferLet :: Pos -> Bool -> String -> DataEnv -> Env -> Expr -> Expr -> Infer Type
+inferLet p rec name denv env bound body = do
   t <- fresh
   let envRec = Map.insert name (Scheme Set.empty t) env
       envBound = if rec then envRec else env
-  tb <- infer envBound bound
+  tb <- infer envBound denv bound
   unify p t tb
   tbR <- resolve tb
   let ftv = schemeFtv env
       sch = generalize ftv tbR
-  bodyT <- infer (Map.insert name sch env) body
+  bodyT <- infer (Map.insert name sch env) denv body
   return bodyT
 
-inferIf :: Pos -> Env -> Expr -> Expr -> Expr -> Infer Type
-inferIf p env c t e = do
-  tc <- infer env c
+inferIf :: Pos -> DataEnv -> Env -> Expr -> Expr -> Expr -> Infer Type
+inferIf p denv env c t e = do
+  tc <- infer env denv c
   unify p tc TBool
-  tt <- infer env t
-  te <- infer env e
+  tt <- infer env denv t
+  te <- infer env denv e
   unify p tt te
   return tt
 
-inferBin :: Pos -> Op -> Env -> Expr -> Expr -> Infer Type
-inferBin p op env a b
+inferBin :: Pos -> Op -> DataEnv -> Env -> Expr -> Expr -> Infer Type
+inferBin p op denv env a b
   | op `elem` [OpAdd, OpSub, OpMul, OpDiv] = do
-      ta <- infer env a
-      tb <- infer env b
+      ta <- infer env denv a
+      tb <- infer env denv b
       numericPromote p ta tb
   | op `elem` [OpLt, OpLe, OpGt, OpGe] = do
-      ta <- infer env a
-      tb <- infer env b
+      ta <- infer env denv a
+      tb <- infer env denv b
       _ <- numericPromote p ta tb
       return TBool
   | op `elem` [OpEq, OpNe] = do
-      ta <- infer env a
-      tb <- infer env b
+      ta <- infer env denv a
+      tb <- infer env denv b
       unify p ta tb
       return TBool
   | otherwise = do -- OpAnd, OpOr
-      ta <- infer env a
+      ta <- infer env denv a
       unify p ta TBool
-      tb <- infer env b
+      tb <- infer env denv b
       unify p tb TBool
       return TBool
 
-inferNeg :: Pos -> Env -> Expr -> Infer Type
-inferNeg p env x = do
-  tx <- infer env x
+inferNeg :: Pos -> DataEnv -> Env -> Expr -> Infer Type
+inferNeg p denv env x = do
+  tx <- infer env denv x
   rx <- resolve tx
   case rx of
     TInt    -> return TInt
@@ -271,9 +296,9 @@ inferNeg p env x = do
     TVar _  -> return rx
     _       -> throwError (TypeError p "unary minus requires a numeric operand")
 
-inferNot :: Pos -> Env -> Expr -> Infer Type
-inferNot p env x = do
-  tx <- infer env x
+inferNot :: Pos -> DataEnv -> Env -> Expr -> Infer Type
+inferNot p denv env x = do
+  tx <- infer env denv x
   unify p tx TBool
   return TBool
 

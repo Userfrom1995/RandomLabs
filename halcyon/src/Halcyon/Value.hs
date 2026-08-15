@@ -13,7 +13,9 @@ import qualified Data.Map.Strict as Map
 -- | Runtime values. Closures capture their defining environment; recursive
 -- bindings use a lazy self-referential environment so @let rec@ works.
 -- @VPartial@ records a partially applied curried builtin (e.g. @cons@,
--- @append@, @take@) with the arguments accumulated so far.
+-- @append@, @take@) with the arguments accumulated so far. @VConstr@ is a
+-- partially applied data constructor (name, total arity, accumulated
+-- arguments); once it has all its arguments it becomes @VData@.
 data Value
   = VInt Integer
   | VFloat Double
@@ -23,6 +25,8 @@ data Value
   | VClosure [String] Expr (Map.Map String Value)
   | VBuiltin Builtin
   | VPartial Builtin [Value]
+  | VData String [Value]
+  | VConstr String Int [Value]
   deriving (Eq, Show)
 
 -- | Render a value as program output. This is the canonical, deterministic
@@ -39,6 +43,8 @@ showValue = \case
   VClosure{}    -> "<function>"
   VBuiltin b    -> "<builtin: " <> builtinName b <> ">"
   VPartial b as -> "<builtin: " <> builtinName b <> " " <> unwords (map showValue as) <> ">"
+  VData n fs    -> unwords (n : map showValue fs)
+  VConstr n _ _ -> "<constructor: " <> n <> ">"
 
 -- | Deterministic float rendering: plain decimals, never scientific for
 -- ordinary magnitudes.

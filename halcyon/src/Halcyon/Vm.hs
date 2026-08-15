@@ -22,6 +22,8 @@ newtype VmError = VmError String
 
 -- | Runtime values of the VM. Closures capture the defining frame's
 -- context; upvalues are cells (IORefs) shared with the defining frame.
+-- @VmConstr@ is a partially applied data constructor (name, total arity,
+-- accumulated arguments); a fully applied constructor is @VmData@.
 data VmVal
   = VmInt Integer
   | VmFloat Double
@@ -32,6 +34,8 @@ data VmVal
   | VmPartial Func Context [(Int, VmVal)]  -- ^ partially applied: bound param slots
   | VmBuiltin Builtin
   | VmPartialBuiltin Builtin [VmVal]       -- ^ partial curried builtin: accumulated args
+  | VmData String [VmVal]
+  | VmConstr String Int [VmVal]
 
 -- | A context: the cells of one frame's locals plus the captured context
 -- of the closure that created the frame (the lexical chain).
@@ -109,6 +113,7 @@ runVm trace (Program entry) = do
             PushConst i -> do
               case fConstants (frFunc f) !! i of
                 CValue v -> pushS (toVm v) >> bumpIp f >> step
+                CData _ _ -> failVm "push_const on a constructor constant"
                 CFunc _  -> failVm "push_const on a function constant"
             PushLocal s ->
               readCellAt (frCtx f) s >>=? \v -> pushS v >> bumpIp f >> step
@@ -183,6 +188,79 @@ runVm trace (Program entry) = do
               case rvals of
                 Left e      -> return (Left e)
                 Right vals  -> pushS (VmList (reverse vals)) >> bumpIp f >> step
+            PushConstr i -> do
+              case fConstants (frFunc f) !! i of
+                CData name ar -> pushS (VmConstr name ar []) >> bumpIp f >> step
+                _             -> failVm "push_constr on non-constructor constant"
+            MakeData i -> do
+              case fConstants (frFunc f) !! i of
+                CData name ar -> do
+                  rvals <- popN ar
+                  case rvals of
+                    Left e     -> return (Left e)
+                    Right vals -> pushS (VmData name (reverse vals)) >> bumpIp f >> step
+                _ -> failVm "make_data on non-constructor constant"
+            BindLocal s ->
+              popS >>=? \v -> storeCellAt s v >>=? \_ -> bumpIp f >> step
+            TestNil target ->
+              popS >>=? \v -> case v of
+                VmList [] -> bumpIp f >> step
+                VmList _  -> setIp target
+                _         -> failVm ("test_nil on non-list " <> vmShowValue v)
+            TestCons target ->
+              popS >>=? \v -> case v of
+                VmList (x : xs) -> pushS (VmList xs) >> pushS x >> bumpIp f >> step
+                VmList []       -> setIp target
+                _               -> failVm ("test_cons on non-list " <> vmShowValue v)
+            TestConstr c target -> do
+              case fConstants (frFunc f) !! c of
+                CData name ar -> do
+                  rv <- popS
+                  case rv of
+                    Left e -> return (Left e)
+                    Right (VmData n fs)
+                      | n == name && length fs == ar ->
+                          mapM_ pushS (reverse fs) >> bumpIp f >> step
+                      | otherwise -> setIp target
+                    Right v -> failVm ("test_constr on non-data value " <> vmShowValue v)
+                _ -> failVm "test_constr on non-constructor constant"
+            TestInt c target ->
+              testLit f c target (\lit v -> case (lit, v) of
+                (VmInt i, VmInt j) -> i == j
+                _                  -> False)
+            TestFloat c target ->
+              testLit f c target (\lit v -> case (lit, v) of
+                (VmFloat a, VmFloat b) -> a == b
+                _                      -> False)
+            TestBool c target ->
+              testLit f c target (\lit v -> case (lit, v) of
+                (VmBool a, VmBool b) -> a == b
+                _                    -> False)
+            TestStr c target ->
+              testLit f c target (\lit v -> case (lit, v) of
+                (VmStr a, VmStr b) -> a == b
+                _                  -> False)
+            Fail -> failVm "no matching pattern"
+            TailCall -> do
+              rarg <- popS
+              rfn <- popS
+              case (rarg, rfn) of
+                (Left e, _)    -> return (Left e)
+                (_, Left e)    -> return (Left e)
+                (Right arg, Right fn) -> tailCall f arg fn
+
+        -- Pattern literal tests: compare the popped value against a literal
+        -- constant-pool entry; jump to the fail target on mismatch, else
+        -- continue. The caller supplies the equality on a pair of matching
+        -- VM values (Int/Int, Float/Float, ...), monomorphic per test.
+        testLit :: Frame -> Int -> Int -> (VmVal -> VmVal -> Bool) -> IO (Either VmError ())
+        testLit f c target eq = do
+          rv <- popS
+          case rv of
+            Left e -> return (Left e)
+            Right v -> case fConstants (frFunc f) !! c of
+              CValue lit -> if eq (toVm lit) v then bumpIp f >> step else setIp target
+              _          -> failVm "test on non-literal constant"
 
         -- Curried application: every Call applies exactly one argument.
         call f arg fn = case fn of
@@ -200,8 +278,41 @@ runVm trace (Program entry) = do
             in if nextSlot + 1 == n
                  then runFrame func captured bound'
                  else pushS (VmPartial func captured bound') >> bumpIp f >> step
+          VmConstr name ar as ->
+            let as' = as ++ [arg]
+            in if length as' == ar
+                 then pushS (VmData name as') >> bumpIp f >> step
+                 else pushS (VmConstr name ar as') >> bumpIp f >> step
           VmBuiltin b -> applyBuiltin f b arg
           VmPartialBuiltin b xs -> applyPartialBuiltin f b (xs ++ [arg])
+          _ -> failVm ("cannot apply " <> vmShowValue fn)
+
+        -- Tail call: apply one argument and, when the call completes a
+        -- function, reuse the current frame instead of pushing a new one
+        -- (constant-stack recursion). Partial applications in tail position
+        -- cannot reuse the frame; their partial value is simply returned.
+        tailCall f arg fn = case fn of
+          VmClosure func captured ->
+            let n = length (fParams func)
+            in if n == 1
+                 then runTailFrame func captured [(0, arg)]
+                 else if n > 1
+                   then pushS (VmPartial func captured [(0, arg)]) >> popFrame
+                   else failVm "function with no parameters"
+          VmPartial func captured bound ->
+            let n = length (fParams func)
+                nextSlot = length bound
+                bound' = bound ++ [(nextSlot, arg)]
+            in if nextSlot + 1 == n
+                 then runTailFrame func captured bound'
+                 else pushS (VmPartial func captured bound') >> popFrame
+          VmConstr name ar as ->
+            let as' = as ++ [arg]
+            in if length as' == ar
+                 then pushS (VmData name as') >> popFrame
+                 else pushS (VmConstr name ar as') >> popFrame
+          VmBuiltin b -> applyBuiltin f b arg >>=? \_ -> popFrame
+          VmPartialBuiltin b xs -> applyPartialBuiltin f b (xs ++ [arg]) >>=? \_ -> popFrame
           _ -> failVm ("cannot apply " <> vmShowValue fn)
 
         -- Build a context for a function call and push a fresh frame at ip 0,
@@ -215,6 +326,24 @@ runVm trace (Program entry) = do
             (g : rest) -> Frame func ctx 0 : Frame (frFunc g) (frCtx g) (frIp g + 1) : rest
             []         -> [Frame func ctx 0])
           step
+
+        -- Build a context and REPLACE the current frame with the callee at
+        -- ip 0 (tail call): the frame count stays constant.
+        runTailFrame func captured bound = do
+          cellMap <- foldM
+            (\m (slot, v) -> do { c <- newIORef (Just v); return (IntMap.insert slot c m) })
+            IntMap.empty bound
+          let ctx = Context cellMap (Just captured)
+          modifyIORef' framesRef (\fs -> case fs of
+            (g : rest) -> Frame func ctx 0 : rest
+            []         -> [Frame func ctx 0])
+          step
+
+        -- Pop the current frame, leaving its result on the operand stack
+        -- (Return semantics, used by partial-application tail calls).
+        popFrame = modifyIORef' framesRef (\fs -> case fs of
+          (_ : rest) -> rest
+          []         -> []) >> step
 
         bumpIp f = modifyIORef' framesRef (\fs -> case fs of
           (g : rest) -> Frame (frFunc g) (frCtx g) (frIp g + 1) : rest
@@ -367,10 +496,18 @@ runVm trace (Program entry) = do
           (VmBool x, VmBool y)   -> Right (VmBool (x == y))
           (VmStr x, VmStr y)     -> Right (VmBool (x == y))
           (VmList x, VmList y)   -> eqLists x y
+          (VmData n1 x, VmData n2 y)
+            | n1 == n2  -> eqLists x y
+            | otherwise -> Right (VmBool False)
+          (VmConstr n1 a1 x, VmConstr n2 a2 y)
+            | n1 == n2 && a1 == a2 -> eqLists x y
+            | otherwise            -> Right (VmBool False)
           (VmClosure{}, _)       -> Left "cannot compare functions"
           (_, VmClosure{})       -> Left "cannot compare functions"
           (VmPartial{}, _)       -> Left "cannot compare functions"
           (_, VmPartial{})       -> Left "cannot compare functions"
+          (VmConstr{}, _)        -> Left "cannot compare functions"
+          (_, VmConstr{})        -> Left "cannot compare functions"
           _ -> Left ("cannot compare " <> vmShowValue a <> " and " <> vmShowValue b)
 
         eqLists [] [] = Right (VmBool True)
@@ -456,6 +593,8 @@ toVm = \case
   VList vs   -> VmList (map toVm vs)
   VBuiltin b -> VmBuiltin b
   VPartial b vs -> VmPartialBuiltin b (map toVm vs)
+  VData n vs -> VmData n (map toVm vs)
+  VConstr n ar as -> VmConstr n ar (map toVm as)
   VClosure{} -> error "interpreter closure cannot enter VM constants"
 
 -- | Render a VM value as program output, mirroring 'Halcyon.Value.showValue'
@@ -472,3 +611,5 @@ vmShowValue = \case
   VmPartial{}    -> "<function>"
   VmBuiltin b    -> "<builtin: " <> builtinName b <> ">"
   VmPartialBuiltin b xs -> "<builtin: " <> builtinName b <> " " <> unwords (map vmShowValue xs) <> ">"
+  VmData n fs    -> unwords (n : map vmShowValue fs)
+  VmConstr n _ _ -> "<constructor: " <> n <> ">"

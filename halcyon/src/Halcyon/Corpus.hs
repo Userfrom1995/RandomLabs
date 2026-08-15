@@ -139,4 +139,39 @@ corpus =
         , "take 2 (append [1] (drop 1 [2, 3, 4]))"
         ])
       "[1, 3]"
+  , CorpusEntry "data-maybe"
+      (unlines
+        [ "-- Algebraic data types: Maybe with two constructors."
+        , "data Maybe a = Nothing | Just a"
+        , "Just 42"
+        ])
+      "Just 42"
+  , CorpusEntry "data-pair-partial"
+      (unlines
+        [ "-- Constructors are curried first-class functions."
+        , "data Pair a b = Pair a b"
+        , "let p = Pair 1 in p 2"
+        ])
+      "Pair 1 2"
+  , CorpusEntry "data-tree"
+      (unlines
+        [ "-- A recursive data type with nested constructor application."
+        , "data Tree a = Leaf | Node (Tree a) a (Tree a)"
+        , "Node (Node Leaf 1 Leaf) 2 Leaf"
+        ])
+      "Node Node Leaf 1 Leaf 2 Leaf"
+  , CorpusEntry "data-equality"
+      (unlines
+        [ "-- Data values compare by constructor and fields."
+        , "data Maybe a = Nothing | Just a"
+        , "Just 5 == Just 5"
+        ])
+      "true"
+  , CorpusEntry "data-color"
+      (unlines
+        [ "-- Nullary constructors are complete values."
+        , "data Color = Red | Green"
+        , "let c = Red in c"
+        ])
+      "Red"
   ]

@@ -11,7 +11,8 @@ import qualified Data.Set as Set
 
 -- | Halcyon types. Inference uses @TVar@ for both rigid scheme variables
 -- and fresh unification metavariables; the surrounding substitution decides
--- which is which.
+-- which is which. @TData@ names a user-defined algebraic data type applied
+-- to its type arguments (e.g. @Maybe a@).
 data Type
   = TVar Int
   | TInt
@@ -19,6 +20,7 @@ data Type
   | TBool
   | TStr
   | TList Type
+  | TData String [Type]
   | TFun Type Type
   deriving (Eq, Show)
 
@@ -33,6 +35,7 @@ freeVars :: Type -> Set.Set Int
 freeVars = \case
   TVar v   -> Set.singleton v
   TList t  -> freeVars t
+  TData _ ts -> Set.unions (map freeVars ts)
   TFun a b -> freeVars a `Set.union` freeVars b
   _        -> Set.empty
 
@@ -49,10 +52,16 @@ showType = go
       TBool    -> "Bool"
       TStr     -> "String"
       TList t  -> "[" <> go t <> "]"
+      TData n ts -> if null ts then n else n <> " " <> unwords (map goArg ts)
       TFun a b -> showArg a <> " -> " <> go b
     showArg t = case t of
       TFun _ _ -> "(" <> go t <> ")"
       _        -> go t
+    goArg t = case t of
+      TFun _ _   -> "(" <> go t <> ")"
+      TList _    -> go t
+      TData _ _  -> go t
+      _          -> go t
     chr' n = toEnum (fromEnum 'a' + n)
 
 -- | Pretty-print a scheme with its quantified variables.

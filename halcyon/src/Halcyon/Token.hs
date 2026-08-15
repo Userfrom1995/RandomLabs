@@ -31,6 +31,9 @@ data Tok
   | TIf
   | TThen
   | TElse
+  | TData
+  | TMatch
+  | TWith
   | TTrue
   | TFalse
   | TPlus
@@ -46,8 +49,10 @@ data Tok
   | TAnd
   | TOr
   | TNot
-  | TAssign          -- ^ @=@ (let binding)
-  | TArrow           -- ^ @=>@ (function body)
+  | TAssign          -- ^ @=@ (let binding, data declaration)
+  | TArrow           -- ^ @=>@ (function body, match branch)
+  | TCons            -- ^ @::@ (cons pattern)
+  | TPipe            -- ^ @|@ (data alternatives, match branches)
   | TLParen
   | TRParen
   | TLBracket

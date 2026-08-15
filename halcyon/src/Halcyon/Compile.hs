@@ -12,7 +12,9 @@ import Control.Monad (when)
 import qualified Data.Map.Strict as Map
 import Data.List (intersperse)
 
-import Halcyon.Ast
+import qualified Halcyon.Ast as Ast
+import Halcyon.Ast (Expr(..), DataDecl(..), Op(..), Builtin(..))
+import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, ctorFor, CtorInfo(..))
 import Halcyon.Op
 import Halcyon.Parser (parseProgram, ParseError(..))
 import Halcyon.Token (Pos(..))
@@ -22,13 +24,17 @@ import Halcyon.Value
 data CompileError = CompileError Pos String
   deriving (Eq, Show)
 
--- | Compile a source string into a Program. Lexes, parses, then lowers to
--- bytecode with closure/upvalue analysis.
+-- | Compile a source string into a compiled Program. Lexes, parses,
+-- resolves the data declarations, then lowers to bytecode with closure and
+-- upvalue analysis.
 compileProgram :: String -> Either CompileError Program
 compileProgram src = case parseProgram src of
   Left (ParseError p m) -> Left (CompileError p m)
-  Right expr -> do
-    (_, st) <- runC (compileExpr expr >> emit Halt >> resolvePatches) initState
+  Right (Ast.Program decls expr) -> do
+    denv <- case buildDataEnv decls of
+      Left m  -> Left (CompileError (Pos 0 0) m)
+      Right d -> Right d
+    (_, st) <- runC (compileExpr denv expr >> emit Halt >> resolvePatches) initState
     let entry = Func "main" [] (csCode st) (csConsts st) [] []
     Right (Program entry)
 
@@ -113,57 +119,101 @@ emit i = modify' (\s -> s { csCode = csCode s ++ [i] })
 -- Compilation
 -- ---------------------------------------------------------------------
 
-compileExpr :: Expr -> CompileM ()
-compileExpr = \case
+compileExpr :: DataEnv -> Expr -> CompileM ()
+compileExpr denv = \case
   EInt _ i      -> emitConst (CValue (VInt i))
   EFloat _ d    -> emitConst (CValue (VFloat d))
   EBool _ b     -> emitConst (CValue (VBool b))
   EStr _ s      -> emitConst (CValue (VStr s))
   EList _ es    -> do
-    mapM_ compileExpr es
+    mapM_ (compileExpr denv) es
     emit (MakeList (length es))
   EVar p name   -> resolveRef p name
+  EConstr p name -> compileConstr p denv name
   EBuiltin _ b  -> emitConst (CValue (VBuiltin b))
-  ELambda p params body -> compileLambda p params body
-  EApply p fn arg -> do
-    compileExpr fn
-    compileExpr arg
-    emit Call
-  ELet p rec name bound body -> compileLet p rec name bound body
+  ELambda p params body -> compileLambda p denv params body
+  EApply p fn arg -> case saturatedConstr denv fn arg of
+    Just (name, ar, args) -> do
+      mapM_ (compileExpr denv) args
+      idx <- dataIdx name ar
+      emit (MakeData idx)
+    Nothing -> do
+      compileExpr denv fn
+      compileExpr denv arg
+      emit Call
+  ELet p rec name bound body -> compileLet p rec name denv bound body
   EIf p c t e   -> do
-    compileExpr c
+    compileExpr denv c
     labFalse <- emitJump JKJumpIfFalse
-    compileExpr t
+    compileExpr denv t
     labEnd <- emitJump JKJump
     defineLabel labFalse
-    compileExpr e
+    compileExpr denv e
     defineLabel labEnd
   EBin p op a b -> do
-    compileExpr a
-    compileExpr b
+    compileExpr denv a
+    compileExpr denv b
     emit (opToInstr p op)
-  ENeg p x      -> compileExpr x >> emit Neg
-  ENot p x      -> compileExpr x >> emit Not
+  ENeg p x      -> compileExpr denv x >> emit Neg
+  ENot p x      -> compileExpr denv x >> emit Not
 
-compileLet :: Pos -> Bool -> String -> Expr -> Expr -> CompileM ()
-compileLet p rec name bound body = case bound of
+-- | Compile a data constructor reference. A nullary constructor is already
+-- a complete data value (MakeData pops zero values); a curried reference to
+-- a non-nullary constructor is pushed as a value so partial application
+-- behaves exactly like the interpreter's 'VConstr'.
+compileConstr :: Pos -> DataEnv -> String -> CompileM ()
+compileConstr p denv name = case ctorFor name denv of
+  Nothing -> compileError p ("unbound constructor: " <> name)
+  Just ci -> do
+    idx <- dataIdx name (ciArity ci)
+    if ciArity ci == 0
+      then emit (MakeData idx)
+      else emit (PushConstr idx)
+
+-- | Register a @CData@ constant for a constructor (name + total arity) and
+-- return its pool index.
+dataIdx :: String -> Int -> CompileM Int
+dataIdx name ar = do
+  st <- get
+  case Map.lookup (constEquiv (CData name ar)) (csConstMap st) of
+    Just i  -> return i
+    Nothing -> do
+      let i = length (csConsts st)
+      modify' (\s -> s { csConsts = csConsts s ++ [CData name ar], csConstMap = Map.insert (constEquiv (CData name ar)) i (csConstMap s) })
+      return i
+
+-- | When an application spine is a constructor applied to exactly its arity
+-- of arguments, compile it to @MakeData@; otherwise fall back to the generic
+-- curried call path.
+saturatedConstr :: DataEnv -> Expr -> Expr -> Maybe (String, Int, [Expr])
+saturatedConstr denv fn arg = go fn [arg]
+  where
+    go (EApply _ f a) as = go f (a : as)
+    go (EConstr _ name) as =
+      case fmap ciArity (ctorFor name denv) of
+        Just ar | ar == length as && ar > 0 -> Just (name, ar, as)
+        _ -> Nothing
+    go _ _ = Nothing
+
+compileLet :: Pos -> Bool -> String -> DataEnv -> Expr -> Expr -> CompileM ()
+compileLet p rec name denv bound body = case bound of
   ELambda _ params body' -> do
     s <- registerLocal name
     when rec (emit (NewCell s))
-    compileLambda p params body'
+    compileLambda p denv params body'
     emit (StoreLocal s)
-    compileExpr body
+    compileExpr denv body
   _ | rec -> compileError p ("let rec requires a function value for " <> name)
     | otherwise -> do
-        compileExpr bound
+        compileExpr denv bound
         s <- registerLocal name
         emit (StoreLocal s)
-        compileExpr body
+        compileExpr denv body
 
 -- | Compile a lambda. Builds the function, stores it in the enclosing
 -- function's constant pool, and emits the closure-construction sequence.
-compileLambda :: Pos -> [String] -> Expr -> CompileM ()
-compileLambda _ params body = do
+compileLambda :: Pos -> DataEnv -> [String] -> Expr -> CompileM ()
+compileLambda _ denv params body = do
   outer <- get
   let scope = CScope (zip params [0 ..]) []
   modify' (\s -> s
@@ -176,7 +226,7 @@ compileLambda _ params body = do
     , csLabels = Map.empty
     , csPatches = []
     })
-  compileExpr body
+  compileExpr denv body
   emit Return
   resolvePatches
   finished <- get
@@ -218,6 +268,13 @@ addConst c = do
   st <- get
   case c of
     CValue _ ->
+      case Map.lookup (constEquiv c) (csConstMap st) of
+        Just i  -> return i
+        Nothing -> do
+          let i = length (csConsts st)
+          modify' (\s -> s { csConsts = csConsts s ++ [c], csConstMap = Map.insert (constEquiv c) i (csConstMap s) })
+          return i
+    CData _ _ -> do
       case Map.lookup (constEquiv c) (csConstMap st) of
         Just i  -> return i
         Nothing -> do

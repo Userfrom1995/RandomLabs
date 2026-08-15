@@ -1,6 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 module Halcyon.Ast
   ( Expr(..)
+  , Program(..)
+  , DataDecl(..)
+  , Pattern(..)
   , Op(..)
   , Builtin(..)
   , opName
@@ -9,6 +12,7 @@ module Halcyon.Ast
   ) where
 
 import Halcyon.Token (Pos)
+import Halcyon.Type (Type)
 
 -- | Halcyon expression AST. Every node carries its source position so all
 -- type and runtime errors can point at exact locations.
@@ -19,14 +23,52 @@ data Expr
   | EStr     Pos String
   | EList    Pos [Expr]
   | EVar     Pos String
+  | EConstr  Pos String            -- ^ reference to a data constructor
   | ELambda  Pos [String] Expr   -- ^ @fn a b => body@
   | EApply   Pos Expr Expr       -- ^ left-associative application
   | ELet     Pos Bool String Expr Expr  -- ^ @let [rec] x = e in b@
   | EIf      Pos Expr Expr Expr
+  | EMatch   Pos Expr [(Pattern, Expr)]  -- ^ @match e with | pat => e@
   | EBin     Pos Op Expr Expr
   | ENeg     Pos Expr            -- ^ unary minus
   | ENot     Pos Expr            -- ^ boolean not
   | EBuiltin Pos Builtin
+  deriving (Eq, Show)
+
+-- | A whole Halcyon program: zero or more top-level algebraic data type
+-- declarations followed by the expression to evaluate. The zero-declaration
+-- case is exactly a bare expression, so every pre-v2 program still parses.
+data Program = Program
+  { progData :: [DataDecl]
+  , progExpr :: Expr
+  }
+  deriving (Eq, Show)
+
+-- | A top-level @data@ declaration: @data <Name> <tyvar>* = <Ctor> <ty>* | ...@
+-- Field types are parsed into 'Halcyon.Type.Type' where declared type
+-- variables are 'TVar' indices and concrete/data types are names.
+data DataDecl = DataDecl
+  { ddPos    :: Pos
+  , ddName   :: String            -- ^ capitalized type name
+  , ddTyvars :: [String]          -- ^ declared type parameters
+  , ddCtors  :: [(String, [Type])] -- ^ constructor name -> field types
+  }
+  deriving (Eq, Show)
+
+-- | A structural pattern for @match@. Variable patterns bind monomorphically
+-- inside their branch; the trailing @_@ wildcard is the documented idiom for
+-- exhaustive handling.
+data Pattern
+  = PWild  Pos
+  | PVar   Pos String
+  | PInt   Pos Integer
+  | PFloat Pos Double
+  | PBool  Pos Bool
+  | PStr   Pos String
+  | PNil   Pos
+  | PCons  Pos Pattern Pattern   -- ^ @x :: xs@
+  | PList  Pos [Pattern]
+  | PConstr Pos String [Pattern]
   deriving (Eq, Show)
 
 -- | Binary operators, in precedence order (lowest first).

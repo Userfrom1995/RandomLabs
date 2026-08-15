@@ -9,8 +9,9 @@ module Halcyon.Eval
 import qualified Data.Map.Strict as Map
 
 import Halcyon.Ast
+import Halcyon.Data (DataEnv, emptyDataEnv, buildDataEnv, ctorFor, CtorInfo(..))
 import Halcyon.Parser (parseProgram, ParseError(..))
-import Halcyon.Token (Pos)
+import Halcyon.Token (Pos(..), Tok(..))
 import Halcyon.Value
 
 -- | A positioned runtime error from the tree-walking interpreter.
@@ -23,28 +24,35 @@ type Env = Map.Map String Value
 evalProgram :: String -> Either EvalError Value
 evalProgram src = case parseProgram src of
   Left (ParseError p m) -> Left (EvalError p m)
-  Right expr            -> evalExpr Map.empty expr
+  Right (Program decls expr) ->
+    case buildDataEnv decls of
+      Left m    -> Left (EvalError (Pos 0 0) m)
+      Right denv -> evalExpr denv Map.empty expr
 
--- | Evaluate a parsed expression in the given environment.
-evalExpr :: Env -> Expr -> Either EvalError Value
-evalExpr = eval
+-- | Evaluate a parsed expression in the given environments.
+evalExpr :: DataEnv -> Env -> Expr -> Either EvalError Value
+evalExpr denv env expr = eval denv env expr
 
-eval :: Env -> Expr -> Either EvalError Value
-eval env = \case
+eval :: DataEnv -> Env -> Expr -> Either EvalError Value
+eval denv env = \case
   EInt _ i      -> Right (VInt i)
   EFloat _ d    -> Right (VFloat d)
   EBool _ b     -> Right (VBool b)
   EStr _ s      -> Right (VStr s)
-  EList _ es    -> VList <$> mapM (eval env) es
+  EList _ es    -> VList <$> mapM (eval denv env) es
   EVar p name   -> case Map.lookup name env of
                      Just v  -> Right v
                      Nothing -> Left (EvalError p ("unbound name: " <> name))
+  EConstr p name -> case ctorFor name denv of
+                     Nothing -> Left (EvalError p ("unbound constructor: " <> name))
+                     Just ci -> let ar = ciArity ci
+                                in Right (if ar == 0 then VData name [] else VConstr name ar [])
   EBuiltin _ b  -> Right (VBuiltin b)
   ELambda _ params body -> Right (VClosure params body env)
   EApply p fn arg -> do
-    vf <- eval env fn
-    va <- eval env arg
-    apply p vf va
+    vf <- eval denv env fn
+    va <- eval denv env arg
+    apply p denv vf va
   ELet p rec name bound body ->
     case bound of
       ELambda _ params body' ->
@@ -53,29 +61,29 @@ eval env = \case
         -- captures the outer environment.
         let captured = if rec then env' else env
             env'     = Map.insert name (VClosure params body' captured) env
-        in eval env' body
+        in eval denv env' body
       _ | rec -> Left (EvalError p ("let rec requires a function value for " <> name))
         | otherwise -> do
-            vb <- eval env bound
-            eval (Map.insert name vb env) body
+            vb <- eval denv env bound
+            eval denv (Map.insert name vb env) body
   EIf p c t e -> do
-    vc <- eval env c
+    vc <- eval denv env c
     case vc of
-      VBool True  -> eval env t
-      VBool False -> eval env e
+      VBool True  -> eval denv env t
+      VBool False -> eval denv env e
       _ -> Left (EvalError p ("if condition must be a boolean, got " <> showValue vc))
   EBin p op a b -> do
-    va <- eval env a
-    vb <- eval env b
+    va <- eval denv env a
+    vb <- eval denv env b
     binop p op va vb
   ENeg p x -> do
-    v <- eval env x
+    v <- eval denv env x
     case v of
       VInt i   -> Right (VInt (negate i))
       VFloat d -> Right (VFloat (negate d))
       _        -> Left (EvalError p ("cannot negate " <> showValue v))
   ENot p x -> do
-    v <- eval env x
+    v <- eval denv env x
     case v of
       VBool b -> Right (VBool (not b))
       _       -> Left (EvalError p ("cannot apply ! to " <> showValue v))
@@ -83,16 +91,23 @@ eval env = \case
 -- | Apply one argument. Lambdas bind the first remaining parameter
 -- (currying: @fn x y => e@ applied to one argument yields a closure over
 -- the rest); a partially applied curried builtin (@cons@, @append@, @take@,
--- @drop@) accumulates arguments until it has enough to run.
-apply :: Pos -> Value -> Value -> Either EvalError Value
-apply p vf va = case vf of
+-- @drop@) or data constructor accumulates arguments until it has enough to
+-- run. The data environment is threaded so closures can keep referencing
+-- constructors.
+apply :: Pos -> DataEnv -> Value -> Value -> Either EvalError Value
+apply p denv vf va = case vf of
   VClosure (param : rest) body cenv ->
     let cenv' = Map.insert param va cenv
     in if null rest
-         then eval cenv' body
+         then eval denv cenv' body
          else Right (VClosure rest body cenv')
   VClosure [] _ _ -> Left (EvalError p "function with no parameters")
   VPartial b as -> applyPartial p b (as ++ [va])
+  VConstr name ar as ->
+    let as' = as ++ [va]
+    in if length as' == ar
+         then Right (VData name as')
+         else Right (VConstr name ar as')
   VBuiltin b -> applyBuiltin p b va
   _ -> Left (EvalError p ("cannot apply " <> showValue vf))
 

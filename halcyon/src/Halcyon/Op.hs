@@ -38,6 +38,7 @@ data Instr
   | Jump Int                 -- ^ unconditional jump to instruction offset
   | JumpIfFalse Int          -- ^ pop bool; jump to offset when false
   | Call                     -- ^ pop arg, pop callable, push result (curried, arity 1)
+  | TailCall                 -- ^ as Call, but reuse the current frame (tail position)
   | MakeClosure Int          -- ^ build a closure from constant-pool Func; captures upvalues
   | Return                   -- ^ pop frame; result stays on the operand stack
   | Cons
@@ -45,6 +46,17 @@ data Instr
   | Tail
   | IsNil
   | MakeList Int             -- ^ pop n values (in order), push a list
+  | PushConstr Int           -- ^ push a curried constructor reference (const-pool CData)
+  | MakeData Int             -- ^ pop arity values, push a data value (const-pool CData)
+  | BindLocal Int            -- ^ pop value into a local slot (pattern variable binding)
+  | TestNil Int              -- ^ pop; jump to target unless the value is an empty list
+  | TestCons Int             -- ^ pop list; push head, tail; jump to target unless cons
+  | TestConstr Int Int       -- ^ const index, fail target; pop, push fields; jump on mismatch
+  | TestInt Int Int          -- ^ const index, fail target; literal Int test
+  | TestFloat Int Int        -- ^ const index, fail target; literal Float test
+  | TestBool Int Int         -- ^ const index, fail target; literal Bool test
+  | TestStr Int Int          -- ^ const index, fail target; literal String test
+  | Fail                     -- ^ abort with "no matching pattern"
   | Halt
   deriving (Eq, Show)
 
@@ -52,6 +64,7 @@ data Instr
 data Const
   = CValue Value
   | CFunc Func
+  | CData String Int          -- ^ a constructor reference: name + total arity
   deriving (Show)
 
 -- | An immutable compiled function.
@@ -98,6 +111,7 @@ showInstr = \case
   Jump o         -> "jump " <> show o
   JumpIfFalse o  -> "jump_if_false " <> show o
   Call           -> "call"
+  TailCall       -> "tail_call"
   MakeClosure i  -> "make_closure " <> show i
   Return         -> "return"
   Cons           -> "cons"
@@ -105,6 +119,17 @@ showInstr = \case
   Tail           -> "tail"
   IsNil          -> "is_nil"
   MakeList n      -> "make_list " <> show n
+  PushConstr i   -> "push_constr " <> show i
+  MakeData i     -> "make_data " <> show i
+  BindLocal s    -> "bind_local " <> show s
+  TestNil t      -> "test_nil " <> show t
+  TestCons t     -> "test_cons " <> show t
+  TestConstr c t -> "test_constr " <> show c <> " " <> show t
+  TestInt c t    -> "test_int " <> show c <> " " <> show t
+  TestFloat c t  -> "test_float " <> show c <> " " <> show t
+  TestBool c t   -> "test_bool " <> show c <> " " <> show t
+  TestStr c t    -> "test_str " <> show c <> " " <> show t
+  Fail           -> "fail"
   Halt            -> "halt"
 
 -- | Render a constant for the disassembler.
@@ -112,6 +137,7 @@ showConst :: Const -> String
 showConst = \case
   CValue v -> showValue v
   CFunc f  -> "<fn " <> fName f <> ">"
+  CData n a -> n <> "/" <> show a
 
 -- | A canonical form of a constant used for deduplication in the constant
 -- pool. Values compare by rendered form; functions always get their own
@@ -119,3 +145,4 @@ showConst = \case
 constEquiv :: Const -> String
 constEquiv (CValue v) = "v:" <> showValue v
 constEquiv (CFunc f)  = "f:" <> fName f <> ":" <> show (length (fCode f))
+constEquiv (CData n a) = "d:" <> n <> ":" <> show a

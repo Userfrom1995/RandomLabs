@@ -71,8 +71,10 @@ lexSource src = go 1 1 src
       (x : _) | x == '=' && isPrefixOf' "==" s       -> simpleTok l c TEq 2 s
       (x : _) | x == '=' && isPrefixOf' "=>" s       -> simpleTok l c TArrow 2 s
       (x : _) | x == '='                             -> simpleTok l c TAssign 1 s
+      (x : _) | x == ':' && isPrefixOf' "::" s       -> simpleTok l c TCons 2 s
       (x : _) | x == '&' && isPrefixOf' "&&" s       -> simpleTok l c TAnd 2 s
       (x : _) | x == '|' && isPrefixOf' "||" s       -> simpleTok l c TOr 2 s
+      (x : _) | x == '|'                             -> simpleTok l c TPipe 1 s
       (x : _) | x == '!'                             -> simpleTok l c TNot 1 s
       (x : _) | x == '(' -> simpleTok l c TLParen 1 s
       (x : _) | x == ')' -> simpleTok l c TRParen 1 s
@@ -189,6 +191,9 @@ keywordOrIdent = \case
   "if"    -> TIf
   "then"  -> TThen
   "else"  -> TElse
+  "data"  -> TData
+  "match" -> TMatch
+  "with"  -> TWith
   "true"  -> TTrue
   "false" -> TFalse
   name    -> TIdent name

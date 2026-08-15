@@ -18,6 +18,7 @@ library
                        Halcyon.Ast
                        Halcyon.Parser
                        Halcyon.Type
+                       Halcyon.Data
                        Halcyon.Infer
                        Halcyon.Value
                        Halcyon.Eval
