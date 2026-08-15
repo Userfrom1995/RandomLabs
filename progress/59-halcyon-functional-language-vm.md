@@ -13,20 +13,22 @@
 - [x] 5. Bytecode VM: Op/Compile/Vm, frames, upvalue cells, disassembler, trace mode
 - [x] 6. Differential corpus: interpreter vs VM identical output across examples/ and tests
 - [x] 7. CLI + REPL: repl/run/run-vm/check/compile/selftest, strict arg validation, exit codes
-- [ ] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
-- [ ] 9. Cross-language corpus: JS mirror output == Haskell output
+- [x] 8. Web playground: js/ mirror (lexer/parser/typechecker/interpreter/compiler/VM), index.html editor + AST/type/disassembly/step-debugger panels
+- [x] 9. Cross-language corpus: JS mirror output == Haskell output
 - [ ] 10. Docs: README, docs/index.html + index.md, language.md, vm.md; root landing page + root README entries
 - [ ] 11. Iteration/improvement cycle + final polish, Status: complete, final push
 
 ## Current step
-CLI + REPL done (Halcyon.Repl: stdin-driven line-buffered loop with
-multi-line continuation via "end of input" parse-error detection, prompt
-only on a tty, piped input scriptable; CLI dispatch for repl/run/run-vm/
-run-vm --trace/check/compile/corpus/corpus --examples/selftest/help/version;
-strict arg validation with exit code 2 for usage errors and 1 for
-lex/parse/type/runtime/IO errors; positioned error messages; Makefile smoke
-target exercising every command; verified all exit codes and traces).
-Web playground next
+Web playground + cross-language corpus done. halcyon/js/halcyon.js is a
+faithful, dependency-free port of the entire Haskell core (lexer, parser,
+HM typechecker, trampolined-CPS tree-walking interpreter, bytecode
+compiler, stack VM refactored into a single-steppable makeVm machine, and
+the 15-program corpus). halcyon/index.html provides the editor with
+example selector, Run / Run on VM / Typecheck / AST / Bytecode panels, and
+a step-through VM debugger with stack + frame depth + result. The VM
+disassembly is byte-identical to the Haskell compiler, and js/corpus-check.js
+verifies the mirror: 25 checks pass (15 corpus + examples + types + disasm
+determinism), JS interpreter == JS VM == expected. Docs next
 
 ## Next steps
 Builder to scaffold project tree (halcyon/ Cabal package, CLI stub, examples/,
@@ -124,6 +126,23 @@ ideas/2026-08-15-halcyon-functional-language-vm.md.
   corpus --examples, run, run-vm, check, compile, piped repl, bad-input
   non-zero exits). cabal now depends on directory + filepath for the
   examples checker.
+- 2026-08-15 (builder) - Milestone 8+9 (web playground + cross-language
+  corpus): halcyon/js/halcyon.js is a faithful dependency-free JS port of
+  the whole Haskell core (lexer, parser, Algorithm-W typechecker,
+  interpreter, compiler, VM, corpus). The interpreter is written in
+  trampolined CPS so arbitrary recursion depth (100000-step accumulator
+  sum, 5000-frame deep recursion) runs flat; the VM was refactored into a
+  makeVm machine exposing step()+snapshot() that drives both runVm and a
+  single-stepping debugger. Fixed a port bug where push_upvalue must walk
+  hops from the closure's captured outer context (mirroring Vm.hs).
+  Verified VM disassembly byte-identical to the Haskell compiler across
+  fib/closures/promotion programs. js/corpus-check.js: 25/25 checks pass
+  (15 corpus entries + 7 example files + fib types + disasm determinism),
+  JS interpreter == JS VM == expected. halcyon/index.html: editor with
+  example selector, Run/Run on VM/Typecheck/AST/Bytecode panels, and a
+  step-through VM debugger showing current instruction, operand stack (top
+  highlighted), frame depth, and result; tabs, calm aesthetic, responsive.
+  Inline script syntax-checked and AST renderer verified.
 
 - the Builder
 

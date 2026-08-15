@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Halcyon - a small functional language and VM</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --panel: #ffffff;
+    --ink: #2c3e3a;
+    --muted: #7a8a86;
+    --line: #e3ded4;
+    --accent: #3d7a6f;
+    --accent-soft: #e7f0ed;
+    --mono: #22443e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    line-height: 1.5;
+  }
+  header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  header h1 { margin: 0; font-size: 30px; letter-spacing: 0.5px; }
+  header p { margin: 6px 0 0; color: var(--muted); max-width: 720px; }
+  main {
+    display: grid;
+    grid-template-columns: minmax(360px, 5fr) minmax(380px, 6fr);
+    gap: 20px;
+    padding: 24px 32px;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .card > h2 {
+    margin: 0;
+    padding: 10px 16px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    background: #fbfaf6;
+  }
+  .card > .body { padding: 14px 16px; }
+  textarea {
+    width: 100%;
+    min-height: 300px;
+    resize: vertical;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--mono);
+    background: #fffefb;
+    tab-size: 2;
+  }
+  textarea:focus { outline: 2px solid var(--accent-soft); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { opacity: 0.9; color: #fff; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  select {
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+  }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tabs button {
+    border: none;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: #fbfaf6;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+  .tabs button.active { background: var(--panel); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  .panel { display: none; padding: 14px 16px; min-height: 320px; }
+  .panel.active { display: block; }
+  pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .error { color: #b0413e; }
+  .muted { color: var(--muted); }
+  .debugger .body { padding: 14px 16px; }
+  .dbg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .dbg-row { grid-template-columns: 1fr; } }
+  .dbg-state {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #fffefb;
+    font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+    font-size: 13px;
+  }
+  .dbg-state .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stack-top { color: var(--accent); font-weight: bold; }
+  footer {
+    padding: 18px 32px;
+    color: var(--muted);
+    font-size: 13px;
+    border-top: 1px solid var(--line);
+  }
+  .hl { background: var(--accent-soft); }
+  table.bytecode { width: 100%; border-collapse: collapse; font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 13px; }
+  table.bytecode td { padding: 2px 8px; border-bottom: 1px solid #f0ece2; white-space: pre; }
+  table.bytecode tr.current td { background: var(--accent-soft); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Halcyon</h1>
+  <p>A small, calm, well-typed functional language: lexer, parser, Hindley-Milner type inference, a tree-walking
+  interpreter, and a bytecode VM with closures and upvalue cells. This playground runs a faithful JavaScript mirror of
+  the Haskell core (cross-checked for byte-identical output), so what you see here is the verified behavior.</p>
+</header>
+
+<main>
+  <div>
+    <div class="card">
+      <h2>Editor</h2>
+      <div class="body">
+        <div class="controls">
+          <label class="muted">example:</label>
+          <select id="example-select"></select>
+        </div>
+        <textarea id="source" spellcheck="false"></textarea>
+        <div class="controls">
+          <button id="run-btn" class="primary">Run</button>
+          <button id="run-vm-btn" class="primary">Run on VM</button>
+          <button id="type-btn">Typecheck</button>
+          <button id="ast-btn">Show AST</button>
+          <button id="bytecode-btn">Bytecode</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card debugger" style="margin-top:20px;">
+      <h2>Step-through VM debugger</h2>
+      <div class="body">
+        <div class="controls">
+          <button id="dbg-step" class="primary">Step</button>
+          <button id="dbg-run">Run to end</button>
+          <button id="dbg-reset">Reset</button>
+        </div>
+        <div class="dbg-row" style="margin-top:10px;">
+          <div>
+            <div class="dbg-state" id="dbg-instr">current instruction: <span class="muted">(compile a program first)</span></div>
+            <div class="dbg-state" style="margin-top:8px;" id="dbg-frame">frame depth: 0</div>
+            <div class="dbg-state" style="margin-top:8px;" id="dbg-result">result: <span class="muted">-</span></div>
+          </div>
+          <div>
+            <div class="dbg-state" id="dbg-stack">stack (top first): <span class="muted">empty</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Inspector</h2>
+      <div class="tabs">
+        <button class="tab active" data-panel="output">Output</button>
+        <button class="tab" data-panel="type">Type</button>
+        <button class="tab" data-panel="ast">AST</button>
+        <button class="tab" data-panel="bytecode">Bytecode</button>
+      </div>
+      <div class="panel active" id="panel-output"><pre id="out-output" class="muted">Run a program to see its output.</pre></div>
+      <div class="panel" id="panel-type"><pre id="out-type" class="muted">Typecheck a program to see its inferred top-level type.</pre></div>
+      <div class="panel" id="panel-ast"><pre id="out-ast" class="muted">Show the AST to see the parsed structure.</pre></div>
+      <div class="panel" id="panel-bytecode"><pre id="out-bytecode" class="muted">Compile a program to see its bytecode disassembly.</pre></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Halcyon 0.1.0 - core in Haskell (halcyon/src), faithful JS mirror powering this page (halcyon/js/halcyon.js).
+  Both evaluators, both languages, are verified against the same differential corpus.
+</footer>
+
+<script src="js/halcyon.js"></script>
+<script>
+(function () {
+  'use strict';
+  var H = window.Halcyon;
+  var source = document.getElementById('source');
+  var select = document.getElementById('example-select');
+
+  var exampleNames = Object.keys(H.examples).sort();
+  exampleNames.forEach(function (name) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
+  select.value = 'fib.hly';
+  source.value = H.examples['fib.hly'];
+
+  select.addEventListener('change', function () {
+    source.value = H.examples[select.value] || '';
+  });
+
+  // -------------------------------------------------------------------
+  // Tabs
+  // -------------------------------------------------------------------
+  var tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      tabs.forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+      tab.classList.add('active');
+      document.getElementById('panel-' + tab.getAttribute('data-panel')).classList.add('active');
+    });
+  });
+
+  function show(panel, text, isError) {
+    var el = document.getElementById('out-' + panel);
+    el.textContent = text;
+    el.className = isError ? 'error' : '';
+  }
+  function showError(panel, err) {
+    var pos = err && err.pos && err.pos.line > 0
+      ? 'line ' + err.pos.line + ', col ' + err.pos.col + ': '
+      : '';
+    show(panel, 'error (' + err.kind + '): ' + pos + err.message, true);
+  }
+
+  function activate(panel) {
+    tabs.forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-panel') === panel); });
+    document.querySelectorAll('.panel').forEach(function (p) { p.classList.toggle('active', p.id === 'panel-' + panel); });
+  }
+
+  // -------------------------------------------------------------------
+  // AST rendering
+  // -------------------------------------------------------------------
+  function renderAst(e, depth) {
+    var pad = new Array(depth * 2 + 1).join(' ');
+    function pos(e) { return e.pos ? '@' + e.pos.line + ':' + e.pos.col : ''; }
+    switch (e.kind) {
+      case 'int':    return pad + 'int ' + e.v + ' ' + pos(e);
+      case 'float':  return pad + 'float ' + e.v + ' ' + pos(e);
+      case 'bool':   return pad + 'bool ' + e.v + ' ' + pos(e);
+      case 'str':    return pad + 'str "' + e.v + '" ' + pos(e);
+      case 'var':    return pad + 'var ' + e.name + ' ' + pos(e);
+      case 'builtin': return pad + 'builtin ' + e.name + ' ' + pos(e);
+      case 'list': {
+        var lines = [pad + 'list ' + pos(e)];
+        e.items.forEach(function (x) { lines.push(renderAst(x, depth + 1)); });
+        return lines.join('\n');
+      }
+      case 'lambda': {
+        var l1 = [pad + 'lambda ' + pos(e) + ' params: [' + e.params.join(', ') + ']'];
+        l1.push(renderAst(e.body, depth + 1));
+        return l1.join('\n');
+      }
+      case 'apply': {
+        var l2 = [pad + 'apply ' + pos(e)];
+        l2.push(renderAst(e.fn, depth + 1));
+        l2.push(renderAst(e.arg, depth + 1));
+        return l2.join('\n');
+      }
+      case 'let': {
+        var l3 = [pad + 'let' + (e.rec ? ' rec' : '') + ' ' + e.name + ' ' + pos(e)];
+        l3.push(pad + '  bound:');
+        l3.push(renderAst(e.bound, depth + 2));
+        l3.push(pad + '  body:');
+        l3.push(renderAst(e.body, depth + 2));
+        return l3.join('\n');
+      }
+      case 'if': {
+        var l4 = [pad + 'if ' + pos(e)];
+        l4.push(pad + '  cond:');
+        l4.push(renderAst(e.cond, depth + 2));
+        l4.push(pad + '  then:');
+        l4.push(renderAst(e.then, depth + 2));
+        l4.push(pad + '  else:');
+        l4.push(renderAst(e.els, depth + 2));
+        return l4.join('\n');
+      }
+      case 'bin': {
+        var l5 = [pad + 'bin ' + e.op + ' ' + pos(e)];
+        l5.push(renderAst(e.a, depth + 1));
+        l5.push(renderAst(e.b, depth + 1));
+        return l5.join('\n');
+      }
+      case 'neg': {
+        var l6 = [pad + 'neg ' + pos(e)];
+        l6.push(renderAst(e.x, depth + 1));
+        return l6.join('\n');
+      }
+      case 'not': {
+        var l7 = [pad + 'not ' + pos(e)];
+        l7.push(renderAst(e.x, depth + 1));
+        return l7.join('\n');
+      }
+      default: return pad + '?';
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Actions
+  // -------------------------------------------------------------------
+  document.getElementById('run-btn').addEventListener('click', function () {
+    var src = source.value;
+    var inf = H.inferProgram(src);
+    if (!inf.ok) { showError('output', inf); activate('output'); return; }
+    var r = H.evalProgram(src);
+    if (r.kind === 'eval') { showError('output', r); activate('output'); return; }
+    show('output', H.showValue(r));
+    activate('output');
+  });
+
+  document.getElementById('run-vm-btn').addEventListener('click', function () {
+    var src = source.value;
+    var inf = H.inferProgram(src);
+    if (!inf.ok) { showError('output', inf); activate('output'); return; }
+    var cp = H.compileProgram(src);
+    if (cp.kind) { showError('output', cp); activate('output'); return; }
+    var res = H.runVm(cp.program, false);
+    if (res.kind) { showError('output', res); activate('output'); return; }
+    show('output', H.vmShowValue(res.value));
+    activate('output');
+  });
+
+  document.getElementById('type-btn').addEventListener('click', function () {
+    var inf = H.inferProgram(source.value);
+    if (!inf.ok) { showError('type', inf); activate('type'); return; }
+    show('type', H.showType(inf.type));
+    activate('type');
+  });
+
+  document.getElementById('ast-btn').addEventListener('click', function () {
+    var p = H.parse(source.value);
+    if (p.kind) { showError('ast', p); activate('ast'); return; }
+    show('ast', renderAst(p, 0));
+    activate('ast');
+  });
+
+  document.getElementById('bytecode-btn').addEventListener('click', function () {
+    var cp = H.compileProgram(source.value);
+    if (cp.kind) { showError('bytecode', cp); activate('bytecode'); return; }
+    show('bytecode', H.disassemble(cp.program.entry));
+    activate('bytecode');
+  });
+
+  // -------------------------------------------------------------------
+  // Step-through VM debugger
+  // -------------------------------------------------------------------
+  var stepper = null;
+  var dbgInstr = document.getElementById('dbg-instr');
+  var dbgFrame = document.getElementById('dbg-frame');
+  var dbgResult = document.getElementById('dbg-result');
+  var dbgStack = document.getElementById('dbg-stack');
+  var stepBtn = document.getElementById('dbg-step');
+  var runBtn = document.getElementById('dbg-run');
+
+  function buildStepper() {
+    var inf = H.inferProgram(source.value);
+    if (!inf.ok) {
+      dbgInstr.innerHTML = 'current instruction: <span class="error">type error: ' + inf.message + '</span>';
+      return null;
+    }
+    var cp = H.compileProgram(source.value);
+    if (cp.kind) {
+      dbgInstr.innerHTML = 'current instruction: <span class="error">compile error: ' + cp.message + '</span>';
+      return null;
+    }
+    return H.makeStepper(cp.program);
+  }
+
+  function renderDebugger() {
+    if (!stepper) {
+      dbgStack.textContent = 'stack (top first): empty';
+      dbgFrame.textContent = 'frame depth: 0';
+      dbgResult.textContent = 'result: -';
+      stepBtn.disabled = true;
+      runBtn.disabled = true;
+      return;
+    }
+    var s = stepper.snapshot();
+    stepBtn.disabled = s.done;
+    runBtn.disabled = s.done;
+    if (s.done) {
+      if (s.result && s.result.kind === 'vm') {
+        dbgInstr.innerHTML = 'current instruction: <span class="error">vm error: ' + s.result.message + '</span>';
+        dbgResult.innerHTML = 'result: <span class="error">' + s.result.message + '</span>';
+      } else if (s.result) {
+        dbgInstr.innerHTML = 'current instruction: <span class="muted">halt</span>';
+        dbgResult.innerHTML = 'result: <strong>' + H.vmShowValue(s.result.value) + '</strong>';
+      }
+    } else {
+      var instr = s.instr ? H.showInstr(s.instr) : '';
+      dbgInstr.innerHTML = 'current instruction: <strong>' + instr + '</strong>'
+        + ' <span class="muted">(' + s.fnName + ' @' + s.ip + ')</span>';
+      dbgResult.textContent = 'result: -';
+    }
+    dbgFrame.textContent = 'frame depth: ' + s.frameDepth;
+    if (s.stack.length === 0) {
+      dbgStack.innerHTML = 'stack (top first): <span class="muted">empty</span>';
+    } else {
+      var parts = s.stack.map(function (v) {
+        return '<span class="' + (v === s.stack[s.stack.length - 1] ? 'stack-top' : '') + '">' + H.vmShowValue(v) + '</span>';
+      });
+      dbgStack.innerHTML = 'stack (top first): ' + parts.join(' | ');
+    }
+  }
+
+  document.getElementById('dbg-reset').addEventListener('click', function () {
+    stepper = buildStepper();
+    renderDebugger();
+  });
+  stepBtn.addEventListener('click', function () {
+    if (!stepper) { stepper = buildStepper(); }
+    stepper.step();
+    renderDebugger();
+  });
+  runBtn.addEventListener('click', function () {
+    if (!stepper) { stepper = buildStepper(); }
+    for (var i = 0; i < 100000000; i++) {
+      var s = stepper.snapshot();
+      if (s.done) { break; }
+      stepper.step();
+    }
+    renderDebugger();
+  });
+
+  renderDebugger();
+})();
+</script>
+</body>
+</html>

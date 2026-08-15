@@ -1486,17 +1486,19 @@
     }
   }
 
-  // Run a compiled program. Returns { ok: true, value } or
-  // { kind: 'vm', message }. When trace is true, every executed instruction
-  // is logged (to console when no logger is supplied).
-  function runVm(program, trace, traceFn) {
-    var log = traceFn || function (line) { if (typeof console !== 'undefined') { console.log(line); } };
+  // A VM machine: owns the operand stack, the frame stack, and all the
+  // instruction logic, and exposes single-step + snapshot so the same
+  // machine drives both @runVm@ (run to completion) and the playground's
+  // step-through debugger.
+  function makeVm(program) {
     var stack = [];
     var frames = [{
       f: program.entry,
       ctx: { cells: {}, outer: null },
       ip: 0
     }];
+    var halted = false;
+    var result = null;
 
     function pushS(v) { stack.push(v); }
     function popS() {
@@ -1812,26 +1814,69 @@
       }
     }
 
-    while (frames.length > 0) {
+    // Execute one instruction (unless halted) and return a snapshot.
+    function step() {
+      if (halted) { return snapshot(); }
+      if (frames.length === 0) { halted = true; result = failVm('frame stack exhausted'); return snapshot(); }
       var cf = frames[0];
       var code = cf.f.code;
-      if (cf.ip >= code.length) { return failVm('program counter out of range'); }
+      if (cf.ip >= code.length) { halted = true; result = failVm('program counter out of range'); return snapshot(); }
       var instr = code[cf.ip];
       if (instr.op === 'halt') {
-        if (stack.length === 0) { return failVm('operand stack empty at halt'); }
-        return { ok: true, value: stack[stack.length - 1] };
+        halted = true;
+        if (stack.length === 0) { result = failVm('operand stack empty at halt'); }
+        else { result = { ok: true, value: stack[stack.length - 1] }; }
+        return snapshot();
       }
       if (instr.op === 'return') {
         frames.shift();
-        continue;
-      }
-      if (trace) {
-        log(cf.ip + ': ' + showInstr(instr) + '  stack=[' + stack.map(vmShowValue).join(', ') + ']');
+        return snapshot();
       }
       var err = execute(instr);
-      if (err) { return err; }
+      if (err) { halted = true; result = err; }
+      return snapshot();
     }
-    return failVm('frame stack exhausted');
+
+    // A read-only view of the machine for the debugger.
+    function snapshot() {
+      var f = frames[0];
+      return {
+        done: halted || frames.length === 0,
+        result: result,
+        ip: f ? f.ip : -1,
+        fnName: f ? f.f.name : '',
+        instr: f && f.ip < f.f.code.length ? f.f.code[f.ip] : null,
+        stack: stack.slice(),
+        stackDepth: stack.length,
+        frameDepth: frames.length
+      };
+    }
+
+    return { step: step, snapshot: snapshot };
+  }
+
+  // Run a compiled program to completion. Returns { ok: true, value } or a
+  // vm error. When trace is true, every executed instruction is logged.
+  function runVm(program, trace, traceFn) {
+    var log = traceFn || function (line) { if (typeof console !== 'undefined') { console.log(line); } };
+    var m = makeVm(program);
+    for (var guard = 0; guard < 1000000000; guard++) {
+      var s = m.snapshot();
+      if (s.done) {
+        if (s.result === null) { return HErr('vm', POS_EOF, 'frame stack exhausted'); }
+        return s.result;
+      }
+      if (trace && s.instr) {
+        log(s.ip + ': ' + showInstr(s.instr) + '  stack=[' + s.stack.map(vmShowValue).join(', ') + ']');
+      }
+      m.step();
+    }
+    return HErr('vm', POS_EOF, 'execution exceeded the instruction guard');
+  }
+
+  // A single-steppable machine for the web playground's step debugger.
+  function makeStepper(program) {
+    return makeVm(program);
   }
 
   // =====================================================================
@@ -1892,6 +1937,7 @@
     evalProgram: evalProgram,
     compileProgram: compileProgram,
     runVm: runVm,
+    makeStepper: makeStepper,
     showValue: showValue,
     vmShowValue: vmShowValue,
     showInstr: showInstr,
