@@ -150,8 +150,9 @@
   <h1>Halcyon</h1>
   <p>A small, calm, well-typed functional language: lexer, parser, Hindley-Milner type inference, a tree-walking
   interpreter, and a bytecode VM with closures and upvalue cells, algebraic data types, pattern matching, tail-call
-  optimization, and a deterministic optimizer. This playground runs a faithful JavaScript mirror of
-  the Haskell core (cross-checked for byte-identical output), so what you see here is the verified behavior.</p>
+  optimization, records, type classes, a Char type with string builtins, a profiler, and a deterministic optimizer.
+  This playground runs a faithful JavaScript mirror of the Haskell core (cross-checked for byte-identical output),
+  so what you see here is the verified behavior.</p>
 </header>
 
 <main>
@@ -170,6 +171,7 @@
           <button id="type-btn">Typecheck</button>
           <button id="ast-btn">Show AST</button>
           <button id="bytecode-btn">Bytecode</button>
+          <button id="profile-btn">Profile</button>
           <label class="opt-toggle" title="Run the deterministic optimizer before executing or disassembling">
             <input type="checkbox" id="opt-check"> --opt
           </label>
@@ -207,11 +209,13 @@
         <button class="tab" data-panel="type">Type</button>
         <button class="tab" data-panel="ast">AST</button>
         <button class="tab" data-panel="bytecode">Bytecode</button>
+        <button class="tab" data-panel="profile">Profile</button>
       </div>
       <div class="panel active" id="panel-output"><pre id="out-output" class="muted">Run a program to see its output.</pre></div>
       <div class="panel" id="panel-type"><pre id="out-type" class="muted">Typecheck a program to see its inferred top-level type.</pre></div>
       <div class="panel" id="panel-ast"><pre id="out-ast" class="muted">Show the AST to see the parsed structure.</pre></div>
       <div class="panel" id="panel-bytecode"><pre id="out-bytecode" class="muted">Compile a program to see its bytecode disassembly.</pre></div>
+      <div class="panel" id="panel-profile"><pre id="out-profile" class="muted">Run a program on the profiled VM to see instruction and call counts.</pre></div>
     </div>
   </div>
 </main>
@@ -284,9 +288,11 @@
       case 'float':  return pad + 'float ' + e.v + ' ' + pos(e);
       case 'bool':   return pad + 'bool ' + e.v + ' ' + pos(e);
       case 'str':    return pad + 'str "' + e.v + '" ' + pos(e);
+      case 'char':   return pad + 'char ' + e.v + ' ' + pos(e);
       case 'var':    return pad + 'var ' + e.name + ' ' + pos(e);
       case 'builtin': return pad + 'builtin ' + e.name + ' ' + pos(e);
       case 'constr': return pad + 'constr ' + e.name + ' ' + pos(e);
+      case 'method': return pad + 'method ' + e.name + ' ' + pos(e);
       case 'list': {
         var lines = [pad + 'list ' + pos(e)];
         e.items.forEach(function (x) { lines.push(renderAst(x, depth + 1)); });
@@ -350,6 +356,27 @@
         l7.push(renderAst(e.x, depth + 1));
         return l7.join('\n');
       }
+      case 'record': {
+        var lr = [pad + 'record ' + pos(e)];
+        e.fields.forEach(function (f) {
+          lr.push(pad + '  ' + f[0] + ' =');
+          lr.push(renderAst(f[1], depth + 2));
+        });
+        return lr.join('\n');
+      }
+      case 'proj': {
+        var lpr = [pad + 'proj ' + e.name + ' ' + pos(e)];
+        lpr.push(renderAst(e.e, depth + 1));
+        return lpr.join('\n');
+      }
+      case 'update': {
+        var lu = [pad + 'update ' + e.name + ' ' + pos(e)];
+        lu.push(pad + '  base:');
+        lu.push(renderAst(e.e, depth + 2));
+        lu.push(pad + '  value:');
+        lu.push(renderAst(e.value, depth + 2));
+        return lu.join('\n');
+      }
       default: return pad + '?';
     }
   }
@@ -362,9 +389,18 @@
       case 'pfloat': return pad + 'pfloat ' + pat.v + ' ' + pos(pat);
       case 'pbool':  return pad + 'pbool ' + pat.v + ' ' + pos(pat);
       case 'pstr':   return pad + 'pstr "' + pat.v + '" ' + pos(pat);
+      case 'pchar':  return pad + 'pchar ' + pat.v + ' ' + pos(pat);
       case 'pvar':   return pad + 'pvar ' + pat.name + ' ' + pos(pat);
       case 'pwild':  return pad + 'pwild ' + pos(pat);
       case 'pnil':   return pad + 'pnil ' + pos(pat);
+      case 'precord': {
+        var pr = [pad + 'precord ' + pos(pat)];
+        pat.fields.forEach(function (f) {
+          pr.push(pad + '  ' + f[0] + ' =');
+          pr.push(renderPattern(f[1], depth + 2));
+        });
+        return pr.join('\n');
+      }
       case 'pcons': {
         var pc = [pad + 'pcons ' + pos(pat)];
         pc.push(renderPattern(pat.h, depth + 1));
@@ -387,15 +423,52 @@
 
   function renderProgram(prog) {
     var lines = [];
-    prog.decls.forEach(function (d) {
-      var ctorParts = d.ctors.map(function (c) {
-        return c.name + (c.fields.length ? ' ' + c.fields.map(renderType).join(' ') : '');
-      });
-      lines.push('data ' + d.name + (d.tyvars.length ? ' ' + d.tyvars.join(' ') : '')
-        + ' = ' + ctorParts.join(' | '));
+    (prog.imports || []).forEach(function (imp) {
+      lines.push('import "' + imp + '"');
     });
-    lines.push(renderAst(prog.expr, 0));
+    (prog.defs || []).forEach(function (d) {
+      lines.push(renderDef(d));
+    });
+    if (prog.expr !== null && prog.expr !== undefined) {
+      lines.push(renderAst(prog.expr, 0));
+    }
     return lines.join('\n');
+  }
+
+  function renderDef(d) {
+    switch (d.kind) {
+      case 'defdata': {
+        var dd = d.decl;
+        var ctorParts = dd.ctors.map(function (c) {
+          return c.name + (c.fields.length ? ' ' + c.fields.map(renderType).join(' ') : '');
+        });
+        return 'data ' + dd.name + (dd.tyvars.length ? ' ' + dd.tyvars.join(' ') : '')
+          + ' = ' + ctorParts.join(' | ');
+      }
+      case 'defrecord': {
+        var dr = d.decl;
+        return 'record ' + dr.name + (dr.tyvars.length ? ' ' + dr.tyvars.join(' ') : '')
+          + ' = { ' + dr.fields.map(function (f) { return f[0] + ' : ' + renderType(f[1]); }).join(', ') + ' }';
+      }
+      case 'defclass': {
+        var dc = d.decl;
+        return 'class ' + dc.name + ' ' + dc.var + ' where\n'
+          + dc.methods.map(function (m) { return '  ' + m[0] + ' : ' + renderType(m[1]); }).join('\n');
+      }
+      case 'definstance': {
+        var di = d.decl;
+        var ctx = '';
+        if (di.ctx) {
+          ctx = ' ' + di.ctx[0] + ' ' + di.ctx[1] + ' =>';
+        }
+        return 'instance' + ctx + ' ' + di.class + ' ' + renderType(di.head) + ' where\n'
+          + di.methods.map(function (m) { return '  ' + m[0] + ' = ' + renderAst(m[1], 0); }).join('\n');
+      }
+      case 'deflet':
+        return 'let' + (d.rec ? ' rec' : '') + ' ' + d.name + ' = ' + renderAst(d.bound, 0);
+      default:
+        return '?';
+    }
   }
 
   function renderType(t) {
@@ -404,10 +477,12 @@
       case 'float': return 'Float';
       case 'bool': return 'Bool';
       case 'str': return 'String';
-      case 'var': return 'a' + t.n;
-      case 'list': return '[' + renderType(t.item) + ']';
-      case 'fun': return renderType(t.from) + ' -> ' + renderType(t.to);
+      case 'char': return 'Char';
+      case 'var': return t.n >= 2000000000 ? 'a' : 'a' + t.n;
+      case 'list': return '[' + renderType(t.t) + ']';
+      case 'fun': return renderType(t.a) + ' -> ' + renderType(t.b);
       case 'data': return t.n + (t.args.length ? ' ' + t.args.map(renderType).join(' ') : '');
+      case 'rec': return t.n + (t.args.length ? ' ' + t.args.map(renderType).join(' ') : '');
       default: return '?';
     }
   }
@@ -442,6 +517,17 @@
     if (!inf.ok) { showError('type', inf); activate('type'); return; }
     show('type', H.showType(inf.type));
     activate('type');
+  });
+
+  document.getElementById('profile-btn').addEventListener('click', function () {
+    var inf = H.inferProgram(source.value);
+    if (!inf.ok) { showError('profile', inf); activate('profile'); return; }
+    var cp = H.compileProgram(source.value, document.getElementById('opt-check').checked);
+    if (cp.kind) { showError('profile', cp); activate('profile'); return; }
+    var res = H.runVmProfiled(cp.program);
+    if (res.kind) { showError('profile', res); activate('profile'); return; }
+    show('profile', H.renderProfile(res.profile) + '\n\nvalue: ' + H.vmShowValue(res.value));
+    activate('profile');
   });
 
   document.getElementById('ast-btn').addEventListener('click', function () {
