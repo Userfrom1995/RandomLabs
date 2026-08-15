@@ -337,6 +337,27 @@ parserTests =
     , check "parse: char pattern"      (parsesOk "match c with | 'a' => 1 | _ => 0")
     , check "parse: char list"         (parsesOk "['a', 'b']")
     , check "parse: char then match"   (parsesOk "'a' == 'b'")
+    , check "parse: infixl decl"       (parsesOk "infixl 6 <+>\nlet (<+>) = fn a b => a + b\n1 <+> 2")
+    , check "parse: infixr decl"       (parsesOk "infixr 8 **\nlet (**) = fn a b => a * b\n2 ** 3 ** 2")
+    , check "parse: infix nonassoc"    (parsesOk "infix 0 .<.>\nlet (.<.>) = fn a b => a < b\n1 .<.> 2")
+    , check "parse: op level 9"        (parsesOk "infixl 9 <!>\nlet (<!>) = fn a b => a\n1 <!> 2")
+    , check "parse: op reference"      (parsesOk "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet f = (<+>) in f 1 2")
+    , check "parse: op as argument"    (parsesOk "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet g = fn op => op 1 2 in g (<+>)")
+    , check "parse: op before use"     (parsesOk "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet x = 1 <+> 2 in x")
+    , check "parse: op then def"       (parsesOk "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet x = 1 <+> 2\nin x")
+    , check "parse: reject op level 10" (parseFails "infixl 10 <+>\nlet (<+>) = fn a b => a + b\n1 <+> 2")
+    , check "parse: reject builtin redeclare" (parseFails "infixl 4 +\nlet (+) = fn a b => a + b\n1 + 2")
+    , check "parse: reject dup op decl" (parseFails "infixl 5 <+>\ninfixl 6 <+>\nlet (<+>) = fn a b => a + b\n1 <+> 2")
+    , check "parse: reject undeclared op" (parseFails "let (<+>) = fn a b => a + b\n1 <+> 2")
+    , check "parse: op declared but undefined" (inferFails "infixl 5 <+>\n1 <+> 2")
+    , check "parse: synonym decl"      (parsesOk "type Dict = [String]\n[]")
+    , check "parse: synonym tyvars"    (parsesOk "data Pair a b = Pair a b\ntype P a b = Pair a b\nrecord R = { p : P Int Bool }\n1")
+    , check "parse: synonym use"       (parsesOk "type Dict = [String]\nrecord R = { d : Dict }\n1")
+    , check "parse: synonym before data" (parsesOk "type MyList = [Int]\ndata Box a = Box a\nrecord R = { b : Box MyList }\n1")
+    , check "parse: reject recursive synonym" (parseFails "type Loop = Loop\n1")
+    , check "parse: reject dup synonym" (parseFails "type A = Int\ntype A = Bool\n1")
+    , check "parse: reject primitive synonym" (parseFails "type Int = Bool\n1")
+    , check "parse: reject synonym arity mismatch" (parseFails "data Pair a b = Pair a b\ntype Pair2 a b = Pair a b\nrecord R = { p : Pair2 Int }\n1")
   ]
 
 typeTests :: Harness
@@ -443,6 +464,16 @@ typeTests =
     , check "type: reject char == int" (inferFails "'a' == 1")
     , check "type: reject substr count" (inferFails "substr \"a\" 0 true")
     , check "type: reject strContains int" (inferFails "strContains 1 \"a\"")
+    , check "type: user op application" (inferredAs "infixl 5 <+>\nlet (<+>) = fn a b => a + b\n1 <+> 2" "Int")
+    , check "type: user op poly"       (inferredAs "infixl 5 <++>\nlet (<++>) = fn a b => a + b\nlet x = 1 <++> 2 in let y = 1.5 <++> 2.0 in y" "Float")
+    , check "type: user op with builtin" (inferredAs "infixl 2 <+>\nlet (<+>) = fn a b => a + b\n1 + 2 <+> 3" "Int")
+    , check "type: op reference"       (inferredAs "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet f = (<+>) in f 1 2" "Int")
+    , check "type: op higher level"    (inferredAs "infixl 7 <+>\nlet (<+>) = fn a b => a + b\n1 + 2 <+> 3 * 4" "Int")
+    , check "type: synonym expansion"  (inferredAs "type Dict = [Int]\nrecord R = { d : Dict }\n{ d = [1, 2] }.d" "[Int]")
+    , check "type: synonym in data"    (inferredAs "type L = [Int]\ndata Box a = Box a\nrecord R = { b : Box L }\n{ b = Box [1] }.b" "Box [Int]")
+    , check "type: synonym poly"       (inferredAs "data Pair a b = Pair a b\ntype P a b = Pair a b\nrecord R = { p : P Int Bool }\n{ p = Pair 1 true }.p" "Pair Int Bool")
+    , check "type: synonym chain"      (inferredAs "type A = Int\ntype B = A\nrecord R = { x : B }\n{ x = 7 }.x" "Int")
+    , check "type: reject synonym wrong type" (inferFails "type Dict = [String]\nrecord R = { d : Dict }\n{ d = 5 }")
   ]
 
 evalTests :: Harness
@@ -563,7 +594,22 @@ evalTests =
     , check "eval: show string"         (evalsTo "show \"hi\"" "hi")
     , check "eval: string builtin partial" (evalsTo "let g = charAt \"hello\" in g 0" "'h'")
     , check "eval: strAppend then concat" (evalsTo "strAppend \"a\" \"b\" + \"c\"" "abc")
-    ]
+    , check "eval: user op"            (evalsTo "infixl 5 <+>\nlet (<+>) = fn a b => a + b\n1 <+> 2" "3")
+    , check "eval: op left assoc"      (evalsTo "infixl 5 <->\nlet (<->) = fn a b => a - b\n10 <-> 3 <-> 2" "5")
+    , check "eval: op right assoc"     (evalsTo "infixr 8 **\nlet (**) = fn a b => a - b\n2 ** 3 ** 2" "1")
+    , check "eval: op precedence"      (evalsTo "infixl 2 <+>\nlet (<+>) = fn a b => a + b\n1 + 2 <+> 3 * 4" "15")
+    , check "eval: op vs builtin"      (evalsTo "infixl 7 <*>\nlet (<*>) = fn a b => a * b\n1 + 2 <*> 3" "7")
+    , check "eval: op level 0"         (evalsTo "infixl 0 <|\nlet (<|) = fn a b => a * b\n1 <| 2 + 3" "5")
+    , check "eval: op as function"     (evalsTo "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet f = (<+>) in f 2 3" "5")
+    , check "eval: op partial via ref" (evalsTo "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet add3 = (<+>) 3 in add3 4" "7")
+    , check "eval: op nonassoc single" (evalsTo "infix 0 <..>\nlet (<..>) = fn a b => a < b\n1 <..> 2" "true")
+    , check "eval: op with lists"      (evalsTo "infixl 5 +++\nlet (+++) = fn a b => append a b\n[1] +++ [2, 3]" "[1, 2, 3]")
+    , check "eval: op higher-order arg" (evalsTo "infixl 5 <+>\nlet (<+>) = fn a b => a + b\nlet apply = fn op a b => op a b in apply (<+>) 1 2" "3")
+    , check "eval: synonym value"      (evalsTo "type Dict = [String]\nrecord R = { d : Dict }\nlet r = { d = [\"a\", \"b\"] } in length r.d" "2")
+    , check "eval: synonym in pattern type" (evalsTo "data Pair a b = Pair a b\ntype P a b = Pair a b\nrecord R = { p : P Int Bool }\nlet r = { p = Pair 1 true } in match r.p with | Pair a b => if b then a else 0" "1")
+    , check "eval: synonym chain"      (evalsTo "type A = Int\ntype B = A\nrecord R = { x : B }\nlet r = { x = 7 } in r.x + 1" "8")
+    , check "eval: synonym then data"  (evalsTo "type L = [Int]\ndata Box a = Box a\nrecord R = { b : Box L }\nlet r = { b = Box [1, 2, 3] } in match r.b with | Box xs => length xs" "3")
+  ]
 
 vmTests :: IO Harness
 vmTests = sequence

@@ -497,4 +497,28 @@ corpus =
         ])
       "2\n"
       ["a", "b"]
+  , CorpusEntry "user-operator"
+      (unlines
+        [ "-- A user-defined right-associative operator with its own function."
+        , "infixr 8 <->"
+        , "let (<->) = fn a b => a - b"
+        , "let (<+>) = fn a b => a + b"
+        , "infixl 5 <+>"
+        , "let apply = fn op a b => op a b"
+        , "let pick = (<->)"
+        , "in apply pick (10 <-> 3 <-> 2) (1 <+> 2)"
+        ])
+      "6"
+      []
+  , CorpusEntry "type-synonym"
+      (unlines
+        [ "-- A type synonym expands to its underlying type at parse time."
+        , "type Dict = [Int]"
+        , "type Table k v = Dict"
+        , "record Env = { table : Table Int Int, seed : Int }"
+        , "let env = { seed = 10, table = [1, 2, 3] }"
+        , "in length env.table + env.seed"
+        ])
+      "13"
+      []
   ]
