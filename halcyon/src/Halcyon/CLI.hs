@@ -20,6 +20,7 @@ import Halcyon.Eval (EvalError(..), evalProgram, evalProgramIn, evalProgramEffec
 import Halcyon.Infer (InferError(..), inferProgramIn, showType)
 import Halcyon.Module (ModuleError(..), loadProgram, resolveProgram, diskProvider)
 import Halcyon.Optimize (optimizeProgram)
+import Halcyon.Parser (ParseError(..), parseProgram)
 import Halcyon.Repl (repl)
 import Halcyon.Selftest (runSelftest)
 import Halcyon.Vm (VmError(..), runVm, runVmProfiled, runVmEffect, renderProfile, statsLine, vmShowValue, VmVal(..))
@@ -259,7 +260,7 @@ runCorpus opt = do
   if null failed then exitSuccess else exitFailure
   where
     runOne e = do
-      r <- runBothOpt opt (cSource e)
+      r <- runBothOpt opt (cInput e) (cSource e)
       return $ case r of
         Left err                        -> (cName e, err)
         Right out | out == cExpected e  -> (cName e, "")
@@ -342,25 +343,41 @@ runBothResolved prog = do
 
 -- | Run a source string on both evaluators; require byte-identical output.
 -- With @opt@ the VM runs the optimized bytecode (the interpreter output must
--- still match it, so the optimizer provably changes nothing observable).
-runBothOpt :: Bool -> String -> IO (Either String String)
-runBothOpt opt src = do
-  rE <- case evalProgram src of
-    Left (EvalError _ m) -> return (Left ("interpreter: " <> m))
-    Right (Just v)       -> return (Right (showValue v))
-    Right Nothing        -> return (Right "")
+-- still match it, so the optimizer provably changes nothing observable). The
+-- input lines script @readLine@ for effect programs; the compared output is
+-- the printed output plus the rendered final value, the unit value
+-- contributing nothing (exactly what the CLI commands print).
+runBothOpt :: Bool -> [String] -> String -> IO (Either String String)
+runBothOpt opt inputs src = do
+  rE <- case parseProgram src of
+    Left (ParseError p m) -> return (Left ("parse: " <> m))
+    Right prog -> case evalProgramEffect inputs prog of
+      Left (EvalError _ m) -> return (Left ("interpreter: " <> m))
+      Right Nothing        -> return (Right "")
+      Right (Just r)       -> return (Right (renderRun r))
   rV <- case compileProgram src of
     Left (CompileError _ m) -> return (Left ("compile: " <> m))
     Right compiled -> do
       let compiled' = if opt then optimizeProgram compiled else compiled
-      res <- runVm False compiled'
+      res <- runVmEffect compiled' inputs
       return $ case res of
         Left (VmError m) -> Left ("vm: " <> m)
-        Right v          -> Right (vmShowValue v)
+        Right r          -> Right (renderRunVm r)
   return $ case (rE, rV) of
     (Left e, _)            -> Left e
     (Right ev, Right vv) | ev == vv -> Right ev
     (Right ev, Right vv)   -> Left ("interpreter " <> ev <> " /= vm " <> vv)
+
+-- | The CLI-visible output of an interpreter effect run: printed output plus
+-- the rendered final value, with the unit value contributing nothing.
+renderRun :: (String, Value) -> String
+renderRun (out, VUnit) = out
+renderRun (out, v)     = out <> showValue v
+
+-- | The CLI-visible output of a VM effect run (see 'renderRun').
+renderRunVm :: (String, VmVal) -> String
+renderRunVm (out, VmUnit) = out
+renderRunVm (out, v)      = out <> vmShowValue v
 
 -- ---------------------------------------------------------------------
 -- Helpers

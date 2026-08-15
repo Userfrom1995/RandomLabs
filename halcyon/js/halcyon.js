@@ -38,6 +38,8 @@
   var VRec = function (name, fields) { return { k: 'rec', name: name, fields: fields }; };
   var VMethod = function (name) { return { k: 'method', name: name }; };
   var VDict = function (cname, methods) { return { k: 'dict', cname: cname, methods: methods }; };
+  var VUnit = function () { return { k: 'unit' }; };
+  var VEffect = function (tag, args) { return { k: 'effect', tag: tag, args: args }; };
 
   // Deterministic float rendering, mirroring Halcyon.Value.showFloat:
   // whole floats render with a trailing ".0", ordinary magnitudes stay in
@@ -84,13 +86,16 @@
       case 'rec':     return '{ ' + v.fields.map(function (f) { return f[0] + ' = ' + showValue(f[1]); }).join(', ') + ' }';
       case 'method':  return '<method: ' + v.name + '>';
       case 'dict':    return '<dict: ' + v.cname + '>';
+      case 'unit':    return '()';
+      case 'effect':  return '<effect: ' + v.tag + v.args.map(showValue).join(' ') + '>';
       default:        return '<value>';
     }
   }
 
   var BUILTINS = ['cons', 'head', 'tail', 'isNil', 'length', 'reverse', 'append', 'take', 'drop',
     'intToStr', 'floatToStr', 'boolToStr', 'strToStr', 'listToStr',
-    'strLen', 'charAt', 'substr', 'strAppend', 'strContains', 'str'];
+    'strLen', 'charAt', 'substr', 'strAppend', 'strContains', 'str',
+    'return', 'bind', 'print', 'printLine', 'readLine'];
 
   // =====================================================================
   // Positions
@@ -124,7 +129,8 @@
     let: 'let', rec: 'rec', in: 'in', fn: 'fn', if: 'if',
     then: 'then', else: 'else', true: 'true', false: 'false',
     data: 'data', match: 'match', with: 'with', import: 'import',
-    record: 'record', class: 'class', instance: 'instance', where: 'where'
+    record: 'record', class: 'class', instance: 'instance', where: 'where',
+    do: 'do'
   };
 
   // Lex an entire source string to a token list. Fails fast on the first
@@ -164,6 +170,7 @@
       if (ch === '*') { return simpleTok('*', 1); }
       if (ch === '/' && !startsWith('/=', s)) { return simpleTok('/', 1); }
       if (ch === '/' && startsWith('/=', s)) { return simpleTok('!=', 2); }
+      if (ch === '<' && startsWith('<-', s)) { return simpleTok('<-', 2); }
       if (ch === '<' && !startsWith('<=', s)) { return simpleTok('<', 1); }
       if (ch === '<' && startsWith('<=', s)) { return simpleTok('<=', 2); }
       if (ch === '>' && !startsWith('>=', s)) { return simpleTok('>', 1); }
@@ -186,6 +193,7 @@
       if (ch === '}') { return simpleTok('}', 1); }
       if (ch === '.') { return simpleTok('.', 1); }
       if (ch === ',') { return simpleTok(',', 1); }
+      if (ch === ';') { return simpleTok(';', 1); }
       return HErr('lex', Pos(l, c), 'unexpected character: ' + ch);
     }
 
@@ -510,7 +518,78 @@
       if (t === 'if') { return parseIf(); }
       if (t === 'fn') { return parseLambda(); }
       if (t === 'match') { return parseMatch(); }
+      if (t === 'do') { return parseDo(); }
       return parseBinary(1);
+    }
+
+    // do { } blocks desugar onto the first-class return/bind builtins at
+    // parse time: @name <- e@ binds, @let name = e@ is a local, bare
+    // statements run for their effects (bound to @_@), and the block must end
+    // in an expression. An empty block is @return ()@. Mirrors the Haskell
+    // parser's desugarDo.
+    function parseDo() {
+      var p = consume('do');
+      var lbrace = consume('{');
+      if (lbrace.kind === 'parse') { return lbrace; }
+      var stmts = [];
+      while (true) {
+        if (peek() === '}') { break; }
+        if (peek() === 'eof') { return failAt(peekPos(), "expected '}' to close do block"); }
+        var s = parseDoStmt();
+        if (s.kind === 'parse') { return s; }
+        stmts.push(s);
+        if (peek() === ';') { advance(); continue; }
+        break;
+      }
+      var rbrace = consume('}');
+      if (rbrace.kind === 'parse') { return rbrace; }
+      if (stmts.length === 0) {
+        return { kind: 'apply', pos: p, fn: { kind: 'builtin', pos: p, name: 'return' }, arg: { kind: 'unit', pos: p } };
+      }
+      if (stmts[stmts.length - 1].kind !== 'final') {
+        return failAt(p, 'a do block must end with an expression');
+      }
+      return desugarDo(p, stmts);
+    }
+
+    function parseDoStmt() {
+      var p = peekPos();
+      if (peek() === 'let') {
+        advance();
+        var nm = expectIdent();
+        if (nm.kind === 'parse') { return nm; }
+        var a = consume('=');
+        if (a.kind === 'parse') { return a; }
+        var e = parseExpr();
+        if (e.kind === 'parse') { return e; }
+        return { kind: 'dlet', pos: p, name: nm, expr: e };
+      }
+      if (peek() === 'ident' && pos + 1 < ts.length && ts[pos + 1].k === '<-') {
+        var name = advance().v;
+        advance(); // '<-'
+        var e2 = parseExpr();
+        if (e2.kind === 'parse') { return e2; }
+        return { kind: 'dbind', pos: p, name: name, expr: e2 };
+      }
+      var e3 = parseExpr();
+      if (e3.kind === 'parse') { return e3; }
+      return { kind: 'final', pos: p, expr: e3 };
+    }
+
+    function desugarDo(p, stmts) {
+      if (stmts.length === 0) { return { kind: 'unit', pos: p }; }
+      var s = stmts[0];
+      var rest = stmts.slice(1);
+      if (s.kind === 'final' && rest.length === 0) { return s.expr; }
+      var bind = { kind: 'builtin', pos: p, name: 'bind' };
+      function lam(names, body) { return { kind: 'lambda', pos: p, params: names, body: body }; }
+      if (s.kind === 'dbind') {
+        return { kind: 'apply', pos: p, fn: { kind: 'apply', pos: p, fn: bind, arg: s.expr }, arg: lam([s.name], desugarDo(p, rest)) };
+      }
+      if (s.kind === 'dlet') {
+        return { kind: 'let', pos: p, rec: false, name: s.name, bound: s.expr, body: desugarDo(p, rest) };
+      }
+      return { kind: 'apply', pos: p, fn: { kind: 'apply', pos: p, fn: bind, arg: s.expr }, arg: lam(['_'], desugarDo(p, rest)) };
     }
 
     function parseMatch() {
@@ -630,7 +709,7 @@
     }
 
     function isDataName(n) {
-      return isCapitalized(n) && n !== 'Int' && n !== 'Float' && n !== 'Bool' && n !== 'String' && n !== 'Char';
+      return isCapitalized(n) && n !== 'Int' && n !== 'Float' && n !== 'Bool' && n !== 'String' && n !== 'Char' && n !== 'Unit' && n !== 'Effect';
     }
 
     // Resolve a lowercase type-variable name against the environment, which
@@ -657,6 +736,11 @@
         if (n === 'Bool') { return TT.BOOL; }
         if (n === 'String') { return TT.STR; }
         if (n === 'Char') { return TT.CHAR; }
+        if (n === 'Unit') { return TT.UNIT; }
+        if (n === 'Effect') {
+          if (typeAtomStart(peek())) { return TT.EFFECT(parseTypeApp(tyvars)); }
+          return failAt(p, "expected a type after 'Effect', found " + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
+        }
         if (isCapitalized(n)) { return TData(n, []); }
         var idx = findTypeVar(tyvars, n);
         if (idx !== null) { return TT.var_(idx); }
@@ -894,6 +978,11 @@
         }
         case '(': {
           advance();
+          if (peek() === ')') {
+            advance();
+            a = { kind: 'unit', pos: p };
+            break;
+          }
           var e = parseExpr();
           if (e.kind === 'parse') { return e; }
           var close = consume(')');
@@ -1167,7 +1256,7 @@
       if (a.kind === 'parse') { return a; }
       if (t === 'ident' && isCapitalized(ts[pos - 1].v)) {
         var name = ts[pos - 1].v;
-        if (name !== 'Int' && name !== 'Float' && name !== 'Bool' && name !== 'String' && name !== 'Char') {
+        if (name !== 'Int' && name !== 'Float' && name !== 'Bool' && name !== 'String' && name !== 'Char' && name !== 'Unit' && name !== 'Effect') {
           var args = [];
           while (peekPos().line === p.line && typeAtomStart(peek())) {
             var arg = parseHeadAtom();
@@ -1190,6 +1279,11 @@
         if (n === 'Bool') { return TT.BOOL; }
         if (n === 'String') { return TT.STR; }
         if (n === 'Char') { return TT.CHAR; }
+        if (n === 'Unit') { return TT.UNIT; }
+        if (n === 'Effect') {
+          if (typeAtomStart(peek())) { return TT.EFFECT(parseHeadApp()); }
+          return failAt(p, "expected a type after 'Effect', found " + describeTok(ts[pos] || { k: 'eof', p: POS_EOF }));
+        }
         if (isCapitalized(n)) { return TData(n, []); }
         return TT.var_(CLASSTYPEVAR);
       }
@@ -1275,8 +1369,9 @@
     function fun(a, b) { return { k: 'fun', a: a, b: b }; }
     function data(n, args) { return { k: 'data', n: n, args: args }; }
     function rec(n, args) { return { k: 'rec', n: n, args: args }; }
-    var INT = { k: 'int' }, FLOAT = { k: 'float' }, BOOL = { k: 'bool' }, STR = { k: 'str' }, CHAR = { k: 'char' };
-    return { var_: var_, list: list, fun: fun, data: data, rec: rec, INT: INT, FLOAT: FLOAT, BOOL: BOOL, STR: STR, CHAR: CHAR };
+    function effect(t) { return { k: 'effect', t: t }; }
+    var INT = { k: 'int' }, FLOAT = { k: 'float' }, BOOL = { k: 'bool' }, STR = { k: 'str' }, CHAR = { k: 'char' }, UNIT = { k: 'unit' };
+    return { var_: var_, list: list, fun: fun, data: data, rec: rec, effect: effect, INT: INT, FLOAT: FLOAT, BOOL: BOOL, STR: STR, CHAR: CHAR, UNIT: UNIT };
   }
   var TT = T();
   function TData(n, args) { return { k: 'data', n: n, args: args }; }
@@ -1321,6 +1416,7 @@
       case 'var':  var s = new Set(); s.add(t.n); return s;
       case 'list': return freeVars(t.t);
       case 'fun':  return union(freeVars(t.a), freeVars(t.b));
+      case 'effect': return freeVars(t.t);
       case 'data': {
         var acc = new Set();
         t.args.forEach(function (a) {
@@ -1645,6 +1741,8 @@
         case 'str':  return 'String';
         case 'char': return 'Char';
         case 'list': return '[' + go(t.t) + ']';
+        case 'effect': return 'Effect ' + showArg(t.t);
+        case 'unit': return 'Unit';
         case 'data': {
           if (t.args.length === 0) { return t.n; }
           var as = t.args.map(function (a) { return go(a); });
@@ -2011,6 +2109,7 @@
         return t;
       case 'list': return { k: 'list', t: resolveIn(sub, t.t) };
       case 'fun':  return { k: 'fun', a: resolveIn(sub, t.a), b: resolveIn(sub, t.b) };
+      case 'effect': return { k: 'effect', t: resolveIn(sub, t.t) };
       case 'data': return { k: 'data', n: t.n, args: t.args.map(function (a) { return resolveIn(sub, a); }) };
       case 'rec':  return { k: 'rec', n: t.n, args: t.args.map(function (a) { return resolveIn(sub, a); }) };
       default:     return t;
@@ -2038,6 +2137,7 @@
         return t;
       case 'list': return { k: 'list', t: resolve(st, t.t) };
       case 'fun':  return { k: 'fun', a: resolve(st, t.a), b: resolve(st, t.b) };
+      case 'effect': return { k: 'effect', t: resolve(st, t.t) };
       case 'data': return { k: 'data', n: t.n, args: t.args.map(function (a) { return resolve(st, a); }) };
       case 'rec':  return { k: 'rec', n: t.n, args: t.args.map(function (a) { return resolve(st, a); }) };
       default:     return t;
@@ -2055,6 +2155,8 @@
     if (r1.k === 'bool' && r2.k === 'bool') { return null; }
     if (r1.k === 'str' && r2.k === 'str') { return null; }
     if (r1.k === 'char' && r2.k === 'char') { return null; }
+    if (r1.k === 'unit' && r2.k === 'unit') { return null; }
+    if (r1.k === 'effect' && r2.k === 'effect') { return unify(st, pos, r1.t, r2.t); }
     if (r1.k === 'list' && r2.k === 'list') { return unify(st, pos, r1.t, r2.t); }
     if (r1.k === 'fun' && r2.k === 'fun') {
       var a = unify(st, pos, r1.a, r2.a);
@@ -2097,6 +2199,7 @@
         return m[t.n] !== undefined ? m[t.n] : t;
       case 'list': return { k: 'list', t: applyMeta(m, t.t) };
       case 'fun':  return { k: 'fun', a: applyMeta(m, t.a), b: applyMeta(m, t.b) };
+      case 'effect': return { k: 'effect', t: applyMeta(m, t.t) };
       case 'data': return { k: 'data', n: t.n, args: t.args.map(function (a) { return applyMeta(m, a); }) };
       case 'rec':  return { k: 'rec', n: t.n, args: t.args.map(function (a) { return applyMeta(m, a); }) };
       default:     return t;
@@ -2175,6 +2278,7 @@
   }
   function builtinScheme(name) {
     var a = TT.var_(0);
+    var b = TT.var_(1);
     switch (name) {
       case 'cons':   return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.fun(TT.list(a), TT.list(a))) };
       case 'head':   return { ctx: [], qvars: new Set([0]), body: TT.fun(TT.list(a), a) };
@@ -2196,6 +2300,11 @@
       case 'strAppend':  return { ctx: [], qvars: new Set(), body: TT.fun(TT.STR, TT.fun(TT.STR, TT.STR)) };
       case 'strContains': return { ctx: [], qvars: new Set(), body: TT.fun(TT.STR, TT.fun(TT.STR, TT.BOOL)) };
       case 'str':        return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.STR) };
+      case 'return':    return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.EFFECT(a)) };
+      case 'bind':      return { ctx: [], qvars: new Set([0, 1]), body: TT.fun(TT.EFFECT(a), TT.fun(TT.fun(a, TT.EFFECT(b)), TT.EFFECT(b))) };
+      case 'print':     return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.EFFECT(TT.UNIT)) };
+      case 'printLine': return { ctx: [], qvars: new Set([0]), body: TT.fun(a, TT.EFFECT(TT.UNIT)) };
+      case 'readLine':  return { ctx: [], qvars: new Set(), body: TT.EFFECT(TT.STR) };
       default:           return null;
     }
   }
@@ -2227,6 +2336,7 @@
       case 'bool':   return TT.BOOL;
       case 'str':    return TT.STR;
       case 'char':   return TT.CHAR;
+      case 'unit':   return TT.UNIT;
       case 'list': {
         var et = fresh(st);
         for (var i = 0; i < e.items.length; i++) {
@@ -2613,6 +2723,79 @@
     return drive(evalCPS(env, denv, renv, cenv, prog.expr, function (v) { return v; }));
   }
 
+  // Effect-aware program evaluation (mirrors Halcyon.Eval.evalProgramEffect):
+  // build the environments, evaluate the program's expression, and drive it
+  // as an effect against the scripted input lines. Returns { out, value } or
+  // an eval error. A pure program's value is returned with empty output.
+  function evalResolvedEffect(inputs, prog) {
+    var denv = buildDataEnv(dataDecls(prog.defs));
+    if (denv.kind === 'type') { return HErr('eval', denv.pos, denv.message); }
+    var renv = buildRecordEnv(recordDecls(prog.defs));
+    if (renv.kind === 'type') { return HErr('eval', renv.pos, renv.message); }
+    var cenv = buildClassEnv(prog.defs);
+    if (cenv.kind === 'type') { return HErr('eval', cenv.pos, cenv.message); }
+    var dup = dupLetName(prog.defs);
+    if (dup) { return HErr('eval', POS_EOF, 'duplicate top-level definition: ' + dup); }
+    var env = evalDefs({}, denv, renv, cenv, prog.defs);
+    if (env.kind === 'eval') { return env; }
+    if (prog.expr === null) { return undefined; }
+    var v = drive(evalCPS(env, denv, renv, cenv, prog.expr, function (v) { return v; }));
+    if (v.kind === 'eval') { return v; }
+    return runEffect(denv, renv, cenv, inputs, v);
+  }
+
+  function evalProgramEffect(inputs, src) {
+    var resolved = resolveWithBundled(src);
+    if (resolved.kind === 'module' || resolved.kind === 'parse') {
+      return HErr('eval', resolved.pos, resolved.message);
+    }
+    return evalResolvedEffect(inputs, resolved);
+  }
+
+  // Drive an effect value to its output and result against a scripted input
+  // list (mirrors Halcyon.Eval.runEffect). bind continuation closures are
+  // evaluated directly in an extended environment, exactly like the Haskell
+  // applyK. readLine consumes one input line per call, then the empty string.
+  function runEffect(denv, renv, cenv, inputs, value) {
+    function applyK(k, v) {
+      if (k.k === 'closure' && k.params.length === 1) {
+        var envC = Object.assign({}, k.env);
+        envC[k.params[0]] = v;
+        return drive(evalCPS(envC, denv, renv, cenv, k.body, function (v) { return v; }));
+      }
+      if (k.k === 'closure') { return HErr('eval', POS_EOF, 'bind continuation must take exactly one argument'); }
+      return HErr('eval', POS_EOF, 'bind continuation is not a function: ' + showValue(k));
+    }
+    function runOne(eff, is) {
+      if (eff.k !== 'effect') { return HErr('eval', POS_EOF, 'not an effect: ' + showValue(eff)); }
+      switch (eff.tag) {
+        case 'return':    return { ok: true, out: '', value: eff.args[0], inputs: is };
+        case 'print':     return { ok: true, out: showValue(eff.args[0]), value: VUnit(), inputs: is };
+        case 'printLine': return { ok: true, out: showValue(eff.args[0]) + '\n', value: VUnit(), inputs: is };
+        case 'readLine':
+          if (is.length > 0) { return { ok: true, out: '', value: VStr(is[0]), inputs: is.slice(1) }; }
+          return { ok: true, out: '', value: VStr(''), inputs: is };
+        case 'bind': {
+          var e = eff.args[0];
+          var k = eff.args[1];
+          var r1 = runOne(e, is);
+          if (r1.kind === 'eval') { return r1; }
+          var eff2 = applyK(k, r1.value);
+          if (eff2.kind === 'eval') { return eff2; }
+          var r2 = runOne(eff2, r1.inputs);
+          if (r2.kind === 'eval') { return r2; }
+          return { ok: true, out: r1.out + r2.out, value: r2.value, inputs: r2.inputs };
+        }
+        default:
+          return HErr('eval', POS_EOF, 'unknown effect tag: ' + eff.tag);
+      }
+    }
+    if (value.k !== 'effect') { return { ok: true, out: '', value: value }; }
+    var r = runOne(value, inputs.slice());
+    if (r.kind === 'eval') { return r; }
+    return { ok: true, out: r.out, value: r.value };
+  }
+
   // Evaluate the top-level definitions in order into an environment (mirrors
   // evalDef). @let rec@ with a lambda binds the closure capturing the env that
   // already contains the name (the lazy knot); @let rec@ with a non-function
@@ -2656,6 +2839,7 @@
       case 'bool':   return k(VBool(e.v));
       case 'str':    return k(VStr(e.v));
       case 'char':   return k(VChar(e.v));
+      case 'unit':   return k(VUnit());
       case 'list': {
         var items = e.items;
         return function () {
@@ -2701,7 +2885,7 @@
         if (info.arity === 0) { return k(VData(e.name, [])); }
         return k(VConstr(e.name, info.arity, []));
       }
-      case 'builtin': return k(VBuiltin(e.name));
+      case 'builtin': return k(e.name === 'readLine' ? VEffect('readLine', []) : VBuiltin(e.name));
       case 'lambda': return k(VClosure(e.params, e.body, env));
       case 'apply':
         return function () {
@@ -2949,8 +3133,9 @@
   function builtinArity(name) {
     switch (name) {
       case 'cons': case 'append': case 'take': case 'drop':
-      case 'charAt': case 'strAppend': case 'strContains': return 2;
+      case 'charAt': case 'strAppend': case 'strContains': case 'bind': return 2;
       case 'substr': return 3;
+      case 'readLine': return 0;
       default: return 1;
     }
   }
@@ -3045,6 +3230,16 @@
         return HErr('eval', pos, 'strContains expects a String, got ' + showValue(args[0]) + ' and ' + showValue(args[1]));
       case 'str':
         return VStr(showValue(args[0]));
+      case 'return':
+        return VEffect('return', [args[0]]);
+      case 'bind':
+        return VEffect('bind', args);
+      case 'print':
+        return VEffect('print', [args[0]]);
+      case 'printLine':
+        return VEffect('printLine', [args[0]]);
+      case 'readLine':
+        return HErr('eval', pos, 'readLine takes no arguments');
       default:
         return HErr('eval', pos, 'internal error: unknown builtin');
     }
@@ -3053,11 +3248,12 @@
   function applyBuiltin(pos, b, va) {
     switch (b) {
       case 'cons': case 'append': case 'take': case 'drop':
-      case 'charAt': case 'substr': case 'strAppend': case 'strContains':
+      case 'charAt': case 'substr': case 'strAppend': case 'strContains': case 'bind':
         return VPartial(b, [va]);
       case 'head': case 'tail': case 'isNil': case 'length': case 'reverse':
       case 'intToStr': case 'floatToStr': case 'boolToStr': case 'strToStr': case 'listToStr':
       case 'strLen': case 'str':
+      case 'return': case 'print': case 'printLine':
         return completeBuiltin(pos, b, [va]);
       default:
         return HErr('eval', pos, 'internal error: unknown builtin');
@@ -3094,6 +3290,7 @@
     if (a.k === 'bool' && b.k === 'bool') { return a.v === b.v; }
     if (a.k === 'str' && b.k === 'str') { return a.v === b.v; }
     if (a.k === 'char' && b.k === 'char') { return a.v === b.v; }
+    if (a.k === 'unit' && b.k === 'unit') { return true; }
     if (a.k === 'list' && b.k === 'list') {
       if (a.v.length !== b.v.length) { return false; }
       for (var i = 0; i < a.v.length; i++) {
@@ -3303,6 +3500,7 @@
       case 'bool':   return emitConst(st, { c: 'value', v: VBool(e.v) });
       case 'str':    return emitConst(st, { c: 'value', v: VStr(e.v) });
       case 'char':   return emitConst(st, { c: 'value', v: VChar(e.v) });
+      case 'unit':   return emitConst(st, { c: 'value', v: VUnit() });
       case 'list':
         for (var i = 0; i < e.items.length; i++) {
           var r0 = compileExpr(denv, renv, false, e.items[i], st);
@@ -3312,7 +3510,9 @@
         return null;
       case 'var':    return resolveRef(e.pos, e.name, st);
       case 'constr': return compileConstr(e.pos, denv, e.name, st);
-      case 'builtin': return emitConst(st, { c: 'value', v: VBuiltin(e.name) });
+      case 'builtin': return e.name === 'readLine'
+        ? emitConst(st, { c: 'value', v: VEffect('readLine', []) })
+        : emitConst(st, { c: 'value', v: VBuiltin(e.name) });
       case 'lambda': return compileLambda(denv, renv, e.params, e.body, st);
       case 'record': return compileRecord(e.pos, denv, renv, e.fields, st);
       case 'proj':   return compileProj(e.pos, denv, renv, e.e, e.name, st);
@@ -4545,6 +4745,8 @@
       case 'vm_partial_builtin': return '<builtin: ' + v.name + ' ' + v.args.map(vmShowValue).join(' ') + '>';
       case 'vm_method': return '<method: ' + v.name + '>';
       case 'vm_dict':   return '<dict: ' + v.cname + '>';
+      case 'vm_unit':   return '()';
+      case 'vm_effect': return '<effect: ' + v.tag + v.args.map(vmShowValue).join(' ') + '>';
       default:           return '<value>';
     }
   }
@@ -4563,6 +4765,8 @@
   function VmBuiltin(n) { return { k: 'vm_builtin', name: n }; }
   function VmPartialBuiltin(n, args) { return { k: 'vm_partial_builtin', name: n, args: args }; }
   function VmMethod(n) { return { k: 'vm_method', name: n }; }
+  function VmUnit() { return { k: 'vm_unit' }; }
+  function VmEffect(tag, args) { return { k: 'vm_effect', tag: tag, args: args }; }
 
   // A cell is a mutable box (the JS counterpart of an IORef).
   function Cell(v) { return { box: v }; }
@@ -4581,6 +4785,8 @@
       case 'data':    return VmData(v.name, v.fields.map(toVm));
       case 'constr':  return VmConstr(v.name, v.arity, v.args.map(toVm));
       case 'method':  return VmMethod(v.name);
+      case 'unit':    return VmUnit();
+      case 'effect':  return VmEffect(v.tag, v.args.map(toVm));
       default:        return VmBuiltin('?');
     }
   }
@@ -4589,9 +4795,9 @@
   // instruction logic, and exposes single-step + snapshot so the same
   // machine drives both @runVm@ (run to completion) and the playground's
   // step-through debugger.
-  function makeVm(program, profiling) {
+  function makeVm(program, profiling, initialFrame) {
     var stack = [];
-    var frames = [{
+    var frames = initialFrame || [{
       f: program.entry,
       ctx: { cells: {}, outer: null },
       ip: 0
@@ -4738,6 +4944,7 @@
       if (a.k === 'vm_bool' && b.k === 'vm_bool') { return VmBool(a.v === b.v); }
       if (a.k === 'vm_str' && b.k === 'vm_str') { return VmBool(a.v === b.v); }
       if (a.k === 'vm_char' && b.k === 'vm_char') { return VmBool(a.v === b.v); }
+      if (a.k === 'vm_unit' && b.k === 'vm_unit') { return VmBool(true); }
       if (a.k === 'vm_list' && b.k === 'vm_list') { return eqLists(a.v, b.v); }
       if (a.k === 'vm_rec' && b.k === 'vm_rec') {
         if (a.name !== b.name || a.fields.length !== b.fields.length) { return VmBool(false); }
@@ -4776,8 +4983,9 @@
     function vmArity(name) {
       switch (name) {
         case 'cons': case 'append': case 'take': case 'drop':
-        case 'charAt': case 'strAppend': case 'strContains': return 2;
+        case 'charAt': case 'strAppend': case 'strContains': case 'bind': return 2;
         case 'substr': return 3;
+        case 'readLine': return 0;
         default: return 1;
       }
     }
@@ -4932,6 +5140,16 @@
           return failVm('strContains expects a String, got ' + vmShowValue(args[0]) + ' and ' + vmShowValue(args[1]));
         case 'str':
           return VmStr(vmShowValue(args[0]));
+        case 'return':
+          return VmEffect('return', [args[0]]);
+        case 'bind':
+          return VmEffect('bind', args);
+        case 'print':
+          return VmEffect('print', [args[0]]);
+        case 'printLine':
+          return VmEffect('printLine', [args[0]]);
+        case 'readLine':
+          return failVm('readLine takes no arguments');
         default:
           return failVm('internal error: unknown builtin');
       }
@@ -4940,11 +5158,12 @@
     function applyBuiltin(name, arg) {
       switch (name) {
         case 'cons': case 'append': case 'take': case 'drop':
-        case 'charAt': case 'substr': case 'strAppend': case 'strContains':
+        case 'charAt': case 'substr': case 'strAppend': case 'strContains': case 'bind':
           return VmPartialBuiltin(name, [arg]);
         case 'head': case 'tail': case 'isNil': case 'length': case 'reverse':
         case 'intToStr': case 'floatToStr': case 'boolToStr': case 'strToStr': case 'listToStr':
         case 'strLen': case 'str':
+        case 'return': case 'print': case 'printLine':
           return completeBuiltin(name, [arg]);
         default:
           return failVm('internal error: unknown builtin');
@@ -5456,6 +5675,64 @@
     return HErr('vm', POS_EOF, 'execution exceeded the instruction guard');
   }
 
+  // Drive a compiled program as an effect (mirrors Halcyon.Vm.runVmEffect):
+  // run it, and when the result is an effect value, execute bind
+  // continuation closures in fresh machines whose first local cell holds the
+  // bound value. readLine consumes one input line per call, then the empty
+  // string. Returns { ok: true, out, value } or a vm error.
+  function runVmEffect(program, inputs) {
+    var r = runVm(program, false);
+    if (r.kind === 'vm') { return r; }
+    var v = r.value;
+    if (v.k !== 'vm_effect') { return { ok: true, out: '', value: v }; }
+    var out = '';
+    function applyK(k, v) {
+      if (k.k === 'vm_closure' && k.f.params.length === 1) {
+        var m = makeVm(program, false,
+          [{ f: k.f, ctx: { cells: { 0: Cell(v) }, outer: k.ctx }, ip: 0 }]);
+        for (var guard = 0; guard < 1000000000; guard++) {
+          var s = m.snapshot();
+          if (s.done) {
+            if (s.result === null) { return HErr('vm', POS_EOF, 'frame stack exhausted'); }
+            if (s.result.kind === 'vm') { return s.result; }
+            return s.result.value;
+          }
+          m.step();
+        }
+        return HErr('vm', POS_EOF, 'execution exceeded the instruction guard');
+      }
+      if (k.k === 'vm_closure') { return HErr('vm', POS_EOF, 'bind continuation must take exactly one argument'); }
+      return HErr('vm', POS_EOF, 'bind continuation is not a function: ' + vmShowValue(k));
+    }
+    function runOne(eff, is) {
+      if (eff.k !== 'vm_effect') { return HErr('vm', POS_EOF, 'not an effect: ' + vmShowValue(eff)); }
+      switch (eff.tag) {
+        case 'return':    return { ok: true, out: '', value: eff.args[0], inputs: is };
+        case 'print':     out += vmShowValue(eff.args[0]); return { ok: true, out: out, value: VmUnit(), inputs: is };
+        case 'printLine': out += vmShowValue(eff.args[0]) + '\n'; return { ok: true, out: out, value: VmUnit(), inputs: is };
+        case 'readLine':
+          if (is.length > 0) { return { ok: true, out: out, value: VmStr(is[0]), inputs: is.slice(1) }; }
+          return { ok: true, out: out, value: VmStr(''), inputs: is };
+        case 'bind': {
+          var e = eff.args[0];
+          var k = eff.args[1];
+          var r1 = runOne(e, is);
+          if (r1.kind === 'vm') { return r1; }
+          var eff2 = applyK(k, r1.value);
+          if (eff2.kind === 'vm') { return eff2; }
+          var r2 = runOne(eff2, r1.inputs);
+          if (r2.kind === 'vm') { return r2; }
+          return { ok: true, out: r2.out, value: r2.value, inputs: r2.inputs };
+        }
+        default:
+          return HErr('vm', POS_EOF, 'unknown effect tag: ' + eff.tag);
+      }
+    }
+    var res = runOne(v, inputs.slice());
+    if (res.kind === 'vm') { return res; }
+    return { ok: true, out: out, value: res.value };
+  }
+
   // The multi-line profiling report (--profile).
   function renderProfile(p) {
     var lines = [
@@ -5553,7 +5830,15 @@
     { name: 'topdefs', expected: '5021',
       source: '-- Multiple top-level definitions with polymorphism.\nlet id = fn x => x\nlet x = id 5\nlet rec count = fn n => if n < 1 then 0 else 1 + count (n - 1)\nx * 1000 + count 21\n' },
     { name: 'topdefs-order', expected: '50',
-      source: '-- Later defs can use earlier ones; final expr sees all defs.\nlet base = 10\nlet double = fn x => x * 2\nlet triple = fn x => x * 3\ndouble base + triple base\n' }
+      source: '-- Later defs can use earlier ones; final expr sees all defs.\nlet base = 10\nlet double = fn x => x * 2\nlet triple = fn x => x * 3\ndouble base + triple base\n' },
+    { name: 'effect-print-loop', expected: '3\n2\n1\n',
+      source: '-- A do block desugars onto return/bind; printLine drives output.\nlet rec loop = fn n => if n < 1 then do { } else do { printLine n; loop (n - 1) }\nin loop 3\n' },
+    { name: 'effect-echo', expected: 'hello\n', inputs: ['hello'],
+      source: '-- readLine consumes scripted stdin; printLine emits it back.\ndo { x <- readLine; printLine x }\n' },
+    { name: 'effect-echo-loop', expected: 'one\ntwo\ndone', inputs: ['one', 'two'],
+      source: '-- A bind chain over stdin: two reads, two writes, one print.\ndo { x <- readLine; printLine x; y <- readLine; printLine y; print "done" }\n' },
+    { name: 'effect-line-count', expected: '2\n', inputs: ['a', 'b'],
+      source: '-- Effects combine with pure recursion: count stdin lines.\nlet rec loop = fn n => do { line <- readLine;\n  if line == "" then do { printLine n } else do { loop (n + 1) } }\nin loop 0\n' }
   ];
 
   // Example programs shown in the web playground editor.
@@ -5583,6 +5868,8 @@
     inferExpr: inferExpr,
     showType: showType,
     evalProgram: evalProgram,
+    evalProgramEffect: evalProgramEffect,
+    runVmEffect: runVmEffect,
     compileProgram: compileProgram,
     optimizeProgram: optimizeProgram,
     runVm: runVm,

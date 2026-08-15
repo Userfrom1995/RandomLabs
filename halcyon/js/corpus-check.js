@@ -23,18 +23,28 @@ function report(label, ok, detail) {
   console.log(mark + ' ' + label + (detail ? ' - ' + detail : ''));
 }
 
-function runBoth(label, src, expected) {
+// The CLI-visible output: effect output plus the rendered final value
+// (nothing when it is the unit value), on both evaluators.
+function cliOutput(eff, show) {
+  if (eff === undefined || eff === null) { return '<no result>'; }
+  var v = eff.value;
+  var unitK = v && (v.k === 'unit' || v.k === 'vm_unit');
+  return eff.out + (unitK ? '' : show(v));
+}
+
+function runBoth(label, src, expected, inputs) {
+  var ins = inputs || [];
   // interpreter
-  var ie = Halcyon.evalProgram(src);
-  var io = ie.kind ? '<eval error: ' + ie.message + '>' : Halcyon.showValue(ie);
+  var ie = Halcyon.evalProgramEffect(ins, src);
+  var io = ie && ie.kind ? '<eval error: ' + ie.message + '>' : cliOutput(ie, Halcyon.showValue);
   // compiler + VM
   var cp = Halcyon.compileProgram(src);
   var vo, vmRes;
   if (cp.kind) {
     vo = '<compile error: ' + cp.message + '>';
   } else {
-    vmRes = Halcyon.runVm(cp.program, false);
-    vo = vmRes.kind ? '<vm error: ' + vmRes.message + '>' : Halcyon.vmShowValue(vmRes.value);
+    vmRes = Halcyon.runVmEffect(cp.program, ins);
+    vo = vmRes && vmRes.kind ? '<vm error: ' + vmRes.message + '>' : cliOutput(vmRes, Halcyon.vmShowValue);
   }
   if (expected !== null && expected !== undefined && (io !== expected || vo !== expected)) {
     report(label, false, 'expected ' + expected + ', interpreter=' + io + ', vm=' + vo);
@@ -49,7 +59,7 @@ function runBoth(label, src, expected) {
 
 // Embedded corpus
 Halcyon.corpus.forEach(function (e) {
-  runBoth('corpus: ' + e.name, e.source, e.expected);
+  runBoth('corpus: ' + e.name, e.source, e.expected, e.inputs);
 });
 
 // The fibonacci program should typecheck as Int.
@@ -70,16 +80,17 @@ report('disassemble: deterministic',
 // ---- optimizer (milestone 16) ---------------------------------------------
 
 // Every corpus program must also run byte-identically on the optimized VM.
-function runOptBoth(label, src, expected) {
-  var ie = Halcyon.evalProgram(src);
-  var io = ie.kind ? '<eval error: ' + ie.message + '>' : Halcyon.showValue(ie);
+function runOptBoth(label, src, expected, inputs) {
+  var ins = inputs || [];
+  var ie = Halcyon.evalProgramEffect(ins, src);
+  var io = ie && ie.kind ? '<eval error: ' + ie.message + '>' : cliOutput(ie, Halcyon.showValue);
   var cp = Halcyon.compileProgram(src, true);
   var vo, vmRes;
   if (cp.kind) {
     vo = '<compile error: ' + cp.message + '>';
   } else {
-    vmRes = Halcyon.runVm(cp.program, false);
-    vo = vmRes.kind ? '<vm error: ' + vmRes.message + '>' : Halcyon.vmShowValue(vmRes.value);
+    vmRes = Halcyon.runVmEffect(cp.program, ins);
+    vo = vmRes && vmRes.kind ? '<vm error: ' + vmRes.message + '>' : cliOutput(vmRes, Halcyon.vmShowValue);
   }
   if (expected !== null && expected !== undefined && (io !== expected || vo !== expected)) {
     report(label, false, 'expected ' + expected + ', interpreter=' + io + ', vm=' + vo);
@@ -93,7 +104,7 @@ function runOptBoth(label, src, expected) {
 }
 
 Halcyon.corpus.forEach(function (e) {
-  runOptBoth('opt-corpus: ' + e.name, e.source, e.expected);
+  runOptBoth('opt-corpus: ' + e.name, e.source, e.expected, e.inputs);
 });
 
 // Optimized disassembly is deterministic and differs from unoptimized only
