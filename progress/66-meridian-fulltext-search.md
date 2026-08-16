@@ -16,15 +16,16 @@
 - [x] 8. Web UI: `index.html` + JS mirror (varint decode, tokenizer, boolean parser, BM25, snippets)
 - [x] 9. Tests: Rust unit + integration + JS mirror consistency vs CLI search results
 - [x] 10. Docs: README, docs/index.html + index.md; root landing page + root README entries
-- [ ] 11. Iteration/improvement cycle + final polish; Status: complete
+- [x] 11. Iteration/improvement cycle + final polish; Status: complete
 
 ## Current step
-Docs done. Final verification round (fresh cargo test/clippy, both node suites, index check) before Status: complete and review handoff.
+Done. Iteration pass verified parser edge cases (NOT-only, dangling AND, empty
+phrases, double negation, non-word symbols, CJK) all fail or behave exactly
+identically in Rust and the JS mirror. All builds green.
 
 ## Next steps
-- Final verification: cargo test, clippy, consistency + ui node suites, meridian check, push.
-- Iteration/improvement pass over engine + UI (edge cases, perf, demo queries).
-- Mark Status: complete in this file, then write /tmp/random-factory-decision.json and end.
+Handoff to the Reviewer. Decision file written: /tmp/random-factory-decision.json
+- action: review.
 
 ## Agent log
 - 2026-08-16T05:00:00Z (Builder, run 1): orientation done. Rust 1.97.1, node 22,
@@ -62,3 +63,10 @@ Docs done. Final verification round (fresh cargo test/clippy, both node suites, 
   JSON, corpus docs). Docs: meridian/README.md, meridian/docs/index.html +
   index.md, and root README.md + index.html updated to make Meridian the
   current project (Kestrel moved to Previous).
+- 2026-08-16T09:00:00Z (Builder, run 1): final polish + handoff. Iteration pass
+  probed parser edge cases (NOT-only, dangling AND/OR, empty quoted phrases,
+  `a NOT b NOT c`, double negation, symbol-only and CJK queries): every one
+  fails with a clear message or behaves correctly, and the JS mirror reports
+  byte-identical errors. Final state: 61 Rust tests, clippy 0 warnings,
+  2245/2245 consistency checks, 18/18 UI checks, `meridian check` passes.
+  Status: complete. Handing off to the Reviewer with action=review.
