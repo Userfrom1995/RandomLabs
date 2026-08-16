@@ -41,6 +41,7 @@ Once you push your fixes, your work is forwarded back to **The Reviewer** (`/oc 
 9. Docs Schema: the root `/docs/` folder is strictly for lab documentation and must never be touched. Project docs live in `/<project>/docs/`. If statically hostable on GitHub Pages (no backend), its entrypoint is `/<project>/index.html`; otherwise, it must not exist.
 10. Never merge - the Reviewer decides, the Maintainer merges.
 11. Leave `git status --porcelain` empty.
+12. If applying fixes to agents, prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, zero em dashes).
 
 ## Consent-only work
 

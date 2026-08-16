@@ -250,19 +250,20 @@ New folder `.github/agents/`:
 
 ```
 .github/agents/
-  REGISTRY.md      # roster of agents + trigger keywords (mirrored on maintainer/logs)
-  maintainer.md    # the Maintainer (Mae) - the brain
-  ideator.md       # the Ideator - brainstorm candidates
-  architect.md     # the Architect - master technical strategist
-  researcher.md    # the Researcher (Dr. Mob) - scientific research & algorithm design
-  builder.md       # the Builder - implements builds
-  fixer.md         # the Fixer - applies reviewer findings
-  reviewer.md      # the Reviewer - the strict quality gate
-  tester.md        # the Tester - dynamic verification engineer
-  auditor.md       # the Auditor - pipeline inspector
-  general.md       # the General agent - chat/assistant
+  REGISTRY.md        # roster of agents + trigger keywords (mirrored on maintainer/logs)
+  CREATING_AGENTS.md # guidelines and rules for creating new agents
+  maintainer.md      # the Maintainer (Mae) - the brain
+  ideator.md         # the Ideator - brainstorm candidates
+  architect.md       # the Architect - master technical strategist
+  researcher.md      # the Researcher (Dr. Mob) - scientific research & algorithm design
+  builder.md         # the Builder - implements builds
+  fixer.md           # the Fixer - applies reviewer findings
+  reviewer.md        # the Reviewer - the strict quality gate
+  tester.md          # the Tester - dynamic verification engineer
+  auditor.md         # the Auditor - pipeline inspector
+  general.md         # the General agent - chat/assistant
   decisions/
-    README.md      # decision-file protocol
+    README.md        # decision-file protocol
 ```
 
 Workflow YAML stays thin wiring: the trigger envelope tells the agent to read
@@ -318,11 +319,12 @@ maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md 
 - The Maintainer is maintainer-level: the only level that can call other
   agents; it can create new workers and even co-maintainers when the lab
   needs them.
-- **Creating a worker**: new prompt file `.github/agents/<name>.md` (standard
-  sections: identity, role, rules, sign-off) + trigger wiring (`/oc <name>`
-  condition in the opencode.yml job conditions, or a dispatch-only workflow) +
-  `REGISTRY.md` entry (name, role, kind, author, creation date, trigger
-  keyword, prompt file) → its own PR through the review loop → merged → live.
+- **Creating a worker**: must strictly follow `.github/agents/CREATING_AGENTS.md`
+  (PAT rules, exclusion guards, zero em dashes); new prompt file
+  `.github/agents/<name>.md` (standard sections: identity, role, rules, sign-off) +
+  trigger wiring (`/oc <name>` condition in the opencode.yml job conditions, or a
+  dispatch-only workflow) + `REGISTRY.md` entry (name, role, kind, author, creation
+  date, trigger keyword, prompt file) → its own PR through the review loop → merged → live.
 - **Creating a co-maintainer**: an agent registered with `kind: maintainer`  - 
   gains maintainer-level calling rights (may trigger workers via its own
   decision file, always processed by a hardcoded PAT step; the PAT never

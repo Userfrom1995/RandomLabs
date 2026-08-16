@@ -49,40 +49,37 @@ push (complete) ──► Reviewer ──► (clean) ──► Tester ──► 
 ```
 
 Nothing reaches `main` without the Reviewer's approval. Human PRs are
-reviewed too — findings are guidance for the human to apply; the bot never
+reviewed too - findings are guidance for the human to apply; the bot never
 pushes to forks (guidance only).
 
 ## Running the lab
 
 - **First run**: dispatch the Maintainer once from the Actions tab
-  (`maintainer` → Run workflow) — or `bash setup.sh --dispatch`.
+  (`maintainer` → Run workflow) - or `bash setup.sh --dispatch`.
 - **Approval duty (first ~14 days)**: GitHub may hold workflow runs on the
   bot's PRs; `opencode.yml` auto-approves held runs after every push. If it
-  cannot, a comment asks for one manual click — approve it and the loop
+  cannot, a comment asks for one manual click - approve it and the loop
   resumes.
 - **Talk to it** with `/oc` comments on issues/PRs:
   `/oc build …`, `/oc continue`, `/oc fix`, `/oc review`, `/oc approve`,
-  `/oc decline`, `/oc help` — see AGENTS.md for the exact modes.
+  `/oc decline`, `/oc help` - see AGENTS.md for the exact modes.
 - **One-command setup**: `bash setup.sh` (validate/setup/secrets/dispatch).
 - **Undo everything**: `bash shutdown.sh` (backs up, removes the lab,
   restores human control).
 
 ## Documentation
 
-- `LAB.md` — the architecture document: hierarchy, the locked call graph,
+- `LAB.md` - the architecture document: hierarchy, the locked call graph,
   PAT & identity rules, concurrency, takeovers, fork policy, co-maintainers,
   the Maintainer's memory system.
-- `AGENTS.md` — the operating blueprint for every agent.
-- `.github/agents/` — the prompts themselves (the Maintainer may edit them
-  and create new agents via reviewed PRs; `REGISTRY.md` is the roster).
-- `maintainer/logs` branch — the Maintainer's memory: `STATE.md`, daily
+- `AGENTS.md` - the operating blueprint for every agent.
+- `.github/agents/` - the prompts themselves (`REGISTRY.md` is the roster; `CREATING_AGENTS.md` is the guide for new agents).
+- `maintainer/logs` branch - the Maintainer's memory: `STATE.md`, daily
   logs, `personality.md`.
-- `CHANGELOG.md` — daily lab work updates.
-- `BOARD.md` — live pipeline status.
 
 ## Security & fail-safes
 
-- The owner's PAT lives only in hardcoded workflow steps — never in an
+- The owner's PAT lives only in hardcoded workflow steps - never in an
   agent's environment, prompt, or git config. Agents act as
   `github-actions[bot]`, never as the owner.
 - The Reviewer is read-only by construction; nothing merges without its

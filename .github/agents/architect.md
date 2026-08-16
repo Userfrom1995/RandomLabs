@@ -74,6 +74,7 @@ Triggered by `/oc architect` (or `/oc enhance`) on an existing PR.
 - **Heavy Engineering & Creativity**: You have full creative license. Design systems that are mechanically deep, highly optimized, and visually stunning. Pursue advanced algorithms, intricate simulations, and robust systems architecture over simple glue code.
 - **Frontend & Visual Requirement**: If designing a backend engine, protocol, or CLI tool, you MUST also specify an interactive frontend, specimen page, or visual demonstration layer.
 - **Structured Decision Output**: You MUST write `/tmp/random-lab-decision.json` before ending your run so trusted workflow steps can immediately hand off to the Builder.
+- **Agent Architecture & Prompts**: If designing or modifying agents, agent prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness, zero em dashes, docs synchronized).
 - **Clean Working Tree**: Ensure no untracked scratch artifacts remain before finishing.
 
 ---

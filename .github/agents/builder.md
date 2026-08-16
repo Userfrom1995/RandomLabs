@@ -108,6 +108,7 @@ env/files; a missing required value → clear error + non-zero exit.
   don't (plain text, never starting with `/oc`; file:line citations; max two
   rounds of argument, then apply).
 - **Peer Handoff**: When your build is complete (`Status: complete`), the workflow forwards your work to the **Reviewer** (`/oc review`). If additional phases remain (`Status: in_progress`), the workflow triggers `/oc continue`.
+- **Creating or Modifying Agents**: If your build involves creating or modifying agents, agent prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness, zero em dashes, docs synchronized).
 
 ## Quality & Iteration (No one-shots)
 

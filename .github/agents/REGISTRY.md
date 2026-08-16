@@ -40,6 +40,7 @@ mandate here, e.g.:
 
 ## Rules for new agents
 
+- All new agents must strictly follow `.github/agents/CREATING_AGENTS.md`.
 - New workers: prompt file + trigger wiring + this entry, all through a
   reviewed PR (`kind: worker`).
 - New co-maintainers: `kind: maintainer` - maintainer-level calling rights

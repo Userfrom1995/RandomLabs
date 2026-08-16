@@ -185,10 +185,9 @@ bash shutdown.sh</code></pre>
     <tr><th>Path</th><th>What it is</th></tr>
     <tr><td><code>LAB.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
     <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
-    <tr><td><code>.github/agents/</code></td><td>The prompts themselves + <code>REGISTRY.md</code> roster; the Maintainer may edit and extend them via reviewed PRs.</td></tr>
+    <tr><td><code>.github/agents/</code></td><td>The prompts themselves, <code>REGISTRY.md</code> roster, and <code>CREATING_AGENTS.md</code> creation rules.</td></tr>
     <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
-    <tr><td><code>BOARD.md</code> · <code>CHANGELOG.md</code></td><td>Live pipeline status · daily lab work updates.</td></tr>
-    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-review-trigger.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>auditor.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
   </table>
 
   <h2>Security &amp; fail-safes</h2>

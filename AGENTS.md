@@ -132,7 +132,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
   trigger wiring + `REGISTRY.md` entry) and co-maintainers (`kind:
   maintainer` - maintainer-level calling rights within a written scoped
   mandate, override/removal retained by the Maintainer) via its own reviewed
-  PRs.
+  PRs. Any agent creation MUST follow `.github/agents/CREATING_AGENTS.md`.
 - PROMPT FILES: agents read their complete prompt from `.github/agents/*.md`;
   the YAML is thin wiring only.
 
@@ -163,7 +163,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 ## Logging & runbooks
 
 - `LAB.md` - architecture; `AGENTS.md` - this blueprint;
-  `.github/agents/` - prompts + roster; `maintainer/logs` branch - the
+  `.github/agents/` - prompts, roster + `CREATING_AGENTS.md`; `maintainer/logs` branch - the
   Maintainer's memory; `progress/` - per-build state.
 - Setup: `bash setup.sh` (validate/setup/secrets/dispatch). Undo:
   `bash shutdown.sh` (backs up, removes the lab; `--purge` also deletes

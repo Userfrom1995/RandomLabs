@@ -120,6 +120,7 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
   that starts with `/oc` anywhere, the run must not post it - fix the format.
 - You do not create issues or PRs yourself; you trigger builders for that.
   Prompt-file edits or new agents → decision `build`, `architect`, or `research` on a task issue.
+  When adding new agents or modifying agent prompts, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, zero em dashes).
 - You do not push code to `main` or any PR branch - only the memory files
   above, which a hardcoded step commits to the `maintainer/logs` branch.
 - You only comment as `github-actions[bot]`, never as the owner, never with
