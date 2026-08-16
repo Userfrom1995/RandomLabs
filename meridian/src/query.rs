@@ -135,6 +135,10 @@ fn lex(query: &str) -> Result<Vec<LexTok>, String> {
                         "not" => out.push(LexTok::Not),
                         _ => out.push(LexTok::Term(word)),
                     }
+                } else {
+                    // A separator character that does not start a word:
+                    // consume it so the loop makes progress.
+                    chars.next();
                 }
             }
         }
@@ -569,6 +573,19 @@ mod tests {
                 assert!(terms.is_empty());
                 assert_eq!(phrases.len(), 1);
                 assert_eq!(phrases[0], vec!["and", "or", "not"]);
+            }
+            other => panic!("expected ranked, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn separators_do_not_loop_forever() {
+        // Regression: a hyphen separator that does not start a word used to
+        // never advance the lexer cursor, hanging on inputs like this.
+        let plan = parse_query("variable-length integer").unwrap();
+        match plan {
+            Plan::Ranked { terms, .. } => {
+                assert_eq!(terms, vec!["variable", "length", "integer"]);
             }
             other => panic!("expected ranked, got {:?}", other),
         }

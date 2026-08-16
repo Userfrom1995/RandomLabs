@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Random - a repo of agent-built projects</title>
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Kestrel, a neural-network library written from scratch in Julia with its own autodiff engine." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 64px 24px 44px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+    position: relative;
+  }
+  .github-link {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 0.88rem;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .github-link:hover { color: var(--text); border-color: var(--accent-2); }
+  .github-link svg { width: 16px; height: 16px; fill: currentColor; }
+  header.hero h1 { margin: 0 0 10px; font-size: 2.8rem; letter-spacing: -0.02em; }
+  header.hero p { margin: 0 auto; max-width: 640px; color: var(--muted); font-size: 1.05rem; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: #10141f;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .card.current { border-color: var(--accent); }
+  .card h4 { margin: 0 0 6px; font-size: 1.05rem; }
+  .card.current h4 { color: var(--accent); }
+  .card p { margin: 0 0 10px; color: var(--muted); font-size: 0.92rem; }
+  .card .links { font-size: 0.88rem; }
+  .card .links a { margin-right: 14px; }
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 1px 10px;
+    margin-bottom: 8px;
+  }
+  ul.projects { list-style: none; padding: 0; }
+  ul.projects li {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  ul.projects li h4 { margin: 0 0 4px; }
+  ul.projects li p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+  ul.projects li .links { margin-top: 8px; font-size: 0.88rem; }
+  ul.projects li .links a { margin-right: 14px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <a class="github-link" href="https://github.com/Userfrom1995/Random" target="_blank" rel="noopener noreferrer" aria-label="Random on GitHub">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    GitHub
+  </a>
+  <h1>Random</h1>
+  <p>A repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Whatever I feel like asking for - a game, a protocol, a CLI - ends up here. Content changes without notice; nothing here should be taken seriously.</p>
+</header>
+
+<main>
+  <h2>Current Project</h2>
+  <div class="cards">
+    <div class="card current">
+      <span class="tag">Live now</span>
+      <h4>Kestrel</h4>
+      <p>A neural-network library built from scratch in Julia: reverse-mode automatic differentiation on a tape, dense layers, activations, softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia standard library only. Gradients are verified against finite differences; an MLP trains on real MNIST to 98.6% accuracy. The trained model runs through a dependency-free JavaScript inference mirror, so a static browser playground classifies your drawn digit live. 32 tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/kestrel/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-16-kestrel-neural-network-library-julia.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/kestrel/">Playground</a>
+        <a href="https://userfrom1995.github.io/Random/kestrel/docs/">Documentation</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Previous Projects</h2>
+  <ul class="projects">
+    <li>
+      <h4>Halcyon</h4>
+      <p>A functional language written from scratch in Haskell: lexer, recursive-descent parser, full Hindley-Milner type inference with let-polymorphism and let-rec, algebraic data types and pattern matching, nominal records, type classes with dictionaries, chars and string builtins, tail-call optimization, a deterministic optimizer, a tree-walking interpreter, a real bytecode VM with closures, upvalue cells, and an instruction profiler. The entire language is mirrored one-to-one in dependency-free JavaScript, so a static web playground runs it in the browser with a single-stepping VM debugger, an optimizer toggle, and a profiler panel. A differential corpus (plain and optimized) plus a cross-language check prove the interpreter, VM, and JS mirror agree byte-for-byte, and the stdlib is written in Halcyon itself. Zero dependencies, 684 tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/halcyon/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-15-halcyon-functional-language-vm.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/halcyon/">Playground</a>
+        <a href="https://userfrom1995.github.io/Random/halcyon/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
+      <h4>Glyphforge</h4>
+      <p>A bitmap font designer and glyph-to-code tool written in Kotlin: draw a pixel font in a terminal grid, autotrace it to a compact run-length .gff raster font file, and export embeddable glyph maps (Kotlin, Java, C header, or text). Kerning pairs, a headless renderer that proofs any string at any scale, and a self-contained HTML specimen page that previews fonts live in the browser. The factory's first Kotlin project, zero dependencies, 135 tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/glyphforge/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-15-glyphforge-bitmap-font-designer.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/glyphforge/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
+      <h4>Beambus</h4>
+      <p>A retro arcade shoot 'em up written from scratch in Zig: a deterministic, headless-testable game core, scripted .beam level files, eight enemy movement patterns, configurable enemy shot volleys, boss enrage phases and dive patterns, power-up tiers, shields, and timed rapid-fire boosts, bomb refills, smart bombs, combo scoring, bonus lives, near-miss grazes, homing enemy shots, a focus mode with a hitbox reticle, a performance-scaled rank difficulty meter, a procedural pixel-art renderer, and a tiny subtractive audio synth, all on an SDL2 platform layer. Same seed, same run - 92 headless tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/beambus/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/beambus/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
+      <h4>Aftershock</h4>
+      <p>A seismic network simulator written in Rust: model an earthquake on a fault grid, propagate P-, S-, and surface waves to stations at physically-motivated travel times, and read the P-to-S gap straight off a terminal seismogram. Wells &amp; Coppersmith rupture scaling, 1/distance attenuation, wide and long CSV waveform export, seeded determinism, zero dependencies, 41 tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/aftershock/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/aftershock/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
+      <h4>Gambit</h4>
+      <p>A UCI chess engine written from scratch in C++17: bitboard board representation, perft-verified legal move generation (start position to depth 5, kiwipete, and more), and a negamax alpha-beta search with iterative deepening, quiescence, and a transposition table. Plays a full game in the terminal or speaks the UCI protocol to any chess GUI. No dependencies, with a built-in test suite.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/gambit/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/gambit/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
+      <h4>Granite</h4>
+      <p>A SQL database engine built from scratch in Go: a lexer and recursive-descent parser, a query planner and executor, and a paged B-tree storage engine that persists real .db files. Create tables, insert, update, delete, and query with joins, WHERE, ORDER BY, LIMIT, DISTINCT, and indexes, wrapped in BEGIN/COMMIT transactions, all from a terminal CLI. Standard library only, with 81 tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/granite/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-granite-sql-database-engine.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Orrery</h4>
+      <p>An interactive 3D solar system in the browser - hand-rolled WebGL + TypeScript, no external engine. Real Keplerian orbital mechanics (true periods, distances, and orbital planes), procedurally textured planets with diffuse/specular lighting, a free-fly camera with pause and time-warp, and click-to-fly to any planet.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/Random/orrery/">Fly to Jupiter</a>
+        <a href="https://userfrom1995.github.io/Random/orrery/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Cadence</h4>
+      <p>A terminal sorting-algorithm visualizer with audio sonification - animates nine classic sorts as ASCII bars while every comparison and swap rings out as a pitch-mapped tone. Python standard library only.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/cadence/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-12-cadence-sorting-visualizer-with-sound.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Regexplorer</h4>
+      <p>A visual regex engine - parses a pattern into an AST, builds the Thompson NFA, draws the state machine in the terminal, and animates a string stepping through it frame-by-frame. Watch transitions fire, greedy backtracking give input back, and catastrophic patterns like (a+)+b blow up. Python standard library only.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/regexplorer/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-11-regexplorer-visual-regex-engine.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Fernwald</h4>
+      <p>A terminal L-system fractal garden - grows procedural plants, trees, and fractals from grammar rules and renders them as ASCII art or SVG. Seven presets, custom grammars, seeded stochastic gardens, and growth animation - Python standard library only.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/fernwald/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-10-fernwald-terminal-lsystem-garden.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Shaftcast</h4>
+      <p>A first-person raycasting engine that renders a pseudo-3D, Wolfenstein-style view straight into your terminal. DDA ray casting, ASCII depth shading, per-tile textures, a minimap overlay, and first-person WASD movement - Python standard library only.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/shaftcast/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-09-shaftcast-terminal-raycasting.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Redline Rush</h4>
+      <p>A top-down arcade car racing game - steer a four-lane highway at ever-increasing speed, dodge oncoming traffic, and grab fuel cans before the tank runs dry. Canvas 2D + Web Audio, zero assets, works offline.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/Random/rush/">Play it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-redline-rush-top-down-arcade-racer.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Rotoria</h4>
+      <p>A terminal Enigma machine cipher simulator - configurable rotors, ring settings, plugboard, and reflector, with encryption, decryption, and internal wiring visualization. Nothing but the Python standard library.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-rotoria-terminal-enigma-simulator.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Homunculus</h4>
+      <p>A genetic-algorithm CLI that evolves a population of random strings into an exact target phrase - selection, crossover, and mutation, nothing but the Python standard library.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-homunculus-genetic-algorithm.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Arpeggio</h4>
+      <p>A Markov-chain melody composer that renders original tunes to WAV from the terminal.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-arpeggio-markov-melody-composer.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Automatarium</h4>
+      <p>A dependency-free Python CLI that renders classic cellular automata (Rule 30, Conway's Game of Life, Langton's Ant) live in the terminal.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-automatarium-cellular-automata.md">Writeup</a>
+      </div>
+    </li>
+    <li>
+      <h4>Tic-Tac-Toe</h4>
+      <p>A browser game with PvP, vs-Computer modes, and an unbeatable minimax AI.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-08-tic-tac-toe-minimax-ai.md">Writeup</a>
+      </div>
+    </li>
+  </ul>
+
+  <h2>About This Repo</h2>
+  <p>Almost all the code here is written, maintained, and reviewed by coding agents, driven from a single random chat. The pipeline operates on a unified event bus using automated <code>/oc</code> comments:</p>
+  <ul>
+    <li><strong>Ideator</strong>: picks a new idea daily, opens an issue, and wakes up the Maintainer.</li>
+    <li><strong>Maintainer</strong>: orchestrates the factory, evaluates PRs, and merges approved code.</li>
+    <li><strong>Architect</strong>: designs heavy, creative, and mechanically deep architectural blueprints.</li>
+    <li><strong>Builder/Fixer</strong>: builds the code on a branch, tracking state via progress files, and automatically fixes code based on review findings.</li>
+    <li><strong>Reviewer</strong>: strictly reviews the PR (including a preview of this site) and loops with the Fixer until it passes.</li>
+    <li><strong>Tester</strong>: dynamically runs E2E user flows and visual benchmarks before merging.</li>
+  </ul>
+  <p>Open issues and pull requests show what is currently in flight. To propose an idea, open an issue and tag <a href="https://github.com/Userfrom1995">@Userfrom1995</a>.</p>
+  <p><a href="https://github.com/Userfrom1995/Random">Source repository</a> · <a href="https://github.com/Userfrom1995/Random/blob/main/README.md">README</a></p>
+</main>
+
+<footer>Random · part of the Userfrom1995 repos · MIT License</footer>
+</body>
+</html>

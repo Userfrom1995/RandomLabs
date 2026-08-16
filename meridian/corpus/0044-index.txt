@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Halcyon: a functional language with a bytecode VM</title>
+<meta name="description" content="Halcyon: a strictly-evaluated functional language with Hindley-Milner type inference, algebraic data types, records, type classes, user operators, type synonyms, an auto-imported prelude, effects, bytecode artifacts, pattern matching, tail-call optimization, a bytecode VM with a profiler, a Haskell CLI, and a dependency-free JavaScript web playground with a single-stepping VM debugger. Zero dependencies, 684 self-tests, and a cross-language corpus that proves the JS mirror matches the Haskell core byte-for-byte." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 760px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card h4 { margin: 0 0 6px; font-size: 1.02rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+  ul.docs { list-style: none; padding: 0; }
+  ul.docs li {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 12px;
+  }
+  ul.docs li h4 { margin: 0 0 4px; }
+  ul.docs li p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+  footer { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 24px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Halcyon</h1>
+  <p>A small functional language with Hindley-Milner type inference and a
+  bytecode VM. Written in Haskell as a zero-dependency CLI, and mirrored
+  one-to-one in plain JavaScript so the whole language runs in the browser,
+  VM debugger included.</p>
+  <div class="launch"><a href="../index.html">Try the playground</a></div>
+</header>
+
+<main>
+  <h2>What it is</h2>
+  <p>Halcyon is a from-scratch functional programming language: a lexer,
+  recursive-descent parser, Algorithm W type inference (with
+  <code>let</code>-polymorphism), a tree-walking interpreter, a bytecode
+  compiler, and a stack VM with frames, upvalue cells, closures, tail-call
+  optimization, an instruction profiler, and a deterministic optimizer.
+  Algebraic data types, nominal records, and type classes let programs
+  define their own types; user-defined operators, parse-time type
+  synonyms, an auto-imported standard prelude, effects with
+  <code>do</code> blocks, and serialized bytecode artifacts round out the
+  language. Two evaluators (interpreter and VM) plus a JavaScript mirror
+  all agree byte-for-byte, proven by a differential corpus.</p>
+
+  <div class="cards">
+    <div class="card">
+      <h4>Types</h4>
+      <p>Full Hindley-Milner inference: <code>Int</code>, <code>Float</code>,
+      <code>Bool</code>, <code>String</code>, <code>Char</code>, lists,
+      functions, user-defined algebraic data types, nominal records, type
+      synonyms, and real polymorphism through <code>let</code>.</p>
+    </div>
+    <div class="card">
+      <h4>Classes</h4>
+      <p>Type classes with dictionaries: <code>class</code>/<code>instance</code>
+      declarations, runtime method dispatch, and contextual instances like
+      <code>instance Show a =&gt; Show (Maybe a)</code>.</p>
+    </div>
+    <div class="card">
+      <h4>VM</h4>
+      <p>A single-steppable stack machine with tail-call optimization and
+      profiling. <code>halcyon run-vm --trace</code>, <code>run-vm
+      --profile</code>, and the web debugger drive the exact same
+      instruction set.</p>
+    </div>
+    <div class="card">
+      <h4>Playground</h4>
+      <p>A dependency-free <code>index.html</code> that runs the whole
+      language client-side: edit, typecheck, run, disassemble, profile,
+      step, script stdin for effects, and download bytecode artifacts,
+      with an <code>--opt</code> toggle.</p>
+    </div>
+    <div class="card">
+      <h4>Verified</h4>
+      <p>684 Haskell self-tests, a differential corpus, and a cross-language
+      check (JS interpreter == JS VM == Haskell expected, including the
+      profiler, disassembly, and bytecode artifact round-trips).</p>
+    </div>
+  </div>
+
+  <h2>Quick start</h2>
+  <pre><code>let rec fib = fn n =&gt; if n &lt; 2 then n
+               else fib (n - 1) + fib (n - 2)
+in fib 25</code></pre>
+  <p>The pipeline is <code>lex</code> -&gt; <code>parse</code> -&gt;
+  <code>infer</code> (optional) -&gt; <code>eval</code>, or -&gt;
+  <code>compile</code> -&gt; <code>vm</code>. The CLI dispatches both paths;
+  the playground offers the buttons for each stage.</p>
+
+  <h2>Documentation</h2>
+  <ul class="docs">
+    <li>
+      <h4><a href="language.md">Language reference</a></h4>
+      <p>Grammar, operator precedence, the type system, data types, records,
+      type classes, user operators, type synonyms, builtins, the prelude,
+      effects, bytecode artifacts, and evaluation semantics.</p>
+    </li>
+    <li>
+      <h4><a href="vm.md">Virtual machine reference</a></h4>
+      <p>Frames, contexts, upvalue cells, the calling convention, records,
+      method dispatch, user operators and synonyms, effects, artifacts and
+      benchmarking, profiling, and the full opcode table.</p>
+    </li>
+    <li>
+      <h4><a href="../README.md">Project README</a></h4>
+      <p>Building, the CLI commands, the corpus, and the JS mirror.</p>
+    </li>
+  </ul>
+
+  <h2>Example</h2>
+  <pre><code>data Tree = Leaf Int | Node Tree Tree
+let rec height = fn t =&gt; match t with
+  | Leaf n =&gt; 1
+  | Node l r =&gt;
+      let hl = height l in
+      let hr = height r in
+      if hl &gt; hr then hl + 1 else hr + 1
+in height (Node (Node (Leaf 1) (Leaf 2)) (Leaf 3))</code></pre>
+  <p>prints <code>3</code> on every backend: interpreter, VM, and playground.
+  Data types, records, classes, pattern matching, and recursion work
+  identically across the Haskell core and the JS mirror.</p>
+</main>
+
+<footer>Halcyon · part of the Random repo · MIT License</footer>
+</body>
+</html>

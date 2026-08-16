@@ -11,20 +11,20 @@
 - [x] 3. Postings compression (varint gap encoding) + compact JSON export + hand-written JSON parser round-trip
 - [x] 4. Ranking: tf-idf and BM25 scoring
 - [x] 5. Boolean query parser + evaluator (AND/OR/NOT, quoted phrases, rarest-first planning) + snippet generation
-- [x] 6. CLI: crawl / index / search / search-index / stats / verify-index / selftest, strict arg validation
-- [x] 7. Corpus: crawl repo docs into a curated real-text corpus + prebuilt `data/index.json`
-- [x] 8. Web UI: `index.html` + JS mirror (varint decode, tokenizer, boolean parser, BM25, snippets)
-- [x] 9. Tests: Rust unit + integration + JS mirror consistency vs CLI search results
+- [ ] 6. CLI: crawl / index / search / search-index / stats / verify-index / selftest, strict arg validation
+- [ ] 7. Corpus: crawl repo docs into a curated real-text corpus + prebuilt `data/index.json`
+- [ ] 8. Web UI: `index.html` + JS mirror (varint decode, tokenizer, boolean parser, BM25, snippets)
+- [ ] 9. Tests: Rust unit + integration + JS mirror consistency vs CLI search results
 - [ ] 10. Docs: README, docs/index.html + index.md; root landing page + root README entries
 - [ ] 11. Iteration/improvement cycle + final polish; Status: complete
 
 ## Current step
-Web UI index.html + ui.js in progress (mirror engine done; UI markup/glue pending).
+Core engine complete. CLI written (all commands exercised on a temp corpus: crawl/index/search/search-index/stats/verify all working; verify-index round-trip passes; postings compress ~4x).
 
 ## Next steps
-- Finish web UI (index.html + ui.js: results, highlights, score breakdown, suggestions, stats, doc viewer).
-- Docs (README, docs/index.html + index.md, articles index) + landing entries.
-- Iteration cycle + final polish.
+- Curate the real corpus (crawl repo docs + IR articles) and prebuild data/index.json.
+- Web UI: index.html + JS mirror engine + node consistency tests.
+- Docs + landing entries; iteration cycle; final polish.
 
 ## Agent log
 - 2026-08-16T05:00:00Z (Builder, run 1): orientation done. Rust 1.97.1, node 22,
@@ -42,12 +42,3 @@ Web UI index.html + ui.js in progress (mirror engine done; UI markup/glue pendin
   full CLI. 60 lib tests pass, clippy clean. Verified end-to-end on a temp corpus:
   crawl -> index -> search -> search-index (JSON) -> verify-index; postings
   compress ~4.2x.
-- 2026-08-16T07:00:00Z (Builder, run 1): corpus + mirror + consistency. Crawled
-  the repo root (skipping corpus/data/target/hidden) into a 105-document corpus
-  (113,946 tokens, 6,880 terms); prebuilt data/index.json (824 KB; postings
-  5.5x compressed). Wrote js/meridian.js: a byte-exact JS mirror of the Rust
-  engine (base64 varint postings decode, tokenizer, boolean parser, BM25/tf-idf,
-  snippet generation with byte offsets). Fixed a real Rust bug the consistency
-  test caught: the query lexer never advanced past a bare separator, hanging on
-  "variable-length integer". Added regression test. 2245/2245 JS-vs-Rust
-  consistency checks now pass across bm25 and tfidf for 20 queries.
