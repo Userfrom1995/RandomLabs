@@ -56,7 +56,7 @@ jobs:
 
             SAFETY NET (always binding):
             - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"architect"}`.
-            - Sign your work: every commit subject starts with `researcher:`, every comment ends with ` - Dr. Ada, the Researcher`.
+            - Sign your work: every commit subject starts with `researcher:`, every comment ends with ` - Dr. Mob, the Researcher`.
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
 
@@ -67,7 +67,7 @@ jobs:
         run: |
           issue="${{ github.event.issue.number }}"
           pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-            --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
           if [ ! -f /tmp/random-factory-decision.json ]; then
@@ -154,7 +154,7 @@ jobs:
         run: |
           issue="${{ github.event.issue.number }}"
           pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-            --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
           if [ ! -f /tmp/random-factory-decision.json ]; then
@@ -193,7 +193,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           [ -z "$pr" ] && exit 0
           branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
@@ -222,7 +222,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           if [ -z "$pr" ]; then
             echo "No PR context - repo-wide sweep of held runs"
@@ -371,7 +371,7 @@ jobs:
         run: |
           issue="${{ github.event.issue.number }}"
           pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
-            --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
           if [ ! -f /tmp/random-factory-decision.json ]; then
@@ -416,7 +416,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           [ -z "$pr" ] && exit 0
           branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
@@ -445,7 +445,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           if [ -z "$pr" ]; then
             echo "No PR context - repo-wide sweep of held runs"
@@ -728,7 +728,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           [ -z "$pr" ] && exit 0
           branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
@@ -757,7 +757,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           if [ -z "$pr" ]; then
             echo "No PR context - repo-wide sweep of held runs"

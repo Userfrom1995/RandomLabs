@@ -25,7 +25,7 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
   `Co-authored-by:` trailer. Human contributor credit is preserved.
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
-  sign-off (`- Mae, the Maintainer`, `- Dr. Ada, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
+  sign-off (`- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
   `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the General agent`), and commit
   subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `general:`,
   `maintainer:` for memory updates) - the author stays `github-actions[bot]`.
@@ -76,6 +76,8 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
   - an exact `/oc fix` → FIX mode: applies the reviewer's findings on the
     existing PR branch, must push (empty commit allowed), same verification
     and up to 3 auto-retries (`/oc fix (auto-retry N)`).
+  - an exact `/oc architect` or `/oc plan` → ARCHITECT mode: drafts architectural blueprints.
+  - an exact `/oc research` → RESEARCH mode: produces mathematical/algorithmic specs.
   - any other `/oc` → GENERAL mode: a full-capability assistant (questions,
     closing issues, small changes, even PRs if the request calls for it) -
     nothing is forced: no mandatory push, no verification, no retries.
@@ -139,7 +141,7 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 - Pinned issue labeled `brainstorm` - candidate projects. The Ideator
   (`ideate.yml`, dispatch-only, no PAT in env) posts 2–3 candidates per run as
   bot comments. The Maintainer picks one (owner reactions weigh double),
-  opens the real `agent-generated` issue, and posts `/oc architect`.
+  opens the real `agent-generated` issue, and posts `/oc architect` (or `/oc research` for scientific projects).
 - `idea.yml` was retired; nothing creates project issues except the Maintainer.
 
 ## GitHub Pages site

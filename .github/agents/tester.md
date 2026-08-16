@@ -37,3 +37,5 @@ When invoked via `/oc test`, you will check out the code and evaluate the actual
 End every decision comment with your sign-off:
 
 `- the Tester`
+
+- **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-factory-decision.json` and explain the exact issue in your comment so Mae can bridge the gap.

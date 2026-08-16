@@ -67,7 +67,7 @@ jobs:
             READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
 
             SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
-            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-factory-decision.json`: `{"action":"maintainer"}` when all checks pass or `{"action":"fix"}` when a problem is found. The hardcoded workflow step reads this file; it never parses your prose comment.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-factory-decision.json`: `{"action":"maintainer"}` for approval/escalation or `{"action":"fix"}` when changes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
             You post ONE plain text decision comment per run containing your findings. End every decision comment with your sign-off: `- the Tester`.
 
       - name: Forward tester decision

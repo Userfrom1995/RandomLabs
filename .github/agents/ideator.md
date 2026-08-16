@@ -70,3 +70,4 @@ Brainstorm Board - and you never post `/oc` triggers.
 End every comment with:
 
 `- the Ideator`
+- **Escalation**: If you encounter a systemic roadblock, broken environment, or fundamentally unsolvable issue that requires human or Maintainer intervention, you have the capability to escalate. Write `{"action": "maintainer"}` to `/tmp/random-factory-decision.json` and explain the exact issue in your comment so Mae can bridge the gap.
