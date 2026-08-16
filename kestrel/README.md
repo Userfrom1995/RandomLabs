@@ -64,11 +64,16 @@ with a non-zero exit. No interactive input anywhere.
 ```julia
 using Kestrel
 
-model = Kestrel.MLP([Kestrel.Dense(784, 128, Kestrel.relu), Kestrel.Dense(128, 10)])
-images, labels = Kestrel.synthetic_digits(1000)
-Kestrel.train!(model, images, labels; epochs=5, batch=32, lr=0.1)
-Kestrel.accuracy(model, images[1:100], labels[1:100])
+model = MLP([784, 128, 10])          # input -> hidden -> output sizes
+images, labels = synthetic_digits(1000; seed = 1)
+train!(model, images, labels; epochs = 5, batch = 32, lr = 0.1, momentum = 0.9,
+    rng = MersenneTwister(1), verbose = false)
+accuracy(model, images[:, 1:100], labels[1:100])
+save_model(model, "model.json")
 ```
+
+Ready-to-run scripts live in `examples/` (`xor.jl` trains a 2-4-2 net on XOR,
+`train.jl` trains on synthetic digits and exports weights for the playground).
 
 ## The playground
 
