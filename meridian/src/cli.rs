@@ -154,6 +154,7 @@ fn opt_signals(args: &Args) -> Result<SearchOptions, String> {
     Ok(SearchOptions {
         stem: opt_bool(args, "stem", false)?,
         signals: opt_bool(args, "signals", true)?,
+        stopwords: opt_bool(args, "stopwords", true)?,
     })
 }
 

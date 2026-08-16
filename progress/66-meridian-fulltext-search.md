@@ -3,7 +3,7 @@
 - **Issue:** #66
 - **Branch:** opencode/issue66-20260816031421
 - **Status:** in-progress
-- **Updated:** 2026-08-16T08:35:00Z
+- **Updated:** 2026-08-16T09:15:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cargo project skeleton (src/js/tests/corpus/docs), progress + ideas entries, branch, PR
@@ -24,10 +24,10 @@
 - [x] 16. Concurrency & instrumentation: `--threads N` thread pool for crawl/index with deterministic merge, `--time` phase timing, `bench` command
 - [x] 17. UI evolution & cleanup: stem/fuzzy/signals toggles, did-you-mean line, ms timing, CJK/fuzzy chips, help update; remove unused fns (`unique_terms`, `document_tokens`), wire `posting_repr` into `stats --format json`, document `plan` in usage + README
 - [x] 18. Re-verification & handoff: cargo test (90) + clippy 0, consistency suite (9296), ui.test (25), verify-index on v2, README/docs updates, hand off to Reviewer
-- [ ] 19. Wildcard & prefix retrieval: `src/wildcard.rs` pattern matching (`*`, `?`), prefix range expansion over sorted vocab, `TermSpec::Wildcard` / `BoolExpr::Wildcard`, ranked + boolean evaluation, JS mirror + consistency
-- [ ] 20. Fielded search: `src/fields.rs` load-time per-field token sets (title/source from exported docs), `title:` / `source:` lexer + boolean leaf + ranked filter, breakdown field tags, JS mirror + consistency
-- [ ] 21. Phrase slop: `"a b"~N` ordered-slop position intersection (N 0..=9, default ~0 = exact), parser + evaluator, JS mirror + consistency
-- [ ] 22. Query term boosting: `term^N`, `"phrase"^N`, `title:x^N`, `term~^N` boost multiplier in scorer + breakdown, validation errors, JS mirror + consistency
+- [x] 19. Wildcard & prefix retrieval: `src/wildcard.rs` pattern matching (`*`, `?`), prefix range expansion over sorted vocab, `TermSpec::Wildcard` / `BoolExpr::Wildcard`, ranked + boolean evaluation, JS mirror + consistency
+- [x] 20. Fielded search: `src/fields.rs` load-time per-field token sets (title/source from exported docs), `title:` / `source:` lexer + boolean leaf + ranked filter, breakdown field tags, JS mirror + consistency
+- [x] 21. Phrase slop: `"a b"~N` ordered-slop position intersection (N 0..=9, default ~0 = exact), parser + evaluator, JS mirror + consistency
+- [x] 22. Query term boosting: `term^N`, `"phrase"^N`, `title:x^N`, `term~^N` boost multiplier in scorer + breakdown, validation errors, JS mirror + consistency
 - [ ] 23. Pagination & result metadata: `--offset` / `--limit`, `total_hits` / `pages` in JSON + text, UI pager
 - [ ] 24. Search-as-you-type: `suggest` command (prefix -> vocab ranked by df desc, term asc), UI typeahead dropdown (debounced), JS mirror helper + consistency
 - [ ] 25. Concurrency, stopwords, docs & polish: `--threads` on search (deterministic merge), `--stopwords on|off` (built-in list, ranked-only), two new IR seed articles + deterministic re-crawl + rebuilt v2 index, README/docs/usage updates, full re-verify (cargo test grows, clippy 0, consistency grows, ui.test grows, verify-index v2) + handoff
@@ -48,6 +48,21 @@ to the Reviewer. Decision file written: /tmp/random-factory-decision.json
 - action: continue.
 
 ## Agent log
+- 2026-08-16T09:15:00Z (Builder, Level 3 round): milestones 19-22 core done.
+  Wrote `src/wildcard.rs` (pattern_matches DP, fixed_prefix range expansion,
+  suggest_prefix) and `src/fields.rs` (per-doc title/source token sets,
+  field_docs, expand_wildcard over field vocab). Rewrote `src/query.rs` for the
+  full Level 3 surface: `TermSpec::Wildcard/Field`, `BoolExpr::Wildcard/Field/
+  Phrase(words,slop)/Boost`, lexer additions (`*`/`?` in read_word, `~N` slop
+  after phrases, `^N` boost, `title:`/`source:` field prefixes), rarest-anchor
+  ordered-slop phrase_docs (span - (len-1) <= slop), `TermGroup` scoring slots
+  with field restriction + boost multiplier, fielded wildcards expanded against
+  the field vocabulary, 41-word ranked-only stopword list, and
+  `search_with(threads)` with a deterministic doc-order merge via
+  std::thread::scope. Fixed real bugs the first test run caught (fielded
+  wildcard vocab, bare `^` with no primary, `~x` slop, wrong test data in four
+  tests). 126 Rust tests pass, clippy 0 warnings. CLI/JS/UI/docs milestones
+  23-25 still pending.
 - 2026-08-16T05:00:00Z (Builder, run 1): orientation done. Rust 1.97.1, node 22,
   git identity is github-actions[bot]. No existing branch/PR for issue #66
   (branch created locally only). Reading repo conventions; Aftershock is the
