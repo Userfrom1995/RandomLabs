@@ -57,6 +57,61 @@
   }
   document.getElementById("clear").addEventListener("click", clear);
 
+  // 5x7 bitmap glyphs for the ten digits, mirroring Kestrel's synthetic
+  // generator so the demo digit looks like the training data.
+  var GLYPHS = [
+    ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+    ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    ["11111", "00010", "00100", "00010", "00001", "10001", "01110"],
+    ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+    ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+    ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    ["01110", "10001", "10001", "01111", "00001", "00010", "01100"]
+  ];
+
+  // Render a random synthetic digit (random scale/shift, mild noise) straight
+  // onto the canvas, then classify it: exercises the whole input -> network
+  // path on something the model was trained on.
+  function randomDemo() {
+    var digit = Math.floor(Math.random() * 10);
+    var glyph = GLYPHS[digit];
+    var scale = 0.9 + Math.random() * 0.5;
+    var dx = (Math.random() * 2 - 1) * 3.0;
+    var dy = (Math.random() * 2 - 1) * 3.0;
+    var cell = SIZE / 28;
+    var cx = 14 + dx;
+    var cy = 14 + dy;
+    var x0 = cx - 2.5 * scale;
+    var y0 = cy - 3.5 * scale;
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    ctx.fillStyle = "#fff";
+    for (var r = 0; r < 7; r++) {
+      for (var c = 0; c < 5; c++) {
+        if (glyph[r].charAt(c) !== "1") continue;
+        var px = (x0 + c * scale) * cell;
+        var py = (y0 + r * scale) * cell;
+        var w = scale * cell + 0.5;
+        ctx.fillRect(px, py, w, w);
+      }
+    }
+    // faint Gaussian-ish noise so it looks like the perturbed training data
+    for (var i = 0; i < 400; i++) {
+      var x = Math.floor(Math.random() * SIZE);
+      var y = Math.floor(Math.random() * SIZE);
+      var a = Math.random() * 0.05;
+      ctx.fillStyle = "rgba(255,255,255," + a.toFixed(3) + ")";
+      ctx.fillRect(x, y, 1, 1);
+    }
+    ctx.fillStyle = "#fff";
+    classify();
+  }
+  document.getElementById("demo").addEventListener("click", randomDemo);
+
   function downscale() {
     var img = ctx.getImageData(0, 0, SIZE, SIZE).data;
     var cells = new Float64Array(INPUT * INPUT);
