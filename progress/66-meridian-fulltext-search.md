@@ -141,3 +141,15 @@ Reviewer to review PR #67. Decision file written: /tmp/random-factory-decision.j
   so the exported index format stays v2 and the 9296 consistency baseline holds
   and grows. Blueprint appended to the ideas entry; milestones 19-25 added;
   Status stays in-progress. Handing off to the Builder with action=continue.
+- 2026-08-16T11:30:00Z (Fixer, Level 3 review round): applied the Reviewer's
+  findings on the Level 3 head. Finding 1 (blocking): updated the root
+  landing page stats to 112 docs / 21,226 consistency checks / 126 tests.
+  Finding 2 (blocking): clamped `--limit` to at least 1 in `run_search` so
+  `total.div_ceil(limit)` no longer panics on `--limit 0`. Finding 3 (minor):
+  removed the unused `export::build_and_compare`; skipped the JS
+  `fieldTerms()` item after verifying it is live on the fielded-search path
+  (`meridian.js:1206`, called by `fieldExpandWildcard`, used by
+  `specEffective`/`effectiveLists`/`evaluate`). Re-verified green: 126 Rust
+  tests, clippy 0, 21226/21226 consistency, 40/40 UI, `meridian check`,
+  `verify-index` OK on v2, and `--limit 0` now returns a clean result. Handing
+  back to the Reviewer.
