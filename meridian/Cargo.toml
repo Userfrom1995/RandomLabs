@@ -1,0 +1,8 @@
+[package]
+name = "meridian"
+version = "1.0.0"
+edition = "2021"
+description = "A full-text search engine built from scratch: crawler, tokenizer, inverted index with compressed postings, tf-idf and BM25 ranking, boolean queries, snippets, and a browser UI"
+license = "MIT"
+
+[dependencies]
