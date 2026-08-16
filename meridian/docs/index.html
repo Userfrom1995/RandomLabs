@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meridian: a full-text search engine in Rust</title>
+<meta name="description" content="Meridian: a full-text search engine built from scratch in Rust - corpus crawler, inverted index with varint postings compression, BM25/TF-IDF ranking, boolean query parser, snippets, and a dependency-free JavaScript mirror that powers a static web UI. Zero dependencies." />
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --panel-2: #1c2539;
+    --border: #26314d;
+    --text: #e8edf7;
+    --muted: #8b96ad;
+    --accent: #3d9bff;
+    --accent-2: #7c5cff;
+    --code-bg: #121a2b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(61,155,255,0.10), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.12); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 22px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Meridian</h1>
+  <p>A full-text search engine built <strong>from scratch in Rust</strong>:
+  crawl, invert, compress, rank, and search - with a dependency-free
+  JavaScript mirror that runs the same engine in a static web page.</p>
+  <div class="launch"><a href="https://userfrom1995.github.io/Random/meridian/">Search the corpus →</a></div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>Inverted index</h4>
+      <p>A BTreeMap vocabulary maps each term to sorted postings of doc id,
+      frequency, and positions; AND plans the intersection rarest-first.</p>
+    </div>
+    <div class="card">
+      <h4>5.5x compression</h4>
+      <p>Varint (LEB128) term-gap encoding packs 113,946 postings into 248 KB,
+      base64-safe for JSON, proven by verify-index.</p>
+    </div>
+    <div class="card">
+      <h4>BM25 and TF-IDF</h4>
+      <p>Two rankers with per-term score breakdowns, switchable in the CLI
+      and the browser, deterministic end to end.</p>
+    </div>
+    <div class="card">
+      <h4>One engine, two languages</h4>
+      <p>The Rust engine is mirrored line-by-line in dependency-free JS, so
+      the web UI searches the corpus with no server at all.</p>
+    </div>
+  </section>
+
+  <h2>Try it</h2>
+  <pre><code>cd meridian
+cargo build --release
+cargo test                    # 61 tests, all pass
+cargo clippy --all-targets    # zero warnings
+node tests/consistency.test.mjs   # 2245 JS-vs-Rust checks, all pass
+node tests/ui.test.mjs            # headless UI rendering checks
+
+python3 -m http.server 8000       # open http://localhost:8000 for the web UI</code></pre>
+
+  <h2>CLI commands</h2>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>meridian crawl --src &lt;dir&gt; --out &lt;corpus&gt;</code></td><td>Crawl a directory into a corpus (manifest + plain-text docs).</td></tr>
+    <tr><td><code>meridian index --corpus &lt;dir&gt; --out &lt;json&gt;</code></td><td>Build the inverted index and export the compressed JSON index.</td></tr>
+    <tr><td><code>meridian search --corpus &lt;dir&gt; --query &lt;q&gt; [--scoring bm25|tfidf] [--top N] [--format text|json]</code></td><td>Crawl (or reuse) the corpus and search it.</td></tr>
+    <tr><td><code>meridian search-index --index &lt;json&gt; --query &lt;q&gt; [...]</code></td><td>Search an exported index directly.</td></tr>
+    <tr><td><code>meridian stats --corpus &lt;dir&gt;</code></td><td>Corpus and index statistics.</td></tr>
+    <tr><td><code>meridian verify-index --index &lt;json&gt; --corpus &lt;dir&gt;</code></td><td>Prove the exported index round-trips byte-for-byte.</td></tr>
+    <tr><td><code>meridian check</code></td><td>Run the built-in runtime self-checks.</td></tr>
+    <tr><td><code>meridian help</code></td><td>Show usage and all options.</td></tr>
+  </table>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Crawl.</strong> Each document becomes one plain-text file plus
+    a manifest entry with a stable source path, title (first heading or
+    filename), and URL. The output is deterministic: same tree, same corpus.</li>
+    <li><strong>Tokenize.</strong> Chars are walked once; <code>\p{L}</code>/
+    <code>\p{N}</code> starts a word, apostrophes between letters stay inside
+    it, case is folded, and the byte offset of every word boundary is
+    recorded so snippets can be byte-exact.</li>
+    <li><strong>Index.</strong> A postings list per term is kept sorted by
+    document id; document frequency, term frequency, and positions fall out of
+    construction. <code>AND</code> intersects rarest-first, <code>OR</code>
+    unions, <code>NOT</code> subtracts, phrases intersect consecutive
+    positions.</li>
+    <li><strong>Compress.</strong> Postings store <code>(doc_id gap, tf,
+    position gaps)</code> as LEB128 varints packed into a byte array,
+    base64-encoded for JSON. Decoding is the exact inverse;
+    <code>verify-index</code> re-encodes and compares.</li>
+    <li><strong>Rank.</strong> BM25 scores
+    <code>idf * tf*(k1+1) / (tf + k1*(1 - b + b*len/avgLen))</code> and TF-IDF
+    scores <code>tf * log(N/df)</code>. Ranked queries sum per-term scores;
+    boolean queries compute matches first and rank the surviving set.</li>
+    <li><strong>Snippet.</strong> The best window around the densest cluster
+    of matches is chosen, snapped to word boundaries, and returned with the
+    byte ranges of every matched term so renderers can highlight without
+    re-tokenizing.</li>
+  </ul>
+
+  <h2>The article series</h2>
+  <p>Meridian's documentation doubles as its own searchable corpus. These
+  articles explain the search-engine fundamentals the project implements.</p>
+  <table>
+    <tr><th>Article</th><th>Covers</th></tr>
+    <tr><td><a href="articles/how-a-search-engine-works.md">How a search engine works</a></td><td>Crawl, tokenize, index, rank, retrieve: the whole pipeline.</td></tr>
+    <tr><td><a href="articles/the-inverted-index.md">The inverted index</a></td><td>The core data structure behind every search engine.</td></tr>
+    <tr><td><a href="articles/bm25-ranking-explained.md">BM25 ranking, explained</a></td><td>Why BM25 works, and how tf-idf compares.</td></tr>
+    <tr><td><a href="articles/boolean-query-languages.md">Boolean query languages</a></td><td>AND/OR/NOT, phrases, and how parsers evaluate them.</td></tr>
+    <tr><td><a href="articles/tokenization-and-the-problems-of-natural-language.md">Tokenization</a></td><td>Splitting text into terms: punctuation, apostrophes, unicode.</td></tr>
+    <tr><td><a href="articles/snippets-and-result-presentation.md">Snippets and result presentation</a></td><td>Choosing and highlighting the best fragment of a hit.</td></tr>
+    <tr><td><a href="articles/a-short-history-of-full-text-search.md">A short history of full-text search</a></td><td>From grep and permuted indexes to modern engines.</td></tr>
+    <tr><td><a href="articles/postings-compression.md">Postings compression</a></td><td>Gap encoding and varints: the postings are 5.5x smaller here.</td></tr>
+  </table>
+
+  <h2>Design choices</h2>
+  <ul>
+    <li><strong>From scratch.</strong> No crates, no node packages, no search
+    library: the whole pipeline is written against the Rust standard library
+    and browser JS. This is what makes the cross-language mirror possible.</li>
+    <li><strong>One engine, two languages.</strong> Instead of a web server,
+    the ranking, parsing, and snippet logic is ported line-by-line to JS so
+    the UI is a static site. A consistency suite keeps the two honest.</li>
+    <li><strong>Deterministic end to end.</strong> Crawl order, token
+    positions, and scores are fully deterministic; the same command always
+    produces the same index and ranked output.</li>
+    <li><strong>Self-verifying.</strong> <code>meridian check</code> re-runs
+    core invariants at runtime, and the test suite covers every module plus
+    the JS mirror.</li>
+  </ul>
+
+  <h2>Source</h2>
+  <p>The project lives in
+  <a href="https://github.com/Userfrom1995/Random/tree/main/meridian"><code>meridian/</code></a>
+  with a
+  <a href="https://github.com/Userfrom1995/Random/blob/main/meridian/README.md">README</a>
+  and a full writeup in
+  <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-16-meridian-fulltext-search-engine-rust.md"><code>ideas/</code></a>.</p>
+</main>
+
+<footer>Meridian · part of the Random repo · MIT License</footer>
+</body>
+</html>

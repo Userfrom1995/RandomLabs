@@ -15,16 +15,16 @@
 - [x] 7. Corpus: crawl repo docs into a curated real-text corpus + prebuilt `data/index.json`
 - [x] 8. Web UI: `index.html` + JS mirror (varint decode, tokenizer, boolean parser, BM25, snippets)
 - [x] 9. Tests: Rust unit + integration + JS mirror consistency vs CLI search results
-- [ ] 10. Docs: README, docs/index.html + index.md; root landing page + root README entries
+- [x] 10. Docs: README, docs/index.html + index.md; root landing page + root README entries
 - [ ] 11. Iteration/improvement cycle + final polish; Status: complete
 
 ## Current step
-Web UI index.html + ui.js in progress (mirror engine done; UI markup/glue pending).
+Docs done. Final verification round (fresh cargo test/clippy, both node suites, index check) before Status: complete and review handoff.
 
 ## Next steps
-- Finish web UI (index.html + ui.js: results, highlights, score breakdown, suggestions, stats, doc viewer).
-- Docs (README, docs/index.html + index.md, articles index) + landing entries.
-- Iteration cycle + final polish.
+- Final verification: cargo test, clippy, consistency + ui node suites, meridian check, push.
+- Iteration/improvement pass over engine + UI (edge cases, perf, demo queries).
+- Mark Status: complete in this file, then write /tmp/random-factory-decision.json and end.
 
 ## Agent log
 - 2026-08-16T05:00:00Z (Builder, run 1): orientation done. Rust 1.97.1, node 22,
@@ -51,3 +51,14 @@ Web UI index.html + ui.js in progress (mirror engine done; UI markup/glue pendin
   test caught: the query lexer never advanced past a bare separator, hanging on
   "variable-length integer". Added regression test. 2245/2245 JS-vs-Rust
   consistency checks now pass across bm25 and tfidf for 20 queries.
+- 2026-08-16T08:00:00Z (Builder, run 1): web UI + docs complete. Built
+  index.html + js/ui.js: dark search UI with suggestions, BM25/TF-IDF toggle,
+  example query chips, score-breakdown bars, a full-document viewer with
+  per-term highlighting, query help, and a stats panel. Refactored ui.js to
+  export its pure byte-offset/highlight helpers for headless node tests;
+  tests/ui.test.mjs verifies UTF-8 byte-to-char mapping, snippet markup
+  round-tripping against the real index, and word-bound spans (18 checks).
+  Served the static site and confirmed every asset resolves (index, JS, index
+  JSON, corpus docs). Docs: meridian/README.md, meridian/docs/index.html +
+  index.md, and root README.md + index.html updated to make Meridian the
+  current project (Kestrel moved to Previous).
