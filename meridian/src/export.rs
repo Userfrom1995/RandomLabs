@@ -7,7 +7,11 @@ use crate::jsonx::{self, Json};
 use crate::postings;
 use crate::scoring::idf;
 
-pub const INDEX_VERSION: u32 = 1;
+/// Index format version. Bumped to 2 when the tokenizer learned CJK n-gram
+/// segmentation: the token stream (and therefore the postings) for any Han,
+/// Kana or Hangul text changed, so `verify-index` against a v1 index now
+/// fails loudly.
+pub const INDEX_VERSION: u32 = 2;
 
 const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 

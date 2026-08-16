@@ -19,6 +19,9 @@ pub struct Document {
 pub const MANIFEST_NAME: &str = "manifest.json";
 pub const MAX_DOC_BYTES: u64 = 512 * 1024;
 
+/// One normalized document slot produced by a crawl worker.
+type Slot = Option<(String, String, String, String)>;
+
 pub fn default_extensions() -> &'static [&'static str] {
     &[".md", ".txt", ".html", ".rst"]
 }
@@ -126,6 +129,20 @@ fn derive_title(text: &str, fallback: &str) -> String {
 /// Deterministic: files are visited in sorted path order and ids are assigned
 /// in that order.
 pub fn crawl(src: &Path, out: &Path, extensions: &[&str], skip: &[&str]) -> Result<usize, String> {
+    crawl_with_threads(src, out, extensions, skip, 1)
+}
+
+/// Same as [`crawl`] but reads and normalizes documents on a fixed worker
+/// pool. Files are read into per-position slots in parallel; results are then
+/// written and ids assigned in sorted path order, so `--threads 1` and
+/// `--threads 8` produce byte-identical corpora.
+pub fn crawl_with_threads(
+    src: &Path,
+    out: &Path,
+    extensions: &[&str],
+    skip: &[&str],
+    threads: usize,
+) -> Result<usize, String> {
     let mut skip: Vec<String> = skip.iter().map(|s| s.to_string()).collect();
     if let Some(out_name) = out.file_name().map(|n| n.to_string_lossy().to_string()) {
         if !skip.contains(&out_name) {
@@ -140,26 +157,69 @@ pub fn crawl(src: &Path, out: &Path, extensions: &[&str], skip: &[&str]) -> Resu
     fs::create_dir_all(out)
         .map_err(|e| format!("cannot create {}: {}", out.display(), e))?;
 
-    let mut docs: Vec<(String, String, String)> = Vec::new(); // (file, title, source)
-    for (i, path) in files.iter().enumerate() {
-        let meta = fs::metadata(path)
-            .map_err(|e| format!("cannot stat {}: {}", path.display(), e))?;
-        if meta.len() > MAX_DOC_BYTES {
-            continue;
+    // Read and normalize each file in parallel, each worker collecting its
+    // own ordered results. Oversized or unreadable files yield `None` and are
+    // dropped. Concatenating the chunk results in sorted order preserves the
+    // deterministic ids of the sequential path.
+    let workers = threads.max(1);
+    let mut slots: Vec<Slot> = Vec::with_capacity(files.len());
+    if files.is_empty() {
+        write_manifest(out, &[])?;
+        return Ok(0);
+    }
+    let mut chunks: Vec<Vec<Slot>> = Vec::new();
+    std::thread::scope(|s| -> Result<(), String> {
+        let chunk = files.len().div_ceil(workers);
+        let mut handles = Vec::new();
+        for start in (0..files.len()).step_by(chunk) {
+            let end = (start + chunk).min(files.len());
+            let files: &[PathBuf] = &files;
+            handles.push(s.spawn(move || {
+                let mut out: Vec<Slot> = Vec::with_capacity(end - start);
+                for (offset, path) in files[start..end].iter().enumerate() {
+                    let i = start + offset;
+                    let meta = match fs::metadata(path) {
+                        Ok(m) => m,
+                        Err(e) => return Err(format!("cannot stat {}: {}", path.display(), e)),
+                    };
+                    if meta.len() > MAX_DOC_BYTES {
+                        out.push(None);
+                        continue;
+                    }
+                    let raw = fs::read(path)
+                        .map_err(|e| format!("cannot read {}: {}", path.display(), e))?;
+                    let text = String::from_utf8_lossy(&raw);
+                    let stem = path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_else(|| format!("doc-{}", i));
+                    let slug = slugify(&stem);
+                    let file_name = format!("{:04}-{}.txt", i, slug);
+                    let title = derive_title(&text, &stem.replace('_', " "));
+                    let rel = relativize(src, path);
+                    out.push(Some((file_name, title, rel, text.into_owned())));
+                }
+                Ok(out)
+            }));
         }
-        let raw = fs::read(path).map_err(|e| format!("cannot read {}: {}", path.display(), e))?;
-        let text = String::from_utf8_lossy(&raw);
-        let stem = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| format!("doc-{}", i));
-        let slug = slugify(&stem);
-        let file_name = format!("{:04}-{}.txt", i, slug);
-        let title = derive_title(&text, &stem.replace('_', " "));
-        let rel = relativize(src, path);
-        docs.push((file_name.clone(), title, rel));
+        for h in handles {
+            let res: Result<Vec<Slot>, String> =
+                h.join().unwrap_or_else(|_| Err("crawl worker panicked".to_string()));
+            chunks.push(res?);
+        }
+        Ok(())
+    })?;
+
+    for chunk in chunks {
+        slots.extend(chunk);
+    }
+
+    // Write in sorted order, assigning ids contiguously over kept docs.
+    let mut docs: Vec<(String, String, String)> = Vec::new();
+    for (file_name, title, rel, text) in slots.into_iter().flatten() {
         fs::write(out.join(&file_name), text.as_bytes())
             .map_err(|e| format!("cannot write {}: {}", file_name, e))?;
+        docs.push((file_name, title, rel));
     }
 
     write_manifest(out, &docs)?;
@@ -321,6 +381,50 @@ mod tests {
         let docs = load_corpus(&tmp).unwrap();
         assert_eq!(docs.len(), 2);
         assert_eq!(docs[0].title, "Aye");
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[test]
+    fn threaded_crawl_matches_sequential_byte_for_byte() {
+        let tmp = std::env::temp_dir().join(format!("meridian-crawl4-{}", std::process::id()));
+        let src = tmp.join("src");
+        fs::create_dir_all(src.join("nested")).unwrap();
+        fs::write(src.join("b.txt"), "# Bee\nthe bee flies").unwrap();
+        fs::write(src.join("a.md"), "# Aye\naye aye captain").unwrap();
+        fs::write(src.join("nested").join("c.md"), "# Cee\nsee the sea").unwrap();
+        fs::write(src.join("d.rst"), "Deep nesting").unwrap();
+
+        let out1 = tmp.join("out1");
+        let out8 = tmp.join("out8");
+        let n1 = crawl_with_threads(&src, &out1, &[".md", ".txt", ".rst"], &[], 1).unwrap();
+        let n8 = crawl_with_threads(&src, &out8, &[".md", ".txt", ".rst"], &[], 4).unwrap();
+        assert_eq!(n1, 4);
+        assert_eq!(n8, 4);
+
+        let mut f1: Vec<String> = fs::read_dir(&out1)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        let mut f8: Vec<String> = fs::read_dir(&out8)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        f1.sort();
+        f8.sort();
+        assert_eq!(f1, f8, "file sets must match across thread counts");
+        for name in f1 {
+            let a = fs::read(out1.join(&name)).unwrap();
+            let b = fs::read(out8.join(&name)).unwrap();
+            assert_eq!(a, b, "file {} differs", name);
+        }
+        let m1 = fs::read(out1.join(MANIFEST_NAME)).unwrap();
+        let m8 = fs::read(out8.join(MANIFEST_NAME)).unwrap();
+        assert_eq!(m1, m8, "manifests must match");
+
+        let docs1 = load_corpus(&out1).unwrap();
+        let docs8 = load_corpus(&out8).unwrap();
+        assert_eq!(docs1, docs8);
+
         fs::remove_dir_all(&tmp).unwrap();
     }
 }

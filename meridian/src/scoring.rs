@@ -30,6 +30,56 @@ impl Scorer {
 pub const BM25_K1: f64 = 1.2;
 pub const BM25_B: f64 = 0.75;
 
+/// Multiplier applied to a term contribution when the term also occurs in the
+/// document's title.
+pub const TITLE_BOOST: f64 = 1.5;
+
+/// Weight of the proximity bonus: `PROX_WEIGHT * sum over unordered pairs of
+/// 1/(1 + min distance)`.
+pub const PROX_WEIGHT: f64 = 0.5;
+
+/// The smallest pairwise absolute distance between the positions of `a` and
+/// `b` in `doc_id`; `None` when either term is absent from the document.
+pub fn min_term_distance(index: &Index, doc_id: usize, a: &str, b: &str) -> Option<u32> {
+    let pa = index.positions(a, doc_id);
+    let pb = index.positions(b, doc_id);
+    if pa.is_empty() || pb.is_empty() {
+        return None;
+    }
+    let (mut i, mut j) = (0usize, 0usize);
+    let mut best = u32::MAX;
+    while i < pa.len() && j < pb.len() {
+        let d = pa[i].abs_diff(pb[j]);
+        if d < best {
+            best = d;
+        }
+        if pa[i] < pb[j] {
+            i += 1;
+        } else {
+            j += 1;
+        }
+    }
+    Some(best)
+}
+
+/// Proximity bonus for a document given the distinct terms present in it:
+/// `PROX_WEIGHT * sum over unordered pairs of 1/(1 + min distance)`. Needs at
+/// least two terms, so a single-term query scores zero.
+pub fn proximity(index: &Index, doc_id: usize, terms: &[String]) -> f64 {
+    if terms.len() < 2 {
+        return 0.0;
+    }
+    let mut total = 0.0;
+    for i in 0..terms.len() {
+        for j in i + 1..terms.len() {
+            if let Some(d) = min_term_distance(index, doc_id, &terms[i], &terms[j]) {
+                total += 1.0 / (1.0 + d as f64);
+            }
+        }
+    }
+    PROX_WEIGHT * total
+}
+
 /// The smoothed inverse document frequency shared by both scorers:
 /// `ln(1 + (N - df + 0.5) / (df + 0.5))`. Documents holding the term get a
 /// positive weight; the more documents hold it, the smaller the weight.
