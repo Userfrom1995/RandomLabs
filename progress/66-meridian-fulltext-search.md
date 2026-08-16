@@ -3,7 +3,7 @@
 - **Issue:** #66
 - **Branch:** opencode/issue66-20260816031421
 - **Status:** in-progress
-- **Updated:** 2026-08-16T09:15:00Z
+- **Updated:** 2026-08-16T11:30:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cargo project skeleton (src/js/tests/corpus/docs), progress + ideas entries, branch, PR
@@ -28,26 +28,36 @@
 - [x] 20. Fielded search: `src/fields.rs` load-time per-field token sets (title/source from exported docs), `title:` / `source:` lexer + boolean leaf + ranked filter, breakdown field tags, JS mirror + consistency
 - [x] 21. Phrase slop: `"a b"~N` ordered-slop position intersection (N 0..=9, default ~0 = exact), parser + evaluator, JS mirror + consistency
 - [x] 22. Query term boosting: `term^N`, `"phrase"^N`, `title:x^N`, `term~^N` boost multiplier in scorer + breakdown, validation errors, JS mirror + consistency
-- [ ] 23. Pagination & result metadata: `--offset` / `--limit`, `total_hits` / `pages` in JSON + text, UI pager
-- [ ] 24. Search-as-you-type: `suggest` command (prefix -> vocab ranked by df desc, term asc), UI typeahead dropdown (debounced), JS mirror helper + consistency
-- [ ] 25. Concurrency, stopwords, docs & polish: `--threads` on search (deterministic merge), `--stopwords on|off` (built-in list, ranked-only), two new IR seed articles + deterministic re-crawl + rebuilt v2 index, README/docs/usage updates, full re-verify (cargo test grows, clippy 0, consistency grows, ui.test grows, verify-index v2) + handoff
+- [x] 23. Pagination & result metadata: `--offset` / `--limit`, `total_hits` / `pages` in JSON + text, UI pager
+- [x] 24. Search-as-you-type: `suggest` command (prefix -> vocab ranked by df desc, term asc), UI typeahead dropdown (debounced), JS mirror helper + consistency
+- [x] 25. Concurrency, stopwords, docs & polish: `--threads` on search (deterministic merge), `--stopwords on|off` (built-in list, ranked-only), two new IR seed articles + deterministic re-crawl + rebuilt v2 index, README/docs/usage updates, full re-verify (cargo test grows, clippy 0, consistency grows, ui.test grows, verify-index v2) + handoff
 
 ## Current step
-Level 3 enhancement round (retrieval depth: wildcard, fielded search, phrase
-slop, term boosting, pagination, search-as-you-type, concurrency/stopwords)
-designed by the Architect on PR #67 after the owner manually re-triggered
-`/oc architect` (08:27Z), overriding the Maintainer's no-re-trigger decision.
-Blueprint appended to `ideas/2026-08-16-meridian-fulltext-search-engine-rust.md`.
-Baseline verified green before the round: 90 Rust tests, clippy 0 warnings,
-9296/9296 consistency, 25/25 UI, verify-index on v2. Builder to start at
-milestone 19.
+Level 3 round complete: all 25 milestones done and verified. Handing off to the
+Reviewer.
 
 ## Next steps
-Builder resumes on the existing PR branch, works milestones 19-25, then hands
-to the Reviewer. Decision file written: /tmp/random-factory-decision.json
-- action: continue.
+Reviewer to review PR #67. Decision file written: /tmp/random-factory-decision.json
+- action: review.
 
 ## Agent log
+- 2026-08-16T11:30:00Z (Builder, Level 3 round): milestones 23-25 done and
+  pushed. Updated consistency harness (total->total_hits, --stopwords args,
+  stopwords in the opts matrix, 50 Level 3 queries: wildcards, fields, slop,
+  boosts, stopwords): 21226/21226 pass. Fixed a real mirror bug the suite caught
+  (fielded inner term specs used type 'term', specEffective expected 'word').
+  Rewrote js/ui.js for pagination (searchWithMeta, page-size 10, pager with
+  prev/next + windowed page buttons, absolute ranks), typeahead via
+  suggestPrefix, stopwords toggle, and updated help/chips; extended
+  tests/ui.test.mjs (wildcard/field/slop/boost/stopwords/pagination checks):
+  40/40 pass. Wrote the two IR seed articles (wildcard-and-fielded-search.md,
+  phrase-slop-and-term-boosting.md), re-crawled the corpus and rebuilt the index
+  deterministically (112 docs, 127,441 tokens, 7,859 terms, 271 KB postings,
+  5.5x, index format stays v2; verify-index OK). Updated README, docs/index.md
+  + docs/index.html, meridian/index.html, and usage text with the Level 3
+  surface. Full re-verify: 126 Rust tests, clippy 0, 21226/21226 consistency,
+  40/40 UI, verify-index OK, bench runs, search threads 1 vs 8 byte-identical
+  apart from ms. Handing off to the Reviewer with action=review.
 - 2026-08-16T09:15:00Z (Builder, Level 3 round): milestones 19-22 core done.
   Wrote `src/wildcard.rs` (pattern_matches DP, fixed_prefix range expansion,
   suggest_prefix) and `src/fields.rs` (per-doc title/source token sets,
