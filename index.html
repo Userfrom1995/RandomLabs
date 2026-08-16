@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Halcyon, a functional language with a bytecode VM, type classes, and records, written in Haskell." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Kestrel, a neural-network library written from scratch in Julia with its own autodiff engine." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -122,6 +122,20 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
+      <h4>Kestrel</h4>
+      <p>A neural-network library built from scratch in Julia: reverse-mode automatic differentiation on a tape, dense layers, activations, softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia standard library only. Gradients are verified against finite differences; an MLP trains on real MNIST to 98.6% accuracy. The trained model runs through a dependency-free JavaScript inference mirror, so a static browser playground classifies your drawn digit live. 32 tests.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/kestrel/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-16-kestrel-neural-network-library-julia.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/kestrel/">Playground</a>
+        <a href="https://userfrom1995.github.io/Random/kestrel/docs/">Documentation</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Previous Projects</h2>
+  <ul class="projects">
+    <li>
       <h4>Halcyon</h4>
       <p>A functional language written from scratch in Haskell: lexer, recursive-descent parser, full Hindley-Milner type inference with let-polymorphism and let-rec, algebraic data types and pattern matching, nominal records, type classes with dictionaries, chars and string builtins, tail-call optimization, a deterministic optimizer, a tree-walking interpreter, a real bytecode VM with closures, upvalue cells, and an instruction profiler. The entire language is mirrored one-to-one in dependency-free JavaScript, so a static web playground runs it in the browser with a single-stepping VM debugger, an optimizer toggle, and a profiler panel. A differential corpus (plain and optimized) plus a cross-language check prove the interpreter, VM, and JS mirror agree byte-for-byte, and the stdlib is written in Halcyon itself. Zero dependencies, 684 tests.</p>
       <div class="links">
@@ -130,11 +144,7 @@
         <a href="https://userfrom1995.github.io/Random/halcyon/">Playground</a>
         <a href="https://userfrom1995.github.io/Random/halcyon/docs/">Documentation</a>
       </div>
-    </div>
-  </div>
-
-  <h2>Previous Projects</h2>
-  <ul class="projects">
+    </li>
     <li>
       <h4>Glyphforge</h4>
       <p>A bitmap font designer and glyph-to-code tool written in Kotlin: draw a pixel font in a terminal grid, autotrace it to a compact run-length .gff raster font file, and export embeddable glyph maps (Kotlin, Java, C header, or text). Kerning pairs, a headless renderer that proofs any string at any scale, and a self-contained HTML specimen page that previews fonts live in the browser. The factory's first Kotlin project, zero dependencies, 135 tests.</p>

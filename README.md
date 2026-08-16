@@ -44,13 +44,28 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Halcyon** - a functional language written from scratch in **Haskell**: a lexer, recursive-descent parser, full Hindley-Milner type inference with `let`-polymorphism and `let rec`, algebraic data types and pattern matching, nominal records, type classes with dictionaries, chars and string builtins, tail-call optimization, a deterministic optimizer, a tree-walking interpreter, and a real bytecode VM with closures, upvalue cells, and an instruction profiler. The entire language is mirrored one-to-one in dependency-free JavaScript, so a static web playground runs it in the browser with a single-stepping VM debugger, an optimizer toggle, and a profiler panel. A differential corpus (plain and optimized) plus a cross-language check prove the interpreter, VM, and JS mirror all agree byte-for-byte, and its standard library is written in Halcyon itself. Zero dependencies, 684 tests.
+The current build is **Kestrel** - a neural-network library written from scratch in **Julia**: reverse-mode automatic differentiation on a tape, dense layers, activations, softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia standard library only. Gradients are verified against finite differences in the test suite, and an MLP trains on real MNIST to 98.6% accuracy. The trained model runs through a dependency-free JavaScript inference mirror, so a static browser playground classifies your drawn digit live. Zero dependencies, 32 tests.
 
--> [Run it](halcyon/README.md) * [Full writeup](ideas/2026-08-15-halcyon-functional-language-vm.md) * [Playground](https://userfrom1995.github.io/Random/halcyon/) * [Documentation](https://userfrom1995.github.io/Random/halcyon/docs/)
+-> [Run it](kestrel/README.md) * [Full writeup](ideas/2026-08-16-kestrel-neural-network-library-julia.md) * [Playground](https://userfrom1995.github.io/Random/kestrel/) * [Documentation](https://userfrom1995.github.io/Random/kestrel/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Halcyon** - a functional language written from scratch in **Haskell**: a
+  lexer, recursive-descent parser, full Hindley-Milner type inference with
+  `let`-polymorphism and `let rec`, algebraic data types and pattern matching,
+  nominal records, type classes with dictionaries, chars and string builtins,
+  tail-call optimization, a deterministic optimizer, a tree-walking
+  interpreter, and a real bytecode VM with closures, upvalue cells, and an
+  instruction profiler. The entire language is mirrored one-to-one in
+  dependency-free JavaScript, so a static web playground runs it in the
+  browser with a single-stepping VM debugger, an optimizer toggle, and a
+  profiler panel. A differential corpus (plain and optimized) plus a
+  cross-language check prove the interpreter, VM, and JS mirror all agree
+  byte-for-byte, and its standard library is written in Halcyon itself. Zero
+  dependencies, 684 tests. See
+  [ideas/2026-08-15-halcyon-functional-language-vm.md](ideas/2026-08-15-halcyon-functional-language-vm.md).
 
 - **Glyphforge** - a bitmap font designer and glyph-to-code tool written in
   **Kotlin**: draw a pixel font in a terminal grid, autotrace it to a compact
