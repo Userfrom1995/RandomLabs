@@ -227,6 +227,7 @@ fn run_search(
         .skip(offset.min(hits.len()))
         .take(limit)
         .collect();
+    let limit = limit.max(1);
     let pages = if total == 0 { 0 } else { total.div_ceil(limit) };
 
     if json_out {
