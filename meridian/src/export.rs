@@ -2,7 +2,7 @@
 //! dependency-free browser mirror can load, and rebuild an index from that
 //! JSON to verify the round trip.
 
-use crate::index::{build_index, DocMeta, Index, Posting};
+use crate::index::{DocMeta, Index, Posting};
 use crate::jsonx::{self, Json};
 use crate::postings;
 use crate::scoring::idf;
@@ -170,20 +170,6 @@ pub fn index_from_json(json_str: &str) -> Result<Index, String> {
     })
 }
 
-/// Rebuilds an index the same way `build_index` would, from plain texts.
-/// Useful for comparing a rebuilt exported index against a fresh build.
-pub fn build_and_compare(
-    texts: &[&str],
-    titles: &[String],
-    sources: &[String],
-    urls: &[String],
-    exported: &str,
-) -> Result<(), String> {
-    let original = build_index(texts, titles, sources, urls);
-    let rebuilt = index_from_json(exported)?;
-    compare_indexes(&original, &rebuilt)
-}
-
 /// Compares two indexes for equality (docs, postings, statistics).
 pub fn compare_indexes(a: &Index, b: &Index) -> Result<(), String> {
     if a.total_docs != b.total_docs {
@@ -240,7 +226,7 @@ mod tests {
         let titles = ["a", "b", "c"].map(|s| s.to_string());
         let sources = ["a.md", "b.md", "c.md"].map(|s| s.to_string());
         let urls = sources.clone();
-        build_index(&texts, &titles, &sources, &urls)
+        crate::index::build_index(&texts, &titles, &sources, &urls)
     }
 
     #[test]
