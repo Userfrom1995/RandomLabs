@@ -9,8 +9,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - The repo is a **project lab**: the Maintainer coordinates workers; every
   build produces a real project through a strict review gate. Quality is the
   only deadline; builds may span multiple days (resume mode via `progress/`).
-- Owner and collaborators are binding authorities; everyone else is a peer.
-  The owner's PAT is used ONLY by hardcoded workflow steps - never by agents.
+- **Hierarchy & Authority**: The Owner is the supreme, ultimate authority whose decisions override everything. Mae (The Maintainer) is the lab's main operational authority and CEO who directs the team, orchestrates workflows, and assigns priorities. All specialist agents report to Mae and must follow both Mae's and the Owner's directives. Collaborators are binding authorities; workers are peers. The owner's PAT is used ONLY by hardcoded workflow steps - never by agents.
 - When a request requires code or documentation changes, do the work on a
   dedicated branch (`opencode/<issue-number>-<short-description>`), commit
   your changes, push the branch, and open a pull request referencing the
@@ -21,37 +20,42 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - In the PR description list the issues it addresses; include `Closes #N`
   (or `Fixes #N` / `Resolves #N`) for any issue the PR fully resolves.
 - Attribution is strict: issues, commits, and pull requests are ALWAYS
-  authored by `github-actions[bot]` - never the owner, and never with a
+  authored by the bot identity with the agent's persona name (e.g. `The Builder`, `Mae (Maintainer)`, `The Factory Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` - never the owner, and never with a
   `Co-authored-by:` trailer. Human contributor credit is preserved.
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
-  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the General agent`), and commit
-  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `general:`,
-  `maintainer:` for memory updates) - the author stays `github-actions[bot]`.
+  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Factory Engineer`, `- the General agent`), and commit
+  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `factory:`, `general:`,
+  `maintainer:` for memory updates).
 - Only create issues and pull requests when a real change is warranted.
 
 ## The collaborative team call flow
 
-```
-[Researcher] ──► [Architect] ────► Builder / Fixer ──── (work ready) ────► Reviewer (/oc review)
+```text
+Product Track:
+[Ideator] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Builder ──┐
+                                                                         │
+Factory / Infra Track:                                                   ▼
+[Auditor] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Factory ──► Reviewer (/oc review)
+                                                                         │
+                                                                 ┌───────┴───────┐
+                                                          (issues found)     (approved)
+                                                                 │               │
+                                                                 ▼               ▼
+                                                   Fixer / Factory (/oc fix)  Tester (/oc test)
                                                                                  │
                                                                          ┌───────┴───────┐
-                                                                  (issues found)     (approved)
+                                                                   (tests fail)     (all pass)
                                                                          │               │
                                                                          ▼               ▼
-                                                                  Fixer (/oc fix)   Tester (/oc test)
+                                                           Fixer / Factory (/oc fix)  Maintainer (/oc maintainer)
                                                                                          │
-                                                                                 ┌───────┴───────┐
-                                                                           (tests fail)     (all pass)
-                                                                                 │               │
-                                                                                 ▼               ▼
-                                                                          Fixer (/oc fix)   Maintainer (/oc maintainer)
-                                                                                                 │
-                                                                                                 ▼
-                                                                                           (merge PR & close)
+                                                                                         ▼
+                                                                                   (merge PR & close)
 ```
 
+- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Factory Engineer.
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
@@ -78,6 +82,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
     and up to 3 auto-retries (`/oc fix (auto-retry N)`).
   - an exact `/oc architect` or `/oc plan` → ARCHITECT mode: drafts architectural blueprints.
   - an exact `/oc research` → RESEARCH mode: produces mathematical/algorithmic specs.
+  - an exact `/oc factory` → FACTORY mode: implements lab infrastructure, fixes workflows, creates agents, and manages models.
   - any other `/oc` → GENERAL mode: a full-capability assistant (questions,
     closing issues, small changes, even PRs if the request calls for it) -
     nothing is forced: no mandatory push, no verification, no retries.
@@ -120,7 +125,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
   (`.maintainer/decision.json`) + its comment (`comment.md`) + memory updates,
   and a hardcoded PAT step posts the `/oc` triggers. There are NO hardcoded spam guards preventing duplicate triggers. You have complete freedom and autonomy. You must analyze the state of the repo (e.g., using `gh run list` or checking comments). If you determine that a previous command failed, crashed, or didn't work, you are fully authorized to re-trigger it. Use your intelligence to avoid spamming duplicate triggers if a run is already actively queued or in-progress. Pings and the public comment post as the bot; `ideate` dispatches `ideate.yml`.
 - The Maintainer never posts `/oc` comments itself, never creates issues or
-  PRs directly, never pushes code to main or PR branches - only its memory
+  PRs directly, and never pushes code to main (except for extreme emergencies where The Factory Engineer cannot act and repository production has completely stopped) - only its memory
   files, which a hardcoded step commits to `maintainer/logs`.
 - STALLS: 3 days bot work / 7 days human (fork 7) are *evaluation* triggers -
   ping → takeover (close + reopen with credit intact) or close with logged
@@ -158,7 +163,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 
 ## Formatting rules
 
-- **NO EM DASHES**: You must NEVER use an em dash (—) in any commit message, PR description, issue comment, documentation file, or code comment. If you need to break a clause, use a standard hyphen (-), a colon, or parentheses instead.
+- **NO EM DASHES**: You must NEVER use an em dash (Unicode U+2014) in any commit message, PR description, issue comment, documentation file, or code comment. If you need to break a clause, use a standard hyphen (-), a colon, or parentheses instead.
 
 ## Logging & runbooks
 

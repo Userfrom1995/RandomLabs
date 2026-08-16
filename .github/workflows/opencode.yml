@@ -32,8 +32,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "Dr. Mob (Researcher)"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
@@ -119,8 +119,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "The Architect"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
@@ -294,8 +294,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "The Builder"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Capture baseline
         id: baseline
@@ -509,8 +509,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "The Fixer"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Capture baseline
         id: baseline
@@ -660,6 +660,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode plan') &&
       !startsWith(github.event.comment.body, '/oc auditor') &&
       !startsWith(github.event.comment.body, '/opencode auditor') &&
+      !startsWith(github.event.comment.body, '/oc factory') &&
+      !startsWith(github.event.comment.body, '/opencode factory') &&
       github.event.comment.body != '/oc fix' &&
       !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
       (contains(github.event.comment.body, ' /oc') ||
@@ -677,8 +679,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "General Agent"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Run opencode general agent
         id: opencode

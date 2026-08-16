@@ -45,8 +45,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "The Tester"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
@@ -87,8 +87,14 @@ jobs:
             echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
           elif [ "$action" = "fix" ]; then
-            echo "Tester requested fixes. Posting /oc fix to trigger Fixer"
-            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+            head_branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+            if [[ "$head_branch" =~ ^opencode/factory- ]]; then
+              echo "Tester requested fixes on factory PR. Posting /oc factory"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc factory"
+            else
+              echo "Tester requested fixes. Posting /oc fix to trigger Fixer"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+            fi
           else
             echo "No actionable tester decision found (action: $action)"
           fi

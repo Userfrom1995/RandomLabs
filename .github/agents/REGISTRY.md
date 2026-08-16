@@ -16,19 +16,21 @@ reviewed PRs (see LAB.md §20).
 | The Reviewer | Strict quality gate; read-only | worker | bootstrap | 2026-08-12 | `/oc review` | `.github/agents/reviewer.md` |
 | The Tester | Dynamic verification engineer | worker | bootstrap | 2026-08-14 | `/oc test` | `.github/agents/tester.md` |
 | The Auditor | Lab pipeline inspector | worker | bootstrap | 2026-08-16 | `schedule` · `workflow_dispatch` | `.github/agents/auditor.md` |
+| The Factory Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc factory` | `.github/agents/factoryengineer.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
 
 ## Team Spirit & Peer Calling Model
 
 The lab operates as a collaborative, highly cohesive agent squad. Agents trust each other's specialized skills and hand off work directly:
 - **Researcher** writes scientific algorithmic specs and hands off to **Architect** (`/oc architect`).
-- **Architect** drafts blueprints and hands off to **Builder** (`/oc build this`) or requests continuation (`/oc continue`).
+- **Architect** drafts blueprints and hands off to **Builder** (`/oc build this`), **Factory Engineer** (`/oc factory`), or requests continuation (`/oc continue`).
 - **Builder** hands off complete builds to **Reviewer** (`/oc review`) or requests continuation (`/oc continue`).
+- **Factory Engineer** implements infrastructure and workflow repairs, opens PRs, and hands off to **Reviewer** (`/oc review`), or applies direct model updates on `main`.
 - **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).
-- **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`).
-- **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`).
-- **Auditor** monitors pipeline health; reports to a universal log and escalates pipeline bugs directly to the **Maintainer** (`/oc maintainer`).
-- **Mae (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`), and merges tested, approved projects.
+- **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`) or **Factory Engineer** (`/oc factory`).
+- **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Factory Engineer** (`/oc factory`).
+- **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
+- **Mae (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`) or **Factory Engineer** (`/oc factory`), and merges tested, approved projects.
 
 ## Mandates (co-maintainers)
 

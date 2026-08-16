@@ -9,7 +9,7 @@ Agents must never be granted the authority or credentials of the repository owne
 - **CRITICAL**: Never pass `${{ secrets.OPENCODE_PAT }}` into the agent's environment (the `env:` block of `uses: anomalyco/opencode/github@latest`).
 - Always use `GITHUB_TOKEN: ${{ github.token }}` for the agent's run environment. This ensures the agent authenticates properly as `github-actions[bot]`.
 - The owner's PAT (`OPENCODE_PAT`) is strictly reserved for hardcoded, human-written YAML steps that execute *outside* the agent's environment.
-- Always configure the git identity to `github-actions[bot]` before running any agent.
+- Always configure the git identity with the agent's persona display name (e.g. `The Builder`, `Mae (Maintainer)`, `The Factory Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` before running any agent.
 
 ---
 
@@ -78,16 +78,16 @@ If an agent needs to trigger other workflows (e.g. by posting `/oc test` or `/oc
 
 ## 5. Squad Awareness & Inter-Agent Integration
 
-When introducing a new agent, you must ensure the entire team is aware of it and that calling permissions are cleanly defined:
+When introducing a new agent or modifying roles, you must ensure the entire team is aware of it and that calling permissions are cleanly defined:
 
-1. **Update Existing Agent Prompts (`.github/agents/*.md`)**:
-   - Every related existing agent must have its "Team Spirit & Squad Leadership" roster updated to include the new agent, its role, and how they interact.
+1. **Universal Mutual Squad Awareness (`.github/agents/*.md`)**:
+   - Every single existing agent prompt MUST have its "Team Spirit & Squad Leadership" roster updated so every agent in the lab explicitly knows about the new member, their title, their responsibilities, and how they interact.
 2. **Define Calling Permissions**:
    - Explicitly define **who is allowed to call the new agent** (e.g., Maintainer via `/oc maintainer` or Reviewer via `/oc test`).
    - Explicitly define **whom the new agent is allowed to call** (e.g., Tester calling Fixer via `/oc fix` or Maintainer via `/oc maintainer`).
    - Prohibit unauthorized calls (e.g., Tester cannot self-merge or call Builder directly).
-3. **Update Call Flow Diagrams**:
-   - Update the ASCII team call flow diagrams in `LAB.md`, `AGENTS.md`, and `docs/index.md` to reflect the new handoff path.
+3. **Synchronize Call Flow Diagrams**:
+   - Update the ASCII team call flow diagrams across all documentation sites (`LAB.md`, `AGENTS.md`, `docs/index.md`, and `docs/index.html`) to accurately map the new agent's flow and handoff paths.
 
 ---
 
@@ -109,12 +109,13 @@ Every new agent addition or modification MUST be synchronized across all core re
 
 When authoring `.github/agents/<agent>.md`:
 1. **Clear Role & Boundaries**: Explicitly state what the agent can and cannot do (e.g. read-only, code modifications allowed, specific issue labels).
-2. **Safety Net**: Provide a concise fallback safety net in the workflow prompt string in case `.github/agents/<agent>.md` cannot be read.
-3. **Sign-off Instruction**: Every agent must end its output comments with its distinctive sign-off:
-   - Example: `- the Auditor`, `- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`, `- the Reviewer`, `- the Tester`, `- the General agent`.
-4. **Commit Subject Prefix**: Every agent that commits code must prefix commit messages with its role:
-   - Example: `auditor: ...`, `researcher: ...`, `architect: ...`, `builder: ...`, `fixer: ...`, `maintainer: ...`.
-5. **JSON Decision Protocol**: Prefer structured JSON output written to files over free-form chat for workflow handoffs.
+2. **Authority Hierarchy**: Explicitly recognize that the Owner is the supreme authority (whose decisions override everything) and Mae (Maintainer / CEO) is the main operational authority directing the squad. All agents must listen to and obey both Mae and the Owner.
+3. **Safety Net**: Provide a concise fallback safety net in the workflow prompt string in case `.github/agents/<agent>.md` cannot be read.
+4. **Sign-off Instruction**: Every agent must end its output comments with its distinctive sign-off:
+   - Example: `- the Auditor`, `- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`, `- the Reviewer`, `- the Tester`, `- the Factory Engineer`, `- the General agent`.
+5. **Commit Subject Prefix**: Every agent that commits code must prefix commit messages with its role:
+   - Example: `auditor: ...`, `researcher: ...`, `architect: ...`, `builder: ...`, `fixer: ...`, `factory: ...`, `maintainer: ...`.
+6. **JSON Decision Protocol**: Prefer structured JSON output written to files over free-form chat for workflow handoffs.
 
 ---
 

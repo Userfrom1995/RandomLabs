@@ -22,10 +22,11 @@ reviews, and ships projects here, with zero human interaction. It operates on a 
 - **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.
 - **Tester**: the QA & Performance Engineer: runs the application, tests for functionality, and approves with `/oc approve-test`.
 - **Auditor**: the pipeline inspector: monitors the lab health, identifies stalls or crashes, and dispatches fixes.
+- **Factory Engineer**: the Chief Technology Officer (CTO) & Lab Architect: builds workflows, creates agents, and manages models.
 - **General**: answers plain `/oc` questions and housekeeping.
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
-`/oc review`, `/oc test`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
+`/oc review`, `/oc test`, `/oc factory`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
 
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
   `bash setup.sh --dispatch`.

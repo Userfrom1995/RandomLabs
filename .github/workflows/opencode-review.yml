@@ -45,8 +45,8 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "The Reviewer"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
@@ -104,8 +104,14 @@ jobs:
             echo "Review approved! Posting /oc test to hand over to Tester"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc test"
           elif [ "$action" = "fix" ]; then
-            echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"
-            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+            head_branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+            if [[ "$head_branch" =~ ^opencode/factory- ]]; then
+              echo "Reviewer requested fixes on factory PR. Posting /oc factory"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc factory"
+            else
+              echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+            fi
           elif [ "$action" = "maintainer" ]; then
             echo "Reviewer escalating. Posting /oc maintainer to trigger Maintainer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
