@@ -71,12 +71,16 @@ end
 # --- Decoding ----------------------------------------------------------------
 
 mutable struct _Parser
-    s::String
+    bytes::Vector{UInt8}
     pos::Int
 end
 
-_peek(p::_Parser) = p.pos <= lastindex(p.s) ? p.s[p.pos] : '\0'
-_peek2(p::_Parser) = p.pos + 1 <= lastindex(p.s) ? p.s[p.pos + 1] : '\0'
+function _Parser(s::String)
+    _Parser(Vector{UInt8}(codeunits(s)), 1)
+end
+
+_peek(p::_Parser) = p.pos <= length(p.bytes) ? p.bytes[p.pos] : UInt8(0)
+_peek2(p::_Parser) = p.pos + 1 <= length(p.bytes) ? p.bytes[p.pos + 1] : UInt8(0)
 
 function _advance!(p::_Parser)
     ch = _peek(p)
@@ -84,19 +88,21 @@ function _advance!(p::_Parser)
     return ch
 end
 
+const _WS = UInt8[' ', '\t', '\n', '\r']
+
 function _ws!(p::_Parser)
-    while _peek(p) in (' ', '\t', '\n', '\r')
+    while _peek(p) in _WS
         p.pos += 1
     end
     return nothing
 end
 
 function decode(s::AbstractString)::Any
-    p = _Parser(String(s), 1)
+    p = _Parser(String(s))
     _ws!(p)
     v = _value!(p)
     _ws!(p)
-    if _peek(p) != '\0'
+    if _peek(p) != UInt8(0)
         error("json: trailing data at byte $(p.pos)")
     end
     return v
@@ -105,27 +111,27 @@ end
 function _value!(p::_Parser)
     _ws!(p)
     ch = _peek(p)
-    if ch == '{'
+    if ch == UInt8('{')
         return _object!(p)
-    elseif ch == '['
+    elseif ch == UInt8('[')
         return _array!(p)
-    elseif ch == '"'
+    elseif ch == UInt8('"')
         return _string!(p)
-    elseif ch == 't'
+    elseif ch == UInt8('t')
         return _keyword!(p, "true", true)
-    elseif ch == 'f'
+    elseif ch == UInt8('f')
         return _keyword!(p, "false", false)
-    elseif ch == 'n'
+    elseif ch == UInt8('n')
         return _keyword!(p, "null", nothing)
-    elseif ch == '-' || '0' <= ch <= '9'
+    elseif ch == UInt8('-') || (UInt8('0') <= ch <= UInt8('9'))
         return _number!(p)
     else
-        error("json: unexpected character '$ch' at byte $(p.pos)")
+        error("json: unexpected character at byte $(p.pos)")
     end
 end
 
 function _keyword!(p::_Parser, word::String, val)
-    if p.s[p.pos:min(p.pos + length(word) - 1, lastindex(p.s))] != word
+    if p.bytes[p.pos:min(p.pos + length(word) - 1, length(p.bytes))] != codeunits(word)
         error("json: expected '$word' at byte $(p.pos)")
     end
     p.pos += length(word)
@@ -136,22 +142,22 @@ function _object!(p::_Parser)
     _advance!(p) # '{'
     obj = Dict{String,Any}()
     _ws!(p)
-    if _peek(p) == '}'
+    if _peek(p) == UInt8('}')
         _advance!(p)
         return obj
     end
     while true
         _ws!(p)
-        _peek(p) == '"' || error("json: expected string key at byte $(p.pos)")
+        _peek(p) == UInt8('"') || error("json: expected string key at byte $(p.pos)")
         key = _string!(p)
         _ws!(p)
-        _advance!(p) == ':' || error("json: expected ':' after key at byte $(p.pos - 1)")
+        _advance!(p) == UInt8(':') || error("json: expected ':' after key at byte $(p.pos - 1)")
         obj[key] = _value!(p)
         _ws!(p)
         ch = _advance!(p)
-        if ch == ','
+        if ch == UInt8(',')
             continue
-        elseif ch == '}'
+        elseif ch == UInt8('}')
             break
         else
             error("json: expected ',' or '}' at byte $(p.pos - 1)")
@@ -164,7 +170,7 @@ function _array!(p::_Parser)
     _advance!(p) # '['
     arr = Any[]
     _ws!(p)
-    if _peek(p) == ']'
+    if _peek(p) == UInt8(']')
         _advance!(p)
         return arr
     end
@@ -172,9 +178,9 @@ function _array!(p::_Parser)
         push!(arr, _value!(p))
         _ws!(p)
         ch = _advance!(p)
-        if ch == ','
+        if ch == UInt8(',')
             continue
-        elseif ch == ']'
+        elseif ch == UInt8(']')
             break
         else
             error("json: expected ',' or ']' at byte $(p.pos - 1)")
@@ -188,37 +194,44 @@ function _string!(p::_Parser)
     out = IOBuffer()
     while true
         ch = _advance!(p)
-        if ch == '"'
+        if ch == UInt8('"')
             break
-        elseif ch == '\\'
+        elseif ch == UInt8('\\')
             esc = _advance!(p)
-            if esc == '"'
+            if esc == UInt8('"')
                 print(out, '"')
-            elseif esc == '\\'
+            elseif esc == UInt8('\\')
                 print(out, '\\')
-            elseif esc == '/'
+            elseif esc == UInt8('/')
                 print(out, '/')
-            elseif esc == 'n'
+            elseif esc == UInt8('n')
                 print(out, '\n')
-            elseif esc == 'r'
+            elseif esc == UInt8('r')
                 print(out, '\r')
-            elseif esc == 't'
+            elseif esc == UInt8('t')
                 print(out, '\t')
-            elseif esc == 'b'
+            elseif esc == UInt8('b')
                 print(out, '\b')
-            elseif esc == 'f'
+            elseif esc == UInt8('f')
                 print(out, '\f')
-            elseif esc == 'u'
-                hex = p.s[p.pos:p.pos + 3]
+            elseif esc == UInt8('u')
+                hex = String(p.bytes[p.pos:p.pos + 3])
                 p.pos += 4
                 print(out, Char(parse(UInt16, hex; base = 16)))
             else
-                error("json: invalid escape '\\$esc' at byte $(p.pos - 1)")
+                error("json: invalid escape at byte $(p.pos - 1)")
             end
-        elseif ch == '\0'
+        elseif ch == UInt8(0)
             error("json: unterminated string")
         else
-            print(out, ch)
+            # Raw byte (part of the UTF-8 payload); collect it verbatim.
+            start = p.pos - 1
+            while true
+                nb = _peek(p)
+                nb < 0x80 && break
+                p.pos += 1
+            end
+            write(out, view(p.bytes, start:p.pos - 1))
         end
     end
     return String(take!(out))
@@ -226,26 +239,26 @@ end
 
 function _number!(p::_Parser)
     start = p.pos
-    _peek(p) == '-' && (p.pos += 1)
-    while '0' <= _peek(p) <= '9'
+    _peek(p) == UInt8('-') && (p.pos += 1)
+    while UInt8('0') <= _peek(p) <= UInt8('9')
         p.pos += 1
     end
-    if _peek(p) == '.'
+    if _peek(p) == UInt8('.')
         p.pos += 1
-        while '0' <= _peek(p) <= '9'
+        while UInt8('0') <= _peek(p) <= UInt8('9')
             p.pos += 1
         end
     end
-    if _peek(p) in ('e', 'E')
+    if _peek(p) in (UInt8('e'), UInt8('E'))
         p.pos += 1
-        if _peek(p) in ('+', '-')
+        if _peek(p) in (UInt8('+'), UInt8('-'))
             p.pos += 1
         end
-        while '0' <= _peek(p) <= '9'
+        while UInt8('0') <= _peek(p) <= UInt8('9')
             p.pos += 1
         end
     end
-    token = p.s[start:p.pos - 1]
+    token = String(p.bytes[start:p.pos - 1])
     isempty(token) && error("json: malformed number at byte $start")
     if occursin(r"[.eE]", token)
         return parse(Float64, token)

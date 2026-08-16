@@ -121,14 +121,15 @@ end
     export_weights(model, path)
 
 Export the model's weights for the web playground. If `path` ends in `.js`, the
-file assigns `window.<name>` (default `KESTREL`) so it can be loaded with a
-plain `<script src>` tag with no server; otherwise a bare JSON file is written.
+file assigns `window.<name>` (or `globalThis` outside a browser, default
+`KESTREL`) so it can be loaded with a plain `<script src>` tag with no server;
+otherwise a bare JSON file is written.
 """
 function export_weights(model::Net.MLP, path::AbstractString; name::String = "KESTREL", sigdigits::Int = 7)
     body = encode(model_to_dict(model; sigdigits = sigdigits))
     if endswith(String(path), ".js")
         open(path, "w") do io
-            println(io, "(function(){ window.", name, " = ", body, "; })();")
+            println(io, "(function(){ (typeof window !== \"undefined\" ? window : globalThis).", name, " = ", body, "; })();")
         end
     else
         open(path, "w") do io

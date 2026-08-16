@@ -37,7 +37,7 @@ export Var, value, grad, backward!, zero_grad!
 export matmul, add, subtract, elementwise_mul
 export softmax, log_softmax, cross_entropy, softmax_cross_entropy, mse
 export relu, sigmoid, tanh, exp, log, sum, mean, transpose, permutedims, reshape
-export Dense, SGD
+export Dense, SGD, step!
 export MLP, params, forward, predict, predict_one, classify, accuracy, train!
 export synthetic_digits, load_mnist, mnist_available
 export save_model, load_model, export_weights, model_to_dict, model_from_dict

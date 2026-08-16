@@ -39,6 +39,8 @@ mutable struct Var
 end
 
 Var(data::Array{Float64}) = Var(data, zeros(Float64, size(data)), nothing)
+Var(data::AbstractArray{<:Real}) = Var(Float64.(data))
+Var(x::Real) = Var([Float64(x)])
 
 value(v::Var) = v.data
 grad(v::Var) = v.grad

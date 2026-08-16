@@ -4,7 +4,7 @@ module Optim
 
 using ..Autodiff
 
-export SGD
+export SGD, step!
 
 """
     SGD(lr, momentum = 0.0, weight_decay = 0.0)
