@@ -1,0 +1,20 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.12.6"
+manifest_format = "2.0"
+project_hash = "d410f1861934c9808f3bd1462652fa779cfa1b76"
+
+[[deps.Kestrel]]
+deps = ["Random"]
+path = "."
+uuid = "34083645-792e-4b46-b454-79c86ec7144d"
+version = "0.1.0"
+
+[[deps.Random]]
+deps = ["SHA"]
+uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+version = "1.11.0"
+
+[[deps.SHA]]
+uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "0.7.0"

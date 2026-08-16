@@ -26,5 +26,9 @@ gambit/gambit
 # Glyphforge build output
 glyphforge/build/
 
+# Kestrel runtime artifacts (downloaded MNIST, trained model outputs)
+kestrel/data/
+kestrel/model.json
+
 # Specstory
 .specstory/
