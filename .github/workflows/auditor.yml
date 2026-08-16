@@ -37,6 +37,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
       - name: Run auditor agent
         timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
@@ -49,9 +52,46 @@ jobs:
           prompt: |
             You are the Auditor of the Random lab, in a scheduled or dispatch-only run.
 
-            READ FIRST: `.github/agents/auditor.md` - that file IS your complete system prompt; every rule there is binding (read logs/PRs/issues; post to `Lab Health & Audit Logs` issue; if anomaly found, open a NEW issue, tag `/oc maintainer` in it, and link it in the universal health log; sign-off as `- the Auditor`). If the file is missing from the tree, rely on this safety net.
+            READ FIRST: `.github/agents/auditor.md` - that file IS your complete system prompt; every rule there is binding (read logs/PRs/issues; post to `Lab Health & Audit Logs` issue; if anomaly found, open a NEW issue, link it in the universal health log, and write machine decision to `/tmp/random-lab-decision.json`; sign-off as `- the Auditor`). If the file is missing from the tree, rely on this safety net.
 
             SAFETY NET (always binding):
             - You NEVER commit code, push, or modify the repository.
-            - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`. You only post `/oc maintainer` on newly created bug reports.
+            - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`.
+            - Before ending the run, you MUST write your structured machine handoff decision to `/tmp/random-lab-decision.json`: `[{"action": "maintainer", "issue": <new_issue_number>}]` for each opened bug issue, or `[{"action": "maintainer"}]` to notify on the health board. The hardcoded workflow step reads this file and posts `/oc maintainer` with owner PAT.
             - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue (create it with label `lab-health` if missing).
+
+      - name: Forward auditor decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found (/tmp/random-lab-decision.json)."
+            exit 0
+          fi
+
+          echo "Decision file found. Contents:"
+          cat /tmp/random-lab-decision.json
+
+          # Process both JSON array or single object
+          jq -c '.[]? // .' /tmp/random-lab-decision.json | while read -r item; do
+            action=$(echo "$item" | jq -r '.action // ""')
+            target=$(echo "$item" | jq -r '.issue // .target // ""')
+
+            if [ "$action" = "maintainer" ]; then
+              if [ -n "$target" ] && [ "$target" != "null" ]; then
+                echo "Forwarding to Maintainer on issue #$target (/oc maintainer)"
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on issue #$target"
+              else
+                health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+                if [ -n "$health_issue" ] && [ "$health_issue" != "null" ]; then
+                  echo "Forwarding to Maintainer on health board #$health_issue (/oc maintainer)"
+                  gh issue comment "$health_issue" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "Failed to post comment on health board #$health_issue"
+                else
+                  echo "No target issue or health board found to notify"
+                fi
+              fi
+            else
+              echo "Ignoring unsupported auditor action: $action"
+            fi
+          done
