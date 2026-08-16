@@ -17,10 +17,12 @@
 pub mod cli;
 pub mod corpus;
 pub mod export;
+pub mod fuzzy;
 pub mod index;
 pub mod jsonx;
 pub mod postings;
 pub mod query;
 pub mod scoring;
 pub mod snippet;
+pub mod stem;
 pub mod tokenizer;
