@@ -50,7 +50,7 @@ impl Default for SearchOptions {
         SearchOptions {
             stem: false,
             signals: true,
-            stopwords: false,
+            stopwords: true,
         }
     }
 }

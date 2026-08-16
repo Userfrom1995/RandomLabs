@@ -115,13 +115,19 @@
     </div>
     <div class="card">
       <h4>5.5x compression</h4>
-      <p>Varint (LEB128) term-gap encoding packs 113,946 postings into 248 KB,
+      <p>Varint (LEB128) term-gap encoding packs 122,799 postings into 268 KB,
       base64-safe for JSON, proven by verify-index.</p>
     </div>
     <div class="card">
       <h4>BM25 and TF-IDF</h4>
       <p>Two rankers with per-term score breakdowns, switchable in the CLI
       and the browser, deterministic end to end.</p>
+    </div>
+    <div class="card">
+      <h4>Stem, fuzzy, CJK</h4>
+      <p>Porter stemming, Levenshtein + BK-tree typo tolerance with
+      did-you-mean, and n-gram segmentation for Chinese, Japanese, and
+      Korean.</p>
     </div>
     <div class="card">
       <h4>One engine, two languages</h4>
@@ -133,9 +139,9 @@
   <h2>Try it</h2>
   <pre><code>cd meridian
 cargo build --release
-cargo test                    # 61 tests, all pass
+cargo test                    # 90 tests, all pass
 cargo clippy --all-targets    # zero warnings
-node tests/consistency.test.mjs   # 2245 JS-vs-Rust checks, all pass
+node tests/consistency.test.mjs   # 9296 JS-vs-Rust checks, all pass
 node tests/ui.test.mjs            # headless UI rendering checks
 
 python3 -m http.server 8000       # open http://localhost:8000 for the web UI</code></pre>
@@ -143,11 +149,13 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
   <h2>CLI commands</h2>
   <table>
     <tr><th>Command</th><th>What it does</th></tr>
-    <tr><td><code>meridian crawl --src &lt;dir&gt; --out &lt;corpus&gt;</code></td><td>Crawl a directory into a corpus (manifest + plain-text docs).</td></tr>
-    <tr><td><code>meridian index --corpus &lt;dir&gt; --out &lt;json&gt;</code></td><td>Build the inverted index and export the compressed JSON index.</td></tr>
-    <tr><td><code>meridian search --corpus &lt;dir&gt; --query &lt;q&gt; [--scoring bm25|tfidf] [--top N] [--format text|json]</code></td><td>Crawl (or reuse) the corpus and search it.</td></tr>
+    <tr><td><code>meridian crawl --src &lt;dir&gt; --out &lt;corpus&gt; [--threads N]</code></td><td>Crawl a directory into a corpus (manifest + plain-text docs).</td></tr>
+    <tr><td><code>meridian index --corpus &lt;dir&gt; --out &lt;json&gt; [--threads N]</code></td><td>Build the inverted index and export the compressed JSON index.</td></tr>
+    <tr><td><code>meridian search --corpus &lt;dir&gt; --query &lt;q&gt; [--scoring bm25|tfidf] [--top N] [--format text|json] [--stem on|off] [--signals on|off]</code></td><td>Crawl (or reuse) the corpus and search it.</td></tr>
     <tr><td><code>meridian search-index --index &lt;json&gt; --query &lt;q&gt; [...]</code></td><td>Search an exported index directly.</td></tr>
+    <tr><td><code>meridian plan --query &lt;q&gt;</code></td><td>Print the parsed query plan.</td></tr>
     <tr><td><code>meridian stats --corpus &lt;dir&gt;</code></td><td>Corpus and index statistics.</td></tr>
+    <tr><td><code>meridian bench --index &lt;json&gt; [--iterations N]</code></td><td>Run the built-in query benchmark.</td></tr>
     <tr><td><code>meridian verify-index --index &lt;json&gt; --corpus &lt;dir&gt;</code></td><td>Prove the exported index round-trips byte-for-byte.</td></tr>
     <tr><td><code>meridian check</code></td><td>Run the built-in runtime self-checks.</td></tr>
     <tr><td><code>meridian help</code></td><td>Show usage and all options.</td></tr>
@@ -161,12 +169,14 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
     <li><strong>Tokenize.</strong> Chars are walked once; <code>\p{L}</code>/
     <code>\p{N}</code> starts a word, apostrophes between letters stay inside
     it, case is folded, and the byte offset of every word boundary is
-    recorded so snippets can be byte-exact.</li>
+    recorded so snippets can be byte-exact. CJK runs are split into unigrams
+    and bigrams sharing positions.</li>
     <li><strong>Index.</strong> A postings list per term is kept sorted by
     document id; document frequency, term frequency, and positions fall out of
     construction. <code>AND</code> intersects rarest-first, <code>OR</code>
     unions, <code>NOT</code> subtracts, phrases intersect consecutive
-    positions.</li>
+    positions. Stemmed queries expand each term to its family; fuzzy leaves
+    expand via the BK-tree.</li>
     <li><strong>Compress.</strong> Postings store <code>(doc_id gap, tf,
     position gaps)</code> as LEB128 varints packed into a byte array,
     base64-encoded for JSON. Decoding is the exact inverse;
@@ -174,7 +184,9 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
     <li><strong>Rank.</strong> BM25 scores
     <code>idf * tf*(k1+1) / (tf + k1*(1 - b + b*len/avgLen))</code> and TF-IDF
     scores <code>tf * log(N/df)</code>. Ranked queries sum per-term scores;
-    boolean queries compute matches first and rank the surviving set.</li>
+    boolean queries compute matches first and rank the surviving set. With
+    signals on, title terms get a 1.5x boost and co-located terms a 0.5x
+    proximity bonus.</li>
     <li><strong>Snippet.</strong> The best window around the densest cluster
     of matches is chosen, snapped to word boundaries, and returned with the
     byte ranges of every matched term so renderers can highlight without
@@ -194,6 +206,7 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
     <tr><td><a href="articles/snippets-and-result-presentation.md">Snippets and result presentation</a></td><td>Choosing and highlighting the best fragment of a hit.</td></tr>
     <tr><td><a href="articles/a-short-history-of-full-text-search.md">A short history of full-text search</a></td><td>From grep and permuted indexes to modern engines.</td></tr>
     <tr><td><a href="articles/postings-compression.md">Postings compression</a></td><td>Gap encoding and varints: the postings are 5.5x smaller here.</td></tr>
+    <tr><td><a href="articles/cjk-fulltext-search.md">CJK full-text search</a></td><td>Segmenting Chinese, Japanese, and Korean text with unigrams and bigrams.</td></tr>
   </table>
 
   <h2>Design choices</h2>

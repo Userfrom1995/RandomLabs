@@ -148,7 +148,7 @@ dependency-free ES5, so the factory's signature "from scratch" story holds.
   "conflated"->"conflat", "troubled"->"troubl", "sized"->"size",
   "hopping"->"hop", "tanned"->"tan", "falling"->"fall", "hissing"->"hiss",
   "fizzed"->"fizz", "failing"->"fail", "filing"->"file", "happy"->"happi",
-  "sky"->"ski", "relational"->"relat", "conditional"->"condit",
+  "sky"->"sky", "relational"->"relat", "conditional"->"condit",
   "rational"->"ration", "valenci"->"valenc", "hesitanci"->"hesit",
   "digitizer"->"digit", "conformabli"->"conform", "radicalli"->"radic",
   "differentli"->"differ", "vileli"->"vile", "analogousli"->"analog",
@@ -300,4 +300,182 @@ dependency-free ES5, so the factory's signature "from scratch" story holds.
 
 Status moves back to in-progress; the Builder resumes on the existing PR branch
 and works through milestones 12-18, re-verifying the full matrix before handing
+to the Reviewer. Decision file: action=continue.
+
+---
+
+# Architecture Level 3: retrieval depth (enhancement round)
+
+Triggered by the owner on PR #67 (manual `/oc architect`) after Level 2 merged
+the full retrieval-power-up set and the Reviewer + Tester re-approved the head.
+The PR still waits on the daily shipping cap; this round ships the next tier of
+retrieval depth before the merge. Design goals: keep the zero-dependency,
+deterministic, dual-language mirror ethos; add no external crates and NO changes
+to the exported index format (it stays v2) or to the 9296-check consistency
+baseline.
+
+## The one architectural decision that keeps the risk low
+
+The Level 2 principle holds: every Level 3 capability is a **load-time derived
+structure or a parser/scorer/evaluator/output change** over the already-exported
+index (v2, unchanged):
+
+- Wildcard/prefix expansion: derived from the sorted term table (BTreeMap).
+- Fielded search: per-field token sets derived from the already-exported doc
+  `title` and `source` strings (no new export fields).
+- Phrase slop: a positional intersection change in the phrase evaluator.
+- Term boosting: a parser + scorer change (`term^N`), reflected in the breakdown.
+- Suggestions: prefix expansion of the same term table, ranked by df.
+- Pagination/metadata: a CLI/output/UI change only.
+- Concurrency/stopwords: `--threads` on search with a deterministic merge, and
+  a built-in stopword list applied at query time (never at index time).
+
+No re-crawl is required for the retrieval features (no tokenizer change);
+adding new seed IR articles re-crawls deterministically with existing documents
+byte-identical, so v2 stays v2. The JS mirror remains a faithful line-by-line
+port and the consistency harness simply grows new queries.
+
+## Summary
+
+Seven capabilities:
+
+1. **Wildcard & prefix search**: `term*`, `term?`, `sear*` expand over the
+   sorted vocabulary; new `Wildcard` plan/expr variant; ranked + boolean.
+2. **Fielded search**: `title:term` and `source:term` restrict results to a
+   field, composable with boolean operators.
+3. **Phrase slop**: `"a b"~N` matches terms within `N` positions; default `~0`
+   is the existing exact phrase.
+4. **Query term boosting**: `term^2`, `"phrase"^1.5`, `title:rust^3` multiply a
+   contribution; breakdown shows the boosted value.
+5. **Pagination & result metadata**: `--offset`, `--limit`, `total_hits`,
+   `pages` in JSON/text and a UI pager.
+6. **Search-as-you-type**: `suggest` command + UI typeahead fed by prefix
+   expansion ranked by df.
+7. **Concurrent search, stopwords, docs & polish**: `--threads` on search,
+   `--stopwords on|off`, new IR articles, README/docs updates, re-verify.
+
+## How it works
+
+### 1. Wildcard & prefix search (`src/wildcard.rs`, `Meridian` helpers)
+
+- `term*` (trailing `*`): binary-search the sorted vocabulary for the term
+  range `[term, term\u{10FFFF})`, emit every vocab term in that range.
+- `term?` (single `?`): scan the range of words sharing the fixed prefix and
+  filter to those with exactly one extra char (deterministic, bounded).
+- `sear*`, `sear?h`, `?earch` combos: a small pattern matcher over ASCII
+  `*` (any run) and `?` (one char), applied to the bounded candidate range so
+  full-vocabulary scans never happen. Matching is case-folded like tokens.
+- New `TermSpec::Wildcard(String)` and `BoolExpr::Wildcard(String)`. A wildcard
+  evaluates to the sorted union of postings of every matching vocab term; in
+  ranked mode each matched vocab term contributes to `matches` and `breakdown`
+  (like fuzzy expansion). Phrases never contain wildcards (documented).
+- Did-you-mean: wildcard terms with zero matches never trigger suggestions.
+- JS mirror: identical `expandWildcard(term, terms)` over the loaded term list
+  (binary search equivalent), same expansion order, so candidate sets and
+  scores match byte-exactly.
+
+### 2. Fielded search (`title:`, `source:`)
+
+- At load, derive two per-field token sets from the exported docs:
+  `fields.title[doc]` = set of tokens from `tokenize(doc.title)` and
+  `fields.source[doc]` = set of tokens from `tokenize(doc.source)`. No new
+  export fields; titles/sources are already in v2.
+- Lexer: `title:` and `source:` immediately before a word open a field-scoped
+  term; usable in ranked and boolean mode (`title:rust`, `title:rust AND
+  source:docs`, `NOT title:index`).
+- Semantics: a field-scoped term matches only docs in that field's token set;
+  it is a real boolean leaf and, in ranked mode, a candidate filter that also
+  scores (the matched field tag flows into the breakdown row).
+- UI: a field chip/prefix helper; breakdown rows mark `title:` / `source:`.
+
+### 3. Phrase slop (`"..."~N`)
+
+- Phrase parsing gains an optional `~N` suffix: `"a b"~2` means the terms must
+  appear in order within a positional window of `N` (default `~0` = the current
+  exact consecutive phrase). `N` validated as `0..=9` (parse error otherwise).
+- Evaluator: standard ordered-slop position intersection over the sorted
+  position lists of each term (sliding window), deterministic.
+- JS mirror + consistency checks (exact vs sloppy phrase result sets).
+
+### 4. Query term boosting (`term^N`)
+
+- Lexer reads a `^` immediately after a word or closing quote of a phrase;
+  parses a positive float (`1.0`, `2`, `0.5`), error on `^0`, negatives, or
+  garbage. Applies to plain terms, fielded terms, phrases, and fuzzy terms
+  (`term~^2`).
+- Scorer: the term's contribution is multiplied by its boost; the breakdown row
+  records `score` after the boost so the UI bar reflects it.
+- JS mirror + consistency: boosted queries return identical scores/order.
+
+### 5. Pagination & result metadata
+
+- `--offset N` and `--limit M` on `search` / `search-index` (default limit 20,
+  `--top` still caps the scored set). JSON gains `total_hits`, `offset`,
+  `limit`, `pages`, and the hits slice; text output shows "Results X-Y of Z".
+- UI: a pager under the results (prev/next + page numbers) re-running the query.
+
+### 6. Search-as-you-type (`suggest`)
+
+- `meridian suggest --index <json> --prefix "meri" [--top 8]` returns vocab
+  completions of the prefix ranked by `(df desc, term asc)`. Built on the same
+  wildcard prefix range; no index change.
+- UI: the search box shows a typeahead dropdown of suggestions as you type
+  (debounced), fed by the JS mirror equivalent; clicking fills the query.
+
+### 7. Concurrency, stopwords, docs & polish
+
+- `--threads N` on `search` / `search-index`: parallel per-doc scoring over the
+  candidate set with results merged in deterministic doc-id order
+  (`--threads 1` == `--threads 8` byte-identical, new test).
+- `--stopwords on|off` (default off): a built-in list of ~40 English function
+  words (`the`, `and`, `of`, `to`, `a`, `in`, `for`, `is`, `on`, `that`, ...)
+  skipped in ranked-query scoring (never in boolean/phrases, never at index
+  time), so the index and consistency baseline stay untouched.
+- Seed content: two new IR articles (`wildcard-and-fielded-search.md`,
+  `phrase-slop-and-term-boosting.md`) doubling as corpus content; re-crawl the
+  corpus and rebuild v2 (existing docs byte-identical).
+- Cleanup: document `suggest` and any new flags in `usage()` and the README.
+
+## Module breakdown
+
+- `src/wildcard.rs` (new) - pattern matching, prefix range expansion.
+- `src/fields.rs` (new) - load-time per-field token sets (`title`, `source`).
+- `src/query.rs` - lexer (`title:`/`source:`, `~N` slop, `^N` boost),
+  `Wildcard`/`Field`/slop/boost variants, evaluator, suggestions gating.
+- `src/scoring.rs` - boost multiplier, stopword skip, breakdown integration.
+- `src/cli.rs` - `suggest` command, `--offset/--limit/--threads/--stopwords`,
+  pagination metadata in text + JSON.
+- `src/index.rs` - field-token accessors (derived at load).
+- `js/meridian.js` - mirror wildcard/fields/slop/boost/suggest/stopwords logic.
+- `js/ui.js`, `index.html` - typeahead dropdown, pager, field chips, help.
+- `tests/` - expanded consistency + UI suites; new Rust integration tests.
+- `docs/articles/` - two new IR articles; README + docs pages updated.
+
+## Test matrix
+
+| Area | Rust | JS mirror / consistency | UI |
+| --- | --- | --- | --- |
+| Wildcard | pattern tests (`*`, `?`), range bounds, zero-match, boolean | `corp*`, `sear*`, `sear?h`, `?earch` equality | typeahead fills query |
+| Fields | title/source token sets, boolean composition, ranked filter | `title:rust`, `source:docs/*`, `title:x AND source:y` equality | field chip + breakdown tag |
+| Slop | exact == `~0`, ordered window, invalid `~N` error | `"a b"~0` vs `~1`/`~2` set equality | help panel |
+| Boost | multiplier math, breakdown, `^0`/`^x` errors | boosted score equality (both rankers) | breakdown bar reflects boost |
+| Pagination | offset/limit bounds, pages math, JSON fields | JSON `total_hits`/`pages` equality | pager renders + re-runs |
+| Suggest | prefix rank `(df desc, term asc)`, top cut | suggestion list equality | dropdown items clickable |
+| Concurrency | threads=1 == threads=8 search output | - | - |
+| Stopwords | ranked skip, boolean/phrase untouched | stopwords on/off consistency | toggle |
+| End-to-end | `cargo test` grows, clippy 0 | 9296 baseline + new queries green | ui.test grows |
+
+## Deliverables
+
+- Two new Rust modules (wildcard, fields) plus parser/scorer/CLI extensions and
+  25-40 new Rust tests.
+- Expanded JS mirror and a grown consistency + UI suite.
+- Two new IR seed articles + deterministic re-crawl + rebuilt v2 index.
+- Typeahead dropdown, pager, field chips, help updates, stopwords toggle.
+- Updated README, docs index, and this blueprint's milestone status.
+
+## Handoff
+
+Status moves back to in-progress; the Builder resumes on the existing PR branch
+and works through milestones 19-25, re-verifying the full matrix before handing
 to the Reviewer. Decision file: action=continue.

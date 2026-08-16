@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Orrery — an interactive 3D solar system</title>
+<meta name="description" content="Orrery: a WebGL/TypeScript solar system with Keplerian orbital mechanics, procedurally textured planets, and a free-fly camera. No external engine." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<canvas id="gl-canvas"></canvas>
+
+<div id="overlay" class="hidden">
+  <div class="panel">
+    <h1>Orrery</h1>
+    <p>Starting the solar system…</p>
+  </div>
+</div>
+
+<div id="hud-root">
+  <div class="hud-panel">
+    <div class="hud-line"><span class="hud-label">body</span><span id="hud-body">—</span></div>
+    <div class="hud-line"><span class="hud-label">time</span><span id="hud-date">—</span></div>
+    <div class="hud-line"><span class="hud-label">warp</span><span id="hud-warp">1×</span><span id="hud-paused" class="state-running">running</span></div>
+  </div>
+  <div class="help-panel">
+    <span><b>drag</b> look around</span>
+    <span><b>right-drag</b> pan</span>
+    <span><b>WASD</b> fly · <b>Q/E</b> down/up</span>
+    <span><b>wheel</b> speed · <b>Ctrl+wheel</b> warp</span>
+    <span><b>click</b> a planet to fly to it</span>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="btn-pause" title="Pause / resume (Space)">❚❚ Pause</button>
+  <button id="btn-warp-down" title="Slower ( - )">−</button>
+  <input id="warp-slider" type="range" min="0" max="8" step="1" value="2" title="Time warp" />
+  <button id="btn-warp-up" title="Faster ( + )">+</button>
+  <select id="fly-select" title="Fly to…">
+    <option value="">Free camera</option>
+  </select>
+  <button id="btn-hud" title="Toggle HUD (H)">HUD</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

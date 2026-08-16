@@ -18,8 +18,9 @@ pub fn usage() -> String {
      commands:\n\
      \x20 crawl        --src <dir> --out <corpus> [--threads N]\n\
      \x20 index        --corpus <dir> --out <json> [--name <n>] [--threads N]\n\
-     \x20 search       --corpus <dir> --query <q> [--scoring bm25|tfidf] [--top N] [--format text|json] [--stem on|off] [--signals on|off]\n\
-     \x20 search-index --index <json> --query <q> [--corpus <dir>] [--scoring bm25|tfidf] [--top N] [--format text|json] [--stem on|off] [--signals on|off]\n\
+     \x20 search       --corpus <dir> --query <q> [--scoring bm25|tfidf] [--top N] [--offset N] [--limit N] [--format text|json] [--stem on|off] [--signals on|off] [--stopwords on|off] [--threads N]\n\
+     \x20 search-index --index <json> --query <q> [--corpus <dir>] [--scoring bm25|tfidf] [--top N] [--offset N] [--limit N] [--format text|json] [--stem on|off] [--signals on|off] [--stopwords on|off] [--threads N]\n\
+     \x20 suggest      --index <json> --prefix <p> [--top N] [--format text|json]\n\
      \x20 stats        --corpus <dir> [--format text|json]             corpus and index statistics\n\
      \x20 plan         --query <q>                                     show the parsed query plan\n\
      \x20 verify-index --index <json> --corpus <dir>         prove the exported index round-trips\n\
@@ -27,17 +28,23 @@ pub fn usage() -> String {
      \x20 check                                              run runtime self-checks\n\
      \x20 help                                               show this help\n\n\
      options:\n\
-     \x20 --stem    on|off     expand query terms to whole word families (default off)\n\
-     \x20 --signals on|off     title boost + proximity ranking signals (default on)\n\
-     \x20 --threads N          worker count for crawl/index (default: cpu count)\n\
-     \x20 --time               print wall-clock ms per phase\n\n\
+     \x20 --stem      on|off     expand query terms to whole word families (default off)\n\
+     \x20 --signals   on|off     title boost + proximity ranking signals (default on)\n\
+     \x20 --stopwords on|off     drop common words from ranked queries (default on)\n\
+     \x20 --offset    N          skip the first N ranked results (default 0)\n\
+     \x20 --limit     N          show at most N results per page (default 20)\n\
+     \x20 --threads   N          worker count for crawl/index/search (default: cpu count)\n\
+     \x20 --time                 print wall-clock ms per phase\n\n\
      query syntax:\n\
-     \x20 AND/OR/NOT, parentheses, \"quoted phrases\", term~ (fuzzy d=1), term~2 (fuzzy d=2)\n\n\
+     \x20 AND/OR/NOT, parentheses, \"quoted phrases\" (with ~N slop), term* / term? wildcards,\n\
+     \x20 title:term / source:term fields, term~ (fuzzy d=1), term~2 (fuzzy d=2), term^N boosting\n\n\
      examples:\n\
      \x20 meridian crawl --src ../ --out corpus --threads 8\n\
      \x20 meridian index --corpus corpus --out data/index.json --name \"Meridian corpus\" --threads 4\n\
      \x20 meridian search --corpus corpus --query \"rust AND seismic\" --top 5 --stem on\n\
-     \x20 meridian search-index --index data/index.json --corpus corpus --query \"\\\"search engine\\\"\" --format json\n\
+     \x20 meridian search-index --index data/index.json --corpus corpus --query \"\\\"search engine\\\"~1\" --format json\n\
+     \x20 meridian search-index --index data/index.json --corpus corpus --query \"title:search*\" --offset 0 --limit 10\n\
+     \x20 meridian suggest --index data/index.json --prefix \"sear\"\n\
      \x20 meridian plan --query \"searching~ engine\""
         .to_string()
 }
@@ -192,7 +199,9 @@ fn build_from_docs_with(docs: &[Document], threads: usize) -> Index {
 }
 
 /// Runs a search and formats the output. `docs` supplies document text for
-/// snippets (empty when only the exported index is available).
+/// snippets (empty when only the exported index is available). `offset`/`limit`
+/// page the ranked results and `threads` parallelizes scoring.
+#[allow(clippy::too_many_arguments)]
 fn run_search(
     index: &Index,
     docs: &[Document],
@@ -200,18 +209,29 @@ fn run_search(
     scorer: Scorer,
     opts: SearchOptions,
     top: usize,
+    offset: usize,
+    limit: usize,
+    threads: usize,
     json_out: bool,
 ) -> Result<i32, String> {
     let started = Timer::new();
     let plan = query::parse_query(query_str)?;
-    let hits = query::search(index, scorer, &opts, &plan, top);
+    let rank_top = top.max(offset.saturating_add(limit));
+    let hits = query::search_with(index, scorer, &opts, &plan, rank_top, threads);
     let total = query::candidates(index, &opts, &plan).len();
     let suggestions = query::suggestions(index, &plan);
     let elapsed = started.ms();
 
+    let page: Vec<&crate::query::SearchHit> = hits
+        .iter()
+        .skip(offset.min(hits.len()))
+        .take(limit)
+        .collect();
+    let pages = if total == 0 { 0 } else { total.div_ceil(limit) };
+
     if json_out {
         let mut hits_json = Vec::new();
-        for h in hits {
+        for h in page {
             let doc = index.docs.get(h.doc_id);
             let snippet = docs
                 .get(h.doc_id)
@@ -280,7 +300,11 @@ fn run_search(
             ("scorer".to_string(), Json::Str(scorer.name().to_string())),
             ("stem".to_string(), Json::Bool(opts.stem)),
             ("signals".to_string(), Json::Bool(opts.signals)),
-            ("total".to_string(), Json::Num(total as f64)),
+            ("stopwords".to_string(), Json::Bool(opts.stopwords)),
+            ("total_hits".to_string(), Json::Num(total as f64)),
+            ("offset".to_string(), Json::Num(offset as f64)),
+            ("limit".to_string(), Json::Num(limit as f64)),
+            ("pages".to_string(), Json::Num(pages as f64)),
             ("ms".to_string(), Json::Num(elapsed)),
             (
                 "suggestions".to_string(),
@@ -290,13 +314,18 @@ fn run_search(
         ]);
         println!("{}", jsonx::to_string(&root));
     } else {
+        let shown = page.len();
+        let first = if shown == 0 { 0 } else { offset + 1 };
+        let last = if shown == 0 { 0 } else { offset + shown };
         println!(
-            "Query: {}  (scorer: {}, stem: {}, signals: {}, showing top {} of {} matches, {:.1} ms)",
+            "Query: {}  (scorer: {}, stem: {}, signals: {}, stopwords: {}, showing {}..{} of {} matches, {:.1} ms)",
             query_str,
             scorer.name(),
             if opts.stem { "on" } else { "off" },
             if opts.signals { "on" } else { "off" },
-            hits.len(),
+            if opts.stopwords { "on" } else { "off" },
+            first,
+            last,
             total,
             elapsed
         );
@@ -304,9 +333,9 @@ fn run_search(
             println!("Did you mean: {}", suggestions.join(", "));
         }
         println!();
-        for (i, h) in hits.iter().enumerate() {
+        for (i, h) in page.iter().enumerate() {
             let doc = index.docs.get(h.doc_id);
-            println!("{}. {}  (score {:.4})", i + 1, doc.map(|d| d.title.as_str()).unwrap_or("?"), h.score);
+            println!("{}. {}  (score {:.4})", offset + i + 1, doc.map(|d| d.title.as_str()).unwrap_or("?"), h.score);
             println!("   {}", doc.map(|d| d.source.as_str()).unwrap_or(""));
             if let Some(d) = docs.get(h.doc_id) {
                 let s = snippet::generate(&d.text, &h.matches, 220);
@@ -457,10 +486,13 @@ fn cmd_search(args: &Args) -> Result<i32, String> {
     let scorer = opt_scorer(args)?;
     let opts = opt_signals(args)?;
     let top = opt_num(args, "top", 10)?;
+    let offset = opt_num(args, "offset", 0)?;
+    let limit = opt_num(args, "limit", 20)?;
+    let threads = opt_threads(args)?;
     let fmt = format_name(args)?;
     let docs = load_docs(&corpus_dir)?;
     let index = build_from_docs(&docs);
-    run_search(&index, &docs, &query_str, scorer, opts, top, fmt == "json")
+    run_search(&index, &docs, &query_str, scorer, opts, top, offset, limit, threads, fmt == "json")
 }
 
 fn cmd_search_index(args: &Args) -> Result<i32, String> {
@@ -469,6 +501,9 @@ fn cmd_search_index(args: &Args) -> Result<i32, String> {
     let scorer = opt_scorer(args)?;
     let opts = opt_signals(args)?;
     let top = opt_num(args, "top", 10)?;
+    let offset = opt_num(args, "offset", 0)?;
+    let limit = opt_num(args, "limit", 20)?;
+    let threads = opt_threads(args)?;
     let fmt = format_name(args)?;
     let raw = std::fs::read_to_string(&index_path)
         .map_err(|e| format!("cannot read {}: {}", index_path, e))?;
@@ -477,7 +512,34 @@ fn cmd_search_index(args: &Args) -> Result<i32, String> {
         Some(dir) => load_docs(&dir)?,
         None => Vec::new(),
     };
-    run_search(&index, &docs, &query_str, scorer, opts, top, fmt == "json")
+    run_search(&index, &docs, &query_str, scorer, opts, top, offset, limit, threads, fmt == "json")
+}
+
+fn cmd_suggest(args: &Args) -> Result<i32, String> {
+    let index_path = require(args, "index")?;
+    let prefix = require(args, "prefix")?;
+    let top = opt_num(args, "top", 8)?;
+    let fmt = format_name(args)?;
+    let raw = std::fs::read_to_string(&index_path)
+        .map_err(|e| format!("cannot read {}: {}", index_path, e))?;
+    let index = export::index_from_json(&raw)?;
+    let suggestions = crate::wildcard::suggest_prefix(&index, &prefix, top);
+    if fmt == "json" {
+        let root = Json::Obj(vec![
+            ("prefix".to_string(), Json::Str(prefix)),
+            (
+                "suggestions".to_string(),
+                Json::Arr(suggestions.iter().map(|s| Json::Str(s.clone())).collect()),
+            ),
+        ]);
+        println!("{}", jsonx::to_string(&root));
+    } else {
+        println!("suggestions for '{}':", prefix);
+        for (i, s) in suggestions.iter().enumerate() {
+            println!("  {}. {}", i + 1, s);
+        }
+    }
+    Ok(0)
 }
 
 fn cmd_stats(args: &Args) -> Result<i32, String> {
@@ -729,6 +791,7 @@ pub fn run(args: &[String]) -> Result<i32, String> {
         "index" => cmd_index(&rest),
         "search" => cmd_search(&rest),
         "search-index" => cmd_search_index(&rest),
+        "suggest" => cmd_suggest(&rest),
         "stats" => cmd_stats(&rest),
         "verify-index" => cmd_verify_index(&rest),
         "check" => cmd_check(),

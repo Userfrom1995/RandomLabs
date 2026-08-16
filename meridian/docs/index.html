@@ -115,7 +115,7 @@
     </div>
     <div class="card">
       <h4>5.5x compression</h4>
-      <p>Varint (LEB128) term-gap encoding packs 122,799 postings into 268 KB,
+      <p>Varint (LEB128) term-gap encoding packs 127,441 postings into 271 KB,
       base64-safe for JSON, proven by verify-index.</p>
     </div>
     <div class="card">
@@ -130,6 +130,13 @@
       Korean.</p>
     </div>
     <div class="card">
+      <h4>Wildcard, field, slop, boost</h4>
+      <p><code>search*</code> and <code>sear?h</code> expand against the
+      vocabulary, <code>title:rust</code> filters by field,
+      <code>"a b"~2</code> loosens phrases, and <code>rust^3</code> lifts a
+      term's score.</p>
+    </div>
+    <div class="card">
       <h4>One engine, two languages</h4>
       <p>The Rust engine is mirrored line-by-line in dependency-free JS, so
       the web UI searches the corpus with no server at all.</p>
@@ -139,9 +146,9 @@
   <h2>Try it</h2>
   <pre><code>cd meridian
 cargo build --release
-cargo test                    # 90 tests, all pass
+cargo test                    # 126 tests, all pass
 cargo clippy --all-targets    # zero warnings
-node tests/consistency.test.mjs   # 9296 JS-vs-Rust checks, all pass
+node tests/consistency.test.mjs   # 21226 JS-vs-Rust checks, all pass
 node tests/ui.test.mjs            # headless UI rendering checks
 
 python3 -m http.server 8000       # open http://localhost:8000 for the web UI</code></pre>
@@ -151,8 +158,9 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
     <tr><th>Command</th><th>What it does</th></tr>
     <tr><td><code>meridian crawl --src &lt;dir&gt; --out &lt;corpus&gt; [--threads N]</code></td><td>Crawl a directory into a corpus (manifest + plain-text docs).</td></tr>
     <tr><td><code>meridian index --corpus &lt;dir&gt; --out &lt;json&gt; [--threads N]</code></td><td>Build the inverted index and export the compressed JSON index.</td></tr>
-    <tr><td><code>meridian search --corpus &lt;dir&gt; --query &lt;q&gt; [--scoring bm25|tfidf] [--top N] [--format text|json] [--stem on|off] [--signals on|off]</code></td><td>Crawl (or reuse) the corpus and search it.</td></tr>
+    <tr><td><code>meridian search --corpus &lt;dir&gt; --query &lt;q&gt; [--scoring bm25|tfidf] [--top N] [--offset N] [--limit N] [--threads N] [--format text|json] [--stem on|off] [--signals on|off] [--stopwords on|off]</code></td><td>Crawl (or reuse) the corpus and search it.</td></tr>
     <tr><td><code>meridian search-index --index &lt;json&gt; --query &lt;q&gt; [...]</code></td><td>Search an exported index directly.</td></tr>
+    <tr><td><code>meridian suggest --index &lt;json&gt; --prefix &lt;p&gt; [--top N]</code></td><td>Suggest terms by prefix (typeahead).</td></tr>
     <tr><td><code>meridian plan --query &lt;q&gt;</code></td><td>Print the parsed query plan.</td></tr>
     <tr><td><code>meridian stats --corpus &lt;dir&gt;</code></td><td>Corpus and index statistics.</td></tr>
     <tr><td><code>meridian bench --index &lt;json&gt; [--iterations N]</code></td><td>Run the built-in query benchmark.</td></tr>
@@ -181,12 +189,22 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
     position gaps)</code> as LEB128 varints packed into a byte array,
     base64-encoded for JSON. Decoding is the exact inverse;
     <code>verify-index</code> re-encodes and compares.</li>
+    <li><strong>Expand.</strong> Query terms are expanded before scoring:
+    wildcards run a dynamic-programming pattern match against the vocabulary
+    (pruned by the fixed prefix), stemmed terms widen to their family, fuzzy
+    leaves query the BK-tree, and fielded terms resolve against the
+    per-field token sets. Boost and slop are resolved at parse time.</li>
     <li><strong>Rank.</strong> BM25 scores
     <code>idf * tf*(k1+1) / (tf + k1*(1 - b + b*len/avgLen))</code> and TF-IDF
-    scores <code>tf * log(N/df)</code>. Ranked queries sum per-term scores;
-    boolean queries compute matches first and rank the surviving set. With
-    signals on, title terms get a 1.5x boost and co-located terms a 0.5x
-    proximity bonus.</li>
+    scores <code>tf * log(N/df)</code>. Ranked queries sum per-term scores
+    (multiplied by any boost); boolean queries compute matches first and rank
+    the surviving set. With signals on, title terms get a 1.5x boost and
+    co-located terms a 0.5x proximity bonus.</li>
+    <li><strong>Page.</strong> Search ranks the top
+    <code>max(top, offset + limit)</code> scored documents (threads split the
+    postings merge deterministically), slices the page
+    <code>[offset, offset + limit)</code>, and reports
+    <code>total_hits</code> and <code>pages</code> for the pagers.</li>
     <li><strong>Snippet.</strong> The best window around the densest cluster
     of matches is chosen, snapped to word boundaries, and returned with the
     byte ranges of every matched term so renderers can highlight without
@@ -207,6 +225,8 @@ python3 -m http.server 8000       # open http://localhost:8000 for the web UI</c
     <tr><td><a href="articles/a-short-history-of-full-text-search.md">A short history of full-text search</a></td><td>From grep and permuted indexes to modern engines.</td></tr>
     <tr><td><a href="articles/postings-compression.md">Postings compression</a></td><td>Gap encoding and varints: the postings are 5.5x smaller here.</td></tr>
     <tr><td><a href="articles/cjk-fulltext-search.md">CJK full-text search</a></td><td>Segmenting Chinese, Japanese, and Korean text with unigrams and bigrams.</td></tr>
+    <tr><td><a href="articles/wildcard-and-fielded-search.md">Wildcard and fielded search</a></td><td>Expanding <code>search*</code> against the vocabulary, and filtering by <code>title:</code>/<code>source:</code> fields.</td></tr>
+    <tr><td><a href="articles/phrase-slop-and-term-boosting.md">Phrase slop and term boosting</a></td><td>Loosening phrases with <code>"a b"~2</code> and lifting terms with <code>rust^3</code>.</td></tr>
   </table>
 
   <h2>Design choices</h2>

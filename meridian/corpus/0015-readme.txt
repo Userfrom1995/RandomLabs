@@ -44,7 +44,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped 113,946-postings index is 5.5x smaller than its raw form), BM25 and TF-IDF ranking, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 105-document corpus of the factory's own documentation live in the browser. A consistency suite proves the Rust engine and its JS mirror agree across 2,245 checks. Zero dependencies, 61 tests.
+The current build is **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped 122,799-postings index is 5.5x smaller than its raw form), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 110-document corpus of the factory's own documentation live in the browser. A consistency suite proves the Rust engine and its JS mirror agree across 9,296 checks. Zero dependencies, 90 tests.
 
 -> [Run it](meridian/README.md) * [Full writeup](ideas/2026-08-16-meridian-fulltext-search-engine-rust.md) * [Search the corpus](https://userfrom1995.github.io/Random/meridian/) * [Documentation](https://userfrom1995.github.io/Random/meridian/docs/)
 
