@@ -92,10 +92,10 @@ function ok(cond, msg) {
 
 /* 6. new retrieval features exposed to the UI: fuzzy, stem, suggestions. */
 {
-  const opts = { stem: false, signals: true };
+  const opts = { stem: false, signals: true, stopwords: true };
   const fuzzy = Meridian.search(index, 'bm25', opts, Meridian.parseQuery('engine~'), 5);
   ok(fuzzy.length > 0, 'fuzzy engine~ finds results');
-  const stemOpts = { stem: true, signals: true };
+  const stemOpts = { stem: true, signals: true, stopwords: true };
   const st = Meridian.search(index, 'bm25', stemOpts, Meridian.parseQuery('ranking'), 5);
   ok(st.length > 0, 'stem expansion finds results');
   const sug = Meridian.suggestions(index, Meridian.parseQuery('qjuick brwn'));
@@ -105,13 +105,57 @@ function ok(cond, msg) {
 
 /* 7. breakdown rows expose the title flag for the UI. */
 {
-  const opts = { stem: false, signals: true };
+  const opts = { stem: false, signals: true, stopwords: true };
   const hit = Meridian.search(index, 'bm25', opts, Meridian.parseQuery('search'), 1)[0];
   ok(Array.isArray(hit.breakdown), 'breakdown is an array');
   const prox = hit.breakdown.find((b) => b.term === '(proximity)');
   ok(prox === undefined || typeof prox.score === 'number', 'proximity row typed');
   const sum = hit.breakdown.reduce((a, b) => a + b.score, 0);
   ok(Math.abs(sum - hit.score) < 1e-9, 'breakdown sums to the hit score');
+}
+
+/* 8. Level 3 retrieval features exposed to the UI: wildcard, field, slop, boost. */
+{
+  const opts = { stem: false, signals: true, stopwords: true };
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('search*'), 5).length > 0, 'wildcard search* finds results');
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('sear?h'), 5).length > 0, 'wildcard sear?h finds results');
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('title:rust'), 5).length > 0, 'fielded title:rust finds results');
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('source:docs*'), 5).length > 0, 'fielded wildcard source:docs* finds results');
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('"inverted index"~1'), 5).length > 0, 'phrase slop finds results');
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('rust^3'), 5).length > 0, 'boosted rust^3 finds results');
+  ok(Meridian.search(index, 'bm25', opts, Meridian.parseQuery('title:rust^2'), 5).length > 0, 'fielded boost title:rust^2 finds results');
+  let threw = false;
+  try {
+    Meridian.parseQuery('^2');
+  } catch (e) {
+    threw = true;
+  }
+  ok(threw, 'orphan boost ^2 is rejected');
+  threw = false;
+  try {
+    Meridian.parseQuery('"a b"~x');
+  } catch (e) {
+    threw = true;
+  }
+  ok(threw, 'phrase slop with junk ~x is rejected');
+  // stopwords toggle: 'the' matches nothing with stopwords on.
+  ok(Meridian.search(index, 'bm25', { stem: false, signals: true, stopwords: true }, Meridian.parseQuery('the'), 5).length === 0, 'stopwords on drops "the"');
+  ok(Meridian.search(index, 'bm25', { stem: false, signals: true, stopwords: false }, Meridian.parseQuery('the'), 5).length > 0, 'stopwords off keeps "the"');
+}
+
+/* 9. pagination helper used by the UI pager. */
+{
+  const opts = { stem: false, signals: true, stopwords: true };
+  const plan = Meridian.parseQuery('rust');
+  const all = Meridian.search(index, 'bm25', opts, plan, 1000);
+  const meta = Meridian.searchWithMeta(index, 'bm25', opts, plan, 10, 0, 10);
+  ok(meta.totalHits === all.length, 'searchWithMeta total matches full search');
+  ok(meta.hits.length === Math.min(10, all.length), 'page 0 has up to 10 hits');
+  ok(meta.pages === Math.max(0, Math.ceil(all.length / 10)), 'page count computed');
+  if (all.length > 10) {
+    const p1 = Meridian.searchWithMeta(index, 'bm25', opts, plan, 10, 10, 10);
+    ok(p1.hits[0].docId === all[10].docId, 'page 1 starts where page 0 ended');
+  }
 }
 
 console.log(`ui.test: ${checks} checks, ${failed} failed`);

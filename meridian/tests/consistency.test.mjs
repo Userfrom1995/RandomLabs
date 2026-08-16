@@ -46,13 +46,34 @@ const QUERIES = [
   'systems',
   'qjuick brwn',
   'xyzzy nonsense',
+  'sear*',
+  'sear?h',
+  'rust*',
+  'engine*',
+  '*ing',
+  'title:rust',
+  'title:search*',
+  'title:engine',
+  'source:docs*',
+  'source:src',
+  '"inverted index"~1',
+  '"search engine"~2',
+  '"rust systems"~1',
+  'search^2',
+  '"inverted index"^2',
+  'title:rust^2',
+  'searching~^2',
+  'the',
+  'the AND search',
+  'of AND rust',
 ];
 
 // Query options are exercised across every combination.
 const OPTS = [
-  { stem: false, signals: true },
-  { stem: true, signals: true },
-  { stem: false, signals: false },
+  { stem: false, signals: true, stopwords: true },
+  { stem: true, signals: true, stopwords: true },
+  { stem: false, signals: false, stopwords: true },
+  { stem: false, signals: true, stopwords: false },
 ];
 
 function runRust(query, scorer, opts, top) {
@@ -68,10 +89,16 @@ function runRust(query, scorer, opts, top) {
     scorer,
     '--top',
     String(top),
+    '--limit',
+    String(top),
+    '--offset',
+    '0',
     '--stem',
     opts.stem ? 'on' : 'off',
     '--signals',
     opts.signals ? 'on' : 'off',
+    '--stopwords',
+    opts.stopwords ? 'on' : 'off',
     '--format',
     'json',
   ]).toString('utf-8');
@@ -86,7 +113,7 @@ function runJs(index, query, scorer, opts, top) {
   return {
     query,
     scorer,
-    total,
+    total_hits: total,
     suggestions,
     hits: hits.map((h) => {
       const doc = index.docs[h.docId];
@@ -149,9 +176,9 @@ async function main() {
       for (const query of QUERIES) {
         const rust = runRust(query, scorer, opts, 8);
         const js = runJs(index, query, scorer, opts, 8);
-        const label = `[${scorer}][stem=${opts.stem},signals=${opts.signals}] "${query}"`;
+        const label = `[${scorer}][stem=${opts.stem},signals=${opts.signals},stopwords=${opts.stopwords}] "${query}"`;
 
-        check(rust.total === js.total, label, `total ${rust.total} != ${js.total}`);
+        check(rust.total_hits === js.total_hits, label, `total ${rust.total_hits} != ${js.total_hits}`);
         check(
           JSON.stringify(rust.suggestions) === JSON.stringify(js.suggestions),
           label,

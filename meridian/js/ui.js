@@ -10,9 +10,12 @@
   var index = null;
   var docCache = {};
   var currentScorer = 'bm25';
-  var currentOpts = { stem: false, signals: true };
+  var currentOpts = { stem: false, signals: true, stopwords: true };
   var lastQuery = '';
   var lastPlan = null;
+  var pageSize = 10;
+  var page = 0;
+  var pageTotal = 0;
 
   var $q = null;
   var $go = null;
@@ -22,6 +25,7 @@
   var $stats = null;
   var $chips = null;
   var $modal = null;
+  var $pager = null;
   var $dvTitle = null;
   var $dvSource = null;
   var $dvBody = null;
@@ -136,6 +140,7 @@
   $stats = document.getElementById('stats');
   $chips = document.getElementById('chips');
   $modal = document.getElementById('modal');
+  $pager = document.getElementById('pager');
   $dvTitle = document.getElementById('dv-title');
   $dvSource = document.getElementById('dv-source');
   $dvBody = document.getElementById('dv-body');
@@ -237,15 +242,10 @@
       $suggest.style.display = 'none';
       return;
     }
-    var matches = [];
-    index.terms.forEach(function (e, term) {
-      if (term.length > 24) return;
-      if (term.indexOf(last) === 0) matches.push({ term: term, df: e.df });
+    var matches = Meridian.suggestPrefix(index, last, 6).map(function (term) {
+      var e = index.terms.get(term);
+      return { term: term, df: e ? e.df : 0 };
     });
-    matches.sort(function (a, b) {
-      return b.df - a.df || a.term.localeCompare(b.term);
-    });
-    matches = matches.slice(0, 6);
     if (!matches.length) {
       $suggest.style.display = 'none';
       return;
@@ -276,16 +276,26 @@
       return;
     }
     lastPlan = plan;
+    page = 0;
+    renderPage(plan);
+  }
+
+  function renderPage(plan) {
     var started = performance.now();
-    var hits = Meridian.search(index, currentScorer, currentOpts, plan, 10);
+    var offset = page * pageSize;
+    var meta = Meridian.searchWithMeta(index, currentScorer, currentOpts, plan, 10, offset, pageSize);
     var ms = (performance.now() - started).toFixed(1);
-    var total = Meridian.candidates(index, currentOpts, plan).length;
+    var hits = meta.hits;
+    var total = meta.totalHits;
+    pageTotal = meta.pages;
     var suggestions = Meridian.suggestions(index, plan);
     $status.innerHTML =
       'about <b>' + total + '</b> result' + (total === 1 ? '' : 's') +
-      ' for <b>' + escapeHtml(query) + '</b> &middot; ' +
+      ' for <b>' + escapeHtml(lastQuery) + '</b> &middot; ' +
       currentScorer.toUpperCase() +
       (currentOpts.stem ? ' + stem' : '') +
+      (currentOpts.signals ? ' + signals' : '') +
+      (currentOpts.stopwords ? ' + stopwords' : '') +
       ' &middot; ' + ms + ' ms';
 
     if (suggestions.length) {
@@ -304,6 +314,7 @@
         $results.innerHTML =
           '<div class="empty">No documents matched. Try fewer terms, or check the query help.</div>';
       }
+      renderPager();
       return;
     }
 
@@ -317,7 +328,7 @@
       var doc = index.docs[h.docId];
       html +=
         '<div class="result" data-doc="' + doc.id + '">' +
-        '<div class="r-top"><span class="r-rank">' + (rank + 1) + '</span>' +
+        '<div class="r-top"><span class="r-rank">' + (offset + rank + 1) + '</span>' +
         '<span class="r-title">' + escapeHtml(doc.title) + '</span></div>' +
         '<div class="r-source">' + escapeHtml(doc.source) + '</div>' +
         '<div class="r-snippet" data-doc="' + doc.id + '">loading&hellip;</div>' +
@@ -326,6 +337,7 @@
         '</div></div>';
     });
     $results.innerHTML = html;
+    renderPager();
 
     // Load doc text lazily for snippets.
     hits.forEach(function (h) {
@@ -340,6 +352,24 @@
         el.innerHTML = renderSnippet(snip);
       });
     });
+  }
+
+  function renderPager() {
+    if (pageTotal <= 1) {
+      $pager.style.display = 'none';
+      $pager.innerHTML = '';
+      return;
+    }
+    var html = '';
+    var start = Math.max(0, page - 2);
+    var end = Math.min(pageTotal, page + 3);
+    if (start > 0) html += '<button class="pg" data-p="-1">&laquo;</button>';
+    for (var i = start; i < end; i++) {
+      html += '<button class="pg' + (i === page ? ' on' : '') + '" data-p="' + i + '">' + (i + 1) + '</button>';
+    }
+    if (end < pageTotal) html += '<button class="pg" data-p="-2">&raquo;</button>';
+    $pager.innerHTML = html;
+    $pager.style.display = 'block';
   }
 
   function breakdownHtml(breakdown, maxScore) {
@@ -405,8 +435,13 @@
       '<span class="kbd">rust AND (cargo OR bm25)</span>, <span class="kbd">rust AND NOT chess</span>.<br>' +
       'Quoted phrases match consecutive words in order: <span class="kbd">"inverted index"</span>.<br>' +
       'Fuzzy search tolerates typos: <span class="kbd">indexing~</span> (1 edit) or <span class="kbd">indexing~2</span> (2 edits).<br>' +
+      'Wildcards match prefixes and single letters: <span class="kbd">search*</span>, <span class="kbd">sear?h</span>.<br>' +
+      'Fielded search restricts to a field: <span class="kbd">title:rust</span>, <span class="kbd">source:docs*</span>.<br>' +
+      'Phrases allow a slop for gaps between words: <span class="kbd">"search engine"~2</span>.<br>' +
+      'Term boost lifts a word: <span class="kbd">rust^3</span>, <span class="kbd">title:rust^2</span>.<br>' +
       'CJK text segments into n-grams: <span class="kbd">搜索引擎</span> matches Chinese, Japanese and Korean documents.<br>' +
       'Toggle <span class="kbd">stem</span> to expand a word to its whole morphological family (searching, searched, search&hellip;).<br>' +
+      'Toggle <span class="kbd">stopwords</span> to drop common function words from ranked queries.<br>' +
       'Results are always ranked (BM25 or TF-IDF); the AND/OR/NOT set the candidate set first.';
     var toolbar = document.querySelector('.toolbar');
     toolbar.parentNode.insertBefore(panel, toolbar.nextSibling);
@@ -428,6 +463,10 @@
     '"inverted index"',
     'gambit AND NOT python',
     'indexing~',
+    'search*',
+    'title:rust',
+    '"search engine"~2',
+    'rust^3',
     '搜索引擎',
     'sorting algorithm',
     'neural network',
@@ -463,10 +502,21 @@
   }
   bindToggle('toggle-stem', 'stem');
   bindToggle('toggle-signals', 'signals');
+  bindToggle('toggle-stopwords', 'stopwords');
 
   $go.addEventListener('click', runSearch);
   $q.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') runSearch();
+  });
+  $pager.addEventListener('click', function (e) {
+    var btn = e.target.closest('.pg');
+    if (!btn) return;
+    var p = parseInt(btn.dataset.p, 10);
+    if (p === -1) page = Math.max(0, page - 1);
+    else if (p === -2) page = Math.min(pageTotal - 1, page + 1);
+    else page = p;
+    renderPage(lastPlan);
+    window.scrollTo(0, 0);
   });
   $q.addEventListener('input', debounce(setupSuggestions, 120));
   $suggest.addEventListener('click', function (e) {

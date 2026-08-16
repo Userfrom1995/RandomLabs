@@ -14,7 +14,26 @@
   const B = 0.75;
   const TITLE_BOOST = 1.5;
   const PROX_WEIGHT = 0.5;
-  const DEFAULT_OPTS = { stem: false, signals: true };
+  const DEFAULT_OPTS = { stem: false, signals: true, stopwords: true };
+
+  const STOPWORDS = [
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'can', 'for',
+    'from', 'have', 'if', 'in', 'is', 'it', 'its', 'just', 'not', 'of', 'on',
+    'or', 'so', 'than', 'that', 'the', 'their', 'these', 'they', 'this', 'to',
+    'was', 'we', 'were', 'what', 'when', 'which', 'with', 'you', 'your',
+  ];
+
+  function isStopword(word) {
+    let lo = 0;
+    let hi = STOPWORDS.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (STOPWORDS[mid] === word) return true;
+      if (STOPWORDS[mid] < word) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return false;
+  }
 
   function utf8Len(cp) {
     if (cp < 0x80) return 1;
@@ -686,10 +705,15 @@
    * parse error. `and`/`or`/`not` are operators only outside quotes. */
   function readWord(chars, i) {
     let word = '';
+    let wildcard = false;
     while (i < chars.length) {
       const c = chars[i];
       if (isAlnum(c)) {
         word += c.toLowerCase();
+        i++;
+      } else if (c === '*' || c === '?') {
+        wildcard = true;
+        word += c;
         i++;
       } else if (c === "'" && word.length > 0) {
         const next = chars[i + 1];
@@ -722,7 +746,76 @@
       }
       fuzzy = d;
     }
-    return { word: word, next: i, fuzzy: fuzzy };
+    return { word: word, next: i, fuzzy: fuzzy, wildcard: wildcard };
+  }
+
+  function readFieldInner(chars, i) {
+    while (i < chars.length && /[ \t\n\r]/.test(chars[i])) i++;
+    if (chars[i] === '"') throw new Error('fielded phrases are not supported');
+    const r = readWord(chars, i);
+    if (!r) {
+      throw new Error('missing term after field prefix (use title:<word> or source:<word>)');
+    }
+    if (r.fuzzy !== null && r.wildcard) {
+      throw new Error('fuzzy wildcards are not supported');
+    }
+    let kind;
+    if (r.fuzzy !== null) kind = 'fuzzy';
+    else if (r.wildcard) kind = 'wildcard';
+    else kind = 'term';
+    return { tok: { kind: kind, term: r.word, d: r.fuzzy, pattern: r.word }, next: r.next };
+  }
+
+  function readPhrase(chars, i) {
+    let phrase = '';
+    let closed = false;
+    while (i < chars.length) {
+      if (chars[i] === '"') {
+        closed = true;
+        i++;
+        break;
+      }
+      phrase += chars[i];
+      i++;
+    }
+    if (!closed) throw new Error('unterminated quoted phrase');
+    const words = tokenize(phrase).map((t) => t.term);
+    if (words.length === 0) throw new Error('empty quoted phrase');
+    let slop = 0;
+    if (i < chars.length && chars[i] === '~') {
+      i++;
+      let digits = '';
+      while (i < chars.length && /[0-9]/.test(chars[i])) {
+        digits += chars[i];
+        i++;
+      }
+      if (digits === '') {
+        if (i >= chars.length || /[ \t\n\r]/.test(chars[i])) slop = 1;
+        else throw new Error("phrase slop needs a digit after '~'");
+      } else {
+        slop = parseInt(digits, 10);
+        if (slop > 9) {
+          throw new Error('phrase slop must be 0..=9 (got ~' + slop + ')');
+        }
+      }
+    }
+    return { words: words, slop: slop, next: i };
+  }
+
+  function readBoost(chars, i) {
+    if (i >= chars.length || chars[i] !== '^') return null;
+    i++;
+    let s = '';
+    while (i < chars.length && (/[0-9]/.test(chars[i]) || chars[i] === '.')) {
+      s += chars[i];
+      i++;
+    }
+    if (s === '') throw new Error("missing boost value after '^'");
+    const v = parseFloat(s);
+    if (!isFinite(v) || v <= 0) {
+      throw new Error('boost must be a positive number (got ^' + s + ')');
+    }
+    return { value: v, next: i };
   }
 
   function lex(query) {
@@ -740,28 +833,32 @@
         out.push({ kind: 'rparen' });
         i++;
       } else if (c === '"') {
-        i++;
-        let phrase = '';
-        let closed = false;
-        while (i < chars.length) {
-          if (chars[i] === '"') {
-            closed = true;
-            i++;
-            break;
-          }
-          phrase += chars[i];
-          i++;
-        }
-        if (!closed) throw new Error('unterminated quoted phrase');
-        const words = tokenize(phrase).map((t) => t.term);
-        if (words.length === 0) throw new Error('empty quoted phrase');
-        out.push({ kind: 'phrase', words: words });
+        const ph = readPhrase(chars, i + 1);
+        out.push({ kind: 'phrase', words: ph.words, slop: ph.slop });
+        i = ph.next;
+      } else if (c === '^') {
+        const b = readBoost(chars, i);
+        out.push({ kind: 'boost', value: b.value });
+        i = b.next;
       } else {
         const r = readWord(chars, i);
         if (r) {
           i = r.next;
-          if (r.fuzzy !== null) {
+          const isField =
+            !r.wildcard &&
+            r.fuzzy === null &&
+            (r.word === 'title' || r.word === 'source') &&
+            i < chars.length &&
+            chars[i] === ':';
+          if (isField) {
+            i++;
+            const inner = readFieldInner(chars, i);
+            out.push({ kind: 'field', field: r.word, inner: inner.tok });
+            i = inner.next;
+          } else if (r.fuzzy !== null) {
             out.push({ kind: 'fuzzy', term: r.word, d: r.fuzzy });
+          } else if (r.wildcard) {
+            out.push({ kind: 'wildcard', pattern: r.word });
           } else if (r.word === 'and') out.push({ kind: 'and' });
           else if (r.word === 'or') out.push({ kind: 'or' });
           else if (r.word === 'not') out.push({ kind: 'not' });
@@ -788,10 +885,49 @@
     if (!hasOp) {
       const terms = [];
       const phrases = [];
+      let lastIsTerm = false;
       for (const t of toks) {
-        if (t.kind === 'term') terms.push({ type: 'word', term: t.term });
-        else if (t.kind === 'fuzzy') terms.push({ type: 'fuzzy', term: t.term, d: t.d });
-        else if (t.kind === 'phrase') phrases.push(t.words);
+        if (t.kind === 'term') {
+          terms.push({ type: 'word', term: t.term, boost: 1.0 });
+          lastIsTerm = true;
+        } else if (t.kind === 'fuzzy') {
+          terms.push({ type: 'fuzzy', term: t.term, d: t.d, boost: 1.0 });
+          lastIsTerm = true;
+        } else if (t.kind === 'wildcard') {
+          terms.push({ type: 'wildcard', pattern: t.pattern, boost: 1.0 });
+          lastIsTerm = true;
+        } else if (t.kind === 'field') {
+          if (t.field !== 'title' && t.field !== 'source') {
+            throw new Error(
+              "unknown field '" + t.field + "' (expected title or source)"
+            );
+          }
+          if (t.inner.kind === 'phrase') {
+            throw new Error('fielded phrases are not supported');
+          }
+          const innerType = t.inner.kind === 'term' ? 'word' : t.inner.kind;
+          terms.push({
+            type: 'field',
+            field: t.field,
+            inner: { type: innerType, term: t.inner.term, pattern: t.inner.pattern, d: t.inner.d },
+            boost: 1.0,
+          });
+          lastIsTerm = true;
+        } else if (t.kind === 'phrase') {
+          phrases.push({ words: t.words, slop: t.slop, boost: 1.0 });
+          lastIsTerm = false;
+        } else if (t.kind === 'boost') {
+          if (lastIsTerm) {
+            const last = terms[terms.length - 1];
+            if (last) last.boost = t.value;
+          } else if (phrases.length > 0) {
+            phrases[phrases.length - 1].boost = t.value;
+          } else {
+            throw new Error("unexpected '^' (boost needs a term or phrase)");
+          }
+        } else {
+          throw new Error('ranked mode cannot contain operators');
+        }
       }
       return { kind: 'ranked', terms: terms, phrases: phrases };
     }
@@ -838,20 +974,47 @@
     parsePrimary() {
       const t = this.next();
       if (!t) throw new Error('unexpected end of query');
-      if (t.kind === 'term') return { kind: 'term', term: t.term };
-      if (t.kind === 'fuzzy') return { kind: 'fuzzy', term: t.term, d: t.d };
-      if (t.kind === 'phrase') return { kind: 'phrase', words: t.words };
-      if (t.kind === 'lparen') {
+      let expr;
+      if (t.kind === 'term') expr = { kind: 'term', term: t.term };
+      else if (t.kind === 'fuzzy') expr = { kind: 'fuzzy', term: t.term, d: t.d };
+      else if (t.kind === 'wildcard') expr = { kind: 'wildcard', pattern: t.pattern };
+      else if (t.kind === 'field') {
+        if (t.field !== 'title' && t.field !== 'source') {
+          throw new Error("unknown field '" + t.field + "' (expected title or source)");
+        }
+        if (t.inner.kind === 'phrase') {
+          throw new Error('fielded phrases are not supported');
+        }
+        const inner = {
+          kind: t.inner.kind,
+          term: t.inner.term,
+          pattern: t.inner.pattern,
+          d: t.inner.d,
+        };
+        expr = { kind: 'field', field: t.field, inner: inner };
+      } else if (t.kind === 'phrase') expr = { kind: 'phrase', words: t.words, slop: t.slop };
+      else if (t.kind === 'lparen') {
         const inner = this.parseOr();
         const close = this.next();
         if (!close || close.kind !== 'rparen')
           throw new Error('missing closing parenthesis');
-        return inner;
+        expr = inner;
+      } else if (t.kind === 'and') {
+        throw new Error('unexpected AND: missing left operand');
+      } else if (t.kind === 'or') {
+        throw new Error('unexpected OR: missing left operand');
+      } else if (t.kind === 'not') {
+        throw new Error('unexpected NOT');
+      } else if (t.kind === 'boost') {
+        throw new Error("unexpected '^' (boost needs a term or phrase)");
+      } else {
+        throw new Error("unexpected ')'");
       }
-      if (t.kind === 'and') throw new Error('unexpected AND: missing left operand');
-      if (t.kind === 'or') throw new Error('unexpected OR: missing left operand');
-      if (t.kind === 'not') throw new Error('unexpected NOT');
-      throw new Error("unexpected ')'");
+      if (this.peek() && this.peek().kind === 'boost') {
+        const b = this.next().value;
+        return { kind: 'boost', child: expr, value: b };
+      }
+      return expr;
     }
   }
 
@@ -874,8 +1037,9 @@
     return out;
   }
 
-  function phraseDocs(index, words) {
+  function phraseDocs(index, words, slop) {
     if (words.length === 0) return [];
+    slop = slop || 0;
     let anchor = 0;
     for (let i = 1; i < words.length; i++) {
       if (df(index, words[i]) < df(index, words[anchor])) anchor = i;
@@ -884,16 +1048,33 @@
     for (const docId of postingDocs(index, words[anchor])) {
       const anchorPositions = termPositions(index, words[anchor], docId);
       for (const p of anchorPositions) {
+        let minPos = p;
+        let maxPos = p;
         let ok = true;
-        for (let i = 0; i < words.length; i++) {
-          if (i === anchor) continue;
-          const target = p + i;
-          if (!containsPos(termPositions(index, words[i], docId), target)) {
+        for (let i = anchor + 1; i < words.length; i++) {
+          const positions = termPositions(index, words[i], docId);
+          let ix = 0;
+          while (ix < positions.length && positions[ix] <= maxPos) ix++;
+          if (ix >= positions.length) {
             ok = false;
             break;
           }
+          maxPos = positions[ix];
         }
-        if (ok) {
+        if (!ok) continue;
+        for (let i = anchor - 1; i >= 0; i--) {
+          const positions = termPositions(index, words[i], docId);
+          let ix = 0;
+          while (ix < positions.length && positions[ix] < minPos) ix++;
+          if (ix === 0) {
+            ok = false;
+            break;
+          }
+          minPos = positions[ix - 1];
+        }
+        if (!ok) continue;
+        const span = maxPos - minPos;
+        if (span - (words.length - 1) <= slop) {
           out.push(docId);
           break;
         }
@@ -936,13 +1117,104 @@
     return out;
   }
 
+  /* ---- wildcard & prefix retrieval (mirror of src/wildcard.rs) ---- */
+  function fixedPrefix(pattern) {
+    let out = '';
+    for (const c of pattern) {
+      if (c === '*' || c === '?') break;
+      out += c;
+    }
+    return out;
+  }
+
+  function patternMatches(pattern, term) {
+    const p = Array.from(pattern);
+    const t = Array.from(term);
+    const np = p.length;
+    const nt = t.length;
+    const dp = Array.from({ length: np + 1 }, () => new Array(nt + 1).fill(false));
+    dp[0][0] = true;
+    for (let i = 1; i <= np; i++) {
+      if (p[i - 1] === '*') dp[i][0] = dp[i - 1][0];
+    }
+    for (let i = 1; i <= np; i++) {
+      for (let j = 1; j <= nt; j++) {
+        if (p[i - 1] === '*') dp[i][j] = dp[i - 1][j] || dp[i][j - 1];
+        else if (p[i - 1] === '?') dp[i][j] = dp[i - 1][j - 1];
+        else dp[i][j] = dp[i - 1][j - 1] && p[i - 1] === t[j - 1];
+      }
+    }
+    return dp[np][nt];
+  }
+
+  function expandWildcard(index, pattern) {
+    const prefix = fixedPrefix(pattern);
+    const out = [];
+    const terms = index.terms.keys();
+    if (prefix === '') {
+      for (const t of terms) {
+        if (patternMatches(pattern, t)) out.push(t);
+      }
+      return out;
+    }
+    const sorted = [...terms].sort();
+    for (const t of sorted) {
+      if (t >= prefix && patternMatches(pattern, t)) out.push(t);
+    }
+    return out;
+  }
+
+  function suggestPrefix(index, prefix, top) {
+    if (prefix === '') return [];
+    const terms = [...index.terms.keys()].sort();
+    const v = terms
+      .filter((t) => t >= prefix && t.startsWith(prefix))
+      .map((t) => [t, df(index, t)]);
+    v.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    return v.slice(0, top).map((e) => e[0]);
+  }
+
+  /* ---- fielded search (mirror of src/fields.rs) ---- */
+  function fieldTerms(index, field) {
+    const set = new Set();
+    for (const d of index.docs) {
+      const text = field === 'title' ? d.title : d.source;
+      for (const t of tokenize(text)) set.add(t.term);
+    }
+    return [...set].sort();
+  }
+
+  function fieldDocs(index, field, terms) {
+    const out = [];
+    for (let docId = 0; docId < index.totalDocs; docId++) {
+      const d = index.docs[docId];
+      const text = field === 'title' ? d.title : d.source;
+      const set = new Set(tokenize(text).map((t) => t.term));
+      if (terms.some((t) => set.has(t))) out.push(docId);
+    }
+    return out;
+  }
+
+  function fieldHas(index, field, docId, term) {
+    const d = index.docs[docId];
+    if (!d) return false;
+    const text = field === 'title' ? d.title : d.source;
+    return tokenize(text).some((t) => t.term === term);
+  }
+
+  function fieldExpandWildcard(index, field, pattern) {
+    const vocab = fieldTerms(index, field);
+    return vocab.filter((t) => patternMatches(pattern, t));
+  }
+
   /* Load-time derived search context: stem groups built up front, BK-tree
    * built lazily on the first fuzzy lookup. */
   class SearchContext {
-    constructor(index, stem) {
+    constructor(index, opts) {
       this.index = index;
-      this.stem = stem;
-      this.groups = stem ? stemGroups(index.terms.keys()) : null;
+      this.opts = opts || DEFAULT_OPTS;
+      this.stem = this.opts.stem;
+      this.groups = this.stem ? stemGroups(index.terms.keys()) : null;
       this.bk = null;
     }
 
@@ -954,6 +1226,10 @@
     isCjkTerm(term) {
       for (const c of term) if (isCjk(c)) return true;
       return false;
+    }
+
+    shouldSkipStopword(term) {
+      return !!(this.opts.stopwords && isStopword(term));
     }
 
     /* Index terms a plain word expands to: CJK runs segment into unigrams +
@@ -968,40 +1244,126 @@
       return this.bkTree().search(term, d).map((e) => e[0]);
     }
 
-    /* One scoring slot per query term/phrase word, each a list of index terms
-     * that must be present to score that slot. */
+    specEffective(spec, field) {
+      switch (spec.type) {
+        case 'word':
+          return this.expand(spec.term);
+        case 'fuzzy':
+          return this.fuzzyExpand(spec.term, spec.d);
+        case 'wildcard':
+          return field
+            ? fieldExpandWildcard(this.index, field, spec.pattern)
+            : expandWildcard(this.index, spec.pattern);
+        case 'field':
+          return this.specEffective(spec.inner, field);
+        default:
+          return [];
+      }
+    }
+
+    specCandidates(spec) {
+      switch (spec.type) {
+        case 'word': {
+          if (this.shouldSkipStopword(spec.term)) return [];
+          let out = [];
+          for (const e of this.expand(spec.term)) {
+            out = mergeSorted(out, postingDocs(this.index, e));
+          }
+          return out;
+        }
+        case 'fuzzy': {
+          let out = [];
+          for (const e of this.fuzzyExpand(spec.term, spec.d)) {
+            out = mergeSorted(out, postingDocs(this.index, e));
+          }
+          return out;
+        }
+        case 'wildcard': {
+          let out = [];
+          for (const e of expandWildcard(this.index, spec.pattern)) {
+            out = mergeSorted(out, postingDocs(this.index, e));
+          }
+          return out;
+        }
+        case 'field': {
+          const effs = this.specEffective(spec.inner, spec.field);
+          return fieldDocs(this.index, spec.field, effs);
+        }
+        default:
+          return [];
+      }
+    }
+
+    /* One scoring slot per query term/phrase word, each carrying the expanded
+     * index terms, its boost multiplier, and its optional field restriction. */
     effectiveLists(plan) {
       const out = [];
-      const walk = (expr) => {
-        switch (expr.kind) {
-          case 'term':
-            out.push(this.expand(expr.term));
+      const pushSpec = (spec, boost, field) => {
+        switch (spec.type) {
+          case 'word':
+            if (!this.shouldSkipStopword(spec.term)) {
+              out.push({ terms: this.expand(spec.term), boost: boost, field: field });
+            }
             break;
           case 'fuzzy':
-            out.push(this.fuzzyExpand(expr.term, expr.d));
+            out.push({ terms: this.fuzzyExpand(spec.term, spec.d), boost: boost, field: field });
+            break;
+          case 'wildcard': {
+            const terms = field
+              ? fieldExpandWildcard(this.index, field, spec.pattern)
+              : expandWildcard(this.index, spec.pattern);
+            out.push({ terms: terms, boost: boost, field: field });
+            break;
+          }
+          case 'field':
+            pushSpec(spec.inner, boost, spec.field);
+            break;
+        }
+      };
+      const walk = (expr, boost, field) => {
+        switch (expr.kind) {
+          case 'term':
+            out.push({ terms: this.expand(expr.term), boost: boost, field: field });
+            break;
+          case 'fuzzy':
+            out.push({ terms: this.fuzzyExpand(expr.term, expr.d), boost: boost, field: field });
+            break;
+          case 'wildcard': {
+            const terms = field
+              ? fieldExpandWildcard(this.index, field, expr.pattern)
+              : expandWildcard(this.index, expr.pattern);
+            out.push({ terms: terms, boost: boost, field: field });
+            break;
+          }
+          case 'field':
+            walk(expr.inner, boost, expr.field);
             break;
           case 'phrase':
-            for (const w of expr.words) out.push([w]);
+            for (const w of expr.words) {
+              out.push({ terms: [w], boost: boost, field: field });
+            }
+            break;
+          case 'boost':
+            walk(expr.child, boost * expr.value, field);
             break;
           case 'and':
           case 'or':
-            for (const c of expr.parts) walk(c);
+            for (const c of expr.parts) walk(c, boost, field);
             break;
           case 'not':
-            walk(expr.child);
+            walk(expr.child, boost, field);
             break;
         }
       };
       if (plan.kind === 'ranked') {
-        for (const spec of plan.terms) {
-          if (spec.type === 'word') out.push(this.expand(spec.term));
-          else out.push(this.fuzzyExpand(spec.term, spec.d));
-        }
+        for (const st of plan.terms) pushSpec(st, st.boost, null);
         for (const p of plan.phrases) {
-          for (const w of p) out.push([w]);
+          for (const w of p.words) {
+            out.push({ terms: [w], boost: p.boost, field: null });
+          }
         }
       } else {
-        walk(plan.expr);
+        walk(plan.expr, 1.0, null);
       }
       return out;
     }
@@ -1010,14 +1372,10 @@
       let out = [];
       if (plan.kind === 'ranked') {
         for (const spec of plan.terms) {
-          const list =
-            spec.type === 'word'
-              ? this.expand(spec.term)
-              : this.fuzzyExpand(spec.term, spec.d);
-          for (const e of list) out = mergeSorted(out, postingDocs(this.index, e));
+          out = mergeSorted(out, this.specCandidates(spec));
         }
         for (const p of plan.phrases) {
-          out = mergeSorted(out, phraseDocs(this.index, p));
+          out = mergeSorted(out, phraseDocs(this.index, p.words, p.slop));
         }
       } else {
         out = evalExpr(this, plan.expr);
@@ -1043,8 +1401,28 @@
         }
         return out;
       }
+      case 'wildcard': {
+        let out = [];
+        for (const e of expandWildcard(index, expr.pattern)) {
+          out = mergeSorted(out, postingDocs(index, e));
+        }
+        return out;
+      }
+      case 'field': {
+        let effs;
+        if (expr.inner.kind === 'wildcard') {
+          effs = fieldExpandWildcard(index, expr.field, expr.inner.pattern);
+        } else if (expr.inner.kind === 'fuzzy') {
+          effs = ctx.fuzzyExpand(expr.inner.term, expr.inner.d);
+        } else {
+          effs = ctx.expand(expr.inner.term);
+        }
+        return fieldDocs(index, expr.field, effs);
+      }
       case 'phrase':
-        return phraseDocs(index, expr.words);
+        return phraseDocs(index, expr.words, expr.slop);
+      case 'boost':
+        return evalExpr(ctx, expr.child);
       case 'and': {
         const sets = expr.parts.map((c) => evalExpr(ctx, c));
         sets.sort((x, y) => x.length - y.length);
@@ -1072,7 +1450,7 @@
   }
 
   function candidates(index, opts, plan) {
-    return new SearchContext(index, opts.stem).candidates(plan);
+    return new SearchContext(index, opts).candidates(plan);
   }
 
   /* The raw words of a plan (for doc-term highlighting and snippets). */
@@ -1081,14 +1459,21 @@
     function walk(expr) {
       if (expr.kind === 'term') out.push(expr.term);
       else if (expr.kind === 'fuzzy') out.push(expr.term);
+      else if (expr.kind === 'wildcard') out.push(expr.pattern);
+      else if (expr.kind === 'field') walk(expr.inner);
       else if (expr.kind === 'phrase') out.push(...expr.words);
+      else if (expr.kind === 'boost') walk(expr.child);
       else if (expr.kind === 'and' || expr.kind === 'or')
         expr.parts.forEach(walk);
       else if (expr.kind === 'not') walk(expr.child);
     }
     if (plan.kind === 'ranked') {
-      for (const spec of plan.terms) out.push(spec.term);
-      for (const p of plan.phrases) out.push(...p);
+      for (const spec of plan.terms) {
+        if (spec.type === 'field') walk(spec.inner);
+        else if (spec.type === 'wildcard') out.push(spec.pattern);
+        else out.push(spec.term);
+      }
+      for (const p of plan.phrases) out.push(...p.words);
     } else {
       walk(plan.expr);
     }
@@ -1096,8 +1481,8 @@
   }
 
   /* "Did you mean" candidates: the nearest vocabulary terms (edit distance
-   * <= 2, ascending by (distance, term)) for every non-fuzzy, non-CJK query
-   * term that has zero vocabulary hits. */
+   * <= 2, ascending by (distance, term)) for every non-fuzzy, non-wildcard,
+   * non-field, non-CJK query term that has zero vocabulary hits. */
   function suggestions(index, plan) {
     let missing = [];
     function missingWords(expr) {
@@ -1106,9 +1491,14 @@
           if (df(index, expr.term) === 0) missing.push(expr.term);
           break;
         case 'fuzzy':
+        case 'wildcard':
+        case 'field':
           break;
         case 'phrase':
           for (const w of expr.words) missing.push(w);
+          break;
+        case 'boost':
+          missingWords(expr.child);
           break;
         case 'and':
         case 'or':
@@ -1124,13 +1514,13 @@
         if (
           spec.type === 'word' &&
           df(index, spec.term) === 0 &&
-          !new SearchContext(index, false).isCjkTerm(spec.term)
+          !new SearchContext(index, DEFAULT_OPTS).isCjkTerm(spec.term)
         ) {
           missing.push(spec.term);
         }
       }
       for (const p of plan.phrases) {
-        for (const w of p) if (df(index, w) === 0) missing.push(w);
+        for (const w of p.words) if (df(index, w) === 0) missing.push(w);
       }
     } else {
       missingWords(plan.expr);
@@ -1158,44 +1548,65 @@
   /* Runs a plan and returns the top-scoring hits. With signals on, terms that
    * also appear in the doc title get a 1.5x contribution (flagged `title`),
    * and ranked queries with two or more distinct terms present add a proximity
-   * bonus reported as the `(proximity)` breakdown row. */
+   * bonus reported as the `(proximity)` breakdown row. Term groups carry their
+   * boost multiplier and an optional field restriction; a fielded term only
+   * counts when the field's token set holds the term, and its breakdown row is
+   * labeled `field:term`. */
+  function scoreHit(index, scorer, opts, lists, docId) {
+    const doc = index.docs[docId];
+    const titleTerms = new Set(
+      doc ? tokenize(doc.title).map((t) => t.term) : []
+    );
+    const breakdown = [];
+    const matches = [];
+    const present = [];
+    let total = 0;
+    for (const group of lists) {
+      for (const eff of group.terms) {
+        const inField = group.field ? fieldHas(index, group.field, docId, eff) : true;
+        if (inField && tf(index, eff, docId) > 0) {
+          const title = !!(opts.signals && titleTerms.has(eff));
+          let contrib = score(index, scorer, docId, [eff]);
+          if (title) contrib *= TITLE_BOOST;
+          contrib *= group.boost;
+          total += contrib;
+          const label = group.field ? group.field + ':' + eff : eff;
+          breakdown.push({ term: label, score: contrib, title: title });
+          if (present.indexOf(eff) < 0) present.push(eff);
+          matches.push(eff);
+        }
+      }
+    }
+    if (opts.signals) {
+      const prox = proximity(index, docId, present);
+      if (prox > 0) {
+        total += prox;
+        breakdown.push({ term: '(proximity)', score: prox, title: false });
+      }
+    }
+    return { docId: docId, score: total, matches: matches, breakdown: breakdown };
+  }
+
   function search(index, scorer, opts, plan, top) {
     if (!opts) opts = DEFAULT_OPTS;
-    const ctx = new SearchContext(index, opts.stem);
+    const ctx = new SearchContext(index, opts);
     const lists = ctx.effectiveLists(plan);
-    let hits = ctx.candidates(plan).map((docId) => {
-      const doc = index.docs[docId];
-      const titleTerms = new Set(
-        doc ? tokenize(doc.title).map((t) => t.term) : []
-      );
-      const breakdown = [];
-      const matches = [];
-      const present = [];
-      let total = 0;
-      for (const list of lists) {
-        for (const eff of list) {
-          if (tf(index, eff, docId) > 0) {
-            const title = !!(opts.signals && titleTerms.has(eff));
-            let contrib = score(index, scorer, docId, [eff]);
-            if (title) contrib *= TITLE_BOOST;
-            total += contrib;
-            breakdown.push({ term: eff, score: contrib, title: title });
-            if (present.indexOf(eff) < 0) present.push(eff);
-            matches.push(eff);
-          }
-        }
-      }
-      if (opts.signals) {
-        const prox = proximity(index, docId, present);
-        if (prox > 0) {
-          total += prox;
-          breakdown.push({ term: '(proximity)', score: prox, title: false });
-        }
-      }
-      return { docId: docId, score: total, matches: matches, breakdown: breakdown };
-    });
+    const hits = ctx.candidates(plan).map((docId) =>
+      scoreHit(index, scorer, opts, lists, docId)
+    );
     hits.sort((a, b) => b.score - a.score || a.docId - b.docId);
     return hits.slice(0, top);
+  }
+
+  function searchWithMeta(index, scorer, opts, plan, top, offset, limit) {
+    if (!opts) opts = DEFAULT_OPTS;
+    const ctx = new SearchContext(index, opts);
+    const total = ctx.candidates(plan).length;
+    const rankTop = Math.max(top, offset + limit);
+    const all = search(index, scorer, opts, plan, rankTop);
+    const page = all.slice(offset, offset + limit);
+    const pages = total === 0 ? 0 : Math.ceil(total / limit);
+    return { hits: page, totalHits: total, offset: offset, limit: limit, pages: pages };
   }
 
   /* ---- snippets (mirror of src/snippet.rs) ---- */
@@ -1362,9 +1773,18 @@
     stemGroups: stemGroups,
     levenshtein: levenshtein,
     isCjk: isCjk,
+    isStopword: isStopword,
+    fixedPrefix: fixedPrefix,
+    patternMatches: patternMatches,
+    expandWildcard: expandWildcard,
+    suggestPrefix: suggestPrefix,
+    fieldDocs: fieldDocs,
+    fieldHas: fieldHas,
+    fieldExpandWildcard: fieldExpandWildcard,
     loadIndex: loadIndex,
     parseQuery: parseQuery,
     search: search,
+    searchWithMeta: searchWithMeta,
     candidates: candidates,
     scoredTerms: scoredTerms,
     suggestions: suggestions,
@@ -1373,6 +1793,7 @@
     bm25: bm25,
     tfIdf: tfIdf,
     proximity: proximity,
+    phraseDocs: phraseDocs,
     generateSnippet: generateSnippet,
     decodePostings: decodePostings,
     base64Decode: base64Decode,
