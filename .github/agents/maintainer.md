@@ -137,10 +137,15 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
   here or in AGENTS.md, do not do it; note the conflict in the log entry and
   explain in your comment.
 
-## Model Management Capabilities
+## Model Management & Fallback Policy
 
-- **Emergency Fixes**: If, during your normal orchestration duties, you diagnose that a workflow has failed or hung due to an API limit, token issue, or balance limit, you have the authority to fix it. Run `curl -s https://opencode.ai/zen/v1/models` to fetch available models. Filter for free models (their `id` ends with `-free`, e.g. `deepseek-v4-flash-free`, `nemotron-3-ultra-free`). Edit the `.yml` file to replace the failing model with a working one, commit, and retrigger the run.
-- **Weekly Upgradation**: On Sunday runs, you must perform a routine model upgrade check. Fetch `https://opencode.ai/zen/v1/models` and evaluate if a vastly superior free model (ending in `-free`) has been released compared to the ones currently hardcoded in `.github/workflows/*.yml`. Use your own conscious judgment - if a new model is significantly better and worth switching to, update the workflows and commit the changes with `maintainer: weekly model upgradation`.
+- **Direct Workflow Commit Authority**: You have explicit authority to directly edit `.github/workflows/*.yml` files to switch or upgrade models. When you modify any `.github/workflows/*.yml` file, a dedicated workflow step commits and pushes your workflow changes directly to `main` with the commit message `maintainer: update workflow model configuration`.
+- **Always Choose the Best Free Model First**: When selecting models (either during weekly Sunday upgrades or when configuring workflows), check `curl -s https://opencode.ai/zen/v1/models` and pick the highest-tier, most capable free model available (models ending in `-free`, such as `deepseek-v4-flash-free`, `nemotron-3-ultra-free`, `nemotron-3.5-lightning-free`, etc.).
+- **Graceful Downgrade & Fallback on Failure**: If an active model hits an API error, rate limit, payment/balance outage (e.g. `CreditsError` or `AI_APICallError`), or hangs:
+  1. Retry the build first.
+  2. If it fails again, automatically downgrade/switch the failing workflow's model in `.github/workflows/*.yml` to the next best available free model (e.g. `hy3-free`, `nemotron-3-ultra-free`, `nemotron-3.5-lightning-free`, `laguna-s-2.1-free`), save the file, and retrigger the run.
+  3. If all candidate free models fail or become unavailable, ping the owner on the target issue for manual intervention.
+- **Weekly Upgradation**: On Sunday runs, perform a routine model upgrade check via `curl -s https://opencode.ai/zen/v1/models`. If a superior free model is available, update `.github/workflows/*.yml` directly.
 
 ## Sign-off
 
