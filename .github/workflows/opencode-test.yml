@@ -5,12 +5,12 @@ on:
     types: [created]
 
 concurrency:
-  group: opencode-test-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: opencode-test-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
   test:
-    if: github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc test')
+    if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/oc test')
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -19,28 +19,20 @@ jobs:
       issues: write
     steps:
       - name: Get PR info
-        if: github.event_name == 'issue_comment'
         id: pr-info
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
-          head_oid=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid')
-          author=$(gh pr view "$pr" --repo "${{ github.repository }}" --json author --jq '.author.login')
-          head_repo=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRepository --jq '.headRepository.nameWithOwner // ""')
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"
-          echo "author=$author" >> "$GITHUB_OUTPUT"
-          echo "head_repo=$head_repo" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository (PR head)
         uses: actions/checkout@v6
         with:
           persist-credentials: true
           token: ${{ github.token }}
-          ref: ${{ github.event.pull_request.head.ref || steps.pr-info.outputs.head_ref }}
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
       - name: Configure git identity
@@ -75,9 +67,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
-          pr="${{ github.event.pull_request.number || github.event.issue.number }}"
+          pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
-            echo "No decision file found. Assuming no actionable decision."
+            echo "No decision file found."
             exit 0
           fi
           
@@ -87,14 +79,12 @@ jobs:
             echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
           elif [ "$action" = "fix" ]; then
-            head_branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
-            if [[ "$head_branch" =~ ^opencode/factory- ]]; then
+            head_branch="${{ steps.pr-info.outputs.head_ref }}"
+            if echo "$head_branch" | grep -q "factory"; then
               echo "Tester requested fixes on factory PR. Posting /oc factory"
               gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc factory"
             else
               echo "Tester requested fixes. Posting /oc fix to trigger Fixer"
               gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
             fi
-          else
-            echo "No actionable tester decision found (action: $action)"
           fi

@@ -297,16 +297,6 @@ jobs:
           git config --global user.name "The Builder"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Capture baseline
-        id: baseline
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          branches_before=$(git ls-remote origin 'refs/heads/opencode/*' 2>/dev/null | sort | sha256sum | cut -c1-16)
-          prs_before=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null | sort | tr '\n' ',')
-          echo "branches_before=$branches_before" >> "$GITHUB_OUTPUT"
-          echo "prs_before=$prs_before" >> "$GITHUB_OUTPUT"
-
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
@@ -329,7 +319,7 @@ jobs:
             SAFETY NET (always binding, outranks everything):
             - Commit your work yourself as `github-actions[bot]` (identity preconfigured). NEVER add any `Co-authored-by:` trailer. Never end the run without pushing (`git status --porcelain` must be empty at the end - the workflow auto-commit is forbidden to fire).
             - Branch `opencode/<issue-number>-<short-description>`; open your PR with `gh pr create --base main --head <branch> --title ... --body "Closes #N"` (rule: every task gets its OWN new issue; never a "universal" issue).
-            - Rebase onto latest main before pushing; never leave the PR behind or conflicted.
+            - Rebase onto latest main before pushing with `--force-with-lease`; never leave the PR behind or conflicted.
             - You never post "/oc" comments (hardcoded steps post triggers; your comments are plain text, bot-signed).
             - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"review"}` when complete, `{"action":"continue"}` when more build phases remain, or `{"action":"maintainer"}` when the run cannot safely decide the next build phase. The hardcoded workflow step reads this file instead of grepping Markdown status text.
             - Sign your work: every commit subject starts with `builder:`, every comment/PR body ends with your sign-off from builder.md (` -  the Builder`).
@@ -341,17 +331,20 @@ jobs:
         id: verify
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          BASELINE_BRANCHES: ${{ steps.baseline.outputs.branches_before }}
-          BASELINE_PRS: ${{ steps.baseline.outputs.prs_before }}
         run: |
           issue="${{ github.event.issue.number }}"
-          branches_after=$(git ls-remote origin 'refs/heads/opencode/*' 2>/dev/null | sort | sha256sum | cut -c1-16)
-          prs_after=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null | sort | tr '\n' ',')
-          if [ "$branches_after" != "$BASELINE_BRANCHES" ] || [ "$prs_after" != "$BASELINE_PRS" ]; then
-            echo "Build pushed (branch/PR change detected)"
-            exit 0
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            remote_sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+            local_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+            if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
+              echo "Build pushed successfully: branch $branch is at $remote_sha"
+              exit 0
+            fi
           fi
-          echo "No push detected"
+          
+          echo "No push detected on current branch ($branch)"
           retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
             --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || echo "0")
           if [ "$retries" -lt 3 ]; then
@@ -540,7 +533,7 @@ jobs:
             SAFETY NET (always binding):
             - Apply every requested fix you agree with on the PR's branch (fetch/checkout it first if needed).
             - Disagreements: post a plain-text rebuttal with technical justification (file:line), NEVER starting with "/oc". After two rounds of argument, apply the change.
-            - Commit as `github-actions[bot]`, NEVER any `Co-authored-by:` trailer. Never end without pushing - if you made NO changes, push an empty commit (`git commit --allow-empty -m "chore: reply to reviewer"`). Rebase onto latest main before pushing.
+            - Commit as `github-actions[bot]`, NEVER any `Co-authored-by:` trailer. Never end without pushing - if you made NO changes, push an empty commit (`git commit --allow-empty -m "chore: reply to reviewer"`). Rebase onto latest main before pushing with `--force-with-lease`.
             - Scope: only what the findings require - no new issues/branches/PRs, no docs//ideas/ unless the finding requires it, never merge.
             - Sign your work: commit subjects start with `fixer:`, comments end with ` -  the Fixer`.
             - Leave `git status --porcelain` empty at the end.

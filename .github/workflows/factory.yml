@@ -78,7 +78,7 @@ jobs:
         run: |
           set +e
           branch=$(git branch --show-current 2>/dev/null || echo "")
-          if [[ "$branch" =~ ^opencode/factory- ]] || [[ "$branch" =~ ^opencode/ ]]; then
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
             bad=$(git log --format=%B refs/remotes/origin/main..HEAD 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
             if [ "$bad" -gt 0 ]; then
               echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
@@ -90,6 +90,7 @@ jobs:
 
       - name: Push PR branch or direct model updates (PAT-backed)
         if: always()
+        id: push_step
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           GIT_AUTHOR_NAME: "The Factory Engineer (CTO)"
@@ -97,23 +98,46 @@ jobs:
           GIT_COMMITTER_NAME: "The Factory Engineer (CTO)"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
+          # Unset actions/checkout token header so git uses PAT
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+
           branch=$(git branch --show-current 2>/dev/null || echo "")
-          if [[ "$branch" =~ ^opencode/factory- ]] || [[ "$branch" =~ ^opencode/ ]]; then
+          issue="${{ github.event.issue.number || inputs.issue_number }}"
+
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
             echo "Pushing factory PR branch $branch with PAT..."
-            git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease || echo "Branch push completed or up to date"
-          elif git status --porcelain .github/workflows 2>/dev/null | grep -q '^\s*M\s*\.github/workflows/'; then
-            echo "Detected direct workflow model modifications by Factory Engineer on main. Staging and committing strictly as The Factory Engineer (CTO)..."
-            git add .github/workflows/*.yml
-            git commit --author="The Factory Engineer (CTO) <github-actions[bot]@users.noreply.github.com>" -m "factory: update workflow model configuration" || true
-            git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
-              echo "Push failed, attempting rebase..."
-              git fetch origin main --quiet
-              git rebase origin/main --quiet
-              git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main
-            }
-            echo "Workflow updates pushed to main as The Factory Engineer (CTO)."
-          else
-            echo "No pending factory branch or workflow modifications to push."
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease
+            
+            # Ensure a PR exists or create it
+            pr=$(gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -z "$pr" ]; then
+              echo "Opening PR for branch $branch on issue #$issue..."
+              pr=$(gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Factory update for #$issue" --body "Closes #$issue" 2>/dev/null || echo "")
+            fi
+            echo "pr_number=$pr" >> "$GITHUB_ENV"
+
+          elif [ "$branch" = "main" ]; then
+            # Stage any uncommitted workflow modifications if left modified
+            if [ -n "$(git status --porcelain .github/workflows 2>/dev/null)" ]; then
+              echo "Staging uncommitted workflow modifications on main..."
+              git add .github/workflows/*.yml
+              git commit --author="The Factory Engineer (CTO) <github-actions[bot]@users.noreply.github.com>" -m "factory: update workflow model configuration" || true
+            fi
+            
+            # Push commits on main if ahead of origin
+            unpushed=$(git rev-list refs/remotes/origin/main..HEAD --count 2>/dev/null || echo "0")
+            if [ "$unpushed" -gt 0 ]; then
+              echo "Pushing $unpushed commit(s) on main with PAT..."
+              git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main || {
+                echo "Push failed, attempting rebase..."
+                git fetch origin main --quiet
+                git rebase origin/main --quiet
+                git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main
+              }
+              echo "Workflow updates pushed to main as The Factory Engineer (CTO)."
+            else
+              echo "Main is up to date with origin/main."
+            fi
           fi
 
       - name: Forward factory engineer decision
@@ -130,23 +154,24 @@ jobs:
           echo "Factory engineer decision action: '$action'"
           
           issue="${{ github.event.issue.number || inputs.issue_number }}"
-          if [ -z "$issue" ] || [ "$issue" = "null" ]; then
-            echo "No issue context available."
+          target="${pr_number:-$issue}"
+          if [ -z "$target" ] || [ "$target" = "null" ]; then
+            echo "No target context available."
             exit 0
           fi
           
           case "$action" in
             review)
-              echo "Forwarding to Reviewer (/oc review)"
-              gh issue comment "$issue" -b "/oc review"
+              echo "Forwarding to Reviewer (/oc review) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc review"
               ;;
             maintainer)
-              echo "Forwarding to Maintainer (/oc maintainer)"
-              gh issue comment "$issue" -b "/oc maintainer"
+              echo "Forwarding to Maintainer (/oc maintainer) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc maintainer"
               ;;
             factory)
-              echo "Requesting factory continuation (/oc factory continue)"
-              gh issue comment "$issue" -b "/oc factory continue"
+              echo "Requesting factory continuation (/oc factory continue) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc factory continue"
               ;;
             *)
               echo "No action or unrecognized action: $action"
