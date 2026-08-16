@@ -10,7 +10,9 @@
   var index = null;
   var docCache = {};
   var currentScorer = 'bm25';
+  var currentOpts = { stem: false, signals: true };
   var lastQuery = '';
+  var lastPlan = null;
 
   var $q = null;
   var $go = null;
@@ -273,15 +275,35 @@
       $results.innerHTML = '';
       return;
     }
-    var hits = Meridian.search(index, currentScorer, plan, 10);
-    var total = Meridian.candidates(index, plan).length;
+    lastPlan = plan;
+    var started = performance.now();
+    var hits = Meridian.search(index, currentScorer, currentOpts, plan, 10);
+    var ms = (performance.now() - started).toFixed(1);
+    var total = Meridian.candidates(index, currentOpts, plan).length;
+    var suggestions = Meridian.suggestions(index, plan);
     $status.innerHTML =
       'about <b>' + total + '</b> result' + (total === 1 ? '' : 's') +
-      ' for <b>' + escapeHtml(query) + '</b> &middot; ranked with ' + currentScorer.toUpperCase();
+      ' for <b>' + escapeHtml(query) + '</b> &middot; ' +
+      currentScorer.toUpperCase() +
+      (currentOpts.stem ? ' + stem' : '') +
+      ' &middot; ' + ms + ' ms';
+
+    if (suggestions.length) {
+      $results.innerHTML =
+        '<div class="suggest-line">Did you mean: ' +
+        suggestions
+          .map(function (s) {
+            return '<span class="sg-click" data-term="' + escapeHtml(s) + '">' + escapeHtml(s) + '</span>';
+          })
+          .join(', ') +
+        '?</div>';
+    }
 
     if (!hits.length) {
-      $results.innerHTML =
-        '<div class="empty">No documents matched. Try fewer terms, or check the query help.</div>';
+      if (!suggestions.length) {
+        $results.innerHTML =
+          '<div class="empty">No documents matched. Try fewer terms, or check the query help.</div>';
+      }
       return;
     }
 
@@ -325,8 +347,9 @@
     var html = '';
     breakdown.forEach(function (b) {
       var w = Math.max(3, Math.round((b.score / maxScore) * 100));
+      var tag = b.title ? ' <span class="bar-tag">title</span>' : '';
       html +=
-        '<div class="bar-row"><span class="bar-label">' + escapeHtml(b.term) + '</span>' +
+        '<div class="bar-row"><span class="bar-label">' + escapeHtml(b.term) + tag + '</span>' +
         '<div class="bar"><i style="width:' + w + '%"></i></div>' +
         '<span class="bar-label">' + b.score.toFixed(3) + '</span></div>';
     });
@@ -381,6 +404,9 @@
       '<span class="kbd">AND</span>, <span class="kbd">OR</span>, <span class="kbd">NOT</span> and parentheses build exact boolean queries: ' +
       '<span class="kbd">rust AND (cargo OR bm25)</span>, <span class="kbd">rust AND NOT chess</span>.<br>' +
       'Quoted phrases match consecutive words in order: <span class="kbd">"inverted index"</span>.<br>' +
+      'Fuzzy search tolerates typos: <span class="kbd">indexing~</span> (1 edit) or <span class="kbd">indexing~2</span> (2 edits).<br>' +
+      'CJK text segments into n-grams: <span class="kbd">搜索引擎</span> matches Chinese, Japanese and Korean documents.<br>' +
+      'Toggle <span class="kbd">stem</span> to expand a word to its whole morphological family (searching, searched, search&hellip;).<br>' +
       'Results are always ranked (BM25 or TF-IDF); the AND/OR/NOT set the candidate set first.';
     var toolbar = document.querySelector('.toolbar');
     toolbar.parentNode.insertBefore(panel, toolbar.nextSibling);
@@ -401,6 +427,8 @@
     'rust AND chess',
     '"inverted index"',
     'gambit AND NOT python',
+    'indexing~',
+    '搜索引擎',
     'sorting algorithm',
     'neural network',
     'webgl OR canvas',
@@ -424,6 +452,18 @@
     });
   });
 
+  function bindToggle(id, key) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.checked = currentOpts[key];
+    el.addEventListener('change', function () {
+      currentOpts[key] = el.checked;
+      if ($q.value.trim()) runSearch();
+    });
+  }
+  bindToggle('toggle-stem', 'stem');
+  bindToggle('toggle-signals', 'signals');
+
   $go.addEventListener('click', runSearch);
   $q.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') runSearch();
@@ -445,9 +485,15 @@
   });
 
   $results.addEventListener('click', function (e) {
+    var sug = e.target.closest('.sg-click');
+    if (sug) {
+      $q.value = sug.dataset.term;
+      runSearch();
+      return;
+    }
     var el = e.target.closest('.result');
     if (!el) return;
-    var terms = Meridian.scoredTerms(Meridian.parseQuery($q.value.trim()));
+    var terms = Meridian.scoredTerms(lastPlan || Meridian.parseQuery($q.value.trim()));
     openDoc(parseInt(el.dataset.doc, 10), terms);
   });
 

@@ -148,7 +148,7 @@ dependency-free ES5, so the factory's signature "from scratch" story holds.
   "conflated"->"conflat", "troubled"->"troubl", "sized"->"size",
   "hopping"->"hop", "tanned"->"tan", "falling"->"fall", "hissing"->"hiss",
   "fizzed"->"fizz", "failing"->"fail", "filing"->"file", "happy"->"happi",
-  "sky"->"ski", "relational"->"relat", "conditional"->"condit",
+  "sky"->"sky", "relational"->"relat", "conditional"->"condit",
   "rational"->"ration", "valenci"->"valenc", "hesitanci"->"hesit",
   "digitizer"->"digit", "conformabli"->"conform", "radicalli"->"radic",
   "differentli"->"differ", "vileli"->"vile", "analogousli"->"analog",

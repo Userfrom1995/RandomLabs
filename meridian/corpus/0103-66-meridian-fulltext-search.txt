@@ -17,13 +17,13 @@
 - [x] 9. Tests: Rust unit + integration + JS mirror consistency vs CLI search results
 - [x] 10. Docs: README, docs/index.html + index.md; root landing page + root README entries
 - [x] 11. Iteration/improvement cycle + final polish; Status: complete
-- [x] 12. Stemming & morphological expansion: Porter stemmer (`src/stem.rs` + `Meridian.stem`), stem-group table, `--stem` flag, expansion in ranked + boolean Term leaves, JS mirror + consistency
-- [x] 13. Fuzzy & typo-tolerant retrieval: Levenshtein + BK-tree (`src/fuzzy.rs` + JS mirror), `term~`/`term~2` syntax, `Fuzzy` plan/expr variant, did-you-mean suggestions in JSON + UI
-- [x] 14. CJK ideographic segmentation: Han/Kana/Hangul run detection, unigram + bigram tokens, CJK seed article, re-crawl corpus + rebuild index (`INDEX_VERSION` -> 2)
-- [x] 15. Ranking signals: title boost (TITLE_BOOST 1.5) + proximity scoring (PROX_WEIGHT 0.5), `--signals on|off`, breakdown rows, JS mirror + consistency
-- [x] 16. Concurrency & instrumentation: `--threads N` thread pool for crawl/index with deterministic merge, `--time` phase timing, `bench` command
-- [x] 17. UI evolution & cleanup: stem/fuzzy/signals toggles, did-you-mean line, ms timing, CJK/fuzzy chips, help update; remove unused fns (`unique_terms`, `document_tokens`), wire `posting_repr` into `stats --format json`, document `plan` in usage + README
-- [x] 18. Re-verification & handoff: cargo test (90) + clippy 0, consistency suite (9296), ui.test (25), verify-index on v2, README/docs updates, hand off to Reviewer
+- [ ] 12. Stemming & morphological expansion: Porter stemmer (`src/stem.rs` + `Meridian.stem`), stem-group table, `--stem` flag, expansion in ranked + boolean Term leaves, JS mirror + consistency
+- [ ] 13. Fuzzy & typo-tolerant retrieval: Levenshtein + BK-tree (`src/fuzzy.rs` + JS mirror), `term~`/`term~2` syntax, `Fuzzy` plan/expr variant, did-you-mean suggestions in JSON + UI
+- [ ] 14. CJK ideographic segmentation: Han/Kana/Hangul run detection, unigram + bigram tokens, CJK seed article, re-crawl corpus + rebuild index (`INDEX_VERSION` -> 2)
+- [ ] 15. Ranking signals: title boost (TITLE_BOOST 1.5) + proximity scoring (PROX_WEIGHT 0.5), `--signals on|off`, breakdown rows, JS mirror + consistency
+- [ ] 16. Concurrency & instrumentation: `--threads N` thread pool for crawl/index with deterministic merge, `--time` phase timing, `bench` command
+- [ ] 17. UI evolution & cleanup: stem/fuzzy/signals toggles, did-you-mean line, ms timing, CJK/fuzzy chips, help update; remove unused fns (`unique_terms`, `document_tokens`), wire `posting_repr` into `stats --format json`, document `plan` in usage + README
+- [ ] 18. Re-verification & handoff: cargo test + clippy 0, consistency suite (baseline 2245 + new queries), ui.test, verify-index on v2, README/docs updates, hand off to Reviewer
 
 ## Current step
 Level 2 enhancement round (retrieval power-up) designed by the Architect while

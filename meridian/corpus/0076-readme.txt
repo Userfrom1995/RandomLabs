@@ -2,11 +2,10 @@
 
 Meridian is a full-text search engine built **from scratch in Rust**: a
 crawler, an inverted index with a compressed postings codec, BM25 and TF-IDF
-ranking, a boolean query parser, Porter stemming, fuzzy (typo-tolerant)
-retrieval, CJK ideographic segmentation, and relevance snippets. The entire
-engine is mirrored one-to-one in dependency-free JavaScript, so the static web
-UI at [`index.html`](index.html) runs real searches entirely in the browser
-over a 110-document corpus of the factory's own documentation.
+ranking, a boolean query parser, and relevance snippets. The entire engine is
+mirrored one-to-one in dependency-free JavaScript, so the static web UI at
+[`index.html`](index.html) runs real searches entirely in the browser over a
+105-document corpus of the factory's own documentation.
 
 Zero dependencies: the Rust crate is pure `std`, and the JS mirror is pure
 ES5, so both build and run with nothing else installed.
@@ -16,9 +15,9 @@ ES5, so both build and run with nothing else installed.
 ```sh
 cd meridian
 cargo build --release
-cargo test                    # 90 tests, all pass
+cargo test                    # 61 tests, all pass
 cargo clippy --all-targets    # zero warnings
-node tests/consistency.test.mjs   # 9296 JS-vs-Rust checks, all pass
+node tests/consistency.test.mjs   # 2245 JS-vs-Rust checks, all pass
 node tests/ui.test.mjs            # headless UI rendering checks
 ```
 
@@ -33,30 +32,24 @@ python3 -m http.server 8000        # then open http://localhost:8000
 ```
 
 The page loads the prebuilt index (`data/index.json`), runs the JS mirror of
-the engine, and searches the crawled corpus. Switch BM25/TF-IDF, toggle
-stemming and ranking signals, click a did-you-mean suggestion, click a result
+the engine, and searches the crawled corpus. Switch BM25/TF-IDF, click a result
 to open the full document with your terms highlighted, and use the query chips
-to explore the boolean grammar (including `term~` fuzzy and CJK queries).
+to explore the boolean grammar.
 
 ## CLI
 
 ```sh
-meridian crawl --src ../ --out corpus --threads 4     # crawl a directory into a corpus
-meridian index --corpus corpus --out data/index.json --threads 4   # build + export the index
-meridian search --corpus corpus --query "rust AND seismic" --top 5 --stem on
+meridian crawl --src ../ --out corpus              # crawl a directory into a corpus
+meridian index --corpus corpus --out data/index.json   # build + export the index
+meridian search --corpus corpus --query "rust AND seismic" --top 5
 meridian search-index --index data/index.json --query "\"search engine\"" --format json
-meridian plan --query "searching~ engine"             # show the parsed query plan
-meridian stats --corpus corpus                        # corpus + index statistics
-meridian bench --index data/index.json                # built-in query benchmark
+meridian stats --corpus corpus                     # corpus + index statistics
 meridian verify-index --index data/index.json --corpus corpus   # prove the index round-trips
-meridian check                                        # built-in runtime self-checks
+meridian check                                     # built-in runtime self-checks
 ```
 
 `search` crawls first (or reuses `corpus/`); `search-index` skips straight to
 the exported index for speed. `--scoring bm25|tfidf` picks the ranker,
-`--stem on` expands query terms to whole word families, `--signals off`
-disables the title-boost and proximity signals, `--threads N` sets the worker
-count for crawl/index, `--time` prints wall-clock ms per phase, and
 `--format json` prints machine-readable results with per-term score breakdowns
 and byte-exact snippet highlight ranges.
 
@@ -65,55 +58,34 @@ and byte-exact snippet highlight ranges.
 - **Corpus crawler** (`crawl`). Walks a directory deterministically, skips
   hidden/build/out paths, reads UTF-8 text and Markdown, and writes a
   manifest plus one plain-text file per document. The shipped corpus is the
-  factory's own repo: 110 documents, 122,799 tokens, 7,765 terms.
+  factory's own repo: 105 documents, 113,946 tokens, 6,880 terms.
 - **Tokenizer**. Unicode-aware word rule: `\p{L}`/`\p{N}` runs with
   apostrophes kept inside words (`don't` stays one token), everything else is
-  a separator, case is folded. Consecutive CJK characters (Han, Hiragana,
-  Katakana, Hangul) are segmented into unigrams plus bigrams, so Chinese and
-  Japanese text with no word spaces still finds its terms. Positions are
-  tracked per document.
+  a separator, case is folded. Positions are tracked per document.
 - **Inverted index**. A BTreeMap vocabulary maps each term to a sorted postings
   list of `(doc_id, term_frequency, positions)`. `AND` joins postings by
   intersection (planned rarest-first), phrases require consecutive positions.
 - **Postings compression**. Term-gap encoding with variable-length integers
   (LEB128), bit-packed into a JSON-safe base64 payload on export. The shipped
-  index stores 122,799 postings in 268 KB, a 5.5x reduction over the raw
+  index stores 113,946 postings in 248 KB, a 5.5x reduction over the raw
   estimate, and `verify-index` proves the decode round-trips byte-for-byte.
 - **Ranking**. BM25 (k1=1.2, b=0.75) and TF-IDF, computed from document
   frequency, term frequency, and document length; both are exposed on the CLI
   and in the UI with per-term score breakdowns.
-- **Ranking signals**. With `--signals on` (default), titles are boosted 1.5x
-  and terms appearing close together in a document earn a proximity bonus
-  (weight 0.5), so tight result sets rank sensibly; a `(proximity)` breakdown
-  row makes the bonus visible. `--signals off` restores pure BM25/TF-IDF.
-- **Stemming**. A faithful Porter stemmer (`src/stem.rs`, unit-tested against
-  the canonical 23,531-word reference set) collapses word families: with
-  `--stem on`, `searching` also matches `search` and `searches`. A stem-group
-  table maps each dictionary term to its family for expansion.
-- **Fuzzy retrieval**. `term~` and `term~2` run a Levenshtein + BK-tree lookup
-  over the vocabulary (edit distance 1 or 2), so a typo like `inverted~` still
-  finds `inverted`. When a plain query term matches nothing, the engine
-  proposes did-you-mean suggestions in both the CLI JSON and the web UI.
 - **Boolean queries**. Plain words are a ranked OR-style search; any
   `AND`/`OR`/`NOT`/parentheses make it strict boolean (e.g.
   `rust AND NOT chess`), and `"quoted phrases"` match consecutive positions.
   `NOT` is unary prefix. The parser is a hand-written recursive-descent
-  grammar, mirrored exactly in JS. `meridian plan` prints the parsed plan.
+  grammar, mirrored exactly in JS.
 - **Snippets**. Each hit gets a relevance snippet: byte-exact `[start, end)`
   ranges for every matched term, used by both the CLI text renderer and the
   browser UI to place `<mark>` highlights at exact word boundaries, including
   multi-byte UTF-8 text.
-- **Concurrency & instrumentation**. `--threads N` parallelizes crawl and
-  index over a worker pool with a deterministic merge, so any `N` yields the
-  same output. `--time` prints per-phase wall-clock ms, and `meridian bench`
-  runs a built-in query benchmark against the exported index.
-- **JS mirror**. `js/meridian.js` re-implements the engine (tokenizer incl.
-  CJK n-grams, base64 varint postings, boolean parser, BM25/TF-IDF, Porter
-  stemmer, Levenshtein + BK-tree, suggestions, ranking signals, snippets) in
-  dependency-free JavaScript. A consistency harness runs 31 queries through
-  both engines with both rankers and a matrix of stem/signals settings and
-  asserts identical doc sets, order, scores, matches, suggestions, and snippet
-  highlights (9,296 checks).
+- **JS mirror**. `js/meridian.js` re-implements the engine (tokenizer, base64
+  varint postings, boolean parser, BM25/TF-IDF, snippets) in dependency-free
+  JavaScript. A consistency harness runs 20 queries through both engines with
+  both rankers and asserts identical doc sets, order, scores, matches, and
+  snippet highlights (2,245 checks).
 
 ## Design choices
 
@@ -135,7 +107,6 @@ and byte-exact snippet highlight ranges.
 The [docs/](docs/) folder is the project's full documentation and doubles as a
 searchable corpus: it includes an article series on how search engines work
 (the inverted index, BM25, boolean query languages, tokenization, snippets,
-postings compression, and CJK full-text search) plus this README and the crawl
-of the factory itself.
+postings compression) plus this README and the crawl of the factory itself.
 
 MIT licensed.

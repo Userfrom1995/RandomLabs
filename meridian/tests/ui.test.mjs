@@ -42,7 +42,8 @@ function ok(cond, msg) {
 /* 2. renderSnippet: markup matches the engine's byte ranges, incl. UTF-8. */
 {
   const plan = Meridian.parseQuery('café');
-  const hit = Meridian.search(index, 'bm25', plan, 10);
+  const opts = { stem: false, signals: true };
+  const hit = Meridian.search(index, 'bm25', opts, plan, 10);
   ok(hit.length > 0, 'café is searchable');
   if (hit.length) {
     const h = hit[0];
@@ -87,6 +88,30 @@ function ok(cond, msg) {
 {
   ok(index.terms.has('seismic'), 'seismic term present');
   ok(index.terms.has('rust'), 'rust term present');
+}
+
+/* 6. new retrieval features exposed to the UI: fuzzy, stem, suggestions. */
+{
+  const opts = { stem: false, signals: true };
+  const fuzzy = Meridian.search(index, 'bm25', opts, Meridian.parseQuery('engine~'), 5);
+  ok(fuzzy.length > 0, 'fuzzy engine~ finds results');
+  const stemOpts = { stem: true, signals: true };
+  const st = Meridian.search(index, 'bm25', stemOpts, Meridian.parseQuery('ranking'), 5);
+  ok(st.length > 0, 'stem expansion finds results');
+  const sug = Meridian.suggestions(index, Meridian.parseQuery('qjuick brwn'));
+  ok(Array.isArray(sug) && sug.length > 0, 'did-you-mean suggestions returned');
+  ok(sug.includes('quick'), 'suggests "quick" for qjuick');
+}
+
+/* 7. breakdown rows expose the title flag for the UI. */
+{
+  const opts = { stem: false, signals: true };
+  const hit = Meridian.search(index, 'bm25', opts, Meridian.parseQuery('search'), 1)[0];
+  ok(Array.isArray(hit.breakdown), 'breakdown is an array');
+  const prox = hit.breakdown.find((b) => b.term === '(proximity)');
+  ok(prox === undefined || typeof prox.score === 'number', 'proximity row typed');
+  const sum = hit.breakdown.reduce((a, b) => a + b.score, 0);
+  ok(Math.abs(sum - hit.score) < 1e-9, 'breakdown sums to the hit score');
 }
 
 console.log(`ui.test: ${checks} checks, ${failed} failed`);

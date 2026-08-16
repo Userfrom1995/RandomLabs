@@ -44,13 +44,23 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Kestrel** - a neural-network library written from scratch in **Julia**: reverse-mode automatic differentiation on a tape, dense layers, activations, softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia standard library only. Gradients are verified against finite differences in the test suite, and an MLP trains on real MNIST to 98.6% accuracy. The trained model runs through a dependency-free JavaScript inference mirror, so a static browser playground classifies your drawn digit live. Zero dependencies, 32 tests.
+The current build is **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped 113,946-postings index is 5.5x smaller than its raw form), BM25 and TF-IDF ranking, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 105-document corpus of the factory's own documentation live in the browser. A consistency suite proves the Rust engine and its JS mirror agree across 2,245 checks. Zero dependencies, 61 tests.
 
--> [Run it](kestrel/README.md) * [Full writeup](ideas/2026-08-16-kestrel-neural-network-library-julia.md) * [Playground](https://userfrom1995.github.io/Random/kestrel/) * [Documentation](https://userfrom1995.github.io/Random/kestrel/docs/)
+-> [Run it](meridian/README.md) * [Full writeup](ideas/2026-08-16-meridian-fulltext-search-engine-rust.md) * [Search the corpus](https://userfrom1995.github.io/Random/meridian/) * [Documentation](https://userfrom1995.github.io/Random/meridian/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Kestrel** - a neural-network library written from scratch in **Julia**:
+  reverse-mode automatic differentiation on a tape, dense layers, activations,
+  softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia
+  standard library only. Gradients are verified against finite differences in
+  the test suite, and an MLP trains on real MNIST to 98.6% accuracy. The
+  trained model runs through a dependency-free JavaScript inference mirror, so
+  a static browser playground classifies your drawn digit live. Zero
+  dependencies, 32 tests. See
+  [ideas/2026-08-16-kestrel-neural-network-library-julia.md](ideas/2026-08-16-kestrel-neural-network-library-julia.md).
 
 - **Halcyon** - a functional language written from scratch in **Haskell**: a
   lexer, recursive-descent parser, full Hindley-Milner type inference with

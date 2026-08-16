@@ -35,9 +35,27 @@ const QUERIES = [
   'rendering engine',
   'sorting algorithm',
   'variable-length integer',
+  'searching~',
+  'indexing~2',
+  'enginer~',
+  'search~ AND rust',
+  '搜索引擎',
+  '搜索',
+  '搜索引擎 AND rust',
+  'ranking',
+  'systems',
+  'qjuick brwn',
+  'xyzzy nonsense',
 ];
 
-function runRust(query, scorer, top) {
+// Query options are exercised across every combination.
+const OPTS = [
+  { stem: false, signals: true },
+  { stem: true, signals: true },
+  { stem: false, signals: false },
+];
+
+function runRust(query, scorer, opts, top) {
   const out = execFileSync(BIN, [
     'search-index',
     '--index',
@@ -50,20 +68,26 @@ function runRust(query, scorer, top) {
     scorer,
     '--top',
     String(top),
+    '--stem',
+    opts.stem ? 'on' : 'off',
+    '--signals',
+    opts.signals ? 'on' : 'off',
     '--format',
     'json',
   ]).toString('utf-8');
   return JSON.parse(out);
 }
 
-function runJs(index, query, scorer, top) {
+function runJs(index, query, scorer, opts, top) {
   const plan = Meridian.parseQuery(query);
-  const hits = Meridian.search(index, scorer, plan, top);
-  const total = Meridian.candidates(index, plan).length;
+  const hits = Meridian.search(index, scorer, opts, plan, top);
+  const total = Meridian.candidates(index, opts, plan).length;
+  const suggestions = Meridian.suggestions(index, plan);
   return {
     query,
     scorer,
     total,
+    suggestions,
     hits: hits.map((h) => {
       const doc = index.docs[h.docId];
       const text = doc ? doc.text : '';
@@ -77,7 +101,11 @@ function runJs(index, query, scorer, top) {
         url: doc ? doc.url : '',
         score: h.score,
         matches: h.matches,
-        breakdown: h.breakdown.map((b) => ({ term: b.term, score: b.score })),
+        breakdown: h.breakdown.map((b) => ({
+          term: b.term,
+          score: b.score,
+          title: b.title,
+        })),
         snippet: snip
           ? { text: snip.text, highlights: snip.highlights, left: snip.left, right: snip.right }
           : null,
@@ -117,66 +145,74 @@ async function main() {
   }
 
   for (const scorer of ['bm25', 'tfidf']) {
-    for (const query of QUERIES) {
-      const rust = runRust(query, scorer, 8);
-      const js = runJs(index, query, scorer, 8);
-      const label = `[${scorer}] "${query}"`;
+    for (const opts of OPTS) {
+      for (const query of QUERIES) {
+        const rust = runRust(query, scorer, opts, 8);
+        const js = runJs(index, query, scorer, opts, 8);
+        const label = `[${scorer}][stem=${opts.stem},signals=${opts.signals}] "${query}"`;
 
-      check(rust.total === js.total, label, `total ${rust.total} != ${js.total}`);
-      check(
-        rust.hits.length === js.hits.length,
-        label,
-        `hit count ${rust.hits.length} != ${js.hits.length}`
-      );
-      const n = Math.min(rust.hits.length, js.hits.length);
-      for (let i = 0; i < n; i++) {
-        const r = rust.hits[i];
-        const j = js.hits[i];
-        const where = `hit ${i}`;
+        check(rust.total === js.total, label, `total ${rust.total} != ${js.total}`);
         check(
-          r.doc_id === j.doc_id,
+          JSON.stringify(rust.suggestions) === JSON.stringify(js.suggestions),
           label,
-          `${where}: doc ${r.doc_id} != ${j.doc_id}`
+          `suggestions ${JSON.stringify(rust.suggestions)} != ${JSON.stringify(js.suggestions)}`
         );
         check(
-          approxEq(r.score, j.score, 1e-9),
+          rust.hits.length === js.hits.length,
           label,
-          `${where}: score ${r.score} != ${j.score}`
+          `hit count ${rust.hits.length} != ${js.hits.length}`
         );
-        check(
-          JSON.stringify(r.matches) === JSON.stringify(j.matches),
-          label,
-          `${where}: matches differ`
-        );
-        check(
-          r.breakdown.length === j.breakdown.length &&
-            r.breakdown.every(
-              (rb, k) =>
-                rb.term === j.breakdown[k].term &&
-                approxEq(rb.score, j.breakdown[k].score, 1e-9)
-            ),
-          label,
-          `${where}: breakdown differs`
-        );
-        check(r.snippet && j.snippet, label, `${where}: snippet missing`);
-        if (r.snippet && j.snippet) {
+        const n = Math.min(rust.hits.length, js.hits.length);
+        for (let i = 0; i < n; i++) {
+          const r = rust.hits[i];
+          const j = js.hits[i];
+          const where = `hit ${i}`;
           check(
-            r.snippet.text === j.snippet.text,
+            r.doc_id === j.doc_id,
             label,
-            `${where}: snippet text differ\n  rust: ${JSON.stringify(r.snippet.text)}\n  js:   ${JSON.stringify(j.snippet.text)}`
+            `${where}: doc ${r.doc_id} != ${j.doc_id}`
           );
           check(
-            JSON.stringify(r.snippet.highlights) ===
-              JSON.stringify(j.snippet.highlights),
+            approxEq(r.score, j.score, 1e-9),
             label,
-            `${where}: highlights ${JSON.stringify(r.snippet.highlights)} != ${JSON.stringify(j.snippet.highlights)}`
+            `${where}: score ${r.score} != ${j.score}`
           );
           check(
-            r.snippet.left === j.snippet.left &&
-              r.snippet.right === j.snippet.right,
+            JSON.stringify(r.matches) === JSON.stringify(j.matches),
             label,
-            `${where}: truncation flags differ`
+            `${where}: matches differ`
           );
+          check(
+            r.breakdown.length === j.breakdown.length &&
+              r.breakdown.every(
+                (rb, k) =>
+                  rb.term === j.breakdown[k].term &&
+                  approxEq(rb.score, j.breakdown[k].score, 1e-9) &&
+                  rb.title === j.breakdown[k].title
+              ),
+            label,
+            `${where}: breakdown differs`
+          );
+          check(r.snippet && j.snippet, label, `${where}: snippet missing`);
+          if (r.snippet && j.snippet) {
+            check(
+              r.snippet.text === j.snippet.text,
+              label,
+              `${where}: snippet text differ\n  rust: ${JSON.stringify(r.snippet.text)}\n  js:   ${JSON.stringify(j.snippet.text)}`
+            );
+            check(
+              JSON.stringify(r.snippet.highlights) ===
+                JSON.stringify(j.snippet.highlights),
+              label,
+              `${where}: highlights ${JSON.stringify(r.snippet.highlights)} != ${JSON.stringify(j.snippet.highlights)}`
+            );
+            check(
+              r.snippet.left === j.snippet.left &&
+                r.snippet.right === j.snippet.right,
+              label,
+              `${where}: truncation flags differ`
+            );
+          }
         }
       }
     }
@@ -189,6 +225,14 @@ async function main() {
       ["don't stop rock'n'roll", ["don't", "stop", "rock'n'roll"]],
       ["hello, world! (paren)", ["hello", "world", "paren"]],
       ["Café déjà vu", ["café", "déjà", "vu"]],
+      // CJK runs segment into unigrams plus bigrams, in order.
+      ["搜索", ["搜", "搜索", "索"]],
+      ["搜索引擎", ["搜", "搜索", "索", "索引", "引", "引擎", "擎"]],
+      ["漢字とカナ", ["漢", "漢字", "字", "字と", "と", "とカ", "カ", "カナ", "ナ"]],
+      // CJK runs do not bridge across separators.
+      ["漢・字", ["漢", "字"]],
+      // CJK mixed with latin words.
+      ["rust搜索引擎go", ["rust", "搜", "搜索", "索", "索引", "引", "引擎", "擎", "go"]],
     ];
     for (const [text, expected] of cases) {
       const got = Meridian.tokenize(text).map((t) => t.term);
@@ -198,6 +242,44 @@ async function main() {
         `got ${JSON.stringify(got)}`
       );
     }
+  }
+
+  // Stemmer parity with the Rust reference implementation.
+  {
+    const vectors = [
+      ["caresses", "caress"],
+      ["ponies", "poni"],
+      ["cats", "cat"],
+      ["agreed", "agre"],
+      ["motoring", "motor"],
+      ["happy", "happi"],
+      ["sky", "sky"],
+      ["relational", "relat"],
+      ["differentli", "differ"],
+      ["vietnamization", "vietnam"],
+      ["hopefulness", "hope"],
+      ["sensibiliti", "sensibl"],
+      ["formative", "form"],
+      ["adjustable", "adjust"],
+      ["adoption", "adopt"],
+      ["effective", "effect"],
+      ["assembly", "assembl"],
+      ["dumbly", "dumbl"],
+      ["possibli", "possibl"],
+    ];
+    for (const [input, expected] of vectors) {
+      const got = Meridian.stem(input);
+      check(got === expected, `stem("${input}")`, `got ${got}, expected ${expected}`);
+    }
+    check(Meridian.stem("a") === "a", "stem skips len 1");
+    check(Meridian.stem("搜索引擎") === "搜索引擎", "stem passes through CJK");
+  }
+
+  // Levenshtein parity.
+  {
+    check(Meridian.levenshtein("kitten", "sitting") === 3, "levenshtein kitten/sitting");
+    check(Meridian.levenshtein("rust", "rusting") === 3, "levenshtein rust/rusting");
+    check(Meridian.levenshtein("搜索引擎", "索引擎") === 1, "levenshtein CJK");
   }
 
   // Snippet correctness on unicode text.
