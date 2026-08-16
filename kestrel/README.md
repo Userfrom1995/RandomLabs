@@ -35,7 +35,9 @@ julia --project=. bin/kestrel.jl autograd-check
 - **Serialization**: a tiny hand-written JSON codec, so models save/load as
   portable `model.json` files with no packages.
 - **Browser playground**: draw a digit, watch the model classify it live
-  using exported weights and a dependency-free JS inference mirror.
+  using exported weights and a dependency-free JS inference mirror. The JS
+  mirror's probabilities are checked against Julia's `predict` in the test
+  suite, and a Random digit button renders synthetic digits in-browser.
 
 ## CLI
 
@@ -80,6 +82,9 @@ Ready-to-run scripts live in `examples/` (`xor.jl` trains a 2-4-2 net on XOR,
 Open `index.html` (or the hosted Pages URL) and draw a digit with the mouse
 or your finger. The exported weights run through a dependency-free JS mirror
 of the network, and the probability bars update live with the top-1 guess.
+Hit **Random digit** to have the page render a synthetic digit (the same
+bitmap-glyph generator the Julia library uses) and classify it, or **Clear**
+to start over.
 
 ## Documentation
 

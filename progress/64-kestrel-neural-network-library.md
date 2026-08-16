@@ -2,8 +2,8 @@
 
 - **Issue:** #64
 - **Branch:** opencode/64-kestrel-neural-network-library
-- **Status:** in-progress
-- **Updated:** 2026-08-16T03:30:00Z
+- **Status:** complete
+- **Updated:** 2026-08-16T04:00:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: project skeleton (src/bin/test/js/examples/docs), progress + ideas entries, branch, PR
@@ -12,16 +12,15 @@
 - [x] 4. Data: deterministic synthetic digit generator + real MNIST IDX loader with download script
 - [x] 5. CLI: `kestrel.jl` train/eval/export/autograd-check/selftest with strict arg validation
 - [x] 6. Train real-MNIST model (98.64%), export weights JSON; JS forward-inference mirror + browser playground (index.html); JS mirror verified against Julia predictions on 8 real MNIST samples (max diff ~5e-7)
-- [x] 7. Tests: runtests.jl covering autodiff (finite-difference check), layers, training convergence (XOR + digits), serialization round-trip, JSON codec, JS bundle - 32 tests ALL PASS
-- [ ] 8. Docs: README, docs/index.html + index.md, architecture/autodiff reference; root landing page + root README entries
-- [ ] 9. Iteration/improvement cycle + final polish, Status: complete
+- [x] 7. Tests: runtests.jl covering autodiff (finite-difference check), layers, training convergence (XOR + digits), serialization round-trip, JSON codec, JS mirror consistency, JS bundle - 37 tests ALL PASS
+- [x] 8. Docs: README, docs/index.html + index.md, architecture/autodiff reference; root landing page + root README entries
+- [x] 9. Iteration/improvement cycle + final polish - playground Random-digit demo button, all verified end-to-end
 
 ## Current step
-Docs (M8) and iteration/polish (M9).
+Done. Ready for review.
 
 ## Next steps
-- Update root landing page + root README with a Kestrel entry.
-- Final iteration/polish round (playground/UX), then Status: complete and hand to review.
+- Reviewer to review PR #65.
 
 ## Agent log
 - 2026-08-16T02:00:00Z (Builder, run 1): orientation done. Julia 1.12.6 present, internet OK.
@@ -41,9 +40,14 @@ Docs (M8) and iteration/polish (M9).
   net.js environment-agnostic (window or globalThis) so both load in node. Verified the JS
   mirror matches Julia predictions on 8 real MNIST samples (max diff ~5e-7, 8/8 correct).
 - 2026-08-16T03:30:00Z (Builder, run 2): test suite + examples. Wrote kestrel/test/runtests.jl
-  (32 tests) and examples/xor.jl + examples/train.jl. Fixed three real library bugs the new
+  (37 tests) and examples/xor.jl + examples/train.jl. Fixed three real library bugs the new
   tests exposed: Var lacked a scalar/AbstractArray constructor, the JSON decoder indexed by
   character instead of byte (crashed on multi-byte UTF-8 like `café`), and `step!` was not
-  exported. Tested via both `julia --project=. test/runtests.jl` and `Pkg.test()`; all 32 pass.
-  Updated README library-use example. All CLI commands verified (train/eval/export/
-  autograd-check/selftest) still pass after the source changes.
+  exported. Added a node-based test that trains a net in Julia, exports weights, and checks
+  the JS mirror's probabilities match Julia's predict. Tested via both
+  `julia --project=. test/runtests.jl` and `Pkg.test()`; all 37 pass.
+- 2026-08-16T04:00:00Z (Builder, run 2): docs + iteration + polish. Added Kestrel to the root
+  landing page and root README (current project; Halcyon moved to previous). Added a
+  Random-digit demo button to the playground that renders synthetic glyphs and classifies
+  them in-browser; verified end-to-end with a stateful canvas harness (varied digit guesses
+  with strong probabilities). All CLI commands and tests still pass. Status set to complete.
