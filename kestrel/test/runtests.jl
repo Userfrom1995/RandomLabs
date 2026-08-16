@@ -133,4 +133,41 @@ using Random
         rm(json_path; force = true)
     end
 
+    @testset "JS inference mirror agrees with Julia (needs node)" begin
+        node = Sys.which("node")
+        node === nothing && @info "node not found; skipping JS mirror test"
+        if node !== nothing
+            # Train a small deterministic net, export weights, and check the JS
+            # mirror's probabilities match Julia's predict on the same inputs.
+            images, labels = synthetic_digits(120; seed = 7)
+            model = MLP([784, 32, 10])
+            train!(model, images, labels; epochs = 6, batch = 24, lr = 0.2,
+                momentum = 0.9, rng = MersenneTwister(2), verbose = false)
+            dir = mktempdir()
+            weights = joinpath(dir, "w.js")
+            export_weights(model, weights)
+            netjs = joinpath(dirname(pathof(Kestrel)), "..", "js", "net.js")
+            samples = [1, 20, 50, 90]
+            julia_probs = predict(model, images[:, samples])
+            inputs = [collect(images[:, j]) for j in samples]
+            js = joinpath(dir, "check.js")
+            write(js, """
+                const KestrelNet = globalThis.KestrelNet;
+                const KESTREL = globalThis.KESTREL;
+                const inputs = $(repr(inputs));
+                const out = inputs.map(x => KestrelNet.forward(KESTREL, x));
+                console.log(JSON.stringify(out));
+            """)
+            # Load net.js (defines globalThis.KestrelNet) and the exported bundle
+            # (defines globalThis.KESTREL), then the harness, in one node process.
+            cmd = `$(node) -e "require('$(netjs)'); require('$(weights)'); require('$(js)')"`
+            out = read(cmd, String)
+            @test !isempty(out)
+            js_probs = decode(out)
+            for j in eachindex(samples)
+                @test js_probs[j] ≈ julia_probs[:, j] atol = 1e-5
+            end
+        end
+    end
+
 end
