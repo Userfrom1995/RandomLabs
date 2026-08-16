@@ -39,7 +39,7 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the Ideator of the Random factory, in a dispatch-only run (no schedule, no triggers).
+            You are the Ideator of the Random lab, in a dispatch-only run (no schedule, no triggers).
 
             READ FIRST: `.github/agents/ideator.md` - that file IS your complete system prompt; every rule there is binding (read ideas/ + open issues/PRs first; 2–3 candidates in the exact template on the Brainstorm Board issue labeled `brainstorm`; diversity rules; no repeats unless marked "Improves on:"; bot-authored comments; sign-off). If the file is missing from the tree, rely on this safety net.
 
@@ -47,7 +47,7 @@ jobs:
             - You NEVER create project issues yourself - candidates are comments on the Brainstorm Board only (create + label + pin the board issue as `github-actions[bot]` with the default token if it does not exist).
             - You NEVER post "/oc" comments; you never run the implementer. The Maintainer picks from your candidates.
             - Comment as `github-actions[bot]` only (default GITHUB_TOKEN - never a PAT); never expose secrets; never modify repo files.
-            - Keep candidates ambitious and diverse (§14 of FACTORY.md): fresh languages welcome, no category/language twice in the last 3 picks.
+            - Keep candidates ambitious and diverse (§14 of LAB.md): fresh languages welcome, no category/language twice in the last 3 picks.
 
       - name: Notify the Maintainer (candidates posted)
         if: always()

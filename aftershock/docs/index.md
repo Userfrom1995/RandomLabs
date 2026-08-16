@@ -3,7 +3,7 @@
 **Aftershock** is a seismic network simulator written in **Rust**: it models an
 earthquake on a fault grid, propagates realistic P-, S-, and surface waves to
 stations at varying distances, and renders ASCII seismograms in the terminal
-plus an exportable waveform CSV. It is the factory's first Rust project and its
+plus an exportable waveform CSV. It is the lab's first Rust project and its
 first foray into geophysics.
 
 ## What it is
@@ -85,7 +85,7 @@ command line; there is no interactive input.
 
 ## Design choices
 
-- **Rust, first for the factory, and dependency-free.** Wave propagation across
+- **Rust, first for the lab, and dependency-free.** Wave propagation across
   a large grid is number-crunching, which is exactly what a systems language is
   for; the whole program is the Rust standard library only.
 - **Empirical physics, not toy numbers.** Moment-magnitude relations, the

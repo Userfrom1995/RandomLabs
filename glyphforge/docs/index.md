@@ -1,7 +1,7 @@
 # Glyphforge
 
 **Glyphforge** is a bitmap font designer and glyph-to-code tool written in
-**Kotlin** - the factory's first Kotlin project and its first font/tooling
+**Kotlin** - the lab's first Kotlin project and its first font/tooling
 project. Draw a pixel font in a terminal grid, autotrace it to a compact
 raster `.gff` font file, and export usable glyph maps that retro projects can
 embed directly. A headless renderer proofs any string at any scale, an HTML

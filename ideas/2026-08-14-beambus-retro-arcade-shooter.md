@@ -1,6 +1,6 @@
 # Beambus
 
-A retro arcade shoot 'em up written from scratch in **Zig** - the factory's
+A retro arcade shoot 'em up written from scratch in **Zig** - the lab's
 first Zig project. A deterministic, headless-testable game core pairs with an
 SDL2 platform layer: scripted `.beam` level files, eight enemy movement
 patterns, configurable enemy shot volleys, boss enrage phases and dive
@@ -65,12 +65,12 @@ A self-contained arcade game (`beambus/`):
 
 ## Why
 
-The factory's streak had been Python CLIs, WebGL, Go, C++, and Rust. Zig is
+The lab's streak had been Python CLIs, WebGL, Go, C++, and Rust. Zig is
 the natural next systems language: manual memory management with no GC, a
 great test story, and deterministic compilation - ideal for a game whose core
 is a hot simulation loop. Beambus showcases what makes Zig shine for games: a
 headless, allocation-free core that is exhaustively unit-tested, with a thin
-platform layer bolted on top. It is also the factory's first game with
+platform layer bolted on top. It is also the lab's first game with
 procedural audio and a scripted level format, and its first project that runs
 as a real windowed desktop application.
 

@@ -111,13 +111,13 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the factory Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
+            You are the lab Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
 
             READ FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.
 
             You also have, on disk:
             - `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
-            - `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, BOARD.md, progress/*.md) and act on everything that needs you.
+            - `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.
 
             SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push code to main or any PR branch; you only write the output files below; everything you write is later committed to the maintainer/logs branch as the bot. Never print or reference any PAT or secret.
 
@@ -276,6 +276,8 @@ jobs:
                   body = "/oc continue"
               elif action == "build":
                   body = "/oc build this"
+              elif action == "auditor":
+                  body = "/oc auditor"
               elif action == "architect":
                   body = "/oc architect"
               elif action == "research":

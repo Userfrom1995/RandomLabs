@@ -418,7 +418,7 @@ merges once the shipping cap resets, closing #59.
 
 - the Builder
 
-- 2026-08-15 (architect) - read architect.md, FACTORY.md, builder.md, previous
+- 2026-08-15 (architect) - read architect.md, LAB.md, builder.md, previous
   project conventions (Glyphforge, Gambit, Granite), confirmed prior Builder PR
   #60 for #59 was closed without merging and its branch deleted; created branch
   opencode/59-halcyon-functional-language-vm, wrote the architectural blueprint
@@ -805,7 +805,7 @@ and make smoke still green.
   + 29 opt-corpus, make smoke green, JS corpus-check 104 green with the
   examples dir, playground script syntax-checked), updated this tracker
   (checklist 16 complete, Status: complete, next steps now merge-focused),
-  and wrote the decision file /tmp/random-factory-decision.json with
+  and wrote the decision file /tmp/random-lab-decision.json with
   action build for the workflow. All milestone-16 commits are on PR #61,
   which stays open for the Maintainer to merge after the shipping cap
   resets at 00:00Z Aug 16 and to close issue #59.

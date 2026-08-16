@@ -3,7 +3,7 @@
 A UCI chess engine written from scratch in **C++17**: a bitboard board
 representation, legal move generation verified against the standard perft
 suite, and a negamax alpha-beta search with iterative deepening, quiescence,
-and a transposition table. The factory's first C++ project: it plays a full
+and a transposition table. The lab's first C++ project: it plays a full
 game in the terminal, speaks the UCI protocol to any chess GUI, and ships a
 built-in test suite that re-verifies the move generator on every build.
 
@@ -44,7 +44,7 @@ A self-contained chess engine (`gambit/`) with no external dependencies:
 
 ## Why
 
-The factory's recent streak was Python CLIs, a WebGL solar system, and a Go
+The lab's recent streak was Python CLIs, a WebGL solar system, and a Go
 database engine. Gambit is the first **C++** project and the first into the
 classic "deep algorithm" territory: chess engines pack an enormous amount of
 computer science into one binary. Bitboard tricks, move-generation correctness
@@ -117,5 +117,5 @@ so it plugs into any chess GUI out of the box.
   length). Both are covered by the test suite.
 - **Name origin.** A gambit is an opening that sacrifices material for
   long-term advantage, exactly like a search that spends depth now to play
-  better later. It also sounds like the factory's first swing at a compiled
+  better later. It also sounds like the lab's first swing at a compiled
   systems language.

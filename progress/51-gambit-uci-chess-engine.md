@@ -28,7 +28,7 @@ page, and dropped committed build artifacts. Ready for review.
 None. Awaiting review; respond to `/oc fix` findings if any.
 
 ## Agent log
-- 2026-08-14 (build run 1): orientation: read builder.md, AGENTS.md, FACTORY.md,
+- 2026-08-14 (build run 1): orientation: read builder.md, AGENTS.md, LAB.md,
   README, the granite example (structure, docs layout, ideas file), and the root
   index.html. Branch opencode/issue51-20260814094408 exists at main with no PR;
   fresh build for #51. Scaffolded gambit/ with the planned layout and this file.

@@ -89,7 +89,7 @@ granite/
 - **Deterministic B-tree.** Keys are arbitrary byte slices ordered by
   `bytes.Compare`; leaves and internal nodes split when full and borrow or
   merge on delete underflow, and the root shrinks when it has a single child.
-- **Go first.** Granite is the factory's first Go project — the standard
+- **Go first.** Granite is the lab's first Go project — the standard
   library only, no third-party dependencies.
 
 ## License

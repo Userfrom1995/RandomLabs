@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# shutdown.sh — undo the factory: back up and remove the agent workflows and
+# shutdown.sh — undo the lab: back up and remove the agent workflows and
 # prompts, stop the Maintainer, hand control back to humans. Safety net.
 #
 #   bash shutdown.sh           # interactive: confirm before anything is removed
 #   bash shutdown.sh --yes     # skip the confirmation prompt
-#   bash shutdown.sh --purge   # also delete OPENCODE_* secrets and factory docs
+#   bash shutdown.sh --purge   # also delete OPENCODE_* secrets and lab docs
 #   bash shutdown.sh --check   # read-only: show what would be removed
 set -euo pipefail
 
@@ -23,30 +23,30 @@ for arg in "$@"; do
 done
 
 TS="$(date -u +%Y%m%d-%H%M%S)"
-BACKUP=".github/factory-backup-$TS"
+BACKUP=".github/lab-backup-$TS"
 REPO="$(git remote get-url origin 2>/dev/null | sed -E 's#.*[:/]([^/]+/[^/]+)(\.git)?$#\1#')"
 
 WORKFLOWS=(
   "maintainer.yml"
   "ideate.yml"
+  "auditor.yml"
   "opencode.yml"
   "opencode-review.yml"
   "opencode-review-trigger.yml"
 )
 REMOVE_PATHS=(
   ".github/agents"
-  "BOARD.md"
   "progress"
-  "FACTORY.md"
+  "LAB.md"
 )
 
-echo "== Random Factory shutdown =="
+echo "== Random Lab shutdown =="
 echo
 echo "Backup dir:   $BACKUP"
 if [ -n "$REPO" ]; then echo "Target repo:  $REPO"; fi
 echo "Workflows to remove: ${WORKFLOWS[*]}"
 echo "Paths to remove:     ${REMOVE_PATHS[*]}"
-[ "$PURGE" -eq 1 ] && echo "Purge mode:   also deleting OPENCODE_API_KEY / OPENCODE_PAT secrets and CHANGELOG.md"
+[ "$PURGE" -eq 1 ] && echo "Purge mode:   also deleting OPENCODE_API_KEY / OPENCODE_PAT secrets"
 echo
 
 if [ "$MODE" = "check" ]; then
@@ -55,7 +55,7 @@ if [ "$MODE" = "check" ]; then
 fi
 
 if [ "$YES" -ne 1 ]; then
-  read -r -p "Continue? This removes the factory from this repo (files are backed up). [y/N] " ans
+  read -r -p "Continue? This removes the lab from this repo (files are backed up). [y/N] " ans
   case "$ans" in
     y|Y|yes|YES) ;;
     *) echo "Aborted — nothing changed."; exit 0 ;;
@@ -87,12 +87,11 @@ if [ "$PURGE" -eq 1 ] && [ -n "$REPO" ] && command -v gh >/dev/null 2>&1; then
   for secret in OPENCODE_API_KEY OPENCODE_PAT; do
     gh secret delete "$secret" --repo "$REPO" 2>/dev/null && echo "deleted secret: $secret" || true
   done
-  [ -f CHANGELOG.md ] && { git rm -q --cached CHANGELOG.md 2>/dev/null || true; rm -f CHANGELOG.md; echo "removed: CHANGELOG.md"; }
 fi
 
 echo
 echo "== Remaining agent-ish files (left for history: docs/, ideas/, README) =="
 ls .github/workflows 2>/dev/null && echo "(pages.yml kept — the site deploy needs it)"
 echo
-echo "Factory stopped. Human control restored."
-echo "Restore anytime: the backup is at $BACKUP (or run the factory's setup again from git history)."
+echo "Lab stopped. Human control restored."
+echo "Restore anytime: the backup is at $BACKUP (or run the lab's setup again from git history)."

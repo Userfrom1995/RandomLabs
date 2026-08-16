@@ -36,7 +36,7 @@ javac. Handing off to the Reviewer via /oc review.
 (none - complete)
 
 ## Agent log
-- 2026-08-15 (run 1): oriented (builder.md, AGENTS.md, FACTORY.md, README,
+- 2026-08-15 (run 1): oriented (builder.md, AGENTS.md, LAB.md, README,
   index.html, previous projects roteria/beambus/gambit for conventions),
   verified JDK 17 + kotlinc 2.4.10, created branch
   opencode/57-glyphforge-bitmap-font-designer, scaffolded the project tree

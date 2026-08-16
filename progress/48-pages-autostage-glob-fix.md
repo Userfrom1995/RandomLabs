@@ -45,7 +45,7 @@ and closes the issue through the normal review/merge loop.
   expected, not a regression.
 
 ## Next steps
-- None — awaiting the Reviewer (factory change → reviewed extra hard).
+- None — awaiting the Reviewer (lab change → reviewed extra hard).
 
 ## Agent log
 - 2026-08-13 (build run 2) — reproduced the `[: too many arguments` bug

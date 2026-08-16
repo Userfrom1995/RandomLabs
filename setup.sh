@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — one-command setup/validation for the Random factory.
+# setup.sh — one-command setup/validation for the Random lab.
 # Idempotent and safe: it never deletes anything. Run from the repo root.
 #
 #   bash setup.sh              # check/print status, guided prompts
@@ -25,7 +25,7 @@ done
 need() { command -v "$1" >/dev/null 2>&1 || { echo "MISSING: $1 — install it first."; return 1; }; }
 status() { printf '%-34s %s\n' "$1" "$2"; }
 
-echo "== Random Factory setup =="
+echo "== Random Lab setup =="
 echo
 
 ok=1
@@ -35,13 +35,11 @@ for tool in git gh; do
   if need "$tool"; then status "$tool" "ok"; else ok=0; fi
 done
 
-# 2. Repo files (the factory body)
-FACTORY_FILES=(
-  "FACTORY.md"
+# 2. Repo files (the lab body)
+LAB_FILES=(
+  "LAB.md"
   "AGENTS.md"
-  "BOARD.md"
   "progress"
-  "CHANGELOG.md"
   ".github/agents/REGISTRY.md"
   ".github/agents/maintainer.md"
   ".github/agents/ideator.md"
@@ -51,20 +49,21 @@ FACTORY_FILES=(
   ".github/agents/fixer.md"
   ".github/agents/reviewer.md"
   ".github/agents/tester.md"
+  ".github/agents/auditor.md"
   ".github/agents/general.md"
   ".github/agents/decisions/README.md"
 )
-for f in "${FACTORY_FILES[@]}"; do
+for f in "${LAB_FILES[@]}"; do
   if [ -e "$f" ]; then
     status "$f" "ok"
   else
-    status "$f" "MISSING (factory incomplete)"
+    status "$f" "MISSING (lab incomplete)"
     ok=0
   fi
 done
 
 # 3. Workflows
-FACTORY_WORKFLOWS=(
+LAB_WORKFLOWS=(
   ".github/workflows/maintainer.yml"
   ".github/workflows/ideate.yml"
   ".github/workflows/opencode.yml"
@@ -72,7 +71,7 @@ FACTORY_WORKFLOWS=(
   ".github/workflows/opencode-review-trigger.yml"
   ".github/workflows/pages.yml"
 )
-for f in "${FACTORY_WORKFLOWS[@]}"; do
+for f in "${LAB_WORKFLOWS[@]}"; do
   if [ -e "$f" ]; then
     status "$f" "ok"
   else
@@ -83,7 +82,7 @@ done
 
 echo
 if [ "$ok" -eq 0 ]; then
-  echo "Factory files/workflows are incomplete — fix the MISSING items before continuing."
+  echo "Lab files/workflows are incomplete — fix the MISSING items before continuing."
   [ "$MODE" = "check" ] && exit 1
 fi
 
@@ -143,7 +142,7 @@ echo "== Onboarding =="
 echo "• For the first ~14 days, GitHub may hold workflow runs on the bot's PRs."
 echo "  opencode.yml auto-approves held runs after every push; if it cannot, a"
 echo "  comment asks you to click Approve — do that once and the loop resumes."
-echo "• Talk to the factory with /oc comments: /oc build …, /oc continue, /oc fix,"
+echo "• Talk to the lab with /oc comments: /oc build …, /oc continue, /oc fix,"
 echo "  /oc review, /oc approve|decline, /oc help (see AGENTS.md)."
 echo "• Undo anytime: bash shutdown.sh"
 echo

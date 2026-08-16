@@ -49,7 +49,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
-        run: rm -f /tmp/random-factory-decision.json
+        run: rm -f /tmp/random-lab-decision.json
 
       - name: Run opencode tester
         continue-on-error: true
@@ -62,12 +62,12 @@ jobs:
           model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
-            You are the Tester of the Random factory, triggered by "/oc test" on the open PR in this checkout.
+            You are the Tester of the Random lab, triggered by "/oc test" on the open PR in this checkout.
 
             READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
 
             SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
-            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-factory-decision.json`: `{"action":"maintainer"}` for approval/escalation or `{"action":"fix"}` when changes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"maintainer"}` for approval/escalation or `{"action":"fix"}` when changes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
             You post ONE plain text decision comment per run containing your findings. End every decision comment with your sign-off: `- the Tester`.
 
       - name: Forward tester decision
@@ -76,12 +76,12 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.pull_request.number || github.event.issue.number }}"
-          if [ ! -f /tmp/random-factory-decision.json ]; then
+          if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found. Assuming no actionable decision."
             exit 0
           fi
           
-          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           
           if [ "$action" = "maintainer" ]; then
             echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"

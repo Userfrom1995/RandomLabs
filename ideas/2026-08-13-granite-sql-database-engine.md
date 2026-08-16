@@ -3,7 +3,7 @@
 A SQL database engine built from scratch in **Go**: a lexer and
 recursive-descent parser, a query planner and executor, and a paged B-tree
 storage engine that persists real `.db` files — all driven from a terminal
-CLI. The factory's first Go project and its first database engine: the entire
+CLI. The lab's first Go project and its first database engine: the entire
 stack is here, from token stream to disk layout, in ~6k lines of standard
 library-only Go with 81 tests.
 
@@ -35,7 +35,7 @@ from the terminal:
 
 ## Why
 
-The factory's recent streak was browser CLIs, a game, and a WebGL solar
+The lab's recent streak was browser CLIs, a game, and a WebGL solar
 system — all JavaScript or shell. Granite is deliberately the opposite: the
 first **Go** project and the first **systems/back end** project. A database
 engine is the classic "make everything tangible" build: it touches parsing,
@@ -105,5 +105,5 @@ first honest binary file format, which lives on disk and survives restarts.
   rollback could destroy unflushed pre-transaction data (fixed by the Begin
   snapshot). Each is covered by a regression test.
 - **Name origin.** Granite is the bedrock under everything else — a fitting
-  name for the storage layer a database stands on, and a nod to the factory's
+  name for the storage layer a database stands on, and a nod to the lab's
   first Go project.

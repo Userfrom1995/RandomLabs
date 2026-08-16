@@ -1,6 +1,6 @@
 # Kestrel - a neural-network library built from scratch in Julia
 
-The factory's first Julia project and its first machine-learning project.
+The lab's first Julia project and its first machine-learning project.
 Kestrel is a small, sharp, fast numeric core where every computation stays
 visible: a reverse-mode automatic differentiation tape, dense layers,
 activations, softmax + cross-entropy, mini-batch SGD with momentum, a fully
@@ -10,7 +10,7 @@ draw a digit and a real-MNIST-trained model classifies it live.
 ## What it is
 
 An ML library with **zero external dependencies** (Julia standard library
-only), built "from first principles" the way the factory likes it:
+only), built "from first principles" the way the lab likes it:
 
 - **Reverse-mode autodiff** (`src/autodiff.jl`): a tape of `Var` nodes
   holding values and gradients. Each operation records a backward closure;
@@ -41,7 +41,7 @@ only), built "from first principles" the way the factory likes it:
 
 ## Why it fits
 
-Fresh language (Julia - first for the factory) and a completely untouched
+Fresh language (Julia - first for the lab) and a completely untouched
 category (machine learning). ML is usually a black box imported from a
 framework; Kestrel is backprop you can read line by line, and Julia's
 just-in-time numeric performance is genuinely the right tool. The
@@ -74,4 +74,4 @@ GitHub Pages.
   throughout), so training reproduces bit-for-bit given the same seed.
 - The committed `weights/mnist.json` comes from a real-MNIST-trained 784-128-10
   MLP; the synthetic generator keeps the CLI trainable with zero downloads.
-- MIT-licensed, matching the factory.
+- MIT-licensed, matching the lab.

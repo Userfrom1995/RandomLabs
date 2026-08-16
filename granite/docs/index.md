@@ -3,7 +3,7 @@
 **Granite** is a SQL database engine built from scratch in **Go**: a lexer
 and recursive-descent parser, a query planner and executor, and a paged
 B-tree storage engine that persists real `.db` files — all driven from a
-terminal CLI. It is the factory's first Go project and its first database
+terminal CLI. It is the lab's first Go project and its first database
 engine, and it makes the entire stack tangible, from token stream to storage
 layout.
 

@@ -1,0 +1,57 @@
+name: auditor
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run daily at midnight UTC
+  workflow_dispatch:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: write
+
+concurrency:
+  group: auditor
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc auditor'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run auditor agent
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are the Auditor of the Random lab, in a scheduled or dispatch-only run.
+
+            READ FIRST: `.github/agents/auditor.md` - that file IS your complete system prompt; every rule there is binding (read logs/PRs/issues; post to `Lab Health & Audit Logs` issue; if anomaly found, open a NEW issue, tag `/oc maintainer` in it, and link it in the universal health log; sign-off as `- the Auditor`). If the file is missing from the tree, rely on this safety net.
+
+            SAFETY NET (always binding):
+            - You NEVER commit code, push, or modify the repository.
+            - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`. You only post `/oc maintainer` on newly created bug reports.
+            - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue (create it with label `lab-health` if missing).

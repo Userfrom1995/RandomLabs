@@ -7,7 +7,7 @@ description:        Halcyon is a small, calm, well-typed functional language: le
                     with closures and upvalue cells. The core is headless and fully testable.
 homepage:           https://github.com/Userfrom1995/Random
 license:            MIT
-author:             Random factory
+author:             Random lab
 maintainer:         github-actions[bot]@users.noreply.github.com
 build-type:         Simple
 

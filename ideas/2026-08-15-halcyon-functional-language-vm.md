@@ -2,7 +2,7 @@
 
 ## Summary
 
-**Halcyon** is the factory's first compiler/language project and its first
+**Halcyon** is the lab's first compiler/language project and its first
 Haskell build: a small, calm, well-typed functional programming language whose
 entire machinery is visible. You write Halcyon source, the toolchain type
 checks it with full Hindley-Milner inference (including `let` polymorphism,
@@ -44,7 +44,7 @@ JavaScript mirror of the language that powers the playground.
 
 ## Why it fits
 
-A brand-new language for the factory (Haskell - the first time) and a
+A brand-new language for the lab (Haskell - the first time) and a
 completely untouched category (compilers/languages). Compilers are the
 definitive "learn how the machine thinks" project, and Haskell is the language
 compilers are made for: the type checker, evaluator, and VM are each a few

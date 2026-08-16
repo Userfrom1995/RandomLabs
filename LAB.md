@@ -1,9 +1,9 @@
-# The Random Factory - Architecture Document
+# The Random Lab - Architecture Document
 
-The repo runs as a **project factory**: it maintains the repository and produces
+The repo runs as a **project lab**: it maintains the repository and produces
 projects from it continuously, with zero human interaction. Projects take as
 long as they need - quality is the only deadline. The **Maintainer** coordinates
-every worker, the **Ideator** brainstorms candidates, and the factory ships
+every worker, the **Ideator** brainstorms candidates, and the lab ships
 production-grade work through a strict review gate.
 
 The owner can always discuss, disagree, and defend - the Maintainer argues
@@ -24,10 +24,12 @@ honestly with evidence, then complies when overruled.
 | Maintainer | The brain/orchestrator | Mae - warm, dry-humored, efficient foreman; may evolve its own name/tone (persisted in `personality.md`) |
 | Ideator | Brainstorms candidates on the Brainstorm Board | Creative, ambitious, diversity-driven |
 | Architect | Designs technical blueprints and plans | Master technical strategist |
+| Researcher | Scientific research & algorithm design | Dr. Mob - principal scientist |
 | Builder | Implements projects (resume mode) | Production-quality, decisive |
 | Fixer | Applies reviewer findings | Same as Builder |
 | Reviewer | Strict quality gate; code-first findings | Stern but fair |
 | Tester | QA & Performance testing of running app | Obsessed with quality, thorough |
+| Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | General | Chat/assistant/answers | Helpful |
 
 - Every comment is signed with the role so it is always clear who said what.
@@ -211,7 +213,7 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
 ## 14. The Brainstorm Board
 
 - Pinned "Brainstorm Board" issue (label `brainstorm`) - the idea pipeline.
-- The Ideator (dispatched by the Maintainer when the factory is idle): reads
+- The Ideator (dispatched by the Maintainer when the lab is idle): reads
   the board + reaction scores; posts 2–3 candidates per run as comments in a
   template (Name / What it is / Why it's cool), bot-signed; never repeats an
   idea (dedup by name); may improve a liked-but-not-picked idea; replaces
@@ -239,9 +241,7 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
   the live checkpoint (in-flight PRs, next steps, open questions). Every new
   Maintainer instance catches up by reading it (see §21).
 - `personality.md` on the same branch - the Maintainer's evolving identity.
-- `CHANGELOG.md` on main - daily factory work updates (bot, log-only direct
-  commits through reviewed PRs).
-- `FACTORY.md` at the repo root - this architecture document.
+- `maintainer/logs` branch (STATE.md, logs) - internal state memory root - this architecture document.
 - `AGENTS.md` - the agent blueprint.
 
 ## 17. Prompt files (prompts out of YAML)
@@ -254,11 +254,12 @@ New folder `.github/agents/`:
   maintainer.md    # the Maintainer (Mae) - the brain
   ideator.md       # the Ideator - brainstorm candidates
   architect.md     # the Architect - master technical strategist
-  researcher.md    # the Researcher - scientific research & algorithm design
+  researcher.md    # the Researcher (Dr. Mob) - scientific research & algorithm design
   builder.md       # the Builder - implements builds
   fixer.md         # the Fixer - applies reviewer findings
   reviewer.md      # the Reviewer - the strict quality gate
   tester.md        # the Tester - dynamic verification engineer
+  auditor.md       # the Auditor - pipeline inspector
   general.md       # the General agent - chat/assistant
   decisions/
     README.md      # decision-file protocol
@@ -302,13 +303,11 @@ removed the PAT that used to sit in the ideation agent's env).
 ## 20. File map
 
 ```
-FACTORY.md                     this document
+LAB.md                     this document
 AGENTS.md                      the agent blueprint (operating rules)
-BOARD.md                       the Maintainer's board: pipeline status
 progress/                      per-build progress files (status, checklist, next steps)
 ideas/YYYY-MM-DD-<name>-<what>.md   build writeups
-docs/                          the factory's documentation site (docs/index.html)
-CHANGELOG.md                   daily factory work updates
+docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
@@ -317,7 +316,7 @@ maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md 
 ## 21. Co-maintainers & new agent workers (the Maintainer's meta-power)
 
 - The Maintainer is maintainer-level: the only level that can call other
-  agents; it can create new workers and even co-maintainers when the factory
+  agents; it can create new workers and even co-maintainers when the lab
   needs them.
 - **Creating a worker**: new prompt file `.github/agents/<name>.md` (standard
   sections: identity, role, rules, sign-off) + trigger wiring (`/oc <name>`
@@ -350,7 +349,7 @@ Every Maintainer run starts by fetching `origin maintainer/logs` and reading:
 Then it re-surveys live GitHub fresh (PRs, issues, comments, board, progress
 files) - the log branch is memory, GitHub is truth. Every run appends today's
 log and rewrites `STATE.md` before finishing; a brand-new model instance
-catches up in seconds. `CHANGELOG.md` on main stays the public daily summary.
+catches up in seconds.
 
 ## 23. Fork PRs (external contributors)
 
@@ -370,7 +369,7 @@ catches up in seconds. `CHANGELOG.md` on main stays the public daily summary.
 
 ---
 
-## Running the factory
+## Running the lab
 
 - **First run**: dispatch the Maintainer once (Actions → `maintainer` → Run
   workflow) - it seeds `maintainer/logs`, checks the board, and processes
@@ -379,11 +378,11 @@ catches up in seconds. `CHANGELOG.md` on main stays the public daily summary.
   requires the owner to approve workflow runs on them. `opencode.yml`
   auto-approves held runs after each push; if it cannot, a comment asks for a
   manual click. After roughly 14 days of activity GitHub stops requiring it.
-- **Talking to the factory**: `/oc build …`, `/oc fix`, `/oc review`,
+- **Talking to the lab**: `/oc build …`, `/oc fix`, `/oc review`,
   `/oc continue`, `/oc approve|decline`, `/oc help` - see AGENTS.md.
 - **One-command setup**: `bash setup.sh` (creates/verifies everything,
   optionally writes secrets, prints onboarding).
-- **Undo everything**: `bash shutdown.sh` (backs up and removes the factory,
+- **Undo everything**: `bash shutdown.sh` (backs up and removes the lab,
   restores human control).
 - **Branch protection on main**: parent branch + require PR + require the
   review gate; the bot merges only through approved PRs.
@@ -403,7 +402,7 @@ catches up in seconds. `CHANGELOG.md` on main stays the public daily summary.
 
 ## Bootstrap note
 
-The factory foundation (this document, `.github/agents/`, the workflows) was
-landed directly with owner approval. From the first merged factory change
-onward, every factory change flows through the standard review gate like any
+The lab foundation (this document, `.github/agents/`, the workflows) was
+landed directly with owner approval. From the first merged lab change
+onward, every lab change flows through the standard review gate like any
 other build - including changes the Maintainer makes to its own prompts.

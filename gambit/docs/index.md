@@ -5,7 +5,7 @@ bitboard board representation, legal move generation verified against the
 standard perft suite, and a negamax alpha-beta search with iterative deepening
 and a transposition table. It plays a full game in the terminal, speaks the
 UCI protocol to any chess GUI, and comes with a built-in test suite. It is the
-factory's first C++ project.
+lab's first C++ project.
 
 ## What it is
 

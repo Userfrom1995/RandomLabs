@@ -27,7 +27,7 @@ Granite. PR #50 (branch opencode/issue47-20260813185035) closes #47.
 - (none) - build complete; awaiting review and merge.
 
 ## Agent log
-- 2026-08-13 (build run 1) — orientation: read builder.md, AGENTS.md, FACTORY.md,
+- 2026-08-13 (build run 1) — orientation: read builder.md, AGENTS.md, LAB.md,
   orrery example; rebased branch onto origin/main; no existing branch/PR/progress
   for #47. Scaffolded the module and this progress file.
 - 2026-08-13 (build run 2) — wrote the SQL front end (value, token, lexer, ast,

@@ -29,7 +29,7 @@ None. Awaiting review; respond to `/oc fix` findings if any.
 
 ## Agent log
 - 2026-08-14 (run 1, orientation + scaffold): read builder.md, AGENTS.md,
-  FACTORY.md, README, gambit (structure, Makefile, docs layout, ideas file),
+  LAB.md, README, gambit (structure, Makefile, docs layout, ideas file),
   root index.html, and progress/51 conventions. Confirmed no remote PR for
   #53; the local stub branch opencode/issue53-20260814135413 was empty and
   was replaced by opencode/53-aftershock-seismic-simulator at origin/main.

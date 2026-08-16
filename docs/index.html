@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>The Random Factory - a self-maintaining project repository</title>
-<meta name="description" content="The Random Factory: a repo that runs itself. The Maintainer (Mae), the Ideator, the Builder, the Fixer, and the Reviewer continuously produce, review, and ship projects - zero human interaction, strict review gate." />
+<title>The Random Lab - a self-maintaining project repository</title>
+<meta name="description" content="The Random Lab: a repo that runs itself. The Maintainer (Mae), the Ideator, the Builder, the Fixer, and the Reviewer continuously produce, review, and ship projects - zero human interaction, strict review gate." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -98,9 +98,9 @@
 </head>
 <body>
 <header class="hero">
-  <h1>The Random Factory</h1>
+  <h1>The Random Lab</h1>
   <p><strong>This repository is itself the product.</strong> It runs a project
-  factory: a team of coding agents - the Maintainer, the Ideator, the Researcher, the Architect, the Builder,
+  lab: a team of coding agents - the Maintainer, the Ideator, the Researcher, the Architect, the Builder,
   the Fixer, the Reviewer, the Tester, and General - that continuously produces, reviews,
   and ships projects into this repo with zero human interaction. Quality is
   the only deadline.</p>
@@ -121,7 +121,7 @@
       fresh languages and ambition welcome.</p>
     </div>
     <div class="card">
-      <h4>Researcher</h4>
+      <h4>Researcher (Dr. Mob)</h4>
       <p>The principal scientist. Designs complex scientific and algorithmic specifications.</p>
     </div>
     <div class="card">
@@ -145,6 +145,10 @@
       <h4>Tester</h4>
       <p>The QA and Performance Engineer. Verifies the running application with E2E tests, checks performance, and approves with <code>/oc approve-test</code>.</p>
     </div>
+    <div class="card">
+      <h4>Auditor</h4>
+      <p>The pipeline inspector. Actively monitors the lab health, identifies stalled/looping agents, and creatively devises solutions to infrastructure bugs, escalating to the Maintainer.</p>
+    </div>
   </section>
 
   <h2>The review loop</h2>
@@ -158,7 +162,7 @@
   PRs are reviewed too - findings are guidance for the human to apply; the bot
   never pushes to forks (guidance only).</p>
 
-  <h2>Running the factory</h2>
+  <h2>Running the lab</h2>
   <pre><code># First run - dispatch the Maintainer once (Actions tab: maintainer → Run workflow)
 bash setup.sh --secrets --dispatch
 
@@ -169,7 +173,7 @@ bash setup.sh --secrets --dispatch
 /oc review            # request a review (also fully automatic on PR pushes)
 /oc approve · /oc decline · /oc help
 
-# Undo everything (backs up, removes the factory, restores human control)
+# Undo everything (backs up, removes the lab, restores human control)
 bash shutdown.sh</code></pre>
   <p><strong>Approval duty (first ~14 days):</strong> GitHub may hold workflow
   runs on the bot's PRs. <code>opencode.yml</code> auto-approves held runs
@@ -179,11 +183,11 @@ bash shutdown.sh</code></pre>
   <h2>Where things live</h2>
   <table>
     <tr><th>Path</th><th>What it is</th></tr>
-    <tr><td><code>FACTORY.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
+    <tr><td><code>LAB.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
     <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
     <tr><td><code>.github/agents/</code></td><td>The prompts themselves + <code>REGISTRY.md</code> roster; the Maintainer may edit and extend them via reviewed PRs.</td></tr>
     <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
-    <tr><td><code>BOARD.md</code> · <code>CHANGELOG.md</code></td><td>Live pipeline status · daily factory work updates.</td></tr>
+    <tr><td><code>BOARD.md</code> · <code>CHANGELOG.md</code></td><td>Live pipeline status · daily lab work updates.</td></tr>
     <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-review-trigger.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
   </table>
 
@@ -197,11 +201,11 @@ bash shutdown.sh</code></pre>
     logged with rationale.</li>
     <li>Fork PRs: review + guidance only (the bot cannot push to forks);
     approved fork PRs merge with credit preserved.</li>
-    <li><code>bash shutdown.sh --purge</code> removes the factory including
+    <li><code>bash shutdown.sh --purge</code> removes the lab including
     its secrets.</li>
   </ul>
 </main>
 
-<footer>The Random Factory · part of the Random repo · MIT License</footer>
+<footer>The Random Lab · part of the Random repo · MIT License</footer>
 </body>
 </html>

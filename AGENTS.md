@@ -1,12 +1,12 @@
 # Coding agent behavior
 
-Everything below applies to every agent run on this repo (the factory). The
-full architecture is documented in `FACTORY.md`; the agent prompts live in
+Everything below applies to every agent run on this repo (the lab). The
+full architecture is documented in `LAB.md`; the agent prompts live in
 `.github/agents/`.
 
 ## General workflow
 
-- The repo is a **project factory**: the Maintainer coordinates workers; every
+- The repo is a **project lab**: the Maintainer coordinates workers; every
   build produces a real project through a strict review gate. Quality is the
   only deadline; builds may span multiple days (resume mode via `progress/`).
 - Owner and collaborators are binding authorities; everyone else is a peer.
@@ -26,7 +26,7 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
-  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the General agent`), and commit
+  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the General agent`), and commit
   subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `general:`,
   `maintainer:` for memory updates) - the author stays `github-actions[bot]`.
 - Only create issues and pull requests when a real change is warranted.
@@ -136,19 +136,20 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 - PROMPT FILES: agents read their complete prompt from `.github/agents/*.md`;
   the YAML is thin wiring only.
 
-## The Brainstorm Board
+## The Brainstorm Board & Lab Health
 
-- Pinned issue labeled `brainstorm` - candidate projects. The Ideator
+- **Brainstorm Board**: Pinned issue labeled `brainstorm` - candidate projects. The Ideator
   (`ideate.yml`, dispatch-only, no PAT in env) posts 2–3 candidates per run as
   bot comments. The Maintainer picks one (owner reactions weigh double),
   opens the real `agent-generated` issue, and posts `/oc architect` (or `/oc research` for scientific projects).
+- **Lab Health**: Pinned issue labeled `lab-health` - universal audit logs. The Auditor (`auditor.yml`, daily schedule) posts health summaries here. If anomalies are found, the Auditor opens new bug issues, tags the Maintainer, and links them on the health board.
 - `idea.yml` was retired; nothing creates project issues except the Maintainer.
 
 ## GitHub Pages site
 
 - The Pages site is built from `main` by `pages.yml`: the repo root
-  `index.html` is the Random landing page. The `docs/` folder holds the factory's global documentation.
-  Never remove or overwrite the root landing page or the factory's global `docs/` folder.
+  `index.html` is the Random landing page. The `docs/` folder holds the lab's global documentation.
+  Never remove or overwrite the root landing page or the lab's global `docs/` folder.
 - `pages.yml` also runs a PR-preview feature: the `deploy` job stages a
   preview of every open PR under `/preview/pr-<N>/`, and the `comment` job
   posts the preview URL on the PR. Previews are built from open PR branches
@@ -161,14 +162,13 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 
 ## Logging & runbooks
 
-- `FACTORY.md` - architecture; `AGENTS.md` - this blueprint;
+- `LAB.md` - architecture; `AGENTS.md` - this blueprint;
   `.github/agents/` - prompts + roster; `maintainer/logs` branch - the
-  Maintainer's memory; `CHANGELOG.md` on main - daily factory work updates;
-  `BOARD.md` - live pipeline status; `progress/` - per-build state.
+  Maintainer's memory; `progress/` - per-build state.
 - Setup: `bash setup.sh` (validate/setup/secrets/dispatch). Undo:
-  `bash shutdown.sh` (backs up, removes the factory; `--purge` also deletes
+  `bash shutdown.sh` (backs up, removes the lab; `--purge` also deletes
   secrets).
 - Always validate YAML/shell before pushing workflow/script changes. The
-  reviewer checks factory changes extra hard: any PAT in an agent env, any
+  reviewer checks lab changes extra hard: any PAT in an agent env, any
   missing hardcoded trigger step, or anything that breaks the review loop is
   blocking.

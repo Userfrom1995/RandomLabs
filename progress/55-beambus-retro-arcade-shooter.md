@@ -35,7 +35,7 @@ None - ready for review. The automatic reviewer trigger fires on the final
 push.
 
 ## Agent log
-- 2026-08-14 (run 1): read builder.md, AGENTS.md, FACTORY.md, README, and
+- 2026-08-14 (run 1): read builder.md, AGENTS.md, LAB.md, README, and
   previous projects (aftershock, orrery, gambit) for structure. Installed Zig
   0.15.2 (ziglang.org tarball, sha256 verified) and libsdl2-dev; verified SDL2
   C-import compiles under Zig 0.15.2 (new Build API uses root_module) and that

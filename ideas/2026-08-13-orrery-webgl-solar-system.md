@@ -46,7 +46,7 @@ WebGL1 renderer:
 
 ## Why
 
-The factory's recent streak was terminal CLIs (Regexplorer, Fernwald,
+The lab's recent streak was terminal CLIs (Regexplorer, Fernwald,
 Shaftcast, Cadence) plus one Canvas game (Rush). Orrery is the first
 **WebGL/3D** and the first **TypeScript** project — the visual opposite of the
 streak, mixing real orbital mechanics with engine-free WebGL engineering and

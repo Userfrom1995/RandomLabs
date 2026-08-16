@@ -3,7 +3,7 @@
 A seismic network simulator written in **Rust**: model an earthquake on a
 fault grid, propagate realistic P-, S-, and surface waves across stations, and
 produce terminal seismograms plus a downloadable waveform file, all from a CLI.
-The factory's first Rust project and its first project in geophysics.
+The lab's first Rust project and its first project in geophysics.
 
 ## What Was Built
 
@@ -42,9 +42,9 @@ Rust standard library:
 
 ## Why
 
-The factory's recent streak was Python CLIs, a WebGL solar system, a Go
+The lab's recent streak was Python CLIs, a WebGL solar system, a Go
 database engine, and a C++ chess engine. Aftershock brings a fresh language
-(Rust, the first for the factory) and a completely untouched domain
+(Rust, the first for the lab) and a completely untouched domain
 (geophysics). Wave propagation across a large grid is exactly the kind of
 number-crunching a systems language is for, and the terminal output makes the
 science legible: the station's distance maps to a visibly growing P-to-S gap,

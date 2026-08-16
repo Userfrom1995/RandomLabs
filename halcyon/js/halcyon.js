@@ -10,9 +10,9 @@
 //
 //   browser:  <script src="halcyon.js"></script>  -> window.Halcyon
 //   node:     const Halcyon = require('./halcyon.js');
-(function (root, factory) {
-  if (typeof module === 'object' && module.exports) { module.exports = factory(); }
-  else { root.Halcyon = factory(); }
+(function (root, lab) {
+  if (typeof module === 'object' && module.exports) { module.exports = lab(); }
+  else { root.Halcyon = lab(); }
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 

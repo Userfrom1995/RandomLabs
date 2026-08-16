@@ -1,7 +1,7 @@
 # Glyphforge
 
 A bitmap font designer and glyph-to-code tool written in **Kotlin** - the
-factory's first Kotlin project and its first font/tooling project. Draw a
+lab's first Kotlin project and its first font/tooling project. Draw a
 pixel font in a terminal grid, autotrace it to a compact raster font file
 (`.gff`), and export usable glyph maps (Kotlin, Java, C header, or text) that
 retro projects can embed directly. A headless renderer proofs any string in

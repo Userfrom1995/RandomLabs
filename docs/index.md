@@ -1,6 +1,6 @@
-# The Random Factory
+# The Random Lab
 
-**This repository is itself the product.** It runs a project factory: a team
+**This repository is itself the product.** It runs a project lab: a team
 of coding agents - the Maintainer, the Ideator, the Researcher, the Architect, the Builder, the Fixer, the
 Reviewer, the Tester, and General - that continuously produces, reviews, and ships
 projects into this repo with zero human interaction. Quality is the only
@@ -8,7 +8,7 @@ deadline.
 
 The documentation site you are reading is maintained by the same agents
 (`docs/` here is the current project's doc page; this page documents the
-factory that maintains the whole repository).
+lab that maintains the whole repository).
 
 ---
 
@@ -23,7 +23,7 @@ factory that maintains the whole repository).
   2–3 candidate projects per run on the pinned Brainstorm Board issue. New
   rules: no category/language twice in the last 3 picks, fresh languages
   welcome, ambition allowed.
-- **The Researcher** - the principal scientist. Designs complex scientific and algorithmic specifications.
+- **The Researcher (Dr. Mob)** - the principal scientist. Designs complex scientific and algorithmic specifications.
 - **The Architect** - the master technical strategist. Designs the rigorous blueprints
   (tech stack, module boundaries, algorithms, UI specs) before any code is built.
 - **The Builder / The Fixer** - implement `opencode/<issue>-<slug>` branches
@@ -34,6 +34,7 @@ factory that maintains the whole repository).
   code-first (`file:line` + corrected code); it approves with `/oc approve`.
 - **The Tester** - QA & Performance Engineer. Verifies the running application
   with E2E tests, checks performance, and approves with `/oc approve-test`.
+- **The Auditor** - pipeline inspector. Actively monitors the lab health, identifies stalled/looping agents, and creatively devises solutions to infrastructure bugs, escalating to the Maintainer.
 - **General** - plain `/oc` questions and housekeeping.
 
 ## The review loop
@@ -51,7 +52,7 @@ Nothing reaches `main` without the Reviewer's approval. Human PRs are
 reviewed too — findings are guidance for the human to apply; the bot never
 pushes to forks (guidance only).
 
-## Running the factory
+## Running the lab
 
 - **First run**: dispatch the Maintainer once from the Actions tab
   (`maintainer` → Run workflow) — or `bash setup.sh --dispatch`.
@@ -63,12 +64,12 @@ pushes to forks (guidance only).
   `/oc build …`, `/oc continue`, `/oc fix`, `/oc review`, `/oc approve`,
   `/oc decline`, `/oc help` — see AGENTS.md for the exact modes.
 - **One-command setup**: `bash setup.sh` (validate/setup/secrets/dispatch).
-- **Undo everything**: `bash shutdown.sh` (backs up, removes the factory,
+- **Undo everything**: `bash shutdown.sh` (backs up, removes the lab,
   restores human control).
 
 ## Documentation
 
-- `FACTORY.md` — the architecture document: hierarchy, the locked call graph,
+- `LAB.md` — the architecture document: hierarchy, the locked call graph,
   PAT & identity rules, concurrency, takeovers, fork policy, co-maintainers,
   the Maintainer's memory system.
 - `AGENTS.md` — the operating blueprint for every agent.
@@ -76,7 +77,7 @@ pushes to forks (guidance only).
   and create new agents via reviewed PRs; `REGISTRY.md` is the roster).
 - `maintainer/logs` branch — the Maintainer's memory: `STATE.md`, daily
   logs, `personality.md`.
-- `CHANGELOG.md` — daily factory work updates.
+- `CHANGELOG.md` — daily lab work updates.
 - `BOARD.md` — live pipeline status.
 
 ## Security & fail-safes
@@ -87,4 +88,4 @@ pushes to forks (guidance only).
 - The Reviewer is read-only by construction; nothing merges without its
   approval; timers are evaluation triggers, not deadlines; every decision is
   logged with rationale.
-- `bash shutdown.sh --purge` removes the factory including its secrets.
+- `bash shutdown.sh --purge` removes the lab including its secrets.

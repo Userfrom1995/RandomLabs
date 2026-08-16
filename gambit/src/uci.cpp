@@ -17,7 +17,7 @@ namespace gambit {
 namespace {
 
 const char* ENGINE_NAME = "Gambit 1.0";
-const char* ENGINE_AUTHOR = "the Random factory";
+const char* ENGINE_AUTHOR = "the Random lab";
 
 void print_uci_id() {
   std::printf("id name %s\n", ENGINE_NAME);

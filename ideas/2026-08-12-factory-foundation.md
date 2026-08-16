@@ -1,16 +1,16 @@
-# The Random Factory — a self-maintaining project repository
+# The Random Lab — a self-maintaining project repository
 
-**What it is:** the Random repo itself becomes the product: a "factory" of
+**What it is:** the Random repo itself becomes the product: a "lab" of
 coding agents that continuously produces, reviews, and ships projects into the
 repository with zero human interaction.
 
 ## Why
 
 The repo already ran a daily-idea pipeline (cron ideation → implementer →
-reviewer → merge). The factory takes that to its logical end: instead of one
+reviewer → merge). The lab takes that to its logical end: instead of one
 daily bolt-on, the **whole loop becomes the architecture** — a Maintainer
 brain with memory, a brainstorm board, a locked call graph, and a strict
-review gate that even the factory's own changes must pass.
+review gate that even the lab's own changes must pass.
 
 ## How it works
 
@@ -28,13 +28,13 @@ review gate that even the factory's own changes must pass.
   steps; agents never see it, always act as `github-actions[bot]`.
 - **The Ideator** — dispatch-only now; posts candidates on a Brainstorm
   Board; the Maintainer picks.
-- **Anchors** — `FACTORY.md` documents everything; prompts live in
+- **Anchors** — `LAB.md` documents everything; prompts live in
   `.github/agents/`; `setup.sh`/`shutdown.sh` are the one-command on/off
   switches.
 
 ## Key files
 
-- `FACTORY.md` — the architecture document (hierarchy, call graph, PAT rules,
+- `LAB.md` — the architecture document (hierarchy, call graph, PAT rules,
   concurrency, forks, co-maintainers, memory).
 - `.github/agents/` — maintainer/ideator/builder/fixer/reviewer/general
   prompts + `REGISTRY.md` + decisions protocol.
@@ -42,12 +42,12 @@ review gate that even the factory's own changes must pass.
   `opencode-review.yml`, `opencode-review-trigger.yml`, `ideate.yml`
   (`idea.yml` retired), `pages.yml` untouched.
 - `maintainer/logs` branch — STATE.md, personality.md, daily logs.
-- `progress/`, `BOARD.md`, `CHANGELOG.md`, `docs/` — the factory's workspace.
+- `progress/`, `BOARD.md`, `CHANGELOG.md`, `docs/` — the lab's workspace.
 
 ## Notes
 
-- The review gate applies to everyone, including the factory's own changes —
-  the foundation itself was owner-approved while being built; every factory
+- The review gate applies to everyone, including the lab's own changes —
+  the foundation itself was owner-approved while being built; every lab
   change after this commit goes through the gate like any build.
 - Builds may span multiple days; quality is the only deadline.
 - The owner stays the highest authority: directives bind, arguments are heard,

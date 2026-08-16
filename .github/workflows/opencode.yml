@@ -36,7 +36,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
-        run: rm -f /tmp/random-factory-decision.json
+        run: rm -f /tmp/random-lab-decision.json
 
       - name: Run opencode researcher agent
         id: opencode
@@ -50,12 +50,12 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the Researcher of the Random factory, triggered by "/oc research".
+            You are the Researcher of the Random lab, triggered by "/oc research".
             
             READ FIRST: `.github/agents/researcher.md` - that file IS your complete system prompt; every rule there is binding.
 
             SAFETY NET (always binding):
-            - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"architect"}`.
+            - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"architect"}`.
             - Sign your work: every commit subject starts with `researcher:`, every comment ends with ` - Dr. Mob, the Researcher`.
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
@@ -70,13 +70,13 @@ jobs:
             --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
-          if [ ! -f /tmp/random-factory-decision.json ]; then
+          if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found. Notifying Maintainer (/oc maintainer)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
             exit 0
           fi
           
-          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           
           if [ "$action" = "architect" ]; then
             echo "Researcher spec complete! Handing over to Architect (/oc architect)"
@@ -123,7 +123,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
-        run: rm -f /tmp/random-factory-decision.json
+        run: rm -f /tmp/random-lab-decision.json
 
       - name: Run opencode architect agent
         id: opencode
@@ -137,12 +137,12 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the Architect of the Random factory, triggered by "/oc architect" or "/oc plan".
+            You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
             
             READ FIRST: `.github/agents/architect.md` - that file IS your complete system prompt; every rule there is binding.
 
             SAFETY NET (always binding):
-            - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"build"}`.
+            - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"build"}`.
             - Sign your work: every commit subject starts with `architect:`, every comment ends with ` -  the Architect`.
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
@@ -157,13 +157,13 @@ jobs:
             --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
-          if [ ! -f /tmp/random-factory-decision.json ]; then
+          if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found. Notifying Maintainer (/oc maintainer)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
             exit 0
           fi
           
-          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           
           if [ "$action" = "build" ]; then
             echo "Architect plan complete! Handing over to Builder (/oc build this)"
@@ -308,7 +308,7 @@ jobs:
           echo "prs_before=$prs_before" >> "$GITHUB_OUTPUT"
 
       - name: Clear runtime decision
-        run: rm -f /tmp/random-factory-decision.json
+        run: rm -f /tmp/random-lab-decision.json
 
       - name: Run opencode build agent
         id: opencode
@@ -322,7 +322,7 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the Builder of the Random factory, triggered by "/oc build" or "/oc continue" on this issue/PR.
+            You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
 
             READ FIRST: `.github/agents/builder.md` - that file IS your complete system prompt; every rule there is binding (identity as the Builder, orientation, build plan, resume mode, ideas entry, docs/site rules, decision files, review-round behavior, sign-off). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
 
@@ -331,7 +331,7 @@ jobs:
             - Branch `opencode/<issue-number>-<short-description>`; open your PR with `gh pr create --base main --head <branch> --title ... --body "Closes #N"` (rule: every task gets its OWN new issue; never a "universal" issue).
             - Rebase onto latest main before pushing; never leave the PR behind or conflicted.
             - You never post "/oc" comments (hardcoded steps post triggers; your comments are plain text, bot-signed).
-            - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"review"}` when complete, `{"action":"continue"}` when more build phases remain, or `{"action":"maintainer"}` when the run cannot safely decide the next build phase. The hardcoded workflow step reads this file instead of grepping Markdown status text.
+            - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"review"}` when complete, `{"action":"continue"}` when more build phases remain, or `{"action":"maintainer"}` when the run cannot safely decide the next build phase. The hardcoded workflow step reads this file instead of grepping Markdown status text.
             - Sign your work: every commit subject starts with `builder:`, every comment/PR body ends with your sign-off from builder.md (` -  the Builder`).
             - No interactive input in anything you build; production quality; docs/ + ideas/ entry required; never touch the root index.html landing, the docs folder's existence, or pages.yml's PR-preview feature.
             - CONTINUE run ("/oc continue"): fetch the existing branch/PR for this issue, read its progress file, resume - never restart, never redo done work.
@@ -374,13 +374,13 @@ jobs:
             --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
           
-          if [ ! -f /tmp/random-factory-decision.json ]; then
+          if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found. Notifying Maintainer (/oc maintainer)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
             exit 0
           fi
           
-          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           
           if [ "$action" = "review" ]; then
             echo "Build complete! Handing over to Reviewer (/oc review)"
@@ -533,7 +533,7 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the Fixer of the Random factory, responding to the reviewer's findings on the open PR this comment was posted on.
+            You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.
 
             READ FIRST: `.github/agents/fixer.md` - that file IS your complete system prompt; every rule there is binding (apply the latest "/oc fix: ..." findings, partial-application + plain-text rebuttals for what you skip, rebase before push). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
 
@@ -658,6 +658,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode research') &&
       !startsWith(github.event.comment.body, '/oc plan') &&
       !startsWith(github.event.comment.body, '/opencode plan') &&
+      !startsWith(github.event.comment.body, '/oc auditor') &&
+      !startsWith(github.event.comment.body, '/opencode auditor') &&
       github.event.comment.body != '/oc fix' &&
       !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
       (contains(github.event.comment.body, ' /oc') ||
@@ -690,13 +692,13 @@ jobs:
           model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
-            You are the General agent of the Random factory, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
+            You are the General agent of the Random lab, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
 
             READ FIRST: `.github/agents/general.md` - that file IS your complete system prompt; every rule there is binding (full capabilities, housekeeping vs code-change judgment, preservation rules, sign-off). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
 
             SAFETY NET (always binding):
             - Answer/housekeeping = a comment or API action is complete; code changes get committed (as `github-actions[bot]`, NEVER a `Co-authored-by:` trailer), pushed, and PR'd when appropriate - nothing forced.
-            - You never post "/oc" comments; comment only as `github-actions[bot]`; never expose secrets; never remove the README first section, the root `index.html`, `docs/`, the pages.yml PR-preview feature, or the factory infrastructure without a clear request.
+            - You never post "/oc" comments; comment only as `github-actions[bot]`; never expose secrets; never remove the README first section, the root `index.html`, `docs/`, the pages.yml PR-preview feature, or the lab infrastructure without a clear request.
             - Sign your work: commit subjects start with `general:`, comments end with ` -  the General agent`.
 
       - name: Post /oc maintainer to trigger Maintainer

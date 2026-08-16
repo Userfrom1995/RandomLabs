@@ -1,7 +1,7 @@
 # Beambus: a retro arcade shooter in Zig
 
 **Beambus** is a retro arcade shoot 'em up written in **Zig**, and the
-factory's first Zig project. It pairs a deterministic, headless-testable game
+lab's first Zig project. It pairs a deterministic, headless-testable game
 core with an SDL2 platform layer: scripted `.beam` level files, eight enemy
 movement patterns, configurable enemy shot volleys, boss enrage phases and
 dive patterns, power-up weapon tiers, one-hit shields, and timed rapid-fire
