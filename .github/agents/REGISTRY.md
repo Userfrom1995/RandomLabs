@@ -9,6 +9,7 @@ reviewed PRs (see FACTORY.md §20).
 |---|---|---|---|---|---|---|
 | Mae | The Maintainer - brain/orchestrator | maintainer | bootstrap | 2026-08-12 | - (workflow triggers) | `.github/agents/maintainer.md` |
 | The Ideator | Brainstorm candidate generator | worker | bootstrap | 2026-08-12 | `workflow_dispatch` (ideate.yml) | `.github/agents/ideator.md` |
+| The Researcher | Scientific research & algorithm design | worker | bootstrap | 2026-08-16 | `/oc research` | `.github/agents/researcher.md` |
 | The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` | `.github/agents/architect.md` |
 | The Builder | Implements builds (resume mode) | worker | bootstrap | 2026-08-12 | `/oc build` · `/oc continue` | `.github/agents/builder.md` |
 | The Fixer | Applies reviewer findings | worker | bootstrap | 2026-08-12 | `/oc fix` | `.github/agents/fixer.md` |
@@ -19,6 +20,7 @@ reviewed PRs (see FACTORY.md §20).
 ## Team Spirit & Peer Calling Model
 
 The factory operates as a collaborative, highly cohesive agent squad. Agents trust each other's specialized skills and hand off work directly:
+- **Researcher** writes scientific algorithmic specs and hands off to **Architect** (`/oc architect`).
 - **Architect** drafts blueprints and hands off to **Builder** (`/oc build this`) or requests continuation (`/oc continue`).
 - **Builder** hands off complete builds to **Reviewer** (`/oc review`) or requests continuation (`/oc continue`).
 - **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).

@@ -17,6 +17,91 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  research:
+    if: |
+      startsWith(github.event.comment.body, '/oc research') ||
+      startsWith(github.event.comment.body, '/opencode research')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-factory-decision.json
+
+      - name: Run opencode researcher agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 25
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are the Researcher of the Random factory, triggered by "/oc research".
+            
+            READ FIRST: `.github/agents/researcher.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - Before ending the run, you MUST write `/tmp/random-factory-decision.json` with exactly one action: `{"action":"architect"}`.
+            - Sign your work: every commit subject starts with `researcher:`, every comment ends with ` - Dr. Ada, the Researcher`.
+            - You never post "/oc" comments yourself.
+            - Commit as `github-actions[bot]`, push, and leave the working tree clean.
+
+      - name: Forward researcher decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/"))] | last | .number' 2>/dev/null || echo "")
+          target="${pr:-$issue}"
+          
+          if [ ! -f /tmp/random-factory-decision.json ]; then
+            echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-factory-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "architect" ]; then
+            echo "Researcher spec complete! Handing over to Architect (/oc architect)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc architect" || true
+          else
+            echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          fi
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          bash .github/scripts/strip-trailers.sh || true
+
   architect:
     if: |
       startsWith(github.event.comment.body, '/oc architect') ||
@@ -569,6 +654,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode test') &&
       !startsWith(github.event.comment.body, '/oc architect') &&
       !startsWith(github.event.comment.body, '/opencode architect') &&
+      !startsWith(github.event.comment.body, '/oc research') &&
+      !startsWith(github.event.comment.body, '/opencode research') &&
       !startsWith(github.event.comment.body, '/oc plan') &&
       !startsWith(github.event.comment.body, '/opencode plan') &&
       github.event.comment.body != '/oc fix' &&

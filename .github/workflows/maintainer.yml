@@ -278,6 +278,8 @@ jobs:
                   body = "/oc build this"
               elif action == "architect":
                   body = "/oc architect"
+              elif action == "research":
+                  body = "/oc research"
               elif action == "fix":
                   info = pr_info(target)
                   author = info.get("user", {}).get("login", "")

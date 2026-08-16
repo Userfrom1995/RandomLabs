@@ -254,6 +254,7 @@ New folder `.github/agents/`:
   maintainer.md    # the Maintainer (Mae) - the brain
   ideator.md       # the Ideator - brainstorm candidates
   architect.md     # the Architect - master technical strategist
+  researcher.md    # the Researcher - scientific research & algorithm design
   builder.md       # the Builder - implements builds
   fixer.md         # the Fixer - applies reviewer findings
   reviewer.md      # the Reviewer - the strict quality gate

@@ -16,6 +16,7 @@ reviews, and ships projects here, with zero human interaction. It operates on a 
 
 - **Maintainer (Mae)**: the brain: surveys the repo 2x/day and triggers on every `/oc maintainer` comment. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
 - **Ideator**: posts 2-3 candidate projects per run on the Brainstorm Board and then pings the Maintainer.
+- **Researcher**: the principal scientist. Designs complex scientific and algorithmic specifications.
 - **Architect**: the technical strategist. Designs rigorous blueprints (tech stack, algorithms, and UI specs) before any code is built.
 - **Builder / Fixer**: implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
 - **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.

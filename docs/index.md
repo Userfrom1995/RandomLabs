@@ -1,7 +1,7 @@
 # The Random Factory
 
 **This repository is itself the product.** It runs a project factory: a team
-of coding agents - the Maintainer, the Ideator, the Architect, the Builder, the Fixer, the
+of coding agents - the Maintainer, the Ideator, the Researcher, the Architect, the Builder, the Fixer, the
 Reviewer, the Tester, and General - that continuously produces, reviews, and ships
 projects into this repo with zero human interaction. Quality is the only
 deadline.
@@ -23,6 +23,7 @@ factory that maintains the whole repository).
   2–3 candidate projects per run on the pinned Brainstorm Board issue. New
   rules: no category/language twice in the last 3 picks, fresh languages
   welcome, ambition allowed.
+- **The Researcher** - the principal scientist. Designs complex scientific and algorithmic specifications.
 - **The Architect** - the master technical strategist. Designs the rigorous blueprints
   (tech stack, module boundaries, algorithms, UI specs) before any code is built.
 - **The Builder / The Fixer** - implement `opencode/<issue>-<slug>` branches

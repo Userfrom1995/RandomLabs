@@ -25,16 +25,16 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
   `Co-authored-by:` trailer. Human contributor credit is preserved.
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
-  sign-off (`- Mae, the Maintainer`, `- the Architect`, `- the Builder`, `- the Fixer`,
+  sign-off (`- Mae, the Maintainer`, `- Dr. Ada, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
   `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the General agent`), and commit
-  subjects are prefixed with the role (`architect:`, `builder:`, `fixer:`, `general:`,
+  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `general:`,
   `maintainer:` for memory updates) - the author stays `github-actions[bot]`.
 - Only create issues and pull requests when a real change is warranted.
 
 ## The collaborative team call flow
 
 ```
-[Architect] ──── (plan ready) ────► Builder / Fixer ──── (work ready) ────► Reviewer (/oc review)
+[Researcher] ──► [Architect] ────► Builder / Fixer ──── (work ready) ────► Reviewer (/oc review)
                                                                                  │
                                                                          ┌───────┴───────┐
                                                                   (issues found)     (approved)
