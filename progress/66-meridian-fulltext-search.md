@@ -3,7 +3,7 @@
 - **Issue:** #66
 - **Branch:** opencode/issue66-20260816031421
 - **Status:** in-progress
-- **Updated:** 2026-08-16T05:00:00Z
+- **Updated:** 2026-08-16T05:30:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cargo project skeleton (src/js/tests/corpus/docs), progress + ideas entries, branch, PR
@@ -17,15 +17,25 @@
 - [x] 9. Tests: Rust unit + integration + JS mirror consistency vs CLI search results
 - [x] 10. Docs: README, docs/index.html + index.md; root landing page + root README entries
 - [x] 11. Iteration/improvement cycle + final polish; Status: complete
+- [ ] 12. Stemming & morphological expansion: Porter stemmer (`src/stem.rs` + `Meridian.stem`), stem-group table, `--stem` flag, expansion in ranked + boolean Term leaves, JS mirror + consistency
+- [ ] 13. Fuzzy & typo-tolerant retrieval: Levenshtein + BK-tree (`src/fuzzy.rs` + JS mirror), `term~`/`term~2` syntax, `Fuzzy` plan/expr variant, did-you-mean suggestions in JSON + UI
+- [ ] 14. CJK ideographic segmentation: Han/Kana/Hangul run detection, unigram + bigram tokens, CJK seed article, re-crawl corpus + rebuild index (`INDEX_VERSION` -> 2)
+- [ ] 15. Ranking signals: title boost (TITLE_BOOST 1.5) + proximity scoring (PROX_WEIGHT 0.5), `--signals on|off`, breakdown rows, JS mirror + consistency
+- [ ] 16. Concurrency & instrumentation: `--threads N` thread pool for crawl/index with deterministic merge, `--time` phase timing, `bench` command
+- [ ] 17. UI evolution & cleanup: stem/fuzzy/signals toggles, did-you-mean line, ms timing, CJK/fuzzy chips, help update; remove unused fns (`unique_terms`, `document_tokens`), wire `posting_repr` into `stats --format json`, document `plan` in usage + README
+- [ ] 18. Re-verification & handoff: cargo test + clippy 0, consistency suite (baseline 2245 + new queries), ui.test, verify-index on v2, README/docs updates, hand off to Reviewer
 
 ## Current step
-Done. Iteration pass verified parser edge cases (NOT-only, dangling AND, empty
-phrases, double negation, non-word symbols, CJK) all fail or behave exactly
-identically in Rust and the JS mirror. All builds green.
+Level 2 enhancement round (retrieval power-up) designed by the Architect while
+PR #67 waits on the shipping-cap reset. Blueprint appended to
+`ideas/2026-08-16-meridian-fulltext-search-engine-rust.md`. Baseline verified
+green before the round: 61 Rust tests, clippy 0 warnings, 2245/2245
+consistency, 18/18 UI. Builder to start at milestone 12.
 
 ## Next steps
-Handoff to the Reviewer. Decision file written: /tmp/random-factory-decision.json
-- action: review.
+Builder resumes on the existing PR branch, works milestones 12-18, then hands
+to the Reviewer. Decision file written: /tmp/random-factory-decision.json
+- action: continue.
 
 ## Agent log
 - 2026-08-16T05:00:00Z (Builder, run 1): orientation done. Rust 1.97.1, node 22,
@@ -70,3 +80,15 @@ Handoff to the Reviewer. Decision file written: /tmp/random-factory-decision.jso
   byte-identical errors. Final state: 61 Rust tests, clippy 0 warnings,
   2245/2245 consistency checks, 18/18 UI checks, `meridian check` passes.
   Status: complete. Handing off to the Reviewer with action=review.
+- 2026-08-16T05:30:00Z (Architect, Level 2 round): PR #67 approved (Reviewer +
+  Tester) but held by the Maintainer at the 2/2 daily shipping cap; Architect
+  triggered on the existing PR for next-level improvements. Verified the
+  baseline green (61 tests, clippy 0, 2245/2245, 18/18). Designed the
+  retrieval power-up: Porter stemming with stem-group expansion, BK-tree fuzzy
+  search (`term~N`) with did-you-mean, CJK unigram+bigram segmentation, title
+  boost + proximity ranking signals (`--signals`), `--threads`/`--time`/`bench`
+  instrumentation, and UI toggles + cleanup. Key decision: all capabilities are
+  load-time derived structures or scorer/parser changes, so the exported index
+  format stays stable except a v1->v2 bump for the re-crawled CJK-aware corpus.
+  Blueprint appended to the ideas entry; milestones 12-18 added; Status back to
+  in-progress. Handing off to the Builder with action=continue.
