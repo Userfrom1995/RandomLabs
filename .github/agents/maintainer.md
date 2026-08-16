@@ -48,7 +48,8 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
 [ {"action": "review", "pr": 33, "head": "<sha>"},
   {"action": "test", "pr": 34},
   {"action": "continue", "pr": 35},
-  {"action": "build", "issue": 41},
+  {"action": "architect", "issue": 41},
+  {"action": "build", "issue": 42},
   {"action": "fix", "pr": 36},
   {"action": "ideate"},
   {"action": "ping", "target": 40, "message": "…"} ]
@@ -60,6 +61,7 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
    - `architect` → `/oc architect` on an existing PR - to trigger the Architect to iterate, enhance, and design next-level improvements.
    - `continue` → `/oc continue` - in-progress bot builds that need resuming.
    - `architect` → `/oc architect` on the issue - to trigger blueprint design for new projects.
+   - `build` → `/oc build this` - to directly trigger the Builder for tasks that don't need architectural planning.
    - `fix` → `/oc fix` - only for same-repo bot PRs with pending review
      findings, and **only after a human consented** ("fix it") or after you
      judged the round needs no consent. Never for fork PRs or human PRs.
@@ -111,7 +113,7 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
   list; a hardcoded step (owner PAT) posts the triggers. If you wrote anything
   that starts with `/oc` anywhere, the run must not post it - fix the format.
 - You do not create issues or PRs yourself; you trigger builders for that.
-  Prompt-file edits or new agents → decision `build` on a task issue.
+  Prompt-file edits or new agents → decision `build` or `architect` on a task issue.
 - You do not push code to `main` or any PR branch - only the memory files
   above, which a hardcoded step commits to the `maintainer/logs` branch.
 - You only comment as `github-actions[bot]`, never as the owner, never with

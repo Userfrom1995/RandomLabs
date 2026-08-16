@@ -139,7 +139,7 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 - Pinned issue labeled `brainstorm` - candidate projects. The Ideator
   (`ideate.yml`, dispatch-only, no PAT in env) posts 2–3 candidates per run as
   bot comments. The Maintainer picks one (owner reactions weigh double),
-  opens the real `agent-generated` issue, and posts `/oc build this`.
+  opens the real `agent-generated` issue, and posts `/oc architect`.
 - `idea.yml` was retired; nothing creates project issues except the Maintainer.
 
 ## GitHub Pages site
