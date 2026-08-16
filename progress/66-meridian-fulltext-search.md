@@ -3,7 +3,7 @@
 - **Issue:** #66
 - **Branch:** opencode/issue66-20260816031421
 - **Status:** in-progress
-- **Updated:** 2026-08-16T05:30:00Z
+- **Updated:** 2026-08-16T08:35:00Z
 
 ## Checklist
 - [x] 1. Scaffolding: Cargo project skeleton (src/js/tests/corpus/docs), progress + ideas entries, branch, PR
@@ -24,16 +24,26 @@
 - [x] 16. Concurrency & instrumentation: `--threads N` thread pool for crawl/index with deterministic merge, `--time` phase timing, `bench` command
 - [x] 17. UI evolution & cleanup: stem/fuzzy/signals toggles, did-you-mean line, ms timing, CJK/fuzzy chips, help update; remove unused fns (`unique_terms`, `document_tokens`), wire `posting_repr` into `stats --format json`, document `plan` in usage + README
 - [x] 18. Re-verification & handoff: cargo test (90) + clippy 0, consistency suite (9296), ui.test (25), verify-index on v2, README/docs updates, hand off to Reviewer
+- [ ] 19. Wildcard & prefix retrieval: `src/wildcard.rs` pattern matching (`*`, `?`), prefix range expansion over sorted vocab, `TermSpec::Wildcard` / `BoolExpr::Wildcard`, ranked + boolean evaluation, JS mirror + consistency
+- [ ] 20. Fielded search: `src/fields.rs` load-time per-field token sets (title/source from exported docs), `title:` / `source:` lexer + boolean leaf + ranked filter, breakdown field tags, JS mirror + consistency
+- [ ] 21. Phrase slop: `"a b"~N` ordered-slop position intersection (N 0..=9, default ~0 = exact), parser + evaluator, JS mirror + consistency
+- [ ] 22. Query term boosting: `term^N`, `"phrase"^N`, `title:x^N`, `term~^N` boost multiplier in scorer + breakdown, validation errors, JS mirror + consistency
+- [ ] 23. Pagination & result metadata: `--offset` / `--limit`, `total_hits` / `pages` in JSON + text, UI pager
+- [ ] 24. Search-as-you-type: `suggest` command (prefix -> vocab ranked by df desc, term asc), UI typeahead dropdown (debounced), JS mirror helper + consistency
+- [ ] 25. Concurrency, stopwords, docs & polish: `--threads` on search (deterministic merge), `--stopwords on|off` (built-in list, ranked-only), two new IR seed articles + deterministic re-crawl + rebuilt v2 index, README/docs/usage updates, full re-verify (cargo test grows, clippy 0, consistency grows, ui.test grows, verify-index v2) + handoff
 
 ## Current step
-Level 2 enhancement round (retrieval power-up) designed by the Architect while
-PR #67 waits on the shipping-cap reset. Blueprint appended to
-`ideas/2026-08-16-meridian-fulltext-search-engine-rust.md`. Baseline verified
-green before the round: 61 Rust tests, clippy 0 warnings, 2245/2245
-consistency, 18/18 UI. Builder to start at milestone 12.
+Level 3 enhancement round (retrieval depth: wildcard, fielded search, phrase
+slop, term boosting, pagination, search-as-you-type, concurrency/stopwords)
+designed by the Architect on PR #67 after the owner manually re-triggered
+`/oc architect` (08:27Z), overriding the Maintainer's no-re-trigger decision.
+Blueprint appended to `ideas/2026-08-16-meridian-fulltext-search-engine-rust.md`.
+Baseline verified green before the round: 90 Rust tests, clippy 0 warnings,
+9296/9296 consistency, 25/25 UI, verify-index on v2. Builder to start at
+milestone 19.
 
 ## Next steps
-Builder resumes on the existing PR branch, works milestones 12-18, then hands
+Builder resumes on the existing PR branch, works milestones 19-25, then hands
 to the Reviewer. Decision file written: /tmp/random-factory-decision.json
 - action: continue.
 
@@ -92,3 +102,17 @@ to the Reviewer. Decision file written: /tmp/random-factory-decision.json
   format stays stable except a v1->v2 bump for the re-crawled CJK-aware corpus.
   Blueprint appended to the ideas entry; milestones 12-18 added; Status back to
   in-progress. Handing off to the Builder with action=continue.
+- 2026-08-16T08:35:00Z (Architect, Level 3 round): owner manually re-triggered
+  `/oc architect` on PR #67 at 08:27Z, overriding the Maintainer's earlier
+  no-re-trigger decision (Level 2 already delivered its improvement round).
+  Re-verified the baseline green (90 tests, clippy 0, 9296/9296, 25/25,
+  verify-index on v2, release build). Designed the retrieval-depth round:
+  wildcard & prefix search (`term*`, `term?`), fielded search (`title:` /
+  `source:`), phrase slop (`"a b"~N`), query term boosting (`term^N`),
+  pagination (`--offset`/`--limit`, `total_hits`/`pages`) + UI pager,
+  search-as-you-type (`suggest` command + UI typeahead), and
+  `--threads`/`--stopwords` on search plus docs/polish. Key decision: every
+  capability is a load-time derived structure or parser/scorer/output change,
+  so the exported index format stays v2 and the 9296 consistency baseline holds
+  and grows. Blueprint appended to the ideas entry; milestones 19-25 added;
+  Status stays in-progress. Handing off to the Builder with action=continue.
