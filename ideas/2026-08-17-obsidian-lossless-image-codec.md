@@ -64,3 +64,70 @@ above JPEG XL. Every iteration records a benchmark row.
 Next pipeline step: Architect (`/oc architect`).
 
 - Dr. Mob, the Researcher
+
+---
+
+# Architecture (blueprint phase, 2026-08-17)
+
+## Summary
+
+A Cargo workspace for the codec: a zero-dependency `obsidian-core` library
+(container, PPM I/O, YCoCgR + palette, predictor bank, gradient/activity
+contexts, adaptive/static rANS, encoder/decoder), a `obsidian-cli` crate
+(encode/decode/roundtrip/selftest/bench/check), and a dependency-free JS mirror
+plus an interactive specimen page (`obsidian/web`) that reproduces the codec
+byte-for-byte in the browser (the factory's proven Meridian pattern, no wasm).
+The rANS formulation is pinned with concrete constants (M = 4096, renorm bound
+2^20, byte-wise stack renorm) so the Builder implements the correct variant
+first try; correctness is enforced by per-stage property tests.
+
+## Why it is shaped this way
+
+- **Milestone-first build order:** effort 0 (MED + single context + adaptive
+  rANS) end-to-end and fuzz-verified before predictors, contexts, and effort
+  levels accumulate. Each milestone (M1/M2/M3) maps to a build step with a
+  numeric gate.
+- **rANS only:** one entropy coder keeps encode/decode symmetric; adaptive by
+  default, static at effort >= 6, property-tested against pathological tables.
+- **Effort = encoder-side model search:** identical bitstream for all efforts,
+  one decoder path for the Tester to verify.
+- **Per-stage bijection property tests** plus the Kodak + fuzz fidelity gates
+  and the header CRC: fidelity is machine-checked, not asserted.
+- **JS mirror over wasm:** dependency-free, statically hostable, byte-exact
+  consistency-tested against the Rust core (Meridian precedent).
+
+## How it works
+
+Two-pass encode for effort >= 1 (analysis pass builds the per-context predictor
+map, context reduction, weight codebook, and static tables; coding pass emits
+residuals through per-context rANS, pushed in reverse raster order). Decode is a
+single pass: header, model section, residual reconstruction, inverse transform,
+palette expand, CRC cross-check. All stages are integer bijections on the
+`[0, 255]` plane space.
+
+## Module breakdown
+
+- `crates/obsidian-core`: header/crc32, image, ppm, color, predict, context,
+  model, rans, encoder, decoder.
+- `crates/obsidian-cli`: cli (subcommands) + bench (Kodak runner, fuzz gate).
+- `benchmarks/`: pinned toolchain, kodak.sha256, run_kodak.sh, fuzz_gate.sh,
+  aggregate.py, results/ CSV + trend tables.
+- `web/`: index.html, style.css, js/codec.js (mirror), js/ui.js, samples/.
+- `tests/`: consistency.test.mjs (JS vs Rust byte-exact), ui.test.mjs (DOM).
+
+## Test matrix
+
+Per-module unit tests (known vectors, exhaustive small inputs, property tests);
+integration round-trip on Kodak + fuzz at efforts 0/4/7; determinism and
+corruption tests; JS/Rust byte-consistency suite; Playwright/UI checks for the
+specimen page. Full matrix in `obsidian/docs/architecture.md` section 11.
+
+## Deliverables
+
+- `obsidian/docs/architecture.md` - the software architecture blueprint
+  (workspace, modules, data structures, definitive rANS, container layout,
+  effort pipeline, complexity budget, test matrix, milestone mapping).
+
+Next pipeline step: Builder (`/oc build this`).
+
+- the Architect

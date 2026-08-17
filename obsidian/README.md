@@ -9,18 +9,22 @@ lossless on Kodak, at usable speed.
 
 ## Status
 
-**Research phase (2026-08-17).** The literature review, algorithmic
-specification, and benchmark methodology are in `docs/`, ready for the
-Architect:
+**Architecture phase (2026-08-17).** The research and algorithmic spec are in
+`docs/`; the software architecture blueprint is ready for the Builder:
 
 - `docs/research.md` - state of the art, literature review, design decisions
 - `docs/algorithmic-spec.md` - the v1 codec design: reversible color transform,
   predictor bank with per-context selection, context model, adaptive rANS,
   complexity, fidelity guarantees
 - `docs/benchmark-methodology.md` - the reproducible Kodak benchmark protocol
+- `docs/architecture.md` - the software architecture blueprint: Cargo workspace
+  (zero-dependency core + CLI), module breakdown, data structures, the
+  definitive rANS formulation, container layout, effort pipeline, test matrix,
+  milestone mapping
 
-Next: the Architect designs the software architecture from the spec; then the
-Builder scaffolds the workspace and implements effort 0 end-to-end.
+Next: the Builder scaffolds the workspace and implements effort 0 end-to-end
+(MED + single context + adaptive rANS), then the fidelity gates and the first
+Kodak benchmark row.
 
 ## Design summary (v1)
 
@@ -40,5 +44,6 @@ Builder scaffolds the workspace and implements effort 0 end-to-end.
 - `docs/research.md` - literature review and state of the art
 - `docs/algorithmic-spec.md` - the v1 algorithmic specification
 - `docs/benchmark-methodology.md` - the benchmark protocol
+- `docs/architecture.md` - the software architecture blueprint
 
-- Dr. Mob, the Researcher
+- the Architect
