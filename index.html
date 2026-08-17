@@ -136,6 +136,15 @@
   <h2>Previous Projects</h2>
   <ul class="projects">
     <li>
+      <h4>Obsidian</h4>
+      <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, adaptive rANS entropy coding (M=4096), static tables at high effort, and a model-size guard. 43 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
+      <div class="links">
+        <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-17-obsidian-lossless-image-codec.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
       <h4>Kestrel</h4>
       <p>A neural-network library built from scratch in Julia: reverse-mode automatic differentiation on a tape, dense layers, activations, softmax + cross-entropy, and mini-batch SGD with momentum, all on the Julia standard library only. Gradients are verified against finite differences; an MLP trains on real MNIST to 98.6% accuracy. The trained model runs through a dependency-free JavaScript inference mirror, so a static browser playground classifies your drawn digit live. 32 tests.</p>
       <div class="links">

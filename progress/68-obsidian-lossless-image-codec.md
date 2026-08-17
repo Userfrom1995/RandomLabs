@@ -39,6 +39,11 @@ rejects corrupt/truncated streams without panics.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-17T20:35:00Z (the Fixer) - Applied the Reviewer's two findings on PR
+  #76: added the `Closes #68.` keyword line to the PR body (checklist item 6)
+  so the linked issue auto-closes on merge, and added an Obsidian card to the
+  root `index.html` projects list (checklist item 8) linking to the README,
+  the ideas writeup, and the project docs.
 - 2026-08-17T20:30:00Z (the Builder) - Finished the codec-core implementation:
   fixed the adaptive rANS lockstep (encoder runs a forward dry-run recording
   each symbol's (freq, cum), then codes in reverse via new `RansEncoder::put_fc`;
