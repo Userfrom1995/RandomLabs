@@ -3,7 +3,7 @@
 - **Issue:** #68
 - **Branch:** opencode/issue68-20260817120528
 - **Status:** in-progress
-- **Updated:** 2026-08-17T20:30:00Z
+- **Updated:** 2026-08-17T21:50:00Z
 
 ## Checklist
 - [x] Research phase: literature review, SOTA survey, algorithmic spec, benchmark methodology
@@ -39,6 +39,20 @@ rejects corrupt/truncated streams without panics.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-17T21:50:00Z (the Fixer) - Fixed the deterministic fuzz-gate CRC
+  mismatch (the Tester's `selftest --fuzz N` failure for N >= 103) on PR #76.
+  Root cause: for width-1 planes the left-column border branch of `neighbors()`
+  (predict.rs) computed TR as `at(1, y - 1)`, which for width == 1 aliases index
+  `(y - 1) * width + 1 == y`, i.e. the CURRENT pixel. The encoder reads the real
+  value there (source plane) while the streaming decoder still holds 0 in that
+  slot, so predictions diverged and the decoder produced different pixels than
+  the encoder (CRC mismatch). Effort 0 only uses MED, which ignores TR, which
+  is why the default fuzz=100 selftest passed while `--fuzz 103` failed on the
+  width-1 RGBA image at effort 1 (Tr/GapLite use TR). Fixed by clamping the TR
+  column to `min(1, width - 1)` so TR falls back to the pixel above (T),
+  matching the spec's border rules; added `width1_left_column_tr_clamps_to_top`
+  regression test. `selftest --fuzz 103` and `--fuzz 500` now pass; 46 lib
+  tests pass (was 45).
 - 2026-08-17T21:05:00Z (the Fixer) - Addressed the Tester's finding on PR #76
   (decoder OOM aborts on a corrupted header width instead of returning a
   graceful error). Added a dimension guard in `decode()` (decoder.rs): the

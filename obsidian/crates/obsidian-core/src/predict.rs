@@ -126,11 +126,17 @@ pub fn neighbors(plane: &[i16], x: usize, y: usize, width: usize, _height: usize
         }
     } else if x == 0 {
         // Left column: no decoded left neighbor; T/TL clamp to the pixel above.
+        // TR clamps to the nearest valid pixel too: for a width-1 plane there is
+        // no column 1, so TR falls back to the pixel directly above (T). Reading
+        // `at(1, y - 1)` unbounded would alias index `(y - 1) * width + 1 == y`,
+        // i.e. the CURRENT pixel, which the decoder cannot know yet and would
+        // break encoder/decoder lockstep.
+        let trx = 1.min(width - 1);
         Neighbors {
             l: 0,
             t: at(0, y - 1),
             tl: at(0, y - 1),
-            tr: at(1, y - 1),
+            tr: at(trx, y - 1),
         }
     } else {
         let ly = y - 1;
@@ -289,6 +295,23 @@ mod tests {
         let n = neighbors(&p, 4, 1, w, 2);
         assert_eq!(n.tr, p[4] as i32);
         assert_eq!(n.t, p[4] as i32);
+    }
+
+    #[test]
+    fn width1_left_column_tr_clamps_to_top() {
+        // A width-1 plane has no column 1, so the left-column TR must clamp to
+        // the pixel above (T), never read the current pixel at index `y`
+        // (`(y - 1) * width + 1 == y`). The encoder reads the source plane where
+        // that slot holds the current pixel's own value, while the streaming
+        // decoder still has 0 there - reading it would break lockstep.
+        let p = vec![5i16, 9, 13, 17];
+        for y in 1..4usize {
+            let n = neighbors(&p, 0, y, 1, 4);
+            assert_eq!(n.l, 0);
+            assert_eq!(n.t, p[y - 1] as i32);
+            assert_eq!(n.tl, p[y - 1] as i32);
+            assert_eq!(n.tr, p[y - 1] as i32, "TR clamps to T for width 1");
+        }
     }
 
     #[test]
