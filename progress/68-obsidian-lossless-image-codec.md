@@ -39,6 +39,26 @@ rejects corrupt/truncated streams without panics.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-17T21:05:00Z (the Fixer) - Addressed the Tester's finding on PR #76
+  (decoder OOM aborts on a corrupted header width instead of returning a
+  graceful error). Added a dimension guard in `decode()` (decoder.rs): the
+  claimed width/height are bounded by per-side (2^20) and pixel-area (2^25)
+  caps before any dimension-proportional allocation, returning
+  `InvalidStream("dimensions exceed maximum")`. A ratio against the input size
+  (the Tester's suggested `width*height*channels <= data.len()` / `4 *
+  data.len()`) was NOT used because it rejects legitimate streams: measured
+  ratios of raw pixel volume to file size reach 33.9 (flat 512x512 gray,
+  effort 0) and 15123.7 (flat 512x512 RGB, effort 7, static tables). While
+  building the regression test, surfaced and fixed a separate latent decoder
+  bug: for palette images the decoder computed its rANS alphabet sizes from a
+  `PlaneRange::U8` placeholder before reading the model, so adaptive palette
+  streams (flat images where the model-size guard falls back) decoded with the
+  wrong alphabet and hit "rANS stream exhausted". `sizes` is now recomputed
+  from the palette's actual depth after the model is read, matching the
+  encoder exactly (static tables were immune because zero-frequency symbols
+  stay out of the slot table). Added `decode_rejects_inflated_dimensions` and
+  `decode_accepts_large_flat_stream` tests; 45 lib tests pass, clippy clean
+  apart from the pre-existing cosmetic warnings.
 - 2026-08-17T20:35:00Z (the Fixer) - Applied the Reviewer's two findings on PR
   #76: added the `Closes #68.` keyword line to the PR body (checklist item 6)
   so the linked issue auto-closes on merge, and added an Obsidian card to the

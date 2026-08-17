@@ -16,6 +16,13 @@ use crate::predict::{neighbors, predict_clamped};
 use crate::rans::{RansDecoder, RansTable};
 use std::io::Read;
 
+/// Maximum supported dimension per side. Far above any practical image
+/// (Kodak is 768x512) while keeping single-dimension corruption bounded.
+const MAX_DIM: u32 = 1 << 20;
+/// Maximum supported pixel area, bounding the worst-case allocation even when
+/// both dimensions are at the per-side cap.
+const MAX_AREA: u64 = 1 << 25;
+
 /// Decode a container into an image, verifying the header CRC.
 pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
     let mut cur = std::io::Cursor::new(bytes);
@@ -27,6 +34,23 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
         TransformChoice::None
     };
     let palette_flag = header.palette_flag();
+
+    // Bound the claimed dimensions before any dimension-proportional
+    // allocation. A valid stream's pixel volume can far exceed the file size
+    // (static tables compress flat regions to a few bytes per thousand
+    // pixels), so a ratio against `bytes.len()` would reject legitimate
+    // streams. Instead an absolute cap on each side and on the pixel area
+    // keeps a corrupt width/height from triggering an OOM-sized allocation.
+    let width = header.width as usize;
+    let height = header.height as usize;
+    if width > MAX_DIM as usize || height > MAX_DIM as usize {
+        return Err(CodecError::InvalidStream("dimensions exceed maximum".into()));
+    }
+    let area = (width as u64) * (height as u64);
+    if area > MAX_AREA {
+        return Err(CodecError::InvalidStream("dimensions exceed maximum".into()));
+    }
+    let area = area as usize;
 
     let mut model_len = [0u8; 4];
     cur.read_exact(&mut model_len)?;
@@ -58,11 +82,16 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
         return Err(CodecError::InvalidStream("model length mismatch".into()));
     }
 
-    // The palette colors come from the model; fix the index plane range.
+    // The palette colors come from the model; fix the index plane range and
+    // recompute the alphabet sizes. The pre-model placeholder (`PlaneRange::U8`)
+    // only fixed the plane COUNT; the encoder sizes its rANS tables from the
+    // actual palette depth (`PlaneRange::index`), and adaptive tables require
+    // matching alphabet sizes, so the sizes must track the corrected range.
     let ranges = match &model.palette {
         Some(pal) if pal.colors.len() >= 1 => vec![PlaneRange::index(pal.colors.len() as u32 - 1)],
         _ => ranges,
     };
+    let sizes = alphabet_sizes(&ranges);
     let eff_channels = if model.palette.is_some() { Channels::Gray } else { eff_channels };
     let _ = eff_channels;
 
@@ -91,10 +120,6 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
     // Build per-plane tables.
     let context = model.context;
     let cm = ContextModel::new(context);
-
-    let width = header.width as usize;
-    let height = header.height as usize;
-    let area = width * height;
 
     // Decode planes.
     let mut decoded: Vec<Vec<i16>> = Vec::with_capacity(plane_count);
@@ -222,6 +247,50 @@ mod tests {
         let mut junk = vec![0x4F, 0x42, 0x53, 0x44, 0x01];
         junk.extend_from_slice(&[0; 30]);
         assert!(decode(&junk).is_err());
+    }
+
+    #[test]
+    fn decode_rejects_inflated_dimensions() {
+        let mut img = Image::new(4, 4, Channels::Rgb).unwrap();
+        for c in 0..3 {
+            for i in 0..img.area() {
+                img.planes[c][i] = (i * 13) as u8;
+            }
+        }
+        let (bytes, _) = encode(&img, 0).unwrap();
+        // Flip the upper two bytes of the width field (offsets 10-11): the
+        // claimed dimensions now exceed the caps, which must be rejected
+        // before any allocation is attempted (the OOM abort seen pre-fix).
+        for off in [10usize, 11] {
+            let mut corrupt = bytes.clone();
+            corrupt[off] ^= 0xFF;
+            let err = decode(&corrupt).unwrap_err();
+            assert!(
+                err.to_string().contains("dimensions exceed maximum"),
+                "got: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn decode_accepts_large_flat_stream() {
+        // A flat image compresses to far fewer bytes than its raw pixel
+        // volume, so the dimension guard must not be a ratio against the
+        // input size (that would reject legitimate streams).
+        let mut img = Image::new(512, 512, Channels::Rgb).unwrap();
+        for c in 0..3 {
+            for i in 0..img.area() {
+                img.planes[c][i] = 128;
+            }
+        }
+        for e in [0u8, 7] {
+            let (bytes, _) = encode(&img, e).unwrap();
+            assert!(
+                bytes.len() < img.raw_bytes().len() / 20,
+                "flat image should compress hard at effort {e}"
+            );
+            assert_eq!(decode(&bytes).unwrap(), img);
+        }
     }
 
     #[test]
