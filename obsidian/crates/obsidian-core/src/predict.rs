@@ -108,25 +108,37 @@ pub fn default_weight_codebook() -> Vec<WeightVec> {
 
 /// Compute the causal neighborhood for pixel `(x, y)` in a `width x height`
 /// plane, applying the border rules from the spec (out-of-bounds neighbors
-/// clamp to the nearest valid pixel; the top row uses `T = TL = TR = I[x][0]`).
+/// clamp to the nearest valid pixel). The top row and left column use the
+/// spec's "else 0" fallback: a streaming decoder cannot know the current
+/// pixel's value before decoding it, so `T = TL = TR = 0` on the top row and
+/// `L = 0` on the left column, and the encoder uses the same values to stay
+/// in lockstep.
 pub fn neighbors(plane: &[i16], x: usize, y: usize, width: usize, _height: usize) -> Neighbors {
     let at = |xx: usize, yy: usize| plane[yy * width + xx] as i32;
-    let lx = x.saturating_sub(1);
-    let rx = (x + 1).min(width - 1);
     if y == 0 {
-        let self_v = plane[x] as i32;
+        // Top row: nothing decoded above. The left neighbor is known for x > 0.
+        let l = if x == 0 { 0 } else { at(x - 1, 0) };
         Neighbors {
-            l: at(lx, 0),
-            t: self_v,
-            tl: self_v,
-            tr: self_v,
+            l,
+            t: 0,
+            tl: 0,
+            tr: 0,
+        }
+    } else if x == 0 {
+        // Left column: no decoded left neighbor; T/TL clamp to the pixel above.
+        Neighbors {
+            l: 0,
+            t: at(0, y - 1),
+            tl: at(0, y - 1),
+            tr: at(1, y - 1),
         }
     } else {
         let ly = y - 1;
+        let rx = (x + 1).min(width - 1);
         Neighbors {
-            l: at(lx, y),
+            l: at(x - 1, y),
             t: at(x, ly),
-            tl: at(lx, ly),
+            tl: at(x - 1, ly),
             tr: at(rx, ly),
         }
     }
@@ -252,24 +264,24 @@ mod tests {
 
     #[test]
     fn border_rules() {
-        // 1x1 image.
+        // 1x1 image: the current pixel is not yet decodable, so all causal
+        // neighbors are 0.
         let p = vec![42i16];
         let n = neighbors(&p, 0, 0, 1, 1);
-        assert_eq!((n.l, n.t, n.tl, n.tr), (42, 42, 42, 42));
+        assert_eq!((n.l, n.t, n.tl, n.tr), (0, 0, 0, 0));
 
-        // Top row, x=3 of width 5.
+        // Top row, x=3 of width 5: left neighbor known, nothing above.
         let w = 5;
         let p: Vec<i16> = (0..w * 2).map(|i| i as i16).collect();
         let n = neighbors(&p, 3, 0, w, 2);
-        assert_eq!(n.t, p[3] as i32);
-        assert_eq!(n.tl, p[3] as i32);
-        assert_eq!(n.tr, p[3] as i32);
+        assert_eq!(n.t, 0);
+        assert_eq!(n.tl, 0);
+        assert_eq!(n.tr, 0);
         assert_eq!(n.l, p[2] as i32);
 
-        // Left column, y=1: L clamps to itself at the same row (I[0][1]),
-        // T/TL come from the row above.
+        // Left column, y=1: no left neighbor; T/TL come from the row above.
         let n = neighbors(&p, 0, 1, w, 2);
-        assert_eq!(n.l, p[5] as i32);
+        assert_eq!(n.l, 0);
         assert_eq!(n.tl, p[0] as i32);
         assert_eq!(n.t, p[0] as i32);
 
