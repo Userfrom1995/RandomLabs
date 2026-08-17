@@ -30,6 +30,7 @@ jobs:
     name: Factory Engineer
     if: (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc factory')) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -49,7 +50,7 @@ jobs:
       - name: Run opencode factory engineer agent
         id: opencode
         continue-on-error: true
-        timeout-minutes: 35
+        timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

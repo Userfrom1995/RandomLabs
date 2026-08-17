@@ -41,7 +41,7 @@ jobs:
        !startsWith(github.event.comment.body, '/opencode')) ||
       startsWith(github.event.comment.body, '/oc maintainer')
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -100,9 +100,9 @@ jobs:
         run: echo "sha=$(git ls-remote origin main | awk '{print $1}')" >> $GITHUB_OUTPUT
 
       - name: Run Maintainer agent
-        id: maintainer
+        id: maintainer_run
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -285,6 +285,10 @@ jobs:
                   decisions = json.load(open(".maintainer/decision.json"))
               except Exception as e:
                   print(f"decision.json unparseable: {e}")
+          if not decisions:
+              print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
+                    "Check the 'Run Maintainer agent' step log: a step timeout or a model/billing error "
+                    "may have killed the agent before it wrote its output files. No /oc triggers were posted.")
 
           posted = set()
           for d in decisions:

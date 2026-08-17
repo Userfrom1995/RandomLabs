@@ -67,12 +67,17 @@ Triggered when Mae orders a model switch or upgrade (e.g. `/oc factory model-swi
 1. **Model Matrix Survey**:
    - Query available models via `curl -s https://opencode.ai/zen/v1/models`.
    - Select the highest-tier, active free model (ending in `-free`, e.g. `mimo-v2.5-free`, `nemotron-3-ultra-free`, `nemotron-3.5-lightning-free`, `hy3-free`, `laguna-s-2.1-free`).
-2. **Apply Workflow Updates on Disk**:
-   - Update `model:` configurations in `.github/workflows/*.yml` directly on disk on `main`.
+2. **Two-Knob Model Updates (critical)**: Models are configured in TWO places and BOTH must be updated together:
+   - `model:` inputs in `.github/workflows/*.yml` (main agent models; the action passes them via the MODEL env var).
+   - `model` and `small_model` in `opencode.json` (repo config). The action has NO `small_model` input, so the small/title runs (title generation for shared sessions, small subagent calls) read `small_model` from `opencode.json` only. If it is missing or points at a paid model, every run crashes with `CreditsError: No payment method` (workspace billing URL in the error) even when the main model is free - this is what bricked the Obsidian build (title model resolved to paid `gpt-5.4-nano`).
+   - Always pin both `model` and `small_model` to free models, e.g. `opencode/deepseek-v4-flash-free` and `opencode/mimo-v2.5-free`.
+3. **Apply Workflow Updates on Disk**:
+   - Update `model:` configurations in `.github/workflows/*.yml` and `model`/`small_model` in `opencode.json` directly on disk on `main`.
    - Leave the files modified. Do NOT execute `git push` directly from the prompt.
-3. **Automated Runner PAT Push**:
+4. **Automated Runner PAT Push**:
    - The dedicated workflow runner step will stage, commit as `github-actions[bot]`, and push the model updates directly to `main`.
-4. **Handoff**:
+   - Known credential trap: the runner's PAT push step removes actions/checkout's injected `includeIf.gitdir:*.path` credential entries before pushing (checkout v6 stores the App-token extraheader in a temp credentials file; without removing the includeIf entries the App-token header overrides the URL-embedded PAT and workflow-file pushes fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission"). If you ever need to push workflow changes yourself, replicate that cleanup: `git config --local --unset-all 'http.https://github.com/.extraheader'` followed by removing every `includeIf.gitdir:*.path` entry from the local config.
+5. **Handoff**:
    - Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json` so Mae can immediately retrigger blocked builds.
 
 ---

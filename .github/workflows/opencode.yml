@@ -22,7 +22,7 @@ jobs:
       startsWith(github.event.comment.body, '/oc research') ||
       startsWith(github.event.comment.body, '/opencode research')
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 75
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -41,7 +41,7 @@ jobs:
       - name: Run opencode researcher agent
         id: opencode
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -109,7 +109,7 @@ jobs:
       startsWith(github.event.comment.body, '/opencode architect') ||
       startsWith(github.event.comment.body, '/opencode plan')
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 75
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -128,7 +128,7 @@ jobs:
       - name: Run opencode architect agent
         id: opencode
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -674,7 +674,7 @@ jobs:
        contains(github.event.comment.body, ' /opencode') ||
        startsWith(github.event.comment.body, '/opencode'))
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 75
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -690,7 +690,7 @@ jobs:
       - name: Run opencode general agent
         id: opencode
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
