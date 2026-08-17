@@ -39,8 +39,19 @@
 //! slot table for O(1) lookup. Adaptive tables keep `sum == M` at all times:
 //! every symbol starts uniform; coding a symbol increments it and steals one
 //! unit from a deterministic "rich" symbol (freq >= 2, tracked in a stack) so
-//! the total never moves. Encoder and decoder apply the identical update rule
-//! and stay in lockstep. No active symbol ever drops below frequency 1.
+//! the total never moves. Encoder and decoder apply the identical update rule.
+//!
+//! Adaptive lockstep: the codec encodes symbols in reverse raster order (so the
+//! byte-reversed stack decodes in forward order), but adaptive tables must
+//! evolve in decode order. A table state can only be updated live in the order
+//! the symbols are seen, so the encoder runs a forward dry-run pass that
+//! evolves its tables exactly as the decoder will, recording each symbol's
+//! `(freq, cum)` BEFORE the update; the reverse coding pass then replays those
+//! pairs via `put_fc` with no further adaptation. The decoder is unchanged: it
+//! decodes forward, evolving its tables on the fly. The recorded pairs match
+//! the decoder's per-symbol `(freq, cum)` because both sides start from the
+//! same uniform tables and apply the same deterministic rule over the same
+//! forward symbol prefix. No active symbol ever drops below frequency 1.
 
 use crate::error::CodecError;
 
@@ -340,6 +351,19 @@ impl RansEncoder {
     pub fn put(&mut self, s: usize, table: &mut RansTable) {
         let (f, c) = table.lookup(s);
         debug_assert!(f >= 1, "coding a zero-frequency symbol");
+        self.put_fc(s, f, c);
+        if !table.is_static {
+            table.adapt(s);
+        }
+    }
+
+    /// Encode symbol `s` against explicit `(freq, cum)` values with NO table
+    /// adaptation. The adaptive path uses this after a forward dry-run pass has
+    /// recorded the exact pair each symbol will see at decode time (see the
+    /// module docs on adaptive lockstep).
+    pub fn put_fc(&mut self, s: usize, f: u32, c: u32) {
+        debug_assert!(f >= 1, "coding a zero-frequency symbol");
+        let _ = s;
         // Renorm bound: f * (RNB >> TBITS) * 256 / M == f * 2^16, exact because
         // the table total is the constant M.
         let x_max = ((RNB as u64 >> TBITS) << 8) * f as u64; // f * 2^16
@@ -352,9 +376,6 @@ impl RansEncoder {
         x = (x / f as u64) * M + (x % f as u64) + c as u64;
         debug_assert!((RNB as u64..INVARIANT_HIGH as u64).contains(&x));
         self.state = x as u32;
-        if !table.is_static {
-            table.adapt(s);
-        }
     }
 
     /// Finalize the stream: reverse the emitted bytes and append the trailing
@@ -410,15 +431,23 @@ impl<'a> RansDecoder<'a> {
             self.state = (self.state << 8) | self.input[self.pos] as u32;
             self.pos += 1;
         }
-        debug_assert!((RNB..INVARIANT_HIGH).contains(&self.state));
+        if self.state >= INVARIANT_HIGH {
+            // A corrupt trailing state or byte sequence can push the state out
+            // of the invariant window; fail cleanly instead of panicking.
+            return Err(CodecError::InvalidStream("rANS state out of range".into()));
+        }
         let t = self.state % M as u32;
         let s = table.find(t);
         let (f, c) = table.lookup(s);
         // D(x): x'' = f * (x / M) + (t - c); recovers the encoder's pre-step
         // renormed-down state (always below 256*RNB; below RNB iff the encoder
-        // emitted bytes for this symbol).
+        // emitted bytes for this symbol). On a corrupt stream the found symbol
+        // may not actually cover `t`, so `t < c` (or an out-of-window result)
+        // signals corruption and is reported as an error, never a panic.
         let x = (f as u64) * ((self.state as u64) / M) + ((t as u64) - c as u64);
-        debug_assert!(x < INVARIANT_HIGH as u64);
+        if t < c || x >= INVARIANT_HIGH as u64 {
+            return Err(CodecError::InvalidStream("rANS decode out of range".into()));
+        }
         self.state = x as u32;
         if !table.is_static {
             table.adapt(s);
@@ -463,10 +492,11 @@ mod tests {
 
     #[test]
     fn adaptive_roundtrip_lockstep() {
-        // Uniform start; both sides must stay in lockstep.
+        // Uniform start; both sides must stay in lockstep. The encoder runs a
+        // forward dry-run evolving its tables exactly as the decoder will,
+        // recording each symbol's (freq, cum), then codes in reverse via put_fc.
         let size = 512;
-        let mut table_e = RansTable::new_adaptive(size);
-        let mut table_d = RansTable::new_adaptive(size);
+        let n = 200_000;
         // Deterministic pseudo-random symbol stream with a peak at 0.
         let mut seed = 0xDEADBEEFu64;
         let mut rnd = move || {
@@ -475,7 +505,6 @@ mod tests {
             seed ^= seed << 17;
             seed
         };
-        let n = 200_000;
         let symbols: Vec<usize> = (0..n)
             .map(|_| {
                 let r = (rnd() % 1000) as usize;
@@ -488,16 +517,8 @@ mod tests {
                 }
             })
             .collect();
-        let mut enc = RansEncoder::new();
-        for &s in symbols.iter().rev() {
-            enc.put(s, &mut table_e);
-        }
-        let bytes = enc.finish();
-        let mut dec = RansDecoder::new(&bytes).unwrap();
-        let mut got = Vec::with_capacity(n);
-        for _ in 0..n {
-            got.push(dec.get(&mut table_d).unwrap());
-        }
+        let (bytes, table_e) = adaptive_encode(&symbols, size);
+        let (got, table_d) = adaptive_decode(&bytes, size, n);
         assert_eq!(got, symbols);
         // Tables evolved identically (fixed total preserved).
         assert_eq!(table_e.freq, table_d.freq);
@@ -507,36 +528,52 @@ mod tests {
 
     #[test]
     fn adaptive_single_symbol() {
-        let mut table = RansTable::new_adaptive(64);
-        let mut enc = RansEncoder::new();
-        for _ in 0..10_000 {
-            enc.put(7, &mut table);
-        }
-        let bytes = enc.finish();
-        let mut dec = RansDecoder::new(&bytes).unwrap();
-        let mut table2 = RansTable::new_adaptive(64);
-        for _ in 0..10_000 {
-            assert_eq!(dec.get(&mut table2).unwrap(), 7);
-        }
+        let syms = vec![7usize; 10_000];
+        let (bytes, _) = adaptive_encode(&syms, 64);
+        let (got, _) = adaptive_decode(&bytes, 64, syms.len());
+        assert_eq!(got, syms);
     }
 
     #[test]
     fn renorm_pressure() {
         // A tiny alphabet forces frequent renorms.
         for size in [4usize, 8, 32] {
-            let mut table_e = RansTable::new_adaptive(size);
-            let mut table_d = RansTable::new_adaptive(size);
-            let mut enc = RansEncoder::new();
             let syms: Vec<usize> = (0..50_000).map(|i| (i * 7) % size).collect();
-            for &s in syms.iter().rev() {
-                enc.put(s, &mut table_e);
-            }
-            let bytes = enc.finish();
-            let mut dec = RansDecoder::new(&bytes).unwrap();
-            for s in syms {
-                assert_eq!(dec.get(&mut table_d).unwrap(), s);
-            }
+            let (bytes, _) = adaptive_encode(&syms, size);
+            let (got, _) = adaptive_decode(&bytes, size, syms.len());
+            assert_eq!(got, syms);
         }
+    }
+
+    /// Forward dry-run encode: evolve the table exactly as the decoder will,
+    /// recording each symbol's (freq, cum) before the update, then code the
+    /// reversed symbol stream with `put_fc`. Returns the bitstream and the
+    /// final table.
+    fn adaptive_encode(symbols: &[usize], size: usize) -> (Vec<u8>, RansTable) {
+        let mut table = RansTable::new_adaptive(size);
+        let mut plan: Vec<(u32, u32)> = Vec::with_capacity(symbols.len());
+        for &s in symbols {
+            let (f, c) = table.lookup(s);
+            plan.push((f, c));
+            table.adapt(s);
+        }
+        let mut enc = RansEncoder::new();
+        for (&s, &(f, c)) in symbols.iter().zip(plan.iter()).rev() {
+            enc.put_fc(s, f, c);
+        }
+        (enc.finish(), table)
+    }
+
+    /// Decode a stream produced by `adaptive_encode` in forward order, evolving
+    /// the table on the fly. Returns the recovered symbols and the final table.
+    fn adaptive_decode(bytes: &[u8], size: usize, n: usize) -> (Vec<usize>, RansTable) {
+        let mut dec = RansDecoder::new(bytes).unwrap();
+        let mut table = RansTable::new_adaptive(size);
+        let mut got = Vec::with_capacity(n);
+        for _ in 0..n {
+            got.push(dec.get(&mut table).unwrap());
+        }
+        (got, table)
     }
 
     #[test]
