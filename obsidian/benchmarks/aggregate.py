@@ -27,6 +27,9 @@ def parse_args(argv):
     while i < len(argv):
         if argv[i] == "--compare":
             i += 1
+            if i >= len(argv):
+                print("usage: aggregate.py <results.csv> [--compare CODEC]", file=sys.stderr)
+                sys.exit(2)
             compare = argv[i]
         else:
             path = argv[i]
