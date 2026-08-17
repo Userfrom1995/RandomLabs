@@ -1,0 +1,9 @@
+[package]
+name = "obsidian_cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Obsidian lossless image codec command-line tool"
+
+[dependencies]
+obsidian_core = { path = "../obsidian-core" }
