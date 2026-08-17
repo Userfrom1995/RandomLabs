@@ -118,7 +118,7 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
             for x in 0..width {
                 let idx = y * width + x;
                 let nb = neighbors(&plane, x, y, width, height);
-                let cid = cm.context_id(&nb, x, y);
+                let cid = cm.context_id(&nb, x, y) % model.context_count;
                 let p = model.predictor(pi, cid);
                 let pred = predict_clamped(p, &nb, wv.as_ref(), ranges[pi]);
                 let sym = if use_static {

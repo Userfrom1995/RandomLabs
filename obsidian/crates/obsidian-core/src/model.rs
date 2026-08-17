@@ -231,13 +231,15 @@ pub fn analyze(
     model
 }
 
-/// A default model (effort 0): MED everywhere, no analysis.
+/// A default model (effort 0): MED everywhere over a single global context per
+/// plane (architecture section 9: "fixed MED for all contexts"), so all adaptive
+/// symbols concentrate in one table and the model section stays tiny.
 pub fn default_model(
     planes: &[Vec<i16>],
     context: &ContextParams,
     weight_codebook: &[WeightVec],
 ) -> ModelConfig {
-    let context_count = context.context_count();
+    let context_count = 1;
     let planes: Vec<PlaneModel> = planes
         .iter()
         .map(|_| PlaneModel {
