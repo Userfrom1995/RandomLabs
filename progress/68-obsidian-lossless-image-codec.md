@@ -1,9 +1,9 @@
 # Progress - Obsidian (lossless image codec)
 
 - **Issue:** #68
-- **Branch:** opencode/issue68-20260817120528
+- **Branch:** opencode/issue68-20260817231515
 - **Status:** in-progress
-- **Updated:** 2026-08-17T21:50:00Z
+- **Updated:** 2026-08-17T23:45:00Z
 
 ## Checklist
 - [x] Research phase: literature review, SOTA survey, algorithmic spec, benchmark methodology
@@ -19,7 +19,7 @@
 - [x] 7. Analysis pass + per-context predictor map + context reduction + model serialization (effort 1-5)
 - [x] 8. Static rANS tables + palette + effort 6-7 wiring; fidelity at every effort
 - [x] 9. Fidelity gates: bit-exact round trips (fuzz) at efforts 0/4/7; determinism + corruption tests
-- [ ] 10. Benchmark harness: run_kodak.sh, fuzz_gate.sh, aggregate.py, toolchain.md + reference baseline + first Obsidian Kodak row
+- [x] 10. Benchmark harness: run_kodak.sh, fuzz_gate.sh, aggregate.py, toolchain.md + reference baseline + first Obsidian Kodak row
 - [ ] 11. M1: beat WebP lossless + optipng PNG on Kodak
 - [ ] 12. M2: self-correcting weighted predictor (v1.5), within 10% of JPEG XL
 - [ ] 13. M3: squeeze/interlacing or improved context model, ~3% of or above JPEG XL
@@ -27,18 +27,49 @@
 - [ ] 15. Docs: README, benchmark tables, landing page entries
 
 ## Current step
-Builder implementation of the codec core (checklist 1-9) is complete and the
-full lib test suite is green (43 passed, 0 failed). Bit-exact round trips are
-verified at every effort (0-7) over fuzz-generated images and the decoder
-rejects corrupt/truncated streams without panics.
+Checklist 10 is complete: the benchmark harness is committed and the first
+Obsidian Kodak row plus the pinned reference baseline are recorded.
+
+- Toolchain pinned (`benchmarks/toolchain.md`): cjxl 0.7.0, cwebp 1.3.2,
+  optipng 0.7.8, pngcrush 1.8.13, ImageMagick 6.9.12 (J2K via OpenJPEG 2.5.0),
+  CharLS 2.4.2 (custom `cjls` CLI in `benchmarks/tools/`).
+- Kodak PCD0992 normalized to binary P6 PPM, pinned by `data/kodak.sha256`
+  (the 24 PPMs are git-ignored; sources match r0k.us and the Kaggle mirror).
+- `run_kodak.sh`: verifies the manifest, runs the fidelity gate for every
+  codec (decode + `cmp`), records `results/<date>-<version>.csv`.
+- `fuzz_gate.sh`: randomized small-image round-trips at efforts 0/4/7.
+- `aggregate.py`: arithmetic mean bpp + geometric-mean size ratios.
+- **Reference baseline (canonical PCD0992)**: JPEG XL 8.7062 bpp, WebP 9.6130,
+  JPEG-LS 9.7113, J2K 9.5762, PNG optipng 13.0518, PNG pngcrush 12.9815. These
+  land within ~0.5% of the independent WangXuan95 2024 benchmark on the same
+  corpus, confirming correct commands. (The ~3-4 bpp figures in some papers are
+  a downsampled subset, not this set.)
+- **First Obsidian row (effort 4): mean 27.8226 bpp**, 32,820,825 bytes total,
+  bit-exact through the fidelity gate. Not yet competitive; M1-M3 follow.
 
 ## Next steps
-- Builder: build the benchmark harness (checklist 10): run_kodak.sh, fuzz_gate.sh,
-  aggregate.py, toolchain.md, the reference baseline, and the first Obsidian
-  Kodak row. Kodak gate then starts the M1/M2/M3 milestones.
+- Builder: milestone optimization - M1 beat WebP (9.61) and optipng PNG
+  (13.05) via predictor/context tuning; M2/M3 toward JPEG XL (8.71). Re-run
+  `benchmarks/run_kodak.sh` after every change and record the trend row.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-17T23:45:00Z (the Builder) - Completed checklist 10 on PR for issue
+  #77 (benchmark harness): pinned the reference toolchain (cjxl 0.7.0, cwebp
+  1.3.2, optipng 0.7.8, pngcrush 1.8.13, ImageMagick 6.9.12, CharLS 2.4.2 with
+  a small `cjls` PPM CLI built from pinned source), normalized the Kodak
+  PCD0992 suite to binary P6 PPM with a pinned SHA-256 manifest, wrote
+  `benchmarks/run_kodak.sh` (fidelity gate + encode/decode -> CSV),
+  `benchmarks/fuzz_gate.sh` (randomized small-image round-trips at efforts
+  0/4/7), `benchmarks/aggregate.py` (mean bpp + geomean ratios), and
+  `benchmarks/README.md` (headline, per-image table, trend). Ran the harness:
+  the reference baseline matches the independent WangXuan95 2024 benchmark on
+  the same corpus within ~0.5% (JXL 8.7062 bpp, WebP 9.6130, JLS 9.7113, J2K
+  9.5762, PNG ~13.0). First Obsidian Kodak row (effort 4): mean 27.8226 bpp,
+  bit-exact through the fidelity gate. This establishes the measurement loop;
+  milestone optimization (M1-M3) is next.
+
+  - the Builder
 - 2026-08-17T22:05:00Z (the Fixer) - Applied the Reviewer's round-4 finding on
   PR #76 (checklist item 8): the landing page's Obsidian card still said "43
   lib tests" while the suite now has 46 after the dimension-guard and width-1

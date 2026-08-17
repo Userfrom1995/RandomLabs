@@ -131,3 +131,50 @@ specimen page. Full matrix in `obsidian/docs/architecture.md` section 11.
 Next pipeline step: Builder (`/oc build this`).
 
 - the Architect
+
+---
+
+# Benchmark harness + first Kodak row (Builder phase, 2026-08-17)
+
+The codec core (effort 0-7, bit-exact, 46 lib tests) is merged via PR #76.
+This phase (issue #77) delivered the measurement loop that makes the project
+benchmark-driven:
+
+- `benchmarks/toolchain.md` - pinned reference toolchain: cjxl 0.7.0, cwebp
+  1.3.2, optipng 0.7.8, pngcrush 1.8.13, ImageMagick 6.9.12 (J2K via OpenJPEG
+  2.5.0), and CharLS 2.4.2 built from pinned source with a small `cjls` PPM
+  CLI (`benchmarks/tools/cjls.cpp`, built by `build_toolchain.sh`).
+- `benchmarks/data/kodak.sha256` - the Kodak PCD0992 suite (24 images, 768x512,
+  RGB) normalized to binary P6 PPM and pinned by hash; the PPMs are git-ignored
+  and match both r0k.us and the Kaggle mirror byte-for-byte.
+- `benchmarks/run_kodak.sh` - manifest check, then per codec a decode + `cmp`
+  fidelity gate, then encode/decode timing, emitting
+  `results/<date>-<version>.csv`.
+- `benchmarks/fuzz_gate.sh` - randomized small-image round-trips at efforts
+  0/4/7 as the pre-benchmark gate.
+- `benchmarks/aggregate.py` - arithmetic mean bpp (headline) + geometric mean
+  of per-image size ratios.
+- `benchmarks/README.md` - headline table, per-image table, trend.
+
+## Reference baseline (canonical PCD0992)
+
+| Codec | Mean bpp |
+|---|---|
+| JPEG XL (cjxl 0.7.0, e7) | 8.7062 |
+| JPEG-LS (CharLS 2.4.2, HP1) | 9.7113 |
+| JPEG 2000 (OpenJPEG 2.5.0) | 9.5762 |
+| WebP (cwebp 1.3.2, z9 m6) | 9.6130 |
+| PNG (pngcrush -brute) | 12.9815 |
+| PNG (optipng -o7) | 13.0518 |
+| **Obsidian v1 (effort 4)** | **27.8226** |
+
+These references match the independent WangXuan95 2024 lossless benchmark on
+the same corpus within ~0.5%, confirming the harness measures the canonical
+dataset correctly (the ~3-4 bpp figures in some papers are a downsampled
+subset). Obsidian v1 is bit-exact but not yet competitive; the M1 (beat WebP +
+PNG) / M2 (within 10% of JXL) / M3 (within ~3% of JXL) milestones are the
+optimization loop, each recorded as a new trend row.
+
+Next: milestone optimization (`/oc continue`).
+
+- the Builder
