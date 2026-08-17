@@ -300,6 +300,18 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
+      - name: Capture build baseline
+        id: baseline
+        run: |
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            head_before=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+          else
+            head_before=$(git rev-parse HEAD 2>/dev/null || echo "")
+          fi
+          echo "head_before=$head_before" >> "$GITHUB_OUTPUT"
+          echo "Build baseline head: $head_before (branch: $branch)"
+
       - name: Run opencode build agent
         id: opencode
         continue-on-error: true
@@ -319,7 +331,7 @@ jobs:
             SAFETY NET (always binding, outranks everything):
             - Commit your work yourself as `github-actions[bot]` (identity preconfigured). NEVER add any `Co-authored-by:` trailer. Never end the run without pushing (`git status --porcelain` must be empty at the end - the workflow auto-commit is forbidden to fire).
             - Branch `opencode/<issue-number>-<short-description>`; open your PR with `gh pr create --base main --head <branch> --title ... --body "Closes #N"` (rule: every task gets its OWN new issue; never a "universal" issue).
-            - Rebase onto latest main before pushing with `--force-with-lease`; never leave the PR behind or conflicted.
+            - Rebase onto latest main before pushing with `--force-with-lease`; never leave the PR behind or conflicted. If `git merge-base origin/main HEAD` fails (main history was rewritten, so the branch and main are unrelated), REBUILD the branch instead: `git checkout -B <branch> origin/main`, re-apply only this project's own commits one by one with `git cherry-pick` (drop merge commits and unrelated old-main commits), and push with `--force-with-lease`.
             - You never post "/oc" comments (hardcoded steps post triggers; your comments are plain text, bot-signed).
             - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"review"}` when complete, `{"action":"continue"}` when more build phases remain, or `{"action":"maintainer"}` when the run cannot safely decide the next build phase. The hardcoded workflow step reads this file instead of grepping Markdown status text.
             - Sign your work: every commit subject starts with `builder:`, every comment/PR body ends with your sign-off from builder.md (` -  the Builder`).
@@ -331,15 +343,15 @@ jobs:
         id: verify
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
         run: |
           issue="${{ github.event.issue.number }}"
           branch=$(git branch --show-current 2>/dev/null || echo "")
           
           if [ -n "$branch" ] && [ "$branch" != "main" ]; then
             remote_sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
-            local_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
-            if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
-              echo "Build pushed successfully: branch $branch is at $remote_sha"
+            if [ -n "$remote_sha" ] && [ "$remote_sha" != "$BASELINE_HEAD" ]; then
+              echo "Build pushed successfully: branch $branch moved $BASELINE_HEAD -> $remote_sha"
               exit 0
             fi
           fi

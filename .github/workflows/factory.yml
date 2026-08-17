@@ -98,8 +98,13 @@ jobs:
           GIT_COMMITTER_NAME: "The Factory Engineer (CTO)"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
-          # Unset actions/checkout token header so git uses PAT
+          # Remove actions/checkout credential injection so the PAT URL actually authenticates:
+          # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
+          # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
           git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
 
           branch=$(git branch --show-current 2>/dev/null || echo "")
           issue="${{ github.event.issue.number || inputs.issue_number }}"

@@ -159,6 +159,13 @@ jobs:
             echo "Detected workflow model modifications by Maintainer. Staging and committing strictly as Mae (Maintainer)..."
             git config --global user.name "Mae (Maintainer)"
             git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            # Remove actions/checkout credential injection so the PAT URL actually authenticates:
+            # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
+            # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
+            git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+            for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+              git config --local --unset-all "$cfg" 2>/dev/null || true
+            done
             git add .github/workflows/*.yml
             git commit --author="Mae (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: update workflow model configuration"
             git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
