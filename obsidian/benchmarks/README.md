@@ -2,7 +2,7 @@
 
 Benchmark-driven iteration on the Kodak PCD0992 lossless suite (24 images,
 768x512, 24-bit RGB, normalized to binary P6 PPM - see
-`docs/benchmark-methodology.md` and `toolchain.md`).
+`../docs/benchmark-methodology.md` and `toolchain.md`).
 
 Every meaningful version adds a row. The **reference baseline** (JPEG XL,
 WebP, PNG, JPEG-LS, JPEG 2000) is fixed and never changes silently.
