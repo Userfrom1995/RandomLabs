@@ -33,4 +33,4 @@ if [ ! -x "$TOOLS_DIR/cjls" ]; then
       -L"$BUILD_DIR/build" -lcharls \
       -Wl,-rpath,"$BUILD_DIR/build"
 fi
-echo "==> done. Verify with: bash benchmarks/verify_toolchain.sh"
+echo "==> done. Verify with: bash benchmarks/run_kodak.sh --effort 4"
