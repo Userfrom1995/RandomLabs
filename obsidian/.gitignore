@@ -1,1 +1,11 @@
 /target
+benchmarks/data/kodak/
+benchmarks/tmp/
+benchmarks/tools/cjls
+benchmarks/results/*.ppm
+benchmarks/results/*.obsd
+benchmarks/results/*.jxl
+benchmarks/results/*.webp
+benchmarks/results/*.png
+benchmarks/results/*.jp2
+benchmarks/results/*.jls
