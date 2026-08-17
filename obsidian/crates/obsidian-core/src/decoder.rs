@@ -104,16 +104,10 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
         let mut plane = vec![0i16; area];
         let mut dec = RansDecoder::new(payloads[pi])?;
         let mut adaptive_tables: Vec<RansTable> = Vec::new();
-        let mut static_tables: Vec<RansTable> = Vec::new();
+        let mut static_tables: Vec<Option<RansTable>> = Vec::new();
         if let Some(hist) = &model.static_histograms {
             let built = build_static_tables(hist, &sizes);
-            let per_plane = built.into_iter().nth(pi).unwrap();
-            static_tables = per_plane
-                .into_iter()
-                .map(|t| {
-                    t.ok_or_else(|| CodecError::InvalidStream("missing static table".into()))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            static_tables = built.into_iter().nth(pi).unwrap();
         } else {
             adaptive_tables = (0..model.context_count)
                 .map(|_| RansTable::new_adaptive(alphabet))
@@ -128,7 +122,10 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
                 let p = model.predictor(pi, cid);
                 let pred = predict_clamped(p, &nb, wv.as_ref(), ranges[pi]);
                 let sym = if use_static {
-                    dec.get(&mut static_tables[cid])?
+                    let table = static_tables[cid].as_mut().ok_or_else(|| {
+                        CodecError::InvalidStream(format!("missing static table for context {cid}"))
+                    })?;
+                    dec.get(table)?
                 } else {
                     dec.get(&mut adaptive_tables[cid])?
                 };

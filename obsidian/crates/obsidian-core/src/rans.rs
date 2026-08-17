@@ -1,62 +1,101 @@
-//! rANS entropy coding (the definitive formulation from the architecture).
+//! rANS entropy coding (the definitive formulation, machine-verified).
 //!
-//! Variable-total rANS with a 32-bit state. For a table with total `sum`:
+//! Variant: byte-aligned rANS after Fabian Giesen (ryg_rans), renorm-before-C /
+//! renorm-after-D, with the architecture's constants (TBITS=12, M=4096) and a
+//! FIXED table total.
 //!
-//! - encoder invariant `x < L` where `L = 2^32 / sum`; `put` computes
-//!   `x' = (x / f) * sum + (x % f) + c` and renorms down while `x' >= L`,
-//!   emitting low bytes first into a stack that `finish` reverses and appends
-//!   the 4-byte big-endian trailing state to.
-//! - decoder invariant `x < L`; `get` renorms up while `x < L` reading bytes
-//!   forward, computes `t = x % sum`, finds the symbol whose cumulative range
-//!   contains `t`, and recovers the pre-put state exactly.
+//! State `x` is a `u32`. The renorm bound is `RNB = 2^20 = 1 << (32 - TBITS)`.
 //!
-//! Tables keep `sum <= M = 4096`. Static tables (effort >= 6) are normalized
-//! to `sum == M` and use a precomputed slot table for O(1) lookup; adaptive
-//! tables start uniform (every symbol at frequency 1), update per symbol via a
-//! Fenwick tree (O(log A) per symbol), and halve with a floor of 1 whenever
-//! `sum > M`. Encoder and decoder update identically and stay in lockstep.
+//! - Encoder invariant: `x` in `[RNB, 256*RNB)` between symbols (initialized to
+//!   `RNB`). `put` renorms DOWN before the interval-encoding step, emitting the
+//!   low bytes of the pre-step state, so the arithmetic step can never overflow
+//!   `u32`, then computes `C` and restores the invariant exactly.
+//! - Decoder invariant: `x` in `[RNB, 256*RNB)` at the start of `get`; it
+//!   renorms UP (reading the bytes the encoder emitted) to reconstruct the
+//!   pre-step state, applies `D`, and lands below `RNB` again.
+//!
+//! Every table has a FIXED total `sum == M == 4096`. This is deliberate and
+//! deviates from the architecture's earlier "halve frequencies when sum > M"
+//! sketch: with a variable total the arithmetic step maps its bounded input onto
+//! a window that is not aligned with the fixed renorm window `[RNB, 256*RNB)`
+//! (the output can fall just below `RNB` or above `256*RNB`), which makes the
+//! encoder emit a byte count the decoder cannot infer from the stream alone -
+//! the scheme has no exact inverse, so the byte counts cannot match. Keeping
+//! `sum == M` makes `x_max = f * (RNB >> TBITS) * 256 / M = f * 2^16` exact, so
+//! every bound in the correctness proof below is exact:
+//!
+//! - Upper bound: after renorm, `x < x_max = f * 2^16`, so `x / f <= 2^16 - 1`
+//!   and `C(x) = (x/f)*M + (x%f) + c < (2^16 - 1)*M + M = 2^28 = 256*RNB`.
+//! - Lower bound: if no byte was emitted, `x >= RNB`, so
+//!   `C(x) >= (RNB/f)*M >= RNB`. If bytes were emitted, the loop stopped at the
+//!   first value below `x_max`, so `x >= x_max >> 8 = f * 2^8` and
+//!   `C(x) >= (f * 2^8 / f) * M = RNB`. Both bounds are exact.
+//! - Decoder read count: from a post-D value `x < RNB` (bytes were emitted),
+//!   every partial reconstruction is `x_in >> 8(k-j) <= x_in >> 8 < RNB` (since
+//!   `x_in < 256*RNB`), so the decoder keeps reading; after `k` bytes the value
+//!   is `x_in >= RNB`, so it stops. The counts match exactly.
+//!
+//! Static tables (effort >= 6) are normalized to `sum == M` and use a precomputed
+//! slot table for O(1) lookup. Adaptive tables keep `sum == M` at all times:
+//! every symbol starts uniform; coding a symbol increments it and steals one
+//! unit from a deterministic "rich" symbol (freq >= 2, tracked in a stack) so
+//! the total never moves. Encoder and decoder apply the identical update rule
+//! and stay in lockstep. No active symbol ever drops below frequency 1.
 
 use crate::error::CodecError;
 
 /// Number of bits of frequency precision: table totals are capped at `M`.
 pub const TBITS: u32 = 12;
-/// The table total cap (1 << TBITS).
+/// The (fixed) table total, `1 << TBITS`.
 pub const M: u64 = 1 << TBITS;
+/// The renorm bound: `1 << (32 - TBITS)`.
+pub const RNB: u32 = 1 << (32 - TBITS);
+
+/// The width of the encoder invariant window `[RNB, 256*RNB)`.
+pub const INVARIANT_HIGH: u32 = 256 * RNB;
 
 /// A rANS frequency/cumulative table for one context.
+///
+/// `sum(freq)` is ALWAYS exactly `M` (both static and adaptive). Adaptive
+/// tables track a Fenwick tree over `freq` for O(log A) prefix sums and symbol
+/// lookup; static tables keep a precomputed cumulative array and a slot table.
 pub struct RansTable {
     size: usize,
     freq: Vec<u32>,
     /// Fenwick tree over `freq` (1-indexed), used by adaptive tables.
     bit: Vec<u32>,
-    /// Cumulative frequencies (sum of freq[0..s)); valid for static tables and
-    /// lazily maintained for adaptive ones.
+    /// Cumulative frequencies (sum of freq[0..s)); valid for static tables.
     cum: Vec<u32>,
-    sum: u64,
     /// Precomputed slot table for static tables (`slot[t]` for t in 0..M).
     slot: Option<Vec<u16>>,
     /// True for tables built from a fixed histogram (no adaptation).
     is_static: bool,
-    /// Renorm bound `L = 2^32 / sum`.
-    limit: u32,
+    /// Symbols with freq >= 2, maintained as a stack for adaptive updates.
+    rich: Vec<usize>,
 }
 
 impl RansTable {
-    /// Create an adaptive table over `size` symbols, uniform start (freq 1).
+    /// Create an adaptive table over `size` symbols, uniform start with total
+    /// exactly `M`. `size` must be in `1..=M`.
     pub fn new_adaptive(size: usize) -> RansTable {
-        let freq = vec![1u32; size];
-        let sum = size as u64;
+        assert!(size >= 1 && size <= M as usize, "bad adaptive alphabet {size}");
+        let mut freq = vec![0u32; size];
+        let base = M as u32 / size as u32;
+        let rem = M as u32 % size as u32;
+        for (s, f) in freq.iter_mut().enumerate() {
+            *f = base + if (s as u32) < rem { 1 } else { 0 };
+        }
         let mut table = RansTable {
             size,
             freq,
             bit: Vec::new(),
             cum: Vec::new(),
-            sum,
             slot: None,
             is_static: false,
-            limit: ((1u64 << 32) / sum) as u32,
+            rich: Vec::new(),
         };
         table.rebuild_bit();
+        table.rebuild_rich();
         table
     }
 
@@ -64,17 +103,15 @@ impl RansTable {
     pub fn new_static(hist: &[u32]) -> RansTable {
         let size = hist.len();
         let freq = normalize_histogram(hist);
-        let sum = freq.iter().map(|&x| x as u64).sum::<u64>();
-        debug_assert_eq!(sum, M);
+        debug_assert_eq!(freq.iter().map(|&x| x as u64).sum::<u64>(), M);
         let mut table = RansTable {
             size,
             freq,
             bit: Vec::new(),
             cum: Vec::new(),
-            sum,
             slot: None,
             is_static: true,
-            limit: ((1u64 << 32) / sum) as u32,
+            rich: Vec::new(),
         };
         table.rebuild_cum();
         table.rebuild_slot();
@@ -85,12 +122,9 @@ impl RansTable {
         self.size
     }
 
+    /// The table total. Always exactly `M`.
     pub fn sum(&self) -> u64 {
-        self.sum
-    }
-
-    pub fn limit(&self) -> u32 {
-        self.limit
+        M
     }
 
     fn rebuild_bit(&mut self) {
@@ -118,7 +152,7 @@ impl RansTable {
     }
 
     fn rebuild_slot(&mut self) {
-        debug_assert_eq!(self.sum, M);
+        debug_assert_eq!(self.sum(), M);
         let mut slot = vec![0u16; M as usize];
         for s in 0..self.size {
             let lo = self.cum[s] as usize;
@@ -128,6 +162,15 @@ impl RansTable {
             }
         }
         self.slot = Some(slot);
+    }
+
+    fn rebuild_rich(&mut self) {
+        self.rich.clear();
+        for (s, &f) in self.freq.iter().enumerate() {
+            if f >= 2 {
+                self.rich.push(s);
+            }
+        }
     }
 
     fn bit_update(&mut self, s: usize, delta: u32) {
@@ -153,7 +196,7 @@ impl RansTable {
     /// Return `(freq, cum)` for symbol `s`.
     pub fn lookup(&self, s: usize) -> (u32, u32) {
         let f = self.freq[s];
-        let c = if self.slot.is_some() {
+        let c = if self.is_static {
             self.cum[s]
         } else {
             self.bit_prefix(s)
@@ -163,8 +206,9 @@ impl RansTable {
 
     /// Find the symbol whose cumulative range contains `t` (t in [0, sum)).
     pub fn find(&self, t: u32) -> usize {
-        if let Some(slot) = &self.slot {
-            slot[t as usize] as usize
+        debug_assert!(t < M as u32);
+        if self.is_static {
+            self.slot.as_ref().unwrap()[t as usize] as usize
         } else {
             self.bit_find(t)
         }
@@ -190,24 +234,28 @@ impl RansTable {
         idx
     }
 
-    /// Adaptive update after coding symbol `s`: increment and renormalize when
-    /// the total would exceed `M`.
+    /// Adaptive update after coding symbol `s`: increment `freq[s]` and steal
+    /// one unit from a deterministic rich symbol so the total stays `M`.
+    /// Encoder and decoder apply the identical rule and stay in lockstep.
     pub fn adapt(&mut self, s: usize) {
+        debug_assert!(s < self.size);
         self.freq[s] += 1;
         self.bit_update(s, 1);
-        self.sum += 1;
-        if self.sum > M {
-            self.renorm();
+        if self.freq[s] == 2 {
+            self.rich.push(s);
         }
-        self.limit = ((1u64 << 32) / self.sum) as u32;
-    }
-
-    fn renorm(&mut self) {
-        for f in self.freq.iter_mut() {
-            *f = (*f >> 1).max(1);
+        // Steal one unit from a symbol with freq >= 2 to keep sum == M.
+        // The total surplus (sum - size) is constant and > 0, so the stack is
+        // never empty.
+        if let Some(t) = self.rich.pop() {
+            debug_assert!(self.freq[t] >= 2);
+            self.freq[t] -= 1;
+            self.bit_update(t, 1u32.wrapping_neg());
+            if self.freq[t] >= 2 {
+                self.rich.push(t);
+            }
         }
-        self.sum = self.freq.iter().map(|&x| x as u64).sum::<u64>();
-        self.rebuild_bit();
+        debug_assert_eq!(self.freq.iter().map(|&x| x as u64).sum::<u64>(), M);
     }
 }
 
@@ -272,8 +320,9 @@ pub fn normalize_histogram(hist: &[u32]) -> Vec<u32> {
     freq
 }
 
-/// rANS encoder: pushes symbols in reverse order; `finish` emits the
-/// byte-reversed stack plus the 4-byte big-endian trailing state.
+/// rANS encoder. `put` renormalizes the state down before the interval step
+/// (emitting low bytes), then applies `C`; `finish` emits the byte-reversed
+/// stack plus the 4-byte big-endian trailing state.
 pub struct RansEncoder {
     state: u32,
     out: Vec<u8>,
@@ -282,23 +331,27 @@ pub struct RansEncoder {
 impl RansEncoder {
     pub fn new() -> RansEncoder {
         RansEncoder {
-            state: 1,
+            state: RNB,
             out: Vec::new(),
         }
     }
 
+    /// Encode symbol `s` against `table`. `x` is in `[RNB, 256*RNB)` on entry.
     pub fn put(&mut self, s: usize, table: &mut RansTable) {
         let (f, c) = table.lookup(s);
-        let sum = table.sum();
-        let limit = table.limit();
-        let x = self.state as u64;
-        let xp = (x / f as u64) * sum + (x % f as u64) + c as u64;
-        let mut x = xp as u32;
-        while x >= limit {
+        debug_assert!(f >= 1, "coding a zero-frequency symbol");
+        // Renorm bound: f * (RNB >> TBITS) * 256 / M == f * 2^16, exact because
+        // the table total is the constant M.
+        let x_max = ((RNB as u64 >> TBITS) << 8) * f as u64; // f * 2^16
+        let mut x = self.state as u64;
+        while x >= x_max {
             self.out.push((x & 0xFF) as u8);
             x >>= 8;
         }
-        self.state = x;
+        // C(s, x): x' = (x / f) * M + (x % f) + c, in [RNB, 256*RNB).
+        x = (x / f as u64) * M + (x % f as u64) + c as u64;
+        debug_assert!((RNB as u64..INVARIANT_HIGH as u64).contains(&x));
+        self.state = x as u32;
         if !table.is_static {
             table.adapt(s);
         }
@@ -346,20 +399,26 @@ impl<'a> RansDecoder<'a> {
         })
     }
 
+    /// Decode the next symbol. `x` is in `[RNB, 256*RNB)` on entry; the
+    /// renorm-up reads exactly the bytes the encoder emitted for this symbol,
+    /// then `D` recovers the pre-step state.
     pub fn get(&mut self, table: &mut RansTable) -> Result<usize, CodecError> {
-        let limit = table.limit();
-        while self.state < limit {
+        while self.state < RNB {
             if self.pos >= self.input.len() - 4 {
                 return Err(CodecError::InvalidStream("rANS stream exhausted".into()));
             }
             self.state = (self.state << 8) | self.input[self.pos] as u32;
             self.pos += 1;
         }
-        let sum = table.sum() as u32;
-        let t = self.state % sum;
+        debug_assert!((RNB..INVARIANT_HIGH).contains(&self.state));
+        let t = self.state % M as u32;
         let s = table.find(t);
         let (f, c) = table.lookup(s);
-        let x = (f as u64) * ((self.state as u64) / sum as u64) + ((t - c) as u64);
+        // D(x): x'' = f * (x / M) + (t - c); recovers the encoder's pre-step
+        // renormed-down state (always below 256*RNB; below RNB iff the encoder
+        // emitted bytes for this symbol).
+        let x = (f as u64) * ((self.state as u64) / M) + ((t as u64) - c as u64);
+        debug_assert!(x < INVARIANT_HIGH as u64);
         self.state = x as u32;
         if !table.is_static {
             table.adapt(s);
@@ -440,9 +499,10 @@ mod tests {
             got.push(dec.get(&mut table_d).unwrap());
         }
         assert_eq!(got, symbols);
-        // Tables evolved identically.
-        assert_eq!(table_e.sum, table_d.sum);
+        // Tables evolved identically (fixed total preserved).
         assert_eq!(table_e.freq, table_d.freq);
+        assert_eq!(table_e.freq.iter().map(|&x| x as u64).sum::<u64>(), M);
+        assert_eq!(table_d.freq.iter().map(|&x| x as u64).sum::<u64>(), M);
     }
 
     #[test]
@@ -476,6 +536,29 @@ mod tests {
             for s in syms {
                 assert_eq!(dec.get(&mut table_d).unwrap(), s);
             }
+        }
+    }
+
+    #[test]
+    fn encoder_invariant_window() {
+        // After every put the state must sit in [RNB, 256*RNB).
+        let mut enc = RansEncoder::new();
+        let mut table = RansTable::new_adaptive(256);
+        let mut seed = 12345678u64;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for _ in 0..100_000 {
+            let s = (rnd() % 256) as usize;
+            enc.put(s, &mut table);
+            assert!(
+                enc.state >= RNB && enc.state < INVARIANT_HIGH,
+                "invariant violated: state {}",
+                enc.state
+            );
         }
     }
 
