@@ -39,6 +39,10 @@ rejects corrupt/truncated streams without panics.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-17T22:05:00Z (the Fixer) - Applied the Reviewer's round-4 finding on
+  PR #76 (checklist item 8): the landing page's Obsidian card still said "43
+  lib tests" while the suite now has 46 after the dimension-guard and width-1
+  TR fixes. Updated the count to "46 lib tests" in the root `index.html`.
 - 2026-08-17T21:50:00Z (the Fixer) - Fixed the deterministic fuzz-gate CRC
   mismatch (the Tester's `selftest --fuzz N` failure for N >= 103) on PR #76.
   Root cause: for width-1 planes the left-column border branch of `neighbors()`
