@@ -1,9 +1,9 @@
 # Progress - Obsidian (lossless image codec)
 
 - **Issue:** #68
-- **Branch:** opencode/issue68-20260817231515
+- **Branch:** opencode/issue68-20260818055633
 - **Status:** in-progress
-- **Updated:** 2026-08-17T23:45:00Z
+- **Updated:** 2026-08-18T05:56:00Z
 
 ## Checklist
 - [x] Research phase: literature review, SOTA survey, algorithmic spec, benchmark methodology
@@ -20,15 +20,32 @@
 - [x] 8. Static rANS tables + palette + effort 6-7 wiring; fidelity at every effort
 - [x] 9. Fidelity gates: bit-exact round trips (fuzz) at efforts 0/4/7; determinism + corruption tests
 - [x] 10. Benchmark harness: run_kodak.sh, fuzz_gate.sh, aggregate.py, toolchain.md + reference baseline + first Obsidian Kodak row
-- [ ] 11. M1: beat WebP lossless + optipng PNG on Kodak
-- [ ] 12. M2: self-correcting weighted predictor (v1.5), within 10% of JPEG XL
-- [ ] 13. M3: squeeze/interlacing or improved context model, ~3% of or above JPEG XL
-- [ ] 14. Web specimen page + JS mirror (byte-exact) + consistency tests + Playwright/UI verification
-- [ ] 15. Docs: README, benchmark tables, landing page entries
+- [ ] 10b. Research v2 (2026-08-18): root-cause diagnosis of the 27.82 bpp expansion + corrected entropy design (`docs/entropy-analysis.md`, algorithmic-spec errata, milestone rebase)
+- [ ] 11. M0 (blocker): replace the 512-symbol adaptive rANS with per-context adaptive Golomb-Rice (Design A) so Obsidian drops below raw 24 bpp first
+- [ ] 12. M1: beat WebP lossless (9.61) + optipng PNG (13.05) on Kodak
+- [ ] 13. M2: self-correcting weighted predictor (v1.5) effective, within 10% of JPEG XL (<= ~9.6 bpp)
+- [ ] 14. M3: capped/escaped static rANS (Design B) or squeeze/interlacing, match/beat JPEG XL (<= 8.71 bpp)
+- [ ] 15. Web specimen page + JS mirror (byte-exact) + consistency tests + Playwright/UI verification
+- [ ] 16. Docs: README, benchmark tables, landing page entries
 
 ## Current step
 Checklist 10 is complete: the benchmark harness is committed and the first
 Obsidian Kodak row plus the pinned reference baseline are recorded.
+
+**Research v2 (2026-08-18) diagnoses the M1 blocker.** The first Obsidian Kodak
+row (effort 4) is **27.82 bpp**, i.e. **1.16x raw RGB** (24.00 bpp), while every
+baseline compresses (JPEG XL 8.71, WebP 9.61, JPEG-LS 9.71, J2K 9.58, optipng PNG
+13.05). Root cause is the entropy stage only: a per-context adaptive rANS over a
+512-symbol alphabet with single-unit updates cannot specialize its tables on a
+768x512 image (each of the 285 contexts gets only ~4138 symbols, far below the
+~2048 increments needed to make the dominant residual cheap), so symbols are coded
+at the uniform ~9-bit start cost, which exceeds the 8-bit raw pixel and expands
+the container. Prediction, YCoCg-R, gradient context model, and container/CRC are
+correct and preserved. The corrected design: per-context adaptive Golomb-Rice
+(Design A) for M1, capped-and-escaped static rANS (Design B) for M2/M3. Full
+proof and pseudo-code in `docs/entropy-analysis.md`; algorithmic-spec section 6
+carries an errata; research.md milestones are rebased. Next: Builder implements
+M0 (Golomb-Rice entropy stage), then re-runs `benchmarks/run_kodak.sh`.
 
 - Toolchain pinned (`benchmarks/toolchain.md`): cjxl 0.7.0, cwebp 1.3.2,
   optipng 0.7.8, pngcrush 1.8.13, ImageMagick 6.9.12 (J2K via OpenJPEG 2.5.0),
@@ -54,6 +71,21 @@ Obsidian Kodak row plus the pinned reference baseline are recorded.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-18T05:56:00Z (the Researcher) - Research v2 on issue #68. Diagnosed the
+  M1 blocker: the first Obsidian Kodak row (effort 4) is 27.82 bpp, 1.16x raw RGB,
+  caused entirely by the entropy stage (per-context 512-symbol adaptive rANS whose
+  tables never specialize on a 768x512 image, coding every residual at ~9 bits >
+  8-bit raw). Proved the no-expansion requirement and prescribed the corrected
+  design: per-context adaptive Golomb-Rice (Design A) as the M1 default, and a
+  capped-and-escaped static rANS (Design B) for M2/M3. Wrote
+  `obsidian/docs/entropy-analysis.md` (rigorous diagnosis + algorithms +
+  complexity + revised milestones), added an errata to `docs/algorithmic-spec.md`
+  section 6, rebased the milestones in `docs/research.md`, and updated this
+  progress file (added M0 blocker, renumbered M1-M3). Prediction/transform/context
+  stages are confirmed correct and preserved; only the entropy stage is in scope.
+  Handoff to the Architect (decision: architect).
+
+  - Dr. Mob, the Researcher
 - 2026-08-18T04:10:00Z (the Builder) - Fixed the adaptive rANS lockstep desync on
   PR #80 (issue #68). Root cause: `put_fc` and the decoder `get` mixed a variable
   running `total` (interval coding) with the constant decoder renorm bound `RNB`,

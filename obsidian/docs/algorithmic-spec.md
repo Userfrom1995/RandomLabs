@@ -211,9 +211,19 @@ contexts.
 
 ---
 
-## 6. Entropy coding: adaptive rANS
+## 6. Entropy coding
 
-### 6.1 Why rANS
+> **Errata (2026-08-18), see `docs/entropy-analysis.md`.** The v1 default below
+> (adaptive rANS over a 512-symbol alphabet) is the cause of the measured
+> 27.82 bpp expansion on Kodak: the per-context tables never specialize on a
+> 768x512 image, so symbols are coded at ~9 bits each, exceeding the 8-bit raw
+> pixel cost. The corrected design (per-context adaptive Golomb-Rice as the M1
+> default, with a capped-and-escaped static rANS as the M2/M3 path) is specified
+> in `docs/entropy-analysis.md` and supersedes sections 6.2-6.6 for
+> implementation. The analysis pass, predictor bank, context model, and container
+> layout are unchanged.
+
+### 6.1 Why rANS (and why it must be sized correctly)
 
 rANS provides fractional-bit coding (like arithmetic coding) with table-based
 speed (like Huffman). It is the entropy coder of JPEG XL and LOCO-ANS and is
@@ -231,10 +241,12 @@ Huffman is structurally limited to >= 1 bit per zero.
   symbols never observed get frequency 0 and are handled by a scale-escape
   path (details in implementation notes; equivalently, cap the active alphabet
   to symbols seen with a normalized model).
-- **Adaptive variant (v1 default)**: frequencies are incremented after each
-  observed symbol and renormalized (halve all, drop fractions) when the table
-  sum exceeds `1 << TBITS`. This gives per-context online adaptation without
-  an analysis pass.
+- **Adaptive variant (v1 default, RETIRED for M1)**: frequencies are incremented
+  after each observed symbol and renormalized. As `docs/entropy-analysis.md`
+  shows, with a 512-symbol alphabet and single-unit updates this never
+  specializes on Kodak-sized images and expands the stream. The M1 default is
+  **per-context adaptive Golomb-Rice** (section 6.2-bis of `entropy-analysis.md`),
+  which needs no per-context table and cannot expand.
 - **Static variant (effort >= 6)**: one analysis pass collects per-context
   histograms; normalized tables are signaled and used identically by encoder
   and decoder; faster decode, slightly better density on large images. Selected

@@ -201,14 +201,30 @@ per-context (static) tables.
    operating point. Too many contexts on a 768x512 image means sparse
    statistics and model cost; too few means poor conditioning.
 
-5. **The realistic milestones, in order:**
-   - M1: beat WebP lossless on Kodak (needs predictors + contexts + rANS).
-   - M2: approach JPEG XL (needs self-correcting weighted predictor and
-     per-context predictor selection).
-   - M3: match or beat JPEG XL at high effort (needs squeeze/interlacing or
-     an improved context model).
-   - Stretch: context mixing (MRP-class) as a separate slow mode, only after
-     M2 is achieved.
+5. **The realistic milestones, in order (rebased on the measured PCD0992
+   baseline of 2026-08-18, not the literature-only numbers):**
+    - **M0 (blocker): fix the entropy stage.** The first measured Obsidian row
+      (effort 4) lands at **27.82 bpp, i.e. 1.16x raw RGB** (24.00 bpp) because
+      the per-context 512-symbol adaptive rANS never specializes on a 768x512
+      image and codes every residual at ~9 bits. This is a design defect in the
+      entropy coder, not in prediction. It is diagnosed rigorously and fixed in
+      `docs/entropy-analysis.md` (replace the 512-symbol adaptive rANS with
+      per-context adaptive Golomb-Rice).
+    - M1: beat WebP lossless (9.61 bpp) AND optipng PNG (13.05 bpp) on Kodak.
+      Achievable with Golomb-Rice + the existing predictor bank + per-context
+      predictor selection + YCoCg-R (expected ~9.5-10.0 bpp).
+    - M2: approach JPEG XL (needs self-correcting weighted predictor and
+      per-context predictor selection to actually reduce size; target <= ~9.6
+      bpp, within ~10% of JPEG XL's 8.71).
+    - M3: match or beat JPEG XL (<= 8.71 bpp) at high effort (needs a
+      capped-and-escaped static rANS, or squeeze/interlacing, plus tuning).
+    - Stretch: context mixing (MRP-class) as a separate slow mode, only after
+      M3 is achieved.
+
+   The benchmark "bpp" column is total bits per image pixel (all channels); the
+   literature values in section 2.7 are per channel (x3 = the totals above), so
+   there is no measurement contradiction. The discrepancy between the old
+   milestone list and reality is the entropy-coder expansion, now understood.
 
 6. **The direction is clearly viable.** The gap between a from-scratch
    implementation of known-good building blocks (predictor bank + RCT +
@@ -233,5 +249,22 @@ The algorithmic specification (predictor bank, context definition, rANS
 constants, format layout, pseudo-code, complexity analysis) is in
 `docs/algorithmic-spec.md`. The measurement protocol is in
 `docs/benchmark-methodology.md`. Handoff to the Architect.
+
+---
+
+## 6. Interim diagnosis (2026-08-18)
+
+After the first end-to-end build (effort 4) produced a Kodak mean of **27.82 bpp**
+(1.16x raw), a root-cause analysis was performed. The finding: the entropy-coding
+stage, not the prediction/transform/context stages, is the defect. A per-context
+adaptive rANS over a 512-symbol alphabet with single-unit frequency updates cannot
+specialize its tables on a 768x512 image (each of the 285 contexts receives only
+~4138 symbols, far fewer than the ~2048 increments needed to make the dominant
+residual symbol cheap), so symbols are coded at the uniform ~9-bit start cost,
+which exceeds the 8-bit raw pixel and expands the file. The rigorous proof, the
+no-expansion requirement, and the corrected designs (per-context adaptive
+Golomb-Rice for M1; capped-and-escaped static rANS for M2/M3) are in
+`docs/entropy-analysis.md`. The prediction bank, YCoCg-R transform, gradient
+context model, and container/CRC are correct and are preserved.
 
 - Dr. Mob, the Researcher
