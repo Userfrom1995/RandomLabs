@@ -500,8 +500,7 @@ jobs:
 
   fix:
     if: |
-      (github.event.comment.body == '/oc fix' ||
-       startsWith(github.event.comment.body, '/oc fix (auto-retry')) &&
+      startsWith(github.event.comment.body, '/oc fix') &&
       github.event.issue.pull_request != null
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -667,8 +666,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode auditor') &&
       !startsWith(github.event.comment.body, '/oc factory') &&
       !startsWith(github.event.comment.body, '/opencode factory') &&
-      github.event.comment.body != '/oc fix' &&
-      !startsWith(github.event.comment.body, '/oc fix (auto-retry') &&
+      !startsWith(github.event.comment.body, '/oc fix') &&
+      !startsWith(github.event.comment.body, '/opencode fix') &&
       (contains(github.event.comment.body, ' /oc') ||
        startsWith(github.event.comment.body, '/oc') ||
        contains(github.event.comment.body, ' /opencode') ||
