@@ -54,6 +54,22 @@ Obsidian Kodak row plus the pinned reference baseline are recorded.
 - Reviewer / Tester: quality gate, dynamic round-trip + benchmark verification.
 
 ## Agent log
+- 2026-08-18T04:10:00Z (the Builder) - Fixed the adaptive rANS lockstep desync on
+  PR #80 (issue #68). Root cause: `put_fc` and the decoder `get` mixed a variable
+  running `total` (interval coding) with the constant decoder renorm bound `RNB`,
+  which breaks the rANS bijection `(x%f)+c < D`. Switched both the interval-coding
+  step and the renorm upper bound in `put_fc` to the constant `M` (matching the
+  fixed `RNB` lower bound by the byte factor 256), switched the decoder `get` to
+  decode and divide by `M`, and tightened `RansTable::adapt` to halve when
+  `total > M` (keeping `total <= M`) so `cum[s+1] <= M` and the modulo bijection
+  holds with no reachable `[total, M)` dead zone. Added a `t >= table.total` guard
+  in the decoder so corrupt/desynced streams are rejected with `InvalidStream`
+  instead of tripping `find`'s `debug_assert` (a release-mode unsoundness). All 5
+  `rans` tests plus `corruption_rejected` pass; the two remaining failures
+  (`large_flat_compresses`, `decode_accepts_large_flat_stream`) are pre-existing
+  compression-efficiency regressions unrelated to this lockstep bug.
+
+  - the Builder
 - 2026-08-17T23:45:00Z (the Builder) - Completed checklist 10 on PR for issue
   #77 (benchmark harness): pinned the reference toolchain (cjxl 0.7.0, cwebp
   1.3.2, optipng 0.7.8, pngcrush 1.8.13, ImageMagick 6.9.12, CharLS 2.4.2 with

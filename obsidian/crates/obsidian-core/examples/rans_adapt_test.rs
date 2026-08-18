@@ -4,10 +4,10 @@ fn measure(name: &str, syms: &[usize]) {
     let n = syms.len();
     let size = 512usize;
     let mut table = RansTable::new_adaptive(size);
-    let mut plan: Vec<(u32,u32)> = Vec::with_capacity(n);
-    for &s in syms { let (f,c)=table.lookup(s); plan.push((f,c)); table.adapt(s); }
+    let mut plan: Vec<(u32,u32,u32)> = Vec::with_capacity(n);
+    for &s in syms { let (f,c)=table.lookup(s); plan.push((f,c,table.total())); table.adapt(s); }
     let mut enc = RansEncoder::new();
-    for (&s,&(f,c)) in syms.iter().zip(plan.iter()).rev() { enc.put_fc(s,f,c); }
+    for (&s,&(f,c,total)) in syms.iter().zip(plan.iter()).rev() { enc.put_fc(s,f,c,total); }
     let b = enc.finish();
     let mut dec = RansDecoder::new(&b).unwrap();
     let mut t = RansTable::new_adaptive(size);
@@ -22,7 +22,7 @@ fn measure(name: &str, syms: &[usize]) {
 
 fn main() {
     let n = 393216usize;
-    let mut seed = 0x1234u64;
+    let seed = 0x1234u64;
     let rnd = |s: &mut u64| { *s ^= *s << 13; *s ^= *s >> 7; *s ^= *s << 17; *s };
     // 1) peaked 87.5% symbol 0
     let mut peaked=Vec::with_capacity(n); let mut seed1=seed;

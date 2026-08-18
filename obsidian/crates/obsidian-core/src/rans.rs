@@ -179,7 +179,9 @@ impl RansTable {
         self.freq[s] += 1;
         self.bit_update(s, 1);
         self.total += 1;
-        if self.total > 2 * M as u32 {
+        // Keep `total <= M` so the decoder's `t = state % M` bijection holds
+        // (cum[s+1] <= total <= M). Halving at `> M` yields total in [M/2, M].
+        if self.total > M as u32 {
             for f in &mut self.freq {
                 *f = (*f + 1) >> 1;
                 if *f < 1 { *f = 1; }
@@ -256,19 +258,27 @@ impl RansEncoder {
         }
     }
 
-    /// Encode symbol `s` with explicit `(freq, cum, total)`. No table adaptation.
-    pub fn put_fc(&mut self, _s: usize, f: u32, c: u32, total: u32) {
+    /// Encode symbol `s` with explicit `(freq, cum)`. No table adaptation.
+    ///
+    /// The renorm window and the interval-coding step BOTH use the constant
+    /// denominator `M`. This is the proven rANS design: the decoder renormalizes
+    /// against a fixed lower bound `RNB` and decodes with the same constant `M`,
+    /// so the emitted byte count exactly balances the reconstructed stream and the
+    /// encoder/decoder stay in lockstep. The adaptive tables only change the
+    /// per-symbol `(freq, cum)`; the running `total` is kept `<= M` (see
+    /// `adapt`) so `cum[s+1] <= M` and the modulo bijection `t = (x%f)+c` holds
+    /// with no reachable dead zone.
+    pub fn put_fc(&mut self, _s: usize, f: u32, c: u32, _total: u32) {
         debug_assert!(f >= 1);
-        // Renorm threshold tied to the constant `M` (the window `[RNB, 256*RNB)`)
-        // so emitted/reconstructed byte counts always balance; the interval
-        // coding step uses the current (variable) `total`.
-        let x_max = (f as u64) * (INVARIANT_HIGH as u64) / (M as u64);
+        // Renorm upper bound tied to the constant `M` (so it matches the
+        // decoder's fixed `RNB` lower bound by the byte factor 256).
+        let x_max = (f as u64) * (INVARIANT_HIGH as u64) / M;
         let mut x = self.state as u64;
         while x >= x_max {
             self.out.push((x & 0xFF) as u8);
             x >>= 8;
         }
-        x = (x / f as u64) * (total as u64) + (x % f as u64) + c as u64;
+        x = (x / f as u64) * M + (x % f as u64) + c as u64;
         debug_assert!(x < (1u64 << 32));
         self.state = x as u32;
     }
@@ -310,10 +320,21 @@ impl<'a> RansDecoder<'a> {
             self.state = (self.state << 8) | self.input[self.pos] as u32;
             self.pos += 1;
         }
-        let t = self.state % table.total;
+        // Decode against the constant denominator `M` so the interval coding
+        // matches the encoder's `put_fc` (which also uses `M`). Because `adapt`
+        // keeps `total <= M`, `cum[s+1] <= total <= M`, so `t = (x%f)+c < total`
+        // always holds and `find` never reaches the `[total, M)` dead zone.
+        let t = self.state % (M as u32);
+        // For a valid stream, `t = (x%f)+c < cum[s+1] <= total` always holds.
+        // A corrupt/desynced stream can push `t` into the `[total, M)` window,
+        // which is not a valid cumulative-frequency slot; reject it cleanly
+        // instead of tripping the `find` precondition or emitting garbage.
+        if t >= table.total {
+            return Err(CodecError::InvalidStream("rANS decode symbol out of range".into()));
+        }
         let s = table.find(t);
         let (f, c) = table.lookup(s);
-        let x = (f as u64) * ((self.state as u64) / (table.total as u64)) + ((t as u64) - c as u64);
+        let x = (f as u64) * ((self.state as u64) / M) + ((t as u64) - c as u64);
         if t < c || x >= (1u64 << 32) {
             return Err(CodecError::InvalidStream("rANS decode out of range".into()));
         }
