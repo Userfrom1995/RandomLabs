@@ -13,7 +13,7 @@ use crate::model::{
     alphabet_sizes, build_static_tables, plane_ranges, read_model, ModelConfig,
 };
 use crate::predict::{neighbors, predict_clamped};
-use crate::rans::{RansDecoder, RansTable};
+use crate::rans::{RansDecoder, RansTable, BitReader, GrState, GR_K_INIT, gr_read_symbol};
 use std::io::Read;
 
 /// Maximum supported dimension per side. Far above any practical image
@@ -120,6 +120,7 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
     // Build per-plane tables.
     let context = model.context;
     let cm = ContextModel::new(context);
+    let entropy_gr = header.entropy_gr();
 
     // Decode planes.
     let mut decoded: Vec<Vec<i16>> = Vec::with_capacity(plane_count);
@@ -127,35 +128,57 @@ pub fn decode(bytes: &[u8]) -> Result<Image, CodecError> {
         let alphabet = sizes[pi];
         let wv = model.weight_for(pi);
         let mut plane = vec![0i16; area];
-        let mut dec = RansDecoder::new(payloads[pi])?;
-        let mut adaptive_tables: Vec<RansTable> = Vec::new();
-        let mut static_tables: Vec<Option<RansTable>> = Vec::new();
-        if let Some(hist) = &model.static_histograms {
-            let built = build_static_tables(hist, &sizes);
-            static_tables = built.into_iter().nth(pi).unwrap();
-        } else {
-            adaptive_tables = (0..model.context_count)
-                .map(|_| RansTable::new_adaptive(alphabet))
+        if entropy_gr {
+            // Design A: per-context adaptive Golomb-Rice, forward raster order.
+            // Both sides adapt `k` from the decoded symbols, so no model bytes
+            // are needed for the entropy state. Any shortfall (truncated stream)
+            // surfaces as `InvalidStream` from the bit reader, never a panic.
+            let mut br = BitReader::new(payloads[pi]);
+            let mut gr: Vec<GrState> = (0..model.context_count)
+                .map(|_| GrState::new(GR_K_INIT))
                 .collect();
-        }
-        let use_static = !static_tables.is_empty();
-        for y in 0..height {
-            for x in 0..width {
-                let idx = y * width + x;
-                let nb = neighbors(&plane, x, y, width, height);
-                let cid = cm.context_id(&nb, x, y) % model.context_count;
-                let p = model.predictor(pi, cid);
-                let pred = predict_clamped(p, &nb, wv.as_ref(), ranges[pi]);
-                let sym = if use_static {
-                    let table = static_tables[cid].as_mut().ok_or_else(|| {
-                        CodecError::InvalidStream(format!("missing static table for context {cid}"))
-                    })?;
-                    dec.get(table)?
-                } else {
-                    dec.get(&mut adaptive_tables[cid])?
-                };
-                let r = unzigzag(sym as u32);
-                plane[idx] = (pred + r) as i16;
+            for y in 0..height {
+                for x in 0..width {
+                    let idx = y * width + x;
+                    let nb = neighbors(&plane, x, y, width, height);
+                    let cid = cm.context_id(&nb, x, y) % model.context_count;
+                    let p = model.predictor(pi, cid);
+                    let pred = predict_clamped(p, &nb, wv.as_ref(), ranges[pi]);
+                    let r = gr_read_symbol(&mut br, &mut gr[cid])?;
+                    plane[idx] = (pred + r) as i16;
+                }
+            }
+        } else {
+            let mut dec = RansDecoder::new(payloads[pi])?;
+            let mut adaptive_tables: Vec<RansTable> = Vec::new();
+            let mut static_tables: Vec<Option<RansTable>> = Vec::new();
+            if let Some(hist) = &model.static_histograms {
+                let built = build_static_tables(hist, &sizes);
+                static_tables = built.into_iter().nth(pi).unwrap();
+            } else {
+                adaptive_tables = (0..model.context_count)
+                    .map(|_| RansTable::new_adaptive(alphabet))
+                    .collect();
+            }
+            let use_static = !static_tables.is_empty();
+            for y in 0..height {
+                for x in 0..width {
+                    let idx = y * width + x;
+                    let nb = neighbors(&plane, x, y, width, height);
+                    let cid = cm.context_id(&nb, x, y) % model.context_count;
+                    let p = model.predictor(pi, cid);
+                    let pred = predict_clamped(p, &nb, wv.as_ref(), ranges[pi]);
+                    let sym = if use_static {
+                        let table = static_tables[cid].as_mut().ok_or_else(|| {
+                            CodecError::InvalidStream(format!("missing static table for context {cid}"))
+                        })?;
+                        dec.get(table)?
+                    } else {
+                        dec.get(&mut adaptive_tables[cid])?
+                    };
+                    let r = unzigzag(sym as u32);
+                    plane[idx] = (pred + r) as i16;
+                }
             }
         }
         decoded.push(plane);
@@ -274,9 +297,12 @@ mod tests {
 
     #[test]
     fn decode_accepts_large_flat_stream() {
-        // A flat image compresses to far fewer bytes than its raw pixel
-        // volume, so the dimension guard must not be a ratio against the
-        // input size (that would reject legitimate streams).
+        // A flat image must compress (never expand) at every effort, so the
+        // dimension guard must not be a ratio against the input size (that
+        // would reject legitimate streams). With the Golomb-Rice entropy
+        // backend the only non-zero residuals are the border pixels, so the
+        // size floor below reflects GR behavior rather than rANS's tighter
+        // few-symbol bound.
         let mut img = Image::new(512, 512, Channels::Rgb).unwrap();
         for c in 0..3 {
             for i in 0..img.area() {
@@ -286,8 +312,10 @@ mod tests {
         for e in [0u8, 7] {
             let (bytes, _) = encode(&img, e).unwrap();
             assert!(
-                bytes.len() < img.raw_bytes().len() / 20,
-                "flat image should compress hard at effort {e}"
+                bytes.len() < img.raw_bytes().len() / 4,
+                "flat image should compress hard at effort {e}: {} vs {}",
+                bytes.len(),
+                img.raw_bytes().len() / 4
             );
             assert_eq!(decode(&bytes).unwrap(), img);
         }
