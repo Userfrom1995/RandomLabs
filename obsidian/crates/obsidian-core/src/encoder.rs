@@ -31,8 +31,8 @@ pub const MODEL_SIZE_FRACTION: f64 = 0.04;
 
 /// Bits used to pack a dry-run `(freq, cum)` pair into a single `u32`. Max
 /// frequency is `M == 4096` (needs 13 bits); cumulative is below `M` (12 bits).
-const FREQ_BITS: u32 = 13;
-const FREQ_MASK: u32 = (1 << FREQ_BITS) - 1;
+const FREQ_BITS: u32 = 14;
+const FREQ_MASK: u64 = (1 << FREQ_BITS) - 1;
 
 /// Statistics for a completed encode.
 #[derive(Debug, Clone)]
@@ -307,7 +307,7 @@ fn code_planes(
             // exactly as the decoder will and records each symbol's (freq, cum)
             // BEFORE the update; the reverse pass then replays them via put_fc.
             let area = width * height;
-            let mut plan: Vec<u32> = Vec::with_capacity(area);
+            let mut plan: Vec<u64> = Vec::with_capacity(area);
             for y in 0..height {
                 for x in 0..width {
                     let idx = y * width + x;
@@ -318,7 +318,7 @@ fn code_planes(
                     let r = coding_planes[pi][idx] as i32 - pred;
                     let sym = zigzag(r) as usize;
                     let (f, c) = tables[cid].lookup(sym);
-                    plan.push((c << FREQ_BITS) | f);
+                    plan.push(((c as u64) << (2 * FREQ_BITS)) | ((f as u64) << FREQ_BITS) | tables[cid].total() as u64);
                     tables[cid].adapt(sym);
                     chosen_counts[p.to_u8() as usize] += 1;
                 }
@@ -332,8 +332,10 @@ fn code_planes(
                     let pred = predict_clamped(p, &nb, wv.as_ref(), ranges[pi]);
                     let r = coding_planes[pi][idx] as i32 - pred;
                     let packed = plan[idx];
-                    let (f, c) = (packed & FREQ_MASK, packed >> FREQ_BITS);
-                    enc.put_fc(zigzag(r) as usize, f, c);
+                    let total = (packed & FREQ_MASK) as u32;
+                    let f = ((packed >> FREQ_BITS) & FREQ_MASK) as u32;
+                    let c = (packed >> (2 * FREQ_BITS)) as u32;
+                    enc.put_fc(zigzag(r) as usize, f, c, total);
                 }
             }
         }
