@@ -178,3 +178,42 @@ optimization loop, each recorded as a new trend row.
 Next: milestone optimization (`/oc continue`).
 
 - the Builder
+
+---
+
+## Architect v2 addendum - entropy-stage architecture (2026-08-18)
+
+The first Obsidian Kodak row (effort 4) measured **27.82 bpp** (1.16x raw RGB),
+a guaranteed expansion caused entirely by the entropy stage: a per-context
+adaptive rANS over a 512-symbol alphabet cannot specialize its tables on a
+768x512 image (each of ~285 contexts gets only ~4138 symbols vs the ~2048
+increments needed). Prediction, YCoCg-R, the context model, and the container
+are correct and preserved.
+
+**Architectural fix:** make the entropy stage a replaceable backend behind a
+stable container flag rather than a single hard-coded rANS coder. The full
+blueprint is in `obsidian/docs/entropy-architecture.md`; summary:
+
+- New header flag `ENTROPY_GR` (flags bit 4). When set, per-plane payloads are
+  per-context adaptive Golomb-Rice (Design A) bitstreams; when clear, the legacy
+  rANS path remains (and becomes Design B at M2/M3).
+- GR needs **zero model bytes**: both sides adapt the per-context `k` from the
+  symbols they decode, so `k` is mirrored, signaled state. The model section
+  keeps only the predictor map / transform / palette; `static_histograms` is
+  `None` for GR.
+- New primitives live in `rans.rs`: `BitWriter`/`BitReader`, `GrState` (k + bias
+  counter, JPEG-LS update), `map`/`unmap` (signed residual -> Rice codeword),
+  `gr_write_symbol`/`gr_read_symbol`. The per-pixel loops in `encoder.rs`
+  (`code_planes`) and `decoder.rs` swap the rANS table calls for GR calls; no
+  dry-run/reverse coding is needed (GR is forward streaming).
+- `model.rs::analyze` gains an `entropy_gr: bool` argument; when true it skips
+  the static-histogram collection.
+- M0 (blocker): GR as the default drops bpp below raw 24 and below optipng PNG
+  13.05. M1: with the existing per-context predictor selection + YCoCg-R, below
+  WebP 9.61. M2/M3: capped-and-escaped static rANS (Design B) and/or
+  self-correcting weighted predictor, toward JPEG XL 8.71.
+
+Only `encoder.rs`, `decoder.rs`, `rans.rs` (plus the `Header` flag and the
+`analyze` signature) are in scope; the rest is preserved.
+
+- the Architect

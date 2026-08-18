@@ -20,11 +20,12 @@
 - [x] 8. Static rANS tables + palette + effort 6-7 wiring; fidelity at every effort
 - [x] 9. Fidelity gates: bit-exact round trips (fuzz) at efforts 0/4/7; determinism + corruption tests
 - [x] 10. Benchmark harness: run_kodak.sh, fuzz_gate.sh, aggregate.py, toolchain.md + reference baseline + first Obsidian Kodak row
-- [ ] 10b. Research v2 (2026-08-18): root-cause diagnosis of the 27.82 bpp expansion + corrected entropy design (`docs/entropy-analysis.md`, algorithmic-spec errata, milestone rebase)
-- [ ] 11. M0 (blocker): replace the 512-symbol adaptive rANS with per-context adaptive Golomb-Rice (Design A) so Obsidian drops below raw 24 bpp first
-- [ ] 12. M1: beat WebP lossless (9.61) + optipng PNG (13.05) on Kodak
-- [ ] 13. M2: self-correcting weighted predictor (v1.5) effective, within 10% of JPEG XL (<= ~9.6 bpp)
-- [ ] 14. M3: capped/escaped static rANS (Design B) or squeeze/interlacing, match/beat JPEG XL (<= 8.71 bpp)
+- [x] 10b. Research v2 (2026-08-18): root-cause diagnosis of the 27.82 bpp expansion + corrected entropy design (`docs/entropy-analysis.md`, algorithmic-spec errata, milestone rebase)
+- [x] 10c. Architect v2 (2026-08-18): entropy-stage architecture - entropy backend seam, `ENTROPY_GR` header flag, Golomb-Rice primitives in `rans.rs`, encoder/decoder wiring, M0-M3 plan (`docs/entropy-architecture.md`, ideas addendum)
+- [ ] 11. M0 (blocker): implement per-context adaptive Golomb-Rice (Design A) as the default entropy backend - add `BitWriter`/`BitReader`, `GrState`, `map`/`unmap`, `gr_write_symbol`/`gr_read_symbol` to `rans.rs`; add `ENTROPY_GR` header flag; add `entropy_gr: bool` to `model.rs::analyze`; swap the rANS table calls in `encoder.rs::code_planes` and `decoder.rs` for GR calls (forward raster order, no dry-run). Acceptance: mean Kodak bpp < 13.05 (PNG) and < 24.0 (raw); kill the 27.82 expansion.
+- [ ] 12. M1: with the existing per-context predictor selection + YCoCg-R, drive mean Kodak bpp below WebP lossless (9.61) AND optipng PNG (13.05). Acceptance = spec F2.
+- [ ] 13. M2: self-correcting weighted predictor (v1.5) effective, within 10% of JPEG XL (<= ~9.6 bpp). Alternative/extension: capped-and-escaped static rANS (Design B).
+- [ ] 14. M3: capped/escaped static rANS (Design B) and/or squeeze/interlacing, match/beat JPEG XL (<= 8.71 bpp)
 - [ ] 15. Web specimen page + JS mirror (byte-exact) + consistency tests + Playwright/UI verification
 - [ ] 16. Docs: README, benchmark tables, landing page entries
 
@@ -44,8 +45,22 @@ the container. Prediction, YCoCg-R, gradient context model, and container/CRC ar
 correct and preserved. The corrected design: per-context adaptive Golomb-Rice
 (Design A) for M1, capped-and-escaped static rANS (Design B) for M2/M3. Full
 proof and pseudo-code in `docs/entropy-analysis.md`; algorithmic-spec section 6
-carries an errata; research.md milestones are rebased. Next: Builder implements
-M0 (Golomb-Rice entropy stage), then re-runs `benchmarks/run_kodak.sh`.
+carries an errata; research.md milestones are rebased.
+
+**Architect v2 (2026-08-18) blueprints the entropy-stage fix.** The defect is an
+architectural one: the v1 architecture hard-wired a single rANS coder as the
+pipeline contract. The fix makes the entropy stage a replaceable backend behind a
+stable `ENTROPY_GR` header flag. Design A (per-context adaptive Golomb-Rice)
+is the M0/M1 default: it needs zero signaled model bytes (both sides adapt `k`
+from the decoded symbols), streams forward in raster order (no dry-run/reverse),
+and provably cannot expand (O(1) early overhead vs the 9-bit rANS start). The
+full contract - `BitWriter`/`BitReader`, `GrState`, `map`/`unmap`,
+`gr_write_symbol`/`gr_read_symbol`, the encoder/decoder wiring, the `analyze`
+signature change, and the Design B seam for M2/M3 - is in
+`docs/entropy-architecture.md`. Only `encoder.rs`, `decoder.rs`, `rans.rs` (plus
+the `Header` flag and `model.rs::analyze`) are in scope; everything else is
+preserved. Next: Builder implements M0 (Golomb-Rice entropy backend), then
+re-runs `benchmarks/run_kodak.sh` to confirm bpp < 13.05 and the expansion is gone.
 
 - Toolchain pinned (`benchmarks/toolchain.md`): cjxl 0.7.0, cwebp 1.3.2,
   optipng 0.7.8, pngcrush 1.8.13, ImageMagick 6.9.12 (J2K via OpenJPEG 2.5.0),
@@ -86,6 +101,32 @@ M0 (Golomb-Rice entropy stage), then re-runs `benchmarks/run_kodak.sh`.
   Handoff to the Architect (decision: architect).
 
   - Dr. Mob, the Researcher
+- 2026-08-18T06:10:00Z (the Architect) - Entropy-stage architecture v2 for issue
+  #68 (Mode 2 enhancement on PR #82). Diagnosed the root cause as an architectural
+  defect: the v1 architecture hard-wired a single rANS coder as the pipeline
+  contract, and that coder (per-context 512-symbol adaptive rANS) cannot
+  specialize on a 768x512 image, expanding the container to 27.82 bpp. Designed the
+  fix as a replaceable entropy backend behind a new `ENTROPY_GR` header flag (flags
+  bit 4, reusing a reserved bit, so the container layout is preserved). Design A -
+  per-context adaptive Golomb-Rice - is the M0/M1 default: it needs zero signaled
+  model bytes because both encoder and decoder adapt the per-context `k` parameter
+  from the symbols they decode (mirrored, implicit state); it streams forward in
+  raster order (no dry-run/reverse coding like rANS); and it provably cannot
+  expand (O(1) early overhead vs the 9-bit rANS start that never decays). Specified
+  exact contracts for `BitWriter`/`BitReader`, `GrState` (k + JPEG-LS bias
+  counter), `map`/`unmap` (signed residual -> Rice codeword), and
+  `gr_write_symbol`/`gr_read_symbol`, all in `rans.rs`; the encoder/decoder
+  per-pixel loops swap the rANS table calls for GR calls; `model.rs::analyze` gains
+  an `entropy_gr: bool` argument to skip histogram collection under GR. Preserved
+  exactly: YCoCg-R, the predictor bank + per-context map, the context model +
+  zigzag, the container layout, and the CRC gate. Designed Design B (capped,
+  escaped static rANS) as the M2/M3 seam, reusing the same BitReader/RansDecoder
+  boundary. Wrote `obsidian/docs/entropy-architecture.md`, appended the addendum to
+  the ideas entry, and updated this progress file (checklist 10c done, M0..M3
+  detailed with acceptance bounds). Decision: continue (Builder resumes M0 on this
+  branch).
+
+  - the Architect
 - 2026-08-18T04:10:00Z (the Builder) - Fixed the adaptive rANS lockstep desync on
   PR #80 (issue #68). Root cause: `put_fc` and the decoder `get` mixed a variable
   running `total` (interval coding) with the constant decoder renorm bound `RNB`,
