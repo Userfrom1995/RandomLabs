@@ -369,6 +369,228 @@ impl<'a> RansDecoder<'a> {
     }
 }
 
+// ===========================================================================
+// Golomb-Rice entropy backend (Design A) - the M0/M1 default.
+//
+// Per-context adaptive Golomb-Rice. Both encoder and decoder evolve the
+// per-context `k` parameter from the symbols they code, in raster order, so
+// `k` is never signaled: it is implicit, mirrored state. The forward streaming
+// coder needs no reverse pass and no dry-run plan, and it provably cannot
+// expand (O(1) warm-up overhead versus the 9-bit rANS start that never decayed
+// on small images). See `obsidian/docs/entropy-architecture.md`.
+// ===========================================================================
+
+/// Maximum Golomb-Rice parameter `k` (2^k is the Rice divisor).
+pub const GR_MAX_K: u8 = 15;
+/// The signed adaptation accumulator saturates at this magnitude before `k`
+/// steps. JPEG-LS style: a strong, sustained residual trend nudges `k`.
+pub const GR_BIAS_LIMIT: i16 = 32;
+/// Warm-up `k` for photographic residuals (2^2 = 4).
+pub const GR_K_INIT: u8 = 2;
+
+/// Map a signed residual `r` to a non-negative codeword that folds the sign
+/// and preserves the peaked-at-zero distribution (bijection Z -> N: 0->0,
+/// +1->2, -1->3, +2->4, -2->5, ...). Overflow-safe on `i32::MIN`.
+pub fn gr_map(r: i32) -> u32 {
+    let m = r.unsigned_abs();
+    if r >= 0 {
+        2 * m
+    } else {
+        2 * m + 1
+    }
+}
+
+/// Inverse of `gr_map`. `gr_map` sends negatives to odd `2m+1`, so the odd
+/// inverse is `-(u >> 1)` (not the zigzag `-((u+1)>>1)`, which inverts `2m-1`).
+pub fn gr_unmap(u: u32) -> i32 {
+    if u == 0 {
+        0
+    } else if u & 1 == 0 {
+        (u >> 1) as i32
+    } else {
+        -((u >> 1) as i32)
+    }
+}
+
+/// Per-context Golomb-Rice adaptation state.
+///
+/// `k` is the Rice divisor exponent. Rather than the slow JPEG-LS bias
+/// counter (which oscillates and collapses to `k = 0` on heavy-tailed
+/// residual distributions), we track an integer EMA of the residual magnitude
+/// `|r|` and set `k = floor(log2(ema))`. This directly targets the mean,
+/// settles in a handful of symbols, and matches the encoder/decoder because
+/// both recover `|r|` before updating. The architect's spec permits this
+/// equivalent alternative (`k = clamp(round(log2(ema)), 0, 15)`).
+#[derive(Debug, Clone)]
+pub struct GrState {
+    k: u8,
+    /// EMA of `|r|` in Q8 fixed point (value * 256), so the mean is `ema >> 8`.
+    ema: u32,
+}
+
+impl GrState {
+    pub fn new(k: u8) -> GrState {
+        // Seed the EMA at `2^k` so warm-up starts near a sane divisor.
+        GrState {
+            k,
+            ema: (1u32 << k) << 8,
+        }
+    }
+
+    /// Current Rice divisor exponent.
+    pub fn k(&self) -> u8 {
+        self.k
+    }
+
+    fn log2_floor(v: u32) -> u8 {
+        if v == 0 {
+            0
+        } else {
+            // u32::ilog2 is floor(log2) for v >= 1.
+            31 - v.leading_zeros() as u8
+        }
+    }
+
+    /// Adapt after coding a residual of magnitude `m`. Integer EMA with
+    /// alpha = 1/16; `k` tracks `floor(log2(ema))`.
+    pub fn adapt(&mut self, m: u32) {
+        // ema = (ema * 15 + m * 256) / 16, all in Q8 so the mean is ema >> 8.
+        let m_q8 = m << 8;
+        self.ema = (self.ema * 15 + m_q8 + 8) >> 4;
+        let mean = self.ema >> 8;
+        self.k = Self::log2_floor(mean).min(GR_MAX_K);
+    }
+}
+
+/// A dependency-free bit sink that emits LSB-first and zero-pads the trailing
+/// byte on `finish`. Used by the Golomb-Rice backend to keep its output inside
+/// the existing per-plane, length-prefixed byte streams.
+pub struct BitWriter {
+    buf: Vec<u8>,
+    acc: u32,
+    nbits: u8,
+}
+
+impl BitWriter {
+    pub fn new() -> BitWriter {
+        BitWriter { buf: Vec::new(), acc: 0, nbits: 0 }
+    }
+
+    pub fn write_bit(&mut self, b: bool) {
+        self.acc |= (b as u32) << self.nbits;
+        self.nbits += 1;
+        if self.nbits == 8 {
+            self.buf.push(self.acc as u8);
+            self.acc = 0;
+            self.nbits = 0;
+        }
+    }
+
+    /// Emit the low `n` bits of `value`, LSB-first.
+    pub fn write_bits(&mut self, value: u32, n: u8) {
+        for i in 0..n as u32 {
+            self.write_bit((value >> i) & 1 == 1);
+        }
+    }
+
+    /// Flush any pending bits (zero-padded into a final byte) and return the bytes.
+    pub fn finish(mut self) -> Vec<u8> {
+        if self.nbits > 0 {
+            self.buf.push(self.acc as u8);
+            self.acc = 0;
+            self.nbits = 0;
+        }
+        self.buf
+    }
+}
+
+impl Default for BitWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A dependency-free bit source that refills LSB-first and errors the moment a
+/// read would cross the end of the buffer.
+pub struct BitReader<'a> {
+    data: &'a [u8],
+    pos: usize,
+    acc: u32,
+    nbits: u8,
+}
+
+impl<'a> BitReader<'a> {
+    pub fn new(data: &'a [u8]) -> BitReader<'a> {
+        BitReader { data, pos: 0, acc: 0, nbits: 0 }
+    }
+
+    pub fn read_bit(&mut self) -> Result<bool, CodecError> {
+        if self.nbits == 0 {
+            if self.pos >= self.data.len() {
+                return Err(CodecError::InvalidStream("GR bitstream exhausted".into()));
+            }
+            self.acc = self.data[self.pos] as u32;
+            self.pos += 1;
+            self.nbits = 8;
+        }
+        let b = (self.acc & 1) == 1;
+        self.acc >>= 1;
+        self.nbits -= 1;
+        Ok(b)
+    }
+
+    /// Read `n` bits LSB-first (matching `BitWriter::write_bits`).
+    pub fn read_bits(&mut self, n: u8) -> Result<u32, CodecError> {
+        let mut v = 0u32;
+        for i in 0..n as u32 {
+            let b = self.read_bit()?;
+            if b {
+                v |= 1 << i;
+            }
+        }
+        Ok(v)
+    }
+
+    pub fn bits_remaining(&self) -> usize {
+        (self.data.len() - self.pos) * 8 + self.nbits as usize
+    }
+}
+
+/// Code a signed residual `r` with the per-context Rice parameter `st.k`,
+/// advancing the bitstream and adapting `st`.
+pub fn gr_write_symbol(w: &mut BitWriter, st: &mut GrState, r: i32) {
+    let u = gr_map(r);
+    let k = st.k as u32;
+    let q = u >> k;
+    let rem = u & ((1u32 << k) - 1);
+    for _ in 0..q {
+        w.write_bit(false);
+    }
+    w.write_bit(true);
+    if k > 0 {
+        w.write_bits(rem, k as u8);
+    }
+    st.adapt(r.unsigned_abs());
+}
+
+/// Read a signed residual coded by `gr_write_symbol`, adapting `st` identically.
+pub fn gr_read_symbol(r: &mut BitReader, st: &mut GrState) -> Result<i32, CodecError> {
+    let mut q = 0u32;
+    loop {
+        let b = r.read_bit()?;
+        if b {
+            break;
+        }
+        q += 1;
+    }
+    let k = st.k as u8;
+    let rem = if k > 0 { r.read_bits(k)? } else { 0 };
+    let u = (q << k) | rem;
+    let residual = gr_unmap(u);
+    st.adapt(residual.unsigned_abs());
+    Ok(residual)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,6 +724,177 @@ mod tests {
         });
         assert!(result.is_err());
         assert!(got < 20);
+    }
+
+    // ---- Golomb-Rice backend -------------------------------------------------
+
+    #[test]
+    fn gr_map_unmap_bijection() {
+        assert_eq!(gr_map(0), 0);
+        assert_eq!(gr_unmap(0), 0);
+        assert_eq!(gr_map(1), 2);
+        assert_eq!(gr_unmap(2), 1);
+        assert_eq!(gr_map(-1), 3);
+        assert_eq!(gr_unmap(3), -1);
+        assert_eq!(gr_map(255), 510);
+        assert_eq!(gr_unmap(510), 255);
+        assert_eq!(gr_map(-255), 511);
+        assert_eq!(gr_unmap(511), -255);
+        for r in -4000..=4000i32 {
+            assert_eq!(gr_unmap(gr_map(r)), r, "map/unmap round-trip for {r}");
+        }
+    }
+
+    #[test]
+    fn bitwriter_reader_roundtrip() {
+        // Random bit stream round-trips exactly.
+        let mut seed = 0x1357u64;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let total = 20_000usize;
+        let bits: Vec<bool> = (0..total).map(|_| rnd() & 1 == 0).collect();
+        let mut w = BitWriter::new();
+        for &b in &bits {
+            w.write_bit(b);
+        }
+        let bytes = w.finish();
+        let mut r = BitReader::new(&bytes);
+        for &b in &bits {
+            assert_eq!(r.read_bit().unwrap(), b);
+        }
+        assert_eq!(r.bits_remaining(), 0);
+
+        // write_bits / read_bits for a range of widths and values.
+        let mut w = BitWriter::new();
+        let cases: Vec<(u32, u8)> = vec![
+            (0, 1), (1, 1), (0b1011, 4), (0xFF, 8), (0xABCD, 16),
+            ((1 << 31) - 1, 31), (0, 32), (0xFFFF_FFFF, 32), (12345, 14),
+        ];
+        for &(v, n) in &cases {
+            w.write_bits(v, n);
+        }
+        let bytes = w.finish();
+        let mut r = BitReader::new(&bytes);
+        for &(v, n) in &cases {
+            assert_eq!(r.read_bits(n).unwrap(), v, "bits {v:#x}/{n}");
+        }
+    }
+
+    #[test]
+    fn bitreader_exhaustion_errors() {
+        let bytes = vec![0b0000_0001u8]; // one 1 bit followed by padding zeros
+        let mut r = BitReader::new(&bytes);
+        assert!(r.read_bit().unwrap());
+        // The remaining 7 bits are zero; reading past them must error, never loop.
+        for _ in 0..7 {
+            assert!(!r.read_bit().unwrap());
+        }
+        assert!(r.read_bit().is_err());
+    }
+
+    #[test]
+    fn gr_symbol_roundtrip() {
+        // gr_write_symbol / gr_read_symbol round-trip every residual in a range
+        // with a matching GrState on both sides.
+        let mut seed = 0xBEEF;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let mut w = BitWriter::new();
+        let mut we = GrState::new(GR_K_INIT);
+        let mut residuals = Vec::new();
+        for _ in 0..50_000 {
+            let r = ((rnd() as i32) % 4001) - 2000;
+            residuals.push(r);
+            gr_write_symbol(&mut w, &mut we, r);
+        }
+        let bytes = w.finish();
+        let mut rdr = BitReader::new(&bytes);
+        let mut rd = GrState::new(GR_K_INIT);
+        let mut mismatches = 0usize;
+        for &exp in &residuals {
+            let got = gr_read_symbol(&mut rdr, &mut rd).unwrap();
+            if got != exp {
+                mismatches += 1;
+            }
+        }
+        eprintln!(
+            "GR symbol roundtrip: mismatches={} enc_k={} dec_k={} bits_remaining={}",
+            mismatches, we.k(), rd.k(), rdr.bits_remaining()
+        );
+        assert_eq!(mismatches, 0);
+        // Both sides must have adapted identically.
+        assert_eq!(we.k(), rd.k(), "k divergence with 0 mismatches");
+    }
+
+    #[test]
+    fn gr_adapt_converges() {
+        // Sustained zeros keep k low; a run of large residuals raises k; the
+        // two sides converge to the same k.
+        let mut w = BitWriter::new();
+        let mut we = GrState::new(GR_K_INIT);
+        for _ in 0..10_000 {
+            gr_write_symbol(&mut w, &mut we, 0);
+        }
+        assert!(we.k() <= GR_K_INIT);
+        let bytes = w.finish();
+        let mut rdr = BitReader::new(&bytes);
+        let mut rd = GrState::new(GR_K_INIT);
+        for _ in 0..10_000 {
+            let _ = gr_read_symbol(&mut rdr, &mut rd).unwrap();
+        }
+        assert_eq!(rd.k(), we.k());
+
+        let mut w = BitWriter::new();
+        let mut we = GrState::new(GR_K_INIT);
+        for _ in 0..10_000 {
+            gr_write_symbol(&mut w, &mut we, 2000);
+        }
+        assert!(we.k() > GR_K_INIT, "large residuals should raise k");
+        let bytes = w.finish();
+        let mut rdr = BitReader::new(&bytes);
+        let mut rd = GrState::new(GR_K_INIT);
+        for _ in 0..10_000 {
+            let _ = gr_read_symbol(&mut rdr, &mut rd).unwrap();
+        }
+        assert_eq!(rd.k(), we.k());
+    }
+
+    #[test]
+    fn gr_plane_roundtrip() {
+        // A full plane of random residuals round-trips bit-exactly through the
+        // GR backend with a single per-plane context.
+        let mut seed = 0xCAFEu64;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let w = 64usize;
+        let h = 48usize;
+        let area = w * h;
+        let residuals: Vec<i32> = (0..area).map(|_| ((rnd() as i32) % 600) - 300).collect();
+        let mut bw = BitWriter::new();
+        let mut gr_w = vec![GrState::new(GR_K_INIT)];
+        for &r in &residuals {
+            gr_write_symbol(&mut bw, &mut gr_w[0], r);
+        }
+        let bytes = bw.finish();
+        let mut br = BitReader::new(&bytes);
+        let mut gr_r = vec![GrState::new(GR_K_INIT)];
+        let mut got = Vec::with_capacity(area);
+        for _ in 0..area {
+            got.push(gr_read_symbol(&mut br, &mut gr_r[0]).unwrap());
+        }
+        assert_eq!(got, residuals);
     }
 
     fn adaptive_encode(symbols: &[usize], size: usize) -> (Vec<u8>, RansTable) {
