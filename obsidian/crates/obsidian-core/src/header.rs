@@ -35,6 +35,21 @@ impl Header {
         self.flags & 0x08 != 0
     }
 
+    /// `ENTROPY_GR` (bit 4, 0x10): the payload uses the per-context adaptive
+    /// Golomb-Rice backend (the M0/M1 default) rather than the legacy rANS path.
+    /// Reuses a reserved flag bit, so the container layout is unchanged.
+    pub fn entropy_gr(&self) -> bool {
+        self.flags & 0x10 != 0
+    }
+
+    pub fn set_entropy_gr(&mut self, on: bool) {
+        if on {
+            self.flags |= 0x10;
+        } else {
+            self.flags &= !0x10;
+        }
+    }
+
     pub fn effort_ok(&self) -> bool {
         self.effort <= 7
     }

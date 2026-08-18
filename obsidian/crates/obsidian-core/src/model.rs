@@ -110,6 +110,7 @@ pub fn analyze(
     effort: u8,
     context: &ContextParams,
     weight_codebook: &[WeightVec],
+    entropy_gr: bool,
 ) -> ModelConfig {
     let context_count = context.context_count();
     let cm = ContextModel::new(*context);
@@ -190,8 +191,10 @@ pub fn analyze(
             });
     }
 
-    // Static histograms at effort >= 6.
-    if effort >= 6 {
+    // Static histograms at effort >= 6. Skipped under the Golomb-Rice backend
+    // (M0/M1), where per-context k is implicit mirrored state and the histogram
+    // pass would be wasted work and memory; `static_histograms` stays `None`.
+    if effort >= 6 && !entropy_gr {
         let mut per_plane: Vec<Vec<Option<Vec<(u32, u32)>>>> = Vec::new();
         for (pi, plane) in planes.iter().enumerate() {
             let range = ranges[pi];
@@ -519,7 +522,7 @@ mod tests {
                     .collect()
             })
             .collect();
-        let model = analyze(&planes, &ranges, width, height, 5, &context, &codebook);
+        let model = analyze(&planes, &ranges, width, height, 5, &context, &codebook, false);
         let mut bytes = Vec::new();
         write_model(&mut bytes, &model).unwrap();
         let sizes = alphabet_sizes(&ranges);
@@ -539,7 +542,7 @@ mod tests {
         let plane: Vec<i16> = (0..width * height)
             .map(|i| ((i * 7) % 256) as i16)
             .collect();
-        let model = analyze(&[plane], &ranges, width, height, 7, &context, &codebook);
+        let model = analyze(&[plane], &ranges, width, height, 7, &context, &codebook, false);
         assert!(model.static_histograms.is_some());
         let mut bytes = Vec::new();
         write_model(&mut bytes, &model).unwrap();
