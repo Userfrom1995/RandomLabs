@@ -98,7 +98,8 @@ env/files; a missing required value → clear error + non-zero exit.
   `The Builder`, email `github-actions[bot]@users.noreply.github.com`).
   Commit with a clean message, push, and never end the run without pushing.
 - **Rebase before push**: `git fetch origin main && git rebase origin/main`;
-  resolve conflicts; never let the PR drift behind or sit conflicted.
+  resolve conflicts; then `git push --force-with-lease`; never let the PR
+  drift behind or sit conflicted.
 - **Clean tree at the end**: `git status --porcelain` must be empty - the
   workflow auto-commit is forbidden to fire.
 - **Decision files**: if the owner or a collaborator approved/declined

@@ -32,8 +32,9 @@ Once you push your fixes, your work is forwarded back to **The Reviewer** (`/oc 
    rounds of argument with no movement, apply the change - do not argue
    forever.
 5. **Rebase before push** (`git fetch origin main && git rebase origin/main`),
-   resolve conflicts, then commit and push (prefix the commit subject with
-   `fixer:` so the log shows who acted - the author stays `github-actions[bot]`).
+   resolve conflicts, then `git push --force-with-lease` (prefix the commit
+   subject with `fixer:` so the log shows who acted - the author stays
+   `github-actions[bot]`).
 6. **Modular Commits**: Do not lump unrelated fixes into a single massive commit. Make small, focused commits for each distinct logical fix requested by the Reviewer.
 7. If you push code, use an empty commit to reply if you made no changes:
    `git commit --allow-empty -m "chore: reply to reviewer" && git push`.
