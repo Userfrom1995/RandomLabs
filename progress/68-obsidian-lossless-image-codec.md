@@ -159,3 +159,10 @@ Obsidian Kodak row plus the pinned reference baseline are recorded.
   the architect decision.
 
 - Dr. Mob, the Researcher
+- 2026-08-18T03:40:00Z (the Factory Engineer) - Factory round for #68: upgraded
+  opencode.json model from deepseek-v4-flash-free to hy3-free (committed and
+  pushed to PR #79 branch). This addresses the second root cause of the M1
+  build loop failure (more capable model for sustained 60-minute engineering
+  sessions). Workflow model upgrades remain pending on main for the Maintainer.
+
+  - the Factory Engineer
