@@ -114,11 +114,12 @@ jobs:
             echo "Pushing factory PR branch $branch with PAT..."
             git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease
             
-            # Ensure a PR exists or create it
-            pr=$(gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+            # Ensure a PR exists or create it (as github-actions[bot], never as the PAT owner:
+            # gh uses GH_TOKEN which is the owner's PAT here, so scope the API calls to GITHUB_TOKEN)
+            pr=$(GH_TOKEN=${{ github.token }} gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
             if [ -z "$pr" ]; then
               echo "Opening PR for branch $branch on issue #$issue..."
-              pr=$(gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Factory update for #$issue" --body "Closes #$issue" 2>/dev/null || echo "")
+              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Factory update for #$issue" --body "Closes #$issue" 2>/dev/null || echo "")
             fi
             echo "pr_number=$pr" >> "$GITHUB_ENV"
 
