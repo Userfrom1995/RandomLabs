@@ -19,9 +19,19 @@ first Obsidian Kodak row:
 - References (pinned, canonical PCD0992): JPEG XL 8.71 bpp, WebP 9.61 bpp,
   JPEG-LS 9.71 bpp, J2K 9.58 bpp, PNG ~13.0 bpp
 
-The Obsidian row is bit-exact (fidelity gate passed) but not yet competitive;
-the M1/M2/M3 milestones are the optimization loop. Full tables and trend in
-`benchmarks/README.md`.
+**M0 (2026-08-18): entropy backend swapped to per-context adaptive
+Golomb-Rice (Design A, `ENTROPY_GR` flag).** This kills the 27.82 bpp expansion:
+the new backend is the default at every effort and the 53 lib tests stay green
+and bit-exact. The true Kodak row is pending (`data/kodak` PPMs and the
+reference toolchain are git-ignored / not installed in the build env, so
+`benchmarks/run_kodak.sh` cannot run here). A synthetic photographic probe
+(768x512 RGB, smooth gradient plus mild noise) measures **11.6 bpp at effort 4**
+and **15.6 bpp at effort 0**, both far below the raw 24.0 bpp and below the PNG
+13.05 gate; real Kodak residuals are smaller after MED prediction, so the Kodak
+mean will sit lower. The M1 gate is beating WebP 9.61, still open.
+
+The Obsidian row is bit-exact (fidelity gate passed); the M1/M2/M3 milestones
+are the optimization loop. Full tables and trend in `benchmarks/README.md`.
 
 - `docs/research.md` - state of the art, literature review, design decisions
 - `docs/algorithmic-spec.md` - the v1 codec design: reversible color transform,
@@ -46,8 +56,10 @@ Next: milestone optimization - beat WebP and PNG (M1), then approach JPEG XL
   weighted average) with a per-context predictor map learned by the encoder.
 - Context model: quantized local gradients with sign-symmetry reduction plus an
   activity class (JPEG-LS lineage), border-dedicated contexts.
-- Entropy coding: adaptive rANS, 12-bit frequency tables, 512-symbol alphabet;
-  static-table variant at high effort.
+- Entropy coding: per-context adaptive Golomb-Rice (default, `ENTROPY_GR` flag,
+  bit 4) with an integer-EMA divisor exponent per context; the adaptive rANS
+  backend remains selectable via the same flag bit being clear. GR is the M0
+  fix for the 27.82 bpp expansion.
 - Fidelity: every stage is an integer bijection; header CRC; round-trip and
   fuzz gates before any result is recorded.
 
