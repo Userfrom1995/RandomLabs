@@ -36,7 +36,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/deepseek-v4-flash-free
+          model: opencode/hy3-free
           use_github_token: true
           prompt: |
             You are the Ideator of the Random lab, in a dispatch-only run (no schedule, no triggers).
