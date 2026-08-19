@@ -423,8 +423,8 @@ jobs:
           build_branch=$(gh pr view "$target" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
           if [ -n "$build_branch" ]; then
             git fetch origin main --quiet 2>/dev/null || true
-            git fetch origin "refs/heads/$build_branch:refs/remotes/origin/buildbranch" --quiet 2>/dev/null || true
-            if [ -z "$(git merge-base origin/main "refs/remotes/origin/buildbranch" 2>/dev/null)" ]; then
+            git fetch origin "+refs/heads/$build_branch:refs/buildbranch" --quiet 2>/dev/null || true
+            if [ -z "$(git merge-base origin/main refs/buildbranch 2>/dev/null)" ]; then
               echo "Branch $build_branch has NO common ancestor with main - cannot be merged safely."
               echo "Routing to Maintainer (/oc maintainer) to re-link history."
               gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
