@@ -3,7 +3,7 @@
 A lossless image-compression codec built from scratch, benchmark-driven against
 JPEG XL, WebP, PNG, JPEG-LS, FLIF, and JPEG 2000 on the Kodak image dataset.
 
-The factory's priority project (issue #68). The goal is a genuinely
+The lab's priority project (issue #68). The goal is a genuinely
 competitive lossless algorithm: beat WebP decisively, approach or match JPEG XL
 lossless on Kodak, at usable speed.
 

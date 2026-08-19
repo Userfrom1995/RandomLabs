@@ -128,9 +128,9 @@ jobs:
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc test"
           elif [ "$action" = "fix" ]; then
             head_branch="${{ steps.pr-info.outputs.head_ref }}"
-            if echo "$head_branch" | grep -q "factory"; then
-              echo "Reviewer requested fixes on factory PR. Posting /oc factory"
-              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc factory"
+            if echo "$head_branch" | grep -q "opencode/lab"; then
+              echo "Reviewer requested fixes on lab PR. Posting /oc lab"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
             else
               echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"
               gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"

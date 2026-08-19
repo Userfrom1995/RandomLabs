@@ -20,13 +20,13 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - In the PR description list the issues it addresses; include `Closes #N`
   (or `Fixes #N` / `Resolves #N`) for any issue the PR fully resolves.
 - Attribution is strict: issues, commits, and pull requests are ALWAYS
-  authored by the bot identity with the agent's persona name (e.g. `The Builder`, `Mae (Maintainer)`, `The Factory Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` - never the owner, and never with a
+  authored by the bot identity with the agent's persona name (e.g. `The Builder`, `Mae (Maintainer)`, `The Lab Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` - never the owner, and never with a
   `Co-authored-by:` trailer. Human contributor credit is preserved.
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
-  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Factory Engineer`, `- the General agent`), and commit
-  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `factory:`, `general:`,
+  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the General agent`), and commit
+  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `lab:`, `general:`,
   `maintainer:` for memory updates).
 - Only create issues and pull requests when a real change is warranted.
 
@@ -36,26 +36,26 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 Product Track:
 [Ideator] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Builder ──┐
                                                                          │
-Factory / Infra Track:                                                   ▼
-[Auditor] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Factory ──► Reviewer (/oc review)
+Lab Engineer / Infra Track:                                                   ▼
+[Auditor] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Lab Engineer ──► Reviewer (/oc review)
                                                                          │
                                                                  ┌───────┴───────┐
                                                           (issues found)     (approved)
                                                                  │               │
                                                                  ▼               ▼
-                                                   Fixer / Factory (/oc fix)  Tester (/oc test)
+                                                   Fixer / Lab Engineer (/oc fix)  Tester (/oc test)
                                                                                  │
                                                                          ┌───────┴───────┐
                                                                    (tests fail)     (all pass)
                                                                          │               │
                                                                          ▼               ▼
-                                                           Fixer / Factory (/oc fix)  Maintainer (/oc maintainer)
+                                                           Fixer / Lab Engineer (/oc fix)  Maintainer (/oc maintainer)
                                                                                          │
                                                                                          ▼
                                                                                    (merge PR & close)
 ```
 
-- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Factory Engineer.
+- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
@@ -82,7 +82,7 @@ Factory / Infra Track:                                                   ▼
     and up to 3 auto-retries (`/oc fix (auto-retry N)`).
   - an exact `/oc architect` or `/oc plan` → ARCHITECT mode: drafts architectural blueprints.
   - an exact `/oc research` → RESEARCH mode: produces mathematical/algorithmic specs.
-  - an exact `/oc factory` → FACTORY mode: implements lab infrastructure, fixes workflows, creates agents, and manages models.
+  - an exact `/oc lab` → LAB mode: implements lab infrastructure, fixes workflows, creates agents, and manages models.
   - any other `/oc` → GENERAL mode: a full-capability assistant (questions,
     closing issues, small changes, even PRs if the request calls for it) -
     nothing is forced: no mandatory push, no verification, no retries.
@@ -125,7 +125,7 @@ Factory / Infra Track:                                                   ▼
   (`.maintainer/decision.json`) + its comment (`comment.md`) + memory updates,
   and a hardcoded PAT step posts the `/oc` triggers. There are NO hardcoded spam guards preventing duplicate triggers. You have complete freedom and autonomy. You must analyze the state of the repo (e.g., using `gh run list` or checking comments). If you determine that a previous command failed, crashed, or didn't work, you are fully authorized to re-trigger it. Use your intelligence to avoid spamming duplicate triggers if a run is already actively queued or in-progress. Pings and the public comment post as the bot; `ideate` dispatches `ideate.yml`.
 - The Maintainer never posts `/oc` comments itself, never creates issues or
-  PRs directly, and never pushes code to main (except for extreme emergencies where The Factory Engineer cannot act and repository production has completely stopped) - only its memory
+  PRs directly, and never pushes code to main (except for extreme emergencies where The Lab Engineer cannot act and repository production has completely stopped) - only its memory
   files, which a hardcoded step commits to `maintainer/logs`.
 - STALLS: 3 days bot work / 7 days human (fork 7) are *evaluation* triggers -
   ping → takeover (close + reopen with credit intact) or close with logged

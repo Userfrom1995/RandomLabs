@@ -35,7 +35,7 @@ Key architectural decisions (section 3):
 3. A strict `Stage -> Coder` pipeline where every stage is a pure integer
    bijection, verified by property tests at each layer.
 4. The JS mirror (not wasm) as the browser demonstration layer, matching the
-   factory's proven Meridian pattern and keeping the build dependency-free.
+   lab's proven Meridian pattern and keeping the build dependency-free.
 5. Effort levels are encoder-side model search only; the bitstream format is
    identical for all efforts.
 
@@ -55,11 +55,11 @@ Key architectural decisions (section 3):
 
 | Decision | Rationale |
 |---|---|
-| Rust, Cargo workspace | The factory's proven stack (Aftershock, Meridian). Zero external crates keeps the codec from-scratch per the scope guard and the reviewer gate simple. `std` covers I/O, sorting, and hash maps. |
+| Rust, Cargo workspace | The lab's proven stack (Aftershock, Meridian). Zero external crates keeps the codec from-scratch per the scope guard and the reviewer gate simple. `std` covers I/O, sorting, and hash maps. |
 | `obsidian-core` + `obsidian-cli` split | The codec is a pure library; the CLI is a thin shell. This keeps the engine testable in-process and allows the JS mirror to target the same invariants. |
 | rANS only (no Huffman fallback) | The spec shows Huffman structurally caps compression (WebP penalty on near-zero residuals). One entropy coder keeps encode/decode symmetric and the code small. Adaptive tables are the default; static tables at effort >= 6. |
 | Two-pass encode (analysis then coding) for effort >= 1 | The per-context predictor map and static tables need a first pass over the image. The analysis pass is O(n) and produces a small model; effort 0 skips it entirely. |
-| JS mirror instead of wasm | Byte-exact mirror + consistency suite is the factory's Meridian pattern: dependency-free, deterministic, statically hostable on GitHub Pages. No wasm toolchain in CI. The demo stays responsive because Kodak-sized images (768x512) round-trip in a second in JS. |
+| JS mirror instead of wasm | Byte-exact mirror + consistency suite is the lab's Meridian pattern: dependency-free, deterministic, statically hostable on GitHub Pages. No wasm toolchain in CI. The demo stays responsive because Kodak-sized images (768x512) round-trip in a second in JS. |
 | Effort = encoder-side search only | Identical bitstream for every effort keeps the decoder simple and lets the Tester verify one decode path for all efforts. |
 | Property tests at every stage | The spec's fidelity guarantee is machine-checked, not asserted. Exhaustive/property tests on the bijections (color, zigzag, rANS) are cheaper than debugging a mismatch later. |
 | Loose module coupling via plain structs | No trait-heavy abstraction. `Encoder` and `Decoder` each own a `PipelineState`; stages are free functions on that state. This keeps per-pixel code simple and fast (the hot loop is a few integer ops). |

@@ -1,4 +1,4 @@
-name: Opencode Factory Engineer
+name: Opencode Lab Engineer
 
 on:
   issue_comment:
@@ -10,13 +10,13 @@ on:
         required: true
         type: string
       command:
-        description: "Command string (e.g. /oc factory)"
+        description: "Command string (e.g. /oc lab)"
         required: false
-        default: "/oc factory"
+        default: "/oc lab"
         type: string
 
 concurrency:
-  group: factory-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
+  group: lab-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
   cancel-in-progress: false
 
 permissions:
@@ -26,9 +26,9 @@ permissions:
   actions: write
 
 jobs:
-  factory:
-    name: Factory Engineer
-    if: (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc factory')) || github.event_name == 'workflow_dispatch'
+  lab:
+    name: Lab Engineer
+    if: (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc lab')) || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -41,13 +41,13 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "The Factory Engineer (CTO)"
+          git config --global user.name "The Lab Engineer (CTO)"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Run opencode factory engineer agent
+      - name: Run opencode lab engineer agent
         id: opencode
         continue-on-error: true
         timeout-minutes: 60
@@ -59,14 +59,14 @@ jobs:
           model: opencode/hy3-free
           use_github_token: true
           prompt: |
-            You are the Factory Engineer (CTO) of the Random lab, triggered by "/oc factory".
+            You are the Lab Engineer (CTO) of the Random lab, triggered by "/oc lab".
 
-            READ FIRST: `.github/agents/factoryengineer.md` - that file IS your complete system prompt; every rule there is binding (infrastructure PRs, workflow repairs, agent creation, fast-track model management).
+            READ FIRST: `.github/agents/labengineer.md` - that file IS your complete system prompt; every rule there is binding (infrastructure PRs, workflow repairs, agent creation, fast-track model management).
 
             SAFETY NET (always binding):
-            - Commit your work yourself as `The Factory Engineer (CTO)` <github-actions[bot]@users.noreply.github.com>. NEVER add any `Co-authored-by:` trailers.
-            - All commit messages must start with `factory:`.
-            - For PRs: if the branch `opencode/factory-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/factory-<issue>-<slug> origin/opencode/factory-<issue>-<slug>` and continue on it. Never create a fresh branch from `main` when the PR branch already exists (that breaks the runner's push lease). Commit locally and open the PR with `gh pr create --title "[Infra] ..." --body "Closes #N"` (only if no PR exists yet).
+            - Commit your work yourself as `The Lab Engineer (CTO)` <github-actions[bot]@users.noreply.github.com>. NEVER add any `Co-authored-by:` trailers.
+            - All commit messages must start with `lab:`.
+            - For PRs: if the branch `opencode/lab-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/lab-<issue>-<slug> origin/opencode/lab-<issue>-<slug>` and continue on it. Never create a fresh branch from `main` when the PR branch already exists (that breaks the runner's push lease). Commit locally and open the PR with `gh pr create --title "[Infra] ..." --body "Closes #N"` (only if no PR exists yet).
             - NEVER run `git push` yourself. The runner's PAT-backed step pushes the branch. Any push you make uses the App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission".
             - For model switches/upgrades on main: modify `.github/workflows/*.yml` directly on disk and leave modified. The runner PAT step will commit and push to main.
             - You never post "/oc" comments directly. Write your structured machine decision to `/tmp/random-lab-decision.json`:
@@ -95,9 +95,9 @@ jobs:
         id: push_step
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          GIT_AUTHOR_NAME: "The Factory Engineer (CTO)"
+          GIT_AUTHOR_NAME: "The Lab Engineer (CTO)"
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
-          GIT_COMMITTER_NAME: "The Factory Engineer (CTO)"
+          GIT_COMMITTER_NAME: "The Lab Engineer (CTO)"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
           # Remove actions/checkout credential injection so the PAT URL actually authenticates:
@@ -115,7 +115,7 @@ jobs:
             # Fetch the existing PR branch so the lease is fresh and a local
             # branch that diverged from main can still push without "stale info".
             git fetch origin "$branch" --quiet 2>/dev/null || true
-            echo "Pushing factory PR branch $branch with PAT..."
+            echo "Pushing lab PR branch $branch with PAT..."
             git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease 2>/dev/null \
               || git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force
             
@@ -124,7 +124,7 @@ jobs:
             pr=$(GH_TOKEN=${{ github.token }} gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
             if [ -z "$pr" ]; then
               echo "Opening PR for branch $branch on issue #$issue..."
-              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Factory update for #$issue" --body "Closes #$issue" 2>/dev/null || echo "")
+              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Lab update for #$issue" --body "Closes #$issue" 2>/dev/null || echo "")
             fi
             echo "pr_number=$pr" >> "$GITHUB_ENV"
 
@@ -133,7 +133,7 @@ jobs:
             if [ -n "$(git status --porcelain .github/workflows 2>/dev/null)" ]; then
               echo "Staging uncommitted workflow modifications on main..."
               git add .github/workflows/*.yml
-              git commit --author="The Factory Engineer (CTO) <github-actions[bot]@users.noreply.github.com>" -m "factory: update workflow model configuration" || true
+              git commit --author="The Lab Engineer (CTO) <github-actions[bot]@users.noreply.github.com>" -m "lab: update workflow model configuration" || true
             fi
             
             # Push commits on main if ahead of origin
@@ -146,13 +146,13 @@ jobs:
                 git rebase origin/main --quiet
                 git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main
               }
-              echo "Workflow updates pushed to main as The Factory Engineer (CTO)."
+              echo "Workflow updates pushed to main as The Lab Engineer (CTO)."
             else
               echo "Main is up to date with origin/main."
             fi
           fi
 
-      - name: Forward factory engineer decision
+      - name: Forward lab engineer decision
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
@@ -163,7 +163,7 @@ jobs:
           fi
           
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
-          echo "Factory engineer decision action: '$action'"
+          echo "Lab engineer decision action: '$action'"
           
           issue="${{ github.event.issue.number || inputs.issue_number }}"
           target="${pr_number:-$issue}"
@@ -181,9 +181,9 @@ jobs:
               echo "Forwarding to Maintainer (/oc maintainer) on #$target"
               gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc maintainer"
               ;;
-            factory)
-              echo "Requesting factory continuation (/oc factory continue) on #$target"
-              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc factory continue"
+            lab)
+              echo "Requesting lab continuation (/oc lab continue) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc lab continue"
               ;;
             *)
               echo "No action or unrecognized action: $action"
@@ -202,7 +202,7 @@ jobs:
             pr="$issue"
           else
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
-              --jq '[.[] | select(.headRefName | startswith("opencode/factory-") or startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+              --jq '[.[] | select(.headRefName | startswith("opencode/lab-") or startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
           if [ -z "$pr" ]; then
             echo "No PR context - repo-wide sweep of held runs"

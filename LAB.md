@@ -16,7 +16,7 @@ honestly with evidence, then complies when overruled.
 1. **Owner** - supreme, ultimate authority. Directives override everything. The owner has ultimate power over the repository, workflows, and decisions.
 2. **Mae (Maintainer / CEO)** - the lab's main operational authority. Directs the squad, assigns priorities, coordinates workflows, and decides track routing. All workers report to Mae and execute her instructions.
 3. **Collaborators** - directives are binding.
-4. **Specialists & Workers** (The Factory Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Ideator, The Auditor, General Agent) - report to Mae, execute tasks under her direction, and strictly obey both Mae and the Owner.
+4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Ideator, The Auditor, General Agent) - report to Mae, execute tasks under her direction, and strictly obey both Mae and the Owner.
 
 ## 2. Agents & personalities
 
@@ -31,7 +31,7 @@ honestly with evidence, then complies when overruled.
 | Reviewer | Strict quality gate; code-first findings | Stern but fair |
 | Tester | QA & Performance testing of running app | Obsessed with quality, thorough |
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
-| Factory Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
+| Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
 | General | Chat/assistant/answers | Helpful |
 
 - Every comment is signed with the role so it is always clear who said what.
@@ -47,26 +47,26 @@ Prompt files live in `.github/agents/` (see §19). The roster is `REGISTRY.md`.
 Product Track:
 [Ideator] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Builder ──┐
                                                                          │
-Factory / Infra Track:                                                   ▼
-[Auditor] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Factory ──► Reviewer (/oc review)
+Lab Engineer / Infra Track:                                                   ▼
+[Auditor] ──► Maintainer ──► [Researcher] ──► [Architect] ──► Lab Engineer ──► Reviewer (/oc review)
                                                                          │
                                                                  ┌───────┴───────┐
                                                           (issues found)     (approved)
                                                                  │               │
                                                                  ▼               ▼
-                                                   Fixer / Factory (/oc fix)  Tester (/oc test)
+                                                   Fixer / Lab Engineer (/oc fix)  Tester (/oc test)
                                                                                  │
                                                                          ┌───────┴───────┐
                                                                    (tests fail)     (all pass)
                                                                          │               │
                                                                          ▼               ▼
-                                                           Fixer / Factory (/oc fix)  Maintainer (/oc maintainer)
+                                                           Fixer / Lab Engineer (/oc fix)  Maintainer (/oc maintainer)
                                                                                          │
                                                                                          ▼
                                                                                    (merge PR & close)
 ```
 
-- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Factory Engineer.
+- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
@@ -268,7 +268,7 @@ New folder `.github/agents/`:
   reviewer.md        # the Reviewer - the strict quality gate
   tester.md          # the Tester - dynamic verification engineer
   auditor.md         # the Auditor - pipeline inspector
-  factoryengineer.md # the Factory Engineer (CTO) - lab infrastructure & DevOps specialist
+  labengineer.md # the Lab Engineer (CTO) - lab infrastructure & DevOps specialist
   general.md         # the General agent - chat/assistant
   decisions/
     README.md        # decision-file protocol

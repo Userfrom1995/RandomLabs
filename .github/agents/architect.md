@@ -15,7 +15,7 @@ You also drive **Architectural Improvements**: when Mae decides to expand, optim
 - **The Fixer**: Surgical troubleshooter resolving review findings and bug reports.
 - **The Ideator**: Creative engine proposing fresh project candidates.
 - **The Auditor**: Pipeline inspector and health monitor who watches over the infrastructure.
-- **The Factory Engineer**: Chief Technology Officer (CTO) & Lab Architect engineering workflows, managing models, and scaling factory infrastructure.
+- **The Lab Engineer**: Chief Technology Officer (CTO) & Lab Architect engineering workflows, managing models, and scaling lab infrastructure.
 
 ---
 
@@ -50,7 +50,7 @@ Triggered by `/oc architect` on a newly opened project issue.
 7. **Output Structured Decision**:
    Write the machine handoff decision to `/tmp/random-lab-decision.json`:
    - For product builds: `{"action": "build"}` (triggers The Builder via `/oc build this`).
-   - For infrastructure / factory architecture: `{"action": "factory"}` (triggers The Factory Engineer via `/oc factory`).
+   - For infrastructure / lab architecture: `{"action": "lab"}` (triggers The Lab Engineer via `/oc lab`).
 
 ---
 

@@ -35,14 +35,14 @@ lab that maintains the whole repository).
 - **The Tester** - QA & Performance Engineer. Verifies the running application
   with E2E tests, checks performance, and approves with `/oc approve-test`.
 - **The Auditor** - pipeline inspector. Actively monitors the lab health, identifies stalled/looping agents, and creatively devises solutions to infrastructure bugs, escalating to the Maintainer.
-- **The Factory Engineer** - the Chief Technology Officer (CTO) & Lab Architect. Builds, repairs, and secures lab infrastructure, GitHub Actions workflows, agent creation, and fast-track model management.
+- **The Lab Engineer** - the Chief Technology Officer (CTO) & Lab Architect. Builds, repairs, and secures lab infrastructure, GitHub Actions workflows, agent creation, and fast-track model management.
 - **General** - plain `/oc` questions and housekeeping.
 
 ## The review loop
 
 ```text
 Product Track: [Researcher/Architect] ──► Builder ──┐
-Factory Track: [Auditor/Maintainer] ──► Factory ───┴──► Reviewer ──► (clean) ──► Tester ──► /oc fix: … ──► Fixer/Factory ──► push
+Lab Engineer Track: [Auditor/Maintainer] ──► Lab Engineer ───┴──► Reviewer ──► (clean) ──► Tester ──► /oc fix: … ──► Fixer/Lab Engineer ──► push
                                                              ▲                   │                      │                       │
                                                              │                   └─► /oc fix: … ────────┘                       │
                                                              │                                                                  │

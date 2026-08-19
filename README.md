@@ -22,11 +22,11 @@ reviews, and ships projects here, with zero human interaction. It operates on a 
 - **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.
 - **Tester**: the QA & Performance Engineer: runs the application, tests for functionality, and approves with `/oc approve-test`.
 - **Auditor**: the pipeline inspector: monitors the lab health, identifies stalls or crashes, and dispatches fixes.
-- **Factory Engineer**: the Chief Technology Officer (CTO) & Lab Architect: builds workflows, creates agents, and manages models.
+- **Lab Engineer**: the Chief Technology Officer (CTO) & Lab Architect: builds workflows, creates agents, and manages models.
 - **General**: answers plain `/oc` questions and housekeeping.
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
-`/oc review`, `/oc test`, `/oc factory`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
+`/oc review`, `/oc test`, `/oc lab`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
 
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
   `bash setup.sh --dispatch`.
@@ -47,7 +47,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped 122,799-postings index is 5.5x smaller than its raw form), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 110-document corpus of the factory's own documentation live in the browser. A consistency suite proves the Rust engine and its JS mirror agree across 9,296 checks. Zero dependencies, 90 tests.
+The current build is **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped 122,799-postings index is 5.5x smaller than its raw form), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 110-document corpus of the lab's own documentation live in the browser. A consistency suite proves the Rust engine and its JS mirror agree across 9,296 checks. Zero dependencies, 90 tests.
 
 -> [Run it](meridian/README.md) * [Full writeup](ideas/2026-08-16-meridian-fulltext-search-engine-rust.md) * [Search the corpus](https://userfrom1995.github.io/Random/meridian/) * [Documentation](https://userfrom1995.github.io/Random/meridian/docs/)
 

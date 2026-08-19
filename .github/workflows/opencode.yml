@@ -717,8 +717,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode plan') &&
       !startsWith(github.event.comment.body, '/oc auditor') &&
       !startsWith(github.event.comment.body, '/opencode auditor') &&
-      !startsWith(github.event.comment.body, '/oc factory') &&
-      !startsWith(github.event.comment.body, '/opencode factory') &&
+      !startsWith(github.event.comment.body, '/oc lab') &&
+      !startsWith(github.event.comment.body, '/opencode lab') &&
       !startsWith(github.event.comment.body, '/oc fix') &&
       !startsWith(github.event.comment.body, '/opencode fix') &&
       (contains(github.event.comment.body, ' /oc') ||
