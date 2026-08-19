@@ -418,12 +418,14 @@ jobs:
           # Orphan guard: a build branch that no longer shares any history with main
           # cannot be merged with --rebase and would rewrite main as a single orphan
           # root. Route to the Maintainer to re-link instead of forwarding for merge.
-          branch=$(git branch --show-current 2>/dev/null || echo "")
-          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+          # Resolve the build branch from the PR head ref (not the local checkout, which
+          # may be main or detached) so the check is reliable.
+          build_branch=$(gh pr view "$target" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          if [ -n "$build_branch" ]; then
             git fetch origin main --quiet 2>/dev/null || true
-            if ! git merge-base --is-ancestor "$(git rev-parse origin/main 2>/dev/null)" "$(git rev-parse HEAD 2>/dev/null)" 2>/dev/null && \
-               [ -z "$(git merge-base origin/main HEAD 2>/dev/null)" ]; then
-              echo "Branch $branch has NO common ancestor with main - cannot be merged safely."
+            git fetch origin "refs/heads/$build_branch:refs/remotes/origin/buildbranch" --quiet 2>/dev/null || true
+            if [ -z "$(git merge-base origin/main "refs/remotes/origin/buildbranch" 2>/dev/null)" ]; then
+              echo "Branch $build_branch has NO common ancestor with main - cannot be merged safely."
               echo "Routing to Maintainer (/oc maintainer) to re-link history."
               gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
               exit 0
