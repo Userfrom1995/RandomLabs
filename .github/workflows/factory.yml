@@ -66,7 +66,8 @@ jobs:
             SAFETY NET (always binding):
             - Commit your work yourself as `The Factory Engineer (CTO)` <github-actions[bot]@users.noreply.github.com>. NEVER add any `Co-authored-by:` trailers.
             - All commit messages must start with `factory:`.
-            - For PRs: create branch `opencode/factory-<issue>-<slug>`, commit locally, open PR with `gh pr create --title "[Infra] ..." --body "Closes #N"`. The workflow runner pushes the branch with the PAT.
+            - For PRs: if the branch `opencode/factory-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/factory-<issue>-<slug> origin/opencode/factory-<issue>-<slug>` and continue on it. Never create a fresh branch from `main` when the PR branch already exists (that breaks the runner's push lease). Commit locally and open the PR with `gh pr create --title "[Infra] ..." --body "Closes #N"` (only if no PR exists yet).
+            - NEVER run `git push` yourself. The runner's PAT-backed step pushes the branch. Any push you make uses the App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission".
             - For model switches/upgrades on main: modify `.github/workflows/*.yml` directly on disk and leave modified. The runner PAT step will commit and push to main.
             - You never post "/oc" comments directly. Write your structured machine decision to `/tmp/random-lab-decision.json`:
               `{"action": "review"}` when PR is ready, or `{"action": "maintainer"}` when Mae should retry/triage.
@@ -111,8 +112,12 @@ jobs:
           issue="${{ github.event.issue.number || inputs.issue_number }}"
 
           if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            # Fetch the existing PR branch so the lease is fresh and a local
+            # branch that diverged from main can still push without "stale info".
+            git fetch origin "$branch" --quiet 2>/dev/null || true
             echo "Pushing factory PR branch $branch with PAT..."
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease 2>/dev/null \
+              || git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force
             
             # Ensure a PR exists or create it (as github-actions[bot], never as the PAT owner:
             # gh uses GH_TOKEN which is the owner's PAT here, so scope the API calls to GITHUB_TOKEN)

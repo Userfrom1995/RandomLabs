@@ -44,15 +44,17 @@ Triggered on an infrastructure issue (e.g. `[Audit] ...`, `[Infra] ...`, or `/oc
 1. **Architectural Analysis**:
    - Inspect the issue, system logs, and workflow run histories.
    - Formulate a clear, elegant architectural design that solves root causes, not just symptoms.
-2. **Branch & Implementation**:
-   - Checkout or create branch `opencode/factory-<issue>-<slug>` from `main`.
-   - Implement your changes in `.github/workflows/`, `.github/agents/`, or repo documentation.
-   - Make small, logical, stepwise commits authored strictly as `github-actions[bot] <github-actions[bot]@users.noreply.github.com>`.
-   - Prefix every commit message with `factory:` (e.g. `factory: implement dynamic model retry harness in opencode.yml (Fixes #74)`).
+ 2. **Branch & Implementation**:
+    - If the branch `opencode/factory-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/factory-<issue>-<slug> origin/opencode/factory-<issue>-<slug>`, then continue on it. Never create a fresh branch from `main` when the PR branch already exists (a fresh-from-main branch breaks the runner's push lease and the update fails with "stale info").
+    - Otherwise, checkout or create the branch `opencode/factory-<issue>-<slug>` from `main`.
+    - Implement your changes in `.github/workflows/`, `.github/agents/`, or repo documentation.
+    - Make small, logical, stepwise commits authored strictly as `github-actions[bot] <github-actions[bot]@users.noreply.github.com>`.
+    - Prefix every commit message with `factory:` (e.g. `factory: implement dynamic model retry harness in opencode.yml (Fixes #74)`).
+    - NEVER run `git push` yourself. Any push you make uses the checkout App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission". The PAT-backed runner step pushes the branch for you.
 3. **Universal Documentation Sync**:
    - Whenever touching agents or architecture, synchronize all 7 core doc locations: `README.md`, `index.html`, `docs/index.html`, `docs/index.md`, `LAB.md`, `AGENTS.md`, and `REGISTRY.md`.
-4. **Branch Push & PR Creation**:
-   - Push your branch or open a PR using `gh pr create --title "[Infra] <Title>" --body "Closes #<issue>"`. The PAT-backed runner step pushes the branch.
+ 4. **Branch Push & PR Creation**:
+    - Only open the PR if one does not already exist: `gh pr create --title "[Infra] <Title>" --body "Closes #<issue>"`. The PAT-backed runner step pushes the branch (with a fresh fetch + force fallback so a divergent branch cannot dead-lock the pipeline).
 5. **Handoff Decision**:
    - Write your decision to `/tmp/random-lab-decision.json`:
      - `{"action": "review"}` when your PR is ready for Reviewer audit.
