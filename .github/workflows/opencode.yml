@@ -283,6 +283,12 @@ jobs:
        startsWith(github.event.comment.body, '/opencode build') ||
        contains(github.event.comment.body, ' /opencode continue') ||
        startsWith(github.event.comment.body, '/opencode continue'))
+    # One codec build per issue: a second build request (e.g. an auto-retry or a
+    # duplicate comment) cancels any in-flight build for the same issue instead of
+    # launching a second agent against the same branch (which would corrupt it).
+    concurrency:
+      group: opencode-build-${{ github.event.issue.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -408,7 +414,22 @@ jobs:
           pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
             --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
           target="${pr:-$issue}"
-          
+
+          # Orphan guard: a build branch that no longer shares any history with main
+          # cannot be merged with --rebase and would rewrite main as a single orphan
+          # root. Route to the Maintainer to re-link instead of forwarding for merge.
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            git fetch origin main --quiet 2>/dev/null || true
+            if ! git merge-base --is-ancestor "$(git rev-parse origin/main 2>/dev/null)" "$(git rev-parse HEAD 2>/dev/null)" 2>/dev/null && \
+               [ -z "$(git merge-base origin/main HEAD 2>/dev/null)" ]; then
+              echo "Branch $branch has NO common ancestor with main - cannot be merged safely."
+              echo "Routing to Maintainer (/oc maintainer) to re-link history."
+              gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+              exit 0
+            fi
+          fi
+
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found. Notifying Maintainer (/oc maintainer)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
