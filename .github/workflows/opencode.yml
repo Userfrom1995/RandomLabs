@@ -405,6 +405,32 @@ jobs:
           echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
           exit 1
 
+      - name: Diagnose silent build no-op
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          advanced="no"
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            remote_sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+            if [ -n "$remote_sha" ] && [ "$remote_sha" != "$BASELINE_HEAD" ]; then
+              advanced="yes"
+            fi
+          fi
+          has_decision="no"
+          if [ -f /tmp/random-lab-decision.json ]; then
+            has_decision="yes"
+          fi
+          if [ "$advanced" = "no" ] && [ "$has_decision" = "no" ]; then
+            echo "::warning::Build agent run ${{ github.run_id }} finished with no branch push and no decision file (silent no-op). A full agent slot was consumed with no output."
+            gh issue comment "$issue" --repo "${{ github.repository }}" \
+              --body "Lab note: build run ${{ github.run_id }} for #$issue finished with neither a push nor a decision file (silent no-op). This wastes a full agent slot; investigate the agent run or re-dispatch." 2>/dev/null || true
+          fi
+          exit 0
+
       - name: Forward builder decision
         if: always() && steps.verify.outputs.retry != 'true'
         env:
