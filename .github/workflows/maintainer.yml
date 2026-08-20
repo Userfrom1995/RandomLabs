@@ -368,6 +368,40 @@ jobs:
             echo "Main branch did not advance."
           fi
 
+      - name: Main integrity guard (prevent orphan or divergent main rewrite)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pre="${{ steps.pre_agent.outputs.sha }}"
+          if [ -z "$pre" ]; then
+            echo "No pre-agent main SHA recorded; skipping integrity guard."
+            exit 0
+          fi
+          git fetch origin main --quiet 2>/dev/null || true
+          git fetch origin "$pre" --quiet 2>/dev/null || true
+          cur=$(git rev-parse origin/main 2>/dev/null || git ls-remote origin main | awk '{print $1}')
+          if [ -z "$cur" ]; then
+            echo "Could not read current main SHA; skipping integrity guard."
+            exit 0
+          fi
+          # main must remain a strict descendant of the pre-run main. A rebase merge of a
+          # correctly linked PR keeps main descending from pre. Only a divergent/orphan rewrite
+          # (the recurring lab defect) fails this check, and we auto-restore to the pre-run SHA.
+          if git merge-base --is-ancestor "$pre" "$cur" 2>/dev/null; then
+            echo "Main integrity OK: $cur descends from pre-run main $pre."
+            exit 0
+          fi
+          echo "::error::main was rewritten or orphaned by this run (pre=$pre, now=$cur). Auto-restoring main to pre-run state."
+          if git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$pre:main" --force 2>/dev/null; then
+            echo "Restored main to $pre."
+          else
+            echo "::error::Auto-restore of main failed; manual intervention required (pre=$pre)."
+          fi
+          gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" \
+            --body "ALERT: a merge in this Maintainer run would have orphaned or diverged \`main\` (pre=$pre, now=$cur). The lab integrity guard auto-restored \`main\` to $pre. Investigate the merge path before any further main push." \
+            || true
+
       - name: Dispatch ideator when asked
         if: always()
         env:
