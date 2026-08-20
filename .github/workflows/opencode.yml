@@ -60,8 +60,21 @@ jobs:
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
 
-      - name: Forward researcher decision
+      - name: Circuit breaker budget check
         if: always()
+        id: breaker
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          if bash .github/scripts/loop-budget.sh "${{ github.repository }}" "$issue" "$issue"; then
+            echo "tripped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tripped=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Forward researcher decision
+        if: always() && steps.breaker.outputs.tripped != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -147,8 +160,21 @@ jobs:
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
 
-      - name: Forward architect decision
+      - name: Circuit breaker budget check
         if: always()
+        id: breaker
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          if bash .github/scripts/loop-budget.sh "${{ github.repository }}" "$issue" "$issue"; then
+            echo "tripped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tripped=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Forward architect decision
+        if: always() && steps.breaker.outputs.tripped != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -431,8 +457,21 @@ jobs:
           fi
           exit 0
 
-      - name: Forward builder decision
+      - name: Circuit breaker budget check
         if: always() && steps.verify.outputs.retry != 'true'
+        id: breaker
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          if bash .github/scripts/loop-budget.sh "${{ github.repository }}" "$issue" "$issue"; then
+            echo "tripped=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tripped=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Forward builder decision
+        if: always() && steps.verify.outputs.retry != 'true' && steps.breaker.outputs.tripped != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
