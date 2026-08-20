@@ -378,13 +378,18 @@ jobs:
             echo "No pre-agent main SHA recorded; skipping integrity guard."
             exit 0
           fi
-          git fetch origin main --quiet 2>/dev/null || true
-          git fetch origin "$pre" --quiet 2>/dev/null || true
-          cur=$(git rev-parse origin/main 2>/dev/null || git ls-remote origin main | awk '{print $1}')
+          # Read the live remote main SHA with ls-remote (does NOT update the local
+          # origin/main tracking ref), so the force-with-lease below pins to exactly the
+          # main we observed. A concurrent push by another workflow (e.g. lab.yml) after
+          # this point makes the lease mismatch and the restore is rejected instead of
+          # clobbering unrelated, legitimate main advances (see reviewer advisory on #92).
+          cur=$(git ls-remote origin main | awk '{print $1}')
           if [ -z "$cur" ]; then
             echo "Could not read current main SHA; skipping integrity guard."
             exit 0
           fi
+          git fetch origin "$pre" --quiet 2>/dev/null || true
+          git fetch origin "$cur" --quiet 2>/dev/null || true
           # main must remain a strict descendant of the pre-run main. A rebase merge of a
           # correctly linked PR keeps main descending from pre. Only a divergent/orphan rewrite
           # (the recurring lab defect) fails this check, and we auto-restore to the pre-run SHA.
@@ -393,7 +398,7 @@ jobs:
             exit 0
           fi
           echo "::error::main was rewritten or orphaned by this run (pre=$pre, now=$cur). Auto-restoring main to pre-run state."
-          if git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$pre:main" --force 2>/dev/null; then
+          if git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$pre:main" --force-with-lease="main:$cur" 2>/dev/null; then
             echo "Restored main to $pre."
           else
             echo "::error::Auto-restore of main failed; manual intervention required (pre=$pre)."
