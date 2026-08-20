@@ -123,8 +123,16 @@ jobs:
             # gh uses GH_TOKEN which is the owner's PAT here, so scope the API calls to GITHUB_TOKEN)
             pr=$(GH_TOKEN=${{ github.token }} gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
             if [ -z "$pr" ]; then
+              # The Obsidian umbrella issue (#68 and any Obsidian-titled issue) must stay open
+              # until the codec target is beaten, so an infra PR must reference it without closing.
+              title=$(GH_TOKEN=${{ github.token }} gh issue view "$issue" --repo "${{ github.repository }}" --json title --jq '.title' 2>/dev/null || echo "")
+              if echo "$title" | grep -qi "obsidian"; then
+                body="Refs to #$issue"
+              else
+                body="Closes #$issue"
+              fi
               echo "Opening PR for branch $branch on issue #$issue..."
-              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Lab update for #$issue" --body "Closes #$issue" 2>/dev/null || echo "")
+              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Lab update for #$issue" --body "$body" 2>/dev/null || echo "")
             fi
             echo "pr_number=$pr" >> "$GITHUB_ENV"
 
