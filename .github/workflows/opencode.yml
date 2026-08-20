@@ -63,6 +63,7 @@ jobs:
       - name: Circuit breaker budget check
         if: always()
         id: breaker
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -163,6 +164,7 @@ jobs:
       - name: Circuit breaker budget check
         if: always()
         id: breaker
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -460,6 +462,7 @@ jobs:
       - name: Circuit breaker budget check
         if: always() && steps.verify.outputs.retry != 'true'
         id: breaker
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
