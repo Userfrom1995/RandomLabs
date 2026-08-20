@@ -168,6 +168,17 @@ jobs:
             done
             git add .github/workflows/*.yml
             git commit --author="Mae (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: update workflow model configuration"
+            git fetch origin main --quiet
+            # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
+            # main must stay a strict descendant of origin/main (fast-forwardable). Rebase first if needed;
+            # if the rebase cannot make HEAD a descendant of origin/main, ABORT instead of orphaning main.
+            if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+              echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
+              git rebase origin/main --quiet || {
+                echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
+                exit 1
+              }
+            fi
             git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
               echo "Push failed, attempting rebase..."
               git fetch origin main --quiet

@@ -139,7 +139,18 @@ jobs:
             # Push commits on main if ahead of origin
             unpushed=$(git rev-list refs/remotes/origin/main..HEAD --count 2>/dev/null || echo "0")
             if [ "$unpushed" -gt 0 ]; then
-              echo "Pushing $unpushed commit(s) on main with PAT..."
+              git fetch origin main --quiet
+              # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
+              # main must remain a strict descendant of origin/main (fast-forwardable). If it is not,
+              # rebase onto origin/main first; if that still fails, ABORT rather than orphan main.
+              if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+                echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
+                git rebase origin/main --quiet || {
+                  echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
+                  exit 1
+                }
+              fi
+              echo "Pushing $(git rev-list --count refs/remotes/origin/main..HEAD) commit(s) on main with PAT..."
               git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main || {
                 echo "Push failed, attempting rebase..."
                 git fetch origin main --quiet

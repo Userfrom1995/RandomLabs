@@ -96,6 +96,16 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
 - When the Tester has approved a PR (`/oc approve-test` by `github-actions[bot]`
   on that PR, and NO newer `/oc fix` findings after it), merge it:
   `gh pr merge <N> --repo <owner>/<repo> --rebase --delete-branch`.
+- **Orphan-main protection (hard rule)**: `main` is the lab's shared spine and must
+  NEVER become a divergent/orphan root. Before merging, verify the PR branch shares
+  history with `main`: `git fetch origin main && git merge-base origin/main <pr-head-sha>`.
+  If that is EMPTY (no common ancestor), do NOT merge the orphan branch directly.
+  Re-link it first: `git fetch origin <branch> && git checkout -B <branch> origin/main &&
+  git cherry-pick <only this project's own commits> && git push --force-with-lease`, then merge.
+  Never run `git push --force` (or any push) directly to `main`; the workflow's PAT-backed
+  push steps are the only path that may advance `main`, and they now abort if the push
+  would orphan `main`. If a merge ever reports success but `main` history looks wrong,
+  stop and re-survey before any further main push.
 - **Shipping Limit**: You must only merge a MAXIMUM of 2 *new project* PRs per day (PRs   
   created by the Builder that ship a new project idea). If you check the repo and see 2 projects were already merged today, DO NOT merge any more new project PRs. Instead, for any approved project PRs, leave them open and trigger the Architect (for software enhancements) or the Researcher (for scientific/algorithmic enhancements) by outputting `{"action": "architect", "pr": <N>}` or `{"action": "research", "pr": <N>}` in your decision list, and optionally a `ping` explaining that the daily shipping limit was reached. This will push the team to design next-level improvements. **Note**: This limit does NOT apply to PRs from humans, nor does it apply to lab improvement PRs (e.g., updates to docs, agent prompts, or workflows). Those can be merged freely.
 - After every merge, you MUST check the situation of the workflows that are supposed to run (like `pages.yml`). If they didn't run or failed, investigate and trigger them using `gh workflow run <workflow_name>` if necessary.
