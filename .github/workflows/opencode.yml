@@ -406,7 +406,7 @@ jobs:
           exit 1
 
       - name: Diagnose silent build no-op
-        if: always()
+        if: always() && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
