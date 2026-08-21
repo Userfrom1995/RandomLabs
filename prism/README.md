@@ -53,12 +53,10 @@ prism/src/frontend (ppm, stb_image, frontend)
 prism/src/cli
 prism/tests/unit
 prism/benchmarks
-prism/web
 ```
 
-## Web demo
-
-Static demo at `prism/web/index.html` (encode/decode roundtrip in the browser via a JS mirror of the core logic). Hosted preview under `/prism/` when deployed.
+Prism is a CLI tool: there is no web entrypoint; project documentation lives in
+`prism/docs/`.
 
 ## Benchmarks
 
