@@ -3421,6 +3421,7 @@ pub fn fuzz_gate(count: usize, efforts: &[u8]) -> Result<usize, CodecError> {
         assert_eq!(back, img, "R3-C run mode roundtrip must be bit-exact");
         std::env::remove_var("OBSIDIAN_CARC");
         std::env::remove_var("OBSIDIAN_CARC_RUN");
+        std::env::remove_var("OBSIDIAN_CARC_RUN_FORCE");
         std::env::remove_var("OBSIDIAN_CARC_FORCE");
     }
 
