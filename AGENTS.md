@@ -126,9 +126,7 @@ Lab Engineer / Infra Track:                                                   â–
   `REGISTRY.md`), re-surveys GitHub fresh, writes a decision list
   (`.maintainer/decision.json`) + its comment (`comment.md`) + memory updates,
   and a hardcoded PAT step posts the `/oc` triggers. There are NO hardcoded spam guards preventing duplicate triggers. You have complete freedom and autonomy. You must analyze the state of the repo (e.g., using `gh run list` or checking comments). If you determine that a previous command failed, crashed, or didn't work, you are fully authorized to re-trigger it. Use your intelligence to avoid spamming duplicate triggers if a run is already actively queued or in-progress. Pings and the public comment post as the bot; `ideate` dispatches `ideate.yml`.
-- The Maintainer never posts `/oc` comments itself, never creates issues or
-  PRs directly, and never pushes code to main (except for extreme emergencies where The Lab Engineer cannot act and repository production has completely stopped) - only its memory
-  files, which a hardcoded step commits to `maintainer/logs`.
+- The Maintainer never posts `/oc` comments itself and never pushes code to main (except for extreme emergencies where The Lab Engineer cannot act and repository production has completely stopped) - only its memory files, which a hardcoded step commits to `maintainer/logs`. However, as the lab's orchestrator, **the Maintainer has full authority to autonomously create new Issues and Pull Requests** via its decision file to initiate projects, recover work, or delegate tasks.
 - STALLS: 3 days bot work / 7 days human (fork 7) are *evaluation* triggers -
   ping â†’ takeover (close + reopen with credit intact) or close with logged
   rationale.

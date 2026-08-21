@@ -266,11 +266,11 @@ jobs:
               )
               print(f"posted comment on #{t}")
           PY
-
       - name: Run /oc triggers as owner
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import json, os, subprocess
@@ -278,6 +278,9 @@ jobs:
           repo = os.environ["GITHUB_REPOSITORY"]
           owner = os.environ["GITHUB_REPOSITORY_OWNER"]
           pat = os.environ["GH_TOKEN"]
+          
+          bot_env = os.environ.copy()
+          bot_env["GH_TOKEN"] = os.environ.get("GITHUB_TOKEN", "")
 
           def api(*args, check=True):
               r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=check)
@@ -306,6 +309,19 @@ jobs:
               action = d.get("action")
               pr = d.get("pr")
               target = d.get("target") or pr or d.get("issue")
+              if action in ("create_issue", "create_pr"):
+                  title = d.get("title", "New Item")
+                  body_text = d.get("body", "")
+                  if action == "create_issue":
+                      subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], check=False, env=bot_env)
+                      print(f"Created new issue: {title}")
+                  else:
+                      head = d.get("head", "")
+                      if head:
+                          subprocess.run(["gh", "pr", "create", "--repo", repo, "--head", head, "--base", "main", "--title", title, "--body", body_text], check=False, env=bot_env)
+                          print(f"Created new PR for branch: {head}")
+                  continue
+
               if not target:
                   continue
               target = int(target)
