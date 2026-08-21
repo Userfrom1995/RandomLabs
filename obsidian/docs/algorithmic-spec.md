@@ -215,13 +215,13 @@ contexts.
 
 ## 6. Entropy coding
 
-> **Errata (2026-08-18), see `docs/entropy-analysis.md`.** The v1 default below
+> **Errata (2026-08-18), see `archive/entropy-analysis.md`.** The v1 default below
 > (adaptive rANS over a 512-symbol alphabet) is the cause of the measured
 > 27.82 bpp expansion on Kodak: the per-context tables never specialize on a
 > 768x512 image, so symbols are coded at ~9 bits each, exceeding the 8-bit raw
 > pixel cost. The corrected design (per-context adaptive Golomb-Rice as the M1
 > default, with a capped-and-escaped static rANS as the M2/M3 path) is specified
-> in `docs/entropy-analysis.md` and supersedes sections 6.2-6.6 for
+> in `archive/entropy-analysis.md` and supersedes sections 6.2-6.6 for
 > implementation. The analysis pass, predictor bank, context model, and container
 > layout are unchanged.
 
@@ -244,10 +244,10 @@ Huffman is structurally limited to >= 1 bit per zero.
   path (details in implementation notes; equivalently, cap the active alphabet
   to symbols seen with a normalized model).
 - **Adaptive variant (v1 default, RETIRED for M1)**: frequencies are incremented
-  after each observed symbol and renormalized. As `docs/entropy-analysis.md`
+  after each observed symbol and renormalized. As `archive/entropy-analysis.md`
   shows, with a 512-symbol alphabet and single-unit updates this never
   specializes on Kodak-sized images and expands the stream. The M1 default is
-  **per-context adaptive Golomb-Rice** (section 6.2-bis of `entropy-analysis.md`),
+  **per-context adaptive Golomb-Rice** (section 6.2-bis of `archive/entropy-analysis.md`),
   which needs no per-context table and cannot expand.
 - **Static variant (effort >= 6)**: one analysis pass collects per-context
   histograms; normalized tables are signaled and used identically by encoder

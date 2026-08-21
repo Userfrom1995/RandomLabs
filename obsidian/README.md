@@ -123,7 +123,7 @@ obsidian/
   benchmarks/                run_kodak.sh fuzz_gate.sh aggregate.py toolchain.md
                              data/kodak.sha256 results/*.csv README.md
   docs/                      research.md algorithmic-spec.md benchmark-methodology.md
-                             architecture.md entropy-*.md decisions/ archive/
+                             architecture.md decisions/ archive/
 ```
 
 Core crate is zero-dependency (`std` only); `image`-crate I/O lives only in the CLI.
@@ -134,7 +134,7 @@ Core crate is zero-dependency (`std` only); `image`-crate I/O lives only in the 
 - `docs/algorithmic-spec.md` - v1 algorithmic specification (with encoder/decoder pseudo-code; superseded entropy section flagged).
 - `docs/benchmark-methodology.md` - reproducible Kodak protocol.
 - `docs/architecture.md` - software blueprint (v1, with notes on current deltas).
-- `docs/entropy-analysis.md` / `docs/entropy-architecture.md` - diagnosis of the rANS expansion and the GR fix.
+- `docs/archive/entropy-analysis.md` / `docs/archive/entropy-architecture.md` - diagnosis of the rANS expansion and the GR fix (archived).
 - `benchmarks/toolchain.md` - pinned tool versions and commands.
 - `benchmarks/README.md` - headline table, per-image rows, ratios, trend.
 - Archived blueprints: `docs/archive/` (R3..R15 per-iteration blueprints, historical; not current spec).

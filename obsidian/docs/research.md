@@ -208,7 +208,7 @@ per-context (static) tables.
       the per-context 512-symbol adaptive rANS never specializes on a 768x512
       image and codes every residual at ~9 bits. This is a design defect in the
       entropy coder, not in prediction. It is diagnosed rigorously and fixed in
-      `docs/entropy-analysis.md` (replace the 512-symbol adaptive rANS with
+      `archive/entropy-analysis.md` (replace the 512-symbol adaptive rANS with
       per-context adaptive Golomb-Rice).
     - M1: beat WebP lossless (9.61 bpp) AND optipng PNG (13.05 bpp) on Kodak.
       Achievable with Golomb-Rice + the existing predictor bank + per-context
