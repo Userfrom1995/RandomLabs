@@ -49,9 +49,13 @@ pub fn read(bytes: &[u8]) -> Result<Image, CodecError> {
 
     let mut image = Image::new(width, height, channels)?;
     if binary {
-        // Exactly one whitespace byte is consumed after maxval; the raster
-        // follows. Be tolerant: skip any whitespace, then read the raster.
-        skip_ws(bytes, &mut pos);
+        // Binary P6/P5: exactly one whitespace byte separates header and
+        // raster (PPM spec). Consuming more would eat raster bytes that
+        // happen to be whitespace values (e.g. R=10 -> LF). So consume
+        // exactly one if present.
+        if pos < bytes.len() && matches!(bytes[pos], b' ' | b'\n' | b'\t' | b'\r') {
+            pos += 1;
+        }
         if bytes.len().saturating_sub(pos) < need {
             return Err(CodecError::InvalidStream("truncated raster data".into()));
         }

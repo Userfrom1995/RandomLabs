@@ -2,8 +2,6 @@
 
 use obsidian_core::{
     decode, encode, encode_with, roundtrip, EncodeOpts,
-    image::Image,
-    ppm,
     predict::PredictorId,
 };
 use std::path::PathBuf;
@@ -41,7 +39,8 @@ pub fn run(args: Vec<String>) -> i32 {
 
 fn usage() {
     eprintln!(
-        "usage:\n  obsidian encode <in.ppm> <out.obsd> [--effort N] [--json]\n  obsidian decode <in.obsd> <out.ppm>\n  obsidian roundtrip <in.ppm> [--effort N] [--json]\n  obsidian selftest [--fuzz N]\n  obsidian check <in.obsd>\n  obsidian bench <image-dir> [--effort N] [--json]\n  obsidian bench-synth [--effort N] [--count N] [--size N] [--seed N]"
+        "usage:\n  obsidian encode <in-image> <out.obsd> [--effort N] [--json]\n  obsidian decode <in.obsd> <out-image>\n  obsidian roundtrip <in-image> [--effort N] [--json]\n  obsidian selftest [--fuzz N]\n  obsidian check <in.obsd>\n  obsidian bench <image-dir> [--effort N] [--json]\n  obsidian bench-synth [--effort N] [--count N] [--size N] [--seed N]\n\n  <in-image>/<out-image> may be any of: {} (extension selects format); .obsd is the codec container.",
+        crate::image_io::supported_formats_hint()
     );
 }
 
@@ -72,23 +71,12 @@ fn parse_effort(rest: &[String]) -> Result<(u8, bool, Vec<String>), i32> {
     Ok((effort, json, positional))
 }
 
-fn read_ppm(path: &PathBuf) -> Result<Image, i32> {
-    let data = std::fs::read(path).map_err(|e| {
-        eprintln!("obsidian: cannot read '{}': {e}", path.display());
-        2
-    })?;
-    ppm::read(&data).map_err(|e| {
-        eprintln!("obsidian: invalid image '{}': {e}", path.display());
-        1
-    })
+fn read_image_file(path: &PathBuf) -> Result<obsidian_core::image::Image, i32> {
+    crate::image_io::read_image(path)
 }
 
-fn write_ppm(path: &PathBuf, img: &Image) -> Result<(), i32> {
-    let bytes = ppm::write(img);
-    std::fs::write(path, bytes).map_err(|e| {
-        eprintln!("obsidian: cannot write '{}': {e}", path.display());
-        2
-    })
+fn write_image_file(path: &PathBuf, img: &obsidian_core::image::Image) -> Result<(), i32> {
+    crate::image_io::write_image(path, img)
 }
 
 fn cmd_encode(args: &[String]) -> i32 {
@@ -97,13 +85,13 @@ fn cmd_encode(args: &[String]) -> i32 {
         Err(c) => return c,
     };
     if positional.len() != 2 {
-        eprintln!("obsidian: encode requires <in.ppm> <out.obsd>");
+        eprintln!("obsidian: encode requires <in-image> <out.obsd>");
         usage();
         return 1;
     }
     let in_path = PathBuf::from(&positional[0]);
     let out_path = PathBuf::from(&positional[1]);
-    let image = match read_ppm(&in_path) {
+    let image = match read_image_file(&in_path) {
         Ok(i) => i,
         Err(c) => return c,
     };
@@ -145,7 +133,7 @@ fn cmd_encode(args: &[String]) -> i32 {
 
 fn cmd_decode(args: &[String]) -> i32 {
     if args.len() != 2 {
-        eprintln!("obsidian: decode requires <in.obsd> <out.ppm>");
+        eprintln!("obsidian: decode requires <in.obsd> <out-image>");
         usage();
         return 1;
     }
@@ -167,7 +155,7 @@ fn cmd_decode(args: &[String]) -> i32 {
         }
     };
     let decode_ms = start.elapsed().as_secs_f64() * 1000.0;
-    if let Err(c) = write_ppm(&out_path, &image) {
+    if let Err(c) = write_image_file(&out_path, &image) {
         return c;
     }
     println!(
@@ -224,12 +212,12 @@ fn cmd_roundtrip(args: &[String]) -> i32 {
         Err(c) => return c,
     };
     if positional.len() != 1 {
-        eprintln!("obsidian: roundtrip requires <in.ppm>");
+        eprintln!("obsidian: roundtrip requires <in-image>");
         usage();
         return 1;
     }
     let in_path = PathBuf::from(&positional[0]);
-    let image = match read_ppm(&in_path) {
+    let image = match read_image_file(&in_path) {
         Ok(i) => i,
         Err(c) => return c,
     };
