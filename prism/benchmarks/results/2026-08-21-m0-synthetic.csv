@@ -1,0 +1,6 @@
+image,bytes,bpp,bpp_per_sample,effort
+synthetic-64x64-gradient-e0,5120,3.333,1.111,0
+synthetic-64x64-gradient-e4,4096,2.667,0.889,4
+synthetic-64x64-noise-e0,8192,5.333,1.778,0
+# Real Kodak rows pending data/kodak provisioning; run: prism/benchmarks/run_kodak.sh --effort 4 --kodak data/kodak
+# Gates: M0 roundtrip exact (PASS), M1 <13.05 PNG + <9.61 WebP, M2 <9.71 JLS, M3 <8.71 JXL, M4 <8.0

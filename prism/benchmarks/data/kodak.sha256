@@ -1,0 +1,5 @@
+# Kodak PCD0992 canonical PPM SHA256 (placeholder - real hashes populated when data is provisioned)
+# 24 images 768x512 RGB, names kodim01.ppm .. kodim24.ppm
+# Example: echo "placeholder - replace with actual sha256sum of canonical PPMs"
+d41d8cd98f00b204e9800998ecf8427e  kodim01.ppm
+d41d8cd98f00b204e9800998ecf8427e  kodim02.ppm
