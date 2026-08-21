@@ -1,0 +1,4 @@
+profile,noise,size,bank_old_v1_bpp,bank_new_v1_bpp,delta_bpp,delta_pct,note
+smooth,0.1,256x256,7.8018,7.4775,-0.3243,-4.16,expanded bank helps structured content
+photo,0.5,256x256,11.2890,11.2867,-0.0023,-0.02,neutral on mid-noise
+noise,2.0,256x256,16.3304,16.2916,-0.0388,-0.24,neutral on near-random

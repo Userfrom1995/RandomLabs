@@ -1,0 +1,6 @@
+profile,width,height,channels,GR_bytes,GR_bpp,CMARC_bytes,CMARC_bpp,CARC_LZ_bytes,CARC_LZ_bpp,selected_mode,note
+repetitive_period4,256,64,1,329,0.1606,329,0.1606,329,0.1606,0,GR perfectly predicts period-4; LZ flag+gamma overhead loses
+smooth_noise,256,256,3,23159,0.9423,13289,0.5407,13289,0.5407,2,CMARC wins (R2 cross-bit); LZ adds nothing on photographic
+flat,256,64,1,288,0.1406,190,0.0928,190,0.0928,2,CMARC wins (zero-flag collapses); LZ dormant
+random,256,64,1,708,0.3457,708,0.3457,708,0.3457,0,GR==CMARC tie; no structure for LZ
+checker,127,128,1,312,0.1535,312,0.1535,312,0.1535,0,period-2 along raster, odd width; predictor handles it, LZ dormant

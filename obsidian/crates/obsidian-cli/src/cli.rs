@@ -1,9 +1,10 @@
 //! Command surface: strict argument validation, no interactive input.
 
 use obsidian_core::{
-    decode, encode, roundtrip,
+    decode, encode, encode_with, roundtrip, EncodeOpts,
     image::Image,
     ppm,
+    predict::PredictorId,
 };
 use std::path::PathBuf;
 use std::time::Instant;
@@ -25,6 +26,7 @@ pub fn run(args: Vec<String>) -> i32 {
         "selftest" => cmd_selftest(rest),
         "check" => cmd_check(rest),
         "bench" => crate::bench::cmd_bench(rest),
+        "bench-synth" => crate::bench::cmd_bench_synth(rest),
         "help" | "-h" | "--help" => {
             usage();
             0
@@ -39,7 +41,7 @@ pub fn run(args: Vec<String>) -> i32 {
 
 fn usage() {
     eprintln!(
-        "usage:\n  obsidian encode <in.ppm> <out.obsd> [--effort N] [--json]\n  obsidian decode <in.obsd> <out.ppm>\n  obsidian roundtrip <in.ppm> [--effort N] [--json]\n  obsidian selftest [--fuzz N]\n  obsidian check <in.obsd>\n  obsidian bench <image-dir> [--effort N] [--json]"
+        "usage:\n  obsidian encode <in.ppm> <out.obsd> [--effort N] [--json]\n  obsidian decode <in.obsd> <out.ppm>\n  obsidian roundtrip <in.ppm> [--effort N] [--json]\n  obsidian selftest [--fuzz N]\n  obsidian check <in.obsd>\n  obsidian bench <image-dir> [--effort N] [--json]\n  obsidian bench-synth [--effort N] [--count N] [--size N] [--seed N]"
     );
 }
 
@@ -180,7 +182,44 @@ fn cmd_decode(args: &[String]) -> i32 {
 }
 
 fn cmd_roundtrip(args: &[String]) -> i32 {
-    let (effort, json, positional) = match parse_effort(args) {
+    // R13-A measurement seam: `--predictor <NAME>` forces a single predictor for
+    // the whole image so its standalone potential (vs the never-expand net) can be
+    // measured directly. Unrecognized names fall back to the default analyzer.
+    let mut forced: Option<PredictorId> = None;
+    // R13-B measurement seam: `--transform lift|squeeze` forces the reversible
+    // group transform kind so R13-B (CDF 5/3 lifting) can be measured directly.
+    let mut forced_transform: Option<obsidian_core::transforms::TransformKind> = None;
+    let mut rest = args.to_vec();
+    if let Some(pos) = rest.iter().position(|a| a == "--predictor") {
+        if pos + 1 < rest.len() {
+            let name = rest[pos + 1].as_str();
+            forced = PredictorId::from_name(name);
+            rest.remove(pos + 1);
+            rest.remove(pos);
+        }
+    }
+    if let Some(pos) = rest.iter().position(|a| a == "--transform") {
+        if pos + 1 < rest.len() {
+            forced_transform = match rest[pos + 1].as_str() {
+                "lift" => Some(obsidian_core::transforms::TransformKind::Lift),
+                "squeeze" => Some(obsidian_core::transforms::TransformKind::Squeeze),
+                other => {
+                    eprintln!("obsidian: --transform expects 'lift' or 'squeeze' (got '{other}')");
+                    return 1;
+                }
+            };
+            rest.remove(pos + 1);
+            rest.remove(pos);
+        }
+    }
+    // R15 measurement seam: `--nrp` enables the learned neural residual predictor
+    // as a candidate in the never-expand safety net (mirrors `--predictor`).
+    let mut nrp = false;
+    if let Some(pos) = rest.iter().position(|a| a == "--nrp") {
+        nrp = true;
+        rest.remove(pos);
+    }
+    let (effort, json, positional) = match parse_effort(&rest) {
         Ok(v) => v,
         Err(c) => return c,
     };
@@ -194,7 +233,25 @@ fn cmd_roundtrip(args: &[String]) -> i32 {
         Ok(i) => i,
         Err(c) => return c,
     };
-    match roundtrip(&image, effort) {
+    let result = if forced.is_some() || forced_transform.is_some() {
+        encode_with(
+            &image,
+            effort,
+            EncodeOpts {
+                forced_predictor: forced,
+                transform_kind: forced_transform,
+                nrp: if nrp { Some(true) } else { None },
+                ..Default::default()
+            },
+        )
+        .and_then(|(bytes, stats)| {
+            let back = decode(&bytes)?;
+            Ok((bytes, stats, back))
+        })
+    } else {
+        roundtrip(&image, effort)
+    };
+    match result {
         Ok((bytes, stats, back)) => {
             if back != image {
                 eprintln!("obsidian: fidelity failure (image differs)");

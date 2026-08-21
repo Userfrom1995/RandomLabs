@@ -1,0 +1,13 @@
+image,codec,bytes,bpp,effort,note
+synth_photo_768x512,obsidian-m3a-adaptive,602223,12.2523,4,photographic proxy (value-noise+gauss); fallback to v1 GR engaged (no regression)
+synth_photo_768x512,obsidian-m3a-forced-LZ,1134961,23.0908,4,FORCED, no fallback: flag stream + short false matches regress badly (why the fallback exists)
+synth_photo_768x512,obsidian-v1,667378,13.5778,0,v1 GR single-context baseline
+synth_photo_768x512,obsidian-v1-e4,602223,12.2523,4,v1 GR effort4 (what the fallback picks)
+syn_med_256x192,obsidian-m3a-adaptive,77798,12.6624,4,photographic proxy; gr_lz wins
+syn_med_256x192,obsidian-v1-e0,85534,13.9215,0,v1 GR baseline
+syn_high_256x192,obsidian-m3a-adaptive,92775,15.1001,4,photographic proxy (more noise); gr_lz wins
+syn_high_256x192,obsidian-v1-e0,101878,16.5817,0,v1 GR baseline
+syn_noise_128x128,obsidian-m3a-adaptive,54703,26.7104,4,pure noise: no matches, flag overhead negligible (~0.01 bpp)
+syn_noise_128x128,obsidian-v1-e0,54683,26.7007,0,v1 GR baseline
+synth_rep_512x512,obsidian-m3a-adaptive,18115,0.5528,4,repetitive (x%64 ^ y%64): gr_lz wins big
+synth_rep_512x512,obsidian-v1-e0,118928,3.6294,0,v1 GR baseline (much larger)

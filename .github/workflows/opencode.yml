@@ -519,6 +519,21 @@ jobs:
             echo "Build complete! Handing over to Reviewer (/oc review)"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc review" || true
           elif [ "$action" = "continue" ]; then
+            # Circuit breaker: a build that keeps returning "continue" without ever
+            # merging is an autonomous runaway loop (e.g. hammering the same
+            # architectural wall). After a generous number of recent auto-continue
+            # cycles on this issue, hand control back to a human Maintainer instead
+            # of burning another agent slot. This implements the lab CTO mandate that
+            # workflows never enter infinite loops. The threshold is deliberately high
+            # so normal long builds are never affected; only a true runaway trips it.
+            cutoff=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+            recent=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue")) and (.createdAt > "'"$cutoff"'"))] | length' 2>/dev/null || echo "0")
+            if [ "${recent:-0}" -ge 24 ]; then
+              echo "Autonomous continue-loop circuit breaker tripped ($recent cycles in 24h). Handing off to Maintainer (/oc maintainer)."
+              gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+              exit 0
+            fi
             echo "Build in progress. Triggering /oc continue"
             gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc continue" || true
           elif [ "$action" = "maintainer" ]; then

@@ -58,7 +58,7 @@ fn map(r: i32) -> u32 {
 fn unmap(u: u32) -> i32 {
     if u == 0 { 0 }
     else if u & 1 == 0 { (u >> 1) as i32 }
-    else { -((u + 1) >> 1) as i32 }
+    else { -(u >> 1) as i32 }
 }
 ```
 

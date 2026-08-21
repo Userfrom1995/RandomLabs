@@ -6,6 +6,17 @@
 - **Supersedes in part:** `docs/algorithmic-spec.md` section 6 (entropy coding) and the milestone list in `docs/research.md` section 3.5.
 - **Companion docs:** `docs/research.md` (literature), `docs/algorithmic-spec.md` (v1 spec), `docs/benchmark-methodology.md`, `docs/architecture.md`.
 
+> **ERRATA (2026-08-18, the Builder):** the central conclusion of this document is
+> **WRONG**. The 27.82 bpp expansion was not caused by the entropy stage. The real
+> cause was a PPM interleaved/planar bug in `ppm.rs` `read`/`write` that scrambled
+> R/G/B on every image, so all numbers here (27.82 bpp, the "entropy stage expands"
+> proof, the synthetic 11.6 bpp probe) were measured on corrupted pixels and are
+> invalid. With correct pixels the very same Golomb-Rice backend yields a bit-exact
+> **10.16 bpp** at effort 4 on the real Kodak set (see `progress/68-...md` checklist
+> 11b-11d and `benchmarks/results/2026-08-18-corrected.csv`). The M0 Golomb-Rice
+> design below is still the production entropy backend and is sound; only this
+> document's root-cause attribution is superseded.
+
 ---
 
 ## 0. Executive summary

@@ -1,0 +1,7 @@
+image,codec,bytes,bpp,effort,note
+synth_flat_192x160_rgb,obsidian-v1-gr,1123,0.2923,4,all residuals zero (flat planes)
+synth_flat_192x160_rgb,obsidian-cmarc,490,0.1280,4,CMARC WINS: zero-flag bin collapses; entropy_mode=CARC signaled
+synth_laplacian_192x160_rgb,obsidian-v1-gr-cm,1188,0.3092,4,model's best backend (gr_cm)
+synth_laplacian_192x160_rgb,obsidian-cmarc,1188,0.3092,4,standalone CMARC ~20.5KB but safety net falls back to gr_cm (never-expands)
+synth_smooth_sinusoid_192x160_rgb,obsidian-v1-gr-cm,3266,0.8510,4,model's best backend (gr_cm)
+synth_smooth_sinusoid_192x160_rgb,obsidian-cmarc,3266,0.8510,4,standalone CMARC ~20KB but safety net falls back to gr_cm (never-expands)

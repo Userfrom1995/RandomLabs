@@ -22,8 +22,9 @@ pub mod model;
 pub mod ppm;
 pub mod predict;
 pub mod rans;
+pub mod transforms;
 
 pub use decoder::decode;
-pub use encoder::{encode, roundtrip, fuzz_gate, EncodeStats};
+pub use encoder::{encode, encode_with, roundtrip, fuzz_gate, EncodeStats, EncodeOpts};
 pub use error::CodecError;
 pub use image::{Channels, Image};

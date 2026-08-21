@@ -1,0 +1,5 @@
+profile,gr_default_bpp,gr_xchan_off_bpp,gr_xchan_on_bpp,carc_default_bpp,carc_xchan_off_bpp,carc_xchan_on_bpp,auto_picks_xchan
+grad,0.124,0.126,0.124,0.010,0.010,0.010,on
+photo,1.062,1.080,1.062,0.816,0.848,0.816,on
+noise,8.729,8.729,9.005,8.729,8.729,9.005,off
+color,0.121,0.121,0.788,0.011,0.011,0.151,off

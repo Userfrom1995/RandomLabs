@@ -1,0 +1,4 @@
+proxy,width,height,v1_bpp,capped_bpp
+grad_gray,256,256,5.8627,6.5651
+ramp_rgb,512,512,18.1361,18.9132
+MEAN,_,_,12.0,12.7

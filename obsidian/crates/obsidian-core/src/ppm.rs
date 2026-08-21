@@ -55,12 +55,12 @@ pub fn read(bytes: &[u8]) -> Result<Image, CodecError> {
         if bytes.len().saturating_sub(pos) < need {
             return Err(CodecError::InvalidStream("truncated raster data".into()));
         }
-        for c in 0..plane_count {
-            for y in 0..height as usize {
-                for x in 0..width as usize {
-                    image.planes[c][y * width as usize + x] = bytes[pos];
-                    pos += 1;
-                }
+        // P6/P5 raster is interleaved: for each pixel the samples for every
+        // channel are stored consecutively (R0 G0 B0 R1 G1 B1 ...).
+        for i in 0..area {
+            for c in 0..plane_count {
+                image.planes[c][i] = bytes[pos];
+                pos += 1;
             }
         }
     } else {
@@ -98,8 +98,11 @@ pub fn write(image: &Image) -> Vec<u8> {
     out.extend_from_slice(image.height.to_string().as_bytes());
     out.push(b'\n');
     out.extend_from_slice(b"255\n");
-    for c in 0..image.plane_count() {
-        out.extend_from_slice(&image.planes[c]);
+    // Standard interleaved raster: every pixel's channels stored consecutively.
+    for i in 0..image.area() {
+        for c in 0..image.plane_count() {
+            out.push(image.planes[c][i]);
+        }
     }
     out
 }

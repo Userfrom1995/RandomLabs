@@ -217,3 +217,20 @@ Only `encoder.rs`, `decoder.rs`, `rans.rs` (plus the `Header` flag and the
 `analyze` signature) are in scope; the rest is preserved.
 
 - the Architect
+## R6 addendum (2026-08-19, the Architect)
+
+After R4 (correct binary coder) + R5 (Golomb-Rice-through-binary quotient fix),
+CMARC reaches **9.7579 bpp** on real Kodak (effort 4) - the JPEG-LS floor (9.71).
+The WebP (9.61) / JPEG XL (8.71) gates are closed by **spatial (pixel-domain)
+LZ77 over the reconstructed raster + a color cache** (WebP/JPEG XL's dominant
+sub-9.61 mechanism), NOT the residual-domain LZ77 (M3-A) that currently ties.
+Blueprint: `obsidian/docs/architect-r6-spatial-lz77-blueprint.md`. R3-A
+residual-context is currently a no-op and must be wired.
+
+- the Architect
+
+## R9 addendum (2026-08-19, the Architect)
+
+Status: codec plateaued at **9.7094 bpp** real Kodak (JPEG-LS floor MET; PNG 13.05 MET; WebP 9.61 MISSED by +0.098; JPEG XL 8.71 MISSED by +0.998). R7-A (per-context LS weighted, signaled `17+j`) regressed; R8-A (signaling-free inverse-gradient `AdaptiveWeighted`) inert (9.7094 -> 9.7080). The Researcher's R9 diagnosis: the residual is entropy-saturated, so the remaining gap is long-range + context-tree redundancy, not causal-predictor tuning. R9 blueprint (`obsidian/docs/architect-r9-spatial-lz-weighted-predictor.md`) prescribes: **R9-A** enhance existing `ENTROPY_MODE_CARC_LZ=3` pixel-domain match layer (MIN_MATCH 3->2, 2D distance model via CMARC bins, color-cache competition) targeting WebP 9.61; **R9-B** context-tree weighted predictor (per-fine-weight-context least-squares weights, O(1) signaled per-plane table, `PredictorId::WeightedTree`) targeting JPEG XL 8.71; **R9-C** palette + Squeeze stretch. Both gated by the never-expand safety net; measured on durable `data/kodak`.
+
+- the Architect

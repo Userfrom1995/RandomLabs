@@ -50,6 +50,56 @@ impl Header {
         }
     }
 
+    /// `GR_M2` (bit 5, 0x20): the Golomb-Rice backend adds per-context bias
+    /// cancellation (M2-A) AND run mode (M2-B). Reuses a still-reserved flag
+    /// bit so old v1 GR streams (bit4=1, bit5=0) keep decoding unchanged.
+    pub fn gr_m2(&self) -> bool {
+        self.flags & 0x20 != 0
+    }
+
+    pub fn set_gr_m2(&mut self, on: bool) {
+        if on {
+            self.flags |= 0x20;
+        } else {
+            self.flags &= !0x20;
+        }
+    }
+
+    /// `GR_CM` (bit 6, 0x40): the Golomb-Rice backend uses M2.5 context mixing
+    /// (a per-context mixture of Rice experts, see `rans.rs::CmState`). Another
+    /// still-reserved flag bit; v1 GR (bit4 only) and GR_M2 (bit4+bit5) streams
+    /// keep decoding unchanged. Context mixing adds zero model bytes (the expert
+    /// weights are mirrored Hedge state).
+    pub fn gr_cm(&self) -> bool {
+        self.flags & 0x40 != 0
+    }
+
+    pub fn set_gr_cm(&mut self, on: bool) {
+        if on {
+            self.flags |= 0x40;
+        } else {
+            self.flags &= !0x40;
+        }
+    }
+
+    /// `GR_LZ` (bit 7, 0x80): the Golomb-Rice backend adds an LZ77 match layer
+    /// (M3-A). Reuses the last reserved flag bit. When clear the per-plane
+    /// stream is byte-identical to v1 GR (or GR_M2 / GR_CM if those bits are
+    /// set), so old streams keep decoding unchanged. The match layer is additive
+    /// and mirrored: it adds zero model bytes and only removes bits, so it can
+    /// never expand versus v1.
+    pub fn gr_lz(&self) -> bool {
+        self.flags & 0x80 != 0
+    }
+
+    pub fn set_gr_lz(&mut self, on: bool) {
+        if on {
+            self.flags |= 0x80;
+        } else {
+            self.flags &= !0x80;
+        }
+    }
+
     pub fn effort_ok(&self) -> bool {
         self.effort <= 7
     }
