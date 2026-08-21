@@ -25,8 +25,8 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
-  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the General agent`), and commit
-  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `lab:`, `general:`,
+  `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the Recover Agent`, `- the General agent`), and commit
+  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `lab:`, `recover:`, `general:`,
   `maintainer:` for memory updates).
 - Only create issues and pull requests when a real change is warranted.
 
@@ -60,6 +60,7 @@ Lab Engineer / Infra Track:                                                   �
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
 - In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
+- **PR recovery (issue #112)**: If a build PR is closed (not merged) while its branch kept advancing, or its branch went orphan (no common ancestor with `main`), the `opencode-recover.yml` auto-detect job (on a schedule and on PR close) or a manual `/oc recover` resurrects the work into an open continuation PR. Commits are always restorable from the `recover/<pr>` tag that every build push writes, and orphan branches are re-linked onto `main` via cherry-pick (never merging unrelated history into `main`). The Maintainer may self-trigger recovery for in-flight work only.
 
 ## The multi-stage review & testing loop
 
@@ -83,6 +84,7 @@ Lab Engineer / Infra Track:                                                   �
   - an exact `/oc architect` or `/oc plan` → ARCHITECT mode: drafts architectural blueprints.
   - an exact `/oc research` → RESEARCH mode: produces mathematical/algorithmic specs.
   - an exact `/oc lab` → LAB mode: implements lab infrastructure, fixes workflows, creates agents, and manages models.
+  - an exact `/oc recover` → RECOVER mode: the Recover Agent (or the `opencode-recover.yml` auto-detect job) resurrects a closed/orphaned build PR into an open continuation PR, restoring commits from the `recover/<pr>` tag and re-linking orphan branches onto `main` without rewriting `main`. The Maintainer may also self-trigger recovery for in-flight work only.
   - any other `/oc` → GENERAL mode: a full-capability assistant (questions,
     closing issues, small changes, even PRs if the request calls for it) -
     nothing is forced: no mandatory push, no verification, no retries.

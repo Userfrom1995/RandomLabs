@@ -17,6 +17,7 @@ reviewed PRs (see LAB.md §20).
 | The Tester | Dynamic verification engineer | worker | bootstrap | 2026-08-14 | `/oc test` | `.github/agents/tester.md` |
 | The Auditor | Lab pipeline inspector | worker | bootstrap | 2026-08-16 | `schedule` · `workflow_dispatch` | `.github/agents/auditor.md` |
 | The Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc lab` | `.github/agents/labengineer.md` |
+| The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
 
 ## Team Spirit & Peer Calling Model
@@ -30,6 +31,7 @@ The lab operates as a collaborative, highly cohesive agent squad. Agents trust e
 - **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
 - **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
 - **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
+- **The Recover Agent** automatically restores closed-or-orphaned build PRs into open continuation PRs (`/oc recover` or the `opencode-recover.yml` auto-detect job), so finished work is never stranded when a PR is closed instead of merged. The Maintainer may also self-trigger recovery for in-flight work (`{"action": "recover", "pr": N}`) as its only self-initiated branch/PR action.
 - **Mae (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`) or **Lab Engineer** (`/oc lab`), and merges tested, approved projects.
 
 ## Mandates (co-maintainers)

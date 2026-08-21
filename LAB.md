@@ -303,6 +303,7 @@ personality, CHANGELOG) is direct-commit.
 | `opencode-review-trigger.yml` | The single automatic exception: PR push → if bot PR + progress complete (or human same-repo PR) → `/oc review (head <sha>)` (PAT, head-deduped) |
 | `opencode.yml` | Build / Fix / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); restore-head; short `/oc fix` trigger |
+| `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
 | `ideate.yml` | Dispatch-only Ideator - posts candidates on the Brainstorm Board; no PAT in env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
