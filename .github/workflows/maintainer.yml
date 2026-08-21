@@ -330,19 +330,19 @@ jobs:
                   body = "/oc architect"
               elif action == "research":
                   body = "/oc research"
-               elif action == "lab":
-                   extra = d.get("instruction") or d.get("mode") or ""
-                   if extra:
-                       body = f"/oc lab {extra}"
-                   else:
-                       body = "/oc lab"
-               elif action == "recover":
-                   # Maintainer's ONLY self-initiated branch/PR action: recover
-                   # in-flight work from a closed/orphaned build PR. Never opens
-                   # a new project; only continues existing work (recover.sh and
-                   # recover.yml enforce this). This is the governance exception
-                   # granted by issue #112.
-                   body = "/oc recover"
+              elif action == "lab":
+                  extra = d.get("instruction") or d.get("mode") or ""
+                  if extra:
+                      body = f"/oc lab {extra}"
+                  else:
+                      body = "/oc lab"
+              elif action == "recover":
+                  # Maintainer's ONLY self-initiated branch/PR action: recover
+                  # in-flight work from a closed/orphaned build PR. Never opens
+                  # a new project; only continues existing work (recover.sh and
+                  # recover.yml enforce this). This is the governance exception
+                  # granted by issue #112.
+                  body = "/oc recover"
               elif action == "fix":
                   info = pr_info(target)
                   author = info.get("user", {}).get("login", "")
