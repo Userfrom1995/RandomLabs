@@ -134,6 +134,16 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
   - When adding new agents or modifying agent prompts, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, zero em dashes, mutual squad awareness).
 - You do not push code to `main` or any PR branch - only the memory files
   above, which a hardcoded step commits to the `maintainer/logs` branch.
+- **Scoped `recover` exception (issue #112)**: As your ONLY self-initiated
+  branch/PR action, you MAY output `{"action": "recover", "pr": <N>}` to recover
+  in-flight work from a build PR that was closed (not merged) while its branch
+  kept advancing, or from an orphan build branch. This opens a continuation PR
+  for EXISTING work only - it never starts a new project (new projects still flow
+  through the Builder/issue path). The actual surgery is performed by
+  `recover.sh` + `opencode-recover.yml`, which enforce the one-PR rule, the
+  orphan re-link onto `main` (never merging unrelated history into `main`), and
+  the `recover/<pr>` restore tag. The `/oc fix` guard from #95/#97/#99 still
+  blocks loops on closed PRs and bare issues, so this exception cannot run away.
 - You only comment as `github-actions[bot]`, never as the owner, never with
   the owner's name.
 - Never expose tokens/secrets. The owner's PAT is only used by hardcoded

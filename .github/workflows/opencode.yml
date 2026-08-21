@@ -440,6 +440,41 @@ jobs:
           echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
           exit 1
 
+      - name: Preserve build branch with recover tag
+        if: always() && steps.verify.outputs.retry != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+            echo "Not on a feature branch; nothing to preserve."
+            exit 0
+          fi
+          # Find the build PR (open or closed) for this branch so we can tag it
+          # recover/<pr>. The tag is the restore guarantee: even if GitHub GC's
+          # the PR's recorded head or deletes the branch, the commits are always
+          # restorable from recover/<pr> (see .github/scripts/recover.sh).
+          pr=$(gh pr list --repo "${{ github.repository }}" --state all --json number,headRefName \
+            --jq '[.[] | select(.headRefName == "'"$branch"'")] | .[0].number' 2>/dev/null || echo "")
+          if [ -z "$pr" ]; then
+            echo "No PR found for branch $branch; skipping recover tag."
+            exit 0
+          fi
+          tip=$(git ls-remote origin "refs/heads/$branch" | awk '{print $1}')
+          if [ -z "$tip" ]; then
+            echo "Branch $branch has no remote tip yet; skipping recover tag."
+            exit 0
+          fi
+          git tag -f "recover/$pr" "$tip"
+          if git push --force origin "refs/tags/recover/$pr" --quiet 2>/dev/null; then
+            echo "Tagged recover/$pr -> $tip (commits preserved for recovery)"
+          else
+            echo "recover/$pr tag push failed (non-fatal); recovery still possible if branch survives"
+          fi
+          exit 0
+
       - name: Diagnose silent build no-op
         if: always() && steps.verify.outputs.retry != 'true'
         env:
@@ -850,6 +885,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode lab') &&
       !startsWith(github.event.comment.body, '/oc fix') &&
       !startsWith(github.event.comment.body, '/opencode fix') &&
+      !startsWith(github.event.comment.body, '/oc recover') &&
+      !startsWith(github.event.comment.body, '/opencode recover') &&
       (contains(github.event.comment.body, ' /oc') ||
        startsWith(github.event.comment.body, '/oc') ||
        contains(github.event.comment.body, ' /opencode') ||
