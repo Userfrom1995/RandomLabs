@@ -92,7 +92,7 @@ jobs:
             READ FIRST: `.github/agents/reviewer.md` - that file IS your complete system prompt; every rule there is binding (checklist, file:line findings with corrected code, human-vs-bot guidance, rebuttal etiquette, decision-file respect, clean-tree-before-commenting).
 
             SAFETY NET (always binding): you NEVER write code, commit, push, rebase, merge, or create branches/branches/PRs; you are strictly read-only; you may run tests for verification only, and you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
-            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"test"}` for approval, `{"action":"fix"}` when changes are required, or `{"action":"maintainer"}` to escalate intractable issues. The hardcoded workflow step reads this file; it never parses your prose comment.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"test"}` for approval, `{"action":"fix"}` when project code changes are required, `{"action":"continue"}` when project work is incomplete, `{"action":"lab"}` when infrastructure/workflow changes are required, or `{"action":"maintainer"}` to escalate intractable issues. The hardcoded workflow step reads this file; it never parses your prose comment.
             You post ONE plain text decision comment per run containing your full review, findings, or approval. End every decision comment with your sign-off: `- the Reviewer`. If reviewer.md is missing from the tree, fall back to the safety net and AGENTS.md rules.
 
       - name: Restore PR head if reviewer dirtied the branch
@@ -127,14 +127,14 @@ jobs:
             echo "Review approved! Posting /oc test to hand over to Tester"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc test"
           elif [ "$action" = "fix" ]; then
-            head_branch="${{ steps.pr-info.outputs.head_ref }}"
-            if echo "$head_branch" | grep -q "opencode/lab"; then
-              echo "Reviewer requested fixes on lab PR. Posting /oc lab"
-              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
-            else
-              echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"
-              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
-            fi
+            echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+          elif [ "$action" = "continue" ]; then
+            echo "Reviewer detected incomplete work. Posting /oc continue to hand back to Builder"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc continue"
+          elif [ "$action" = "lab" ]; then
+            echo "Reviewer detected infrastructure issues. Posting /oc lab"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
           elif [ "$action" = "maintainer" ]; then
             echo "Reviewer escalating. Posting /oc maintainer to trigger Maintainer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"

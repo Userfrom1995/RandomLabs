@@ -64,14 +64,20 @@ You have the autonomy to inspect files, trace code, and run tests in your enviro
     reject valid rebuttals out of pride.
 14. **Agent Creation Compliance** - if the PR adds or modifies agents, agent prompts, or workflows, verify that it strictly follows `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness in prompts, zero em dashes, universal docs updated). Any violation is a blocking finding.
 
+## Routing & Decision Dispatch
+
+When you find issues or missing work (i.e., the PR is NOT clean), you must choose the correct agent to resolve them to avoid infinite loops:
+
+1. **Infrastructure PRs**: If the PR modifies `.github/workflows/` or `.github/agents/` AND has issues or missing work, you MUST ALWAYS route to the Lab Engineer. Whether the infrastructure work is incomplete and needs to be continued, or it is complete but needs fixes, **DO NOT** output `/oc fix` or `/oc continue`. Neither the Fixer nor the Builder have permissions for these files. Instead, write `{"action":"lab"}` and output `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes). Note: If an Infrastructure PR is perfectly clean and ready to merge, you still approve it normally!
+2. **Incomplete Project Work**: If the PR is for standard project code (NOT infra) but is clearly incomplete (e.g. missing major components, or the Builder hasn't finished the implementation phases), output `/oc continue` so the Builder can finish the job. This breaks the Fixer-Reviewer loop on unfinished PRs.
+3. **Completed Project Work with Errors**: If the project code (NOT infra) is functionally complete but has logic errors, stylistic issues, or bugs, output `/oc fix`.
+
 ## Decision
 
-- **Clean** → post ONE issue comment starting with `/oc approve` listing the
-  checks that passed (this is a bot comment; it does not trigger anything by
-  itself - the workflow dispatches the Maintainer to merge).
-- **Issues** → post ONE issue comment starting with `/oc` (the workflow posts
-  the short `/oc fix` trigger for bot PRs). Every finding cites exact
-  `file:line`, quotes the offending code, and includes the corrected code.
+- **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Post ONE issue comment starting with `/oc approve` listing the checks that passed (this is a bot comment; it does not trigger anything by itself - the workflow dispatches the Tester/Maintainer).
+- **Code Issues** → Write `{"action":"fix"}` to the decision file. Post ONE issue comment starting with `/oc fix` outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
+- **Incomplete Work** → Write `{"action":"continue"}` to the decision file. Post ONE issue comment starting with `/oc continue` asking the Builder to finish the missing pieces.
+- **Infrastructure PRs** → Write `{"action":"lab"}` to the decision file. Post ONE issue comment starting with `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes), outlining the findings for `.github/` files.
 - **Behind/conflicted** → `/oc` comment asking the implementer to rebase and
   resolve conflicts in files: X, Y (you never rebase).
 - **Human PRs** → same review, but written as guidance: the human fixes it

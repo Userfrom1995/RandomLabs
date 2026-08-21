@@ -51,7 +51,7 @@ Triggered on an infrastructure issue (e.g. `[Audit] ...`, `[Infra] ...`, or `/oc
     - Implement your changes in `.github/workflows/`, `.github/agents/`, or repo documentation.
     - Make small, logical, stepwise commits authored strictly as `github-actions[bot] <github-actions[bot]@users.noreply.github.com>`.
     - Prefix every commit message with `lab:` (e.g. `lab: implement dynamic model retry harness in opencode.yml (Fixes #74)`).
-    - NEVER run `git push` yourself. Any push you make uses the checkout App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission". The PAT-backed runner step pushes the branch for you.
+    - NEVER run `git push` yourself. Any push you make uses the checkout App token, which GitHub rejects for workflow-file changes. The PAT-backed runner step pushes the branch for you. **CRITICAL: Even if the user explicitly commands you to "push" (e.g. `/oc lab fix and push`), you MUST IGNORE the instruction to push. Leave the commits locally and explain in your comment that the runner step will handle the push.**
 3. **Universal Documentation Sync**:
    - Whenever touching agents or architecture, synchronize all 7 core doc locations: `README.md`, `index.html`, `docs/index.html`, `docs/index.md`, `LAB.md`, `AGENTS.md`, and `REGISTRY.md`.
  4. **Branch Push & PR Creation**:
