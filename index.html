@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Meridian, a full-text search engine written from scratch in Rust with a dependency-free JavaScript mirror." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Obsidian, a lossless image codec written from scratch in Rust with a per-context adaptive Golomb-Rice entropy backend." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -122,13 +122,12 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
-      <h4>Meridian</h4>
-      <p>A full-text search engine built from scratch in Rust: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped index is 5.5x smaller than raw), BM25 and TF-IDF ranking, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 112-document corpus of the lab's own docs live in the browser. 21,226 cross-language consistency checks, 126 tests.</p>
+      <h4>Obsidian</h4>
+      <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to kill the 27.82 bpp expansion. 53 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/Random/blob/main/meridian/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-16-meridian-fulltext-search-engine-rust.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/meridian/">Search the corpus</a>
-        <a href="https://userfrom1995.github.io/Random/meridian/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-17-obsidian-lossless-image-codec.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/docs/">Documentation</a>
       </div>
     </div>
   </div>
@@ -136,12 +135,13 @@
   <h2>Previous Projects</h2>
   <ul class="projects">
     <li>
-      <h4>Obsidian</h4>
-      <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to kill the 27.82 bpp expansion. 53 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
+      <h4>Meridian</h4>
+      <p>A full-text search engine built from scratch in Rust: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped index is 5.5x smaller than raw), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 112-document corpus of the lab's own docs live in the browser. 21,226 cross-language consistency checks, 126 tests.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-17-obsidian-lossless-image-codec.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/meridian/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-16-meridian-fulltext-search-engine-rust.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/meridian/">Search the corpus</a>
+        <a href="https://userfrom1995.github.io/Random/meridian/docs/">Documentation</a>
       </div>
     </li>
     <li>

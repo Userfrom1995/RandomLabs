@@ -48,13 +48,15 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped 122,799-postings index is 5.5x smaller than its raw form), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 110-document corpus of the lab's own documentation live in the browser. A consistency suite proves the Rust engine and its JS mirror agree across 9,296 checks. Zero dependencies, 90 tests.
+The current build is **Obsidian** - a lossless image codec written from scratch in **Rust**: reversible YCoCg-R transform, an 8-predictor bank with per-context selection, gradient and activity context modeling, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to fix a 27.82 bpp expansion. Bit-exact round trips at every effort, 53 lib tests, fuzz gate, and corruption rejection, with a benchmark harness pinned against JPEG XL, WebP, PNG, JPEG-LS, and JPEG 2000 on Kodak.
 
--> [Run it](meridian/README.md) * [Full writeup](ideas/2026-08-16-meridian-fulltext-search-engine-rust.md) * [Search the corpus](https://userfrom1995.github.io/Random/meridian/) * [Documentation](https://userfrom1995.github.io/Random/meridian/docs/)
+-> [Run it](obsidian/README.md) * [Full writeup](ideas/2026-08-17-obsidian-lossless-image-codec.md) * [Documentation](obsidian/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Meridian** - a full-text search engine written from scratch in **Rust**: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped index is 5.5x smaller than raw), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 112-document corpus of the lab's own docs live in the browser. 21,226 cross-language consistency checks, 126 tests. See [ideas/2026-08-16-meridian-fulltext-search-engine-rust.md](ideas/2026-08-16-meridian-fulltext-search-engine-rust.md).
 
 - **Kestrel** - a neural-network library written from scratch in **Julia**:
   reverse-mode automatic differentiation on a tape, dense layers, activations,
