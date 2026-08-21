@@ -4,6 +4,13 @@
 //! Effort levels change only how the encoder searches the model (per the
 //! spec): the bitstream format is identical for all efforts.
 
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static R14_COLLECT_ACTIVE: AtomicBool = AtomicBool::new(false);
+static R15_COLLECT_ACTIVE: AtomicBool = AtomicBool::new(false);
+static R14_DEBUG_ACTIVE: AtomicBool = AtomicBool::new(false);
+
 use crate::color::{
     try_build_palette, ycocgr_forward_planes, subtract_green_forward_planes, ColorCache, Palette, PlaneRange, TransformChoice,
 };
@@ -272,6 +279,10 @@ pub fn encode_with(
     if effort > 7 {
         return Err(CodecError::InvalidImage(format!("effort {effort} out of range")));
     }
+    R14_DEBUG_ACTIVE.store(
+        std::env::var("OBSIDIAN_R14_DEBUG").ok().as_deref() == Some("1"),
+        Ordering::Relaxed,
+    );
     let raw = image.raw_bytes();
     let crc = crc32(&raw);
 
@@ -652,55 +663,74 @@ pub fn encode_with(
         sq_choice = vec![mx; n_planes];
     }
 
-    // Config C: original codec (no CFL, no transform).
-    let (coded_c, model_c, gcm_c, glz_c, gm2_c) = code_banded(
-        coding_planes, &identity_dims, &identity_parent, coding_planes, &palette, transform, &ranges, &sizes,
-        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
-        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
-        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
-        use_static, use_capped, gr_cm, gr_lz, gr_m2, model.clone(),
-    )?;
-    // Config B: CFL applied, no transform.
+    // Build banded variants sequentially (cheap), then code the 4 configs in parallel.
     let (cfl_planes_b, cfl_dims_b, cfl_parent_b) =
         build_banded(coding_planes, &ranges, width, height, &cfl_choice, &vec![0u8; n_planes], crate::transforms::TransformKind::Squeeze);
     let mut model_b = model.clone();
     model_b.cfl_scale = cfl_choice.clone();
-    let (coded_b, model_b2, gcm_b, glz_b, gm2_b) = code_banded(
-        &cfl_planes_b, &cfl_dims_b, &cfl_parent_b, coding_planes, &palette, transform, &ranges, &sizes,
-        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
-        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
-        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
-        use_static, use_capped, gr_cm, gr_lz, gr_m2, model_b,
-    )?;
-    // Config A: CFL applied and Squeeze applied.
     let (cfl_planes_a, cfl_dims_a, cfl_parent_a) =
         build_banded(coding_planes, &ranges, width, height, &cfl_choice, &sq_choice, crate::transforms::TransformKind::Squeeze);
     let mut model_a = model.clone();
     model_a.cfl_scale = cfl_choice.clone();
     model_a.squeeze_levels = sq_choice.clone();
-    let (coded_a, model_a2, gcm_a, glz_a, gm2_a) = code_banded(
-        &cfl_planes_a, &cfl_dims_a, &cfl_parent_a, coding_planes, &palette, transform, &ranges, &sizes,
-        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
-        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
-        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
-        use_static, use_capped, gr_cm, gr_lz, gr_m2, model_a,
-    )?;
-    // Config D: CFL applied and CDF 5/3 lifting (R13-B) applied. Same per-plane
-    // CFL scales and Squeeze levels as config A, only the transform differs; the
-    // never-expand net keeps it only when it is the smallest of {C, B, A, D}.
     let (cfl_planes_d, cfl_dims_d, cfl_parent_d) =
         build_banded(coding_planes, &ranges, width, height, &cfl_choice, &sq_choice, crate::transforms::TransformKind::Lift);
     let mut model_d = model.clone();
     model_d.cfl_scale = cfl_choice.clone();
     model_d.squeeze_levels = sq_choice.clone();
     model_d.transform_kind = crate::transforms::TransformKind::Lift;
-    let (coded_d, model_d2, gcm_d, glz_d, gm2_d) = code_banded(
-        &cfl_planes_d, &cfl_dims_d, &cfl_parent_d, coding_planes, &palette, transform, &ranges, &sizes,
-        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
-        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
-        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
-        use_static, use_capped, gr_cm, gr_lz, gr_m2, model_d,
-    )?;
+
+    // Parallel encode of the 4 transform configs (deterministic winner via min total).
+    let ((res_c, res_b), (res_a, res_d)) = rayon::join(
+        || {
+            rayon::join(
+                || {
+                    code_banded(
+                        coding_planes, &identity_dims, &identity_parent, coding_planes, &palette, transform, &ranges, &sizes,
+                        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
+                        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
+                        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
+                        use_static, use_capped, gr_cm, gr_lz, gr_m2, model.clone(),
+                    )
+                },
+                || {
+                    code_banded(
+                        &cfl_planes_b, &cfl_dims_b, &cfl_parent_b, coding_planes, &palette, transform, &ranges, &sizes,
+                        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
+                        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
+                        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
+                        use_static, use_capped, gr_cm, gr_lz, gr_m2, model_b,
+                    )
+                },
+            )
+        },
+        || {
+            rayon::join(
+                || {
+                    code_banded(
+                        &cfl_planes_a, &cfl_dims_a, &cfl_parent_a, coding_planes, &palette, transform, &ranges, &sizes,
+                        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
+                        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
+                        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
+                        use_static, use_capped, gr_cm, gr_lz, gr_m2, model_a,
+                    )
+                },
+                || {
+                    code_banded(
+                        &cfl_planes_d, &cfl_dims_d, &cfl_parent_d, coding_planes, &palette, transform, &ranges, &sizes,
+                        &context, effort, &codebook, entropy_gr, m3_wp, use_cmarc, use_carc_lz, use_cmarc_mix, use_carc_run,
+                        use_carc_cache, opts.cmarc_residual_ctx_auto, opts.cmarc_ma_context_auto, force_carc, force_carc_lz, force_carc_mix,
+                        force_carc_run, force_carc_cache, orig_gr_cm, orig_gr_lz, orig_gr_m2,
+                        use_static, use_capped, gr_cm, gr_lz, gr_m2, model_d,
+                    )
+                },
+            )
+        },
+    );
+    let (coded_c, model_c, gcm_c, glz_c, gm2_c) = res_c?;
+    let (coded_b, model_b2, gcm_b, glz_b, gm2_b) = res_b?;
+    let (coded_a, model_a2, gcm_a, glz_a, gm2_a) = res_a?;
+    let (coded_d, model_d2, gcm_d, glz_d, gm2_d) = res_d?;
 
     // Never-expand net: keep the smallest container (model + payload + per-stream
     // length fields + header). CFL/Squeeze/Lift ship only when they actually win.
@@ -793,6 +823,7 @@ pub fn encode_with(
             })
             .collect();
         *R14_COLLECT.lock().unwrap_or_else(|e| e.into_inner()) = Some(coll);
+        R14_COLLECT_ACTIVE.store(true, Ordering::SeqCst);
         match win_tag {
             'a' => {
                 let _ = code_banded(
@@ -820,6 +851,7 @@ pub fn encode_with(
             .unwrap_or_else(|e| e.into_inner())
             .take()
             .unwrap_or_default();
+        R14_COLLECT_ACTIVE.store(false, Ordering::SeqCst);
         let trees = build_rcct_trees(planes_w, &r0s, &ranges_w, dims_w, parents_w, &model);
         if trees.iter().any(|o| o.is_some()) {
             let mut model_rcct = model.clone();
@@ -903,6 +935,7 @@ pub fn encode_with(
             })
             .collect();
         *R15_COLLECT.lock().unwrap_or_else(|e| e.into_inner()) = Some(coll);
+        R15_COLLECT_ACTIVE.store(true, Ordering::SeqCst);
         match win_tag {
             'a' => {
                 let _ = code_banded(
@@ -930,6 +963,7 @@ pub fn encode_with(
             .unwrap_or_else(|e| e.into_inner())
             .take()
             .unwrap_or_default();
+        R15_COLLECT_ACTIVE.store(false, Ordering::SeqCst);
         let nets = build_nrp_nets(planes_w, &r0s, &ranges_w, dims_w);
         if nets.iter().any(|o| o.is_some()) {
             let mut model_nrp = model.clone();
@@ -1249,17 +1283,21 @@ fn rcct_overlay(
             None => r0,
         },
     };
-    if std::env::var("OBSIDIAN_R14_DEBUG").ok().as_deref() == Some("1") {
+    if R14_DEBUG_ACTIVE.load(Ordering::Relaxed) {
         r14_dbg_add(pi, r0, r, range);
     }
-    if let Some(buf) = R14_COLLECT.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-        if pi < buf.len() && idx < buf[pi].len() {
-            buf[pi][idx] = r0;
+    if R14_COLLECT_ACTIVE.load(Ordering::Relaxed) {
+        if let Some(buf) = R14_COLLECT.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+            if pi < buf.len() && idx < buf[pi].len() {
+                buf[pi][idx] = r0;
+            }
         }
     }
-    if let Some(buf) = R15_COLLECT.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-        if pi < buf.len() && idx < buf[pi].len() {
-            buf[pi][idx] = r0;
+    if R15_COLLECT_ACTIVE.load(Ordering::Relaxed) {
+        if let Some(buf) = R15_COLLECT.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+            if pi < buf.len() && idx < buf[pi].len() {
+                buf[pi][idx] = r0;
+            }
         }
     }
     r
@@ -2204,57 +2242,57 @@ fn choose_transforms(
     let n = base.len();
     let mut cfl_choice: Vec<Option<u8>> = vec![None; n];
     for c in 1..n {
-        let mut best_scale: Option<u8> = None;
-        let mut best_cost = usize::MAX;
-        for s in 0u8..=7 {
-            let scale = if s == 0 { None } else { Some(s) };
-            let mut probe = base.to_vec();
-            if let Some(sv) = scale {
-                let rmin = ranges[c].min as i32;
-                let rmax = ranges[c].max as i32;
-                for i in 0..probe[c].len() {
-                    let pred = crate::transforms::cfl_predict(sv, probe[0][i] as i32, rmin, rmax);
-                    probe[c][i] = (probe[c][i] as i32 - pred) as i16;
+        let costs: Vec<(u8, usize)> = (0u8..=7)
+            .into_par_iter()
+            .map(|s| {
+                let scale = if s == 0 { None } else { Some(s) };
+                let mut probe = base.to_vec();
+                if let Some(sv) = scale {
+                    let rmin = ranges[c].min as i32;
+                    let rmax = ranges[c].max as i32;
+                    for i in 0..probe[c].len() {
+                        let pred = crate::transforms::cfl_predict(sv, probe[0][i] as i32, rmin, rmax);
+                        probe[c][i] = (probe[c][i] as i32 - pred) as i16;
+                    }
                 }
-            }
-            let dims = vec![(width, height)];
-            let cost = probe_cost(&probe[c..c + 1], &dims, c, model, entropy_gr, m3_wp, use_cmarc)?;
-            if cost < best_cost {
-                best_cost = cost;
-                best_scale = scale;
-            }
-        }
-        cfl_choice[c] = best_scale;
+                let dims = vec![(width, height)];
+                let cost = probe_cost(&probe[c..c + 1], &dims, c, model, entropy_gr, m3_wp, use_cmarc)
+                    .unwrap_or(usize::MAX);
+                (s, cost)
+            })
+            .collect();
+        let (best_s, _) = costs.iter().min_by_key(|(s, cost)| (*cost, *s)).unwrap();
+        cfl_choice[c] = if *best_s == 0 { None } else { Some(*best_s) };
     }
     let max_l = crate::transforms::max_squeeze_levels(width, height);
     let mut sq_choice: Vec<u8> = vec![0u8; n];
     for p in 0..n {
-        let mut best_level = 0u8;
-        let mut best_cost = usize::MAX;
-        for l in 0..=max_l {
-            let mut probe = base.to_vec();
-            if let Some(sv) = cfl_choice[p] {
-                let rmin = ranges[p].min as i32;
-                let rmax = ranges[p].max as i32;
-                for i in 0..probe[p].len() {
-                    let pred = crate::transforms::cfl_predict(sv, probe[0][i] as i32, rmin, rmax);
-                    probe[p][i] = (probe[p][i] as i32 - pred) as i16;
+        let costs: Vec<(u8, usize)> = (0u8..=max_l)
+            .into_par_iter()
+            .map(|l| {
+                let mut probe = base.to_vec();
+                if let Some(sv) = cfl_choice[p] {
+                    let rmin = ranges[p].min as i32;
+                    let rmax = ranges[p].max as i32;
+                    for i in 0..probe[p].len() {
+                        let pred = crate::transforms::cfl_predict(sv, probe[0][i] as i32, rmin, rmax);
+                        probe[p][i] = (probe[p][i] as i32 - pred) as i16;
+                    }
                 }
-            }
-            let bands = if l == 0 {
-                vec![(probe[p].clone(), width, height)]
-            } else {
-                crate::transforms::squeeze(&probe[p], width, height, l)
-            };
-            let planes: Vec<Vec<i16>> = bands.iter().map(|b| b.0.clone()).collect();
-            let dims: Vec<(usize, usize)> = bands.iter().map(|b| (b.1, b.2)).collect();
-            let cost = probe_cost(&planes, &dims, p, model, entropy_gr, m3_wp, use_cmarc)?;
-            if cost < best_cost {
-                best_cost = cost;
-                best_level = l;
-            }
-        }
-        sq_choice[p] = best_level;
+                let bands = if l == 0 {
+                    vec![(probe[p].clone(), width, height)]
+                } else {
+                    crate::transforms::squeeze(&probe[p], width, height, l)
+                };
+                let planes: Vec<Vec<i16>> = bands.iter().map(|b| b.0.clone()).collect();
+                let dims: Vec<(usize, usize)> = bands.iter().map(|b| (b.1, b.2)).collect();
+                let cost = probe_cost(&planes, &dims, p, model, entropy_gr, m3_wp, use_cmarc)
+                    .unwrap_or(usize::MAX);
+                (l, cost)
+            })
+            .collect();
+        let (best_l, _) = costs.iter().min_by_key(|(l, cost)| (*cost, *l)).unwrap();
+        sq_choice[p] = *best_l;
     }
     Ok((cfl_choice, sq_choice))
 }

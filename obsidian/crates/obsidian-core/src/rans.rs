@@ -508,11 +508,44 @@ impl BitWriter {
         }
     }
 
-    /// Emit the low `n` bits of `value`, LSB-first.
-    pub fn write_bits(&mut self, value: u32, n: u8) {
-        for i in 0..n as u32 {
-            self.write_bit((value >> i) & 1 == 1);
+    /// Emit the low `n` bits of `value`, LSB-first. Bulk path avoids per-bit loop.
+    pub fn write_bits(&mut self, mut value: u32, mut n: u8) {
+        while n > 0 {
+            let avail = 8 - self.nbits;
+            let take = n.min(avail);
+            let mask = if take == 32 { u32::MAX } else { (1u32 << take) - 1 };
+            self.acc |= (value & mask) << self.nbits;
+            self.nbits += take;
+            value >>= take;
+            n -= take;
+            if self.nbits == 8 {
+                self.buf.push(self.acc as u8);
+                self.acc = 0;
+                self.nbits = 0;
+            }
         }
+    }
+
+    /// Write `q` zero bits followed by a one terminator (unary, LSB-first).
+    /// Used for Golomb-Rice quotient which is often small but can be large.
+    #[inline]
+    pub fn write_unary(&mut self, mut q: u32) {
+        while q > 0 {
+            let avail = 8 - self.nbits;
+            if q >= avail as u32 {
+                // Fill current byte with zeros and flush.
+                q -= avail as u32;
+                // acc already holds zeros in the remaining slots, just flush.
+                self.buf.push(self.acc as u8);
+                self.acc = 0;
+                self.nbits = 0;
+            } else {
+                // q zeros fit in current byte (leave them as zeros).
+                self.nbits += q as u8;
+                q = 0;
+            }
+        }
+        self.write_bit(true);
     }
 
     /// Flush any pending bits (zero-padded into a final byte) and return the bytes.
@@ -589,10 +622,7 @@ pub fn gr_write_symbol(w: &mut BitWriter, st: &mut GrState, r: i32) {
     let k = st.k as u32;
     let q = a >> k;
     let rem = a & ((1u32 << k) - 1);
-    for _ in 0..q {
-        w.write_bit(false);
-    }
-    w.write_bit(true);
+    w.write_unary(q);
     if k > 0 {
         w.write_bits(rem, k as u8);
     }
@@ -636,10 +666,7 @@ pub fn gr_read_symbol(r: &mut BitReader, st: &mut GrState) -> Result<i32, CodecE
 pub fn write_gamma(w: &mut BitWriter, n: u32) {
     debug_assert!(n >= 1, "gamma code requires n >= 1");
     let k = 31 - n.leading_zeros();
-    for _ in 0..k {
-        w.write_bit(false);
-    }
-    w.write_bit(true);
+    w.write_unary(k);
     // `n` has `k + 1` bits; the leading one is the `true` bit already written,
     // so only the lower `k` bits remain.
     w.write_bits(n & ((1u32 << k) - 1), k as u8);
@@ -1013,10 +1040,7 @@ pub fn gr_write_symbol_k(w: &mut BitWriter, r: i32, k: u8) {
     let k = k as u32;
     let q = a >> k;
     let rem = a & ((1u32 << k) - 1);
-    for _ in 0..q {
-        w.write_bit(false);
-    }
-    w.write_bit(true);
+    w.write_unary(q);
     if k > 0 {
         w.write_bits(rem, k as u8);
     }

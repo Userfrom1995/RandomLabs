@@ -6,3 +6,4 @@ license.workspace = true
 description = "Obsidian lossless image codec core: container, PPM I/O, YCoCg-R color transform, predictor bank, context model, adaptive/static rANS"
 
 [dependencies]
+rayon = "1.10"
