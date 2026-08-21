@@ -1,9 +1,11 @@
-# Obsidian - Architecture blueprint v1
+# Obsidian - Architecture blueprint v1 (historical, 2026-08-17)
 
 - **Issue:** #68
 - **Author:** the Architect
 - **Date:** 2026-08-17
-- **Status:** ready for the Builder
+- **Status:** historical baseline - see `current-architecture.md` and `../README.md` for the shipped code
+
+> **Current-code notice (2026-08-20, the Builder).** This is the v1 baseline blueprint. The shipped codec has diverged: the entropy backend is now CMARC (binary range coder) not adaptive rANS, the predictor bank is 20 ids with WeightedTree/AdaptiveRecursive, the context model has residual and MA folds, the container has a model CRC and `entropy_mode`/`cfl_scale`/`squeeze_levels`/`rcct`/`nrp` fields, and Squeeze is inert. For a code-accurate module map see `current-architecture.md` and the `../README.md` design summary. This v1 blueprint is retained for reviewer fidelity and provenance; it is not the current spec.
 
 This document is the software architecture for the Obsidian lossless image
 codec, derived from the algorithmic specification (`docs/algorithmic-spec.md`)

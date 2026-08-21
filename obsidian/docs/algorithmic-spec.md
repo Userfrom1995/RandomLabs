@@ -1,9 +1,11 @@
-# Obsidian - Algorithmic specification v1
+# Obsidian - Algorithmic specification v1 (historical, 2026-08-17)
 
 - **Issue:** #68
 - **Author:** Dr. Mob, the Researcher
 - **Date:** 2026-08-17
-- **Status:** proposal for the Architect
+- **Status:** historical proposal - entropy section superseded; see `current-architecture.md` and `../README.md`
+
+> **Errata (2026-08-20, the Builder).** The v1 entropy spec (adaptive rANS over 512 symbols, section 6) caused the 27.82 bpp expansion and was superseded by the per-context binary range coder CMARC (`rans.rs::RangeEnc`/`RangeDec`, `current-architecture.md`). The prediction, color, context-model, and container sections remain accurate modulo the deltas listed in `current-architecture.md`. This document is retained for provenance.
 
 This specification defines Obsidian v1, a lossless image codec for 8-bit
 grayscale and RGB(A) images. It is designed to be implemented from scratch

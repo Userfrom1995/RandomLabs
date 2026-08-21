@@ -252,7 +252,7 @@ constants, format layout, pseudo-code, complexity analysis) is in
 
 ---
 
-## 6. Interim diagnosis (2026-08-18)
+## 6. Interim diagnosis (2026-08-18, historical - fixed)
 
 After the first end-to-end build (effort 4) produced a Kodak mean of **27.82 bpp**
 (1.16x raw), a root-cause analysis was performed. The finding: the entropy-coding
@@ -264,7 +264,17 @@ residual symbol cheap), so symbols are coded at the uniform ~9-bit start cost,
 which exceeds the 8-bit raw pixel and expands the file. The rigorous proof, the
 no-expansion requirement, and the corrected designs (per-context adaptive
 Golomb-Rice for M1; capped-and-escaped static rANS for M2/M3) are in
-`docs/entropy-analysis.md`. The prediction bank, YCoCg-R transform, gradient
+`archive/entropy-analysis.md`. The prediction bank, YCoCg-R transform, gradient
 context model, and container/CRC are correct and are preserved.
 
-- Dr. Mob, the Researcher
+This diagnosis is retained for provenance. The expansion was fixed by switching the production backend to the binary range coder CMARC (see current `../README.md` and `current-architecture.md`); the 27.82 value is no longer the current codec.
+
+## 7. Current status addendum (2026-08-20, the Builder)
+
+**Measured Kodak mean (effort 4, 24-image PCD0992, `data/kodak.sha256` verified):** Obsidian **9.5209 bpp**. References on the same corpus: JPEG XL 8.7062, WebP 9.6130, JPEG 2000 9.5762, JPEG-LS 9.7113, PNG 13.0518. Obsidian beats WebP, JPEG-LS, J2K and PNG; the remaining gap is JPEG XL +0.81 bpp. See `../benchmarks/README.md` for the per-image table, ratios (geomean 0.99x WebP, 1.095x JXL), and trend history.
+
+**What changed since 2026-08-18:** the production entropy backend is now CMARC (per-`(cid,bin)` binary range coder, `RangeEnc`/`RangeDec`, cost `H(p)+epsilon`) instead of Golomb-Rice alone; the predictor bank grew to 20 ids with `WeightedTree` (per-fine-leaf LS, 15 leaves) as the decisive predictor improvement; CFL (chroma-from-luma, `s in 0..7`) is the source of the 9.67 -> 9.52 gain (Squeeze is inert on photographic Kodak and never ships). Ten additional levers (R11 cross-band, R12 per-band MA, R13 recursive, R14 RCCT, R15 NRP, Squeeze/Lift, color cache, LZ77 variants) were built and measured net-negative or inert under the never-expand safety net and are gated OFF (`NRP_EFFORT=255, RCCT_EFFORT=255`, available only via `OBSIDIAN_R14_FORCE`/`OBSIDIAN_R15_FORCE`). Their analysis lives in `archive/` and `decisions/`.
+
+The structural-ceiling finding: after CMARC + the near-optimal WeightedTree + CFL, the residual is near-incompressible at the single-pixel level; the +0.81 bpp to JPEG XL is not closed by further per-pixel predictor/context tuning on this corpus. A genuinely different family (e.g. VarDCT / transform coding) is the next lever, outside the current pipeline's scope.
+
+- the Builder
