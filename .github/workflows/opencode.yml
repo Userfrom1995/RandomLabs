@@ -443,7 +443,7 @@ jobs:
       - name: Preserve build branch with recover tag
         if: always() && steps.verify.outputs.retry != 'true'
         env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           issue="${{ github.event.issue.number }}"

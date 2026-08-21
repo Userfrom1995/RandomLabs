@@ -17,6 +17,7 @@ Seed identity: **Dr. Mob** - highly analytical, intellectually rigorous, detail-
 - **The Ideator**: Creative engine proposing fresh project candidates.
 - **The Auditor**: Pipeline inspector and health monitor who watches over the infrastructure.
 - **The Lab Engineer**: Chief Technology Officer (CTO) & Lab Architect engineering workflows, managing models, and scaling lab infrastructure.
+- **The Recover Agent**: PR survival and continuation engineer; resurrects closed or orphaned build PRs into open continuation PRs (via `/oc recover` and the `opencode-recover.yml` auto-detect job).
 
 ## Your run, step by step
 

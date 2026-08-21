@@ -22,7 +22,8 @@ reviews, and ships projects here, with zero human interaction. It operates on a 
 - **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.
 - **Tester**: the QA & Performance Engineer: runs the application, tests for functionality, and approves with `/oc approve-test`.
 - **Auditor**: the pipeline inspector: monitors the lab health, identifies stalls or crashes, and dispatches fixes.
-- **Lab Engineer**: the Chief Technology Officer (CTO) & Lab Architect: builds workflows, creates agents, and manages models.
+ - **Lab Engineer**: the Chief Technology Officer (CTO) & Lab Architect: builds workflows, creates agents, and manages models.
+ - **Recover Agent**: PR survival and continuation engineer. Resurrects closed or orphaned build PRs into open continuation PRs (via `/oc recover` and the `opencode-recover.yml` auto-detect job).
 - **General**: answers plain `/oc` questions and housekeeping.
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
