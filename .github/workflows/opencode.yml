@@ -421,8 +421,15 @@ jobs:
           fi
           
           echo "No push detected on current branch ($branch)"
+          # Robust retry counter: never fall back to 0 on an API/rate-limit
+          # failure, which would make the cap never trip and loop forever. Only
+          # count retries the API actually returned; on failure, stop retrying.
           retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
-            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || echo "0")
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || true)
+          if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+            echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+            exit 1
+          fi
           if [ "$retries" -lt 3 ]; then
             n=$((retries + 1))
             echo "Posting auto-retry $n"
@@ -637,6 +644,22 @@ jobs:
           git config --global user.name "The Fixer"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Guard - target must be an OPEN pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          # Refuse to run FIX mode unless the trigger target is an OPEN pull
+          # request. A closed/merged PR or a bare issue number can never be
+          # "fixed" through this path, and auto-retrying against it produces an
+          # unbounded /oc fix (auto-retry N) cascade that burns CI. Bail cleanly.
+          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$pr_state" != "OPEN" ]; then
+            echo "::error::/oc fix was triggered on #$pr which is not an OPEN pull request (state='${pr_state:-unknown}'). Refusing to run FIX mode to avoid a runaway cascade. Reopen the PR or post on an actual open PR to drive a fix."
+            exit 0
+          fi
+          echo "Target #$pr is OPEN; proceeding with FIX mode."
+
       - name: Capture baseline
         id: baseline
         env:
@@ -677,14 +700,37 @@ jobs:
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
         run: |
           pr="${{ github.event.issue.number }}"
-          head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-          if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then
-            echo "Fix pushed (PR head moved)"
+
+          # Hard stop: a fix can only land on an OPEN pull request. If the PR is
+          # closed/merged or the number is not a PR at all, there is nothing to
+          # fix and auto-retrying would loop forever. Bail without a retry.
+          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$pr_state" != "OPEN" ]; then
+            echo "Target #$pr is not an OPEN pull request (state='${pr_state:-unknown}'); no fix possible. Bailing out without auto-retry."
             exit 0
           fi
+
+          # Detect ANY head movement on the PR branch, including an empty commit
+          # the Fixer is contractually required to push when there is nothing to
+          # apply. An empty commit still changes the head OID, so this counts as
+          # a successful push.
+          head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then
+            echo "Fix pushed (PR head moved: $BASELINE_HEAD -> $head_after)"
+            exit 0
+          fi
+
           echo "No push detected"
+          # Robust retry counter: never fall back to 0 on an API/rate-limit
+          # failure, because a phantom 0 would cap never trip and the loop would
+          # run forever. Only count retries the API actually returned; if the
+          # query itself failed, treat it as "at budget" and stop retrying.
           retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || echo "0")
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || true)
+          if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+            echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+            exit 1
+          fi
           if [ "$retries" -lt 3 ]; then
             n=$((retries + 1))
             echo "Posting auto-retry $n"
