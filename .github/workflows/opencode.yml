@@ -355,7 +355,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.2
+          model: opencode/muse-spark-1.2-contributor-free
           use_github_token: true
           prompt: |
             You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
