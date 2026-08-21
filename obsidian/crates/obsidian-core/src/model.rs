@@ -38,13 +38,13 @@ pub struct PlaneModel {
 pub const ENTROPY_MODE_GR: u8 = 0;
 /// M3.5 Design B: per-context adaptive rANS over a capped residual alphabet with
 /// an escape-to-Golomb-Rice fallback for large residuals (capped-and-escaped
-/// static/adaptive rANS, `obsidian/docs/entropy-architecture.md` section 7).
+/// static/adaptive rANS, `obsidian/docs/archive/entropy-architecture.md` section 7).
 pub const ENTROPY_MODE_CAPPED: u8 = 1;
 /// R1 CMARC: context-modeled adaptive binary range coder (the WebP/JPEG XL
 /// backend). Replaces the single-k GR *symbol* coder with a per-`(cid, bin)`
 /// binary range coder so the cost is `H(p) + epsilon` rather than `H(p) + O(1)`.
 /// Signaled via `entropy_mode` (not a header flag), so every legacy stream
-/// decodes unchanged. See `obsidian/docs/architect-cmarc-blueprint.md`.
+/// decodes unchanged. See `obsidian/docs/archive/architect-cmarc-blueprint.md`.
 pub const ENTROPY_MODE_CARC: u8 = 2;
 /// R1 + R2.3: CMARC literals with an LZ77 match layer (match flag/length coded
 /// by CMARC bins). Planned (R2); reserved here so streams decode.
@@ -57,7 +57,7 @@ pub const ENTROPY_MODE_CARC_MIX: u8 = 4;
 /// coded as a `cache_flag` (1) plus a small cache-index code, instead of the full
 /// residual, exploiting the repeated-value redundancy WebP/JPEG XL use. Signaled
 /// via `entropy_mode` (no header flag bit), so every legacy stream still decodes.
-/// See `obsidian/docs/architect-r6-corrected-blueprint.md` Component A.
+/// See `obsidian/docs/archive/architect-r6-corrected-blueprint.md` Component A.
 pub const ENTROPY_MODE_CARC_CACHE: u8 = 6;
 
 /// The complete signaled model.
@@ -194,7 +194,7 @@ pub struct ModelConfig {
     /// `None` on the legacy/non-NRP path so every stream without R15 decodes
     /// byte-identically. The overlay is a strict superset: a zero net (`f = 0`)
     /// is byte-identical to the current codec, so the never-expand net cannot
-    /// regress. See `obsidian/docs/architect-r15-nrp-blueprint.md`.
+    /// regress. See `obsidian/docs/archive/architect-r15-nrp-blueprint.md`.
     pub nrp: Option<Vec<Option<crate::predict::NrpNet>>>,
 }
 
@@ -290,7 +290,7 @@ impl ModelConfig {
 /// candidate in the never-expand safety net. Kept above any production effort so
 /// R15 is OFF by default (the cipher stays on the verified pre-R15 path); the
 /// `OBSIDIAN_R15_FORCE` seam enables it for direct measurement against the
-/// JPEG XL 8.71 gate. See `obsidian/docs/architect-r15-nrp-blueprint.md`.
+/// JPEG XL 8.71 gate. See `obsidian/docs/archive/architect-r15-nrp-blueprint.md`.
 pub const NRP_EFFORT: u8 = 255;
 
 /// R15 training budget: full-batch SGD epochs over the plane. Small (the per-plane
@@ -305,7 +305,7 @@ const NRP_MOMENTUM: f64 = 0.85;
 /// in the never-expand safety net. Kept above any production effort so R14 is
 /// OFF by default (the cipher stays on the verified pre-R14 path); the
 /// `OBSIDIAN_R14_FORCE` seam enables it for direct measurement against the
-/// JPEG XL 8.71 gate. See `obsidian/docs/architect-r14-rcct-ma-blueprint.md`.
+/// JPEG XL 8.71 gate. See `obsidian/docs/archive/architect-r14-rcct-ma-blueprint.md`.
 pub const RCCT_EFFORT: u8 = 255;
 
 /// The set of predictor candidates for an effort level.

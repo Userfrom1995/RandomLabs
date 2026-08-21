@@ -96,8 +96,7 @@ pub struct EncodeOpts {
     /// safety net confirms it is the smallest of {GR, CMARC, CARC_LZ}. Unlike M3
     /// LZ (which failed under GR), the match flag here is a cheap binary bin and
     /// the literal is the already-cheap CMARC residual, so matches win on
-    /// texture/chroma/flat regions. See `obsidian/docs/architect-cmarc-
-    /// blueprint.md` section 5.3.
+    /// texture/chroma/flat regions. See `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.3.
     pub carc_lz: Option<bool>,
     /// R2.4 logistic context mixing (`ENTROPY_MODE_CARC_MIX`). Only consulted when
     /// `cmarc` is also engaged. When set, the encoder also tries the logistic-mixed
@@ -106,8 +105,7 @@ pub struct EncodeOpts {
     /// the `OBSIDIAN_CARC_MIX` env seam) and is selected only when the never-expand
     /// safety net confirms it is the smallest of {GR, CMARC, CARC_LZ, CARC_MIX}.
     /// This is the final R2 stage (JPEG XL gate); mixing probability estimates (not
-    /// `k` choices) beats the best single model. See `obsidian/docs/architect-cmarc-
-    /// blueprint.md` section 5.4.
+    /// `k` choices) beats the best single model. See `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.4.
     pub carc_mix: Option<bool>,
     /// R2.1 cross-channel subtract-green decorrelation override. `Some(true)`
     /// restricts the transform search to subtract-green variants; `Some(false)`
@@ -120,8 +118,7 @@ pub struct EncodeOpts {
     /// makes the encoder set `model.cmarc_residual_ctx`, switching the CMARC coding
     /// context from the gradient context to the quantized neighboring-residual
     /// context for the whole image. Only consulted when `cmarc` is also engaged.
-    /// Ships OFF by default; see `obsidian/docs/architect-r3-residual-context-
-    /// blueprint.md` R3-A.
+    /// Ships OFF by default; see `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` R3-A.
     pub cmarc_residual_ctx: Option<bool>,
     /// R3-A per-image context auto-selection (the `OBSIDIAN_CARC_RESIDUAL_CTX` seam).
     /// When set, the encoder codes the plane twice (gradient context and JPEG-LS
@@ -135,13 +132,13 @@ pub struct EncodeOpts {
     /// near-constant regions. Only consulted when `cmarc` is also engaged. Ships
     /// OFF by default (behind the `OBSIDIAN_CARC_RUN` env seam); the never-expand
     /// safety net keeps it only when it is the smallest CMARC candidate.
-    /// See `obsidian/docs/architect-r3-residual-context-blueprint.md` R3-C.
+    /// See `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` R3-C.
     pub cmarc_run: Option<bool>,
     /// R11-D MA-tree-lite: fold the local gradient into the CMARC residual coding
     /// context (`Some(true)` sets `model.cmarc_ma_context`). Only consulted when
     /// `cmarc` is engaged. Ships OFF by default; the per-image auto-selection
     /// (`cmarc_ma_context_auto`) keeps it on only when it actually wins. See
-    /// `obsidian/docs/architect-r11-crossband-predictor-blueprint.md` R11-D.
+    /// `obsidian/docs/archive/architect-r11-crossband-predictor-blueprint.md` R11-D.
     pub cmarc_ma_context: Option<bool>,
     /// R11-D per-image context auto-selection (`OBSIDIAN_CARC_MA_CTX` seam). When
     /// set, the encoder codes the plane with and without the MA-context fold and
@@ -156,8 +153,7 @@ pub struct EncodeOpts {
     /// combined with R3-A residual context or run mode (its residual region uses
     /// the gradient coding context). It ships OFF by default and is engaged only
     /// when the never-expand safety net confirms it is the smallest of {GR, CMARC,
-    /// CARC_LZ, CARC_MIX, CARC_CACHE}. See `obsidian/docs/architect-r6-corrected-
-    /// blueprint.md` Component A.
+    /// CARC_LZ, CARC_MIX, CARC_CACHE}. See `obsidian/docs/archive/architect-r6-corrected-blueprint.md` Component A.
     pub carc_cache: Option<bool>,
     /// R10-B CFL (chroma-from-luma) scale per plane. `Some(vec)` where each
     /// entry is `None` (no CFL) or `Some(s in 0..=7)`; `None` (default) lets the
@@ -236,8 +232,7 @@ pub fn encode(image: &Image, effort: u8) -> Result<(Vec<u8>, EncodeStats), Codec
     }
     // R3-A: the residual-context seam enables per-image context auto-selection
     // (gradient vs JPEG-LS DIFF residual context), so R3-A ships only when it
-    // actually wins on each image. See `obsidian/docs/architect-r3-residual-
-    // context-blueprint.md` R3-A §4.
+    // actually wins on each image. See `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` R3-A §4.
     // R3-A per-image context auto-selection is ON by default: the encoder codes
     // the CMARC plane with both the gradient context and the residual DIFF context
     // and keeps the smaller (the never-expand net already guarantees GR wins if
@@ -496,7 +491,7 @@ pub fn encode_with(
     // meaningful when CMARC is engaged (it replaces the GR LZ layer entirely).
     // Opt-in (default OFF) behind the `OBSIDIAN_CARC_LZ` env seam; the never-
     // expand safety net keeps it only if it is the smallest of {GR, CMARC,
-    // CARC_LZ}. See `obsidian/docs/architect-cmarc-blueprint.md` section 5.3.
+    // CARC_LZ}. See `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.3.
     let use_carc_lz = opts.carc_lz.unwrap_or(false) && use_cmarc;
     // R2.4 logistic mixing: only meaningful when CMARC is engaged.
     let use_cmarc_mix = opts.carc_mix.unwrap_or(false) && use_cmarc;
@@ -520,7 +515,7 @@ pub fn encode_with(
     // seam, JPEG-LS DIFF residual context) selection even if it is not the smallest
     // candidate, so its raw cost can be measured directly against the WebP/JPEG XL
     // gates. Never used in production; the never-expand net still governs shipping
-    // output. See `obsidian/docs/architect-r3-residual-context-blueprint.md`.
+    // output. See `obsidian/docs/archive/architect-r3-residual-context-blueprint.md`.
     let force_carc = std::env::var("OBSIDIAN_CARC_FORCE").ok().as_deref() == Some("1");
     // Test/measurement seam: force R3-C run mode to ship (bypass the never-expand
     // safety net) so its raw cost can be measured directly against the JPEG XL
@@ -1367,8 +1362,7 @@ fn code_planes(
                 // (`CarcCtx`) are mirrored, so no model bytes are signaled. The
                 // cost is `H(p) + epsilon`, strictly below the single-k GR symbol
                 // coder's `H(p) + O(1)`, which is what clears the WebP (9.61) and
-                // JPEG XL (8.71) gates. See `obsidian/docs/architect-cmarc-
-                // blueprint.md`.
+                // JPEG XL (8.71) gates. See `obsidian/docs/archive/architect-cmarc-blueprint.md`.
                 let mag_bits = cmarc_mag_bits((ranges[pi].max - ranges[pi].min) as u32);
                 let bins_per_ctx = if carc_lz {
                     cmarc_lz_bins_per_ctx(mag_bits)
@@ -1399,7 +1393,7 @@ fn code_planes(
                     // induction). The match finder references the source plane; the
                     // decoder's already-reconstructed prefix equals it by induction,
                     // so the chosen references reproduce exactly. See
-                    // `obsidian/docs/architect-cmarc-blueprint.md` section 5.3.
+                    // `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.3.
                     let area = width * height;
                     let buf = &coding_planes[pi];
                     let window = (width * 8).min(32768);
@@ -1502,7 +1496,7 @@ if p == PredictorId::AdaptiveRecursive {
                     // primary model with a per-`bin` coarse model via a per-bit
                     // learned logistic weight. Both models and the weight are
                     // mirrored, so the round-trip is bit-exact. See
-                    // `obsidian/docs/architect-cmarc-blueprint.md` section 5.4.
+                    // `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.4.
                     let mut mix_models: Vec<BinModel> = vec![BinModel::new(); bins_per_ctx];
                     let mut mix_w: Vec<i32> = vec![MIX_INIT_W; bins_per_ctx];
                     for y in 0..height {
@@ -2459,8 +2453,7 @@ fn code_banded(
         // winning choice is recorded in `model.cmarc_residual_ctx` so the decoder
         // mirrors it. R3-A can therefore never expand the file versus gradient-
         // context CMARC (which itself is gated by the GR never-expand net below), so
-        // a regression can never ship. See `obsidian/docs/architect-r3-residual-
-        // context-blueprint.md` R3-A §4.
+        // a regression can never ship. See `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` R3-A §4.
         if cmarc_residual_ctx_auto {
             // `coded` (gradient context) is the baseline; `cm_total` is its size.
             let gradient_total = cm_total;
@@ -2601,7 +2594,7 @@ fn code_banded(
         // {GR, CMARC, CARC_LZ, CARC_MIX}; otherwise the previously-best candidate
         // ships. Mixing probability estimates beats the best single model, so this
         // is the final R2 gate-clearing stage (JPEG XL). See
-        // `obsidian/docs/architect-cmarc-blueprint.md` section 5.4.
+        // `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.4.
         if use_cmarc_mix {
             let mix_coded = code_planes(banded_coding_planes, &band_ranges, &band_sizes, banded_dims, banded_parent,
                 &model,

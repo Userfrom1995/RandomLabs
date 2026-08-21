@@ -579,7 +579,7 @@ let pred = match r13_predict(p, &nb, plane, x, y, width, height, range, &wrstate
                 // matched runs from its own already-reconstructed buffer, so it
                 // stays bit-exact by induction (its prefix equals the encoder's
                 // source prefix at every position). See
-                // `obsidian/docs/architect-cmarc-blueprint.md` section 5.3.
+                // `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.3.
                 if payload.len() < 4 {
                     return Err(CodecError::InvalidStream("CMARC plane too short".into()));
                 }
@@ -737,7 +737,7 @@ let pred = match r13_predict(p, &nb, plane, x, y, width, height, range, &wrstate
                     // path (the layout is identical); the per-`bin` coarse model and
                     // the per-bin logistic weight start uniform and adapt to the same
                     // bits the encoder saw, so lockstep holds and the round-trip is
-                    // bit-exact. See `obsidian/docs/architect-cmarc-blueprint.md` 5.4.
+                    // bit-exact. See `obsidian/docs/archive/architect-cmarc-blueprint.md` 5.4.
                     let mut mix_models: Vec<BinModel> = vec![BinModel::new(); bins_per_ctx];
                     let mut mix_w: Vec<i32> = vec![MIX_INIT_W; bins_per_ctx];
                     for y in 0..height {
@@ -845,7 +845,7 @@ let pred = match r13_predict(p, &nb, plane, x, y, width, height, range, &wrstate
                     // both reconstruct `v` in the same raster order, the LRU contents
                     // and rank codes match by induction, so no cache state is signaled
                     // and the round-trip is bit-exact. See
-                    // `obsidian/docs/architect-r6-corrected-blueprint.md` Component A.
+                    // `obsidian/docs/archive/architect-r6-corrected-blueprint.md` Component A.
                     let mut cache = ColorCache::new(
                         CARC_CACHE_SIZE,
                         range.min as i32,

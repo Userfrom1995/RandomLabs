@@ -229,8 +229,7 @@ impl Alphabet {
 // the first R3 attempt used but then starved with an oversized model budget and a
 // pathological prior. The corrected blueprint bounds the context to <= 365
 // (sign-symmetric LUT) and pairs it with a neutral prior, so it compresses
-// instead of exploding. See `obsidian/docs/architect-r3-residual-context-
-// blueprint.md` R3-A.
+// instead of exploding. See `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` R3-A.
 // ===========================================================================
 
 /// Quantize a neighbor residual magnitude to a JPEG-LS-style bucket `0..=8`:

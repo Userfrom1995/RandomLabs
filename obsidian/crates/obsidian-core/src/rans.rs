@@ -378,7 +378,7 @@ impl<'a> RansDecoder<'a> {
 // `k` is never signaled: it is implicit, mirrored state. The forward streaming
 // coder needs no reverse pass and no dry-run plan, and it provably cannot
 // expand (O(1) warm-up overhead versus the 9-bit rANS start that never decayed
-// on small images). See `obsidian/docs/entropy-architecture.md`.
+// on small images). See `obsidian/docs/archive/entropy-architecture.md`.
 // ===========================================================================
 
 /// Maximum Golomb-Rice parameter `k` (2^k is the Rice divisor).
@@ -707,7 +707,7 @@ pub fn read_gamma(r: &mut BitReader) -> Result<u32, CodecError> {
 // encoder's decoded buffer equals the decoder's at every position, so the chosen
 // `(offset, length)` always reproduce the intended pixels. When `GR_LZ` is clear
 // the match layer is never entered and the stream is byte-identical to v1 GR.
-// See `obsidian/docs/m3-lz77-weighted-predictor.md`.
+// See `obsidian/docs/archive/m3-lz77-weighted-predictor.md`.
 // ===========================================================================
 
 /// Minimum match length for an LZ77 back-reference (R9-A). Shortened from 3 to 2
@@ -1085,11 +1085,10 @@ pub fn gr_read_symbol_k(r: &mut BitReader, k: u8) -> Result<i32, CodecError> {
 // remainder bits); every bin is coded by a per-`(cid, bin)` binary model
 // conditioned on the spatial context. Because every alphabet is size 2, each
 // model specializes after O(1) samples (the specialization-budget theorem in
-// `obsidian/docs/research-breakthrough.md`), so the cost is `H(p) + epsilon`
+// `obsidian/docs/archive/research-breakthrough.md`), so the cost is `H(p) + epsilon`
 // for any residual distribution `p` - strictly below GR's `H(p) + O(1)`. This
 // is the breakthrough that clears the WebP (9.61) and JPEG XL (8.71) gates that
-// the coarse GR symbol coder cannot reach. See `obsidian/docs/architect-cmarc-
-// blueprint.md`.
+// the coarse GR symbol coder cannot reach. See `obsidian/docs/archive/architect-cmarc-blueprint.md`.
 //
 // The binary arithmetic core (`renorm`/`finish`, `split = low + (range * p) /
 // BIN_TOTAL`) is identical to the existing `BinEnc`/`BinDec`; the only change is
@@ -1104,7 +1103,7 @@ pub fn gr_read_symbol_k(r: &mut BitReader, k: u8) -> Result<i32, CodecError> {
 /// the old 64/4096 (~0.0156, which cost ~6 bits per wrong bit). This is the
 /// regression-proofing change: many contexts now "fail to compress" rather than
 /// "explode". Frequent contexts still specialize within ~30 residuals. See
-/// `obsidian/docs/architect-r3-residual-context-blueprint.md` section 2.
+/// `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` section 2.
 pub const CMARC_PRIOR: u16 = 2048;
 /// Mirrored adaptation rate for the CMARC binary models. `adapt` moves `p`
 /// exponentially toward the last observed bit (Krichevsky-Trofimov style), so the
@@ -1238,7 +1237,7 @@ pub const CMARC_RUN_MIN: usize = 8;
 /// lets JPEG-LS-like residual contexts (<= 365) stay affordable, and the
 /// neutral prior caps the worst-case per-bin cost at 1 bit so a sparse context
 /// merely fails to compress instead of exploding. See
-/// `obsidian/docs/architect-r3-residual-context-blueprint.md` section 1.1.
+/// `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` section 1.1.
 pub fn cmarc_bins_per_ctx() -> usize {
     CMARC_BINS_TOTAL
 }
@@ -1663,7 +1662,7 @@ impl<'a> RangeDec<'a> {
 ///    remainder bits MSB-first, each through `CMARC_BIN_REM + j*CMARC_REM_WIN_STATES
 ///    + window_state` (the R2 cross-bit conditioning now over the small
 ///    remainder). The per-bin models and `ctx` are mirrored, so no state is
-///    signaled. See `obsidian/docs/architect-r3-residual-context-blueprint.md` R3-B.
+///    signaled. See `obsidian/docs/archive/architect-r3-residual-context-blueprint.md` R3-B.
 ///
 /// R3-A (corrected) bin allocation: when R3-A is ON the whole residual is
 /// conditioned on the **residual DIFF context `rcid`** (`residual_context` of the
@@ -1890,7 +1889,7 @@ pub fn cmarc_cache_read<'a>(
 // reproduce the intended pixels. Because the match flag is a cheap binary bin and
 // the literal is the already-cheap CMARC residual, matches now win on
 // texture/chroma/flat regions where they lost under GR (M3-A). See
-// `obsidian/docs/architect-cmarc-blueprint.md` section 5.3.
+// `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.3.
 // ===========================================================================
 
 /// Bin index (within a context) of the LZ match flag.
@@ -2076,7 +2075,7 @@ pub fn cmarc_lz_read_literal<'a>(
 // k choices, the M2.5 mistake) is what lets the coder beat the best single
 // model, and it is the final R2 stage that closes the remaining ~0.9 bpp to the
 // JPEG XL gate once CMARC + cross-channel + bank + LZ are in place. See
-// `obsidian/docs/architect-cmarc-blueprint.md` section 5.4.
+// `obsidian/docs/archive/architect-cmarc-blueprint.md` section 5.4.
 //
 // The weight `w` and both estimator models are mirrored (identical update order
 // on encoder and decoder, zero signaled bytes), so the round-trip is bit-exact.
