@@ -209,6 +209,21 @@ ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
                 (void)orient; (void)diag;
                 size_t src_act = act >= 4 ? 3 : act;
                 src_base = base_id + src_act * 44;
+            } else if (nctx == 11264) {
+                // B5.42 11264 = (((((44*8)*4+zcnt)*2+orient)*2+diag)*2+ssign) : sign coherence
+                size_t ssign = i % 2;
+                size_t tmp = i / 2;
+                size_t diag = tmp % 2;
+                tmp /= 2;
+                size_t orient = tmp % 2;
+                tmp /= 2;
+                size_t zcnt = tmp % 4;
+                size_t baseAct = tmp / 4;
+                base_id = baseAct % 44;
+                act = baseAct / 44;
+                (void)orient; (void)diag; (void)ssign;
+                size_t src_act = act >= 4 ? 3 : act;
+                src_base = base_id + src_act * 44;
             } else {
                 // generic fallback: map modulo 176
                 src_base = i % 176;
@@ -265,7 +280,8 @@ std::vector<uint16_t> compute_resdiff_context(const std::vector<int32_t>& residu
             int orient = (std::abs(Ra) > std::abs(Rb)) ? 1 : 0;
             int zcnt = (Ra == 0 ? 1 : 0) + (Rb == 0 ? 1 : 0) + (Rc == 0 ? 1 : 0); // 0..3 flatness
             int diag = (std::abs(Ra - Rc) > std::abs(Rb - Rc)) ? 1 : 0; // B5.41 diagonal edge
-            int ctx = ((((baseAct * 4) + zcnt) * 2 + orient) * 2 + diag); // 0..5631 B5.41
+            int ssign = ((Ra >= 0) == (Rb >= 0)) ? 1 : 0; // B5.42 sign coherence LL
+            int ctx = (((((baseAct * 4) + zcnt) * 2 + orient) * 2 + diag) * 2 + ssign); // 0..11263 B5.42
             cx[idx] = (uint16_t)ctx;
         }
     }
@@ -483,8 +499,8 @@ void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32
     uint8_t* d = const_cast<uint8_t*>(in.data());
     RansState state; RansDecInit(&state, &d);
     out.assign(n, 0);
-    // Expand models if needed: now 44*8*2*4*2=5632 contexts (ResDiff + activity + orient + zcnt + diag B5.41)
-    size_t need = 5632;
+    // Expand models if needed: now 44*8*4*2*2*2=11264 contexts (ResDiff + activity + orient + zcnt + diag + ssign B5.42)
+    size_t need = 11264;
     if (models.nctx() < need) {
         ModelBank nb = ModelBank::create(need, 16);
         for (size_t i = 0; i < models.nctx() && i < need; ++i) {
@@ -529,7 +545,8 @@ void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32
         int orient = (std::abs(Ra) > std::abs(Rb)) ? 1 : 0;
         int zcnt = (Ra == 0 ? 1 : 0) + (Rb == 0 ? 1 : 0) + (Rc == 0 ? 1 : 0);
         int diag = (std::abs(Ra - Rc) > std::abs(Rb - Rc)) ? 1 : 0;
-        int ctx = ((((baseAct * 4) + zcnt) * 2 + orient) * 2 + diag);
+        int ssign = ((Ra >= 0) == (Rb >= 0)) ? 1 : 0;
+        int ctx = (((((baseAct * 4) + zcnt) * 2 + orient) * 2 + diag) * 2 + ssign);
         if (ctx < 0) ctx = 0;
         if (ctx >= (int)models.nctx()) ctx = (int)models.nctx() - 1;
         uint16_t cx = (uint16_t)ctx;

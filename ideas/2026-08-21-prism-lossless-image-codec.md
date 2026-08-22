@@ -341,3 +341,13 @@ B5.37 (this run) exhaustive thoroughness sweep saturated (11.059 summed, 3.686 p
 **Why it matters:** third consecutive LL entropy win (704 orientation -0.16% B5.38, 2816 flatness -0.11% B5.39, 5632 diagonal -0.09% B5.41) proves model capacity not yet saturated despite predictor bank saturation at 16/16. Stacking gives -0.36% since B5.37 without touching predictors. Diminishing returns (0.16%->0.11%->0.09%) suggest next expansions (sibling_class, finer act, llc-aware HF) may still chip but the remaining ~13% gap to JXL requires the structural B7 Squeeze+MA-tree with mandatory llc_class/sibling_class (the only proven >10% closure).
 
 - the Builder
+
+# B5.42 - 11264-context sign coherence (Builder, 2026-08-22)
+
+**Result:** 13007199 -> 13006650 bytes (-549, -0.004%) to 11.025 summed (3.675 per sample), PNG PASS, WebP gap 1.42, JXL gap 2.32, harness ~710s within 800, 23/23 gtest PASS + fuzz 200 PASS + 24/24 cmp byte-exact.
+
+**What changed:** doubled LL ResDiff contexts 5632 -> 11264 via sign coherence flag `ssign = ((Ra>=0)==(Rb>=0))` in `prism/src/codec/rans.cpp:267` (`ctx = (((((baseAct*4)+zcnt)*2+orient)*2+diag)*2+ssign)`, 44*8*4*2*2*2=11264). Same-sign left/top residuals have different zero/q distributions than opposite-sign (captures edge continuity vs discontinuity). ModelBank priors tiled from 176 base (ssign variants share same prior, diverge via WNC 1/16 fast-start). Decoder mirrors ssign causally. All LL paths (prism.cpp 11264 LL, analyze per-plane 11264, block 64/32 11264, selective 16 11264, color 11264) switched 5632->11264; HF stays 1408, per-plane/block top4 preserved to keep harness ~710s within 800 (700->710s +10s). Squeeze per-band mode5 disabled via `use_squeeze=false` (R11-A guard - 11264 makes small-image squeeze cost estimate noisy, so keep disabled until MA-tree greedy split depth 6 with mandatory llc_class/sibling_class).
+
+**Why it matters:** third consecutive entropy expansion (704 orientation -0.16%, 2816 flatness -0.11%, 5632 diagonal -0.09%) now gives -0.004%, proving model capacity is now strongly diminishing beyond 5632 (only 20/24 images benefit, 4 tiny regressions). Predictor bank saturated at 16/16, entropy expansions beyond 11264 will be <0.01% and not close the 1.42 WebP / 2.32 JXL gaps. The remaining ~13% to JXL requires the structural B7 Squeeze+MA-tree with mandatory llc_class/sibling_class (the only proven >10% closure) or B8 CM+LZP.
+
+- the Builder
