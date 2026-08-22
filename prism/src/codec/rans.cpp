@@ -265,7 +265,7 @@ std::vector<uint16_t> compute_resdiff_context(const std::vector<int32_t>& residu
             }
             if (base < 0) base = 0;
             if (base > 43) base = 43;
-            // activity bucket: 8 levels for finer context (44*8=352) plus orientation flag (44*8*2=704) plus zero-neighbor count (B5.39: *4 => 2816)
+            // activity bucket: 8 levels (44*8=352) plus orientation (704), zcnt (2816), diag (5632), ssign (11264) - B5.43 thresholds 3/8/15/25/50/100/180
             int sumAbs = (Ra < 0 ? -Ra : Ra) + (Rb < 0 ? -Rb : Rb) + (Rc < 0 ? -Rc : Rc);
             int act = 0;
             if (sumAbs <= 3) act = 0;
