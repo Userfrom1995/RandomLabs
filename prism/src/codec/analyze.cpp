@@ -4,6 +4,7 @@
 #include "prism/codec/rans.h"
 #include "prism/codec/squeeze.h"
 #include <algorithm>
+#include <cmath>
 
 namespace prism::codec {
 
@@ -294,6 +295,63 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         best_mode = 5;
         best_flat = squeeze_per_band;
     }
+    // B5.36 leaf-activity mode (8 leaves, MA-tree lite): evaluate per-plane 8-leaf predictor map
+    uint64_t cost_leaf = UINT64_MAX; std::vector<uint8_t> flat_leaf;
+    {
+        const size_t LEAVES = 8;
+        flat_leaf.reserve(tr.planes.size()*LEAVES);
+        uint64_t total_leaf_cost = 0;
+        std::vector<std::vector<uint8_t>> per_plane_leaf_maps;
+        per_plane_leaf_maps.reserve(tr.planes.size());
+        for (size_t c=0;c<tr.planes.size();++c){
+            if (tr.ch == Channels::RGBA && c==3) { std::vector<uint8_t> m(LEAVES,3); per_plane_leaf_maps.push_back(m); for(auto v:m) flat_leaf.push_back(v); continue; }
+            // precompute 16 residuals
+            std::vector<std::vector<int32_t>> all_resids(16);
+            for(uint8_t pid=0; pid<=15; ++pid) all_resids[pid]=compute_residuals(tr.planes[c], tr.w, tr.h, static_cast<PredId>(pid));
+            // leaves based on sample gradient activity (predictor-agnostic)
+            auto leaves = compute_leaves_activity(tr.planes[c], tr.w, tr.h);
+            // for each leaf, find best pid via sumAbs then true cost top3
+            std::vector<uint8_t> best_per_leaf(LEAVES,3);
+            for(size_t lv=0; lv<LEAVES; ++lv){
+                struct Cand{uint8_t pid; uint64_t sum;};
+                std::vector<Cand> cands; cands.reserve(16);
+                for(uint8_t pid=0; pid<=15; ++pid){
+                    uint64_t s=0;
+                    for(size_t i=0;i<leaves.size();++i) if(leaves[i]==lv) s += (all_resids[pid][i]<0? -all_resids[pid][i] : all_resids[pid][i]);
+                    cands.push_back({pid,s});
+                }
+                std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum<b.sum;});
+                // top2 true-cost per leaf slice (isolated) to refine where sumAbs close
+                size_t topN = std::min<size_t>(2, cands.size());
+                uint64_t best_cost = UINT64_MAX; uint8_t best_pid = cands[0].pid;
+                for(size_t t=0;t<topN;++t){
+                    uint8_t pid = cands[t].pid;
+                    std::vector<int32_t> slice; slice.reserve(leaves.size()/LEAVES+8);
+                    for(size_t i=0;i<leaves.size();++i) if(leaves[i]==lv) slice.push_back(all_resids[pid][i]);
+                    if(slice.empty()){ best_pid=pid; break; }
+                    ModelBank mb = ModelBank::create(352,16);
+                    std::vector<uint8_t> out; rans_encode_residuals_auto(slice, (uint32_t)slice.size(), 1, mb, out);
+                    if(out.size()<best_cost){ best_cost=out.size(); best_pid=pid; }
+                }
+                best_per_leaf[lv]=best_pid;
+            }
+            per_plane_leaf_maps.push_back(best_per_leaf);
+            for(auto v:best_per_leaf) flat_leaf.push_back(v);
+        }
+        // global true cost with leaf-specific residuals
+        uint64_t leaf_total = 0;
+        for(size_t c=0;c<tr.planes.size();++c){
+            if (tr.ch == Channels::RGBA && c==3) continue;
+            auto mixed = compute_residuals_leaves(tr.planes[c], tr.w, tr.h, per_plane_leaf_maps[c]);
+            ModelBank mb = ModelBank::create(352,16);
+            std::vector<uint8_t> out; rans_encode_residuals_auto(mixed, tr.w, tr.h, mb, out);
+            leaf_total += out.size();
+        }
+        uint64_t leaf_overhead = (flat_leaf.size()+1)/2; // nibble-packed
+        cost_leaf = leaf_total + leaf_overhead;
+    }
+    bool use_leaf = (cost_leaf + 2 < best_eff);
+    if (use_leaf) { best_eff = cost_leaf; best_mode = 6; best_flat = flat_leaf; }
 
     if (best_mode == 0) {
         res.predictor_mode = 0;
@@ -317,6 +375,10 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         res.squeeze_levels.assign(r.num_channels(), 1);
         (void)max_squeeze_levels;
         return res;
+    } else if (best_mode == 6) {
+        res.predictor_mode = 6;
+        res.global_pred_id = per_plane_best[0];
+        res.per_leaf_pred = flat_leaf;
     } else {
         res.predictor_mode = 4;
         res.global_pred_id = per_plane_best[0];

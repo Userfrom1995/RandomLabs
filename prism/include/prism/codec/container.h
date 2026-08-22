@@ -22,9 +22,9 @@ struct ContainerHeader {
 struct Container {
     ContainerHeader hdr;
     std::vector<MATreeGroup> trees;
-    uint8_t predictor_mode = 0; // 0 global, 1 per-leaf (per-plane), 2 per-block 64x64 (B5.10), 3 per-block 32x32 (B5.12), 4 per-block 16x16 (B5.14), 5 squeeze per-band (B5.35: 5/3 L=1 with per-band predictor)
+    uint8_t predictor_mode = 0; // 0 global, 1 per-leaf (per-plane), 2 per-block 64x64 (B5.10), 3 per-block 32x32 (B5.12), 4 per-block 16x16 (B5.14), 5 squeeze per-band (B5.35: 5/3 L=1 with per-band predictor), 6 leaf-activity 8 leaves (B5.36 MA-tree lite)
     uint8_t global_pred_id = 3; // MED
-    std::vector<uint8_t> per_leaf_pred; // if mode==1 (per-plane) or mode==2/3/4 (per-block flattened) or mode==5 (per-band flattened 4*P for L=1)
+    std::vector<uint8_t> per_leaf_pred; // if mode==1 (per-plane) or mode==2/3/4 (per-block flattened) or mode==5 (per-band flattened 4*P for L=1) or mode==6 (per-leaf activity 8*P)
     // Rice priors omitted for M0
     std::vector<std::vector<uint8_t>> band_payloads; // per band: bytes
 };

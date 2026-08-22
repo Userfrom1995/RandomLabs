@@ -208,6 +208,150 @@ std::vector<uint16_t> reconstruct_plane_blockwise(const std::vector<int32_t>& re
     return plane;
 }
 
+std::vector<uint8_t> compute_leaves_activity(const std::vector<uint16_t>& plane, uint32_t w, uint32_t h) {
+    std::vector<uint8_t> leaves(plane.size(), 0);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int32_t L  = (x > 0) ? (int32_t)plane[idx - 1] : 0;
+            int32_t T  = (y > 0) ? (int32_t)plane[idx - w] : 0;
+            int32_t TL = (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0;
+            int32_t grad = std::abs(L - T) + std::abs(L - TL) + std::abs(T - TL);
+            uint8_t leaf = 0;
+            if (grad <= 4) leaf = 0;
+            else if (grad <= 8) leaf = 1;
+            else if (grad <= 16) leaf = 2;
+            else if (grad <= 32) leaf = 3;
+            else if (grad <= 64) leaf = 4;
+            else if (grad <= 128) leaf = 5;
+            else if (grad <= 192) leaf = 6;
+            else leaf = 7;
+            leaves[idx] = leaf;
+        }
+    }
+    return leaves;
+}
+
+std::vector<int32_t> compute_residuals_leaves(const std::vector<uint16_t>& plane, uint32_t w, uint32_t h,
+                                              const std::vector<uint8_t>& per_leaf_pred) {
+    std::vector<int32_t> res(plane.size());
+    size_t num_leaves = per_leaf_pred.size();
+    if (num_leaves == 0) num_leaves = 1;
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int32_t s = (int32_t)plane[idx];
+            int32_t L  = (x > 0) ? (int32_t)plane[idx - 1] : 0;
+            int32_t T  = (y > 0) ? (int32_t)plane[idx - w] : 0;
+            int32_t TL = (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0;
+            int32_t TR = (y > 0 && x + 1 < w) ? (int32_t)plane[idx - w + 1] : 0;
+            int32_t W2 = (x > 1) ? (int32_t)plane[idx - 2] : L;
+            int32_t N2 = (y > 1) ? (int32_t)plane[idx - 2*w] : T;
+            int32_t grad = std::abs(L - T) + std::abs(L - TL) + std::abs(T - TL);
+            uint8_t leaf = 0;
+            if (grad <= 4) leaf = 0;
+            else if (grad <= 8) leaf = 1;
+            else if (grad <= 16) leaf = 2;
+            else if (grad <= 32) leaf = 3;
+            else if (grad <= 64) leaf = 4;
+            else if (grad <= 128) leaf = 5;
+            else if (grad <= 192) leaf = 6;
+            else leaf = 7;
+            if (leaf >= num_leaves) leaf = (uint8_t)(num_leaves - 1);
+            uint8_t pid = per_leaf_pred[leaf];
+            PredId id = PredId::MED;
+            if (pid <= 15) id = static_cast<PredId>(pid);
+            int32_t pred = 0;
+            switch (id) {
+                case PredId::LEFT: pred = L; break;
+                case PredId::TOP: pred = T; break;
+                case PredId::TL: pred = TL; break;
+                case PredId::MED: pred = med_predictor(L, T, TL); break;
+                case PredId::GAP: pred = gap_predictor(L, W2, T, TL, TR, N2, (y>1&&x+1<w)?(int32_t)plane[idx-2*w+1]:TR); break;
+                case PredId::GRAD: pred = (L + T)/2 + (TR - TL)/4; break;
+                case PredId::TRUE_MOTION: pred = L + T - TL; break;
+                case PredId::CLAMPED: { int32_t p=L+T-TL; pred = std::clamp(p, std::min({L,T,TL}), std::max({L,T,TL})); break; }
+                case PredId::WEIGHTED: {
+                    int32_t gL = std::abs(L-TL)+std::abs(T-TL);
+                    int32_t gT = std::abs(L-TL)+std::abs(T-TR);
+                    if (gL<gT) pred=(3*L+T+2)/4; else if(gT<gL) pred=(L+3*T+2)/4; else pred=(L+T+1)/2;
+                    break;
+                }
+                case PredId::PAETH: pred = paeth_predictor(L, T, TL); break;
+                case PredId::AVG: pred = (L + T + 1) / 2; break;
+                case PredId::HGRAD: pred = L + ((T - TL) >> 1); break;
+                case PredId::VGRAD: pred = T + ((L - TL) >> 1); break;
+                case PredId::SMOOTH: pred = (L + T + TL + TR + 2) >> 2; break;
+                case PredId::H_EXTRAP: pred = (x > 1) ? (2*L - W2) : L; break;
+                case PredId::V_EXTRAP: pred = (y > 1) ? (2*T - N2) : T; break;
+            }
+            res[idx] = s - pred;
+        }
+    }
+    return res;
+}
+
+std::vector<uint16_t> reconstruct_plane_leaves(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h,
+                                               const std::vector<uint8_t>& per_leaf_pred, uint16_t bd_max) {
+    std::vector<uint16_t> plane(residuals.size());
+    size_t num_leaves = per_leaf_pred.size();
+    if (num_leaves == 0) num_leaves = 1;
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int32_t L  = (x > 0) ? (int32_t)plane[idx - 1] : 0;
+            int32_t T  = (y > 0) ? (int32_t)plane[idx - w] : 0;
+            int32_t TL = (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0;
+            int32_t TR = (y > 0 && x + 1 < w) ? (int32_t)plane[idx - w + 1] : 0;
+            int32_t W2 = (x > 1) ? (int32_t)plane[idx - 2] : L;
+            int32_t N2 = (y > 1) ? (int32_t)plane[idx - 2*w] : T;
+            int32_t grad = std::abs(L - T) + std::abs(L - TL) + std::abs(T - TL);
+            uint8_t leaf = 0;
+            if (grad <= 4) leaf = 0;
+            else if (grad <= 8) leaf = 1;
+            else if (grad <= 16) leaf = 2;
+            else if (grad <= 32) leaf = 3;
+            else if (grad <= 64) leaf = 4;
+            else if (grad <= 128) leaf = 5;
+            else if (grad <= 192) leaf = 6;
+            else leaf = 7;
+            if (leaf >= num_leaves) leaf = (uint8_t)(num_leaves - 1);
+            uint8_t pid = per_leaf_pred[leaf];
+            PredId id = PredId::MED;
+            if (pid <= 15) id = static_cast<PredId>(pid);
+            int32_t pred = 0;
+            switch (id) {
+                case PredId::LEFT: pred = L; break;
+                case PredId::TOP: pred = T; break;
+                case PredId::TL: pred = TL; break;
+                case PredId::MED: pred = med_predictor(L, T, TL); break;
+                case PredId::GAP: pred = gap_predictor(L, W2, T, TL, TR, N2, (y>1&&x+1<w)?(int32_t)plane[idx-2*w+1]:TR); break;
+                case PredId::GRAD: pred = (L + T)/2 + (TR - TL)/4; break;
+                case PredId::TRUE_MOTION: pred = L + T - TL; break;
+                case PredId::CLAMPED: { int32_t p=L+T-TL; pred = std::clamp(p, std::min({L,T,TL}), std::max({L,T,TL})); break; }
+                case PredId::WEIGHTED: {
+                    int32_t gL = std::abs(L-TL)+std::abs(T-TL);
+                    int32_t gT = std::abs(L-TL)+std::abs(T-TR);
+                    if (gL<gT) pred=(3*L+T+2)/4; else if(gT<gL) pred=(L+3*T+2)/4; else pred=(L+T+1)/2;
+                    break;
+                }
+                case PredId::PAETH: pred = paeth_predictor(L, T, TL); break;
+                case PredId::AVG: pred = (L + T + 1) / 2; break;
+                case PredId::HGRAD: pred = L + ((T - TL) >> 1); break;
+                case PredId::VGRAD: pred = T + ((L - TL) >> 1); break;
+                case PredId::SMOOTH: pred = (L + T + TL + TR + 2) >> 2; break;
+                case PredId::H_EXTRAP: pred = (x > 1) ? (2*L - W2) : L; break;
+                case PredId::V_EXTRAP: pred = (y > 1) ? (2*T - N2) : T; break;
+            }
+            int32_t s = pred + residuals[idx];
+            if (s < 0) s = 0;
+            if (s > bd_max) s = bd_max;
+            plane[idx] = (uint16_t)s;
+        }
+    }
+    return plane;
+}
+
 std::vector<uint16_t> reconstruct_plane(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h, PredId id, uint16_t bd_max) {
     std::vector<uint16_t> plane(residuals.size());
     for (uint32_t y = 0; y < h; ++y) {

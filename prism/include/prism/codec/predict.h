@@ -51,6 +51,13 @@ std::vector<uint16_t> reconstruct_plane_blockwise(const std::vector<int32_t>& re
                                                   const std::vector<uint8_t>& per_block_pred,
                                                   uint32_t block_size, uint16_t bd_max);
 
+// Leaf-activity mode (B5.36 MA-tree lite): 8 leaves based on local gradient activity
+std::vector<uint8_t> compute_leaves_activity(const std::vector<uint16_t>& plane, uint32_t w, uint32_t h);
+std::vector<int32_t> compute_residuals_leaves(const std::vector<uint16_t>& plane, uint32_t w, uint32_t h,
+                                              const std::vector<uint8_t>& per_leaf_pred);
+std::vector<uint16_t> reconstruct_plane_leaves(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h,
+                                               const std::vector<uint8_t>& per_leaf_pred, uint16_t bd_max);
+
 // Reconstruct plane from residuals
 std::vector<uint16_t> reconstruct_plane(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h, PredId id, uint16_t bd_max);
 

@@ -79,6 +79,17 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
             plane_per_band_maps[pi] = std::move(m);
         }
     }
+    std::vector<std::vector<uint8_t>> plane_leaf_maps;
+    if (c.predictor_mode == 6) {
+        plane_leaf_maps.resize(transformed.planes.size());
+        for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
+            size_t off = pi * 8;
+            std::vector<uint8_t> m;
+            for (size_t k=0;k<8 && off+k < c.per_leaf_pred.size(); ++k) m.push_back(c.per_leaf_pred[off+k]);
+            if (m.size()<8) m.resize(8, c.global_pred_id);
+            plane_leaf_maps[pi] = std::move(m);
+        }
+    }
     for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
         uint8_t levels = (pi < ar.squeeze_levels.size()) ? ar.squeeze_levels[pi] : 0;
         SqueezeResult sr = squeeze_encode_plane(transformed.planes[pi], transformed.w, transformed.h, levels, bd);
@@ -99,6 +110,8 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                 PredId pred = static_cast<PredId>(pid);
                 if ((uint8_t)pred > 15) pred = PredId::MED;
                 residuals = compute_residuals(band.data, band.w, band.h, pred);
+            } else if (c.predictor_mode == 6 && sr.levels==0) {
+                residuals = compute_residuals_leaves(band.data, band.w, band.h, plane_leaf_maps[pi]);
             } else {
                 PredId pred;
                 if (c.predictor_mode == 1 && pi < c.per_leaf_pred.size()) {
@@ -232,6 +245,12 @@ Raster decode(const uint8_t* data, size_t len) {
             for (size_t k=0;k<4 && off+k < c.per_leaf_pred.size(); ++k) per_band_map.push_back(c.per_leaf_pred[off+k]);
             if (per_band_map.size()<4) per_band_map.resize(4, c.global_pred_id);
         }
+        std::vector<uint8_t> leaf_map;
+        if (c.predictor_mode == 6 && levels==0) {
+            size_t off = pi * 8;
+            for (size_t k=0;k<8 && off+k < c.per_leaf_pred.size(); ++k) leaf_map.push_back(c.per_leaf_pred[off+k]);
+            if (leaf_map.size()<8) leaf_map.resize(8, c.global_pred_id);
+        }
         ModelBank mb_ll_dec = ModelBank::create(352, 16);
         ModelBank mb_hf_dec = ModelBank::create(1408, 16);
         for(size_t bi=0; bi<band_count; ++bi){
@@ -258,6 +277,8 @@ Raster decode(const uint8_t* data, size_t len) {
                 PredId pred = static_cast<PredId>(pid);
                 if ((uint8_t)pred > 15) pred = PredId::MED;
                 band_plane = reconstruct_plane(residuals, bw, bh, pred, plane_bd_max);
+            } else if (c.predictor_mode == 6 && levels==0) {
+                band_plane = reconstruct_plane_leaves(residuals, bw, bh, leaf_map, plane_bd_max);
             } else {
                 PredId pred;
                 if (c.predictor_mode == 1 && pi < c.per_leaf_pred.size()) {

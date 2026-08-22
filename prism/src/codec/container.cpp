@@ -58,6 +58,14 @@ std::vector<uint8_t> container_encode(const Raster& /*raster*/, const Container&
         uint32_t total = (uint32_t)c.per_leaf_pred.size();
         bw.write_u32_le(total);
         for (uint8_t id : c.per_leaf_pred) bw.write_bits(id, 8);
+    } else if (c.predictor_mode == 6) {
+        uint32_t total = (uint32_t)c.per_leaf_pred.size();
+        bw.write_u32_le(total);
+        for (size_t i = 0; i < c.per_leaf_pred.size(); i += 2) {
+            uint8_t lo = c.per_leaf_pred[i] & 0xF;
+            uint8_t hi = (i + 1 < c.per_leaf_pred.size()) ? (c.per_leaf_pred[i+1] & 0xF) : 0;
+            bw.write_bits(lo | (hi << 4), 8);
+        }
     } else {
         uint32_t total = (uint32_t)c.per_leaf_pred.size();
         bw.write_u32_le(total);
@@ -160,6 +168,15 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
         uint32_t total = br.read_u32_le();
         per_leaf.resize(total);
         for (uint32_t i=0;i<total;++i) per_leaf[i] = br.read_u8();
+    } else if (predictor_mode == 6) {
+        uint32_t total = br.read_u32_le();
+        per_leaf.resize(total);
+        size_t packed = (total + 1) / 2;
+        for (size_t i = 0; i < packed; ++i) {
+            uint8_t b = br.read_u8();
+            per_leaf[2*i] = b & 0xF;
+            if (2*i+1 < total) per_leaf[2*i+1] = (b >> 4) & 0xF;
+        }
     } else {
         throw DecodeError("bad predictor_mode");
     }
