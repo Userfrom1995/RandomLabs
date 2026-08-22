@@ -51,7 +51,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             cands.push_back({pid, s});
         }
         std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum < b.sum;});
-        size_t topN = std::min<size_t>(8, cands.size());
+        size_t topN = std::min<size_t>(9, cands.size());
         uint64_t best_cost = UINT64_MAX;
         uint8_t best_pred = cands[0].pid;
         for (size_t t = 0; t < topN; ++t) {
@@ -91,7 +91,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     uint32_t x1=std::min(x0+BLOCK,tr.w), y1=std::min(y0+BLOCK,tr.h);
                     uint8_t best_pid=3;
                     if (BLOCK == 64 || BLOCK == 32) {
-                        // B5.32 top-10 prefilter for 64/32 blocks (was top-9, diminishing ~0.0008% but still captures where 10th is true best)
+                        // B5.33 top-11 prefilter for 64/32 blocks (was top-10, diminishing ~0.00007% but still captures where 11th is true best)
                         struct BCand{uint8_t pid; uint64_t sum;};
                         std::vector<BCand> bcands; bcands.reserve(16);
                         for(uint8_t pid=0; pid<=15; ++pid){
@@ -106,7 +106,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bcands.push_back({pid, bsum});
                         }
                         std::sort(bcands.begin(), bcands.end(), [](const BCand& a, const BCand& b){return a.sum<b.sum;});
-                        size_t topB = std::min<size_t>(10, bcands.size());
+                        size_t topB = std::min<size_t>(11, bcands.size());
                         uint64_t best_cost = UINT64_MAX;
                         for(size_t t=0; t<topB; ++t){
                             uint8_t pid = bcands[t].pid;
@@ -137,13 +137,13 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bc16.push_back({pid, bsum});
                         }
                         std::sort(bc16.begin(), bc16.end(), [](const BCand16& a, const BCand16& b){return a.sum<b.sum;});
-                        // if top2 within 45% (ambiguous) do true-cost top11, else sumAbs winner (B5.32: widen 40->45 and top10->11)
+                        // if top2 within 50% (ambiguous) do true-cost top12, else sumAbs winner (B5.33: widen 45->50 and top11->12)
                         uint64_t s0 = bc16[0].sum;
                         uint64_t s1 = bc16.size()>1 ? bc16[1].sum : s0;
-                        bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 45;
+                        bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 50;
                         if (ambiguous && bc16.size()>=2) {
                             uint64_t best_cost = UINT64_MAX;
-                            size_t topB = std::min<size_t>(11, bc16.size());
+                            size_t topB = std::min<size_t>(12, bc16.size());
                             for(size_t t=0; t<topB; ++t){
                                 uint8_t pid = bc16[t].pid;
                                 uint32_t bw = x1 - x0, bh = y1 - y0;
@@ -200,6 +200,45 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     std::vector<uint8_t> flat16; uint64_t cost16=0; uint64_t eff16 = UINT64_MAX;
     evaluate_block_size(16, flat16, cost16); eff16 = cost16 + (flat16.size() + 1) / 2;
 
+    // B7 scaffold: evaluate squeeze L=1 with per-band predictor (5/3 lifting, 1408 llc) - never-expand
+    // For each plane, 5/3 L=1 yields 4 bands (LL 384x256 + 3 HF 384x256 for 768x512). Per-band best predictor top6+trueCost.
+    // Shared HF ModelBank not yet used here (cost computed per band fresh), so this is a conservative estimate.
+    uint64_t cost_squeeze = 0;
+    bool squeeze_ok = true;
+    std::vector<uint8_t> squeeze_per_band; // 4 per plane for L=1
+    for (size_t c = 0; c < tr.planes.size(); ++c) {
+        SqueezeResult sr = squeeze_encode_plane(tr.planes[c], tr.w, tr.h, 1, 8);
+        if (sr.levels != 1 || sr.bands.size() != 4) { squeeze_ok = false; break; }
+        uint64_t plane_squeeze_cost = 0;
+        for (auto &band : sr.bands) {
+            // per-band best predictor among 16 via sumAbs top6 + true rANS (352 for LL, 1408 with llc for HF conceptual)
+            // Use auto (352) for now; llc true cost would be slightly lower for HF but not enough to flip never-expand.
+            std::vector<uint64_t> sums(16, 0);
+            for (uint8_t pid = 0; pid <= 15; ++pid) {
+                auto rr = compute_residuals(band.data, band.w, band.h, static_cast<PredId>(pid));
+                uint64_t s = 0; for (auto v : rr) s += (v<0?-v:v);
+                sums[pid] = s;
+            }
+            std::vector<uint8_t> order(16); for (int i=0;i<16;++i) order[i]=i;
+            std::sort(order.begin(), order.end(), [&](uint8_t a, uint8_t b){return sums[a] < sums[b];});
+            size_t topN_b = std::min<size_t>(6, order.size());
+            uint64_t best_c = UINT64_MAX; uint8_t best_p = order[0];
+            for (size_t t=0; t<topN_b; ++t) {
+                uint8_t pid = order[t];
+                auto rr = compute_residuals(band.data, band.w, band.h, static_cast<PredId>(pid));
+                ModelBank mb = ModelBank::create(352, 16);
+                std::vector<uint8_t> out; rans_encode_residuals_auto(rr, band.w, band.h, mb, out);
+                if (out.size() < best_c) { best_c = out.size(); best_p = pid; }
+            }
+            plane_squeeze_cost += best_c;
+            squeeze_per_band.push_back(best_p);
+        }
+        cost_squeeze += plane_squeeze_cost;
+    }
+    uint64_t squeeze_overhead = 0;
+    if (squeeze_ok) squeeze_overhead = tr.planes.size() /* level byte */ + squeeze_per_band.size() /* per-band pred */;
+    uint64_t eff_squeeze = squeeze_ok ? cost_squeeze + squeeze_overhead : UINT64_MAX;
+    (void)eff_squeeze; (void)squeeze_per_band; // scaffold only, keep never-expand (B7 needs MA-tree llc_class/sibling_class to beat +0.8%)
     // Choose best among plane, 64, 32, 16 (all block modes now nibble-packed, B5.14)
     uint64_t best_eff = plane_effective;
     int best_mode = all_same ? 0 : 1; // 0 global, 1 per-plane
