@@ -6,6 +6,7 @@
 #include "prism/codec/container.h"
 #include "prism/codec/analyze.h"
 #include "prism/codec/matree.h"
+#include "prism/codec/squeeze.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -44,17 +45,67 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.global_pred_id = ar.global_pred_id;
     c.per_leaf_pred = ar.per_leaf_pred;
 
-    // For each plane, compute residuals and encode
+    // For each plane, apply Squeeze then encode each band (B7)
     c.band_payloads.clear();
-    PredId pred = static_cast<PredId>(c.global_pred_id);
-    if ((uint8_t)pred > 8) pred = PredId::MED;
-    uint16_t bd_max = (bd==8)?255:65535;
-    (void)bd_max;
+    // B5.10/B5.12/B5.14 block mode: precompute per-plane block maps if mode==2 (64) or 3 (32) or 4 (16)
+    uint32_t BLOCK = 64;
+    if (c.predictor_mode == 3) BLOCK = 32;
+    else if (c.predictor_mode == 4) BLOCK = 16;
+    std::vector<std::vector<uint8_t>> plane_block_maps;
+    if (c.predictor_mode == 2 || c.predictor_mode == 3 || c.predictor_mode == 4) {
+        size_t offset = 0;
+        for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
+            uint32_t nbX = (transformed.w + BLOCK - 1) / BLOCK;
+            uint32_t nbY = (transformed.h + BLOCK - 1) / BLOCK;
+            size_t nb = (size_t)nbX * nbY;
+            std::vector<uint8_t> m;
+            m.reserve(nb);
+            for (size_t k=0;k<nb && offset+k<c.per_leaf_pred.size();++k) m.push_back(c.per_leaf_pred[offset+k]);
+            // pad if short (backward compat)
+            if (m.size()<nb) m.resize(nb, c.global_pred_id);
+            plane_block_maps.push_back(std::move(m));
+            offset += nb;
+        }
+    }
     for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
-        const auto& plane = transformed.planes[pi];
-        auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
-        auto bytes = rans_encode_plane(residuals, 1);
-        c.band_payloads.push_back(std::move(bytes));
+        uint8_t levels = (pi < ar.squeeze_levels.size()) ? ar.squeeze_levels[pi] : 0;
+        SqueezeResult sr = squeeze_encode_plane(transformed.planes[pi], transformed.w, transformed.h, levels, bd);
+        // Squeeze-aware encoding: LL band uses 352 contexts, HF bands use 1408 with llc_class
+        // B5.22: HF ModelBank shared across HF bands of same plane to amortize warmup (instead of fresh per band)
+        std::vector<uint16_t> ll_for_hf;
+        if (sr.levels > 0 && !sr.bands.empty()) ll_for_hf = sr.bands[0].data;
+        ModelBank mb_ll = ModelBank::create(352, 16);
+        ModelBank mb_hf = ModelBank::create(1408, 16);
+        bool use_shared_hf = (sr.levels > 0);
+        for (auto &band : sr.bands) {
+            std::vector<int32_t> residuals;
+            if ((c.predictor_mode == 2 || c.predictor_mode == 3 || c.predictor_mode == 4) && sr.levels==0) {
+                residuals = compute_residuals_blockwise(band.data, band.w, band.h, plane_block_maps[pi], BLOCK);
+            } else {
+                PredId pred;
+                if (c.predictor_mode == 1 && pi < c.per_leaf_pred.size()) {
+                    pred = static_cast<PredId>(c.per_leaf_pred[pi]);
+                    if ((uint8_t)pred > 15) pred = PredId::MED;
+                } else {
+                    pred = static_cast<PredId>(c.global_pred_id);
+                    if ((uint8_t)pred > 15) pred = PredId::MED;
+                }
+                residuals = compute_residuals(band.data, band.w, band.h, pred);
+            }
+            std::vector<uint8_t> bytes;
+            if (band.band_class == 0 || sr.levels == 0) {
+                // LL or no-squeeze: use dedicated LL bank (fresh per plane forencode determinism)
+                // For LL we use mb_ll shared? LL is single band so no difference
+                ModelBank mb = mb_ll;
+                rans_encode_residuals_auto(residuals, band.w, band.h, mb, bytes);
+                mb_ll = mb;
+            } else {
+                ModelBank &mb = mb_hf;
+                rans_encode_residuals_with_llc(residuals, band.w, band.h, ll_for_hf, mb, bytes);
+                // mb_hf keeps updated state across HF bands
+            }
+            c.band_payloads.push_back(std::move(bytes));
+        }
     }
 
     return container_encode(transformed, c);
@@ -89,24 +140,110 @@ Raster decode(const uint8_t* data, size_t len) {
         pos+=blen;
     }
     if (pos != len - 4) throw DecodeError("extra bytes after payload");
-    // Reconstruct planes
+    // Reconstruct planes (with Squeeze)
     uint32_t w = c.hdr.width, h = c.hdr.height;
     uint8_t bd = c.hdr.bit_depth;
-    uint16_t bd_max = (bd==8)?255:65535;
-    PredId pred = static_cast<PredId>(c.global_pred_id);
-    if ((uint8_t)pred > 8) pred = PredId::MED;
     Raster out(w,h, static_cast<Channels>(c.hdr.num_channels), bd==16?BitDepth::BD16:BitDepth::BD8);
     if (payloads.size() != expected) {
-        // Bands must exactly match the count derived from squeeze_levels; a
-        // mismatch means reconstruction would silently drop (or invent) bands.
         throw DecodeError("band count mismatch");
     }
+    size_t payload_idx = 0;
     for (size_t pi=0; pi< out.planes.size(); ++pi) {
-        const auto& b = payloads[pi];
-        size_t n = (size_t)w * h;
-        auto residuals = rans_decode_plane(b, n, 1);
-        if (residuals.size() != n) throw DecodeError("residual count mismatch");
-        auto plane = reconstruct_plane(residuals, w, h, pred, bd_max);
+        uint8_t levels = (pi < c.hdr.squeeze_levels.size()) ? c.hdr.squeeze_levels[pi] : 0;
+        uint16_t plane_bd_max = 65535;
+        if (levels == 0) plane_bd_max = (c.hdr.color_transform_id != 0) ? 65535 : (bd==8? (uint16_t)255 : (uint16_t)65535);
+        size_t band_count = 1 + 3u * levels;
+        // compute band dimensions in post-order
+        std::vector<std::pair<uint32_t,uint32_t>> band_dims;
+        band_dims.reserve(band_count);
+        // Reproduce same as squeeze_encode: w2 chain
+        uint32_t cur_w=w, cur_h=h;
+        std::vector<std::pair<uint32_t,uint32_t>> lvl_dims;
+        for(uint8_t l=0;l<levels;++l){
+            if(cur_w%2!=0||cur_h%2!=0) break;
+            cur_w/=2; cur_h/=2;
+            lvl_dims.emplace_back(cur_w,cur_h);
+        }
+        // actual levels after odd check
+        uint8_t actual_levels = (uint8_t)lvl_dims.size();
+        if(actual_levels!=levels){
+            // fallback: levels mismatch due to odd, adjust band_count
+            band_count = 1 + 3u*actual_levels;
+            levels = actual_levels;
+        }
+        // band_dims post-order: first LL deepest
+        if(!lvl_dims.empty()){
+            band_dims.push_back(lvl_dims.back());
+            for(int i=(int)lvl_dims.size()-1;i>=0;--i){
+                band_dims.push_back(lvl_dims[i]);
+                band_dims.push_back(lvl_dims[i]);
+                band_dims.push_back(lvl_dims[i]);
+            }
+        } else {
+            band_dims.emplace_back(w,h);
+        }
+        if(band_dims.size()!=band_count) throw DecodeError("band dims mismatch");
+        // decode each band's residuals (Squeeze-aware with llc_class)
+        SqueezeResult sr; sr.levels = levels;
+        sr.bands.reserve(band_count);
+        std::vector<uint16_t> ll_for_hf_decode;
+        // B5.10/B5.12 block maps for this plane if mode==2/3
+        std::vector<uint8_t> block_map;
+        uint32_t BLOCK_D = 64;
+        if (c.predictor_mode == 3) BLOCK_D = 32;
+        else if (c.predictor_mode == 4) BLOCK_D = 16;
+        if (c.predictor_mode == 2 || c.predictor_mode == 3 || c.predictor_mode == 4) {
+            size_t plane_offset = 0;
+            for (size_t k=0;k<pi;++k) {
+                uint32_t nbXk = (w + BLOCK_D - 1)/BLOCK_D;
+                uint32_t nbYk = (h + BLOCK_D - 1)/BLOCK_D;
+                plane_offset += (size_t)nbXk*nbYk;
+            }
+            uint32_t nbX = (w + BLOCK_D -1)/BLOCK_D;
+            uint32_t nbY = (h + BLOCK_D -1)/BLOCK_D;
+            size_t nb = (size_t)nbX*nbY;
+            block_map.reserve(nb);
+            for (size_t k=0;k<nb && plane_offset+k<c.per_leaf_pred.size();++k) block_map.push_back(c.per_leaf_pred[plane_offset+k]);
+            if (block_map.size()<nb) block_map.resize(nb, c.global_pred_id);
+        }
+        ModelBank mb_ll_dec = ModelBank::create(352, 16);
+        ModelBank mb_hf_dec = ModelBank::create(1408, 16);
+        for(size_t bi=0; bi<band_count; ++bi){
+            if(payload_idx >= payloads.size()) throw DecodeError("payload underflow");
+            auto &pb = payloads[payload_idx++];
+            uint32_t bw = band_dims[bi].first;
+            uint32_t bh = band_dims[bi].second;
+            size_t n = (size_t)bw * bh;
+            uint8_t band_class = (bi==0?0: (uint8_t)(1 + (bi-1)%3));
+            std::vector<int32_t> residuals;
+            if (band_class == 0 || levels == 0) {
+                ModelBank &mb = mb_ll_dec;
+                rans_decode_residuals_auto(pb, n, bw, bh, mb, residuals);
+            } else {
+                ModelBank &mb = mb_hf_dec;
+                rans_decode_residuals_with_llc(pb, n, bw, bh, ll_for_hf_decode, mb, residuals);
+            }
+            if(residuals.size()!=n) throw DecodeError("residual count mismatch band");
+            std::vector<uint16_t> band_plane;
+            if ((c.predictor_mode == 2 || c.predictor_mode == 3 || c.predictor_mode == 4) && levels==0) {
+                band_plane = reconstruct_plane_blockwise(residuals, bw, bh, block_map, BLOCK_D, plane_bd_max);
+            } else {
+                PredId pred;
+                if (c.predictor_mode == 1 && pi < c.per_leaf_pred.size()) {
+                    pred = static_cast<PredId>(c.per_leaf_pred[pi]);
+                    if ((uint8_t)pred > 15) pred = PredId::MED;
+                } else {
+                    pred = static_cast<PredId>(c.global_pred_id);
+                    if ((uint8_t)pred > 15) pred = PredId::MED;
+                }
+                band_plane = reconstruct_plane(residuals, bw, bh, pred, plane_bd_max);
+            }
+            SqueezeResult::Band b; b.w=bw; b.h=bh; b.data=std::move(band_plane);
+            b.band_class = band_class;
+            sr.bands.push_back(std::move(b));
+            if (bi == 0 && levels > 0) ll_for_hf_decode = sr.bands[0].data;
+        }
+        auto plane = squeeze_decode_plane(sr, w, h);
         out.planes[pi] = std::move(plane);
     }
     // Invert color

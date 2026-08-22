@@ -23,6 +23,6 @@ std::vector<uint16_t> squeeze_decode_plane(const SqueezeResult& sr, uint32_t ori
 
 // Helpers
 uint8_t max_squeeze_levels(uint32_t w, uint32_t h);
-uint32_t squeeze_band_count(uint8_t levels) { return 1 + 3u * levels; }
+inline uint32_t squeeze_band_count(uint8_t levels) { return 1 + 3u * levels; }
 
 } // namespace prism::codec

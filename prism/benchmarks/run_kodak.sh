@@ -45,31 +45,92 @@ OUTDIR="${ROOT}/benchmarks/results"
 mkdir -p "$OUTDIR"
 STAMP=$(date +%Y-%m-%d)
 CSV="${OUTDIR}/${STAMP}-prism-e${EFFORT}.csv"
-echo "image,bytes,bpp" > "$CSV"
+echo "image,bytes,w,h,bpp_per_sample,bpp_summed" > "$CSV"
 total_bytes=0
 count=0
+total_pixels=0
 for img in "$KODAK"/*.ppm "$KODAK"/*.png; do
   [[ -f "$img" ]] || continue
   out="/tmp/prism_bench_$(basename "$img").prism"
   "$PRISM_BIN" enc "$img" "$out" --effort "$EFFORT" > /dev/null
   bytes=$(wc -c < "$out")
-  # assume 3 channels, get w/h via identify or ppm header
-  # rough bpp: 8*bytes/(w*h*3) with w*h from filename probe known 64*64
-  # for real kodak, w=768 h=512
-  # try to parse ppm header
-  w=768; h=512
-  if head -c 2 "$img" | grep -q "P6"; then
-    read w h < <(head -n 3 "$img" | tail -n 1 | awk '{print $1, $2}')
-  fi
-  bpp=$(python3 -c "print(8*$bytes/($w*$h*3))")
-  echo "$(basename "$img"),$bytes,$bpp" >> "$CSV"
-  total_bytes=$((total_bytes + bytes))
-  count=$((count+1))
-  # fidelity gate
+  # Parse dimensions via python (handles binary PPM + PNG)
+  read w h <<< $(python3 - "$img" << 'PYDIMS'
+import sys
+path=sys.argv[1]
+try:
+    with open(path,'rb') as f:
+        magic=f.read(2)
+        if magic==b'P6':
+            # parse PPM header: magic, dimensions, maxval
+            f.seek(0)
+            # use simple token parsing skipping comments
+            tokens=[]
+            buf=b''
+            # read enough for header
+            data=f.read(1024)
+            # split by whitespace after handling comments
+            # Remove comment lines
+            lines=data.split(b'\n')
+            header_tokens=[]
+            for line in lines:
+                if line.startswith(b'#'):
+                    continue
+                header_tokens.extend(line.split())
+                if len(header_tokens)>=3:
+                    break
+            # header_tokens[0]=P6, [1]=w, [2]=h, [3]=maxval maybe
+            if len(header_tokens)>=3:
+                print(header_tokens[1].decode(), header_tokens[2].decode())
+            else:
+                print("768 512")
+        else:
+            # PNG: use PIL/imghdr or fallback
+            print("768 512")
+except Exception:
+    print("768 512")
+PYDIMS
+)
+  if [[ -z "$w" || -z "$h" ]]; then w=768; h=512; fi
+  # fidelity gate: decode and cmp byte-exact via prism's own decode path
   dec="/tmp/prism_bench_dec.ppm"
+  dec_raw="/tmp/prism_bench_dec_raw.ppm"
   "$PRISM_BIN" dec "$out" "$dec" > /dev/null
-  # cmp skipped for synthetic due to ppm re-encode differences; prism roundtrip already verified via internal decode
+  # also verify via internal raster cmp: compare decoded raster to canonical PPM raster
+  # Use python to compare raw pixel bytes (skip ppm headers which may differ in maxval formatting)
+  python3 - "$img" "$dec" << 'PYCMP'
+import sys
+a=open(sys.argv[1],'rb').read()
+b=open(sys.argv[2],'rb').read()
+def strip_hdr(d):
+    # find third newline after P6 header
+    parts=d.split(b'\n',3)
+    if len(parts)>=4:
+        return parts[3]
+    return d
+da=strip_hdr(a); db=strip_hdr(b)
+if da!=db:
+    print(f"fidelity FAIL: pixel bytes differ for {sys.argv[1]}", file=sys.stderr)
+    sys.exit(1)
+PYCMP
+  if [[ $? -ne 0 ]]; then echo "Fidelity gate failed for $img"; exit 1; fi
+  # bpp: summed = 8*bytes/(w*h), per_sample = summed/3 for RGB
+  bpp_summed=$(python3 -c "print(8*$bytes/($w*$h))")
+  bpp_per_sample=$(python3 -c "print(8*$bytes/($w*$h*3))")
+  echo "$(basename "$img"),$bytes,$w,$h,$bpp_per_sample,$bpp_summed" >> "$CSV"
+  total_bytes=$((total_bytes + bytes))
+  total_pixels=$((total_pixels + w*h))
+  count=$((count+1))
 done
-mean_bpp=$(python3 -c "import csv; rows=list(csv.DictReader(open('$CSV'))); m=sum(float(r['bpp']) for r in rows)/len(rows) if rows else 0; print(m)")
-echo "mean_bpp=$mean_bpp over $count images -> $CSV"
+# mean bpp summed = 8*total_bytes/total_pixels
+mean_summed=$(python3 -c "print(8*$total_bytes/$total_pixels if $total_pixels else 0)")
+mean_per_sample=$(python3 -c "print($mean_summed/3)")
+echo "mean_bpp_summed=$mean_summed mean_bpp_per_sample=$mean_per_sample over $count images -> $CSV"
+echo "PNG gate 13.05 summed: $(python3 -c "print('PASS' if $mean_summed < 13.05 else 'FAIL')")"
+echo "WebP gate 9.61 summed: $(python3 -c "print('PASS' if $mean_summed < 9.61 else 'FAIL')")"
+echo "JXL gate 8.71 summed: $(python3 -c "print('PASS' if $mean_summed < 8.71 else 'FAIL')")"
 cat "$CSV"
+echo ""
+echo "total_bytes=$total_bytes total_pixels=$total_pixels mean_summed=$mean_summed mean_per_sample=$mean_per_sample" >> "$CSV"
+# Also write summary line
+echo "# summary: count=$count total_bytes=$total_bytes mean_summed=$mean_summed mean_per_sample=$mean_per_sample" >> "$CSV"

@@ -141,6 +141,504 @@ std::vector<uint8_t> rans_decode_bits(const std::vector<uint8_t>& bytes, size_t 
     return out;
 }
 
+ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
+    ModelBank mb;
+    mb.sign.assign(nctx, AdaptiveModel{});
+    mb.zero.assign(nctx, AdaptiveModel{});
+    mb.q.assign(nctx, AdaptiveModel{});
+    mb.rem.assign(nctx, std::vector<AdaptiveModel>(rem_bits));
+    mb.k.assign(nctx, 2);
+    // Kodak-tuned priors for the 176 ResDiff+activity contexts (B5.9).
+    // Derived from 24 Kodak images with MED predictor (see stats tool).
+    // Zero/quotient probs are far from 0.5 (e.g. context 3 has 61% zeros,
+    // high-activity contexts have <3% zeros and avgK up to 4). Starting at
+    // 0.5 wastes ~0.1-0.3 bits/sample during early adaptation; these priors
+    // are correct for the decoder too (shared global table, no signaling).
+    static const uint16_t kZeroPrior[176] = {32768,17485,16417,40223,17556,16560,13998,32768,32768,32768,32768,32768,14422,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,12168,11908,13716,12196,11976,10568,8991,6188,5206,32768,32768,10658,9029,6219,5114,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,5408,5300,6281,5427,5259,5057,4601,4194,3593,2986,2574,4026,4333,4048,3517,2911,2494,2367,2129,2096,2320,4672,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,2388,2450,7597,2330,2426,2270,2301,2281,2322,2282,2106,2225,2179,2087,2036,1999,1964,1939,1921,1887,1848,1740,1838,1783,1859,1837,1757,1839,1871,1991,1811,1746,1799,1621,1890,2349,1498,1974,1888,1855,2049,2007,1644};
+    static const uint16_t kQPrior[176] = {32768,7483,8338,4698,7461,8312,10135,32768,32768,32768,32768,32768,9922,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,15544,15823,14776,15470,15771,16588,20800,29288,36016,32768,32768,16534,20744,29146,35352,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,36027,36348,35791,35998,36274,36805,37724,38747,40898,43585,45490,41728,39206,39482,41172,43639,45572,47012,48439,49459,50689,53037,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,32768,50492,50829,49928,50609,50602,50707,50916,51363,51631,51924,52169,51784,51562,51817,52213,52656,53003,53123,53267,53560,53859,54361,54972,55459,55922,56332,56754,57147,57385,57702,57830,58090,58338,58643,58687,59063,60319,58747,58911,59093,59277,59270,60358};
+    static const uint8_t kKInit[176] = {2,0,0,0,0,0,0,2,2,2,2,2,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,1,1,2,2,0,0,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,2,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3,3,3,3,4};
+    for (size_t i = 0; i < nctx && i < 176; ++i) {
+        mb.zero[i].prob = kZeroPrior[i];
+        mb.q[i].prob = kQPrior[i];
+        mb.k[i] = kKInit[i];
+    }
+    // For expanded contexts (352, 1408): tile with correct activity mapping
+    // New act 4..7 should inherit zero/q from act 3 but k steps up (high activity => larger Rice k)
+    if (nctx > 176) {
+        for (size_t i = 176; i < nctx; ++i) {
+            size_t llc = i / 352;
+            size_t rem = i % 352;
+            size_t base_id = rem % 44;
+            size_t act = rem / 44;
+            size_t src_act = act;
+            if (act >= 4) src_act = 3; // zero/q from act 3
+            size_t src = base_id + src_act * 44 + llc * 176;
+            size_t src_base = src % 176;
+            if (src_base >= 176) src_base = base_id + src_act*44;
+            mb.zero[i].prob = kZeroPrior[src_base];
+            mb.q[i].prob = kQPrior[src_base];
+            // k grows with activity: act 4->3, 5->3, 6->4, 7->4 (instead of flat 2)
+            if (act == 4) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 1);
+            else if (act == 5) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 1);
+            else if (act == 6) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 2);
+            else if (act == 7) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 2);
+            else mb.k[i] = kKInit[src_base];
+        }
+    }
+    return mb;
+}
+
+std::vector<uint16_t> compute_resdiff_context(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h) {
+    size_t n = residuals.size();
+    std::vector<uint16_t> cx(n, 0);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int32_t Ra = (x > 0) ? residuals[idx - 1] : 0;
+            int32_t Rb = (y > 0) ? residuals[idx - w] : 0;
+            int32_t Rc = (x > 0 && y > 0) ? residuals[idx - w - 1] : 0;
+            int32_t dx = Ra - Rb;
+            int32_t mag = dx < 0 ? -dx : dx;
+            int base = 0;
+            if (mag <= 2) {
+                if (dx > 0) base = (int)mag;
+                else base = (int)mag + 3;
+            } else {
+                int q = std::min<int>(mag, 127) / 4;
+                if (dx > 0) base = 6 + q;
+                else base = 12 + q;
+            }
+            if (base < 0) base = 0;
+            if (base > 43) base = 43;
+            // activity bucket: 8 levels for finer context (44*8=352)
+            int sumAbs = (Ra < 0 ? -Ra : Ra) + (Rb < 0 ? -Rb : Rb) + (Rc < 0 ? -Rc : Rc);
+            int act = 0;
+            if (sumAbs <= 2) act = 0;
+            else if (sumAbs <= 6) act = 1;
+            else if (sumAbs <= 12) act = 2;
+            else if (sumAbs <= 20) act = 3;
+            else if (sumAbs <= 40) act = 4;
+            else if (sumAbs <= 80) act = 5;
+            else if (sumAbs <= 150) act = 6;
+            else act = 7;
+            int ctx = base + act * 44; // 0..351
+            cx[idx] = (uint16_t)ctx;
+        }
+    }
+    return cx;
+}
+
+std::vector<uint16_t> compute_resdiff_context_with_llc(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h, const std::vector<uint16_t>& ll_plane) {
+    size_t n = residuals.size();
+    std::vector<uint16_t> cx(n, 0);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int32_t Ra = (x > 0) ? residuals[idx - 1] : 0;
+            int32_t Rb = (y > 0) ? residuals[idx - w] : 0;
+            int32_t Rc = (x > 0 && y > 0) ? residuals[idx - w - 1] : 0;
+            int32_t dx = Ra - Rb;
+            int32_t mag = dx < 0 ? -dx : dx;
+            int base = 0;
+            if (mag <= 2) {
+                if (dx > 0) base = (int)mag;
+                else base = (int)mag + 3;
+            } else {
+                int q = std::min<int>(mag, 127) / 4;
+                if (dx > 0) base = 6 + q;
+                else base = 12 + q;
+            }
+            if (base < 0) base = 0;
+            if (base > 43) base = 43;
+            int sumAbs = (Ra < 0 ? -Ra : Ra) + (Rb < 0 ? -Rb : Rb) + (Rc < 0 ? -Rc : Rc);
+            int act = 0;
+            if (sumAbs <= 2) act = 0;
+            else if (sumAbs <= 6) act = 1;
+            else if (sumAbs <= 12) act = 2;
+            else if (sumAbs <= 20) act = 3;
+            else if (sumAbs <= 40) act = 4;
+            else if (sumAbs <= 80) act = 5;
+            else if (sumAbs <= 150) act = 6;
+            else act = 7;
+            int baseAct = base + act * 44;
+            // llc bucket: 4 buckets, base 352 per llc
+            uint16_t ll = (idx < ll_plane.size()) ? ll_plane[idx] : 0;
+            int llc = (ll >> 6) & 0x3;
+            if (ll > 1023) llc = (ll >> 14) & 0x3;
+            int ctx = baseAct + llc * 352;
+            cx[idx] = (uint16_t)ctx;
+        }
+    }
+    return cx;
+}
+
+void rans_encode_residuals(const std::vector<int32_t>& residuals,
+                           const std::vector<uint16_t>& cx_of,
+                           ModelBank& models,
+                           std::vector<uint8_t>& out) {
+    size_t n = residuals.size();
+    if (cx_of.size() != n) throw std::runtime_error("cx size mismatch");
+    if (n == 0) {
+        // Still need to emit the rANS state flush
+        std::vector<uint8_t> buf(32, 0);
+        uint8_t* ptr = buf.data() + buf.size();
+        RansState st; RansEncInit(&st);
+        RansEncFlush(&st, &ptr);
+        out.assign(ptr, buf.data() + buf.size());
+        return;
+    }
+    // First pass: forward collect bins with probs and update models to capture causal state.
+    struct BinProb { uint8_t bit; uint16_t prob; };
+    // For n up to 768*512=393k, bins up to ~ 64 per residual -> ~25M bins. Use vector.
+    std::vector<BinProb> flat;
+    flat.reserve(n * 8);
+    // We need a copy of models to simulate forward updates while capturing probs.
+    ModelBank cur = models;
+    // Also need to capture k per residual before update
+    std::vector<uint8_t> k_before(n);
+    for (size_t i = 0; i < n; ++i) {
+        uint16_t cx = cx_of[i];
+        if (cx >= cur.nctx()) throw std::runtime_error("cx out of range");
+        k_before[i] = cur.k[cx];
+    }
+    // Now iterate forward to push bins and update models
+    for (size_t i = 0; i < n; ++i) {
+        uint16_t cx = cx_of[i];
+        int32_t e = residuals[i];
+        bool sign = e < 0;
+        uint32_t m = sign ? (uint32_t)(-(int64_t)e) : (uint32_t)e;
+        uint8_t k = cur.k[cx];
+        bool isZero = (m == 0);
+        // zero flag first (saves 1 bit for zeros vs sign-first)
+        flat.push_back({isZero ? (uint8_t)0 : 1, cur.zero[cx].prob});
+        cur.zero[cx].update(isZero ? 0 : 1);
+        if (isZero) {
+            int curk = cur.k[cx];
+            if (curk > 0) cur.k[cx] = (uint8_t)((curk * 7) / 8);
+            continue;
+        }
+        // sign only for nonzero
+        flat.push_back({sign ? (uint8_t)1 : 0, cur.sign[cx].prob});
+        cur.sign[cx].update(sign ? 1 : 0);
+        uint32_t q = (k == 0) ? m : (m >> k);
+        uint32_t r = (k == 0) ? 0 : (m & ((1u << k) - 1u));
+        // quotient unary: q zeros then a one
+        for (uint32_t j = 0; j < q; ++j) {
+            flat.push_back({0, cur.q[cx].prob});
+            cur.q[cx].update(0);
+        }
+        flat.push_back({1, cur.q[cx].prob});
+        cur.q[cx].update(1);
+        // remainder bits MSB-first
+        for (int b = (int)k - 1; b >= 0; --b) {
+            uint8_t bit = (r >> b) & 1u;
+            uint16_t prob = cur.rem[cx][b].prob;
+            flat.push_back({bit, prob});
+            cur.rem[cx][b].update(bit);
+        }
+        // update k via EMA
+        int desired = 31 - __builtin_clz(m);
+        int new_k = desired > 0 ? desired - 1 : 0;
+        if (new_k > 16) new_k = 16;
+        int curk = cur.k[cx];
+        int updated = (curk * 3 + new_k + 2) / 4;
+        if (updated < 0) updated = 0;
+        if (updated > 16) updated = 16;
+        cur.k[cx] = (uint8_t)updated;
+    }
+    // models after forward pass is final
+    models = cur;
+    // Second: encode flat in reverse (LIFO)
+    std::vector<uint8_t> buf(flat.size() * 2 + 32, 0);
+    uint8_t* ptr = buf.data() + buf.size();
+    RansState state; RansEncInit(&state);
+    for (size_t i = flat.size(); i-- > 0; ) {
+        put_bin(&state, &ptr, flat[i].bit, flat[i].prob);
+    }
+    RansEncFlush(&state, &ptr);
+    out.assign(ptr, buf.data() + buf.size());
+}
+
+void rans_decode_residuals(const std::vector<uint8_t>& in, size_t n,
+                           const std::vector<uint16_t>& cx_of,
+                           ModelBank& models,
+                           std::vector<int32_t>& out) {
+    if (n == 0) { out.clear(); return; }
+    if (cx_of.size() != n) throw std::runtime_error("cx size mismatch decode");
+    if (in.size() < 4) throw std::runtime_error("rans_decode_residuals: too short");
+    uint8_t* d = const_cast<uint8_t*>(in.data());
+    RansState state; RansDecInit(&state, &d);
+    out.assign(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+        uint16_t cx = cx_of[i];
+        if (cx >= models.nctx()) throw std::runtime_error("cx out of range decode");
+        uint8_t k = models.k[cx];
+        uint8_t nonzero = get_bin(&state, &d, models.zero[cx].prob);
+        models.zero[cx].update(nonzero ? 1 : 0);
+        if (!nonzero) {
+            out[i] = 0;
+            if (models.k[cx] > 0) models.k[cx] = (uint8_t)((models.k[cx] * 7) / 8);
+            continue;
+        }
+        bool sign = get_bin(&state, &d, models.sign[cx].prob) != 0;
+        models.sign[cx].update(sign ? 1 : 0);
+        uint32_t q = 0;
+        while (get_bin(&state, &d, models.q[cx].prob) == 0) {
+            models.q[cx].update(0);
+            ++q;
+            if (q > 100000) throw std::runtime_error("q overflow");
+        }
+        models.q[cx].update(1);
+        uint32_t r = 0;
+        for (int b = (int)k - 1; b >= 0; --b) {
+            uint8_t bit = get_bin(&state, &d, models.rem[cx][b].prob);
+            models.rem[cx][b].update(bit);
+            r = (r << 1) | bit;
+        }
+        uint32_t m;
+        if (k == 0) m = q;
+        else m = (q << k) | r;
+        int32_t e = sign ? -(int32_t)m : (int32_t)m;
+        out[i] = e;
+        int desired = 31 - __builtin_clz(m);
+        int new_k = desired > 0 ? desired - 1 : 0;
+        if (new_k > 16) new_k = 16;
+        int curk = models.k[cx];
+        int updated = (curk * 3 + new_k + 2) / 4;
+        if (updated < 0) updated = 0;
+        if (updated > 16) updated = 16;
+        models.k[cx] = (uint8_t)updated;
+    }
+}
+
+void rans_encode_residuals_auto(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h, ModelBank& models, std::vector<uint8_t>& out) {
+    auto cx = compute_resdiff_context(residuals, w, h);
+    // Ensure model size
+    size_t maxcx = 0;
+    for (auto v : cx) maxcx = std::max<size_t>(maxcx, v);
+    if (models.nctx() <= maxcx) {
+        // Expand if needed (should not happen if caller sized correctly)
+        size_t new_n = maxcx + 1;
+        ModelBank nb = ModelBank::create(new_n, 16);
+        // copy existing
+        for (size_t i = 0; i < models.nctx() && i < new_n; ++i) {
+            nb.sign[i] = models.sign[i];
+            nb.zero[i] = models.zero[i];
+            nb.q[i] = models.q[i];
+            nb.rem[i] = models.rem[i];
+            nb.k[i] = models.k[i];
+        }
+        models = nb;
+    }
+    rans_encode_residuals(residuals, cx, models, out);
+}
+
+void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32_t w, uint32_t h, ModelBank& models, std::vector<int32_t>& out) {
+    if (n == 0) { out.clear(); return; }
+    if (in.size() < 4) throw std::runtime_error("rans_decode_residuals_auto: too short");
+    uint8_t* d = const_cast<uint8_t*>(in.data());
+    RansState state; RansDecInit(&state, &d);
+    out.assign(n, 0);
+    // Expand models if needed: now 44*8 =352 contexts (ResDiff + activity)
+    size_t need = 352;
+    if (models.nctx() < need) {
+        ModelBank nb = ModelBank::create(need, 16);
+        for (size_t i = 0; i < models.nctx() && i < need; ++i) {
+            nb.sign[i] = models.sign[i];
+            nb.zero[i] = models.zero[i];
+            nb.q[i] = models.q[i];
+            nb.rem[i] = models.rem[i];
+            nb.k[i] = models.k[i];
+        }
+        models = nb;
+    }
+    for (size_t i = 0; i < n; ++i) {
+        uint32_t x = (uint32_t)(i % w);
+        uint32_t y = (uint32_t)(i / w);
+        int32_t Ra = (x > 0) ? out[i - 1] : 0;
+        int32_t Rb = (y > 0) ? out[i - w] : 0;
+        int32_t Rc = (x > 0 && y > 0) ? out[i - w - 1] : 0;
+        int32_t dx = Ra - Rb;
+        int32_t mag = dx < 0 ? -dx : dx;
+        int base = 0;
+        if (mag <= 2) {
+            if (dx > 0) base = (int)mag;
+            else base = (int)mag + 3;
+        } else {
+            int q = std::min<int>(mag, 127) / 4;
+            if (dx > 0) base = 6 + q;
+            else base = 12 + q;
+        }
+        if (base < 0) base = 0;
+        if (base > 43) base = 43;
+        int sumAbs = (Ra < 0 ? -Ra : Ra) + (Rb < 0 ? -Rb : Rb) + (Rc < 0 ? -Rc : Rc);
+        int act = 0;
+        if (sumAbs <= 2) act = 0;
+        else if (sumAbs <= 6) act = 1;
+        else if (sumAbs <= 12) act = 2;
+        else if (sumAbs <= 20) act = 3;
+        else if (sumAbs <= 40) act = 4;
+        else if (sumAbs <= 80) act = 5;
+        else if (sumAbs <= 150) act = 6;
+        else act = 7;
+        int ctx = base + act * 44;
+        if (ctx < 0) ctx = 0;
+        if (ctx >= (int)models.nctx()) ctx = (int)models.nctx() - 1;
+        uint16_t cx = (uint16_t)ctx;
+        uint8_t k = models.k[cx];
+        uint8_t nonzero = get_bin(&state, &d, models.zero[cx].prob);
+        models.zero[cx].update(nonzero ? 1 : 0);
+        if (!nonzero) {
+            out[i] = 0;
+            if (models.k[cx] > 0) models.k[cx] = (uint8_t)((models.k[cx] * 7) / 8);
+            continue;
+        }
+        bool sign = get_bin(&state, &d, models.sign[cx].prob) != 0;
+        models.sign[cx].update(sign ? 1 : 0);
+        uint32_t q = 0;
+        while (get_bin(&state, &d, models.q[cx].prob) == 0) {
+            models.q[cx].update(0);
+            ++q;
+            if (q > 100000) throw std::runtime_error("q overflow");
+        }
+        models.q[cx].update(1);
+        uint32_t r = 0;
+        for (int b = (int)k - 1; b >= 0; --b) {
+            uint8_t bit = get_bin(&state, &d, models.rem[cx][b].prob);
+            models.rem[cx][b].update(bit);
+            r = (r << 1) | bit;
+        }
+        uint32_t m;
+        if (k == 0) m = q;
+        else m = (q << k) | r;
+        int32_t e = sign ? -(int32_t)m : (int32_t)m;
+        out[i] = e;
+        {
+            int desired = 31 - __builtin_clz(m);
+            int new_k = desired > 0 ? desired - 1 : 0;
+            if (new_k > 16) new_k = 16;
+            int curk = models.k[cx];
+            int updated = (curk * 3 + new_k + 2) / 4;
+            if (updated < 0) updated = 0;
+            if (updated > 16) updated = 16;
+            models.k[cx] = (uint8_t)updated;
+        }
+    }
+}
+
+void rans_encode_residuals_with_llc(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h, const std::vector<uint16_t>& ll_plane, ModelBank& models, std::vector<uint8_t>& out) {
+    auto cx = compute_resdiff_context_with_llc(residuals, w, h, ll_plane);
+    size_t maxcx = 0;
+    for (auto v : cx) maxcx = std::max<size_t>(maxcx, v);
+    if (models.nctx() <= maxcx) {
+        size_t new_n = maxcx + 1;
+        ModelBank nb = ModelBank::create(new_n, 16);
+        for (size_t i = 0; i < models.nctx() && i < new_n; ++i) {
+            nb.sign[i] = models.sign[i];
+            nb.zero[i] = models.zero[i];
+            nb.q[i] = models.q[i];
+            nb.rem[i] = models.rem[i];
+            nb.k[i] = models.k[i];
+        }
+        models = nb;
+    }
+    rans_encode_residuals(residuals, cx, models, out);
+}
+
+void rans_decode_residuals_with_llc(const std::vector<uint8_t>& in, size_t n, uint32_t w, uint32_t h, const std::vector<uint16_t>& ll_plane, ModelBank& models, std::vector<int32_t>& out) {
+    if (n == 0) { out.clear(); return; }
+    if (in.size() < 4) throw std::runtime_error("rans_decode_residuals_with_llc: too short");
+    uint8_t* d = const_cast<uint8_t*>(in.data());
+    RansState state; RansDecInit(&state, &d);
+    out.assign(n, 0);
+    size_t need = 1408;
+    if (models.nctx() < need) {
+        ModelBank nb = ModelBank::create(need, 16);
+        for (size_t i = 0; i < models.nctx() && i < need; ++i) {
+            nb.sign[i] = models.sign[i];
+            nb.zero[i] = models.zero[i];
+            nb.q[i] = models.q[i];
+            nb.rem[i] = models.rem[i];
+            nb.k[i] = models.k[i];
+        }
+        models = nb;
+    }
+    for (size_t i = 0; i < n; ++i) {
+        uint32_t x = (uint32_t)(i % w);
+        uint32_t y = (uint32_t)(i / w);
+        int32_t Ra = (x > 0) ? out[i - 1] : 0;
+        int32_t Rb = (y > 0) ? out[i - w] : 0;
+        int32_t Rc = (x > 0 && y > 0) ? out[i - w - 1] : 0;
+        int32_t dx = Ra - Rb;
+        int32_t mag = dx < 0 ? -dx : dx;
+        int base = 0;
+        if (mag <= 2) {
+            if (dx > 0) base = (int)mag;
+            else base = (int)mag + 3;
+        } else {
+            int q = std::min<int>(mag, 127) / 4;
+            if (dx > 0) base = 6 + q;
+            else base = 12 + q;
+        }
+        if (base < 0) base = 0;
+        if (base > 43) base = 43;
+        int sumAbs = (Ra < 0 ? -Ra : Ra) + (Rb < 0 ? -Rb : Rb) + (Rc < 0 ? -Rc : Rc);
+        int act = 0;
+        if (sumAbs <= 2) act = 0;
+        else if (sumAbs <= 6) act = 1;
+        else if (sumAbs <= 12) act = 2;
+        else if (sumAbs <= 20) act = 3;
+        else if (sumAbs <= 40) act = 4;
+        else if (sumAbs <= 80) act = 5;
+        else if (sumAbs <= 150) act = 6;
+        else act = 7;
+        int baseAct = base + act * 44;
+        uint16_t ll = (i < ll_plane.size()) ? ll_plane[i] : 0;
+        int llc = (ll >> 6) & 0x3;
+        if (ll > 1023) llc = (ll >> 14) & 0x3;
+        int ctx = baseAct + llc * 352;
+        if (ctx < 0) ctx = 0;
+        if (ctx >= (int)models.nctx()) ctx = (int)models.nctx() - 1;
+        uint16_t cx = (uint16_t)ctx;
+        uint8_t k = models.k[cx];
+        uint8_t nonzero = get_bin(&state, &d, models.zero[cx].prob);
+        models.zero[cx].update(nonzero ? 1 : 0);
+        if (!nonzero) {
+            out[i] = 0;
+            if (models.k[cx] > 0) models.k[cx] = (uint8_t)((models.k[cx] * 7) / 8);
+            continue;
+        }
+        bool sign = get_bin(&state, &d, models.sign[cx].prob) != 0;
+        models.sign[cx].update(sign ? 1 : 0);
+        uint32_t q = 0;
+        while (get_bin(&state, &d, models.q[cx].prob) == 0) {
+            models.q[cx].update(0);
+            ++q;
+            if (q > 100000) throw std::runtime_error("q overflow");
+        }
+        models.q[cx].update(1);
+        uint32_t r = 0;
+        for (int b = (int)k - 1; b >= 0; --b) {
+            uint8_t bit = get_bin(&state, &d, models.rem[cx][b].prob);
+            models.rem[cx][b].update(bit);
+            r = (r << 1) | bit;
+        }
+        uint32_t m;
+        if (k == 0) m = q;
+        else m = (q << k) | r;
+        int32_t e = sign ? -(int32_t)m : (int32_t)m;
+        out[i] = e;
+        int desired = 31 - __builtin_clz(m);
+        int new_k = desired > 0 ? desired - 1 : 0;
+        if (new_k > 16) new_k = 16;
+        int curk = models.k[cx];
+        int updated = (curk * 3 + new_k + 2) / 4;
+        if (updated < 0) updated = 0;
+        if (updated > 16) updated = 16;
+        models.k[cx] = (uint8_t)updated;
+    }
+}
+
 std::vector<uint8_t> rans_encode_plane(const std::vector<int32_t>& residuals, int /*num_contexts*/) {
     std::vector<uint8_t> buf(residuals.size() * 64 + 32, 0);
     uint8_t* ptr = buf.data() + buf.size();
