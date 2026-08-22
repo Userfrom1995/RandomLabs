@@ -162,22 +162,48 @@ ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
         mb.q[i].prob = kQPrior[i];
         mb.k[i] = kKInit[i];
     }
-    // For expanded contexts (352, 1408): tile with correct activity mapping
-    // New act 4..7 should inherit zero/q from act 3 but k steps up (high activity => larger Rice k)
+    // For expanded contexts (352, 704, 1408, 2816): tile with correct activity mapping
     if (nctx > 176) {
         for (size_t i = 176; i < nctx; ++i) {
-            size_t llc = i / 352;
-            size_t rem = i % 352;
-            size_t base_id = rem % 44;
-            size_t act = rem / 44;
-            size_t src_act = act;
-            if (act >= 4) src_act = 3; // zero/q from act 3
-            size_t src = base_id + src_act * 44 + llc * 176;
-            size_t src_base = src % 176;
-            if (src_base >= 176) src_base = base_id + src_act*44;
+            size_t src_base = 0;
+            size_t act = 0;
+            size_t base_id = 0;
+            if (nctx == 352 || nctx == 1408) {
+                size_t llc = i / 352;
+                size_t rem = i % 352;
+                base_id = rem % 44;
+                act = rem / 44;
+                size_t src_act = act >= 4 ? 3 : act;
+                size_t src = base_id + src_act * 44 + llc * 176;
+                src_base = src % 176;
+                if (src_base >= 176) src_base = base_id + src_act*44;
+            } else if (nctx == 704) {
+                // 44*8*2: baseAct*2+orient, orient shares prior
+                size_t baseActEdge = i;
+                size_t baseAct = baseActEdge / 2;
+                base_id = baseAct % 44;
+                act = baseAct / 44;
+                size_t src_act = act >= 4 ? 3 : act;
+                src_base = base_id + src_act * 44;
+            } else if (nctx == 2816) {
+                // 704*4: baseActEdge + llc*704
+                size_t llc = i / 704;
+                size_t rem = i % 704;
+                size_t baseAct = rem / 2;
+                base_id = baseAct % 44;
+                act = baseAct / 44;
+                size_t src_act = act >= 4 ? 3 : act;
+                src_base = base_id + src_act * 44 + llc * 0; // llc priros tiled from same base
+                src_base = base_id + src_act * 44; // share across llc for now
+            } else {
+                // generic fallback: map modulo 176
+                src_base = i % 176;
+                base_id = src_base % 44;
+                act = (src_base / 44) % 8;
+            }
+            if (src_base >= 176) src_base %= 176;
             mb.zero[i].prob = kZeroPrior[src_base];
             mb.q[i].prob = kQPrior[src_base];
-            // k grows with activity: act 4->3, 5->3, 6->4, 7->4 (instead of flat 2)
             if (act == 4) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 1);
             else if (act == 5) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 1);
             else if (act == 6) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 2);
@@ -210,7 +236,7 @@ std::vector<uint16_t> compute_resdiff_context(const std::vector<int32_t>& residu
             }
             if (base < 0) base = 0;
             if (base > 43) base = 43;
-            // activity bucket: 8 levels for finer context (44*8=352)
+            // activity bucket: 8 levels for finer context (44*8=352) plus orientation flag (44*8*2=704)
             int sumAbs = (Ra < 0 ? -Ra : Ra) + (Rb < 0 ? -Rb : Rb) + (Rc < 0 ? -Rc : Rc);
             int act = 0;
             if (sumAbs <= 2) act = 0;
@@ -221,7 +247,9 @@ std::vector<uint16_t> compute_resdiff_context(const std::vector<int32_t>& residu
             else if (sumAbs <= 80) act = 5;
             else if (sumAbs <= 150) act = 6;
             else act = 7;
-            int ctx = base + act * 44; // 0..351
+            int baseAct = base + act * 44; // 0..351
+            int orient = (std::abs(Ra) > std::abs(Rb)) ? 1 : 0;
+            int ctx = baseAct * 2 + orient; // 0..703
             cx[idx] = (uint16_t)ctx;
         }
     }
@@ -439,8 +467,8 @@ void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32
     uint8_t* d = const_cast<uint8_t*>(in.data());
     RansState state; RansDecInit(&state, &d);
     out.assign(n, 0);
-    // Expand models if needed: now 44*8 =352 contexts (ResDiff + activity)
-    size_t need = 352;
+    // Expand models if needed: now 44*8*2=704 contexts (ResDiff + activity + orient)
+    size_t need = 704;
     if (models.nctx() < need) {
         ModelBank nb = ModelBank::create(need, 16);
         for (size_t i = 0; i < models.nctx() && i < need; ++i) {
@@ -481,7 +509,9 @@ void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32
         else if (sumAbs <= 80) act = 5;
         else if (sumAbs <= 150) act = 6;
         else act = 7;
-        int ctx = base + act * 44;
+        int baseAct = base + act * 44;
+        int orient = (std::abs(Ra) > std::abs(Rb)) ? 1 : 0;
+        int ctx = baseAct * 2 + orient;
         if (ctx < 0) ctx = 0;
         if (ctx >= (int)models.nctx()) ctx = (int)models.nctx() - 1;
         uint16_t cx = (uint16_t)ctx;

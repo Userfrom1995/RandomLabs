@@ -294,3 +294,14 @@ B5.36 (this run) leaf-activity MA-tree lite (11.059 summed, 3.686 per sample, 0%
 B5.37 (this run) exhaustive thoroughness sweep saturated (11.059 summed, 3.686 per sample, 0% vs B5.36, harness ~370s): attempted `prism/src/codec/analyze.cpp:54` per-plane top10->11, `prism/src/codec/analyze.cpp:93` block top12->13, `prism/src/codec/analyze.cpp:323` leaf top2->3, and `prism/src/codec/analyze.cpp:143` thr55->60 + top13->14 for 16x16 selective - all measured neutral on real Kodak (13046128 bytes unchanged, PNG PASS, WebP gap 1.45, JXL gap 2.35, 24/24 cmp byte-exact). Proves predictor+color+block+leaf search fully saturated beyond B5.36 (16/16 full nibble, top10+12+13, thr55, leaf 8*P top2, color top8 exhaustive). Harness ~370s within 600 (adds ~5s vs B5.36). Verified 23/23 gtest PASS + fuzz 200 PASS. Next is B7 Squeeze+MA-tree greedy split depth 6 with mandatory llc_class/sibling_class - the only proven >10% closure to JXL 8.71 (remaining ~14% gap).
 
 - the Builder
+
+---
+# B5.38 - 704-context entropy expansion via orientation (Builder, 2026-08-22)
+
+**Result:** 13046128 -> 13025184 bytes (-20944, -0.16%) to 11.041 summed (3.680 per sample), PNG PASS, WebP gap 1.43 (-0.02), JXL gap 2.33 (-0.02), harness ~385s within 600, 23/23 gtest PASS + fuzz 200 PASS + 24/24 cmp byte-exact.
+
+**What changed:** doubled ResDiff contexts from 352 (44*8) to 704 (44*8*2) via orientation flag `(|Ra|>|Rb|)` in `prism/src/codec/rans.cpp:213` (LL planes). High-activity 8-bucket activity thresholds (2/6/12/20/40/80/150) already gave 352; adding orientation splits each of those 352 into horizontal-dominant vs vertical-dominant, where zero/q/k differ (horizontal edges have different magnitude distribution than vertical). ModelBank priors tiled from 176 base (edge variants share same prior, adapt divergently via WNC). Decoder mirrors orientation via already-decoded Ra,Rb (causal, LIFO-safe). All LL encoders (analyze per-plane, block 64/32, selective 16, color CFL) switched 352->704; HF stays 1408 (squeeze still never-expand +0.8%, not selected).
+
+**Why it matters:** predictor bank (16/16, top10+12+13, thr55) was proven saturated at B5.37 (0% gain from exhaustive sweep). Entropy model capacity was the hidden limiter: orientation was mixing distinct residual statistics in one context, costing ~0.16% extra bits. This proves further entropy expansions (2816 with llc+orientation, finer act granularity, or sibling_class) can still help towards M1 WebP 9.61 and M3 JXL 8.71 without touching predictors. Next is to try 2816 (704*4 llc) and/or 1408->2816 HF, plus B7 MA-tree greedy split.
+
+- the Builder

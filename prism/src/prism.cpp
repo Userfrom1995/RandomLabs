@@ -93,11 +93,11 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
         uint8_t levels = (pi < ar.squeeze_levels.size()) ? ar.squeeze_levels[pi] : 0;
         SqueezeResult sr = squeeze_encode_plane(transformed.planes[pi], transformed.w, transformed.h, levels, bd);
-        // Squeeze-aware encoding: LL band uses 352 contexts, HF bands use 1408 with llc_class
+        // Squeeze-aware encoding: LL band uses 704 contexts, HF bands use 1408 with llc_class
         // B5.22: HF ModelBank shared across HF bands of same plane to amortize warmup (instead of fresh per band)
         std::vector<uint16_t> ll_for_hf;
         if (sr.levels > 0 && !sr.bands.empty()) ll_for_hf = sr.bands[0].data;
-        ModelBank mb_ll = ModelBank::create(352, 16);
+        ModelBank mb_ll = ModelBank::create(704, 16);
         ModelBank mb_hf = ModelBank::create(1408, 16);
         bool use_shared_hf = (sr.levels > 0);
         size_t band_idx = 0;
@@ -251,7 +251,7 @@ Raster decode(const uint8_t* data, size_t len) {
             for (size_t k=0;k<8 && off+k < c.per_leaf_pred.size(); ++k) leaf_map.push_back(c.per_leaf_pred[off+k]);
             if (leaf_map.size()<8) leaf_map.resize(8, c.global_pred_id);
         }
-        ModelBank mb_ll_dec = ModelBank::create(352, 16);
+        ModelBank mb_ll_dec = ModelBank::create(704, 16);
         ModelBank mb_hf_dec = ModelBank::create(1408, 16);
         for(size_t bi=0; bi<band_count; ++bi){
             if(payload_idx >= payloads.size()) throw DecodeError("payload underflow");
