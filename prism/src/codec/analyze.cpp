@@ -51,7 +51,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             cands.push_back({pid, s});
         }
         std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum < b.sum;});
-        size_t topN = std::min<size_t>(7, cands.size());
+        size_t topN = std::min<size_t>(8, cands.size());
         uint64_t best_cost = UINT64_MAX;
         uint8_t best_pred = cands[0].pid;
         for (size_t t = 0; t < topN; ++t) {
@@ -91,7 +91,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     uint32_t x1=std::min(x0+BLOCK,tr.w), y1=std::min(y0+BLOCK,tr.h);
                     uint8_t best_pid=3;
                     if (BLOCK == 64 || BLOCK == 32) {
-                        // B5.31 top-9 prefilter for 64/32 blocks (was top-8, diminishing ~0.001% but still captures where 9th is true best)
+                        // B5.32 top-10 prefilter for 64/32 blocks (was top-9, diminishing ~0.0008% but still captures where 10th is true best)
                         struct BCand{uint8_t pid; uint64_t sum;};
                         std::vector<BCand> bcands; bcands.reserve(16);
                         for(uint8_t pid=0; pid<=15; ++pid){
@@ -106,7 +106,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bcands.push_back({pid, bsum});
                         }
                         std::sort(bcands.begin(), bcands.end(), [](const BCand& a, const BCand& b){return a.sum<b.sum;});
-                        size_t topB = std::min<size_t>(9, bcands.size());
+                        size_t topB = std::min<size_t>(10, bcands.size());
                         uint64_t best_cost = UINT64_MAX;
                         for(size_t t=0; t<topB; ++t){
                             uint8_t pid = bcands[t].pid;
@@ -137,13 +137,13 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bc16.push_back({pid, bsum});
                         }
                         std::sort(bc16.begin(), bc16.end(), [](const BCand16& a, const BCand16& b){return a.sum<b.sum;});
-                        // if top2 within 40% (ambiguous) do true-cost top10, else sumAbs winner (B5.31: widen 35->40 and top9->10)
+                        // if top2 within 45% (ambiguous) do true-cost top11, else sumAbs winner (B5.32: widen 40->45 and top10->11)
                         uint64_t s0 = bc16[0].sum;
                         uint64_t s1 = bc16.size()>1 ? bc16[1].sum : s0;
-                        bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 40;
+                        bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 45;
                         if (ambiguous && bc16.size()>=2) {
                             uint64_t best_cost = UINT64_MAX;
-                            size_t topB = std::min<size_t>(10, bc16.size());
+                            size_t topB = std::min<size_t>(11, bc16.size());
                             for(size_t t=0; t<topB; ++t){
                                 uint8_t pid = bc16[t].pid;
                                 uint32_t bw = x1 - x0, bh = y1 - y0;
