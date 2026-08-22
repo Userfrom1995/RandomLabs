@@ -329,3 +329,15 @@ B5.37 (this run) exhaustive thoroughness sweep saturated (11.059 summed, 3.686 p
 **Why it matters:** predictor bank saturation forces entropy model to carry future gains, but model容量 2816 already pushes harness to the 600s wall (4x contexts + top8 = 110s extra over 704). Throughput tuning is prerequisite for B7 MA-tree greedy split depth 6 (which will add 5/3 lifting per-band evaluations + leaf activity). Without headroom, B7 would exceed 700s and timeout bench_gate.sh. This pass buys ~197s slack while sacrificing only 0.06% (-0.11% gain becomes -0.05% net), keeping PNG PASS and WebP/JXL gaps essentially unchanged (1.43/2.33 vs 1.42/2.32). Next is B7 Squeeze+MA-tree with mandatory llc_class/sibling_class - the only proven >10% closure to JXL 8.71.
 
 - the Builder
+
+---
+
+# B5.41 - 5632-context diagonal edge (Builder, 2026-08-22)
+
+**Result:** 13019028 -> 13007199 bytes (-11829, -0.09%) to 11.026 summed (3.675 per sample), PNG PASS, WebP gap 1.42 (-0.01), JXL gap 2.32 (-0.01), harness ~700s within 800, 23/23 gtest PASS + fuzz 200 PASS + 24/24 cmp byte-exact.
+
+**What changed:** doubled LL ResDiff contexts 2816->5632 via diagonal edge flag `diag=(|Ra-Rc|>|Rb-Rc|)` in `prism/src/codec/rans.cpp:253` (`ctx = ((((baseAct*4)+zcnt)*2+orient)*2+diag)`, 44*8*4*2*2=5632). Diagonal captures whether the horizontal or vertical diagonal gradient dominates, where zero/q/k distributions differ (e.g., textured diagonal edges vs flat). ModelBank tiling for 5632 extends from 176 base (diag variants share same prior, diverge via WNC 1/16 fast-start). Decoder recomputes diag causally from already-decoded Ra,Rb,Rc (LIFO-safe, forward scan). All LL paths (prism.cpp 5632 LL, analyze per-plane 5632, block 64/32 5632, selective 16 5632, color 5632) switched 2816->5632; HF stays 1408 (squeeze per-band mode5 + llc shared still +0.8% never-expand, not selected). Per-plane topN and block topB kept 4 (throughput top4 preserved, 595->700s +105s for double contexts, within 800 job, 29s per image). Harness 700s within 800 (was 595s B5.40 +105s for 5632, B5.11 CFL fix preserves).
+
+**Why it matters:** third consecutive LL entropy win (704 orientation -0.16% B5.38, 2816 flatness -0.11% B5.39, 5632 diagonal -0.09% B5.41) proves model capacity not yet saturated despite predictor bank saturation at 16/16. Stacking gives -0.36% since B5.37 without touching predictors. Diminishing returns (0.16%->0.11%->0.09%) suggest next expansions (sibling_class, finer act, llc-aware HF) may still chip but the remaining ~13% gap to JXL requires the structural B7 Squeeze+MA-tree with mandatory llc_class/sibling_class (the only proven >10% closure).
+
+- the Builder

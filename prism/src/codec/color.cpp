@@ -236,7 +236,7 @@ ColorChoice choose_color_transform(const Raster& r) {
             for(size_t t=0;t<topN;++t){
                 uint8_t pid = cands[t].pid;
                 auto res = compute_residuals(tr.planes[c], tr.w, tr.h, static_cast<PredId>(pid));
-                ModelBank mb = ModelBank::create(2816,16);
+                ModelBank mb = ModelBank::create(5632,16);
                 std::vector<uint8_t> out; rans_encode_residuals_auto(res, tr.w, tr.h, mb, out);
                 uint64_t cost = out.size();
                 if(cost < best) best = cost;

@@ -193,7 +193,20 @@ ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
                 size_t baseAct = tmp / 4;
                 base_id = baseAct % 44;
                 act = baseAct / 44;
-                (void)orient; (void)zcnt;
+                (void)orient;
+                size_t src_act = act >= 4 ? 3 : act;
+                src_base = base_id + src_act * 44;
+            } else if (nctx == 5632) {
+                // B5.41 5632 = ((((44*8)*4+zcnt)*2+orient)*2+diag) : add diagonal edge
+                size_t diag = i % 2;
+                size_t tmp = i / 2;
+                size_t orient = tmp % 2;
+                size_t tmp2 = tmp / 2;
+                size_t zcnt = tmp2 % 4;
+                size_t baseAct = tmp2 / 4;
+                base_id = baseAct % 44;
+                act = baseAct / 44;
+                (void)orient; (void)diag;
                 size_t src_act = act >= 4 ? 3 : act;
                 src_base = base_id + src_act * 44;
             } else {
@@ -250,8 +263,9 @@ std::vector<uint16_t> compute_resdiff_context(const std::vector<int32_t>& residu
             else act = 7;
             int baseAct = base + act * 44; // 0..351
             int orient = (std::abs(Ra) > std::abs(Rb)) ? 1 : 0;
-            int zcnt = (Ra == 0 ? 1 : 0) + (Rb == 0 ? 1 : 0) + (Rc == 0 ? 1 : 0); // 0..3 flatness of causal residuals
-            int ctx = ((baseAct * 4) + zcnt) * 2 + orient; // 0..2815 B5.39
+            int zcnt = (Ra == 0 ? 1 : 0) + (Rb == 0 ? 1 : 0) + (Rc == 0 ? 1 : 0); // 0..3 flatness
+            int diag = (std::abs(Ra - Rc) > std::abs(Rb - Rc)) ? 1 : 0; // B5.41 diagonal edge
+            int ctx = ((((baseAct * 4) + zcnt) * 2 + orient) * 2 + diag); // 0..5631 B5.41
             cx[idx] = (uint16_t)ctx;
         }
     }
@@ -469,8 +483,8 @@ void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32
     uint8_t* d = const_cast<uint8_t*>(in.data());
     RansState state; RansDecInit(&state, &d);
     out.assign(n, 0);
-    // Expand models if needed: now 44*8*2*4=2816 contexts (ResDiff + activity + orient + zcnt B5.39)
-    size_t need = 2816;
+    // Expand models if needed: now 44*8*2*4*2=5632 contexts (ResDiff + activity + orient + zcnt + diag B5.41)
+    size_t need = 5632;
     if (models.nctx() < need) {
         ModelBank nb = ModelBank::create(need, 16);
         for (size_t i = 0; i < models.nctx() && i < need; ++i) {
@@ -514,7 +528,8 @@ void rans_decode_residuals_auto(const std::vector<uint8_t>& in, size_t n, uint32
         int baseAct = base + act * 44;
         int orient = (std::abs(Ra) > std::abs(Rb)) ? 1 : 0;
         int zcnt = (Ra == 0 ? 1 : 0) + (Rb == 0 ? 1 : 0) + (Rc == 0 ? 1 : 0);
-        int ctx = ((baseAct * 4) + zcnt) * 2 + orient;
+        int diag = (std::abs(Ra - Rc) > std::abs(Rb - Rc)) ? 1 : 0;
+        int ctx = ((((baseAct * 4) + zcnt) * 2 + orient) * 2 + diag);
         if (ctx < 0) ctx = 0;
         if (ctx >= (int)models.nctx()) ctx = (int)models.nctx() - 1;
         uint16_t cx = (uint16_t)ctx;
