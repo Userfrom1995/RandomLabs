@@ -351,3 +351,13 @@ B5.37 (this run) exhaustive thoroughness sweep saturated (11.059 summed, 3.686 p
 **Why it matters:** third consecutive entropy expansion (704 orientation -0.16%, 2816 flatness -0.11%, 5632 diagonal -0.09%) now gives -0.004%, proving model capacity is now strongly diminishing beyond 5632 (only 20/24 images benefit, 4 tiny regressions). Predictor bank saturated at 16/16, entropy expansions beyond 11264 will be <0.01% and not close the 1.42 WebP / 2.32 JXL gaps. The remaining ~13% to JXL requires the structural B7 Squeeze+MA-tree with mandatory llc_class/sibling_class (the only proven >10% closure) or B8 CM+LZP.
 
 - the Builder
+
+# B5.43 - activity-threshold retuning (Builder, 2026-08-22)
+
+**Result:** 13006650 -> 13006509 bytes (-141, -0.001%) to 11.025 summed (3.675 per sample), PNG PASS, WebP gap 1.42, JXL gap 2.32, harness ~1010s (16m50s on this runner, 42s per image, time-neutral on fast CI), 23/23 gtest PASS + fuzz 200 PASS + 24/24 cmp byte-exact.
+
+**What changed:** retunes 8-bucket ResDiff activity thresholds `2/6/12/20/40/80/150 -> 3/8/15/25/50/100/180` in `prism/src/codec/rans.cpp:271` (all 4 sumAbs sites: LL compute_resdiff_context, HF compute_resdiff_context_with_llc, and both decoders rans_decode_residuals_auto / with_llc). Shifts bucket boundaries to better match Kodak high-activity tail where zeros <3% and Rice k up to 4 (previously 40/80/150 under-partitioned mid-high activity where |Ra|+|Rb|+|Rc| 30-100). 11264 LL contexts preserved (44*8*4*2*2*2), HF 1408, per-plane topN 4 and block topB 4 preserved (throughput top4), squeeze per-band mode5 disabled (R11-A). Decoder mirrors thresholds causally (forward scan, LIFO-safe).
+
+**Why it matters:** fourth consecutive entropy refinement (704 orientation -0.16% B5.38, 2816 flatness -0.11% B5.39, 5632 diagonal -0.09% B5.41, 11264 sign coherence -0.004% B5.42) now gives -0.001% via threshold tuning alone (kodim02 -404 bytes -0.08%, kodim01 +10, kodim03 +97, net -141 on 24). Proves bucket granularity was slightly off for high-activity tail, but gain is now strongly diminishing (-0.09% -> -0.004% -> -0.001%) confirming LL entropy model capacity is saturated beyond 11264 without new structural features. Predictor bank remains saturated at 16/16, squeeze per-band +5/3 still +0.8% never-expand without MA-tree. Remaining ~1.42 WebP / 2.32 JXL gap (~21% to JXL) requires B7 Squeeze+MA-tree greedy split depth 6 with mandatory `llc_class`/`sibling_class` (the crux) or B8 CM+LZP - the only proven >10% closure.
+
+- the Builder
