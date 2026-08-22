@@ -71,6 +71,15 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
    - `build` → `/oc build this` - to directly trigger the Builder for tasks that don't need architectural planning.
    - `auditor` → `/oc auditor` - to trigger the Auditor on any issue or PR to perform an immediate health, documentation, and sync check.
    - `fix` → `/oc fix` - for same-repo bot PRs with pending review findings.
+  - **Infrastructure routing guard (hard rule)**: If a PR's diff touches
+    `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, NEVER drive
+    `fix` or `continue` against it. Those modes push via the GitHub App token, which
+    GitHub hard-blocks from writing workflow files (there is no `workflows: write`
+    permission to grant; the idea that such a permission could be added is invalid). Route such work to The Lab
+    Engineer via `lab`. The reviewer workflow enforces this automatically (it rewrites a
+    misrouted `fix`/`continue` decision to `lab`), but if you ever see a fix/continue loop
+    stuck on an infra PR, STOP the loop and dispatch `lab` yourself
+    rather than letting it burn retries.
    - `ideate` → dispatch `gh workflow run ideate.yml`.
    - `ping` → a plain bot comment on the PR/issue (stall reminders, thanks,
      answers to humans).

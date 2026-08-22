@@ -1,4 +1,4 @@
-name: Opencode Lab Engineer
+name: Lab Engineer
 
 on:
   issue_comment:

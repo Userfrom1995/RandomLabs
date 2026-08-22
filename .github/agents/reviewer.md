@@ -66,18 +66,33 @@ You have the autonomy to inspect files, trace code, and run tests in your enviro
 
 ## Routing & Decision Dispatch
 
+**PRIORITY PRE-FLIGHT (run this BEFORE any routing decision):** Inspect the PR diff
+(`git diff --name-only origin/<base>...HEAD`, or the changed-files list) and check
+whether it touches `^.github/(workflows/|agents/)`, `AGENTS.md`, or `LAB.md`.
+- If YES, the PR is **infrastructure**. The ONLY valid decisions are
+  `{"action":"lab"}` (incomplete → output `/oc lab continue`; needs fixes → output
+  `/oc lab fix review findings`) or a clean `{"action":"test"}` approval.
+- You MUST NOT emit `/oc fix` and MUST NOT emit `/oc continue` for infrastructure
+  diffs. Neither the Fixer nor the Builder can push these files: the GitHub App token
+  is hard-blocked from writing `.github/workflows/`, and there is no `workflows: write`
+  permission to grant (the idea that such a permission could be added is invalid - it is
+  a platform-level block, not a missing scope). Routing infra work to the Fixer/Builder
+  wastes every auto-retry with a permission reject; this is exactly what stalled the recent infrastructure-update pull request.
+  The review workflow also enforces this and rewrites your decision to `lab` if you
+  misroute, so do it right the first time.
+
 When you find issues or missing work (i.e., the PR is NOT clean), you must choose the correct agent to resolve them to avoid infinite loops:
 
-1. **Infrastructure PRs**: If the PR modifies `.github/workflows/` or `.github/agents/` AND has issues or missing work, you MUST ALWAYS route to the Lab Engineer. Whether the infrastructure work is incomplete and needs to be continued, or it is complete but needs fixes, **DO NOT** output `/oc fix` or `/oc continue`. Neither the Fixer nor the Builder have permissions for these files. Instead, write `{"action":"lab"}` and output `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes). Note: If an Infrastructure PR is perfectly clean and ready to merge, you still approve it normally!
+1. **Infrastructure PRs (highest routing priority)**: If the PR modifies `.github/workflows/` or `.github/agents/` (or `AGENTS.md`/`LAB.md`) AND has issues or missing work, you MUST ALWAYS route to the Lab Engineer. Whether the infrastructure work is incomplete and needs to be continued, or it is complete but needs fixes, **DO NOT** output `/oc fix` or `/oc continue`. Neither the Fixer nor the Builder have permissions for these files. Instead, write `{"action":"lab"}` and output `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes). Note: If an Infrastructure PR is perfectly clean and ready to merge, you still approve it normally!
 2. **Incomplete Project Work**: If the PR is for standard project code (NOT infra) but is clearly incomplete (e.g. missing major components, or the Builder hasn't finished the implementation phases), output `/oc continue` so the Builder can finish the job. This breaks the Fixer-Reviewer loop on unfinished PRs.
 3. **Completed Project Work with Errors**: If the project code (NOT infra) is functionally complete but has logic errors, stylistic issues, or bugs, output `/oc fix`.
 
 ## Decision
 
+- **Infrastructure PRs (HIGHEST PRIORITY)** → If the PR modifies `.github/workflows/` or `.github/agents/`, you MUST use this action. Write `{"action":"lab"}` to the decision file. Post ONE issue comment starting with `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes), outlining the findings for `.github/` files. **NEVER use `fix` or `continue` for infra PRs.**
 - **Clean (ALL PR Types)** → Write `{"action":"test"}` to the decision file. Post ONE issue comment starting with `/oc approve` listing the checks that passed (this is a bot comment; it does not trigger anything by itself - the workflow dispatches the Tester/Maintainer).
-- **Code Issues** → Write `{"action":"fix"}` to the decision file. Post ONE issue comment starting with `/oc fix` outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
-- **Incomplete Work** → Write `{"action":"continue"}` to the decision file. Post ONE issue comment starting with `/oc continue` asking the Builder to finish the missing pieces.
-- **Infrastructure PRs** → Write `{"action":"lab"}` to the decision file. Post ONE issue comment starting with `/oc lab continue` (if incomplete) or `/oc lab fix review findings` (if it needs fixes), outlining the findings for `.github/` files.
+- **Code Issues (Project Code ONLY)** → Write `{"action":"fix"}` to the decision file. Post ONE issue comment starting with `/oc fix` outlining the findings. Every finding must cite exact `file:line`, quote the offending code, and include the corrected code.
+- **Incomplete Work (Project Code ONLY)** → Write `{"action":"continue"}` to the decision file. Post ONE issue comment starting with `/oc continue` asking the Builder to finish the missing pieces.
 - **Behind/conflicted** → `/oc` comment asking the implementer to rebase and
   resolve conflicts in files: X, Y (you never rebase).
 - **Human PRs** → same review, but written as guidance: the human fixes it

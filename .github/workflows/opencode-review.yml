@@ -110,6 +110,34 @@ jobs:
             git push --force origin "$expected:refs/heads/$branch"
           fi
 
+      - name: Force lab routing for infrastructure PRs
+        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          decision="/tmp/random-lab-decision.json"
+          if [ ! -f "$decision" ]; then
+            echo "No decision file; nothing to enforce."
+            exit 0
+          fi
+          action=$(jq -r '.action // empty' "$decision" 2>/dev/null || echo "")
+          # Only fix/continue can be a misroute onto infrastructure files.
+          if [ "$action" != "fix" ] && [ "$action" != "continue" ]; then
+            echo "Decision '$action' is not fix/continue; no infra override needed."
+            exit 0
+          fi
+          base=$(gh pr view "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "main")
+          git fetch origin "$base" --quiet 2>/dev/null || true
+          touched=$(git diff --name-only "origin/$base"...HEAD 2>/dev/null | grep -E '^\.github/(workflows/|agents/)|(^|/)(AGENTS|LAB)\.md$' || true)
+          if [ -n "$touched" ]; then
+            echo "Infrastructure files touched by this PR; overriding reviewer decision '$action' -> lab:"
+            echo "$touched"
+            echo '{"action":"lab"}' > "$decision"
+          else
+            echo "No infrastructure files touched; leaving decision '$action' as-is."
+          fi
+
       - name: Forward reviewer decision
         if: steps.pr-info.outputs.is_pr == 'true' && always()
         env:
