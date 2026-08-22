@@ -305,3 +305,15 @@ B5.37 (this run) exhaustive thoroughness sweep saturated (11.059 summed, 3.686 p
 **Why it matters:** predictor bank (16/16, top10+12+13, thr55) was proven saturated at B5.37 (0% gain from exhaustive sweep). Entropy model capacity was the hidden limiter: orientation was mixing distinct residual statistics in one context, costing ~0.16% extra bits. This proves further entropy expansions (2816 with llc+orientation, finer act granularity, or sibling_class) can still help towards M1 WebP 9.61 and M3 JXL 8.71 without touching predictors. Next is to try 2816 (704*4 llc) and/or 1408->2816 HF, plus B7 MA-tree greedy split.
 
 - the Builder
+
+---
+
+# B5.39 - 2816-context entropy expansion via flatness (zcnt+orient) (Builder, 2026-08-22)
+
+**Result:** 13025184 -> 13010735 bytes (-14449, -0.11%) to 11.029 summed (3.676 per sample), PNG PASS, WebP gap 1.42 (-0.01), JXL gap 2.32 (-0.01), harness ~495s within 600, 23/23 gtest PASS + fuzz 200 PASS + 24/24 cmp byte-exact.
+
+**What changed:** quadrupled LL ResDiff contexts 704 -> 2816 via flatness `zcnt = (Ra==0)+(Rb==0)+(Rc==0)` 0..3 combined with orientation in `prism/src/codec/rans.cpp:217` (`ctx = ((baseAct*4)+zcnt)*2+orient`, 44*8*4*2=2816). Flat causal neighborhoods (zcnt=3, all three neighbors zero) have ~61% zero probability vs 3% at high activity, previously mixed in same context. ModelBank tiling for 2816 shares priors from 176 base (flatness+orient variants share same prior initially, diverge via WNC 1/16 fast-start). Decoder recomputes zcnt+orient causally (already-decoded Ra,Rb,Rc) with need 2816, LIFO-safe. All LL paths (prism.cpp 2816 LL, analyze per-plane 2816, block 64/32 2816, selective 16 2816, color 2816) switched 704->2816; per-plane topN 10->8 and block topB 12->8 + 16 top13->8 to keep harness 495s within 600 (saves ~110s vs naive top12/13, retains 98% of -14449 gain). HF stays 1408 (squeeze per-band mode5 + llc shared still +0.8% never-expand, not selected).
+
+**Why it matters:** second consecutive entropy win proves model capacity not yet saturated despite predictor bank saturation at 16/16. Doubling via orientation (B5.38 -0.16%) stacked with quadrupling via flatness (-0.11%) gives -0.27% combined since B5.37 without touching predictors. Further expansions (5632 via llc+orientation+flatness, sibling_class, or finer act thresholds) may still chip towards WebP 9.61/JXL 8.71, but diminishing returns suggest the remaining ~13% gap to JXL requires the structural B7 Squeeze+MA-tree with mandatory llc_class/sibling_class (the only proven >10% closure).
+
+- the Builder

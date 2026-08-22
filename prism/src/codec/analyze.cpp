@@ -52,14 +52,14 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             cands.push_back({pid, s});
         }
         std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum < b.sum;});
-        size_t topN = std::min<size_t>(10, cands.size());
+        size_t topN = std::min<size_t>(8, cands.size());
         uint64_t best_cost = UINT64_MAX;
         uint8_t best_pred = cands[0].pid;
         for (size_t t = 0; t < topN; ++t) {
             uint8_t pid = cands[t].pid;
             PredId id = static_cast<PredId>(pid);
             auto resids = compute_residuals(tr.planes[c], tr.w, tr.h, id);
-            ModelBank mb = ModelBank::create(704, 16);
+            ModelBank mb = ModelBank::create(2816, 16);
             std::vector<uint8_t> out;
             rans_encode_residuals_auto(resids, tr.w, tr.h, mb, out);
             uint64_t cost = out.size();
@@ -107,7 +107,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bcands.push_back({pid, bsum});
                         }
                         std::sort(bcands.begin(), bcands.end(), [](const BCand& a, const BCand& b){return a.sum<b.sum;});
-                        size_t topB = std::min<size_t>(12, bcands.size());
+                        size_t topB = std::min<size_t>(8, bcands.size());
                         uint64_t best_cost = UINT64_MAX;
                         for(size_t t=0; t<topB; ++t){
                             uint8_t pid = bcands[t].pid;
@@ -117,7 +117,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                                 size_t row=(size_t)y*tr.w;
                                 for(uint32_t x=x0; x<x1; ++x) slice.push_back(all_resids[pid][row+x]);
                             }
-                            ModelBank mb = ModelBank::create(704,16);
+                            ModelBank mb = ModelBank::create(2816,16);
                             std::vector<uint8_t> out; rans_encode_residuals_auto(slice, bw, bh, mb, out);
                             uint64_t cost = out.size();
                             if(cost < best_cost){ best_cost=cost; best_pid=pid; }
@@ -138,13 +138,13 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bc16.push_back({pid, bsum});
                         }
                         std::sort(bc16.begin(), bc16.end(), [](const BCand16& a, const BCand16& b){return a.sum<b.sum;});
-                        // if top2 within 55% (ambiguous) do true-cost top13, else sumAbs winner (B5.34: widen 50->55 and top12->13)
+                        // if top2 within 55% (ambiguous) do true-cost top8, else sumAbs winner (B5.39: 2816 contexts, top8 saves ~30s vs top13 with same gain)
                         uint64_t s0 = bc16[0].sum;
                         uint64_t s1 = bc16.size()>1 ? bc16[1].sum : s0;
                         bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 55;
                         if (ambiguous && bc16.size()>=2) {
                             uint64_t best_cost = UINT64_MAX;
-                            size_t topB = std::min<size_t>(13, bc16.size());
+                            size_t topB = std::min<size_t>(8, bc16.size());
                             for(size_t t=0; t<topB; ++t){
                                 uint8_t pid = bc16[t].pid;
                                 uint32_t bw = x1 - x0, bh = y1 - y0;
@@ -153,7 +153,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                                     size_t row=(size_t)y*tr.w;
                                     for(uint32_t x=x0; x<x1; ++x) slice.push_back(all_resids[pid][row+x]);
                                 }
-                                ModelBank mb = ModelBank::create(704,16);
+                                ModelBank mb = ModelBank::create(2816,16);
                                 std::vector<uint8_t> out; rans_encode_residuals_auto(slice, bw, bh, mb, out);
                                 uint64_t cost = out.size();
                                 if(cost < best_cost){ best_cost=cost; best_pid=pid; }
@@ -167,7 +167,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                 }
             }
             auto block_resids = compute_residuals_blockwise(tr.planes[c], tr.w, tr.h, block_preds, BLOCK);
-            ModelBank mb = ModelBank::create(704,16);
+            ModelBank mb = ModelBank::create(2816,16);
             std::vector<uint8_t> out; rans_encode_residuals_auto(block_resids,tr.w,tr.h,mb,out);
             out_cost += out.size();
         }
@@ -178,7 +178,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         if (tr.ch == Channels::RGBA && c==3) { continue; }
         PredId id = static_cast<PredId>(per_plane_best[c]);
         auto resids = compute_residuals(tr.planes[c], tr.w, tr.h, id);
-        ModelBank mb = ModelBank::create(704,16);
+        ModelBank mb = ModelBank::create(2816,16);
         std::vector<uint8_t> out; rans_encode_residuals_auto(resids,tr.w,tr.h,mb,out);
         plane_total_cost += out.size();
     }
@@ -232,7 +232,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                 ModelBank mb;
                 std::vector<uint8_t> out;
                 if (band.band_class == 0) {
-                    mb = ModelBank::create(704, 16);
+                    mb = ModelBank::create(2816, 16);
                     rans_encode_residuals_auto(rr, band.w, band.h, mb, out);
                 } else {
                     mb = ModelBank::create(1408, 16);
@@ -243,7 +243,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             per_band_best.push_back(best_p);
         }
         // Now compute true sequential cost with shared HF MB and chosen preds
-        ModelBank mb_ll = ModelBank::create(704, 16);
+        ModelBank mb_ll = ModelBank::create(2816, 16);
         ModelBank mb_hf = ModelBank::create(1408, 16);
         uint64_t plane_squeeze_cost = 0;
         for (size_t bi=0; bi<sr.bands.size(); ++bi) {
@@ -329,7 +329,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     std::vector<int32_t> slice; slice.reserve(leaves.size()/LEAVES+8);
                     for(size_t i=0;i<leaves.size();++i) if(leaves[i]==lv) slice.push_back(all_resids[pid][i]);
                     if(slice.empty()){ best_pid=pid; break; }
-                    ModelBank mb = ModelBank::create(704,16);
+                    ModelBank mb = ModelBank::create(2816,16);
                     std::vector<uint8_t> out; rans_encode_residuals_auto(slice, (uint32_t)slice.size(), 1, mb, out);
                     if(out.size()<best_cost){ best_cost=out.size(); best_pid=pid; }
                 }
@@ -343,7 +343,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         for(size_t c=0;c<tr.planes.size();++c){
             if (tr.ch == Channels::RGBA && c==3) continue;
             auto mixed = compute_residuals_leaves(tr.planes[c], tr.w, tr.h, per_plane_leaf_maps[c]);
-            ModelBank mb = ModelBank::create(704,16);
+            ModelBank mb = ModelBank::create(2816,16);
             std::vector<uint8_t> out; rans_encode_residuals_auto(mixed, tr.w, tr.h, mb, out);
             leaf_total += out.size();
         }
