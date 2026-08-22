@@ -67,6 +67,18 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
             offset += nb;
         }
     }
+    // precompute per-band map for squeeze mode 5
+    std::vector<std::vector<uint8_t>> plane_per_band_maps;
+    if (c.predictor_mode == 5) {
+        plane_per_band_maps.resize(transformed.planes.size());
+        for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
+            size_t off = pi * 4;
+            std::vector<uint8_t> m;
+            for (size_t k=0;k<4 && off+k < c.per_leaf_pred.size(); ++k) m.push_back(c.per_leaf_pred[off+k]);
+            if (m.size()<4) m.resize(4, c.global_pred_id);
+            plane_per_band_maps[pi] = std::move(m);
+        }
+    }
     for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
         uint8_t levels = (pi < ar.squeeze_levels.size()) ? ar.squeeze_levels[pi] : 0;
         SqueezeResult sr = squeeze_encode_plane(transformed.planes[pi], transformed.w, transformed.h, levels, bd);
@@ -77,10 +89,16 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         ModelBank mb_ll = ModelBank::create(352, 16);
         ModelBank mb_hf = ModelBank::create(1408, 16);
         bool use_shared_hf = (sr.levels > 0);
+        size_t band_idx = 0;
         for (auto &band : sr.bands) {
             std::vector<int32_t> residuals;
             if ((c.predictor_mode == 2 || c.predictor_mode == 3 || c.predictor_mode == 4) && sr.levels==0) {
                 residuals = compute_residuals_blockwise(band.data, band.w, band.h, plane_block_maps[pi], BLOCK);
+            } else if (c.predictor_mode == 5 && sr.levels > 0) {
+                uint8_t pid = plane_per_band_maps[pi][band_idx % 4];
+                PredId pred = static_cast<PredId>(pid);
+                if ((uint8_t)pred > 15) pred = PredId::MED;
+                residuals = compute_residuals(band.data, band.w, band.h, pred);
             } else {
                 PredId pred;
                 if (c.predictor_mode == 1 && pi < c.per_leaf_pred.size()) {
@@ -105,6 +123,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                 // mb_hf keeps updated state across HF bands
             }
             c.band_payloads.push_back(std::move(bytes));
+            ++band_idx;
         }
     }
 
@@ -206,6 +225,13 @@ Raster decode(const uint8_t* data, size_t len) {
             for (size_t k=0;k<nb && plane_offset+k<c.per_leaf_pred.size();++k) block_map.push_back(c.per_leaf_pred[plane_offset+k]);
             if (block_map.size()<nb) block_map.resize(nb, c.global_pred_id);
         }
+        // B5.35 per-band map for squeeze mode 5
+        std::vector<uint8_t> per_band_map;
+        if (c.predictor_mode == 5 && levels > 0) {
+            size_t off = pi * 4;
+            for (size_t k=0;k<4 && off+k < c.per_leaf_pred.size(); ++k) per_band_map.push_back(c.per_leaf_pred[off+k]);
+            if (per_band_map.size()<4) per_band_map.resize(4, c.global_pred_id);
+        }
         ModelBank mb_ll_dec = ModelBank::create(352, 16);
         ModelBank mb_hf_dec = ModelBank::create(1408, 16);
         for(size_t bi=0; bi<band_count; ++bi){
@@ -227,6 +253,11 @@ Raster decode(const uint8_t* data, size_t len) {
             std::vector<uint16_t> band_plane;
             if ((c.predictor_mode == 2 || c.predictor_mode == 3 || c.predictor_mode == 4) && levels==0) {
                 band_plane = reconstruct_plane_blockwise(residuals, bw, bh, block_map, BLOCK_D, plane_bd_max);
+            } else if (c.predictor_mode == 5 && levels > 0) {
+                uint8_t pid = per_band_map[bi % 4];
+                PredId pred = static_cast<PredId>(pid);
+                if ((uint8_t)pred > 15) pred = PredId::MED;
+                band_plane = reconstruct_plane(residuals, bw, bh, pred, plane_bd_max);
             } else {
                 PredId pred;
                 if (c.predictor_mode == 1 && pi < c.per_leaf_pred.size()) {

@@ -200,19 +200,21 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     std::vector<uint8_t> flat16; uint64_t cost16=0; uint64_t eff16 = UINT64_MAX;
     evaluate_block_size(16, flat16, cost16); eff16 = cost16 + (flat16.size() + 1) / 2;
 
-    // B7 scaffold: evaluate squeeze L=1 with per-band predictor (5/3 lifting, 1408 llc) - never-expand
-    // For each plane, 5/3 L=1 yields 4 bands (LL 384x256 + 3 HF 384x256 for 768x512). Per-band best predictor top6+trueCost.
-    // Shared HF ModelBank not yet used here (cost computed per band fresh), so this is a conservative estimate.
+    // B5.35: evaluate squeeze L=1 with per-band predictor and llc-aware HF (5/3 lifting, shared HF MB)
+    // For each plane, 5/3 L=1 yields 4 bands (LL 384x256 + 3 HF 384x256 for 768x512). Per-band best predictor top6+trueCost with correct llc.
     uint64_t cost_squeeze = 0;
     bool squeeze_ok = true;
     std::vector<uint8_t> squeeze_per_band; // 4 per plane for L=1
+    squeeze_per_band.reserve(tr.planes.size()*4);
     for (size_t c = 0; c < tr.planes.size(); ++c) {
         SqueezeResult sr = squeeze_encode_plane(tr.planes[c], tr.w, tr.h, 1, 8);
         if (sr.levels != 1 || sr.bands.size() != 4) { squeeze_ok = false; break; }
-        uint64_t plane_squeeze_cost = 0;
-        for (auto &band : sr.bands) {
-            // per-band best predictor among 16 via sumAbs top6 + true rANS (352 for LL, 1408 with llc for HF conceptual)
-            // Use auto (352) for now; llc true cost would be slightly lower for HF but not enough to flip never-expand.
+        // Find per-band best predictor via top6 true cost (llc-aware for HF)
+        std::vector<uint8_t> per_band_best;
+        per_band_best.reserve(4);
+        std::vector<uint16_t> ll_for_hf = sr.bands[0].data;
+        for (size_t bi=0; bi<sr.bands.size(); ++bi) {
+            auto &band = sr.bands[bi];
             std::vector<uint64_t> sums(16, 0);
             for (uint8_t pid = 0; pid <= 15; ++pid) {
                 auto rr = compute_residuals(band.data, band.w, band.h, static_cast<PredId>(pid));
@@ -226,20 +228,45 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             for (size_t t=0; t<topN_b; ++t) {
                 uint8_t pid = order[t];
                 auto rr = compute_residuals(band.data, band.w, band.h, static_cast<PredId>(pid));
-                ModelBank mb = ModelBank::create(352, 16);
-                std::vector<uint8_t> out; rans_encode_residuals_auto(rr, band.w, band.h, mb, out);
+                ModelBank mb;
+                std::vector<uint8_t> out;
+                if (band.band_class == 0) {
+                    mb = ModelBank::create(352, 16);
+                    rans_encode_residuals_auto(rr, band.w, band.h, mb, out);
+                } else {
+                    mb = ModelBank::create(1408, 16);
+                    rans_encode_residuals_with_llc(rr, band.w, band.h, ll_for_hf, mb, out);
+                }
                 if (out.size() < best_c) { best_c = out.size(); best_p = pid; }
             }
-            plane_squeeze_cost += best_c;
-            squeeze_per_band.push_back(best_p);
+            per_band_best.push_back(best_p);
         }
+        // Now compute true sequential cost with shared HF MB and chosen preds
+        ModelBank mb_ll = ModelBank::create(352, 16);
+        ModelBank mb_hf = ModelBank::create(1408, 16);
+        uint64_t plane_squeeze_cost = 0;
+        for (size_t bi=0; bi<sr.bands.size(); ++bi) {
+            auto &band = sr.bands[bi];
+            uint8_t pid = per_band_best[bi];
+            auto rr = compute_residuals(band.data, band.w, band.h, static_cast<PredId>(pid));
+            std::vector<uint8_t> out;
+            if (band.band_class == 0) {
+                ModelBank mb = mb_ll;
+                rans_encode_residuals_auto(rr, band.w, band.h, mb, out);
+                mb_ll = mb;
+            } else {
+                rans_encode_residuals_with_llc(rr, band.w, band.h, ll_for_hf, mb_hf, out);
+            }
+            plane_squeeze_cost += out.size();
+        }
+        for (auto p : per_band_best) squeeze_per_band.push_back(p);
         cost_squeeze += plane_squeeze_cost;
     }
     uint64_t squeeze_overhead = 0;
-    if (squeeze_ok) squeeze_overhead = tr.planes.size() /* level byte */ + squeeze_per_band.size() /* per-band pred */;
+    if (squeeze_ok) squeeze_overhead = squeeze_per_band.size(); // per-band preds (squeeze_levels already in header, not per-image overhead)
+    // header squeeze_levels already counted in container header (P bytes) for both modes, so only per-band pred overhead matters vs block modes
     uint64_t eff_squeeze = squeeze_ok ? cost_squeeze + squeeze_overhead : UINT64_MAX;
-    (void)eff_squeeze; (void)squeeze_per_band; // scaffold only, keep never-expand (B7 needs MA-tree llc_class/sibling_class to beat +0.8%)
-    // Choose best among plane, 64, 32, 16 (all block modes now nibble-packed, B5.14)
+    // Choose best among plane, 64, 32, 16, squeeze (all block modes now nibble-packed, B5.14)
     uint64_t best_eff = plane_effective;
     int best_mode = all_same ? 0 : 1; // 0 global, 1 per-plane
     std::vector<uint8_t> best_flat = per_plane_best;
@@ -260,6 +287,13 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     if (best_block_mode != -1) {
         best_eff = best_block_eff; best_mode = best_block_mode; best_flat = *best_block_flat;
     }
+    // B5.35: squeeze L=1 with per-band predictor - never-expand, pick if strictly better
+    bool use_squeeze = (squeeze_ok && eff_squeeze + 2 < best_eff); // +2 fudge for header squeeze_levels already but model_len overhead, require at least 2 bytes win
+    if (use_squeeze) {
+        best_eff = eff_squeeze;
+        best_mode = 5;
+        best_flat = squeeze_per_band;
+    }
 
     if (best_mode == 0) {
         res.predictor_mode = 0;
@@ -276,6 +310,13 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         res.predictor_mode = 3;
         res.global_pred_id = per_plane_best[0];
         res.per_leaf_pred = flat32;
+    } else if (best_mode == 5) {
+        res.predictor_mode = 5;
+        res.global_pred_id = per_plane_best[0];
+        res.per_leaf_pred = squeeze_per_band;
+        res.squeeze_levels.assign(r.num_channels(), 1);
+        (void)max_squeeze_levels;
+        return res;
     } else {
         res.predictor_mode = 4;
         res.global_pred_id = per_plane_best[0];

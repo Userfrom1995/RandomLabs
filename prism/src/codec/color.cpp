@@ -232,7 +232,7 @@ ColorChoice choose_color_transform(const Raster& r) {
                 cands.push_back({pid,s});
             }
             std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum<b.sum;});
-            size_t topN = std::min<size_t>(6, cands.size());
+            size_t topN = std::min<size_t>(8, cands.size());
             for(size_t t=0;t<topN;++t){
                 uint8_t pid = cands[t].pid;
                 auto res = compute_residuals(tr.planes[c], tr.w, tr.h, static_cast<PredId>(pid));
@@ -280,7 +280,7 @@ ColorChoice choose_color_transform(const Raster& r) {
             scored.push_back({s, sc});
         }
         std::sort(scored.begin(), scored.end(), [](const Scored& a, const Scored& b){return a.sum<b.sum;});
-        size_t topN = std::min<size_t>(6, scored.size());
+        size_t topN = std::min<size_t>(8, scored.size());
         uint64_t best_c = UINT64_MAX;
         std::vector<uint8_t> best_sc = {0,0};
         for(size_t i=0;i<topN;++i){
