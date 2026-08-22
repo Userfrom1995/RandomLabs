@@ -52,7 +52,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             cands.push_back({pid, s});
         }
         std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum < b.sum;});
-        size_t topN = std::min<size_t>(8, cands.size());
+        size_t topN = std::min<size_t>(4, cands.size());
         uint64_t best_cost = UINT64_MAX;
         uint8_t best_pred = cands[0].pid;
         for (size_t t = 0; t < topN; ++t) {
@@ -107,7 +107,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bcands.push_back({pid, bsum});
                         }
                         std::sort(bcands.begin(), bcands.end(), [](const BCand& a, const BCand& b){return a.sum<b.sum;});
-                        size_t topB = std::min<size_t>(8, bcands.size());
+                        size_t topB = std::min<size_t>(4, bcands.size());
                         uint64_t best_cost = UINT64_MAX;
                         for(size_t t=0; t<topB; ++t){
                             uint8_t pid = bcands[t].pid;
@@ -138,13 +138,13 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bc16.push_back({pid, bsum});
                         }
                         std::sort(bc16.begin(), bc16.end(), [](const BCand16& a, const BCand16& b){return a.sum<b.sum;});
-                        // if top2 within 55% (ambiguous) do true-cost top8, else sumAbs winner (B5.39: 2816 contexts, top8 saves ~30s vs top13 with same gain)
+                        // if top2 within 55% (ambiguous) do true-cost top4, else sumAbs winner (B5.40 tune to stay under 600s)
                         uint64_t s0 = bc16[0].sum;
                         uint64_t s1 = bc16.size()>1 ? bc16[1].sum : s0;
                         bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 55;
                         if (ambiguous && bc16.size()>=2) {
                             uint64_t best_cost = UINT64_MAX;
-                            size_t topB = std::min<size_t>(8, bc16.size());
+                            size_t topB = std::min<size_t>(4, bc16.size());
                             for(size_t t=0; t<topB; ++t){
                                 uint8_t pid = bc16[t].pid;
                                 uint32_t bw = x1 - x0, bh = y1 - y0;

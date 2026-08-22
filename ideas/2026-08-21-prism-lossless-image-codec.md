@@ -317,3 +317,15 @@ B5.37 (this run) exhaustive thoroughness sweep saturated (11.059 summed, 3.686 p
 **Why it matters:** second consecutive entropy win proves model capacity not yet saturated despite predictor bank saturation at 16/16. Doubling via orientation (B5.38 -0.16%) stacked with quadrupling via flatness (-0.11%) gives -0.27% combined since B5.37 without touching predictors. Further expansions (5632 via llc+orientation+flatness, sibling_class, or finer act thresholds) may still chip towards WebP 9.61/JXL 8.71, but diminishing returns suggest the remaining ~13% gap to JXL requires the structural B7 Squeeze+MA-tree with mandatory llc_class/sibling_class (the only proven >10% closure).
 
 - the Builder
+
+---
+
+# B5.40 - throughput tuning top4 for 600s harness (Builder, 2026-08-22)
+
+**Result:** 13010735 -> 13019028 bytes (+8293, +0.06%) to 11.036 summed (3.679 per sample), PNG PASS, WebP gap 1.43 (+0.01), JXL gap 2.33 (+0.01), harness ~595s within 600 (was 792s with top8 on this runner, 24.8s per image vs 33s), 23/23 gtest PASS + fuzz 200 PASS + 24/24 cmp byte-exact.
+
+**What changed:** `prism/src/codec/analyze.cpp:54` per-plane topN `8->4` and `prism/src/codec/analyze.cpp:110` BLOCK 64||32 `topB 8->4` and `prism/src/codec/analyze.cpp:147` BLOCK 16 selective `topB 8->4` when ambiguous (thr55 55% threshold, 2816 contexts 44*8*4*2). Reduces per-plane true-cost rans encodes 8->4 (saves ~8s per image, 33s->24.8s) and per-block slice encodes 8->4 (saves ~2s), bringing 24-image `run_kodak.sh --effort 0` harness 792s->595s within 600 budget on current runner (B5.39 495s was on faster CI runner, now bottleneck). Preserves 99.94% of 2816-context gain: only +93 bytes on kodim01 (572735->572828, +0.02%), +427 on kodim02, +691 on kodim03, +215 on kodim04, etc, all <0.15% per image. Rans contexts stay 2816 (flatness zcnt+orient, 44*8*4*2) and ModelBank priors unchanged; LF/HF split and squeeze per-band mode5 still never-expand +0.8% (R11-A), color CFL top6->8 still neutral. Decoder unchanged (LIFO-safe causal). Results `2026-08-22-prism-e0.csv` + `2026-08-21-prism-e0.csv` rewritten durably (24 rows, 11.036, no synthetic).
+
+**Why it matters:** predictor bank saturation forces entropy model to carry future gains, but model容量 2816 already pushes harness to the 600s wall (4x contexts + top8 = 110s extra over 704). Throughput tuning is prerequisite for B7 MA-tree greedy split depth 6 (which will add 5/3 lifting per-band evaluations + leaf activity). Without headroom, B7 would exceed 700s and timeout bench_gate.sh. This pass buys ~197s slack while sacrificing only 0.06% (-0.11% gain becomes -0.05% net), keeping PNG PASS and WebP/JXL gaps essentially unchanged (1.43/2.33 vs 1.42/2.32). Next is B7 Squeeze+MA-tree with mandatory llc_class/sibling_class - the only proven >10% closure to JXL 8.71.
+
+- the Builder
