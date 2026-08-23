@@ -22,7 +22,14 @@
 - [x] C0 Probe harness: `benchmarks/probe_backend.sh` kodim01/kodim13 A-B rail pinning V0/V1 baselines.
 - [x] C1 Entropy backend v2 (P1+P2): zero-flag-first binarization, dual-rate shift6/shift9 mix over 16 directional class priors; probe captures >= 80 percent of V1 win (125%/141%); A2 recalibrated and PASS.
 - [x] C2 MA-tree always-on (P3): capability + trial-bits acceptance LANDED (flags bit4, caps depth<=10 / leaves<=256 / min-samples 512 / quantile thresholds, v2 64-clamp latent bug fixed). Measured: trial REJECTS on all 24 corpus images (tree loses to flat resdiff-343 by ~0.12 pct; e3 == e1 byte-identical 24/24). Negative result + next lever in blueprint section 4 + decision file.
-- [ ] C2b composite leaf*343+resdiff contexts (offline probe rail first): tree REFINES the causal context instead of replacing it.
+- [x] C2b composite leaf*343+resdiff (offline probe rail first): MEASURED
+      REJECTION both directions - tree-composite totals +163 B kodim01 /
+      +330 B kodim13 over flat (payload gain ~0.01 percent cannot carry the
+      serialized model); fixed activity*343+resdiff partition mixed sign
+      (-43 B / +35 B), not adopted. Gate B1 added to probe_backend.sh with a
+      proven fail-path; streams stay byte-identical to e1, zero regression.
+      Static context refinement on flat planes is CLOSED (oracle + C2 + C2b
+      agree); decision file 2026-08-23T20-45-00-c2b-composite-rejection.md.
 - [ ] C3 Trial-encode decisions (P4): all proxies retired from decisions; identity candidate always present; effort-budgeted search; M2 checkpoint window ~9.3-9.6 summed.
 - [ ] C4 True CDC lifting Squeeze (P5): horizontal then vertical lifting, recurse on averages, post-order preserved; must beat decimation baseline on same corpus.
 - [ ] C5 Cross-band prediction (P6): XBAND parent-gradient predictor, per-leaf selector, wins >= 20/24 images; M3 GATE CHECKPOINT.
@@ -30,29 +37,12 @@
 
 ## Current step
 
-Builder continuation run 2 (2026-08-23 ~19:30Z) COMPLETE for this slice.
-Milestone 1: fresh both-units Kodak-24 e1 measure LANDED (-6.09 pct bytes vs
-pre-C1; table below). Milestone 2: C2 capability + honest rejection LANDED.
-
-| metric | pre-C1 e1 (=e7) | fresh e1 (C1 v2) | delta |
-|---|---|---|---|
-| summed bpp | 11.0258 | **10.3544** | -6.09% bytes |
-| per-sample bpp | 3.6753 | **3.4515** | -6.09% bytes |
-
-Honest status: M2/M3 gates still FAIL in both units as expected
-(10.3544 vs 9.498 / 8.655). Pre-change CSVs archived as `*-pre-c1.csv`.
-
-C2 outcome (measured, not assumed): the spatial MA-tree builds fast and
-deterministically (kodim01: 41 leaves / depth 10 / 286 B in 0.78 s), but its
-leaf contexts lose the trial-bits acceptance to flat residual-DIFF-343 coding
-on every corpus image (+1050 B kodim01 with prior init, +1598 B with uniform
-init). The trial gate rejects, so emitted streams stay flat: e3 == e1
-byte-identical on 24/24 images - zero regression, never-expand holds by
-construction. A replace-context partition is strictly coarser than the exact
-causal context under this binarization. NEXT LEVER: composite contexts
-(leaf refines resdiff), validated offline on the probe rail first (C2b).
-Details: blueprint section 4 status note + decision file
-.github/agents/decisions/builder/2026-08-23T20-00-00-c2-scope-and-measured-rejection.md.
+Builder continuation run 3 (2026-08-23 ~20:15Z) COMPLETE for this slice:
+C2b validated offline exactly as the tracker prescribed and REJECTED with
+measurements (see checklist + decision file). The corpus truth stands at
+e1 = 10.3544 summed / 3.4515 per-sample bpp; M2/M3 still FAIL as expected.
+No format change shipped this slice - the trial gates refused every losing
+candidate, which is the system working.
 
 Previous slice summary (C1 offline retune + A2 recalibration, all PASS):
 
@@ -77,17 +67,28 @@ Previous slice summary (C1 offline retune + A2 recalibration, all PASS):
 
 ## Next steps (in order)
 
-1. [next run] C2b: composite `leaf * 343 + resdiff` contexts with hierarchical
-   sharing - validate OFFLINE on the probe rail (extend probe_backend.sh or a
-   sim harness) before any format change; ship only on a measured win; the
-   trial-bits gate stays the binding acceptance.
-2. C3 (trial-encode decisions): retire proxy estimators from decision paths,
-   identity candidate always present; M2 checkpoint window (~9.3-9.6 summed).
-3. Then C4 (true CDC lifting) -> C5 (cross-band prediction) -> M3 gate ->
+1. [next run] C3 (trial-encode decisions, blueprint section 5): retire the
+   remaining proxy estimators from decision paths - color transform + CFL
+   scales and global predictor selection are still energy-chosen in
+   analyze(); switch them to measured coded bits (subsampled-grid pruning,
+   full encode for finalists), identity candidate always present. M2
+   checkpoint window ~9.3-9.6 summed projected after C3.
+2. Then C4 (true CDC lifting) -> C5 (cross-band prediction) -> M3 gate ->
    Reviewer -> Tester -> Maintainer merge.
 Owner freeze stands throughout: nothing merges before both gates pass.
 
 ## Agent log
+
+- 2026-08-23 the Builder (continuation run 3): corpus re-derived from the
+  lossless upstream PNGs (24/24 sha pins verified). C2b implemented offline
+  first: composite coders with one shared causal walk (analyze.cpp), resdiff-
+  keyed class priors in acoder v2 (flat streams bit-identical), probe rail
+  variants v2leaf/v2composite/v2act, gate B1 + three-case self-check.
+  MEASURED REJECTION: tree-composite totals +163/+330 B over flat; activity
+  partition mixed sign; B1 FAIL 2/2 - no format change shipped, e1 truth
+  stands. New tests MatreeComposite.* (41/41 green), fuzz clean. Decision
+  file 2026-08-23T20-45-00; blueprint section 4 status note updated.
+  Status stays in_progress (C3/C4/C5 remain); decision {"action":"continue"}.
 
 - 2026-08-23 the Builder (continuation run 2): corpus re-derived from the
   lossless upstream PNGs, all 24 sha256 pins verified BEFORE measuring;

@@ -178,11 +178,19 @@ uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entr
 > class-pooled coding is only ~0.19 percent. Also fixed en route: the v2
 > leaf helpers' silent 64-context clamp/id-fold (a latent round-trip bug the
 > moment leaves exceed 64; removed for bit3/bit4 paths, legacy v1 untouched).
-> **Next lever (C2b, offline probe rail first):** keep residual-DIFF as the
-> base context and ADD the leaf dimension - composite contexts
-> `leaf * 343 + resdiff` with hierarchical sharing, so the tree refines the
-> causal context instead of replacing it. Ship only if the probe shows a real
-> win; the trial-bits gate stays the binding acceptance either way.
+>
+> **Status C2b (2026-08-23, Builder): composite refinement REJECTED with
+> measurements.** Both prescribed directions were validated offline on the
+> probe rail before any format work. (a) Tree-composite `leaf * 343 +
+> resdiff` (class priors keyed on the resdiff part so flat streams stay
+> bit-identical): payload alone edges flat by -67 B on kodim01 but the
+> serialized model (+230 B / +286 B) sinks every total; gate B1 FAILs 2/2.
+> (b) Fixed activity partition `activity * 343 + resdiff`, zero side-channel:
+> -43 B kodim01, +35 B kodim13 - mixed sign, not adopted. With C1's oracle
+> analysis this closes static context refinement on flat planes: adaptation
+> already harvests what partitioning cannot. The tree stays a squeezed-band
+> capability for C4/C5; flat-plane effort moves to C3. Evidence:
+> results/2026-08-23-backend-probe.csv, decision record 20-45-00.
 
 ### 4.1 Contract changes
 
