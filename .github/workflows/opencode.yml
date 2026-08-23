@@ -16,6 +16,31 @@ concurrency:
   group: opencode-${{ github.event.issue.number || 'global' }}
   cancel-in-progress: false
 
+# =============================================================================
+# SILENT-STALL HARDENING - BINDING ACCEPTANCE INVARIANTS (issue #122, PR #125)
+# Any change to the concurrency blocks or the no-op / self-heal steps below
+# MUST preserve all four invariants. See ideas/2026-08-23-silent-stall-hardening.md.
+#
+#   S1  Per-issue serialization: exactly one opencode.yml run per issue may be
+#       in flight at a time (|R(t)| <= 1). Guaranteed by this top-level
+#       non-cancelling group that wraps every opencode.yml dispatch per issue.
+#   S2  Non-cancellation of in-flight builds: every concurrency group MUST use
+#       `cancel-in-progress: false`. A duplicate /oc continue QUEUES behind the
+#       running build instead of killing it (no cancellation race).
+#   L1  Bounded recovery (no infinite silent stall): the self-heal step may
+#       re-dispatch /oc continue (auto-heal N) at most K = 2 times, then
+#       UNCONDITIONALLY escalates to /oc maintainer. Terminates in <= 3 dispatches.
+#   L2  No double-dispatch: the self-heal step and the verify auto-retry step are
+#       mutually exclusive via the guard `steps.verify.outputs.retry != 'true'`.
+#
+# RULES (do not violate when editing):
+#   - Keep `cancel-in-progress: false` on EVERY concurrency group (S2).
+#   - Keep K = 2 (finite). Changing K must still preserve the L1 termination proof.
+#   - NEVER assume a zero counter on an API/rate-limit failure; escalate to
+#     /oc maintainer instead (prevents the phantom-zero infinite loop).
+# These are statically audited by R1-R5 in auditor.yml (.github/scripts/silent-stall-audit.sh).
+# =============================================================================
+
 jobs:
   research:
     if: |

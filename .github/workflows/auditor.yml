@@ -40,6 +40,18 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
+      - name: Silent-stall regression audit (R1-R5)
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          chmod +x .github/scripts/silent-stall-audit.sh
+          health_issue=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
+          fi
+          .github/scripts/silent-stall-audit.sh ".github/workflows/opencode.yml" "${health_issue}"
+
       - name: Run auditor agent
         timeout-minutes: 60
         uses: anomalyco/opencode/github@latest
