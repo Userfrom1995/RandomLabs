@@ -2,6 +2,9 @@
 #include "prism/types.h"
 #include "prism/frontend/frontend.h"
 #include "prism/frontend/ppm_raw.h"
+#include "prism/codec/color.h"
+#include "prism/codec/predict.h"
+#include "prism/codec/acoder.h"
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -11,6 +14,7 @@
 #include <fstream>
 
 using namespace prism;
+using namespace prism::codec;
 
 static void print_usage() {
     std::cerr << "Usage:\n"
@@ -18,7 +22,8 @@ static void print_usage() {
               << "  prism dec <in.prism> <out.ppm>\n"
               << "  prism bench --effort N --kodak DIR\n"
               << "  prism fuzz [--iters N]\n"
-              << "  prism info <file.prism>\n";
+              << "  prism info <file.prism>\n"
+              << "  prism probe-backend <image> [--variants LIST]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -188,6 +193,75 @@ int main(int argc, char* argv[]) {
             std::ifstream cf2(csv); std::cout<<cf2.rdbuf();
             // also echo SHA256 of kodak dir for pinning verification if file exists
             return 0;
+        } else if (cmd == "probe-backend") {
+            // C0 rail (issue #130): stage-exact A-B measurements of entropy
+            // backend variants on one image. Streams are the pipeline's own
+            // YCoCg-R + MED residual planes; sizes are payload-only (no
+            // container overhead), directly comparable to research probe V0.
+            if (argc < 3) { print_usage(); return 2; }
+            std::filesystem::path img = argv[2];
+            std::string variants = "v0,v1,v1shared,v2,v2shared";
+            for (int i = 3; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--variants" && i + 1 < argc) variants = argv[++i];
+                else { std::cerr << "probe-backend: unknown arg " << a << "\n"; return 2; }
+            }
+            auto wanted = [&](const char* v){ return variants.find(v) != std::string::npos; };
+            Raster r = frontend::decode_to_raster(img);
+            Raster t = apply_color(r, ColorTransform::YCoCgR);
+            size_t samples = 0;
+            size_t v0b = 0, v1b = 0, v1sb = 0, v2b = 0, v2sb = 0;
+            for (auto& plane : t.planes) {
+                auto res = compute_residuals(plane, t.w, t.h, PredId::MED);
+                samples += res.size();
+                if (wanted("v0")) v0b += acoder_encode_plane(res, t.w, t.h, 343).size();
+                if (wanted("v1")) {
+                    // zero-first ordering with legacy single-rate adaptation
+                    // and uniform init: the research V1 configuration.
+                    ACModels m(343);
+                    AEncoder enc;
+                    for (size_t i = 0; i < res.size(); ++i) {
+                        uint32_t x = (uint32_t)(i % t.w), y = (uint32_t)(i / t.w);
+                        int32_t dL=0,dU=0,dUL=0;
+                        if (x>0) dL=res[i-1];
+                        if (y>0) dU=res[i-t.w];
+                        if (x>0&&y>0) dUL=res[i-t.w-1];
+                        int cx = residual_diff_context(dL,dU,dUL);
+                        uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
+                        enc.put_bin(m.zero[cx], mag == 0);
+                        if (mag != 0) {
+                            enc.put_bin(m.sign[cx], res[i] < 0);
+                            int L = 31 - __builtin_clz(mag);
+                            for (int k = 0; k < L; ++k) enc.put_bin(m.q[cx], false);
+                            enc.put_bin(m.q[cx], true);
+                            uint32_t rem = mag - (1u << L);
+                            for (int k = L - 1; k >= 0; --k) enc.put_bin(m.rem[cx], ((rem >> k) & 1u) != 0);
+                        }
+                    }
+                    v1b += enc.flush_and_emit().size();
+                }
+                if (wanted("v1shared")) {
+                    // research V3 analog: legacy coder, one shared context.
+                    ACModels m(1);
+                    AEncoder enc;
+                    for (size_t i = 0; i < res.size(); ++i) enc.encode_residual(m, 0, res[i]);
+                    v1sb += enc.flush_and_emit().size();
+                }
+                if (wanted("v2")) v2b += acoder_encode_plane_v2(res, t.w, t.h, 343).size();
+                if (wanted("v2shared")) v2sb += acoder_encode_plane_v2(res, t.w, t.h, 1).size();
+            }
+            double base = (double)(v0b ? v0b : 1);
+            std::cout << "PROBE," << img.filename().string() << "," << t.planes.size() << "planes,"
+                      << samples << "samples\n";
+            auto emit = [&](const char* n, size_t b) {
+                std::cout << "RESULT," << img.filename().string() << "," << n << ","
+                          << b << "," << (100.0 * ((double)b - base) / base) << "\n";
+            };
+            emit("v0", v0b);
+            emit("v1", v1b);
+            emit("v1shared", v1sb);
+            emit("v2", v2b);
+            emit("v2shared", v2sb);
         } else {
             print_usage(); return 2;
         }
