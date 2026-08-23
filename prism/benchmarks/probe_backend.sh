@@ -8,6 +8,12 @@ set -euo pipefail
 #   v1shared research V3 analog: legacy bins, one shared context
 #   v2       backend v2: zero-first + dual-rate + class-prior hierarchy
 #   v2shared v2 with a single degenerate context (context-inertness reference)
+#   v2leaf   C2 leaf-only tree contexts + serialized tree bytes (per image)
+#   v2composite C2b composite leaf*343+resdiff contexts + tree bytes (per image)
+#
+# The tree variants build exactly the model production would
+# (build_spatial_flat_tree) and count the serialized model ONCE per image, so
+# v2 vs v2composite is an end-to-end fair comparison (never-expand accounting).
 #
 # Sizes are payload-only (no container overhead) and directly comparable to
 # the research probe numbers in docs/research-gap-analysis.md F3.
@@ -18,6 +24,9 @@ set -euo pipefail
 #   A2: removing context information from v2 must cost real bytes: context
 #       gain (v2shared - v2) >= 0.5 percent of v0 on kodim13 and > 0.1 percent
 #       of v0 on kodim01.
+#   B1 (C2b, enforced when measured): v2composite < v2 on every image -
+#       the tree must refine the causal context profitably or it does not
+#       ship (trial-bits acceptance applied at probe level).
 #
 # A2 recalibration record (2026-08-23, replaces the original 3.0 percent
 # target): the 3.0 percent figure came from research F3's "~6 percent"
@@ -43,6 +52,7 @@ IMAGES=()
 BUILD_DIR=""
 SKIP_GATES=0
 SELF_CHECK=0
+VARIANTS="v0,v1,v1shared,v2,v2shared,v2leaf,v2composite,v2act"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -50,6 +60,7 @@ while [[ $# -gt 0 ]]; do
     --build-dir) BUILD_DIR="$2"; shift 2;;
     --skip-gates) SKIP_GATES=1; shift;;
     --self-check) SELF_CHECK=1; shift;;
+    --variants) VARIANTS="$2"; shift 2;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -60,6 +71,10 @@ evaluate() {
   # evaluate RESULTS_CSV -> prints verdict lines, exits nonzero on gate fail.
   # Pinned V1 wins (percent of v0 payload) and v0 calibration sizes come from
   # the committed research measurements (docs/research-gap-analysis.md F3).
+  # C2b gate (B1): when the tree variants are present, the composite
+  # leaf*343+resdiff coding INCLUDING serialized tree bytes must beat flat
+  # v2 on every image measured - the trial-bits acceptance applied at probe
+  # level. A composite row without a win is a FAIL, never a shrug.
   python3 - "$1" <<'PY'
 import csv, sys
 rows = list(csv.DictReader(open(sys.argv[1])))
@@ -110,6 +125,19 @@ for img, vars_ in sorted(by_img.items()):
             print(f"A2 FAIL (kodim01): context gain {gain_pct:.2f}% <= 0.10% floor"); ok = False
         else:
             print(f"A2 OK (kodim01)")
+    # B1 (C2b): composite refinement must beat flat v2 including model bytes.
+    if "v2composite" in vars_:
+        comp = int(vars_["v2composite"]["bytes"])
+        d_flat = 100.0 * (comp - v2) / v0
+        leaf_note = ""
+        if "v2leaf" in vars_:
+            leaf = int(vars_["v2leaf"]["bytes"])
+            leaf_note = f" | v2leaf {100.0 * (leaf - v0) / v0:+.2f}%"
+        print(f"{img}: v2composite {comp} B ({d_flat:+.2f}% of v0 vs flat){leaf_note}")
+        if comp < v2:
+            print(f"B1 OK ({img}): composite beats flat by {v2 - comp} B")
+        else:
+            print(f"B1 FAIL ({img}): composite {comp} >= flat v2 {v2}"); ok = False
 
 sys.exit(0 if ok else 1)
 PY
@@ -129,25 +157,38 @@ kodim01.ppm,v0,584218,0.000000
 kodim01.ppm,v1,554087,-5.157494
 kodim01.ppm,v2,546852,-6.395900
 kodim01.ppm,v2shared,560000,-4.145600
+kodim01.ppm,v2leaf,547902,-6.215600
+kodim01.ppm,v2composite,545800,-6.573400
 kodim13.ppm,v0,685140,0.000000
 kodim13.ppm,v1,661698,-3.421495
 kodim13.ppm,v2,652316,-4.790850
 kodim13.ppm,v2shared,663000,-3.229400
+kodim13.ppm,v2leaf,653500,-4.612900
+kodim13.ppm,v2composite,651000,-4.977300
 CSV
-  cp "$TMP/pass.csv" "$TMP/fail.csv"
-  # Break both gates: kodim01 v2 nearly equal to v0 (A1 capture collapses),
-  # kodim13 v2shared pulled down to v2 (context gain collapses, A2 fails).
-  sed -i 's/kodim01.ppm,v2,546852,-6.395900/kodim01.ppm,v2,584000,-0.037314/' "$TMP/fail.csv"
-  sed -i 's/kodim13.ppm,v2shared,663000,-3.229400/kodim13.ppm,v2shared,652500,-4.758800/' "$TMP/fail.csv"
+  cp "$TMP/pass.csv" "$TMP/fail_a.csv"
+  cp "$TMP/pass.csv" "$TMP/fail_b.csv"
+  # fail_a breaks A1 (kodim01 v2 nearly equal to v0) and A2 (kodim13
+  # v2shared pulled down to v2); all other numbers stay passing.
+  sed -i 's/kodim01.ppm,v2,546852,-6.395900/kodim01.ppm,v2,584000,-0.037314/' "$TMP/fail_a.csv"
+  sed -i 's/kodim13.ppm,v2shared,663000,-3.229400/kodim13.ppm,v2shared,652500,-4.758800/' "$TMP/fail_a.csv"
+  # fail_b breaks ONLY B1: kodim13 composite raised above flat v2 while every
+  # A-gate number stays passing - proving B1 can fail on its own.
+  sed -i 's/kodim13.ppm,v2composite,651000,-4.977300/kodim13.ppm,v2composite,653000,-4.686600/' "$TMP/fail_b.csv"
   echo "== self-check 1: known-good numbers must PASS all gates =="
   if ! evaluate "$TMP/pass.csv"; then
     echo "SELF-CHECK FAIL: evaluator rejected known-good numbers"; exit 1
   fi
-  echo "== self-check 2: known-bad numbers must FAIL a gate =="
-  if evaluate "$TMP/fail.csv" > "$TMP/bad.out" 2>&1; then
+  echo "== self-check 2: broken A1/A2 must FAIL =="
+  if evaluate "$TMP/fail_a.csv" > "$TMP/bad_a.out" 2>&1; then
     echo "SELF-CHECK FAIL: evaluator accepted inflated v0 (robustness hole)"; exit 1
   fi
-  cat "$TMP/bad.out"
+  grep -E "^A[12] FAIL" "$TMP/bad_a.out"
+  echo "== self-check 3: broken B1 alone must FAIL =="
+  if evaluate "$TMP/fail_b.csv" > "$TMP/bad_b.out" 2>&1; then
+    echo "SELF-CHECK FAIL: evaluator accepted a losing composite (B1 hole)"; exit 1
+  fi
+  grep "^B1 FAIL" "$TMP/bad_b.out"
   echo "SELF-CHECK PASS: probe gates demonstrably pass and fail"
   exit 0
 fi
@@ -179,7 +220,7 @@ OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-backend-probe.csv"
 RAW_CSV="$(mktemp)"
 echo "image,variant,bytes,delta_vs_v0_pct" > "$RAW_CSV"
 for IMG in "${IMAGES[@]}"; do
-  "$BIN" probe-backend "$IMG" | grep '^RESULT,' | sed 's/^RESULT,//' >> "$RAW_CSV"
+  "$BIN" probe-backend "$IMG" --variants "$VARIANTS" | grep '^RESULT,' | sed 's/^RESULT,//' >> "$RAW_CSV"
 done
 cp "$RAW_CSV" "$OUT_CSV"
 echo "== probe results (${OUT_CSV}) =="
