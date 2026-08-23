@@ -58,11 +58,20 @@ M0 COMPLETE and verified 2026-08-21: 23/23 gtest PASS, `prism fuzz --iters 1000`
 corruption-rejection PASS, PPM end-to-end byte-exact, frontend PNG/JPEG/BMP/PPM/raw
 via `decode_to_raster`. Container is exactly `PRSM` LE header + bit-packed model
 blob (`crc32_model`) + post-order payload + `crc32_all` footer per
-`prism/docs/architecture.md` Section 3. Handing to Reviewer (`/oc review`).
-M1-M4 (B5-B9) are the benchmark-driven optimization loop - Squeeze + MA-tree
-coupling with `llc_class`/`sibling_class` to beat JXL 8.71 - tracked as follow-up
-iterations after this M0 gate (Owner override: no final merge until M3 is met on
-real Kodak; this PR proves the invariant and the harness).
+`prism/docs/architecture.md` Section 3.
+
+**Architect blueprint for the M1-M4 loop (#117):** `prism/docs/architecture-m1-m4.md`
+authored 2026-08-23. It resolves the M0 LIFO/adaptive deferral by adding a
+**FIFO adaptive range coder (`acoder.h`)** backend for all per-context adaptive
+modeling (B5+) while keeping rANS for the static M0 path; specifies B5-B10 with
+the binding **R11-A guard** (Squeeze + MA-tree must land coupled with mandatory
+`llc_class`/`sibling_class`, and must beat the no-Squeeze baseline or the commit
+is rejected). Best-known entering state: 11.120 bpp (B5.17).
+
+Next: B5 (predictor bank + residual-DIFF context + FIFO adaptive backend) to clear
+M1 (WebP 9.61), then B6 (CFL + 5/3 + 16-bit) for M2, then B7 (Squeeze+MA-tree
+coupled, R11-A guard) for M3 < 8.71. Owner override: no merge until M0+M1+M2+M3
+pass bit-exactly on real Kodak.
 
 ## Architectural build checklist
 
