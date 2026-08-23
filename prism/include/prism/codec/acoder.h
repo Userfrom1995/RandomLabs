@@ -82,6 +82,21 @@ std::vector<int32_t> acoder_decode_plane(const std::vector<uint8_t>& bytes,
                                          uint32_t w, uint32_t h,
                                          int num_contexts = 1);
 
+// Leaf-context helpers for B7 Squeeze+MA-tree (mandatory llc_class/sibling_class)
+std::vector<uint8_t> acoder_encode_plane_leaves(const std::vector<int32_t>& residuals,
+                                                const std::vector<uint16_t>& leaf_ids,
+                                                int num_leaves);
+std::vector<int32_t> acoder_decode_plane_leaves(const std::vector<uint8_t>& bytes,
+                                                size_t num_residuals,
+                                                const std::vector<uint16_t>& leaf_ids,
+                                                int num_leaves);
+// decoder that recomputes leaf ids on the fly from features is handled in prism.cpp;
+// this helper is for testing with precomputed leaf sequences
+std::vector<int32_t> acoder_decode_plane_leaves_stream(const std::vector<uint8_t>& bytes,
+                                                       size_t num_residuals,
+                                                       int num_leaves,
+                                                       const std::vector<uint16_t>& leaf_seq);
+
 // Bit-level helpers for the H(p)+epsilon gate (adaptive, not fixed)
 std::vector<uint8_t> acoder_encode_bits_adaptive(const std::vector<uint8_t>& bits);
 std::vector<uint8_t> acoder_decode_bits_adaptive(const std::vector<uint8_t>& bytes, size_t n);
