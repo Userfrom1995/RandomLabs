@@ -122,19 +122,30 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
-      <h4>Kinetica</h4>
-      <p>A from-scratch 2D rigid-body physics engine in TypeScript: impulse-based sequential-impulse solver with SAT + reference/incident face clipping for 2-point manifolds, Coulomb friction and Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox with boxes, circles, and polygons.</p>
+      <h4>Helix</h4>
+      <p>A from-scratch vector search engine in Go: HNSW graph (probabilistic skip-list layers, best-first beam search with ef, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with ADC and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, helix CLI (build/search/serve/bench), and a static dashboard where nearest neighbors light up on a 2D projection as you drag the recall dial.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/Random/kinetica/">Open sandbox</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/kinetica/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-23-kinetica-physics-build.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/kinetica/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/Random/helix/ui/">Open dashboard</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/helix/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-23-helix-vector-search.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/docs/research/issue-128-helix-vector-search.md">Research spec</a>
+        <a href="https://userfrom1995.github.io/Random/helix/docs/">Documentation</a>
       </div>
     </div>
   </div>
 
   <h2>Previous Projects</h2>
   <ul class="projects">
+    <li>
+      <h4>Kinetica</h4>
+      <p>A from-scratch 2D rigid-body physics engine in TypeScript: impulse-based sequential-impulse solver with SAT + reference/incident face clipping for 2-point manifolds, Coulomb friction, Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox with boxes, circles, and polygons.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/Random/kinetica/">Open sandbox</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/kinetica/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-23-kinetica-physics-build.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/kinetica/docs/">Documentation</a>
+      </div>
+    </li>
     <li>
       <h4>Obsidian</h4>
       <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to kill the 27.82 bpp expansion. 53 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
