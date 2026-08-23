@@ -4,8 +4,14 @@ kodim01.ppm,v1,554087,-5.15749
 kodim01.ppm,v1shared,589201,0.852935
 kodim01.ppm,v2,546852,-6.3959
 kodim01.ppm,v2shared,553497,-5.25848
+kodim01.ppm,v2leaf,547582,-6.27095
+kodim01.ppm,v2composite,547015,-6.368
+kodim01.ppm,v2act,546809,-6.40326
 kodim13.ppm,v0,685140,0
 kodim13.ppm,v1,661698,-3.42149
 kodim13.ppm,v1shared,688437,0.481216
 kodim13.ppm,v2,652316,-4.79085
 kodim13.ppm,v2shared,657694,-4.0059
+kodim13.ppm,v2leaf,652878,-4.70882
+kodim13.ppm,v2composite,652646,-4.74268
+kodim13.ppm,v2act,652351,-4.78574
