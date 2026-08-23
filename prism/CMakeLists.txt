@@ -17,6 +17,7 @@ add_library(prism_core STATIC
     src/codec/rans.cpp
     src/codec/acoder.cpp
     src/codec/matree.cpp
+    src/codec/matree_builder.cpp
     src/codec/squeeze.cpp
     src/codec/analyze.cpp
     src/codec/container.cpp
