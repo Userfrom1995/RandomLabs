@@ -53,6 +53,14 @@ struct ACModels {
 constexpr int AC_V2_N_PRIORS = 16;
 constexpr int AC_V2_FAST_SHIFT = 4;
 constexpr int AC_V2_SLOW_SHIFT = 6;
+// Hierarchical sharing (P2): the coded probability mixes the per-context
+// dual-rate estimate with the shared CLASS-level dual-rate estimate (16
+// classes). Weights are out of 16 and mirrored on both sides (I2). The class
+// models see ~74x more samples than an average context, so rare contexts lean
+// on them instead of re-learning from scratch - this is what converts the
+// static prior into live statistical sharing.
+constexpr int AC_V2_MIX_CTX_W = 8; // out of 16
+constexpr int AC_V2_MIX_CLS_W = 8; // out of 16
 
 class AEncoder;
 class ADecoder;
@@ -85,6 +93,14 @@ inline uint16_t ac_v2_mix(uint16_t pf, uint16_t ps) {
     return (uint16_t)m;
 }
 
+// Hierarchical mix of one per-context estimate and one shared class estimate.
+inline uint16_t ac_v2_mix2(uint16_t p_ctx, uint16_t p_cls) {
+    uint32_t m = (uint32_t)(AC_V2_MIX_CTX_W * p_ctx + AC_V2_MIX_CLS_W * p_cls) >> 4;
+    if (m < 1) m = 1;
+    if (m > 65534) m = 65534;
+    return (uint16_t)m;
+}
+
 // Dual-rate update toward the observed bit (mirrored exactly on both sides).
 void ac_v2_adapt(uint16_t& pf, uint16_t& ps, bool bit);
 
@@ -93,13 +109,20 @@ struct BinModelV2 {
     std::vector<uint16_t> p_slow;
 };
 
+// One bin kind = per-context states (residual-DIFF ids) plus shared per-class
+// states (AC_V2_N_PRIORS entries). Both sides mirror the split exactly.
+struct KindModelsV2 {
+    BinModelV2 ctx;   // indexed by residual-DIFF context id
+    BinModelV2 cls;   // indexed by ac_v2_prior_class(cx), shared
+};
+
 struct ACModelsV2 {
-    BinModelV2 sign, zero, q, rem;
+    KindModelsV2 sign, zero, q, rem;
     explicit ACModelsV2(int n = 1) { init(n); }
     // (Re)size to n contexts, initializing every slot from its class prior.
     void init(int n);
     // Grow to n contexts; existing adapted state is preserved, new slots come
-    // from their own class priors.
+    // from their own class priors. Class states always cover 16 classes.
     void ensure(int n);
 };
 
