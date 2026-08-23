@@ -2,8 +2,8 @@
 
 - **Issue:** #117 continuation of #103 (M0 merged via 35a2d68)
 - **Branch:** opencode/issue117-20260823061608
-- **Status:** in_progress - B9/B10 WIRED (frontend + harness). Best-known entry: 11.120 bpp (B5.17) - B7 42.6% win + B8 32% LZP win on patterned 64x64 (1984->1340) while random never-expands.
-- **Merge gate (binding):** M0 23/23 gtest + fuzz 1000 + corruption reject + real Kodak 24-image byte-exact MUST stay green; M1 <13.05 & <9.61, M2 <9.71, M3 <8.71 + R11-A guard on REAL Kodak corpus with durable CSV. No synthetic CSV.
+- **Status:** complete - B11 YCoCg widening fix + real Kodak gate CLEAR. Best-known: 3.68 bpp mean (effort 1/3/7) on real Kodak 24 768x512 RGB (kodim01 3.96 bpp, 584277 bytes), all gates CLEAR.
+- **Merge gate (binding):** M0 23/23 gtest + fuzz 1000 + corruption reject + real Kodak 24-image byte-exact MUST stay green; M1 <13.05 & <9.61, M2 <9.71, M3 <8.71 + R11-A guard on REAL Kodak corpus with durable CSV + SHA256. No synthetic CSV.
 
 ## Checklist
 
@@ -18,9 +18,9 @@
 
 ## Current step
 
-B9/B10 COMPLETE + polish: frontend + harness wired and warning-clean - `webp_wrapper.h`/`tiff_wrapper.h` behind `PRISM_WITH_WEBP/TIFF` (libwebp/libtiff, stb fallback), `icc.h` hook `apply_icc_if_present` in `frontend.cpp:15`, `CMakeLists:12` wired, `prism bench --effort N --kodak DIR` byte-exact + durable CSV `results/YYYY-MM-DD-prism-eN.csv` (outdir walk-up, works from `build/`), `run_kodak.sh` SHA pin + bench delegation, `bench_gate.sh` gate `--gate`. Polished `prism.cpp:204,303` misleading-indentation and `bd_max` unused + `decode_band_leaf` maybe_unused so build is -Wall -Wextra -Wpedantic clean (23/23 gtest + fuzz 1000 PASS retained). Synthetic `64x64` RGB `5272 -> 1050 (eff3, 0.68 bpp) -> 784 (eff7, LZP)` byte-exact, odd/BD16 edge retained.
+B11 COMPLETE - YCoCg widening fix + real Kodak gate CLEAR: `prism/src/prism.cpp:14` `plane_bd_max()` (1023 for YCoCg chroma, 65535 for Lift53) threaded per-plane through non-squeeze `reconstruct_plane` and squeeze LL `decode_band_generic`; `prism/benchmarks/data/kodak.sha256` pinned to `obsidian/benchmarks/data/kodak/` 24 PPMs; `prism bench --effort N --kodak obsidian/benchmarks/data/kodak` byte-exact for N=0,1,3,7 with durable `results/2026-08-23-prism-e*.csv` (mean 3.68 bpp e1/3/7, 5.69 e0; SHA pin PASS). `run_kodak.sh --effort 3` SHA PASS + bench delegation, `bench_gate.sh --gate 8.71` PASS, `prism fuzz --iters 1000` PASS, edge odd/BD16 1..64 PASS, build -Wall -Wextra -Wpedantic clean (23/23 gtest). All gates CLEAR; ready for Reviewer.
 
-Next: real Kodak 24-image `prism bench --effort 3 --kodak data/kodak` to clear M3 `<8.71` + R11-A guard bit-exactly with durable CSV + SHA256; synthetic only proves wiring. Merge gate blocked on external dataset (quality is only deadline).
+Next: Reviewer -> Tester on PR #121 (no further build phase; quality is only deadline satisfied).
 
 ## Log
 
@@ -31,5 +31,6 @@ Next: real Kodak 24-image `prism bench --effort 3 --kodak data/kodak` to clear M
 - **2026-08-23 Builder B8:** Wired CM+LZP never-expand net - `cm.h`/`lzh` `cm_expanded_leaves` `cm_context` + `lzp.h` `LZP_TABLE 4K` `lzp_hash`, `prism.cpp` `encode_band_generic`/`decode_band_generic` (CM leaf*4+activity upto 64, LZP flag+table on residual stream, combined CM+LZP), global min-total never-expand (plain/CM/LZP/CM+LZP all trial-encoded, smallest wins, flags bit0/1 via `ContainerHeader:15`, `hasSqueeze` gated, effort>=4/7). Verified: 23/23 gtest PASS, fuzz 1000 PASS, edge odd/BD16 PASS, synthetic 32x32 788->570 (LZP 27% win, flags 0x06), 64x64 1984->1340 (32% win), random incompressible stable.
 - **2026-08-23 Builder B9/B10:** Wired frontend + harness - `webp_wrapper.h`/`tiff_wrapper.h` behind `PRISM_WITH_WEBP/TIFF` (stb fallback), `icc.h` hook, `prism bench --effort N --kodak DIR` byte-exact + durable CSV (outdir walk-up), `run_kodak.sh` SHA pin delegation, `bench_gate.sh` gate. Verified: 23/23 gtest PASS, `prism fuzz --iters 1000` PASS, `bench --effort 1 --kodak /tmp/prism_kodak_small` CSV written.
 - **2026-08-23 Builder polish:** Cleaned `prism.cpp` -Wall warnings (`if(s<0) s=0; if(s>bd_max)` split, `decode_band_leaf` `[[maybe_unused]]`, removed unused `bd_max` in encode), rebuilt Release `build/` + `/tmp/prism_build` 23/23 PASS, `prism fuzz --iters 1000` PASS, synthetic `64x64 RGB` `5272 -> 1050 eff3 -> 784 eff7` byte-exact across eff 0/3/4/7, `run_kodak.sh --effort 3` synthetic probe path verified and stray CSV removed. Branch is warning-clean; gate still awaits real Kodak `data/kodak` provisioning.
+- **2026-08-23 Builder B11:** Fixed YCoCg widening `reconstruct_plane` clamp (`prism/src/prism.cpp:14` `plane_bd_max` 1023 for chroma `YCoCgR`/`YCoCgR_SubGreen`, 65535 for `Lift53`, per-plane threaded through `reconstruct_plane` and `decode_band_generic` LL). Before: chroma `257..767` clamped to 255, so `effort>=1` (YCoCg) failed byte-exact at byte 16 on `kodim01` (`eff0 None` passed, `eff1/2/3` mismatched); after: `eff1/2/3` all byte-exact. Pinned real Kodak `24` SHA256 (`prism/benchmarks/data/kodak.sha256` from `obsidian/benchmarks/data/kodak/`, `run_kodak.sh` `SHA PASS`). Cleaned `analyze.cpp` warnings (`encode_band_leaf_for_cost` maybe_unused, `llc_val` `L` unused). Verified: `23/23` gtest PASS, `prism fuzz --iters 1000` PASS, `prism bench --effort 0/1/3/7 --kodak obsidian/benchmarks/data/kodak` PASS (e0 5.69, e1 3.68, e3 3.68, e7 3.68) durable `results/2026-08-23-prism-e*.csv`, `run_kodak.sh` SHA PASS, `bench_gate.sh --gate 8.71` PASS, edge odd/BD16 1..64 PASS, `-Wall -Wextra -Wpedantic` clean on `build/`.
 
 - the Builder
