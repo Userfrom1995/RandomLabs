@@ -1,6 +1,9 @@
 #include "prism/frontend/frontend.h"
 #include "prism/frontend/ppm_raw.h"
 #include "prism/frontend/stb_image_wrapper.h"
+#include "prism/frontend/webp_wrapper.h"
+#include "prism/frontend/tiff_wrapper.h"
+#include "prism/frontend/icc.h"
 #include <algorithm>
 #include <fstream>
 
@@ -15,19 +18,29 @@ static std::string lower_ext(const std::filesystem::path& p){
 Raster decode_to_raster(const std::filesystem::path& in, const DecodeOpts&){
     std::string ext=lower_ext(in);
     if (ext==".ppm"||ext==".pgm"||ext==".pnm"){
-        return decode_ppm(in);
-    }
-    if (ext==".png"||ext==".jpg"||ext==".jpeg"||ext==".bmp"||ext==".tga"||ext==".hdr"){
-        return decode_stb(in);
+        auto r=decode_ppm(in);
+        apply_icc_if_present(r,nullptr,0);
+        return r;
     }
     if (ext==".webp"){
-        throw DecodeError("WebP decode not enabled (build with PRISM_WITH_WEBP)");
+        auto r=decode_webp(in);
+        apply_icc_if_present(r,nullptr,0);
+        return r;
     }
     if (ext==".tiff"||ext==".tif"){
-        throw DecodeError("TIFF decode not enabled (build with PRISM_WITH_TIFF)");
+        auto r=decode_tiff(in);
+        apply_icc_if_present(r,nullptr,0);
+        return r;
     }
-    // Try stb as fallback, then ppm
-    try { return decode_stb(in); } catch(...){}
+    if (ext==".png"||ext==".jpg"||ext==".jpeg"||ext==".bmp"||ext==".tga"||ext==".hdr"){
+        auto r=decode_stb(in);
+        apply_icc_if_present(r,nullptr,0);
+        return r;
+    }
+    // Try webp/tiff dispatch then stb as fallback, then ppm
+    try { auto r=decode_webp(in); apply_icc_if_present(r,nullptr,0); return r; } catch(...){}
+    try { auto r=decode_tiff(in); apply_icc_if_present(r,nullptr,0); return r; } catch(...){}
+    try { auto r=decode_stb(in); apply_icc_if_present(r,nullptr,0); return r; } catch(...){}
     return decode_ppm(in);
 }
 

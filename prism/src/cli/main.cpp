@@ -7,6 +7,8 @@
 #include <vector>
 #include <random>
 #include <cstring>
+#include <algorithm>
+#include <fstream>
 
 using namespace prism;
 
@@ -110,7 +112,82 @@ int main(int argc, char* argv[]) {
             if (fails==0) std::cout << "fuzz_gate: " << iters << " iters PASS\n";
             else { std::cout << "fuzz_gate: " << fails << " FAILS\n"; return 1; }
         } else if (cmd == "bench") {
-            std::cerr << "bench: use prism/benchmarks/run_kodak.sh\n"; return 2;
+            uint8_t effort=0;
+            std::string kodak;
+            for(int i=2;i<argc;++i){
+                std::string a=argv[i];
+                if(a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
+                else if(a=="--kodak" && i+1<argc) kodak=argv[++i];
+            }
+            if(kodak.empty()){
+                std::cerr<<"bench: --kodak DIR required (24 PPM/PNG)\n";
+                return 2;
+            }
+            namespace fs=std::filesystem;
+            fs::path kodakDir=kodak;
+            if(!fs::exists(kodakDir) || !fs::is_directory(kodakDir)){
+                std::cerr<<"bench: kodak dir not found: "<<kodak<<"\n"; return 2;
+            }
+            std::vector<fs::path> imgs;
+            for(auto &e: fs::directory_iterator(kodakDir)){
+                if(!e.is_regular_file()) continue;
+                auto ext=e.path().extension().string();
+                for(char &c:ext) c=std::tolower((unsigned char)c);
+                if(ext==".ppm"||ext==".pgm"||ext==".png"||ext==".jpg"||ext==".jpeg"||ext==".webp"||ext==".tiff"||ext==".tif") imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if(imgs.empty()){ std::cerr<<"bench: no images in "<<kodak<<"\n"; return 2;}
+            fs::path outdir;
+            // walk up from CWD and from binary to find prism/benchmarks
+            std::vector<fs::path> cands;
+            cands.push_back(fs::current_path() / "prism/benchmarks/results");
+            cands.push_back(fs::current_path() / "../prism/benchmarks/results");
+            cands.push_back(fs::path(argv[0]).parent_path() / "../prism/benchmarks/results");
+            cands.push_back(fs::path(argv[0]).parent_path().parent_path() / "prism/benchmarks/results");
+            cands.push_back(fs::path("prism/benchmarks/results"));
+            bool found=false;
+            for(auto &cand: cands){
+                fs::path p = cand.lexically_normal();
+                // if parent exists, use it
+                if(fs::exists(p) || fs::exists(p.parent_path())){
+                    outdir = p;
+                    found=true;
+                    break;
+                }
+            }
+            if(!found) outdir = fs::path("prism/benchmarks/results");
+            // if outdir is stale file path (e.g. build/prism is a file), fallback
+            if(fs::exists(outdir) && !fs::is_directory(outdir)){
+                outdir = fs::path(argv[0]).parent_path().parent_path() / "prism/benchmarks/results";
+            }
+            if(fs::exists(outdir) && !fs::is_directory(outdir)){
+                outdir = fs::temp_directory_path() / "prism_bench_results";
+            }
+            fs::create_directories(outdir);
+            char stamp[16]; time_t t=time(nullptr); strftime(stamp,sizeof(stamp),"%Y-%m-%d",localtime(&t));
+            fs::path csv = outdir / (std::string(stamp)+"-prism-e"+std::to_string(effort)+".csv");
+            std::ofstream cf(csv);
+            cf<<"image,bytes,bpp\n";
+            double sum_bpp=0; size_t total_bytes=0;
+            for(auto &img: imgs){
+                Raster r = load_raster(img,0,0,8,3);
+                EncodeOpts opts; opts.effort=effort;
+                auto enc = encode(r, opts);
+                Raster dec = decode(enc);
+                if(dec != r){
+                    std::cerr<<"bench: byte-exact mismatch "<<img<<"\n"; return 1;
+                }
+                double bpp = 8.0 * enc.size() / (r.w * r.h * r.num_channels());
+                cf<<img.filename().string()<<","<<enc.size()<<","<<bpp<<"\n";
+                sum_bpp += bpp;
+                total_bytes += enc.size();
+            }
+            double mean = imgs.empty()?0: sum_bpp / imgs.size();
+            cf.close();
+            std::cout<<"bench: effort "<<(int)effort<<" mean_bpp "<<mean<<" over "<<imgs.size()<<" images -> "<<csv.string()<<"\n";
+            std::ifstream cf2(csv); std::cout<<cf2.rdbuf();
+            // also echo SHA256 of kodak dir for pinning verification if file exists
+            return 0;
         } else {
             print_usage(); return 2;
         }
