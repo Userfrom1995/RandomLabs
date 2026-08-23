@@ -303,7 +303,7 @@ func runBench(idx *index.Index) map[string]any {
 	}
 
 	return map[string]any{
-		"index": map[string]any{"count": idx.CountLive(), "dim": idx.Dim, "layers": idx.Graph.Layers()},
+		"index":            map[string]any{"count": idx.CountLive(), "dim": idx.Dim, "layers": idx.Graph.Layers()},
 		"recallAt10_vs_ef": map[string]any{"efs": efs, "recalls": recalls},
 		"latency":          map[string]any{"avgMs": avgMs, "qps": 1000.0 / avgMs * 1.0},
 		"distortion":       distortion,

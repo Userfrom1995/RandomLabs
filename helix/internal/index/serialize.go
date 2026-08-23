@@ -7,15 +7,15 @@ import (
 )
 
 type serializedIndex struct {
-	Version int              `json:"version"`
-	Dim     int              `json:"dim"`
-	Opts    Options          `json:"opts"`
-	Entries []serialEntry    `json:"entries"`
-	Nodes   []serialNode     `json:"nodes"`
-	EP      uint64           `json:"entryPoint"`
-	Top     int              `json:"topLayer"`
-	PQ      *serialPQ        `json:"pq,omitempty"`
-	Proj    [2][]float32     `json:"proj"`
+	Version int           `json:"version"`
+	Dim     int           `json:"dim"`
+	Opts    Options       `json:"opts"`
+	Entries []serialEntry `json:"entries"`
+	Nodes   []serialNode  `json:"nodes"`
+	EP      uint64        `json:"entryPoint"`
+	Top     int           `json:"topLayer"`
+	PQ      *serialPQ     `json:"pq,omitempty"`
+	Proj    [2][]float32  `json:"proj"`
 }
 
 type serialEntry struct {
@@ -26,19 +26,19 @@ type serialEntry struct {
 }
 
 type serialNode struct {
-	ID        uint64    `json:"id"`
-	Layer     int       `json:"layer"`
+	ID        uint64     `json:"id"`
+	Layer     int        `json:"layer"`
 	Neighbors [][]uint64 `json:"neighbors"`
-	Deleted   bool      `json:"deleted"`
+	Deleted   bool       `json:"deleted"`
 }
 
 type serialPQ struct {
-	M         int              `json:"m"`
-	K         int              `json:"k"`
-	Ds        int              `json:"ds"`
-	Dim       int              `json:"dim"`
-	Codebooks [][][]float32    `json:"codebooks"`
-	Rotation  []float32        `json:"rotation"`
+	M         int           `json:"m"`
+	K         int           `json:"k"`
+	Ds        int           `json:"ds"`
+	Dim       int           `json:"dim"`
+	Codebooks [][][]float32 `json:"codebooks"`
+	Rotation  []float32     `json:"rotation"`
 }
 
 // Save writes index to JSON file.

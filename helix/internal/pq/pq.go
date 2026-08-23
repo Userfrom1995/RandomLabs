@@ -9,9 +9,9 @@ import (
 
 // PQ holds product quantization state.
 type PQ struct {
-	M         int         // subspaces
-	K         int         // codebook size (256)
-	Ds        int         // dim per subspace = Dim/M
+	M         int // subspaces
+	K         int // codebook size (256)
+	Ds        int // dim per subspace = Dim/M
 	Dim       int
 	Codebooks [][][]float32 // [M][K][Ds]
 	Rotation  []float32     // Dim x Dim row-major, identity if no OPQ
