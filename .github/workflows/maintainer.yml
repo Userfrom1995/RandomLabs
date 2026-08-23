@@ -108,7 +108,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the lab Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
