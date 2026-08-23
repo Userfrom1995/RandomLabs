@@ -288,15 +288,24 @@ inline void v2_init_slot(BinModelV2& b, const uint16_t* table, int idx) {
     b.p_slow[idx] = p;
 }
 
-inline void v2_init_kind(KindModelsV2& k, const uint16_t* table, int n) {
+inline void v2_init_kind(KindModelsV2& k, const uint16_t* table, int n, bool uniform) {
     k.ctx.p_fast.resize(n); k.ctx.p_slow.resize(n);
-    for (int i = 0; i < n; ++i) v2_init_slot(k.ctx, table, i);
+    for (int i = 0; i < n; ++i) {
+        if (uniform) {
+            // Neutral midpoint start: used when context ids carry no
+            // residual-diff semantics (MA-tree LEAF contexts, C2).
+            k.ctx.p_fast[i] = 32768;
+            k.ctx.p_slow[i] = 32768;
+        } else {
+            v2_init_slot(k.ctx, table, i);
+        }
+    }
     // class-level states start from the same compile-time priors and adapt
     // per image; they are shared across all contexts of this kind.
     k.cls.p_fast.resize(AC_V2_N_PRIORS); k.cls.p_slow.resize(AC_V2_N_PRIORS);
     for (int i = 0; i < AC_V2_N_PRIORS; ++i) {
-        k.cls.p_fast[i] = table[i];
-        k.cls.p_slow[i] = table[i];
+        k.cls.p_fast[i] = uniform ? (uint16_t)32768 : table[i];
+        k.cls.p_slow[i] = uniform ? (uint16_t)32768 : table[i];
     }
 }
 
@@ -322,12 +331,12 @@ inline bool v2_get(ADecoder& dec, KindModelsV2& k, int cx) {
 }
 } // namespace
 
-void ACModelsV2::init(int n) {
+void ACModelsV2::init(int n, bool uniform_priors) {
     if (n < 1) n = 1;
-    v2_init_kind(sign, AC_V2_PRIOR_SIGN, n);
-    v2_init_kind(zero, AC_V2_PRIOR_ZERO, n);
-    v2_init_kind(q, AC_V2_PRIOR_Q, n);
-    v2_init_kind(rem, AC_V2_PRIOR_REM, n);
+    v2_init_kind(sign, AC_V2_PRIOR_SIGN, n, uniform_priors);
+    v2_init_kind(zero, AC_V2_PRIOR_ZERO, n, uniform_priors);
+    v2_init_kind(q, AC_V2_PRIOR_Q, n, uniform_priors);
+    v2_init_kind(rem, AC_V2_PRIOR_REM, n, uniform_priors);
 }
 
 void ACModelsV2::ensure(int n) {
@@ -590,12 +599,15 @@ std::vector<int32_t> acoder_decode_plane_v2(const std::vector<uint8_t>& bytes,
 
 std::vector<uint8_t> acoder_encode_plane_leaves_v2(const std::vector<int32_t>& residuals,
                                                    const std::vector<uint16_t>& leaf_ids,
-                                                   int num_leaves) {
+                                                   int num_leaves,
+                                                   bool uniform_priors) {
     if (residuals.empty()) { AEncoder enc; return enc.flush_and_emit(); }
     if (leaf_ids.size() != residuals.size()) throw std::runtime_error("leaf_ids size mismatch");
+    // C2: no 64-context clamp on the v2 path - the model memory is linear and
+    // the decoder mirrors full leaf ids (legacy v1 helpers keep their clamp,
+    // and legacy trees never exceeded 16 leaves, so old streams are stable).
     int ctx = num_leaves <= 0 ? 1 : num_leaves;
-    if (ctx > 64) ctx = 64;
-    ACModelsV2 models(ctx);
+    ACModelsV2 models(ctx, uniform_priors);
     AEncoder enc;
     for (size_t i = 0; i < residuals.size(); ++i) {
         int cx = leaf_ids[i] % ctx;
@@ -607,13 +619,13 @@ std::vector<uint8_t> acoder_encode_plane_leaves_v2(const std::vector<int32_t>& r
 std::vector<int32_t> acoder_decode_plane_leaves_v2(const std::vector<uint8_t>& bytes,
                                                    size_t num_residuals,
                                                    const std::vector<uint16_t>& leaf_ids,
-                                                   int num_leaves) {
+                                                   int num_leaves,
+                                                   bool uniform_priors) {
     if (num_residuals == 0) return {};
     if (bytes.empty()) throw std::runtime_error("acoder_decode_plane_leaves_v2: empty bytes");
     if (leaf_ids.size() != num_residuals) throw std::runtime_error("leaf_ids size mismatch decode");
     int ctx = num_leaves <= 0 ? 1 : num_leaves;
-    if (ctx > 64) ctx = 64;
-    ACModelsV2 models(ctx);
+    ACModelsV2 models(ctx, uniform_priors);
     ADecoder dec;
     dec.init(bytes);
     std::vector<int32_t> out;
