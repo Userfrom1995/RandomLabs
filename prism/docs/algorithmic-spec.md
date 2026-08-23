@@ -95,8 +95,12 @@ at `(x,y)` when available). Predictor bank:
   `round((wL*L + wT*T + wTL*TL + wTR*TR + wLL*LLc + bias) >> shift)`. Weights
   quantized to i16; a bias term lets smooth gradients be reproduced exactly.
 - **Predictor selection** is per-context (the MA-tree leaf, Stage 5) and/or
-  per-band, chosen in analysis by summed residual energy. Selection is zero
-  signaled bytes when a single global predictor wins; otherwise a compact
+  per-band. Since C3 (issue #130, blueprint section 5) the GLOBAL predictor
+  is chosen by trial-encoding: all nine ids are pruned on a decimated grid
+  by real coded bytes, then the finalists plus MED (identity, I4) are fully
+  encoded with the production v2 flat coder; ties keep MED. Energy sums are
+  banned from this decision (P4). Per-leaf selection remains a zero-signaled
+  extension when a single global predictor wins; otherwise a compact
   per-leaf predictor id is stored in the model.
 
 Residual `e = sample - predict(sample)`, signed, widened to i32.

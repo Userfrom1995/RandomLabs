@@ -222,6 +222,22 @@ uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entr
 
 ## 5. C3: Trial-encode decisions (P4)
 
+> **Status (2026-08-23, Builder): LANDED and measured.** Color transform,
+> CFL scales, and the global predictor are decided by real coded bytes of
+> the exact v2 flat stream production emits (`trial_flat_bits`): a
+> decimated-grid pruning round (every 4th row/col; full image below 64 px),
+> then full encodes of the three finalists with the IDENTITY candidate
+> always included and ties keeping identity (I4 by construction). Candidate
+> sets and effort gates are unchanged from B6, so corpus rows stay
+> comparable. The energy-proxy class is deleted from these decision paths;
+> `estimate_bits`/`squeezed_*` survive only inside the legacy coupled
+> squeeze guard this phase's scope left for C4. Measured on the pinned
+> Kodak-24 corpus: e1 10.2904 summed / 3.4301 per-sample (pre-C3
+> 10.3544 / 3.4515), 7 wins / 17 ties / ZERO losses - the worst old-proxy
+> misses were kodim20 (-6.22 pct) and kodim03 (-3.46 pct). Wall-clock
+> 3.74x at e1, inside the I6 guard. Per-plane/per-leaf predictor ids and
+> squeeze-level trials belong to C4/C5 and are not claimed here.
+
 ### 5.1 Decision engine
 
 Every proxy (`estimate_bits`, `leaf_bits` log-mean, `squeezed_plane_cost`,

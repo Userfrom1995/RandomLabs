@@ -30,7 +30,17 @@
       proven fail-path; streams stay byte-identical to e1, zero regression.
       Static context refinement on flat planes is CLOSED (oracle + C2 + C2b
       agree); decision file 2026-08-23T20-45-00-c2b-composite-rejection.md.
-- [ ] C3 Trial-encode decisions (P4): all proxies retired from decisions; identity candidate always present; effort-budgeted search; M2 checkpoint window ~9.3-9.6 summed.
+- [x] C3 Trial-encode decisions (P4): color transform + CFL scales + global
+      predictor decided by REAL coded bytes of the emitted v2 flat stream
+      (decimated-grid pruning, identity-forced finalists, ties keep
+      identity; energy proxies deleted from these paths). Measured: e1
+      10.2904 summed / 3.4301 per-sample (was 10.3544/3.4515, -0.62 pct),
+      7 wins / 17 ties / ZERO regressions; e3 10.2861/3.4287; wall-clock
+      3.74x < 5x guard; decision record
+      2026-08-23T21-05-00-c3-trial-encoded-decisions.md.
+      NOTE: M2 checkpoint window NOT reached by C3 alone (10.29 vs ~9.5
+      needed); per-plane/per-leaf predictor ids and squeeze-level trials
+      move to C4/C5 per blueprint scope note.
 - [ ] C4 True CDC lifting Squeeze (P5): horizontal then vertical lifting, recurse on averages, post-order preserved; must beat decimation baseline on same corpus.
 - [ ] C5 Cross-band prediction (P6): XBAND parent-gradient predictor, per-leaf selector, wins >= 20/24 images; M3 GATE CHECKPOINT.
 - [ ] C6 CM/SSE stretch (P7, optional for closure): logistic mixer + SSE behind never-expand net toward < 8.0 summed.
@@ -73,14 +83,14 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Next steps (in order)
 
-1. [next run] C3 (trial-encode decisions, blueprint section 5): retire the
-   remaining proxy estimators from decision paths - color transform + CFL
-   scales and global predictor selection are still energy-chosen in
-   analyze(); switch them to measured coded bits (subsampled-grid pruning,
-   full encode for finalists), identity candidate always present. M2
-   checkpoint window ~9.3-9.6 summed projected after C3.
-2. Then C4 (true CDC lifting) -> C5 (cross-band prediction) -> M3 gate ->
-   Reviewer -> Tester -> Maintainer merge.
+1. [next run] C4 (true CDC lifting, blueprint section 6): replace Stage-S
+   decimation with horizontal-then-vertical lifting recursed on the
+   average quadrant, post-order preserved; per-plane L by trial-encoded
+   band totals (C3 engine extends to squeezed bands); bijection property
+   tests at odd dims and BD16; must beat the decimation baseline on the
+   same corpus or C4 is rejected (R11-A spirit).
+2. Then C5 (cross-band prediction) -> M3 gate -> Reviewer -> Tester ->
+   Maintainer merge. M2 checkpoint re-evaluated after C4 lands.
 Owner freeze stands throughout: nothing merges before both gates pass.
 
 ## Agent log
