@@ -19,7 +19,7 @@ concurrency:
 # =============================================================================
 # SILENT-STALL HARDENING - BINDING ACCEPTANCE INVARIANTS (issue #122, PR #125)
 # Any change to the concurrency blocks or the no-op / self-heal steps below
-# MUST preserve all four invariants. See ideas/2026-08-23-silent-stall-hardening.md.
+# MUST preserve all four invariants. See ideas/2026-08-23-silent-stall-audit.md.
 #
 #   S1  Per-issue serialization: exactly one opencode.yml run per issue may be
 #       in flight at a time (|R(t)| <= 1). Guaranteed by this top-level
