@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 
 	"github.com/Userfrom1995/Random/helix/internal/index"
 )
@@ -11,6 +12,7 @@ import (
 type Server struct {
 	Idx *index.Index
 	mux *http.ServeMux
+	mu  sync.RWMutex
 }
 
 func New(idx *index.Index) *Server {
