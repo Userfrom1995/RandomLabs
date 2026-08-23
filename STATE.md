@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32624140162, owner `/oc maintainer` + `/oc continue` on PR #121). Re-survey confirms: **B7 shipped on PR #121** (build `32623315056`, head `6e0a229`) - the real Squeeze + MA-tree greedy split with mandatory `llc_class`/`sibling_class` (R11-A guard satisfied, M3). The owner's `/oc continue` at 06:54:08Z (B8 driver) was CANCELLED with zero jobs by the same-issue `/oc maintainer` concurrency, so NO B8 build is in flight; this run re-dispatches `continue` on #121 to recover it. PR #118 has two leftover builds (`32623717752` in_progress + `32623724512` pending) from the last #118 `/oc continue` (06:44:35Z); they will land + pause and are dropped from rotation. PR #121 MERGEABLE, kept OPEN (no premature #117 close).
+- **Updated:** 2026-08-23 (maintainer run 32624537020, triggered on PR #118). Re-survey confirms: **PR #121 is the live canonical Prism branch** (`opencode/issue117-20260823061608`, head `6497b60f`); a `continue` build is IN FLIGHT on #121 (run `32624540354`, in_progress). B0-B8 are WIRED (Squeeze + MA-tree greedy split with mandatory `llc_class`/`sibling_class` R11-A guard, CM + LZP never-expand net). **PR #118 is a confirmed SATURATED DEAD-END** (head `a160c53f`, B5.48, 11.025 bpp, 0% vs B5.47) - dropped from rotation, branch preserved.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **Obsidian shipped** (#93 manually merged by owner as orphan root `60748e88`; promoted to Current via merged PR #115; docs cleaned by merged PR #116). Obsidian is the current codec in `main`; last confirmed REAL-Kodak baseline **9.5209 bpp**. #68 (Obsidian umbrella) is now CLOSED.
@@ -16,19 +16,20 @@
 - **Models (post RE-APPLY 2026-08-23, run 32623724573):** research/architect/build/fixer = `opencode/x-preview-f-free`; lab engineer = `opencode/x-preview-f-free`; opencode.json `model` = `opencode/x-preview-f-free`; `general` = `opencode/hy3-free`; `small_model` = `opencode/mimo-v2.5-free` (all free).
 - **pages.yml:** production deploy succeeded (main). PR previews deploy via PR-preview staging (env approval).
 - **CIRCUIT BREAKER: REMOVED** (main commit `91c8707`). The auto-guard no longer exists; the loop runs unbounded.
-- **CONCURRENCY NOTE (learned this run):** the `opencode` workflow's concurrency group is keyed by ISSUE number, so two comments on the same issue (e.g. `/oc continue` then `/oc maintainer`) cause the later one to CANCEL the earlier same-issue run. A `/oc continue` posted immediately before `/oc maintainer` on the same PR will be killed. Mitigation: if the owner posts both, the build must be re-dispatched by the Maintainer (this run did exactly that for #121 B8).
+- **CONCURRENCY NOTE (learned 2026-08-23):** the `opencode` workflow's concurrency group is keyed by ISSUE number, so two comments on the same issue (e.g. `/oc continue` then `/oc maintainer`) cause the later one to CANCEL the earlier same-issue run. A `/oc continue` posted immediately before `/oc maintainer` on the same PR will be killed. Mitigation: if the owner posts both, the build must be re-dispatched by the Maintainer (done in run 32624140162 for the B8 recovery, and #121 has its own in-flight build this run).
+- **REALITY CHECK (2026-08-23, carried):** PR #121's B6/B7/B8 wins are **SYNTHETIC-ONLY** (progress file: 42.6% on patterned 64x64, etc.). The durable REAL-Kodak `prism/benchmarks/results/*.csv` best entry is still **11.120 bpp (B5.17)**. On REAL Kodak the B6/B7/B8 wiring has NOT reduced bytes. The merge gate (M3 < 8.71 bit-exactly on real Kodak) is therefore firmly UNMET. This is the central open question for the in-flight build.
 
 ## IN FLIGHT (builds)
-- **PR #121 (Architect blueprint + live code, branch `opencode/issue117-20260823061608`):** head `6e0a229` (Builder B7 shipped: Squeeze + MA-tree greedy split, R11-A guard satisfied, M3; 23/23 gtest + fuzz 1000 PASS). **B8 build NOT yet in flight** - the owner's `/oc continue` (06:54:08Z) was cancelled by the same-issue `/oc maintainer` (06:54:16Z); this maintainer run re-dispatches `continue` on #121 to recover it (CM + LZP never-expand net, M4 < 8.0).
-  - B7 satisfied R11-A: mandatory `llc_class`/`sibling_class` present; coupled path beat no-Squeeze baseline (synthetic 42.6% win). But the merge gate needs REAL Kodak < 8.71 bit-exactly - current evidence is synthetic only.
+- **PR #121 (Architect blueprint + live code, branch `opencode/issue117-20260823061608`):** head `6497b60f` (B0-B8 wired, 23/23 gtest + fuzz 1000 PASS). **Build IN FLIGHT: run `32624540354`** (opencode `continue`, started 07:03:15Z, in_progress) resuming B8 (CM + LZP never-expand net, M4 < 8.0) and beyond. This build MUST run the REAL Kodak harness and produce a durable `< 8.71` CSV to clear the gate; if it again posts only synthetic wins, escalate to `research`.
+  - R11-A guard satisfied for the Squeeze path; coupled path beat no-Squeeze baseline (synthetic 42.6% win). But the merge gate needs REAL Kodak < 8.71 bit-exactly - current evidence is synthetic only.
   - KEPT OPEN (do not merge; body "Closes #117" would prematurely close unmet-gate tracking issue).
-- **PR #118 (original Prism M1-M4, branch `opencode/117-prism-m1-m4-optimization`):** head `a160c53f` (B5.48, 11.025 bpp, 0% vs B5.47 - saturated dead end). Two leftover builds from last `/oc continue` (06:44:35Z): `32623717752` in_progress + `32623724512` pending. No new #118 trigger since; these will land and pause. **Dropped from rotation** (never delete branch); fold any residual wins into #121 later.
+- **PR #118 (original Prism M1-M4, branch `opencode/117-prism-m1-m4-optimization`):** head `a160c53f` (B5.48, 11.025 bpp, 0% vs B5.47 - saturated dead end). **DROPPED FROM ROTATION.** No new trigger dispatched. A stray pending opencode run `32624537035` (07:03:10Z, dead-end branch) is a harmless ghost; it will not progress the gate. Branch preserved (never delete).
 
 ## PENDING (in order)
-    1. **Recover the B8 build on #121** (this run's `continue` dispatch re-drives it after the cancelled 06:54:08 trigger). B8 = CM + LZP never-expand net (M4 < 8.0) + B9/B10 per blueprint.
-    2. **Reach the JXL gate (M3 < 8.71) on REAL Kodak.** Only real B7 (done) paired with B8 (CM+LZP) can close the ~2.32 bpp / ~21% gap. Current gains are synthetic; the durable `prism/benchmarks/results/*.csv` (SHA256 pinned) must show mean_summed < 8.71 bit-exactly.
+    1. **Verify the in-flight build on #121 (`32624540354`) yields a REAL-Kodak `prism/benchmarks/results/*.csv` with mean_summed < 8.71 bit-exactly.** Current real best is 11.120 bpp; B6/B7/B8 wins are synthetic-only. If real bytes do not drop, escalate to `research` for new methodology.
+    2. **Reach the JXL gate (M3 < 8.71) on REAL Kodak.** Only a real B7+B8 run that reduces real bytes can close the ~2.32 bpp / ~21% gap. Synthetic wins do not count.
     3. **Once M3 < 8.71 bit-exactly:** fire Reviewer -> Tester before ANY merge.
-    4. **Consolidation:** after #118's leftover builds land/pause, fold any #118-only residual wins into #121; drop idle #118 from rotation (never delete the branch).
+    4. **Consolidation:** fold any #118-only residual wins into #121; drop idle #118 from rotation (never delete branch).
     5. **PR #121:** stays open as the armed build/blueprint; do NOT merge (would close #117). #117 stays open until gate met.
 
 ## ISSUES
@@ -48,18 +49,17 @@
 - **Circuit breaker:** REMOVED (owner commit `91c8707`).
 
 ## NEXT STEPS
-    1. **B8 build on #121** recovered via this run's `continue` dispatch (owner's 06:54:08 trigger was cancelled). No duplicate; it is recovery of a failed trigger.
-    2. **Verify B8 ships CM + LZP never-expand net** and that a REAL Kodak < 8.71 CSV exists (not synthetic). If B8 still posts only synthetic wins, escalate to `research`.
-    3. **Next resume:** if a real-Kodak gate CSV clears M3, fire Reviewer -> Tester before any merge.
-    4. Consolidate onto #121 (fold #118 residual wins, drop idle #118 from rotation).
-    5. Brainstorm board #42 stays parked behind Prism per owner directive.
-    6. PR #121 kept open as the armed build/blueprint; do not merge (would close #117).
+    1. **Monitor in-flight build `32624540354` on #121** - confirm it runs the REAL Kodak harness and produces a durable `< 8.71` CSV. If not (synthetic-only again), escalate to `research` for new methodology.
+    2. **After a real-Kodak gate CSV clears M3,** fire Reviewer -> Tester before any merge.
+    3. Consolidation: after #118's stray ghost build lands/pauses, fold any #118 residual wins into #121; drop idle #118 from rotation (never delete branch).
+    4. Brainstorm board #42 stays parked behind Prism per owner directive.
+    5. PR #121 kept open as the armed build/blueprint; do not merge (would close #117).
 
 ## OPEN QUESTIONS
-- After B8 (CM + LZP never-expand net) lands, is there a REAL Kodak `prism/benchmarks/results/*.csv` with mean_summed < 8.71 bit-exactly? Current evidence is synthetic only; the merge gate is tied to real Kodak.
-- Will the recovered B8 build actually run (the prior same-issue `/oc maintainer` concurrency cancelled the first attempt)? This run re-dispatched `continue` to guarantee it.
+- After the in-flight build `32624540354` runs, is there a REAL Kodak `prism/benchmarks/results/*.csv` with mean_summed < 8.71 bit-exactly? Current best real entry is 11.120 bpp; B6/B7/B8 wins are synthetic-only and have not reduced real bytes.
+- If the next #121 resume STILL posts only synthetic wins on real Kodak, escalate to `research` for new methodology (the context/Squeeze approach appears exhausted on real data).
 - When/if a build clears the gate (M3 < 8.71 bit-exactly), fire Reviewer -> Tester before ANY merge.
-- Consolidation: after #118's leftover builds land, is #121 cleanly the single source of truth, with #118 residual wins folded in? Drop idle #118 from rotation (never delete branch).
+- Consolidation: after #118's stray build lands, is #121 cleanly the single source of truth, with #118 residual wins folded in? Drop idle #118 from rotation (never delete branch).
 - PR #121 / #117: keep #121 open as armed build; #117 open until gate met.
 - Brainstorm board #42: parked behind Prism; no picks until Prism resolves per owner directive.
 
