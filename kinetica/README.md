@@ -1,4 +1,4 @@
-# Kinetica — 2D Rigid-Body Physics Engine
+# Kinetica - 2D Rigid-Body Physics Engine
 
 A from-scratch impulse-based 2D physics engine in TypeScript with a deterministic headless core and an interactive browser sandbox.
 

@@ -1,4 +1,4 @@
-# Kinetica — from-scratch 2D physics engine build
+# Kinetica - from-scratch 2D physics engine build
 
 - **Project:** Kinetica (`kinetica/`)
 - **Type:** TypeScript 2D rigid-body physics engine + browser sandbox
