@@ -211,6 +211,7 @@ ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
                 src_base = base_id + src_act * 44;
             } else if (nctx == 11264) {
                 // B5.42 11264 = (((((44*8)*4+zcnt)*2+orient)*2+diag)*2+ssign) : sign coherence
+                // B5.49 prior refinement: zcnt/orient/diag/ssign now affect zero/q/sign heuristics (was tiled)
                 size_t ssign = i % 2;
                 size_t tmp = i / 2;
                 size_t diag = tmp % 2;
@@ -221,7 +222,6 @@ ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
                 size_t baseAct = tmp / 4;
                 base_id = baseAct % 44;
                 act = baseAct / 44;
-                (void)orient; (void)diag; (void)ssign;
                 size_t src_act = act >= 4 ? 3 : act;
                 src_base = base_id + src_act * 44;
             } else {
@@ -231,8 +231,68 @@ ModelBank ModelBank::create(size_t nctx, size_t rem_bits) {
                 act = (src_base / 44) % 8;
             }
             if (src_base >= 176) src_base %= 176;
-            mb.zero[i].prob = kZeroPrior[src_base];
-            mb.q[i].prob = kQPrior[src_base];
+            int baseZero = kZeroPrior[src_base];
+            int baseQ = kQPrior[src_base];
+            int adjZero = 0;
+            int adjQ = 0;
+            // B5.49 heuristic: refine priors for expanded contexts using zcnt/orient/diag/ssign
+            if (nctx == 11264) {
+                size_t ssign = i % 2;
+                size_t tmp2 = i / 2;
+                size_t diag2 = tmp2 % 2; tmp2 /= 2;
+                size_t orient2 = tmp2 % 2; tmp2 /= 2;
+                size_t zcnt2 = tmp2 % 4;
+                if (zcnt2 == 3) adjZero = -2800;
+                else if (zcnt2 == 2) adjZero = -900;
+                else if (zcnt2 == 1) adjZero = 700;
+                else adjZero = 2200;
+                if (orient2 == 1) adjZero += 180;
+                if (diag2 == 1) adjZero += 260;
+                if (ssign == 0) adjZero += 420;
+                adjQ = adjZero / 2;
+                // sign heuristic: same-sign region => sign more biased
+                int signProb = 32768;
+                if (ssign == 1) signProb = 28672;
+                if (diag2 == 1) signProb += (ssign == 1 ? -400 : 400);
+                if (signProb < 8192) signProb = 8192;
+                if (signProb > 57344) signProb = 57344;
+                mb.sign[i].prob = (uint16_t)signProb;
+            } else if (nctx == 5632 || nctx == 2816) {
+                size_t tmp2 = (nctx == 5632) ? (i / 2 / 2) : (i / 2);
+                // for 5632 diag already, for 2816 no diag
+                size_t zcnt2 = 0;
+                if (nctx == 5632) {
+                    size_t tmp3 = i / 2;
+                    size_t orient3 = tmp3 % 2; tmp3 /= 2;
+                    zcnt2 = tmp3 % 4;
+                    (void)orient3;
+                } else {
+                    size_t tmp3 = i / 2;
+                    zcnt2 = tmp3 % 4;
+                }
+                if (zcnt2 == 3) adjZero = -2400;
+                else if (zcnt2 == 2) adjZero = -700;
+                else if (zcnt2 == 1) adjZero = 600;
+                else adjZero = 1800;
+                adjQ = adjZero / 2;
+            } else if (nctx == 704) {
+                // orient only
+                size_t orient2 = i % 2;
+                if (orient2 == 1) adjZero = 150;
+                adjQ = adjZero / 2;
+            }
+            int newZero = baseZero + adjZero;
+            int newQ = baseQ + adjQ;
+            if (newZero < 1024) newZero = 1024;
+            if (newZero > 63488) newZero = 63488;
+            if (newQ < 1024) newQ = 1024;
+            if (newQ > 63488) newQ = 63488;
+            mb.zero[i].prob = (uint16_t)newZero;
+            mb.q[i].prob = (uint16_t)newQ;
+            if (nctx != 11264) {
+                // for non-11264 keep sign at 0.5 (already default)
+                mb.sign[i].prob = 32768;
+            }
             if (act == 4) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 1);
             else if (act == 5) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 1);
             else if (act == 6) mb.k[i] = (uint8_t)std::min(4, (int)kKInit[src_base] + 2);

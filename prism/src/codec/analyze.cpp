@@ -329,8 +329,8 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     cands.push_back({pid,s});
                 }
                 std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum<b.sum;});
-                // B5.48: top4 true-cost per leaf slice (was top3) to capture where 4th sumAbs is true rANS best, with 11264 contexts
-                size_t topN = std::min<size_t>(4, cands.size());
+                // B5.49: top5 true-cost per leaf slice (was top4) + 11264 prior refinement captures 5th sumAbs is true rANS best
+                size_t topN = std::min<size_t>(5, cands.size());
                 uint64_t best_cost = UINT64_MAX; uint8_t best_pid = cands[0].pid;
                 for(size_t t=0;t<topN;++t){
                     uint8_t pid = cands[t].pid;
