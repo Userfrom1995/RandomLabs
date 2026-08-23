@@ -52,19 +52,27 @@ all channel counts, 8/16-bit, synthetic smooth/noise/edge) round-trip at efforts
 `prism/benchmarks/aggregate.py` prints the headline table and the trend across
 all dated CSVs so the milestone curve is visible iteration by iteration.
 
-## 5. Milestone acceptance criteria (numeric gates)
+## 5. Milestone acceptance criteria (numeric gates, BOTH units)
 
-| Gate | Target (summed bpp) | Reference |
-|---|---|---|
-| M0 | round-trip exact, any bpp | - |
-| M1 | < 13.05 (PNG) AND < 9.61 (WebP) | optipng / cwebp |
-| M2 | < 9.71 (JPEG-LS) | CharLS |
-| M3 | < 8.71 (JPEG XL) | cjxl e7 |
-| M4 | < 8.0 (stretch, CM mode) | MRP/FLIF territory |
+Binding restatement per issue #130 (owner directive 2026-08-23). Every claim
+must state its unit; the durable CSV from `prism bench` stores PER-SAMPLE bpp,
+the historical harness convention was SUMMED bpp, and on Kodak-24
+`summed = 3 * per-sample` exactly. Gates pass only if both units clear their
+thresholds. `benchmarks/bench_gate.sh` prints both units and carries a
+`--self-check` proving the gate fails on known-bad input.
 
-The owner override: **no merge until M0 + M1 + M2 + M3 are all met bit-exactly**
-on the real Kodak corpus. Each iteration records a row; quality is the only
-deadline.
+| Gate | Target summed (bpp/img) | Target per-sample (bpp/sample) | Reference |
+|---|---|---|---|
+| M0 | round-trip exact, any bpp | round-trip exact | - |
+| M2 | < 9.498 | < 3.166 | WebP lossless m6 (verified table) |
+| M3 | < 8.655 | < 2.885 | JPEG XL -d0 -e9 (verified table) |
+| M4 | < 8.0 | < 2.667 | stretch, CM mode |
+
+Honest baselines in the same units: Prism e7 = 11.026 summed / 3.675
+per-sample; Obsidian e7 = 9.52 summed / 3.174 per-sample (lab best).
+The owner override: no merge until the binding gate is met bit-exactly on the
+real Kodak corpus with a fresh reproducible measurement. Standing rule: no
+success claim leaves the lab without a fresh measurement stated in both units.
 
 ## 6. Reproducibility notes
 

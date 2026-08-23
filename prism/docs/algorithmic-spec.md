@@ -212,4 +212,39 @@ Build order: M0 first (scaffold C++ core + rANS + YCoCg-R + MED + single context
 + fuzz gate), then M1 (predictor bank + gradient/residual context + CMARC), then
 M2 (weighted predictor + CFL), then M3 (Squeeze + MA-tree, coupled), then M4.
 
+## 10. Addendum 2026-08-23: amendments from the gap analysis (issue #130)
+
+The gap analysis (`research-gap-analysis.md`) measured the corpus and located
+the parity gap. The following stage contracts are amended; where an amendment
+conflicts with text above, this addendum wins.
+
+- **Stage E (entropy coder):** binarization order becomes `zero-flag -> sign ->
+  magnitude`; zeros never pay a sign bin. The 343-context independent-model
+  design is retired: per-bin probabilities are initialized from a coarse class
+  prior and adapted at dual rates (fast/slow), coded probability = mix of the
+  two; or a small logistic mixer over {resdiff, qg, activity} estimators plus
+  SSE. Success metric: real-coder context benefit approaches the ~6 percent
+  conditional-entropy delta (measured today: 0.9 percent). Naive Rice-k EMA
+  quotients are prohibited (probe: backfires).
+- **Stage X (MA-tree):** the tree is built ALWAYS on spatial residual features;
+  it is never gated behind any Squeeze decision. Caps move to depth <= 10,
+  leaves <= 256, continuous thresholds at quantile points, >= 512 samples per
+  leaf. Squeeze only adds feature properties (band identity, parent class,
+  sibling class). Tree quality is judged by trial-encoded BITS, never by
+  L1/log-mean proxies.
+- **Stage S (Squeeze):** the decimation scheme (LL = raw subsample) is deleted:
+  measured strictly harmful even under ideal coding. Replacement contract: one
+  level = horizontal pass `d = a - b; s = b + floor(d/2)` over column pairs,
+  then vertical pass over both channels; recurse on the average quadrant;
+  post-order emission unchanged. HF ranges stay within +-2^B * levels (widen
+  storage as today for deep levels / 16-bit inputs). Per-plane L chosen by
+  trial encode in bits.
+- **Stage P (prediction):** cross-band prediction for HF bands (parent-gradient
+  linear predictor) rejoins the bank once Stage E v2 and Stage X always-on land;
+  per-leaf selector as already specified.
+- **Gates:** M2 = summed < 9.498 AND per-sample < 3.166; M3 = summed < 8.655
+  AND per-sample < 2.885 (both units enforced by `bench_gate.sh --self-check`).
+
+- Dr. Mob, the Researcher
+
 - Dr. Mob, the Researcher
