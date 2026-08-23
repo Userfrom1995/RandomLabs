@@ -4,7 +4,6 @@ import { hashState } from '../core/checksum.js';
 
 export interface StackResult {
   maxLateralDrift: number;
-  maxPenetration: number;
   settledKE: number;
   checksum: string;
   pass: boolean;
@@ -28,7 +27,7 @@ export function runStacking(seed = 123, steps = 600): StackResult {
   const settledKE = ke / world.bodies.filter(b => !b.isStatic).length;
   const checksum = hashState(world.bodies);
   const pass = maxDrift < 0.5 * boxW + 0.1 && settledKE < 0.5; // fairly permissive
-  return { maxLateralDrift: maxDrift, maxPenetration: 0, settledKE, checksum, pass };
+  return { maxLateralDrift: maxDrift, settledKE, checksum, pass };
 }
 
 export interface EnergyResult {
