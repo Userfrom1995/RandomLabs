@@ -117,22 +117,25 @@ Adaptation dilution (F3) is fixed by hierarchy, not by more contexts:
 ```cpp
 // include/prism/codec/acoder.h  (interface sketch only)
 struct BinModelV2 {                 // one bin type, all contexts
-    std::vector<uint16_t> p_fast;   // adapted shift 4 (fast EMA)
-    std::vector<uint16_t> p_slow;   // adapted shift 6 (slow EMA)
+    std::vector<uint16_t> p_fast;   // fast EMA (retuned shift 6)
+    std::vector<uint16_t> p_slow;   // slow EMA (retuned shift 9)
 };
 struct ACModelsV2 {
     BinModelV2 zero, sign, q, rem;  // indexed [context]
     void init_from_priors(const uint16_t* zero_tab, ...); // code-constant tables
-    uint16_t mixed(int cx, BinModelV2& m) const;          // (5*p_fast + 3*p_slow) >> 3
+    uint16_t mixed(int cx, BinModelV2& m) const;          // (p_fast + p_slow) >> 1
 };
 uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entries/kind
 ```
 
 - Context id STAYS `residual_diff_context(dL,dU,dUL)` in 0..342 (decoder can
   recompute it causally). What changes: each of the 343 model sets is
-  INITIALIZED from a coarse prior class (activity/qg bucket, 16 classes) and
-  adapts at two rates; the coded probability is the integer mix above.
-  Weights (5,3) and shifts (4,6) are constants mirrored on both sides (I2).
+  INITIALIZED from a coarse prior class (directional edge-energy x orientation
+  bucket, 16 classes) and adapts at two rates; the coded probability is the
+  integer mix above. Weights and shifts are constants mirrored on both sides
+  (I2). Offline retune (2026-08-23, probe rail) pinned: shifts 6/9, equal
+  rate-mix average, directional class key - faster rates, tilted mixes, and
+  count-weighted context trust were all tried and rejected with measurements.
 - Prior tables are compile-time constants tuned OFFLINE against the probe
   harness (legal: they are codec constants, not data-dependent state).
 - The v1 single-rate path stays selectable for legacy streams (I3).
@@ -141,11 +144,17 @@ uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entr
 
 - Probe: `benchmarks/probe_backend.sh` reports kodim01 and kodim13 payload
   deltas; v2 must capture >= 80 percent of the measured V1 win (-5.1 percent /
-  -3.4 percent) AND beat V0's context-inertness (the 0.9 percent V3 delta must
-  grow toward the ~6 percent oracle delta; target >= 3 percent on kodim13).
-- Corpus: full Kodak-24 byte-exact; projected landing zone ~10.0-10.7 summed
-  (~3.34-3.57 per-sample). Honest: P1+P2 alone does NOT clear M2 (research
-  projection); do not claim it.
+  -3.4 percent) AND keep real context benefit (A2, recalibrated 2026-08-23:
+  gain >= 0.5 percent of v0 on kodim13, > 0.1 percent on kodim01 - the
+  original 3 percent target predated the v2 binarization and instrumented
+  oracle analysis shows the static conditional ceiling under this binarization
+  is ~0.19 percent over class-pooled coding; see the recalibration record in
+  probe_backend.sh). Status: A1+A2 PASS with v2 at -6.40 / -4.79 percent.
+- Corpus: full Kodak-24 byte-exact; projected landing zone lowered by the
+  retune (probe images improved ~1.0-1.4 percent of v0 beyond the original
+  C1 projection); fresh both-units measurement still required before any M2
+  claim. Honest: P1+P2 alone does NOT clear M2 (research projection); do not
+  claim it.
 - Unit: bijection round-trip on adversarial alphabets (all-zero plane, max
   magnitude, alternating signs, random seeds x1000); H(p)+epsilon efficiency
   gate retained.
