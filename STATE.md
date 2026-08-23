@@ -1,42 +1,41 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32660807597, issue_comment on PR #131, owner ping after the C1 close). Continuation run 32658886664 COMPLETED: C1 phase fully closed (A1+A2 PASS after evidence-based A2 recalibration), 3 commits landed, head `83a1d0deb`, tree clean. Owner's fresh `/oc continue` (19:18:05Z) died as run 32660799844 CANCELLED WITH ZERO JOBS - dead trigger verified; THIS run re-dispatched `{"action":"continue","pr":131}` to repair it. Freeze active.
+- **Updated:** 2026-08-23 (maintainer run 32661970460, issue_comment on PR #131, owner ping 19:40:08Z). REPAIR VERIFIED: my re-dispatched continuation (run 32661129376, build job active since 19:24:27Z) landed the full Kodak-24 both-units re-measure (`71dbe16f8`: 10.3544 summed / 3.4515 per-sample = -6.09 pct bytes) and is implementing C2 right now. Quiet stand-down this run - decision list `[]`. Freeze active.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates.
-- **BINDING TARGET (dual-unit):** summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md` (commit `f8a958d`).
+- **BINDING TARGET (dual-unit):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md` (commit `f8a958d`).
 - **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Compliance existential.
-- Iteration limit LIFTED; circuit breaker DELETED. One-PR rule; NEVER delete PR branches. Quality gates are the only merge criteria.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `f8a958d`** (ls-remote verified this run). pages.yml green at 19:18:16Z.
-- MODEL PINS healthy on x-preview-f-free / mimo-v2.5-free all evening; this maintainer session runs on the pin = live proof. The 17:03-17:20Z transient window stays closed. No lab needed.
+- **`main` = `f8a958d`** (ls-remote verified this run; unchanged all day).
+- MODEL PINS healthy on x-preview-f-free / mimo-v2.5-free all evening; this session runs on the pin = live proof. Dispatch-path strike tracking CLEARED (my repaired re-dispatch worked first try). No lab needed.
 - SHIPPING LIMIT moot under freeze (resets 2026-08-24).
 
 ## IN FLIGHT
-- **Re-dispatched Builder continuation on PR #131** (`opencode/issue130-20260823163248`, head `83a1d0deb`) fired via decision.json this run. Expected queue per tracker: full Kodak-24 re-measure at e1 with sha256 pin verification -> fresh both-units CSV + honest codec-table row update -> C2 (MA-tree always-on) -> C3 (trial-encoded decisions) -> M2 checkpoint window (~9.3-9.6 summed projected).
-- C1 completed state for reference: kodim01 v2 -6.40 percent of v0 (125 percent of V1-pin capture), kodim13 -4.79 percent (141 percent); A2 recalibrated to >=0.5 percent (kodim13) / >0.1 percent (kodim01) on instrumented-oracle evidence; 34/34 gtests; fuzz clean.
+- **Builder continuation run 32661129376** on PR #131 (`opencode/issue130-20260823163248`, head `71dbe16f8`) ACTIVELY WORKING since 19:24:27Z. Done this run: Kodak-24 e1 both-units re-measure with 24/24 sha pins verified pre-measurement; fresh CSV committed; pre-change CSVs archived as *-pre-c1.csv. In progress now: C2 MA-tree always-on (depth<=10/leaves<=256/min-samples 512/quantile thresholds; evalGuard hasLevels deleted; acceptance = trial bits incl model bytes). Tracker queue after: C3 trial-encoded decisions -> M2 window (~9.3-9.6 projected) -> C4 true CDC lifting -> C5 cross-band prediction -> M3 gate.
+- Milestone reference: C1 closed with A1+A2 PASS after evidence-based A2 recalibration (kodim01 v2 -6.40 pct of v0 / kodim13 -4.79 pct; 34/34 gtests; fuzz clean).
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE -> build CONTINUING (re-dispatched) -> review (fires at handoff/M2 window) -> test -> maintainer merge (blocked by freeze until dual-unit M2 AND M3).
+research DONE -> architect DONE -> build CONTINUING (run 32661129376 active, C2 under way) -> review (fires at handoff/M2 window) -> test -> maintainer merge (blocked by freeze until dual-unit M2 AND M3).
 
 ## PENDING (in order)
-1. NEXT RUN FIRST ACTION: verify MY re-dispatched continuation actually started a build job. Dead again with zero jobs = strike 2 for the dispatch path itself: inspect opencode.yml wiring/approval flow and escalate `lab` with both run IDs; no third blind fire.
-2. Reviewer round MUST verify: dual-unit statements in ALL benchmark claims; D1 bench_gate.sh self-check shows a real FAIL case; decoder-mirrored constants; FIFO acoder v1-stream compatibility; trial-bits acceptance criteria; PLUS the new item - the A2-recalibration evidence chain (byte-exact replica, instrumented-oracle ceiling ~0.19 percent, decision record `.github/agents/decisions/builder/2026-08-23T19-35-00-a2-gate-recalibration.md`). Recalibration accepted provisionally, reviewer-scrutiny mandatory.
+1. NEXT RUN FIRST ACTION: check run 32661129376's conclusion. Completed with handoff -> time the review round (fire only if the automatic reviewer did not start; prefer the C3/M2-window handoff over mid-C-series, but weigh a review round if the Builder yields in_progress for long). Died/failed -> inspect error class FIRST, no blind refire.
+2. Reviewer round MUST verify: dual-unit statements in ALL benchmark claims; D1 bench_gate.sh self-check shows a real FAIL case; decoder-mirrored constants; FIFO acoder v1-stream compatibility; trial-bits acceptance criteria; PLUS the A2-recalibration evidence chain (byte-exact replica, instrumented-oracle ceiling ~0.19 pct, decision record `.github/agents/decisions/builder/2026-08-23T19-35-00-a2-gate-recalibration.md`). Recalibration accepted provisionally, reviewer-scrutiny mandatory.
 3. NO merges until dual-unit M2 AND M3 pass on the real corpus. After genuine pass: unfreeze Brainstorm board, resume normal cadence; keep chasing Obsidian e7 (3.174 / 9.52) too.
-4. Kodak-24 re-measure honesty: projected landing ~10.0-10.7 summed is still ~15 percent ABOVE JXL parity - frame it that way publicly when the CSV lands.
+4. Expectation discipline: even the M2-window projection (~9.3-9.6 summed) stays above parity; keep public framing honest until M3 passes in both units.
 
 ## ISSUES
 - **#130** - sole active workstream (Prism true JXL parity). PR #131 carries all phases.
-- **#70 (Lab Health)** - lab stood down as moot earlier today; owner posted `/oc auditor` there recently (Auditor summary may land; read it next sweep).
+- **#70 (Lab Health)** - lab stood down as moot; owner's `/oc auditor` there may have produced an Auditor summary - read it next sweep.
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## QUEUED / HOUSEKEEPING
-- Dead opencode run 32660799844 (owner's cancelled continue): documented, repaired by my re-dispatch; do not confuse its cancellation with model failure.
-- All same-batch workflows (review/test/lab/recover/auditor) skipped correctly for the `/oc maintainer` comment. Duplicate maintainer runs cancelled cleanly by concurrency.
+- Benign pending opencode run 32661970419 (from owner's `/oc maintainer` batch): queued behind the active build by concurrency, self-skips per the workflow exclusion when dequeued - same pattern as 32659091715 and 32660807816. Do not mistake it for a duplicate build.
+- All same-batch workflows (review/test/lab/recover/auditor) skipped correctly.
 
 ## OPEN QUESTIONS
-- Will the re-dispatched continuation start cleanly, or does the dispatch path itself need lab attention (strike tracking per PENDING 1)?
-- Will the full Kodak-24 e1 CSV land inside the projected 10.0-10.7 summed zone?
+- Will C2 land inside run 32661129376 or need one more continuation?
+- Will C3 bring the corpus into the M2 window (~9.3-9.6 projected)?
 - Does the Reviewer uphold the A2 recalibration methodology, or demand re-derivation?
 
 - Mae, the Maintainer
