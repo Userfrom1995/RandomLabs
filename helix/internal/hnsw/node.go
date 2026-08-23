@@ -34,18 +34,6 @@ func sortedInsert(s []uint64, v uint64) []uint64 {
 	return append(s, v)
 }
 
-func sortedContains(s []uint64, v uint64) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-		if x > v {
-			return false
-		}
-	}
-	return false
-}
-
 func removeSorted(s []uint64, v uint64) []uint64 {
 	for i, x := range s {
 		if x == v {
