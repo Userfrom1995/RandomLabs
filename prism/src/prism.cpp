@@ -3,6 +3,7 @@
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/rans.h"
+#include "prism/codec/acoder.h"
 #include "prism/codec/container.h"
 #include "prism/codec/analyze.h"
 #include "prism/codec/matree.h"
@@ -35,7 +36,11 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.hdr.bit_depth = bd;
     c.hdr.num_channels = nc;
     c.hdr.color_transform_id = ar.color_transform_id;
-    c.hdr.flags = 0; // CM/LZP off for M0
+    // flags: bit2 = adaptive ACODER when effort>=1 (FIFO per-context)
+    uint8_t flags = 0;
+    bool use_acoder = (opts.effort >= 1);
+    if (use_acoder) flags |= 0x04;
+    c.hdr.flags = flags;
     c.hdr.effort = opts.effort;
     c.hdr.cfl_scales = ar.cfl_scales;
     c.hdr.squeeze_levels = ar.squeeze_levels;
@@ -53,7 +58,12 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
         const auto& plane = transformed.planes[pi];
         auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
-        auto bytes = rans_encode_plane(residuals, 1);
+        std::vector<uint8_t> bytes;
+        if (use_acoder) {
+            bytes = acoder_encode_plane(residuals, transformed.w, transformed.h, 343);
+        } else {
+            bytes = rans_encode_plane(residuals, 1);
+        }
         c.band_payloads.push_back(std::move(bytes));
     }
 
@@ -101,10 +111,16 @@ Raster decode(const uint8_t* data, size_t len) {
         // mismatch means reconstruction would silently drop (or invent) bands.
         throw DecodeError("band count mismatch");
     }
+    bool use_acoder = (c.hdr.flags & 0x04) != 0;
     for (size_t pi=0; pi< out.planes.size(); ++pi) {
         const auto& b = payloads[pi];
         size_t n = (size_t)w * h;
-        auto residuals = rans_decode_plane(b, n, 1);
+        std::vector<int32_t> residuals;
+        if (use_acoder) {
+            residuals = acoder_decode_plane(b, n, w, h, 343);
+        } else {
+            residuals = rans_decode_plane(b, n, 1);
+        }
         if (residuals.size() != n) throw DecodeError("residual count mismatch");
         auto plane = reconstruct_plane(residuals, w, h, pred, bd_max);
         out.planes[pi] = std::move(plane);
