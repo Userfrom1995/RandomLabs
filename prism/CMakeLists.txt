@@ -25,6 +25,9 @@ add_library(prism_core STATIC
     src/codec/container.cpp
     src/frontend/ppm_raw.cpp
     src/frontend/stb_image_wrapper.cpp
+    src/frontend/webp_wrapper.cpp
+    src/frontend/tiff_wrapper.cpp
+    src/frontend/icc.cpp
     src/frontend/frontend.cpp
     src/prism.cpp
 )

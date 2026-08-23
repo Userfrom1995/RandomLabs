@@ -23,7 +23,6 @@ if [[ -z "$KODAK" || ! -d "$KODAK" ]]; then
   python3 - "$EFFORT" << 'PY'
 import os, struct, sys
 effort=int(sys.argv[1])
-# create 2 synthetic images 64x64 RGB gradient + noise
 import random
 random.seed(0)
 for idx in range(2):
@@ -40,6 +39,20 @@ for idx in range(2):
 print("probe ready")
 PY
   KODAK="/tmp/prism_kodak_probe"
+else
+  # SHA256 pin verification when data/kodak.sha256 exists and KODAK is the canonical dir
+  if [[ -f "${ROOT}/benchmarks/data/kodak.sha256" ]]; then
+    if ! (cd "$KODAK" && sha256sum -c "${ROOT}/benchmarks/data/kodak.sha256" > /dev/null 2>&1); then
+      echo "warning: kodak SHA256 mismatch (expected pinned in data/kodak.sha256) - proceeding anyway"
+      sha256sum "$KODAK"/* 2>/dev/null | head -n 5 || true
+    else
+      echo "kodak SHA256 pinned verification PASS"
+    fi
+  fi
+fi
+# Prefer new prism bench subcommand (byte-exact + durable CSV)
+if "$PRISM_BIN" bench --effort "$EFFORT" --kodak "$KODAK" 2>/dev/null; then
+  exit 0
 fi
 OUTDIR="${ROOT}/benchmarks/results"
 mkdir -p "$OUTDIR"
