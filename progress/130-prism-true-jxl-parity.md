@@ -2,11 +2,12 @@
 
 - **Issue:** #130 (owner directive 2026-08-23; lab-wide freeze until M2 AND M3
   genuinely pass dual-unit gates)
-- **Branch:** opencode/issue130-20260823163248 (research + architect phases)
+- **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
 - **Status:** in_progress. Research DONE (Dr. Mob, this PR): D1 gate fix shipped
   (`bench_gate.sh` prints both units, `--self-check` proves it can fail), D2 gap
   analysis located the ~21 percent gap (findings F1-F4). Architect blueprint
   DELIVERED: `prism/docs/architecture-jxl-parity.md` (C-series build phases).
+  Builder phase STARTED 2026-08-23: C0+C1 vertical slice under way (see log).
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -28,15 +29,33 @@
 
 ## Current step
 
-Ready for Builder C0+C1 as one vertical slice: probe harness first, then
-backend v2 (acoder.h ACModelsV2, flags bit3), measured on kodim01/kodim13
-BEFORE the full corpus. Every milestone keeps 23/23 gtest + fuzz 1000 +
-corruption reject + Kodak-24 byte-exact green and commits its durable CSV.
+Builder C0+C1 vertical slice IN PROGRESS (run 2026-08-23 ~18:15Z):
+1. [x] Probe corpus secured: kodim01/kodim13 PPMs re-derived from the lossless
+   upstream PNGs and verified against `data/kodak.sha256` pins BEFORE any
+   measurement (both sha256 PASS).
+2. [ ] C1 core: ACModelsV2 in acoder.h/.cpp (zero-flag-first binarization,
+   dual-rate shift4/shift6 mix (5,3), 16 compile-time class priors keyed on the
+   causal resdiff context; v1 path intact for legacy streams).
+3. [ ] Unit tests: adversarial-alphabet bijections, mix bounds, determinism,
+   prior-class totality over cx 0..342.
+4. [ ] Flags bit3 = ACODER_V2 wired through container/prism.cpp; unknown flag
+   bits become a hard decode error; fuzz covers bit2+bit3 streams.
+5. [ ] C0 probe harness: `prism probe-backend` CLI + `benchmarks/probe_backend.sh`
+   (sha-pins verified pre-measurement, durable CSV, acceptance thresholds with
+   --self-check).
 
 ## Next steps
 
-Builder: C0 -> C1 -> re-measure -> C2 -> C3 -> re-measure (M2 checkpoint) ->
-C4 -> C5 -> re-measure (M3 gate) -> Reviewer -> Tester -> Maintainer merge.
+Finish items 2-5 above, tune prior tables on the probe rail, then full Kodak-24
+re-measure at e1, then C2 -> C3 -> re-measure (M2 checkpoint) -> C4 -> C5 ->
+re-measure (M3 gate) -> Reviewer -> Tester -> Maintainer merge.
 Owner freeze stands throughout: nothing merges before both gates pass.
+
+## Agent log
+
+- 2026-08-23 Dr. Mob (the Researcher): gap analysis + D1 gate fix (commits up to e2a4439).
+- 2026-08-23 the Architect: C-series blueprint + progress tracker (fd53e75).
+- 2026-08-23 the Builder: resumed per handoff decision {"action":"build"}; probe
+  corpus rebuilt and pin-verified; C0+C1 build started (this PR #131).
 
 - the Architect
