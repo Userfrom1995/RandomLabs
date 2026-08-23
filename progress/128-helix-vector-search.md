@@ -2,8 +2,8 @@
 
 - **Issue:** #128
 - **Branch:** opencode/issue128-20260823131639
-- **Status:** complete (research phase; handed to Architect)
-- **Updated:** 2026-08-23T13:30:00Z
+- **Status:** in-progress
+- **Updated:** 2026-08-23T13:40:00Z
 
 ## Checklist
 - [x] 1. Research: HNSW construction + search-with-ef algorithmic spec
@@ -12,29 +12,37 @@
 - [x] 4. Research: REST API contract (index/delete/search/stats/projection)
 - [x] 5. Research: 2D projection + dashboard neighbor-lighting semantics
 - [x] 6. Research: determinism contract + benchmark definitions
-- [ ] 7. Architect: module blueprint (core/hnsw/pq/index/api/ui)
-- [ ] 8. Builder: implementation
-- [ ] 9. Tester: benchmarks (recall@k, QPS, PQ distortion, determinism)
-- [ ] 10. Reviewer: static review
+- [x] 7. Architect: module blueprint (core/hnsw/pq/index/api/ui)
+- [ ] 8. Builder: scaffold helix/ Go module + core (vector, rng, heap)
+- [ ] 9. Builder: hnsw graph (insert, searchLayer, heuristic, lazy delete)
+- [ ] 10. Builder: pq/opq training, encode, ADC distance table
+- [ ] 11. Builder: index coupling (Build/Search, projection, serialize)
+- [ ] 12. Builder: api REST handlers + cli (build/search/serve/bench)
+- [ ] 13. Builder: ui dashboard (projection, upload, neighbor glow, ef slider)
+- [ ] 14. Tester: benchmarks (recall@k, QPS, PQ distortion, memory, determinism)
+- [ ] 15. Reviewer: static review
 
 ## Current step
-Research specification complete and committed. Handing off to the Architect with
-action=architect (see `.agent/decision.json`).
+Architectural blueprint complete and committed at
+`ideas/2026-08-23-helix-vector-search.md`. Module tree (core / hnsw / pq / index
+/ api + cmd/helix + ui), public Go types, the deterministic `Build`/`Search` seam,
+REST contract, dashboard plan, and the five-benchmark test matrix are defined.
+Ready for initial build.
 
 ## Next steps
-- The Architect reads `docs/research/issue-128-helix-vector-search.md` and
-  produces the Go module blueprint (packages core / hnsw / pq / index / api /
-  ui), the public types from Section 9, the deterministic `build`/`search` API,
-  and the dashboard plan from Section 7 and 14.
+- The Builder scaffolds `helix/` and implements `core` (vector math, seeded
+  PCG64 RNG, min/max heaps), then `hnsw`, `pq`, `index`, `api`, `cmd/helix`, and
+  the `ui` dashboard, following the milestone checklist in the blueprint.
 
 ## Agent log
 - 2026-08-23T13:30:00Z (Researcher, run 1): wrote the full algorithmic
-  specification in `docs/research/issue-128-helix-vector-search.md`. Covers
-  HNSW layer assignment (probabilistic skip-list), insertion with
-  selectNeighborsHeuristic, best-first searchLayer with ef, PQ/OPQ training and
-  ADC distance tables, PQ distortion bounds and the rerank mitigation, the
-  recall-vs-latency knobs (efSearch, M, PqM, K), the REST contract, the 2D
-  projection (random/PCA) and neighbor-lighting dashboard interaction, the
-  determinism contract (seeded RNG, fixed insertion order, no map-order
-  dependence), complexity tables, and five benchmark definitions. Handing off to
-  the Architect.
+  specification in `docs/research/issue-128-helix-vector-search.md`.
+- 2026-08-23T13:40:00Z (Architect, run 1): read `docs/research/issue-128-helix-vector-search.md`
+  and `AGENTS.md`/`architect.md` conventions; produced the Go module blueprint at
+  `ideas/2026-08-23-helix-vector-search.md` (module tree, public Go types,
+  Build/Search API seam, HNSW/PQ/index details, REST contract, CLI, dashboard
+  plan, determinism contract, test matrix, acceptance criteria). Updated this
+  progress file to in-progress with the Builder milestone checklist. Decision
+  action: build.
+
+- the Architect
