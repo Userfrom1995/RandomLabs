@@ -37,13 +37,18 @@
 
 ## Current step
 
-Builder continuation run 4 (2026-08-23 ~20:45Z) IN PROGRESS: C3
-trial-encoded decisions implemented - color transform / CFL scales / global
-predictor now decided by real coded bytes of exactly the emitted v2 flat
-stream (decimated-grid pruning, identity-forced finalists), banned energy
-proxies deleted from those paths, 9 new unit tests incl. an I4
-never-lose-to-identity property test (50/50 green). Corpus re-measure +
-fuzz next in this slice.
+Builder continuation run 4 (2026-08-23 ~20:45Z) IN PROGRESS: C3 landed and
+MEASURED. Trial-encoded decisions (color transform / CFL / predictor by
+real coded bytes, identity-forced finalists) beat the energy-chosen plan
+on 7 of 24 corpus images with ZERO regressions (17 ties), exactly the I4
+guarantee in production. Fresh both-units truth at e1:
+**10.2904 summed / 3.4301 per-sample bpp** (was 10.3544 / 3.4515,
+-0.62 pct bytes; single image worst-hit by the old proxies: kodim20
+-6.22 pct). e3 (CFL trials active): 10.2861 summed / 3.4287 per-sample.
+Wall-clock 37.8 s/corpus at e1 vs 10.1 s pre-C3 = 3.74x, inside the 5x
+guard (I6); e3 52.9 s. Fuzz 1000 iters PASS, probe rail A1/A2 OK and
+probe stream byte-stable. M2/M3 still FAIL in both units as expected -
+C4/C5 carry parity. Remaining this slice: docs sweep + decision record.
 
 Previous slice summary (continuation run 3, C2b):
 
@@ -79,6 +84,18 @@ Previous slice summary (continuation run 3, C2b):
 Owner freeze stands throughout: nothing merges before both gates pass.
 
 ## Agent log
+
+- 2026-08-23 the Builder (continuation run 4): C3 trial-encoded decisions
+  landed (076acb0 + measurement commit). Engine: decimate_raster /
+  trial_flat_bits / trial_finalists / choose_color_transform_trial exposed
+  for tests; color+CFL+predictor decided by real coded bytes with identity
+  forced into every final round; energy proxies deleted from decision
+  paths (legacy coupled guard untouched until C4). 50/50 gtests incl. I4
+  property test; fuzz 1000 iters PASS; probe A1/A2 OK, probe stream
+  byte-stable. Fresh corpus: e1 10.2904/3.4301 (7 wins 0 losses), e3
+  10.2861/3.4287; pre-C3 CSVs archived as *-pre-c3.csv; wall-clock 3.74x
+  (< 5x guard). M2/M3 honestly FAIL; no parity claim. Decision file
+  {"action":"continue"} - next run C4 (true CDC lifting).
 
 - 2026-08-23 the Builder (continuation run 3): corpus re-derived from the
   lossless upstream PNGs (24/24 sha pins verified). C2b implemented offline
