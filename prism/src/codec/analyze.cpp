@@ -39,12 +39,12 @@ static double estimate_bits(size_t n, uint64_t sumAbs) {
     else bps = std::log2(mean + 1.0) + 1.2;
     return (double)n * bps;
 }
-static std::vector<uint8_t> encode_band_leaf_for_cost(const std::vector<uint16_t>& data, uint32_t w, uint32_t h,
-                                             uint8_t band_class, bool isLL,
-                                             const std::vector<uint16_t>* llSrc,
-                                             const std::vector<uint16_t>* siblingSrc,
-                                             const MATree& tree, int num_leaves,
-                                             uint8_t bit_depth) {
+[[maybe_unused]] static std::vector<uint8_t> encode_band_leaf_for_cost(const std::vector<uint16_t>& data, uint32_t w, uint32_t h,
+                                              uint8_t band_class, bool isLL,
+                                              const std::vector<uint16_t>* llSrc,
+                                              const std::vector<uint16_t>* siblingSrc,
+                                              const MATree& tree, int num_leaves,
+                                              uint8_t bit_depth) {
     if (w==0||h==0) { AEncoder enc; return enc.flush_and_emit(); }
     size_t n=(size_t)w*h;
     std::vector<int32_t> residuals; residuals.reserve(n);
@@ -255,7 +255,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             const auto& ps = planeSqueezes[pi];
             const auto& sr = ps.sr;
             const auto& llPlanes = ps.llPlanes;
-            uint8_t L = sr.levels;
+            // (sr.levels used via band_class lvlTag)
             // For sibling, need to keep per level HF values
             // Build map level -> HF vectors for sibling lookup
             // sr bands post-order: [LL_L, HF_{L-1}H, HF_{L-1}V, HF_{L-1}D, ..., HF0H,HF0V,HF0D]
@@ -285,7 +285,6 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                 }
                 // For llc, need level's LL
                 const std::vector<uint16_t>* llSrc = nullptr;
-                uint16_t llc_val = 0;
                 if (!isLL && lvlTag < llPlanes.size()) {
                     llSrc = &llPlanes[lvlTag];
                 }

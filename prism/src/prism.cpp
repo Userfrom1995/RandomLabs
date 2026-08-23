@@ -25,6 +25,15 @@ static inline int32_t med_pred(int32_t L, int32_t T, int32_t TL){
     return L + T - TL;
 }
 
+static inline uint16_t plane_bd_max(uint8_t bd, ColorTransform ct, size_t pi){
+    if (bd != 8) return 65535;
+    if (ct == ColorTransform::Lift53) return 65535;
+    if (ct == ColorTransform::YCoCgR || ct == ColorTransform::YCoCgR_SubGreen) {
+        if (pi == 1 || pi == 2) return 1023;
+    }
+    return 255;
+}
+
 // ----- generic band encode with optional CM/LZP -----
 static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& data, uint32_t w, uint32_t h,
                                               uint8_t band_class, bool isLL,
@@ -552,7 +561,7 @@ Raster decode(const uint8_t* data, size_t len) {
     if (pos != len - 4) throw DecodeError("extra bytes after payload");
     uint32_t w = c.hdr.width, h = c.hdr.height;
     uint8_t bd = c.hdr.bit_depth;
-    uint16_t bd_max = (bd==8)?255:65535;
+    ColorTransform ct_pre = static_cast<ColorTransform>(c.hdr.color_transform_id);
     PredId pred = static_cast<PredId>(c.global_pred_id);
     if ((uint8_t)pred > 8) pred = PredId::MED;
     Raster out(w,h, static_cast<Channels>(c.hdr.num_channels), bd==16?BitDepth::BD16:BitDepth::BD8);
@@ -567,6 +576,7 @@ Raster decode(const uint8_t* data, size_t len) {
     size_t payload_idx=0;
     for (size_t pi=0; pi< out.planes.size(); ++pi) {
         uint8_t L = (pi < c.hdr.squeeze_levels.size())? c.hdr.squeeze_levels[pi]:0;
+        uint16_t plane_max = plane_bd_max(bd, ct_pre, pi);
         if (!hasSqueeze || L==0) {
             const auto& b = payloads[payload_idx++];
             size_t n = (size_t)w * h;
@@ -574,7 +584,7 @@ Raster decode(const uint8_t* data, size_t len) {
             if (use_acoder) residuals = acoder_decode_plane(b, n, w, h, 343);
             else residuals = rans_decode_plane(b, n, 1);
             if (residuals.size() != n) throw DecodeError("residual count mismatch");
-            auto plane = reconstruct_plane(residuals, w, h, pred, bd_max);
+            auto plane = reconstruct_plane(residuals, w, h, pred, plane_max);
             out.planes[pi] = std::move(plane);
         } else {
             // build band infos
@@ -597,7 +607,8 @@ Raster decode(const uint8_t* data, size_t len) {
             {
                 const auto& inf = infos[0];
                 const auto& pay = payloads[payload_idx++];
-                auto bandData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, true, nullptr, nullptr, tree, num_leaves, bd, bd_max, useCM, useLZP);
+                uint16_t plane_max = plane_bd_max(bd, ct_pre, pi);
+                auto bandData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, true, nullptr, nullptr, tree, num_leaves, bd, plane_max, useCM, useLZP);
                 decodedBands.push_back(std::move(bandData));
             }
             std::vector<uint16_t> curLL = decodedBands[0];
@@ -616,7 +627,9 @@ Raster decode(const uint8_t* data, size_t len) {
                     if (t==1) sibSrc = &hf[0];
                     else if (t==2) sibSrc = &hf[1];
                     bool isLLBand=false;
-                    auto bdData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, isLLBand, llSrc, sibSrc, tree, num_leaves, bd, bd_max, useCM, useLZP);
+                    // HF bands use signed 16-bit range, pass plane_max anyway (unused for HF)
+                    uint16_t plane_max2 = plane_bd_max(bd, ct_pre, pi);
+                    auto bdData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, isLLBand, llSrc, sibSrc, tree, num_leaves, bd, plane_max2, useCM, useLZP);
                     hf[t]=std::move(bdData);
                     decodedBands.push_back(hf[t]);
                     infoIdx++;
@@ -644,8 +657,8 @@ Raster decode(const uint8_t* data, size_t len) {
             out.planes[pi]=std::move(curLL);
         }
     }
-    ColorTransform ct = static_cast<ColorTransform>(c.hdr.color_transform_id);
-    out = invert_color(out, ct, c.hdr.cfl_scales);
+    // ct_pre already holds the header's transform
+    out = invert_color(out, ct_pre, c.hdr.cfl_scales);
     return out;
 }
 
