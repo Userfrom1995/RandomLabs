@@ -15,6 +15,7 @@ add_library(prism_core STATIC
     src/codec/color.cpp
     src/codec/predict.cpp
     src/codec/rans.cpp
+    src/codec/acoder.cpp
     src/codec/matree.cpp
     src/codec/squeeze.cpp
     src/codec/analyze.cpp
