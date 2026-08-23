@@ -1,6 +1,6 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32609904492, event on issue #70 Lab Health). Re-survey confirms: PR #118 head `b0e2e2f6` (B5.44, 11.025 bpp, byte-exact), and a Prism `continue` build is IN FLIGHT (run 32609730522, started 01:10:55Z from my earlier `continue` dispatch this window). No new triggers issued this run; decision.json = [].
-- **Maintainer run:** https://github.com/Userfrom1995/Random/actions/runs/32609904492
+- **Updated:** 2026-08-23 (maintainer run 32611414808, periodic schedule run). Re-survey confirms: PR #118 head `b0e2e2f6` (B5.44, 11.025 bpp, byte-exact), and a Prism `continue` build is IN FLIGHT (run 32609730522, started 01:10:55Z from my earlier `continue` dispatch this window). No new triggers issued this run; decision.json = [].
+- **Maintainer run:** https://github.com/Userfrom1995/Random/actions/runs/32611414808
 
 ## STANDING OWNER DIRECTIVES (active)
 - **Obsidian shipped** (#93 manually merged by owner as orphan root `60748e88`; promoted to Current via merged PR #115; docs cleaned by merged PR #116). Obsidian is the current codec in `main`; last confirmed REAL-Kodak baseline **9.5209 bpp**. #68 (Obsidian umbrella) is now CLOSED.
@@ -19,7 +19,7 @@
 - **WORKFLOW-FILE PUSH WALL (unchanged, now non-blocking):** #120 CLOSED by owner. `opencode.yml` still lacks `workflows: write` and a `lab` job, but the reviewer.md auto-guard (committed 770a756) rewrites any misrouted fix/continue on infra PRs to `lab`, so the orchestration-rule fix is effectively enforced. Future workflow-file edits remain an OWNER-action path.
 
 ## IN FLIGHT
-- **Prism M1-M4 (issue #117, PR #118, branch `opencode/117-prism-m1-m4-optimization`):** head `b0e2e2f6` (B5.44, **11.025 bpp**, byte-exact). A `continue` build is IN FLIGHT (run `32609730522`, started 2026-08-23T01:10:55Z) - triggered by my earlier `continue` dispatch in this same run window (32609644474 -> `/oc continue` -> 32609730522). NOT a delivery stall; the previous build (32605077055) completed without advancing, which is why I re-dispatched.
+- **Prism M1-M4 (issue #117, PR #118, branch `opencode/117-prism-m1-m4-optimization`):** head `b0e2e2f6` (B5.44, **11.025 bpp**, byte-exact). A `continue` build is IN FLIGHT (run `32609730522`, started 2026-08-23T01:10:55Z) - triggered by my earlier `continue` dispatch in this same run window (32609644474 -> `/oc continue` -> 32609730522). NOT a delivery stall; the previous build (32605077055) completed without advancing, which is why I re-dispatched. This schedule run (32611414808) confirms it is still genuinely `in_progress` (~42 min in) with no competing trigger.
   - **B5.44 (latest):** saturation sweep confirming the predictor/color/block bank AND residual entropy model are fully saturated (0% gain vs B5.43). 23/23 gtest PASS, fuzz PASS, 24/24 Kodak cmp byte-exact.
   - **Trajectory:** The PREDICTOR/COLOR/BLOCK bank is saturated (16/16 nibble 0..15, per-plane top11, block top11, selective-16). The RESIDUAL ENTROPY MODEL is saturated too (B5.44 = 0% gain; context splits B5.38->B5.44 only netted 11.041->11.025, ~0.14%). Total progress from 11.29 baseline ~2.35%. The loop is productive, NOT converged, but both known micro-tweak paths are now exhausted.
   - **B7 Squeeze + MA-tree greedy split (depth 6, leaves 16-32, mandatory `llc_class`/`sibling_class`) STILL NOT genuinely built.** B5.33/B5.35/B5.36 scaffolded per-band squeeze / leaf-activity infrastructure; B5.29 replaced Haar with 5/3 lifting (still +0.8% never-expand, kept disabled). The REAL greedy MA-tree split was never implemented (B5.36 reported +15B never-expand, confirming scaffolding only). B7 remains the ONLY proven >10% closure path to JXL 8.71; context-splitting alone is now proven unable to close the remaining ~21% gap (2.32 bpp). The in-flight resume MUST finally attempt the real B7 rather than another B5.x tweak - anything else is now a no-op.
@@ -38,7 +38,7 @@
 - **#117 (Prism M1-M4)** - OPEN (tracking; goal-tied merge gate). Held open until M3 < 8.71 bit-exactly.
 - **#112 (auto PR recovery)** - CLOSED (shipped #114).
 - **#42 (Brainstorm Board)** - OPEN; parked behind Prism.
-- **#70 (Lab Health)** - Auditor daily summary; this run posted a brief acknowledgement.
+- **#70 (Lab Health)** - Auditor daily summary; last run posted a brief acknowledgement (32609904492).
 - **#98 (runaway /oc fix retry loop)** - CLOSED (PR #99); PR #119 now CLOSED too.
 - **#119 ([Infra] Lab update for #70)** - CLOSED by owner (redundant).
 - **#120 (Audit: workflows: write missing)** - CLOSED by owner (reviewer.md auto-guard committed instead; workflow-file push wall remains owner-action).
@@ -50,7 +50,7 @@
 - **Circuit breaker:** REMOVED (owner commit `91c8707`).
 
 ## NEXT STEPS
-    1. **Prism `continue` build IN FLIGHT (run 32609730522).** No new trigger issued this run. Watch for the next builder comment; if it posts another B5.x micro-tweak (not real B7), the loop is circling and needs escalation to Researcher/Architect per override #3.
+    1. **Prism `continue` build IN FLIGHT (run 32609730522, still `in_progress` ~42 min at this survey).** No new trigger issued this run (would be a duplicate). Watch for the next builder comment; if it posts another B5.x micro-tweak (not real B7), the loop is circling and needs escalation to Researcher/Architect per override #3.
     2. Watch the build's duration - if it times out/cancels without delivering, the workflow's no-decision handler re-notifies the maintainer for re-dispatch.
     3. If a build clears the gate (M3 < 8.71 bit-exactly), fire Reviewer -> Tester before ANY merge.
     4. ORCHESTRATION FIX: considered landed (reviewer.md auto-guard). Optional fixer.md hardening parked.
