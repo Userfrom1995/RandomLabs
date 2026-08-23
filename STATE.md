@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32665960013, issue_comment on PR #131; owner `/oc maintainer` 20:56:28Z). Builder continuation run 32664886839 LIVE mid-C3: build job in_progress since 20:35:52Z (~25 min), C3 commit `076acb063` landed 20:51:46Z and head moved AGAIN during my survey (`076acb063` -> `f43bacf33`) - actively pushing. Decision `[]` - third consecutive quiet stand-down; the build owns the pipeline. Freeze active.
+- **Updated:** 2026-08-23 (maintainer run 32666420139, issue_comment on PR #131; owner `/oc maintainer` 21:05:07Z + 21:05:14Z after TWO dead predecessor sessions). C3 verified complete at head `6b9a7dbc6f52`; REVIEW dispatched against the stable head per the standing C3-handoff plan - first review round of PR #131. Freeze active.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates.
@@ -7,22 +7,22 @@
 - **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Compliance existential.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `f8a958d70`** (ls-remote verified this run; unchanged all day). Pages deploy green 20:56:32Z.
-- MODEL PIN healthy: the active 25-minute Builder session plus this maintainer session run on it; tonight's provider strikes (~17:03/17:09Z, ~20:03Z) all self-resolved or retried clean. No lab dispatch owed.
+- **`main` = `f8a958d70`** (ls-remote verified this run; unchanged all day). Pages deploy green 21:05:16Z.
+- MODEL PIN healthy NOW (this session ran clean), but the evening strike ledger grew: provider stream errors (~90s in, self-resolving) hit 17:03Z architect, 17:09Z architect, 20:03Z builder-continuation, 21:03Z + 21:08Z MAINTAINER (runs 32666219240, 32666414165 - second one green-but-empty via continue-on-error). Tripwire declared publicly: any phase dying same-error TWICE in a window => `lab` escalation with run IDs, never a blind retry.
 - SHIPPING LIMIT moot under freeze (resets 2026-08-24).
 
 ## IN FLIGHT
-- **Owner-triggered Builder continuation run 32664886839 ACTIVE** on PR #131 (`opencode/issue130-20260823163248`, head at last check `f43bacf33`, build job started 20:35:52Z). C3 trial-encoded analyzer decisions landed (`076acb063`, 20:51:46Z); session still pushing when surveyed ~21:00Z. Expect tracker update + completion comment before handoff.
-- Landed so far on #131: research D1+D2, architect C-series blueprint, C0 probe rail, C1 backend v2 + offline retune + A2 recalibration (A1+A2 PASS), full Kodak-24 e1 both-units measure (**10.3544 summed / 3.4515 per-sample = -6.09 pct bytes vs pre-C1**), C2 capability + honest rejection, C2b composite coders + honest rejection (static context refinement on flat planes CLOSED by three independent evidence lines), C3 commit landing live.
+- **Review round dispatched this run on PR #131** (`opencode/issue130-20260823163248`, head `6b9a7dbc6f52085803a7b14ad576ce40f9f18957`, MERGEABLE, tree clean) - the FIRST review round of the PR (auto-review demonstrably never fired across 26 commits). Checklist attached: dual-unit statements everywhere; D1 self-check real-FAIL demonstration; decoder-mirrored constants; FIFO acoder v1 compatibility; trial-bits criteria; A2-recalibration evidence chain specifically; C2/C2b/C3 decision records (all four verified on-branch by size check).
+- Landed so far on #131: research D1+D2, architect C-series blueprint, C0 probe rail, C1 backend v2 + retune + A2 recalibration (PASS), Kodak-24 e1 both-units measure (-6.09 pct bytes vs pre-C1), C2 capability + honest rejection, C2b composite + honest rejection, C3 trial-encoded decisions (**e1 now 10.2904 summed / 3.4301 per-sample**, -0.62 pct bytes, 7W/17T/0L, 3.74x wall-clock < 5x guard; M2-window projection honestly corrected as missed).
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE -> build CONTINUING (C3 in flight; then C4/C5 toward M3) -> review (fire AT the C3/M2-window handoff unless Builder stalls yielding in_progress; check auto-review first) -> test -> maintainer merge (blocked by freeze until dual-unit M2 AND M3).
+research DONE -> architect DONE -> build PAUSED AT PHASE BOUNDARY (C0-C3 complete; next phase C4 true CDC lifting, then C5 cross-band prediction = M3 gate checkpoint, C6 optional) -> **review IN FLIGHT (dispatched 21:10Z)** -> test -> maintainer merge (blocked by freeze until dual-unit M2 AND M3).
 
 ## PENDING (in order)
-1. NEXT RUN FIRST ACTION: check opencode run 32664886839's conclusion. Clean handoff => review timing decision per standing plan (verify whether its final push already auto-fired the reviewer before firing anything myself). Died => error-class inspection FIRST (provider stream error again = strike two => lab with fresh run IDs; zero-job cancellation = race recurrence => lab with debounce/retry-guard request).
-2. Reviewer checklist when review fires: dual-unit statements everywhere; D1 self-check FAIL case; decoder-mirrored constants; FIFO acoder v1 compatibility; trial-bits criteria; A2-recalibration chain (`2026-08-23T19-35-00-a2-gate-recalibration.md`); C2-rejection chain (`2026-08-23T20-00-00-c2-scope-and-measured-rejection.md`); C2b-rejection chain (`2026-08-23T20-45-00-c2b-composite-rejection.md`); PLUS whatever C3 decision records land tonight.
+1. NEXT RUN FIRST ACTION: read the review round outcome on #131. Approve => verify test auto-fired; stand down on merge (freeze); fire continue for C4 once nothing else is in flight. Fix findings => verify the Fixer trigger landed; let the loop run. Reviewer died same-error twice => immediate `lab` with both run IDs.
+2. Record the reviewer's verdict on the A2-recalibration chain here: upheld => acceptance final; rejected => C2b closure reopens and C4 planning pauses for a research revisit.
 3. NO merges until dual-unit M2 AND M3 pass on the real corpus. After genuine pass: unfreeze board, resume normal cadence, then chase Obsidian e7 (3.174 / 9.52).
-4. Expectation discipline: even the M2 window stays above parity; keep public framing honest until M3 passes in both units.
+4. Expectation discipline: current 10.2904 summed is still ~19 percent above JXL parity; keep public framing honest until M3 passes in both units.
 
 ## ISSUES
 - **#130** - sole active workstream (Prism true JXL parity). PR #131 carries all phases.
@@ -30,11 +30,11 @@ research DONE -> architect DONE -> build CONTINUING (C3 in flight; then C4/C5 to
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## QUEUED / HOUSEKEEPING
-- Benign pending opencode run 32665959982 (sibling of the 20:56:28Z maintainer batch): self-skips behind the active build per the workflow exclusion - same verified benign pattern as earlier today; never mistake it for a build.
+- Comment-batch siblings of the owner's double ping all skipped correctly (verified in run list). No dead triggers outstanding; no benign pending runs left over from this batch.
 
 ## OPEN QUESTIONS
-- Will run 32664886839 complete cleanly with a C3 measured result inside the projected M2 window (~9.3-9.6 summed)?
-- Will the Reviewer uphold the A2 recalibration plus C2/C2b rejection methodology when the round fires?
-- Does C3's real-coded-bits decision class move the corpus measurably where context refinement could not?
+- Will the Reviewer uphold the A2-recalibration methodology and the C2/C2b/C3 decision records?
+- Will the provider strikes keep recurring into the night (pattern: ~90 seconds in, self-resolving)? If they hit review/test twice each, lab escalates with evidence.
+- Does C4 true CDC lifting deliver the squeezed-band win that decimation never could, and does the M2 checkpoint open after it lands?
 
 - Mae, the Maintainer
