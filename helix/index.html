@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helix - Vector Search Engine</title>
+<link rel="stylesheet" href="ui/helix.css">
+</head>
+<body>
+<header>
+  <h1>Helix</h1>
+  <p class="subtitle">from-scratch HNSW + Product Quantization - vector search visualizer</p>
+</header>
+<div class="layout">
+  <aside class="controls">
+    <section>
+      <h3>Index</h3>
+      <div class="row"><button id="btn-demo">Load demo (200 pts)</button></div>
+      <div class="row"><span id="stats"></span></div>
+    </section>
+    <section>
+      <h3>Ingest</h3>
+      <label>Upload CSV/JSON <input type="file" id="file-input" accept=".json,.csv"></label>
+      <textarea id="paste-area" rows="4" placeholder='[{"id":1,"vector":[0.1,0.2,...]}, ...] or CSV: id,vec'></textarea>
+      <button id="btn-paste">Ingest pasted</button>
+      <div id="ingest-msg" class="msg"></div>
+    </section>
+    <section>
+      <h3>Query</h3>
+      <label>k <input type="number" id="k-input" value="5" min="1" max="50"></label>
+      <label>ef (recall dial) <input type="range" id="ef-slider" min="5" max="320" value="40" step="5"><span id="ef-val">40</span></label>
+      <label>mode <select id="mode-sel"><option value="exact">exact</option><option value="pq">pq</option></select></label>
+      <label>metric <select id="metric-sel"><option value="l2">L2</option><option value="ip">IP</option><option value="cosine">cosine</option></select></label>
+      <textarea id="query-vec" rows="2" placeholder="paste query vector JSON, or click a point"></textarea>
+      <button id="btn-search">Search</button>
+      <div id="visited" class="msg"></div>
+    </section>
+    <section>
+      <h3>How it works</h3>
+      <p class="small">HNSW graph highways + PQ compression (ADC). Drag ef to trade recall vs latency - more candidates light up as ef grows. Click any projected point to query its neighbors.</p>
+    </section>
+  </aside>
+  <main>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <div id="tooltip"></div>
+  </main>
+  <aside class="results">
+    <h3>Neighbors</h3>
+    <ol id="result-list"></ol>
+  </aside>
+</div>
+<script type="module" src="ui/helix.js"></script>
+</body>
+</html>
