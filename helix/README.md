@@ -2,6 +2,8 @@
 
 A from-scratch approximate nearest-neighbor (ANN) engine in **Go**: HNSW graph (probabilistic skip-list layers, best-first `searchLayer` with `ef`, diversity neighbor heuristic, lazy delete) plus **Product Quantization / OPQ** with asymmetric distance computation (ADC) and exact-rerank. Deterministic, headless-testable, with a small REST API and a static dashboard where nearest neighbors light up on a 2D projection.
 
+> **OPQ note:** the `opq` rotation is a single seeded random orthogonal matrix, not the alternating iterative OPQ optimization from the spec. It is deterministic and functional, but it does not guarantee lower quantization distortion than plain PQ. The index falls back to exact rerank when `mode=exact`, so search correctness is unaffected.
+
 ## Quick start
 
 ```bash
