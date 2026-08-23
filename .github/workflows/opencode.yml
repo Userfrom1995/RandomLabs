@@ -283,12 +283,18 @@ jobs:
        startsWith(github.event.comment.body, '/opencode build') ||
        contains(github.event.comment.body, ' /opencode continue') ||
        startsWith(github.event.comment.body, '/opencode continue'))
-    # One codec build per issue: a second build request (e.g. an auto-retry or a
-    # duplicate comment) cancels any in-flight build for the same issue instead of
-    # launching a second agent against the same branch (which would corrupt it).
+    # One codec build per issue. Per the lab-wide mandate (AGENTS.md: all
+    # workflows use cancel-in-progress: false for queued, non-corrupting
+    # execution), duplicate /oc continue requests QUEUE behind the in-flight
+    # build instead of cancelling it. Cancelling an in-flight build was the
+    # root cause of the "silent stall": a stray /oc continue could kill the
+    # running build, leaving no build in flight and the loop dead until a
+    # manual re-ping. The top-level opencode-<issue> group already serializes
+    # all opencode.yml runs per issue, so a second agent never touches the
+    # branch while the first is active.
     concurrency:
       group: opencode-build-${{ github.event.issue.number }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -447,7 +453,7 @@ jobs:
           fi
           exit 0
 
-      - name: Diagnose silent build no-op
+      - name: Diagnose silent build no-op and self-heal
         if: always() && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
@@ -467,9 +473,31 @@ jobs:
             has_decision="yes"
           fi
           if [ "$advanced" = "no" ] && [ "$has_decision" = "no" ]; then
-            echo "::warning::Build agent run ${{ github.run_id }} finished with no branch push and no decision file (silent no-op). A full agent slot was consumed with no output."
-            gh issue comment "$issue" --repo "${{ github.repository }}" \
-              --body "Lab note: build run ${{ github.run_id }} for #$issue finished with neither a push nor a decision file (silent no-op). This wastes a full agent slot; investigate the agent run or re-dispatch." 2>/dev/null || true
+            echo "::warning::Build agent run ${{ github.run_id }} finished with no branch push and no decision file (silent no-op)."
+            # Bounded self-heal: a genuine no-op (e.g. the agent killed by timeout
+            # before it committed) must NOT leave the build branch with nothing in
+            # flight. Re-dispatch /oc continue a small number of times; if it keeps
+            # no-op'ing, hand off to the Maintainer instead of silently stalling
+            # (the old behavior required a manual /oc maintainer ping, which the
+            # loop-breaking "circuit breaker" then wrongly refused to honor).
+            heals=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue (auto-heal")))] | length' 2>/dev/null || true)
+            if [ -z "$heals" ] || ! [ "$heals" -eq "$heals" ] 2>/dev/null; then
+              echo "Could not enumerate prior auto-heals (API/rate-limit). Handing off to Maintainer."
+              gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc maintainer" 2>/dev/null || true
+              exit 0
+            fi
+            if [ "$heals" -lt 2 ]; then
+              n=$((heals + 1))
+              echo "Self-healing: re-dispatching /oc continue (auto-heal $n)"
+              gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc continue (auto-heal $n)" 2>/dev/null || true
+            else
+              echo "Build no-op'd $heals times; handing off to Maintainer (/oc maintainer)."
+              gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc maintainer" 2>/dev/null || true
+            fi
           fi
           exit 0
 
