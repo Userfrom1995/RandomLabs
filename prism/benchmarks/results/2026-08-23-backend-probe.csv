@@ -2,10 +2,10 @@ image,variant,bytes,delta_vs_v0_pct
 kodim01.ppm,v0,584218,0
 kodim01.ppm,v1,554087,-5.15749
 kodim01.ppm,v1shared,589201,0.852935
-kodim01.ppm,v2,553969,-5.17769
-kodim01.ppm,v2shared,560276,-4.09813
+kodim01.ppm,v2,546852,-6.3959
+kodim01.ppm,v2shared,553497,-5.25848
 kodim13.ppm,v0,685140,0
 kodim13.ppm,v1,661698,-3.42149
 kodim13.ppm,v1shared,688437,0.481216
-kodim13.ppm,v2,661520,-3.44747
-kodim13.ppm,v2shared,667329,-2.59961
+kodim13.ppm,v2,652316,-4.79085
+kodim13.ppm,v2shared,657694,-4.0059
