@@ -88,6 +88,25 @@ context under this binarization. Next lever recorded for C2b: composite
 `leaf * 343 + resdiff` contexts so the tree REFINES the causal context
 instead of replacing it - probe-rail first, ship only on a measured win.
 
+## C2b addendum (2026-08-23, continuation run 3)
+
+The composite lever was validated offline exactly as promised and REJECTED
+with measurements, closing the static-context-refinement direction:
+
+- Tree-composite `leaf * 343 + resdiff` (class priors keyed on the resdiff
+  part; flat streams bit-identical): payload alone edges flat by -67 B on
+  kodim01, but the serialized model (+230/+286 B) sinks every total. Gate B1
+  FAILs on both probe images.
+- Fixed `activity * 343 + resdiff` partition (zero side-channel): -43 B
+  kodim01 / +35 B kodim13 - mixed sign, not adopted.
+- Three independent measurements now agree that under v2 binarization with
+  dual-rate class-hierarchy sharing, adaptation already harvests what any
+  static refinement could add (~0.19 percent oracle ceiling). The MA-tree
+  stays a squeezed-band capability for C4/C5; flat-plane work moves to C3.
+
+The rail itself gained the B1 gate plus a third self-check case proving the
+new gate can fail alone; durable CSV refreshed with all 7 variants.
+
 Corpus truth this round (fresh both-units measure, sha pins verified):
 e1 mean 3.4515 per-sample / 10.3544 summed bpp (-6.09 percent vs pre-C1);
 M2/M3 remain open under the owner freeze.
