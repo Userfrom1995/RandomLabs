@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32642473603, Helix PR #129 built and in review; Reviewer in flight). Kinetica (#124) MERGED (#127) at `8315dfa`; Prism shipped & MERGED (#121); silent-stall hardening #122 CLOSED via #125/#126. Obsidian is the current codec in `main`.
+- **Updated:** 2026-08-23 (maintainer run 32642815644, Helix PR #129 fixed and in fresh review; Reviewer in flight). Kinetica (#124) MERGED (#127) at `8315dfa`; Prism shipped & MERGED (#121); silent-stall hardening #122 CLOSED via #125/#126. Obsidian is the current codec in `main`.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **Obsidian shipped** (#93 manually merged by owner as orphan root; promoted to Current via #115; docs cleaned by #116). Obsidian is the current codec in `main`; last confirmed REAL-Kodak baseline **9.5209 bpp**. #68 CLOSED.
@@ -23,7 +23,7 @@
 - **PR #127 MERGED (head `b45c34f`):** rebase-merge at `8315dfa`; branch deleted; #124 closed.
 
 ## IN FLIGHT (builds / reviews)
-- **Helix (issue #128 -> PR #129):** BUILT and OPEN. Head `83322f1a25f5e7d1375d16315e091a44212724fa`, branch `opencode/issue128-20260823131639`. Reviewer IN FLIGHT (opencode-review runs 32642473618 pending + 32642467364 in_progress, both from owner `/oc review`). Next in chain: Reviewer `/oc approve` -> Tester (5 benchmarks) -> `/oc approve-test` -> Maintainer rebase-merge + close #128. Would be 2nd new-project merge today (within 2/day limit). NOT orphan (shared ancestry `8315dfa`).
+- **Helix (issue #128 -> PR #129):** BUILT, FIXED, OPEN. Head `130cfa6ec1679f8e1025210994b7b7072c40645c` (post-fixer force-push), branch `opencode/issue128-20260823131639`. All four reviewer findings (gofmt, REST data race, disconnected top layers, dead code) applied by the Fixer; `go vet`/`go test` pass. Fresh Reviewer IN FLIGHT (opencode-review run 32642815599, pending, from owner `/oc review` at 13:35:25Z). Next in chain: Reviewer `/oc approve` -> Tester (5 benchmarks) -> `/oc approve-test` -> Maintainer rebase-merge + close #128. Would be 2nd new-project merge today (within 2/day limit). NOT orphan (shared ancestry `8315dfa`).
 
 ## PENDING (in order)
 1. **Helix (PR #129) review -> test -> merge** (in flight now).
@@ -49,12 +49,12 @@
 - **Rate-limit note:** transient rate-limit hit the Reviewer earlier today (10:04:24Z); did not block the final gate. Monitor, fallback via `lab` if it recurs.
 
 ## NEXT STEPS
-1. Hold triggers on PR #129: Reviewer in flight will approve -> Tester (5 benchmarks) -> `/oc approve-test` -> this maintainer workflow merges (rebase, delete-branch) and closes #128.
+1. Hold triggers on PR #129: Reviewer in flight (32642815599) will approve -> Tester (5 benchmarks) -> `/oc approve-test` -> this maintainer workflow merges (rebase, delete-branch) and closes #128.
 2. After #129 merges: pick next Brainstorm (#42) candidate (owner reaction steers); trigger `pages.yml` if `main` advanced.
 3. (Optional) Kinetica N1-N4 follow-ups as a new issue/PR.
 
 ## OPEN QUESTIONS
-- Will the in-flight Reviewer post a formal `/oc approve` on head `83322f1a`? Then Tester 5 benchmarks, then approve-test -> merge (2nd project today, within limit).
+- Will the in-flight Reviewer (32642815599) post a formal `/oc approve` on head `130cfa6e`? Then Tester 5 benchmarks, then approve-test -> merge (2nd project today, within limit).
 - Which board candidate follows Helix? Owner reaction steers (none posted).
 - Rate-limit stability of the free model tier - monitor; fallback if needed.
 - Should `maintainer.yml` always `git fetch --unshallow` before orphan checks? Logged for a future `lab` improvement (not urgent).
