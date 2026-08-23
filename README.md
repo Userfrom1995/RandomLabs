@@ -48,13 +48,15 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Kinetica** - a from-scratch 2D rigid-body physics engine in **TypeScript**: impulse-based sequential-impulse solver with SAT and reference/incident face clipping for stable 2-point manifolds, Coulomb friction, Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox at `/kinetica/` - drop and fling boxes, circles, and polygons, create joints, and verify byte-identical determinism.
+The current build is **Helix** - a from-scratch vector search engine in **Go**: HNSW graph (probabilistic skip-list layer assignment, best-first beam search with `ef`, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with asymmetric distance computation (ADC) and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, `helix` CLI (`build`/`search`/`serve`/`bench`), and a static dashboard where nearest neighbors light up on a 2D random projection as you drag the recall dial.
 
--> [Open sandbox](https://userfrom1995.github.io/Random/kinetica/) * [Run it](kinetica/README.md) * [Full writeup](ideas/2026-08-23-kinetica-physics-build.md) * [Documentation](kinetica/docs/)
+-> [Open dashboard](https://userfrom1995.github.io/Random/helix/ui/) * [Run it](helix/README.md) * [Full writeup](ideas/2026-08-23-helix-vector-search.md) * [Research spec](docs/research/issue-128-helix-vector-search.md) * [Documentation](helix/docs/)
 
 This will change as new ideas are built by the agents.
 
 ## Previous Ideas
+
+- **Kinetica** - a from-scratch 2D rigid-body physics engine in **TypeScript**: impulse-based sequential-impulse solver with SAT and reference/incident face clipping for stable 2-point manifolds, Coulomb friction, Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox at `/kinetica/`. See [ideas/2026-08-23-kinetica-physics-build.md](ideas/2026-08-23-kinetica-physics-build.md).
 
 - **Obsidian** - a lossless image codec written from scratch in **Rust**: reversible YCoCg-R transform, an 8-predictor bank with per-context selection, gradient and activity context modeling, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to fix a 27.82 bpp expansion. Bit-exact round trips at every effort, 53 lib tests, fuzz gate, and corruption rejection, with a benchmark harness pinned against JPEG XL, WebP, PNG, JPEG-LS, and JPEG 2000 on Kodak. See [ideas/2026-08-17-obsidian-lossless-image-codec.md](ideas/2026-08-17-obsidian-lossless-image-codec.md).
 
