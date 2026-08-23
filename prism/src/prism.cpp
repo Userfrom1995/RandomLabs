@@ -81,12 +81,18 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     }
     std::vector<std::vector<uint8_t>> plane_leaf_maps;
     if (c.predictor_mode == 6) {
+        // B5.47: dynamic leaves per plane (8 old -> 16 new, backward compat via total/P)
+        size_t leaves_per_plane = 16;
+        if (!c.per_leaf_pred.empty() && transformed.planes.size()>0) {
+            size_t t = c.per_leaf_pred.size() / transformed.planes.size();
+            if (t==8 || t==16) leaves_per_plane = t;
+        }
         plane_leaf_maps.resize(transformed.planes.size());
         for (size_t pi=0; pi< transformed.planes.size(); ++pi) {
-            size_t off = pi * 8;
+            size_t off = pi * leaves_per_plane;
             std::vector<uint8_t> m;
-            for (size_t k=0;k<8 && off+k < c.per_leaf_pred.size(); ++k) m.push_back(c.per_leaf_pred[off+k]);
-            if (m.size()<8) m.resize(8, c.global_pred_id);
+            for (size_t k=0;k<leaves_per_plane && off+k < c.per_leaf_pred.size(); ++k) m.push_back(c.per_leaf_pred[off+k]);
+            if (m.size()<leaves_per_plane) m.resize(leaves_per_plane, c.global_pred_id);
             plane_leaf_maps[pi] = std::move(m);
         }
     }
@@ -247,9 +253,14 @@ Raster decode(const uint8_t* data, size_t len) {
         }
         std::vector<uint8_t> leaf_map;
         if (c.predictor_mode == 6 && levels==0) {
-            size_t off = pi * 8;
-            for (size_t k=0;k<8 && off+k < c.per_leaf_pred.size(); ++k) leaf_map.push_back(c.per_leaf_pred[off+k]);
-            if (leaf_map.size()<8) leaf_map.resize(8, c.global_pred_id);
+            size_t leaves_per_plane = 16;
+            if (!c.per_leaf_pred.empty() && out.planes.size()>0) {
+                size_t t = c.per_leaf_pred.size() / out.planes.size();
+                if (t==8 || t==16) leaves_per_plane = t;
+            }
+            size_t off = pi * leaves_per_plane;
+            for (size_t k=0;k<leaves_per_plane && off+k < c.per_leaf_pred.size(); ++k) leaf_map.push_back(c.per_leaf_pred[off+k]);
+            if (leaf_map.size()<leaves_per_plane) leaf_map.resize(leaves_per_plane, c.global_pred_id);
         }
         ModelBank mb_ll_dec = ModelBank::create(11264, 16);
         ModelBank mb_hf_dec = ModelBank::create(1408, 16);

@@ -285,10 +285,10 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         best_mode = 5;
         best_flat = squeeze_per_band;
     }
-    // B5.36 leaf-activity mode (8 leaves, MA-tree lite): evaluate per-plane 8-leaf predictor map
+    // B5.47 leaf-activity 16 leaves (finer) : evaluate per-plane 16-leaf predictor map (was 8, doubled granularity 2/4/7/11/16/22/30/40/55/75/100/130/165/210/270)
     uint64_t cost_leaf = UINT64_MAX; std::vector<uint8_t> flat_leaf;
     {
-        const size_t LEAVES = 8;
+        const size_t LEAVES = 16;
         flat_leaf.reserve(tr.planes.size()*LEAVES);
         uint64_t total_leaf_cost = 0;
         std::vector<std::vector<uint8_t>> per_plane_leaf_maps;
@@ -296,7 +296,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         for (size_t c=0;c<tr.planes.size();++c){
             if (tr.ch == Channels::RGBA && c==3) { std::vector<uint8_t> m(LEAVES,3); per_plane_leaf_maps.push_back(m); for(auto v:m) flat_leaf.push_back(v); continue; }
             const auto &all_resids = all_cache[c];
-            // B5.46 leaves via sumAbs 3/8/15/25/50/100/180 matching rANS activity (was gradient), predictor-agnostic but entropy-aligned
+            // B5.47 leaves via sumAbs 2/4/7/11/16/22/30/40/55/75/100/130/165/210/270 (16 buckets, finer than 8-bucket 3/8/15/25/50/100/180)
             auto leaves = compute_leaves_activity(tr.planes[c], tr.w, tr.h);
             // for each leaf, find best pid via sumAbs then true cost top3
             std::vector<uint8_t> best_per_leaf(LEAVES,3);

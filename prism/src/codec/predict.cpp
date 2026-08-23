@@ -217,18 +217,26 @@ std::vector<uint8_t> compute_leaves_activity(const std::vector<uint16_t>& plane,
             int32_t T  = (y > 0) ? (int32_t)plane[idx - w] : 0;
             int32_t TL = (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0;
             int32_t sumAbs = std::abs(L) + std::abs(T) + std::abs(TL);
-            // B5.46: use sumAbs 3/8/15/25/50/100/180 thresholds matching rANS activity buckets (11264) instead of gradient,
-            // directly aligning leaf partition with entropy adaptation (act 0..7). This improves per-leaf predictor selection
-            // coherence where activity predicts best predictor (smooth vs textured).
+            // B5.47: 16 leaves 2/4/7/11/16/22/30/40/55/75/100/130/165/210/270 - finer split of 8-bucket 3/8/15/25/50/100/180
+            // Doubles leaf granularity (8->16, overhead 12->24 bytes) to separate smooth vs edge vs high-activity more precisely,
+            // directly aligning with 11264 entropy act but with doubled resolution (2*act levels). Top3 per-leaf true-cost retained.
             uint8_t leaf = 0;
-            if (sumAbs <= 3) leaf = 0;
-            else if (sumAbs <= 8) leaf = 1;
-            else if (sumAbs <= 15) leaf = 2;
-            else if (sumAbs <= 25) leaf = 3;
-            else if (sumAbs <= 50) leaf = 4;
-            else if (sumAbs <= 100) leaf = 5;
-            else if (sumAbs <= 180) leaf = 6;
-            else leaf = 7;
+            if (sumAbs <= 2) leaf = 0;
+            else if (sumAbs <= 4) leaf = 1;
+            else if (sumAbs <= 7) leaf = 2;
+            else if (sumAbs <= 11) leaf = 3;
+            else if (sumAbs <= 16) leaf = 4;
+            else if (sumAbs <= 22) leaf = 5;
+            else if (sumAbs <= 30) leaf = 6;
+            else if (sumAbs <= 40) leaf = 7;
+            else if (sumAbs <= 55) leaf = 8;
+            else if (sumAbs <= 75) leaf = 9;
+            else if (sumAbs <= 100) leaf = 10;
+            else if (sumAbs <= 130) leaf = 11;
+            else if (sumAbs <= 165) leaf = 12;
+            else if (sumAbs <= 210) leaf = 13;
+            else if (sumAbs <= 270) leaf = 14;
+            else leaf = 15;
             leaves[idx] = leaf;
         }
     }
@@ -252,14 +260,22 @@ std::vector<int32_t> compute_residuals_leaves(const std::vector<uint16_t>& plane
             int32_t N2 = (y > 1) ? (int32_t)plane[idx - 2*w] : T;
             int32_t sumAbs = std::abs(L) + std::abs(T) + std::abs(TL);
             uint8_t leaf = 0;
-            if (sumAbs <= 3) leaf = 0;
-            else if (sumAbs <= 8) leaf = 1;
-            else if (sumAbs <= 15) leaf = 2;
-            else if (sumAbs <= 25) leaf = 3;
-            else if (sumAbs <= 50) leaf = 4;
-            else if (sumAbs <= 100) leaf = 5;
-            else if (sumAbs <= 180) leaf = 6;
-            else leaf = 7;
+            if (sumAbs <= 2) leaf = 0;
+            else if (sumAbs <= 4) leaf = 1;
+            else if (sumAbs <= 7) leaf = 2;
+            else if (sumAbs <= 11) leaf = 3;
+            else if (sumAbs <= 16) leaf = 4;
+            else if (sumAbs <= 22) leaf = 5;
+            else if (sumAbs <= 30) leaf = 6;
+            else if (sumAbs <= 40) leaf = 7;
+            else if (sumAbs <= 55) leaf = 8;
+            else if (sumAbs <= 75) leaf = 9;
+            else if (sumAbs <= 100) leaf = 10;
+            else if (sumAbs <= 130) leaf = 11;
+            else if (sumAbs <= 165) leaf = 12;
+            else if (sumAbs <= 210) leaf = 13;
+            else if (sumAbs <= 270) leaf = 14;
+            else leaf = 15;
             if (leaf >= num_leaves) leaf = (uint8_t)(num_leaves - 1);
             uint8_t pid = per_leaf_pred[leaf];
             PredId id = PredId::MED;
@@ -310,14 +326,22 @@ std::vector<uint16_t> reconstruct_plane_leaves(const std::vector<int32_t>& resid
             int32_t N2 = (y > 1) ? (int32_t)plane[idx - 2*w] : T;
             int32_t sumAbs = std::abs(L) + std::abs(T) + std::abs(TL);
             uint8_t leaf = 0;
-            if (sumAbs <= 3) leaf = 0;
-            else if (sumAbs <= 8) leaf = 1;
-            else if (sumAbs <= 15) leaf = 2;
-            else if (sumAbs <= 25) leaf = 3;
-            else if (sumAbs <= 50) leaf = 4;
-            else if (sumAbs <= 100) leaf = 5;
-            else if (sumAbs <= 180) leaf = 6;
-            else leaf = 7;
+            if (sumAbs <= 2) leaf = 0;
+            else if (sumAbs <= 4) leaf = 1;
+            else if (sumAbs <= 7) leaf = 2;
+            else if (sumAbs <= 11) leaf = 3;
+            else if (sumAbs <= 16) leaf = 4;
+            else if (sumAbs <= 22) leaf = 5;
+            else if (sumAbs <= 30) leaf = 6;
+            else if (sumAbs <= 40) leaf = 7;
+            else if (sumAbs <= 55) leaf = 8;
+            else if (sumAbs <= 75) leaf = 9;
+            else if (sumAbs <= 100) leaf = 10;
+            else if (sumAbs <= 130) leaf = 11;
+            else if (sumAbs <= 165) leaf = 12;
+            else if (sumAbs <= 210) leaf = 13;
+            else if (sumAbs <= 270) leaf = 14;
+            else leaf = 15;
             if (leaf >= num_leaves) leaf = (uint8_t)(num_leaves - 1);
             uint8_t pid = per_leaf_pred[leaf];
             PredId id = PredId::MED;
