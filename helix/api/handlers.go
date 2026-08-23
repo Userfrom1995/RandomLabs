@@ -24,6 +24,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, 400, "invalid json: "+err.Error())
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(req.Vector) != s.Idx.Dim {
 		errorResponse(w, 400, "vector length mismatch")
 		return
@@ -58,6 +60,8 @@ func (s *Server) handleBatch(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, 400, "invalid json: "+err.Error())
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	count := 0
 	for _, it := range req.Items {
 		if len(it.Vector) != s.Idx.Dim {
@@ -82,6 +86,8 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, 405, "method not allowed")
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	// path /api/index/:id
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	if len(parts) != 3 {
@@ -102,6 +108,8 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, 405, "method not allowed")
 		return
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	var req struct {
 		Vector []float32 `json:"vector"`
 		K      int       `json:"k"`
@@ -137,6 +145,8 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, 405, "method not allowed")
 		return
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	pqInfo := map[string]any{"enabled": s.Idx.PQ != nil}
 	if s.Idx.PQ != nil {
 		pqInfo["M"] = s.Idx.PQ.M
@@ -156,6 +166,8 @@ func (s *Server) handleProjection(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, 405, "method not allowed")
 		return
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	pts := s.Idx.Projection()
 	jsonResponse(w, 200, map[string]any{"points": pts})
 }
