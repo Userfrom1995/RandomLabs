@@ -35,35 +35,6 @@ export function makeStack(seed = 123, count = 10) {
     }
     return w;
 }
-export function makePendulum(seed = 456) {
-    const w = makeWorld(seed, { gravity: { x: 0, y: -9.81 }, deterministicNoSleep: true });
-    const pivot = createBody({ shape: createBox(0.1, 0.1), p: { x: 0, y: 8 }, isStatic: true });
-    w.addBody(pivot);
-    const bob = createBody({
-        shape: { kind: 'circle', radius: 0.5 },
-        p: { x: 1, y: 6 },
-        friction: 0.2,
-        restitution: 0.0,
-        density: 1
-    });
-    w.addBody(bob);
-    // distance joint
-    const { createDistanceJoint } = awaitImportHack();
-    // we'll create manually to avoid circular
-    // Use world ids directly
-    const joint = {
-        kind: 'distance',
-        A: pivot.id,
-        B: bob.id,
-        localAnchorA: { x: 0, y: 0 },
-        localAnchorB: { x: 0, y: 0 },
-        length: 2,
-        accImpulses: [0]
-    };
-    w.addJoint(joint);
-    return w;
-}
-function awaitImportHack() { return null; }
 export function makeMixed(seed = 789) {
     const w = makeWorld(seed, { gravity: { x: 0, y: -9.81 }, deterministicNoSleep: true });
     addGround(w);
