@@ -74,6 +74,15 @@ prism/benchmarks
 Prism is a CLI tool: there is no web entrypoint; project documentation lives in
 `prism/docs/`.
 
+## Decision engine (C3)
+
+Analyzer choices (color transform, CFL scales, global predictor) are made by
+`trial_flat_bits`: real coded bytes of the exact v2 stream the encoder emits.
+Candidates are pruned on a decimated grid, then finalists plus the identity
+plan (None / zero CFL / MED) are fully encoded; ties keep the identity, so an
+analysis decision can never lose to doing nothing. See
+`docs/architecture-jxl-parity.md` section 5.
+
 ## Benchmarks
 
 ```
