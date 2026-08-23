@@ -25,21 +25,6 @@ func Transpose(mat []float32, D int) []float32 {
 	return out
 }
 
-// MatMul multiplies A (D x D) by B (D x D).
-func MatMul(A, B []float32, D int) []float32 {
-	out := make([]float32, D*D)
-	for i := 0; i < D; i++ {
-		for j := 0; j < D; j++ {
-			var s float64
-			for k := 0; k < D; k++ {
-				s += float64(A[i*D+k]) * float64(B[k*D+j])
-			}
-			out[i*D+j] = float32(s)
-		}
-	}
-	return out
-}
-
 // Identity returns D x D identity.
 func Identity(D int) []float32 {
 	m := make([]float32, D*D)
