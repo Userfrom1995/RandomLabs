@@ -19,6 +19,8 @@ add_library(prism_core STATIC
     src/codec/matree.cpp
     src/codec/matree_builder.cpp
     src/codec/squeeze.cpp
+    src/codec/cm.cpp
+    src/codec/lzp.cpp
     src/codec/analyze.cpp
     src/codec/container.cpp
     src/frontend/ppm_raw.cpp
