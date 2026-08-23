@@ -406,6 +406,11 @@ catches up in seconds.
   handover, which requires that same approval).
 - The Reviewer is read-only by construction (prompt + workflow restore-head).
 - PAT is only ever in hardcoded steps (§7); agents never see it.
+- The Maintainer cannot land infra/model/workflow changes herself: routine
+  changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
+  revival path fires only with a complete `.maintainer/emergency.json`
+  declaration (a linkable failed lab attempt + halted production); without it,
+  her protected-path edits are reverted automatically and never pushed.
 - Timers are evaluation triggers, not deadlines; the Maintainer logs every
   decision with rationale.
 - `shutdown.sh --purge` removes workflows, agents, secrets, and branch
