@@ -61,6 +61,37 @@ levers for later phases: logistic mixing over {resdiff, qg, activity}
 estimators and SSE (planned C6), MA-tree adaptive contexts (C2, where the
 real conditioning wins live).
 
+## C2 round (same day, third continuation): the tree that lost on purpose
+
+Blueprint phase C2 made the MA-tree always-on at effort >= 3 and moved its
+acceptance to real trial-encoded bytes (payloads + serialized model) - the
+old `hasLevels` guard that kept the tree dead code on photos is gone. Landed:
+
+- Container flags bit4 `MATREE_FLAT_FLAG` (requires bit2): level-0 planes
+  carry spatial leaf contexts; decode mirrors via the band decoder with
+  uniform leaf-prior init; bit4-without-bit2 is a hard decode error.
+- Builder upgrades: depth <= 10, leaves <= 256, min_samples_per_leaf = 512,
+  split thresholds at octile QUANTILES of each node's own distribution
+  (deterministic tie-break), and a strided induction subsample cap (32768)
+  that keeps greedy splitting fast while acceptance stays a full-image trial.
+- Latent bug fixed en route: the v2 leaf helpers silently clamped/folded
+  contexts to 64 - harmless for legacy 16-leaf trees, corrupting beyond 64.
+
+**The honest result: rejection.** On kodim01 the tree builds in 0.78 s
+(41 leaves, depth 10, 286 model bytes) but its payloads LOSE to flat
+residual-DIFF-343 coding by +1050 bytes (+0.12 percent); uniform prior init
+loses by more (+1598). The trial gate therefore rejects on all 24 corpus
+images and e3 output is byte-identical to e1 - zero regression by
+construction. The lesson matches C1's oracle finding: a static threshold
+partition of spatial features is strictly coarser than the exact causal
+context under this binarization. Next lever recorded for C2b: composite
+`leaf * 343 + resdiff` contexts so the tree REFINES the causal context
+instead of replacing it - probe-rail first, ship only on a measured win.
+
+Corpus truth this round (fresh both-units measure, sha pins verified):
+e1 mean 3.4515 per-sample / 10.3544 summed bpp (-6.09 percent vs pre-C1);
+M2/M3 remain open under the owner freeze.
+
 ## Notes
 
 - Probe calibration: probe v0 reproduces the real legacy file size for
