@@ -83,6 +83,14 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Next steps (in order)
 
+0. **Branch update policy (binding for every future run on this branch):**
+   this branch carries MERGED ORPHAN-ROOTED phase histories (researcher
+   commits 1113c6f/2d615b9/etc. have empty parents and were joined by
+   merges). A plain `git rebase origin/main` tries to flatten and replay
+   those foreign roots and will always conflict. To sync with main use
+   `git merge origin/main` instead. Rebase is safe ONLY after a full
+   rebuild-and-cherry-pick per the AGENTS.md safety net. Verified this
+   run: main == f8a958d == merge-base, so nothing needed syncing.
 1. [next run] C4 (true CDC lifting, blueprint section 6): replace Stage-S
    decimation with horizontal-then-vertical lifting recursed on the
    average quadrant, post-order preserved; per-plane L by trial-encoded
@@ -94,6 +102,14 @@ Previous slice summary (continuation run 3, C2b):
 Owner freeze stands throughout: nothing merges before both gates pass.
 
 ## Agent log
+
+- 2026-08-23 the Builder (continuation run 4, addendum): discovered the
+  multi-root hazard the hard way - a routine `git rebase origin/main`
+  began replaying the orphan-rooted researcher commits and was ABORTED
+  with zero side effects (branch restored at fb460cf, tree clean).
+  Verified main is an ancestor (f8a958d == merge-base == origin/main
+  tip), remote head matches local, so no sync was needed; recorded the
+  merge-not-rebase policy as next-step item 0 for future runs.
 
 - 2026-08-23 the Builder (continuation run 4): C3 trial-encoded decisions
   landed (076acb0 + measurement commit). Engine: decimate_raster /
