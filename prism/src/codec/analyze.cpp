@@ -296,7 +296,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         for (size_t c=0;c<tr.planes.size();++c){
             if (tr.ch == Channels::RGBA && c==3) { std::vector<uint8_t> m(LEAVES,3); per_plane_leaf_maps.push_back(m); for(auto v:m) flat_leaf.push_back(v); continue; }
             const auto &all_resids = all_cache[c];
-            // leaves based on sample gradient activity (predictor-agnostic)
+            // B5.46 leaves via sumAbs 3/8/15/25/50/100/180 matching rANS activity (was gradient), predictor-agnostic but entropy-aligned
             auto leaves = compute_leaves_activity(tr.planes[c], tr.w, tr.h);
             // for each leaf, find best pid via sumAbs then true cost top3
             std::vector<uint8_t> best_per_leaf(LEAVES,3);
@@ -309,8 +309,8 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     cands.push_back({pid,s});
                 }
                 std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum<b.sum;});
-                // top2 true-cost per leaf slice (isolated) to refine where sumAbs close
-                size_t topN = std::min<size_t>(2, cands.size());
+                // B5.46: top3 true-cost per leaf slice (was top2) to capture cases where 3rd sumAbs is true rANS best, with sumAbs-aligned leaves
+                size_t topN = std::min<size_t>(3, cands.size());
                 uint64_t best_cost = UINT64_MAX; uint8_t best_pid = cands[0].pid;
                 for(size_t t=0;t<topN;++t){
                     uint8_t pid = cands[t].pid;

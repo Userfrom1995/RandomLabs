@@ -216,15 +216,18 @@ std::vector<uint8_t> compute_leaves_activity(const std::vector<uint16_t>& plane,
             int32_t L  = (x > 0) ? (int32_t)plane[idx - 1] : 0;
             int32_t T  = (y > 0) ? (int32_t)plane[idx - w] : 0;
             int32_t TL = (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0;
-            int32_t grad = std::abs(L - T) + std::abs(L - TL) + std::abs(T - TL);
+            int32_t sumAbs = std::abs(L) + std::abs(T) + std::abs(TL);
+            // B5.46: use sumAbs 3/8/15/25/50/100/180 thresholds matching rANS activity buckets (11264) instead of gradient,
+            // directly aligning leaf partition with entropy adaptation (act 0..7). This improves per-leaf predictor selection
+            // coherence where activity predicts best predictor (smooth vs textured).
             uint8_t leaf = 0;
-            if (grad <= 4) leaf = 0;
-            else if (grad <= 8) leaf = 1;
-            else if (grad <= 16) leaf = 2;
-            else if (grad <= 32) leaf = 3;
-            else if (grad <= 64) leaf = 4;
-            else if (grad <= 128) leaf = 5;
-            else if (grad <= 192) leaf = 6;
+            if (sumAbs <= 3) leaf = 0;
+            else if (sumAbs <= 8) leaf = 1;
+            else if (sumAbs <= 15) leaf = 2;
+            else if (sumAbs <= 25) leaf = 3;
+            else if (sumAbs <= 50) leaf = 4;
+            else if (sumAbs <= 100) leaf = 5;
+            else if (sumAbs <= 180) leaf = 6;
             else leaf = 7;
             leaves[idx] = leaf;
         }
@@ -247,15 +250,15 @@ std::vector<int32_t> compute_residuals_leaves(const std::vector<uint16_t>& plane
             int32_t TR = (y > 0 && x + 1 < w) ? (int32_t)plane[idx - w + 1] : 0;
             int32_t W2 = (x > 1) ? (int32_t)plane[idx - 2] : L;
             int32_t N2 = (y > 1) ? (int32_t)plane[idx - 2*w] : T;
-            int32_t grad = std::abs(L - T) + std::abs(L - TL) + std::abs(T - TL);
+            int32_t sumAbs = std::abs(L) + std::abs(T) + std::abs(TL);
             uint8_t leaf = 0;
-            if (grad <= 4) leaf = 0;
-            else if (grad <= 8) leaf = 1;
-            else if (grad <= 16) leaf = 2;
-            else if (grad <= 32) leaf = 3;
-            else if (grad <= 64) leaf = 4;
-            else if (grad <= 128) leaf = 5;
-            else if (grad <= 192) leaf = 6;
+            if (sumAbs <= 3) leaf = 0;
+            else if (sumAbs <= 8) leaf = 1;
+            else if (sumAbs <= 15) leaf = 2;
+            else if (sumAbs <= 25) leaf = 3;
+            else if (sumAbs <= 50) leaf = 4;
+            else if (sumAbs <= 100) leaf = 5;
+            else if (sumAbs <= 180) leaf = 6;
             else leaf = 7;
             if (leaf >= num_leaves) leaf = (uint8_t)(num_leaves - 1);
             uint8_t pid = per_leaf_pred[leaf];
@@ -305,15 +308,15 @@ std::vector<uint16_t> reconstruct_plane_leaves(const std::vector<int32_t>& resid
             int32_t TR = (y > 0 && x + 1 < w) ? (int32_t)plane[idx - w + 1] : 0;
             int32_t W2 = (x > 1) ? (int32_t)plane[idx - 2] : L;
             int32_t N2 = (y > 1) ? (int32_t)plane[idx - 2*w] : T;
-            int32_t grad = std::abs(L - T) + std::abs(L - TL) + std::abs(T - TL);
+            int32_t sumAbs = std::abs(L) + std::abs(T) + std::abs(TL);
             uint8_t leaf = 0;
-            if (grad <= 4) leaf = 0;
-            else if (grad <= 8) leaf = 1;
-            else if (grad <= 16) leaf = 2;
-            else if (grad <= 32) leaf = 3;
-            else if (grad <= 64) leaf = 4;
-            else if (grad <= 128) leaf = 5;
-            else if (grad <= 192) leaf = 6;
+            if (sumAbs <= 3) leaf = 0;
+            else if (sumAbs <= 8) leaf = 1;
+            else if (sumAbs <= 15) leaf = 2;
+            else if (sumAbs <= 25) leaf = 3;
+            else if (sumAbs <= 50) leaf = 4;
+            else if (sumAbs <= 100) leaf = 5;
+            else if (sumAbs <= 180) leaf = 6;
             else leaf = 7;
             if (leaf >= num_leaves) leaf = (uint8_t)(num_leaves - 1);
             uint8_t pid = per_leaf_pred[leaf];
