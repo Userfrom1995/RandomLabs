@@ -100,9 +100,17 @@ func (g *Graph) Insert(id uint64, layer int, dist func(aID, bID uint64) float32)
 	// Current entry point and top layer before insertion.
 	ep := g.EntryPoint
 	curTop := g.TopLayer
+	// If the new node sits above the current top layer, wire it into the
+	// intermediate upper layers via the old entry point so top-down searches
+	// can descend. The neighbor search for the new node still starts from the
+	// old entry point (ep) at layer curTop.
 	if layer > curTop {
-		// New top layers: entry point will become this node for those layers,
-		// but we still need to descend through existing top layers first.
+		for lc := curTop + 1; lc <= layer; lc++ {
+			g.ensureLayer(node, lc)
+			g.ensureLayer(g.Nodes[ep], lc)
+			node.Neighbors[lc] = sortedInsert(node.Neighbors[lc], ep)
+			g.Nodes[ep].Neighbors[lc] = sortedInsert(g.Nodes[ep].Neighbors[lc], id)
+		}
 	}
 
 	// 1. Greedy descent from top to layer+1 (ef=1)
@@ -261,9 +269,6 @@ func (g *Graph) searchLayerWithDist(qID uint64, entryPoints []uint64, ef, lc int
 	for wHeap.Len() > ef {
 		heap.Pop(wHeap)
 	}
-
-	visitedCount := len(visited)
-	_ = visitedCount
 
 	for candidates.Len() > 0 {
 		c := heap.Pop(candidates).(core.Candidate)
@@ -472,10 +477,6 @@ func (g *Graph) searchLayerWithDistVisited(qID uint64, entryPoints []uint64, ef,
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Dist < out[j].Dist })
 	return out, len(visited)
-}
-
-func (g *Graph) searchLayerWithDistWithVisited(qID uint64, entryPoints []uint64, ef, lc int, dist func(aID, bID uint64) float32) []core.Candidate {
-	return g.searchLayerWithDist(qID, entryPoints, ef, lc, dist)
 }
 
 // Layers returns number of layers.
