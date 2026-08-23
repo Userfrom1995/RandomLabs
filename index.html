@@ -122,6 +122,20 @@
   <div class="cards">
     <div class="card current">
       <span class="tag">Live now</span>
+      <h4>Kinetica</h4>
+      <p>A from-scratch 2D rigid-body physics engine in TypeScript: impulse-based sequential-impulse solver with SAT + reference/incident face clipping for 2-point manifolds, Coulomb friction and Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox with boxes, circles, and polygons.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/Random/kinetica/">Open sandbox</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/kinetica/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-23-kinetica-physics-build.md">Writeup</a>
+        <a href="https://userfrom1995.github.io/Random/kinetica/docs/">Documentation</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Previous Projects</h2>
+  <ul class="projects">
+    <li>
       <h4>Obsidian</h4>
       <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to kill the 27.82 bpp expansion. 53 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
       <div class="links">
@@ -129,11 +143,7 @@
         <a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-17-obsidian-lossless-image-codec.md">Writeup</a>
         <a href="https://github.com/Userfrom1995/Random/blob/main/obsidian/docs/">Documentation</a>
       </div>
-    </div>
-  </div>
-
-  <h2>Previous Projects</h2>
-  <ul class="projects">
+    </li>
     <li>
       <h4>Meridian</h4>
       <p>A full-text search engine built from scratch in Rust: a corpus crawler, an inverted index with a compressed varint postings codec (the shipped index is 5.5x smaller than raw), BM25 and TF-IDF ranking, Porter stemming, fuzzy typo-tolerant retrieval, CJK segmentation, ranking signals, a boolean query parser with phrases and NOT, and relevance snippets with byte-exact highlights. The entire engine is mirrored one-to-one in dependency-free JavaScript, so a static web page searches a 112-document corpus of the lab's own docs live in the browser. 21,226 cross-language consistency checks, 126 tests.</p>

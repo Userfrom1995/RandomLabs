@@ -1,0 +1,18 @@
+{
+  "name": "kinetica",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "bench": "vitest run --run test/benchmarks.test.ts",
+    "checksum": "tsx src/sim/headless.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
