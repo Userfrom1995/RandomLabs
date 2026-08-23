@@ -1,5 +1,6 @@
 #pragma once
 #include "prism/types.h"
+#include "prism/codec/color.h"
 #include "prism/codec/matree.h"
 #include "prism/codec/predict.h"
 namespace prism::codec {
@@ -48,4 +49,38 @@ std::vector<uint16_t> decode_plane_tree_composite_v2(const std::vector<uint8_t>&
                                                      uint32_t w, uint32_t h,
                                                      const MATree& tree, int num_leaves,
                                                      uint8_t bit_depth, uint16_t bd_max);
+
+// ----- C3 trial-bits decision engine (issue #130, blueprint section 5) -----
+// Analyzer choices (color transform, CFL scales, global predictor) are made
+// by comparing REAL coded bytes - the exact v2 flat payload the pipeline
+// emits - never energy sums (P4). Candidate sets are pruned on a decimated
+// grid, then the finalists plus the IDENTITY candidate are fully encoded.
+// These helpers are exposed so unit tests verify the engine's invariants
+// directly against the same implementation production runs.
+
+// Keep every `step`-th row/column (edge samples included, ceil dimensions).
+// step < 2 returns an exact copy. Used for non-binding pruning only.
+Raster decimate_raster(const Raster& r, uint32_t step);
+
+// Total flat v2 payload bytes for this raster state: sum over planes of
+// acoder_encode_plane_v2(compute_residuals(plane), 343) - byte-identical to
+// what prism.cpp emits for level-0 planes outside the tree path.
+size_t trial_flat_bits(const Raster& r, PredId pred);
+
+// Pick the finalist set from decimated-grid costs: the k cheapest indices
+// (ties break toward the lower index) with prune_costs[identity_index]
+// FORCED into the final round (invariant I4: doing nothing is always fully
+// evaluated, so a decision can only leave identity by strictly winning).
+// Returned ascending; empty input yields an empty set.
+std::vector<size_t> trial_finalists(const std::vector<double>& prune_costs,
+                                    size_t k, size_t identity_index);
+
+struct ColorTrialResult {
+    ColorTransform ct = ColorTransform::None;
+    Raster raster; // r with the chosen transform applied (zero CFL scales)
+};
+// C3 color-transform decision by trial bits (candidate sets identical to the
+// legacy B6 search). Declared for analyze() and for tests that assert the
+// never-lose-to-identity property on arbitrary rasters.
+ColorTrialResult choose_color_transform_trial(const Raster& r, uint8_t effort);
 } // namespace prism::codec

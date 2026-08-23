@@ -82,6 +82,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_rans.cpp
         tests/unit/test_acoder.cpp
         tests/unit/test_matree.cpp
+        tests/unit/test_analyze.cpp
         tests/unit/test_container.cpp
         tests/unit/test_roundtrip.cpp
         tests/unit/test_fuzz_gate.cpp

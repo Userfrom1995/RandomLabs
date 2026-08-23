@@ -12,6 +12,127 @@
 
 namespace prism::codec {
 
+namespace {
+
+// ----- C3 trial-bits decision engine (blueprint section 5) -----
+// Every analyzer decision compares real AEncoder outputs of the exact stream
+// production emits (v2 flat coder over residual-DIFF-343 contexts), never
+// energy sums. The banned proxy class (estimate_bits / plane energy sums) is
+// deleted from these paths; it survives only in the legacy coupled
+// squeeze+tree guard at effort >= 3 with a chosen squeeze level, which C4
+// replaces wholesale.
+
+// Blueprint 5.1: pruning grid is every 4th row/column; below 64 px per side
+// the full image IS the cheap grid and pruning stays exact.
+uint32_t prune_step_for(const Raster& r) {
+    return (r.w >= 64 && r.h >= 64) ? 4u : 1u;
+}
+
+// Argmin over finalist indices by FULL cost. Scans ascending and takes strict
+// improvement, except an exact tie lets the identity candidate win.
+template <typename FullCost>
+size_t trial_pick(const std::vector<size_t>& finals, size_t identity_index, FullCost&& cost_of) {
+    size_t best = SIZE_MAX;
+    double best_c = 0.0;
+    for (size_t idx : finals) {
+        double c = cost_of(idx);
+        if (best == SIZE_MAX || c < best_c || (c == best_c && idx == identity_index)) {
+            best = idx;
+            best_c = c;
+        }
+    }
+    return best;
+}
+
+} // namespace
+
+Raster decimate_raster(const Raster& r, uint32_t step) {
+    if (r.w == 0 || r.h == 0) throw std::invalid_argument("decimate_raster: empty raster");
+    if (step < 2) return r;
+    uint32_t nw = (r.w + step - 1) / step;
+    uint32_t nh = (r.h + step - 1) / step;
+    Raster out(nw, nh, r.ch, r.bd);
+    for (size_t c = 0; c < r.num_channels(); ++c) {
+        for (uint32_t y = 0; y < nh; ++y) {
+            for (uint32_t x = 0; x < nw; ++x) {
+                out.planes[c][(size_t)y * nw + x] =
+                    r.planes[c][(size_t)(y * step) * r.w + x * step];
+            }
+        }
+    }
+    return out;
+}
+
+size_t trial_flat_bits(const Raster& r, PredId pred) {
+    size_t tot = 0;
+    for (const auto& pl : r.planes) {
+        auto res = compute_residuals(pl, r.w, r.h, pred);
+        tot += acoder_encode_plane_v2(res, r.w, r.h, AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    return tot;
+}
+
+std::vector<size_t> trial_finalists(const std::vector<double>& prune_costs,
+                                    size_t k, size_t identity_index) {
+    if (k == 0) k = 1;
+    std::vector<size_t> order(prune_costs.size());
+    for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+    std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+        if (prune_costs[a] != prune_costs[b]) return prune_costs[a] < prune_costs[b];
+        return a < b;
+    });
+    std::vector<size_t> finals;
+    finals.reserve(k + 1);
+    for (size_t i = 0; i < order.size() && finals.size() < k; ++i) finals.push_back(order[i]);
+    const bool has_identity =
+        identity_index < prune_costs.size() &&
+        std::find(finals.begin(), finals.end(), identity_index) != finals.end();
+    if (!has_identity && identity_index < prune_costs.size()) {
+        // I4: the do-nothing plan always reaches the final round. When the
+        // budget is full, the worst non-identity finalist gives up its seat.
+        if (finals.size() < k) finals.push_back(identity_index);
+        else finals.back() = identity_index;
+    }
+    std::sort(finals.begin(), finals.end());
+    return finals;
+}
+
+ColorTrialResult choose_color_transform_trial(const Raster& r, uint8_t effort) {
+    ColorTrialResult out;
+    out.raster = apply_color(r, ColorTransform::None, {});
+    if (!(effort >= 1 && r.num_channels() >= 3)) return out;
+    // Candidate set identical to the legacy B6 search.
+    std::vector<ColorTransform> cands{ColorTransform::None};
+    if (r.bd == BitDepth::BD8) {
+        cands.push_back(ColorTransform::YCoCgR);
+        cands.push_back(ColorTransform::SubtractGreen);
+        cands.push_back(ColorTransform::YCoCgR_SubGreen);
+        if (effort >= 2) cands.push_back(ColorTransform::Lift53);
+    } else {
+        cands.push_back(ColorTransform::SubtractGreen);
+    }
+    // Pruning round: real coded bytes on the decimated grid, MED as the fixed
+    // reference predictor for every candidate (fair A-B).
+    const Raster pruned = decimate_raster(r, prune_step_for(r));
+    std::vector<double> pcost(cands.size(), 0.0);
+    for (size_t ci = 0; ci < cands.size(); ++ci)
+        pcost[ci] = (double)trial_flat_bits(apply_color(pruned, cands[ci], {}), PredId::MED);
+    // Final round: full-resolution encodes; None (= index 0) always present.
+    const std::vector<size_t> finals = trial_finalists(pcost, 3, 0);
+    const size_t win = trial_pick(finals, 0, [&](size_t i) {
+        return (double)trial_flat_bits(apply_color(r, cands[i], {}), PredId::MED);
+    });
+    if (win < cands.size()) {
+        out.ct = cands[win];
+        out.raster = apply_color(r, out.ct, {});
+    }
+    return out;
+}
+
+// LEGACY coupled-path cost helpers (effort >= 3 with a chosen squeeze level).
+// These still rank by energy/log-mean proxies; the whole path is replaced in
+// C4 (true lifting + per-plane L by trial bits) and is inert on photos
+// (research F1: squeeze levels (0,0,0) on 24/24). Not used by any C3 decision.
 static uint64_t plane_residual_energy(const std::vector<uint16_t>& plane,
                                        uint32_t w, uint32_t h, PredId id) {
     auto res = compute_residuals(plane, w, h, id);
@@ -19,18 +140,6 @@ static uint64_t plane_residual_energy(const std::vector<uint16_t>& plane,
     for (int32_t v : res) sum += (uint64_t)std::abs(v);
     return sum;
 }
-
-static uint64_t raster_cost_med(const Raster& rr) {
-    uint64_t tot = 0;
-    for (size_t c = 0; c < rr.num_channels(); ++c) {
-        if (rr.ch == Channels::RGBA && c == 3) continue;
-        const auto& pl = rr.planes[c];
-        auto res = compute_residuals(pl, rr.w, rr.h, PredId::MED);
-        for (int32_t v : res) tot += (uint64_t)std::abs(v);
-    }
-    return tot;
-}
-
 static double estimate_bits(size_t n, uint64_t sumAbs) {
     if (n==0) return 0;
     double mean = (double)sumAbs / (double)n;
@@ -39,47 +148,6 @@ static double estimate_bits(size_t n, uint64_t sumAbs) {
     else if (mean < 1.0) bps = 0.8;
     else bps = std::log2(mean + 1.0) + 1.2;
     return (double)n * bps;
-}
-[[maybe_unused]] static std::vector<uint8_t> encode_band_leaf_for_cost(const std::vector<uint16_t>& data, uint32_t w, uint32_t h,
-                                              uint8_t band_class, bool isLL,
-                                              const std::vector<uint16_t>* llSrc,
-                                              const std::vector<uint16_t>* siblingSrc,
-                                              const MATree& tree, int num_leaves,
-                                              uint8_t bit_depth) {
-    if (w==0||h==0) { AEncoder enc; return enc.flush_and_emit(); }
-    size_t n=(size_t)w*h;
-    std::vector<int32_t> residuals; residuals.reserve(n);
-    std::vector<uint16_t> leaf_ids; leaf_ids.reserve(n);
-    std::vector<int32_t> resHist(n,0);
-    for(size_t idx=0; idx<n; ++idx){
-        uint32_t x=(uint32_t)(idx % w); uint32_t y=(uint32_t)(idx / w);
-        int32_t L=0,T=0,TL=0,TR=0;
-        if(isLL){
-            L=(x>0)?(int32_t)data[idx-1]:0; T=(y>0)?(int32_t)data[idx-w]:0; TL=(x>0&&y>0)?(int32_t)data[idx-w-1]:0; TR=(y>0&&x+1<w)?(int32_t)data[idx-w+1]:0;
-            int32_t pred; if(TL>=std::max(L,T)) pred=std::min(L,T); else if(TL<=std::min(L,T)) pred=std::max(L,T); else pred=L+T-TL;
-            int32_t e=(int32_t)data[idx]-pred; resHist[idx]=e;
-            Feature f{}; f.band_class=band_class; f.qg=quant_qg(L,T,TL,TR);
-            if(llSrc) f.llc_class=quant_llc((*llSrc)[idx], bit_depth); else f.llc_class=0;
-            int32_t dL=0,dU=0,dUL=0; if(x>0) dL=resHist[idx-1]; if(y>0) dU=resHist[idx-w]; if(x>0&&y>0) dUL=resHist[idx-w-1]; f.res_diff=(uint16_t)residual_diff_context(dL,dU,dUL);
-            if(siblingSrc){ int16_t sv=(int16_t)(*siblingSrc)[idx]; f.sibling_class=quant_sibling(sv);} else f.sibling_class=0;
-            int grad=std::abs(L-TL)+std::abs(T-TL); if(grad<4) f.activity=0; else if(grad<16) f.activity=1; else if(grad<64) f.activity=2; else f.activity=3;
-            uint16_t leaf=tree.eval(f); if(leaf >= (uint16_t)num_leaves) leaf=0;
-            residuals.push_back(e); leaf_ids.push_back(leaf);
-        } else {
-            int16_t sv=(int16_t)data[idx]; int16_t l=(x>0)?(int16_t)data[idx-1]:0; int16_t t=(y>0)?(int16_t)data[idx-w]:0; int16_t tl=(x>0&&y>0)?(int16_t)data[idx-w-1]:0; int16_t tr=(y>0&&x+1<w)?(int16_t)data[idx-w+1]:0;
-            L=l; T=t; TL=tl; TR=tr;
-            int32_t pred; if(TL>=std::max(L,T)) pred=std::min(L,T); else if(TL<=std::min(L,T)) pred=std::max(L,T); else pred=L+T-TL;
-            int32_t e=(int32_t)sv - pred; resHist[idx]=e;
-            Feature f{}; f.band_class=band_class; f.qg=quant_qg(L,T,TL,TR);
-            if(llSrc) f.llc_class=quant_llc((*llSrc)[idx], bit_depth); else f.llc_class=0;
-            int32_t dL=0,dU=0,dUL=0; if(x>0) dL=resHist[idx-1]; if(y>0) dU=resHist[idx-w]; if(x>0&&y>0) dUL=resHist[idx-w-1]; f.res_diff=(uint16_t)residual_diff_context(dL,dU,dUL);
-            if(siblingSrc){ int16_t ssv=(int16_t)(*siblingSrc)[idx]; f.sibling_class=quant_sibling(ssv);} else f.sibling_class=0;
-            int grad=std::abs(L-TL)+std::abs(T-TL); if(grad<4) f.activity=0; else if(grad<16) f.activity=1; else if(grad<64) f.activity=2; else f.activity=3;
-            uint16_t leaf=tree.eval(f); if(leaf >= (uint16_t)num_leaves) leaf=0;
-            residuals.push_back(e); leaf_ids.push_back(leaf);
-        }
-    }
-    return acoder_encode_plane_leaves(residuals, leaf_ids, num_leaves);
 }
 // Cost for squeezed bands: LL uses predictor residual, HF uses sum abs of signed diff
 static uint64_t squeezed_band_cost(const SqueezeResult::Band& b, bool isLL) {
@@ -287,68 +355,69 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     g.tree = MATree::single_leaf();
     res.trees.push_back(g);
 
-    // ---- B6: color transform search ----
-    ColorTransform best_ct = ColorTransform::None;
+    // ---- B6/C3: color transform by TRIAL BITS ----
+    // Candidates are pruned on a decimated grid (real coded bytes) and the
+    // finalists plus the identity (None) are fully encoded with the real v2
+    // flat coder - the same bytes the pipeline will emit. Energy sums no
+    // longer decide anything here (P4); ties keep None.
     std::vector<uint8_t> zero_cfl(res.cfl_scales.size(), 0);
-    Raster best_raster = apply_color(r, best_ct, zero_cfl);
-    uint64_t best_cost = raster_cost_med(best_raster);
-    auto try_ct = [&](ColorTransform t) {
-        Raster tr = apply_color(r, t, zero_cfl);
-        uint64_t c = raster_cost_med(tr);
-        if (c < best_cost) {
-            best_cost = c;
-            best_ct = t;
-            best_raster = tr;
-        }
-    };
-    if (effort >= 1 && r.num_channels() >= 3 && r.bd == BitDepth::BD8) {
-        try_ct(ColorTransform::YCoCgR);
-        try_ct(ColorTransform::SubtractGreen);
-        try_ct(ColorTransform::YCoCgR_SubGreen);
-        if (effort >= 2) try_ct(ColorTransform::Lift53);
-    } else if (effort >= 1 && r.num_channels() >= 3 && r.bd == BitDepth::BD16) {
-        try_ct(ColorTransform::SubtractGreen);
-    }
+    ColorTrialResult ctr = choose_color_transform_trial(r, effort);
+    ColorTransform best_ct = ctr.ct;
+    Raster best_raster = std::move(ctr.raster);
     res.color_transform_id = static_cast<uint8_t>(best_ct);
 
-    // ---- B6: CFL search ----
+    // ---- B6/C3: CFL scales by TRIAL BITS (per channel, greedy) ----
+    // Each scale touches only its own chroma channel, so per-channel greedy
+    // is exact. Candidates s = 0..7 are pruned on decimated single-plane
+    // coded bytes; s = 0 (identity) plus the two cheapest go to full-plane
+    // encodes; ties keep 0.
     if (effort >= 2 && r.num_channels() >= 2 && best_ct != ColorTransform::Lift53
         && best_ct != ColorTransform::YCoCgR && best_ct != ColorTransform::YCoCgR_SubGreen) {
+        const uint32_t pstep = prune_step_for(r);
         for (size_t ci = 1; ci < best_raster.num_channels(); ++ci) {
             if (best_raster.ch == Channels::RGBA && ci == 3) continue;
             if (best_raster.ch == Channels::GA && ci == 1) continue;
             size_t si = ci - 1;
             if (si >= res.cfl_scales.size()) continue;
-            uint64_t best_plane_cost = plane_residual_energy(best_raster.planes[ci], r.w, r.h, PredId::MED);
-            uint8_t best_s = 0;
-            for (uint8_t s = 1; s <= 7; ++s) {
-                std::vector<uint8_t> test_scales = res.cfl_scales;
-                test_scales[si] = s;
-                Raster tr = apply_color(r, best_ct, test_scales);
-                uint64_t c = plane_residual_energy(tr.planes[ci], r.w, r.h, PredId::MED);
-                if (c < best_plane_cost) { best_plane_cost = c; best_s = s; }
+            std::vector<double> pcost(8, 0.0);
+            for (uint8_t s = 0; s <= 7; ++s) {
+                std::vector<uint8_t> ts = res.cfl_scales;
+                ts[si] = s;
+                Raster tr = decimate_raster(apply_color(r, best_ct, ts), pstep);
+                auto rv = compute_residuals(tr.planes[ci], tr.w, tr.h, PredId::MED);
+                pcost[s] = (double)acoder_encode_plane_v2(rv, tr.w, tr.h, AC_V2_RESDIFF_CONTEXTS).size();
             }
-            res.cfl_scales[si] = best_s;
+            const std::vector<size_t> finals = trial_finalists(pcost, 3, 0);
+            const size_t win = trial_pick(finals, 0, [&](size_t i) {
+                std::vector<uint8_t> ts = res.cfl_scales;
+                ts[si] = (uint8_t)i;
+                Raster tr = apply_color(r, best_ct, ts);
+                auto rv = compute_residuals(tr.planes[ci], tr.w, tr.h, PredId::MED);
+                return (double)acoder_encode_plane_v2(rv, tr.w, tr.h, AC_V2_RESDIFF_CONTEXTS).size();
+            });
+            res.cfl_scales[si] = (uint8_t)win;
         }
         best_raster = apply_color(r, best_ct, res.cfl_scales);
     } else {
         res.cfl_scales.assign(std::max(0, (int)r.num_channels() - 1), 0);
     }
 
-    // Predictor bank selection (B5/B6): evaluate P0..P8 summed |residual| across transformed planes
+    // Predictor bank selection (B5/B6, C3): P0..P8 ranked by REAL coded
+    // bytes. All nine ids are pruned on the decimated grid; the three
+    // cheapest plus MED (the identity) go to full flat encodes - the exact
+    // payload prism.cpp will emit for level-0 planes.
     const Raster& eval_raster = best_raster;
     PredId global_best = PredId::MED;
     if (effort >= 1 && !eval_raster.planes.empty()) {
-        uint64_t best_energy = std::numeric_limits<uint64_t>::max();
-        for (int pid = 0; pid <= 8; ++pid) {
-            PredId id = static_cast<PredId>(pid);
-            uint64_t tot = 0;
-            for (const auto& plane : eval_raster.planes) {
-                tot += plane_residual_energy(plane, eval_raster.w, eval_raster.h, id);
-                if (tot >= best_energy) break;
-            }
-            if (tot < best_energy) { best_energy = tot; global_best = id; }
-        }
+        const Raster pruned = decimate_raster(eval_raster, prune_step_for(eval_raster));
+        std::vector<double> pcost(9, 0.0);
+        for (int pid = 0; pid <= 8; ++pid)
+            pcost[pid] = (double)trial_flat_bits(pruned, static_cast<PredId>(pid));
+        const std::vector<size_t> finals = trial_finalists(pcost, 3, (size_t)PredId::MED);
+        const size_t win = trial_pick(finals, (size_t)PredId::MED, [&](size_t i) {
+            return (double)trial_flat_bits(eval_raster, static_cast<PredId>((uint8_t)i));
+        });
+        global_best = static_cast<PredId>((uint8_t)win);
         res.predictor_mode = 0;
         res.global_pred_id = static_cast<uint8_t>(global_best);
     } else {
