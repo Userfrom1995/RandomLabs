@@ -119,7 +119,7 @@ jobs:
             - `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
             - `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.
 
-            SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches (you may ONLY edit .github/workflows/*.yml directly when updating or switching models per your model fallback policy); you only write the output files below; everything you write is later committed to the maintainer/logs branch or main by hardcoded steps. Never print or reference any PAT or secret.
+            SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {"action": "lab"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.
 
             OUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):
             1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | build | lab | auditor | fix | ideate | recover | ping. One entry max per PR/issue. Empty array [] is fine - do not invent work.
@@ -127,6 +127,7 @@ jobs:
             3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
             4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
             5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.
+            6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {"reason": "...", "lab_run": "<failing lab run URL>", "production_stopped": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.
 
             When you finish, print a one-line summary of what you decided (the decision list is the deliverable).
 
@@ -134,19 +135,19 @@ jobs:
         if: always()
         run: |
           gh pr list --author app/github-actions --state open --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-")) | .number' \
+            --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-") or startswith("opencode/issue")) | .number' \
             | while read num; do
                 gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch." || true
               done
           gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
-            | grep -E '^opencode/(schedule-|dispatch-)' \
+            | grep -E '^opencode/(schedule-|dispatch-|issue)' \
             | while read br; do
                 enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
                 gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$enc" || true
               done
           echo "stray cleanup complete"
 
-      - name: Commit and push workflow model updates to main
+      - name: Emergency-gated commit and push of workflow model updates to main
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
@@ -155,40 +156,80 @@ jobs:
           GIT_COMMITTER_NAME: "Mae (Maintainer)"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
-          if git status --porcelain .github/workflows 2>/dev/null | grep -q '^\s*M\s*\.github/workflows/'; then
-            echo "Detected workflow model modifications by Maintainer. Staging and committing strictly as Mae (Maintainer)..."
-            git config --global user.name "Mae (Maintainer)"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            # Remove actions/checkout credential injection so the PAT URL actually authenticates:
-            # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
-            # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
-            git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
-            for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
-              git config --local --unset-all "$cfg" 2>/dev/null || true
-            done
-            git add .github/workflows/*.yml
-            git commit --author="Mae (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: update workflow model configuration"
-            git fetch origin main --quiet
-            # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
-            # main must stay a strict descendant of origin/main (fast-forwardable). Rebase first if needed;
-            # if the rebase cannot make HEAD a descendant of origin/main, ABORT instead of orphaning main.
-            if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
-              echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
-              git rebase origin/main --quiet || {
-                echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
-                exit 1
-              }
-            fi
-            git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
-              echo "Push failed, attempting rebase..."
-              git fetch origin main --quiet
-              git rebase origin/main --quiet
-              git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main
-            }
-            echo "Workflow updates pushed to main as Mae (Maintainer)."
-          else
-            echo "No workflow model updates detected on main."
+          dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
+          if [ -z "$dirty" ]; then
+            echo "No protected-path modifications left by the Maintainer; nothing to do."
+            exit 0
           fi
+
+          # Gate: a direct push to main requires a complete emergency declaration:
+          # {"reason": "...", "lab_run": "<failing lab run URL>", "production_stopped": true}
+          ok=0
+          if [ -f .maintainer/emergency.json ]; then
+            echo "Emergency declaration found:"; cat .maintainer/emergency.json
+            decl=$(python3 - <<'PY'
+          import json
+          try:
+              d = json.load(open('.maintainer/emergency.json'))
+              valid = (
+                  isinstance(d, dict)
+                  and bool(str(d.get('reason', '')).strip())
+                  and bool(str(d.get('lab_run', '')).strip())
+                  and d.get('production_stopped') is True
+              )
+              print('valid' if valid else 'invalid')
+          except Exception:
+              print('invalid')
+          PY
+            )
+            if [ "$decl" = "valid" ]; then
+              ok=1
+              echo "Emergency declaration complete; revival contract unlocked."
+            else
+              echo "::warning::.maintainer/emergency.json exists but is incomplete/unparseable; treating as absent."
+            fi
+          fi
+
+          if [ "$ok" != "1" ]; then
+            echo "::warning::Protected-path modifications found WITHOUT a valid emergency declaration. Reverting them; infra/model/workflow changes must be routed to the Lab Engineer ({\"action\": \"lab\"})."
+            for p in .github/workflows .github/agents opencode.json AGENTS.md LAB.md; do
+              git checkout -- "$p" 2>/dev/null || true
+            done
+            git clean -fd -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md >/dev/null 2>&1 || true
+            echo "EMERGENCY_GATE=reverted" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "Emergency contract satisfied. Staging and committing strictly as Mae (Maintainer)..."
+          # Remove actions/checkout credential injection so the PAT URL actually authenticates:
+          # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
+          # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
+          git add .github/workflows/*.yml
+          [ -f opencode.json ] && git add opencode.json || true
+          git commit --author="Mae (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: emergency revival - update workflow model configuration (see .maintainer/emergency.json declaration in run log)"
+          git fetch origin main --quiet
+          # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
+          # main must stay a strict descendant of origin/main (fast-forwardable). Rebase first if needed;
+          # if the rebase cannot make HEAD a descendant of origin/main, ABORT instead of orphaning main.
+          if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+            echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
+            git rebase origin/main --quiet || {
+              echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
+              exit 1
+            }
+          fi
+          git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
+            echo "Push failed, attempting rebase..."
+            git fetch origin main --quiet
+            git rebase origin/main --quiet
+            git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main
+          }
+          echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"
+          echo "Emergency revival pushed to main as Mae (Maintainer)."
 
       - name: Commit Maintainer memory (maintainer/logs)
         if: always()
@@ -248,16 +289,35 @@ jobs:
           posts = []
           for d in decisions:
               if d.get("action") == "ping" and d.get("target"):
-                  posts.append((d["target"], d.get("message", "")))
+                  posts.append((d["target"], d.get("message", ""), False))
 
           if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
-              posts.append((target, open(".maintainer/comment.md").read()))
+              posts.append((target, open(".maintainer/comment.md").read(), True))
+
+          # Emergency-gate transparency: keep Mae's public comments consistent with
+          # what the hardcoded steps actually did with any protected-path edits.
+          gate_notice = ""
+          gate = os.environ.get("EMERGENCY_GATE", "")
+          if gate == "reverted":
+              gate_notice = (
+                  "[lab-gate] This run left workflow/config edits WITHOUT the required emergency declaration "
+                  "(.maintainer/emergency.json), so a hardcoded step reverted them before anything was pushed. "
+                  "Infra/model/workflow changes must route to the Lab Engineer ({\"action\": \"lab\"}).\n\n"
+              )
+          elif gate == "pushed":
+              gate_notice = (
+                  "[emergency-revival] This run's workflow changes landed on main under the emergency revival "
+                  "contract (a failed/broken Lab Engineer attempt plus halted production, declared in "
+                  ".maintainer/emergency.json).\n\n"
+              )
 
           sign = "\u2014 Mae, the Maintainer"
-          for t, body in posts:
+          for t, body, is_main_comment in posts:
               body = body.strip()
               if not body:
                   continue
+              if is_main_comment and gate_notice:
+                  body = gate_notice + body
               if sign not in body:
                   body = body + "\n\n" + sign
               subprocess.run(
