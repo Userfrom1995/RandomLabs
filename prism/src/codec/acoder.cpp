@@ -283,7 +283,11 @@ void ac_v2_adapt(uint16_t& pf, uint16_t& ps, bool bit) {
 
 namespace {
 inline void v2_init_slot(BinModelV2& b, const uint16_t* table, int idx) {
-    uint16_t p = table[ac_v2_prior_class(idx)];
+    // C2b: class is keyed on the residual-DIFF part of the id. Flat ids
+    // (< 343) are their own resdiff part, so flat streams are unchanged;
+    // composite ids (leaf*343 + resdiff) inherit the prior of their resdiff
+    // part instead of a meaningless decomposition of the composite number.
+    uint16_t p = table[ac_v2_prior_class(idx % AC_V2_RESDIFF_CONTEXTS)];
     b.p_fast[idx] = p;
     b.p_slow[idx] = p;
 }
@@ -311,8 +315,10 @@ inline void v2_init_kind(KindModelsV2& k, const uint16_t* table, int n, bool uni
 
 // Code one bin through the hierarchical dual-rate model: probability mixes
 // per-context and shared-class estimates; the observed bit updates both.
+// The class index is keyed on the residual-DIFF part of the context id
+// (C2b); see v2_init_slot - flat ids are unaffected.
 inline void v2_put(AEncoder& enc, KindModelsV2& k, int cx, bool bit) {
-    int cls = ac_v2_prior_class(cx);
+    int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
     uint16_t p = ac_v2_mix2(ac_v2_mix(k.ctx.p_fast[cx], k.ctx.p_slow[cx]),
                             ac_v2_mix(k.cls.p_fast[cls], k.cls.p_slow[cls]));
     enc.put_bin_raw(p, bit);
@@ -321,7 +327,7 @@ inline void v2_put(AEncoder& enc, KindModelsV2& k, int cx, bool bit) {
 }
 
 inline bool v2_get(ADecoder& dec, KindModelsV2& k, int cx) {
-    int cls = ac_v2_prior_class(cx);
+    int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
     uint16_t p = ac_v2_mix2(ac_v2_mix(k.ctx.p_fast[cx], k.ctx.p_slow[cx]),
                             ac_v2_mix(k.cls.p_fast[cls], k.cls.p_slow[cls]));
     bool bit = dec.get_bin_raw(p);

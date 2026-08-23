@@ -110,6 +110,7 @@ std::vector<uint8_t> encode_plane_tree_v2(const std::vector<uint16_t>& data,
                                           uint8_t bit_depth) {
     // One implementation for trial-bits acceptance (analyze) and final
     // emission (prism.cpp), so the decision can never diverge from the bytes.
+    (void)bit_depth; // lossless residual domain needs no range clamp here
     if (w==0||h==0) { AEncoder enc; return enc.flush_and_emit(); }
     size_t n=(size_t)w*h;
     std::vector<int32_t> residuals; residuals.reserve(n);
@@ -131,6 +132,149 @@ std::vector<uint8_t> encode_plane_tree_v2(const std::vector<uint16_t>& data,
     // state starts at the neutral midpoint (C2; decode selects the same rule
     // from container flags bit4).
     return acoder_encode_plane_leaves_v2(residuals, leaf_ids, num_leaves, true);
+}
+
+namespace {
+
+// Causal raster walk shared by every plane-level tree coder (leaf-only and
+// composite, encode and decode). Per sample it computes the MED prediction,
+// the spatial feature vector, and the tree leaf from strictly causal data,
+// then calls body(idx, pred, f, leaf, data) which must return the residual:
+// encode bodies derive e from the source sample already in data[idx];
+// decode bodies decode e and store the reconstructed sample into data[idx].
+template <typename Body>
+inline void walk_tree_plane(std::vector<uint16_t>& data, uint32_t w, uint32_t h,
+                            const MATree& tree, int num_leaves, Body&& body) {
+    if (w == 0 || h == 0) return;
+    size_t n = (size_t)w * h;
+    data.resize(n);
+    std::vector<int32_t> resHist(n, 0);
+    for (size_t idx = 0; idx < n; ++idx) {
+        uint32_t x = (uint32_t)(idx % w);
+        uint32_t y = (uint32_t)(idx / w);
+        int32_t L = 0, T = 0, TL = 0, TR = 0;
+        L = (x > 0) ? (int32_t)data[idx - 1] : 0;
+        T = (y > 0) ? (int32_t)data[idx - w] : 0;
+        TL = (x > 0 && y > 0) ? (int32_t)data[idx - w - 1] : 0;
+        TR = (y > 0 && x + 1 < w) ? (int32_t)data[idx - w + 1] : 0;
+        int32_t pred;
+        if (TL >= std::max(L, T)) pred = std::min(L, T);
+        else if (TL <= std::min(L, T)) pred = std::max(L, T);
+        else pred = L + T - TL;
+        Feature f{};
+        f.band_class = 0;
+        f.qg = quant_qg(L, T, TL, TR);
+        int32_t dL = 0, dU = 0, dUL = 0;
+        if (x > 0) dL = resHist[idx - 1];
+        if (y > 0) dU = resHist[idx - w];
+        if (x > 0 && y > 0) dUL = resHist[idx - w - 1];
+        f.res_diff = (uint16_t)residual_diff_context(dL, dU, dUL);
+        int grad = std::abs(L - TL) + std::abs(T - TL);
+        if (grad < 4) f.activity = 0; else if (grad < 16) f.activity = 1;
+        else if (grad < 64) f.activity = 2; else f.activity = 3;
+        uint16_t leaf = tree.eval(f);
+        if (num_leaves <= 0) num_leaves = 1;
+        if (leaf >= (uint16_t)num_leaves) leaf = 0;
+        resHist[idx] = body(idx, pred, f, leaf, data);
+    }
+}
+
+} // namespace
+
+MATree build_spatial_flat_tree(const Raster& raster) {
+    // Verbatim feature collection previously inline in analyze(): one dataset
+    // over all planes, MED residuals, band_class 0, no ll/sibling sources.
+    std::vector<Feature> sfeats;
+    std::vector<int32_t> sres;
+    size_t totalSamples = 0;
+    for (size_t pi = 0; pi < raster.planes.size(); ++pi)
+        totalSamples += (size_t)raster.w * raster.h;
+    sfeats.reserve(totalSamples);
+    sres.reserve(totalSamples);
+    for (size_t pi = 0; pi < raster.planes.size(); ++pi) {
+        const auto& plane = raster.planes[pi];
+        uint32_t w = raster.w, h = raster.h;
+        size_t n = (size_t)w * h;
+        std::vector<int32_t> resHist(n, 0);
+        for (size_t idx = 0; idx < n; ++idx) {
+            uint32_t x = (uint32_t)(idx % w), y = (uint32_t)(idx / w);
+            int32_t L = (x > 0) ? (int32_t)plane[idx - 1] : 0;
+            int32_t T = (y > 0) ? (int32_t)plane[idx - w] : 0;
+            int32_t TL = (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0;
+            int32_t TR = (y > 0 && x + 1 < w) ? (int32_t)plane[idx - w + 1] : 0;
+            int32_t pred;
+            if (TL >= std::max(L, T)) pred = std::min(L, T);
+            else if (TL <= std::min(L, T)) pred = std::max(L, T);
+            else pred = L + T - TL;
+            int32_t e = (int32_t)plane[idx] - pred;
+            resHist[idx] = e;
+            Feature f{};
+            f.band_class = 0;
+            f.qg = quant_qg(L, T, TL, TR);
+            int32_t dL = 0, dU = 0, dUL = 0;
+            if (x > 0) dL = resHist[idx - 1];
+            if (y > 0) dU = resHist[idx - w];
+            if (x > 0 && y > 0) dUL = resHist[idx - w - 1];
+            f.res_diff = (uint16_t)residual_diff_context(dL, dU, dUL);
+            int grad = std::abs(L - TL) + std::abs(T - TL);
+            if (grad < 4) f.activity = 0; else if (grad < 16) f.activity = 1;
+            else if (grad < 64) f.activity = 2; else f.activity = 3;
+            sfeats.push_back(f);
+            sres.push_back(e);
+        }
+    }
+    MATree stree = MATree::single_leaf();
+    if (!sfeats.empty()) stree = build_matree_greedy(sfeats, sres, MatreeBuildParams{});
+    return stree;
+}
+
+std::vector<uint8_t> encode_plane_tree_composite_v2(const std::vector<uint16_t>& plane,
+                                                    uint32_t w, uint32_t h,
+                                                    const MATree& tree, int num_leaves,
+                                                    uint8_t bit_depth) {
+    (void)bit_depth; // lossless residual domain needs no range clamp here
+    if (w == 0 || h == 0) { AEncoder enc; return enc.flush_and_emit(); }
+    size_t n = (size_t)w * h;
+    std::vector<int32_t> residuals(n, 0);
+    ACModelsV2 models((num_leaves > 0 ? num_leaves : 1) * AC_V2_RESDIFF_CONTEXTS);
+    AEncoder enc;
+    std::vector<uint16_t> data = plane;
+    walk_tree_plane(data, w, h, tree, num_leaves,
+                    [&](size_t idx, int32_t pred, const Feature& f, uint16_t leaf,
+                        std::vector<uint16_t>& dat) -> int32_t {
+                        int32_t e = (int32_t)dat[idx] - pred;
+                        residuals[idx] = e;
+                        encode_residual_v2(enc, models,
+                                           (int)leaf * AC_V2_RESDIFF_CONTEXTS + (int)f.res_diff, e);
+                        return e;
+                    });
+    return enc.flush_and_emit();
+}
+
+std::vector<uint16_t> decode_plane_tree_composite_v2(const std::vector<uint8_t>& bytes,
+                                                     uint32_t w, uint32_t h,
+                                                     const MATree& tree, int num_leaves,
+                                                     uint8_t bit_depth, uint16_t bd_max) {
+    (void)bit_depth;
+    if (w == 0 || h == 0) return {};
+    if (bytes.empty()) throw DecodeError("empty composite tree payload");
+    ACModelsV2 models((num_leaves > 0 ? num_leaves : 1) * AC_V2_RESDIFF_CONTEXTS);
+    ADecoder dec;
+    dec.init(bytes);
+    std::vector<uint16_t> out;
+    walk_tree_plane(out, w, h, tree, num_leaves,
+                    [&](size_t idx, int32_t pred, const Feature& f, uint16_t leaf,
+                        std::vector<uint16_t>& dat) -> int32_t {
+                        (void)idx;
+                        int32_t e = decode_residual_v2(dec, models,
+                                                       (int)leaf * AC_V2_RESDIFF_CONTEXTS + (int)f.res_diff);
+                        int32_t s = pred + e;
+                        if (s < 0) s = 0;
+                        if (s > bd_max) s = bd_max;
+                        dat[idx] = (uint16_t)s;
+                        return e;
+                    });
+    return out;
 }
 
 AnalyzeResult analyze(const Raster& r, uint8_t effort) {

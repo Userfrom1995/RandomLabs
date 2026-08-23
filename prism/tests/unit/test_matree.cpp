@@ -125,6 +125,48 @@ TEST(MatreeTreeOnFlat, EncodeDecodeBijection) {
     }
 }
 
+TEST(MatreeComposite, EncodeDecodeBijection) {
+    // C2b pair: encode_plane_tree_composite_v2 vs its exact decode mirror.
+    // The tree is built exactly like production (build_spatial_flat_tree) so
+    // the test exercises the shipped leaf partition, including the causal
+    // leaf recomputation interleaved with sample reconstruction.
+    std::mt19937 rng(1337);
+    for (int trial = 0; trial < 6; ++trial) {
+        uint32_t w = 24 + rng() % 40, h = 16 + rng() % 24;
+        Raster r(w, h, Channels::RGB, BitDepth::BD8);
+        for (size_t c = 0; c < 3; ++c)
+            for (uint32_t y = 0; y < h; ++y)
+                for (uint32_t x = 0; x < w; ++x)
+                    r.at(c, x, y) = (uint16_t)((x * (c + 1) * 5 + y * 7 + rng() % 32) & 0xFF);
+        MATree tree = build_spatial_flat_tree(r);
+        ASSERT_GE(tree.num_leaves, 1u);
+        uint16_t bd_max = 255;
+        for (size_t c = 0; c < r.planes.size(); ++c) {
+            auto bytes = encode_plane_tree_composite_v2(r.planes[c], w, h, tree,
+                                                        tree.num_leaves, 8);
+            auto back = decode_plane_tree_composite_v2(bytes, w, h, tree,
+                                                       tree.num_leaves, 8, bd_max);
+            EXPECT_TRUE(back == r.planes[c]) << "trial " << trial << " plane " << c;
+        }
+    }
+}
+
+TEST(MatreeComposite, SingleLeafRoundTrip) {
+    // Degenerate composite (one leaf) must still be an exact bijection: every
+    // sample collapses to cx = resdiff, i.e. flat causal coding through the
+    // same walk. Guards against off-by-one context folding at the boundary.
+    std::mt19937 rng(99);
+    uint32_t w = 33, h = 21;
+    Raster r(w, h, Channels::GRAY, BitDepth::BD8);
+    for (uint32_t y = 0; y < h; ++y)
+        for (uint32_t x = 0; x < w; ++x)
+            r.at(0, x, y) = (uint16_t)(rng() % 256);
+    MATree tree = MATree::single_leaf();
+    auto bytes = encode_plane_tree_composite_v2(r.planes[0], w, h, tree, 1, 8);
+    auto back = decode_plane_tree_composite_v2(bytes, w, h, tree, 1, 8, 255);
+    EXPECT_TRUE(back == r.planes[0]);
+}
+
 TEST(MatreeTreeOnFlat, FlagGatesRejectInvalidCombos) {
     // Build any valid effort-3 stream, then corrupt flags into invalid combos:
     // bit4 without bit2, and an unknown bit. Both are hard decode errors.
