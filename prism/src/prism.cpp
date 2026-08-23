@@ -41,7 +41,7 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
                                               const std::vector<uint16_t>* siblingSrc,
                                               const MATree& tree, int num_leaves,
                                               uint8_t bit_depth,
-                                              bool useCM, bool useLZP) {
+                                              bool useCM, bool useLZP, bool useV2) {
     if (w==0||h==0) { AEncoder enc; return enc.flush_and_emit(); }
     size_t n = (size_t)w*h;
     // fast plain path without generic overhead -> delegate to original logic if both false
@@ -91,13 +91,15 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
                 residuals.push_back(e); leaf_ids.push_back(leaf);
             }
         }
-        return acoder_encode_plane_leaves(residuals, leaf_ids, num_leaves);
+        return useV2 ? acoder_encode_plane_leaves_v2(residuals, leaf_ids, num_leaves)
+                     : acoder_encode_plane_leaves(residuals, leaf_ids, num_leaves);
     }
     // CM and/or LZP path
     int effCtx = useCM ? cm_expanded_leaves(num_leaves) : num_leaves;
     if (effCtx<=0) effCtx=1;
     if (effCtx>64) effCtx=64;
-    ACModels models(effCtx);
+    ACModels models(useV2 ? 0 : effCtx);
+    ACModelsV2 models_v2(useV2 ? effCtx : 0);
     AEncoder enc;
     uint16_t flagProb = 32768;
     std::vector<int32_t> lzp_tbl;
@@ -153,10 +155,14 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
             int32_t predLzp = lzp_tbl[h];
             bool hit = (predLzp != LZP_EMPTY && predLzp == e);
             enc.put_bin(flagProb, hit);
-            if (!hit) enc.encode_residual(models, ctx, e);
+            if (!hit) {
+                if (useV2) encode_residual_v2(enc, models_v2, ctx, e);
+                else enc.encode_residual(models, ctx, e);
+            }
             lzp_tbl[h]=e;
         } else {
-            enc.encode_residual(models, ctx, e);
+            if (useV2) encode_residual_v2(enc, models_v2, ctx, e);
+            else enc.encode_residual(models, ctx, e);
         }
         resHist[idx]=e;
     }
@@ -171,7 +177,7 @@ static std::vector<uint8_t> encode_band_leaf(const std::vector<uint16_t>& data, 
                                               const std::vector<uint16_t>* siblingSrc,
                                               const MATree& tree, int num_leaves,
                                               uint8_t bit_depth) {
-    return encode_band_generic(data,w,h,band_class,isLL,llSrc,siblingSrc,tree,num_leaves,bit_depth,false,false);
+    return encode_band_generic(data,w,h,band_class,isLL,llSrc,siblingSrc,tree,num_leaves,bit_depth,false,false,true);
 }
 
 static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& bytes, uint32_t w, uint32_t h,
@@ -180,13 +186,14 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                                                const std::vector<uint16_t>* siblingSrc,
                                                const MATree& tree, int num_leaves,
                                                uint8_t bit_depth, uint16_t bd_max,
-                                               bool useCM, bool useLZP) {
+                                               bool useCM, bool useLZP, bool useV2) {
     if (w==0||h==0) return {};
     size_t n=(size_t)w*h;
     if (bytes.empty()) throw DecodeError("empty band bytes for leaf decode");
     if (!useCM && !useLZP) {
         // plain path
-        ACModels models(num_leaves<=0?1:num_leaves);
+        ACModels models(useV2 ? 0 : (num_leaves<=0?1:num_leaves));
+        ACModelsV2 models_v2(useV2 ? (num_leaves<=0?1:num_leaves) : 0);
         ADecoder dec; dec.init(bytes);
         std::vector<uint16_t> out(n);
         std::vector<int32_t> residuals(n,0);
@@ -207,7 +214,8 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 if(siblingSrc){ int16_t sv=(int16_t)(*siblingSrc)[idx]; f.sibling_class=quant_sibling(sv);} else f.sibling_class=0;
                 int grad=std::abs(L-TL)+std::abs(T-TL); if(grad<4) f.activity=0; else if(grad<16) f.activity=1; else if(grad<64) f.activity=2; else f.activity=3;
                 uint16_t leaf=tree.eval(f); if(leaf >= (uint16_t)num_leaves) leaf=0;
-                int32_t e = dec.decode_residual(models, leaf);
+                int32_t e = useV2 ? decode_residual_v2(dec, models_v2, leaf)
+                                  : dec.decode_residual(models, leaf);
                 residuals[idx]=e;
                 int32_t s = pred + e;
                 if (s<0) s=0;
@@ -227,7 +235,8 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 if(siblingSrc){int16_t sv=(int16_t)(*siblingSrc)[idx]; f.sibling_class=quant_sibling(sv);} else f.sibling_class=0;
                 int grad=std::abs(L-TL)+std::abs(T-TL); if(grad<4) f.activity=0; else if(grad<16) f.activity=1; else if(grad<64) f.activity=2; else f.activity=3;
                 uint16_t leaf=tree.eval(f); if(leaf >= (uint16_t)num_leaves) leaf=0;
-                int32_t e = dec.decode_residual(models, leaf);
+                int32_t e = useV2 ? decode_residual_v2(dec, models_v2, leaf)
+                                  : dec.decode_residual(models, leaf);
                 residuals[idx]=e;
                 int32_t sv = pred + e;
                 if (sv < -32768) sv = -32768;
@@ -241,7 +250,8 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
     int effCtx = useCM ? cm_expanded_leaves(num_leaves) : num_leaves;
     if (effCtx<=0) effCtx=1;
     if (effCtx>64) effCtx=64;
-    ACModels models(effCtx);
+    ACModels models(useV2 ? 0 : effCtx);
+    ACModelsV2 models_v2(useV2 ? effCtx : 0);
     ADecoder dec; dec.init(bytes);
     std::vector<uint16_t> out(n);
     std::vector<int32_t> residuals(n,0);
@@ -273,11 +283,13 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 int h=lzp_hash(leaf,f.activity,dL_for_hash);
                 bool hit=dec.get_bin(flagProb);
                 if (hit) e=lzp_tbl[h];
-                else e=dec.decode_residual(models, ctx);
+                else e = useV2 ? decode_residual_v2(dec, models_v2, ctx)
+                               : dec.decode_residual(models, ctx);
                 if (e==LZP_EMPTY) e=0;
                 lzp_tbl[h]=e;
             } else {
-                e=dec.decode_residual(models, ctx);
+                e = useV2 ? decode_residual_v2(dec, models_v2, ctx)
+                          : dec.decode_residual(models, ctx);
             }
             residuals[idx]=e;
             int32_t s = pred + e;
@@ -306,10 +318,12 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 int h=lzp_hash(leaf,f.activity,dL_for_hash);
                 bool hit=dec.get_bin(flagProb);
                 if(hit) e=lzp_tbl[h];
-                else e=dec.decode_residual(models, ctx);
+                else e = useV2 ? decode_residual_v2(dec, models_v2, ctx)
+                               : dec.decode_residual(models, ctx);
                 lzp_tbl[h]=e;
             } else {
-                e=dec.decode_residual(models, ctx);
+                e = useV2 ? decode_residual_v2(dec, models_v2, ctx)
+                          : dec.decode_residual(models, ctx);
             }
             residuals[idx]=e;
             int32_t sv = pred + e;
@@ -327,7 +341,7 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                                                const std::vector<uint16_t>* siblingSrc,
                                                const MATree& tree, int num_leaves,
                                                uint8_t bit_depth, uint16_t bd_max) {
-    return decode_band_generic(bytes,w,h,band_class,isLL,llSrc,siblingSrc,tree,num_leaves,bit_depth,bd_max,false,false);
+    return decode_band_generic(bytes,w,h,band_class,isLL,llSrc,siblingSrc,tree,num_leaves,bit_depth,bd_max,false,false,true);
 }
 
 std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
@@ -347,7 +361,9 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.hdr.color_transform_id = ar.color_transform_id;
     uint8_t flags = 0;
     bool use_acoder = (opts.effort >= 1);
-    if (use_acoder) flags |= 0x04;
+    // C1 (issue #130): effort >= 1 streams use the v2 backend (bit3) on top of
+    // the FIFO adaptive coder (bit2). Legacy v1-only streams stay decodable.
+    if (use_acoder) flags |= ACODER_FLAG | ACODER_V2_FLAG;
     c.hdr.flags = flags;
     c.hdr.effort = opts.effort;
     c.hdr.cfl_scales = ar.cfl_scales;
@@ -390,7 +406,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                         // For non-squeezed planes, use plain acoder only (CM/LZP for squeezed bands gives most gain)
                         // But to keep comparison fair, if cand uses CM/LZP we still use plain for non-squeezed (no band context)
                         // So bytes size is same across cands -> no effect.
-                        bytes = acoder_encode_plane(residuals, transformed.w, transformed.h, 343);
+                        bytes = acoder_encode_plane_v2(residuals, transformed.w, transformed.h, 343);
                     } else bytes = rans_encode_plane(residuals, 1);
                     tot += bytes.size();
                 } else {
@@ -421,7 +437,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                             if (type==2 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                             else if (type==3 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                         }
-                        auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, cand.cm, cand.lzp);
+                        auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, cand.cm, cand.lzp, true);
                         tot += bytes.size();
                     }
                 }
@@ -447,7 +463,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
             if (!hasSqueeze || L==0) {
                 auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
                 std::vector<uint8_t> bytes;
-                if (use_acoder) bytes = acoder_encode_plane(residuals, transformed.w, transformed.h, 343);
+                if (use_acoder) bytes = acoder_encode_plane_v2(residuals, transformed.w, transformed.h, 343);
                 else bytes = rans_encode_plane(residuals, 1);
                 c.band_payloads.push_back(std::move(bytes));
             } else {
@@ -478,7 +494,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                         if (type==2 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                         else if (type==3 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                     }
-                    auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, finalCM, finalLZP);
+                    auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, finalCM, finalLZP, true);
                     c.band_payloads.push_back(std::move(bytes));
                 }
             }
@@ -493,7 +509,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         if (!hasSqueeze || L==0) {
             auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
             std::vector<uint8_t> bytes;
-            if (use_acoder) bytes = acoder_encode_plane(residuals, transformed.w, transformed.h, 343);
+            if (use_acoder) bytes = acoder_encode_plane_v2(residuals, transformed.w, transformed.h, 343);
             else bytes = rans_encode_plane(residuals, 1);
             c.band_payloads.push_back(std::move(bytes));
         } else {
@@ -566,7 +582,14 @@ Raster decode(const uint8_t* data, size_t len) {
     if ((uint8_t)pred > 8) pred = PredId::MED;
     Raster out(w,h, static_cast<Channels>(c.hdr.num_channels), bd==16?BitDepth::BD16:BitDepth::BD8);
     if (payloads.size() != expected) throw DecodeError("band count mismatch");
-    bool use_acoder = (c.hdr.flags & 0x04) != 0;
+    // Corruption gate: unknown flag bits are a hard error (invariant I2), and
+    // bit3 (backend v2) without bit2 (adaptive coder) is an invalid combo.
+    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG))
+        throw DecodeError("unknown container flag bits");
+    if ((c.hdr.flags & ACODER_V2_FLAG) && !(c.hdr.flags & ACODER_FLAG))
+        throw DecodeError("invalid flag combination: v2 without adaptive coder");
+    bool use_acoder = (c.hdr.flags & ACODER_FLAG) != 0;
+    bool useV2 = (c.hdr.flags & ACODER_V2_FLAG) != 0;
     bool useCM = (c.hdr.flags & CM_FLAG) != 0;
     bool useLZP = (c.hdr.flags & LZP_FLAG) != 0;
     MATree tree = c.trees.empty()? MATree::single_leaf() : c.trees[0].tree;
@@ -581,7 +604,8 @@ Raster decode(const uint8_t* data, size_t len) {
             const auto& b = payloads[payload_idx++];
             size_t n = (size_t)w * h;
             std::vector<int32_t> residuals;
-            if (use_acoder) residuals = acoder_decode_plane(b, n, w, h, 343);
+            if (useV2) residuals = acoder_decode_plane_v2(b, n, w, h, 343);
+            else if (use_acoder) residuals = acoder_decode_plane(b, n, w, h, 343);
             else residuals = rans_decode_plane(b, n, 1);
             if (residuals.size() != n) throw DecodeError("residual count mismatch");
             auto plane = reconstruct_plane(residuals, w, h, pred, plane_max);
@@ -608,7 +632,7 @@ Raster decode(const uint8_t* data, size_t len) {
                 const auto& inf = infos[0];
                 const auto& pay = payloads[payload_idx++];
                 uint16_t plane_max = plane_bd_max(bd, ct_pre, pi);
-                auto bandData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, true, nullptr, nullptr, tree, num_leaves, bd, plane_max, useCM, useLZP);
+                auto bandData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, true, nullptr, nullptr, tree, num_leaves, bd, plane_max, useCM, useLZP, useV2);
                 decodedBands.push_back(std::move(bandData));
             }
             std::vector<uint16_t> curLL = decodedBands[0];
@@ -629,7 +653,7 @@ Raster decode(const uint8_t* data, size_t len) {
                     bool isLLBand=false;
                     // HF bands use signed 16-bit range, pass plane_max anyway (unused for HF)
                     uint16_t plane_max2 = plane_bd_max(bd, ct_pre, pi);
-                    auto bdData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, isLLBand, llSrc, sibSrc, tree, num_leaves, bd, plane_max2, useCM, useLZP);
+                    auto bdData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, isLLBand, llSrc, sibSrc, tree, num_leaves, bd, plane_max2, useCM, useLZP, useV2);
                     hf[t]=std::move(bdData);
                     decodedBands.push_back(hf[t]);
                     infoIdx++;

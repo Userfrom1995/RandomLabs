@@ -12,12 +12,20 @@ struct ContainerHeader {
     uint8_t bit_depth = 8; // 8 or 16
     uint8_t num_channels = 3;
     uint8_t color_transform_id = 0;
-    uint8_t flags = 0; // bit0 CM, bit1 LZP, bit2 ACODER adaptive (FIFO)
+    // bit0 CM, bit1 LZP, bit2 ACODER adaptive (FIFO), bit3 ACODER backend v2
+    // (zero-flag-first binarization + dual-rate class-prior adaptation).
+    // Unknown bits are a hard decode error; v1 streams (bit2 without bit3)
+    // stay decodable for legacy results CSVs.
+    uint8_t flags = 0;
     uint8_t effort = 0;
     std::vector<uint8_t> cfl_scales; // num_chroma
     std::vector<uint8_t> squeeze_levels; // num_channels
     uint32_t model_len = 0;
 };
+
+// Container flags (issue #130 C1 names bit3).
+constexpr uint8_t ACODER_FLAG = 0x04;     // adaptive FIFO range coder (v1 or v2)
+constexpr uint8_t ACODER_V2_FLAG = 0x08;  // backend v2 binarization + models
 
 struct Container {
     ContainerHeader hdr;
