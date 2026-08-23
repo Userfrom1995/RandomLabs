@@ -1,12 +1,11 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32653618025, issue_comment on PR #131). Research phase for #130 landed as PR #131; Architect re-dispatched after a transient network error killed the first attempt. Freeze active.
+- **Updated:** 2026-08-23 (maintainer run 32653940325, issue_comment on PR #131). Second IDENTICAL architect failure confirmed (runs 32653522637 + 32653855086, both ProviderResponseStreamError ~90s in, zero side effects); escalated to the Lab Engineer on #70 per the graceful-downgrade ladder. Architect phase BLOCKED until the lab verdict. Freeze active.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z, comment on #121):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates.
 - **BINDING TARGET (dual-unit):** summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md` (commit `f8a958d`, produced by `prism/benchmarks/bench_vs_codecs.py`, pixel-exact 24/24).
 - **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Final warning issued 2026-08-23; compliance is existential.
 - Iteration limit LIFTED (2026-08-22); circuit breaker DELETED. One-PR rule; NEVER delete PR branches (delete-branch only via merge rebase). Quality gates are the only merge criteria.
-- MODEL PINS: research/architect/build/fixer/lab = `opencode/x-preview-f-free`; `general` = `opencode/hy3-free`; `small_model` = `opencode/mimo-v2.5-free` (all free; owner switch landed in `f8a958d`).
 
 ## CORRECTED RECORDS (supersedes all earlier entries)
 - **Prism M3 < 8.71 claim FALSE (units mix):** honest Prism e7 = 3.675 per-sample = ~11.02 summed; beats only PNG-class codecs; BEHIND Obsidian e7 (3.174 / 9.52) and JPEG XL (2.885 / 8.655); WebP m6 = 3.166 / 9.498.
@@ -17,34 +16,37 @@
 ## CRITICAL INFRASTRUCTURE STATE
 - **`main` = `f8a958d`**.
 - pages.yml deploys green (workflow_dispatch success 17:03:42Z, run 32653622188).
+- MODEL PINS under lab investigation: all workflows + opencode.json use x-preview-f-free / mimo-v2.5-free (all free); x-preview-f-free showed repeated ProviderResponseStreamError on architect runs (2x) while succeeding in full maintainer/research sessions the same hour - model alive, phase-level failure pattern.
 - SHIPPING LIMIT moot under freeze (and was 2/2 used today anyway).
 
 ## IN FLIGHT
-- **PR #131** (`opencode/issue130-20260823163248`, head `e2a4439b7e1eeda70a0961c306ef513fd6d6ca4e`): Researcher output for #130. OPEN, MERGEABLE, not orphan (merge-base = f8a958d), no protected paths. Contains D1 (bench_gate.sh dual-unit fix + self-check) + D2 research doc (gap analysis F1-F4, prescriptions P1-P7). Architect phase RE-DISPATCHED by run 32653618025 after run 32653522637 died with `APIError: finish_reason: network_error` (~90s in, zero side effects).
+- **PR #131** (`opencode/issue130-20260823163248`, head `e2a4439b7e1eeda70a0961c306ef513fd6d6ca4e`): Researcher output for #130. OPEN, MERGEABLE, not orphan (merge-base = f8a958d), no protected paths. Contains D1 (bench_gate.sh dual-unit fix + self-check) + D2 research doc (gap analysis F1-F4, prescriptions P1-P7). Architect attempts FAILED twice with identical provider stream errors; ZERO architect output exists - do not assume any blueprint work.
+- **Lab Engineer** dispatched this run on issue #70 (instruction embedded in the `/oc lab` trigger posted by the hardcoded PAT step): diagnose root cause, two-knob model switch if provider unstable, record changes on #70, do not touch feature branches.
 
 ## PIPELINE POSITION (#130)
-research DONE (PR #131) -> architect IN FLIGHT (retry) -> build -> review -> test -> merge.
+research DONE (PR #131) -> architect BLOCKED (lab diagnosing/fixing) -> build -> review -> test -> merge.
 
 ## PENDING (in order)
-1. NEXT RUN FIRST ACTION: verify the re-dispatched Architect produced real output (commits/session comment) on PR #131. If it fails again with the same class of provider error: that is strike two under the graceful-downgrade ladder -> retry once more only if evidence suggests transience, else escalate `{"action": "lab"}`.
+1. NEXT RUN FIRST ACTION: read the lab outcome on #70. If a fix landed (model switch or otherwise), re-fire `{"action": "architect", "pr": 131}` and resume the drive. If the lab run itself died with the same error class, that is LAB strike one: retry lab once per ladder before anything else (emergency contract still NOT satisfied - production is not halted).
 2. Drive #130 through architect -> build -> review -> test on PR #131. Reviewer rounds MUST verify dual-unit consistency of all benchmark claims; D1's self-check must prove the gate can FAIL.
 3. NO merges until dual-unit M2 AND M3 pass on the real corpus.
 4. After genuine pass: unfreeze Brainstorm board, resume normal cadence; keep chasing Obsidian e7 (3.174 / 9.52) as internal benchmark too.
 
 ## ISSUES
-- **#130** - sole active workstream (Prism continuation). VERIFIED correct body; research fired and produced PR #131.
+- **#130** - sole active workstream (Prism continuation). Research produced PR #131; awaiting architect phase.
+- **#70 (Lab Health)** - OPEN; hosts the ACTIVE lab dispatch from run 32653940325.
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
-- **#70 (Lab Health)** - OPEN; routine audits continue (allowed; not project work).
 
 ## QUEUED / HOUSEKEEPING
-- Duplicate maintainer run 32653622106 queued behind run 32653618025 from owner's second `/oc maintainer`: should find this state and take NO action (architect already re-dispatched; one entry per PR rule).
+- None. Duplicate maintainer run 32653622106 was CANCELLED by concurrency; no stray triggers outstanding.
 
 ## REVIEWER/TESTER/MODEL STATUS
-- Build agent model pins unchanged and healthy (x-preview-f-free family completed the research session minutes before the transient blip - model is NOT dead).
+- Model alive but flaky on the architect phase specifically; verdict pending from lab. Do not blame the model in public comments before the diagnosis lands.
 - Approvals necessary but not sufficient while gate definitions are under repair: unit-consistency check is an explicit review criterion on #131.
 
 ## OPEN QUESTIONS
-- Will the Architect retry survive? (Transient network_error at 17:03Z was the first strike.)
+- Root cause: transient provider instability window (favored by evidence) vs request-pattern-specific to the architect job? If job-specific, the fix may not be a model switch at all.
+- Will lab switch pins, and to which free model (check https://opencode.ai/zen/v1/models at decision time)?
 - Does the gap analysis credibly locate ~21% of bytes (3.675 -> <2.885 per-sample)? If the build phase cannot convert P1-P7 into measured progress, escalate honestly to the owner; never publish optimistic projections.
 - Confirm Builder later wires bench_gate.sh to bench_vs_codecs.py arithmetic so both tools agree to the digit.
 
