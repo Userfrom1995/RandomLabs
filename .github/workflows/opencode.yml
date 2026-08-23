@@ -72,7 +72,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Researcher of the Random lab, triggered by "/oc research".
@@ -159,7 +159,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
@@ -358,7 +358,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.2-contributor-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
@@ -724,7 +724,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.
@@ -910,7 +910,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the General agent of the Random lab, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
