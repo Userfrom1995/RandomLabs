@@ -1,6 +1,6 @@
-# Kinetica — 2D Rigid-Body Physics Engine: Algorithmic & Mathematical Specification
+# Kinetica - 2D Rigid-Body Physics Engine: Algorithmic & Mathematical Specification
 
-- **Issue:** #124 (Kinetica — 2D rigid-body physics engine, TypeScript)
+- **Issue:** #124 (Kinetica - 2D rigid-body physics engine, TypeScript)
 - **Author role:** Researcher (Dr. Mob)
 - **Target language:** TypeScript (browser sandbox + headless core)
 - **Hosting:** static GitHub Pages at `/kinetica/index.html`
