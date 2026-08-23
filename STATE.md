@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-23 (maintainer run 32658894165, issue_comment on PR #131). Builder run 32657202007 COMPLETED (C0+C1 landed at head `c2778432`, A1 PASS / honest A2 miss); owner's `/oc continue` spawned continuation run **32658886664 IN FLIGHT** (build job verified active this run). Maintainer stood down with an EMPTY decision list - pipeline self-driving. Freeze active.
+- **Updated:** 2026-08-23 (maintainer run 32659091739, issue_comment on PR #131, duplicate owner ping). Continuation run **32658886664 STILL IN FLIGHT** (build job verified active ~6 min in at 18:48Z; prior Builder session ran ~30 min). PR head unchanged `c2778432`; zero reviews yet (correct mid-build). Maintainer stood down with an EMPTY decision list - second consecutive quiet stand-down while the pipeline self-drives. Freeze active.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z, comment on #121):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates.
@@ -15,12 +15,12 @@
 
 ## CRITICAL INFRASTRUCTURE STATE
 - **`main` = `f8a958d`** (ls-remote verified this run).
-- pages.yml green from main dispatch at 18:42:34Z.
-- MODEL PINS: all workflows + opencode.json on x-preview-f-free / mimo-v2.5-free, healthy since the transient ~17:03-17:20Z window closed itself (architect full session + builder sessions all succeeded on it). No pin change made or needed; lab stands down unless flakiness recurs during review/test.
+- pages.yml green from main dispatch at 18:46:06Z.
+- MODEL PINS: all workflows + opencode.json on x-preview-f-free / mimo-v2.5-free, healthy since the transient ~17:03-17:20Z window closed itself (architect + builder + multiple maintainer sessions all succeeded on it). No pin change made or needed; lab stands down unless flakiness recurs during review/test.
 - SHIPPING LIMIT moot under freeze (resets 2026-08-24).
 
 ## IN FLIGHT
-- **Continuation run 32658886664** (owner `/oc continue` 18:42:26Z) on PR #131 (`opencode/issue130-20260823163248`, head `c2778432`): build job ACTIVE at run time. Queue per tracker: C1 A2 work (directional class key for zero-kind, then logistic mixer forward if short), full Kodak-24 re-measure both units + fresh CSV, docs sweep, then C2 -> C3 -> M2 window.
+- **Continuation run 32658886664** (owner `/oc continue` 18:42:26Z) on PR #131 (`opencode/issue130-20260823163248`, head `c2778432`): build job ACTIVE at 18:48Z, ~6 min elapsed. Queue per tracker: C1 A2 work (directional class key for zero-kind, then logistic mixer forward if short), full Kodak-24 re-measure both units + fresh CSV, docs sweep, then C2 -> C3 -> M2 window.
 - Builder completed state for reference: A1 PASS (~100% capture of V1 pin win: kodim01 -5.18% vs -5.16%, kodim13 -3.45% vs -3.42%); A2 NOT met (0.85% context gain vs 3.00 target); rejected experiments logged in tracker.
 
 ## PIPELINE POSITION (#130)
@@ -34,11 +34,12 @@ research DONE -> architect DONE -> build CONTINUING (run 32658886664) -> review 
 
 ## ISSUES
 - **#130** - sole active workstream (Prism continuation). PR #131 carries all phases.
-- **#70 (Lab Health)** - lab stand-down ping posted previous run; green-but-empty silent-stall signature documented there.
+- **#70 (Lab Health)** - lab stand-down ping posted earlier today; green-but-empty silent-stall signature documented there.
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## QUEUED / HOUSEKEEPING
-- Nothing pending. Leftover benign run 32658222714 completed/cancelled with zero jobs. No stray triggers outstanding.
+- Pending opencode run 32659091715 (from this run's `/oc maintainer` comment batch): VERIFIED BENIGN against live opencode.yml - the `general` job condition excludes `/oc maintainer` prefixes (lines ~883-884); it dequeues behind the Builder in group `opencode-131`, skips every job, posts nothing. Left alone deliberately.
+- Duplicate maintainer run 32659084996 cancelled by concurrency - clean. No stray triggers outstanding.
 
 ## REVIEWER/TESTER/MODEL STATUS
 - Model healthy (this maintainer session + architect + builder sessions all succeeded back-to-back on the same pin). Do not switch models mid-build; fresh stream errors during review/test are fresh evidence for a lab re-fire.
