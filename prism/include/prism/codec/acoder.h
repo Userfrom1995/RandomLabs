@@ -51,14 +51,20 @@ struct ACModels {
 // (architecture-jxl-parity.md invariant I2); nothing is data-dependent state.
 
 constexpr int AC_V2_N_PRIORS = 16;
-constexpr int AC_V2_FAST_SHIFT = 4;
-constexpr int AC_V2_SLOW_SHIFT = 6;
+// Dual-rate adaptation shifts (C1 offline retune, 2026-08-23): slower EMAs beat
+// the original shift-4/6 pair on every probe image (kodim01 v2 -5.18 -> -6.40
+// percent of v0, kodim13 -3.45 -> -4.79, kodim05/kodim20 confirmed); faster
+// rates were tried and rejected (oscillation risk, risk register R-D1).
+constexpr int AC_V2_FAST_SHIFT = 6;
+constexpr int AC_V2_SLOW_SHIFT = 9;
 // Hierarchical sharing (P2): the coded probability mixes the per-context
 // dual-rate estimate with the shared CLASS-level dual-rate estimate (16
 // classes). Weights are out of 16 and mirrored on both sides (I2). The class
 // models see ~74x more samples than an average context, so rare contexts lean
 // on them instead of re-learning from scratch - this is what converts the
-// static prior into live statistical sharing.
+// static prior into live statistical sharing. Equal 8/8 won the offline sweep;
+// tilting toward either side regressed (contexts are noisy experts, not starved
+// ones - count-weighted trust was also tried and rejected).
 constexpr int AC_V2_MIX_CTX_W = 8; // out of 16
 constexpr int AC_V2_MIX_CLS_W = 8; // out of 16
 
@@ -80,14 +86,17 @@ extern const uint16_t AC_V2_PRIOR_REM[AC_V2_N_PRIORS];
 
 // Deterministic coarse class (0..15) for a residual-DIFF context id (0..342).
 // Encoder and decoder recompute it from the same causal context, so it needs
-// no side channel. Class = min(qL + qU + qUL, 15) where qL/qU/qUL are the
-// JPEG-LS residual quantizers recovered from the context id.
+// no side channel. Class = 3*min(max(qL,qU,qUL),4) + orientation, where
+// qL/qU/qUL are the JPEG-LS residual quantizers recovered from the context id
+// and orientation is 0 (horizontal-edge dominant), 1 (vertical-edge dominant),
+// or 2 (balanced). The old sum-key merged horizontal and vertical edges into
+// one class; the directional key beat it on every probe image.
 uint8_t ac_v2_prior_class(int cx);
 
 // Coded probability: integer mix of the fast and slow EMAs, clamped so the
 // range-coder split always lands strictly inside the current interval.
 inline uint16_t ac_v2_mix(uint16_t pf, uint16_t ps) {
-    uint32_t m = (5u * pf + 3u * ps) >> 3;
+    uint32_t m = ((uint32_t)pf + ps) >> 1;
     if (m < 1) m = 1;
     if (m > 65534) m = 65534;
     return (uint16_t)m;
