@@ -316,6 +316,43 @@ std::vector<int32_t> acoder_decode_plane(const std::vector<uint8_t>& bytes,
     return out;
 }
 
+std::vector<uint8_t> acoder_encode_plane_leaves(const std::vector<int32_t>& residuals,
+                                                 const std::vector<uint16_t>& leaf_ids,
+                                                 int num_leaves) {
+    if (residuals.empty()) { AEncoder enc; return enc.flush_and_emit();}
+    if (leaf_ids.size() != residuals.size()) throw std::runtime_error("leaf_ids size mismatch");
+    int ctx = num_leaves <=0?1:num_leaves;
+    if (ctx > 64) ctx = 64;
+    ACModels models(ctx);
+    AEncoder enc;
+    for (size_t i=0;i<residuals.size();++i) {
+        int cx = leaf_ids[i] % ctx;
+        enc.encode_residual(models, cx, residuals[i]);
+    }
+    return enc.flush_and_emit();
+}
+std::vector<int32_t> acoder_decode_plane_leaves(const std::vector<uint8_t>& bytes,
+                                                size_t num_residuals,
+                                                const std::vector<uint16_t>& leaf_ids,
+                                                int num_leaves) {
+    if (num_residuals==0) return {};
+    if (bytes.empty()) throw std::runtime_error("acoder_decode_plane_leaves: empty bytes");
+    if (leaf_ids.size()!=num_residuals) throw std::runtime_error("leaf_ids size mismatch decode");
+    int ctx = num_leaves <=0?1:num_leaves;
+    if (ctx>64) ctx=64;
+    ACModels models(ctx);
+    ADecoder dec; dec.init(bytes);
+    std::vector<int32_t> out; out.reserve(num_residuals);
+    for (size_t i=0;i<num_residuals;++i) { int cx = leaf_ids[i]%ctx; out.push_back(dec.decode_residual(models,cx));}
+    return out;
+}
+std::vector<int32_t> acoder_decode_plane_leaves_stream(const std::vector<uint8_t>& bytes,
+                                                       size_t num_residuals,
+                                                       int num_leaves,
+                                                       const std::vector<uint16_t>& leaf_seq) {
+    return acoder_decode_plane_leaves(bytes,num_residuals,leaf_seq,num_leaves);
+}
+
 std::vector<uint8_t> acoder_encode_bits_adaptive(const std::vector<uint8_t>& bits) {
     // Adaptive version: single context prob adapts from 0.5.
     AEncoder enc;
