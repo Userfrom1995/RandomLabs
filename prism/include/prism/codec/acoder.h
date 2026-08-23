@@ -231,6 +231,18 @@ std::vector<int32_t> acoder_decode_plane_leaves_v2(const std::vector<uint8_t>& b
                                                    int num_leaves,
                                                    bool uniform_priors = false);
 
+// ----- Backend v2 composite contexts (C2b, issue #130) -----
+// The tree REFINES the causal context instead of replacing it: the model id is
+// `leaf * 343 + resdiff`, where resdiff is the exact JPEG-LS residual-DIFF
+// context recomputed causally from the residual history on both sides. Class
+// priors and shared class states are keyed on the resdiff PART (cx % 343), so
+// flat streams (ids < 343) are bit-for-bit unaffected and composite slots
+// inherit their resdiff-part prior - the hierarchy absorbs the sparsity that
+// a leaves*343 partition would otherwise suffer. Composite coding lives at
+// the plane level (analyze.cpp encode/decode_plane_tree_composite_v2) because
+// the decoder must interleave leaf recomputation with sample reconstruction.
+constexpr int AC_V2_RESDIFF_CONTEXTS = 343;
+
 // Bit-level helpers for the H(p)+epsilon gate (adaptive, not fixed)
 std::vector<uint8_t> acoder_encode_bits_adaptive(const std::vector<uint8_t>& bits);
 std::vector<uint8_t> acoder_decode_bits_adaptive(const std::vector<uint8_t>& bytes, size_t n);
