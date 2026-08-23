@@ -111,6 +111,20 @@ Corpus truth this round (fresh both-units measure, sha pins verified):
 e1 mean 3.4515 per-sample / 10.3544 summed bpp (-6.09 percent vs pre-C1);
 M2/M3 remain open under the owner freeze.
 
+## C3 addendum: trial-encoded analyzer decisions (same evening)
+
+The last energy proxies inside decision paths are gone. Color transform,
+CFL scales, and the global predictor are now chosen by
+`trial_flat_bits` (analyze.h): real coded bytes of exactly the v2 flat
+stream production emits, with a decimated-grid pruning round and
+identity-forced finalists (ties keep None/zero/MED, invariant I4).
+Measured on the pinned corpus at e1: 10.2904 summed / 3.4301 per-sample,
+7 images improved / 17 ties / ZERO regressions; kodim20 alone gave back
+6.22 percent of file size that the old proxy had been silently wasting.
+Wall-clock 3.74x at e1, inside the 5x guard. Pre-C3 CSVs archived as
+`*-pre-c3.csv`; unit tests assert the never-lose-to-identity property
+directly (`tests/unit/test_analyze.cpp`).
+
 ## Notes
 
 - Probe calibration: probe v0 reproduces the real legacy file size for
