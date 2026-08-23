@@ -219,9 +219,11 @@ int32_t ADecoder::decode_residual(ACModels& m, int cx) {
 // --- Backend v2 (issue #130 C1): priors, dual-rate adaptation, zero-first binarization ---
 
 // Class-prior tables (codec constants, mirrored by the decoder; I2). Entry =
-// initial P(bit == 0) for that bin stream, indexed by
-// class = min(qL + qU + qUL, 15). Tuned offline on the probe rail
-// (benchmarks/probe_backend.sh) against pinned kodim01/kodim13 baselines.
+// initial P(bit == 0) for that bin stream, indexed by the directional class
+// 3*min(max(qL,qU,qUL),4) + orientation (see ac_v2_prior_class). Tuned offline
+// on the probe rail (benchmarks/probe_backend.sh) against pinned kodim01/kodim13
+// baselines. Index 15 is currently unused (the directional key saturates at
+// 14); it stays as tuning headroom.
 //
 // ZERO bin: bit 1 means "residual is zero", so the entry holds P(nonzero):
 // flat contexts start zero-heavy, busy contexts nearly always nonzero.
@@ -255,9 +257,14 @@ uint8_t ac_v2_prior_class(int cx) {
     int t = cx / 7;
     int qU = t % 7;
     int qL = t / 7;
-    int s = qL + qU + qUL;
-    if (s > 15) s = 15;
-    return (uint8_t)s;
+    // Directional key (C1 offline retune): edge-energy bucket x orientation.
+    // e caps at 4 because the prior tables saturate there; orientation splits
+    // horizontal-edge from vertical-edge contexts the sum-key used to merge.
+    int e = qL > qU ? qL : qU;
+    if (qUL > e) e = qUL;
+    if (e > 4) e = 4;
+    int d = (qL >= qU + 2) ? 0 : ((qU >= qL + 2) ? 1 : 2);
+    return (uint8_t)(e * 3 + d); // max 14, tables keep a spare slot 15
 }
 
 void ac_v2_adapt(uint16_t& pf, uint16_t& ps, bool bit) {

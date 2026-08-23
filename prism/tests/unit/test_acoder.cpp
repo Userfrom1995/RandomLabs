@@ -35,10 +35,40 @@ TEST(AcoderV2, PriorClassCoversAllContextsMonotonically) {
         uint8_t cls = ac_v2_prior_class(cx);
         ASSERT_LE(cls, 15);
         ASSERT_GE(cls, 0);
-        // class equals min(qL+qU+qUL, 15); recover the quantizers
+        // directional key: class = 3*min(max(qL,qU,qUL),4) + orientation;
+        // recover the quantizers from the context id
         int qUL = cx % 7, t = cx / 7, qU = t % 7, qL = t / 7;
-        EXPECT_EQ(cls, (uint8_t)std::min(qL + qU + qUL, 15)) << "cx " << cx;
+        int e = std::max({qL, qU, qUL});
+        if (e > 4) e = 4;
+        int d = (qL >= qU + 2) ? 0 : ((qU >= qL + 2) ? 1 : 2);
+        EXPECT_EQ(cls, (uint8_t)(e * 3 + d)) << "cx " << cx;
     }
+}
+
+TEST(AcoderV2, PriorClassRespectsEnergyMonotonicity) {
+    // Raising all three neighbor quantizers together must never lower the
+    // class (busier contexts map to busier priors). Single-neighbor raises MAY
+    // drop the class by one orientation step on purpose (the directional key
+    // trades strict energy order for h/v edge separation).
+    for (int qL = 0; qL < 6; ++qL)
+        for (int qU = 0; qU < 6; ++qU)
+            for (int qUL = 0; qUL < 6; ++qUL) {
+                int base = ac_v2_prior_class((qL * 7 + qU) * 7 + qUL);
+                int up = ac_v2_prior_class(((qL + 1) * 7 + qU + 1) * 7 + qUL + 1);
+                EXPECT_GE(up, base) << "qL " << qL << " qU " << qU << " qUL " << qUL;
+            }
+}
+
+TEST(AcoderV2, PriorClassHorizontalVerticalSymmetry) {
+    // Swapping qL and qU must swap the horizontal/vertical orientation buckets
+    // while keeping the energy bucket, i.e. mirror contexts share energy.
+    for (int qL = 0; qL < 7; ++qL)
+        for (int qU = 0; qU < 7; ++qU)
+            for (int qUL = 0; qUL < 7; ++qUL) {
+                int a = ac_v2_prior_class((qL * 7 + qU) * 7 + qUL);
+                int b = ac_v2_prior_class((qU * 7 + qL) * 7 + qUL);
+                EXPECT_EQ(a / 3, b / 3) << "qL " << qL << " qU " << qU;
+            }
 }
 
 TEST(AcoderV2, MixStaysInRangeForExtremeStates) {
