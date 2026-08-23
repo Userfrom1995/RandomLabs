@@ -12,7 +12,7 @@ struct ContainerHeader {
     uint8_t bit_depth = 8; // 8 or 16
     uint8_t num_channels = 3;
     uint8_t color_transform_id = 0;
-    uint8_t flags = 0; // bit0 CM, bit1 LZP
+    uint8_t flags = 0; // bit0 CM, bit1 LZP, bit2 ACODER adaptive (FIFO)
     uint8_t effort = 0;
     std::vector<uint8_t> cfl_scales; // num_chroma
     std::vector<uint8_t> squeeze_levels; // num_channels

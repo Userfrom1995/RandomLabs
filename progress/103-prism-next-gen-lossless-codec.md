@@ -68,10 +68,9 @@ the binding **R11-A guard** (Squeeze + MA-tree must land coupled with mandatory
 `llc_class`/`sibling_class`, and must beat the no-Squeeze baseline or the commit
 is rejected). Best-known entering state: 11.120 bpp (B5.17).
 
-Next: B5 (predictor bank + residual-DIFF context + FIFO adaptive backend) to clear
-M1 (WebP 9.61), then B6 (CFL + 5/3 + 16-bit) for M2, then B7 (Squeeze+MA-tree
-coupled, R11-A guard) for M3 < 8.71. Owner override: no merge until M0+M1+M2+M3
-pass bit-exactly on real Kodak.
+**Builder B5 (2026-08-23):** FIFO adaptive backend WIRED on branch `opencode/issue117-20260823061608`. `acoder.h` FIFO range coder with WNC shift 5, 343-context residual-DIFF, activity helper, per-plane predictor selection. Container flags bit2 = adaptive (effort>=1). Verified 23/23 gtest + fuzz 1000 PASS, synthetic wins 8-15% bpp, adaptive H(p) within epsilon. M1 gate requires real Kodak - not yet measured (data/kodak missing).
+
+Next: B6 (CFL + 5/3 + 16-bit) for M2, then B7 (Squeeze+MA-tree coupled, R11-A guard) for M3 < 8.71. Owner override: no merge until M0+M1+M2+M3 pass bit-exactly on real Kodak.
 
 ## Architectural build checklist
 
