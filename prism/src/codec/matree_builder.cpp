@@ -67,7 +67,46 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
     }
     return false;
 }
+
+// Feature value extractor shared by the candidate generator.
+inline uint32_t prop_value(const Feature& f, PropId p) {
+    switch(p) {
+        case PropId::QG: return f.qg;
+        case PropId::BandClass: return f.band_class;
+        case PropId::LlcClass: return f.llc_class;
+        case PropId::ResDiff: return f.res_diff;
+        case PropId::SiblingClass: return f.sibling_class;
+        case PropId::Activity: return f.activity;
+    }
+    return 0;
 }
+
+struct Cand { PropId prop; uint16_t thr; };
+
+// C2 candidate set: octile quantiles of the node's own value distribution,
+// deduplicated and ascending. BandClass keeps its four equality candidates.
+// Quantile ranks are computed on a sorted copy with fixed rank formulas, so
+// the resulting threshold list is deterministic for a given node dataset.
+void push_quantile_cands(std::vector<Cand>& cands, PropId p,
+                         const std::vector<Feature>& feats,
+                         const std::vector<size_t>& idxs) {
+    if (idxs.size() < 4) return;
+    std::vector<uint32_t> vals;
+    vals.reserve(idxs.size());
+    for (size_t i : idxs) vals.push_back(prop_value(feats[i], p));
+    std::sort(vals.begin(), vals.end());
+    constexpr int kQuantiles = 8;
+    uint32_t last = UINT32_MAX;
+    for (int q = 1; q < kQuantiles; ++q) {
+        size_t rank = (size_t)((double)(vals.size() - 1) * q / kQuantiles + 0.5);
+        uint32_t v = vals[rank];
+        if (v != last && v > 0) { // thr == 0 never splits (< thr empty)
+            cands.push_back({p, (uint16_t)v});
+            last = v;
+        }
+    }
+}
+} // namespace
 
 MATree build_matree_greedy(const std::vector<Feature>& feats,
                            const std::vector<int32_t>& residuals,
@@ -81,25 +120,15 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
     root.is_leaf = true;
     root.depth = 0;
     root.leaf_id = 0;
-    root.idxs.resize(feats.size());
-    std::iota(root.idxs.begin(), root.idxs.end(), 0);
+    // C2: induce on a strided subsample when the dataset exceeds the cap.
+    // Stride keeps spatial coverage uniform; the mapping is a pure function
+    // of the input size, so it is deterministic on both runs of the encoder.
+    size_t total = feats.size();
+    size_t stride = (total + MATREE_INDUCTION_CAP - 1) / MATREE_INDUCTION_CAP;
+    if (stride < 1) stride = 1;
+    root.idxs.reserve(total / stride + 1);
+    for (size_t i = 0; i < total; i += stride) root.idxs.push_back(i);
     nodes.push_back(std::move(root));
-
-    // Candidate thresholds per prop
-    struct Cand { PropId prop; uint16_t thr; };
-    std::vector<Cand> cands;
-    // QG thresholds 1,2,3
-    for (uint16_t t=1; t<=3; ++t) cands.push_back({PropId::QG, t});
-    // BandClass 0..3 equality
-    for (uint16_t t=0; t<=3; ++t) cands.push_back({PropId::BandClass, t});
-    // LlcClass mandatory 1..3
-    for (uint16_t t=1; t<=3; ++t) cands.push_back({PropId::LlcClass, t});
-    // ResDiff thresholds
-    for (uint16_t t : {10, 50, 100, 170, 250}) cands.push_back({PropId::ResDiff, t});
-    // SiblingClass mandatory 1..3
-    for (uint16_t t=1; t<=3; ++t) cands.push_back({PropId::SiblingClass, t});
-    // Activity 1..3
-    for (uint16_t t=1; t<=3; ++t) cands.push_back({PropId::Activity, t});
 
     int num_leaves = 1;
     while (num_leaves < params.max_leaves) {
@@ -107,12 +136,20 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
         Cand best_cand{PropId::QG,0};
         double best_gain = 0;
         std::vector<size_t> best_left, best_right;
-        // evaluate each leaf that can be split
         for (size_t ni=0; ni<nodes.size(); ++ni) {
             if (!nodes[ni].is_leaf) continue;
             if (nodes[ni].depth >= params.max_depth) continue;
-            if (nodes[ni].idxs.size() < 32) continue; // too small to split
+            if ((int)nodes[ni].idxs.size() < 2 * params.min_samples_per_leaf) continue; // cannot yield two valid children
             double parentCost = leaf_bits(nodes[ni].idxs, residuals);
+            // Candidate set per leaf: BandClass equality first (prop order),
+            // then octile quantiles of the node's own distribution.
+            std::vector<Cand> cands;
+            for (uint16_t t=0; t<=3; ++t) cands.push_back({PropId::BandClass, t});
+            push_quantile_cands(cands, PropId::QG, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::LlcClass, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::ResDiff, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::SiblingClass, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::Activity, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);
@@ -122,11 +159,16 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
                     else right.push_back(idx);
                 }
                 if (left.empty() || right.empty()) continue;
-                // balanced split guard: both sides at least 10%
-                if (left.size() < nodes[ni].idxs.size()/10 || right.size() < nodes[ni].idxs.size()/10) continue;
+                // C2 min-samples rule: both children must keep at least
+                // min_samples_per_leaf induction samples.
+                if ((int)left.size() < params.min_samples_per_leaf ||
+                    (int)right.size() < params.min_samples_per_leaf) continue;
                 double lc = leaf_bits(left, residuals);
                 double rc = leaf_bits(right, residuals);
                 double gain = parentCost - (lc+rc);
+                // Strict improvement only: ties keep the earlier candidate in
+                // (property id, threshold ascending) scan order, so the split
+                // choice is a deterministic function of the dataset.
                 if (gain > best_gain) {
                     best_gain = gain;
                     best_leaf = (int)ni;
