@@ -41,6 +41,14 @@ payload-only. Feed it through `benchmarks/probe_backend.sh`, which verifies
 SHA256 pins first, writes a durable CSV, and enforces the A1/A2 acceptance
 gates with a self-check.
 
+Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
+spatial residual features with raised caps (depth 10, up to 256 leaves,
+min-samples 512, quantile split candidates) and accepts it ONLY if trial
+encodes - payloads plus serialized model bytes - beat flat v2 coding
+(container flags bit4 marks tree-coded level-0 planes; decode mirrors with
+uniform leaf-prior init). On photo corpora the trial currently rejects and
+streams stay flat: measured honestly, never assumed.
+
 ## Stages and milestones
 
 - **M0 (blocker):** bit-exact round-trip at efforts 0/4/7, corruption rejection (current).

@@ -163,6 +163,27 @@ uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entr
 
 ## 4. C2: MA-tree always-on (P3)
 
+> **Status (2026-08-23, Builder):** capability LANDED, acceptance mechanism
+> works as specified, and the first honest measurement is a REJECTION on
+> photos: kodim01 tree payloads lose to flat v2 coding by +1050 bytes
+> (+0.12 percent of v0) at 41 leaves / depth 10 / 286 model bytes, kodim13
+> similar, and the full Kodak-24 corpus encodes byte-identical at e3 vs e1
+> (24/24 trials reject, zero regressions - never-expand I4 holds by
+> construction). Two leaf-model initializations were measured: residual-diff
+> class priors keyed on leaf id (+1050 B) and neutral uniform init (+1598 B,
+> worse); priors help, the deficit is representational - a static threshold
+> partition of spatial features is a STRICTLY COARSER context than the exact
+> causal residual-DIFF-343 under this binarization, consistent with the C1
+> instrumented-oracle finding that the static conditional ceiling over
+> class-pooled coding is only ~0.19 percent. Also fixed en route: the v2
+> leaf helpers' silent 64-context clamp/id-fold (a latent round-trip bug the
+> moment leaves exceed 64; removed for bit3/bit4 paths, legacy v1 untouched).
+> **Next lever (C2b, offline probe rail first):** keep residual-DIFF as the
+> base context and ADD the leaf dimension - composite contexts
+> `leaf * 343 + resdiff` with hierarchical sharing, so the tree refines the
+> causal context instead of replacing it. Ship only if the probe shows a real
+> win; the trial-bits gate stays the binding acceptance either way.
+
 ### 4.1 Contract changes
 
 - `analyze()` builds the greedy property tree on SPATIAL residual features for
