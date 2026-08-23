@@ -29,9 +29,22 @@
 
 ## Current step
 
-Builder continuation run (2026-08-23 ~19:00-20:00Z) COMPLETE for this slice:
-C1 offline retune + A2 gate recalibration LANDED. C1 acceptance now FULLY
-MET (A1 and recalibrated A2 both PASS):
+Builder continuation run 2 (2026-08-23 ~19:30Z, in progress): full Kodak-24
+re-measure DONE (see log), C2 MA-tree always-on under way.
+
+Milestone 1 LANDED (fresh both-units corpus measure at e1, sha pins verified
+24/24 before measuring):
+
+| metric | pre-C1 e1 (=e7) | fresh e1 (C1 v2) | delta |
+|---|---|---|---|
+| summed bpp | 11.0258 | **10.3544** | -6.09% bytes |
+| per-sample bpp | 3.6753 | **3.4515** | -6.09% bytes |
+
+Honest status: this is the C1-only effect (e1 has no tree/squeeze); M2/M3
+gates still FAIL in both units as expected (10.354 vs 9.498 / 8.655). The
+pre-change same-day CSVs are archived as `*-pre-c1.csv` so the delta stays
+auditable in-tree; bench_gate globs only pick the canonical dated files.
+Previous slice summary (C1 offline retune + A2 recalibration, all PASS):
 
 - [x] Offline byte-exact replica of the v2 model loop built first; sweep
       instrument verified against shipped payloads before trusting results.
@@ -54,20 +67,22 @@ MET (A1 and recalibrated A2 both PASS):
 
 ## Next steps (in order)
 
-1. Full Kodak-24 re-measure at e1 on a fresh runner (corpus re-fetchable from
-   lossless PNGs + sha256 verify) -> fresh e1 CSV + bench_gate both-units
-   report; update the codec-comparison table row honestly.
-2. C2 (MA-tree always-on): evalGuard hasLevels deleted, caps depth<=10 /
+1. [this run] C2 (MA-tree always-on): evalGuard hasLevels deleted, caps depth<=10 /
    leaves<=256 / min-samples 512 / quantile split thresholds; acceptance =
    trial bits incl. model bytes; tree determinism test pinned by hash.
-3. C3 (trial-encode decisions): retire proxy estimators from decision paths,
+2. C3 (trial-encode decisions): retire proxy estimators from decision paths,
    identity candidate always present; M2 checkpoint window (~9.3-9.6 summed).
-4. Then C4 (true CDC lifting) -> C5 (cross-band prediction) -> M3 gate ->
+3. Then C4 (true CDC lifting) -> C5 (cross-band prediction) -> M3 gate ->
    Reviewer -> Tester -> Maintainer merge.
 Owner freeze stands throughout: nothing merges before both gates pass.
 
 ## Agent log
 
+- 2026-08-23 the Builder (continuation run 2): corpus re-derived from the
+  lossless upstream PNGs with a stdlib PNG decoder, all 24 sha256 pins
+  verified BEFORE measuring; pre-C1 CSVs archived as *-pre-c1.csv; fresh e1
+  CSV committed (10.3544 summed / 3.4515 per-sample, -6.09 pct bytes vs
+  pre-C1). C2 implementation next in this run.
 - 2026-08-23 Dr. Mob (the Researcher): gap analysis + D1 gate fix (commits up to e2a4439).
 - 2026-08-23 the Architect: C-series blueprint + progress tracker (fd53e75).
 - 2026-08-23 the Builder: resumed per handoff decision {"action":"build"};
