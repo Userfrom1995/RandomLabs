@@ -275,56 +275,72 @@ void ac_v2_adapt(uint16_t& pf, uint16_t& ps, bool bit) {
 }
 
 namespace {
-inline void v2_init_slot(BinModelV2& b, const uint16_t* table, int cx) {
-    uint16_t p = table[ac_v2_prior_class(cx)];
-    b.p_fast[cx] = p;
-    b.p_slow[cx] = p;
+inline void v2_init_slot(BinModelV2& b, const uint16_t* table, int idx) {
+    uint16_t p = table[ac_v2_prior_class(idx)];
+    b.p_fast[idx] = p;
+    b.p_slow[idx] = p;
 }
 
-inline void v2_put(AEncoder& enc, BinModelV2& b, int cx, bool bit) {
-    enc.put_bin_raw(ac_v2_mix(b.p_fast[cx], b.p_slow[cx]), bit);
-    ac_v2_adapt(b.p_fast[cx], b.p_slow[cx], bit);
+inline void v2_init_kind(KindModelsV2& k, const uint16_t* table, int n) {
+    k.ctx.p_fast.resize(n); k.ctx.p_slow.resize(n);
+    for (int i = 0; i < n; ++i) v2_init_slot(k.ctx, table, i);
+    // class-level states start from the same compile-time priors and adapt
+    // per image; they are shared across all contexts of this kind.
+    k.cls.p_fast.resize(AC_V2_N_PRIORS); k.cls.p_slow.resize(AC_V2_N_PRIORS);
+    for (int i = 0; i < AC_V2_N_PRIORS; ++i) {
+        k.cls.p_fast[i] = table[i];
+        k.cls.p_slow[i] = table[i];
+    }
 }
 
-inline bool v2_get(ADecoder& dec, BinModelV2& b, int cx) {
-    bool bit = dec.get_bin_raw(ac_v2_mix(b.p_fast[cx], b.p_slow[cx]));
-    ac_v2_adapt(b.p_fast[cx], b.p_slow[cx], bit);
+// Code one bin through the hierarchical dual-rate model: probability mixes
+// per-context and shared-class estimates; the observed bit updates both.
+inline void v2_put(AEncoder& enc, KindModelsV2& k, int cx, bool bit) {
+    int cls = ac_v2_prior_class(cx);
+    uint16_t p = ac_v2_mix2(ac_v2_mix(k.ctx.p_fast[cx], k.ctx.p_slow[cx]),
+                            ac_v2_mix(k.cls.p_fast[cls], k.cls.p_slow[cls]));
+    enc.put_bin_raw(p, bit);
+    ac_v2_adapt(k.ctx.p_fast[cx], k.ctx.p_slow[cx], bit);
+    ac_v2_adapt(k.cls.p_fast[cls], k.cls.p_slow[cls], bit);
+}
+
+inline bool v2_get(ADecoder& dec, KindModelsV2& k, int cx) {
+    int cls = ac_v2_prior_class(cx);
+    uint16_t p = ac_v2_mix2(ac_v2_mix(k.ctx.p_fast[cx], k.ctx.p_slow[cx]),
+                            ac_v2_mix(k.cls.p_fast[cls], k.cls.p_slow[cls]));
+    bool bit = dec.get_bin_raw(p);
+    ac_v2_adapt(k.ctx.p_fast[cx], k.ctx.p_slow[cx], bit);
+    ac_v2_adapt(k.cls.p_fast[cls], k.cls.p_slow[cls], bit);
     return bit;
 }
 } // namespace
 
 void ACModelsV2::init(int n) {
     if (n < 1) n = 1;
-    sign.p_fast.assign(n, 0); sign.p_slow.assign(n, 0);
-    zero.p_fast.assign(n, 0); zero.p_slow.assign(n, 0);
-    q.p_fast.assign(n, 0);    q.p_slow.assign(n, 0);
-    rem.p_fast.assign(n, 0);  rem.p_slow.assign(n, 0);
-    for (int i = 0; i < n; ++i) {
-        v2_init_slot(sign, AC_V2_PRIOR_SIGN, i);
-        v2_init_slot(zero, AC_V2_PRIOR_ZERO, i);
-        v2_init_slot(q, AC_V2_PRIOR_Q, i);
-        v2_init_slot(rem, AC_V2_PRIOR_REM, i);
-    }
+    v2_init_kind(sign, AC_V2_PRIOR_SIGN, n);
+    v2_init_kind(zero, AC_V2_PRIOR_ZERO, n);
+    v2_init_kind(q, AC_V2_PRIOR_Q, n);
+    v2_init_kind(rem, AC_V2_PRIOR_REM, n);
 }
 
 void ACModelsV2::ensure(int n) {
-    int old = (int)sign.p_fast.size();
+    int old = (int)sign.ctx.p_fast.size();
     if (old >= n) return;
-    sign.p_fast.resize(n); sign.p_slow.resize(n);
-    zero.p_fast.resize(n); zero.p_slow.resize(n);
-    q.p_fast.resize(n);    q.p_slow.resize(n);
-    rem.p_fast.resize(n);  rem.p_slow.resize(n);
+    sign.ctx.p_fast.resize(n); sign.ctx.p_slow.resize(n);
+    zero.ctx.p_fast.resize(n); zero.ctx.p_slow.resize(n);
+    q.ctx.p_fast.resize(n);    q.ctx.p_slow.resize(n);
+    rem.ctx.p_fast.resize(n);  rem.ctx.p_slow.resize(n);
     for (int i = old; i < n; ++i) {
-        v2_init_slot(sign, AC_V2_PRIOR_SIGN, i);
-        v2_init_slot(zero, AC_V2_PRIOR_ZERO, i);
-        v2_init_slot(q, AC_V2_PRIOR_Q, i);
-        v2_init_slot(rem, AC_V2_PRIOR_REM, i);
+        v2_init_slot(sign.ctx, AC_V2_PRIOR_SIGN, i);
+        v2_init_slot(zero.ctx, AC_V2_PRIOR_ZERO, i);
+        v2_init_slot(q.ctx, AC_V2_PRIOR_Q, i);
+        v2_init_slot(rem.ctx, AC_V2_PRIOR_REM, i);
     }
 }
 
 void encode_residual_v2(AEncoder& enc, ACModelsV2& m, int cx, int32_t e) {
     if (cx < 0) cx = 0;
-    if (cx >= (int)m.zero.p_fast.size()) m.ensure(cx + 1);
+    if (cx >= (int)m.zero.ctx.p_fast.size()) m.ensure(cx + 1);
     uint32_t mag = (uint32_t)(e < 0 ? -e : e);
     // 1) zero flag first: zeros never touch a sign or magnitude bin (P1).
     v2_put(enc, m.zero, cx, mag == 0);
@@ -342,7 +358,7 @@ void encode_residual_v2(AEncoder& enc, ACModelsV2& m, int cx, int32_t e) {
 
 int32_t decode_residual_v2(ADecoder& dec, ACModelsV2& m, int cx) {
     if (cx < 0) cx = 0;
-    if (cx >= (int)m.zero.p_fast.size()) m.ensure(cx + 1);
+    if (cx >= (int)m.zero.ctx.p_fast.size()) m.ensure(cx + 1);
     // Mirror of encode_residual_v2, bin for bin (I2).
     bool is_zero = v2_get(dec, m.zero, cx);
     if (is_zero) return 0;
