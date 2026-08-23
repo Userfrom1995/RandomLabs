@@ -201,7 +201,8 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 int32_t e = dec.decode_residual(models, leaf);
                 residuals[idx]=e;
                 int32_t s = pred + e;
-                if (s<0) s=0; if (s>bd_max) s=bd_max;
+                if (s<0) s=0;
+                if (s>bd_max) s=bd_max;
                 out[idx]=(uint16_t)s;
             } else {
                 int16_t l = (x>0)? (int16_t)out[idx-1]:0;
@@ -220,7 +221,8 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 int32_t e = dec.decode_residual(models, leaf);
                 residuals[idx]=e;
                 int32_t sv = pred + e;
-                if (sv < -32768) sv=-32768; if (sv>32767) sv=32767;
+                if (sv < -32768) sv = -32768;
+                if (sv > 32767) sv = 32767;
                 out[idx]=(uint16_t)(int16_t)sv;
             }
         }
@@ -263,14 +265,15 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 bool hit=dec.get_bin(flagProb);
                 if (hit) e=lzp_tbl[h];
                 else e=dec.decode_residual(models, ctx);
-                if (e==LZP_EMPTY) e=0; // shouldn't happen for hit on empty, but decoder would have hit only if encoder had hit, which requires table not empty
+                if (e==LZP_EMPTY) e=0;
                 lzp_tbl[h]=e;
             } else {
                 e=dec.decode_residual(models, ctx);
             }
             residuals[idx]=e;
             int32_t s = pred + e;
-            if(s<0) s=0; if(s>bd_max) s=bd_max;
+            if (s<0) s=0;
+            if (s>bd_max) s=bd_max;
             out[idx]=(uint16_t)s;
         } else {
             int16_t l = (x>0)? (int16_t)out[idx-1]:0;
@@ -301,14 +304,15 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
             }
             residuals[idx]=e;
             int32_t sv = pred + e;
-            if(sv<-32768) sv=-32768; if(sv>32767) sv=32767;
+            if (sv<-32768) sv=-32768;
+            if (sv>32767) sv=32767;
             out[idx]=(uint16_t)(int16_t)sv;
         }
     }
     return out;
 }
 
-static std::vector<uint16_t> decode_band_leaf(const std::vector<uint8_t>& bytes, uint32_t w, uint32_t h,
+[[maybe_unused]] static std::vector<uint16_t> decode_band_leaf(const std::vector<uint8_t>& bytes, uint32_t w, uint32_t h,
                                                uint8_t band_class, bool isLL,
                                                const std::vector<uint16_t>* llSrc,
                                                const std::vector<uint16_t>* siblingSrc,
@@ -346,7 +350,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.band_payloads.clear();
     PredId pred = static_cast<PredId>(c.global_pred_id);
     if ((uint8_t)pred > 8) pred = PredId::MED;
-    uint16_t bd_max = (bd==8)?255:65535;
+    (void)bd; // bd used via squeeze bd param and bd_max in decode only
     bool hasSqueeze = false;
     for (auto v: c.hdr.squeeze_levels) if (v>0) hasSqueeze=true;
     MATree tree = c.trees.empty()? MATree::single_leaf() : c.trees[0].tree;
