@@ -37,14 +37,15 @@
 
 ## Current step
 
-Builder continuation run 3 (2026-08-23 ~20:15Z) COMPLETE for this slice:
-C2b validated offline exactly as the tracker prescribed and REJECTED with
-measurements (see checklist + decision file). The corpus truth stands at
-e1 = 10.3544 summed / 3.4515 per-sample bpp; M2/M3 still FAIL as expected.
-No format change shipped this slice - the trial gates refused every losing
-candidate, which is the system working.
+Builder continuation run 4 (2026-08-23 ~20:45Z) IN PROGRESS: C3
+trial-encoded decisions implemented - color transform / CFL scales / global
+predictor now decided by real coded bytes of exactly the emitted v2 flat
+stream (decimated-grid pruning, identity-forced finalists), banned energy
+proxies deleted from those paths, 9 new unit tests incl. an I4
+never-lose-to-identity property test (50/50 green). Corpus re-measure +
+fuzz next in this slice.
 
-Previous slice summary (C1 offline retune + A2 recalibration, all PASS):
+Previous slice summary (continuation run 3, C2b):
 
 - [x] Offline byte-exact replica of the v2 model loop built first; sweep
       instrument verified against shipped payloads before trusting results.
