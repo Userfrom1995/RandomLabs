@@ -127,9 +127,11 @@ struct KindModelsV2 {
 
 struct ACModelsV2 {
     KindModelsV2 sign, zero, q, rem;
-    explicit ACModelsV2(int n = 1) { init(n); }
-    // (Re)size to n contexts, initializing every slot from its class prior.
-    void init(int n);
+    explicit ACModelsV2(int n = 1, bool uniform_priors = false) { init(n, uniform_priors); }
+    // (Re)size to n contexts, initializing every slot from its class prior
+    // (or from the neutral 32768 midpoint when uniform_priors - used for MA
+    // tree LEAF contexts whose ids carry no residual-diff semantics).
+    void init(int n, bool uniform_priors = false);
     // Grow to n contexts; existing adapted state is preserved, new slots come
     // from their own class priors. Class states always cover 16 classes.
     void ensure(int n);
@@ -216,14 +218,18 @@ std::vector<int32_t> acoder_decode_plane_leaves_stream(const std::vector<uint8_t
                                                        const std::vector<uint16_t>& leaf_seq);
 
 // Backend-v2 leaf-context helpers (flags bit3 streams), same contracts as the
-// v1 leaf helpers above.
+// v1 leaf helpers above. uniform_priors starts every leaf state at the
+// neutral midpoint instead of the residual-diff class priors (C2: leaf ids
+// are not residual-diff ids); encoder and decoder must agree on it.
 std::vector<uint8_t> acoder_encode_plane_leaves_v2(const std::vector<int32_t>& residuals,
                                                    const std::vector<uint16_t>& leaf_ids,
-                                                   int num_leaves);
+                                                   int num_leaves,
+                                                   bool uniform_priors = false);
 std::vector<int32_t> acoder_decode_plane_leaves_v2(const std::vector<uint8_t>& bytes,
                                                    size_t num_residuals,
                                                    const std::vector<uint16_t>& leaf_ids,
-                                                   int num_leaves);
+                                                   int num_leaves,
+                                                   bool uniform_priors = false);
 
 // Bit-level helpers for the H(p)+epsilon gate (adaptive, not fixed)
 std::vector<uint8_t> acoder_encode_bits_adaptive(const std::vector<uint8_t>& bits);

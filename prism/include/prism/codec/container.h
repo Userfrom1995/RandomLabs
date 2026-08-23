@@ -13,7 +13,9 @@ struct ContainerHeader {
     uint8_t num_channels = 3;
     uint8_t color_transform_id = 0;
     // bit0 CM, bit1 LZP, bit2 ACODER adaptive (FIFO), bit3 ACODER backend v2
-    // (zero-flag-first binarization + dual-rate class-prior adaptation).
+    // (zero-flag-first binarization + dual-rate class-prior adaptation),
+    // bit4 MATREE_FLAT: the MA-tree applies to planes coded at squeeze level
+    // 0 (spatial leaf contexts; C2 always-on tree). Requires bit2.
     // Unknown bits are a hard decode error; v1 streams (bit2 without bit3)
     // stay decodable for legacy results CSVs.
     uint8_t flags = 0;
@@ -23,9 +25,10 @@ struct ContainerHeader {
     uint32_t model_len = 0;
 };
 
-// Container flags (issue #130 C1 names bit3).
+// Container flags (issue #130 C1 names bit3, C2 names bit4).
 constexpr uint8_t ACODER_FLAG = 0x04;     // adaptive FIFO range coder (v1 or v2)
 constexpr uint8_t ACODER_V2_FLAG = 0x08;  // backend v2 binarization + models
+constexpr uint8_t MATREE_FLAT_FLAG = 0x10; // MA-tree on level-0 planes
 
 struct Container {
     ContainerHeader hdr;

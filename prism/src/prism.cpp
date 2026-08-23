@@ -186,14 +186,15 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                                                const std::vector<uint16_t>* siblingSrc,
                                                const MATree& tree, int num_leaves,
                                                uint8_t bit_depth, uint16_t bd_max,
-                                               bool useCM, bool useLZP, bool useV2) {
+                                               bool useCM, bool useLZP, bool useV2,
+                                               bool uniform_leaf_priors = false) {
     if (w==0||h==0) return {};
     size_t n=(size_t)w*h;
     if (bytes.empty()) throw DecodeError("empty band bytes for leaf decode");
     if (!useCM && !useLZP) {
         // plain path
         ACModels models(useV2 ? 0 : (num_leaves<=0?1:num_leaves));
-        ACModelsV2 models_v2(useV2 ? (num_leaves<=0?1:num_leaves) : 0);
+        ACModelsV2 models_v2(useV2 ? (num_leaves<=0?1:num_leaves) : 0, uniform_leaf_priors);
         ADecoder dec; dec.init(bytes);
         std::vector<uint16_t> out(n);
         std::vector<int32_t> residuals(n,0);
@@ -364,6 +365,9 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     // C1 (issue #130): effort >= 1 streams use the v2 backend (bit3) on top of
     // the FIFO adaptive coder (bit2). Legacy v1-only streams stay decodable.
     if (use_acoder) flags |= ACODER_FLAG | ACODER_V2_FLAG;
+    // C2: the analyzer accepted the always-on MA-tree for level-0 planes.
+    const bool tree_on_flat = ar.tree_on_flat && use_acoder;
+    if (tree_on_flat) flags |= MATREE_FLAT_FLAG;
     c.hdr.flags = flags;
     c.hdr.effort = opts.effort;
     c.hdr.cfl_scales = ar.cfl_scales;
@@ -507,10 +511,19 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         const auto& plane = transformed.planes[pi];
         uint8_t L = (pi < c.hdr.squeeze_levels.size())? c.hdr.squeeze_levels[pi]:0;
         if (!hasSqueeze || L==0) {
-            auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
             std::vector<uint8_t> bytes;
-            if (use_acoder) bytes = acoder_encode_plane_v2(residuals, transformed.w, transformed.h, 343);
-            else bytes = rans_encode_plane(residuals, 1);
+            if (tree_on_flat) {
+                // C2: spatial MA-tree leaf contexts (same function the
+                // acceptance trial measured - decision equals emitted bytes).
+                bytes = encode_plane_tree_v2(plane, transformed.w, transformed.h,
+                                             tree, num_leaves, bd);
+            } else if (use_acoder) {
+                auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
+                bytes = acoder_encode_plane_v2(residuals, transformed.w, transformed.h, 343);
+            } else {
+                auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
+                bytes = rans_encode_plane(residuals, 1);
+            }
             c.band_payloads.push_back(std::move(bytes));
         } else {
             SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd);
@@ -583,11 +596,14 @@ Raster decode(const uint8_t* data, size_t len) {
     Raster out(w,h, static_cast<Channels>(c.hdr.num_channels), bd==16?BitDepth::BD16:BitDepth::BD8);
     if (payloads.size() != expected) throw DecodeError("band count mismatch");
     // Corruption gate: unknown flag bits are a hard error (invariant I2), and
-    // bit3 (backend v2) without bit2 (adaptive coder) is an invalid combo.
-    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG))
+    // invalid combos are rejected: v2 without the adaptive coder, or the C2
+    // tree-on-flat bit without the adaptive coder (leaf coding is adaptive).
+    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG))
         throw DecodeError("unknown container flag bits");
     if ((c.hdr.flags & ACODER_V2_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: v2 without adaptive coder");
+    if ((c.hdr.flags & MATREE_FLAT_FLAG) && !(c.hdr.flags & ACODER_FLAG))
+        throw DecodeError("invalid flag combination: tree-on-flat without adaptive coder");
     bool use_acoder = (c.hdr.flags & ACODER_FLAG) != 0;
     bool useV2 = (c.hdr.flags & ACODER_V2_FLAG) != 0;
     bool useCM = (c.hdr.flags & CM_FLAG) != 0;
@@ -596,12 +612,24 @@ Raster decode(const uint8_t* data, size_t len) {
     int num_leaves = tree.num_leaves>0? tree.num_leaves:1;
     bool hasSqueeze=false;
     for(auto v:c.hdr.squeeze_levels) if(v>0) hasSqueeze=true;
+    // C2: bit4 says level-0 planes carry MA-tree leaf contexts (spatial).
+    const bool treeOnFlat = (c.hdr.flags & MATREE_FLAT_FLAG) != 0 && num_leaves > 1;
     size_t payload_idx=0;
     for (size_t pi=0; pi< out.planes.size(); ++pi) {
         uint8_t L = (pi < c.hdr.squeeze_levels.size())? c.hdr.squeeze_levels[pi]:0;
         uint16_t plane_max = plane_bd_max(bd, ct_pre, pi);
         if (!hasSqueeze || L==0) {
             const auto& b = payloads[payload_idx++];
+            if (treeOnFlat) {
+                // Mirror of encode_plane_tree_v2: one full-resolution LL band
+                // through the tree, band_class 0, no ll/sibling sources,
+                // uniform leaf-prior init (the C2 rule bit4 selects).
+                auto band = decode_band_generic(b, w, h, 0, true, nullptr, nullptr,
+                                                tree, num_leaves, bd, plane_max,
+                                                false, false, useV2, true);
+                if (band.size() != (size_t)w*h) throw DecodeError("tree-on-flat band size mismatch");
+                out.planes[pi]=std::move(band);
+            } else {
             size_t n = (size_t)w * h;
             std::vector<int32_t> residuals;
             if (useV2) residuals = acoder_decode_plane_v2(b, n, w, h, 343);
@@ -610,6 +638,7 @@ Raster decode(const uint8_t* data, size_t len) {
             if (residuals.size() != n) throw DecodeError("residual count mismatch");
             auto plane = reconstruct_plane(residuals, w, h, pred, plane_max);
             out.planes[pi] = std::move(plane);
+            }
         } else {
             // build band infos
             std::vector<uint32_t> ws(L+1), hs(L+1);
