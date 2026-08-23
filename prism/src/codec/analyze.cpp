@@ -35,6 +35,15 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     Raster tr = r;
     ColorTransform ct = static_cast<ColorTransform>(res.color_transform_id);
     if (ct != ColorTransform::None && r.num_channels() >= 3) tr = apply_color(r, ct, res.cfl_scales);
+    // B5.45 cache all 16 residuals per plane to avoid recomputing 4x (per-plane + 64/32/16 + leaf/squeeze)
+    std::vector<std::vector<std::vector<int32_t>>> all_cache(tr.planes.size());
+    for (size_t c = 0; c < tr.planes.size(); ++c) {
+        all_cache[c].resize(16);
+        if (tr.ch == Channels::RGBA && c == 3) continue;
+        for (uint8_t pid = 0; pid <= 15; ++pid) {
+            all_cache[c][pid] = compute_residuals(tr.planes[c], tr.w, tr.h, static_cast<PredId>(pid));
+        }
+    }
     std::vector<uint8_t> per_plane_best;
     per_plane_best.reserve(tr.planes.size());
     for (size_t c = 0; c < tr.planes.size(); ++c) {
@@ -46,8 +55,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         std::vector<Cand> cands;
         cands.reserve(16);
         for (uint8_t pid = 0; pid <= 15; ++pid) {
-            PredId id = static_cast<PredId>(pid);
-            auto resids = compute_residuals(tr.planes[c], tr.w, tr.h, id);
+            const auto &resids = all_cache[c][pid];
             uint64_t s = 0; for (int32_t v : resids) s += (uint64_t)(v < 0 ? -v : v);
             cands.push_back({pid, s});
         }
@@ -57,8 +65,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         uint8_t best_pred = cands[0].pid;
         for (size_t t = 0; t < topN; ++t) {
             uint8_t pid = cands[t].pid;
-            PredId id = static_cast<PredId>(pid);
-            auto resids = compute_residuals(tr.planes[c], tr.w, tr.h, id);
+            const auto &resids = all_cache[c][pid];
             ModelBank mb = ModelBank::create(11264, 16);
             std::vector<uint8_t> out;
             rans_encode_residuals_auto(resids, tr.w, tr.h, mb, out);
@@ -80,10 +87,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                 for (size_t k=0;k<(size_t)nbX*nbY;++k) out_flat.push_back(3);
                 continue;
             }
-            std::vector<std::vector<int32_t>> all_resids(16);
-            for(uint8_t pid=0; pid<=15; ++pid){
-                all_resids[pid] = compute_residuals(tr.planes[c], tr.w, tr.h, static_cast<PredId>(pid));
-            }
+            const auto &all_resids = all_cache[c];
             std::vector<uint8_t> block_preds;
             block_preds.reserve((size_t)nbX*nbY);
             for(uint32_t by=0; by<nbY; ++by){
@@ -92,7 +96,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     uint32_t x1=std::min(x0+BLOCK,tr.w), y1=std::min(y0+BLOCK,tr.h);
                     uint8_t best_pid=3;
                     if (BLOCK == 64 || BLOCK == 32) {
-                        // B5.34 top-12 prefilter for 64/32 blocks (was top-11, diminishing ~0.00041% but still captures where 12th is true best)
+                        // B5.45 sumAbs only for 64/32 (true-cost per-block 64/32 gave -0.014% at +20s, revert to sumAbs to save ~200s harness, 16 keeps selective true-cost)
                         struct BCand{uint8_t pid; uint64_t sum;};
                         std::vector<BCand> bcands; bcands.reserve(16);
                         for(uint8_t pid=0; pid<=15; ++pid){
@@ -107,21 +111,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bcands.push_back({pid, bsum});
                         }
                         std::sort(bcands.begin(), bcands.end(), [](const BCand& a, const BCand& b){return a.sum<b.sum;});
-                        size_t topB = std::min<size_t>(4, bcands.size());
-                        uint64_t best_cost = UINT64_MAX;
-                        for(size_t t=0; t<topB; ++t){
-                            uint8_t pid = bcands[t].pid;
-                            uint32_t bw = x1 - x0, bh = y1 - y0;
-                            std::vector<int32_t> slice; slice.reserve((size_t)bw*bh);
-                            for(uint32_t y=y0; y<y1; ++y){
-                                size_t row=(size_t)y*tr.w;
-                                for(uint32_t x=x0; x<x1; ++x) slice.push_back(all_resids[pid][row+x]);
-                            }
-                            ModelBank mb = ModelBank::create(11264,16);
-                            std::vector<uint8_t> out; rans_encode_residuals_auto(slice, bw, bh, mb, out);
-                            uint64_t cost = out.size();
-                            if(cost < best_cost){ best_cost=cost; best_pid=pid; }
-                        }
+                        best_pid = bcands[0].pid;
                     } else {
                         // B5.25 selective true-cost for 16x16: only for ambiguous blocks where top2 sumAbs close
                         struct BCand16{uint8_t pid; uint64_t sum;};
@@ -305,9 +295,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         per_plane_leaf_maps.reserve(tr.planes.size());
         for (size_t c=0;c<tr.planes.size();++c){
             if (tr.ch == Channels::RGBA && c==3) { std::vector<uint8_t> m(LEAVES,3); per_plane_leaf_maps.push_back(m); for(auto v:m) flat_leaf.push_back(v); continue; }
-            // precompute 16 residuals
-            std::vector<std::vector<int32_t>> all_resids(16);
-            for(uint8_t pid=0; pid<=15; ++pid) all_resids[pid]=compute_residuals(tr.planes[c], tr.w, tr.h, static_cast<PredId>(pid));
+            const auto &all_resids = all_cache[c];
             // leaves based on sample gradient activity (predictor-agnostic)
             auto leaves = compute_leaves_activity(tr.planes[c], tr.w, tr.h);
             // for each leaf, find best pid via sumAbs then true cost top3
