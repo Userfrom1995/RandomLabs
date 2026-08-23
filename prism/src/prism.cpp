@@ -22,12 +22,10 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     AnalyzeResult ar = analyze(raster, opts.effort);
     if (!opts.use_ycocg) ar.color_transform_id = 0;
 
-    // Apply color transform
+    // Apply color transform (B6: always via apply_color so CFL is considered even when ct==None)
     Raster transformed = raster;
     ColorTransform ct = static_cast<ColorTransform>(ar.color_transform_id);
-    if (ct != ColorTransform::None) {
-        transformed = apply_color(raster, ct, ar.cfl_scales);
-    }
+    transformed = apply_color(raster, ct, ar.cfl_scales);
 
     // Build container
     Container c;
@@ -125,11 +123,9 @@ Raster decode(const uint8_t* data, size_t len) {
         auto plane = reconstruct_plane(residuals, w, h, pred, bd_max);
         out.planes[pi] = std::move(plane);
     }
-    // Invert color
+    // Invert color (B6: always invert so CFL with ct==None is handled)
     ColorTransform ct = static_cast<ColorTransform>(c.hdr.color_transform_id);
-    if (ct != ColorTransform::None) {
-        out = invert_color(out, ct, c.hdr.cfl_scales);
-    }
+    out = invert_color(out, ct, c.hdr.cfl_scales);
     return out;
 }
 
