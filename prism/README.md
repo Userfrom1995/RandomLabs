@@ -31,7 +31,15 @@ prism enc <in> <out.prism> [--effort N] [--w W --h H --bd B --ch C]
 prism dec <in.prism> <out.ppm>
 prism fuzz [--iters N]
 prism info <file.prism>
+prism probe-backend <image.ppm> [--variants v0,v1,v1shared,v2,v2shared]
 ```
+
+`probe-backend` is the entropy-backend A-B rail for issue #130: it measures
+the shipped coder (v0), the zero-flag-first rebinarization (v1), and backend
+v2 (dual-rate hierarchical models) on pipeline-exact residual streams,
+payload-only. Feed it through `benchmarks/probe_backend.sh`, which verifies
+SHA256 pins first, writes a durable CSV, and enforces the A1/A2 acceptance
+gates with a self-check.
 
 ## Stages and milestones
 
@@ -41,7 +49,7 @@ prism info <file.prism>
 - **M3 (owner goal):** beat JPEG XL (8.71 harness / 2.9 per sample) - requires Squeeze + MA-tree
 - **M4 (stretch):** CM mode + LZP toward < 8.0
 
-See `prism/docs/research.md`, `prism/docs/algorithmic-spec.md`, `prism/docs/architecture.md`, `prism/docs/benchmark-methodology.md`.
+See `prism/docs/research.md`, `prism/docs/algorithmic-spec.md`, `prism/docs/architecture.md`, `prism/docs/benchmark-methodology.md`. Issue #130 (true JXL parity) adds `research-gap-analysis.md` (where the ~21 percent gap lives, findings F1-F4) and `architecture-jxl-parity.md` (the C-series build plan).
 
 ## Module layout
 
@@ -63,6 +71,7 @@ Prism is a CLI tool: there is no web entrypoint; project documentation lives in
 ```
 prism/benchmarks/run_kodak.sh --effort 4 --kodak data/kodak
 prism/benchmarks/fuzz_gate.sh
+prism/benchmarks/probe_backend.sh --build-dir <dir> --image <kodim01.ppm> --image <kodim13.ppm>
 python3 prism/benchmarks/aggregate.py
 ```
 
