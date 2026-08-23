@@ -96,7 +96,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     uint32_t x1=std::min(x0+BLOCK,tr.w), y1=std::min(y0+BLOCK,tr.h);
                     uint8_t best_pid=3;
                     if (BLOCK == 64 || BLOCK == 32) {
-                        // B5.45 sumAbs only for 64/32 (true-cost per-block 64/32 gave -0.014% at +20s, revert to sumAbs to save ~200s harness, 16 keeps selective true-cost)
+                        // B5.48 selective true-cost for 64/32 (re-enables true-cost only when ambiguous, saves ~200s vs full true-cost but recovers -0.02% vs pure sumAbs)
                         struct BCand{uint8_t pid; uint64_t sum;};
                         std::vector<BCand> bcands; bcands.reserve(16);
                         for(uint8_t pid=0; pid<=15; ++pid){
@@ -111,7 +111,27 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                             bcands.push_back({pid, bsum});
                         }
                         std::sort(bcands.begin(), bcands.end(), [](const BCand& a, const BCand& b){return a.sum<b.sum;});
-                        best_pid = bcands[0].pid;
+                        uint64_t s0 = bcands[0].sum;
+                        uint64_t s1 = bcands.size()>1 ? bcands[1].sum : s0;
+                        bool ambiguous = (s0==0) ? (s1==0) : (s1 - s0) * 100 < s0 * 55;
+                        if (ambiguous && bcands.size()>=2) {
+                            uint64_t best_cost = UINT64_MAX;
+                            size_t topB = std::min<size_t>(4, bcands.size());
+                            for(size_t t=0; t<topB; ++t){
+                                uint8_t pid = bcands[t].pid;
+                                uint32_t bw = x1 - x0, bh = y1 - y0;
+                                std::vector<int32_t> slice; slice.reserve((size_t)bw*bh);
+                                for(uint32_t yy=y0; yy<y1; ++yy){
+                                    size_t row=(size_t)yy*tr.w;
+                                    for(uint32_t xx=x0; xx<x1; ++xx) slice.push_back(all_resids[pid][row+xx]);
+                                }
+                                ModelBank mb = ModelBank::create(11264,16);
+                                std::vector<uint8_t> out; rans_encode_residuals_auto(slice, bw, bh, mb, out);
+                                if(out.size() < best_cost){ best_cost=out.size(); best_pid=pid; }
+                            }
+                        } else {
+                            best_pid = bcands[0].pid;
+                        }
                     } else {
                         // B5.25 selective true-cost for 16x16: only for ambiguous blocks where top2 sumAbs close
                         struct BCand16{uint8_t pid; uint64_t sum;};
@@ -309,8 +329,8 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     cands.push_back({pid,s});
                 }
                 std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b){return a.sum<b.sum;});
-                // B5.46: top3 true-cost per leaf slice (was top2) to capture cases where 3rd sumAbs is true rANS best, with sumAbs-aligned leaves
-                size_t topN = std::min<size_t>(3, cands.size());
+                // B5.48: top4 true-cost per leaf slice (was top3) to capture where 4th sumAbs is true rANS best, with 11264 contexts
+                size_t topN = std::min<size_t>(4, cands.size());
                 uint64_t best_cost = UINT64_MAX; uint8_t best_pid = cands[0].pid;
                 for(size_t t=0;t<topN;++t){
                     uint8_t pid = cands[t].pid;
