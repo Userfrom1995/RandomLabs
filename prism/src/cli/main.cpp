@@ -5,6 +5,9 @@
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/acoder.h"
+#include "prism/codec/analyze.h"
+#include "prism/codec/matree.h"
+#include "prism/bitstream.h"
 #include <iostream>
 #include <filesystem>
 #include <vector>
@@ -198,6 +201,11 @@ int main(int argc, char* argv[]) {
             // backend variants on one image. Streams are the pipeline's own
             // YCoCg-R + MED residual planes; sizes are payload-only (no
             // container overhead), directly comparable to research probe V0.
+            //
+            // C2b variants build the SAME spatial MA-tree production would
+            // (build_spatial_flat_tree) and count the serialized tree bytes
+            // ONCE per image inside v2leaf/v2composite totals, so every
+            // comparison is end-to-end fair (never-expand accounting).
             if (argc < 3) { print_usage(); return 2; }
             std::filesystem::path img = argv[2];
             std::string variants = "v0,v1,v1shared,v2,v2shared";
@@ -211,6 +219,17 @@ int main(int argc, char* argv[]) {
             Raster t = apply_color(r, ColorTransform::YCoCgR);
             size_t samples = 0;
             size_t v0b = 0, v1b = 0, v1sb = 0, v2b = 0, v2sb = 0;
+            size_t leafb = 0, compb = 0, actb = 0;
+            bool want_tree = wanted("v2leaf") || wanted("v2composite");
+            MATree stree = MATree::single_leaf();
+            size_t tree_bytes = 0;
+            if (want_tree) {
+                stree = build_spatial_flat_tree(t);
+                BitWriter tbw;
+                stree.serialize(tbw);
+                tree_bytes = tbw.flush().size();
+            }
+            int num_leaves = stree.num_leaves > 0 ? stree.num_leaves : 1;
             for (auto& plane : t.planes) {
                 auto res = compute_residuals(plane, t.w, t.h, PredId::MED);
                 samples += res.size();
@@ -249,10 +268,55 @@ int main(int argc, char* argv[]) {
                 }
                 if (wanted("v2")) v2b += acoder_encode_plane_v2(res, t.w, t.h, 343).size();
                 if (wanted("v2shared")) v2sb += acoder_encode_plane_v2(res, t.w, t.h, 1).size();
+                if (wanted("v2act")) {
+                    // C2b follow-up measurement: FIXED composite partition
+                    // activity*343+resdiff - refines the causal context with
+                    // local edge strength at ZERO side-channel cost (no tree,
+                    // no model bytes; activity recomputes causally on both
+                    // sides). Payload-only sizing to decide format investment.
+                    ACModelsV2 m(4 * AC_V2_RESDIFF_CONTEXTS);
+                    AEncoder enc;
+                    const auto& pl = plane;
+                    for (size_t i = 0; i < res.size(); ++i) {
+                        uint32_t x = (uint32_t)(i % t.w), y = (uint32_t)(i / t.w);
+                        int32_t L = (x > 0) ? (int32_t)pl[i - 1] : 0;
+                        int32_t T = (y > 0) ? (int32_t)pl[i - t.w] : 0;
+                        int32_t TL = (x > 0 && y > 0) ? (int32_t)pl[i - t.w - 1] : 0;
+                        int grad = std::abs(L - TL) + std::abs(T - TL);
+                        int act = grad < 4 ? 0 : (grad < 16 ? 1 : (grad < 64 ? 2 : 3));
+                        int32_t dL=0,dU=0,dUL=0;
+                        if (x>0) dL=res[i-1];
+                        if (y>0) dU=res[i-t.w];
+                        if (x>0&&y>0) dUL=res[i-t.w-1];
+                        int cx = act * AC_V2_RESDIFF_CONTEXTS + residual_diff_context(dL,dU,dUL);
+                        encode_residual_v2(enc, m, cx, res[i]);
+                    }
+                    actb += enc.flush_and_emit().size();
+                }
+                if (wanted("v2leaf")) {
+                    leafb += encode_plane_tree_v2(plane, t.w, t.h, stree, num_leaves, 8).size();
+                }
+                if (wanted("v2composite")) {
+                    auto bytes = encode_plane_tree_composite_v2(plane, t.w, t.h, stree, num_leaves, 8);
+                    // Bijection proof on the real image: the decoded plane
+                    // must equal the source byte-for-byte (hard error else).
+                    auto back = decode_plane_tree_composite_v2(bytes, t.w, t.h, stree,
+                                                               num_leaves, 8, 1023);
+                    if (back != plane) {
+                        std::cerr << "probe-backend: COMPOSITE BIJECTION FAIL on "
+                                  << img.filename().string() << "\n";
+                        return 1;
+                    }
+                    compb += bytes.size();
+                }
             }
             double base = (double)(v0b ? v0b : 1);
             std::cout << "PROBE," << img.filename().string() << "," << t.planes.size() << "planes,"
                       << samples << "samples\n";
+            if (want_tree) {
+                std::cout << "TREE," << img.filename().string() << ",leaves=" << num_leaves
+                          << ",model_bytes=" << tree_bytes << "\n";
+            }
             auto emit = [&](const char* n, size_t b) {
                 std::cout << "RESULT," << img.filename().string() << "," << n << ","
                           << b << "," << (100.0 * ((double)b - base) / base) << "\n";
@@ -262,6 +326,9 @@ int main(int argc, char* argv[]) {
             emit("v1shared", v1sb);
             emit("v2", v2b);
             emit("v2shared", v2sb);
+            if (wanted("v2leaf")) emit("v2leaf", leafb + tree_bytes);
+            if (wanted("v2composite")) emit("v2composite", compb + tree_bytes);
+            if (wanted("v2act")) emit("v2act", actb);
         } else {
             print_usage(); return 2;
         }
