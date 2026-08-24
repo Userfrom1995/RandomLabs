@@ -5,10 +5,12 @@
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/acoder.h"
+#include "prism/codec/mixer.h"
 #include "prism/codec/analyze.h"
 #include "prism/codec/matree.h"
 #include "prism/bitstream.h"
 #include <iostream>
+#include <array>
 #include <filesystem>
 #include <vector>
 #include <random>
@@ -31,7 +33,8 @@ static void print_usage() {
               << "  prism info <file.prism>\n"
               << "  prism probe-backend <image> [--variants LIST]\n"
               << "  prism probe-xband <image>\n"
-              << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n";
+              << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n"
+              << "                                            [--mixer LIST]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -179,6 +182,161 @@ void walk(const std::vector<int32_t>& res, uint32_t w, Acc& acc) {
             acc.bin(3, cls, cx, rid + pos, ((rem >> (L - 1 - pos)) & 1u) != 0);
     }
 }
+
+// ----- D2 sequential mixer scoring (spec section 12.4) -----
+//
+// One pass replays the exact encode_residual_v2 bin sequence and costs every
+// bin four ways at the probability each scheme would code with:
+//   bits_v2  - production hierarchical estimate E1 alone (the anchor; must
+//              reproduce measured v2 payload bytes within +-0.5 percent),
+//   bits_mx  - K=4 logistic mix of adaptive estimators, SSE off,
+//   bits_sse - the same mix plus one interpolated APM stage.
+// All state is causal: contexts come from the residual history and decoded
+// plane neighbors only, so a future decoder can mirror every update.
+
+constexpr int MIXK_ZERO = 0, MIXK_SIGN = 1, MIXK_Q = 2, MIXK_REM = 3;
+
+struct DualRateStates {
+    std::vector<uint16_t> pf, ps;
+    void init(size_t n, const uint16_t* table) {
+        if (table) {
+            pf.assign(n, 0); ps.assign(n, 0);
+            for (size_t i = 0; i < n; ++i) { pf[i] = table[i]; ps[i] = table[i]; }
+        } else {
+            pf.assign(n, 32768); ps.assign(n, 32768);
+        }
+    }
+};
+
+KindModelsV2& v2_kind(ACModelsV2& m, int k) {
+    switch (k) {
+        case MIXK_ZERO: return m.zero;
+        case MIXK_SIGN: return m.sign;
+        case MIXK_Q: return m.q;
+        default: return m.rem;
+    }
+}
+
+uint16_t e1_prob(ACModelsV2& m, int k, int cx) {
+    KindModelsV2& K = v2_kind(m, k);
+    int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+    return ac_v2_mix2(ac_v2_mix(K.ctx.p_fast[cx], K.ctx.p_slow[cx]),
+                      ac_v2_mix(K.cls.p_fast[cls], K.cls.p_slow[cls]));
+}
+
+void e1_adapt(ACModelsV2& m, int k, int cx, bool bit) {
+    KindModelsV2& K = v2_kind(m, k);
+    int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+    ac_v2_adapt(K.ctx.p_fast[cx], K.ctx.p_slow[cx], bit);
+    ac_v2_adapt(K.cls.p_fast[cls], K.cls.p_slow[cls], bit);
+}
+
+inline double bin_cost(uint16_t p16, bool bit) {
+    double q = (double)p16 / 65536.0; // q = P(bit == 0)
+    return bit ? -std::log2(1.0 - q) : -std::log2(q);
+}
+
+struct SweepOut {
+    size_t nbins = 0;
+    double bits_v2 = 0, bits_mx = 0, bits_sse = 0;
+};
+
+// Per-preset aggregation across images (MIXERTOTAL rows).
+struct MixTotal {
+    size_t nbins = 0, v0 = 0, v2 = 0;
+    double bits_v2 = 0, bits_mx = 0, bits_sse = 0;
+};
+
+struct MixerPreset {
+    std::string name;
+    MixerConfig cfg;                       // applied to both mixer variants
+    std::array<int32_t, 4> forced_w{0, 0, 0, 0};
+    bool force_weights = false;
+};
+
+SweepOut run_mixer_pass(const Raster& t,
+                        const std::vector<std::vector<int32_t>>& ress,
+                        const MixerPreset& preset) {
+    SweepOut out;
+    ACModelsV2 e1(AC_V2_RESDIFF_CONTEXTS);
+    static const uint16_t* const kPrior[4] = {
+        AC_V2_PRIOR_ZERO, AC_V2_PRIOR_SIGN, AC_V2_PRIOR_Q, AC_V2_PRIOR_REM};
+    DualRateStates e2[4], e3[4], e4[4];
+    for (int k = 0; k < 4; ++k) {
+        e2[k].init(AC_V2_N_PRIORS, kPrior[k]);
+        e3[k].init(4, nullptr);
+        e4[k].init(15, nullptr);
+    }
+    MixerConfig ca = preset.cfg; ca.use_sse = false;
+    MixerConfig cb = preset.cfg; cb.use_sse = true;
+    // One weight set per directional class (ac_v2_prior_class): flat and busy
+    // contexts calibrate differently, and a single shared set was measured
+    // diverging (+30 percent vs E1 on kodim01) because contexts fought over
+    // the shared norm. Per-class state stays tiny (16 x K weights).
+    static std::vector<MixerCore> mxA, mxB;
+    mxA.clear(); mxB.clear();
+    mxA.reserve(64); mxB.reserve(64);
+    for (int i = 0; i < 64; ++i) { mxA.emplace_back(ca); mxB.emplace_back(cb); }
+    if (preset.force_weights) {
+        for (int k = 0; k < 64; ++k)
+            for (int j = 0; j < 4; ++j) {
+                mxA[(size_t)k].set_weight((size_t)j, preset.forced_w[(size_t)j]);
+                mxB[(size_t)k].set_weight((size_t)j, preset.forced_w[(size_t)j]);
+            }
+    }
+    auto mx_idx = [](int kind, int cls) { return (size_t)kind * 16 + (size_t)cls; };
+    // Cost + train every scheme on one observed bin.
+    auto code_bin = [&](int kind, int cx, int cls, int act, int qg, bool bit) {
+        out.nbins++;
+        uint16_t p1 = e1_prob(e1, kind, cx);
+        uint16_t p2 = ac_v2_mix(e2[kind].pf[(size_t)cls], e2[kind].ps[(size_t)cls]);
+        uint16_t p3 = ac_v2_mix(e3[kind].pf[(size_t)act], e3[kind].ps[(size_t)act]);
+        uint16_t p4 = ac_v2_mix(e4[kind].pf[(size_t)qg], e4[kind].ps[(size_t)qg]);
+        int32_t st[4] = {mix_stretch_p16(p1), mix_stretch_p16(p2),
+                         mix_stretch_p16(p3), mix_stretch_p16(p4)};
+        out.bits_v2 += bin_cost(p1, bit);
+        out.bits_mx += bin_cost(mix_p16_from_stretch(mxA[mx_idx(kind, cls)].filter(st, act)), bit);
+        out.bits_sse += bin_cost(mix_p16_from_stretch(mxB[mx_idx(kind, cls)].filter(st, act)), bit);
+        e1_adapt(e1, kind, cx, bit);
+        ac_v2_adapt(e2[kind].pf[(size_t)cls], e2[kind].ps[(size_t)cls], bit);
+        ac_v2_adapt(e3[kind].pf[(size_t)act], e3[kind].ps[(size_t)act], bit);
+        ac_v2_adapt(e4[kind].pf[(size_t)qg], e4[kind].ps[(size_t)qg], bit);
+        mxA[mx_idx(kind, cls)].update(bit, st, act);
+        mxB[mx_idx(kind, cls)].update(bit, st, act);
+    };
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        const auto& plane = t.planes[pi];
+        const auto& res = ress[pi];
+        for (size_t i = 0; i < res.size(); ++i) {
+            uint32_t x = (uint32_t)(i % t.w), y = (uint32_t)(i / t.w);
+            int act = activity_class(t.w, t.h, i, plane, 0);
+            int32_t dL = 0, dU = 0, dUL = 0;
+            if (x > 0) dL = res[i - 1];
+            if (y > 0) dU = res[i - t.w];
+            if (x > 0 && y > 0) dUL = res[i - t.w - 1];
+            int cx = residual_diff_context(dL, dU, dUL);
+            int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+            int qg = quant_residual(dL) + quant_residual(dU) + quant_residual(dUL);
+            if (qg > 14) qg = 14;
+            uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
+            // Bin sequence mirrors encode_residual_v2 exactly:
+            // zero flag -> sign -> unary quotient -> MSB-first remainder.
+            code_bin(MIXK_ZERO, cx, cls, act, qg, mag == 0);
+            if (mag == 0) continue;
+            code_bin(MIXK_SIGN, cx, cls, act, qg, res[i] < 0);
+            int L = 31 - __builtin_clz(mag);
+            for (int k = 0; k < L; ++k)
+                code_bin(MIXK_Q, cx, cls, act, qg, false);
+            code_bin(MIXK_Q, cx, cls, act, qg, true);
+            uint32_t rem = mag - (1u << L);
+            for (int k = L - 1; k >= 0; --k)
+                code_bin(MIXK_REM, cx, cls, act, qg, ((rem >> k) & 1u) != 0);
+        }
+    }
+    return out;
+}
+
+
 
 } // namespace idealbench
 
@@ -523,6 +681,7 @@ int main(int argc, char* argv[]) {
             std::vector<std::filesystem::path> imgs;
             std::vector<std::string> preds;
             std::vector<std::string> blends;
+            std::vector<std::string> mixer_names;
             auto split_list = [](const std::string& s) {
                 std::vector<std::string> out;
                 size_t pos = 0;
@@ -542,12 +701,16 @@ int main(int argc, char* argv[]) {
                 } else if (a == "--blend" && i + 1 < argc) {
                     auto v = split_list(argv[++i]);
                     blends.insert(blends.end(), v.begin(), v.end());
+                } else if (a == "--mixer" && i + 1 < argc) {
+                    auto v = split_list(argv[++i]);
+                    mixer_names.insert(mixer_names.end(), v.begin(), v.end());
                 } else {
                     imgs.push_back(a);
                 }
             }
             if (imgs.empty()) { std::cerr << "bench-ideal: no images given\n"; return 2; }
-            if (preds.empty() && blends.empty()) preds.push_back("med");
+            if (preds.empty() && blends.empty() && mixer_names.empty())
+                preds.push_back("med");
 
             static const std::map<std::string, PredId> bank = {
                 {"left", PredId::LEFT},   {"top", PredId::TOP},
@@ -573,13 +736,53 @@ int main(int argc, char* argv[]) {
             };
             for (const auto& p : preds)
                 if (!bank.count(p)) { std::cerr << "bench-ideal: unknown predictor " << p << "\n"; return 2; }
+            auto mixer_preset = [](const std::string& n) -> idealbench::MixerPreset {
+                idealbench::MixerPreset p; p.name = n;
+                if (n == "mix4") {
+                    p.cfg.use_sse = false;
+                } else if (n == "mix4-sse") {
+                    // all defaults (lr 6, SSE rate 5, identity init)
+                } else if (n.rfind("mix4-sse-lr", 0) == 0 && n.size() > 11) {
+                    int lr = std::stoi(n.substr(11));
+                    if (lr < 1 || lr > 12)
+                        throw std::runtime_error("mixer lr out of range: " + n);
+                    p.cfg.lr_shift = lr;
+                } else if (n.rfind("mix4-sse-r", 0) == 0 && n.size() > 10) {
+                    int rr = std::stoi(n.substr(10));
+                    if (rr < 1 || rr > 16)
+                        throw std::runtime_error("mixer sse rate out of range: " + n);
+                    p.cfg.sse_rate_shift = rr;
+                } else if (n == "mix4-frozen") {
+                    p.cfg.lr_shift = -1;
+                    p.cfg.sse_rate_shift = -1;
+                } else if (n == "mix4-adversarial") {
+                    p.cfg.lr_shift = -1;
+                    p.cfg.sse_rate_shift = -1;
+                    p.forced_w = {0, 0, 0, 65536};
+                    p.force_weights = true;
+                } else {
+                    throw std::runtime_error("unknown mixer preset: " + n);
+                }
+                return p;
+            };
+            try {
+                for (const auto& n : mixer_names) (void)mixer_preset(n);
+            } catch (const std::exception& e) {
+                std::cerr << "bench-ideal: " << e.what() << "\n";
+                return 2;
+            }
 
             struct Total { idealbench::Acc acc; size_t v0 = 0, v2 = 0; };
             std::map<std::string, Total> totals;
+            // D2 mixer aggregation across images, per preset.
+            std::map<std::string, idealbench::MixTotal> mix_totals;
             std::cout << "IDEAL,image,predictor,v0_bytes,v2_bytes,"
                       << "coarse_shared,coarse_class16,coarse_ctx343,"
                       << "fine_shared,fine_class16,fine_ctx343,"
                       << "val_shared,val_class16,val_ctx343\n";
+            if (!mixer_names.empty())
+                std::cout << "MIXER,image,preset,nbins,bits_v2,bits_mx,bits_sse,"
+                          << "v2_bytes,v0_bytes,anchor_pct,mx_pct,sse_pct\n";
             char rowbuf[512];
             for (const auto& img : imgs) {
                 Raster r = frontend::decode_to_raster(img);
@@ -616,6 +819,41 @@ int main(int argc, char* argv[]) {
                                   v[0], v[1], v[2]);
                     std::cout << rowbuf;
                 }
+                if (!mixer_names.empty()) {
+                    // Production streams only: the L2 lever attacks collection
+                    // efficiency of today's MED residual stream (D1 closed the
+                    // predictor lever by measurement).
+                    std::vector<std::vector<int32_t>> ress;
+                    ress.reserve(t.planes.size());
+                    for (auto& plane : t.planes)
+                        ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+                    size_t v0b = 0, v2b = 0;
+                    for (auto& res : ress) {
+                        v0b += acoder_encode_plane(res, t.w, t.h, 343).size();
+                        v2b += acoder_encode_plane_v2(res, t.w, t.h,
+                                                      AC_V2_RESDIFF_CONTEXTS).size();
+                    }
+                    for (const auto& n : mixer_names) {
+                        idealbench::MixerPreset preset = mixer_preset(n);
+                        auto sw = idealbench::run_mixer_pass(t, ress, preset);
+                        double anchor = 100.0 * (sw.bits_v2 / 8.0 - (double)v2b) / (double)v2b;
+                        double mxp = 100.0 * (sw.bits_mx - sw.bits_v2) / sw.bits_v2;
+                        double sep = 100.0 * (sw.bits_sse - sw.bits_v2) / sw.bits_v2;
+                        std::snprintf(rowbuf, sizeof(rowbuf),
+                                      "MIXER,%s,%s,%zu,%.1f,%.1f,%.1f,%zu,%zu,"
+                                      "%.4f,%.4f,%.4f\n",
+                                      img.filename().c_str(), n.c_str(),
+                                      sw.nbins, sw.bits_v2, sw.bits_mx, sw.bits_sse,
+                                      v2b, v0b, anchor, mxp, sep);
+                        std::cout << rowbuf;
+                        auto& mtot = mix_totals[n];
+                        mtot.nbins += sw.nbins;
+                        mtot.v0 += v0b; mtot.v2 += v2b;
+                        mtot.bits_v2 += sw.bits_v2;
+                        mtot.bits_mx += sw.bits_mx;
+                        mtot.bits_sse += sw.bits_sse;
+                    }
+                }
             }
             for (auto& kv : totals) {
                 double c[3], f[3], v[3];
@@ -625,6 +863,18 @@ int main(int argc, char* argv[]) {
                               kv.first.c_str(), kv.second.v0, kv.second.v2,
                               c[0], c[1], c[2], f[0], f[1], f[2],
                               v[0], v[1], v[2]);
+                std::cout << rowbuf;
+            }
+            for (auto& kv : mix_totals) {
+                const auto& m = kv.second;
+                double anchor = 100.0 * (m.bits_v2 / 8.0 - (double)m.v2) / (double)m.v2;
+                double mxp = 100.0 * (m.bits_mx - m.bits_v2) / m.bits_v2;
+                double sep = 100.0 * (m.bits_sse - m.bits_v2) / m.bits_v2;
+                std::snprintf(rowbuf, sizeof(rowbuf),
+                              "MIXERTOTAL,all,%s,%zu,%.1f,%.1f,%.1f,%zu,%zu,"
+                              "%.4f,%.4f,%.4f\n",
+                              kv.first.c_str(), m.nbins, m.bits_v2, m.bits_mx,
+                              m.bits_sse, m.v2, m.v0, anchor, mxp, sep);
                 std::cout << rowbuf;
             }
         } else {

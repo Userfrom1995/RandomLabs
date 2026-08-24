@@ -78,6 +78,7 @@ public:
     void update(bool bit, const int32_t* st, int sse_class);
     // Exposed for tests/diagnostics; not part of the coding path.
     int32_t weight(size_t k) const { return w_[k]; }
+    void set_weight(size_t k, int32_t v) { if (k < w_.size()) w_[k] = v; }
     int64_t sse_slot(int sse_class, size_t slot) const {
         return sse_[(size_t)sse_class * 33 + slot];
     }
