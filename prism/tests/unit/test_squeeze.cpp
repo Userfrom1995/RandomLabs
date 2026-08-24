@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
+#include "prism/prism.h"
 #include "prism/codec/squeeze.h"
+#include "prism/codec/container.h"
 #include <random>
 
 using namespace prism;
@@ -139,4 +141,30 @@ TEST(SqueezeLevels, BD16NeverSqueezed) {
         auto back = squeeze_decode_plane(sr, 16, 16, lift);
         EXPECT_EQ(back, plane);
     }
+}
+
+// Directed container-level proof of the C4 path: with the squeeze plan forced
+// through the public probe hook, production must emit bit5 streams whose
+// decode is exact - this exercises the encode band path, lifting llc chain,
+// flag routing, and the shared merge helper end to end.
+TEST(SqueezeLift, ForcedPlanContainerRoundtrip) {
+    prism::Raster r(8, 8, prism::Channels::RGB, prism::BitDepth::BD8);
+    for (size_t c = 0; c < r.planes.size(); ++c)
+        for (size_t i = 0; i < r.planes[c].size(); ++i)
+            r.planes[c][i] = (uint16_t)((i * 29 + c * 71 + (i / 8) * 13) % 256);
+    prism::EncodeOpts opts;
+    opts.effort = 3;
+    opts.force_squeeze_levels = {1, 1, 1};
+    auto bytes = prism::encode(r, opts);
+    // flags byte lives at offset 16 (same layout the flag-gate tests probe)
+    EXPECT_NE(bytes[16] & prism::codec::SQUEEZE_LIFT_FLAG, 0u)
+        << "forced squeeze plan must mark the stream as lifting";
+    auto dec = prism::decode(bytes);
+    EXPECT_EQ(dec, r);
+
+    // wrong override size is a hard error, never a silent fallback
+    prism::EncodeOpts bad;
+    bad.effort = 3;
+    bad.force_squeeze_levels = {1};
+    EXPECT_THROW(prism::encode(r, bad), prism::EncodeError);
 }
