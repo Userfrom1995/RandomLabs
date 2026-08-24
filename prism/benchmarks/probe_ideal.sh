@@ -17,6 +17,19 @@ set -euo pipefail
 #   G-repro  regression anchor: the committed reference CSV row must be
 #            reproduced within +-0.05 percentage points per column.
 #
+# ZRUN gate (D4 item 2, pre-registered BEFORE any corpus measurement):
+#   ZR-anchor  every ZRUN row's causal E1 replica of plain v2 (bits_plain)
+#              must match the measured v2 payload bytes within +-0.5 percent
+#              on real-corpus images (skipped on synthetic ramps - too few
+#              bins for byte-level comparison, same rule as G-anchor).
+#   ZR-fmt     FORMAT-WORK ELIGIBILITY: aggregate adapt_pct <= -1.0 percent
+#              AND no probe image shows adapt_pct > 0 (mixed sign never
+#              adopts, per C2b). PASS only opens the door to container work;
+#              it is not an acceptance.
+# ZRUN CSV semantics mirror the IDEAL note above: TOTAL rows pool run-symbol
+# histograms across images before entropy estimation (joint figures, not row
+# sums); audit per-image numbers on their own rows.
+#
 # CSV semantics (read before auditing): TOTAL rows pool frequency histograms
 # ACROSS images before entropy estimation (Acc::merge), so IDEALTOTAL columns
 # are joint-estimation figures over the pooled streams and are intentionally
@@ -40,7 +53,7 @@ set -euo pipefail
 #
 # Usage:
 #   probe_ideal.sh --image /path/kodim01.ppm --image /path/kodim13.ppm \
-#                  [--predictor LIST] [--blend LIST] [--mixer LIST]
+#                  [--predictor LIST] [--blend LIST] [--mixer LIST] [--zrun]
 #   probe_ideal.sh --self-check
 #   probe_ideal.sh --image ... [--build-dir DIR]
 
@@ -50,6 +63,7 @@ SELF_CHECK=0
 PREDICTORS="med"
 BLENDS=""
 MIXERS=""
+ZRUN=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -58,6 +72,7 @@ while [[ $# -gt 0 ]]; do
     --predictor) PREDICTORS="$2"; shift 2;;
     --blend) BLENDS="$2"; shift 2;;
     --mixer) MIXERS="$2"; shift 2;;
+    --zrun) ZRUN=1; shift;;
     --self-check) SELF_CHECK=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
@@ -66,10 +81,10 @@ done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 evaluate() {
-  # evaluate IDEAL_CSV [MIXER_CSV] -> verdict lines; exits nonzero on gate
-  # failure. The two row families carry different headers, so they are
-  # parsed from their own files (or skipped entirely).
-  python3 - "$1" "${2:-}" <<'PY'
+  # evaluate IDEAL_CSV [MIXER_CSV] [ZRUN_CSV] -> verdict lines; exits nonzero
+  # on gate failure. The three row families carry different headers, so they
+  # are parsed from their own files (or skipped entirely).
+  python3 - "$1" "${2:-}" "${3:-}" <<'PY'
 import csv, sys
 
 lines = open(sys.argv[1]).read().splitlines()
@@ -77,6 +92,8 @@ ideal_all = [l for l in lines if l.startswith("IDEAL,")]
 if not ideal_all:
     # legacy form: bare header line ("image,predictor,...") + data rows
     ideal_all = [l for l in lines if l.strip()]
+if not ideal_all:
+    print("IDEAL GATE FAIL (no rows)"); sys.exit(1)
 ideal_hdr = ideal_all[0].split(",")
 rows = [dict(zip(ideal_hdr, l.split(","))) for l in ideal_all[1:] if l.strip()]
 mixers = []
@@ -155,6 +172,43 @@ for r in mixers:
 if mixers and ok:
     print(f"G-anchor OK ({len(mixers)} mixer rows within +-0.5 percent of measured v2 bytes)")
 
+zrows = []
+if sys.argv[3] and sys.argv[3] != "":
+    zlines = open(sys.argv[3]).read().splitlines()
+    z_all = [l for l in zlines if l.startswith("ZRUN,")]
+    if z_all:
+        z_hdr = z_all[0].split(",")
+        zrows = [dict(zip(z_hdr, l.split(","))) for l in z_all[1:] if l.strip()]
+for r in zrows:
+    if r["image"] == "all":
+        continue  # anchor applies per real image; totals carry pooled bits
+    v2b = float(r["v2_bytes"])
+    a = 100.0 * (float(r["bits_plain"]) / 8.0 - v2b) / v2b
+    if abs(a) > 0.5:
+        print(f"ZR-anchor FAIL ({r['image']}: plain replica {a:+.4f}% > 0.5%)")
+        ok = False
+if zrows:
+    # ZR-fmt is a DECISION verdict, not a rail-integrity gate: a rejection is
+    # a legitimate measured outcome and must not flip the exit code.
+    tot = next((r for r in zrows if r["image"] == "all"), None)
+    imgs = [r for r in zrows if r["image"] != "all"]
+    anchor_ok = not any(
+        abs(100.0 * (float(r["bits_plain"]) / 8.0 - float(r["v2_bytes"])) /
+            float(r["v2_bytes"])) > 0.5 for r in imgs)
+    if tot is not None and imgs and anchor_ok:
+        ap = float(tot["adapt_pct"])
+        mixed = any(float(r["adapt_pct"]) > 0.0 for r in imgs)
+        verdict = (f"ZR-fmt: aggregate adapt {ap:+.4f}% "
+                   f"(folded {tot['folded_pct']}% of samples, "
+                   f"{tot['nsym']} run symbols)")
+        if ap <= -1.0 and not mixed:
+            print(verdict + " -> ZR-fmt PASS (format work eligible)")
+        else:
+            why = []
+            if ap > -1.0: why.append("aggregate above the -1.0 pct bar")
+            if mixed: why.append("mixed sign across probe images")
+            print(verdict + " -> ZR-fmt FAIL (" + "; ".join(why) + ")")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -232,6 +286,32 @@ if [[ "$SELF_CHECK" == "1" ]]; then
   done
   [[ "$ok" == "1" ]] && echo "MIXER SELF-CHECK PASS: adapted beats frozen and adversarial on both ramps"
   [[ "$ok" == "1" ]] || exit 1
+  # D4 zero-run self-check: the scorer must (a) collapse a flat ramp's zeros
+  # into run symbols for a large measured WIN, and (b) the evaluator must
+  # render BOTH ZR-fmt verdicts from CSV rows alone plus bite on a diverged
+  # anchor (a verdict that can only say PASS is worse than none).
+  "$BIN" bench-ideal "$TMP/cols_const.ppm" --zrun > "$TMP/zf.txt"
+  zf=$(awk -F, '/^ZRUN,/ && $2 != "image" {print $10; exit}' "$TMP/zf.txt")
+  [[ -n "$zf" ]] || { echo "SELF-CHECK FAIL: no zrun row"; exit 1; }
+  python3 -c "import sys; sys.exit(0 if $zf < -20 else 1)" || \
+    { echo "SELF-CHECK FAIL: flat ramp must fold zeros into a large win (got $zf%)"; ok=0; }
+  zhdr='ZRUN,image,folded_pct,nsym,nbreaker,v0_bytes,v2_bytes,bits_plain,bits_adapt,adapt_pct,base_fine_sh,base_fine_cl,base_fine_cx,zr_fine_sh,zr_fine_cl,zr_fine_cx'
+  printf '%s\n' "$zhdr" > "$TMP/zwin.csv"
+  printf 'ZRUN,all,60.00,10,5,100000,95000,760000.0,700000.0,-7.8947,700000.0,690000.0,680000.0,650000.0,640000.0,630000.0\n' >> "$TMP/zwin.csv"
+  printf 'ZRUN,kodimX.ppm,60.00,10,5,100000,95000,760000.0,70000.0,-8.1234,700000.0,690000.0,680000.0,650000.0,640000.0,630000.0\n' >> "$TMP/zwin.csv"
+  printf '%s\n' "$zhdr" > "$TMP/zlose.csv"
+  printf 'ZRUN,all,1.00,900,800,100000,95000,760000.0,770000.0,+1.3158,700000.0,690000.0,680000.0,750000.0,740000.0,730000.0\n' >> "$TMP/zlose.csv"
+  printf 'ZRUN,kodimX.ppm,1.00,900,800,100000,95000,760000.0,77000.0,+1.0753,700000.0,690000.0,680000.0,750000.0,740000.0,730000.0\n' >> "$TMP/zlose.csv"
+  printf '%s\n' "$zhdr" > "$TMP/zbad.csv"
+  printf 'ZRUN,kodimX.ppm,60.00,10,5,100000,95000,99999999.0,70000.0,-8.1234,700000.0,690000.0,680000.0,650000.0,640000.0,630000.0\n' >> "$TMP/zbad.csv"
+  evaluate "$TMP/good.csv" "" "$TMP/zwin.csv" > "$TMP/zwin.out" 2>&1 || true
+  evaluate "$TMP/good.csv" "" "$TMP/zlose.csv" > "$TMP/zlose.out" 2>&1 || true
+  evaluate "$TMP/good.csv" "" "$TMP/zbad.csv" > "$TMP/zbad.out" 2>&1 || true
+  grep -q "ZR-fmt PASS" "$TMP/zwin.out" || { echo "SELF-CHECK FAIL: evaluator must grant ZR-fmt on a winning projection"; cat "$TMP/zwin.out"; ok=0; }
+  grep -q "ZR-fmt FAIL" "$TMP/zlose.out" || { echo "SELF-CHECK FAIL: evaluator must refuse ZR-fmt on a losing projection"; cat "$TMP/zlose.out"; ok=0; }
+  grep -q "ZR-anchor FAIL" "$TMP/zbad.out" || { echo "SELF-CHECK FAIL: ZR-anchor must reject a diverged replica"; cat "$TMP/zbad.out"; ok=0; }
+  [[ "$ok" == "1" ]] && echo "ZRUN SELF-CHECK PASS: win on runs, both ZR-fmt verdicts reachable, anchor gate bites"
+  [[ "$ok" == "1" ]] || exit 1
   exit 0
 fi
 
@@ -259,18 +339,25 @@ done
 STAMP=$(date +%Y-%m-%d)
 OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe.csv"
 MIX_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-mixer-d2.csv"
+ZRUN_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-zrun-d4.csv"
 RAW_CSV="$(mktemp)"
 MIX_RAW="$(mktemp)"
+ZR_RAW="$(mktemp)"
 ALL_RAW="$(mktemp)"
 ARGS=()
 [[ -n "$PREDICTORS" ]] && ARGS+=(--predictor "$PREDICTORS")
 [[ -n "$BLENDS" ]] && ARGS+=(--blend "$BLENDS")
 [[ -n "$MIXERS" ]] && ARGS+=(--mixer "$MIXERS")
+[[ "$ZRUN" == "1" ]] && ARGS+=(--zrun)
 "$BIN" bench-ideal "${IMAGES[@]}" "${ARGS[@]}" > "$ALL_RAW"
 grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$RAW_CSV"
 if [[ -n "$MIXERS" ]]; then
   grep -E '^MIXER' "$ALL_RAW" > "$MIX_RAW"
   cp "$MIX_RAW" "$MIX_CSV"
+fi
+if [[ "$ZRUN" == "1" ]]; then
+  grep -E '^ZRUN' "$ALL_RAW" > "$ZR_RAW"
+  cp "$ZR_RAW" "$ZRUN_CSV"
 fi
 cp "$RAW_CSV" "$OUT_CSV"
 echo "== ideal-bracket results (${OUT_CSV}) =="
@@ -279,8 +366,12 @@ if [[ -n "$MIXERS" ]]; then
   echo "== D2 mixer results (${MIX_CSV}) =="
   cat "$MIX_CSV"
 fi
+if [[ "$ZRUN" == "1" ]]; then
+  echo "== D4 zero-run projection (${ZRUN_CSV}) =="
+  cat "$ZRUN_CSV"
+fi
 
-if ! evaluate "$OUT_CSV" "$MIX_CSV"; then
+if ! evaluate "$OUT_CSV" "$MIX_CSV" "$ZR_RAW"; then
   echo "IDEAL GATE FAIL"
   exit 1
 fi
