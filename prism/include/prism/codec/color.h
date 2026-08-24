@@ -1,5 +1,6 @@
 #pragma once
 #include "prism/types.h"
+#include <string>
 
 namespace prism::codec {
 
@@ -37,5 +38,32 @@ struct ColorChoice {
 };
 
 ColorChoice choose_color_transform(const Raster& r);
+
+// --- D4c reversible color rotation family (spec section 13) ---
+//
+// Offline harness candidates beyond the shipped YCoCg-R trial set. Library
+// level only: nothing here is signaled by the container or touched by any
+// format path. Format wiring stays behind the pre-registered CR-fmt gate
+// (docs/algorithmic-spec.md section 13.3).
+namespace colorrot {
+
+inline constexpr int kYcocgrId = 0;   // shipped transform, anchor equivalence
+inline constexpr int kLocoId = 6;     // JPEG-LS/CALIC family
+inline constexpr int kCount = 7;
+
+// Name of candidate `id` ("ycocgr", "rct-grb", ...); throws std::out_of_range
+// beyond [0, kCount).
+const char* name(int id);
+
+// Parse a candidate name to its id; returns -1 when unknown.
+int id_of(const std::string& name);
+
+// Forward / inverse for candidate `id`. BD8 RGB-only by contract (the shipped
+// trial set is BD8-gated too); any other input throws std::invalid_argument.
+// id 0 is byte-equivalent to apply_color(r, ColorTransform::YCoCgR) - tested.
+Raster apply(const Raster& r, int id);
+Raster invert(const Raster& r, int id);
+
+} // namespace colorrot
 
 } // namespace prism::codec

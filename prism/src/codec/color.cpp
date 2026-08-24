@@ -392,4 +392,116 @@ ColorChoice choose_color_transform(const Raster& r) {
     return cc;
 }
 
+// --- D4c reversible rotation family (spec section 13) ---
+
+namespace colorrot {
+namespace {
+
+struct RoleTriple { int a, b, c; }; // input channel indices in raster plane order
+
+constexpr RoleTriple kRoles[kCount] = {
+    {0, 1, 2}, // 0 ycocgr  (R, G, B)
+    {1, 0, 2}, // 1 rct-grb (G, R, B)
+    {1, 2, 0}, // 2 rct-gbr (G, B, R)
+    {0, 2, 1}, // 3 rct-rbg (R, B, G)
+    {2, 0, 1}, // 4 rct-brg (B, R, G)
+    {2, 1, 0}, // 5 rct-bgr (B, G, R)
+    {0, 0, 0}, // 6 loco    (special-cased, unused)
+};
+
+constexpr const char* kNames[kCount] = {
+    "ycocgr", "rct-grb", "rct-gbr", "rct-rbg", "rct-brg", "rct-bgr", "loco",
+};
+
+void check_input(const Raster& r) {
+    if (r.bd != BitDepth::BD8 || r.num_channels() < 3)
+        throw std::invalid_argument("colorrot: BD8 RGB rasters only");
+}
+
+} // anonymous namespace
+
+const char* name(int id) {
+    if (id < 0 || id >= kCount)
+        throw std::out_of_range("colorrot: bad candidate id");
+    return kNames[id];
+}
+
+int id_of(const std::string& n) {
+    for (int i = 0; i < kCount; ++i)
+        if (n == kNames[i]) return i;
+    return -1;
+}
+
+Raster apply(const Raster& r, int id) {
+    check_input(r);
+    Raster out = r;
+    const size_t n = r.num_pixels();
+    constexpr int kBias = 512;
+    if (id == kLocoId) {
+        for (size_t i = 0; i < n; ++i) {
+            int R = (int)r.planes[0][i];
+            int G = (int)r.planes[1][i];
+            int B = (int)r.planes[2][i];
+            out.planes[0][i] = (uint16_t)G;
+            out.planes[1][i] = (uint16_t)((R - G) + kBias);
+            out.planes[2][i] = (uint16_t)((B - ((R + G) >> 1)) + kBias);
+        }
+        return out;
+    }
+    if (id < 0 || id >= kCount)
+        throw std::out_of_range("colorrot: bad candidate id");
+    const RoleTriple& rt = kRoles[id];
+    for (size_t i = 0; i < n; ++i) {
+        int a = (int)r.planes[rt.a][i];
+        int b = (int)r.planes[rt.b][i];
+        int c = (int)r.planes[rt.c][i];
+        int Co = a - c;
+        int t = c + (Co >> 1);
+        int Cg = b - t;
+        int Y = t + (Cg >> 1);
+        out.planes[0][i] = (uint16_t)Y;
+        out.planes[1][i] = (uint16_t)(Cg + kBias);
+        out.planes[2][i] = (uint16_t)(Co + kBias);
+    }
+    return out;
+}
+
+Raster invert(const Raster& r, int id) {
+    check_input(r);
+    Raster out = r;
+    const size_t n = r.num_pixels();
+    constexpr int kBias = 512;
+    if (id == kLocoId) {
+        for (size_t i = 0; i < n; ++i) {
+            int G = (int)r.planes[0][i];
+            int U = (int)r.planes[1][i] - kBias;
+            int V = (int)r.planes[2][i] - kBias;
+            int R = G + U;
+            int B = V + ((R + G) >> 1);
+            out.planes[0][i] = (uint16_t)R;
+            out.planes[1][i] = (uint16_t)G;
+            out.planes[2][i] = (uint16_t)B;
+        }
+        return out;
+    }
+    if (id < 0 || id >= kCount)
+        throw std::out_of_range("colorrot: bad candidate id");
+    const RoleTriple& rt = kRoles[id];
+    for (size_t i = 0; i < n; ++i) {
+        int Y = (int)r.planes[0][i];
+        int Cg = (int)r.planes[1][i] - kBias;
+        int Co = (int)r.planes[2][i] - kBias;
+        int t = Y - (Cg >> 1);
+        int b = Cg + t;
+        int c = t - (Co >> 1);
+        int a = c + Co;
+        out.planes[rt.a][i] = (uint16_t)a;
+        out.planes[rt.b][i] = (uint16_t)b;
+        out.planes[rt.c][i] = (uint16_t)c;
+    }
+    return out;
+}
+
+} // namespace colorrot
+
 } // namespace prism::codec

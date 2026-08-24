@@ -30,6 +30,17 @@ set -euo pipefail
 # histograms across images before entropy estimation (joint figures, not row
 # sums); audit per-image numbers on their own rows.
 #
+# D4c COLOR gates (pre-registered in docs/algorithmic-spec.md section 13.3,
+# BEFORE any corpus measurement):
+#   CR-anchor  when med@ycocgr rows are present they must equal the shipped
+#              baseline rows byte-for-byte on v0/v2 columns (candidate id 0 is
+#              contractually the shipped transform; drift breaks loudly).
+#   CR-fmt     FORMAT-WORK ELIGIBILITY per candidate mode: aggregate v2 payload
+#              delta <= -0.5 percent vs the shipped YCoCg-R baseline AND no
+#              probe image above baseline (mixed sign never adopts, per C2b).
+#              PASS only opens the door to container/trial wiring. A rejection
+#              is a legitimate measured outcome and never flips the exit code.
+#
 # CSV semantics (read before auditing): TOTAL rows pool frequency histograms
 # ACROSS images before entropy estimation (Acc::merge), so IDEALTOTAL columns
 # are joint-estimation figures over the pooled streams and are intentionally
@@ -54,6 +65,7 @@ set -euo pipefail
 # Usage:
 #   probe_ideal.sh --image /path/kodim01.ppm --image /path/kodim13.ppm \
 #                  [--predictor LIST] [--blend LIST] [--mixer LIST] [--zrun]
+#                  [--color LIST]
 #   probe_ideal.sh --self-check
 #   probe_ideal.sh --image ... [--build-dir DIR]
 
@@ -64,6 +76,7 @@ PREDICTORS="med"
 BLENDS=""
 MIXERS=""
 ZRUN=0
+COLOR=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -73,6 +86,7 @@ while [[ $# -gt 0 ]]; do
     --blend) BLENDS="$2"; shift 2;;
     --mixer) MIXERS="$2"; shift 2;;
     --zrun) ZRUN=1; shift;;
+    --color) COLOR="$2"; shift 2;;
     --self-check) SELF_CHECK=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
@@ -216,6 +230,69 @@ if zrows:
                            "(no adoption from a losing subset)")
             print(verdict + " -> ZR-fmt FAIL (" + "; ".join(why) + ")")
 
+# D4c color-rotation gates (spec section 13.3). CR-anchor is rail integrity
+# (flips the exit code); CR-fmt is a decision verdict (never flips it).
+base_by_img = {r["image"]: r for r in rows
+               if r["image"] != "all" and "@" not in r["predictor"]}
+modes = []
+for r in rows:
+    p = r["predictor"]
+    if "@" in p:
+        pred, _, mode = p.partition("@")
+        if pred == "med" and mode not in modes:
+            modes.append(mode)
+for mode in sorted(modes):
+    cand_imgs = [r for r in rows
+                 if r["image"] != "all" and r["predictor"] == "med@" + mode]
+    cand_tot = next((r for r in rows
+                     if r["image"] == "all" and r["predictor"] == "med@" + mode),
+                    None)
+    base_tot = next((r for r in rows
+                     if r["image"] == "all" and r["predictor"] == "med"), None)
+    if mode == "ycocgr":
+        bad = [r["image"] for r in cand_imgs
+               if r["image"] in base_by_img
+               and (r["v0_bytes"] != base_by_img[r["image"]]["v0_bytes"]
+                    or r["v2_bytes"] != base_by_img[r["image"]]["v2_bytes"])]
+        missing = [r["image"] for r in cand_imgs if r["image"] not in base_by_img]
+        if missing:
+            print(f"CR-anchor SKIP ({mode}: no baseline row for {','.join(missing)})")
+        elif bad or not cand_imgs:
+            print(f"CR-anchor FAIL ({mode}: v0/v2 diverge from shipped baseline "
+                  f"on {','.join(bad) if bad else 'ALL rows'})")
+            ok = False
+        elif cand_tot and base_tot and (
+                cand_tot["v0_bytes"] != base_tot["v0_bytes"]
+                or cand_tot["v2_bytes"] != base_tot["v2_bytes"]):
+            print(f"CR-anchor FAIL ({mode}: pooled totals diverge from shipped)")
+            ok = False
+        else:
+            print(f"CR-anchor OK (med@{mode} == shipped YCoCg-R byte-for-byte)")
+        continue
+    if cand_tot is None or base_tot is None or not cand_imgs:
+        continue
+    bv2 = int(base_tot["v2_bytes"])
+    apct = 100.0 * (int(cand_tot["v2_bytes"]) - bv2) / bv2
+    per = {}
+    for r in cand_imgs:
+        b = base_by_img.get(r["image"])
+        if b:
+            per[r["image"]] = 100.0 * (int(r["v2_bytes"]) - int(b["v2_bytes"])) \
+                / int(b["v2_bytes"])
+    mixed = any(v > 0.0 for v in per.values())
+    verdict = (f"CR-fmt ({mode}): aggregate v2 {apct:+.4f}% vs shipped over "
+               f"{len(per)} images")
+    if apct <= -0.5 and not mixed:
+        print(verdict + " -> CR-fmt PASS (format work eligible)")
+    else:
+        worse = sum(1 for v in per.values() if v > 0.0)
+        why = []
+        if apct > -0.5: why.append("aggregate above the -0.5 pct eligibility bar")
+        if mixed:
+            why.append(f"{worse}/{len(per)} probe images above baseline "
+                       "(no adoption from a losing subset)")
+        print(verdict + " -> CR-fmt FAIL (" + "; ".join(why) + ")")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -333,6 +410,70 @@ open('$TMP/noise_zr.ppm','wb').write(b'P6\n%d %d\n255\n' % (w,h) + px)
   grep -q "ZR-anchor FAIL" "$TMP/zbad.out" || { echo "SELF-CHECK FAIL: ZR-anchor must reject a diverged replica"; cat "$TMP/zbad.out"; ok=0; }
   [[ "$ok" == "1" ]] && echo "ZRUN SELF-CHECK PASS: events collapse on runs, no invented win on noise, both ZR-fmt verdicts reachable, anchor gate bites"
   [[ "$ok" == "1" ]] || exit 1
+  # D4c color-rotation self-check: the rail must rank color modes in BOTH
+  # directions on constructed images where the winning transform is known by
+  # construction, med@ycocgr must be byte-identical to the shipped baseline
+  # (CR-anchor), and the evaluator must render BOTH CR-fmt verdicts plus bite
+  # on a diverged anchor from CSV rows alone.
+  python3 - "$TMP" <<'PY'
+import sys, os
+tmp = sys.argv[1]
+def ppm(path, w, h, f):
+    px = bytearray()
+    for y in range(h):
+        for x in range(w):
+            r, g, b = f(x, y)
+            px += bytes((max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b))))
+    open(path, "wb").write(b"P6\n%d %d\n255\n" % (w, h) + bytes(px))
+# Variation confined to one channel: loco keeps that channel as plane 0 or a
+# plain difference while every butterfly plane moves (imgR), and collapses Co
+# to zero when the active channel is the butterfly's chroma-difference axis
+# partner (imgG).
+ppm(os.path.join(tmp, "color_r.ppm"), 96, 96, lambda x, y: ((x * 5 + y * 3) & 0xFF, 0, 0))
+ppm(os.path.join(tmp, "color_g.ppm"), 96, 96, lambda x, y: (0, (x * 5 + y * 3) & 0xFF, 0))
+PY
+  "$BIN" bench-ideal "$TMP/color_r.ppm" --color ycocgr,rct-grb,rct-gbr,rct-rbg,rct-brg,rct-bgr,loco > "$TMP/cr_r.txt"
+  "$BIN" bench-ideal "$TMP/color_g.ppm" --color ycocgr,rct-grb,rct-gbr,rct-rbg,rct-brg,rct-bgr,loco > "$TMP/cr_g.txt"
+  v2_of() { awk -F, -v img="$2" -v pred="$3" '/^IDEAL,/ && $2==img && $3==pred {print $5; exit}' "$1"; }
+  base_r=$(v2_of "$TMP/cr_r.txt" color_r.ppm med)
+  loco_r=$(v2_of "$TMP/cr_r.txt" color_r.ppm med@loco)
+  base_g=$(v2_of "$TMP/cr_g.txt" color_g.ppm med)
+  loco_g=$(v2_of "$TMP/cr_g.txt" color_g.ppm med@loco)
+  anch_r=$(v2_of "$TMP/cr_r.txt" color_r.ppm med@ycocgr)
+  [[ -n "$base_r" && -n "$loco_r" && -n "$base_g" && -n "$loco_g" ]] || { echo "SELF-CHECK FAIL: missing color rows"; exit 1; }
+  python3 -c "import sys; sys.exit(0 if int('$loco_r') < int('$base_r') else 1)" || \
+    { echo "SELF-CHECK FAIL: on R-only variation loco ($loco_r) must beat shipped YCoCg-R ($base_r)"; ok=0; }
+  python3 -c "import sys; sys.exit(0 if int('$loco_g') > int('$base_g') else 1)" || \
+    { echo "SELF-CHECK FAIL: on G-only variation shipped YCoCg-R ($base_g) must beat loco ($loco_g)"; ok=0; }
+  # CR-anchor must hold on real measured rows (id 0 == shipped call).
+  [[ -n "$anch_r" && "$anch_r" == "$base_r" ]] || { echo "SELF-CHECK FAIL: med@ycocgr ($anch_r) != shipped baseline ($base_r)"; ok=0; }
+  # Evaluator verdict rendering from CSV alone: PASS, FAIL (mixed sign), and
+  # an anchor violation that flips the exit code.
+  ih='IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343'
+  mk() { printf '%s\n' "$ih" > "$1";
+    printf 'IDEAL,a.ppm,med,100000,95000,900000,860000,850000,880000,840000,830000,870000,830000,825000\n' >> "$1";
+    printf 'IDEAL,b.ppm,med,100000,95000,900000,860000,850000,880000,840000,830000,870000,830000,825000\n' >> "$1";
+    printf 'IDEAL,a.ppm,med@cand,100000,%s,900000,860000,850000,880000,840000,830000,870000,830000,825000\n' "$2" >> "$1";
+    printf 'IDEAL,b.ppm,med@cand,100000,%s,900000,860000,850000,880000,840000,830000,870000,830000,825000\n' "$3" >> "$1";
+    printf 'IDEALTOTAL,all,med,200000,190000,1800000,1720000,1700000,1760000,1680000,1660000,1740000,1660000,1650000\n' >> "$1";
+    printf 'IDEALTOTAL,all,med@cand,200000,%s,1800000,1720000,1700000,1760000,1680000,1660000,1740000,1660000,1650000\n' "$4" >> "$1"; }
+  mk "$TMP/cr_win.csv"  94000 94100 188100   # aggregate -1.0 pct, both images win
+  mk "$TMP/cr_lose.csv" 95400 94600 190000   # mixed sign -> never adopts
+  printf '%s\n' "$ih" > "$TMP/cr_bad.csv"
+  printf 'IDEAL,a.ppm,med,100000,95000,900000,860000,850000,880000,840000,830000,870000,830000,825000\n' >> "$TMP/cr_bad.csv"
+  printf 'IDEAL,a.ppm,med@ycocgr,100000,99999,900000,860000,850000,880000,840000,830000,870000,830000,825000\n' >> "$TMP/cr_bad.csv"
+  printf 'IDEALTOTAL,all,med,100000,95000,1800000,1720000,1700000,1760000,1680000,1660000,1740000,1660000,1650000\n' >> "$TMP/cr_bad.csv"
+  printf 'IDEALTOTAL,all,med@ycocgr,100000,99999,1800000,1720000,1700000,1760000,1680000,1660000,1740000,1660000,1650000\n' >> "$TMP/cr_bad.csv"
+  evaluate "$TMP/cr_win.csv" > "$TMP/cr_win.out" 2>&1 || true
+  evaluate "$TMP/cr_lose.csv" > "$TMP/cr_lose.out" 2>&1 || true
+  if evaluate "$TMP/cr_bad.csv" > "$TMP/cr_bad.out" 2>&1; then
+    echo "SELF-CHECK FAIL: CR-anchor accepted a diverged id0 row"; ok=0
+  fi
+  grep -q "CR-anchor FAIL" "$TMP/cr_bad.out" || { echo "SELF-CHECK FAIL: no CR-anchor verdict"; cat "$TMP/cr_bad.out"; ok=0; }
+  grep -q "CR-fmt (cand).*PASS" "$TMP/cr_win.out" || { echo "SELF-CHECK FAIL: evaluator must grant CR-fmt on a winning projection"; cat "$TMP/cr_win.out"; ok=0; }
+  grep -q "CR-fmt (cand).*FAIL" "$TMP/cr_lose.out" || { echo "SELF-CHECK FAIL: evaluator must refuse CR-fmt on a losing projection"; cat "$TMP/cr_lose.out"; ok=0; }
+  [[ "$ok" == "1" ]] && echo "COLOR SELF-CHECK PASS: ranking works both ways, id0 anchor exact, both CR-fmt verdicts reachable, anchor gate bites"
+  [[ "$ok" == "1" ]] || exit 1
   exit 0
 fi
 
@@ -361,6 +502,7 @@ STAMP=$(date +%Y-%m-%d)
 OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe.csv"
 MIX_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-mixer-d2.csv"
 ZRUN_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-zrun-d4.csv"
+COLOR_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-color-d4c.csv"
 RAW_CSV="$(mktemp)"
 MIX_RAW="$(mktemp)"
 ZR_RAW="$(mktemp)"
@@ -369,6 +511,7 @@ ARGS=()
 [[ -n "$PREDICTORS" ]] && ARGS+=(--predictor "$PREDICTORS")
 [[ -n "$BLENDS" ]] && ARGS+=(--blend "$BLENDS")
 [[ -n "$MIXERS" ]] && ARGS+=(--mixer "$MIXERS")
+[[ -n "$COLOR" ]] && ARGS+=(--color "$COLOR")
 [[ "$ZRUN" == "1" ]] && ARGS+=(--zrun)
 "$BIN" bench-ideal "${IMAGES[@]}" "${ARGS[@]}" > "$ALL_RAW"
 grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$RAW_CSV"
@@ -382,16 +525,25 @@ if [[ "$ZRUN" == "1" ]]; then
 fi
 # In zrun mode the dated ideal-probe CSV is the COMMITTED G-repro reference;
 # never clobber it. Evaluate from a side file in the same directory so the
-# reference path resolution still finds the committed row.
+# reference path resolution still finds the committed row. Color mode follows
+# the same discipline: its rows land in the dedicated D4c CSV, and evaluation
+# uses a side file so the committed reference stays untouched.
 EVAL_CSV="$OUT_CSV"
 if [[ "$ZRUN" == "1" ]]; then
   EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-zrun-eval.csv"
   grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$EVAL_CSV"
+elif [[ -n "$COLOR" ]]; then
+  cp "$RAW_CSV" "$COLOR_CSV"
+  EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-color-eval.csv"
+  cp "$RAW_CSV" "$EVAL_CSV"
 else
   cp "$RAW_CSV" "$OUT_CSV"
 fi
 echo "== ideal-bracket results (${OUT_CSV}) =="
 cat "$RAW_CSV"
+if [[ -n "$COLOR" ]]; then
+  echo "== D4c color-rotation rows -> ${COLOR_CSV} (committed reference untouched) =="
+fi
 if [[ -n "$MIXERS" ]]; then
   echo "== D2 mixer results (${MIX_CSV}) =="
   cat "$MIX_CSV"

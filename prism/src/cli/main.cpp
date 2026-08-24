@@ -35,7 +35,8 @@ static void print_usage() {
               << "  prism probe-backend <image> [--variants LIST]\n"
               << "  prism probe-xband <image>\n"
               << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n"
-              << "                                            [--mixer LIST] [--zrun]\n";
+              << "                                            [--mixer LIST] [--zrun]\n"
+              << "                                            [--color LIST]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -986,7 +987,9 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> preds;
             std::vector<std::string> blends;
             std::vector<std::string> mixer_names;
+            std::vector<std::string> color_names;   // D4c rotation candidates
             bool opt_zrun = false;
+            bool color_flag_given = false;
             auto split_list = [](const std::string& s) {
                 std::vector<std::string> out;
                 size_t pos = 0;
@@ -1011,6 +1014,10 @@ int main(int argc, char* argv[]) {
                     mixer_names.insert(mixer_names.end(), v.begin(), v.end());
                 } else if (a == "--zrun") {
                     opt_zrun = true;
+                } else if (a == "--color" && i + 1 < argc) {
+                    auto v = split_list(argv[++i]);
+                    color_names.insert(color_names.end(), v.begin(), v.end());
+                    color_flag_given = true;
                 } else {
                     imgs.push_back(a);
                 }
@@ -1018,6 +1025,21 @@ int main(int argc, char* argv[]) {
             if (imgs.empty()) { std::cerr << "bench-ideal: no images given\n"; return 2; }
             if (preds.empty() && blends.empty() && mixer_names.empty())
                 preds.push_back("med");
+            for (const auto& cn : color_names) {
+                if (prism::codec::colorrot::id_of(cn) < 0) {
+                    std::cerr << "bench-ideal: unknown color mode " << cn << "\n";
+                    return 2;
+                }
+            }
+            const bool color_beyond_default =
+                std::any_of(color_names.begin(), color_names.end(),
+                            [](const std::string& s) { return s != "ycocgr"; });
+            if (color_beyond_default && !blends.empty()) {
+                std::cerr << "bench-ideal: --color beyond the shipped baseline is "
+                             "mutually exclusive with --blend\n";
+                return 2;
+            }
+            if (color_names.empty()) color_names.push_back("ycocgr");
 
             static const std::map<std::string, PredId> bank = {
                 {"left", PredId::LEFT},   {"top", PredId::TOP},
@@ -1128,38 +1150,67 @@ int main(int argc, char* argv[]) {
             char rowbuf[512];
             for (const auto& img : imgs) {
                 Raster r = frontend::decode_to_raster(img);
-                Raster t = apply_color(r, ColorTransform::YCoCgR);
+                // D4c: one transformed raster per color mode. The shipped
+                // baseline stays the production call so existing CSV rows are
+                // byte-stable; candidates live in their own namespace.
+                std::map<std::string, Raster> colored;
+                for (const auto& cn : color_names) {
+                    int cid = prism::codec::colorrot::id_of(cn);
+                    colored[cn] = (cid == prism::codec::colorrot::kYcocgrId)
+                        ? apply_color(r, ColorTransform::YCoCgR)
+                        : prism::codec::colorrot::apply(r, cid);
+                }
+                const Raster& t = colored["ycocgr"];   // mixer/zrun production stream
                 std::vector<std::pair<std::string, bool>> jobs; // name, is_blend
                 for (auto& n : preds) jobs.push_back({n, false});
                 for (auto& n : blends) jobs.push_back({n, true});
                 for (auto& job : jobs) {
-                    idealbench::Acc acc;
-                    size_t v0b = 0, v2b = 0;
-                    BlendConfig bc;
-                    PredId pid = PredId::MED;
-                    if (job.second) blend_cfg(job.first, bc);
-                    else pid = bank.at(job.first);
-                    for (auto& plane : t.planes) {
-                        auto res = job.second
-                            ? compute_residuals_blend(plane, t.w, t.h, bc)
-                            : compute_residuals(plane, t.w, t.h, pid);
-                        v0b += acoder_encode_plane(res, t.w, t.h, 343).size();
-                        v2b += acoder_encode_plane_v2(res, t.w, t.h,
-                                                      AC_V2_RESDIFF_CONTEXTS).size();
-                        idealbench::walk(res, t.w, acc);
+                    // Emission plan: the shipped baseline keeps its legacy row
+                    // name; an explicit --color run additionally emits a
+                    // namespaced id0 row so CR-anchor can compare them.
+                    std::vector<std::pair<std::string, const Raster*>> plans;
+                    for (const auto& cn : color_names) {
+                        if (job.second && cn != "ycocgr") continue;
+                        if (cn == "ycocgr") {
+                            plans.push_back({job.first, &colored["ycocgr"]});
+                            if (color_flag_given)
+                                plans.push_back({job.first + "@ycocgr",
+                                                 &colored["ycocgr"]});
+                        } else {
+                            plans.push_back({job.first + "@" + cn, &colored[cn]});
+                        }
                     }
-                    double c[3], f[3], v[3];
-                    acc.bits(c, f, v);
-                    auto& tot = totals[job.first];
-                    tot.acc.merge(acc);
-                    tot.v0 += v0b;
-                    tot.v2 += v2b;
-                    std::snprintf(rowbuf, sizeof(rowbuf),
-                                  "IDEAL,%s,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
-                                  img.filename().c_str(), job.first.c_str(),
-                                  v0b, v2b, c[0], c[1], c[2], f[0], f[1], f[2],
-                                  v[0], v[1], v[2]);
-                    std::cout << rowbuf;
+                    for (const auto& plan : plans) {
+                        const std::string& jname = plan.first;
+                        const Raster& tc = *plan.second;
+                        idealbench::Acc acc;
+                        size_t v0b = 0, v2b = 0;
+                        BlendConfig bc;
+                        PredId pid = PredId::MED;
+                        if (job.second) blend_cfg(job.first, bc);
+                        else pid = bank.at(job.first);
+                        for (auto& plane : tc.planes) {
+                            auto res = job.second
+                                ? compute_residuals_blend(plane, tc.w, tc.h, bc)
+                                : compute_residuals(plane, tc.w, tc.h, pid);
+                            v0b += acoder_encode_plane(res, tc.w, tc.h, 343).size();
+                            v2b += acoder_encode_plane_v2(res, tc.w, tc.h,
+                                                          AC_V2_RESDIFF_CONTEXTS).size();
+                            idealbench::walk(res, tc.w, acc);
+                        }
+                        double c[3], f[3], v[3];
+                        acc.bits(c, f, v);
+                        auto& tot = totals[jname];
+                        tot.acc.merge(acc);
+                        tot.v0 += v0b;
+                        tot.v2 += v2b;
+                        std::snprintf(rowbuf, sizeof(rowbuf),
+                                      "IDEAL,%s,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                                      img.filename().c_str(), jname.c_str(),
+                                      v0b, v2b, c[0], c[1], c[2], f[0], f[1], f[2],
+                                      v[0], v[1], v[2]);
+                        std::cout << rowbuf;
+                    }
                 }
                 if (!mixer_names.empty()) {
                     // Production streams only: the L2 lever attacks collection
