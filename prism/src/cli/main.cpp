@@ -26,7 +26,8 @@ static void print_usage() {
               << "  prism bench --effort N --kodak DIR\n"
               << "  prism fuzz [--iters N]\n"
               << "  prism info <file.prism>\n"
-              << "  prism probe-backend <image> [--variants LIST]\n";
+              << "  prism probe-backend <image> [--variants LIST]\n"
+              << "  prism probe-xband <image>\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -329,6 +330,44 @@ int main(int argc, char* argv[]) {
             if (wanted("v2leaf")) emit("v2leaf", leafb + tree_bytes);
             if (wanted("v2composite")) emit("v2composite", compb + tree_bytes);
             if (wanted("v2act")) emit("v2act", actb);
+        } else if (cmd == "probe-xband") {
+            // C5 rail (issue #130): per-plane cross-band squeeze decisions on
+            // one image, using the exact chooser production runs at effort>=3
+            // (choose_squeeze_plan_xband). Flat bytes are the pipeline's own
+            // v2 flat payload for the same plane; adopted bytes include the
+            // +3 header bytes a squeezing plane costs. Never-expand is
+            // visible as L=0 lines where delta == 0.
+            if (argc < 3) { print_usage(); return 2; }
+            std::filesystem::path img = argv[2];
+            Raster r = frontend::decode_to_raster(img);
+            Raster t = apply_color(r, ColorTransform::YCoCgR);
+            size_t flatTot = 0, adoptTot = 0;
+            std::cout << "XBAND," << img.filename().string() << ","
+                      << t.planes.size() << "planes\n";
+            for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+                const auto& plane = t.planes[pi];
+                SqueezeXBandPlan plan = choose_squeeze_plan_xband(
+                    plane, t.w, t.h, 8, PredId::MED);
+                flatTot += acoder_encode_plane_v2(
+                    compute_residuals(plane, t.w, t.h, PredId::MED), t.w, t.h,
+                    AC_V2_RESDIFF_CONTEXTS).size();
+                adoptTot += plan.total_bytes;
+                std::cout << "PLAN," << img.filename().string() << "," << pi
+                          << ",L=" << (int)plan.levels
+                          << ",wH=" << (int)plan.weights[0]
+                          << ",wV=" << (int)plan.weights[1]
+                          << ",wD=" << (int)plan.weights[2]
+                          << ",adopted=" << plan.total_bytes;
+                // flat baseline alone, for the delta column
+                size_t fb = acoder_encode_plane_v2(
+                    compute_residuals(plane, t.w, t.h, PredId::MED), t.w, t.h,
+                    AC_V2_RESDIFF_CONTEXTS).size();
+                std::cout << ",flat=" << fb
+                          << ",delta=" << ((int64_t)plan.total_bytes - (int64_t)fb) << "\n";
+            }
+            std::cout << "TOTAL," << img.filename().string()
+                      << ",flat=" << flatTot << ",adopted=" << adoptTot
+                      << ",delta=" << ((int64_t)adoptTot - (int64_t)flatTot) << "\n";
         } else {
             print_usage(); return 2;
         }

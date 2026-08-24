@@ -39,4 +39,23 @@ std::vector<int32_t> compute_residuals(const std::vector<uint16_t>& plane, uint3
 // Reconstruct plane from residuals
 std::vector<uint16_t> reconstruct_plane(const std::vector<int32_t>& residuals, uint32_t w, uint32_t h, PredId id, uint16_t bd_max);
 
+// ----- C5 cross-band prediction (issue #130, blueprint section 7) -----
+// HF-band prediction term from the co-located LL band: a central difference
+// of the LL along the band's orientation (H=horizontal, V=vertical,
+// D=diagonal), scaled by one signaled quantized weight per band type.
+// Weights live in 1/16 units as int8 (effective multiplier weight/16);
+// weight 0 is the exact identity, so bit6 streams with zero weights code
+// byte-identically to plain lifting streams. One implementation serves the
+// analyzer trial, encode_band_generic, and decode_band_generic.
+
+// Central LL difference at (x,y) along band_type's orientation; borders fall
+// back to one-sided differences, and 0 where no difference exists.
+int32_t xband_gradient(const std::vector<uint16_t>& ll, uint32_t w, uint32_t h,
+                       uint32_t x, uint32_t y, uint8_t band_type);
+
+// floor(grad * weight / 16) with explicit floor semantics on negatives;
+// deterministic and identical on both coder sides. |grad| <= 65535 and
+// |weight| <= 128 keep the product far inside int32 range.
+int32_t xband_apply(int32_t grad, int8_t weight);
+
 } // namespace prism::codec

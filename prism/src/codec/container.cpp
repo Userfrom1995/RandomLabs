@@ -22,6 +22,11 @@ std::vector<uint8_t> container_encode(const Raster& /*raster*/, const Container&
     out.push_back(c.hdr.effort);
     for (uint8_t v : c.hdr.cfl_scales) out.push_back(v);
     for (uint8_t v : c.hdr.squeeze_levels) out.push_back(v);
+    // C5: cross-band weights, three int8 per squeezing plane iff bit6.
+    if (c.hdr.flags & XBAND_FLAG) {
+        for (int8_t wq : c.hdr.xband_weights)
+            out.push_back((uint8_t)wq);
+    }
     // model_len placeholder
     size_t model_len_pos = out.size();
     write_u32_le_vec(out, 0);
@@ -101,6 +106,16 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
     for (size_t i=0;i<num_chroma;++i) cfl_scales.push_back(data[pos++]);
     std::vector<uint8_t> sq;
     for (size_t i=0;i<nc;++i) sq.push_back(data[pos++]);
+    // C5: cross-band weights ride between squeeze_levels and model_len when
+    // bit6 is set; the count is implied by the squeeze levels.
+    std::vector<int8_t> xw;
+    if (flags & XBAND_FLAG) {
+        size_t nsq = 0;
+        for (uint8_t v : sq) if (v > 0) ++nsq;
+        size_t need = 3 * nsq;
+        if (pos + need > len) throw DecodeError("header truncated (xband weights)");
+        for (size_t i = 0; i < need; ++i) xw.push_back((int8_t)data[pos++]);
+    }
     uint32_t model_len = read_u32_le_bytes(data+pos); pos+=4;
     if (pos + model_len > len) throw DecodeError("model truncated");
     // Model blob
@@ -138,6 +153,7 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
     c.hdr.width = w; c.hdr.height = h; c.hdr.bit_depth = bd; c.hdr.num_channels = nc;
     c.hdr.color_transform_id = ct; c.hdr.flags = flags; c.hdr.effort = effort;
     c.hdr.cfl_scales = cfl_scales; c.hdr.squeeze_levels = sq; c.hdr.model_len = model_len;
+    c.hdr.xband_weights = xw;
     c.trees = trees;
     c.predictor_mode = predictor_mode;
     c.global_pred_id = global_pred;
