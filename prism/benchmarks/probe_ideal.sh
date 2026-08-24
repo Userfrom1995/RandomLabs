@@ -34,7 +34,7 @@ set -euo pipefail
 #
 # Usage:
 #   probe_ideal.sh --image /path/kodim01.ppm --image /path/kodim13.ppm \
-#                  [--predictor LIST] [--blend LIST]
+#                  [--predictor LIST] [--blend LIST] [--mixer LIST]
 #   probe_ideal.sh --self-check
 #   probe_ideal.sh --image ... [--build-dir DIR]
 
@@ -43,6 +43,7 @@ BUILD_DIR=""
 SELF_CHECK=0
 PREDICTORS="med"
 BLENDS=""
+MIXERS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -50,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --build-dir) BUILD_DIR="$2"; shift 2;;
     --predictor) PREDICTORS="$2"; shift 2;;
     --blend) BLENDS="$2"; shift 2;;
+    --mixer) MIXERS="$2"; shift 2;;
     --self-check) SELF_CHECK=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
@@ -58,11 +60,22 @@ done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 evaluate() {
-  # evaluate RESULTS_CSV -> verdict lines; exits nonzero on gate failure.
-  python3 - "$1" <<'PY'
+  # evaluate IDEAL_CSV [MIXER_CSV] -> verdict lines; exits nonzero on gate
+  # failure. The two row families carry different headers, so they are
+  # parsed from their own files (or skipped entirely).
+  python3 - "$1" "${2:-}" <<'PY'
 import csv, sys
 
-rows = [r for r in csv.DictReader(open(sys.argv[1])) if r.get("predictor")]
+lines = open(sys.argv[1]).read().splitlines()
+ideal_all = [l for l in lines if l.startswith("IDEAL,")]
+ideal_hdr = ideal_all[0].split(",")
+rows = [dict(zip(ideal_hdr, l.split(","))) for l in ideal_all[1:]]
+mixers = []
+if sys.argv[2] and sys.argv[2] != "":
+    mlines = open(sys.argv[2]).read().splitlines()
+    mix_all = [l for l in mlines if l.startswith("MIXER,")]
+    mix_hdr = mix_all[0].split(",")
+    mixers = [dict(zip(mix_hdr, l.split(","))) for l in mix_all[1:]]
 if not rows:
     print("IDEAL GATE FAIL (no rows)"); sys.exit(1)
 
@@ -120,7 +133,18 @@ if os.path.exists(ref_path):
     else:
         print("G-repro SKIP (no med total/reference pair)")
 else:
-    print("G-repro SKIP (reference CSV absent)")
+        print("G-repro SKIP (reference CSV absent)")
+
+# G-anchor: every MIXER row's replica must reproduce the measured v2 payload
+# within +-0.5 percent (spec 12.4). A violation means the sequential scorer
+# diverged from encode_residual_v2 and NO mixer number can be trusted.
+for r in mixers:
+    a = float(r["anchor_pct"])
+    if abs(a) > 0.5:
+        print(f"G-anchor FAIL ({r['image']}/{r['preset']}: anchor {a:+.4f}% > 0.5%)")
+        ok = False
+if mixers and ok:
+    print(f"G-anchor OK ({len(mixers)} mixer rows within +-0.5 percent of measured v2 bytes)")
 
 sys.exit(0 if ok else 1)
 PY
@@ -178,6 +202,27 @@ if [[ "$SELF_CHECK" == "1" ]]; then
   fi
   [[ "$ok" == "1" ]] && echo "SELF-CHECK PASS: ranking works both ways, gates pass and fail"
   [[ "$ok" == "1" ]] || exit 1
+  # D2 self-check: the sequential mixer scorer must rank adapted ABOVE
+  # frozen-neutral and ABOVE adversarial on both ramps (a scorer that cannot
+  # lose is worse than no scorer). Anchor gating is intentionally NOT applied
+  # on ramps: 96x96 inputs carry too few bins for byte-level comparison;
+  # the G-anchor gate covers every real-corpus row in evaluate().
+  "$BIN" bench-ideal "$TMP/cols_const.ppm" --mixer mix4,mix4-frozen,mix4-adversarial > "$TMP/mh.txt"
+  "$BIN" bench-ideal "$TMP/rows_const.ppm" --mixer mix4,mix4-frozen,mix4-adversarial > "$TMP/mv.txt"
+  for f in mh mv; do
+    # emit "<preset> <bits_sse> <anchor>" triples, then compare orderings
+    awk -F, '/^MIXER,/ {printf "%s %s %s\n", $3, $7, $10}' "$TMP/$f.txt" > "$TMP/$f.rows"
+    get() { awk -v p="$2" '$1==p {print $2; exit}' "$TMP/$1.rows"; }
+    a=$(get "$f" mix4); fr=$(get "$f" mix4-frozen); ad=$(get "$f" mix4-adversarial)
+    if [[ -z "$a" || -z "$fr" || -z "$ad" ]]; then
+      echo "SELF-CHECK FAIL ($f): missing mixer rows"; ok=0; continue
+    fi
+    python3 -c "import sys; sys.exit(0 if $a < $fr else 1)" || { echo "SELF-CHECK FAIL ($f): adapted mix must beat frozen"; ok=0; }
+    python3 -c "import sys; sys.exit(0 if $a < $ad else 1)" || { echo "SELF-CHECK FAIL ($f): adapted mix must beat adversarial"; ok=0; }
+    # Anchor gating is intentionally NOT applied here (see above).
+  done
+  [[ "$ok" == "1" ]] && echo "MIXER SELF-CHECK PASS: adapted beats frozen and adversarial on both ramps"
+  [[ "$ok" == "1" ]] || exit 1
   exit 0
 fi
 
@@ -204,16 +249,29 @@ done
 
 STAMP=$(date +%Y-%m-%d)
 OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe.csv"
+MIX_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-mixer-d2.csv"
 RAW_CSV="$(mktemp)"
+MIX_RAW="$(mktemp)"
+ALL_RAW="$(mktemp)"
 ARGS=()
 [[ -n "$PREDICTORS" ]] && ARGS+=(--predictor "$PREDICTORS")
 [[ -n "$BLENDS" ]] && ARGS+=(--blend "$BLENDS")
-"$BIN" bench-ideal "${IMAGES[@]}" "${ARGS[@]}" | grep -E '^IDEAL(,|TOTAL)' > "$RAW_CSV"
+[[ -n "$MIXERS" ]] && ARGS+=(--mixer "$MIXERS")
+"$BIN" bench-ideal "${IMAGES[@]}" "${ARGS[@]}" > "$ALL_RAW"
+grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$RAW_CSV"
+if [[ -n "$MIXERS" ]]; then
+  grep -E '^MIXER' "$ALL_RAW" > "$MIX_RAW"
+  cp "$MIX_RAW" "$MIX_CSV"
+fi
 cp "$RAW_CSV" "$OUT_CSV"
 echo "== ideal-bracket results (${OUT_CSV}) =="
 cat "$OUT_CSV"
+if [[ -n "$MIXERS" ]]; then
+  echo "== D2 mixer results (${MIX_CSV}) =="
+  cat "$MIX_CSV"
+fi
 
-if ! evaluate "$OUT_CSV"; then
+if ! evaluate "$OUT_CSV" "$MIX_CSV"; then
   echo "IDEAL GATE FAIL"
   exit 1
 fi
