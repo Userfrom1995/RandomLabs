@@ -112,8 +112,8 @@ command line; there is no interactive input.
 ## Source
 
 The project lives in
-[`aftershock/`](https://github.com/Userfrom1995/Random/tree/main/aftershock)
+[`aftershock/`](https://github.com/Userfrom1995/RandomLabs/tree/main/aftershock)
 with a
-[README](https://github.com/Userfrom1995/Random/blob/main/aftershock/README.md)
+[README](https://github.com/Userfrom1995/RandomLabs/blob/main/aftershock/README.md)
 and a full writeup in
-[`ideas/`](https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md).
+[`ideas/`](https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md).

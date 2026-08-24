@@ -71,7 +71,7 @@ first honest binary file format, which lives on disk and survives restarts.
 
 ## Key Files
 
-- `granite/go.mod` — module `github.com/Userfrom1995/Random/granite`, Go 1.24.
+- `granite/go.mod` — module `github.com/Userfrom1995/RandomLabs/granite`, Go 1.24.
 - `granite/cmd/granite/main.go` — the CLI (init/exec/explain/info/demo).
 - `granite/cmd/granite/demo.go` — the bookstore demo tour.
 - `granite/internal/sql/lexer.go`, `parser.go`, `ast.go`, `value.go`,

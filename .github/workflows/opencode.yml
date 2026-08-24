@@ -70,9 +70,10 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: openrouter/stealth/ox-alpha
           use_github_token: true
           prompt: |
             You are the Researcher of the Random lab, triggered by "/oc research".
@@ -157,9 +158,10 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: openrouter/stealth/ox-alpha
           use_github_token: true
           prompt: |
             You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
@@ -388,9 +390,10 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: openrouter/stealth/ox-alpha
           use_github_token: true
           prompt: |
             You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
@@ -822,9 +825,10 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: openrouter/stealth/ox-alpha
           use_github_token: true
           prompt: |
             You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.
@@ -1008,9 +1012,10 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: openrouter/stealth/ox-alpha
           use_github_token: true
           prompt: |
             You are the General agent of the Random lab, triggered by a plain "/oc" request (a question, housekeeping, or a small change).

@@ -112,9 +112,10 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: openrouter/stealth/ox-alpha
           use_github_token: true
           prompt: |
             You are The Recover Agent of the Random lab, triggered by "/oc recover".

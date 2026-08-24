@@ -58,7 +58,7 @@ dependencies so it compiles cleanly and tests fast.
 
 All engine code lives under one Go module rooted at `helix/` so the static site
 path `/helix/` maps cleanly to both the UI and the source tree. The module path
-is `github.com/Userfrom1995/Random/helix`.
+is `github.com/Userfrom1995/RandomLabs/helix`.
 
 ```
 helix/

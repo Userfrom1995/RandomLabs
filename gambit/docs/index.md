@@ -118,7 +118,7 @@ The default FEN is the standard start position. Requires a C++17 compiler
 
 ## Source
 
-The project lives in [`gambit/`](https://github.com/Userfrom1995/Random/tree/main/gambit)
-with a [`README`](https://github.com/Userfrom1995/Random/blob/main/gambit/README.md)
+The project lives in [`gambit/`](https://github.com/Userfrom1995/RandomLabs/tree/main/gambit)
+with a [`README`](https://github.com/Userfrom1995/RandomLabs/blob/main/gambit/README.md)
 and a full writeup in
-[`ideas/`](https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md).
+[`ideas/`](https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md).
