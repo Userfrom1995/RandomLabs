@@ -109,7 +109,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: openrouter/stealth/ox-alpha
+          model: opencode/muse-spark-1.2-contributor-free
           use_github_token: true
           prompt: |
             You are the lab Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.

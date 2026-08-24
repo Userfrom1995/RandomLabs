@@ -52,7 +52,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: openrouter/stealth/ox-alpha
+          model: opencode/muse-spark-1.2-contributor-free
           use_github_token: true
           prompt: |
             You are the Tester of the Random lab, triggered by "/oc test" on the open PR in this checkout.
