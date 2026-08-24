@@ -67,6 +67,17 @@ granularity), checks the committed reference row, and self-checks that its
 ranking works in both directions. Every offline go/no-go for the remaining
 D-phases must cite numbers this command reproduces.
 
+The `--color LIST` extension (spec addendum 13) scores the D4c reversible
+color-rotation family - six YCoCg-butterfly role assignments plus the
+JPEG-LS/CALIC `loco` mode - as `med@<mode>` rows against the shipped
+baseline, with `med@ycocgr` anchor rows proving id 0 byte-equivalence and
+CR-fmt verdicts gating format eligibility. Five candidates PASSED and were
+ADOPTED as container ids 7..11 behind a two-stage never-expand trial: the
+legacy color winner is re-trialed at the end of analyze() under its own
+decided predictor, and a rotation displaces it only on a strict production-
+flat win (22 wins / 2 ties / 0 regressions corpus-wide; e1 = 10.1210 summed
+/ 3.3737 per-sample bpp, -1.65 percent bytes vs pre-D4c).
+
 The `--mixer LIST` extension (spec addendum 12) replays the exact
 production bin sequence and scores K=4 adaptive dual-rate estimators -
 production hierarchical, class-pooled, activity-keyed, qg-sum-keyed - mixed

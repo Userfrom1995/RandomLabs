@@ -3,24 +3,33 @@
 - **Issue:** #130 (owner directive 2026-08-23; lab-wide freeze until M2 AND M3
   genuinely pass dual-unit gates)
 - **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
-- **Status:** in_progress. Builder phases COMPLETE through the D3 checkpoint:
-  C0+C1 landed (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/C5
-  honestly rejected by measurement (never-expand held, zero regressions).
+- **Status:** in_progress. Builder phases COMPLETE through the full D4
+  stretch: C0+C1 landed (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/
+  C5 honestly rejected by measurement (never-expand held, zero regressions).
   Research DONE (D1 gate fix + D2 gap analysis F1-F4). Architect re-scope
   DELIVERED 2026-08-24: `prism/docs/architecture-jxl-parity-rescope.md`
-  (D-series, supersedes C6). D0 COMPLETE (harness committed; recorded A2
-  oracle aggregates NONREPRODUCIBLE, replaced by harness-citable brackets -
-  decision record 2026-08-24T09-30-00). D1 OFFLINE REJECTED (+0.25 pct worse
-  best case, mixed sign): no format work spent. D2 OFFLINE REJECTED (-0.90
-  pct aggregate vs >= 3 pct gate; SSE harmful everywhere): no format work
-  spent. D3 CHECKPOINT COMPLETE (2026-08-24): fresh dual-unit evaluation at
-  e1/e3/e7 after re-deriving the corpus from upstream lossless PNGs with all
-  24 sha256 pins verified pre-measurement - outputs BYTE-IDENTICAL to the
-  committed CSVs at every effort (the whole D-series provably never touched a
-  format byte), M2 and M3 honestly FAIL in both units everywhere, all three
-  gate rails' self-checks PASS. The pipeline now sits at the review boundary;
-  the OWNER DECISION POINT (re-scope section 1: D4 stretch vs honest closure)
-  stays open for owner/Mae alongside review round 2.
+  (D-series, supersedes C6). D0 COMPLETE (harness; recorded A2 oracle
+  aggregates NONREPRODUCIBLE, replaced by harness-citable brackets).
+  D1 OFFLINE REJECTED (+0.25 pct worse best case, mixed sign). D2 OFFLINE
+  REJECTED (-0.90 pct aggregate vs >= 3 pct gate). D3 CHECKPOINT COMPLETE
+  (byte-identical outputs, M2/M3 FAIL both units, review boundary).
+  D4a zero-run REJECTED (+0.28 pct aggregate). D4b extended mixer bank
+  REJECTED (-0.69 vs -0.90 D2-best). **D4c reversible color rotations:
+  ADOPTED 2026-08-24** - the first stretch lever to clear its pre-registered
+  gate (CR-fmt PASS: loco -4.36 pct aggregate v2 on the probe set;
+  independent cross-check confirmed direction 4/4). Wired as container ids
+  7..11 behind a two-stage never-expand trial after the single-list design
+  measurably regressed kodim18 +0.25 pct (metric could not see the anchor's
+  CFL/predictor advantages); final design adopts on strict production-flat
+  wins only: 22 wins / 2 ties / ZERO regressions at e1/e3/e7.
+  Squeeze-under-mixer re-test: condition NOT met (no adopted mixer), door
+  shut with reasoning recorded. FRESH CORPUS TRUTH (2026-08-24): e1 =
+  10.1210 summed / 3.3737 per-sample bpp (-1.65 pct bytes vs pre-D4c),
+  e3 = e7 = 10.1350 / 3.3783 (-1.47). M2 and M3 honestly FAIL in both units
+  everywhere; the D-series is EXHAUSTED with every lever adopted-and-measured
+  or rejected-by-measurement. The OWNER DECISION POINT (re-scope section 1:
+  MANIAC-grade machinery vs honest closure of #130) is now the only open
+  path; no further build phases are charted without new owner/Mae direction.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -204,36 +213,52 @@ percent) are independently re-measurable today via
       subtract value, and every second SSE stage remains harmful (+28 to
       +37 pct). Gate >= 3 pct FAILS by 4.3x; STOP rule fired; zero format
       bytes. Evidence: this run's MIXER rows (durable CSV next slice).
-- [ ] D4c reversible color rotations: offline validation still pending
-      (queued next slice).
+- [x] D4c reversible color rotations: ADOPTED (2026-08-24). Offline gate
+      CR-fmt PASSED for loco (-4.3582 pct aggregate v2 on kodim01/13/05/20,
+      all 24 corpus pins verified), rct-gbr/rct-rbg (-2.42), rct-grb/rct-brg
+      (-0.69); rct-bgr FAILed and is excluded. Independent cross-check
+      (separate implementation, different cost model) confirmed direction 4/4.
+      Wired as container ids 7..11 (zero signaling cost; unknown ids now a
+      hard decode error closing a latent silent-identity bug); rotations are
+      CFL-excluded like the YCoCg family. The single-list trial measurably
+      regressed kodim18 +0.25 pct (MED-flat metric blind to the anchor's
+      CFL/predictor advantages) - final design runs stage 2 at the END of
+      analyze() under the anchor's decided predictor vs its production-flat
+      cost, strict-win-only. Measured: 22 wins / 2 ties / ZERO regressions
+      at e1/e3/e7; e1 = 10.1210 summed / 3.3737 per-sample (-1.646 pct
+      bytes), e3 = e7 = 10.1350 / 3.3783 (-1.469). Decision record
+      2026-08-24T21-45-00-d4c-color-rotation-adoption.md.
+- [x] D4 item 4 (squeeze re-test under the mixer): condition NOT met - the
+      precondition was new collection evidence from an ADOPTED mixer and D2/
+      D4b rejected every mixer offline; recorded as a reasoned skip.
 - [x] OWNER DECISION POINT (re-scope section 1): RESOLVED by Mae's dispatch
       2026-08-24T19:39Z - continue into the D4 stretch knowing M3 likely
       stays open. Levers in flight: zero-run (DONE, rejected above),
       extended mixer bank (DONE, rejected above), reversible color rotations
-      (pending), squeeze re-test only with new D0 evidence.
-- [ ] D4 Stretch toward M3 only if the owner directs it after the decision
-      point: extended mixer bank, zero-run mode, reversible color rotations,
-      one honest squeeze re-test under the mixer. If M3 still fails after D4:
-      stop and surface the owner decision point stated in re-scope section 1.
-      No silent scope creep.
+      (DONE, ADOPTED above), squeeze re-test only with new D0 evidence
+      (condition not met, above).
+- [x] D4 Stretch COMPLETE (2026-08-24): all four levers closed by
+      measurement. M3 still fails after D4, so per the re-scope the final
+      both-units numbers are written here and the owner decision point named
+      in section 1 is SURFACED: parity stands ~16.9 percent away at e1
+      (10.1210 vs < 8.655 summed); the owner decides between MANIAC-grade
+      machinery (meta-adaptive tree over mixer weights, with our C2/C2b
+      negatives constraining expectations) or closing #130 honestly at the
+      achieved level (C-series + D4c = -9.1 pct bytes total from the 11.026
+      baseline). No silent scope creep.
 
 ## Current step
 
-D4 stretch under way (Mae dispatch 2026-08-24T19:39Z). Branch REBUILT onto
-current main first (item 0: server-side main rewrite severed shared history;
-PR was CONFLICTING; 55 project commits replayed, force-pushed, PR MERGEABLE).
-D4a ZERO-RUN OFFLINE REJECTED (+0.28 pct aggregate, 4/4 images worse, static
-ceiling only -0.24 pct; see D-series checklist). D4a zero-run
-REJECTED (+0.28 pct aggregate, 4/4 images worse, static ceiling only -0.24
-pct). D4b extended mixer bank REJECTED (-0.69 pct aggregate vs D2-best
--0.90; second SSE stages harmful +28..+37 pct; gate >= 3 pct fails by 4.3x).
-Remaining queue: D4c reversible color rotations offline. Each behind its own I7
-harness gate BEFORE any format work; squeeze re-test only with new D0
-evidence. If a lever fails its gate: STOP, record, move on. If M3 still
-fails after D4: stop and surface the owner decision point stated in
-re-scope section 1. No silent scope creep. Corpus truth unchanged:
-e1 = 10.2904 summed / 3.4301 per-sample bpp; e3 = e7 = 10.2861 / 3.4287;
-M2/M3 FAIL honestly in both units; no parity claim.
+D4 stretch COMPLETE (2026-08-24): D4a zero-run REJECTED (+0.28 pct), D4b
+extended mixer bank REJECTED (-0.69 vs -0.90), **D4c color rotations
+ADOPTED** (22 wins / 0 regressions, -1.65 pct bytes at e1), D4 item 4
+condition not met (no adopted mixer). Fresh corpus truth: e1 = 10.1210
+summed / 3.3737 per-sample bpp; e3 = e7 = 10.1350 / 3.3783. M2/M3 FAIL in
+both units; no parity claim. The re-scope's endgame clause fires: final
+numbers written, owner decision point SURFACED (MANIAC-grade machinery vs
+honest closure at the achieved gate level). No further build phases are
+charted without new owner/Mae direction; the branch goes to review with the
+complete D-series evidence chain.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -308,6 +333,30 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 14, D4c complete - D-series
+  closed): synced with origin/main first (unshallowed; merge-base re-verified
+  after a shallow-clone exit 1 artifact; ordinary merge of the two lab
+  commits). Spec addendum 13 written BEFORE any measurement: rotation family
+  (six butterfly role assignments + loco), scoring contract, gates
+  pre-registered. Library + rail landed: colorrot:: apply/invert with dense
+  stratified bijection tests, bench-ideal --color (med@<mode> rows,
+  med@ycocgr anchor rows), CR-anchor/CR-fmt evaluation, four-way COLOR
+  self-check; default rows byte-stable vs the committed reference.
+  OFFLINE VERDICT: CR-fmt PASS for five candidates (loco best at -4.36 pct
+  aggregate v2), bgr FAIL excluded; independent cross-check confirmed 4/4
+  directions. FORMAT ADOPTION: ids 7..11, CFL-excluded, unknown-id hard
+  error, plane_bd_max windows, force_color probe hook, end-to-end forced
+  round-trip + header-id tests. Two measured wiring iterations: single-list
+  trial regressed kodim18 +0.25 pct twice (metric defect, not finalist
+  structure) -> stage 2 moved to end of analyze() under the anchor's decided
+  predictor vs production-flat cost, strict-win-only. FINAL: 22 wins / 2 ties
+  / ZERO regressions at e1/e3/e7; e1 = 10.1210 summed / 3.3737 per-sample
+  (-1.65 pct bytes), e3 = e7 = 10.1350 / 3.3783 (-1.47); wall-clock e3
+  kodim01 8.16 s vs 6.14 s pre-C5 baseline (inside the 5x guard). 87/87
+  gtests, fuzz clean, all three rails' self-checks PASS, M2/M3 honestly FAIL
+  both units. D-series exhausted; owner decision point surfaced per the
+  re-scope endgame clause. Decision record 2026-08-24T21-45-00.
 
 - 2026-08-24 the Builder (continuation run 13, D4a complete): rebuilt the
   branch onto rewritten main (see item 0; PR MERGEABLE again). Then D4a

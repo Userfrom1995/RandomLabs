@@ -247,10 +247,29 @@ never-expand gate and D0-harness validation:
    RUN-style causal run test; expected 1-3 percent on top).
 3. Color decorrelation refinement: reversible per-image rotation candidates
    beyond YCoCg-R+CFL decided by trial bits (expected small, <= 1 percent).
+   - STATUS (2026-08-24, Builder D4c): ADOPTED - the first stretch lever to
+     clear its pre-registered offline gate. CR-fmt PASS for loco (-4.36 pct
+     aggregate v2 on the probe set) and four butterfly role variants; bgr
+     FAILed and is excluded. Independent cross-check confirmed direction 4/4.
+     Wired as container ids 7..11 (zero signaling cost, full-byte field),
+     CFL-excluded like the YCoCg family, unknown ids now a hard decode error.
+     The single-list trial regressed kodim18 +0.25 pct (the MED-flat metric
+     cannot see the anchor's CFL/predictor advantages); final design runs
+     stage 2 at the END of analyze() against the anchor's PRODUCTION flat
+     cost under its decided predictor, strict-win-only. Measured corpus:
+     22 wins / 2 ties / ZERO regressions at every effort; e1 = 10.1210
+     summed / 3.3737 per-sample bpp (-1.65 pct bytes), e3 = e7 = 10.1350 /
+     3.3783 (-1.47). M2/M3 still FAIL in both units. Decision record
+     2026-08-24T21-45-00-d4c-color-rotation-adoption.md.
 4. Only with new D0 evidence: revisit squeeze economics UNDER the mixer
    (all prior rejections were measured under plain-v2 collection; mixing
    changes band economics slightly - one honest re-test, then the door stays
    shut).
+   - STATUS (2026-08-24, Builder D4): condition NOT met, door shut. The
+     precondition was new collection evidence from an ADOPTED mixer; D2 and
+     D4b rejected every mixer configuration offline (-0.90 pct best vs the
+     3 pct gate), so no operative configuration exists under which band
+     economics could change. Recorded as a reasoned skip, not a silent one.
 
 If D4 exhausts and M3 still fails: stop, write the final both-units number
 into the tracker, and surface the owner decision point named in section 1.

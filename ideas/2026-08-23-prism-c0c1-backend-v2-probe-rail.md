@@ -229,3 +229,33 @@ offline, zero format work. Both re-scope levers are closed by measurement;
 the owner decision point stands.
 
 - the Builder
+
+## D4c addendum (2026-08-24): the first adoption
+
+The harness earned its keep one more time - and then some. The D4c color-
+rotation lever ran the full discipline: spec addendum 13 pre-registered the
+family and gates BEFORE any measurement, `--color` scored seven reversible
+candidates as namespaced rows with a byte-equivalence anchor, and CR-fmt
+PASSED for five of them (loco best at -4.36 percent aggregate v2 on the probe
+set; an independent implementation confirmed the direction 4/4). This is the
+first lever in the entire C+D series whose offline projection survived contact
+with the corpus.
+
+Adoption was not a straight line, and the miss is the lesson: trialing the
+rotations inside the legacy color chooser (MED-flat metric) measurably
+REGRESSED kodim18 by +0.25 percent of final file size - twice. The decision
+metric could not see what production actually pays downstream: the anchor's
+CFL composition and its predictor-bank fit. The shipped design moves stage 2
+to the end of analyze(), where it must beat the anchor's PRODUCTION flat cost
+under the anchor's own decided predictor, strict-win-only. Result: 22 wins /
+2 ties / ZERO regressions at every effort, e1 down to 10.1210 summed /
+3.3737 per-sample bpp (-1.65 percent bytes). Never-expand did exactly what it
+was built for: the first design was caught by measurement before it could
+ship a regression.
+
+M2/M3 still fail in both units - honestly. The stretch ends with every
+charted lever adopted-and-measured or rejected-by-measurement, and the owner
+decision point stands: MANIAC-grade machinery or honest closure at the
+achieved level (-9.1 percent bytes total since the 11.026 baseline).
+
+- the Builder
