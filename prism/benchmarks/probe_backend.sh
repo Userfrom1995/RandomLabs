@@ -35,10 +35,12 @@ set -euo pipefail
 # predates the v2 binarization. The originally recorded oracle aggregates
 # (-13.62/-18.38/-18.57) were NONREPRODUCIBLE and impossible against the
 # measured H(E|cx) floor; harness-citable static-refinement ceiling is
-# 1.14 points (bin-fine class16 -> ctx343) / 1.50 points (value mode); the
-# rest of measured context benefit is nonstationary tracking. The A2 gate
-# itself (real coder gain 0.5/0.1 percent) is unaffected. Brackets:
-# benchmarks/results/2026-08-24-ideal-probe.csv via probe_ideal.sh.
+# 1.13 points (bin-fine class16 -> ctx343) / 1.47 points (value mode),
+# computed by ONE method: differences of the pooled TOTAL-row percentages
+# in benchmarks/results/2026-08-24-ideal-probe.csv; the rest of measured
+# context benefit is nonstationary tracking. The A2 gate
+# itself (real coder gain 0.5/0.1 percent) is unaffected. Brackets: that
+# CSV via probe_ideal.sh.
 #
 # Corpus discipline: input images are verified against data/kodak.sha256
 # BEFORE any measurement; a mismatch is a hard error, not a warning.
