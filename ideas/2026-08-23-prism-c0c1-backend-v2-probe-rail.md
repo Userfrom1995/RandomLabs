@@ -126,6 +126,23 @@ Wall-clock 3.74x at e1, inside the 5x guard. Pre-C3 CSVs archived as
 `*-pre-c3.csv`; unit tests assert the never-lose-to-identity property
 directly (`tests/unit/test_analyze.cpp`).
 
+## C4 addendum (2026-08-24): true CDC lifting, measured rejection
+
+C4 replaced the Stage-S decimation transform with true CDC lifting
+(integer horizontal-then-vertical passes, `floor((a+b)/2)` averaging,
+recursed on the average quadrant) behind container bit5, and moved
+per-plane squeeze levels to real coded bytes: `trial_squeeze_bits` mirrors
+production's plain v2 band emission byte-for-byte under a single-leaf tree.
+Measured on the pinned corpus: lifting loses its trial on every plane of
+every image, so e1 stays 10.2904/3.4301 (24/24 ties), e3/e7 stay
+10.2861/3.4287 - zero regressions by construction (never-expand). With F2's
+ideal-level result, C2, and C2b this closes every static spatial-transform
+direction tried so far; parity now rides on C5 cross-band prediction. The
+`force_squeeze_levels` probe hook pins squeeze plans deterministically for
+tests and future A-B work. Bijection suite: odd dims 1..65, deep even-dim
+chains, one-level inverse exactness; it caught a genuine merge bug (signed
+quadrant read without int16 reinterpretation) before it could ship.
+
 ## Notes
 
 - Probe calibration: probe v0 reproduces the real legacy file size for

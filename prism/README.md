@@ -41,6 +41,12 @@ payload-only. Feed it through `benchmarks/probe_backend.sh`, which verifies
 SHA256 pins first, writes a durable CSV, and enforces the A1/A2 acceptance
 gates with a self-check.
 
+Since C4, squeezed planes use true CDC lifting (integer H-then-V passes
+recursed on averages) behind container flag bit5; legacy decimation streams
+remain decodable. Per-plane squeeze levels are chosen by real coded bytes of
+the exact band payloads production would emit, and `EncodeOpts::force_squeeze_levels`
+provides a deterministic probe override (size must equal the channel count).
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
