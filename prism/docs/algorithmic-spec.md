@@ -384,10 +384,16 @@ weights w_k: int32 fixed-point 16.16; init 16384 (sum of K = 1.0);
              clamp range [-131072, 786432] (-2x .. +12x) after every update
 forward:     dot   = sum_k w_k * st_k            (int64)
              s_mix = clamp(dot >> 16, -2047, 2047)   (arithmetic shift)
-train:       target = bit ? -2047 : +2047        // P(0) convention
-             err    = target - s_mix
-             w_k   += (int32)((err * st_k << lr_shift) >> 20)
-             (int64 product; arithmetic shift; lr_shift default 6)
+train:       p12_mix = squash(s_mix)
+             err    = bit ? -p12_mix : (4095 - p12_mix)   // P-domain
+             w_k   += (int32)((err * st_k) >> (20 - lr_shift))
+             (logistic-loss gradient in PROBABILITY units, lpaq-style:
+             a correct prediction contributes near-zero error, which keeps
+             the common-mode weight sum near its init scale; training against
+             stretch-unit targets instead amplifies probabilities and was
+             measured diverging - kodim01 plane 0 +137.9 percent - and is
+             therefore prohibited by this contract. int64 product;
+             arithmetic shift; lr_shift default 6)
 ```
 
 ### 12.3 SSE stage (one interpolated APM)
