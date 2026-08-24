@@ -33,7 +33,7 @@ prism fuzz [--iters N]
 prism info <file.prism>
 prism probe-backend <image.ppm> [--variants v0,v1,v1shared,v2,v2shared]
 prism probe-xband <image.ppm>
-prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST]
+prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST] [--mixer LIST]
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -66,6 +66,16 @@ CSV, enforces the ML-ordering gate (shared >= class16 >= ctx343 per
 granularity), checks the committed reference row, and self-checks that its
 ranking works in both directions. Every offline go/no-go for the remaining
 D-phases must cite numbers this command reproduces.
+
+The `--mixer LIST` extension (spec addendum 12) replays the exact
+production bin sequence and scores K=4 adaptive dual-rate estimators -
+production hierarchical, class-pooled, activity-keyed, qg-sum-keyed - mixed
+by bounded integer logistic weights with optional SSE stages. Every MIXER
+row carries an anchor: its baseline bits must reproduce the measured v2
+payload bytes within +-0.5 percent or no mixer number is trustworthy. The
+rail gates that anchor on every row. D2's measured verdict: best candidate
+-0.90 percent aggregate against a >= 3 percent gate; rejected offline with
+zero format work (see `benchmarks/results/2026-08-24-ideal-mixer-d2.csv`).
 
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,

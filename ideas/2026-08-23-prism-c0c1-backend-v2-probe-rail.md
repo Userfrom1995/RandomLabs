@@ -198,3 +198,26 @@ at e1, 10.2861/3.4287 at e3/e7); M2/M3 remain open under the owner freeze, no
 parity claim. Together with F2/C2/C2b/C4 this closes every static
 spatial-transform direction by measurement; the next parity lever gets
 re-derived with the Architect rather than assumed.
+
+## D2 addendum (2026-08-24): the mixer rail and the unreachable headroom
+
+The harness grew a sequential scorer (`--mixer`): it replays the exact
+production bin sequence and costs every bin under K=4 adaptive dual-rate
+estimators - the production hierarchical estimate, class-pooled,
+activity-keyed, and qg-sum-keyed models - mixed by bounded integer logistic
+weights with optional SSE stages. Every row is anchored: baseline bits must
+reproduce measured v2 bytes within 0.5 percent, so no number is trusted
+without replica proof.
+
+Verdict, measured honestly on four pinned images: best candidate -0.90
+percent aggregate against a >= 3 percent gate. The SSE stage hurt in every
+keying and rate; per-class weight sets and probability-domain training were
+required to make mixing work at all (both pinned in spec addendum 12 after
+stretch-unit training measured +137.9 percent divergence). The deeper find:
+the ~7-point "collection headroom" between real v2 and the conditional ideal
+is a static ML fit computed with future information - causal estimators
+cannot reach it, measuring out an order of magnitude lower. D2 rejected
+offline, zero format work. Both re-scope levers are closed by measurement;
+the owner decision point stands.
+
+- the Builder
