@@ -18,6 +18,11 @@ static constexpr uint8_t PRISM_CONTAINER_VERSION = 1;
 struct EncodeOpts {
     uint8_t effort = 0; // 0..7
     bool use_ycocg = true; // if true, consider YCoCg-R transform
+    // C4 probe hook: when non-empty, overrides the analyzer's per-plane
+    // squeeze levels (size must equal the channel count; each level is
+    // clamped to max_squeeze_levels). Deterministic A-B for benchmarks/tests;
+    // production keeps it empty so trials decide.
+    std::vector<uint8_t> force_squeeze_levels;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.
