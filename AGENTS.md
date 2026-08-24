@@ -76,6 +76,11 @@ Lab Engineer / Infra Track:                                                   â–
     run MUST finish with a commit + push + PR. The workflow verifies the push
     and auto-re-triggers the build up to 3 times (posting
     `/oc build this (auto-retry N)` as the owner) if nothing was pushed.
+    Push verification is server-side (issue #135): the baseline and verify
+    steps resolve the target branch via the GitHub API and compare that same
+    branch's remote tips; local checkout state is never trusted, so an agent
+    session that dies right after checking out the PR branch cannot masquerade
+    as a successful push.
   - `/oc continue` â†’ BUILD mode in resume state: fetch the existing
     branch/PR, continue from its `progress/` file - never restart, never redo
     done work; same push verification and retries.
