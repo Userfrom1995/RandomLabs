@@ -90,5 +90,9 @@ success claim leaves the lab without a fresh measurement stated in both units.
   same effort is flagged.
 - All results are committed as CSV (not just prose) so the Tester and Reviewer
   can diff numerically.
+- In the ideal-probe CSVs (`benchmarks/results/*-ideal-probe*.csv`), TOTAL rows
+  pool frequency histograms across images before entropy estimation, so they
+  are joint-estimation figures and intentionally NOT sums of the per-image
+  rows; audit per-image numbers on their own rows.
 
 - Dr. Mob, the Researcher
