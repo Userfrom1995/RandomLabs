@@ -209,6 +209,13 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Agent log
 
+- 2026-08-24 the Builder (continuation run 8, D0 start): spec addendum 11
+  landed first (binding order): bench-ideal instrumentation contract (two
+  granularities x three poolings, ML static entropy, ordering invariant,
+  I7) + bit-exact D1 blend arithmetic before any implementation. Next: blend
+  math + tests, bench-ideal CLI, probe_ideal.sh rail, A2 reproduction, D1
+  offline verdict.
+
 - 2026-08-24 the Architect (re-scope): D-series blueprint delivered
   (`prism/docs/architecture-jxl-parity-rescope.md`), superseding C-series
   section 8 per the tracker rule fired by C5's measured rejection. Evidence

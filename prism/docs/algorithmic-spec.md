@@ -259,6 +259,74 @@ conflicts with text above, this addendum wins.
 - **Gates:** M2 = summed < 9.498 AND per-sample < 3.166; M3 = summed < 8.655
   AND per-sample < 2.885 (both units enforced by `bench_gate.sh --self-check`).
 
-- Dr. Mob, the Researcher
+## 11. Addendum 2026-08-24: D-series instrumentation and prediction contracts
 
-- Dr. Mob, the Researcher
+Amendments from the Architect re-scope (`architecture-jxl-parity-rescope.md`).
+Where this addendum conflicts with text above, this addendum wins.
+
+### 11.1 bench-ideal instrumentation contract (D0, invariant I7)
+
+`prism bench-ideal <image>... [--predictor LIST] [--blend LIST]` is the
+committed offline harness. It dumps the production residual streams (YCoCg-R
+planes, the chosen predictor, resdiff-343 causal contexts computed from the
+residual history exactly as `acoder_encode_plane_v2` does) and reports:
+
+- `v0_bytes`: legacy backend payload on the same streams
+  (`acoder_encode_plane`, 343 contexts). All percentages are stated against
+  this baseline, matching research F3/F4 convention.
+- `v2_bytes`: backend v2 payload (`acoder_encode_plane_v2`, 343 contexts).
+- Static-entropy brackets under the v2 binarization sequence (zero flag, sign
+  where nonzero, unary quotient, MSB-first remainder), at TWO model
+  granularities:
+  - **coarse**: four bin kinds (zero, sign, q, rem) crossed with the pooling
+    level - this mirrors the real coder's model structure exactly.
+  - **fine**: quotient bins additionally conditioned on the unary depth k at
+    which they occur; remainder bits conditioned on (magnitude level L,
+    position from MSB). Zero/sign bins are unchanged. Finer conditioning can
+    only reduce total length.
+  and THREE pooling levels: shared (one pool over everything), class16
+  (`ac_v2_prior_class`), ctx343 (exact residual-DIFF id).
+
+Code lengths are maximum-likelihood static entropy: probabilities are the
+empirical bin frequencies of the measured stream itself, and each observed bin
+contributes `-log2(observed frequency)`. Because ML fitting on the same data
+is monotone under partition refinement, `shared >= class16 >= ctx343` must
+hold per granularity; the harness evaluator enforces this ordering as an
+internal consistency gate (a violation is a harness bug or fabricated data).
+
+**Invariant I7**: every offline go/no-go projection used by a D-phase decision
+must be reproducible by this committed harness on the pinned corpus. Ephemeral
+numbers are not evidence.
+
+### 11.2 Stage P amendment: adaptive blended prediction (D1 candidate)
+
+Per-sample integer blend over K=4 causal bases, fully decoder-computable, zero
+signaling. Borders follow Stage P conventions (missing neighbor = 0):
+
+```
+bases (plane-value domain): b0 = L, b1 = T, b2 = TL, b3 = L + T - TL
+weights w0..w3: int32 fixed-point, unit = 1/65536
+init w_k = 16384 (quarter of full scale); clamp range [0, 131072]
+prediction: dot = sum_k w_k * b_k        (int64)
+            pred = (dot + 32768) >> 16   (round-half-up)
+error:      err = sample - pred          (int32)
+normalizer: E   = sum_k b_k * b_k        (int64); den = (E >> 20) + 1
+update:     step = (err << 7) / den      (int64 division truncates toward 0)
+            w_k += (step * b_k) >> 16    (int64 product, truncates toward 0)
+            clamp w_k to [0, 131072] after each update
+residual:   e = sample - pred feeds the unchanged Stage E/X pipeline
+```
+
+All arithmetic is mirrored exactly on the decode side; the weight state is
+pure function of the decoded history (I2-safe, zero side channel). Complexity
+is O(1) per sample (about four 64-bit products plus one division); worst-case
+intermediates fit int64 (|w| <= 2^17, |b| <= 2^16, |dot| <= 2^35). The
+identity path (this predictor NOT selected) is byte-exact legacy behavior via
+the usual never-expand trial; a disabled blend never touches any byte.
+
+Offline gate before ANY container/format work (re-scope section D1): the
+committed bench-ideal harness must project >= ~2 percent payload reduction vs
+MED on kodim01/kodim13 and confirm the direction on unseen kodim05/kodim20.
+Below that bar the mechanism is rejected-and-recorded like C2/C4/C5.
+
+- the Builder
