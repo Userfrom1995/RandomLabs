@@ -458,4 +458,88 @@ negative recorded, owner decision point surfaced (re-scope section 1).
 Self-check additions: adapted must beat frozen AND adversarial on synthetic
 ramps, and every MIXER row's anchor must hold within +-0.5 percent.
 
+## 13. Addendum 2026-08-24: D4c reversible color rotation contracts
+
+Lever (re-scope section D4 item 3): per-image color decorrelation beyond the
+shipped YCoCg-R family, decided by trial bits IF AND ONLY IF offline evidence
+clears the pre-registered gate below. This addendum is written BEFORE any
+measurement (binding order, I7): the gate is fixed now, not after seeing
+numbers. Expectation stated by the Architect: small, <= 1 percent.
+
+### 13.1 Rotation family (integer-exact, decoder-computable)
+
+All candidates operate on BD8 RGB rasters with channels in [0,255] and store
+u16 planes using the same bias/mask discipline as shipped YCoCg-R
+(bias 512 for signed chroma-like planes; plane 0 needs no bias, see range
+proof). Candidates are identified by the ordered roles (a, b, c) fed to the
+YCoCg-R butterfly:
+
+    Co = a - c
+    t  = c + (Co >> 1)        // arithmetic shift, floor semantics
+    Cg = b - t
+    Y  = t + (Cg >> 1)
+    stored planes: (Y, Cg + 512, Co + 512)
+
+Range containment for ANY role assignment of [0,255] channels: t is
+floor((a+c)/2) up to +-1 rounding, so t in [0,255]; Cg = b - t in [-255,255];
+Y = t + ((b - t) >> 1) lies between b and t inclusive, so Y in [0,255]
+(bias-free storage is exact); Co in [-255,255]. The inverse is the shipped
+YCoCg-R inverse with roles read back in the same order. Candidate ids:
+
+| id | name    | (a, b, c) | note |
+|----|---------|-----------|------|
+| 0  | ycocgr  | (R, G, B) | shipped transform; anchor equivalence required |
+| 1  | rct-grb | (G, R, B) | |
+| 2  | rct-gbr | (G, B, R) | |
+| 3  | rct-rbg | (R, B, G) | |
+| 4  | rct-brg | (B, R, G) | |
+| 5  | rct-bgr | (B, G, R) | |
+| 6  | loco    | special   | JPEG-LS/CALIC family, see below |
+
+loco stores planes (G, U + 512, V + 512) with U = R - G and
+V = B - ((R + G) >> 1); inverse: G' = plane0, R' = G' + U,
+B' = V + ((R' + G') >> 1), exact under floor semantics.
+
+id 0 MUST be byte-equivalent to `apply_color(r, ColorTransform::YCoCgR)`
+(tested); the harness baseline stays that shipped call, not id 0's own path,
+so any drift breaks loudly. Plane permutations are NOT candidates: planes are
+coded independently, so a pure permutation costs identical bytes by
+construction - only genuine re-mixings qualify. CFL stays OUT of the A-B
+(production disables it whenever a YCoCg-family transform wins in analyze;
+comparing base transforms alone is the fair design).
+
+### 13.2 Offline scoring contract (harness wiring)
+
+`prism bench-ideal ... [--color LIST]`: each named color mode extends the
+IDEAL row family as predictor names `<pred>@<mode>` (base rows keep their
+legacy names, so existing CSVs and the G-repro anchor stay stable). For each
+(image, mode): transformed raster -> per-plane MED residual streams ->
+measured v0/v2 payload bytes (real coder output, additive across images) plus
+the static brackets at all three poolings. `--blend` and `--color` are
+mutually exclusive (error). MIXER/ZRUN passes always score the production
+YCoCg-R stream regardless of `--color`; no candidate mode feeds any format
+path in this phase.
+
+### 13.3 Pre-registered gates (fixed before measurement)
+
+Evaluated by probe_ideal.sh from IDEAL rows alone:
+
+- CR-rank (self-check, synthetic): constructed images must rank BOTH ways -
+  an image with variation confined to R (G = B = 0) must make loco beat
+  ycocgr on measured v2 bytes (G stays constant there, while every butterfly
+  plane moves), and the channel-swapped twin (variation confined to G,
+  R = B = 0) must make ycocgr beat loco (Co collapses to zero). A rail that
+  can only ever say "baseline wins" cannot be trusted to rank anything.
+- CR-anchor: id 0 rows must equal the shipped baseline rows byte-for-byte on
+  v0/v2 columns (drift means the family diverged from the shipped transform).
+- CR-fmt (FORMAT-WORK ELIGIBILITY, decision verdict like ZR-fmt - a
+  rejection is a legitimate outcome and must not flip the exit code):
+  aggregate v2 payload delta <= -0.5 percent vs the shipped baseline over the
+  probe image set AND no probe image above baseline (mixed sign never adopts,
+  per C2b precedent). Rationale for the bar: production adoption costs extra
+  trial encodes per image and possibly signal bits; the Architect's own
+  expectation ceiling is <= 1 percent, so a sub-0.5-percent aggregate cannot
+  carry its own cost. PASS only opens the door to container/trial wiring;
+  it is not an acceptance.
+
 - the Builder
