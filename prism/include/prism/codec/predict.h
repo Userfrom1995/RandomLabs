@@ -58,4 +58,36 @@ int32_t xband_gradient(const std::vector<uint16_t>& ll, uint32_t w, uint32_t h,
 // |weight| <= 128 keep the product far inside int32 range.
 int32_t xband_apply(int32_t grad, int8_t weight);
 
+// ----- D1 adaptive blended prediction (issue #130, re-scope section D1) -----
+// JXL-modular-style per-sample integer weight blending over four causal bases
+// (L, T, TL, L+T-TL). Weights adapt causally per sample from the prediction
+// error with an energy-normalized integer LMS update; the whole state is a
+// pure function of decoded history, so the decoder mirrors it exactly with
+// zero side channel. Arithmetic contract is pinned bit-exact in
+// docs/algorithmic-spec.md section 11.2; this code is that contract.
+
+struct BlendConfig {
+    int lr_shift = 5;       // weight increment = (err * b_k << lr_shift) / den
+    int energy_shift = 11;  // den = (E >> energy_shift) + 1; lr+energy = frac_bits
+    int frac_bits = 16;     // weight fixed-point unit = 1/65536 (mu = 1/32)
+    int init_w = 16384;     // per-weight init (quarter scale)
+    int w_min = 0;          // weight clamp range
+    int w_max = 131072;
+};
+
+// Residual plane under the adaptive blend: e = sample - blend_pred(sample),
+// where the blend state evolves causally exactly as the decoder will mirror
+// it. O(1) per sample, no allocation beyond the output vector.
+std::vector<int32_t> compute_residuals_blend(const std::vector<uint16_t>& plane,
+                                             uint32_t w, uint32_t h,
+                                             const BlendConfig& cfg);
+
+// Exact inverse walk: rebuilds the plane from blend residuals by replaying the
+// identical weight evolution. reconstruct(compute(plane)) == plane is a hard
+// property tested at BD8/BD16 extremes and all border shapes.
+std::vector<uint16_t> reconstruct_plane_blend(const std::vector<int32_t>& residuals,
+                                              uint32_t w, uint32_t h,
+                                              const BlendConfig& cfg,
+                                              uint16_t bd_max);
+
 } // namespace prism::codec

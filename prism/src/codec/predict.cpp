@@ -158,5 +158,103 @@ int32_t xband_apply(int32_t grad, int8_t weight) {
     return q;
 }
 
+// ----- D1 adaptive blended prediction (issue #130, re-scope section D1) -----
+//
+// One shared walk serves encode and decode so the two sides cannot drift:
+// neighbors always come from the RECONSTRUCTED history, which makes the
+// weight state decoder-mirrored by construction. Encode reads samples from
+// the source plane; decode rebuilds them from residuals - both then apply the
+// identical update with err = sample - pred. Arithmetic follows
+// algorithmic-spec.md 11.2 verbatim: floor semantics via arithmetic shifts,
+// truncating division for step.
+
+namespace {
+
+struct BlendState {
+    int64_t w[4];
+    explicit BlendState(const BlendConfig& c) {
+        for (int k = 0; k < 4; ++k) w[k] = c.init_w;
+    }
+};
+
+inline void blend_bases(const std::vector<uint16_t>& p, uint32_t w,
+                        size_t idx, uint32_t x, uint32_t y, int64_t b[4]) {
+    int32_t L = (x > 0) ? (int32_t)p[idx - 1] : 0;
+    int32_t T = (y > 0) ? (int32_t)p[idx - w] : 0;
+    int32_t TL = (x > 0 && y > 0) ? (int32_t)p[idx - w - 1] : 0;
+    b[0] = L;
+    b[1] = T;
+    b[2] = TL;
+    b[3] = (int64_t)L + T - TL;
+}
+
+inline int32_t blend_predict(const BlendConfig& cfg, const BlendState& st,
+                             const int64_t b[4]) {
+    int64_t dot = st.w[0] * b[0] + st.w[1] * b[1] + st.w[2] * b[2] + st.w[3] * b[3];
+    // floor((dot + 2^(frac-1)) / 2^frac); arithmetic shift is exact floor.
+    return (int32_t)((dot + ((int64_t)1 << (cfg.frac_bits - 1))) >> cfg.frac_bits);
+}
+
+inline void blend_update(const BlendConfig& cfg, BlendState& st,
+                         const int64_t b[4], int64_t err) {
+    // NLMS with effective step mu = 2^(lr_shift + energy_shift - frac_bits).
+    // The increment is (err*b_k << lr) / den - computed before any shift can
+    // truncate it to a no-op, which a two-stage step*b_k >> frac formulation
+    // would do for the small errors that dominate natural images.
+    int64_t E = b[0] * b[0] + b[1] * b[1] + b[2] * b[2] + b[3] * b[3];
+    int64_t den = (E >> cfg.energy_shift) + 1;
+    for (int k = 0; k < 4; ++k) {
+        st.w[k] += ((err * b[k]) << cfg.lr_shift) / den; // truncates toward zero
+        if (st.w[k] < cfg.w_min) st.w[k] = cfg.w_min;
+        if (st.w[k] > cfg.w_max) st.w[k] = cfg.w_max;
+    }
+}
+
+} // namespace
+
+std::vector<int32_t> compute_residuals_blend(const std::vector<uint16_t>& plane,
+                                             uint32_t w, uint32_t h,
+                                             const BlendConfig& cfg) {
+    std::vector<int32_t> res(plane.size());
+    BlendState st(cfg);
+    int64_t b[4];
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            blend_bases(plane, w, idx, x, y, b);
+            int32_t s = (int32_t)plane[idx];
+            int32_t pred = blend_predict(cfg, st, b);
+            res[idx] = s - pred;
+            blend_update(cfg, st, b, (int64_t)s - pred);
+        }
+    }
+    return res;
+}
+
+std::vector<uint16_t> reconstruct_plane_blend(const std::vector<int32_t>& residuals,
+                                              uint32_t w, uint32_t h,
+                                              const BlendConfig& cfg,
+                                              uint16_t bd_max) {
+    std::vector<uint16_t> plane(residuals.size());
+    BlendState st(cfg);
+    int64_t b[4];
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            blend_bases(plane, w, idx, x, y, b);
+            int32_t pred = blend_predict(cfg, st, b);
+            int64_t s = (int64_t)pred + residuals[idx];
+            // States mirror exactly, so pred+residual is the original sample
+            // and the clamp below never fires on valid streams; it bounds a
+            // corrupt stream's damage to the sample domain instead of UB.
+            if (s < 0) s = 0;
+            if (s > bd_max) s = bd_max;
+            plane[idx] = (uint16_t)s;
+            blend_update(cfg, st, b, (int64_t)(int32_t)s - pred);
+        }
+    }
+    return plane;
+}
+
 } // namespace prism::codec
 

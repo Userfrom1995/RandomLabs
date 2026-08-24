@@ -85,6 +85,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_analyze.cpp
         tests/unit/test_squeeze.cpp
         tests/unit/test_xband.cpp
+        tests/unit/test_blend.cpp
         tests/unit/test_container.cpp
         tests/unit/test_roundtrip.cpp
         tests/unit/test_fuzz_gate.cpp

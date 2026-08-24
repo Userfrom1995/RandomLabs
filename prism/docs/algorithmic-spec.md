@@ -306,14 +306,20 @@ signaling. Borders follow Stage P conventions (missing neighbor = 0):
 ```
 bases (plane-value domain): b0 = L, b1 = T, b2 = TL, b3 = L + T - TL
 weights w0..w3: int32 fixed-point, unit = 1/65536
-init w_k = 16384 (quarter of full scale); clamp range [0, 131072]
+init w_k = 16384 (quarter scale); clamp range [0, 131072]
 prediction: dot = sum_k w_k * b_k        (int64)
-            pred = (dot + 32768) >> 16   (round-half-up)
-error:      err = sample - pred          (int32)
-normalizer: E   = sum_k b_k * b_k        (int64); den = (E >> 20) + 1
-update:     step = (err << 7) / den      (int64 division truncates toward 0)
-            w_k += (step * b_k) >> 16    (int64 product, truncates toward 0)
+            pred = (dot + 32768) >> 16   (arithmetic shift = floor((dot+32768)/2^16))
+error:      err = sample - pred          (int64)
+normalizer: E   = sum_k b_k * b_k        (int64)
+update (NLMS, one division total):
+            den  = (E >> 11) + 1
+            w_k += (err * b_k << 5) / den   (int64 product shifted left 5,
+                                             division truncates toward zero)
             clamp w_k to [0, 131072] after each update
+The shift pair satisfies lr_shift(5) + energy_shift(11) = frac_bits(16), so
+the effective adaptation step is mu = 2^(5+11-16) = 1/32 of the exact NLMS
+solution - stable by the standard NLMS bound (mu < 2) and never a no-op: the
+increment is computed BEFORE any right-shift truncation can swallow it.
 residual:   e = sample - pred feeds the unchanged Stage E/X pipeline
 ```
 
