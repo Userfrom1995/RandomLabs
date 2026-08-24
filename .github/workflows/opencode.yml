@@ -339,15 +339,42 @@ jobs:
 
       - name: Capture build baseline
         id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          branch=$(git branch --show-current 2>/dev/null || echo "")
-          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
-            head_before=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+          issue="${{ github.event.issue.number }}"
+          # Resolve the build's target branch SERVER-SIDE (issue #135). The
+          # agent may fetch/checkout any branch mid-session (resume orientation
+          # does exactly that), so the later verify step must compare the SAME
+          # branch's remote tips against each other instead of trusting mutable
+          # local checkout state. This mirrors the proven FIX-job pattern.
+          is_pr="${{ github.event.issue.pull_request != null }}"
+          pr_branch=""
+          if [ "$is_pr" = "true" ]; then
+            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
           else
+            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+          fi
+          head_before=""
+          if [ -n "$pr_branch" ]; then
+            head_before=$(git ls-remote origin "refs/heads/$pr_branch" 2>/dev/null | cut -f1)
+          fi
+          if [ -z "$head_before" ]; then
+            # Fresh build with no remote branch yet: fall back to current HEAD (main).
             head_before=$(git rev-parse HEAD 2>/dev/null || echo "")
           fi
-          echo "head_before=$head_before" >> "$GITHUB_OUTPUT"
-          echo "Build baseline head: $head_before (branch: $branch)"
+          # Last known tip among ALL branches for this issue's naming pattern.
+          # Lets the verify step distinguish "agent pushed a NEW branch" from
+          # "agent merely checked out a stale branch left by an earlier round"
+          # (a stale branch's unchanged tip must NOT count as a push).
+          pattern_tip=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | sort | tail -1 | cut -f1)
+          {
+            echo "branch=$pr_branch"
+            echo "head_before=$head_before"
+            echo "pattern_tip=$pattern_tip"
+          } >> "$GITHUB_OUTPUT"
+          echo "Build baseline: branch='${pr_branch:-<none yet>}' head_before=$head_before pattern_tip=${pattern_tip:-<none>}"
 
       - name: Run opencode build agent
         id: opencode
@@ -410,20 +437,77 @@ jobs:
         id: verify
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+          PATTERN_TIP: ${{ steps.baseline.outputs.pattern_tip }}
         run: |
           issue="${{ github.event.issue.number }}"
-          branch=$(git branch --show-current 2>/dev/null || echo "")
-          
-          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
-            remote_sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
-            if [ -n "$remote_sha" ] && [ "$remote_sha" != "$BASELINE_HEAD" ]; then
-              echo "Build pushed successfully: branch $branch moved $BASELINE_HEAD -> $remote_sha"
-              exit 0
+
+          # Like-for-like push detection on server-resolved state (issue #135).
+          # NEVER trust `git branch --show-current` as the target: the agent is
+          # contractually allowed to checkout branches mid-session, and a
+          # session that dies right after checking out the PR branch must not
+          # read as "pushed" (the false positive that silenced two D3 retries).
+          pushed="no"
+          is_pr="${{ github.event.issue.pull_request != null }}"
+          target_branch=""
+          if [ "$is_pr" = "true" ]; then
+            target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          else
+            target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$target_branch" ]; then
+            tip_now=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
+            if [ -n "$BASELINE_BRANCH" ] && [ "$target_branch" = "$BASELINE_BRANCH" ]; then
+              # Same branch as baseline: a push happened iff its remote tip moved.
+              if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
+                pushed="yes"
+                echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now"
+              else
+                echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
+              fi
+            elif [ -n "$tip_now" ]; then
+              # A DIFFERENT branch now carries this issue's open PR (the agent
+              # created it mid-run): PR existence itself proves real pushes.
+              pushed="yes"
+              echo "Build pushed successfully: new branch $target_branch at $tip_now"
+            else
+              echo "Target branch $target_branch has no remote tip yet; no push detected"
+            fi
+          elif [ -z "$BASELINE_BRANCH" ]; then
+            # Fresh build from a plain issue with no open PR at either end:
+            # success means this issue's own branch pattern gained a new tip.
+            branch=$(git branch --show-current 2>/dev/null || echo "")
+            if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+              tip_now=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+              if [ -n "$tip_now" ] && [ "$tip_now" != "$PATTERN_TIP" ]; then
+                pushed="yes"
+                echo "Build pushed successfully: branch $branch at $tip_now (pattern tip was ${PATTERN_TIP:-<none>})"
+              fi
+            fi
+            if [ "$pushed" = "no" ]; then
+              echo "No push detected for issue #$issue (current branch: ${branch:-<none>})"
+            fi
+          else
+            echo "Baseline branch $BASELINE_BRANCH lost its open PR mid-run; comparing raw tips."
+            tip_now=$(git ls-remote origin "refs/heads/$BASELINE_BRANCH" 2>/dev/null | cut -f1)
+            if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
+              pushed="yes"
+              echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now"
+            else
+              echo "No push detected on $BASELINE_BRANCH (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
             fi
           fi
-          
-          echo "No push detected on current branch ($branch)"
+
+          if [ "$pushed" = "yes" ]; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+
+          echo "No push detected on current branch"
           # Robust retry counter: never fall back to 0 on an API/rate-limit
           # failure, which would make the cap never trip and loop forever. Only
           # count retries the API actually returned; on failure, stop retrying.
@@ -482,16 +566,13 @@ jobs:
         if: always() && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
         run: |
           issue="${{ github.event.issue.number }}"
-          branch=$(git branch --show-current 2>/dev/null || echo "")
+          # Consume the verify step's SERVER-SIDE verdict (issue #135); do not
+          # recompute from local checkout state, which the agent may have moved.
           advanced="no"
-          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
-            remote_sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
-            if [ -n "$remote_sha" ] && [ "$remote_sha" != "$BASELINE_HEAD" ]; then
-              advanced="yes"
-            fi
+          if [ "${{ steps.verify.outputs.pushed }}" = "true" ]; then
+            advanced="yes"
           fi
           has_decision="no"
           if [ -f /tmp/random-lab-decision.json ]; then
