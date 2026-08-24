@@ -143,7 +143,8 @@ TEST(AnalyzeTrial, ColorChoiceCorrelatedFindsStructure) {
 TEST(AnalyzeTrial, AnalyzerFieldsValidAndRoundTripHolds) {
     Raster r = make_raster(70, 66, Channels::RGB, 123, true);
     AnalyzeResult res = analyze(r, 2);
-    EXPECT_LE((int)res.color_transform_id, 6);
+    // Legal ids end at the D4c rotation family max (ROT_RBG = 11).
+    EXPECT_LE((int)res.color_transform_id, (int)ColorTransform::ROT_RBG);
     ASSERT_EQ(res.cfl_scales.size(), 2u);
     for (uint8_t s : res.cfl_scales) EXPECT_LE(s, 7);
     EXPECT_LE((int)res.global_pred_id, 8);

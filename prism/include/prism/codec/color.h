@@ -12,8 +12,23 @@ enum class ColorTransform : uint8_t {
     YCoCgR_SubGreen = 3,
     CFL = 4,
     CFL_Combined = 5,
-    Lift53 = 6
+    Lift53 = 6,
+    // D4c reversible rotation family (spec section 13; adopted offline via
+    // the pre-registered CR-fmt gate, decision record 2026-08-24T21-45-00).
+    // Full-byte header signaling: zero container cost. Like the YCoCg-R
+    // family, rotations never compose with CFL.
+    ROT_LOCO = 7,   // (G, R-G, B-((R+G)>>1))
+    ROT_GRB = 8,    // butterfly on (G, R, B)
+    ROT_GBR = 9,    // butterfly on (G, B, R)
+    ROT_BRG = 10,   // butterfly on (B, R, G)
+    ROT_RBG = 11    // butterfly on (R, B, G)
 };
+
+// True for the D4c rotation ids (7..11). These behave like the YCoCg family:
+// BD8 RGB only, biased chroma planes (pi 1/2 window 1023), no CFL composition.
+inline bool is_color_rotation(ColorTransform t) {
+    return t >= ColorTransform::ROT_LOCO && t <= ColorTransform::ROT_RBG;
+}
 
 // Apply / invert transforms. Raster is modified in place.
 // B6: CFL (ch' = ch - round(s*L/8)) is available for any base transform; scales
