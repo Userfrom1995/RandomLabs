@@ -22,6 +22,10 @@
 #   GH_TOKEN              required (the runner PAT; approve needs actions:write)
 #   APPROVE_PR            optional PR number for the head-scoped phase
 #   APPROVE_NOTIFY_ISSUE  optional issue/PR number for the manual-approval ping
+#   APPROVE_BOT_TOKEN     optional token used ONLY to post the manual-approval
+#                         ping; callers pass ${{ github.token }} so the comment
+#                         is authored by github-actions[bot] instead of the PAT
+#                         owner (falls back to GH_TOKEN when unset)
 #   APPROVE_SERVER        optional server base URL (default https://github.com)
 #
 # Always exits 0: calling steps are continue-on-error and annotations carry the
@@ -95,7 +99,11 @@ if repo_wide_sweep; then
 fi
 
 if [ -n "$APPROVE_NOTIFY_ISSUE" ]; then
-  gh api "repos/${REPO}/issues/${APPROVE_NOTIFY_ISSUE}/comments" \
+  # Post the ping as github-actions[bot] (APPROVE_BOT_TOKEN), never as the PAT
+  # owner: attribution rules require bot authorship for lab notifications
+  # (review of PR #139, Finding 3).
+  notify_token="${APPROVE_BOT_TOKEN:-$GH_TOKEN}"
+  GH_TOKEN="$notify_token" gh api "repos/${REPO}/issues/${APPROVE_NOTIFY_ISSUE}/comments" \
     -f body="Workflow runs are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${SERVER}/${REPO}/actions" >/dev/null 2>&1 || true
 fi
 exit 0

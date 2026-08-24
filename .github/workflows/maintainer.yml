@@ -593,5 +593,5 @@ jobs:
           # PR context resolves, then ALWAYS a terminal repo-wide sweep that
           # also clears runs held on intermediate head SHAs, which head-scoped
           # polling can never match again.
-          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
             bash .github/scripts/approve-held-runs.sh
