@@ -1,53 +1,52 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-24 (~18:45Z, maintainer run 32762038490, owner comment event on PR #139). #139 fully approved + Tester PASS but merge mechanically REFUSED by a new workflows-permission regression => lab escalated on #70; D4 continuation re-fired on #131 after a 40-min stall.
+- **Updated:** 2026-08-24 (~18:32Z, maintainer run 32761106008 retry, owner summary request on PR #131). Owner status report delivered; Builder continuation dispatched to fold round-3 docs findings F1-F2 on #131; #139 approved and Tester-owned.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt - they serve Prism.)
 - **BINDING TARGET (dual-unit):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md`.
-- **UNIT VERIFICATION PROTOCOL:** every success claim cites a fresh reproducible measurement in BOTH units. Corpus truth: e1 = 10.2904 / 3.4301; e3/e7 = 10.2861 / 3.4287 - about 19 percent above JXL parity at e1.
-- **#134 HOLD (2026-08-24T12:07:26Z, owner):** "keep it in draft... wait for my action." Zero action until release. NOTE: owner's direct ox-alpha switch (601caaa, 18:07Z) superseded #134's deepseek purpose - closure/repurpose is the owner's call.
-- **DECISION POINT RESOLVED:** D4 stretch chosen over honest closure (owner continue 17:38Z); formal stop-and-decide returns to the owner after D-series exhaustion with final dual-unit numbers.
-- **NEW (18:07Z):** owner switched ALL agent models directly to `openrouter/stealth/ox-alpha` via direct push 601caaa256c (+ repo-name sweep). Old pins retired by owner fiat; falsification watch now applies to ox-alpha.
+- **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Corpus truth re-verified by D3: e1 = 10.2904 / 3.4301; e3/e7 = 10.2861 / 3.4287 - about 19 percent above JXL parity at e1; net -6.7 percent bytes vs the e7 baseline (11.026 / 3.675).
+- **#134 HOLD (2026-08-24T12:07:26Z, owner on the PR thread):** "keep it in draft... wait for my action." Re-verified draft this run. NOTE: its planned model switch landed directly on main at 18:07:37Z (commit `601caaa2`) - largely superseded; owner decides disposition.
+- **OWNER DECISION POINT (open, surfaced in my 18:30Z report):** D4 stretch (mixer bank, zero-run, color rotations, squeeze re-test; levers <= 1-3 pct each vs M3 gap -15.9 pct; M3 likely stays open) VS honest closure of #130 at achieved level. Executes only on the owner's word.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `601caaa256c`** (owner direct push; normal child of aa94ae4). Pages green on it (dispatch success 18:22:25Z).
-- **MERGE-CAPABILITY REGRESSION (OPEN, escalated to lab on #70):** App-token rebase merge of workflow-touching infra PRs now refused ("refusing to allow a GitHub App to create or update workflow .github/workflows/lab.yml without workflows permission"). Same token merged #133 (9bb40298b, 01:41Z) and #136 (aa94ae4, 16:28Z) fine. Window opens post-601caaa. Suspect repo Actions settings flip during owner maintenance. DO NOT blind-retry; lab owns diagnosis/fix (settings restore preferred; PAT-backed hardcoded merge step acceptable; interim PAT merge of #139 authorized).
-- **PR #139** (`opencode/lab-137-session-death-resilience`, head `a4994c6cc6`, MERGEABLE/CLEAN, non-draft): fixes #137+#138. Reviewer round-3 APPROVED 18:27:11Z; Tester PASS 18:35:27Z (run 32762528559); metadata verified correct via API (Closes #137/#138); orphan-safe (base aa94ae44e shared with main tip). ONLY the mechanical merge is blocked. On capability restoration: verify head unchanged + nothing newer than approvals => merge --rebase --delete-branch => main advances past 601caaa => #137/#138 auto-close (manually if not) => pages dispatch.
-- Provider ledger: bursty windows continue on ox-alpha (rate-limit deaths of maintainer successors 32760618015 at 18:09Z, 32761106008 at 18:14Z; review attempts died 17:39/17:51/18:09x2/18:24Z but crash-parity self-healed all of them). Guards healthy; no model escalation (owner just pinned ox-alpha themselves).
+- **`main` = `601caaa2`** (18:07:37Z lab commit: all agent models switched to `openrouter/stealth/ox-alpha` + OPENROUTER_API_KEY wiring + Random->RandomLabs rename). Pages green post-switch (18:22:25Z).
+- **Model watch:** stealth/ox-alpha showed three rate-limit deaths 18:09-18:24Z (two review sessions on #139, two maintainer sessions incl. mine); every crash-parity/retry chain self-healed. No escalation while guards work.
+- **PR #139 OPEN** (`opencode/lab-137-session-death-resilience`, head `a4994c6cc6`, MERGEABLE, non-draft): round-2 findings FIXED (metadata corrected - title + `Closes #137`/`Closes #138`; lab.yml title/body validation; recover approvals via shared sweep script), round-3 review APPROVED 18:27Z, Tester run 32762528559 IN PROGRESS since 18:27:29Z. Watch item: App-token push rejected for workflows permission on lab.yml at 18:22:08Z, content delivered via PAT path anyway.
+- **PR #134:** draft `c6adb5a6d4`, hold intact.
 
 ## IN FLIGHT
-- **#131 D4 continuation** re-fired by this run (`continue` decision; verdict chain: round-3 concluded continue 18:00:15Z but no resume engaged for ~40 min). Head `c8b01c85e1`, MERGEABLE/CLEAN. Watch its outcome next run.
-- **Lab Engineer on #70**: merge-regression mandate (diagnose => restore => optionally land #139 via PAT).
-- NOTHING else repo-wide. #134 draft-held.
+- **#131 Builder continuation** (dispatched by me this run via decision.json): folds round-3 F1 (ceiling pair must derive consistently from CSV - pooled TOTAL gives 1.13/1.47; fix seven spots incl. decision record 09-30-00) + F2 (document non-additive IDEALTOTAL rows). Then re-parks at the OWNER DECISION POINT. Watch for its run to appear after dispatch.
+- **#139 Tester** (run 32762528559): approve-test => maintainer dispatch => I merge next run.
+- NOTHING else repo-wide.
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE -> build C0-C5 + rescope D0/D1/D2 (honest rejections) -> D3 checkpoint DONE (byte-identical proof, dual-unit fails honest) -> REVIEW ROUND 2 DONE (continue; docs-only F1a-g) -> F1 FOLD DONE -> REVIEW ROUND 3 DONE (continue handoff, fold verified) -> **D4 STRETCH RE-FIRED THIS RUN** -> then review round 4 automatic-first -> post-D4: formal owner stop-and-decide.
+research DONE -> architect DONE (+ rescope) -> build C0-C5 + D0-D3 COMPLETE -> REVIEW ROUNDS 1-3 DONE (all findings folded or folding now) -> OWNER DECISION POINT (D4 stretch vs honest closure) -> freeze blocks any merge regardless.
 
 ## NEXT-RUN PLAYBOOK
-1. FIRST ACTION (a) #70/#139: read lab outcome. Capability restored => merge #139 per the gate above (head check, orphan check vs CURRENT main tip, metadata readback, then --rebase --delete-branch; verify main > 601caaa; confirm #137/#138 closed; dispatch pages). Lab landed #139 itself => verify the same four post-merge facts. Lab dead once => error-class inspection, one sanctioned retry; twice + halted production => emergency contract arguable (not before).
-2. FIRST ACTION (b) #131: read D4 outcome (comment plus job log). Clean => review round 4 automatic-first (standing checklist: dual-unit statements; fail-capable self-checks; decoder mirrors bits 3-6; corrected topology b50935ae2; A2-retraction propagation; I7 citability; D1/D2 rejection chains + G-anchor invariants; mixer mirrors; addendum 12 consistency; D0 harness-before-format ordering). Death => verify NEW auto-retry engaged server-side; manual fire only if demonstrably misbehaving, with run IDs.
-3. Mirror a two-sentence pointer onto #131 answering the owner's 18:12Z summary question (full answer lives in run 32762038490's comment on #139).
-4. NO project merges until dual-unit M2 AND M3 pass. Lab PRs (#139 class) merge freely once approved AND mechanically mergeable.
-5. #134: zero action while hold stands.
+1. FIRST ACTION (a) #131: verify F1-F2 fold in-tree (probe_backend.sh:38, rescope :36/:80-82/:150, architecture :152/:181, ideas :49/:110, record 09-30-00 - consistent pooled-method ceilings; IDEALTOTAL note present). Check for a new review verdict on the folded head if the automatic gate fires. If the owner has ruled on D4-vs-closure, execute immediately.
+2. FIRST ACTION (b) #139: read the Tester verdict (paginate full timeline + job log). At approve-test: merge `--rebase --delete-branch` with fresh-object orphan check, verify main advances past `601caaa2`, CLOSE #137 AND #138 MANUALLY, verify-and-dispatch pages on the new sha.
+3. Model falsification watch on stealth/ox-alpha begins: recurring daily bursts => lab discussion; no knee-jerk switch while guards self-heal.
+4. If the App-token workflows-permission rejection recurs on infra PRs, escalate to lab with run IDs as a push-path defect.
+5. NO project merges until dual-unit M2 AND M3 pass on real cjxl output. Lab PRs (#139 class) merge freely once approved+tested (shipping-limit exempt).
 
 ## ISSUES
-- **#130** - sole active workstream (Prism), carried by PR #131 through D4.
-- **#137 + #138** - open; auto-close when #139 lands (metadata now correct).
-- **#70 (Lab Health)** - carries the open merge-capability escalation; baseline-bug fix already live (#136).
-- **#42 (Brainstorm)** - OPEN but FROZEN by owner directive.
+- **#130** - sole active workstream (Prism); carried by PR #131; parked at the owner decision point.
+- **#137 + #138** - open, awaiting #139 merge; I close them manually post-merge.
+- **#70 (Lab Health)** - baseline-bug mandate complete (#136 live); universal audit log.
+- **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## OPEN QUESTIONS
-- What changed repo-side at ~18:07Z to revoke App-token merges of workflow-touching PRs? Will lab restore it or land #139 via PAT first?
-- Does the D4 continuation survive provider windows on the new ox-alpha pin?
-- When will the owner release/close #134?
+- Will the owner rule on D4 stretch vs honest closure of #130?
+- Does #139's Tester approve cleanly, and does main advance as expected on merge?
+- Does the F1-F2 fold land without a fourth review round?
+- How bursty does stealth/ox-alpha prove under the new pin?
 
 ## STANDING LESSONS (in force)
-- Shallow local diffs/merge-bases LIE (601caaa showed everything-as-added locally while being a normal child) - topology facts from commits/compare APIs ONLY.
-- Paginate FULL comment timelines before declaring any gate silent (found the stalled #131 resume + unanswered owner question this way); verdicts post as comments while formal reviews stay empty.
-- Read COMMENT plus JOB LOG, never green status alone; audit guards for what they measure.
-- Merge-token pushes do not trip workflows: verify-and-dispatch pages after every merge.
-- Never describe a fix as live until grep/API confirms at ref=main.
-- Closing keywords resolve against ISSUES only - verify PR body linkage before merging (worked exactly as designed on #139).
-- A deterministically-refused action is never blind-retried - escalate with evidence (applied to the merge refusal this run).
+- Verdicts post as ISSUE COMMENTS while pulls/reviews API can stay empty - paginate the FULL comment timeline before declaring any gate silent.
+- Read COMMENT plus JOB LOG, never green status alone; audit guards for what they measure, not whether they ran.
+- Topology facts only from commits/compare APIs or unshallowed clones; duplicate pings resolve via stand-downs; never fire into a healthy automatic chain; ephemeral numbers are not evidence (I7).
+- Merge-token pushes do not trip workflow triggers: verify-and-dispatch pages after every merge.
+- Never describe a fix as live until grep/API confirms it at ref=main.
+- Closing keywords resolve against ISSUES only - check every PR body's linkage before merging, and expect to close referenced issues manually when links are wrong.
 
 - Mae, the Maintainer
