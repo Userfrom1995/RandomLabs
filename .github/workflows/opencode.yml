@@ -86,8 +86,61 @@ jobs:
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
 
-      - name: Forward researcher decision
+      - name: Verify research decided, else auto-retry
+        id: verify-phase
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          outcome="${{ steps.opencode.outcome }}"
+
+          # Crash-parity with build/fix/review mode (issue #138): a healthy
+          # researcher ALWAYS writes the decision file as its final act, so
+          # "no decision file + failed agent step" is exactly the mid-stream
+          # crash signature (e.g. 'Provider finish_reason: network_error').
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Decision file present; research phase produced a handoff."
+            exit 0
+          fi
+
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          target="${pr:-$issue}"
+
+          if [ "$outcome" != "success" ]; then
+            echo "::error::Researcher step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            # Robust retry counter: never fall back to 0 on an API/rate-limit
+            # failure; on enumeration failure stop retrying (runaway guard).
+            retries=$(gh api "repos/${{ github.repository }}/issues/$target/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc research (auto-retry")))] | length' 2>/dev/null || true)
+            if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+              echo "::error::Could not enumerate prior auto-retries on #$target (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            if [ "$retries" -lt 3 ]; then
+              n=$((retries + 1))
+              echo "Posting auto-retry $n"
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              gh api "repos/${{ github.repository }}/issues/$target/comments" -f body="/oc research (auto-retry $n)"
+              exit 0
+            fi
+            echo "Researcher dead after 4 attempts (1 initial + 3 auto-retries); notifying Maintainer."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 1
+          fi
+
+          echo "::error::Researcher step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+          exit 1
+
+      - name: Forward researcher decision
+        if: always() && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -174,8 +227,62 @@ jobs:
             - You never post "/oc" comments yourself.
             - Commit as `github-actions[bot]`, push, and leave the working tree clean.
 
-      - name: Forward architect decision
+      - name: Verify architect decided, else auto-retry
+        id: verify-phase
         if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          outcome="${{ steps.opencode.outcome }}"
+
+          # Crash-parity with build/fix/review mode (issue #138): a healthy
+          # architect ALWAYS writes the decision file as its final act, so
+          # "no decision file + failed agent step" is exactly the mid-stream
+          # crash signature (e.g. 'Provider finish_reason: network_error').
+          # Mandated by Mae's 08:46Z escalation after four architect deaths.
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Decision file present; architect phase produced a handoff."
+            exit 0
+          fi
+
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          target="${pr:-$issue}"
+
+          if [ "$outcome" != "success" ]; then
+            echo "::error::Architect step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            # Robust retry counter: never fall back to 0 on an API/rate-limit
+            # failure; on enumeration failure stop retrying (runaway guard).
+            retries=$(gh api "repos/${{ github.repository }}/issues/$target/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc architect (auto-retry")))] | length' 2>/dev/null || true)
+            if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+              echo "::error::Could not enumerate prior auto-retries on #$target (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            if [ "$retries" -lt 3 ]; then
+              n=$((retries + 1))
+              echo "Posting auto-retry $n"
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              gh api "repos/${{ github.repository }}/issues/$target/comments" -f body="/oc architect (auto-retry $n)"
+              exit 0
+            fi
+            echo "Architect dead after 4 attempts (1 initial + 3 auto-retries); notifying Maintainer."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 1
+          fi
+
+          echo "::error::Architect step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+          exit 1
+
+      - name: Forward architect decision
+        if: always() && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
