@@ -29,18 +29,16 @@ set -euo pipefail
 #       the tree must refine the causal context profitably or it does not
 #       ship (trial-bits acceptance applied at probe level).
 #
-# A2 recalibration record (2026-08-23, replaces the original 3.0 percent
-# target): the 3.0 percent figure came from research F3's "~6 percent"
-# conditional-entropy delta, which was measured WITHOUT the v2 binarization.
-# Instrumented offline analysis of the actual residual streams shows that once
-# zero-flag-first binarization plus 16 directional classes are in place, the
-# STATIC per-343-context oracle adds only ~0.19 percent over class-pooled
-# coding; the rest of the measured context benefit is nonstationary local
-# tracking, which saturates well below 3 percent. Demanding 3 percent would
-# institutionalize a permanently failing gate. Evidence: shipped-config gain
-# 0.85 percent; retuned config gains 1.14 percent (kodim01) / 0.78 percent
-# (kodim13); full oracle evidence table lives in
-# progress/130-prism-true-jxl-parity.md (A2 recalibration oracle evidence).
+# A2 recalibration record (2026-08-23 gate; magnitudes CORRECTED 2026-08-24,
+# see .github/agents/decisions/builder/2026-08-24T09-30-00-d0-harness-a2-
+# nonreproducible-and-d1-offline-rejection.md): the original 3 percent target
+# predates the v2 binarization. The originally recorded oracle aggregates
+# (-13.62/-18.38/-18.57) were NONREPRODUCIBLE and impossible against the
+# measured H(E|cx) floor; harness-citable static-refinement ceiling is
+# 1.14 points (bin-fine class16 -> ctx343) / 1.50 points (value mode); the
+# rest of measured context benefit is nonstationary tracking. The A2 gate
+# itself (real coder gain 0.5/0.1 percent) is unaffected. Brackets:
+# benchmarks/results/2026-08-24-ideal-probe.csv via probe_ideal.sh.
 #
 # Corpus discipline: input images are verified against data/kodak.sha256
 # BEFORE any measurement; a mismatch is a hard error, not a warning.
