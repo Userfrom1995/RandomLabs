@@ -29,6 +29,11 @@ struct EncodeOpts {
     // reproduce plain lifting streams bit-for-bit. Production keeps it empty
     // so trials decide.
     std::vector<int8_t> force_xband_weights;
+    // D4c probe hook: when set, overrides the analyzer's color-transform
+    // trial with this exact ColorTransform id. Deterministic A-B for
+    // benchmarks/tests; production keeps it clear so trials decide.
+    bool force_color = false;
+    uint8_t forced_color_id = 0;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.

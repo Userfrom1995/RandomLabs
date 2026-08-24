@@ -28,6 +28,11 @@ static inline int32_t med_pred(int32_t L, int32_t T, int32_t TL){
 static inline uint16_t plane_bd_max(uint8_t bd, ColorTransform ct, size_t pi){
     if (bd != 8) return 65535;
     if (ct == ColorTransform::Lift53) return 65535;
+    if (is_color_rotation(ct)) {
+        // D4c: plane 0 is luma-like [0,255]; chroma planes are biased
+        // (+512) with values in [-255,255] -> window max 1023, same as YCoCg.
+        if (pi == 1 || pi == 2) return 1023;
+    }
     if (ct == ColorTransform::YCoCgR || ct == ColorTransform::YCoCgR_SubGreen) {
         if (pi == 1 || pi == 2) return 1023;
     }
@@ -403,6 +408,24 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     if (!opts.force_xband_weights.empty()
         && opts.force_xband_weights.size() != (size_t)raster.num_channels() * 3)
         throw EncodeError("force_xband_weights: size must equal 3 * channel count");
+    // D4c probe hook: deterministic override of the trial-chosen color
+    // transform. The id must be a known ColorTransform; rotations and the
+    // YCoCg family are BD8-only, matching the analyzer's own gating.
+    if (opts.force_color) {
+        if (opts.forced_color_id > (uint8_t)ColorTransform::ROT_RBG)
+            throw EncodeError("force_color: unknown color_transform_id");
+        ColorTransform fc = static_cast<ColorTransform>(opts.forced_color_id);
+        bool bd8_only = fc == ColorTransform::YCoCgR || fc == ColorTransform::YCoCgR_SubGreen
+            || is_color_rotation(fc) || fc == ColorTransform::Lift53;
+        if (bd8_only && raster.bd != BitDepth::BD8)
+            throw EncodeError("force_color: transform requires BD8 input");
+        ar.color_transform_id = opts.forced_color_id;
+        // CFL never composes with Lift53 or rotations; drop stale scales so
+        // the forced stream matches what the decoder will reconstruct.
+        if ((fc == ColorTransform::Lift53 || is_color_rotation(fc))
+            && !ar.cfl_scales.empty())
+            ar.cfl_scales.assign(ar.cfl_scales.size(), 0);
+    }
     if (!opts.use_ycocg) ar.color_transform_id = 0;
     Raster transformed = raster;
     ColorTransform ct = static_cast<ColorTransform>(ar.color_transform_id);
@@ -636,6 +659,10 @@ Raster decode(const uint8_t* data, size_t len) {
     uint32_t w = c.hdr.width, h = c.hdr.height;
     uint8_t bd = c.hdr.bit_depth;
     ColorTransform ct_pre = static_cast<ColorTransform>(c.hdr.color_transform_id);
+    // D4c: unknown color transform ids are a hard error (invariant I2
+    // discipline, same as unknown flag bits) - never a silent identity.
+    if ((uint8_t)ct_pre > (uint8_t)ColorTransform::ROT_RBG)
+        throw DecodeError("unknown color_transform_id");
     PredId pred = static_cast<PredId>(c.global_pred_id);
     if ((uint8_t)pred > 8) pred = PredId::MED;
     Raster out(w,h, static_cast<Channels>(c.hdr.num_channels), bd==16?BitDepth::BD16:BitDepth::BD8);

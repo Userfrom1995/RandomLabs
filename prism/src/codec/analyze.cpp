@@ -101,7 +101,13 @@ ColorTrialResult choose_color_transform_trial(const Raster& r, uint8_t effort) {
     ColorTrialResult out;
     out.raster = apply_color(r, ColorTransform::None, {});
     if (!(effort >= 1 && r.num_channels() >= 3)) return out;
-    // Candidate set identical to the legacy B6 search.
+    // LEGACY candidate set exactly as shipped before D4c. The D4c rotation
+    // family is NOT trialed here: this function's metric is MED-coded flat
+    // bits of the bare transform, which cannot see the anchor's downstream
+    // advantages (CFL composition, predictor-bank fit). A combined list was
+    // measured regressing kodim18 +0.25 percent of final file size. Stage 2
+    // lives at the END of analyze() instead, where the anchor's production
+    // raster and decided predictor already exist.
     std::vector<ColorTransform> cands{ColorTransform::None};
     if (r.bd == BitDepth::BD8) {
         cands.push_back(ColorTransform::YCoCgR);
@@ -461,6 +467,7 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     // coded bytes; s = 0 (identity) plus the two cheapest go to full-plane
     // encodes; ties keep 0.
     if (effort >= 2 && r.num_channels() >= 2 && best_ct != ColorTransform::Lift53
+        && !is_color_rotation(best_ct)
         && best_ct != ColorTransform::YCoCgR && best_ct != ColorTransform::YCoCgR_SubGreen) {
         const uint32_t pstep = prune_step_for(r);
         for (size_t ci = 1; ci < best_raster.num_channels(); ++ci) {
@@ -496,22 +503,69 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     // cheapest plus MED (the identity) go to full flat encodes - the exact
     // payload prism.cpp will emit for level-0 planes.
     const Raster& eval_raster = best_raster;
-    PredId global_best = PredId::MED;
-    if (effort >= 1 && !eval_raster.planes.empty()) {
-        const Raster pruned = decimate_raster(eval_raster, prune_step_for(eval_raster));
-        std::vector<double> pcost(9, 0.0);
-        for (int pid = 0; pid <= 8; ++pid)
-            pcost[pid] = (double)trial_flat_bits(pruned, static_cast<PredId>(pid));
-        const std::vector<size_t> finals = trial_finalists(pcost, 3, (size_t)PredId::MED);
-        const size_t win = trial_pick(finals, (size_t)PredId::MED, [&](size_t i) {
-            return (double)trial_flat_bits(eval_raster, static_cast<PredId>((uint8_t)i));
-        });
-        global_best = static_cast<PredId>((uint8_t)win);
+    auto predictor_trial = [&](const Raster& eval) {
+        PredId global_best = PredId::MED;
+        if (effort >= 1 && !eval.planes.empty()) {
+            const Raster pruned = decimate_raster(eval, prune_step_for(eval));
+            std::vector<double> pcost(9, 0.0);
+            for (int pid = 0; pid <= 8; ++pid)
+                pcost[pid] = (double)trial_flat_bits(pruned, static_cast<PredId>(pid));
+            const std::vector<size_t> finals = trial_finalists(pcost, 3, (size_t)PredId::MED);
+            const size_t win = trial_pick(finals, (size_t)PredId::MED, [&](size_t i) {
+                return (double)trial_flat_bits(eval, static_cast<PredId>((uint8_t)i));
+            });
+            global_best = static_cast<PredId>((uint8_t)win);
+        }
         res.predictor_mode = 0;
         res.global_pred_id = static_cast<uint8_t>(global_best);
-    } else {
-        res.predictor_mode = 0;
-        res.global_pred_id = 3;
+        return global_best;
+    };
+    PredId global_best = predictor_trial(eval_raster);
+
+    // ---- D4c stage 2: rotation family vs the anchor's PRODUCTION flat cost
+    // (spec section 13). Runs AFTER the anchor's CFL and predictor decisions
+    // exist so both sides are compared on what production would actually emit
+    // for level-0 planes: the anchor side is its final raster (CFL applied
+    // where eligible) under its decided predictor; a rotation may displace it
+    // only on a STRICT full-resolution win under that same predictor. Ties
+    // and losses keep the legacy plan byte-for-byte (I4). Rotations never
+    // compose with CFL; on adoption the predictor trial re-runs on the new
+    // raster so downstream stages see its own best bank pick.
+    if (effort >= 1 && r.bd == BitDepth::BD8 && r.num_channels() >= 3) {
+        static const ColorTransform kRots[] = {
+            ColorTransform::ROT_LOCO, ColorTransform::ROT_GRB,
+            ColorTransform::ROT_GBR,  ColorTransform::ROT_BRG,
+            ColorTransform::ROT_RBG}; // bgr measured FAIL offline; excluded
+        const PredId pid = global_best;
+        const double anchor_cost =
+            (double)trial_flat_bits(eval_raster, pid);
+        const Raster pruned = decimate_raster(r, prune_step_for(r));
+        std::vector<double> pcost(std::size(kRots), 0.0);
+        for (size_t ci = 0; ci < std::size(kRots); ++ci)
+            pcost[ci] = (double)trial_flat_bits(apply_color(pruned, kRots[ci], {}), pid);
+        std::vector<size_t> order(std::size(kRots));
+        for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+        std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            if (pcost[a] != pcost[b]) return pcost[a] < pcost[b];
+            return a < b;
+        });
+        ColorTransform current_ct = static_cast<ColorTransform>(res.color_transform_id);
+        ColorTransform best_rot = current_ct;
+        double best_cost = anchor_cost;
+        for (size_t k = 0; k < 3 && k < order.size(); ++k) {
+            const ColorTransform cand = kRots[order[k]];
+            const double c = (double)trial_flat_bits(apply_color(r, cand, {}), pid);
+            if (c < best_cost) { best_cost = c; best_rot = cand; }
+        }
+        if (best_rot != current_ct) {
+            best_ct = best_rot;
+            best_raster = apply_color(r, best_rot, {});
+            res.color_transform_id = static_cast<uint8_t>(best_rot);
+            // Rotations are CFL-excluded: drop any scales the legacy plan
+            // decided, then re-decide the predictor bank on the new raster.
+            res.cfl_scales.assign(std::max(0, (int)r.num_channels() - 1), 0);
+            predictor_trial(best_raster);
+        }
     }
 
     // ---- B7: Squeeze + MA-tree coupled (effort >=3) ----

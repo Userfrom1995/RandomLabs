@@ -266,6 +266,17 @@ std::vector<uint16_t> lift53_inverse_plane(const std::vector<uint16_t>& data,
 
 Raster apply_color(const Raster& r, ColorTransform t, const std::vector<uint8_t>& cfl_scales) {
     Raster out;
+    // D4c rotations: dispatch to the shared family implementation. They never
+    // compose with CFL (same policy as the YCoCg family; the offline A-B that
+    // earned adoption measured base transforms alone).
+    if (is_color_rotation(t)) {
+        static const int kRotToId[] = {
+            colorrot::kLocoId,                    // ROT_LOCO
+            1 /* rct-grb */, 2 /* rct-gbr */,
+            4 /* rct-brg */, 3 /* rct-rbg */
+        };
+        return colorrot::apply(r, kRotToId[(int)t - (int)ColorTransform::ROT_LOCO]);
+    }
     // Step 1: base color transform
     if (t == ColorTransform::Lift53) {
         // 5/3 lifting as alternative single-level decorrelator (B6)
@@ -304,8 +315,9 @@ Raster apply_color(const Raster& r, ColorTransform t, const std::vector<uint8_t>
     } else {
         out = r;
     }
-    // Step 2: CFL on top (B6) if scales indicate non-zero and not Lift53
-    if (t != ColorTransform::Lift53 && !cfl_scales.empty()) {
+    // Step 2: CFL on top (B6) if scales indicate non-zero and not Lift53 or
+    // a D4c rotation (rotations never compose with CFL)
+    if (t != ColorTransform::Lift53 && !is_color_rotation(t) && !cfl_scales.empty()) {
         bool any = false;
         for (auto s : cfl_scales) if (s & 7) { any = true; break; }
         if (any) out = apply_cfl(out, cfl_scales);
@@ -316,10 +328,19 @@ Raster apply_color(const Raster& r, ColorTransform t, const std::vector<uint8_t>
 Raster invert_color(const Raster& r, ColorTransform t, const std::vector<uint8_t>& cfl_scales) {
     Raster out = r;
     // Invert CFL first (it was applied after base)
-    if (t != ColorTransform::Lift53 && !cfl_scales.empty()) {
+    if (t != ColorTransform::Lift53 && !is_color_rotation(t) && !cfl_scales.empty()) {
         bool any = false;
         for (auto s : cfl_scales) if (s & 7) { any = true; break; }
         if (any) out = invert_cfl(out, cfl_scales);
+    }
+    // D4c rotations: dispatch to the shared family implementation.
+    if (is_color_rotation(t)) {
+        static const int kRotToId[] = {
+            colorrot::kLocoId,                    // ROT_LOCO
+            1 /* rct-grb */, 2 /* rct-gbr */,
+            4 /* rct-brg */, 3 /* rct-rbg */
+        };
+        return colorrot::invert(out, kRotToId[(int)t - (int)ColorTransform::ROT_LOCO]);
     }
     // Invert base
     if (t == ColorTransform::Lift53) {
