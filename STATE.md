@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-24 (~22:30Z, maintainer run 32785014074 schedule - quiet stand-down, freeze-gated park at owner decision point)
+- **Updated:** 2026-08-24 (~22:32Z, maintainer run 32785113334 issue_comment on #131 - quiet stand-down, freeze-gated park unchanged)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt.)
@@ -17,11 +17,11 @@
 - **Two compliant unblock paths for #139:** owner one-click merge, OR lab-built hardcoded PAT-backed merge step in maintainer.yml.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `5bc4b9d55f727d2e5f186d6bbb100f0fb002c23c`** (19:59:42Z "fix: update maintainer schedule to every 2 hours", parent `526daae`). AGENTS.md:62 + LAB.md:73 live on main. Pages `32783042395` success 22:06:54Z on PR head `b037578` (pr-trigger success 32783042313); recover sweep `32781463533` skipped 21:48Z (quiet).
+- **`main` = `5bc4b9d55f727d2e5f186d6bbb100f0fb002c23c`** (19:59:42Z "fix: update maintainer schedule to every 2 hours", parent `526daae`). AGENTS.md:62 + LAB.md:73 live on main. Pages `32783042395` success 22:06:54Z on PR head `b037578` (pr-trigger success 32783042313); recover sweep `32785117964` cancelled/quiet at 22:32Z; next sweep green/quiet.
 - **Model watch:** openrouter/stealth/ox-alpha active; Review 32783208371 + Tester 32783509462 both completed cleanly 22:12Z/22:20Z on same pin, proving window clear after earlier 19:41-19:43Z burst.
 
 ## IN FLIGHT
-- **PR #131** - OPEN MERGEABLE head `b0375786ce82251106119336b7f183c431d33237` (`opencode/issue130-20260823163248`, ahead 66 / behind 0 vs main 5bc4b9d, merge_base `5bc4b9d` shared after 20:30Z rebuild). D-series COMPLETE: D4a zero-run REJECTED (+0.28 pct aggregate 4/4 worse), D4b extended mixer REJECTED (-0.69 vs -0.90 D2-best), D4c color rotations ADOPTED (CR-fmt PASS loco -4.36 pct aggregate v2, independent cross-check 4/4, 22 wins / 2 ties / zero regressions at e1/e3/e7). Fresh corpus truth 24/24 pins verified: e1 10.1210/3.3737 (-1.65 pct bytes vs pre-D4c), e3=e7 10.1350/3.3783 (-1.47). 87/87 gtests, fuzz clean, all rails PASS. Tracker Status in_progress with D-series exhausted and OWNER DECISION POINT SURFACED (re-scope section 1). Review APPROVED 22:12:17Z + Tester PASS 22:20:27Z (run 32783509462 success 8m12s) at same head. No builds in progress.
+- **PR #131** - OPEN MERGEABLE head `b0375786ce82251106119336b7f183c431d33237` (`opencode/issue130-20260823163248`, ahead 66 / behind 0 vs main 5bc4b9d, merge_base `5bc4b9d` shared after 20:30Z rebuild). D-series COMPLETE: D4a zero-run REJECTED (+0.28 pct aggregate 4/4 worse), D4b extended mixer REJECTED (-0.69 vs -0.90 D2-best), D4c color rotations ADOPTED (CR-fmt PASS loco -4.36 pct aggregate v2, independent cross-check 4/4, 22 wins / 2 ties / zero regressions at e1/e3/e7). Fresh corpus truth 24/24 pins verified: e1 10.1210/3.3737 (-1.65 pct bytes vs pre-D4c), e3=e7 10.1350/3.3783 (-1.47). 87/87 gtests, fuzz clean, all rails PASS. Tracker Status in_progress with D-series exhausted and OWNER DECISION POINT SURFACED (re-scope section 1). Review APPROVED 22:12:17Z + Tester PASS 22:20:27Z (run 32783509462 success 8m12s) at same head. No builds in progress. Last owner pings 22:32:04Z/11Z triaged as duplicate maintainer triggers, no new state.
 - **PR #139** - OPEN MERGEABLE head `a4994c6cc6e30725bde824156dbd889aa77ce673` (`opencode/lab-137-session-death-resilience`). Review APPROVED 18:27Z + Tester approve-test PASS 18:35Z, `Closes #137/#138` verified. Blocked on App-token `workflows` scope - awaiting owner click or explicit lab PAT-step dispatch. 2 behind main (5bc4b9d).
 
 ## PIPELINE POSITION (#130)
