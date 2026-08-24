@@ -542,4 +542,27 @@ Evaluated by probe_ideal.sh from IDEAL rows alone:
   carry its own cost. PASS only opens the door to container/trial wiring;
   it is not an acceptance.
 
+### 13.4 STATUS (2026-08-24, Builder D4c): offline PASS, ADOPTED with a
+redesigned never-expand stage
+
+Verdicts: CR-fmt PASS for loco (-4.3582 pct aggregate v2), rct-gbr/rct-rbg
+(-2.42), rct-grb/rct-brg (-0.69); rct-bgr FAILed (+0.0001, mixed sign) and is
+excluded everywhere. CR-anchor held (med@ycocgr == shipped baseline,
+byte-for-byte). Independent cross-check (separate implementation, different
+cost model) confirmed the direction on all four probe images. Adoption:
+container ids 7..11 in the existing full-byte field (zero signaling cost),
+BD8 RGB only, CFL-excluded like YCoCg-R, unknown ids a hard decode error.
+WIRING LESSON, measured twice: trialing rotations inside
+choose_color_transform_trial (MED-flat metric) regressed kodim18 +0.25 pct of
+final file size - that metric cannot see the anchor's CFL composition or its
+predictor-bank fit. Final design: choose_color_transform_trial keeps its
+exact legacy behavior; stage 2 runs at the END of analyze() under the
+anchor's DECIDED predictor, against the anchor's PRODUCTION flat cost,
+strict-win-only adoption, predictor re-trial on the adopted raster.
+Corpus: 22 wins / 2 ties / ZERO regressions at e1/e3/e7; e1 = 10.1210 summed
+/ 3.3737 per-sample bpp (-1.646 pct bytes vs pre-D4c), e3 = e7 = 10.1350 /
+3.3783 (-1.469). Evidence: benchmarks/results/2026-08-24-prism-e*.csv +
+*-pre-d4c.csv archives; decision record
+2026-08-24T21-45-00-d4c-color-rotation-adoption.md.
+
 - the Builder
