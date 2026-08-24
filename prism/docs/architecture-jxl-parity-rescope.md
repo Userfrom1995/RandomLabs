@@ -184,6 +184,19 @@ evidence.
 - Acceptance: additional >= 3 percent corpus reduction beyond D1 (never-expand
   vs D1-best); speed guard 5x enforced against the D1 state (mixing costs
   real time; measure peak RSS too per I6).
+- STATUS (2026-08-24, Builder D2): REJECTED offline, no format work spent.
+  Mixer library core landed format-unwired (spec addendum 12 contracts);
+  K=4 adaptive dual-rate estimators scored sequentially through the I7
+  harness with anchor fidelity proven (-0.04 pct worst). Best candidate
+  (per-class weight sets, P-domain training, lr 8, SSE off): -0.90 percent
+  aggregate vs the >= 3 percent gate - FAIL by 3.3x. The SSE stage measured
+  HARMFUL in every keying (coarse activity, full context) and every rate
+  tried: re-pooling destroys resolution the base models already separated.
+  Key negative: the ~7-point static collection headroom is an ML-fit figure
+  using future information and is unreachable by causal estimators online.
+  Evidence: benchmarks/results/2026-08-24-ideal-mixer-d2.csv and decision
+  record 2026-08-24T12-30-00. BOTH levers of this re-scope are now closed;
+  the owner decision point (section 1) is surfaced.
 
 ### D3: checkpoint - full dual-unit gate evaluation and review boundary
 

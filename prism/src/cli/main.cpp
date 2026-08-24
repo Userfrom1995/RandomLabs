@@ -247,11 +247,55 @@ struct MixTotal {
     double bits_v2 = 0, bits_mx = 0, bits_sse = 0;
 };
 
+// Context-keyed SSE bank (harness-local candidate): one interpolated APM per
+// residual-DIFF context. The coarse activity-keyed stage was measured
+// harmful at every rate because it RE-POOLS context information the base
+// models had already separated; keying the stage by cx keeps the same
+// resolution as the base models and turns the stage into per-context
+// calibration instead.
+struct SseBank {
+    std::vector<int64_t> t; // 343 x 33 slots, 16.16 stretch units
+    static const int kCtx = AC_V2_RESDIFF_CONTEXTS;
+    SseBank() {
+        t.assign((size_t)kCtx * 33, 0);
+        for (int c = 0; c < kCtx; ++c)
+            for (int j = 0; j < 33; ++j)
+                t[(size_t)c * 33 + (size_t)j] = (int64_t)(j * 128 - MIX_STRETCH_MAX) << 16;
+    }
+    int filter(int s_mix, int cx) const {
+        if (cx < 0) cx = 0;
+        if (cx >= kCtx) cx = kCtx - 1;
+        int u = s_mix + MIX_STRETCH_MAX;
+        int j = u >> 7, frac = u & 127;
+        int64_t v = (t[(size_t)cx * 33 + j] * (128 - frac) +
+                     t[(size_t)cx * 33 + j + 1] * frac) >> 23;
+        int s = (int)v;
+        if (s < -MIX_STRETCH_MAX) s = -MIX_STRETCH_MAX;
+        if (s > MIX_STRETCH_MAX) s = MIX_STRETCH_MAX;
+        return s;
+    }
+    void update(bool bit, int s_mix, int cx, int rate) {
+        if (rate < 0) return;
+        if (cx < 0) cx = 0;
+        if (cx >= kCtx) cx = kCtx - 1;
+        int u = s_mix + MIX_STRETCH_MAX;
+        int j = u >> 7;
+        int64_t target = (int64_t)(bit ? -MIX_STRETCH_MAX : MIX_STRETCH_MAX) * 65536;
+        int64_t& s = t[(size_t)cx * 33 + (size_t)j];
+        s += (target - s) >> rate;
+        int64_t lo = -(int64_t)MIX_STRETCH_MAX * 65536, hi = (int64_t)MIX_STRETCH_MAX * 65536;
+        if (s < lo) s = lo;
+        if (s > hi) s = hi;
+    }
+};
+
 struct MixerPreset {
     std::string name;
     MixerConfig cfg;                       // applied to both mixer variants
     std::array<int32_t, 4> forced_w{0, 0, 0, 0};
     bool force_weights = false;
+    bool cx_sse = false;                   // context-keyed external SSE bank
+    int cx_sse_rate = 7;
 };
 
 SweepOut run_mixer_pass(const Raster& t,
@@ -285,6 +329,13 @@ SweepOut run_mixer_pass(const Raster& t,
             }
     }
     auto mx_idx = [](int kind, int cls) { return (size_t)kind * 16 + (size_t)cls; };
+    SseBank bank[4];
+    // The SSE variant mixes WITHOUT the internal coarse APM; the external
+    // context-keyed bank provides the second stage.
+    MixerConfig cm = preset.cfg; cm.use_sse = false;
+    if (preset.cx_sse) {
+        for (int i = 0; i < 64; ++i) mxB[(size_t)i] = MixerCore(cm);
+    }
     // Cost + train every scheme on one observed bin.
     auto code_bin = [&](int kind, int cx, int cls, int act, int qg, bool bit) {
         out.nbins++;
@@ -295,14 +346,21 @@ SweepOut run_mixer_pass(const Raster& t,
         int32_t st[4] = {mix_stretch_p16(p1), mix_stretch_p16(p2),
                          mix_stretch_p16(p3), mix_stretch_p16(p4)};
         out.bits_v2 += bin_cost(p1, bit);
-        out.bits_mx += bin_cost(mix_p16_from_stretch(mxA[mx_idx(kind, cls)].filter(st, act)), bit);
-        out.bits_sse += bin_cost(mix_p16_from_stretch(mxB[mx_idx(kind, cls)].filter(st, act)), bit);
+        int s_mx = mxA[mx_idx(kind, cls)].filter(st, act);
+        MixerCore& mb = mxB[mx_idx(kind, cls)];
+        int s_se_raw = mb.filter(st, act);
+        int s_se = preset.cx_sse
+            ? bank[kind].filter(s_se_raw, cx)
+            : s_se_raw; // presets without cx-sse keep the internal coarse APM
+        out.bits_mx += bin_cost(mix_p16_from_stretch(s_mx), bit);
+        out.bits_sse += bin_cost(mix_p16_from_stretch(s_se), bit);
         e1_adapt(e1, kind, cx, bit);
         ac_v2_adapt(e2[kind].pf[(size_t)cls], e2[kind].ps[(size_t)cls], bit);
         ac_v2_adapt(e3[kind].pf[(size_t)act], e3[kind].ps[(size_t)act], bit);
         ac_v2_adapt(e4[kind].pf[(size_t)qg], e4[kind].ps[(size_t)qg], bit);
         mxA[mx_idx(kind, cls)].update(bit, st, act);
-        mxB[mx_idx(kind, cls)].update(bit, st, act);
+        mb.update(bit, st, act);
+        if (preset.cx_sse) bank[kind].update(bit, s_se_raw, cx, preset.cx_sse_rate);
     };
     for (size_t pi = 0; pi < t.planes.size(); ++pi) {
         const auto& plane = t.planes[pi];
@@ -755,6 +813,14 @@ int main(int argc, char* argv[]) {
                 } else if (n == "mix4-frozen") {
                     p.cfg.lr_shift = -1;
                     p.cfg.sse_rate_shift = -1;
+                } else if (n.rfind("mix4-cxsse-r", 0) == 0 && n.size() > 12) {
+                    int rr = std::stoi(n.substr(12));
+                    if (rr < 1 || rr > 16)
+                        throw std::runtime_error("mixer cxsse rate out of range: " + n);
+                    p.cx_sse = true;
+                    p.cx_sse_rate = rr;
+                } else if (n == "mix4-cxsse") {
+                    p.cx_sse = true; // default rate 7
                 } else if (n == "mix4-adversarial") {
                     p.cfg.lr_shift = -1;
                     p.cfg.sse_rate_shift = -1;

@@ -13,8 +13,13 @@
   H(E|cx) floor) and replaced by harness-citable numbers - decision record
   2026-08-24T09-30-00. D1 OFFLINE REJECTED (best adaptive blend +0.25 pct
   WORSE than MED on a probe image; only kodim20 wins ~1.1 pct, mixed sign,
-  order of magnitude under the 2 pct bar): no format work spent. Next:
-  D2 OFFLINE validation (mixer+SSE scoring via harness extension).
+  order of magnitude under the 2 pct bar): no format work spent.
+  D2 OFFLINE REJECTED (best per-class logistic mix -0.90 pct aggregate,
+  gate >= 3 pct; SSE harmful in every keying and rate tried; anchors hold at
+  -0.04 pct worst): no format work spent. BOTH re-scope levers are now
+  closed by measurement; OWNER DECISION POINT surfaced per re-scope section
+  1 (decision record 2026-08-24T12-30-00). Next: owner/Mae verdict between
+  D4 stretch work and honest closure of #130 at the achieved gate level.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -140,11 +145,26 @@ percent) are independently re-measurable today via
       container change, no format work. Decision record
       2026-08-24T09-30-00-d0-harness-a2-nonreproducible-and-d1-offline-
       rejection.md.
-- [ ] D2 Logistic mixer + SSE behind ext1 (P7 reborn): K=4 ADAPTIVE estimator
-      family mixed by bounded integer logistic weights + one SSE stage;
-      offline gate >= 3 percent projected before format work; acceptance
-      additional >= 3 percent corpus reduction beyond D1; 5x speed guard vs
-      D1 state.
+- [x] D2 Logistic mixer + SSE behind ext1 (P7 reborn): OFFLINE VALIDATION
+      ONLY, REJECTED (2026-08-24). Library mixer core landed format-unwired
+      (mixer.{h,cpp}: integer stretch/squash, bounded P-domain-trained
+      logistic MixerCore, interpolated APM, frozen sentinels; 6 unit tests;
+      80/80 green). Harness scored K=4 adaptive dual-rate estimators
+      (production hierarchical / class-pooled / activity-keyed / qg-sum) over
+      the exact production bin sequence with anchor fidelity -0.04 pct worst.
+      BEST CANDIDATE mix4-sse-lr8 = -0.90 pct aggregate (-0.69/-0.71/-0.91/
+      -1.36 on kodim01/13/05/20): gate >= 3 pct FAILS by 3.3x. SSE stage
+      HARMFUL in every keying (activity +32 pct, context-keyed best still
+      +12.9 pct) and every rate 5-12. Key negative: the ~7-point static
+      "collection headroom" is an ML-fit-with-future-information figure and
+      not reachable by causal estimators. STOP rule fired; zero ext-byte
+      work. Decision record 2026-08-24T12-30-00; durable CSV
+      benchmarks/results/2026-08-24-ideal-mixer-d2.csv.
+- [ ] OWNER DECISION POINT (re-scope section 1): both levers closed by
+      measurement. Owner chooses between D4 stretch work (individual
+      projections <= 1-3 pct each vs M3 gap -15.9 pct; M3 likely stays open)
+      and closing #130 honestly at the achieved gate level. No silent scope
+      creep; no drift into format work without new harness evidence.
 - [ ] D3 Checkpoint: fresh both-units gate evaluation at all efforts + review
       boundary (Reviewer checks evidence chains, ext-byte container change,
       decoder mirrors).
@@ -155,25 +175,22 @@ percent) are independently re-measurable today via
 
 ## Current step
 
-Architect re-scope COMPLETE (2026-08-24): C5's rejection closed every static
-spatial-transform direction by measurement (F2 + C2 + C2b + C4 + C5), so the
-remaining gap is re-derived to two levers - the predictor itself (adaptive
-blending, untried; fixed bank picks were measured nearly exhausted by C3's
-7 wins / 17 ties) and collection efficiency (real coder collects roughly half
-of even the shared-model ideal gain per the A2 oracle table). Blueprint:
-`prism/docs/architecture-jxl-parity-rescope.md` (D-series); C-series section 8
-marked superseded. Corpus truth stands honestly at e1 = 10.2904 summed /
-3.4301 per-sample bpp, e3 = e7 = 10.2861 / 3.4287; M2 (<9.498/<3.166) and
-M3 (<8.655/<2.885) FAIL in both units; no parity claim.
+D2 COMPLETE (2026-08-24): the K=4 logistic mixer + SSE candidate was built
+exactly per re-scope section D2 and spec addendum 12, measured through the
+committed I7 harness with anchor fidelity proven on every row, and honestly
+REJECTED at -0.90 percent aggregate against a >= 3 percent gate. With D1
+also rejected offline, BOTH re-scope levers (L1 predictor blending, L2
+collection efficiency) are closed by measurement. Corpus truth stands
+honestly at e1 = 10.2904 summed / 3.4301 per-sample bpp, e3 = e7 =
+10.2861 / 3.4287; M2 (<9.498/<3.166) and M3 (<8.655/<2.885) FAIL in both
+units; no parity claim.
 
-Next slice: Builder takes D2 OFFLINE validation - extend the committed
-harness to score logistic-mixer+SSE variants over adaptive estimators on the
-dumped streams. Gate: >= 3 percent projected payload before ANY ext-byte
-format work. Evidence base: real v2 collects -5.53 pct while the conditional
-fine-bin ideal sits at -12.61 pct (about 7 points of collection headroom);
-the mixer attacks exactly that gap. If the offline gate fails, record the
-negative and surface the owner decision point (re-scope section 1) instead of
-drifting into format work without evidence.
+Next step: OWNER DECISION POINT (surfaced to Mae via handoff decision
+{"action":"maintainer"}): continue into D4 stretch work knowing M3 likely
+stays open, or close #130 at the achieved gate level (-6.7 percent bytes vs
+the e7 baseline plus five closed research directions). The Builder takes no
+further format work without new owner/Mae direction backed by harness
+evidence.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -235,6 +252,20 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 9, D2-offline complete): spec
+  addendum 12 first (stretch/squash, MixerCore, SSE contracts); mixer
+  library core format-unwired (6 tests, 80/80 suite green); bench-ideal
+  --mixer sequential scorer with anchor invariant; probe_ideal.sh G-anchor
+  gate + fail-capable mixer self-check; separate D2 CSV so the D0 reference
+  stays stable. Two contract-level finds pinned in spec 12: stretch-unit
+  weight training diverges (+137.9 pct; P-domain training is mandatory) and
+  one-shared-weight-set-per-kind diverges (+30 pct; per-class sets required).
+  Measured verdict: best mix4-sse-lr8 -0.90 pct aggregate vs >= 3 pct gate -
+  REJECTED offline, zero format work; SSE harmful in every keying/rate;
+  ~7-point static headroom proven unreachable online (ML fit uses future
+  information). Decision record 2026-08-24T12-30-00. Both re-scope levers
+  closed; owner decision point surfaced via {"action":"maintainer"}.
 
 - 2026-08-24 the Builder (continuation run 8, D0+D1-offline complete): D0
   landed (spec 11 addenda first; bench-ideal CLI with two bin granularities +
