@@ -3,11 +3,12 @@
 - **Issue:** #130 (owner directive 2026-08-23; lab-wide freeze until M2 AND M3
   genuinely pass dual-unit gates)
 - **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
-- **Status:** in_progress. C0+C1 landed (A1 pass, A2 partial). Research DONE (Dr. Mob, this PR): D1 gate fix shipped
-  (`bench_gate.sh` prints both units, `--self-check` proves it can fail), D2 gap
-  analysis located the ~21 percent gap (findings F1-F4). Architect blueprint
-  DELIVERED: `prism/docs/architecture-jxl-parity.md` (C-series build phases).
-  Builder phase STARTED 2026-08-23: C0+C1 vertical slice under way (see log).
+- **Status:** in_progress. C-series COMPLETE through C5: C0+C1 landed
+  (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/C5 honestly rejected by
+  measurement (never-expand held, zero regressions). Research DONE (D1 gate
+  fix + D2 gap analysis F1-F4). Architect re-scope DELIVERED 2026-08-24:
+  `prism/docs/architecture-jxl-parity-rescope.md` (D-series, supersedes C6);
+  next phase Builder D0+D1-offline.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -96,24 +97,56 @@ percent) are independently re-measurable today via
       correlation unit test proves the mechanism adopts decisively when
       correlation is real. Decision record
       2026-08-24T08-16-17-c5-xband-scope-and-measured-rejection.md.
-- [ ] C6 CM/SSE stretch (P7, optional for closure): logistic mixer + SSE behind never-expand net toward < 8.0 summed. BLOCKED on Architect re-scope per tracker rule below.
+- [x] C6 -> SUPERSEDED by Architect re-scope (tracker rule fired by C5's
+      measured rejection): C-series blueprint section 8 replaced by the
+      D-series in `prism/docs/architecture-jxl-parity-rescope.md`
+      (D0 committed ideal harness / D1 adaptive blended prediction /
+      D2 logistic mixer + SSE / D3 dual-unit checkpoint / D4 stretch with an
+      honest owner decision point if M3 stays open).
+
+## D-series checklist (re-scope: prism/docs/architecture-jxl-parity-rescope.md)
+
+- [ ] D0 Committed instrumentation harness: `prism bench-ideal` +
+      `benchmarks/probe_ideal.sh` with sha-pin verification, durable CSV, and
+      a self-check that can fail; must reproduce the A2 oracle aggregates
+      (shared -13.62 / pooled -18.38 / 343-oracle -18.57 percent vs v0
+      payload) within rounding. New invariant I7: no go/no-go without
+      harness-citable numbers.
+- [ ] D1 Adaptive blended prediction behind FEATURE_EXT ext byte (ext0):
+      JXL-modular-style per-sample integer weight blending adapted from local
+      gradients, fully decoder-mirrored; OFFLINE D0 validation first
+      (>= ~2 percent projected payload on probe images, confirmed on unseen
+      kodim05/kodim20) BEFORE any format change; then per-plane never-expand
+      trial; acceptance >= 2 percent corpus reduction vs e3 baseline else
+      rejected-and-recorded.
+- [ ] D2 Logistic mixer + SSE behind ext1 (P7 reborn): K=4 ADAPTIVE estimator
+      family mixed by bounded integer logistic weights + one SSE stage;
+      offline gate >= 3 percent projected before format work; acceptance
+      additional >= 3 percent corpus reduction beyond D1; 5x speed guard vs
+      D1 state.
+- [ ] D3 Checkpoint: fresh both-units gate evaluation at all efforts + review
+      boundary (Reviewer checks evidence chains, ext-byte container change,
+      decoder mirrors).
+- [ ] D4 Stretch toward M3 only if still open: extended mixer bank, zero-run
+      mode, reversible color rotations, one honest squeeze re-test under the
+      mixer. If M3 still fails after D4: stop and surface the owner decision
+      point stated in re-scope section 1. No silent scope creep.
 
 ## Current step
 
-Builder continuation run 7 (2026-08-24) COMPLETE for this slice: C5
-cross-band prediction landed (bit6 + per-plane H/V/D LL-gradient weights,
-pure linear model; legacy coupled path retired) and honestly measured:
-REJECTED on every plane of all 24 pinned images, e1/e3/e7 byte-identical
-to pre-C5 (**10.2904 summed / 3.4301 per-sample at e1, 10.2861/3.4287 at
-e3/e7**). M2 (<9.498/<3.166) and M3 (<8.655/<2.885) FAIL in both units -
-no parity claim. Verification this slice: 66/66 gtests (7 new Xband tests),
-fuzz 1000 iters PASS, bench_gate self-check PASS in both units, wall-clock
-unchanged vs pre-C5 on identical inputs (e3 kodim01 6.14 s vs 6.26 s).
-Static spatial-transform directions are now closed by measurement (F2 + C2
-+ C2b + C4 + C5).
+Architect re-scope COMPLETE (2026-08-24): C5's rejection closed every static
+spatial-transform direction by measurement (F2 + C2 + C2b + C4 + C5), so the
+remaining gap is re-derived to two levers - the predictor itself (adaptive
+blending, untried; fixed bank picks were measured nearly exhausted by C3's
+7 wins / 17 ties) and collection efficiency (real coder collects roughly half
+of even the shared-model ideal gain per the A2 oracle table). Blueprint:
+`prism/docs/architecture-jxl-parity-rescope.md` (D-series); C-series section 8
+marked superseded. Corpus truth stands honestly at e1 = 10.2904 summed /
+3.4301 per-sample bpp, e3 = e7 = 10.2861 / 3.4287; M2 (<9.498/<3.166) and
+M3 (<8.655/<2.885) FAIL in both units; no parity claim.
 
-Next slice: Architect re-scope BEFORE any C6 work (tracker rule) - remaining
-parity levers need re-derivation; then review round at the stable head.
+Next slice: Builder starts D0 (committed bench-ideal harness reproducing the
+A2 oracle aggregates), then D1 OFFLINE validation before any format work.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -165,15 +198,31 @@ Previous slice summary (continuation run 3, C2b):
    behind bit6 with per-plane H/V/D weights chosen by trial bits; M3 GATE
    CHECKPOINT evaluated fresh: FAIL in both units (10.2861/3.4287), honest
    all-reject outcome recorded. Per the rule below the next phase re-scopes.
-2. [next run] Architect re-scope BEFORE any C6 work: every static
-   spatial-transform direction is closed by measurement (F2, C2, C2b, C4,
-   C5); remaining parity levers must be re-derived from evidence, not
-   assumed. After re-scope: review round at the stable head -> Tester ->
-   Maintainer merge decision. Owner freeze stands throughout: nothing
-   merges before both gates pass in both units on a fresh both-units
-   measurement of real cjxl-comparison output.
+2. [next run] Builder D0: committed `bench-ideal` harness + probe_ideal.sh
+   (self-check that can fail; must reproduce the A2 oracle aggregates), then
+   D1 OFFLINE blended-prediction validation on probe images (confirm on
+   unseen kodim05/kodim20) BEFORE any container/format work. Format work only
+   if the harness projects >= ~2 percent. After D1/D2: review round at the
+   stable head -> Tester -> Maintainer merge decision. Owner freeze stands
+   throughout: nothing merges before both gates pass in both units on a fresh
+   both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Architect (re-scope): D-series blueprint delivered
+  (`prism/docs/architecture-jxl-parity-rescope.md`), superseding C-series
+  section 8 per the tracker rule fired by C5's measured rejection. Evidence
+  re-derivation: static transforms and static context refinement are closed
+  by measurement; the remaining levers are (L1) the predictor itself -
+  adaptive blended prediction, since C3 measured fixed bank picks nearly
+  exhausted (7 wins / 17 ties) - and (L2) collection efficiency via adaptive
+  estimator mixing + SSE, since the real coder collects roughly half of even
+  the shared-model ideal gain. Phases D0-D4 with offline-first gates, the new
+  I7 invariant (no go/no-go without harness-citable numbers), a FEATURE_EXT
+  container ext byte to end flag exhaustion (bit7 reserved), and an explicit
+  owner decision point if M3 stays open after D4. Honest projections: M2
+  plausible after D1+D2; M3 likely needs the full stretch stack. Handoff
+  decision {"action":"build"}.
 
 - 2026-08-24 the Builder (continuation run 7): topology correction FIRST
   (commit b50935a): unshallowed the CI clone, verified shared history
