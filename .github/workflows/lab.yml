@@ -132,10 +132,23 @@ jobs:
               # The Obsidian umbrella issue (#68 and any Obsidian-titled issue) must stay open
               # until the codec target is beaten, so an infra PR must reference it without closing.
               issuetitle=$(GH_TOKEN=${{ github.token }} gh issue view "$issue" --repo "${{ github.repository }}" --json title --jq '.title' 2>/dev/null || echo "")
+              link="Closes"
               if echo "$issuetitle" | grep -qi "obsidian"; then
+                link="Refs to"
                 [ -z "$body" ] && body="Refs to #$issue"
               else
                 [ -z "$body" ] && body="Closes #$issue"
+              fi
+              # Linkage guard (review of PR #139): an agent session with stale
+              # context can cite the WRONG issue ('Closes #131' shipped here).
+              # Never let an agent-authored title/body omit the trigger issue.
+              if ! printf '%s' "$body" | grep -qE "#${issue}([^0-9]|$)"; then
+                echo "::warning::Agent-authored PR body omits trigger issue #$issue; appending linkage."
+                body=$(printf '%s\n%s' "$body" "${link} #$issue")
+              fi
+              if [ -n "$title" ] && ! printf '%s' "$title" | grep -qE "#${issue}([^0-9]|$)"; then
+                echo "::warning::Agent-authored PR title omits trigger issue #$issue; appending marker."
+                title="${title} (#$issue)"
               fi
               [ -z "$title" ] && title="[Infra] Lab update for #$issue"
               echo "Opening PR for branch $branch on issue #$issue..."
