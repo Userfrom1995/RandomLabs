@@ -14,6 +14,38 @@
   Baseline: Prism e7 = 11.026 summed / 3.675 per-sample. No merge until M2 AND
   M3 pass; no success claim without a fresh both-units measurement.
 
+## A2 recalibration oracle evidence (referenced by probe_backend.sh)
+
+The A2 gate was recalibrated on 2026-08-23 (decision record
+`.github/agents/decisions/builder/2026-08-23T19-35-00-a2-gate-recalibration.md`)
+using instrumented offline analysis of the actual pipeline residual streams.
+This is the evidence table that record cites, reproduced in full:
+
+| conditioning under v2 zero-flag-first binarization | ideal code length vs v0 payload |
+|---|---|
+| shared ideal (one static model, no context)   | -13.62 percent |
+| class16-pooled ideal (16 directional classes) | -18.38 percent |
+| full 343-context oracle (static per-context)  | -18.57 percent |
+
+Static per-context refinement therefore adds only ~0.19 points over
+class-pooled coding once the binarization exists - the original 3.0 percent
+A2 bar descended from research F3's ~6 percent conditional delta measured
+WITHOUT this binarization and was unreachable by construction.
+
+Provenance and methodology, precise enough to re-derive: residual streams were
+dumped from the shipped YCoCg-R + MED path for kodim01 and kodim13 (aggregate
+over both images); ideal code lengths were computed as static entropy under
+the v2 binarization's bin sequence (zero flag, sign where nonzero, unary
+quotient, remainder bits), with per-bin probabilities estimated by frequency
+counting over the whole dumped stream - separately pooled across all samples
+(shared), within each of the 16 `ac_v2_prior_class` classes (class-pooled),
+and per exact residual-DIFF context id (343-oracle). The raw dumps and sweep
+harness were ephemeral continuation-run tooling and are not committed; the
+aggregates above are the recorded result of that run. The shipped-config and
+retuned-config context gains quoted by the gate header (0.85 / 1.14 / 0.78
+percent) are independently re-measurable today via
+`prism probe-backend` + `benchmarks/probe_backend.sh`.
+
 ## C-series checklist (blueprint: prism/docs/architecture-jxl-parity.md)
 
 - [x] R1 Research phase: gap analysis F1-F4 + prescriptions P1-P7 (this PR).
