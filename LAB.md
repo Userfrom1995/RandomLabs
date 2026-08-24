@@ -387,7 +387,9 @@ catches up in seconds.
   whatever is in flight.
 - **Onboarding (14-day approval duty)**: while the bot's PRs exist, GitHub
   requires the owner to approve workflow runs on them. `opencode.yml`
-  auto-approves held runs after each push; if it cannot, a comment asks for a
+  auto-approves held runs after each push (head-scoped polling plus a
+  terminal repo-wide sweep over all held runs, shared script
+  `.github/scripts/approve-held-runs.sh`); if it cannot, a comment asks for a
   manual click. After roughly 14 days of activity GitHub stops requiring it.
 - **Talking to the lab**: `/oc build …`, `/oc fix`, `/oc review`,
   `/oc continue`, `/oc approve|decline`, `/oc help` - see AGENTS.md.
