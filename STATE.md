@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-24 (maintainer run 32701153522, the queued sibling dup of the owner's 07:21:27/36Z ping pair on PR #131, exactly as predicted). Quiet stand-down, decision `[]`, public comment deliberately left EMPTY (predecessor posted the full status one minute earlier - anti-spam call).
+- **Updated:** 2026-08-24 (maintainer run 32705999601, first of the owner's 08:22:41/50Z ping pair on PR #131). Post-C5 boundary handled: continuation verified complete (topology fix + C5 honest measured rejection), Architect re-scope DISPATCHED per tracker rule + Builder handoff.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates.
@@ -8,21 +8,23 @@
 
 ## CRITICAL INFRASTRUCTURE STATE
 - **`main` = `9bb40298b`** (unchanged).
-- Provider strike ledger: window CLOSED since ~02:24Z (and again clear across all morning sessions). No model escalation warranted.
-- Pages green (pull_request deploy success 07:19:54Z). Auditor daily report current (01:16:33Z on #70). Orphan-recover sweeps quiet/green.
-- F5 thread item CLOSED and VERIFIED in-tree (`b50935ae2`: shared history, merge-base f8a958d70e48, --allow-unrelated-histories forbidden on this branch).
+- Provider strike ledger: CLEAR across all morning sessions; window closed since ~02:24Z. No model escalation warranted.
+- Pages green (deploys 08:20:39Z + 08:22:50Z success). Auditor daily report current (01:16:33Z on #70). Orphan-recover sweeps quiet/green (08:24:30Z).
+- F5 thread item CLOSED and VERIFIED in-tree (`b50935ae2`: shared history, merge-base f8a958d70e48, unrelated-histories joins forbidden on this branch).
 
 ## IN FLIGHT
-- **PR #131** (`opencode/issue130-20260823163248`, head `b50935ae2`, MERGEABLE, formal reviews 0) - continuation run 32700758462 actively building C5 (cross-band parent-gradient predictor, per-leaf selector by trial bits; acceptance >= 20/24 images; M3 GATE projection per blueprint section 7). Build live since 07:16:13Z.
+- **PR #131** (`opencode/issue130-20260823163248`, head `eae3dcba8`, MERGEABLE, formal reviews 1) - Architect RE-SCOPE dispatched this run per the tracker's binding rule (C5 rejection => re-scope before any C6) and the Builder's explicit handoff.
+- Continuation run 32700758462 COMPLETE/success: F5 topology fix first act + C5 cross-band prediction landed, honestly rejected corpus-wide (e1/e3/e7 byte-identical to pre-C5; mechanism proven via constructed-correlation test; wall-clock unchanged A-B verified).
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE -> build: F1-F6 folded (F5 correction verified as this slice's first act), C4 honest measured rejection in-tree -> C5 running -> automatic review at post-C5 phase boundary -> freeze blocks maintainer merge until dual-unit M2 AND M3 genuinely pass.
+research DONE -> architect DONE (C-series) -> build DONE through C5 (C1 gain landed: e1 11.0258 -> 10.2904 summed; C2/C2b/C4/C5 all honest measured rejections closing every static spatial-transform direction) -> ARCHITECT RE-SCOPE running -> build resumes on its verdict -> review round 2 at next phase boundary -> freeze blocks maintainer merge until dual-unit M2 AND M3 genuinely pass.
 
 ## PENDING (in order)
-1. NEXT RUN FIRST ACTION: read run 32700758462's conclusion. Clean completion => let the AUTOMATIC review take the post-C5 boundary (manual fire only if demonstrably failed; crash-parity guard from #133 armed). Same-error provider death => exactly one retry, then lab escalation with run-ID evidence (32682711503, 32682717736 + new). If still running past ~60 min with zero commits beyond b50935ae2 => inspect job log for timeout/APIError BEFORE any retry decision.
-2. Review-round checklist (mandatory scrutiny list): dual-unit statements everywhere; D1 fail-capable self-check; decoder mirrors bit3/bit4/bit5; trial-bits acceptance criteria; A2-recalibration evidence chain; C2/C2b/C4 rejection records; corrected topology section (verified in-tree); C5 measured results vs its >=20/24 bar and M3 GATE projection.
-3. NO project merges until dual-unit M2 AND M3 pass on the real corpus. At #131 merge time: hard-rule orphan check with freshly fetched objects (server-side evidence says PASS; base f8a958d70e48).
-4. Expectation discipline: e1 truth 10.2904 summed / 3.4301 per-sample stays ~19 percent above JXL parity - say so every time.
+1. NEXT RUN FIRST ACTION: read the dispatched architect run's conclusion. Clean completion => build resumes on the re-scoped plan (owner continue trigger usually lands; fire manually only if demonstrably failed). Death => error-class inspection BEFORE any retry; one same-error retry max, then lab escalation with run-ID evidence.
+2. Sibling maintainer dup 32706014026 predicted to STAND DOWN (architect owns the pipeline); confirm it did. Confirm opencode sibling self-skips as usual.
+3. Review-round checklist for the NEXT boundary: dual-unit statements everywhere; D1 fail-capable self-check; decoder mirrors bit3/bit4/bit5/bit6; trial-bits acceptance criteria; A2-recalibration evidence chain; C2/C2b/C4 rejection records; corrected topology section; C5 record (.github/agents/decisions/builder/2026-08-24T08-16-17-c5-xband-scope-and-measured-rejection.md), bit6 xband mirror, never-expand chooser property tests; plus whatever blueprint sections the re-scope produces.
+4. NO project merges until dual-unit M2 AND M3 pass on the real corpus. At #131 merge time: hard-rule orphan check with freshly fetched objects (server-side evidence says PASS; base f8a958d70e48).
+5. Expectation discipline: corpus truth e1 10.2904 summed / 3.4301 per-sample; e3/e7 10.2861 / 3.4287 - about 19 percent above JXL parity. Say so every time; no parity claim until genuine dual-unit passes.
 
 ## ISSUES
 - **#130** - sole active workstream (Prism true JXL parity); PR #131 carries all phases.
@@ -30,10 +32,11 @@ research DONE -> architect DONE -> build: F1-F6 folded (F5 correction verified a
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## QUEUED / HOUSEKEEPING
-- opencode dup 32701153698 still pending benign self-skip (confirm resolution next sweep). All other siblings of the 07:21Z batch skipped correctly.
+- Sibling maintainer dup 32706014026 pending behind this run - predicted benign stand-down.
+- No other queued runs observed at survey time (~08:26Z).
 
 ## OPEN QUESTIONS
-- Will C5 move e1 materially toward the M2/M3 gates that C2/C2b/C4 could not? (First phase with a real M3 GATE projection riding on it.)
-- Will the automatic review + crash-parity guard take its first clean boundary handoff after C5?
+- THE strategic question now before the Architect: can any remaining lever close ~19 percent, or does parity require an architecture-level change? Evidence-based negative answers acceptable; wishful projections are not.
+- Will the automatic review + crash-parity guard take a clean boundary handoff after the re-scope-informed build slice?
 
 - Mae, the Maintainer
