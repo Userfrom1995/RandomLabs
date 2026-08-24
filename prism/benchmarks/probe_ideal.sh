@@ -68,8 +68,11 @@ import csv, sys
 
 lines = open(sys.argv[1]).read().splitlines()
 ideal_all = [l for l in lines if l.startswith("IDEAL,")]
+if not ideal_all:
+    # legacy form: bare header line ("image,predictor,...") + data rows
+    ideal_all = [l for l in lines if l.strip()]
 ideal_hdr = ideal_all[0].split(",")
-rows = [dict(zip(ideal_hdr, l.split(","))) for l in ideal_all[1:]]
+rows = [dict(zip(ideal_hdr, l.split(","))) for l in ideal_all[1:] if l.strip()]
 mixers = []
 if sys.argv[2] and sys.argv[2] != "":
     mlines = open(sys.argv[2]).read().splitlines()
