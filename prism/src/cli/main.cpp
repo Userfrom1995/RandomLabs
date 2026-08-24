@@ -297,6 +297,8 @@ struct MixerPreset {
     bool force_weights = false;
     bool cx_sse = false;                   // context-keyed external SSE bank
     int cx_sse_rate = 7;
+    bool ext_bank = false;                 // D4b: K=6 (+directional, +zero-left)
+    bool sse2 = false;                     // D4b: second cx-keyed SSE stage
 };
 
 SweepOut run_mixer_pass(const Raster& t,
@@ -307,13 +309,19 @@ SweepOut run_mixer_pass(const Raster& t,
     static const uint16_t* const kPrior[4] = {
         AC_V2_PRIOR_ZERO, AC_V2_PRIOR_SIGN, AC_V2_PRIOR_Q, AC_V2_PRIOR_REM};
     DualRateStates e2[4], e3[4], e4[4];
+    DualRateStates e5[4], e6[4];           // D4b extended bank (K=6)
+    const int KB = preset.ext_bank ? 6 : 4;
     for (int k = 0; k < 4; ++k) {
         e2[k].init(AC_V2_N_PRIORS, kPrior[k]);
         e3[k].init(4, nullptr);
         e4[k].init(15, nullptr);
+        if (preset.ext_bank) {
+            e5[k].init(15, nullptr);       // key: quantized (dL - dU), 15 slots
+            e6[k].init(2, nullptr);        // key: left residual zero, 2 slots
+        }
     }
-    MixerConfig ca = preset.cfg; ca.use_sse = false;
-    MixerConfig cb = preset.cfg; cb.use_sse = true;
+    MixerConfig ca = preset.cfg; ca.use_sse = false; ca.K = KB;
+    MixerConfig cb = preset.cfg; cb.use_sse = true;  cb.K = KB;
     // One weight set per directional class (ac_v2_prior_class): flat and busy
     // contexts calibrate differently, and a single shared set was measured
     // diverging (+30 percent vs E1 on kodim01) because contexts fought over
@@ -333,19 +341,29 @@ SweepOut run_mixer_pass(const Raster& t,
     SseBank bank[4];
     // The SSE variant mixes WITHOUT the internal coarse APM; the external
     // context-keyed bank provides the second stage.
-    MixerConfig cm = preset.cfg; cm.use_sse = false;
+    MixerConfig cm = preset.cfg; cm.use_sse = false; cm.K = KB;
     if (preset.cx_sse) {
         for (int i = 0; i < 64; ++i) mxB[(size_t)i] = MixerCore(cm);
     }
+    // D4b second stage: one context-keyed bank per bin kind, fed by the
+    // FIRST stage's output stretch (stacked calibration, not a re-pool).
+    SseBank bank2[4];
     // Cost + train every scheme on one observed bin.
-    auto code_bin = [&](int kind, int cx, int cls, int act, int qg, bool bit) {
+    auto code_bin = [&](int kind, int cx, int cls, int act, int qg,
+                        int dir, int zl, bool bit) {
         out.nbins++;
         uint16_t p1 = e1_prob(e1, kind, cx);
         uint16_t p2 = ac_v2_mix(e2[kind].pf[(size_t)cls], e2[kind].ps[(size_t)cls]);
         uint16_t p3 = ac_v2_mix(e3[kind].pf[(size_t)act], e3[kind].ps[(size_t)act]);
         uint16_t p4 = ac_v2_mix(e4[kind].pf[(size_t)qg], e4[kind].ps[(size_t)qg]);
-        int32_t st[4] = {mix_stretch_p16(p1), mix_stretch_p16(p2),
-                         mix_stretch_p16(p3), mix_stretch_p16(p4)};
+        int32_t st[6] = {mix_stretch_p16(p1), mix_stretch_p16(p2),
+                         mix_stretch_p16(p3), mix_stretch_p16(p4), 0, 0};
+        if (preset.ext_bank) {
+            uint16_t p5 = ac_v2_mix(e5[kind].pf[(size_t)dir], e5[kind].ps[(size_t)dir]);
+            uint16_t p6 = ac_v2_mix(e6[kind].pf[(size_t)zl], e6[kind].ps[(size_t)zl]);
+            st[4] = mix_stretch_p16(p5);
+            st[5] = mix_stretch_p16(p6);
+        }
         out.bits_v2 += bin_cost(p1, bit);
         int s_mx = mxA[mx_idx(kind, cls)].filter(st, act);
         MixerCore& mb = mxB[mx_idx(kind, cls)];
@@ -353,15 +371,23 @@ SweepOut run_mixer_pass(const Raster& t,
         int s_se = preset.cx_sse
             ? bank[kind].filter(s_se_raw, cx)
             : s_se_raw; // presets without cx-sse keep the internal coarse APM
+        int s_se2 = preset.sse2
+            ? bank2[kind].filter(s_se, cx)
+            : s_se;     // D4b: stacked second stage on the FIRST stage output
         out.bits_mx += bin_cost(mix_p16_from_stretch(s_mx), bit);
-        out.bits_sse += bin_cost(mix_p16_from_stretch(s_se), bit);
+        out.bits_sse += bin_cost(mix_p16_from_stretch(s_se2), bit);
         e1_adapt(e1, kind, cx, bit);
         ac_v2_adapt(e2[kind].pf[(size_t)cls], e2[kind].ps[(size_t)cls], bit);
         ac_v2_adapt(e3[kind].pf[(size_t)act], e3[kind].ps[(size_t)act], bit);
         ac_v2_adapt(e4[kind].pf[(size_t)qg], e4[kind].ps[(size_t)qg], bit);
+        if (preset.ext_bank) {
+            ac_v2_adapt(e5[kind].pf[(size_t)dir], e5[kind].ps[(size_t)dir], bit);
+            ac_v2_adapt(e6[kind].pf[(size_t)zl], e6[kind].ps[(size_t)zl], bit);
+        }
         mxA[mx_idx(kind, cls)].update(bit, st, act);
         mb.update(bit, st, act);
         if (preset.cx_sse) bank[kind].update(bit, s_se_raw, cx, preset.cx_sse_rate);
+        if (preset.sse2) bank2[kind].update(bit, s_se, cx, preset.cx_sse_rate);
     };
     for (size_t pi = 0; pi < t.planes.size(); ++pi) {
         const auto& plane = t.planes[pi];
@@ -377,19 +403,23 @@ SweepOut run_mixer_pass(const Raster& t,
             int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
             int qg = quant_residual(dL) + quant_residual(dU) + quant_residual(dUL);
             if (qg > 14) qg = 14;
+            int dir = quant_residual(dL) - quant_residual(dU) + 7;
+            if (dir < 0) dir = 0;
+            if (dir > 14) dir = 14;
+            int zl = (x > 0 && res[i - 1] == 0) ? 1 : 0;
             uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
             // Bin sequence mirrors encode_residual_v2 exactly:
             // zero flag -> sign -> unary quotient -> MSB-first remainder.
-            code_bin(MIXK_ZERO, cx, cls, act, qg, mag == 0);
+            code_bin(MIXK_ZERO, cx, cls, act, qg, dir, zl, mag == 0);
             if (mag == 0) continue;
-            code_bin(MIXK_SIGN, cx, cls, act, qg, res[i] < 0);
+            code_bin(MIXK_SIGN, cx, cls, act, qg, dir, zl, res[i] < 0);
             int L = 31 - __builtin_clz(mag);
             for (int k = 0; k < L; ++k)
-                code_bin(MIXK_Q, cx, cls, act, qg, false);
-            code_bin(MIXK_Q, cx, cls, act, qg, true);
+                code_bin(MIXK_Q, cx, cls, act, qg, dir, zl, false);
+            code_bin(MIXK_Q, cx, cls, act, qg, dir, zl, true);
             uint32_t rem = mag - (1u << L);
             for (int k = L - 1; k >= 0; --k)
-                code_bin(MIXK_REM, cx, cls, act, qg, ((rem >> k) & 1u) != 0);
+                code_bin(MIXK_REM, cx, cls, act, qg, dir, zl, ((rem >> k) & 1u) != 0);
         }
     }
     return out;
@@ -1040,6 +1070,19 @@ int main(int argc, char* argv[]) {
                     p.cx_sse_rate = rr;
                 } else if (n == "mix4-cxsse") {
                     p.cx_sse = true; // default rate 7
+                } else if (n == "mix6") {
+                    // D4b extended bank: K=6 (adds directional + zero-left
+                    // estimators), internal APM off.
+                    p.ext_bank = true;
+                    p.cfg.use_sse = false;
+                } else if (n == "mix6-sse") {
+                    p.ext_bank = true;         // internal APM only
+                } else if (n == "mix6-sse2") {
+                    p.ext_bank = true;
+                    p.sse2 = true;             // stacked second cx stage
+                } else if (n == "mix6-cxsse") {
+                    p.ext_bank = true;
+                    p.cx_sse = true;
                 } else if (n == "mix4-adversarial") {
                     p.cfg.lr_shift = -1;
                     p.cfg.sse_rate_shift = -1;
