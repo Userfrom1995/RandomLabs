@@ -84,11 +84,17 @@ void MixerCore::update(bool bit, const int32_t* st, int sse_class) {
     int s_mix = (int)(dot >> 16);
     if (s_mix < -MIX_STRETCH_MAX) s_mix = -MIX_STRETCH_MAX;
     if (s_mix > MIX_STRETCH_MAX) s_mix = MIX_STRETCH_MAX;
-    int target = bit ? -MIX_STRETCH_MAX : MIX_STRETCH_MAX;
-    int err = target - s_mix;
+    // Probability-domain logistic-loss error (lpaq-style): training against
+    // the observed bit in P-domain keeps the common-mode weight growth
+    // bounded - a perfect prediction contributes near-zero error, so weights
+    // stay near the mixture scale instead of amplifying the stretch.
+    int p12_mix = mix_squash(s_mix);
+    int err = bit ? -p12_mix : (4095 - p12_mix);
     if (cfg_.lr_shift >= 0) {
+        int div = 20 - cfg_.lr_shift; // lr 4..8 -> divisor 16..12
+        if (div < 1) div = 1;
         for (int k = 0; k < cfg_.K; ++k) {
-            int64_t delta = (((int64_t)err * st[k]) << cfg_.lr_shift) >> 20;
+            int64_t delta = ((int64_t)err * st[k]) >> div;
             int64_t nw = (int64_t)w_[k] + delta;
             if (nw < cfg_.w_min) nw = cfg_.w_min;
             if (nw > cfg_.w_max) nw = cfg_.w_max;
@@ -102,9 +108,10 @@ void MixerCore::update(bool bit, const int32_t* st, int sse_class) {
     int u = s_mix + MIX_STRETCH_MAX;
     int j = u >> 7;
     int64_t& t = sse_[(size_t)sse_class * 33 + (size_t)j];
-    t += ((((int64_t)target << 16)) - t) >> cfg_.sse_rate_shift;
-    int64_t lo = -(int64_t)MIX_STRETCH_MAX << 16;
-    int64_t hi = (int64_t)MIX_STRETCH_MAX << 16;
+    int target = bit ? -MIX_STRETCH_MAX : MIX_STRETCH_MAX; // APM pulls toward confidence
+    t += ((int64_t)target * 65536 - t) >> cfg_.sse_rate_shift;
+    int64_t lo = -(int64_t)MIX_STRETCH_MAX * 65536;
+    int64_t hi = (int64_t)MIX_STRETCH_MAX * 65536;
     if (t < lo) t = lo;
     if (t > hi) t = hi;
 }
