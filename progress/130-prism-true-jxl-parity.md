@@ -201,8 +201,9 @@ FAIL honestly in both units everywhere; all three gate rails' self-checks
 PASS. Corpus truth stands at e1 = 10.2904 summed / 3.4301 per-sample bpp,
 e3 = e7 = 10.2861 / 3.4287; no parity claim.
 
-Next step: review round 2 at this boundary (per re-scope D3: goes to review
-regardless of verdict). The OWNER DECISION POINT (continue into D4 stretch
+Next step: re-review of the round-3 fold at this boundary (rounds 2 and 3
+both verified prior work and returned only docs findings, all applied).
+The OWNER DECISION POINT (continue into D4 stretch
 knowing M3 likely stays open, or close #130 at the achieved gate level,
 -6.7 percent bytes vs the e7 baseline plus five closed research directions)
 remains surfaced for owner/Mae alongside that review. The Builder takes no
@@ -270,6 +271,25 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 12, review round 3 fold): both
+  findings applied, docs-only, zero executable-line changes (bash -n green).
+  F1: the static-refinement ceiling pair now derives from ONE stated method
+  everywhere - differences of the pooled IDEALTOTAL-row percentages as
+  printed in benchmarks/results/2026-08-24-ideal-probe.csv - giving 1.13
+  bin-fine / 1.47 value mode. The previously propagated 1.14/1.50 matched no
+  consistent method (1.50 was a cross-column slip that entered via round 2's
+  own suggested text). Fixed at all seven sites: probe_backend.sh header,
+  rescope closure row, blueprint C1 acceptance + C2 status notes, ideas x2,
+  D0 record consequence 1; correction stamp added to the D0 record with the
+  full derivation and cross-checks (full precision 1.131/1.476; per-image
+  means 1.135/1.677 explicitly not used). F2: TOTAL-row non-additivity
+  documented at the probe_ideal.sh header and in benchmark-methodology.md
+  section 6 (TOTAL rows pool histograms across images before estimation:
+  joint figures, intentionally not sums of per-image rows). Branch synced
+  with origin/main first per item 0 (unshallowed the clone, merge-base
+  aa94ae4 re-verified, ordinary merge 5e590a0 of the lab model-pin commit).
+  Owner decision point stays open; decision {"action":"review"}.
 
 - 2026-08-24 the Builder (continuation run 11, review round 2 fold): all
   seven docs-only findings F1(a-g) applied - the D0 retraction now propagates

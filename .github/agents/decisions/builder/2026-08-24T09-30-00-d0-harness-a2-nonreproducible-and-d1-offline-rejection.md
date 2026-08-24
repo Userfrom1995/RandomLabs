@@ -33,10 +33,28 @@ the fact. This is precisely the failure mode invariant I7 was written to end.
 Consequences, stated plainly:
 
 1. The magnitude claims built on that table are retracted: "static refinement
-   adds only ~0.19 points" is replaced by the harness-measured 1.14 points
-   (bin-fine class16 to ctx343) and 1.50 points (value mode); the qualitative
+   adds only ~0.19 points" is replaced by the harness-measured 1.13 points
+   (bin-fine class16 to ctx343) and 1.47 points (value mode); the qualitative
    conclusion survives (per-context static refinement buys little), now with
    auditable evidence.
+
+> **CORRECTION (2026-08-24, review round 3 fold):** this consequence was
+> originally written as "1.14 points / 1.50 points", a pair that mixed
+> derivation methods and matched no consistent one (1.50 came from
+> differencing bracket magnitudes across granularities - an arithmetic slip;
+> it entered downstream docs verbatim). Canonical method, now stated on every
+> site carrying the pair: differences of the pooled IDEALTOTAL-row
+> percentages as printed (two decimals) in
+> `benchmarks/results/2026-08-24-ideal-probe.csv`:
+> bin-fine 12.61 - 11.48 = **1.13**; value mode 12.98 - 11.51 = **1.47**.
+> Cross-checks at other precisions: full-precision TOTAL-row arithmetic gives
+> 1.131 / 1.476 (within 0.01 points of the printed-cell figures); per-image
+> means give 1.135 / 1.677 and are NOT used - mixing that method into one
+> figure is exactly what produced the slip. The printed-cell convention is
+> chosen because every other number in these documents derives from the same
+> published precision, so any reader can re-derive the pair from the table
+> above without recomputing entropies. Historical agent-log entries quoting
+> 1.14/1.50 stay verbatim: they record what was written at the time.
 2. The re-scope's L2 framing ("the real coder collects roughly half of even
    the SHARED ideal gain") is inverted by measurement: the adaptive v2 coder
    (-5.53 percent aggregate) BEATS every shared-static bracket (+1.31 /
