@@ -15,6 +15,9 @@
 #include <cstring>
 #include <algorithm>
 #include <fstream>
+#include <unordered_map>
+#include <cmath>
+#include <map>
 
 using namespace prism;
 using namespace prism::codec;
@@ -27,7 +30,8 @@ static void print_usage() {
               << "  prism fuzz [--iters N]\n"
               << "  prism info <file.prism>\n"
               << "  prism probe-backend <image> [--variants LIST]\n"
-              << "  prism probe-xband <image>\n";
+              << "  prism probe-xband <image>\n"
+              << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -37,6 +41,146 @@ static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uin
     }
     return frontend::decode_to_raster(p);
 }
+
+// ----- bench-ideal (D0 instrumentation harness, re-scope section D0) -----
+//
+// Static-entropy brackets over the production residual streams under the v2
+// binarization. Contract: docs/algorithmic-spec.md section 11.1 (invariant
+// I7). Two model granularities:
+//   coarse - four bin kinds (zero/sign/q/rem), mirroring the real coder's
+//            model structure exactly;
+//   fine   - quotient bins additionally conditioned on unary depth,
+//            remainder bits on (level L, position from MSB).
+// Three pooling levels per granularity: shared / class16 / ctx343.
+// Probabilities are ML-fit empirical frequencies of the measured stream; each
+// observed bin contributes -log2(observed frequency). Refinement is monotone
+// under ML fitting: shared >= class16 >= ctx343 must hold (the shell
+// evaluator enforces this ordering as an internal consistency gate).
+
+namespace idealbench {
+
+struct BinHist { uint64_t n0 = 0, n1 = 0; };
+using BinMap = std::unordered_map<uint32_t, BinHist>;
+
+// One pooled histogram set per grouping scheme. Each observed symbol carries
+// its own denominator entry in `tot` so the same container serves binary-bin
+// histograms (key = pool group, outcomes split n0/n1) and value alphabets
+// (key = pool group x quantized value, single-outcome counts).
+struct Pools {
+    BinMap lv[3];
+    std::unordered_map<uint32_t, uint64_t> tot[3];
+    void add(int level, uint32_t key, bool bit) {
+        BinHist& h = lv[level][key];
+        if (bit) h.n1++; else h.n0++;
+        tot[level][key]++;
+    }
+};
+
+// coarse keys: kind*1024 + group      (kinds 0..3 = zero/sign/q/rem)
+// fine keys:   (kind*65536 + depthidx)*4096 + group, where depthidx is
+//   0 for zero/sign bins, the unary depth for q bins, and
+//   min(L,255)*256+pos (pos = bit position from MSB) for remainder bits.
+// val keys: shared = v+2^20; class = cls*2^21+v; ctx = cx*2^22+v
+//   (plane residuals are bounded far inside +-2^20). The value brackets are
+//   the alphabet entropies H(E|pooling): theoretical floors no binary code
+//   can undercut.
+struct Acc {
+    Pools coarse, fine, val;
+    void bin(int kind, int cls, int cx, int depthidx, bool bit) {
+        coarse.add(0, (uint32_t)kind * 1024u, bit);
+        coarse.add(1, (uint32_t)kind * 1024u + (uint32_t)cls, bit);
+        coarse.add(2, (uint32_t)kind * 1024u + (uint32_t)cx, bit);
+        uint32_t fbase = ((uint32_t)kind * 65536u + (uint32_t)depthidx) * 4096u;
+        fine.add(0, fbase, bit);
+        fine.add(1, fbase + (uint32_t)cls, bit);
+        fine.add(2, fbase + (uint32_t)cx, bit);
+    }
+    void value(int cls, int cx, int32_t e) {
+        uint32_t v = (uint32_t)((int64_t)e + (1 << 20));
+        val.add(0, v, false);
+        val.add(1, ((uint32_t)cls << 21) | v, false);
+        val.add(2, ((uint32_t)cx << 22) | v, false);
+    }
+    void merge(const Acc& o) {
+        auto mg = [](Pools& dst, const Pools& src) {
+            for (int l = 0; l < 3; ++l) {
+                for (const auto& kv : src.lv[l]) {
+                    BinHist& h = dst.lv[l][kv.first];
+                    h.n0 += kv.second.n0; h.n1 += kv.second.n1;
+                }
+                for (const auto& kv : src.tot[l])
+                    dst.tot[l][kv.first] += kv.second;
+            }
+        };
+        mg(coarse, o.coarse); mg(fine, o.fine); mg(val, o.val);
+    }
+    static double bits_of(const Pools& p, int l) {
+        double bits = 0.0;
+        const auto& totmap = p.tot[l];
+        for (const auto& kv : p.lv[l]) {
+            double n = (double)totmap.at(kv.first);
+            double n0 = (double)kv.second.n0, n1 = (double)kv.second.n1;
+            if (n0 > 0) bits -= n0 * std::log2(n0 / n);
+            if (n1 > 0) bits -= n1 * std::log2(n1 / n);
+        }
+        return bits;
+    }
+    // Alphabet entropy for value pools: probabilities are marginalized per
+    // GROUP (key >> group_shift), not per key. Shifts follow the key layout
+    // in the Acc comment above.
+    static double alphabet_bits(const Pools& p, int l, int group_shift) {
+        std::unordered_map<uint32_t, double> gt;
+        for (const auto& kv : p.tot[l])
+            gt[group_shift ? (kv.first >> group_shift) : 0u] += (double)kv.second;
+        double bits = 0.0;
+        for (const auto& kv : p.tot[l]) {
+            double c = (double)kv.second;
+            if (c > 0)
+                bits -= c * std::log2(c / gt[group_shift ? (kv.first >> group_shift) : 0u]);
+        }
+        return bits;
+    }
+
+    // out[0..2] = shared / class16 / ctx343 totals.
+    void bits(double out_coarse[3], double out_fine[3], double out_val[3]) const {
+        static const int kShift[3] = {0, 21, 22};
+        for (int l = 0; l < 3; ++l) {
+            out_coarse[l] = bits_of(coarse, l);
+            out_fine[l] = bits_of(fine, l);
+            out_val[l] = alphabet_bits(val, l, kShift[l]);
+        }
+    }
+};
+
+// Walk residuals exactly as encode_residual_v2 emits bins: same causal
+// residual-diff contexts, same zero-flag -> sign -> unary quotient ->
+// MSB-first remainder sequence, same depth indexing.
+void walk(const std::vector<int32_t>& res, uint32_t w, Acc& acc) {
+    for (size_t i = 0; i < res.size(); ++i) {
+        uint32_t x = (w == 0) ? 0 : (uint32_t)(i % w);
+        uint32_t y = (w == 0) ? 0 : (uint32_t)(i / w);
+        int32_t dL = 0, dU = 0, dUL = 0;
+        if (x > 0) dL = res[i - 1];
+        if (y > 0) dU = res[i - w];
+        if (x > 0 && y > 0) dUL = res[i - w - 1];
+        int cx = residual_diff_context(dL, dU, dUL);
+        int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+        acc.value(cls, cx, res[i]);
+        uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
+        acc.bin(0, cls, cx, 0, mag == 0);
+        if (mag == 0) continue;
+        acc.bin(1, cls, cx, 0, res[i] < 0);
+        int L = 31 - __builtin_clz(mag);
+        for (int k = 0; k < L; ++k) acc.bin(2, cls, cx, k, false);
+        acc.bin(2, cls, cx, L, true);
+        uint32_t rem = mag - (1u << L);
+        int rid = (L < 255 ? L : 255) * 256;
+        for (int pos = 0; pos < L; ++pos)
+            acc.bin(3, cls, cx, rid + pos, ((rem >> (L - 1 - pos)) & 1u) != 0);
+    }
+}
+
+} // namespace idealbench
 
 int main(int argc, char* argv[]) {
     if (argc < 2) { print_usage(); return 2; }
@@ -368,6 +512,115 @@ int main(int argc, char* argv[]) {
             std::cout << "TOTAL," << img.filename().string()
                       << ",flat=" << flatTot << ",adopted=" << adoptTot
                       << ",delta=" << ((int64_t)adoptTot - (int64_t)flatTot) << "\n";
+        } else if (cmd == "bench-ideal") {
+            // D0 instrumentation rail (issue #130, re-scope section D0):
+            // static-entropy brackets over the production residual streams.
+            // Rows are CSV: IDEAL per image, IDEALTOTAL pooled over all
+            // images given. Percentages against v0_bytes are evaluated by
+            // benchmarks/probe_ideal.sh. Invariant I7 lives here: every D-
+            // phase go/no-go must cite numbers this command reproduces.
+            if (argc < 3) { print_usage(); return 2; }
+            std::vector<std::filesystem::path> imgs;
+            std::vector<std::string> preds;
+            std::vector<std::string> blends;
+            auto split_list = [](const std::string& s) {
+                std::vector<std::string> out;
+                size_t pos = 0;
+                while (pos <= s.size()) {
+                    size_t comma = s.find(',', pos);
+                    if (comma == std::string::npos) comma = s.size();
+                    if (comma > pos) out.push_back(s.substr(pos, comma - pos));
+                    pos = comma + 1;
+                }
+                return out;
+            };
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--predictor" && i + 1 < argc) {
+                    auto v = split_list(argv[++i]);
+                    preds.insert(preds.end(), v.begin(), v.end());
+                } else if (a == "--blend" && i + 1 < argc) {
+                    auto v = split_list(argv[++i]);
+                    blends.insert(blends.end(), v.begin(), v.end());
+                } else {
+                    imgs.push_back(a);
+                }
+            }
+            if (imgs.empty()) { std::cerr << "bench-ideal: no images given\n"; return 2; }
+            if (preds.empty() && blends.empty()) preds.push_back("med");
+
+            static const std::map<std::string, PredId> bank = {
+                {"left", PredId::LEFT},   {"top", PredId::TOP},
+                {"tl", PredId::TL},       {"med", PredId::MED},
+                {"gap", PredId::GAP},     {"grad", PredId::GRAD},
+                {"true_motion", PredId::TRUE_MOTION},
+                {"clamped", PredId::CLAMPED},
+                {"weighted", PredId::WEIGHTED}};
+            auto blend_cfg = [](const std::string& n, BlendConfig& c) {
+                // Presets keep lr_shift + energy_shift == frac_bits so the
+                // effective NLMS step mu = 2^(lr+energy-frac).
+                c = BlendConfig(); // "nlms" defaults: lr5/es11, mu = 1/32
+                if (n == "nlms-lr3") { c.lr_shift = 3; c.energy_shift = 13; }
+                else if (n == "nlms-lr4") { c.lr_shift = 4; c.energy_shift = 12; }
+                else if (n == "nlms-lr6") { c.lr_shift = 6; c.energy_shift = 10; }
+                else if (n == "nlms-lr7") { c.lr_shift = 7; c.energy_shift = 9; }
+            };
+            for (const auto& p : preds)
+                if (!bank.count(p)) { std::cerr << "bench-ideal: unknown predictor " << p << "\n"; return 2; }
+
+            struct Total { idealbench::Acc acc; size_t v0 = 0, v2 = 0; };
+            std::map<std::string, Total> totals;
+            std::cout << "IDEAL,image,predictor,v0_bytes,v2_bytes,"
+                      << "coarse_shared,coarse_class16,coarse_ctx343,"
+                      << "fine_shared,fine_class16,fine_ctx343,"
+                      << "val_shared,val_class16,val_ctx343\n";
+            char rowbuf[512];
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                Raster t = apply_color(r, ColorTransform::YCoCgR);
+                std::vector<std::pair<std::string, bool>> jobs; // name, is_blend
+                for (auto& n : preds) jobs.push_back({n, false});
+                for (auto& n : blends) jobs.push_back({n, true});
+                for (auto& job : jobs) {
+                    idealbench::Acc acc;
+                    size_t v0b = 0, v2b = 0;
+                    BlendConfig bc;
+                    PredId pid = PredId::MED;
+                    if (job.second) blend_cfg(job.first, bc);
+                    else pid = bank.at(job.first);
+                    for (auto& plane : t.planes) {
+                        auto res = job.second
+                            ? compute_residuals_blend(plane, t.w, t.h, bc)
+                            : compute_residuals(plane, t.w, t.h, pid);
+                        v0b += acoder_encode_plane(res, t.w, t.h, 343).size();
+                        v2b += acoder_encode_plane_v2(res, t.w, t.h,
+                                                      AC_V2_RESDIFF_CONTEXTS).size();
+                        idealbench::walk(res, t.w, acc);
+                    }
+                    double c[3], f[3], v[3];
+                    acc.bits(c, f, v);
+                    auto& tot = totals[job.first];
+                    tot.acc.merge(acc);
+                    tot.v0 += v0b;
+                    tot.v2 += v2b;
+                    std::snprintf(rowbuf, sizeof(rowbuf),
+                                  "IDEAL,%s,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                                  img.filename().c_str(), job.first.c_str(),
+                                  v0b, v2b, c[0], c[1], c[2], f[0], f[1], f[2],
+                                  v[0], v[1], v[2]);
+                    std::cout << rowbuf;
+                }
+            }
+            for (auto& kv : totals) {
+                double c[3], f[3], v[3];
+                kv.second.acc.bits(c, f, v);
+                std::snprintf(rowbuf, sizeof(rowbuf),
+                              "IDEALTOTAL,all,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                              kv.first.c_str(), kv.second.v0, kv.second.v2,
+                              c[0], c[1], c[2], f[0], f[1], f[2],
+                              v[0], v[1], v[2]);
+                std::cout << rowbuf;
+            }
         } else {
             print_usage(); return 2;
         }
