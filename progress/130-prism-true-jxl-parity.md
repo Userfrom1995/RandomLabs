@@ -29,6 +29,11 @@
 
 ## A2 recalibration oracle evidence (referenced by probe_backend.sh)
 
+> **RETRACTED 2026-08-24:** these magnitudes proved nonreproducible and
+> information-theoretically impossible; see D-series checklist item D0 and
+> decision record 2026-08-24T09-30-00 for harness-citable replacements.
+> Kept verbatim as the historical record of what the recalibration cited.
+
 The A2 gate was recalibrated on 2026-08-23 (decision record
 `.github/agents/decisions/builder/2026-08-23T19-35-00-a2-gate-recalibration.md`)
 using instrumented offline analysis of the actual pipeline residual streams.
@@ -265,6 +270,23 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 11, review round 2 fold): all
+  seven docs-only findings F1(a-g) applied - the D0 retraction now propagates
+  to every live document. probe_backend.sh header rewritten (stale ~0.19
+  claim + dead pointer replaced by harness-citable 1.14/1.50 ceilings,
+  retraction pointer, CSV reference); RETRACTED blockquote added directly
+  under the tracker's A2-evidence section heading (kept verbatim below as
+  historical record); rescope closure-table row corrected (was citing
+  -18.57/-18.38) AND the inverted L2 claim fixed per D0 consequence 2 (real
+  v2 -5.53 BEATS every shared-static bracket +1.31/-0.78/-0.81; genuine gap
+  ~7 points vs conditional ideal); both ~0.19 mentions in the C-series
+  blueprint annotated; both stale assertions in the ideas writeup marked;
+  STATUS line added to rescope section D0 mirroring D1/D2/D3. Zero code
+  changes, zero executable-line changes in any script (bash -n green).
+  Owner decision point (D4 stretch vs honest closure) stays open for
+  owner/Mae; no format work without new direction backed by harness
+  evidence. Decision {"action":"review"}.
 
 - 2026-08-24 the Builder (continuation run 10, D3 checkpoint complete):
   synced the branch with origin/main first (unshallowed, shared history
