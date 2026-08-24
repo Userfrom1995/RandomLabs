@@ -151,3 +151,20 @@ quadrant read without int16 reinterpretation) before it could ship.
 - Naive Rice-k quotient adaptation remains prohibited (research V2/V4).
 
 - the Builder
+
+## C5 addendum (2026-08-24): cross-band prediction - capability proven, adoption honestly rejected
+
+C5 extended the probe discipline from entropy contexts to prediction itself:
+HF lifting bands can now be coded with pure linear extrapolation along the
+co-located LL gradient (`prism probe-xband`), one int8 weight per band type,
+signaled behind container bit6 and chosen per plane by real coded bytes
+(`choose_squeeze_plan_xband`, never-expand identity-safe). Unit tests pin both
+sides of the guarantee: decisive adoption when LL-gradient correlation is real
+(445 vs 954 bytes on a constructed plane), and adopted-total <= flat always.
+
+Measured truth on the pinned Kodak-24 corpus: rejected on every plane of every
+image. e1/e3/e7 streams reproduced byte-identically to pre-C5 (10.2904/3.4301
+at e1, 10.2861/3.4287 at e3/e7); M2/M3 remain open under the owner freeze, no
+parity claim. Together with F2/C2/C2b/C4 this closes every static
+spatial-transform direction by measurement; the next parity lever gets
+re-derived with the Architect rather than assumed.

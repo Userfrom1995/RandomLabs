@@ -246,6 +246,16 @@ conflicts with text above, this addendum wins.
 - **Stage P (prediction):** cross-band prediction for HF bands (parent-gradient
   linear predictor) rejoins the bank once Stage E v2 and Stage X always-on land;
   per-leaf selector as already specified.
+- **Stage P amendment (2026-08-24, C5 realization):** the cross-band predictor
+  shipped as a band-local pure linear model - `pred = floor(g * w / 16)` with
+  `g` the central LL difference along the band's orientation (H/V/D) and one
+  int8 weight per type - replacing MED only for planes whose weights are
+  nonzero; weight 0 is the exact legacy behavior. Weights are signaled in the
+  container header behind flag bit6 (+3 bytes per squeezing plane) and chosen
+  per plane by real coded bytes (`choose_squeeze_plan_xband`); no global-bank
+  PredId was added because flat planes have no LL domain. Measured on Kodak-24:
+  REJECTED on every plane, streams byte-identical to pre-C5; see blueprint
+  section 7.1.
 - **Gates:** M2 = summed < 9.498 AND per-sample < 3.166; M3 = summed < 8.655
   AND per-sample < 2.885 (both units enforced by `bench_gate.sh --self-check`).
 

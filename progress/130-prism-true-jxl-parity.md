@@ -85,27 +85,43 @@ percent) are independently re-measurable today via
       closure. Probe hook force_squeeze_levels added; directed bit5
       round-trip test; odd-dims bijection suite; decision record
       2026-08-24T02-30-00-c4-lifting-scope-and-measured-rejection.md.
-- [ ] C5 Cross-band prediction (P6): XBAND parent-gradient predictor, per-leaf selector, wins >= 20/24 images; M3 GATE CHECKPOINT.
-- [ ] C6 CM/SSE stretch (P7, optional for closure): logistic mixer + SSE behind never-expand net toward < 8.0 summed.
+- [x] C5 Cross-band prediction (P6): capability LANDED behind container bit6 -
+      HF bands predicted by pure linear extrapolation along the co-located LL
+      gradient (one int8 weight per H/V/D type, +3 header bytes per squeezing
+      plane), per-plane chooser by REAL coded bytes with never-expand identity
+      safety; legacy coupled estimator path retired (last energy proxies gone
+      by deletion). MEASURED REJECTION on all 24 pinned images: e1/e3/e7
+      byte-identical to pre-C5 (10.2904/3.4301 and 10.2861/3.4287);
+      M3 GATE CHECKPOINT FAILS in both units as expected. Constructed-
+      correlation unit test proves the mechanism adopts decisively when
+      correlation is real. Decision record
+      2026-08-24T08-16-17-c5-xband-scope-and-measured-rejection.md.
+- [ ] C6 CM/SSE stretch (P7, optional for closure): logistic mixer + SSE behind never-expand net toward < 8.0 summed. BLOCKED on Architect re-scope per tracker rule below.
 
 ## Current step
 
-Builder continuation run 5 (2026-08-24) COMPLETE for this slice: review
-findings F1-F6 folded in first (gate arithmetic is the single source:
-capture 124%/140% from same-run measured V1; gain 0.78; A2 oracle evidence
-table committed in-tree under "A2 recalibration oracle evidence"; analyzer
-   reuses build_spatial_flat_tree; topology wording updated then (later
-   corrected 2026-08-24: shared history, see next-step item 0),
-then C4 landed: true CDC lifting behind bit5 + trial-bits level choice.
-Measured honestly: lifting rejected corpus-wide, e1 truth stands at
-**10.2904 summed / 3.4301 per-sample bpp** (24/24 ties vs pre-C4), e3/e7
-10.2861/3.4287. M2 (<9.498/<3.166) and M3 (<8.655/<2.885) FAIL in both
-units - no parity claim. Verification this slice: 59/59 gtests (9 new
-squeeze tests), fuzz 500 iters PASS, probe + bench_gate self-checks PASS,
-sha pins verified pre-measurement.
+Builder continuation run 7 (2026-08-24) COMPLETE for this slice: C5
+cross-band prediction landed (bit6 + per-plane H/V/D LL-gradient weights,
+pure linear model; legacy coupled path retired) and honestly measured:
+REJECTED on every plane of all 24 pinned images, e1/e3/e7 byte-identical
+to pre-C5 (**10.2904 summed / 3.4301 per-sample at e1, 10.2861/3.4287 at
+e3/e7**). M2 (<9.498/<3.166) and M3 (<8.655/<2.885) FAIL in both units -
+no parity claim. Verification this slice: 66/66 gtests (7 new Xband tests),
+fuzz 1000 iters PASS, bench_gate self-check PASS in both units, wall-clock
+unchanged vs pre-C5 on identical inputs (e3 kodim01 6.14 s vs 6.26 s).
+Static spatial-transform directions are now closed by measurement (F2 + C2
++ C2b + C4 + C5).
 
-Next slice: C5 cross-band prediction (blueprint section 7) -> M3 gate
-checkpoint -> review round -> tester.
+Next slice: Architect re-scope BEFORE any C6 work (tracker rule) - remaining
+parity levers need re-derivation; then review round at the stable head.
+
+Earlier slice (continuation run 5): review findings F1-F6 folded in first
+(gate arithmetic is the single source: capture 124%/140% from same-run
+measured V1; gain 0.78; A2 oracle evidence table committed in-tree under
+"A2 recalibration oracle evidence"; analyzer reuses build_spatial_flat_tree;
+topology wording updated then, later corrected 2026-08-24: shared history,
+see next-step item 0). Then C4 landed: true CDC lifting behind bit5 +
+trial-bits level choice, measured rejection corpus-wide.
 
 Previous slice summary (continuation run 3, C2b):
 
@@ -145,16 +161,37 @@ Previous slice summary (continuation run 3, C2b):
    fabricates bogus DAG edges). The hard-rule orphan check still re-runs
    immediately before any actual merge of this PR with freshly fetched
    objects.
-1. [next run] C5 (cross-band prediction, blueprint section 7): XBAND
-   parent-gradient predictor over the (now lifting-capable) band structure,
-   per-leaf selector by trial bits; acceptance wins >= 20/24 images; M3 GATE
-   CHECKPOINT after it lands. If C5's measured outcome also rejects, report
-   honestly and re-scope with the Architect before C6.
-2. Then review round at the stable C5 head -> Tester -> Maintainer merge.
-   M3 checkpoint re-evaluated with a fresh both-units measure. Owner freeze
-   stands throughout: nothing merges before both gates pass in both units.
+1. [DONE this run] C5 (cross-band prediction, blueprint section 7): landed
+   behind bit6 with per-plane H/V/D weights chosen by trial bits; M3 GATE
+   CHECKPOINT evaluated fresh: FAIL in both units (10.2861/3.4287), honest
+   all-reject outcome recorded. Per the rule below the next phase re-scopes.
+2. [next run] Architect re-scope BEFORE any C6 work: every static
+   spatial-transform direction is closed by measurement (F2, C2, C2b, C4,
+   C5); remaining parity levers must be re-derived from evidence, not
+   assumed. After re-scope: review round at the stable head -> Tester ->
+   Maintainer merge decision. Owner freeze stands throughout: nothing
+   merges before both gates pass in both units on a fresh both-units
+   measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 7): topology correction FIRST
+  (commit b50935a): unshallowed the CI clone, verified shared history
+  (merge-base f8a958d70e48; GitHub API: 1113c6f parent = f8a958d70e48),
+  rewrote tracker item 0 - unrelated-histories joins forbidden. Then C5
+  landed: xband_gradient/xband_apply shared math, container bit6 + per-plane
+  H/V/D weights (+3 bytes/squeezing plane), pure linear LL-gradient HF model,
+  exact per-type joint weight chooser by real band bytes
+  (choose_squeeze_plan_xband exported for tests/probe), legacy coupled
+  estimator path deleted (last energy proxies gone), probe-xband CLI +
+  force_xband_weights hook, 7 new Xband unit tests incl. a decisive-win
+  constructed-correlation case and the never-expand property. Measured:
+  REJECTED on all 24 pinned images (pins re-verified from upstream PNGs),
+  e1/e3/e7 CSVs byte-identical to pre-C5, wall-clock unchanged (e3 kodim01
+  6.14 s vs pre-C5 6.26 s). M2/M3 FAIL in both units; no parity claim.
+  Docs sweep: blueprint 7.1 status, spec Stage-P amendment, README, ideas
+  addendum, decision record 2026-08-24T08-16-17. Status stays in_progress
+  (Architect re-scope before C6 per tracker rule); decision {"action":"continue"}.
 
 - 2026-08-24 the Builder (continuation run 6, topology correction FIRST):
   Mae's twice-delivered server-side evidence verified this run - the
