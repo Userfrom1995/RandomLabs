@@ -11,4 +11,6 @@ Pinned reference codecs for Kodak measurement. Versions match Obsidian harness.
 
 Install via apt or from source; `run_kodak.sh` checks for their presence and skips missing ones with a warning.
 
-Dataset: Kodak PCD0992, 24 images, 768x512, 24-bit RGB, canonical PPM pinned by SHA256 in `data/kodak.sha256`.
+Dataset: Kodak PCD0992, 24 images at native resolution (18 landscape
+768x512, 6 portrait 512x768), 24-bit RGB, canonical PPM (no rotation)
+pinned by SHA256 in `data/kodak.sha256`.

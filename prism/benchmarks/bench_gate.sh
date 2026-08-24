@@ -6,7 +6,7 @@ set -euo pipefail
 # (8*bytes/(w*h*channels), see src/cli/main.cpp). Historical gates were stated
 # in SUMMED bpp (8*bytes/(w*h)). This script now states every number in BOTH
 # units and compares each gate in its own unit. For the pinned Kodak-24
-# corpus (768x512 RGB, channels=3) summed = 3 * per-sample; this follows
+# corpus (RGB, channels=3) summed = 3 * per-sample; this follows
 # from the corpus definition itself and is assumed here, not re-asserted
 # from image,bytes,bpp rows alone.
 #
