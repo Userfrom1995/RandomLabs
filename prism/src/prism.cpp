@@ -93,10 +93,12 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
                 int16_t tr=(y>0&&x+1<w)?(int16_t)data[idx-w+1]:0;
                 L=l; T=t; TL=tl; TR=tr;
                 int32_t pred=med_pred(L,T,TL);
-                // C5: co-located LL gradient term for HF bands (identity at weight 0).
+                // C5: HF prediction is pure linear extrapolation along the
+                // co-located LL gradient; weight 0 keeps plain MED exactly.
                 if (xband_w && llSrc) {
                     uint8_t xb_type = band_class & 3u;
-                    pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+                    int8_t wb = xband_w[xb_type - 1];
+                    if (wb != 0) pred = xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), wb);
                 }
                 int32_t e=(int32_t)sv - pred; resHist[idx]=e;
                 Feature f{}; f.band_class=band_class; f.qg=quant_qg(L,T,TL,TR);
@@ -151,10 +153,12 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
             int16_t tr=(y>0&&x+1<w)?(int16_t)data[idx-w+1]:0;
             L=l; T=t; TL=tl; TR=tr;
             int32_t pred=med_pred(L,T,TL);
-            // C5: co-located LL gradient term for HF bands (identity at weight 0).
+            // C5: HF prediction is pure linear extrapolation along the
+            // co-located LL gradient; weight 0 keeps plain MED exactly.
             if (xband_w && llSrc) {
                 uint8_t xb_type = band_class & 3u;
-                pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+                int8_t wb = xband_w[xb_type - 1];
+                if (wb != 0) pred = xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), wb);
             }
             e=(int32_t)sv - pred;
             f.qg=quant_qg(L,T,TL,TR);
@@ -254,10 +258,11 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 int16_t tr= (y>0&&x+1<w)?(int16_t)out[idx-w+1]:0;
                 L=l; T=t; TL=tl; TR=tr;
                 int32_t pred = med_pred(L,T,TL);
-                // C5 mirror of the encoder's LL gradient term.
+                // C5 mirror: pure linear LL-gradient model (weight 0 = MED).
                 if (xband_w && llSrc) {
                     uint8_t xb_type = band_class & 3u;
-                    pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+                    int8_t wb = xband_w[xb_type - 1];
+                    if (wb != 0) pred = xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), wb);
                 }
                 Feature f{}; f.band_class = band_class; f.qg = quant_qg(L,T,TL,TR);
                 if (llSrc) f.llc_class = quant_llc((*llSrc)[idx], bit_depth); else f.llc_class=0;
@@ -334,10 +339,11 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
             int16_t tr= (y>0&&x+1<w)?(int16_t)out[idx-w+1]:0;
             L=l; T=t; TL=tl; TR=tr;
             int32_t pred = med_pred(L,T,TL);
-            // C5 mirror of the encoder's LL gradient term.
+            // C5 mirror: pure linear LL-gradient model (weight 0 = MED).
             if (xband_w && llSrc) {
                 uint8_t xb_type = band_class & 3u;
-                pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+                int8_t wb = xband_w[xb_type - 1];
+                if (wb != 0) pred = xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), wb);
             }
             Feature f{}; f.band_class=band_class; f.qg=quant_qg(L,T,TL,TR);
             if(llSrc) f.llc_class=quant_llc((*llSrc)[idx],bit_depth); else f.llc_class=0;
