@@ -372,6 +372,11 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.hdr.effort = opts.effort;
     c.hdr.cfl_scales = ar.cfl_scales;
     c.hdr.squeeze_levels = ar.squeeze_levels;
+    // C4: whenever any plane squeezes, the stream uses true CDC lifting
+    // (bit5). Legacy decimation streams (bit5 clear) stay decodable.
+    bool hasSqueezeEarly = false;
+    for (auto v : c.hdr.squeeze_levels) if (v > 0) hasSqueezeEarly = true;
+    if (hasSqueezeEarly) flags |= SQUEEZE_LIFT_FLAG;
     c.trees = ar.trees;
     c.predictor_mode = ar.predictor_mode;
     c.global_pred_id = ar.global_pred_id;
@@ -414,20 +419,9 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                     } else bytes = rans_encode_plane(residuals, 1);
                     tot += bytes.size();
                 } else {
-                    SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd);
-                    std::vector<std::vector<uint16_t>> llPlanes;
-                    {
-                        std::vector<uint16_t> cur = plane;
-                        uint32_t curW = transformed.w, curH = transformed.h;
-                        for (uint8_t lvl=0; lvl<L; ++lvl) {
-                            if ((curW &1)||(curH&1)) break;
-                            uint32_t w2=curW/2, h2=curH/2;
-                            std::vector<uint16_t> ll(w2*h2);
-                            for (uint32_t y=0;y<h2;++y) for(uint32_t x=0;x<w2;++x){ size_t i00=(size_t)(y*2)*curW+(x*2); ll[y*w2+x]=cur[i00];}
-                            llPlanes.push_back(ll);
-                            cur = ll; curW=w2; curH=h2;
-                        }
-                    }
+                    SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd, true);
+                    std::vector<std::vector<uint16_t>> llPlanes =
+                        squeeze_ll_chain(plane, transformed.w, transformed.h, L, true);
                     for (size_t bi=0; bi< sr.bands.size(); ++bi) {
                         const auto& band = sr.bands[bi];
                         bool isLL = (bi==0);
@@ -471,20 +465,9 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                 else bytes = rans_encode_plane(residuals, 1);
                 c.band_payloads.push_back(std::move(bytes));
             } else {
-                SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd);
-                std::vector<std::vector<uint16_t>> llPlanes;
-                {
-                    std::vector<uint16_t> cur = plane;
-                    uint32_t curW = transformed.w, curH = transformed.h;
-                    for (uint8_t lvl=0; lvl<L; ++lvl) {
-                        if ((curW &1)||(curH&1)) break;
-                        uint32_t w2=curW/2, h2=curH/2;
-                        std::vector<uint16_t> ll(w2*h2);
-                        for (uint32_t y=0;y<h2;++y) for(uint32_t x=0;x<w2;++x){ size_t i00=(size_t)(y*2)*curW+(x*2); ll[y*w2+x]=cur[i00];}
-                        llPlanes.push_back(ll);
-                        cur = ll; curW=w2; curH=h2;
-                    }
-                }
+                SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd, true);
+                std::vector<std::vector<uint16_t>> llPlanes =
+                    squeeze_ll_chain(plane, transformed.w, transformed.h, L, true);
                 for (size_t bi=0; bi< sr.bands.size(); ++bi) {
                     const auto& band = sr.bands[bi];
                     bool isLL = (bi==0);
@@ -526,21 +509,10 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
             }
             c.band_payloads.push_back(std::move(bytes));
         } else {
-            SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd);
-            // build llPlanes for llc
-            std::vector<std::vector<uint16_t>> llPlanes;
-            {
-                std::vector<uint16_t> cur = plane;
-                uint32_t curW = transformed.w, curH = transformed.h;
-                for (uint8_t lvl=0; lvl<L; ++lvl) {
-                    if ((curW &1)||(curH&1)) break;
-                    uint32_t w2=curW/2, h2=curH/2;
-                    std::vector<uint16_t> ll(w2*h2);
-                    for (uint32_t y=0;y<h2;++y) for(uint32_t x=0;x<w2;++x){ size_t i00=(size_t)(y*2)*curW+(x*2); ll[y*w2+x]=cur[i00];}
-                    llPlanes.push_back(ll);
-                    cur = ll; curW=w2; curH=h2;
-                }
-            }
+            SqueezeResult sr = squeeze_encode_plane(plane, transformed.w, transformed.h, L, bd, true);
+            // llc context source chain (lifting averages)
+            std::vector<std::vector<uint16_t>> llPlanes =
+                squeeze_ll_chain(plane, transformed.w, transformed.h, L, true);
             for (size_t bi=0; bi< sr.bands.size(); ++bi) {
                 const auto& band = sr.bands[bi];
                 bool isLL = (bi==0);
@@ -598,7 +570,7 @@ Raster decode(const uint8_t* data, size_t len) {
     // Corruption gate: unknown flag bits are a hard error (invariant I2), and
     // invalid combos are rejected: v2 without the adaptive coder, or the C2
     // tree-on-flat bit without the adaptive coder (leaf coding is adaptive).
-    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG))
+    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG | SQUEEZE_LIFT_FLAG))
         throw DecodeError("unknown container flag bits");
     if ((c.hdr.flags & ACODER_V2_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: v2 without adaptive coder");
@@ -614,6 +586,9 @@ Raster decode(const uint8_t* data, size_t len) {
     for(auto v:c.hdr.squeeze_levels) if(v>0) hasSqueeze=true;
     // C2: bit4 says level-0 planes carry MA-tree leaf contexts (spatial).
     const bool treeOnFlat = (c.hdr.flags & MATREE_FLAT_FLAG) != 0 && num_leaves > 1;
+    // C4: bit5 says squeezed planes were transformed with true CDC lifting;
+    // clear means the legacy Stage-S decimation inverse.
+    const bool squeezeLift = (c.hdr.flags & SQUEEZE_LIFT_FLAG) != 0;
     size_t payload_idx=0;
     for (size_t pi=0; pi< out.planes.size(); ++pi) {
         uint8_t L = (pi < c.hdr.squeeze_levels.size())? c.hdr.squeeze_levels[pi]:0;
@@ -688,19 +663,26 @@ Raster decode(const uint8_t* data, size_t len) {
                     infoIdx++;
                 }
                 uint32_t parentW = curW*2, parentH = curH*2;
-                std::vector<uint16_t> parent(parentW*parentH);
-                for (uint32_t y=0;y<curH;++y) for(uint32_t x=0;x<curW;++x){
-                    size_t j=(size_t)y*curW+x;
-                    int a = (int)curLL[j];
-                    int hh = (int)(int16_t)hf[0][j];
-                    int vv = (int)(int16_t)hf[1][j];
-                    int dd = (int)(int16_t)hf[2][j];
-                    int b=a+hh, c=a+vv, d=a+dd;
-                    size_t i00=(size_t)(y*2)*parentW+(x*2);
-                    parent[i00]=(uint16_t)a;
-                    parent[i00+1]=(uint16_t)(b<0?0:(b>65535?65535:b));
-                    parent[i00+parentW]=(uint16_t)(c<0?0:(c>65535?65535:c));
-                    parent[i00+parentW+1]=(uint16_t)(d<0?0:(d>65535?65535:d));
+                std::vector<uint16_t> parent;
+                if (squeezeLift) {
+                    // C4 lifting inverse: one shared implementation with
+                    // squeeze_decode_plane (invariant I2).
+                    squeeze_merge_level_lift(curLL, hf[0], hf[1], hf[2], curW, curH, parent);
+                } else {
+                    parent.resize((size_t)parentW*parentH);
+                    for (uint32_t y=0;y<curH;++y) for(uint32_t x=0;x<curW;++x){
+                        size_t j=(size_t)y*curW+x;
+                        int a = (int)curLL[j];
+                        int hh = (int)(int16_t)hf[0][j];
+                        int vv = (int)(int16_t)hf[1][j];
+                        int dd = (int)(int16_t)hf[2][j];
+                        int b=a+hh, c=a+vv, d=a+dd;
+                        size_t i00=(size_t)(y*2)*parentW+(x*2);
+                        parent[i00]=(uint16_t)a;
+                        parent[i00+1]=(uint16_t)(b<0?0:(b>65535?65535:b));
+                        parent[i00+parentW]=(uint16_t)(c<0?0:(c>65535?65535:c));
+                        parent[i00+parentW+1]=(uint16_t)(d<0?0:(d>65535?65535:d));
+                    }
                 }
                 curLL = std::move(parent);
                 curW = parentW; curH = parentH;

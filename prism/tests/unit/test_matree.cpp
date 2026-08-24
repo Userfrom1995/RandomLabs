@@ -184,9 +184,9 @@ TEST(MatreeTreeOnFlat, FlagGatesRejectInvalidCombos) {
     noAC[noAC.size()-2] = (uint8_t)(crc>>16); noAC[noAC.size()-1] = (uint8_t)(crc>>24);
     EXPECT_THROW(decode(noAC), DecodeError);
     std::vector<uint8_t> unk = good;
-    unk[16] |= 0x20;
+    unk[16] |= 0x40; // bit6 is still unnamed (bit5 = SQUEEZE_LIFT since C4)
     crc = crc32(unk.data(), unk.size() - 4);
-    unk[unk.size()-4] = (uint8_t)crc; unk[unk.size()-3] = (uint8_t)(crc>>8);
-    unk[unk.size()-2] = (uint8_t)(crc>>16); unk[unk.size()-1] = (uint8_t)(crc>>24);
+    unk[unk.size()-4] = (uint8_t)crc; unk[unk.size()-3] = (uint8_t)crc>>8;
+    unk[unk.size()-2] = (uint8_t)crc>>16; unk[unk.size()-1] = (uint8_t)crc>>24;
     EXPECT_THROW(decode(unk), DecodeError);
 }
