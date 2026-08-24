@@ -7,8 +7,14 @@
   (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/C5 honestly rejected by
   measurement (never-expand held, zero regressions). Research DONE (D1 gate
   fix + D2 gap analysis F1-F4). Architect re-scope DELIVERED 2026-08-24:
-  `prism/docs/architecture-jxl-parity-rescope.md` (D-series, supersedes C6);
-  next phase Builder D0+D1-offline.
+  `prism/docs/architecture-jxl-parity-rescope.md` (D-series, supersedes C6).
+  D0 COMPLETE: committed bench-ideal harness + probe_ideal.sh rail; recorded
+  A2 oracle aggregates measured NONREPRODUCIBLE (oracle figure violates the
+  H(E|cx) floor) and replaced by harness-citable numbers - decision record
+  2026-08-24T09-30-00. D1 OFFLINE REJECTED (best adaptive blend +0.25 pct
+  WORSE than MED on a probe image; only kodim20 wins ~1.1 pct, mixed sign,
+  order of magnitude under the 2 pct bar): no format work spent. Next:
+  D2 OFFLINE validation (mixer+SSE scoring via harness extension).
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -106,19 +112,34 @@ percent) are independently re-measurable today via
 
 ## D-series checklist (re-scope: prism/docs/architecture-jxl-parity-rescope.md)
 
-- [ ] D0 Committed instrumentation harness: `prism bench-ideal` +
+- [x] D0 Committed instrumentation harness: `prism bench-ideal` +
       `benchmarks/probe_ideal.sh` with sha-pin verification, durable CSV, and
       a self-check that can fail; must reproduce the A2 oracle aggregates
       (shared -13.62 / pooled -18.38 / 343-oracle -18.57 percent vs v0
       payload) within rounding. New invariant I7: no go/no-go without
       harness-citable numbers.
-- [ ] D1 Adaptive blended prediction behind FEATURE_EXT ext byte (ext0):
-      JXL-modular-style per-sample integer weight blending adapted from local
-      gradients, fully decoder-mirrored; OFFLINE D0 validation first
-      (>= ~2 percent projected payload on probe images, confirmed on unseen
-      kodim05/kodim20) BEFORE any format change; then per-plane never-expand
-      trial; acceptance >= 2 percent corpus reduction vs e3 baseline else
-      rejected-and-recorded.
+      RESULT (2026-08-24): harness built and green (ordering gate, G-repro
+      anchor vs benchmarks/results/2026-08-24-ideal-probe.csv, self-check
+      proving ranking both ways and fail-reachable gates). The RECORDED
+      aggregates are NOT reproducible and the oracle figure is impossible
+      against today's streams (H(E|cx) = -12.98 pct vs v0 > the recorded
+      -18.57); magnitudes retracted, replaced by harness-citable brackets
+      (bin-fine class16/ctx343 = -11.48/-12.61 pct; value mode
+      -11.51/-12.98 pct; real v2 = -5.53 pct aggregate). Qualitative A2
+      conclusion survives; L2 headroom restated as real-v2 vs conditional-
+      ideal gap of ~7 points.
+- [x] D1 Adaptive blended prediction - OFFLINE VALIDATION ONLY, REJECTED
+      (2026-08-24): blend machinery landed at library level (predict.{h,cpp},
+      BlendConfig value-base and MED-anchored NLMS modes, bijection/
+      determinism/border/noise tests; NOT wired into any format path).
+      Harness sweep across two families x five rates (durable CSV
+      2026-08-24-ideal-probe-d1-blend.csv): best case nlms-med-lr1 is
+      +0.30/+0.25/+0.93 pct WORSE than MED on kodim01/13/05 and -1.11 pct
+      better on kodim20 alone - mixed sign, an order of magnitude under the
+      ~2 pct bar. Per the re-scope STOP rule: no FEATURE_EXT byte, no
+      container change, no format work. Decision record
+      2026-08-24T09-30-00-d0-harness-a2-nonreproducible-and-d1-offline-
+      rejection.md.
 - [ ] D2 Logistic mixer + SSE behind ext1 (P7 reborn): K=4 ADAPTIVE estimator
       family mixed by bounded integer logistic weights + one SSE stage;
       offline gate >= 3 percent projected before format work; acceptance
@@ -145,8 +166,14 @@ marked superseded. Corpus truth stands honestly at e1 = 10.2904 summed /
 3.4301 per-sample bpp, e3 = e7 = 10.2861 / 3.4287; M2 (<9.498/<3.166) and
 M3 (<8.655/<2.885) FAIL in both units; no parity claim.
 
-Next slice: Builder starts D0 (committed bench-ideal harness reproducing the
-A2 oracle aggregates), then D1 OFFLINE validation before any format work.
+Next slice: Builder takes D2 OFFLINE validation - extend the committed
+harness to score logistic-mixer+SSE variants over adaptive estimators on the
+dumped streams. Gate: >= 3 percent projected payload before ANY ext-byte
+format work. Evidence base: real v2 collects -5.53 pct while the conditional
+fine-bin ideal sits at -12.61 pct (about 7 points of collection headroom);
+the mixer attacks exactly that gap. If the offline gate fails, record the
+negative and surface the owner decision point (re-scope section 1) instead of
+drifting into format work without evidence.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -208,6 +235,22 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 8, D0+D1-offline complete): D0
+  landed (spec 11 addenda first; bench-ideal CLI with two bin granularities +
+  value-alphabet mode x three poolings; probe_ideal.sh with ML-ordering gate,
+  G-repro anchor, self-check proving both-direction ranking and reachable
+  FAIL; reference CSV committed). FINDING: recorded A2 oracle aggregates are
+  nonreproducible and information-theoretically impossible vs today's
+  streams; magnitudes retracted, harness-citable replacements pinned
+  (decision record). D1 offline REJECTED per the re-scope STOP rule: two
+  blend families x five adaptation rates all miss the ~2 pct bar (best
+  +0.25 pct WORSE on kodim13, only kodim20 wins at -1.11 pct, mixed sign);
+  blend machinery stays library-level and format-unwired. 74/74 gtests, fuzz
+  clean. L1 is now closed by measurement alongside the static-transform
+  closures; everything rides on L2 collection efficiency. Decision
+  {"action":"continue"}: next run D2 offline (mixer+SSE harness extension,
+  >= 3 pct projected gate before any ext-byte format work).
 
 - 2026-08-24 the Builder (continuation run 8, D0 start): spec addendum 11
   landed first (binding order): bench-ideal instrumentation contract (two
