@@ -350,6 +350,15 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     uint8_t bd = (raster.bd==BitDepth::BD16)?16:8;
     uint8_t nc = (uint8_t)raster.num_channels();
     AnalyzeResult ar = analyze(raster, opts.effort);
+    // C4 probe hook: deterministic override of the trial-chosen squeeze plan.
+    if (!opts.force_squeeze_levels.empty()) {
+        if (opts.force_squeeze_levels.size() != raster.num_channels())
+            throw EncodeError("force_squeeze_levels: size must equal channel count");
+        ar.squeeze_levels = opts.force_squeeze_levels;
+        for (auto& v : ar.squeeze_levels) v = std::min<uint8_t>(v, max_squeeze_levels(raster.w, raster.h));
+        ar.tree_on_flat = false; // squeeze and tree-on-flat are exclusive paths
+        ar.trees.clear();
+    }
     if (!opts.use_ycocg) ar.color_transform_id = 0;
     Raster transformed = raster;
     ColorTransform ct = static_cast<ColorTransform>(ar.color_transform_id);
@@ -376,7 +385,10 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     // (bit5). Legacy decimation streams (bit5 clear) stay decodable.
     bool hasSqueezeEarly = false;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) hasSqueezeEarly = true;
-    if (hasSqueezeEarly) flags |= SQUEEZE_LIFT_FLAG;
+    if (hasSqueezeEarly) {
+        flags |= SQUEEZE_LIFT_FLAG;
+        c.hdr.flags = flags;
+    }
     c.trees = ar.trees;
     c.predictor_mode = ar.predictor_mode;
     c.global_pred_id = ar.global_pred_id;
