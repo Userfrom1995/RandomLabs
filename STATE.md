@@ -1,40 +1,41 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-24 (maintainer run 32707502738, fired by the owner's single 08:40:28Z ping on PR #131). Tripwire EXECUTED: architect re-scope strike 2 verified (exit code 1 in job log, green wrapper) => LAB ESCALATION dispatched on issue #70 with the full run-ID chain; no third blind fire.
+- **Updated:** 2026-08-24 (maintainer run 32708470295, fired by the 08:52:03Z `/oc maintainer` on new PR #134). Lab verdict on #70 DELIVERED: PR #134 (two-knob model switch `x-preview-f-free` -> `deepseek-v4-flash-free`, 13 pins) opened by Lab Engineer run 32707987764; review round 1 dispatched this run.
 
 ## STANDING OWNER DIRECTIVES (active)
-- **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates.
+- **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. Freeze does NOT block lab-infrastructure PRs (#133 precedent).
 - **BINDING TARGET (dual-unit):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md`.
-- **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Compliance existential.
+- **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `9bb40298b`** (unchanged).
-- Strike ledger (architect re-scope phase): strike 1 run 32706637498 (~2 min in, 08:32:13Z); strike 2 run 32707131429 (~4.5 min in, 08:40:26Z, exit code 1 under continue-on-error green). Historical same-phase strikes yesterday: 32653522637 + 32653855086 (self-resolved). Pattern flagged to lab: architect-mode sessions absorb repeated stream failures; other modes complete between strikes on the same pin - context-load hypothesis under diagnosis.
-- Pages green (latest deploys success 08:20:39Z + 08:22:50Z; one older action_required pair pending the standard PAT sweep). Auditor daily report current (01:16:33Z on #70). Orphan-recover sweeps quiet/green.
-- Lab Engineer dispatched via `[{"action":"lab","issue":70}]` this run: diagnose root cause; verify/extend crash-parity verify-and-retry (#133 pattern) to architect/research/lab jobs if missing; switch BOTH model knobs only if the provider proves unstable at this context length. Production NOT halted - emergency contract void, correctly omitted.
+- **`main` = `9bb40298b`** (unchanged). NOTE: main still serves the OLD pin `x-preview-f-free`; the switch is NOT live until #134 merges.
+- **PR #134** (`opencode/issue70-20260824084626`, head `c14ed27455` verified server-side, MERGEABLE, 1 commit): two-knob model switch to `deepseek-v4-flash-free` (7 standalone workflows + 5 agent jobs in opencode.yml + opencode.json `model`; `small_model` untouched at `mimo-v2.5-free`). deepseek = first fallback on the Auditor's reserve list. App-token rejection noise on #70 thread is cosmetic; PAT fallback landed the branch.
+- Architect stream-failure chain CLOSED pending merge: strikes 32653522637, 32653855086 (yesterday), 32706637498, 32707131429 (today) all same signature on x-preview pin; lab chose model retirement over retry-parity extension - root-cause removal beats symptom patching.
+- Pages green; held action_required pairs from #134's open event (pr-trigger + pages preview) await this run's standard PAT sweep; pr-trigger will re-post `/oc maintainer` on #134 after approval - known benign duplicate, successors stand down.
+- FALSIFICATION WATCH: if the same stream signature recurs on deepseek-v4-flash-free, pin-instability hypothesis dies => back to lab for retry-parity on architect/research/lab jobs with fresh run IDs.
 
 ## IN FLIGHT
-- **PR #131** (`opencode/issue130-20260823163248`, head `eae3dcba8`, MERGEABLE, zero side effects from both dead runs, tree clean) - Architect RE-SCOPE BLOCKED pending the lab verdict on #70. All C-series work through C5 safe on branch.
-- **Lab escalation on #70** - awaiting Lab Engineer pickup (trigger posts via hardcoded step).
+- **Review round 1 on PR #134** - dispatched this run (`[{"action":"review","pr":134,"head":"c14ed27455..."}]`). Expected flow: Reviewer approve -> Tester auto-forwarded -> approve-test -> next maintainer run merges (lab PR: shipping limit exempt).
+- **PR #131** (`opencode/issue130-20260823163248`, head `eae3dcba8`, MERGEABLE, reviews: round-1 verdict-as-comment only) - Architect RE-SCOPE BLOCKED by design until #134 merges. All C-series work through C5 safe on branch.
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE (C-series) -> build DONE through C5 (C1 landed: e1 11.0258 -> 10.2904 summed; C2/C2b/C4/C5 honest measured rejections close every static spatial-transform direction) -> ARCHITECT RE-SCOPE BLOCKED (lab fixing the stream-failure handling first) -> build resumes on the re-scoped plan -> review round 2 at next phase boundary -> freeze blocks maintainer merge until dual-unit M2 AND M3 genuinely pass.
+research DONE -> architect DONE (C-series) -> build DONE through C5 (all static spatial-transform directions closed by measurement) -> ARCHITECT RE-SCOPE BLOCKED (waiting on model-switch PR #134 to clear review+test+merge) -> architect re-scope fires IMMEDIATELY after #134 lands -> build resumes on the re-scoped plan -> review round 2 at next phase boundary -> freeze blocks maintainer merge until dual-unit M2 AND M3 genuinely pass.
 
 ## PENDING (in order)
-1. NEXT RUN FIRST ACTION: read the Lab Engineer's outcome on #70. Fix landed and merged => resume the Architect re-scope on PR #131 immediately (owner triggers usually land; fire manually only if demonstrably failed). Lab itself died => one retry per ladder; do NOT reach for emergency.json early - it requires a failed lab attempt AND fully halted production.
-2. Review-round checklist for the NEXT boundary: dual-unit statements everywhere; D1 fail-capable self-check; decoder mirrors bit3/bit4/bit5/bit6; trial-bits acceptance criteria; A2-recalibration evidence chain; C2/C2b/C4/C5 rejection records; corrected topology section (verified in-tree b50935ae2); C5 record (.github/agents/decisions/builder/2026-08-24T08-16-17-c5-xband-scope-and-measured-rejection.md), bit6 xband mirror, never-expand chooser property tests; plus whatever blueprint sections the re-scope produces.
-3. NO project merges until dual-unit M2 AND M3 pass on the real corpus. At #131 merge time: hard-rule orphan check with freshly fetched objects (server-side evidence says PASS; base f8a958d70e48).
-4. Expectation discipline: corpus truth e1 10.2904 summed / 3.4301 per-sample; e3/e7 10.2861 / 3.4287 - about 19 percent above JXL parity. Say so every time; no parity claim until genuine dual-unit passes.
+1. NEXT RUN FIRST ACTION: read review round 1 outcome on #134. Approve => verify Tester auto-fired and stand down until approve-test arrives, then MERGE #134 (--rebase --delete-branch), verify main tip + pages dispatch, close nothing (issue #70 stays open as health board; the lab trigger comment chain there needs no closure action). Fix findings => verify Fixer trigger landed; infra routing guard: NEVER fix/continue against #134 - findings route to lab. Same-error death of the reviewer => crash-parity guard should self-heal within 3 retries; only escalate if it demonstrably fails.
+2. After #134 merges: fire `[{"action":"architect","pr":131}]` immediately (re-scope mandate unchanged: evidence-based re-derivation of remaining parity levers from C1 gains + C2/C2b/C4/C5 rejection records, or an honest unreachability verdict).
+3. Review-round checklist for the NEXT boundary (post-re-scope): dual-unit statements everywhere; D1 fail-capable self-check; decoder mirrors bit3/bit4/bit5/bit6; trial-bits acceptance criteria; A2-recalibration evidence chain; C2/C2b/C4/C5 rejection records; corrected topology section (verified in-tree b50935ae2); C5 decision record + bit6 xband mirror + never-expand chooser property tests; plus whatever blueprint sections the re-scope produces.
+4. NO project merges until dual-unit M2 AND M3 pass on the real corpus. At eventual #131 merge time: hard-rule orphan check with freshly fetched objects (server-side evidence says PASS; base f8a958d70e48).
 
 ## ISSUES
 - **#130** - sole active workstream (Prism true JXL parity); PR #131 carries all phases.
-- **#70 (Lab Health)** - daily report current (Auditor 01:16:33Z); NOW carries the live lab escalation for the architect stream-failure chain.
+- **#70 (Lab Health)** - carries today's full escalation chain + lab outcome (PR #134). Daily Auditor report current (01:16:33Z).
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## QUEUED / HOUSEKEEPING
-- Nothing pending at survey end (~08:47Z); all sibling workflows of the 08:36Z and 08:40Z comment batches skipped correctly; one older pages action_required pair awaits the standard hardcoded PAT sweep (benign, recurring pattern).
+- Expect one benign duplicate `/oc maintainer` on #134 once the PAT sweep approves the held pr-trigger run; successor stands down. Pages preview pair same sweep.
 
 ## OPEN QUESTIONS
-- Will the Lab Engineer confirm/extend crash-parity retries so transient architect deaths self-heal without me? If strikes recur on OTHER modes after the fix, the context-load hypothesis is falsified - reopen with fresh run IDs.
+- Will deepseek-v4-flash-free hold long architect-context streams where x-preview failed? First live test = the post-#134-merge re-scope dispatch. Falsification watch armed (see CRITICAL INFRASTRUCTURE STATE).
 - THE strategic question still before the Architect (once unblocked): can any remaining lever close ~19 percent, or does parity require an architecture-level change? Evidence-based negative answers acceptable; wishful projections are not.
 
 - Mae, the Maintainer
