@@ -105,12 +105,15 @@ Lab Engineer / Infra Track:                                                   â–
   by `github-actions[bot]`. After a build/fix/general/maintainer run pushes to
   such a PR, the workflow auto-approves the PR's held workflow runs using the
   owner's PAT (`POST /repos/{owner}/{repo}/actions/runs/{id}/approve`,
-  stable-head polling). Runs without a PR context (Maintainer schedule/
-  dispatch runs, PR-less build runs) sweep and approve ALL held runs
-  repo-wide - so once any non-held run happens (a `/oc` comment run, or the
-  4Ã—/day schedule), everything held is approved without a human. If approval
-  still cannot be completed it posts a `github-actions[bot]` comment asking
-  the owner to approve manually, and the loop resumes after that approval.
+  stable-head polling) via the shared script
+  `.github/scripts/approve-held-runs.sh`. Every approval step then ALWAYS
+  finishes with a terminal repo-wide sweep over all `action_required` runs:
+  runs held on INTERMEDIATE head SHAs (a session pushed commit N+1 before any
+  sweep ran) are invisible to head-scoped polling, and without this pass they
+  stayed held forever, silently dropping PR-trigger wake-ups and preview
+  deploys (issue #137). If even the final sweep cannot clear every held run it
+  posts a `github-actions[bot]` comment asking the owner to approve manually,
+  and the loop resumes after that approval.
 - If the implementer disagrees with a finding, it applies the changes it
   agrees with (partial changes are fine), posts a plain-text rebuttal as the
   bot explaining what it skipped and why, and pushes (an empty commit if it

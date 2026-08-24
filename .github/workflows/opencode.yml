@@ -251,51 +251,11 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          if [ -z "$pr" ]; then
-            echo "No PR context - repo-wide sweep of held runs"
-            for i in $(seq 1 10); do
-              held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
-              if [ -z "$held" ]; then
-                echo "No held runs remain (sweep $i)"
-                exit 0
-              fi
-              for run in $held; do
-                if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                  echo "Approved run $run"
-                else
-                  echo "APPROVE FAILED for run $run (a later sweep or a human click will retry)"
-                fi
-              done
-              sleep 5
-            done
-            echo "Held runs could not all be auto-approved after sweeping"
-            exit 0
-          fi
-          for i in $(seq 1 30); do
-            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-            if [ -z "$head_sha" ]; then
-              echo "PR #$pr gone (poll $i); exiting"
-              exit 0
-            fi
-            echo "Looking for held runs on PR #$pr (head $head_sha)"
-            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-            if [ -z "$held" ]; then
-              echo "No held runs remain (poll $i)"
-              exit 0
-            fi
-            for run in $held; do
-              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                echo "Approved run $run"
-              else
-                echo "APPROVE FAILED for run $run"
-              fi
-            done
-            sleep 5
-          done
-          echo "Held runs could not be auto-approved after polling"
-          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
-          exit 0
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+            bash .github/scripts/approve-held-runs.sh
 
   build:
     if: |
@@ -729,51 +689,11 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          if [ -z "$pr" ]; then
-            echo "No PR context - repo-wide sweep of held runs"
-            for i in $(seq 1 10); do
-              held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
-              if [ -z "$held" ]; then
-                echo "No held runs remain (sweep $i)"
-                exit 0
-              fi
-              for run in $held; do
-                if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                  echo "Approved run $run"
-                else
-                  echo "APPROVE FAILED for run $run (a later sweep or a human click will retry)"
-                fi
-              done
-              sleep 5
-            done
-            echo "Held runs could not all be auto-approved after sweeping"
-            exit 0
-          fi
-          for i in $(seq 1 30); do
-            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-            if [ -z "$head_sha" ]; then
-              echo "PR #$pr gone (poll $i); exiting"
-              exit 0
-            fi
-            echo "Looking for held runs on PR #$pr (head $head_sha)"
-            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-            if [ -z "$held" ]; then
-              echo "No held runs remain (poll $i)"
-              exit 0
-            fi
-            for run in $held; do
-              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                echo "Approved run $run"
-              else
-                echo "APPROVE FAILED for run $run"
-              fi
-            done
-            sleep 5
-          done
-          echo "Held runs could not be auto-approved after polling"
-          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
-          exit 0
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+            bash .github/scripts/approve-held-runs.sh
 
   fix:
     if: |
@@ -938,27 +858,11 @@ jobs:
         run: |
           set +e
           pr="${{ github.event.issue.number }}"
-          for i in $(seq 1 30); do
-            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-            echo "Looking for held runs on PR #$pr (head $head_sha)"
-            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-            if [ -z "$held" ]; then
-              echo "No held runs remain (poll $i)"
-              exit 0
-            fi
-            for run in $held; do
-              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                echo "Approved run $run"
-              else
-                echo "APPROVE FAILED for run $run"
-              fi
-            done
-            sleep 5
-          done
-          echo "Held runs could not be auto-approved after polling"
-          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
-          exit 0
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+            bash .github/scripts/approve-held-runs.sh
 
   general:
     if: |
@@ -1087,47 +991,9 @@ jobs:
             pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
               --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
           fi
-          if [ -z "$pr" ]; then
-            echo "No PR context - repo-wide sweep of held runs"
-            for i in $(seq 1 10); do
-              held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
-              if [ -z "$held" ]; then
-                echo "No held runs remain (sweep $i)"
-                exit 0
-              fi
-              for run in $held; do
-                if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                  echo "Approved run $run"
-                else
-                  echo "APPROVE FAILED for run $run (a later sweep or a human click will retry)"
-                fi
-              done
-              sleep 5
-            done
-            echo "Held runs could not all be auto-approved after sweeping"
-            exit 0
-          fi
-          for i in $(seq 1 30); do
-            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-            if [ -z "$head_sha" ]; then
-              echo "PR #$pr gone (poll $i); exiting"
-              exit 0
-            fi
-            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-            if [ -z "$held" ]; then
-              echo "No held runs remain (poll $i)"
-              exit 0
-            fi
-            for run in $held; do
-              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                echo "Approved run $run"
-              else
-                echo "APPROVE FAILED for run $run"
-              fi
-            done
-            sleep 5
-          done
-          echo "Held runs could not be auto-approved after polling"
-          GH_TOKEN="${{ github.token }}" gh api "repos/${{ github.repository }}/issues/$pr/comments" \
-            -f body="Workflow runs on this PR are awaiting approval and could not be auto-approved. Please approve them in the Actions tab so the review loop can continue: ${{ github.server_url }}/${{ github.repository }}/actions" >/dev/null 2>&1 || true
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+            bash .github/scripts/approve-held-runs.sh
           exit 0
