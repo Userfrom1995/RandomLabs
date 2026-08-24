@@ -33,6 +33,7 @@ prism fuzz [--iters N]
 prism info <file.prism>
 prism probe-backend <image.ppm> [--variants v0,v1,v1shared,v2,v2shared]
 prism probe-xband <image.ppm>
+prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST]
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -55,6 +56,16 @@ flag bit6 with `EncodeOpts::force_xband_weights` as the deterministic override.
 On the photo corpus the trials reject adoption everywhere, keeping streams
 byte-identical to pre-C5; the capability stays available for inputs where
 LL-gradient correlation is real.
+
+`bench-ideal` is the D-series instrumentation harness (invariant I7): it
+dumps the production residual streams and reports static-entropy brackets
+under the v2 binarization at two bin granularities plus the value-alphabet
+floor, each pooled shared / class16 / ctx343. Feed it through
+`benchmarks/probe_ideal.sh`, which verifies SHA256 pins, writes a durable
+CSV, enforces the ML-ordering gate (shared >= class16 >= ctx343 per
+granularity), checks the committed reference row, and self-checks that its
+ranking works in both directions. Every offline go/no-go for the remaining
+D-phases must cite numbers this command reproduces.
 
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,

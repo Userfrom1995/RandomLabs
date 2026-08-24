@@ -161,6 +161,15 @@ evidence.
 - Acceptance: corpus-level payload reduction >= 2 percent vs the e3 baseline
   (else rejected-and-recorded like C2/C4/C5); byte-exact round trips; fuzz;
   wall-clock inside the 5x guard (blending is O(1) per sample, risk low).
+- STATUS (2026-08-24, Builder D0+D1): REJECTED offline, no format work
+  spent. Blend machinery built at library level only (value-base NLMS and
+  MED-anchored correction NLMS with identity at init), swept through the
+  committed bench-ideal harness: best case +0.30/+0.25 percent WORSE than
+  MED on kodim01/kodim13, +0.93 worse on kodim05, -1.11 better on kodim20 -
+  mixed sign and an order of magnitude under the bar. The STOP rule fired.
+  Evidence: benchmarks/results/2026-08-24-ideal-probe-d1-blend.csv and
+  decision record 2026-08-24T09-30-00. L1 is closed by measurement; D2 now
+  carries the whole remaining projection on L2 collection efficiency.
 
 ### D2: logistic mixer + SSE (P7 reborn under the C2b lesson)
 
