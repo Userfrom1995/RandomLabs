@@ -207,6 +207,17 @@ and an M3 verdict. This boundary goes to review regardless of pass/fail: the
 Reviewer checks the D1/D2 evidence chains, the ext-byte container change, and
 decoder mirrors line-by-line.
 
+- STATUS (2026-08-24, Builder D3): COMPLETE. Corpus re-derived from the
+  upstream lossless PNGs with all 24 sha256 pins verified pre-measurement
+  (pins are native-orientation PPMs; see benchmark-methodology.md). Fresh
+  e1/e3/e7 outputs BYTE-IDENTICAL to the committed CSVs - the entire
+  D0-D2 series provably never touched a format byte. Honest verdicts:
+  M2 FAIL and M3 FAIL in BOTH units at every effort (e1 10.2904 summed /
+  3.4301 per-sample; e3 = e7 10.2861 / 3.4287); the "M2 PASS region"
+  expectation above did not survive the D1/D2 rejections. Self-checks PASS
+  on all three rails. Boundary handed to review round 2; owner decision
+  point (section 1) stays open alongside it.
+
 ### D4: stretch stack toward M3 (scoped, owner-visible)
 
 Only if M3 is still open after D3, in impact order, each behind its own
