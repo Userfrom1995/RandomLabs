@@ -75,7 +75,7 @@ Lab Engineer / Infra Track:                                                   鈻
 
 ## 4. Maintainer triggers & concurrency
 
-- Triggers: schedule every 6 hours (4脳/day) 路 `workflow_dispatch`
+- Triggers: schedule every 2 hours (12脳/day) 路 `workflow_dispatch`
   (inputs: `pr_number`, `issue_number`, `reason`) 路 `pull_request`
   [opened, synchronize, ready_for_review, reopened] 路 `issue_comment`
   [created] (no-op when the comment is a `/oc` trigger - opencode.yml already
