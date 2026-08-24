@@ -150,6 +150,36 @@ quadrant read without int16 reinterpretation) before it could ship.
   research replica's 571 KB figure carried a small stage-replica offset.
 - Naive Rice-k quotient adaptation remains prohibited (research V2/V4).
 
+
+## Addendum 2026-08-24: D0 ideal-bracket rail and the D1 offline rejection
+
+The probe-rail discipline graduated to a full instrumentation harness:
+`bench-ideal` dumps production residual streams and reports static-entropy
+brackets under the v2 binarization at two model granularities (coder-mirrored
+kinds; depth/position-refined) plus the value-alphabet floor, each pooled
+three ways. `probe_ideal.sh` pins, gates (ML-ordering + reference
+reproduction), and self-checks it.
+
+Two honest results came out of the first measurement campaign:
+
+1. The A2-recalibration aggregates recorded on 2026-08-23 are not reproducible
+   by any documented interpretation, and the oracle figure violates the
+   measured H(E|context) floor; their magnitudes are retracted in favor of
+   harness-citable numbers. The real adaptive coder BEATS every shared-static
+   bracket - the old table had that relationship backwards.
+2. Adaptive blended prediction (JXL-modular-style NLMS over value bases, and
+   a MED-anchored correction variant with identity at init) was built,
+   mirrored, tested, and swept offline: best case +0.25 percent WORSE than
+   plain MED on a probe image, one ~1 percent win on kodim20 alone, mixed
+   sign corpus-wide. Under the v2 context backend, MED residuals already sit
+   close to what local linear adaptivity can extract. No format space spent;
+   negative result recorded with durable CSV evidence.
+
+The remaining parity lever is collection efficiency: real v2 collects about
+5.5 percent below v0 while the context-conditioned ideal sits near 12.6 -
+roughly seven points a mixer+SSE stack can aim at, gated by the same harness
+before any container work.
+
 - the Builder
 
 ## C5 addendum (2026-08-24): cross-band prediction - capability proven, adoption honestly rejected
