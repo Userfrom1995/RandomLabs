@@ -475,6 +475,7 @@ struct RunFreq {           // decaying adaptive frequency table, 256 symbols
 
 struct ZRunOut {
     size_t samples = 0, zeros_folded = 0, nsym = 0, nbreaker = 0;
+    size_t nbins_plain = 0;
     double bits_plain = 0;   // E1 anchor over the plain v2 event stream
     double bits_adapt = 0;   // causal zrun estimate (E1 bins + RunFreq symbols)
 };
@@ -487,6 +488,7 @@ ZRunOut run_zrun_pass(const Raster& t,
     ACModelsV2 zr(AC_V2_RESDIFF_CONTEXTS);      // adapted only on zrun bins
     RunFreq rf[AC_V2_N_PRIORS];                 // per directional class
     auto e1cost = [&](ACModelsV2& m, int kind, int cx, bool bit) {
+        if (&m == &plain) ++out.nbins_plain;
         uint16_t p = e1_prob(m, kind, cx);
         e1_adapt(m, kind, cx, bit);
         return bin_cost(p, bit);
@@ -501,9 +503,10 @@ ZRunOut run_zrun_pass(const Raster& t,
             bool runmode = (x > 0) && (res[i - 1] == 0);
             if (!runmode) {
                 // NORMAL: identical event sequence to encode_residual_v2.
+                int32_t dL = (x > 0) ? res[i - 1] : 0;
                 int32_t dU = (y > 0) ? res[i - t.w] : 0;
                 int32_t dUL = (x > 0 && y > 0) ? res[i - t.w - 1] : 0;
-                int cx = residual_diff_context(res[i - 1], dU, dUL);
+                int cx = residual_diff_context(dL, dU, dUL);
                 int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
                 uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
                 out.bits_plain += e1cost(plain, MIXK_ZERO, cx, mag == 0);
@@ -546,14 +549,15 @@ ZRunOut run_zrun_pass(const Raster& t,
                 uint32_t qx = (uint32_t)(q % t.w), qy = (uint32_t)(q / t.w);
                 int32_t dU = (qy > 0) ? res[q - t.w] : 0;
                 int32_t dUL = (qx > 0 && qy > 0) ? res[q - t.w - 1] : 0;
-                int qcx = residual_diff_context(res[q - 1], dU, dUL);
-                out.bits_plain += e1cost(plain, MIXK_ZERO, qcx, false);
+                int32_t dL = (qx > 0) ? res[q - 1] : 0;   // qx > 0 in-run, guard anyway
+                int qcx = residual_diff_context(dL, dU, dUL);
+                out.bits_plain += e1cost(plain, MIXK_ZERO, qcx, true);
             }
             // Run symbols, keyed at the RUN START context (fully decoded).
             {
-                int32_t dU = (y > 0) ? res[i - t.w] : 0;
-                int32_t dUL = (x > 0 && y > 0) ? res[i - t.w - 1] : 0;
-                int scx = residual_diff_context(res[i - 1], dU, dUL);
+                int32_t dUs = (y > 0) ? res[i - t.w] : 0;
+                int32_t dULs = (x > 0 && y > 0) ? res[i - t.w - 1] : 0;
+                int scx = residual_diff_context(res[i - 1], dUs, dULs);
                 int scls = ac_v2_prior_class(scx % AC_V2_RESDIFF_CONTEXTS);
                 size_t left = k;
                 while (left >= 255) {
@@ -571,9 +575,10 @@ ZRunOut run_zrun_pass(const Raster& t,
             if (j < n && res[j] != 0) {
                 // Breaker: nonzero implied by the run symbol; pay sign/q/rem.
                 uint32_t bx = (uint32_t)(j % t.w), by = (uint32_t)(j / t.w);
+                int32_t dLb = (bx > 0) ? res[j - 1] : 0;
                 int32_t dU = (by > 0) ? res[j - t.w] : 0;
                 int32_t dUL = (bx > 0 && by > 0) ? res[j - t.w - 1] : 0;
-                int bcx = residual_diff_context(res[j - 1], dU, dUL);
+                int bcx = residual_diff_context(dLb, dU, dUL);
                 int bcls = ac_v2_prior_class(bcx % AC_V2_RESDIFF_CONTEXTS);
                 uint32_t mag = (uint32_t)(res[j] < 0 ? -res[j] : res[j]);
                 ++out.nbreaker;

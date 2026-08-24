@@ -181,11 +181,24 @@ percent) are independently re-measurable today via
       verdict; corpus-derivation find documented in benchmark-methodology.md
       (pins are native-orientation PPMs: 18 landscape 768x512, 6 portrait
       512x768).
-- [ ] OWNER DECISION POINT (re-scope section 1): both levers closed by
-      measurement. Owner chooses between D4 stretch work (individual
-      projections <= 1-3 pct each vs M3 gap -15.9 pct; M3 likely stays open)
-      and closing #130 honestly at the achieved gate level. No silent scope
-      creep; no drift into format work without new harness evidence.
+- [x] D4a zero-run mode (Mae-directed first lever): OFFLINE VALIDATION ONLY,
+      REJECTED (2026-08-24). Causal JPEG-LS-style run mode scored through the
+      I7 harness (`bench-ideal --zrun`, ZRUN CSV + ZR-fmt eligibility gate +
+      hard ZR-anchor gate, self-check proving events collapse / no invented
+      win / both verdicts reachable). Measured on sha-pinned kodim01/13 plus
+      unseen kodim05/20: aggregate adapt +0.28 pct WORSE than plain v2
+      (+0.30/+0.16/+0.23/+0.47 per image, 4/4 above baseline); even the
+      optimistic STATIC bracket is only -0.24 pct (ctx343 pooled), an order
+      of magnitude under the billed 1-3 pct. Mechanism: 190505 of 192000 run
+      events carry k=0 (isolated zeros under the MED residual), so run
+      symbols mostly re-code what the zero-flag already cheaply codes, and
+      RunFreq learning cost eats the rest. STOP rule fired; zero format
+      bytes. Evidence: benchmarks/results/2026-08-24-ideal-zrun-d4.csv.
+- [x] OWNER DECISION POINT (re-scope section 1): RESOLVED by Mae's dispatch
+      2026-08-24T19:39Z - continue into the D4 stretch knowing M3 likely
+      stays open. Levers in flight: zero-run (DONE, rejected above),
+      extended mixer bank, reversible color rotations, squeeze re-test only
+      with new D0 evidence.
 - [ ] D4 Stretch toward M3 only if the owner directs it after the decision
       point: extended mixer bank, zero-run mode, reversible color rotations,
       one honest squeeze re-test under the mixer. If M3 still fails after D4:
@@ -194,18 +207,19 @@ percent) are independently re-measurable today via
 
 ## Current step
 
-D4 STRETCH DISPATCHED (Mae 2026-08-24T19:39Z, resolving the owner decision
-point in favor of continuing): zero-run mode first, honest extended mixer-bank
-test, reversible color rotations, each behind its own never-expand trial gate
-and I7 harness validation BEFORE any format work; squeeze economics re-test
-only with new D0 evidence. This run also REBUILT the branch onto current main
-(item 0 above) to clear the CONFLICTING state left by the server-side main
-rewrite.
-
-Next step: execute the D4 stack in Mae's stated order. If a lever fails its
-offline gate: STOP, no format bytes, record the negative (C2/C2b/C4/C5/D1/D2
-pattern). If M3 still fails after D4: stop and surface the owner decision
-point stated in re-scope section 1. No silent scope creep.
+D4 stretch under way (Mae dispatch 2026-08-24T19:39Z). Branch REBUILT onto
+current main first (item 0: server-side main rewrite severed shared history;
+PR was CONFLICTING; 55 project commits replayed, force-pushed, PR MERGEABLE).
+D4a ZERO-RUN OFFLINE REJECTED (+0.28 pct aggregate, 4/4 images worse, static
+ceiling only -0.24 pct; see D-series checklist). Remaining queue: D4b
+extended mixer bank offline (resdiff-keyed + directional estimators, second
+SSE stage), D4c reversible color rotations offline. Each behind its own I7
+harness gate BEFORE any format work; squeeze re-test only with new D0
+evidence. If a lever fails its gate: STOP, record, move on. If M3 still
+fails after D4: stop and surface the owner decision point stated in
+re-scope section 1. No silent scope creep. Corpus truth unchanged:
+e1 = 10.2904 summed / 3.4301 per-sample bpp; e3 = e7 = 10.2861 / 3.4287;
+M2/M3 FAIL honestly in both units; no parity claim.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -280,6 +294,20 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 13, D4a complete): rebuilt the
+  branch onto rewritten main (see item 0; PR MERGEABLE again). Then D4a
+  zero-run: built `bench-ideal --zrun` (causal JPEG-LS-style run-mode scorer,
+  static bracket + adaptive RunFreq estimate over the production MED stream)
+  and the ZRUN rail (CSV, pre-registered ZR-fmt eligibility gate, hard
+  ZR-anchor replica gate, three-way self-check). Two harness bugs found and
+  fixed BY the anchor discipline before any verdict was trusted: folded-zero
+  bins adapted with an inverted bit value (anchor showed -5.9 pct drift;
+  after the fix the replica matches the mixer anchor to 4 decimals), and the
+  evaluator dropped IDEALTOTAL/ZRUNTOTAL rows via prefix filters. Measured
+  rejection: +0.28 pct aggregate, 4/4 images worse, static ceiling -0.24 pct
+  vs the billed 1-3; STOP rule fired, zero format bytes. 80/80 gtests.
+  Decision {"action":"continue"} for D4b/D4c.
 
 - 2026-08-24 the Builder (continuation run 13, branch rebuild + D4 start):
   found the PR CONFLICTING; diagnosed with a FULL clone (after
