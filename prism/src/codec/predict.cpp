@@ -153,8 +153,8 @@ int32_t xband_gradient(const std::vector<uint16_t>& ll, uint32_t w, uint32_t h,
 int32_t xband_apply(int32_t grad, int8_t weight) {
     if (grad == 0 || weight == 0) return 0;
     int32_t t = grad * (int32_t)weight;
-    int32_t q = t >> 4;                    // arithmetic shift = floor on gcc/clang
-    if (t < 0 && (t & 15) != 0) --q;       // portable floor for the negative case
+    int32_t q = t / 16;                 // truncates toward zero
+    if (t % 16 != 0 && t < 0) --q;      // adjust to exact floor semantics
     return q;
 }
 

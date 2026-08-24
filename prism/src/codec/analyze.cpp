@@ -166,10 +166,11 @@ size_t trial_band_bits_v2(const std::vector<uint16_t>& data, uint32_t w, uint32_
         if (TL >= std::max(L, T)) pred = std::min(L, T);
         else if (TL <= std::min(L, T)) pred = std::max(L, T);
         else pred = L + T - TL;
-        // C5: same LL-gradient term production applies (identity at zero).
+        // C5: same pure linear LL-gradient model production applies.
         if (!isLL && xb_w3 && llSrc) {
             uint8_t xb_type = band_class & 3u;
-            pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xb_w3[xb_type - 1]);
+            int8_t wb = xb_w3[xb_type - 1];
+            if (wb != 0) pred = xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), wb);
         }
         int32_t sample = isLL ? (int32_t)data[idx] : (int16_t)data[idx];
         int32_t e = sample - pred;
