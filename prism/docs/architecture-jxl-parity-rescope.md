@@ -33,7 +33,7 @@ from the D0 harness showing a materially different regime:
 | True CDC lifting pyramid | research F2 + C4 | loses to flat MED residuals under trial bits, 24/24 images |
 | Cross-band linear HF prediction | C5 | rejected on every plane of all 24 images; mechanism proven only on constructed correlation |
 | Spatial MA-tree contexts on flat planes | C2 + C2b | coarser than exact causal resdiff-343 under v2 binarization; model bytes sink every total |
-| Static context refinement generally | A2 instrumented-oracle table | full 343-context oracle adds only ~0.19 points over class16-pooled under this binarization (-18.57 vs -18.38 percent vs v0 payload) |
+| Static context refinement generally | C2 + C2b trials; D0 harness (the A2 instrumented-oracle table was RETRACTED 2026-08-24, see 2026-08-24T09-30-00) | buys little under this binarization: harness-citable static-refinement ceiling is 1.14 points bin-fine / 1.50 value mode (class16 -> ctx343), and the trial gates rejected it on every image |
 | Energy-proxy decisions | C3/C4/C5 | proxy class deleted from decision paths by construction |
 
 The transform-first hypothesis is dead on this corpus. That is not a failure:
@@ -73,11 +73,16 @@ What is already known from measurement:
 
 ### L2: collection efficiency (close the real-vs-ideal gap)
 
-The A2 oracle table says even ONE SHARED static ideal model reaches -13.62
-percent vs v0 payload while the real v2 coder collects roughly half of that;
-class-pooled ideal is -18.38 percent. The real coder pays for: adaptive
-learning cost on every context switch, binary-decomposition overhead, and
-per-bin independence assumptions. Mixing attacks exactly this:
+The D0 harness measurement supersedes the original oracle table here (see
+the D0 STATUS above): the adaptive real v2 coder (-5.53 percent aggregate vs
+v0 payload) BEATS every SHARED static ideal bracket (+1.31 bin-coarse /
+-0.78 bin-fine / -0.81 value mode) - adaptivity outperforms static shared
+models on nonstationary data, which the retracted table had backwards. The
+genuine collection gap is against the CONDITIONAL ideal: real -5.53 percent
+vs the context-conditioned fine-bin bracket -12.61 percent, about seven
+points. The real coder pays for: adaptive learning cost on every context
+switch, binary-decomposition overhead, and per-bin independence assumptions.
+Mixing attacks exactly this:
 
 - **Logistic mixing** of K complementary ADAPTIVE estimators per bin (the
   per-context dual-rate model, the class-pooled model, an activity-keyed
@@ -134,6 +139,19 @@ ephemeral run tooling. Before any D-phase format work:
 New binding invariant **I7**: every offline projection used for a phase
 go/no-go must come from this committed harness. Ephemeral numbers are not
 evidence.
+
+- STATUS (2026-08-24, Builder D0): COMPLETE with a material find - the
+  acceptance as written FAILED, and that failure is the result. The recorded
+  A2 aggregates (shared -13.62 / pooled -18.38 / 343-oracle -18.57 vs v0
+  payload) proved NONREPRODUCIBLE by any documented interpretation and
+  information-theoretically impossible against the measured H(E|context)
+  floor (-12.98 percent value mode); their magnitudes are RETRACTED.
+  Acceptance replaced by the G-repro anchor on the fresh harness row
+  (benchmarks/results/2026-08-24-ideal-probe.csv, tolerance 0.05 points)
+  plus the ordering gate and fail-capable self-checks. Harness-citable
+  replacements: class16/ctx343 = -11.48/-12.61 bin-fine and -11.51/-12.98
+  value mode; real v2 -5.53 aggregate. Evidence and consequences: decision
+  record 2026-08-24T09-30-00.
 
 ### D1: adaptive blended prediction (format-visible, biggest single lever)
 

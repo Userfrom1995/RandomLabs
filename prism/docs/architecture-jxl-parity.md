@@ -148,7 +148,9 @@ uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entr
   gain >= 0.5 percent of v0 on kodim13, > 0.1 percent on kodim01 - the
   original 3 percent target predated the v2 binarization and instrumented
   oracle analysis shows the static conditional ceiling under this binarization
-  is ~0.19 percent over class-pooled coding; see the recalibration record in
+  is ~0.19 percent over class-pooled coding (magnitude RETRACTED 2026-08-24,
+  see decision record 2026-08-24T09-30-00; corrected to 1.14 bin-fine /
+  1.50 value mode); see the recalibration record in
   probe_backend.sh). Status: A1+A2 PASS with v2 at -6.40 / -4.79 percent.
 - Corpus: full Kodak-24 byte-exact; projected landing zone lowered by the
   retune (probe images improved ~1.0-1.4 percent of v0 beyond the original
@@ -175,7 +177,9 @@ uint16_t prior_for(uint8_t prior_class, uint8_t bin_kind); // N_PRIORS = 16 entr
 > partition of spatial features is a STRICTLY COARSER context than the exact
 > causal residual-DIFF-343 under this binarization, consistent with the C1
 > instrumented-oracle finding that the static conditional ceiling over
-> class-pooled coding is only ~0.19 percent. Also fixed en route: the v2
+> class-pooled coding is only ~0.19 percent (magnitude RETRACTED 2026-08-24,
+> see decision record 2026-08-24T09-30-00; corrected to 1.14 bin-fine /
+> 1.50 value mode). Also fixed en route: the v2
 > leaf helpers' silent 64-context clamp/id-fold (a latent round-trip bug the
 > moment leaves exceed 64; removed for bit3/bit4 paths, legacy v1 untouched).
 >
