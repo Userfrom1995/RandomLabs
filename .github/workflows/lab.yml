@@ -66,7 +66,7 @@ jobs:
             SAFETY NET (always binding):
             - Commit your work yourself as `The Lab Engineer (CTO)` <github-actions[bot]@users.noreply.github.com>. NEVER add any `Co-authored-by:` trailers.
             - All commit messages must start with `lab:`.
-            - For PRs: if the branch `opencode/lab-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/lab-<issue>-<slug> origin/opencode/lab-<issue>-<slug>` and continue on it. Never create a fresh branch from `main` when the PR branch already exists (that breaks the runner's push lease). Commit locally and open the PR with `gh pr create --title "[Infra] ..." --body "Closes #N"` (only if no PR exists yet).
+            - For PRs: if the branch `opencode/lab-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/lab-<issue>-<slug> origin/opencode/lab-<issue>-<slug>` and continue on it. Never create a fresh branch from `main` when the PR branch already exists (that breaks the runner's push lease). Commit locally; do NOT run `gh pr create` (the head branch is not on the remote yet) - instead write the PR title to `/tmp/random-lab-pr-title` and body to `/tmp/random-lab-pr-body`, and the PAT-backed runner step pushes the branch AND opens the PR with your metadata.
             - NEVER run `git push` yourself. The runner's PAT-backed step pushes the branch. Any push you make uses the App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission".
             - For model switches/upgrades on main: modify `.github/workflows/*.yml` directly on disk and leave modified. The runner PAT step will commit and push to main.
             - You never post "/oc" comments directly. Write your structured machine decision to `/tmp/random-lab-decision.json`:
@@ -123,16 +123,22 @@ jobs:
             # gh uses GH_TOKEN which is the owner's PAT here, so scope the API calls to GITHUB_TOKEN)
             pr=$(GH_TOKEN=${{ github.token }} gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
             if [ -z "$pr" ]; then
+              # Agent-authored metadata wins when provided (same /tmp contract
+              # as the decision file); generic fallback keeps older flows intact.
+              title=""; body=""
+              [ -s /tmp/random-lab-pr-title ] && title=$(cat /tmp/random-lab-pr-title)
+              [ -s /tmp/random-lab-pr-body ] && body=$(cat /tmp/random-lab-pr-body)
               # The Obsidian umbrella issue (#68 and any Obsidian-titled issue) must stay open
               # until the codec target is beaten, so an infra PR must reference it without closing.
-              title=$(GH_TOKEN=${{ github.token }} gh issue view "$issue" --repo "${{ github.repository }}" --json title --jq '.title' 2>/dev/null || echo "")
-              if echo "$title" | grep -qi "obsidian"; then
-                body="Refs to #$issue"
+              issuetitle=$(GH_TOKEN=${{ github.token }} gh issue view "$issue" --repo "${{ github.repository }}" --json title --jq '.title' 2>/dev/null || echo "")
+              if echo "$issuetitle" | grep -qi "obsidian"; then
+                [ -z "$body" ] && body="Refs to #$issue"
               else
-                body="Closes #$issue"
+                [ -z "$body" ] && body="Closes #$issue"
               fi
+              [ -z "$title" ] && title="[Infra] Lab update for #$issue"
               echo "Opening PR for branch $branch on issue #$issue..."
-              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "[Infra] Lab update for #$issue" --body "$body" 2>/dev/null || echo "")
+              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "$title" --body "$body" 2>/dev/null || echo "")
             fi
             echo "pr_number=$pr" >> "$GITHUB_ENV"
 
