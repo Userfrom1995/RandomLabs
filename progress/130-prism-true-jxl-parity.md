@@ -94,7 +94,8 @@ Builder continuation run 5 (2026-08-24) COMPLETE for this slice: review
 findings F1-F6 folded in first (gate arithmetic is the single source:
 capture 124%/140% from same-run measured V1; gain 0.78; A2 oracle evidence
 table committed in-tree under "A2 recalibration oracle evidence"; analyzer
-reuses build_spatial_flat_tree; disjoint-history topology stated truthfully),
+   reuses build_spatial_flat_tree; topology wording updated then (later
+   corrected 2026-08-24: shared history, see next-step item 0),
 then C4 landed: true CDC lifting behind bit5 + trial-bits level choice.
 Measured honestly: lifting rejected corpus-wide, e1 truth stands at
 **10.2904 summed / 3.4301 per-sample bpp** (24/24 ties vs pre-C4), e3/e7
@@ -130,16 +131,20 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Next steps (in order)
 
-0. **Branch update policy (binding for every future run on this branch):**   this branch carries MERGED ORPHAN-ROOTED phase histories (researcher
-   commits 1113c6f/2d615b9/etc. have empty parents and were joined by
-   merges). The histories are DISJOINT from main: `git merge-base origin/main
-   HEAD` exits 1 - there is NO common ancestor (review F5; the earlier claim
-   that main == f8a958d == merge-base was wrong). GitHub still reports the PR
-   MERGEABLE/CLEAN. A plain `git rebase origin/main` tries to flatten and
-   replay the foreign roots and will always conflict. To sync with main use a
-   disjoint-history merge (`git merge origin/main --allow-unrelated-histories`)
-   instead. Rebase is safe ONLY after a full rebuild-and-cherry-pick per the
-   AGENTS.md safety net.
+0. **Branch update policy (binding for every future run on this branch):**
+   CORRECTED 2026-08-24 against full server-side history: the branch and
+   main SHARE history. `git merge-base origin/main HEAD` =
+   f8a958d70e48122d6 (verified locally after unshallowing AND via the
+   GitHub commits API: commit 1113c6f has parent f8a958d70e48; compare
+   main...head = diverged, ahead 32, merge_base f8a958d70e48). Earlier
+   "disjoint histories / merge-base exits 1 / parentless root" claims were
+   artifacts of shallow/partial clones in individual sessions, not repo
+   truth. Sync path: ordinary `git fetch origin && git merge origin/main`
+   (or a plain rebase if replaying a slice cleanly) - NEVER
+   `--allow-unrelated-histories` here (applying it to related histories
+   fabricates bogus DAG edges). The hard-rule orphan check still re-runs
+   immediately before any actual merge of this PR with freshly fetched
+   objects.
 1. [next run] C5 (cross-band prediction, blueprint section 7): XBAND
    parent-gradient predictor over the (now lifting-capable) band structure,
    per-leaf selector by trial bits; acceptance wins >= 20/24 images; M3 GATE
@@ -151,12 +156,20 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Agent log
 
+- 2026-08-24 the Builder (continuation run 6, topology correction FIRST):
+  Mae's twice-delivered server-side evidence verified this run - the
+  histories are SHARED (merge-base f8a958d70e48 after unshallowing; GitHub
+  API shows 1113c6f has parent f8a958d70e48). The "disjoint histories"
+  wording from review F5 and the two log entries below were shallow/partial
+  clone artifacts. Item 0 rewritten to the truthful policy: ordinary
+  merge/rebase syncs, --allow-unrelated-histories forbidden on this branch.
+
 - 2026-08-24 the Builder (continuation run 5): review round 1 findings
   F1-F6 folded in (commits bcd12e6, e7ae0e2, plus F4/F5 commit) - gate
   capture now computed from same-run measured V1 (124%/140%), gain 0.78,
   A2 oracle table committed to this file, analyzer uses the shared tree
-  builder, topology wording corrected (disjoint histories, merge-base
-  exits 1). C4 landed: true CDC lifting behind container bit5 with shared
+   builder, topology wording corrected (SUPERSEDED 2026-08-24: shared
+   history is the truth - see next-step item 0 and run 6 entry). C4 landed: true CDC lifting behind container bit5 with shared
   transform/inverse helpers, per-plane L by real coded bytes
   (trial_squeeze_bits), probe hook force_squeeze_levels, directed bit5
   round-trip + odd-dims bijection suite (one merge-sign bug found and fixed
@@ -173,6 +186,8 @@ Previous slice summary (continuation run 3, C2b):
    Correction (review F5, 2026-08-24): the log entry below saying "main is
    an ancestor" was WRONG - `git merge-base origin/main HEAD` exits 1, the
    histories are disjoint; see next-step item 0 for the truthful policy.
+   (SUPERSEDED 2026-08-24: that exit 1 was a shallow-clone artifact; shared
+   history is repo truth - see next-step item 0 and run 6 entry.)
    Remote head matches local, so no sync was needed; merge-not-rebase stands.
 
 - 2026-08-23 the Builder (continuation run 4): C3 trial-encoded decisions
