@@ -73,24 +73,38 @@ percent) are independently re-measurable today via
       NOTE: M2 checkpoint window NOT reached by C3 alone (10.29 vs ~9.5
       needed); per-plane/per-leaf predictor ids and squeeze-level trials
       move to C4/C5 per blueprint scope note.
-- [ ] C4 True CDC lifting Squeeze (P5): horizontal then vertical lifting, recurse on averages, post-order preserved; must beat decimation baseline on same corpus.
+- [x] C4 True CDC lifting Squeeze (P5): capability LANDED behind container
+      bit5 (H-then-V integer lifting recursed on averages, post-order layout
+      unchanged, shared transform/inverse, legacy streams decodable);
+      per-plane L now by REAL coded bytes (trial_squeeze_bits byte-mirror of
+      production plain-v2 band emission) vs the flat baseline. Measured on
+      pinned Kodak-24 (24/24 pins verified pre-measurement): trials REJECT
+      lifting on every plane, e1 byte-identical to pre-C4 10.2904/3.4301
+      (24/24 ties, zero regressions by construction); e3/e7 unchanged
+      (10.2861/3.4287). Consistent with F2 ideal-level finding + C2/C2b
+      closure. Probe hook force_squeeze_levels added; directed bit5
+      round-trip test; odd-dims bijection suite; decision record
+      2026-08-24T02-30-00-c4-lifting-scope-and-measured-rejection.md.
 - [ ] C5 Cross-band prediction (P6): XBAND parent-gradient predictor, per-leaf selector, wins >= 20/24 images; M3 GATE CHECKPOINT.
 - [ ] C6 CM/SSE stretch (P7, optional for closure): logistic mixer + SSE behind never-expand net toward < 8.0 summed.
 
 ## Current step
 
-Builder continuation run 4 (2026-08-23 ~20:45Z) IN PROGRESS: C3 landed and
-MEASURED. Trial-encoded decisions (color transform / CFL / predictor by
-real coded bytes, identity-forced finalists) beat the energy-chosen plan
-on 7 of 24 corpus images with ZERO regressions (17 ties), exactly the I4
-guarantee in production. Fresh both-units truth at e1:
-**10.2904 summed / 3.4301 per-sample bpp** (was 10.3544 / 3.4515,
--0.62 pct bytes; single image worst-hit by the old proxies: kodim20
--6.22 pct). e3 (CFL trials active): 10.2861 summed / 3.4287 per-sample.
-Wall-clock 37.8 s/corpus at e1 vs 10.1 s pre-C3 = 3.74x, inside the 5x
-guard (I6); e3 52.9 s. Fuzz 1000 iters PASS, probe rail A1/A2 OK and
-probe stream byte-stable. M2/M3 still FAIL in both units as expected -
-C4/C5 carry parity. Remaining this slice: docs sweep + decision record.
+Builder continuation run 5 (2026-08-24) COMPLETE for this slice: review
+findings F1-F6 folded in first (gate arithmetic is the single source:
+capture 124%/140% from same-run measured V1; gain 0.78; A2 oracle evidence
+table committed in-tree under "A2 recalibration oracle evidence"; analyzer
+reuses build_spatial_flat_tree; disjoint-history topology stated truthfully),
+then C4 landed: true CDC lifting behind bit5 + trial-bits level choice.
+Measured honestly: lifting rejected corpus-wide, e1 truth stands at
+**10.2904 summed / 3.4301 per-sample bpp** (24/24 ties vs pre-C4), e3/e7
+10.2861/3.4287. M2 (<9.498/<3.166) and M3 (<8.655/<2.885) FAIL in both
+units - no parity claim. Verification this slice: 59/59 gtests (9 new
+squeeze tests), fuzz 500 iters PASS, probe + bench_gate self-checks PASS,
+sha pins verified pre-measurement.
+
+Next slice: C5 cross-band prediction (blueprint section 7) -> M3 gate
+checkpoint -> review round -> tester.
 
 Previous slice summary (continuation run 3, C2b):
 
@@ -116,8 +130,7 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Next steps (in order)
 
-0. **Branch update policy (binding for every future run on this branch):**
-   this branch carries MERGED ORPHAN-ROOTED phase histories (researcher
+0. **Branch update policy (binding for every future run on this branch):**   this branch carries MERGED ORPHAN-ROOTED phase histories (researcher
    commits 1113c6f/2d615b9/etc. have empty parents and were joined by
    merges). The histories are DISJOINT from main: `git merge-base origin/main
    HEAD` exits 1 - there is NO common ancestor (review F5; the earlier claim
@@ -127,17 +140,31 @@ Previous slice summary (continuation run 3, C2b):
    disjoint-history merge (`git merge origin/main --allow-unrelated-histories`)
    instead. Rebase is safe ONLY after a full rebuild-and-cherry-pick per the
    AGENTS.md safety net.
-1. [next run] C4 (true CDC lifting, blueprint section 6): replace Stage-S
-   decimation with horizontal-then-vertical lifting recursed on the
-   average quadrant, post-order preserved; per-plane L by trial-encoded
-   band totals (C3 engine extends to squeezed bands); bijection property
-   tests at odd dims and BD16; must beat the decimation baseline on the
-   same corpus or C4 is rejected (R11-A spirit).
-2. Then C5 (cross-band prediction) -> M3 gate -> Reviewer -> Tester ->
-   Maintainer merge. M2 checkpoint re-evaluated after C4 lands.
-Owner freeze stands throughout: nothing merges before both gates pass.
+1. [next run] C5 (cross-band prediction, blueprint section 7): XBAND
+   parent-gradient predictor over the (now lifting-capable) band structure,
+   per-leaf selector by trial bits; acceptance wins >= 20/24 images; M3 GATE
+   CHECKPOINT after it lands. If C5's measured outcome also rejects, report
+   honestly and re-scope with the Architect before C6.
+2. Then review round at the stable C5 head -> Tester -> Maintainer merge.
+   M3 checkpoint re-evaluated with a fresh both-units measure. Owner freeze
+   stands throughout: nothing merges before both gates pass in both units.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 5): review round 1 findings
+  F1-F6 folded in (commits bcd12e6, e7ae0e2, plus F4/F5 commit) - gate
+  capture now computed from same-run measured V1 (124%/140%), gain 0.78,
+  A2 oracle table committed to this file, analyzer uses the shared tree
+  builder, topology wording corrected (disjoint histories, merge-base
+  exits 1). C4 landed: true CDC lifting behind container bit5 with shared
+  transform/inverse helpers, per-plane L by real coded bytes
+  (trial_squeeze_bits), probe hook force_squeeze_levels, directed bit5
+  round-trip + odd-dims bijection suite (one merge-sign bug found and fixed
+  by the suite). Measured rejection corpus-wide: e1 byte-identical to
+  pre-C4 (10.2904/3.4301), e3/e7 10.2861/3.4287; M2/M3 FAIL as expected;
+  no parity claim. 59/59 gtests, fuzz PASS, self-checks PASS, decision
+  record filed. Status stays in_progress (C5/C6 remain); decision
+  {"action":"continue"}.
 
 - 2026-08-23 the Builder (continuation run 4, addendum): discovered the
    multi-root hazard the hard way - a routine `git rebase origin/main`
