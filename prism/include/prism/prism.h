@@ -23,6 +23,12 @@ struct EncodeOpts {
     // clamped to max_squeeze_levels). Deterministic A-B for benchmarks/tests;
     // production keeps it empty so trials decide.
     std::vector<uint8_t> force_squeeze_levels;
+    // C5 probe hook: when non-empty (size must equal 3 * channel count),
+    // overrides the analyzer's cross-band weight selection with these exact
+    // H/V/D triples (1/16 units) for every plane that squeezes. All zeros
+    // reproduce plain lifting streams bit-for-bit. Production keeps it empty
+    // so trials decide.
+    std::vector<int8_t> force_xband_weights;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.
