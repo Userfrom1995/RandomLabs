@@ -85,7 +85,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/x-preview-f-free
+          model: opencode/deepseek-v4-flash-free
           use_github_token: true
           prompt: |
             You are the Reviewer of the Random lab, triggered by "/oc review" on the open PR in this checkout.
