@@ -366,13 +366,14 @@ p16' = clamp(squash(d) << 4, 1, 65534)
 (entries t[0..32] = 1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747,
 1101, 1546, 2047, 2549, 2994, 3348, 3607, 3785, 3901, 3975, 4024, 4050,
 4068, 4079, 4085, 4089, 4092, 4093, 4094): w = d & 127; i = (d >> 7) + 16;
-return (t[i]*(128 - w) + t[i+1]*w + 64) >> 7. `stretch` is its exact inverse,
+return (t[i]*(128 - w) + t[i+1]*w + 64) >> 7. `stretch` is its inverse,
 built once by the standard sweep: pi = 0; for x in [-2047..2047]:
 v = squash(x); for j in [pi..v]: st[j] = x; pi = v + 1; then st[j] = 2047 for
-the remaining tail. Both are pure compile-independent integer functions
-(mirrored constants, I2). The p16 -> p12 -> p16 quantization loses at most
-half a 12-bit step per bin, which can only make offline projections
-CONSERVATIVE (never optimistic) - safe for a go/no-go gate.
+the remaining tail. The pair round-trips within 3 p12 steps (worst case on
+the steepest mid-curve segment); both are pure platform-independent integer
+functions (mirrored constants, I2). The p16 -> p12 -> p16 quantization is
+bounded and one-directional per bin, which keeps offline projections honest
+at a few hundredths of a percent - safe for a go/no-go gate.
 
 ### 12.2 MixerCore (K inputs, bounded adapted weights)
 
@@ -443,7 +444,8 @@ and `MIXERTOTAL` rows (aggregated): nbins, bits_v2, bits_mix (no SSE),
 bits_mixsse, v2_bytes, v0_bytes, anchor percent, and deltas versus bits_v2.
 Presets: mix4 (lr 6), mix4-sse (default), rate sweeps mix4-sse-lr4..lr8,
 mix4-frozen (weights frozen at neutral init - adaptation ablation),
-mix4-adversarial (frozen weights all on E4 - fail-case). D2 go/no-go gate:
+mix4-adversarial (frozen weights all on E4 - fail-case); a negative rate
+shift (-1) freezes the respective adaptation stage by contract. D2 go/no-go gate:
 bits_mixsse below bits_v2 by >= 3.0 percent on pinned kodim01 AND kodim13,
 direction confirmed on unseen kodim05/kodim20. Below the bar: STOP rule,
 negative recorded, owner decision point surfaced (re-scope section 1).

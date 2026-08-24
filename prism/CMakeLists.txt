@@ -16,6 +16,7 @@ add_library(prism_core STATIC
     src/codec/predict.cpp
     src/codec/rans.cpp
     src/codec/acoder.cpp
+    src/codec/mixer.cpp
     src/codec/matree.cpp
     src/codec/matree_builder.cpp
     src/codec/squeeze.cpp
@@ -81,6 +82,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_predict.cpp
         tests/unit/test_rans.cpp
         tests/unit/test_acoder.cpp
+        tests/unit/test_mixer.cpp
         tests/unit/test_matree.cpp
         tests/unit/test_analyze.cpp
         tests/unit/test_squeeze.cpp
