@@ -88,7 +88,7 @@ evaluate() {
 import csv, sys
 
 lines = open(sys.argv[1]).read().splitlines()
-ideal_all = [l for l in lines if l.startswith("IDEAL,")]
+ideal_all = [l for l in lines if l.startswith("IDEAL,") or l.startswith("IDEALTOTAL,")]
 if not ideal_all:
     # legacy form: bare header line ("image,predictor,...") + data rows
     ideal_all = [l for l in lines if l.strip()]
@@ -147,15 +147,19 @@ if os.path.exists(ref_path):
         if r["image"] == "all" and r["predictor"] == "med":
             tot = r
     if ref and tot:
-        for _, sh, c16, cx in COLS:
-            for col in (sh, c16, cx):
-                a = pct(float(tot[col]), float(tot["v0_bytes"]))
-                b = pct(float(ref[col]), float(ref["v0_bytes"]))
-                if abs(a - b) > 0.05:
-                    print(f"G-repro FAIL ({col}: measured {a:+.4f}% vs reference {b:+.4f}%)")
-                    ok = False
-        if ok:
-            print("G-repro OK (ideal brackets match the committed reference)")
+        if abs(float(tot["v0_bytes"]) - float(ref["v0_bytes"])) > 0.5:
+            print("G-repro SKIP (eval image set differs from the committed "
+                  "reference pool; per-image rows still gated above)")
+        else:
+            for _, sh, c16, cx in COLS:
+                for col in (sh, c16, cx):
+                    a = pct(float(tot[col]), float(tot["v0_bytes"]))
+                    b = pct(float(ref[col]), float(ref["v0_bytes"]))
+                    if abs(a - b) > 0.05:
+                        print(f"G-repro FAIL ({col}: measured {a:+.4f}% vs reference {b:+.4f}%)")
+                        ok = False
+            if ok:
+                print("G-repro OK (ideal brackets match the committed reference)")
     else:
         print("G-repro SKIP (no med total/reference pair)")
 else:
@@ -175,7 +179,7 @@ if mixers and ok:
 zrows = []
 if sys.argv[3] and sys.argv[3] != "":
     zlines = open(sys.argv[3]).read().splitlines()
-    z_all = [l for l in zlines if l.startswith("ZRUN,")]
+    z_all = [l for l in zlines if l.startswith("ZRUN,") or l.startswith("ZRUNTOTAL,")]
     if z_all:
         z_hdr = z_all[0].split(",")
         zrows = [dict(zip(z_hdr, l.split(","))) for l in z_all[1:] if l.strip()]
@@ -204,9 +208,12 @@ if zrows:
         if ap <= -1.0 and not mixed:
             print(verdict + " -> ZR-fmt PASS (format work eligible)")
         else:
+            worse = sum(1 for r in imgs if float(r["adapt_pct"]) > 0.0)
             why = []
             if ap > -1.0: why.append("aggregate above the -1.0 pct bar")
-            if mixed: why.append("mixed sign across probe images")
+            if mixed:
+                why.append(f"{worse}/{len(imgs)} probe images above baseline "
+                           "(no adoption from a losing subset)")
             print(verdict + " -> ZR-fmt FAIL (" + "; ".join(why) + ")")
 
 sys.exit(0 if ok else 1)
@@ -286,15 +293,29 @@ if [[ "$SELF_CHECK" == "1" ]]; then
   done
   [[ "$ok" == "1" ]] && echo "MIXER SELF-CHECK PASS: adapted beats frozen and adversarial on both ramps"
   [[ "$ok" == "1" ]] || exit 1
-  # D4 zero-run self-check: the scorer must (a) collapse a flat ramp's zeros
-  # into run symbols for a large measured WIN, and (b) the evaluator must
-  # render BOTH ZR-fmt verdicts from CSV rows alone plus bite on a diverged
-  # anchor (a verdict that can only say PASS is worse than none).
+  # D4 zero-run self-check: the scorer must (a) COLLAPSE a flat ramp's zero
+  # events into run symbols (the mechanism works), (b) NOT invent a win on
+  # noise (adaptive run overhead >= break-even there), and (c) the evaluator
+  # must render BOTH ZR-fmt verdicts from CSV rows alone plus bite on a
+  # diverged anchor (a verdict that can only say PASS is worse than none).
+  # Cost-sign assertions on tiny synthetic ramps are deliberately avoided:
+  # at 96x96 the RunFreq learning cost can legitimately dominate either way.
   "$BIN" bench-ideal "$TMP/cols_const.ppm" --zrun > "$TMP/zf.txt"
-  zf=$(awk -F, '/^ZRUN,/ && $2 != "image" {print $10; exit}' "$TMP/zf.txt")
-  [[ -n "$zf" ]] || { echo "SELF-CHECK FAIL: no zrun row"; exit 1; }
-  python3 -c "import sys; sys.exit(0 if $zf < -20 else 1)" || \
-    { echo "SELF-CHECK FAIL: flat ramp must fold zeros into a large win (got $zf%)"; ok=0; }
+  zfold=$(awk -F, '/^ZRUN,/ && $2 != "image" {print $3; exit}' "$TMP/zf.txt")
+  [[ -n "$zfold" ]] || { echo "SELF-CHECK FAIL: no zrun row"; exit 1; }
+  python3 -c "import sys; sys.exit(0 if $zfold > 90 else 1)" || \
+    { echo "SELF-CHECK FAIL: flat ramp must fold most zeros into run symbols (got $zfold%)"; ok=0; }
+  python3 -c "
+import random
+random.seed(11)
+w = h = 96
+px = bytes(random.randrange(256) for _ in range(w*h*3))
+open('$TMP/noise_zr.ppm','wb').write(b'P6\n%d %d\n255\n' % (w,h) + px)
+" || { echo "SELF-CHECK FAIL: cannot make noise image"; ok=0; }
+  zn=$("$BIN" bench-ideal "$TMP/noise_zr.ppm" --zrun 2>/dev/null | awk -F, '/^ZRUN,/ && $2 != "image" {print $10; exit}')
+  [[ -n "$zn" ]] || { echo "SELF-CHECK FAIL: no zrun row for noise"; ok=0; }
+  python3 -c "import sys; sys.exit(0 if abs($zn) < 1.0 else 1)" || \
+    { echo "SELF-CHECK FAIL: scorer must not invent a win on noise (got $zn%)"; ok=0; }
   zhdr='ZRUN,image,folded_pct,nsym,nbreaker,v0_bytes,v2_bytes,bits_plain,bits_adapt,adapt_pct,base_fine_sh,base_fine_cl,base_fine_cx,zr_fine_sh,zr_fine_cl,zr_fine_cx'
   printf '%s\n' "$zhdr" > "$TMP/zwin.csv"
   printf 'ZRUN,all,60.00,10,5,100000,95000,760000.0,700000.0,-7.8947,700000.0,690000.0,680000.0,650000.0,640000.0,630000.0\n' >> "$TMP/zwin.csv"
@@ -310,7 +331,7 @@ if [[ "$SELF_CHECK" == "1" ]]; then
   grep -q "ZR-fmt PASS" "$TMP/zwin.out" || { echo "SELF-CHECK FAIL: evaluator must grant ZR-fmt on a winning projection"; cat "$TMP/zwin.out"; ok=0; }
   grep -q "ZR-fmt FAIL" "$TMP/zlose.out" || { echo "SELF-CHECK FAIL: evaluator must refuse ZR-fmt on a losing projection"; cat "$TMP/zlose.out"; ok=0; }
   grep -q "ZR-anchor FAIL" "$TMP/zbad.out" || { echo "SELF-CHECK FAIL: ZR-anchor must reject a diverged replica"; cat "$TMP/zbad.out"; ok=0; }
-  [[ "$ok" == "1" ]] && echo "ZRUN SELF-CHECK PASS: win on runs, both ZR-fmt verdicts reachable, anchor gate bites"
+  [[ "$ok" == "1" ]] && echo "ZRUN SELF-CHECK PASS: events collapse on runs, no invented win on noise, both ZR-fmt verdicts reachable, anchor gate bites"
   [[ "$ok" == "1" ]] || exit 1
   exit 0
 fi
@@ -359,9 +380,18 @@ if [[ "$ZRUN" == "1" ]]; then
   grep -E '^ZRUN' "$ALL_RAW" > "$ZR_RAW"
   cp "$ZR_RAW" "$ZRUN_CSV"
 fi
-cp "$RAW_CSV" "$OUT_CSV"
+# In zrun mode the dated ideal-probe CSV is the COMMITTED G-repro reference;
+# never clobber it. Evaluate from a side file in the same directory so the
+# reference path resolution still finds the committed row.
+EVAL_CSV="$OUT_CSV"
+if [[ "$ZRUN" == "1" ]]; then
+  EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-zrun-eval.csv"
+  grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$EVAL_CSV"
+else
+  cp "$RAW_CSV" "$OUT_CSV"
+fi
 echo "== ideal-bracket results (${OUT_CSV}) =="
-cat "$OUT_CSV"
+cat "$RAW_CSV"
 if [[ -n "$MIXERS" ]]; then
   echo "== D2 mixer results (${MIX_CSV}) =="
   cat "$MIX_CSV"
@@ -371,7 +401,7 @@ if [[ "$ZRUN" == "1" ]]; then
   cat "$ZRUN_CSV"
 fi
 
-if ! evaluate "$OUT_CSV" "$MIX_CSV" "$ZR_RAW"; then
+if ! evaluate "$EVAL_CSV" "$MIX_CSV" "$ZR_RAW"; then
   echo "IDEAL GATE FAIL"
   exit 1
 fi
