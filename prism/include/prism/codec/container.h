@@ -16,19 +16,22 @@ struct ContainerHeader {
     // (zero-flag-first binarization + dual-rate class-prior adaptation),
     // bit4 MATREE_FLAT: the MA-tree applies to planes coded at squeeze level
     // 0 (spatial leaf contexts; C2 always-on tree). Requires bit2.
+    // bit5 SQUEEZE_LIFT: squeezed planes use true CDC lifting (C4); clear =
+    // legacy Stage-S decimation so old streams stay decodable.
     // Unknown bits are a hard decode error; v1 streams (bit2 without bit3)
     // stay decodable for legacy results CSVs.
     uint8_t flags = 0;
     uint8_t effort = 0;
-    std::vector<uint8_t> cfl_scales; // num_chroma
+    std::vector<uint8_t> cfl_scales; // num_channels
     std::vector<uint8_t> squeeze_levels; // num_channels
     uint32_t model_len = 0;
 };
 
-// Container flags (issue #130 C1 names bit3, C2 names bit4).
+// Container flags (issue #130 C1 names bit3, C2 names bit4, C4 names bit5).
 constexpr uint8_t ACODER_FLAG = 0x04;     // adaptive FIFO range coder (v1 or v2)
 constexpr uint8_t ACODER_V2_FLAG = 0x08;  // backend v2 binarization + models
 constexpr uint8_t MATREE_FLAT_FLAG = 0x10; // MA-tree on level-0 planes
+constexpr uint8_t SQUEEZE_LIFT_FLAG = 0x20; // squeezing uses true CDC lifting
 
 struct Container {
     ContainerHeader hdr;

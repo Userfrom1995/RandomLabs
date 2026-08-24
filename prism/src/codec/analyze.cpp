@@ -172,6 +172,74 @@ static uint64_t squeezed_plane_cost(const SqueezeResult& sr) {
     return tot;
 }
 
+namespace {
+// C4: REAL coded bytes for one squeezed band, a byte-mirror of prism.cpp
+// encode_band_generic's plain v2 path under a single-leaf tree (leaf ids
+// identically zero): MED residual over the band's own domain (unsigned for
+// LL, signed-reinterpreted for HF), causal JPEG-LS-style features, v2 coder.
+// Decisions may only use quantities production would actually emit (P4).
+size_t trial_band_bits_v2(const std::vector<uint16_t>& data, uint32_t w, uint32_t h,
+                          uint8_t band_class, bool isLL,
+                          const std::vector<uint16_t>* llSrc,
+                          const std::vector<uint16_t>* sibSrc,
+                          uint8_t bit_depth) {
+    if (w == 0 || h == 0) { AEncoder enc; return enc.flush_and_emit().size(); }
+    size_t n = (size_t)w * h;
+    std::vector<int32_t> residuals; residuals.reserve(n);
+    std::vector<uint16_t> leaf_ids(n, 0);
+    std::vector<int32_t> resHist(n, 0);
+    for (size_t idx = 0; idx < n; ++idx) {
+        uint32_t x = (uint32_t)(idx % w), y = (uint32_t)(idx / w);
+        int32_t L, T, TL;
+        if (isLL) {
+            L = (x > 0) ? (int32_t)data[idx - 1] : 0;
+            T = (y > 0) ? (int32_t)data[idx - w] : 0;
+            TL = (x > 0 && y > 0) ? (int32_t)data[idx - w - 1] : 0;
+        } else {
+            L = (x > 0) ? (int16_t)data[idx - 1] : 0;
+            T = (y > 0) ? (int16_t)data[idx - w] : 0;
+            TL = (x > 0 && y > 0) ? (int16_t)data[idx - w - 1] : 0;
+        }
+        int32_t pred;
+        if (TL >= std::max(L, T)) pred = std::min(L, T);
+        else if (TL <= std::min(L, T)) pred = std::max(L, T);
+        else pred = L + T - TL;
+        int32_t sample = isLL ? (int32_t)data[idx] : (int16_t)data[idx];
+        int32_t e = sample - pred;
+        resHist[idx] = e;
+        residuals.push_back(e);
+    }
+    (void)band_class; (void)llSrc; (void)sibSrc; (void)bit_depth;
+    // Single-leaf tree: every feature collapses to leaf 0, so the coded
+    // stream depends only on the residuals above - kept explicit for parity.
+    return acoder_encode_plane_leaves_v2(residuals, leaf_ids, 1).size();
+}
+
+// Real coded bytes for coding `plane` squeezed to `levels` with true CDC
+// lifting, including every band payload exactly as production would emit it.
+size_t trial_squeeze_bits(const std::vector<uint16_t>& plane, uint32_t w, uint32_t h,
+                          uint8_t levels, uint8_t bit_depth) {
+    SqueezeResult sr = squeeze_encode_plane(plane, w, h, levels, bit_depth, true);
+    auto chain = squeeze_ll_chain(plane, w, h, sr.levels, true);
+    size_t tot = 0;
+    for (size_t bi = 0; bi < sr.bands.size(); ++bi) {
+        const auto& band = sr.bands[bi];
+        bool isLL = (bi == 0);
+        uint8_t bc = band.band_class;
+        uint8_t lvl = bc >> 2;
+        const std::vector<uint16_t>* llSrc =
+            (!isLL && lvl < chain.size()) ? &chain[lvl] : nullptr;
+        const std::vector<uint16_t>* sibSrc = nullptr;
+        if (!isLL && bi >= 1) {
+            uint8_t type = bc & 3;
+            if (type == 2 || type == 3) sibSrc = &sr.bands[bi - 1].data;
+        }
+        tot += trial_band_bits_v2(band.data, band.w, band.h, bc, isLL, llSrc, sibSrc, bit_depth);
+    }
+    return tot;
+}
+} // namespace
+
 std::vector<uint8_t> encode_plane_tree_v2(const std::vector<uint16_t>& data,
                                           uint32_t w, uint32_t h,
                                           const MATree& tree, int num_leaves,
@@ -428,23 +496,26 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
     // ---- B7: Squeeze + MA-tree coupled (effort >=3) ----
     if (effort >= 3 && r.bd == BitDepth::BD8) {
         uint8_t bd_val = 8;
-        // per-plane squeeze level search via residual energy
+        // C4: per-plane squeeze levels chosen by REAL coded bytes of the
+        // exact lifting-band payloads production would emit, against the
+        // flat v2 baseline production does emit - never by energy proxies.
+        // L=0 stays on ties (never-expand, I4).
         std::vector<uint8_t> chosen_levels(r.num_channels(), 0);
         uint64_t cost_no_squeeze = 0;
+        PredId spred = static_cast<PredId>(res.global_pred_id);
+        if ((uint8_t)spred > 8) spred = PredId::MED;
         for (size_t pi=0; pi<eval_raster.planes.size(); ++pi) {
             if (eval_raster.ch == Channels::RGBA && pi==3) { chosen_levels[pi]=0; continue; }
             uint32_t w = eval_raster.w, h = eval_raster.h;
             uint8_t maxL = max_squeeze_levels(w, h);
             const auto& plane = eval_raster.planes[pi];
-            // baseline no squeeze cost
-            SqueezeResult sr0 = squeeze_encode_plane(plane, w, h, 0, bd_val);
-            uint64_t bestC = squeezed_plane_cost(sr0);
+            auto flatRes = compute_residuals(plane, w, h, spred);
+            size_t bestC = acoder_encode_plane_v2(flatRes, w, h, AC_V2_RESDIFF_CONTEXTS).size();
             cost_no_squeeze += bestC;
             uint8_t bestL = 0;
             for (uint8_t L=1; L<=maxL; ++L) {
-                SqueezeResult sr = squeeze_encode_plane(plane, w, h, L, bd_val);
-                uint64_t c = squeezed_plane_cost(sr);
-                if (c < bestC) { bestC = c; bestL = sr.levels; }
+                size_t c = trial_squeeze_bits(plane, w, h, L, bd_val);
+                if (c < bestC) { bestC = c; bestL = L; }
             }
             chosen_levels[pi] = bestL;
         }
@@ -500,8 +571,9 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             return res;
         }
 
-        // Legacy coupled path (some plane squeezes at this effort): unchanged
-        // behavior until C4 replaces decimation with true lifting.
+        // Legacy coupled path (some plane squeezes at this effort): the C4
+        // transform (true CDC lifting) and trial-bits levels feed it; its
+        // internal band-tree guard stays as documented until C5.
         // Build squeezed results for chosen levels to collect dataset for MA-tree
         struct PlaneSqueeze { SqueezeResult sr; std::vector<std::vector<uint16_t>> llPlanes; };
         std::vector<PlaneSqueeze> planeSqueezes;
@@ -516,23 +588,10 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
             }
             uint8_t L = chosen_levels[pi];
             const auto& plane = eval_raster.planes[pi];
-            SqueezeResult sr = squeeze_encode_plane(plane, eval_raster.w, eval_raster.h, L, bd_val);
-            // also capture intermediate LLs for llc feature: need per level LL
-            // Recompute LLs for this plane for feature use (same as inside squeeze)
-            std::vector<std::vector<uint16_t>> llPlanes;
-            {
-                std::vector<uint16_t> cur = plane;
-                uint32_t curW = eval_raster.w, curH = eval_raster.h;
-                for (uint8_t lvl=0; lvl<L; ++lvl) {
-                    if ((curW &1)||(curH&1)) break;
-                    uint32_t w2=curW/2, h2=curH/2;
-                    std::vector<uint16_t> ll(w2*h2);
-                    for (uint32_t y=0;y<h2;++y) for(uint32_t x=0;x<w2;++x){ size_t i00=(size_t)(y*2)*curW+(x*2); ll[y*w2+x]=cur[i00];}
-                    llPlanes.push_back(ll);
-                    // update cur to ll for next iter
-                    cur = ll; curW=w2; curH=h2;
-                }
-            }
+            SqueezeResult sr = squeeze_encode_plane(plane, eval_raster.w, eval_raster.h, L, bd_val, true);
+            // per-level LL chain for llc features (lifting averages)
+            std::vector<std::vector<uint16_t>> llPlanes =
+                squeeze_ll_chain(plane, eval_raster.w, eval_raster.h, L, true);
             // llPlanes size == L, index 0 = LL1 (after lvl0), etc. For HF at lvl, its LL is llPlanes[lvl]
             // But our squeezed cost already includes HF raw, we have tot
             cost_squeeze_flat += squeezed_plane_cost(sr);
@@ -732,12 +791,10 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
                     }
                     uint8_t L = forced_levels[pi];
                     const auto& plane = eval_raster.planes[pi];
-                    SqueezeResult sr = squeeze_encode_plane(plane, eval_raster.w, eval_raster.h, L, bd_val);
-                    std::vector<std::vector<uint16_t>> llP;
-                    {
-                        std::vector<uint16_t> cur=plane; uint32_t cw=eval_raster.w,ch=eval_raster.h;
-                        for(uint8_t lvl=0; lvl<L; ++lvl){ if((cw&1)||(ch&1)) break; uint32_t w2=cw/2,h2=ch/2; std::vector<uint16_t> ll(w2*h2); for(uint32_t y=0;y<h2;++y) for(uint32_t x=0;x<w2;++x) ll[y*w2+x]=cur[(size_t)(y*2)*cw+(x*2)]; llP.push_back(ll); cur=ll; cw=w2; ch=h2; }
-                    }
+                    SqueezeResult sr = squeeze_encode_plane(plane, eval_raster.w, eval_raster.h, L, bd_val, true);
+                    // per-level LL chain for llc features (lifting averages)
+                    std::vector<std::vector<uint16_t>> llP =
+                        squeeze_ll_chain(plane, eval_raster.w, eval_raster.h, L, true);
                     f_cost_flat += squeezed_plane_cost(sr);
                     fPlaneSqueezes.push_back({sr, llP});
                 }
