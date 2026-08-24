@@ -46,6 +46,9 @@ model knobs against four Kodak images:
   nonstationary local tracking. This recalibrated the A2 gate (see
   probe_backend.sh header record); demanding 3 percent would have been a
   permanently unreachachable bar.
+  (SUPERSEDED 2026-08-24: these magnitudes were retracted by the committed
+  D0 harness - corrected ceiling 1.14 bin-fine / 1.50 value mode; see the D0
+  addendum below and decision record 2026-08-24T09-30-00.)
 
 ## Measured (pinned kodim01/kodim13, sha256-verified pre-measurement)
 
@@ -102,8 +105,11 @@ with measurements, closing the static-context-refinement direction:
   kodim01 / +35 B kodim13 - mixed sign, not adopted.
 - Three independent measurements now agree that under v2 binarization with
   dual-rate class-hierarchy sharing, adaptation already harvests what any
-  static refinement could add (~0.19 percent oracle ceiling). The MA-tree
-  stays a squeezed-band capability for C4/C5; flat-plane work moves to C3.
+  static refinement could add (~0.19 percent oracle ceiling as then
+  estimated - superseded 2026-08-24 by the D0 harness: corrected ceiling
+  1.14 bin-fine / 1.50 value mode; the qualitative conclusion stands). The
+  MA-tree stays a squeezed-band capability for C4/C5; flat-plane work moves
+  to C3.
 
 The rail itself gained the B1 gate plus a third self-check case proving the
 new gate can fail alone; durable CSV refreshed with all 7 variants.
