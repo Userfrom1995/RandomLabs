@@ -8,8 +8,15 @@ is exactly one third of this; Prism reports both so the owner's intent is visibl
 
 ## 1. Dataset: Kodak (PCD0992)
 
-- 24 images, 768x512, 24-bit RGB. Normalized to canonical PPM (P6, interleaved
-  RGB, no comments) and pinned by SHA-256 in `prism/benchmarks/data/kodak.sha256`.
+- 24 images at native Kodak resolution, 24-bit RGB, mixed orientation:
+  18 landscape 768x512 and 6 portrait 512x768 (kodim04/09/10/17/18/19).
+  Normalized to canonical PPM (P6 header `P6\n{w} {h}\n255\n`, interleaved
+  RGB, no comments) AT NATIVE ORIENTATION - no rotation - and pinned by
+  SHA-256 in `prism/benchmarks/data/kodak.sha256`. Re-derivation recipe,
+  proven against the pins (2026-08-24): download the lossless PNGs from the
+  Kodak-Lossless-True-Color-Image-Suite mirror (PhotoCD_PCD0992), convert
+  each to RGB at its native size, write the exact P6 header above plus raw
+  rows; all 24 pins must verify before any measurement.
 - The PPMs are git-ignored (large) but committed-durable via the benchmark cache
   so every build measures the identical corpus (the Obsidian lesson: `data/kodak`
   absence made gates unmeasurable for many iterations).

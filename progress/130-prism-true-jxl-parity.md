@@ -3,23 +3,24 @@
 - **Issue:** #130 (owner directive 2026-08-23; lab-wide freeze until M2 AND M3
   genuinely pass dual-unit gates)
 - **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
-- **Status:** in_progress. C-series COMPLETE through C5: C0+C1 landed
-  (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/C5 honestly rejected by
-  measurement (never-expand held, zero regressions). Research DONE (D1 gate
-  fix + D2 gap analysis F1-F4). Architect re-scope DELIVERED 2026-08-24:
-  `prism/docs/architecture-jxl-parity-rescope.md` (D-series, supersedes C6).
-  D0 COMPLETE: committed bench-ideal harness + probe_ideal.sh rail; recorded
-  A2 oracle aggregates measured NONREPRODUCIBLE (oracle figure violates the
-  H(E|cx) floor) and replaced by harness-citable numbers - decision record
-  2026-08-24T09-30-00. D1 OFFLINE REJECTED (best adaptive blend +0.25 pct
-  WORSE than MED on a probe image; only kodim20 wins ~1.1 pct, mixed sign,
-  order of magnitude under the 2 pct bar): no format work spent.
-  D2 OFFLINE REJECTED (best per-class logistic mix -0.90 pct aggregate,
-  gate >= 3 pct; SSE harmful in every keying and rate tried; anchors hold at
-  -0.04 pct worst): no format work spent. BOTH re-scope levers are now
-  closed by measurement; OWNER DECISION POINT surfaced per re-scope section
-  1 (decision record 2026-08-24T12-30-00). Next: owner/Mae verdict between
-  D4 stretch work and honest closure of #130 at the achieved gate level.
+- **Status:** in_progress. Builder phases COMPLETE through the D3 checkpoint:
+  C0+C1 landed (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/C5
+  honestly rejected by measurement (never-expand held, zero regressions).
+  Research DONE (D1 gate fix + D2 gap analysis F1-F4). Architect re-scope
+  DELIVERED 2026-08-24: `prism/docs/architecture-jxl-parity-rescope.md`
+  (D-series, supersedes C6). D0 COMPLETE (harness committed; recorded A2
+  oracle aggregates NONREPRODUCIBLE, replaced by harness-citable brackets -
+  decision record 2026-08-24T09-30-00). D1 OFFLINE REJECTED (+0.25 pct worse
+  best case, mixed sign): no format work spent. D2 OFFLINE REJECTED (-0.90
+  pct aggregate vs >= 3 pct gate; SSE harmful everywhere): no format work
+  spent. D3 CHECKPOINT COMPLETE (2026-08-24): fresh dual-unit evaluation at
+  e1/e3/e7 after re-deriving the corpus from upstream lossless PNGs with all
+  24 sha256 pins verified pre-measurement - outputs BYTE-IDENTICAL to the
+  committed CSVs at every effort (the whole D-series provably never touched a
+  format byte), M2 and M3 honestly FAIL in both units everywhere, all three
+  gate rails' self-checks PASS. The pipeline now sits at the review boundary;
+  the OWNER DECISION POINT (re-scope section 1: D4 stretch vs honest closure)
+  stays open for owner/Mae alongside review round 2.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -160,35 +161,46 @@ percent) are independently re-measurable today via
       not reachable by causal estimators. STOP rule fired; zero ext-byte
       work. Decision record 2026-08-24T12-30-00; durable CSV
       benchmarks/results/2026-08-24-ideal-mixer-d2.csv.
+- [x] D3 Checkpoint (2026-08-24): fresh `prism bench` at e1/e3/e7 with the
+      corpus re-derived this run from the upstream lossless PNGs and all 24
+      sha256 pins verified BEFORE measuring. Results BYTE-IDENTICAL to the
+      committed CSVs at every effort - e1 10.2904 summed / 3.4301 per-sample,
+      e3 = e7 10.2861 / 3.4287 - so the CSVs stay untouched and the D0-D2
+      library work is proven format-unwired end to end. bench_gate.sh
+      evaluated in BOTH units on every effort: M2 FAIL (10.2904 >= 9.498;
+      3.4301 >= 3.166; e3/e7 10.2861 >= 9.498; 3.4287 >= 3.166) and M3 FAIL
+      (vs < 8.655 / < 2.885) everywhere, honestly stated. Self-checks PASS on
+      all three rails (bench_gate fail+pass, probe_backend pass/A-fail/
+      B1-alone-fail, probe_ideal ranking both ways + mixer adapted-beats-
+      frozen). Per the re-scope this boundary goes to review regardless of
+      verdict; corpus-derivation find documented in benchmark-methodology.md
+      (pins are native-orientation PPMs: 18 landscape 768x512, 6 portrait
+      512x768).
 - [ ] OWNER DECISION POINT (re-scope section 1): both levers closed by
       measurement. Owner chooses between D4 stretch work (individual
       projections <= 1-3 pct each vs M3 gap -15.9 pct; M3 likely stays open)
       and closing #130 honestly at the achieved gate level. No silent scope
       creep; no drift into format work without new harness evidence.
-- [ ] D3 Checkpoint: fresh both-units gate evaluation at all efforts + review
-      boundary (Reviewer checks evidence chains, ext-byte container change,
-      decoder mirrors).
-- [ ] D4 Stretch toward M3 only if still open: extended mixer bank, zero-run
-      mode, reversible color rotations, one honest squeeze re-test under the
-      mixer. If M3 still fails after D4: stop and surface the owner decision
-      point stated in re-scope section 1. No silent scope creep.
+- [ ] D4 Stretch toward M3 only if the owner directs it after the decision
+      point: extended mixer bank, zero-run mode, reversible color rotations,
+      one honest squeeze re-test under the mixer. If M3 still fails after D4:
+      stop and surface the owner decision point stated in re-scope section 1.
+      No silent scope creep.
 
 ## Current step
 
-D2 COMPLETE (2026-08-24): the K=4 logistic mixer + SSE candidate was built
-exactly per re-scope section D2 and spec addendum 12, measured through the
-committed I7 harness with anchor fidelity proven on every row, and honestly
-REJECTED at -0.90 percent aggregate against a >= 3 percent gate. With D1
-also rejected offline, BOTH re-scope levers (L1 predictor blending, L2
-collection efficiency) are closed by measurement. Corpus truth stands
-honestly at e1 = 10.2904 summed / 3.4301 per-sample bpp, e3 = e7 =
-10.2861 / 3.4287; M2 (<9.498/<3.166) and M3 (<8.655/<2.885) FAIL in both
-units; no parity claim.
+D3 CHECKPOINT COMPLETE (2026-08-24): fresh dual-unit gate evaluation at
+e1/e3/e7 on a re-derived, pin-verified corpus. Outputs byte-identical to the
+committed CSVs at every effort (D-series provably format-unwired); M2 and M3
+FAIL honestly in both units everywhere; all three gate rails' self-checks
+PASS. Corpus truth stands at e1 = 10.2904 summed / 3.4301 per-sample bpp,
+e3 = e7 = 10.2861 / 3.4287; no parity claim.
 
-Next step: OWNER DECISION POINT (surfaced to Mae via handoff decision
-{"action":"maintainer"}): continue into D4 stretch work knowing M3 likely
-stays open, or close #130 at the achieved gate level (-6.7 percent bytes vs
-the e7 baseline plus five closed research directions). The Builder takes no
+Next step: review round 2 at this boundary (per re-scope D3: goes to review
+regardless of verdict). The OWNER DECISION POINT (continue into D4 stretch
+knowing M3 likely stays open, or close #130 at the achieved gate level,
+-6.7 percent bytes vs the e7 baseline plus five closed research directions)
+remains surfaced for owner/Mae alongside that review. The Builder takes no
 further format work without new owner/Mae direction backed by harness
 evidence.
 
@@ -242,16 +254,31 @@ Previous slice summary (continuation run 3, C2b):
    behind bit6 with per-plane H/V/D weights chosen by trial bits; M3 GATE
    CHECKPOINT evaluated fresh: FAIL in both units (10.2861/3.4287), honest
    all-reject outcome recorded. Per the rule below the next phase re-scopes.
-2. [next run] Builder D0: committed `bench-ideal` harness + probe_ideal.sh
-   (self-check that can fail; must reproduce the A2 oracle aggregates), then
-   D1 OFFLINE blended-prediction validation on probe images (confirm on
-   unseen kodim05/kodim20) BEFORE any container/format work. Format work only
-   if the harness projects >= ~2 percent. After D1/D2: review round at the
-   stable head -> Tester -> Maintainer merge decision. Owner freeze stands
-   throughout: nothing merges before both gates pass in both units on a fresh
+2. [DONE 2026-08-24] Builder D0-D3: committed bench-ideal harness +
+   probe_ideal.sh rail, D1 and D2 offline validations (both honestly
+   REJECTED per their gates, zero format bytes spent), then the D3 fresh
+   dual-unit checkpoint (byte-identical outputs, M2/M3 FAIL both units,
+   review boundary reached). Format work only ever behind new harness
+   evidence + owner direction. After the review round: Tester -> Maintainer;
+   the owner decision point rides alongside. Owner freeze stands throughout:
+   nothing merges before both gates pass in both units on a fresh
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 10, D3 checkpoint complete):
+  synced the branch with origin/main first (unshallowed, shared history
+  re-verified, merge-base f8a958d70e48; ordinary merge of the #135 lab fix,
+  commit 21a7411 - item 0 policy followed). Rebuilt Release, 80/80 gtests,
+  fuzz 1000 iters PASS. Re-derived the corpus from upstream lossless PNGs:
+  FINDING - pins are native-orientation PPMs (18 landscape 768x512, 6
+  portrait 512x768); all 24 sha256 verified BEFORE measuring; methodology
+  doc corrected. Fresh bench at e1/e3/e7: outputs BYTE-IDENTICAL to the
+  committed C5-era CSVs (no CSV churn; D0-D2 proven format-unwired).
+  bench_gate.sh M2+M3 evaluated in both units on every effort: FAIL
+  everywhere, honestly recorded. All three gate rails' self-checks PASS.
+  Tracker + rescope + methodology updated; decision {"action":"review"}
+  per the D3 review boundary.
 
 - 2026-08-24 the Builder (continuation run 9, D2-offline complete): spec
   addendum 12 first (stretch/squash, MixerCore, SSE contracts); mixer
