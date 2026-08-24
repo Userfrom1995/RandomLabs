@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include "prism/codec/color.h"
+#include "prism/prism.h"
+#include "prism/crc32.h"
 
 TEST(Color, YCoCgRRoundtrip) {
     prism::Raster r(4,4, prism::Channels::RGB, prism::BitDepth::BD8);
@@ -152,5 +154,90 @@ TEST(ColorRot, RejectsNonBD8OrGray) {
         EXPECT_THROW(colorrot::apply(g16, id), std::invalid_argument);
         EXPECT_THROW(colorrot::invert(g16, id), std::invalid_argument);
         EXPECT_THROW(colorrot::apply(gray, id), std::invalid_argument);
+    }
+}
+
+// --- D4c format wiring (spec section 13; adopted behind CR-fmt) ---
+
+TEST(ColorRot, EnumDispatchMatchesFamily) {
+    using namespace prism;
+    using namespace prism::codec;
+    Raster r(13, 9, Channels::RGB, BitDepth::BD8);
+    uint64_t seed = 0xbb67ae8584caa73bull;
+    for (size_t i = 0; i < r.num_pixels(); ++i) {
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+        r.planes[0][i] = (uint16_t)((seed >> 8) & 0xFF);
+        r.planes[1][i] = (uint16_t)((seed >> 24) & 0xFF);
+        r.planes[2][i] = (uint16_t)((seed >> 40) & 0xFF);
+    }
+    const std::pair<ColorTransform, int> map[] = {
+        {ColorTransform::ROT_LOCO, colorrot::kLocoId},
+        {ColorTransform::ROT_GRB, 1}, {ColorTransform::ROT_GBR, 2},
+        {ColorTransform::ROT_BRG, 4}, {ColorTransform::ROT_RBG, 3},
+    };
+    for (const auto& [ct, rid] : map) {
+        Raster fwd_enum = apply_color(r, ct);
+        Raster fwd_fam = colorrot::apply(r, rid);
+        EXPECT_EQ(fwd_enum.planes[0], fwd_fam.planes[0]) << "rid=" << rid;
+        EXPECT_EQ(fwd_enum.planes[1], fwd_fam.planes[1]) << "rid=" << rid;
+        EXPECT_EQ(fwd_enum.planes[2], fwd_fam.planes[2]) << "rid=" << rid;
+        Raster back = invert_color(fwd_enum, ct);
+        EXPECT_EQ(back, r) << "rid=" << rid;
+        EXPECT_TRUE(is_color_rotation(ct));
+    }
+    EXPECT_FALSE(is_color_rotation(ColorTransform::None));
+    EXPECT_FALSE(is_color_rotation(ColorTransform::YCoCgR));
+    EXPECT_FALSE(is_color_rotation(ColorTransform::Lift53));
+}
+
+TEST(ColorRot, EndToEndRoundTripForcedRotation) {
+    using namespace prism;
+    using namespace prism::codec;
+    Raster r(17, 11, Channels::RGB, BitDepth::BD8);
+    uint64_t seed = 0x51633e2d3f2e9cd0ull;
+    for (size_t i = 0; i < r.num_pixels(); ++i) {
+        seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+        r.planes[0][i] = (uint16_t)((seed >> 6) & 0xFF);
+        r.planes[1][i] = (uint16_t)((seed >> 22) & 0xFF);
+        r.planes[2][i] = (uint16_t)((seed >> 38) & 0xFF);
+    }
+    const ColorTransform rots[] = {
+        ColorTransform::ROT_LOCO, ColorTransform::ROT_GRB,
+        ColorTransform::ROT_GBR, ColorTransform::ROT_BRG,
+        ColorTransform::ROT_RBG,
+    };
+    for (uint8_t eff : {0, 1, 3}) {
+        for (ColorTransform ct : rots) {
+            EncodeOpts opts;
+            opts.effort = eff;
+            opts.force_color = true;
+            opts.forced_color_id = (uint8_t)ct;
+            auto bytes = encode(r, opts);
+            ASSERT_GE(bytes.size(), 16u);
+            EXPECT_EQ(bytes[15], (uint8_t)ct) << "header id must carry the rotation";
+            auto dec = decode(bytes);
+            EXPECT_EQ(dec, r) << "effort=" << (int)eff;
+        }
+    }
+}
+
+TEST(ColorRot, UnknownHeaderIdIsHardError) {
+    using namespace prism;
+    using namespace prism::codec;
+    Raster r(8, 8, Channels::RGB, BitDepth::BD8);
+    for (auto& pl : r.planes)
+        for (size_t i = 0; i < pl.size(); ++i) pl[i] = (uint16_t)(i * 31 % 256);
+    auto good = encode(r);
+    ASSERT_GE(good.size(), 20u);
+    for (uint8_t bad : {12u, 100u, 255u}) {
+        std::vector<uint8_t> evil = good;
+        evil[15] = bad; // header color_transform_id
+        // Recompute footer crc so ONLY the color-id gate can fire.
+        uint32_t crc = crc32(evil.data(), evil.size() - 4);
+        evil[evil.size() - 4] = (uint8_t)crc;
+        evil[evil.size() - 3] = (uint8_t)(crc >> 8);
+        evil[evil.size() - 2] = (uint8_t)(crc >> 16);
+        evil[evil.size() - 1] = (uint8_t)(crc >> 24);
+        EXPECT_THROW(decode(evil), DecodeError) << "id=" << (int)bad;
     }
 }
