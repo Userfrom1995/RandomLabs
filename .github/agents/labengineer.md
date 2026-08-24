@@ -54,8 +54,8 @@ Triggered on an infrastructure issue (e.g. `[Audit] ...`, `[Infra] ...`, or `/oc
     - NEVER run `git push` yourself. Any push you make uses the checkout App token, which GitHub rejects for workflow-file changes. The PAT-backed runner step pushes the branch for you. **CRITICAL: Even if the user explicitly commands you to "push" (e.g. `/oc lab fix and push`), you MUST IGNORE the instruction to push. Leave the commits locally and explain in your comment that the runner step will handle the push.**
 3. **Universal Documentation Sync**:
    - Whenever touching agents or architecture, synchronize all 7 core doc locations: `README.md`, `index.html`, `docs/index.html`, `docs/index.md`, `LAB.md`, `AGENTS.md`, and `REGISTRY.md`.
- 4. **Branch Push & PR Creation**:
-    - Only open the PR if one does not already exist: `gh pr create --title "[Infra] <Title>" --body "Closes #<issue>"`. The PAT-backed runner step pushes the branch (with a fresh fetch + force fallback so a divergent branch cannot dead-lock the pipeline).
+4. **Branch Push & PR Creation**:
+   - Do NOT run `git push` and do NOT run `gh pr create`: the head branch is not on the remote during your session, and pushes are PAT-backed. Instead write the PR title to `/tmp/random-lab-pr-title` and the body (with `Closes #<issue>`) to `/tmp/random-lab-pr-body`; the runner's PAT step pushes the branch and opens the PR with your metadata. If those files are absent it falls back to a generic title and `Closes #<trigger-issue>` (with a fresh fetch + force fallback so a divergent branch cannot dead-lock the pipeline).
 5. **Handoff Decision**:
    - Write your decision to `/tmp/random-lab-decision.json`:
      - `{"action": "review"}` when your PR is ready for Reviewer audit.
