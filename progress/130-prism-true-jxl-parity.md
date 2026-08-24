@@ -194,21 +194,18 @@ percent) are independently re-measurable today via
 
 ## Current step
 
-D3 CHECKPOINT COMPLETE (2026-08-24): fresh dual-unit gate evaluation at
-e1/e3/e7 on a re-derived, pin-verified corpus. Outputs byte-identical to the
-committed CSVs at every effort (D-series provably format-unwired); M2 and M3
-FAIL honestly in both units everywhere; all three gate rails' self-checks
-PASS. Corpus truth stands at e1 = 10.2904 summed / 3.4301 per-sample bpp,
-e3 = e7 = 10.2861 / 3.4287; no parity claim.
+D4 STRETCH DISPATCHED (Mae 2026-08-24T19:39Z, resolving the owner decision
+point in favor of continuing): zero-run mode first, honest extended mixer-bank
+test, reversible color rotations, each behind its own never-expand trial gate
+and I7 harness validation BEFORE any format work; squeeze economics re-test
+only with new D0 evidence. This run also REBUILT the branch onto current main
+(item 0 above) to clear the CONFLICTING state left by the server-side main
+rewrite.
 
-Next step: re-review of the round-3 fold at this boundary (rounds 2 and 3
-both verified prior work and returned only docs findings, all applied).
-The OWNER DECISION POINT (continue into D4 stretch
-knowing M3 likely stays open, or close #130 at the achieved gate level,
--6.7 percent bytes vs the e7 baseline plus five closed research directions)
-remains surfaced for owner/Mae alongside that review. The Builder takes no
-further format work without new owner/Mae direction backed by harness
-evidence.
+Next step: execute the D4 stack in Mae's stated order. If a lever fails its
+offline gate: STOP, no format bytes, record the negative (C2/C2b/C4/C5/D1/D2
+pattern). If M3 still fails after D4: stop and surface the owner decision
+point stated in re-scope section 1. No silent scope creep.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -243,17 +240,29 @@ Previous slice summary (continuation run 3, C2b):
 ## Next steps (in order)
 
 0. **Branch update policy (binding for every future run on this branch):**
-   CORRECTED 2026-08-24 against full server-side history: the branch and
-   main SHARE history. `git merge-base origin/main HEAD` =
-   f8a958d70e48122d6 (verified locally after unshallowing AND via the
-   GitHub commits API: commit 1113c6f has parent f8a958d70e48; compare
-   main...head = diverged, ahead 32, merge_base f8a958d70e48). Earlier
-   "disjoint histories / merge-base exits 1 / parentless root" claims were
-   artifacts of shallow/partial clones in individual sessions, not repo
-   truth. Sync path: ordinary `git fetch origin && git merge origin/main`
-   (or a plain rebase if replaying a slice cleanly) - NEVER
-   `--allow-unrelated-histories` here (applying it to related histories
-   fabricates bogus DAG edges). The hard-rule orphan check still re-runs
+   REWRITTEN 2026-08-24 (continuation run 13) after a second topology event.
+   Main's history was REWRITTEN server-side at some point after run 12's
+   sync: the model-pin commit this branch had merged as fb4c701 exists on
+   main as 601caaa (identical tree 9361bfed, different hash), so after a
+   full unshallow `git merge-base origin/main HEAD` exits 1 - genuinely
+   unrelated NOW, and GitHub reported the PR CONFLICTING. The branch was
+   therefore REBUILT per the hard rule: `git checkout -B <branch>
+   origin/main`, then all 55 of THIS PROJECT's own commits re-applied one
+   by one with `git cherry-pick` (the three old sync merges and their
+   old-main side chains dropped; the orphan-rooted researcher commit's
+   repo-snapshot noise resolved to origin/main's newer infra files,
+   keeping only its real project delta). Content check: rebuilt head vs
+   pre-rebuild head differs ONLY in .github/workflows/*.yml +
+   opencode.json, where main's newer lab versions win. The earlier
+   "shared history" statements in this file and the log below were true
+   when written (server-side merge_base f8a958d70e48) and were made false
+   by the later rewrite - shallow-clone artifacts caused the FIRST false
+   alarm, the main rewrite caused the real severance. Policy now: the
+   branch root IS current main, so ordinary `git fetch && git merge
+   origin/main` syncs; NEVER `--allow-unrelated-histories`; if merge-base
+   fails again on a future run, first `git fetch --unshallow`, and if it
+   STILL fails, repeat this rebuild procedure instead of joining
+   unrelated histories. The hard-rule orphan check still re-runs
    immediately before any actual merge of this PR with freshly fetched
    objects.
 1. [DONE this run] C5 (cross-band prediction, blueprint section 7): landed
@@ -271,6 +280,19 @@ Previous slice summary (continuation run 3, C2b):
    both-units measurement of real cjxl-comparison output.
 
 ## Agent log
+
+- 2026-08-24 the Builder (continuation run 13, branch rebuild + D4 start):
+  found the PR CONFLICTING; diagnosed with a FULL clone (after
+  `git fetch --unshallow`): main's history was rewritten server-side after
+  run 12 (fb4c701 = 601caaa by tree), so branch and main were genuinely
+  unrelated and plain merge refused. REBUILT the branch per the hard rule:
+  checkout -B on origin/main, cherry-picked all 55 project commits in order,
+  resolved the orphan-root commit's 28 both-added conflicts to origin/main's
+  newer infra (kept the researcher's bench_gate.sh delta), dropped 3 sync
+  merges + old-main sides. Verified: rebuilt head vs old head differs ONLY
+  in workflows/opencode.json where main is newer; all project content
+  byte-identical. Pushed --force-with-lease. Tracker item 0 rewritten with
+  the true event chain. D4 stack starts next per Mae's dispatch.
 
 - 2026-08-24 the Builder (continuation run 12, review round 3 fold): both
   findings applied, docs-only, zero executable-line changes (bash -n green).
