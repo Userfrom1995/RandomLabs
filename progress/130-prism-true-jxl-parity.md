@@ -119,11 +119,14 @@ Previous slice summary (continuation run 3, C2b):
 0. **Branch update policy (binding for every future run on this branch):**
    this branch carries MERGED ORPHAN-ROOTED phase histories (researcher
    commits 1113c6f/2d615b9/etc. have empty parents and were joined by
-   merges). A plain `git rebase origin/main` tries to flatten and replay
-   those foreign roots and will always conflict. To sync with main use
-   `git merge origin/main` instead. Rebase is safe ONLY after a full
-   rebuild-and-cherry-pick per the AGENTS.md safety net. Verified this
-   run: main == f8a958d == merge-base, so nothing needed syncing.
+   merges). The histories are DISJOINT from main: `git merge-base origin/main
+   HEAD` exits 1 - there is NO common ancestor (review F5; the earlier claim
+   that main == f8a958d == merge-base was wrong). GitHub still reports the PR
+   MERGEABLE/CLEAN. A plain `git rebase origin/main` tries to flatten and
+   replay the foreign roots and will always conflict. To sync with main use a
+   disjoint-history merge (`git merge origin/main --allow-unrelated-histories`)
+   instead. Rebase is safe ONLY after a full rebuild-and-cherry-pick per the
+   AGENTS.md safety net.
 1. [next run] C4 (true CDC lifting, blueprint section 6): replace Stage-S
    decimation with horizontal-then-vertical lifting recursed on the
    average quadrant, post-order preserved; per-plane L by trial-encoded
@@ -137,12 +140,13 @@ Owner freeze stands throughout: nothing merges before both gates pass.
 ## Agent log
 
 - 2026-08-23 the Builder (continuation run 4, addendum): discovered the
-  multi-root hazard the hard way - a routine `git rebase origin/main`
-  began replaying the orphan-rooted researcher commits and was ABORTED
-  with zero side effects (branch restored at fb460cf, tree clean).
-  Verified main is an ancestor (f8a958d == merge-base == origin/main
-  tip), remote head matches local, so no sync was needed; recorded the
-  merge-not-rebase policy as next-step item 0 for future runs.
+   multi-root hazard the hard way - a routine `git rebase origin/main`
+   began replaying the orphan-rooted researcher commits and was ABORTED
+   with zero side effects (branch restored at fb460cf, tree clean).
+   Correction (review F5, 2026-08-24): the log entry below saying "main is
+   an ancestor" was WRONG - `git merge-base origin/main HEAD` exits 1, the
+   histories are disjoint; see next-step item 0 for the truthful policy.
+   Remote head matches local, so no sync was needed; merge-not-rebase stands.
 
 - 2026-08-23 the Builder (continuation run 4): C3 trial-encoded decisions
   landed (076acb0 + measurement commit). Engine: decimate_raster /

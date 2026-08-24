@@ -460,39 +460,10 @@ AnalyzeResult analyze(const Raster& r, uint8_t effort) {
         for (uint8_t v : chosen_levels) if (v > 0) anyLevel = true;
         if (!anyLevel) {
             const uint8_t bd8 = 8;
-            std::vector<Feature> sfeats;
-            std::vector<int32_t> sres;
-            size_t totalSamples = 0;
-            for (size_t pi=0; pi<eval_raster.planes.size(); ++pi)
-                totalSamples += (size_t)eval_raster.w * eval_raster.h;
-            sfeats.reserve(totalSamples);
-            sres.reserve(totalSamples);
-            for (size_t pi=0; pi<eval_raster.planes.size(); ++pi) {
-                const auto& plane = eval_raster.planes[pi];
-                uint32_t w = eval_raster.w, h = eval_raster.h;
-                size_t n = (size_t)w*h;
-                std::vector<int32_t> resHist(n,0);
-                for (size_t idx=0; idx<n; ++idx) {
-                    uint32_t x=(uint32_t)(idx % w); uint32_t y=(uint32_t)(idx / w);
-                    int32_t L=(x>0)?(int32_t)plane[idx-1]:0;
-                    int32_t T=(y>0)?(int32_t)plane[idx-w]:0;
-                    int32_t TL=(x>0&&y>0)?(int32_t)plane[idx-w-1]:0;
-                    int32_t TR=(y>0&&x+1<w)?(int32_t)plane[idx-w+1]:0;
-                    int32_t pred; if(TL>=std::max(L,T)) pred=std::min(L,T); else if(TL<=std::min(L,T)) pred=std::max(L,T); else pred=L+T-TL;
-                    int32_t e=(int32_t)plane[idx]-pred; resHist[idx]=e;
-                    Feature f{}; f.band_class=0; f.qg=quant_qg(L,T,TL,TR);
-                    int32_t dL=0,dU=0,dUL=0;
-                    if(x>0) dL=resHist[idx-1];
-                    if(y>0) dU=resHist[idx-w];
-                    if(x>0&&y>0) dUL=resHist[idx-w-1];
-                    f.res_diff=(uint16_t)residual_diff_context(dL,dU,dUL);
-                    int grad=std::abs(L-TL)+std::abs(T-TL);
-                    if(grad<4) f.activity=0; else if(grad<16) f.activity=1; else if(grad<64) f.activity=2; else f.activity=3;
-                    sfeats.push_back(f); sres.push_back(e);
-                }
-            }
-            MATree stree = MATree::single_leaf();
-            if (!sfeats.empty()) stree = build_matree_greedy(sfeats, sres, MatreeBuildParams{});
+            // One shared implementation for analyzer, acceptance trial, and
+            // probe rail - the inline duplicate was removed (review F4) so
+            // every consumer measures the same tree.
+            MATree stree = build_spatial_flat_tree(eval_raster);
             if (stree.num_leaves > 1) {
                 // Trial-bits acceptance on the FULL image with the real coder.
                 PredId spred = static_cast<PredId>(res.global_pred_id);
