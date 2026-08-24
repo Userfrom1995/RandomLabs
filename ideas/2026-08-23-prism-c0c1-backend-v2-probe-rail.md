@@ -51,10 +51,11 @@ model knobs against four Kodak images:
 
 | image | v1 win | v2 win (retuned) | captures | context gain |
 |---|---|---|---|---|
-| kodim01 | -5.16% | -6.40% | 125% | +1.14% |
-| kodim13 | -3.42% | -4.79% | 141% | +0.78% |
+| kodim01 | -5.16% | -6.40% | 124% | +1.14% |
+| kodim13 | -3.42% | -4.79% | 140% | +0.78% |
 
-A1 passes on both images (125% / 141% capture). Recalibrated A2 passes
+A1 passes on both images (124% / 140% capture, computed from the same-run
+measured V1 win - the gate's own arithmetic). Recalibrated A2 passes
 (kodim13 0.78 >= 0.50 percent target; kodim01 1.14 > 0.10 floor). Durable
 CSV refreshed: `benchmarks/results/2026-08-23-backend-probe.csv`. Remaining
 levers for later phases: logistic mixing over {resdiff, qg, activity}
