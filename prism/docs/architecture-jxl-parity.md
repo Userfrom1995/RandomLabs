@@ -395,11 +395,23 @@ next phase re-scopes with the Architect before any C6 work.
 
 ## 8. C6: CM/SSE stretch (P7, M4)
 
-Logistic mixer over {resdiff-prior estimator, qg estimator, activity
-estimator} + SSE map on neighbor-residual class, wrapped around the v2 leaf
-backend behind the existing never-expand trial net (B8 plumbing reused). LZP
-unchanged. Target < 8.0 summed / < 2.667 per-sample. This phase is optional
-for issue #130 closure; M3 is the binding gate.
+> **Status (2026-08-24, Architect re-scope): SUPERSEDED by the D-series.**
+> C5's measured rejection fired the tracker rule (no C6 without an Architect
+> re-scope). The re-scope (`architecture-jxl-parity-rescope.md`) closes the
+> static-transform era by measurement and replaces this section with phases
+> D0-D4: committed ideal-length harness first (I7), then adaptive blended
+> prediction (the untried big lever), then the mixer+SSE stack below - which
+> is exactly this section's mechanism, upgraded with the C2b lesson (mix
+> ADAPTIVE estimators, never static partitions) and gated behind the new
+> FEATURE_EXT container byte. See the re-scope doc for contracts, acceptance
+> bars, and the honest M3 endgame.
+
+Original text for the record: logistic mixer over {resdiff-prior estimator,
+qg estimator, activity estimator} + SSE map on neighbor-residual class,
+wrapped around the v2 leaf backend behind the existing never-expand trial net
+(B8 plumbing reused). LZP unchanged. Target < 8.0 summed / < 2.667
+per-sample. This phase is optional for issue #130 closure; M3 is the binding
+gate.
 
 ---
 
