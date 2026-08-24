@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Approve workflow runs held for owner approval (status: action_required).
 #
-# Used by every "Approve held CI runs" step in opencode.yml and maintainer.yml
-# so the self-healing logic lives in exactly one place (issue #137).
+# Used by every "Approve held CI runs" step across opencode.yml, maintainer.yml,
+# lab.yml, and opencode-recover.yml so the self-healing logic lives in exactly
+# one place (issue #137; recover and lab conversions landed with PR #139).
 #
 # Behavior:
 #   Phase 1 (only if APPROVE_PR is set): stable-head polling - approve held runs
