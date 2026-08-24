@@ -294,6 +294,31 @@ Per-plane L chosen by trial encode (C3 engine), never by energy proxies.
 - Corpus checkpoint: combined C4+backend moves toward the M3 bracket; final
   judgment waits for C5.
 
+### 6.3 Status (2026-08-24): capability landed; measured REJECTION of adoption
+
+Lifting is implemented exactly per 6.1: H-then-V integer passes with
+`floor((a+b)/2)` averaging, recursion on the average quadrant only, post-order
+`SqueezeResult` layout unchanged, container bit5 SQUEEZE_LIFT distinguishes
+lifting streams from legacy decimation streams (old streams stay decodable;
+unknown-bit gate moved to bit6). One shared implementation
+(`squeeze_lift_level` / `squeeze_merge_level_lift`) serves transform, inverse,
+and both decode call sites. Per-plane L is now chosen by REAL coded bytes
+(`trial_squeeze_bits`, a byte-mirror of production's plain v2 band emission)
+against the flat v2 baseline - never by energy proxies.
+
+Measured on the pinned Kodak-24 corpus (all 24 sha256 verified pre-measurement):
+the trial REJECTS lifting on every plane of every image, so e1 is
+byte-identical to pre-C4 (10.2904 summed / 3.4301 per-sample, 24/24 ties,
+zero regressions by construction); e3 = 10.2861 / 3.4287 and e7 = 10.2861 /
+3.4287 likewise unchanged from their pre-C4 values. This matches research F2's
+ideal-level finding that even a true-lift pyramid loses to straight residual
+coding under this binarization, and C2/C2b's static-refinement closure. The
+capability stays available behind the trial gate (and via the
+`force_squeeze_levels` probe hook) for C5 cross-band prediction, where parent
+conditioning changes the economics. Verification: 59/59 gtests including an
+odd-dims bijection property suite and a directed container round-trip with a
+forced squeeze plan; fuzz clean.
+
 ---
 
 ## 7. C5: Cross-band prediction (P6)
