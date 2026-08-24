@@ -113,6 +113,13 @@ Lab Engineer / Infra Track:                                                   â–
   deploys (issue #137). If even the final sweep cannot clear every held run it
   posts a `github-actions[bot]` comment asking the owner to approve manually,
   and the loop resumes after that approval.
+- Research and architect phases have the same crash-parity as review/build/
+  fix: if the agent step dies without writing its decision file (e.g. provider
+  stream error), the job counts prior auto-retry comments via the API and
+  re-posts `/oc research (auto-retry N)` or `/oc architect (auto-retry N)` as
+  the owner, up to 3 times; it refuses to retry if enumeration fails; at cap
+  it notifies the Maintainer once and exits 1 so a dead phase shows red
+  instead of green-but-empty (issue #138).
 - If the implementer disagrees with a finding, it applies the changes it
   agrees with (partial changes are fine), posts a plain-text rebuttal as the
   bot explaining what it skipped and why, and pushes (an empty commit if it
