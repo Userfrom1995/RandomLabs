@@ -127,7 +127,7 @@ Lab Engineer / Infra Track:                                                   â–
 
 ## The Maintainer (`maintainer.yml`)
 
-- Runs every 6 hours, on every PR push/open, on human comments, on
+- Runs every 2 hours, on every PR push/open, on human comments, on
   opened issues, and via manual dispatch (`pr_number`, `issue_number`,
   `reason` - the review workflow dispatches it with the approval message).
 - Per-PR concurrency (cancel-latest), 60-minute timeout, bot identity.
