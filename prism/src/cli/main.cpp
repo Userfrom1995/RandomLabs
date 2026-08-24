@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <cmath>
 #include <map>
+#include <memory>
 
 using namespace prism;
 using namespace prism::codec;
@@ -34,7 +35,7 @@ static void print_usage() {
               << "  prism probe-backend <image> [--variants LIST]\n"
               << "  prism probe-xband <image>\n"
               << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n"
-              << "                                            [--mixer LIST]\n";
+              << "                                            [--mixer LIST] [--zrun]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -396,6 +397,216 @@ SweepOut run_mixer_pass(const Raster& t,
 
 
 
+// ----- D4 zero-run scoring (re-scope section D4 item 2) -----
+//
+// JPEG-LS-style causal run mode over the production residual stream. Mode is
+// derived from DECODED residuals only, so a decoder mirrors it with zero side
+// channels:
+//   NORMAL - sample i is coded with the full v2 bin sequence whenever it
+//            cannot start a run: x == 0 or res[i-1] != 0.
+//   RUN    - while res[i-1] == 0 (x > 0), maximal zero runs are collapsed
+//            into run symbols over a 256-entry alphabet: symbol s < 255
+//            consumes s zeros and ends the run; symbol 255 consumes exactly
+//            ZR_RUN_CONTINUE zeros and stays in run mode. A run never crosses
+//            a row boundary (the column-0 test fails there), and a run that
+//            breaks on a nonzero sample codes that breaker with sign /
+//            quotient / remainder bins ONLY - its nonzero value is implied
+//            by the run symbol, so the zero-flag bin is never paid.
+// Runs never cross rows by construction of the entry test.
+//
+// Two costs are reported against the plain-v2 anchor on the SAME samples:
+//   static - ML-fit bracket: binary pools over emitted v2 bins plus alphabet
+//            entropy H(run symbol | pool). An optimistic ceiling: a real
+//            coder pays adaptation cost and binary decomposition on top.
+//   adapt  - causal estimate: fresh E1 dual-rate models cost every emitted
+//            bin exactly like the anchor pass; run symbols are costed by an
+//            adaptive decaying frequency table per class16 pool - only
+//            information a real online coder could collect.
+
+constexpr int ZR_SYM_CONTINUE = 255;
+
+struct RunPools {
+    // Key layout mirrors Acc::val in its own containers so alphabets never
+    // mix: shared = s; class16 = cls*2^21 + s; ctx343 = cx*2^22 + s
+    // (symbols are < 256, far below every shift).
+    std::unordered_map<uint32_t, uint64_t> cnt[3];
+    void add(int cls, int cx, int s) {
+        uint32_t u = (uint32_t)s;
+        cnt[0][u]++;
+        cnt[1][((uint32_t)cls << 21) | u]++;
+        cnt[2][((uint32_t)cx << 22) | u]++;
+    }
+    static double bits_at(const std::unordered_map<uint32_t, uint64_t>& m,
+                          int group_shift) {
+        std::unordered_map<uint32_t, double> gt;
+        for (const auto& kv : m)
+            gt[group_shift ? (kv.first >> group_shift) : 0u] += (double)kv.second;
+        double bits = 0.0;
+        for (const auto& kv : m) {
+            double c = (double)kv.second;
+            if (c > 0)
+                bits -= c * std::log2(c / gt[group_shift ? (kv.first >> group_shift)
+                                                         : 0u]);
+        }
+        return bits;
+    }
+};
+
+struct RunFreq {           // decaying adaptive frequency table, 256 symbols
+    uint32_t cnt[256];
+    uint64_t tot;
+    static const uint32_t kInit = 8, kStep = 24, kHalf = 1u << 21;
+    RunFreq() : tot(256ull * kInit) {
+        for (int i = 0; i < 256; ++i) cnt[i] = kInit;
+    }
+    double cost(int s) const {
+        return -std::log2(((double)cnt[s] + (double)kInit) / (double)tot);
+    }
+    void push(int s) {
+        cnt[s] += kStep;
+        tot += kStep;
+        if (tot > kHalf) {          // exponential decay keeps recent runs hot
+            uint64_t t = 0;
+            for (int i = 0; i < 256; ++i) { cnt[i] = (cnt[i] + 1) >> 1; t += cnt[i]; }
+            tot = t;
+        }
+    }
+};
+
+struct ZRunOut {
+    size_t samples = 0, zeros_folded = 0, nsym = 0, nbreaker = 0;
+    double bits_plain = 0;   // E1 anchor over the plain v2 event stream
+    double bits_adapt = 0;   // causal zrun estimate (E1 bins + RunFreq symbols)
+};
+
+ZRunOut run_zrun_pass(const Raster& t,
+                      const std::vector<std::vector<int32_t>>& ress,
+                      Acc& zacc, RunPools& rp) {
+    ZRunOut out;
+    ACModelsV2 plain(AC_V2_RESDIFF_CONTEXTS);   // adapted ONLY on plain v2 bins
+    ACModelsV2 zr(AC_V2_RESDIFF_CONTEXTS);      // adapted only on zrun bins
+    RunFreq rf[AC_V2_N_PRIORS];                 // per directional class
+    auto e1cost = [&](ACModelsV2& m, int kind, int cx, bool bit) {
+        uint16_t p = e1_prob(m, kind, cx);
+        e1_adapt(m, kind, cx, bit);
+        return bin_cost(p, bit);
+    };
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        const auto& res = ress[pi];
+        size_t n = res.size();
+        out.samples += n;
+        size_t i = 0;
+        while (i < n) {
+            uint32_t x = (uint32_t)(i % t.w), y = (uint32_t)(i / t.w);
+            bool runmode = (x > 0) && (res[i - 1] == 0);
+            if (!runmode) {
+                // NORMAL: identical event sequence to encode_residual_v2.
+                int32_t dU = (y > 0) ? res[i - t.w] : 0;
+                int32_t dUL = (x > 0 && y > 0) ? res[i - t.w - 1] : 0;
+                int cx = residual_diff_context(res[i - 1], dU, dUL);
+                int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+                uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
+                out.bits_plain += e1cost(plain, MIXK_ZERO, cx, mag == 0);
+                zacc.bin(0, cls, cx, 0, mag == 0);
+                double zr_bits = e1cost(zr, MIXK_ZERO, cx, mag == 0);
+                out.bits_adapt += zr_bits;
+                if (mag != 0) {
+                    out.bits_plain += e1cost(plain, MIXK_SIGN, cx, res[i] < 0);
+                    zacc.bin(1, cls, cx, 0, res[i] < 0);
+                    out.bits_adapt += e1cost(zr, MIXK_SIGN, cx, res[i] < 0);
+                    int L = 31 - __builtin_clz(mag);
+                    for (int kk = 0; kk < L; ++kk) {
+                        out.bits_plain += e1cost(plain, MIXK_Q, cx, false);
+                        zacc.bin(2, cls, cx, kk, false);
+                        out.bits_adapt += e1cost(zr, MIXK_Q, cx, false);
+                    }
+                    out.bits_plain += e1cost(plain, MIXK_Q, cx, true);
+                    zacc.bin(2, cls, cx, L, true);
+                    out.bits_adapt += e1cost(zr, MIXK_Q, cx, true);
+                    uint32_t rem = mag - (1u << L);
+                    int rid = (L < 255 ? L : 255) * 256;
+                    for (int pos = 0; pos < L; ++pos) {
+                        bool b = ((rem >> (L - 1 - pos)) & 1u) != 0;
+                        out.bits_plain += e1cost(plain, MIXK_REM, cx, b);
+                        zacc.bin(3, cls, cx, rid + pos, b);
+                        out.bits_adapt += e1cost(zr, MIXK_REM, cx, b);
+                    }
+                }
+                ++i;
+                continue;
+            }
+            // RUN: consume maximal zeros without crossing a row boundary.
+            size_t j = i;
+            while (j < n && (j % t.w) != 0 && res[j] == 0) ++j;
+            size_t k = j - i;
+            out.zeros_folded += k;
+            // Plain-v2 anchor pays one zero-flag bin per folded zero, each
+            // under its own causal context.
+            for (size_t q = i; q < j; ++q) {
+                uint32_t qx = (uint32_t)(q % t.w), qy = (uint32_t)(q / t.w);
+                int32_t dU = (qy > 0) ? res[q - t.w] : 0;
+                int32_t dUL = (qx > 0 && qy > 0) ? res[q - t.w - 1] : 0;
+                int qcx = residual_diff_context(res[q - 1], dU, dUL);
+                out.bits_plain += e1cost(plain, MIXK_ZERO, qcx, false);
+            }
+            // Run symbols, keyed at the RUN START context (fully decoded).
+            {
+                int32_t dU = (y > 0) ? res[i - t.w] : 0;
+                int32_t dUL = (x > 0 && y > 0) ? res[i - t.w - 1] : 0;
+                int scx = residual_diff_context(res[i - 1], dU, dUL);
+                int scls = ac_v2_prior_class(scx % AC_V2_RESDIFF_CONTEXTS);
+                size_t left = k;
+                while (left >= 255) {
+                    rp.add(scls, scx, ZR_SYM_CONTINUE);
+                    ++out.nsym;
+                    out.bits_adapt += rf[scls].cost(ZR_SYM_CONTINUE);
+                    rf[scls].push(ZR_SYM_CONTINUE);
+                    left -= 255;
+                }
+                rp.add(scls, scx, (int)left);
+                ++out.nsym;
+                out.bits_adapt += rf[scls].cost((int)left);
+                rf[scls].push((int)left);
+            }
+            if (j < n && res[j] != 0) {
+                // Breaker: nonzero implied by the run symbol; pay sign/q/rem.
+                uint32_t bx = (uint32_t)(j % t.w), by = (uint32_t)(j / t.w);
+                int32_t dU = (by > 0) ? res[j - t.w] : 0;
+                int32_t dUL = (bx > 0 && by > 0) ? res[j - t.w - 1] : 0;
+                int bcx = residual_diff_context(res[j - 1], dU, dUL);
+                int bcls = ac_v2_prior_class(bcx % AC_V2_RESDIFF_CONTEXTS);
+                uint32_t mag = (uint32_t)(res[j] < 0 ? -res[j] : res[j]);
+                ++out.nbreaker;
+                out.bits_plain += e1cost(plain, MIXK_ZERO, bcx, false);
+                out.bits_plain += e1cost(plain, MIXK_SIGN, bcx, res[j] < 0);
+                zacc.bin(1, bcls, bcx, 0, res[j] < 0);
+                out.bits_adapt += e1cost(zr, MIXK_SIGN, bcx, res[j] < 0);
+                int L = 31 - __builtin_clz(mag);
+                for (int kk = 0; kk < L; ++kk) {
+                    out.bits_plain += e1cost(plain, MIXK_Q, bcx, false);
+                    zacc.bin(2, bcls, bcx, kk, false);
+                    out.bits_adapt += e1cost(zr, MIXK_Q, bcx, false);
+                }
+                out.bits_plain += e1cost(plain, MIXK_Q, bcx, true);
+                zacc.bin(2, bcls, bcx, L, true);
+                out.bits_adapt += e1cost(zr, MIXK_Q, bcx, true);
+                uint32_t rem = mag - (1u << L);
+                int rid = (L < 255 ? L : 255) * 256;
+                for (int pos = 0; pos < L; ++pos) {
+                    bool b = ((rem >> (L - 1 - pos)) & 1u) != 0;
+                    out.bits_plain += e1cost(plain, MIXK_REM, bcx, b);
+                    zacc.bin(3, bcls, bcx, rid + pos, b);
+                    out.bits_adapt += e1cost(zr, MIXK_REM, bcx, b);
+                }
+                i = j + 1;
+            } else {
+                i = j;   // plane end or row boundary reached
+            }
+        }
+    }
+    return out;
+}
+
 } // namespace idealbench
 
 int main(int argc, char* argv[]) {
@@ -740,6 +951,7 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> preds;
             std::vector<std::string> blends;
             std::vector<std::string> mixer_names;
+            bool opt_zrun = false;
             auto split_list = [](const std::string& s) {
                 std::vector<std::string> out;
                 size_t pos = 0;
@@ -762,6 +974,8 @@ int main(int argc, char* argv[]) {
                 } else if (a == "--mixer" && i + 1 < argc) {
                     auto v = split_list(argv[++i]);
                     mixer_names.insert(mixer_names.end(), v.begin(), v.end());
+                } else if (a == "--zrun") {
+                    opt_zrun = true;
                 } else {
                     imgs.push_back(a);
                 }
@@ -842,6 +1056,15 @@ int main(int argc, char* argv[]) {
             std::map<std::string, Total> totals;
             // D2 mixer aggregation across images, per preset.
             std::map<std::string, idealbench::MixTotal> mix_totals;
+            // D4 zero-run aggregation across images.
+            struct ZTotal {
+                idealbench::Acc base, z;
+                idealbench::RunPools rp;
+                size_t samples = 0, folded = 0, nsym = 0, nbreaker = 0;
+                size_t v0 = 0, v2 = 0;
+                double bits_plain = 0, bits_adapt = 0;
+            };
+            std::unique_ptr<ZTotal> ztot = opt_zrun ? std::make_unique<ZTotal>() : nullptr;
             std::cout << "IDEAL,image,predictor,v0_bytes,v2_bytes,"
                       << "coarse_shared,coarse_class16,coarse_ctx343,"
                       << "fine_shared,fine_class16,fine_ctx343,"
@@ -849,6 +1072,11 @@ int main(int argc, char* argv[]) {
             if (!mixer_names.empty())
                 std::cout << "MIXER,image,preset,nbins,bits_v2,bits_mx,bits_sse,"
                           << "v2_bytes,v0_bytes,anchor_pct,mx_pct,sse_pct\n";
+            if (opt_zrun)
+                std::cout << "ZRUN,image,folded_pct,nsym,nbreaker,v0_bytes,v2_bytes,"
+                          << "bits_plain,bits_adapt,adapt_pct,"
+                          << "base_fine_sh,base_fine_cl,base_fine_cx,"
+                          << "zr_fine_sh,zr_fine_cl,zr_fine_cx\n";
             char rowbuf[512];
             for (const auto& img : imgs) {
                 Raster r = frontend::decode_to_raster(img);
@@ -920,6 +1148,51 @@ int main(int argc, char* argv[]) {
                         mtot.bits_sse += sw.bits_sse;
                     }
                 }
+                if (opt_zrun) {
+                    // D4 item 2: zero-run projection on the production MED
+                    // stream (the only stream production can emit today).
+                    std::vector<std::vector<int32_t>> ress;
+                    ress.reserve(t.planes.size());
+                    for (auto& plane : t.planes)
+                        ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+                    size_t v0b = 0, v2b = 0;
+                    idealbench::Acc base_acc, zacc;
+                    idealbench::RunPools rp_img;   // per-image symbols ONLY
+                    for (auto& res : ress) {
+                        v0b += acoder_encode_plane(res, t.w, t.h, 343).size();
+                        v2b += acoder_encode_plane_v2(res, t.w, t.h,
+                                                      AC_V2_RESDIFF_CONTEXTS).size();
+                        idealbench::walk(res, t.w, base_acc);
+                    }
+                    auto zo = idealbench::run_zrun_pass(t, ress, zacc, rp_img);
+                    static const int kShift[3] = {0, 21, 22};
+                    double ct[3], vf[3], bf[3], zb[3];
+                    base_acc.bits(ct, bf, vf);
+                    zacc.bits(ct, zb, vf);
+                    double zst[3];
+                    for (int l = 0; l < 3; ++l)
+                        zst[l] = zb[l] + idealbench::RunPools::bits_at(rp_img.cnt[l], kShift[l]);
+                    double adapt_pct = 100.0 * (zo.bits_adapt - zo.bits_plain) / zo.bits_plain;
+                    std::snprintf(rowbuf, sizeof(rowbuf),
+                                  "ZRUN,%s,%.2f,%zu,%zu,%zu,%zu,%.1f,%.1f,%.4f,"
+                                  "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
+                                  img.filename().c_str(),
+                                  100.0 * (double)zo.zeros_folded / (double)zo.samples,
+                                  zo.nsym, zo.nbreaker, v0b, v2b,
+                                  zo.bits_plain, zo.bits_adapt, adapt_pct,
+                                  bf[0], bf[1], bf[2], zst[0], zst[1], zst[2]);
+                    std::cout << rowbuf;
+                    auto& Z = *ztot;
+                    Z.z.merge(zacc);
+                    for (int l = 0; l < 3; ++l)
+                        for (const auto& kv : rp_img.cnt[l]) Z.rp.cnt[l][kv.first] += kv.second;
+                    Z.samples += zo.samples; Z.folded += zo.zeros_folded;
+                    Z.nsym += zo.nsym; Z.nbreaker += zo.nbreaker;
+                    Z.v0 += v0b; Z.v2 += v2b;
+                    Z.base.merge(base_acc);
+                    Z.bits_plain += zo.bits_plain;
+                    Z.bits_adapt += zo.bits_adapt;
+                }
             }
             for (auto& kv : totals) {
                 double c[3], f[3], v[3];
@@ -941,6 +1214,24 @@ int main(int argc, char* argv[]) {
                               "%.4f,%.4f,%.4f\n",
                               kv.first.c_str(), m.nbins, m.bits_v2, m.bits_mx,
                               m.bits_sse, m.v2, m.v0, anchor, mxp, sep);
+                std::cout << rowbuf;
+            }
+            if (opt_zrun) {
+                static const int kShift[3] = {0, 21, 22};
+                double ct[3], vf[3], bf[3], zb[3], zst[3];
+                ztot->base.bits(ct, bf, vf);
+                ztot->z.bits(ct, zb, vf);
+                for (int l = 0; l < 3; ++l)
+                    zst[l] = zb[l] + idealbench::RunPools::bits_at(ztot->rp.cnt[l], kShift[l]);
+                double adapt_pct =
+                    100.0 * (ztot->bits_adapt - ztot->bits_plain) / ztot->bits_plain;
+                std::snprintf(rowbuf, sizeof(rowbuf),
+                              "ZRUNTOTAL,all,%.2f,%zu,%zu,%zu,%zu,%.1f,%.1f,%.4f,"
+                              "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\n",
+                              100.0 * (double)ztot->folded / (double)ztot->samples,
+                              ztot->nsym, ztot->nbreaker, ztot->v0, ztot->v2,
+                              ztot->bits_plain, ztot->bits_adapt, adapt_pct,
+                              bf[0], bf[1], bf[2], zst[0], zst[1], zst[2]);
                 std::cout << rowbuf;
             }
         } else {
