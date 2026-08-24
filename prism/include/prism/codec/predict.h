@@ -73,6 +73,11 @@ struct BlendConfig {
     int init_w = 16384;     // per-weight init (quarter scale)
     int w_min = 0;          // weight clamp range
     int w_max = 131072;
+    // false: value bases {L, T, TL, L+T-TL}, uniform quarter-scale init.
+    // true:  MED-anchored correction bases {MED, L-TL, T-TL, TR-TL},
+    //        init {65536, 0, 0, 0} so the very first prediction IS plain MED
+    //        (identity at init); corrections learn small deviations.
+    bool med_anchor = false;
 };
 
 // Residual plane under the adaptive blend: e = sample - blend_pred(sample),
