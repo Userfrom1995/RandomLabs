@@ -24,6 +24,7 @@ permissions:
   issues: write
   pull-requests: write
   actions: write
+  workflows: write
 
 jobs:
   lab:
