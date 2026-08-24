@@ -194,11 +194,23 @@ percent) are independently re-measurable today via
       symbols mostly re-code what the zero-flag already cheaply codes, and
       RunFreq learning cost eats the rest. STOP rule fired; zero format
       bytes. Evidence: benchmarks/results/2026-08-24-ideal-zrun-d4.csv.
+- [x] D4b extended mixer bank: OFFLINE VALIDATION ONLY, REJECTED (2026-08-
+      24). K=6 bank (directional dL-dU key + zero-left key estimators) plus
+      stacked/cx-keyed second SSE stages wired into the I7 harness as
+      mix6/mix6-sse/mix6-sse2/mix6-cxsse presets (mix4 regression verified
+      bit-identical after the code_bin refactor). Measured on pinned
+      kodim01/13 + unseen kodim05/20: best aggregate bits_mx -0.69 pct -
+      WORSE than D2's K=4 mix4-sse-lr8 (-0.90 pct); the added estimators
+      subtract value, and every second SSE stage remains harmful (+28 to
+      +37 pct). Gate >= 3 pct FAILS by 4.3x; STOP rule fired; zero format
+      bytes. Evidence: this run's MIXER rows (durable CSV next slice).
+- [ ] D4c reversible color rotations: offline validation still pending
+      (queued next slice).
 - [x] OWNER DECISION POINT (re-scope section 1): RESOLVED by Mae's dispatch
       2026-08-24T19:39Z - continue into the D4 stretch knowing M3 likely
       stays open. Levers in flight: zero-run (DONE, rejected above),
-      extended mixer bank, reversible color rotations, squeeze re-test only
-      with new D0 evidence.
+      extended mixer bank (DONE, rejected above), reversible color rotations
+      (pending), squeeze re-test only with new D0 evidence.
 - [ ] D4 Stretch toward M3 only if the owner directs it after the decision
       point: extended mixer bank, zero-run mode, reversible color rotations,
       one honest squeeze re-test under the mixer. If M3 still fails after D4:
@@ -211,9 +223,11 @@ D4 stretch under way (Mae dispatch 2026-08-24T19:39Z). Branch REBUILT onto
 current main first (item 0: server-side main rewrite severed shared history;
 PR was CONFLICTING; 55 project commits replayed, force-pushed, PR MERGEABLE).
 D4a ZERO-RUN OFFLINE REJECTED (+0.28 pct aggregate, 4/4 images worse, static
-ceiling only -0.24 pct; see D-series checklist). Remaining queue: D4b
-extended mixer bank offline (resdiff-keyed + directional estimators, second
-SSE stage), D4c reversible color rotations offline. Each behind its own I7
+ceiling only -0.24 pct; see D-series checklist). D4a zero-run
+REJECTED (+0.28 pct aggregate, 4/4 images worse, static ceiling only -0.24
+pct). D4b extended mixer bank REJECTED (-0.69 pct aggregate vs D2-best
+-0.90; second SSE stages harmful +28..+37 pct; gate >= 3 pct fails by 4.3x).
+Remaining queue: D4c reversible color rotations offline. Each behind its own I7
 harness gate BEFORE any format work; squeeze re-test only with new D0
 evidence. If a lever fails its gate: STOP, record, move on. If M3 still
 fails after D4: stop and surface the owner decision point stated in
@@ -308,6 +322,15 @@ Previous slice summary (continuation run 3, C2b):
   rejection: +0.28 pct aggregate, 4/4 images worse, static ceiling -0.24 pct
   vs the billed 1-3; STOP rule fired, zero format bytes. 80/80 gtests.
   Decision {"action":"continue"} for D4b/D4c.
+
+- 2026-08-24 the Builder (continuation run 13, D4b complete): K=6 extended
+  mixer bank + second SSE stages implemented as harness-only presets;
+  mix4 regression bit-identical after refactor (mx -0.5361 kodim01).
+  MEASURED REJECTION: -0.69 pct aggregate best (mix6 family) vs D2-best
+  -0.90 - the two extra estimators hurt; SSE stacking harmful everywhere
+  (kodim01 +34.7/+36.2/+30.3 pct by stage variant). Pre-registered >= 3 pct
+  gate fails by 4.3x; zero format bytes; 80/80 gtests. D4c (color
+  rotations) queued next; decision {"action":"continue"}.
 
 - 2026-08-24 the Builder (continuation run 13, branch rebuild + D4 start):
   found the PR CONFLICTING; diagnosed with a FULL clone (after
