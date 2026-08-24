@@ -344,4 +344,110 @@ committed bench-ideal harness must project >= ~2 percent payload reduction vs
 MED on kodim01/kodim13 and confirm the direction on unseen kodim05/kodim20.
 Below that bar the mechanism is rejected-and-recorded like C2/C4/C5.
 
+## 12. Addendum 2026-08-24: D2 logistic mixer + SSE contracts
+
+Amendments for re-scope phase D2 (collection efficiency, L2). Where this
+addendum conflicts with text above, this addendum wins. Library core:
+`include/prism/codec/mixer.h` + `src/codec/mixer.cpp` (format-unwired until
+the offline gate passes); harness wiring lives in the bench-ideal CLI.
+
+### 12.1 Stretch/squash pair (integer-only, platform-independent)
+
+The mixer operates in a signed log-odds domain so products replace divisions:
+
+```
+p12 = clamp(p16 >> 4, 1, 4094)        // 12-bit probability of P(bit == 0)
+d    = stretch(p12) in [-2047, 2047]  // round(log2(p / (4096 - p)))
+p12' = squash(d)                      // exact piecewise-linear inverse
+p16' = clamp(squash(d) << 4, 1, 65534)
+```
+
+`squash` is the classic 33-entry integer table over d in [-2047, 2047]
+(entries t[0..32] = 1, 2, 3, 6, 10, 16, 27, 45, 73, 120, 194, 310, 488, 747,
+1101, 1546, 2047, 2549, 2994, 3348, 3607, 3785, 3901, 3975, 4024, 4050,
+4068, 4079, 4085, 4089, 4092, 4093, 4094): w = d & 127; i = (d >> 7) + 16;
+return (t[i]*(128 - w) + t[i+1]*w + 64) >> 7. `stretch` is its exact inverse,
+built once by the standard sweep: pi = 0; for x in [-2047..2047]:
+v = squash(x); for j in [pi..v]: st[j] = x; pi = v + 1; then st[j] = 2047 for
+the remaining tail. Both are pure compile-independent integer functions
+(mirrored constants, I2). The p16 -> p12 -> p16 quantization loses at most
+half a 12-bit step per bin, which can only make offline projections
+CONSERVATIVE (never optimistic) - safe for a go/no-go gate.
+
+### 12.2 MixerCore (K inputs, bounded adapted weights)
+
+State per bin kind (zero/sign/q/rem each own one mixer):
+
+```
+weights w_k: int32 fixed-point 16.16; init 16384 (sum of K = 1.0);
+             clamp range [-131072, 786432] (-2x .. +12x) after every update
+forward:     dot   = sum_k w_k * st_k            (int64)
+             s_mix = clamp(dot >> 16, -2047, 2047)   (arithmetic shift)
+train:       target = bit ? -2047 : +2047        // P(0) convention
+             err    = target - s_mix
+             w_k   += (int32)((err * st_k << lr_shift) >> 20)
+             (int64 product; arithmetic shift; lr_shift default 6)
+```
+
+### 12.3 SSE stage (one interpolated APM)
+
+One stage mapping (quantized s_mix, coarse class) back to a stretch value:
+
+```
+classes:    coarse causal activity buckets 0..S-1 (default S = 4), the same
+            bucket function Stage X already computes from decoded neighbors
+slots:      u = s_mix + 2047 in [0, 4094]; j = u >> 7 (0..31);
+            frac = u & 127; table T[c][j], int64 in 16.16 stretch units,
+            33 slots per class, identity init T[c][j] = ((j*128 - 2047) << 16)
+read:       s_out = clamp((T[c][j]*(128 - frac) + T[c][j+1]*frac) >> 23,
+                          -2047, 2047)
+train:      T[c][j] += ((target << 16) - T[c][j]) >> sse_rate_shift
+            (target as above; sse_rate_shift default 5; clamp to
+            +/-(2047 << 16)); only slot j updates
+final prob: p16_coded = p16_from_squash(s_out); cost = -log2(P(observed bit))
+```
+
+When SSE is disabled, s_out = s_mix. State budget per plane and kind:
+K weights + S*33 int64 slots = under 600 words; reset per plane on both
+sides. The coded probability is ALWAYS the post-SSE p16; every constant here
+is mirrored exactly on the decode side if the format ever adopts it.
+
+### 12.4 Offline estimator family (harness wiring, K=4)
+
+All four estimators are dual-rate adaptive models (`ac_v2_adapt`, shifts
+6/9) over their OWN key spaces, one state set per bin kind, initialized from
+the compile-time class priors where the key carries resdiff semantics and
+from the neutral midpoint otherwise:
+
+```
+E1 production: exact hierarchical v2 estimate (ctx@cx mixed 8/8 with cls),
+               the probability production codes with today (baseline anchor)
+E2 classpool : standalone dual-rate over the 16 ac_v2_prior_class classes
+E3 activity  : dual-rate over the 4 coarse activity buckets (uniform init)
+E4 qg-sum    : dual-rate over min(qL+qU+qUL, 14) buckets (uniform init);
+               the demoted C1 sum-key returns as one mixer member
+```
+
+Each estimator adapts on every observed bin. The walk, bin order, contexts,
+and borders mirror `encode_residual_v2` exactly (zero flag, sign, unary
+quotient, MSB-first remainder). Cost accounting: bits = sum of
+-log2(p16_coded as P(bit)) over all bins; baseline bits_v2 sums the E1 path
+in the same pass. Anchor invariant: bits_v2/8 must reproduce the measured
+v2 payload bytes within +-0.5 percent (replica fidelity; enforced by the
+probe_ideal.sh evaluator on every MIXER row).
+
+### 12.5 Harness contract extension (I7)
+
+`prism bench-ideal ... [--mixer PRESET-LIST]` emits `MIXER` rows (per image)
+and `MIXERTOTAL` rows (aggregated): nbins, bits_v2, bits_mix (no SSE),
+bits_mixsse, v2_bytes, v0_bytes, anchor percent, and deltas versus bits_v2.
+Presets: mix4 (lr 6), mix4-sse (default), rate sweeps mix4-sse-lr4..lr8,
+mix4-frozen (weights frozen at neutral init - adaptation ablation),
+mix4-adversarial (frozen weights all on E4 - fail-case). D2 go/no-go gate:
+bits_mixsse below bits_v2 by >= 3.0 percent on pinned kodim01 AND kodim13,
+direction confirmed on unseen kodim05/kodim20. Below the bar: STOP rule,
+negative recorded, owner decision point surfaced (re-scope section 1).
+Self-check additions: adapted must beat frozen AND adversarial on synthetic
+ramps, and every MIXER row's anchor must hold within +-0.5 percent.
+
 - the Builder
