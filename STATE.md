@@ -1,47 +1,49 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-24 (~16:35Z, maintainer run 32737569964, owner comment event on #136). MERGED #136 (server-side build push verification) as `aa94ae44e` on main; #135 auto-closed; fix verified live; exactly ONE sanctioned D3 resume fired on #131; pages redeployed manually.
+- **Updated:** 2026-08-24 (~17:00Z, maintainer run 32753629396, owner comment event on #131). D3 checkpoint verified complete; review round 2 LIVE on PR #131 against pinned head `fd608afe`; this run stood down with zero triggers.
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt - they serve Prism.)
 - **BINDING TARGET (dual-unit):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md`.
-- **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Corpus truth: e1 = 10.2904 / 3.4301; e3/e7 = 10.2861 / 3.4287 - about 19 percent above JXL parity at e1.
+- **UNIT VERIFICATION PROTOCOL:** every success claim must cite a fresh reproducible measurement stated in BOTH units. Corpus truth re-verified by D3: e1 = 10.2904 / 3.4301; e3/e7 = 10.2861 / 3.4287 - about 19 percent above JXL parity at e1.
 - **#134 HOLD (2026-08-24T12:07:26Z, owner on the PR thread):** "keep it in draft... wait for my action." Do NOT merge, test, review-fire, or convert #134 until the owner releases. Re-verified isDraft=true this run.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `aa94ae44e`** (advanced from `9bb40298b` via rebase merge of #136 at 16:28:44Z). Old pin `x-preview-f-free` still serving everything until #134 merges.
-- **NEW ON MAIN (#136, verified live by contents-API grep):** build-mode push verification is server-side like-for-like - baseline and verify both resolve the target branch via the GitHub API; plain-issue fallback baselines the FULL set of pre-existing `opencode/issue<N>-*` tips (exact-match membership, empty set cannot false-match); local checkout consulted only as guarded last resort (foreign/stale checkouts read as no-push); self-heal consumes the server verdict; robust retry counter intact. First live-fire test happens on the D3 resume this run triggered.
-- **Strike ledger:** bursty provider window killed lab run 32734555661 (13:47Z), maintainer runs 32734739430/32734772589/32735558168 (silent deaths), one session inside maintainer 32737569964 (14:16:58Z); quiet 14:17-16:15Z; survivors completed the full review(3 rounds)->test(18/18)->merge loop.
+- **`main` = `aa94ae44e`** (#136 server-side build push verification, merged 16:28:44Z). Old pin `x-preview-f-free` still serving everything until #134 merges. Pages green on main (success 16:55:23Z).
+- **#136 fix live and UNTESTED in anger:** the D3 resume completed without a strike, so the new auto-retry chain's first real exercise is still pending - it gets that chance the next time an agent session dies mid-build/review. Verify its verify-step output line when it fires.
+- **Strike ledger:** quiet since 14:17Z across builder/reviewer/tester/maintainer sessions. Falsification watch unchanged: bursty-window hypothesis vs pin instability settles only after the #134 switch lands.
+- Pins are native-orientation PPMs (18 landscape / 6 portrait) - documented this run in benchmark-methodology.md; never benchmark converted orientations.
 
 ## IN FLIGHT
-- **D3 resume on #131** (`{"action":"continue","pr":131}` fired this run): dual-unit checkpoint attempt under the new verification regime. Next run reads its outcome FIRST.
-- Pages deploy 32751262594 in flight on `aa94ae44e`.
-- NOTHING else repo-wide.
+- **Review round 2 on #131** (opencode-review run 32753617556, in progress since 16:55:15Z) against stable head `fd608afeb8aa1f167f1e790b26098ae22dc853b4`. Benign pending twin 32753629346 queued behind it (known pattern; read-only).
+- Pages deploy current on main. NOTHING else repo-wide.
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE -> build IN PROGRESS: D0/D1/D2 done (two honest offline rejections), D3 checkpoint resume FIRED -> review round 2 takes the stable post-D3 boundary automatic-first (checklist additions binding: A2-retraction scrutiny, I7 citability, D1/D2 rejection chains + G-anchor invariants, mixer mirrors, addendum 12 consistency, standing items) -> gated D4 items (zero-run mode first) -> FORMAL owner stop-and-decide if M3 stays open after exhaustion -> freeze blocks any merge until dual-unit M2 AND M3 pass.
+research DONE -> architect DONE -> build DONE through C0-C5 + rescope + D0/D1/D2 (two honest offline rejections) + D3 checkpoint (fresh dual-unit measure byte-identical to CSVs, M2/M3 FAIL honestly at every effort) -> REVIEW ROUND 2 AT THE BOUNDARY (in flight) -> then the OWNER DECISION POINT: gated D4 stretch knowing M3 likely stays open, or honest closure of #130 at the achieved gate level. Freeze blocks any merge until dual-unit M2 AND M3 pass.
 
 ## NEXT-RUN PLAYBOOK
-1. FIRST ACTION: read the D3 outcome on #131. Completed -> results count ONLY with a fresh dual-unit measurement; then review round 2 fires automatic-first at the post-D3 boundary. Died -> confirm the new auto-retry chain ENGAGED (first live-fire of #136); do not fire manual retries while the automatic chain is healthy; escalate to lab only if the chain itself misbehaves.
-2. #134: zero action while the hold stands. On release: review automatic-first -> approve-test -> merge `--rebase --delete-branch` with fresh-object orphan check -> verify main advances past `aa94ae44e` -> pages check -> falsification watch on the new pin begins.
-3. NO project merges until dual-unit M2 AND M3 pass on real cjxl output. #131 eventual preconditions: dual-unit pass + review approve + test approve + orphan check.
-4. OPS RECURRING (third occurrence logged): merges made with the default token do not trigger pages.yml - after any merge check for a pages run on the new main sha and dispatch manually if absent.
+1. FIRST ACTION: read review round 2's verdict on #131 - paginate the FULL comment timeline AND the job log before concluding anything (verdicts post as issue comments; green can mask dead sessions). Approve => confirm Tester auto-forwarded; merge stays blocked by freeze anyway. Findings => Fixer trigger via forwarder; verify it engaged. Review death => crash-parity guard self-heals (#136 logic); manual fire ONLY if the chain demonstrably misbehaves, then lab with run IDs.
+2. Twin reconciliation: if pending review twin 32753629346 delivers a divergent verdict, head-tagged primary is authoritative; note discrepancy in the log.
+3. After round 2 concludes cleanly: surface the FORMAL owner decision point (D4 stretch vs honest closure of #130). Closure of this size belongs to the owner alone; both paths executable within one run.
+4. #134: zero action while the hold stands. On release: review automatic-first -> approve-test -> merge `--rebase --delete-branch` with fresh-object orphan check -> verify main advances past `aa94ae44e` -> pages check -> falsification watch on the new pin begins.
+5. NO project merges until dual-unit M2 AND M3 pass on real cjxl output. #131 eventual preconditions: dual-unit pass + review approve + test approve + fresh-object orphan check (base evidence PASS; base f8a958d70e48).
+6. OPS RECURRING: merges made with the default token do not trigger pages.yml - check for a pages run on any new main sha and dispatch manually if absent.
 
 ## ISSUES
-- **#130** - sole active workstream (Prism true JXL parity); PR #131 carries all phases.
-- **#70 (Lab Health)** - retry-masking mandate COMPLETE (PR #136 merged); board remains the universal audit log.
+- **#130** - sole active workstream (Prism true JXL parity); PR #131 carries all phases through D3.
+- **#70 (Lab Health)** - baseline-bug mandate COMPLETE (#136 merged, verified live, awaiting first live-fire). Board remains the universal audit log.
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
-- **#135** - CLOSED by #136's merge.
 
 ## OPEN QUESTIONS
-- Did the first live-fire of the new verify/auto-retry chain behave as tested?
+- Will review round 2 approve cleanly or route findings to the Fixer?
 - Will the owner release the #134 hold this window? Post-switch strike behavior decides the pin-instability theory.
-- Will the owner rule early on honest closure vs stretch before D4 exhausts? Either answer is executable within one run.
+- Will the owner rule on honest closure vs gated D4 stretch once round 2 lands? Either answer is executable within one run.
+- When does the #136 auto-retry chain get its first live-fire, and does it count correctly?
 
 ## STANDING LESSONS (in force)
 - Verdicts post as ISSUE COMMENTS while pulls/reviews API can stay empty - paginate the FULL comment timeline over the whole window before declaring any gate silent.
 - Read COMMENT plus JOB LOG, never green status alone; audit guards for what they measure, not whether they ran.
-- Topology facts only from commits/compare APIs or unshallowed clones; duplicate pings resolve via stand-downs; a twice-failed strategy is disqualified until root cause fixed; ephemeral numbers are not evidence (I7).
+- Topology facts only from commits/compare APIs or unshallowed clones; duplicate pings resolve via stand-downs; a twice-failed strategy is disqualified until its root cause is fixed; ephemeral numbers are not evidence (I7).
 - Merge-token pushes do not trip workflow triggers (pages.yml included): verify-and-dispatch after every merge.
-- Never describe a fix as live until grep/API confirms it at ref=main (done for #136 this run).
+- Never describe a fix as live until grep/API confirms it at ref=main.
 
 - Mae, the Maintainer
