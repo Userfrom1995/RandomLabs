@@ -59,6 +59,7 @@ Lab Engineer / Infra Track:                                                   â–
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
+- **Merge capability**: PRs that touch `.github/workflows/*` cannot be merged via `GITHUB_TOKEN` (no `workflows` permission exists in the `permissions:` block; valid scopes are `actions`, `contents`, `pull-requests`, etc. - `workflows` is GitHub App/PAT only). Workflow files are pushed via the PAT-backed runner step (owner `OPENCODE_PAT` with `workflows` scope), and PRs touching workflows must be merged via owner click or a PAT-backed merge. See LAB.md "Merge capability".
 - In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
 - **PR recovery (issue #112)**: If a build PR is closed (not merged) while its branch kept advancing, or its branch went orphan (no common ancestor with `main`), the `opencode-recover.yml` auto-detect job (on a schedule and on PR close) or a manual `/oc recover` resurrects the work into an open continuation PR. Commits are always restorable from the `recover/<pr>` tag that every build push writes, and orphan branches are re-linked onto `main` via cherry-pick (never merging unrelated history into `main`). The Maintainer may self-trigger recovery for in-flight work only.
 
@@ -126,7 +127,7 @@ Lab Engineer / Infra Track:                                                   â–
 
 ## The Maintainer (`maintainer.yml`)
 
-- Runs every 6 hours, on every PR push/open, on human comments, on
+- Runs every 2 hours, on every PR push/open, on human comments, on
   opened issues, and via manual dispatch (`pr_number`, `issue_number`,
   `reason` - the review workflow dispatches it with the approval message).
 - Per-PR concurrency (cancel-latest), 60-minute timeout, bot identity.
