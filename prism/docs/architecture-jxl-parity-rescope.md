@@ -33,7 +33,7 @@ from the D0 harness showing a materially different regime:
 | True CDC lifting pyramid | research F2 + C4 | loses to flat MED residuals under trial bits, 24/24 images |
 | Cross-band linear HF prediction | C5 | rejected on every plane of all 24 images; mechanism proven only on constructed correlation |
 | Spatial MA-tree contexts on flat planes | C2 + C2b | coarser than exact causal resdiff-343 under v2 binarization; model bytes sink every total |
-| Static context refinement generally | C2 + C2b trials; D0 harness (the A2 instrumented-oracle table was RETRACTED 2026-08-24, see 2026-08-24T09-30-00) | buys little under this binarization: harness-citable static-refinement ceiling is 1.14 points bin-fine / 1.50 value mode (class16 -> ctx343), and the trial gates rejected it on every image |
+| Static context refinement generally | C2 + C2b trials; D0 harness (the A2 instrumented-oracle table was RETRACTED 2026-08-24, see 2026-08-24T09-30-00) | buys little under this binarization: harness-citable static-refinement ceiling is 1.13 points bin-fine / 1.47 value mode (class16 -> ctx343, pooled TOTAL-row arithmetic on the committed ideal-probe CSV), and the trial gates rejected it on every image |
 | Energy-proxy decisions | C3/C4/C5 | proxy class deleted from decision paths by construction |
 
 The transform-first hypothesis is dead on this corpus. That is not a failure:

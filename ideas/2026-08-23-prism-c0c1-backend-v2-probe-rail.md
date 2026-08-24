@@ -47,7 +47,8 @@ model knobs against four Kodak images:
   probe_backend.sh header record); demanding 3 percent would have been a
   permanently unreachachable bar.
   (SUPERSEDED 2026-08-24: these magnitudes were retracted by the committed
-  D0 harness - corrected ceiling 1.14 bin-fine / 1.50 value mode; see the D0
+  D0 harness - corrected ceiling 1.13 bin-fine / 1.47 value mode, pooled
+  TOTAL-row arithmetic; see the D0
   addendum below and decision record 2026-08-24T09-30-00.)
 
 ## Measured (pinned kodim01/kodim13, sha256-verified pre-measurement)
@@ -107,7 +108,8 @@ with measurements, closing the static-context-refinement direction:
   dual-rate class-hierarchy sharing, adaptation already harvests what any
   static refinement could add (~0.19 percent oracle ceiling as then
   estimated - superseded 2026-08-24 by the D0 harness: corrected ceiling
-  1.14 bin-fine / 1.50 value mode; the qualitative conclusion stands). The
+  1.13 bin-fine / 1.47 value mode, pooled TOTAL-row arithmetic; the
+  qualitative conclusion stands). The
   MA-tree stays a squeezed-band capability for C4/C5; flat-plane work moves
   to C3.
 
