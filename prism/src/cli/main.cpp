@@ -558,12 +558,18 @@ int main(int argc, char* argv[]) {
                 {"weighted", PredId::WEIGHTED}};
             auto blend_cfg = [](const std::string& n, BlendConfig& c) {
                 // Presets keep lr_shift + energy_shift == frac_bits so the
-                // effective NLMS step mu = 2^(lr+energy-frac).
+                // effective NLMS step mu = 2^(lr+energy-frac). Anchored
+                // presets widen the clamp range because gradient bases are
+                // signed.
                 c = BlendConfig(); // "nlms" defaults: lr5/es11, mu = 1/32
                 if (n == "nlms-lr3") { c.lr_shift = 3; c.energy_shift = 13; }
                 else if (n == "nlms-lr4") { c.lr_shift = 4; c.energy_shift = 12; }
                 else if (n == "nlms-lr6") { c.lr_shift = 6; c.energy_shift = 10; }
                 else if (n == "nlms-lr7") { c.lr_shift = 7; c.energy_shift = 9; }
+                else if (n == "nlms-med") { c.med_anchor = true; c.init_w = 0; c.w_min = -65536; c.w_max = 196608; }
+                else if (n == "nlms-med-lr1") { c.med_anchor = true; c.init_w = 0; c.w_min = -65536; c.w_max = 196608; c.lr_shift = 1; c.energy_shift = 15; }
+                else if (n == "nlms-med-lr2") { c.med_anchor = true; c.init_w = 0; c.w_min = -65536; c.w_max = 196608; c.lr_shift = 2; c.energy_shift = 14; }
+                else if (n == "nlms-med-lr3") { c.med_anchor = true; c.init_w = 0; c.w_min = -65536; c.w_max = 196608; c.lr_shift = 3; c.energy_shift = 13; }
             };
             for (const auto& p : preds)
                 if (!bank.count(p)) { std::cerr << "bench-ideal: unknown predictor " << p << "\n"; return 2; }

@@ -173,19 +173,32 @@ namespace {
 struct BlendState {
     int64_t w[4];
     explicit BlendState(const BlendConfig& c) {
-        for (int k = 0; k < 4; ++k) w[k] = c.init_w;
+        if (c.med_anchor) {
+            w[0] = 65536; w[1] = 0; w[2] = 0; w[3] = 0; // identity at init
+        } else {
+            for (int k = 0; k < 4; ++k) w[k] = c.init_w;
+        }
     }
 };
 
-inline void blend_bases(const std::vector<uint16_t>& p, uint32_t w,
-                        size_t idx, uint32_t x, uint32_t y, int64_t b[4]) {
+inline void blend_bases(const BlendConfig& cfg, const std::vector<uint16_t>& p,
+                        uint32_t w, size_t idx, uint32_t x, uint32_t y,
+                        int64_t b[4]) {
     int32_t L = (x > 0) ? (int32_t)p[idx - 1] : 0;
     int32_t T = (y > 0) ? (int32_t)p[idx - w] : 0;
     int32_t TL = (x > 0 && y > 0) ? (int32_t)p[idx - w - 1] : 0;
-    b[0] = L;
-    b[1] = T;
-    b[2] = TL;
-    b[3] = (int64_t)L + T - TL;
+    if (cfg.med_anchor) {
+        int32_t TR = (y > 0 && x + 1 < w) ? (int32_t)p[idx - w + 1] : 0;
+        b[0] = med_predictor(L, T, TL);
+        b[1] = L - TL;
+        b[2] = T - TL;
+        b[3] = (int64_t)TR - TL;
+    } else {
+        b[0] = L;
+        b[1] = T;
+        b[2] = TL;
+        b[3] = (int64_t)L + T - TL;
+    }
 }
 
 inline int32_t blend_predict(const BlendConfig& cfg, const BlendState& st,
@@ -201,9 +214,12 @@ inline void blend_update(const BlendConfig& cfg, BlendState& st,
     // The increment is (err*b_k << lr) / den - computed before any shift can
     // truncate it to a no-op, which a two-stage step*b_k >> frac formulation
     // would do for the small errors that dominate natural images.
+    // In anchored mode the MED base stays FIXED at unit scale; only the three
+    // correction weights adapt.
+    int k0 = cfg.med_anchor ? 1 : 0;
     int64_t E = b[0] * b[0] + b[1] * b[1] + b[2] * b[2] + b[3] * b[3];
     int64_t den = (E >> cfg.energy_shift) + 1;
-    for (int k = 0; k < 4; ++k) {
+    for (int k = k0; k < 4; ++k) {
         st.w[k] += ((err * b[k]) << cfg.lr_shift) / den; // truncates toward zero
         if (st.w[k] < cfg.w_min) st.w[k] = cfg.w_min;
         if (st.w[k] > cfg.w_max) st.w[k] = cfg.w_max;
@@ -221,7 +237,7 @@ std::vector<int32_t> compute_residuals_blend(const std::vector<uint16_t>& plane,
     for (uint32_t y = 0; y < h; ++y) {
         for (uint32_t x = 0; x < w; ++x) {
             size_t idx = (size_t)y * w + x;
-            blend_bases(plane, w, idx, x, y, b);
+            blend_bases(cfg, plane, w, idx, x, y, b);
             int32_t s = (int32_t)plane[idx];
             int32_t pred = blend_predict(cfg, st, b);
             res[idx] = s - pred;
@@ -241,7 +257,7 @@ std::vector<uint16_t> reconstruct_plane_blend(const std::vector<int32_t>& residu
     for (uint32_t y = 0; y < h; ++y) {
         for (uint32_t x = 0; x < w; ++x) {
             size_t idx = (size_t)y * w + x;
-            blend_bases(plane, w, idx, x, y, b);
+            blend_bases(cfg, plane, w, idx, x, y, b);
             int32_t pred = blend_predict(cfg, st, b);
             int64_t s = (int64_t)pred + residuals[idx];
             // States mirror exactly, so pred+residual is the original sample

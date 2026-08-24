@@ -75,6 +75,33 @@ TEST(Blend, BijectionBorderShapes) {
     }
 }
 
+TEST(Blend, AnchoredBijectionAndBorders) {
+    BlendConfig cfg;
+    cfg.med_anchor = true;
+    cfg.init_w = 0;
+    cfg.w_min = -65536;
+    cfg.w_max = 196608;
+    struct Shape { uint32_t w, h; };
+    for (auto s : {Shape{1u, 1u}, Shape{1u, 9u}, Shape{9u, 1u}, Shape{13u, 13u}}) {
+        auto plane = random_plane(s.w, s.h, 65535, (uint64_t)s.w * 17 + s.h);
+        auto res = compute_residuals_blend(plane, s.w, s.h, cfg);
+        auto back = reconstruct_plane_blend(res, s.w, s.h, cfg, 65535);
+        EXPECT_EQ(back, plane) << s.w << "x" << s.h;
+    }
+}
+
+TEST(Blend, AnchoredStartsAtMEDScaleOnNoise) {
+    // Identity at init plus bounded corrections: on random noise the anchored
+    // blend must stay in MED's cost neighborhood instead of diverging.
+    BlendConfig cfg;
+    cfg.med_anchor = true;
+    cfg.init_w = 0; cfg.w_min = -65536; cfg.w_max = 196608;
+    auto plane = random_plane(32, 32, 255, 99);
+    auto blend = compute_residuals_blend(plane, 32, 32, cfg);
+    auto med = compute_residuals(plane, 32, 32, PredId::MED);
+    EXPECT_LT(abs_sum(blend), 2 * abs_sum(med));
+}
+
 TEST(Blend, Determinism) {
     auto cfg = default_cfg();
     auto plane = random_plane(24, 24, 255, 7);

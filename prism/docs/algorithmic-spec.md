@@ -320,6 +320,15 @@ The shift pair satisfies lr_shift(5) + energy_shift(11) = frac_bits(16), so
 the effective adaptation step is mu = 2^(5+11-16) = 1/32 of the exact NLMS
 solution - stable by the standard NLMS bound (mu < 2) and never a no-op: the
 increment is computed BEFORE any right-shift truncation can swallow it.
+
+**Anchored mode** (`med_anchor = true`): bases become `{MED, L-TL, T-TL,
+TR-TL}` with weights initialized `{65536, 0, 0, 0}` so the first prediction is
+exactly plain MED (identity at init); the MED base weight stays FIXED and only
+the three correction weights adapt. Clamp range widens to [-65536, 196608]
+because gradient bases are signed. This family was measured as the strongest
+adaptive-prediction candidate and still failed the offline gate (see the D1
+verdict in progress/130-prism-true-jxl-parity.md).
+
 residual:   e = sample - pred feeds the unchanged Stage E/X pipeline
 ```
 
