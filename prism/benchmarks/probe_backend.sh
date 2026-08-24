@@ -20,7 +20,8 @@ set -euo pipefail
 #
 # Acceptance (architecture-jxl-parity.md section 3.3), evaluated per image in
 # BOTH raw bytes and percent - no unit mixing:
-#   A1: v2 captures >= 80 percent of the pinned V1 win on each probe image.
+#   A1: v2 captures >= 80 percent of the V1 win, where the V1 win is measured
+#       in the SAME run from the v1 row (no hand-pinned constants).
 #   A2: removing context information from v2 must cost real bytes: context
 #       gain (v2shared - v2) >= 0.5 percent of v0 on kodim13 and > 0.1 percent
 #       of v0 on kodim01.
@@ -37,8 +38,9 @@ set -euo pipefail
 # coding; the rest of the measured context benefit is nonstationary local
 # tracking, which saturates well below 3 percent. Demanding 3 percent would
 # institutionalize a permanently failing gate. Evidence: shipped-config gain
-# 0.85 percent; retuned config gains 1.14 percent (kodim01) / 0.79 percent
-# (kodim13); full oracle table lives in progress/130-prism-true-jxl-parity.md.
+# 0.85 percent; retuned config gains 1.14 percent (kodim01) / 0.78 percent
+# (kodim13); full oracle evidence table lives in
+# progress/130-prism-true-jxl-parity.md (A2 recalibration oracle evidence).
 #
 # Corpus discipline: input images are verified against data/kodak.sha256
 # BEFORE any measurement; a mismatch is a hard error, not a warning.
@@ -69,8 +71,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 evaluate() {
   # evaluate RESULTS_CSV -> prints verdict lines, exits nonzero on gate fail.
-  # Pinned V1 wins (percent of v0 payload) and v0 calibration sizes come from
-  # the committed research measurements (docs/research-gap-analysis.md F3).
+  # A1 capture is computed from the MEASURED v1 win in the same CSV, so the
+  # gate's arithmetic and every prose claim share one source (no hand-pinned
+  # rounded constants).
   # C2b gate (B1): when the tree variants are present, the composite
   # leaf*343+resdiff coding INCLUDING serialized tree bytes must beat flat
   # v2 on every image measured - the trial-bits acceptance applied at probe
@@ -80,11 +83,6 @@ import csv, sys
 rows = list(csv.DictReader(open(sys.argv[1])))
 if not rows:
     print("PROBE GATE FAIL (no results)"); sys.exit(1)
-
-PINS = {  # image -> (pinned v1 win percent, pinned v0 bytes)
-    "kodim01.ppm": (-5.1, 584218),
-    "kodim13.ppm": (-3.4, 685140),
-}
 
 by_img = {}
 for r in rows:
@@ -102,13 +100,12 @@ for img, vars_ in sorted(by_img.items()):
     gain_pct = 100.0 * (v2s - v2) / v0
     line = (f"{img}: v0 {v0} B | v1 {v1_pct:+.2f}% | v2 {v2_pct:+.2f}% "
             f"| context gain {gain_pct:.2f}%")
-    pin_pct, _pin_v0 = PINS.get(img, (min(v1_pct, -1.0), None))
-    cap = (-v2_pct) / (-pin_pct) * 100.0 if pin_pct < 0 else 0.0
-    print(line + f" | captures {cap:.0f}% of pinned V1 win")
-    # A1: at least 80 percent of the pinned V1 win, in percent-of-percent so
+    cap = (-v2_pct) / (-v1_pct) * 100.0 if v1_pct < 0 else 0.0
+    print(line + f" | captures {cap:.0f}% of measured V1 win")
+    # A1: at least 80 percent of the same-run V1 win, in percent-of-percent so
     # both sides share one unit.
     if cap < 80.0:
-        print(f"A1 FAIL ({img}): captured {cap:.0f}% < 80% of pinned V1 win {pin_pct}"); ok = False
+        print(f"A1 FAIL ({img}): captured {cap:.0f}% < 80% of measured V1 win {v1_pct:.2f}%"); ok = False
     else:
         print(f"A1 OK ({img})")
     # A2: context benefit, recalibrated to the instrumented ceiling (see the

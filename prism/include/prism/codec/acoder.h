@@ -43,9 +43,11 @@ struct ACModels {
 // Binarization is strictly zero-flag -> sign -> magnitude, so zeros never pay
 // a sign bin (research F3/V1: 3.4-5.1 percent of the file). Each residual-DIFF
 // context set is INITIALIZED from one of 16 compile-time class priors keyed on
-// the causal context id, and adapts at two rates: fast shift 4 and slow shift
-// 6. The coded probability is the integer mix (5*p_fast + 3*p_slow) >> 3,
-// which fixes the adaptation dilution that kept the real-coder context benefit
+// the causal context id, and adapts at two rates: fast shift
+// AC_V2_FAST_SHIFT (6) and slow shift AC_V2_SLOW_SHIFT (9); the coded
+// probability mixes the two equally (ac_v2_mix), then mixes with the shared
+// class estimate 8/8 (ac_v2_mix2). This fixes the adaptation dilution that
+// kept the real-coder context benefit
 // at 0.9 percent against a ~6 percent conditional-entropy oracle (F3).
 // Every constant here is a codec constant mirrored on the decoder side
 // (architecture-jxl-parity.md invariant I2); nothing is data-dependent state.
