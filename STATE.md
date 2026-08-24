@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-24 (~20:35Z, maintainer run 32774325997 - pending opencode 32774326137 benign no-op; PR131 rebuilt at 785e257 onto main 5bc4b9d, D4 dispatched)
+- **Updated:** 2026-08-24 (~20:42Z, maintainer run 32775270496 schedule - stand-down; D4 pending 32775053813 owns pipeline, zombie 32769810484 flagged)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt.)
@@ -17,25 +17,25 @@
 - **Two compliant unblock paths for #139:** owner one-click merge, OR lab-built hardcoded PAT-backed merge step in maintainer.yml.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `5bc4b9d55f727d2e5f186d6bbb100f0fb002c23c`** (19:59:42Z "fix: update maintainer schedule to every 2 hours", parent `526daae` "lab: remove invalid workflows permission..."). AGENTS.md:62 + LAB.md:73 live on main (PAT merge path, validated via contents API). Pages `32774310743` success 20:30:49Z verified green; recover sweep `32774279387` success 20:30:30Z.
-- **Model watch:** openrouter/stealth/ox-alpha active; transient provider burst 19:41-19:43Z (Endpoint is unavailable) self-healed via rebuild path; this session runs clean. No model switch needed; two-knob rule remains if ever retried.
+- **`main` = `5bc4b9d55f727d2e5f186d6bbb100f0fb002c23c`** (19:59:42Z "fix: update maintainer schedule to every 2 hours", parent `526daae` "lab: remove invalid workflows permission..."). AGENTS.md:62 + LAB.md:73 live on main (PAT merge path, validated via contents API). Pages `32770889660` success on rebuild head `785e257`; recover sweep `32774279387` success 20:30:30Z.
+- **Model watch:** openrouter/stealth/ox-alpha active; transient burst 19:41-19:43Z (Endpoint is unavailable) self-healed via rebuild; this schedule run and predecessor both clean. Two-knob rule remains if ever retried.
 
 ## IN FLIGHT
-- **PR #131** - OPEN MERGEABLE head `785e2570d9b21a5ba997f982132a322c4e88ffb0` (`opencode/issue130-20260823163248`, rebuilt branch, diverged 56 ahead / 2 behind, merge_base `630dce19bf` verified after unshallow). Decision file `.agent/decision.json` = `{"action":"build"}`. Status in_progress per tracker (D4 stretch dispatched 19:39Z). Pending opencode `32774326137` is benign no-op for `/oc maintainer` (0 jobs, will skip - all opencode jobs explicitly exclude `/oc maintainer`). This run dispatches the owning Builder continuation for D4.
-- **PR #139** - OPEN MERGEABLE head `a4994c6cc6e30725bde824156dbd889aa77ce673` (`opencode/lab-137-session-death-resilience`). Review APPROVED 18:27Z + Tester approve-test PASS 18:35Z, metadata `Closes #137/#138` verified. Blocked on App-token `workflows` scope - awaiting owner click or explicit lab PAT-step dispatch. Now 2 behind main (5bc4b9d); rebase may be needed before merge but do NOT auto-rebase without owner order.
+- **PR #131** - OPEN MERGEABLE head `785e2570d9b21a5ba997f982132a322c4e88ffb0` (`opencode/issue130-20260823163248`, rebuilt branch, diverged 56 ahead / 2 behind, merge_base `630dce19bf` verified). Tracker in_progress D4 stretch. Pending opencode `32775053813` (owner `/oc continue` 20:38:37Z) owns pipeline (status `pending` at survey, queued). Zombie `32769810484` from 19:43:37Z still `in_progress` (~57 min, build job stuck) - flagged, not re-dispatched. Prior deaths `32769431506`/`32769620318` absorbed by rebuild.
+- **PR #139** - OPEN MERGEABLE head `a4994c6cc6e30725bde824156dbd889aa77ce673` (`opencode/lab-137-session-death-resilience`). Review APPROVED 18:27Z + Tester approve-test PASS 18:35Z, `Closes #137/#138` verified. Blocked on App-token `workflows` scope - awaiting owner click or explicit lab PAT-step dispatch. 2 behind main (5bc4b9d); rebase may be needed but do NOT auto-rebase.
 
 ## PIPELINE POSITION (#130)
-research DONE -> architect DONE (+ rescope) -> build C0-C5 + D0-D3 COMPLETE -> REVIEW ROUNDS 1-4 DONE (round 4: zero new findings at c10598f) -> OWNER DECISION POINT RESOLVED -> D4 dispatched (rebuild + pending continuation) -> REVIEW after D4 -> freeze blocks any merge regardless -> PR #142 infra docs track CLOSED/MERGED.
+research DONE -> architect DONE (+ rescope) -> build C0-C5 + D0-D3 COMPLETE -> REVIEW ROUNDS 1-4 DONE (round 4: continue at c10598f) -> OWNER DECISION POINT RESOLVED -> D4 dispatched (rebuild at 785e257 + pending continuation 32775053813) -> REVIEW after D4 -> freeze blocks merge regardless -> PR #142 infra docs track CLOSED/MERGED.
 
 ## NEXT-RUN PLAYBOOK
-1. FIRST ACTION: verify pending opencode `32774326137` resolved to skipped (benign). Then read dispatched D4 continuation outcome on #131 (COMMENT plus JOB LOG - never green status alone). Clean completion => automatic review at phase boundary after rebase check onto 5bc4b9d; death => error-class inspection, one same-error retry max then lab escalation with run IDs (32769431506, 32769620318 plus new).
-2. #139: NO bot merge retries. Act only on explicit owner instruction (click vs lab PAT step). If merged, verify main contents (workflow files), CLOSE #137 AND #138 MANUALLY, verify-and-dispatch pages on new sha. Check if rebase onto 5bc4b9d needed.
-3. Watch issue #130 for post-D4 outcome; if M3 still open, surface the formal stop-and-decide per re-scope section 1. No silent scope creep.
-4. Do not touch workflows/infra while D4 builds; model watch continues.
+1. FIRST ACTION: read `32775053813` outcome (COMMENT plus JOB LOG - never green alone). Clean => automatic review at phase boundary after `git merge origin/main` (2 behind, per tracker item 0); death => error-class inspection, one same-error retry max then lab escalation with run IDs (32769431506,32769620318 plus new). If `32775053813` stays pending >15 min, inspect queue before re-dispatch.
+2. Monitor zombie `32769810484` - if still in_progress past 90 min, note timeout; do NOT fire around it. Prior `32774326137` already resolved cancelled (benign no-op).
+3. #139: NO bot merge retries. Act only on explicit owner instruction. If merged, verify workflow contents, CLOSE #137 AND #138 MANUALLY, dispatch pages.
+4. Watch #130 for post-D4 outcome; if M3 still open, surface formal stop-and-decide per re-scope section 1. No silent scope creep.
 5. Freeze stands until dual-unit M2 AND M3 pass on real cjxl output - no parity claims until then.
 
 ## ISSUES
-- **#130** - sole active workstream (Prism); carried by PR #131; D4 stretch now executing.
+- **#130** - sole workstream (Prism); carried by PR #131; D4 stretch executing via `32775053813`.
 - **#137 + #138** - open; close manually the moment #139 lands on main.
 - **#141** - CLOSED 19:34:13Z (invalid workflows premise, owner STOP honored).
 - **#120** - CLOSED; audit trail for PAT merge path.
@@ -43,10 +43,10 @@ research DONE -> architect DONE (+ rescope) -> build C0-C5 + D0-D3 COMPLETE -> R
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive.
 
 ## OPEN QUESTIONS
-- Will dispatched D4 continuation complete or hit the transient provider window again (requires lab if twice-consecutive)?
-- Will pending opencode 32774326137 correctly resolve to skipped next sweep?
+- Will `32775053813` execute the D4 stretch or hit provider window again (lab if twice-consecutive on new pin)?
+- Will zombie `32769810484` time out or need manual cancellation?
 - Will #139 be unblocked via owner click or lab PAT step (now 2 behind main)?
-- Does stealth/ox-alpha remain stable after the 19:41-19:43 burst, or do strikes recur on the new D4 payload?
+- Does stealth/ox-alpha remain stable after the 19:41-19:43 burst?
 
 ## STANDING LESSONS (in force)
 - Verdicts post as ISSUE COMMENTS while pulls/reviews API can stay empty - paginate the FULL comment timeline before declaring any gate silent.
@@ -55,6 +55,6 @@ research DONE -> architect DONE (+ rescope) -> build C0-C5 + D0-D3 COMPLETE -> R
 - Merge-token pushes do not trip workflow triggers: verify-and-dispatch pages after every merge.
 - Never describe a fix as live until grep/API confirms it at ref=main.
 - Closing keywords resolve against ISSUES only - check every PR body's linkage before merging.
-- NEW: permission names must be verified against GitHub's documented scope list before any grant ships; App-token merge refusals are reproducible server-side facts, not flukes.
+- Permission names must be verified against GitHub's documented scope list before any grant ships; App-token merge refusals are reproducible server-side facts, not flukes.
 
 - Mae, the Maintainer
