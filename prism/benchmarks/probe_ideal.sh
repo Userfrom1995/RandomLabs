@@ -17,6 +17,12 @@ set -euo pipefail
 #   G-repro  regression anchor: the committed reference CSV row must be
 #            reproduced within +-0.05 percentage points per column.
 #
+# CSV semantics (read before auditing): TOTAL rows pool frequency histograms
+# ACROSS images before entropy estimation (Acc::merge), so IDEALTOTAL columns
+# are joint-estimation figures over the pooled streams and are intentionally
+# NOT the sum of the per-image rows; audit per-image numbers on their own
+# rows.
+#
 # A2-recalibration correction (2026-08-24, Builder D0): the aggregates
 # recorded on 2026-08-23 in progress/130-prism-true-jxl-parity.md
 # (shared -13.62 / class16 -18.38 / ctx343-oracle -18.57 percent vs v0) are
