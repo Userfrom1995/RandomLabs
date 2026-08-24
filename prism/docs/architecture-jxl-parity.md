@@ -343,6 +343,54 @@ durable CSV + updated codec-comparison table row committed. Literature anchor
 says attainable (FLIF/MANIAC ~9.3, JXL modular 8.65) with ZERO slack for
 estimator bugs - which C3 removed by construction.
 
+### 7.1 Status (2026-08-24): capability landed; measured REJECTION of adoption
+
+Implemented per this section, with two documented scope decisions (decision
+record `.github/agents/decisions/builder/2026-08-24T08-16-17-c5-xband-scope-and-measured-rejection.md`):
+
+1. **Bank realization.** The blueprint's `PredId::XBAND` materialized as a
+   band-local mechanism instead of a global-bank enum id: the flat-plane
+   bank has no LL domain to condition on, so a global id could never be
+   selected honestly. HF prediction is pure linear extrapolation along the
+   co-located LL gradient - `pred = floor(g * w / 16)` with one int8
+   quantized weight (1/16 units) per band type H/V/D - replacing MED only
+   when the plane's weight is nonzero. Weight 0 is the exact identity.
+   One implementation (`xband_gradient` / `xband_apply`, predict.h) serves
+   analyzer trial, encode, and decode.
+2. **Signaling.** Container bit6 XBAND: three weights per squeezing plane in
+   channel order, between squeeze_levels and model_len. Any plane with
+   level > 0 costs exactly +3 header bytes, included in every trial total.
+   Decode validates count and rejects bit6 without squeeze or without the
+   adaptive coder; unknown bits move to bit7. The legacy coupled estimator
+   path at effort >= 3 is retired; when any plane squeezes, production emits
+   the modern plain-v2 multiband regime directly (CM/LZP candidates still
+   compared in prism.cpp), so the last energy proxies (`estimate_bits`,
+   `evalGuard`) are gone from decision paths by deletion.
+
+Per-type weight selection is an exact joint greedy search over candidates
+{0, +/-4, +/-12} on real band payload bytes (bands are independent because
+sibling sources are transform outputs). A constructed-correlation unit test
+proves decisive adoption when genuine LL-gradient structure exists
+(445 vs 954 flat bytes); the never-expand chooser test proves adopted plans
+can only be <= flat.
+
+**Measured outcome on real photos: honest REJECTION corpus-wide.** All 24
+sha256 pins verified pre-measurement; the trials reject lifting+XBAND on
+every plane of every image, so e1 = 10.2904 summed / 3.4301 per-sample,
+e3 = e7 = 10.2861 / 3.4287 - all byte-identical to pre-C5 streams (CSVs
+reproduced exactly, zero regressions by construction). With research F2
+(ideal-level), C2/C2b (context refinement), and C4 (lifting alone), every
+static spatial-transform direction tried in this lab is now closed by
+measurement, not assumption. Wall-clock at e3 is unchanged vs pre-C5 on
+identical inputs (kodim01 6.14 s vs 6.26 s, kodim13 6.80 s vs 6.86 s).
+Verification: 66/66 gtests (7 new Xband* tests), fuzz 1000 iters PASS,
+bench_gate self-check PASS in both units.
+
+M3 GATE CHECKPOINT (per this section): re-evaluated fresh at e3 -
+10.2861 summed / 3.4287 per-sample vs required < 8.655 / < 2.885. FAIL in
+both units, as expected for an all-reject phase. Per the tracker rule, the
+next phase re-scopes with the Architect before any C6 work.
+
 ---
 
 ## 8. C6: CM/SSE stretch (P7, M4)

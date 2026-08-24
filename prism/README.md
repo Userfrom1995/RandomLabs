@@ -32,6 +32,7 @@ prism dec <in.prism> <out.ppm>
 prism fuzz [--iters N]
 prism info <file.prism>
 prism probe-backend <image.ppm> [--variants v0,v1,v1shared,v2,v2shared]
+prism probe-xband <image.ppm>
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -46,6 +47,14 @@ recursed on averages) behind container flag bit5; legacy decimation streams
 remain decodable. Per-plane squeeze levels are chosen by real coded bytes of
 the exact band payloads production would emit, and `EncodeOpts::force_squeeze_levels`
 provides a deterministic probe override (size must equal the channel count).
+
+Since C5, squeezing planes also carry cross-band prediction weights: HF bands
+are predicted by pure linear extrapolation along the co-located LL gradient
+(`prism probe-xband <image>` prints the per-plane decisions), behind container
+flag bit6 with `EncodeOpts::force_xband_weights` as the deterministic override.
+On the photo corpus the trials reject adoption everywhere, keeping streams
+byte-identical to pre-C5; the capability stays available for inputs where
+LL-gradient correlation is real.
 
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
