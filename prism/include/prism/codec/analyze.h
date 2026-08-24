@@ -16,6 +16,10 @@ struct AnalyzeResult {
     // coded at squeeze level 0 (spatial leaf contexts). Signaled by container
     // flags bit4; decode mirrors via decode_band_generic(isLL=true).
     bool tree_on_flat = false;
+    // C5 (issue #130): three int8 cross-band weights (H, V, D; 1/16 units)
+    // per squeezing plane, in channel order of planes with level > 0.
+    // Empty when no plane squeezes. Signaled by container flag bit6.
+    std::vector<int8_t> xband_weights;
 };
 AnalyzeResult analyze(const Raster& r, uint8_t effort);
 
@@ -83,4 +87,23 @@ struct ColorTrialResult {
 // legacy B6 search). Declared for analyze() and for tests that assert the
 // never-lose-to-identity property on arbitrary rasters.
 ColorTrialResult choose_color_transform_trial(const Raster& r, uint8_t effort);
+
+// ----- C5 cross-band squeeze plan (issue #130, blueprint section 7) -----
+
+// Best per-plane squeeze decision: levels plus one quantized LL-gradient
+// weight per HF band type (H, V, D; 1/16 units), chosen by REAL coded bytes.
+struct SqueezeXBandPlan {
+    uint8_t levels = 0;
+    int8_t weights[3] = {0, 0, 0};
+    size_t total_bytes = 0; // winning cost incl. the +3 header bytes (flat bytes when levels==0)
+};
+
+// Exact per-plane decision production makes at effort >= 3: the flat v2
+// baseline (same predictor production emits) versus every lifting level,
+// each carrying a greedy per-type cross-band weight search over real band
+// payloads plus its 3 header bytes. Identity-safe by construction: levels=0
+// unless a candidate strictly wins. Exported for tests and the probe rail.
+SqueezeXBandPlan choose_squeeze_plan_xband(const std::vector<uint16_t>& plane,
+                                           uint32_t w, uint32_t h, uint8_t bit_depth,
+                                           PredId flat_pred);
 } // namespace prism::codec

@@ -114,4 +114,49 @@ std::vector<uint16_t> reconstruct_plane(const std::vector<int32_t>& residuals, u
     return plane;
 }
 
+// ----- C5 cross-band prediction (issue #130, blueprint section 7) -----
+
+int32_t xband_gradient(const std::vector<uint16_t>& ll, uint32_t w, uint32_t h,
+                       uint32_t x, uint32_t y, uint8_t band_type) {
+    if (w == 0 || h == 0) return 0;
+    auto at = [&](uint32_t xx, uint32_t yy) -> int32_t {
+        return (int32_t)ll[(size_t)yy * w + xx];
+    };
+    switch (band_type) {
+        case 1: { // H band: horizontal LL difference
+            bool hasL = x > 0, hasR = x + 1 < w;
+            if (hasL && hasR) return at(x + 1, y) - at(x - 1, y);
+            if (hasR) return at(x + 1, y) - at(x, y);
+            if (hasL) return at(x, y) - at(x - 1, y);
+            return 0;
+        }
+        case 2: { // V band: vertical LL difference
+            bool hasU = y > 0, hasD = y + 1 < h;
+            if (hasU && hasD) return at(x, y + 1) - at(x, y - 1);
+            if (hasD) return at(x, y + 1) - at(x, y);
+            if (hasU) return at(x, y) - at(x, y - 1);
+            return 0;
+        }
+        case 3: { // D band: diagonal LL difference
+            bool hasUL = x > 0 && y > 0;
+            bool hasDR = x + 1 < w && y + 1 < h;
+            if (hasUL && hasDR) return at(x + 1, y + 1) - at(x - 1, y - 1);
+            if (hasDR) return at(x + 1, y + 1) - at(x, y);
+            if (hasUL) return at(x, y) - at(x - 1, y - 1);
+            return 0;
+        }
+        default:
+            return 0;
+    }
+}
+
+int32_t xband_apply(int32_t grad, int8_t weight) {
+    if (grad == 0 || weight == 0) return 0;
+    int32_t t = grad * (int32_t)weight;
+    int32_t q = t >> 4;                    // arithmetic shift = floor on gcc/clang
+    if (t < 0 && (t & 15) != 0) --q;       // portable floor for the negative case
+    return q;
+}
+
 } // namespace prism::codec
+

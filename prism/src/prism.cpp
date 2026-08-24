@@ -34,6 +34,18 @@ static inline uint16_t plane_bd_max(uint8_t bd, ColorTransform ct, size_t pi){
     return 255;
 }
 
+// C5: H/V/D weight triple for plane pi, or null when cross-band coding is
+// off for it. Weights are stored per squeezing plane in channel order, so
+// both encode and decode derive the offset from the same squeeze levels.
+static const int8_t* xband_weights_for(const std::vector<int8_t>& w,
+                                       const std::vector<uint8_t>& levels,
+                                       size_t pi) {
+    if (w.empty() || pi >= levels.size() || levels[pi] == 0) return nullptr;
+    size_t k = 0;
+    for (size_t i = 0; i < pi; ++i) if (levels[i] > 0) ++k;
+    return &w[(size_t)3 * k];
+}
+
 // ----- generic band encode with optional CM/LZP -----
 static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& data, uint32_t w, uint32_t h,
                                               uint8_t band_class, bool isLL,
@@ -41,7 +53,8 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
                                               const std::vector<uint16_t>* siblingSrc,
                                               const MATree& tree, int num_leaves,
                                               uint8_t bit_depth,
-                                              bool useCM, bool useLZP, bool useV2) {
+                                              bool useCM, bool useLZP, bool useV2,
+                                              const int8_t* xband_w = nullptr) {
     if (w==0||h==0) { AEncoder enc; return enc.flush_and_emit(); }
     size_t n = (size_t)w*h;
     // fast plain path without generic overhead -> delegate to original logic if both false
@@ -80,6 +93,11 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
                 int16_t tr=(y>0&&x+1<w)?(int16_t)data[idx-w+1]:0;
                 L=l; T=t; TL=tl; TR=tr;
                 int32_t pred=med_pred(L,T,TL);
+                // C5: co-located LL gradient term for HF bands (identity at weight 0).
+                if (xband_w && llSrc) {
+                    uint8_t xb_type = band_class & 3u;
+                    pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+                }
                 int32_t e=(int32_t)sv - pred; resHist[idx]=e;
                 Feature f{}; f.band_class=band_class; f.qg=quant_qg(L,T,TL,TR);
                 if(llSrc) f.llc_class=quant_llc((*llSrc)[idx],bit_depth); else f.llc_class=0;
@@ -133,6 +151,11 @@ static std::vector<uint8_t> encode_band_generic(const std::vector<uint16_t>& dat
             int16_t tr=(y>0&&x+1<w)?(int16_t)data[idx-w+1]:0;
             L=l; T=t; TL=tl; TR=tr;
             int32_t pred=med_pred(L,T,TL);
+            // C5: co-located LL gradient term for HF bands (identity at weight 0).
+            if (xband_w && llSrc) {
+                uint8_t xb_type = band_class & 3u;
+                pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+            }
             e=(int32_t)sv - pred;
             f.qg=quant_qg(L,T,TL,TR);
             if(llSrc) f.llc_class=quant_llc((*llSrc)[idx],bit_depth); else f.llc_class=0;
@@ -176,8 +199,9 @@ static std::vector<uint8_t> encode_band_leaf(const std::vector<uint16_t>& data, 
                                               const std::vector<uint16_t>* llSrc,
                                               const std::vector<uint16_t>* siblingSrc,
                                               const MATree& tree, int num_leaves,
-                                              uint8_t bit_depth) {
-    return encode_band_generic(data,w,h,band_class,isLL,llSrc,siblingSrc,tree,num_leaves,bit_depth,false,false,true);
+                                              uint8_t bit_depth,
+                                              const int8_t* xband_w = nullptr) {
+    return encode_band_generic(data,w,h,band_class,isLL,llSrc,siblingSrc,tree,num_leaves,bit_depth,false,false,true,xband_w);
 }
 
 static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& bytes, uint32_t w, uint32_t h,
@@ -187,7 +211,8 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                                                const MATree& tree, int num_leaves,
                                                uint8_t bit_depth, uint16_t bd_max,
                                                bool useCM, bool useLZP, bool useV2,
-                                               bool uniform_leaf_priors = false) {
+                                               bool uniform_leaf_priors = false,
+                                               const int8_t* xband_w = nullptr) {
     if (w==0||h==0) return {};
     size_t n=(size_t)w*h;
     if (bytes.empty()) throw DecodeError("empty band bytes for leaf decode");
@@ -229,6 +254,11 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
                 int16_t tr= (y>0&&x+1<w)?(int16_t)out[idx-w+1]:0;
                 L=l; T=t; TL=tl; TR=tr;
                 int32_t pred = med_pred(L,T,TL);
+                // C5 mirror of the encoder's LL gradient term.
+                if (xband_w && llSrc) {
+                    uint8_t xb_type = band_class & 3u;
+                    pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+                }
                 Feature f{}; f.band_class = band_class; f.qg = quant_qg(L,T,TL,TR);
                 if (llSrc) f.llc_class = quant_llc((*llSrc)[idx], bit_depth); else f.llc_class=0;
                 int32_t dL=0,dU=0,dUL=0; if(x>0) dL=residuals[idx-1]; if(y>0) dU=residuals[idx-w]; if(x>0&&y>0) dUL=residuals[idx-w-1];
@@ -304,6 +334,11 @@ static std::vector<uint16_t> decode_band_generic(const std::vector<uint8_t>& byt
             int16_t tr= (y>0&&x+1<w)?(int16_t)out[idx-w+1]:0;
             L=l; T=t; TL=tl; TR=tr;
             int32_t pred = med_pred(L,T,TL);
+            // C5 mirror of the encoder's LL gradient term.
+            if (xband_w && llSrc) {
+                uint8_t xb_type = band_class & 3u;
+                pred += xband_apply(xband_gradient(*llSrc, w, h, x, y, xb_type), xband_w[xb_type - 1]);
+            }
             Feature f{}; f.band_class=band_class; f.qg=quant_qg(L,T,TL,TR);
             if(llSrc) f.llc_class=quant_llc((*llSrc)[idx],bit_depth); else f.llc_class=0;
             int32_t dL=0,dU=0,dUL=0; if(x>0) dL=residuals[idx-1]; if(y>0) dU=residuals[idx-w]; if(x>0&&y>0) dUL=residuals[idx-w-1];
@@ -359,6 +394,9 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         ar.tree_on_flat = false; // squeeze and tree-on-flat are exclusive paths
         ar.trees.clear();
     }
+    if (!opts.force_xband_weights.empty()
+        && opts.force_xband_weights.size() != (size_t)raster.num_channels() * 3)
+        throw EncodeError("force_xband_weights: size must equal 3 * channel count");
     if (!opts.use_ycocg) ar.color_transform_id = 0;
     Raster transformed = raster;
     ColorTransform ct = static_cast<ColorTransform>(ar.color_transform_id);
@@ -383,10 +421,23 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.hdr.squeeze_levels = ar.squeeze_levels;
     // C4: whenever any plane squeezes, the stream uses true CDC lifting
     // (bit5). Legacy decimation streams (bit5 clear) stay decodable.
+    // C5: squeezing planes also carry their cross-band weight triples
+    // (bit6); the analyzer's own choices or the probe hook fill them.
     bool hasSqueezeEarly = false;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) hasSqueezeEarly = true;
     if (hasSqueezeEarly) {
         flags |= SQUEEZE_LIFT_FLAG;
+        if (!opts.force_xband_weights.empty()) {
+            for (size_t ci = 0; ci < c.hdr.squeeze_levels.size(); ++ci) {
+                if (c.hdr.squeeze_levels[ci] == 0) continue;
+                c.hdr.xband_weights.push_back(opts.force_xband_weights[3 * ci]);
+                c.hdr.xband_weights.push_back(opts.force_xband_weights[3 * ci + 1]);
+                c.hdr.xband_weights.push_back(opts.force_xband_weights[3 * ci + 2]);
+            }
+        } else {
+            c.hdr.xband_weights = ar.xband_weights;
+        }
+        if (!c.hdr.xband_weights.empty()) flags |= XBAND_FLAG;
         c.hdr.flags = flags;
     }
     c.trees = ar.trees;
@@ -401,6 +452,10 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     for (auto v: c.hdr.squeeze_levels) if (v>0) hasSqueeze=true;
     MATree tree = c.trees.empty()? MATree::single_leaf() : c.trees[0].tree;
     int num_leaves = tree.num_leaves>0? tree.num_leaves:1;
+    // C5: per-plane cross-band weights for every band emission site below.
+    auto xwFor = [&](size_t pi) -> const int8_t* {
+        return xband_weights_for(c.hdr.xband_weights, c.hdr.squeeze_levels, pi);
+    };
 
     // B8: determine global CM/LZP flags via never-expand comparison
     bool wantCM = (opts.effort >= 4 && use_acoder);
@@ -447,7 +502,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                             if (type==2 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                             else if (type==3 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                         }
-                        auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, cand.cm, cand.lzp, true);
+                        auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, cand.cm, cand.lzp, true, xwFor(pi));
                         tot += bytes.size();
                     }
                 }
@@ -493,7 +548,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                         if (type==2 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                         else if (type==3 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                     }
-                    auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, finalCM, finalLZP, true);
+                    auto bytes = encode_band_generic(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, finalCM, finalLZP, true, xwFor(pi));
                     c.band_payloads.push_back(std::move(bytes));
                 }
             }
@@ -538,7 +593,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
                     if (type==2 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                     else if (type==3 && bi>=1) sibSrc = &sr.bands[bi-1].data;
                 }
-                auto bytes = encode_band_leaf(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd);
+                auto bytes = encode_band_leaf(band.data, band.w, band.h, band_class, isLL, llSrc, sibSrc, tree, num_leaves, bd, xwFor(pi));
                 c.band_payloads.push_back(std::move(bytes));
             }
         }
@@ -582,18 +637,36 @@ Raster decode(const uint8_t* data, size_t len) {
     // Corruption gate: unknown flag bits are a hard error (invariant I2), and
     // invalid combos are rejected: v2 without the adaptive coder, or the C2
     // tree-on-flat bit without the adaptive coder (leaf coding is adaptive).
-    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG | SQUEEZE_LIFT_FLAG))
+    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG | SQUEEZE_LIFT_FLAG | XBAND_FLAG))
         throw DecodeError("unknown container flag bits");
     if ((c.hdr.flags & ACODER_V2_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: v2 without adaptive coder");
     if ((c.hdr.flags & MATREE_FLAT_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: tree-on-flat without adaptive coder");
+    // C5: cross-band weights need the adaptive coder and at least one
+    // squeezing plane, and exactly three int8 per squeezing plane.
+    bool anySqueezeHdr = false;
+    for (auto v : c.hdr.squeeze_levels) if (v > 0) anySqueezeHdr = true;
+    size_t numSqueezePlanes = 0;
+    for (auto v : c.hdr.squeeze_levels) if (v > 0) ++numSqueezePlanes;
+    if (c.hdr.flags & XBAND_FLAG) {
+        if (!(c.hdr.flags & ACODER_FLAG))
+            throw DecodeError("invalid flag combination: xband without adaptive coder");
+        if (!anySqueezeHdr)
+            throw DecodeError("invalid flag combination: xband without squeeze");
+        if (c.hdr.xband_weights.size() != (size_t)3 * numSqueezePlanes)
+            throw DecodeError("xband weight count mismatch");
+    }
     bool use_acoder = (c.hdr.flags & ACODER_FLAG) != 0;
     bool useV2 = (c.hdr.flags & ACODER_V2_FLAG) != 0;
     bool useCM = (c.hdr.flags & CM_FLAG) != 0;
     bool useLZP = (c.hdr.flags & LZP_FLAG) != 0;
     MATree tree = c.trees.empty()? MATree::single_leaf() : c.trees[0].tree;
     int num_leaves = tree.num_leaves>0? tree.num_leaves:1;
+    // C5: same weight lookup rule the encoder used (invariant I2).
+    auto xwFor = [&](size_t pi) -> const int8_t* {
+        return xband_weights_for(c.hdr.xband_weights, c.hdr.squeeze_levels, pi);
+    };
     bool hasSqueeze=false;
     for(auto v:c.hdr.squeeze_levels) if(v>0) hasSqueeze=true;
     // C2: bit4 says level-0 planes carry MA-tree leaf contexts (spatial).
@@ -669,7 +742,7 @@ Raster decode(const uint8_t* data, size_t len) {
                     bool isLLBand=false;
                     // HF bands use signed 16-bit range, pass plane_max anyway (unused for HF)
                     uint16_t plane_max2 = plane_bd_max(bd, ct_pre, pi);
-                    auto bdData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, isLLBand, llSrc, sibSrc, tree, num_leaves, bd, plane_max2, useCM, useLZP, useV2);
+                    auto bdData = decode_band_generic(pay, inf.w, inf.h, inf.band_class, isLLBand, llSrc, sibSrc, tree, num_leaves, bd, plane_max2, useCM, useLZP, useV2, false, xwFor(pi));
                     hf[t]=std::move(bdData);
                     decodedBands.push_back(hf[t]);
                     infoIdx++;
