@@ -20,7 +20,7 @@
 - [x] R2 D1 blocking deliverable: unit-consistent bench_gate.sh + self-check (this PR).
 - [x] A1 Architect blueprint: backend-v2 C-series, module map, test matrix (this PR).
 - [x] C0 Probe harness: `benchmarks/probe_backend.sh` kodim01/kodim13 A-B rail pinning V0/V1 baselines.
-- [x] C1 Entropy backend v2 (P1+P2): zero-flag-first binarization, dual-rate shift6/shift9 mix over 16 directional class priors; probe captures >= 80 percent of V1 win (125%/141%); A2 recalibrated and PASS.
+- [x] C1 Entropy backend v2 (P1+P2): zero-flag-first binarization, dual-rate shift6/shift9 mix over 16 directional class priors; probe captures >= 80 percent of V1 win (124%/140%, same-run measured); A2 recalibrated and PASS.
 - [x] C2 MA-tree always-on (P3): capability + trial-bits acceptance LANDED (flags bit4, caps depth<=10 / leaves<=256 / min-samples 512 / quantile thresholds, v2 64-clamp latent bug fixed). Measured: trial REJECTS on all 24 corpus images (tree loses to flat resdiff-343 by ~0.12 pct; e3 == e1 byte-identical 24/24). Negative result + next lever in blueprint section 4 + decision file.
 - [x] C2b composite leaf*343+resdiff (offline probe rail first): MEASURED
       REJECTION both directions - tree-composite totals +163 B kodim01 /
@@ -77,7 +77,8 @@ Previous slice summary (continuation run 3, C2b):
       self-check proves both verdicts reachable; decision record at
       .github/agents/decisions/builder/2026-08-23T19-35-00-a2-gate-recalibration.md.
 - [x] Fresh durable CSV committed: kodim01 v2 -6.40 pct (gap 1.14), kodim13
-      v2 -4.79 pct (gap 0.78). A1 125%/141% capture. PROBE GATE PASS.
+      v2 -4.79 pct (gap 0.78). A1 124%/140% capture (same-run measured V1 win).
+      PROBE GATE PASS.
 - [x] Verification: 34/34 gtests green, fuzz 1000 iters PASS, docs sweep
       (blueprint 3.2/3.3, prism README probe section, ideas writeup).
 
