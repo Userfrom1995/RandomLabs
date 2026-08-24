@@ -364,17 +364,22 @@ jobs:
             # Fresh build with no remote branch yet: fall back to current HEAD (main).
             head_before=$(git rev-parse HEAD 2>/dev/null || echo "")
           fi
-          # Last known tip among ALL branches for this issue's naming pattern.
-          # Lets the verify step distinguish "agent pushed a NEW branch" from
-          # "agent merely checked out a stale branch left by an earlier round"
-          # (a stale branch's unchanged tip must NOT count as a push).
-          pattern_tip=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | sort | tail -1 | cut -f1)
+          # ALL known tips among this issue's branch pattern (multiline). The
+          # verify step treats the set as "pre-existing state": any tip NOT in
+          # it is a genuine push. A single-sha snapshot cannot do that - with
+          # several stale branches per issue (the norm after retry rounds) a
+          # sha-sorted pick would differ from whichever stale branch the agent
+          # checked out, and an unpushed session would read as pushed.
+          pattern_tips=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | cut -f1 | sort -u)
           {
             echo "branch=$pr_branch"
             echo "head_before=$head_before"
-            echo "pattern_tip=$pattern_tip"
+            echo "pattern_tips<<TIPS_EOF"
+            echo "$pattern_tips"
+            echo "TIPS_EOF"
           } >> "$GITHUB_OUTPUT"
-          echo "Build baseline: branch='${pr_branch:-<none yet>}' head_before=$head_before pattern_tip=${pattern_tip:-<none>}"
+          tip_count=$(printf '%s' "$pattern_tips" | grep -c . || true)
+          echo "Build baseline: branch='${pr_branch:-<none yet>}' head_before=$head_before pattern_tips=${tip_count:-0}"
 
       - name: Run opencode build agent
         id: opencode
@@ -439,7 +444,7 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
-          PATTERN_TIP: ${{ steps.baseline.outputs.pattern_tip }}
+          PATTERN_TIPS: ${{ steps.baseline.outputs.pattern_tips }}
         run: |
           issue="${{ github.event.issue.number }}"
 
@@ -482,9 +487,15 @@ jobs:
             branch=$(git branch --show-current 2>/dev/null || echo "")
             if [ -n "$branch" ] && [ "$branch" != "main" ]; then
               tip_now=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
-              if [ -n "$tip_now" ] && [ "$tip_now" != "$PATTERN_TIP" ]; then
+              # A push is a tip that is NOT one of the pre-existing tips for
+              # this issue's pattern. Membership (not single-sha compare):
+              # stale retry-round branches all count as pre-existing state, so
+              # checking one of them out and dying still reads as "no push".
+              if [ -n "$tip_now" ] && ! printf '%s\n' "$PATTERN_TIPS" | grep -qxF "$tip_now"; then
                 pushed="yes"
-                echo "Build pushed successfully: branch $branch at $tip_now (pattern tip was ${PATTERN_TIP:-<none>})"
+                echo "Build pushed successfully: new branch $branch at $tip_now"
+              else
+                echo "No push detected: $branch tip matches pre-existing state for issue #$issue"
               fi
             fi
             if [ "$pushed" = "no" ]; then
