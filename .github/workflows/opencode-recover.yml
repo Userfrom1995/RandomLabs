@@ -56,18 +56,15 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set +e
+          # Shared self-healing logic (issue #137): head-scoped polling per PR,
+          # then ALWAYS a terminal repo-wide sweep that also clears runs held on
+          # intermediate head SHAs, which head-scoped polling can never match
+          # again (review of PR #139, finding B). No notify ping here: the
+          # detector runs every 20 minutes and will retry on its own.
           for pr in $(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
             --jq '[.[] | select(.headRefName | startswith("opencode/issue") or startswith("opencode/lab"))] | .[].number' 2>/dev/null); do
-            for i in $(seq 1 20); do
-              head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-              [ -z "$head_sha" ] && break
-              held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-              [ -z "$held" ] && break
-              for run in $held; do
-                gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1 || true
-              done
-              sleep 5
-            done
+            APPROVE_PR="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+              bash .github/scripts/approve-held-runs.sh
           done
           exit 0
 
@@ -156,16 +153,12 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set +e
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again (review
+          # of PR #139, finding B). No notify ping: the detector loop retries.
           pr="${{ steps.target.outputs.pr }}"
           [ -z "$pr" ] && exit 0
-          for i in $(seq 1 20); do
-            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-            [ -z "$head_sha" ] && break
-            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-            [ -z "$held" ] && break
-            for run in $held; do
-              gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1 || true
-            done
-            sleep 5
-          done
+          APPROVE_PR="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+            bash .github/scripts/approve-held-runs.sh
           exit 0
