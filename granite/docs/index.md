@@ -97,7 +97,7 @@ a `storage.Database`. Query results print as column-aligned tables.
 
 ## Source
 
-The project lives in [`granite/`](https://github.com/Userfrom1995/Random/tree/main/granite)
-with a [`README`](https://github.com/Userfrom1995/Random/blob/main/granite/README.md)
+The project lives in [`granite/`](https://github.com/Userfrom1995/RandomLabs/tree/main/granite)
+with a [`README`](https://github.com/Userfrom1995/RandomLabs/blob/main/granite/README.md)
 and a full writeup in
-[`ideas/`](https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-13-granite-sql-database-engine.md).
+[`ideas/`](https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-13-granite-sql-database-engine.md).
