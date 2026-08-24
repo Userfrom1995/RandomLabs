@@ -484,7 +484,16 @@ jobs:
           elif [ -z "$BASELINE_BRANCH" ]; then
             # Fresh build from a plain issue with no open PR at either end:
             # success means this issue's own branch pattern gained a new tip.
-            branch=$(git branch --show-current 2>/dev/null || echo "")
+            # Branch IDENTITY is taken from the local checkout only when it
+            # matches this issue's own naming pattern; a foreign checkout
+            # (builder resume orientation fetches arbitrary branches) must
+            # read as no-push, so its pre-existing remote tip can never be
+            # mistaken for evidence of a push (issue #135).
+            checked_out=$(git branch --show-current 2>/dev/null || echo "")
+            branch=""
+            case "$checked_out" in
+              opencode/issue${issue}-*) branch="$checked_out" ;;
+            esac
             if [ -n "$branch" ] && [ "$branch" != "main" ]; then
               tip_now=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
               # A push is a tip that is NOT one of the pre-existing tips for
@@ -499,7 +508,7 @@ jobs:
               fi
             fi
             if [ "$pushed" = "no" ]; then
-              echo "No push detected for issue #$issue (current branch: ${branch:-<none>})"
+              echo "No push detected for issue #$issue (eligible branch: ${branch:-<none matches issue pattern>}, checked out: ${checked_out:-<none>})"
             fi
           else
             echo "Baseline branch $BASELINE_BRANCH lost its open PR mid-run; comparing raw tips."
@@ -518,7 +527,6 @@ jobs:
           fi
           echo "pushed=false" >> "$GITHUB_OUTPUT"
 
-          echo "No push detected on current branch"
           # Robust retry counter: never fall back to 0 on an API/rate-limit
           # failure, which would make the cap never trip and loop forever. Only
           # count retries the API actually returned; on failure, stop retrying.

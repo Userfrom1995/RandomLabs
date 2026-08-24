@@ -78,9 +78,12 @@ Lab Engineer / Infra Track:                                                   â–
     `/oc build this (auto-retry N)` as the owner) if nothing was pushed.
     Push verification is server-side (issue #135): the baseline and verify
     steps resolve the target branch via the GitHub API and compare that same
-    branch's remote tips; local checkout state is never trusted, so an agent
-    session that dies right after checking out the PR branch cannot masquerade
-    as a successful push.
+    branch's remote tips, so an agent session that dies right after checking
+    out the PR branch cannot masquerade as a successful push. Local checkout
+    state is only read as a last-resort fallback for a plain issue with no
+    open PR at either end, and even then only when the checked-out branch
+    matches this issue's own `opencode/issue<N>-*` naming pattern; any
+    foreign checkout reads as no-push.
   - `/oc continue` â†’ BUILD mode in resume state: fetch the existing
     branch/PR, continue from its `progress/` file - never restart, never redo
     done work; same push verification and retries.
