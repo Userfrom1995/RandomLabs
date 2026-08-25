@@ -133,15 +133,18 @@ recover_pr() {
   local pr="$1"
   local pr_json
   pr_json=$(gh pr view "$pr" --repo "$REPO" \
-    --json number,state,title,body,headRefName,headRefOid,merged 2>/dev/null)
+    --json number,state,title,body,headRefName,headRefOid,mergedAt 2>/dev/null)
   [ -z "$pr_json" ] && { log "PR #$pr not found"; return 2; }
 
-  local state title branch recorded_head merged
+  local state title branch recorded_head merged mergedAt
   state=$(echo "$pr_json" | jq -r '.state')
   title=$(echo "$pr_json" | jq -r '.title')
   branch=$(echo "$pr_json" | jq -r '.headRefName')
   recorded_head=$(echo "$pr_json" | jq -r '.headRefOid')
-  merged=$(echo "$pr_json" | jq -r '.merged')
+  mergedAt=$(echo "$pr_json" | jq -r '.mergedAt')
+  if [ "$mergedAt" != "null" ] && [ -n "$mergedAt" ]; then merged="true"; else merged="false"; fi
+  # state can be MERGED for merged PRs
+  if [ "$state" = "MERGED" ]; then merged="true"; fi
 
   log "PR #$pr state=$state merged=$merged branch=$branch recorded_head=$recorded_head"
 
