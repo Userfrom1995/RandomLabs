@@ -66,6 +66,8 @@ SELF_CHECK_S1=0
 MODE_S1=0
 SELF_CHECK_S3=0
 MODE_S3=0
+SELF_CHECK_S4=0
+MODE_S4=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -78,16 +80,18 @@ while [[ $# -gt 0 ]]; do
     --s1) MODE_S1=1; shift;;
     --self-check-s3) SELF_CHECK_S3=1; shift;;
     --s3) MODE_S3=1; shift;;
+    --self-check-s4) SELF_CHECK_S4=1; shift;;
+    --s4) MODE_S4=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# evaluate SANDBOX_CSV REF_CSV RANK_SKEW_CSV RANK_HOMO_CSV
+# evaluate SANDBOX_CSV REF_CSV RANK_SKEW_CSV RANK_HOMO_CSV [E1_CSV]
 # Exits nonzero when any VB rail-integrity check fails.
 evaluate() {
-  python3 - "$1" "$2" "$3" "$4" <<'PY'
+  python3 - "$1" "$2" "$3" "$4" "${5:-}" <<'PY'
 import sys
 
 FID_NUM, FID_DEN = 1005, 1000     # +0.50 percent coder-fidelity bound
@@ -101,7 +105,8 @@ def fail(msg):
 ok = True
 
 # ----- parse the sandbox run -----
-sand, bracket, corrupt, v1rows, s1rows, s3rows = [], [], [], [], [], []
+sand, bracket, corrupt, v1rows, s1rows, s3rows, s4rows = [], [], [], [], \
+    [], [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -134,6 +139,12 @@ for line in open(sys.argv[1]):
                        "payload": int(f[6]), "tables": int(f[7]),
                        "maps": int(f[8]), "trees": int(f[9]),
                        "net": int(f[10]), "audit": f[11], "rt": f[12]})
+    elif f[0] == "S4":
+        s4rows.append({"img": f[1], "cand": f[2], "trial": f[3],
+                       "be": f[4], "payload": int(f[5]),
+                       "tables": int(f[6]), "maps": int(f[7]),
+                       "trees": int(f[8]), "net": int(f[9]),
+                       "audit": f[10], "rt": f[11]})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -616,6 +627,175 @@ if s3rows:
                   "bucket B2 closed-with-numbers (property evidence "
                   "recorded)")
 
+# ----- S4 rows: rail integrity (flips exit code) + gate (never does) -----
+if s4rows:
+    # Fidelity per (img, trial): SPINE B-RANS within +0.50 percent of its
+    # own B-IDEAL row (pin P-S4-5).
+    cfgs = {}
+    for r in s4rows:
+        if r["cand"] != "SPINE":
+            continue
+        cfgs.setdefault((r["img"], r["trial"]), {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        if ideal is None:
+            fail(f"S4 fidelity {k}: no B-IDEAL row to bound against")
+            continue
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        rr = bes.get("B-RANS")
+        if rr is None:
+            continue
+        n_fid += 1
+        if rr["payload"] > limit:
+            pct = 100.0 * (rr["payload"] - ideal["payload"]) / \
+                max(1, ideal["payload"])
+            fail(f"S4 fidelity {k}: B-RANS payload {rr['payload']} exceeds "
+                 f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity OK ({n_fid} S4 spine rows within +0.50 "
+              f"pct of their own B-IDEAL rows)")
+
+    # Net-audit: serializer agreement, NET identity, candidate schemas
+    # (ADAPT rows carry zero side info; SPINE rows transmit tables + merge
+    # map only - no trees anywhere in this slice), every coded row decodes.
+    bad_audit = bad_net = bad_rt = bad_schema = 0
+    for r in s4rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != r["payload"] + r["tables"] + r["maps"] + r["trees"]:
+            bad_net += 1
+        if r["be"] == "B-ADAPT" and (r["tables"] or r["maps"] or
+                                     r["trees"]):
+            bad_schema += 1     # ADAPT replay carries zero side info
+        if r["cand"] == "SPINE" and r["trees"] != 0:
+            bad_schema += 1     # KFLAT16 spine transmits no tree artifacts
+        if r["be"] == "B-RANS" and r["rt"] != "1":
+            bad_rt += 1
+    if bad_audit or bad_net or bad_rt or bad_schema:
+        fail(f"net-audit(S4): {bad_audit} audit disagreements, "
+             f"{bad_net} NET identity violations, {bad_rt} round-trip "
+             f"failures, {bad_schema} schema violations")
+    else:
+        print(f"VB-net-audit OK ({len(s4rows)} S4 rows: audits agree, NET "
+              f"identity holds, candidate schemas clean, all coded rows "
+              f"decode)")
+
+    # ----- gate (addendum 19.5 S4; pins P-S4-3/P-S4-4/P-S4-7/P-S4-8) -----
+    ctrl = {}
+    adapt_trial = {}
+    spine = {}
+    for r in s4rows:
+        if r["cand"] == "ADAPT" and r["be"] == "B-ADAPT":
+            if r["img"] not in ctrl or r["net"] < ctrl[r["img"]]:
+                ctrl[r["img"]] = r["net"]
+                adapt_trial[r["img"]] = r["trial"]
+        elif r["cand"] == "SPINE" and r["be"] == "B-RANS":
+            k = (r["img"], r["trial"])
+            if k not in spine or r["net"] < spine[k]:
+                spine[k] = r["net"]
+
+    def median(xs):
+        s = sorted(xs)
+        n = len(s)
+        return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2.0
+
+    # Corpus classes pinned by docs/benchmark-methodology.md section 1.
+    PORT = {"kodim04.ppm", "kodim09.ppm", "kodim10.ppm", "kodim17.ppm",
+            "kodim18.ppm", "kodim19.ppm"}
+    composed = {}
+    rel_by_class = {"L": [], "P": []}
+    print("== S4 COMPOSITION READOUT (winner by real NET bytes per image; "
+          "addendum 19.5 S4; pins P-S4-3/P-S4-4) ==")
+    for img in sorted(ctrl):
+        c = ctrl[img]
+        best = None     # (net, trial); strict improvement only, so a tie
+        for (img2, trial), net in spine.items():
+            if img2 != img:
+                continue
+            if best is None or net < best[0]:
+                best = (net, trial)
+        if best is None or c <= best[0]:
+            win_net, win_cand, win_trial = c, "ADAPT", adapt_trial[img]
+        else:
+            win_net, win_cand, win_trial = best[0], "SPINE", best[1]
+        rel = 100.0 * (c - win_net) / c
+        cls = "P" if img in PORT else "L"
+        rel_by_class[cls].append(rel)
+        composed[img] = (rel, win_cand, win_trial, c, win_net)
+        print(f"COMPOSED {img} winner={win_cand}/{win_trial} ctrl={c} "
+              f"net={win_net} relpct={rel:+.4f}")
+
+    if not composed:
+        print("S4 GATE INCOMPLETE (no composition rows)")
+    elif not rel_by_class["L"]:
+        fail("S4 projection needs at least one measured landscape image "
+             "(class medians per pin P-S4-7)")
+    else:
+        med_L = median(rel_by_class["L"])
+        med_P = median(rel_by_class["P"]) if rel_by_class["P"] else None
+        inherited = med_P is None
+        if inherited:
+            med_P = median([v for vals in rel_by_class.values()
+                            for v in vals])
+        inh_txt = (f"; portrait UNMEASURED on this quad -> inherits the "
+                   f"overall quad median {med_P:+.4f} pct [INHERITED, pin "
+                   f"P-S4-7]") if inherited else ""
+        print(f"S4 class medians (I10): landscape {med_L:+.4f} pct over "
+              f"{len(rel_by_class['L'])} quad images{inh_txt}")
+
+        e1_path = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else ""
+        e1 = {}
+        try:
+            for line in open(e1_path):
+                f = line.rstrip("\n").split(",")
+                if len(f) >= 3 and f[0] != "image" and f[0]:
+                    e1[f[0]] = float(f[2])
+        except OSError:
+            e1 = {}
+        if not e1:
+            fail("S4 projection: committed e1 CSV missing or unreadable "
+                 f"(got '{e1_path}') - pin P-S4-8 requires it verbatim")
+        else:
+            proj_ps, land_ps = [], []
+            for img in sorted(e1):
+                cls = "P" if img in PORT else "L"
+                rel = med_P if cls == "P" else med_L
+                ps = e1[img] * (1.0 - rel / 100.0)
+                proj_ps.append(ps)
+                if cls == "L":
+                    land_ps.append(ps)
+            mean_ps = sum(proj_ps) / len(proj_ps)
+            mean_sum = mean_ps * 3     # RGB corpus convention (bench_gate)
+            land_sum = 3.0 * sum(land_ps) / len(land_ps)
+            s4_pass = mean_sum < 9.35 and mean_ps < 3.117
+            m2 = mean_sum < 9.498 and mean_ps < 3.166
+            m3 = mean_sum < 8.655 and mean_ps < 2.885
+            s5_open = (not s4_pass) and mean_sum < 8.8316 and \
+                mean_ps < 2.9438
+            print(f"S4 PROJECTION (18.5 verbatim vs committed e1): summed "
+                  f"{mean_sum:.4f} vs threshold < 9.3500 | per-sample "
+                  f"{mean_ps:.4f} vs threshold < 3.1170")
+            print(f"S4 landscape-only projection beside (P-S4-7 "
+                  f"sensitivity): summed {land_sum:.4f}")
+            print(f"M2 context (<9.498/<3.166): projected "
+                  f"{'PASS-shaped' if m2 else 'FAIL'} - REPORTED ONLY; the "
+                  f"gates are judged solely by bench_gate.sh dual-unit vs "
+                  f"real cjxl (owner standing order)")
+            print(f"M3 context (<8.655/<2.885): projected "
+                  f"{'PASS-shaped' if m3 else 'FAIL'} - REPORTED ONLY")
+            if s4_pass:
+                print("S4 VERDICT: PASS - proceed-to-format handoff (a NEW "
+                      "Architect session blueprints the container program "
+                      "behind a version bump)")
+            elif s5_open:
+                print("S4 VERDICT: inside-M3-reach-but-short - S5 reserve "
+                      "opens ONCE (pin P-S4-9), then compose again")
+            else:
+                print("S4 VERDICT: FAIL - stop-and-report with the full "
+                      "ledger; zero container bytes spent across the whole "
+                      "program")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -1046,6 +1226,116 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_S4" == "1" ]]; then
+  # S4-mode failability (blueprint section 3): the evaluator must accept a
+  # consistent frame and reject each named mutation; the S4 verdict must be
+  # reachable in BOTH directions from fabricated-but-consistent numbers
+  # projected against the REAL committed e1 CSV.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+  E1="${ROOT}/benchmarks/results/2026-08-25-prism-e1.csv"
+  [[ -f "$E1" ]] || { echo "SELF-CHECK-S4 FAIL: committed e1 CSV missing"; exit 1; }
+
+  REF="$TMP/ref.csv"; SBX="$TMP/sbx.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+  mk_good_s4() {
+    cat > "$SBX" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.0000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+S4,kodim01.ppm,ADAPT,ycocgr,B-ADAPT,546852,0,0,0,546852,1,1,0.000
+S4,kodim01.ppm,SPINE,ycocgr,B-IDEAL,511463,3007,26,0,514496,1,1,4091700.921
+S4,kodim01.ppm,SPINE,ycocgr,B-RANS,511589,3007,26,0,514622,1,1,4091700.921
+S4,kodim01.ppm,ADAPT,rct-grb,B-ADAPT,546852,0,0,0,546852,1,1,0.000
+S4,kodim01.ppm,SPINE,rct-grb,B-IDEAL,512100,3010,26,0,515136,1,1,4093600.000
+S4,kodim01.ppm,SPINE,rct-grb,B-RANS,512230,3010,26,0,515266,1,1,4093600.000
+EOF
+  }
+
+  # 1. The consistent frame passes and renders the honest stop-and-report
+  #    verdict (real V1-magnitude spine margin ~ +5.89 pct projects ~9.52
+  #    summed > 9.35).
+  mk_good_s4
+  if ! evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "VB-anchor-adapt OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no anchor verdict"; ok=0; }
+  grep -q "S4 COMPOSITION READOUT" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no composition readout"; ok=0; }
+  grep -q "INHERITED" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S4 FAIL: portrait inheritance marker missing"; ok=0; }
+  grep -q "S4 VERDICT: FAIL - stop-and-report" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S4 FAIL: honest modest numbers must render stop-and-report"; ok=0; }
+  # 2. PASS direction reachable: fabricate a strong spine winner (+11.63
+  #    pct) keeping coder fidelity inside its bound.
+  mk_good_s4
+  sed -i 's/S4,kodim01.ppm,SPINE,ycocgr,B-IDEAL,511463,3007,26,0,514496,/S4,kodim01.ppm,SPINE,ycocgr,B-IDEAL,480000,3007,26,0,483033,/' "$SBX"
+  sed -i 's/S4,kodim01.ppm,SPINE,ycocgr,B-RANS,511589,3007,26,0,514622,/S4,kodim01.ppm,SPINE,ycocgr,B-RANS,480200,3007,26,0,483233,/' "$SBX"
+  if ! evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/pass.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: evaluator rejected the fabricated winner frame"; ok=0
+  fi
+  grep -q "S4 VERDICT: PASS - proceed-to-format handoff" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-S4 FAIL: strong winner must render proceed-to-format PASS"; ok=0; }
+  # 3. Fidelity violation on an S4 spine row must fail (+1.6 pct coder).
+  mk_good_s4
+  sed -i 's/,SPINE,ycocgr,B-RANS,511589,3007,/,SPINE,ycocgr,B-RANS,520000,3007,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: fidelity accepted a +1.6 pct coder"; ok=0
+  fi
+  grep -q "VB FAIL (S4 fidelity" "$TMP/a.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no S4 fidelity FAIL verdict"; ok=0; }
+  # 4. NET identity break must fail.
+  mk_good_s4
+  sed -i 's/,SPINE,ycocgr,B-RANS,511589,3007,26,0,514622,/,SPINE,ycocgr,B-RANS,511589,3007,26,0,999999,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: net-audit accepted a broken identity"; ok=0
+  fi
+  grep -q "net-audit(S4)" "$TMP/b.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no S4 net-audit FAIL verdict"; ok=0; }
+  # 5. Silent round-trip failure must fail.
+  mk_good_s4
+  sed -i 's/S4,kodim01.ppm,SPINE,ycocgr,B-RANS,511589,3007,26,0,514622,1,1,/S4,kodim01.ppm,SPINE,ycocgr,B-RANS,511589,3007,26,0,514622,1,0,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/c.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: net-audit accepted a failed decode"; ok=0
+  fi
+  grep -q "net-audit(S4)" "$TMP/c.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no S4 round-trip FAIL verdict"; ok=0; }
+  # 6. Side info leaking into an ADAPT row must fail the schema.
+  mk_good_s4
+  sed -i 's/S4,kodim01.ppm,ADAPT,ycocgr,B-ADAPT,546852,0,0,0,546852,/S4,kodim01.ppm,ADAPT,ycocgr,B-ADAPT,546852,99,0,0,546951,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: schema accepted side info on ADAPT"; ok=0
+  fi
+  grep -q "net-audit(S4)" "$TMP/d.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no S4 schema FAIL verdict"; ok=0; }
+  # 7. A nonzero tree column on a SPINE row must fail the schema.
+  mk_good_s4
+  sed -i 's/S4,kodim01.ppm,SPINE,ycocgr,B-RANS,511589,3007,26,0,514622,1,1,/S4,kodim01.ppm,SPINE,ycocgr,B-RANS,511589,3007,26,99,514721,1,1,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" "$E1" > "$TMP/e.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: schema accepted tree bytes on SPINE"; ok=0
+  fi
+  grep -q "net-audit(S4)" "$TMP/e.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no S4 tree-schema FAIL verdict"; ok=0; }
+  # 8. A missing e1 reference must fail loudly (projection needs it).
+  mk_good_s4
+  if evaluate "$SBX" "$REF" "" "" "$TMP/nonexistent-e1.csv" > "$TMP/f.out" 2>&1; then
+    echo "SELF-CHECK-S4 FAIL: projection accepted a missing e1 CSV"; ok=0
+  fi
+  grep -q "committed e1 CSV missing" "$TMP/f.out" || \
+    { echo "SELF-CHECK-S4 FAIL: no missing-e1 FAIL verdict"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-S4 PASS: consistent frame green, S4 verdict reachable both ways vs the real committed e1 CSV, fidelity/NET/round-trip/schema/missing-reference mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
@@ -1232,6 +1522,67 @@ if [[ "$MODE_S3" == "1" ]]; then
     exit 1
   fi
   echo "SANDBOX GATE PASS (all VB rails green; S3 verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+if [[ "$MODE_S4" == "1" ]]; then
+  # S-series slice P3 (spec addendum 19.5 S4; pins P-S4-11/P-S4-12):
+  # composition + projection on sha-pinned images; dated one-file CSV;
+  # determinism re-run; rank fixtures stay LIVE; anchors re-emitted inside
+  # every CSV; projection reads the committed e1 CSV verbatim.
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-s4.csv"
+  E1_CSV="${ROOT}/benchmarks/results/2026-08-25-prism-e1.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --s4 "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --s4 "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: quad re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|S4),' "$RAW1" > "$OUT_CSV"
+
+  # Wall-clock accounting per pin P-S4-12 (A3 precedent): structural
+  # multipliers logged beside every phase; NO measurement depends on it.
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-s4 quad ${SB}s (incl. determinism re-run), bench-ideal quad ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-s4/re-run = {$SB/$ID:.2f}x bench-ideal (P-S4-12: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox S4 results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  if [[ ! -f "$E1_CSV" ]]; then
+    echo "PROJECTION FAIL: committed e1 CSV ${E1_CSV} missing"; exit 1
+  fi
+  # Gate verdicts NEVER flip the exit code; VB rail-integrity failures DO.
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO" "$E1_CSV"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; S4 verdict above is a measured outcome, not a rail failure)"
   exit 0
 fi
 
