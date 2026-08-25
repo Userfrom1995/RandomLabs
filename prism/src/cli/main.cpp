@@ -324,12 +324,9 @@ inline int e0_quot(int32_t r) {
 }
 
 inline int e0_bucket(int64_t g, int bd_shift) {
-    static const int64_t kT[7] = {0, 1, 2, 4, 8, 16, 32};
-    int64_t a = g < 0 ? -g : g;
-    int b = 0;
-    for (int i = 0; i < 7; ++i)
-        if ((kT[i] << bd_shift) < a) ++b;
-    return b;
+    // Single source with the E1 BiasModel (F4 lesson): the pinned threshold
+    // rule lives once, in predict.cpp.
+    return prism::codec::bias_bucket(g, bd_shift);
 }
 
 struct PropCell {
