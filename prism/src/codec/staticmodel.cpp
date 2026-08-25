@@ -13,9 +13,13 @@
 #include "prism/codec/acoder.h"
 #include "prism/crc32.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 #include <cstring>
+#include <limits>
+#include <unordered_map>
 
 namespace prism::codec::sandbox {
 
@@ -26,6 +30,13 @@ int keying_cluster_count(KeyingId k) {
         case KeyingId::KSHARED: return 1;
         case KeyingId::KFLAT16: return 16;
         case KeyingId::KFLAT343: return 343;
+        case KeyingId::KGRID128:
+        case KeyingId::KTREE:
+            // Image-derived counts: construct through the explicit-cluster
+            // SandboxModel::init overload and a grid/tree ClusterMap.
+            throw std::runtime_error(
+                "keying_cluster_count: " + std::string(keying_name(k)) +
+                " count derives from the image (use explicit-count init)");
     }
     throw std::runtime_error("keying_cluster_count: unknown keying");
 }
@@ -37,6 +48,12 @@ uint32_t keying_cluster(KeyingId k, int cx) {
             return ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
         case KeyingId::KFLAT343:
             return (uint32_t)(cx % AC_V2_RESDIFF_CONTEXTS);
+        case KeyingId::KGRID128:
+        case KeyingId::KTREE:
+            // Position/context-dependent ids resolve through ClusterMap.
+            throw std::runtime_error(
+                "keying_cluster: " + std::string(keying_name(k)) +
+                " needs a ClusterMap");
     }
     throw std::runtime_error("keying_cluster: unknown keying");
 }
@@ -45,6 +62,8 @@ bool parse_keying(const std::string& s, KeyingId& out) {
     if (s == "KSHARED") { out = KeyingId::KSHARED; return true; }
     if (s == "KFLAT16") { out = KeyingId::KFLAT16; return true; }
     if (s == "KFLAT343") { out = KeyingId::KFLAT343; return true; }
+    if (s == "KGRID128") { out = KeyingId::KGRID128; return true; }
+    if (s == "KTREE") { out = KeyingId::KTREE; return true; }
     return false;
 }
 
@@ -53,6 +72,8 @@ const char* keying_name(KeyingId k) {
         case KeyingId::KSHARED: return "KSHARED";
         case KeyingId::KFLAT16: return "KFLAT16";
         case KeyingId::KFLAT343: return "KFLAT343";
+        case KeyingId::KGRID128: return "KGRID128";
+        case KeyingId::KTREE: return "KTREE";
     }
     return "?";
 }
@@ -127,24 +148,102 @@ void SandboxModel::init(TokProfile p, KeyingId kk) {
     raw_bits = 0;
 }
 
+void SandboxModel::init(TokProfile p, int nclusters) {
+    if (nclusters <= 0 || nclusters > 4096)
+        throw std::runtime_error("SandboxModel::init: bad cluster count");
+    profile = p;
+    keying = KeyingId::KSHARED;      // nominal only; ids come from the map
+    clusters = nclusters;
+    size_t per = init_stride(p);
+    n0.assign((size_t)clusters * per, 0);
+    n1.assign((size_t)clusters * per, 0);
+    tok.assign((size_t)clusters * ((size_t)hyb_t_esc(p) + 1), 0);
+    samples_per_cluster.assign((size_t)clusters, 0);
+    raw_bits = 0;
+}
+
+// ----- Cluster resolution -----
+
+uint32_t ClusterMap::raw_at(size_t idx,
+                            const std::vector<int32_t>& hist) const {
+    uint32_t x = (w == 0) ? 0 : (uint32_t)(idx % w);
+    uint32_t y = (w == 0) ? 0 : (uint32_t)(idx / w);
+    int32_t dL = 0, dU = 0, dUL = 0;
+    if (x > 0) dL = hist[idx - 1];
+    if (y > 0) dU = hist[idx - w];
+    if (x > 0 && y > 0) dUL = hist[idx - w - 1];
+    int cx = residual_diff_context(dL, dU, dUL);
+    switch (keying) {
+        case KeyingId::KSHARED:
+        case KeyingId::KFLAT16:
+        case KeyingId::KFLAT343:
+            return keying_cluster(keying, cx);
+        case KeyingId::KGRID128: {
+            uint32_t tiles_x = (w + GRID_TILE - 1) / GRID_TILE;
+            return (y / GRID_TILE) * tiles_x + (x / GRID_TILE);
+        }
+        case KeyingId::KTREE:
+            if (!ctx_leaf || ctx_leaf->size() < (size_t)cx + 1)
+                throw std::runtime_error("ClusterMap: missing tree map");
+            return (*ctx_leaf)[(size_t)cx];
+    }
+    throw std::runtime_error("ClusterMap: unknown keying");
+}
+
+uint32_t ClusterMap::at(size_t idx, const std::vector<int32_t>& hist) const {
+    if (kind == Kind::EXPLICIT) {
+        if (!explicit_map)
+            throw std::runtime_error("ClusterMap: missing explicit map");
+        return explicit_map[idx];
+    }
+    uint32_t raw = raw_at(idx, hist);
+    if (merge && !merge->empty()) {
+        if (merge->size() <= raw)
+            throw std::runtime_error("ClusterMap: merge map too short");
+        return (*merge)[raw];
+    }
+    return raw;
+}
+
+ClusterMap cluster_map_keyed(KeyingId k) {
+    ClusterMap cm;
+    cm.kind = ClusterMap::Kind::KEYED;
+    cm.keying = k;
+    return cm;
+}
+
+ClusterMap cluster_map_grid(uint32_t w) {
+    ClusterMap cm = cluster_map_keyed(KeyingId::KGRID128);
+    cm.w = w;
+    return cm;
+}
+
+ClusterMap cluster_map_tree(const std::vector<uint32_t>& ctx_leaf,
+                            const std::vector<uint32_t>& merge) {
+    ClusterMap cm = cluster_map_keyed(KeyingId::KTREE);
+    cm.ctx_leaf = &ctx_leaf;
+    cm.merge = &merge;
+    return cm;
+}
+
+ClusterMap cluster_map_explicit(const uint32_t* per_sample) {
+    ClusterMap cm;
+    cm.kind = ClusterMap::Kind::EXPLICIT;
+    cm.explicit_map = per_sample;
+    return cm;
+}
+
 size_t SandboxModel::span(int kind) const { return table_span(profile, kind); }
 
 size_t SandboxModel::stride() const { return init_stride(profile); }
 
-void count_plane(SandboxModel& m, TokProfile p, KeyingId k,
-                 const std::vector<int32_t>& res, uint32_t w,
+void count_plane(SandboxModel& m, TokProfile p, const ClusterMap& cm,
+                 const std::vector<int32_t>& res,
                  std::vector<TaggedEvent>* events_out) {
     const size_t stride = SandboxModel::init_stride(p);
     std::vector<TokEvent> evs;
     for (size_t i = 0; i < res.size(); ++i) {
-        uint32_t x = (w == 0) ? 0 : (uint32_t)(i % w);
-        uint32_t y = (w == 0) ? 0 : (uint32_t)(i / w);
-        int32_t dL = 0, dU = 0, dUL = 0;
-        if (x > 0) dL = res[i - 1];
-        if (y > 0) dU = res[i - w];
-        if (x > 0 && y > 0) dUL = res[i - w - 1];
-        int cx = residual_diff_context(dL, dU, dUL);
-        uint32_t cl = keying_cluster(k, cx);
+        uint32_t cl = cm.at(i, res);
         evs.clear();
         tokenize_sample(p, res[i], evs);
         m.samples_per_cluster[cl]++;
@@ -171,6 +270,15 @@ void count_plane(SandboxModel& m, TokProfile p, KeyingId k,
     }
 }
 
+void count_plane(SandboxModel& m, TokProfile p, KeyingId k,
+                 const std::vector<int32_t>& res, uint32_t w,
+                 std::vector<TaggedEvent>* events_out) {
+    ClusterMap cm = (k == KeyingId::KGRID128) ? cluster_map_grid(w)
+                                              : cluster_map_keyed(k);
+    cm.w = w;    // context computation needs the position even for flats
+    count_plane(m, p, cm, res, events_out);
+}
+
 // ----- Cluster budget (pins D4/D9) -----
 
 namespace {
@@ -193,12 +301,19 @@ void merge_cluster(SandboxModel& m, uint32_t dst, uint32_t src) {
 
 } // namespace
 
-void enforce_cluster_budget(SandboxModel& m, bool enforce) {
-    if (!enforce || m.clusters <= 1) return;
+std::vector<uint32_t> apply_cluster_budget(SandboxModel& m, bool enforce) {
+    std::vector<uint32_t> final_of_raw((size_t)m.clusters);
+    for (int c = 0; c < m.clusters; ++c) final_of_raw[(size_t)c] = (uint32_t)c;
+    if (!enforce || m.clusters <= 1) return final_of_raw;
     // Floor (addendum 18.2): lowest-id NONEMPTY cluster under the floor
     // merges into its NEAREST NONEMPTY sibling (ties: lower id), looping
     // until legal. Every merge strictly shrinks the active set, so the
     // loop terminates; empty slots are not clusters.
+    auto absorb = [&](uint32_t dst, uint32_t victim) {
+        merge_cluster(m, dst, victim);
+        for (auto& f : final_of_raw)
+            if (f == victim) f = dst;
+    };
     for (;;) {
         int victim = -1;
         for (int c = 1; c < m.clusters; ++c)
@@ -219,7 +334,7 @@ void enforce_cluster_budget(SandboxModel& m, bool enforce) {
                 dst = victim + d;
         }
         if (dst < 0) break;                     // single active cluster left
-        merge_cluster(m, (uint32_t)dst, (uint32_t)victim);
+        absorb((uint32_t)dst, (uint32_t)victim);
     }
     // Cap (pin D9): adjacent active pair with the smallest combined sample
     // count merges repeatedly, keeping the lower id, until at most K_MAX.
@@ -240,8 +355,13 @@ void enforce_cluster_budget(SandboxModel& m, bool enforce) {
             if (s < best_sum) { best_sum = s; best = c; }
         }
         if (best < 0) break;
-        merge_cluster(m, (uint32_t)best, (uint32_t)(best + 1));
+        absorb((uint32_t)best, (uint32_t)(best + 1));
     }
+    return final_of_raw;
+}
+
+void enforce_cluster_budget(SandboxModel& m, bool enforce) {
+    apply_cluster_budget(m, enforce);
 }
 
 // ----- Smoothing + normalization -----
@@ -392,7 +512,11 @@ void smooth_token_group(const SandboxModel& m, uint32_t cl,
 void build_tables(const SandboxModel& mm, bool apply_caps_floors,
                   SmoothedTables& out) {
     SandboxModel m = mm;                       // working copy for merging
-    enforce_cluster_budget(m, apply_caps_floors);
+    apply_cluster_budget(m, apply_caps_floors);
+    build_tables_enforced(m, out);
+}
+
+void build_tables_enforced(const SandboxModel& m, SmoothedTables& out) {
     out.profile = m.profile;
     out.clusters = m.clusters;
     const size_t stride = SandboxModel::init_stride(m.profile);
@@ -697,6 +821,463 @@ inline uint16_t p12_to_p16(uint16_t p12) {
 
 } // namespace
 
+// ----- Pinned fixed-point cost LUT + context tree (pins V-P2/V-P4) -----
+//
+// cost12[p] = round(-4096 * log2(p / 4096)): the price of one observation
+// of a 12-bit-probability outcome, in 1/4096-bit units. Built once from
+// libm; every downstream comparison sums these integers, so tree-builder
+// gains and oracle assignments stay deterministic byte-for-byte.
+
+namespace {
+
+struct Cost12Lut {
+    int32_t v[4096];
+    Cost12Lut() {
+        v[0] = 0;                            // never priced (operator[] clamps)
+        for (int f = 1; f < 4096; ++f)
+            v[f] = (int32_t)llround(-4096.0 * std::log2((double)f / 4096.0));
+    }
+    int32_t operator[](uint16_t p) const {
+        if (p < 1) return v[1];
+        if (p > 4095) return v[4095];
+        return v[p];
+    }
+};
+const Cost12Lut kCost12;
+
+constexpr int CTX_COUNT = AC_V2_RESDIFF_CONTEXTS;   // 343
+
+inline int ctx_component(int cx, int prop) {
+    switch (prop) {
+        case 0: return cx / 49;              // qL
+        case 1: return (cx / 7) % 7;         // qU
+        default: return cx % 7;              // qUL
+    }
+}
+
+// Ideal cost (cost12 units) of coding a context set's pooled counts under
+// the pinned smoothing arithmetic - the tree-builder gain currency.
+double pooled_set_cost12(TokProfile p, const SandboxModel& flat,
+                         const std::vector<uint32_t>& members) {
+    const size_t stride = SandboxModel::init_stride(p);
+    const size_t nsyms = (size_t)hyb_t_esc(p) + 1;
+    std::vector<uint64_t> c0(stride, 0), c1(stride, 0), tk(nsyms, 0);
+    for (uint32_t cx : members) {
+        const size_t base = (size_t)cx * stride;
+        for (size_t i = 0; i < stride; ++i) {
+            c0[i] += flat.n0[base + i];
+            c1[i] += flat.n1[base + i];
+        }
+        const size_t tb = (size_t)cx * nsyms;
+        for (size_t s = 0; s < nsyms; ++s) tk[s] += flat.tok[tb + s];
+    }
+    double bits = 0;
+    for (int k = 0; k < NK; ++k) {
+        size_t span = table_span(p, k);
+        if (span == 0 || (EvKind)k == EvKind::TOKEN) continue;
+        std::vector<uint64_t> ps =
+            ((EvKind)k == EvKind::QPOS || (EvKind)k == EvKind::ESCQ)
+                ? smoothing_pseudo_geometric(span)
+                : smoothing_pseudo_uniform(span);
+        size_t off = 0;
+        for (int kk = 0; kk < k; ++kk) off += table_span(p, kk);
+        for (size_t key = 0; key < span; ++key) {
+            uint16_t p0 = norm_bin_p0(c0[off + key], c1[off + key], ps[key]);
+            bits += (double)c0[off + key] * (double)kCost12[p0];
+            bits += (double)c1[off + key] *
+                    (double)kCost12[(uint16_t)(4096u - (uint32_t)p0)];
+        }
+    }
+    if (table_span(p, (int)EvKind::TOKEN) > 0 && !tk.empty()) {
+        // TOKEN alphabet priced through the SAME heap decision tree the
+        // coders walk: each node codes one bin whose two outcomes carry
+        // their clamped masses.
+        struct Frame { uint32_t lo, hi; };
+        std::vector<Frame> stack{{0, (uint32_t)tk.size()}};
+        while (!stack.empty()) {
+            Frame f = stack.back();
+            stack.pop_back();
+            if (f.hi - f.lo <= 1) continue;
+            uint32_t mid = f.lo + (f.hi - f.lo) / 2;
+            uint64_t lm = 0, rm = 0;
+            for (uint32_t s = f.lo; s < mid; ++s) lm += tk[s];
+            for (uint32_t s = mid; s < f.hi; ++s) rm += tk[s];
+            uint64_t tot = lm + rm;
+            if (tot == 0) continue;
+            uint16_t lmass = (uint16_t)((__uint128_t)lm * 4096u / tot);
+            uint16_t rmass = (uint16_t)(4096u - (uint32_t)lmass);
+            bits += (double)lm * (double)kCost12[lmass];
+            bits += (double)rm * (double)kCost12[rmass];
+            stack.push_back({f.lo, mid});
+            stack.push_back({mid, f.hi});
+        }
+    }
+    return bits;
+}
+
+// Deterministic preorder partition replay shared by serialization and its
+// inverse: walks the context space applying stored splits.
+template <typename FnInternal, typename FnLeaf>
+void tree_walk(const ContextTree& t, FnInternal&& internal, FnLeaf&& leaf) {
+    std::vector<uint32_t> root((size_t)CTX_COUNT);
+    for (int c = 0; c < CTX_COUNT; ++c) root[(size_t)c] = (uint32_t)c;
+    size_t ni = 0;
+    std::function<void(std::vector<uint32_t>&)> rec =
+        [&](std::vector<uint32_t>& mem) {
+            if (ni < t.nodes.size()) {
+                const ContextTree::Node nd = t.nodes[ni++];
+                internal(nd);
+                std::vector<uint32_t> left, right;
+                for (uint32_t cx : mem) {
+                    if ((uint32_t)ctx_component((int)cx, nd.prop) <= nd.thr)
+                        left.push_back(cx);
+                    else
+                        right.push_back(cx);
+                }
+                rec(left);
+                rec(right);
+            } else {
+                leaf(mem);
+            }
+        };
+    rec(root);
+}
+
+} // namespace
+
+ContextTree build_context_tree(TokProfile p, const SandboxModel& flat) {
+    if (flat.clusters < CTX_COUNT)
+        throw std::runtime_error(
+            "build_context_tree: induction model must be KFLAT343-counted");
+    ContextTree out;
+    out.leaf_of_context.assign((size_t)CTX_COUNT, 0);
+    uint32_t next_leaf = 0;
+    std::vector<ContextTree::Node> nodes;
+
+    std::function<void(std::vector<uint32_t>&&, int)> rec =
+        [&](std::vector<uint32_t>&& mem, int depth) {
+            int best_prop = -1;
+            uint32_t best_thr = 0;
+            double best_gain = 0.0;          // strict improvement only
+            if (depth < 10 && next_leaf + 1 <= (uint32_t)K_MAX) {
+                const double parent = pooled_set_cost12(p, flat, mem);
+                uint64_t total_samples = 0;
+                for (uint32_t cx : mem)
+                    total_samples += flat.samples_per_cluster[cx];
+                for (int prop = 0; prop < 3; ++prop) {
+                    // Weighted octile thresholds (pin V-P2): smallest value
+                    // v whose cumulative sample weight reaches k/8 of the
+                    // node total, deduplicated ascending.
+                    std::vector<std::pair<int, uint64_t>> vals;
+                    vals.reserve(mem.size());
+                    for (uint32_t cx : mem)
+                        vals.push_back({ctx_component((int)cx, prop),
+                                        flat.samples_per_cluster[cx]});
+                    std::sort(vals.begin(), vals.end(),
+                              [](const auto& a, const auto& b) {
+                                  return a.first < b.first;
+                              });
+                    uint32_t thr_seen[7];
+                    int nthr = 0;
+                    uint64_t cum = 0;
+                    size_t idx = 0;
+                    for (int kk = 1; kk <= 7; ++kk) {
+                        long double target =
+                            (long double)total_samples * kk / 8.0L;
+                        while (idx < vals.size() &&
+                               (long double)cum < target)
+                            cum += vals[idx++].second;
+                        if (idx == 0 || idx > vals.size()) continue;
+                        int v = vals[idx - 1].first;
+                        if (nthr == 0 ||
+                            thr_seen[nthr - 1] != (uint32_t)v)
+                            thr_seen[nthr++] = (uint32_t)v;
+                    }
+                    for (int ti = 0; ti < nthr; ++ti) {
+                        const uint32_t thr = thr_seen[ti];
+                        std::vector<uint32_t> left, right;
+                        uint64_t lsamp = 0, rsamp = 0;
+                        for (uint32_t cx : mem) {
+                            if ((uint32_t)ctx_component((int)cx, prop) <=
+                                thr) {
+                                left.push_back(cx);
+                                lsamp += flat.samples_per_cluster[cx];
+                            } else {
+                                right.push_back(cx);
+                                rsamp += flat.samples_per_cluster[cx];
+                            }
+                        }
+                        if (left.empty() || right.empty()) continue;
+                        if (lsamp < (uint64_t)MIN_SAMPLES_PER_CLUSTER ||
+                            rsamp < (uint64_t)MIN_SAMPLES_PER_CLUSTER)
+                            continue;        // floor binds both sides
+                        const double gain =
+                            parent - pooled_set_cost12(p, flat, left) -
+                            pooled_set_cost12(p, flat, right);
+                        if (gain > best_gain) {  // first among equals wins
+                            best_gain = gain;
+                            best_prop = prop;
+                            best_thr = thr;
+                        }
+                    }
+                }
+            }
+            if (best_prop < 0) {
+                for (uint32_t cx : mem) out.leaf_of_context[cx] = next_leaf;
+                ++next_leaf;
+                return;
+            }
+            std::vector<uint32_t> left, right;
+            for (uint32_t cx : mem) {
+                if ((uint32_t)ctx_component((int)cx, best_prop) <= best_thr)
+                    left.push_back(cx);
+                else
+                    right.push_back(cx);
+            }
+            nodes.push_back({(uint8_t)best_prop, (uint8_t)best_thr});
+            rec(std::move(left), depth + 1);
+            rec(std::move(right), depth + 1);
+        };
+
+    std::vector<uint32_t> root((size_t)CTX_COUNT);
+    for (int c = 0; c < CTX_COUNT; ++c) root[(size_t)c] = (uint32_t)c;
+    rec(std::move(root), 0);
+    out.nodes = std::move(nodes);
+    out.leaves = next_leaf;
+    return out;
+}
+
+// Tree blob 'SBT1': magic, u32 leaves, u16 record count, preorder records
+// (internal: 0x80 | prop<<5 | thr; leaf: 0x00), CRC32 over everything
+// before it. The decoder replays the partition over the fixed context
+// space; it never needs induction data.
+
+namespace {
+
+constexpr char TREE_MAGIC[4] = {'S', 'B', 'T', '1'};
+constexpr char MERGE_MAGIC[4] = {'S', 'B', 'P', '1'};
+constexpr uint8_t TREE_INTERNAL_FLAG = 0x80;
+
+} // namespace
+
+std::vector<uint8_t> serialize_tree(const ContextTree& t,
+                                    size_t* audit_counted) {
+    std::vector<uint8_t> body;
+    size_t records = 0;
+    tree_walk(
+        t,
+        [&](const ContextTree::Node& nd) {
+            body.push_back((uint8_t)(TREE_INTERNAL_FLAG |
+                                     (uint8_t)(nd.prop << 5) |
+                                     (uint8_t)(nd.thr & 0x1f)));
+            ++records;
+        },
+        [&](const std::vector<uint32_t>&) {
+            body.push_back(0x00);
+            ++records;
+        });
+    std::vector<uint8_t> blob;
+    blob.insert(blob.end(), TREE_MAGIC, TREE_MAGIC + 4);
+    put_u32(blob, t.leaves);
+    put_u16(blob, (uint16_t)records);
+    blob.insert(blob.end(), body.begin(), body.end());
+    put_u32(blob, prism::crc32(blob));
+    if (audit_counted) *audit_counted = blob.size();
+    return blob;
+}
+
+ContextTree deserialize_tree(const std::vector<uint8_t>& blob) {
+    if (blob.size() < 14 || memcmp(blob.data(), TREE_MAGIC, 4) != 0)
+        throw std::runtime_error("staticmodel: bad tree magic");
+    size_t pos = 4;
+    ContextTree t;
+    t.leaves = get_u32(blob, pos);
+    uint16_t records = get_u16(blob, pos);
+    if (records == 0 || pos + (size_t)records + 4 > blob.size())
+        throw std::runtime_error("staticmodel: truncated tree");
+    const uint8_t* body = blob.data() + pos;
+    const size_t body_end = pos + (size_t)records;
+    size_t crc_at = body_end;
+    uint32_t stored_crc = get_u32(blob, crc_at);   // advances crc_at by 4
+    if (body_end + 4 != blob.size() ||
+        prism::crc32(blob.data(), body_end) != stored_crc)
+        throw std::runtime_error("staticmodel: tree CRC mismatch");
+
+    uint32_t next_leaf = 0;
+    std::vector<std::vector<uint32_t>> stack(1);
+    auto& root = stack.back();
+    root.resize((size_t)CTX_COUNT);
+    for (int c = 0; c < CTX_COUNT; ++c) root[(size_t)c] = (uint32_t)c;
+    t.leaf_of_context.assign((size_t)CTX_COUNT, 0);
+    for (uint16_t r = 0; r < records; ++r) {
+        uint8_t b = body[r];
+        if (stack.empty())
+            throw std::runtime_error("staticmodel: bad tree shape");
+        std::vector<uint32_t> mem = std::move(stack.back());
+        stack.pop_back();
+        if (b & TREE_INTERNAL_FLAG) {
+            ContextTree::Node nd{(uint8_t)((b >> 5) & 3),
+                                 (uint8_t)(b & 0x1f)};
+            if (nd.prop > 2 || nd.thr > 6)
+                throw std::runtime_error("staticmodel: bad tree node");
+            std::vector<uint32_t> left, right;
+            for (uint32_t cx : mem) {
+                if ((uint32_t)ctx_component((int)cx, nd.prop) <= nd.thr)
+                    left.push_back(cx);
+                else
+                    right.push_back(cx);
+            }
+            t.nodes.push_back(nd);
+            stack.push_back(std::move(right));   // LIFO: left resumes first
+            stack.push_back(std::move(left));
+        } else {
+            for (uint32_t cx : mem) t.leaf_of_context[cx] = next_leaf;
+            ++next_leaf;
+        }
+    }
+    if (!stack.empty() || next_leaf != t.leaves || t.leaves == 0 ||
+        t.leaves > (uint32_t)K_MAX + 1u)
+        throw std::runtime_error("staticmodel: inconsistent tree");
+    return t;
+}
+
+std::vector<uint8_t> serialize_merge_map(uint32_t raw_clusters,
+                                         const std::vector<uint32_t>& merge,
+                                         size_t* audit_counted) {
+    if (raw_clusters == 0 || raw_clusters > 4096)
+        throw std::runtime_error("staticmodel: bad raw cluster count");
+    std::vector<uint8_t> body(raw_clusters, 0);
+    for (uint32_t c = 0; c < raw_clusters; ++c) {
+        uint32_t dst = (c < merge.size()) ? merge[c] : c;
+        if (dst >= raw_clusters)
+            throw std::runtime_error("staticmodel: merge id out of range");
+        body[c] = (uint8_t)dst;
+    }
+    std::vector<uint8_t> blob;
+    blob.insert(blob.end(), MERGE_MAGIC, MERGE_MAGIC + 4);
+    put_u16(blob, (uint16_t)raw_clusters);
+    blob.insert(blob.end(), body.begin(), body.end());
+    put_u32(blob, prism::crc32(blob));
+    if (audit_counted) *audit_counted = blob.size();
+    return blob;
+}
+
+std::vector<uint32_t> deserialize_merge_map(const std::vector<uint8_t>& blob,
+                                            uint32_t raw_clusters) {
+    if (raw_clusters == 0 || raw_clusters > 4096 ||
+        blob.size() != (size_t)raw_clusters + 10 ||
+        memcmp(blob.data(), MERGE_MAGIC, 4) != 0)
+        throw std::runtime_error("staticmodel: bad merge map");
+    size_t pos = 4;
+    uint16_t n = get_u16(blob, pos);
+    if ((uint32_t)n != raw_clusters)
+        throw std::runtime_error("staticmodel: merge map size mismatch");
+    size_t crc_pos = pos + raw_clusters;
+    uint32_t stored_crc = get_u32(blob, crc_pos);
+    if (prism::crc32(blob.data(), blob.size() - 4) != stored_crc)
+        throw std::runtime_error("staticmodel: merge map CRC mismatch");
+    std::vector<uint32_t> out(raw_clusters);
+    for (uint32_t c = 0; c < raw_clusters; ++c) {
+        uint32_t dst = blob[pos + c];
+        if (dst >= raw_clusters)
+            throw std::runtime_error("staticmodel: merge id out of range");
+        out[c] = dst;
+    }
+    return out;
+}
+
+// ----- Oracle-map pass (V1a; pin V-P4) -----
+
+namespace {
+
+// Pinned cost (cost12 units) of coding one event under table row cl.
+int64_t event_cost12(TokProfile p, const SmoothedTables& t, uint32_t cl,
+                     const TokEvent& e, TokenTree& tree) {
+    (void)p;
+    switch (e.kind) {
+        case EvKind::RAWBITS:
+            return (int64_t)e.key << 12;     // identical across clusters
+        case EvKind::TOKEN: {
+            uint32_t sym = e.value;
+            uint32_t node = 0;
+            int64_t cost = 0;
+            for (;;) {
+                const TokenTree::Node& nd = tree.nodes[node];
+                if (nd.hi - nd.lo <= 1) break;
+                uint32_t mid = nd.lo + (nd.hi - nd.lo) / 2;
+                uint16_t right = token_right_mass(t, cl, tree, node);
+                uint16_t left = (uint16_t)(4096u - (uint32_t)right);
+                bool bit = sym >= mid;
+                cost += kCost12[bit ? left : right];
+                node = bit ? 2 * node + 2 : 2 * node + 1;
+            }
+            return cost;
+        }
+        default: {
+            uint16_t p0 = t.at(cl, (int)e.kind, e.key);
+            return kCost12[e.value ? (uint16_t)(4096u - (uint32_t)p0) : p0];
+        }
+    }
+}
+
+void append_signature(std::string& sig, const TokEvent& e) {
+    uint8_t rec[8];
+    rec[0] = (uint8_t)e.kind;
+    rec[1] = 0;
+    rec[2] = (uint8_t)(e.key & 0xff);
+    rec[3] = (uint8_t)((e.key >> 8) & 0xff);
+    uint32_t v = e.value;
+    rec[4] = (uint8_t)v;
+    rec[5] = (uint8_t)(v >> 8);
+    rec[6] = (uint8_t)(v >> 16);
+    rec[7] = (uint8_t)(v >> 24);
+    sig.append(reinterpret_cast<const char*>(rec), sizeof(rec));
+}
+
+} // namespace
+
+std::vector<std::vector<uint32_t>> oracle_assign(
+    TokProfile p, const SandboxModel& source, const SmoothedTables& t,
+    const std::vector<std::vector<int32_t>>& plane_residuals) {
+    std::vector<uint32_t> pool;
+    for (int c = 0; c < source.clusters; ++c)
+        if (source.samples_per_cluster[c] > 0) pool.push_back((uint32_t)c);
+    std::vector<std::vector<uint32_t>> maps(plane_residuals.size());
+    if (pool.empty()) return maps;
+    TokenTree tree((uint32_t)t.tok_syms());
+    std::unordered_map<std::string, uint32_t> memo;
+    std::vector<TokEvent> evs;
+    std::string sig;
+    for (size_t pi = 0; pi < plane_residuals.size(); ++pi) {
+        const auto& res = plane_residuals[pi];
+        maps[pi].resize(res.size());
+        for (size_t i = 0; i < res.size(); ++i) {
+            evs.clear();
+            sig.clear();
+            tokenize_sample(p, res[i], evs);
+            for (const TokEvent& e : evs) append_signature(sig, e);
+            auto it = memo.find(sig);
+            if (it == memo.end()) {
+                constexpr int64_t kCostInf = std::numeric_limits<int64_t>::max();
+                int64_t best_cost = kCostInf;
+                uint32_t best_cl = pool[0];
+                for (uint32_t cl : pool) {
+                    int64_t cost = 0;
+                    for (const TokEvent& e : evs)
+                        cost += event_cost12(p, t, cl, e, tree);
+                    if (cost < best_cost) {  // strict: lowest id wins ties
+                        best_cost = cost;
+                        best_cl = cl;
+                    }
+                }
+                it = memo.emplace(sig, best_cl).first;
+            }
+            maps[pi][i] = it->second;
+        }
+    }
+    return maps;
+}
+
 // ----- Backend scoring helpers -----
 
 double table_ideal_bits(TokProfile, const std::vector<TaggedEvent>& ev,
@@ -837,23 +1418,9 @@ void plan_bins(const std::vector<TaggedEvent>& ev, const SmoothedTables& t,
     }
 }
 
-// Cluster provider: recomputes the causal resdiff context per position from
-// the decoded history and maps it through the keying.
-struct ClusterSource {
-    KeyingId keying;
-    uint32_t w;
-    const std::vector<int32_t>* hist;   // decoded residuals so far
-    uint32_t cluster_at(size_t i) const {
-        uint32_t x = (w == 0) ? 0 : (uint32_t)(i % w);
-        uint32_t y = (w == 0) ? 0 : (uint32_t)(i / w);
-        int32_t dL = 0, dU = 0, dUL = 0;
-        if (x > 0) dL = (*hist)[i - 1];
-        if (y > 0) dU = (*hist)[i - w];
-        if (x > 0 && y > 0) dUL = (*hist)[i - w - 1];
-        return keying_cluster(keying,
-                              residual_diff_context(dL, dU, dUL));
-    }
-};
+// Cluster resolution on the decode side goes through the transmitted
+// artifacts: keyed lookups, the 'SBP1' merge map, or an explicit oracle
+// assignment - all carried by ClusterMap (see header).
 
 constexpr char RANS_MAGIC[4] = {'S', 'B', 'R', '1'};
 constexpr char BAC_MAGIC[4] = {'S', 'B', 'B', '1'};
@@ -923,6 +1490,16 @@ std::vector<int32_t> rans_decode_events(TokProfile p, KeyingId kk,
                                         uint32_t w, size_t nres,
                                         const std::vector<uint8_t>& bytes,
                                         const SmoothedTables& t) {
+    ClusterMap cm = (kk == KeyingId::KGRID128) ? cluster_map_grid(w)
+                                               : cluster_map_keyed(kk);
+    cm.w = w;    // context computation needs the position even for flats
+    return rans_decode_events(p, cm, nres, bytes, t);
+}
+
+std::vector<int32_t> rans_decode_events(TokProfile p, const ClusterMap& cm,
+                                        size_t nres,
+                                        const std::vector<uint8_t>& bytes,
+                                        const SmoothedTables& t) {
     if (bytes.size() < 4 + 4 + 4 * RANS_NS + 4 ||
         memcmp(bytes.data(), RANS_MAGIC, 4) != 0)
         throw std::runtime_error("sandbox: bad rANS payload");
@@ -982,8 +1559,7 @@ std::vector<int32_t> rans_decode_events(TokProfile p, KeyingId kk,
     out.reserve(nres);
     const uint32_t cap = Q_POS_MAX - 1;
     for (size_t i = 0; i < nres; ++i) {
-        ClusterSource cs{kk, w, &out};
-        uint32_t cl = cs.cluster_at(i);
+        uint32_t cl = cm.at(i, out);
         auto bg = [&](int kind, uint32_t key) -> bool {
             return getbin(p12_to_p16(t.at(cl, kind, key)));
         };
@@ -1082,6 +1658,16 @@ std::vector<int32_t> bac_decode_events(TokProfile p, KeyingId kk, uint32_t w,
                                        size_t nres,
                                        const std::vector<uint8_t>& bytes,
                                        const SmoothedTables& t) {
+    ClusterMap cm = (kk == KeyingId::KGRID128) ? cluster_map_grid(w)
+                                               : cluster_map_keyed(kk);
+    cm.w = w;    // context computation needs the position even for flats
+    return bac_decode_events(p, cm, nres, bytes, t);
+}
+
+std::vector<int32_t> bac_decode_events(TokProfile p, const ClusterMap& cm,
+                                       size_t nres,
+                                       const std::vector<uint8_t>& bytes,
+                                       const SmoothedTables& t) {
     if (bytes.size() < 16 || memcmp(bytes.data(), BAC_MAGIC, 4) != 0)
         throw std::runtime_error("sandbox: bad BAC payload");
     size_t pos = 4;
@@ -1113,8 +1699,7 @@ std::vector<int32_t> bac_decode_events(TokProfile p, KeyingId kk, uint32_t w,
         return bg(cl, kind, key, p12_to_p16(t.at(cl, kind, key)));
     };
     for (size_t i = 0; i < nres; ++i) {
-        ClusterSource cs{kk, w, &out};
-        uint32_t cl = cs.cluster_at(i);
+        uint32_t cl = cm.at(i, out);
         auto bnd = [&](int kind, uint32_t key) { return btab(cl, kind, key); };
         switch (p) {
         case TokProfile::ZFFCTRL: {

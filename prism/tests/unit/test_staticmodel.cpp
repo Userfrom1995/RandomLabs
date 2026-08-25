@@ -5,6 +5,7 @@
 // both real backends round-trip residual planes; cluster floor/cap rules.
 
 #include "prism/codec/staticmodel.h"
+#include "prism/codec/acoder.h"
 #include <gtest/gtest.h>
 #include <random>
 
@@ -276,4 +277,214 @@ TEST(StaticModel, ClusterBudgetFloorAndCap) {
         if (ma2.samples_per_cluster[c] > 0) ++after_enforced;
     EXPECT_LT(after_enforced, untouched);
     EXPECT_GE(untouched, 1);
+}
+
+// ----- V1 machinery (pins V-P1..V-P5, decision record 2026-08-25T21-30-00) -
+
+TEST(StaticModelV1, GridTileGeometry) {
+    // Pin V-P1: tile ids are raster row-major over ceil(w/128) x ceil(h/128)
+    // tiles; a 768x512 plane has 6x4 = 24 tiles of exactly 16384 samples.
+    const uint32_t w = 768, h = 512;
+    SandboxModel m;
+    m.init(TokProfile::ZFFCTRL, (int)((w + 127) / 128) * ((h + 127) / 128));
+    std::vector<int32_t> res((size_t)w * h, 17);
+    count_plane(m, TokProfile::ZFFCTRL, cluster_map_grid(w), res, nullptr);
+    ASSERT_EQ((size_t)m.clusters, (size_t)24);
+    for (int c = 0; c < m.clusters; ++c)
+        EXPECT_EQ(m.samples_per_cluster[(size_t)c],
+                  (uint64_t)GRID_TILE * GRID_TILE)
+            << "tile " << c;
+    // Portrait orientation swaps the tiling, not the count.
+    SandboxModel mp;
+    mp.init(TokProfile::ZFFCTRL, 24);
+    std::vector<int32_t> resp((size_t)w * h, -9);
+    count_plane(mp, TokProfile::ZFFCTRL, cluster_map_grid(h), resp, nullptr);
+    EXPECT_EQ(mp.samples_per_cluster[(size_t)0], (uint64_t)GRID_TILE * GRID_TILE);
+}
+
+TEST(StaticModelV1, ContextTreeDeterministicCapsAndPartition) {
+    // Pin V-P2: the builder is deterministic, covers all 343 contexts,
+    // respects depth <= 10 / leaves <= 256, and every leaf holds at least
+    // MIN_SAMPLES_PER_CLUSTER samples when any split was taken.
+    auto make_flat = [](uint32_t seed) {
+        SandboxModel flat;
+        flat.init(TokProfile::HYB_B, KeyingId::KFLAT343);
+        std::mt19937 rng(seed);
+        std::uniform_int_distribution<int32_t> d(-3000, 3000);
+        std::vector<int32_t> res(60000);
+        for (auto& v : res) v = d(rng);
+        count_plane(flat, TokProfile::HYB_B, KeyingId::KFLAT343, res, 200,
+                    nullptr);
+        return flat;
+    };
+    SandboxModel flat = make_flat(1234);
+    ContextTree t1 = build_context_tree(TokProfile::HYB_B, flat);
+    ContextTree t2 = build_context_tree(TokProfile::HYB_B, flat);
+    EXPECT_EQ(t1.nodes.size(), t2.nodes.size());
+    EXPECT_EQ(t1.leaf_of_context, t2.leaf_of_context);
+    EXPECT_EQ(t1.leaves, t2.leaves);
+    EXPECT_LE(t1.leaves, (uint32_t)K_MAX + 1u);
+    ASSERT_EQ(t1.leaf_of_context.size(),
+              (size_t)prism::codec::AC_V2_RESDIFF_CONTEXTS);
+    std::vector<uint64_t> per_leaf(t1.leaves, 0);
+    for (int cx = 0; cx < prism::codec::AC_V2_RESDIFF_CONTEXTS; ++cx) {
+        uint32_t leaf = t1.leaf_of_context[(size_t)cx];
+        ASSERT_LT(leaf, t1.leaves);
+        per_leaf[leaf] += flat.samples_per_cluster[(size_t)cx];
+    }
+    for (uint32_t leaf = 0; leaf < t1.leaves; ++leaf)
+        if (t1.leaves > 1)      // floors bind only once splits exist
+            EXPECT_GE(per_leaf[leaf], (uint64_t)MIN_SAMPLES_PER_CLUSTER)
+                << "leaf " << leaf;
+}
+
+TEST(StaticModelV1, ContextTreeSplitsOnStructuredStreams) {
+    // A stream concentrated on few contexts with strong structure must
+    // actually split (the noise fixture above legitimately stays single-
+    // leaf: nothing beats the floor there).
+    SandboxModel flat;
+    flat.init(TokProfile::HYB_A, KeyingId::KFLAT343);
+    std::mt19937 rng(5150);
+    std::vector<int32_t> res;
+    for (int i = 0; i < 30000; ++i) res.push_back(30 + (int)(rng() % 3));
+    for (int i = 0; i < 30000; ++i) res.push_back(-40 - (int)(rng() % 3));
+    count_plane(flat, TokProfile::HYB_A, KeyingId::KFLAT343, res, 300,
+                nullptr);
+    ContextTree t = build_context_tree(TokProfile::HYB_A, flat);
+    EXPECT_GT(t.leaves, (uint32_t)1);
+}
+
+TEST(StaticModelV1, TreeBlobRoundTripAndTamper) {
+    // Structured stream so the tree actually splits and the blob carries
+    // internal nodes worth tampering with.
+    SandboxModel flat;
+    flat.init(TokProfile::HYB_A, KeyingId::KFLAT343);
+    std::mt19937 rng(77);
+    std::vector<int32_t> res;
+    for (int i = 0; i < 25000; ++i) res.push_back(25 + (int)(rng() % 5));
+    for (int i = 0; i < 25000; ++i) res.push_back(-30 - (int)(rng() % 5));
+    count_plane(flat, TokProfile::HYB_A, KeyingId::KFLAT343, res, 300,
+                nullptr);
+    ContextTree t = build_context_tree(TokProfile::HYB_A, flat);
+    ASSERT_GT(t.leaves, (uint32_t)1);        // splits really happened
+    size_t counted = 999;
+    auto blob = serialize_tree(t, &counted);
+    EXPECT_EQ(counted, blob.size());
+    ContextTree back = deserialize_tree(blob);
+    EXPECT_EQ(back.leaves, t.leaves);
+    EXPECT_EQ(back.leaf_of_context, t.leaf_of_context);
+    EXPECT_EQ(back.nodes.size(), t.nodes.size());
+    // Bit flips land on the CRC; truncation lands on the length checks.
+    for (size_t probe : {size_t(5), blob.size() / 2, blob.size() - 5}) {
+        auto bad = blob;
+        bad[probe] ^= 0x01;
+        EXPECT_THROW(deserialize_tree(bad), std::runtime_error);
+    }
+    auto cut = blob;
+    cut.resize(blob.size() - 3);
+    EXPECT_THROW(deserialize_tree(cut), std::runtime_error);
+}
+
+TEST(StaticModelV1, MergeMapBlobRoundTrip) {
+    size_t audit = 0;
+    std::vector<uint32_t> merged{0, 0, 2, 2, 4};
+    auto blob = serialize_merge_map(5, merged, &audit);
+    EXPECT_EQ(audit, blob.size());
+    auto back = deserialize_merge_map(blob, 5);
+    EXPECT_EQ(back, merged);
+    // Identity survives too (enforcement merged nothing).
+    auto id_blob = serialize_merge_map(3, {}, &audit);
+    auto identity = deserialize_merge_map(id_blob, 3);
+    EXPECT_EQ(identity, (std::vector<uint32_t>{0, 1, 2}));
+    auto bad = blob;
+    bad[6] ^= 0x01;
+    EXPECT_THROW(deserialize_merge_map(bad, 5), std::runtime_error);
+    auto cut = blob;
+    cut.resize(blob.size() - 1);
+    EXPECT_THROW(deserialize_merge_map(cut, 5), std::runtime_error);
+}
+
+TEST(StaticModelV1, OracleAssignmentFollowsPerSampleOptimum) {
+    // Two vertical halves with opposite-dominant residuals: under grid
+    // tables each half's samples are cheapest in their own half's cluster,
+    // so every oracle assignment must match its half (pin V-P4 argmin).
+    const uint32_t w = 256, h = 64;          // two 128-wide tile columns
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(42);
+    std::uniform_int_distribution<int32_t> jitter(-1, 1);
+    for (uint32_t y = 0; y < h; ++y)
+        for (uint32_t x = 0; x < w; ++x)
+            res[(size_t)y * w + x] =
+                (x < 128 ? 40 + jitter(rng) : -(40 + jitter(rng)));
+    SandboxModel m;
+    m.init(TokProfile::HYB_A, 2);
+    std::vector<std::vector<TaggedEvent>> evs(1);
+    count_plane(m, TokProfile::HYB_A, cluster_map_grid(w), res, &evs[0]);
+    apply_cluster_budget(m, true);
+    SmoothedTables t1;
+    build_tables_enforced(m, t1);
+
+    auto maps = oracle_assign(TokProfile::HYB_A, m, t1, {res});
+    ASSERT_EQ(maps.size(), (size_t)1);
+    ASSERT_EQ(maps[0].size(), res.size());
+    int agree = 0;
+    for (uint32_t y = 0; y < h; ++y)
+        for (uint32_t x = 0; x < w; ++x) {
+            uint32_t got = maps[0][(size_t)y * w + x];
+            ASSERT_LT(got, (uint32_t)m.clusters);
+            bool in_left = x < 128;
+            // The oracle must prefer the same-dominant half decisively;
+            // count agreement instead of asserting per-sample so rare
+            // boundary samples cannot flip the contract.
+            agree += (in_left == (got == 0));
+        }
+    EXPECT_GT(agree, (int)(res.size() * 99 / 100));
+
+    // Recount through an explicit map reproduces exactly those clusters'
+    // per-sample tallies and stays round-trip clean end to end.
+    SandboxModel m2;
+    m2.init(TokProfile::HYB_A, m.clusters);
+    std::vector<TaggedEvent> evs_oracle;
+    ClusterMap cm = cluster_map_explicit(maps[0].data());
+    count_plane(m2, TokProfile::HYB_A, cm, res, &evs_oracle);
+    SmoothedTables t2;
+    build_tables_enforced(m2, t2);
+    auto payload = rans_encode_events(TokProfile::HYB_A, evs_oracle, t2);
+    auto dec = rans_decode_events(TokProfile::HYB_A, cm, res.size(), payload,
+                                  t2);
+    EXPECT_EQ(dec, res);
+}
+
+TEST(StaticModelV1, GridDecodeNeedsMergeMapConsistently) {
+    // A grid model whose budget enforcement MERGES tiles (both tiles hold
+    // only 2048 samples, under the 4096 floor) must decode identically
+    // through the transmitted 'SBP1' mapping.
+    const uint32_t w = 256, h = 16;          // two tiles x 2048 samples
+    SandboxModel m;
+    m.init(TokProfile::HYB_B, 2);
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(9);
+    std::uniform_int_distribution<int32_t> d(-60, 60);
+    for (auto& v : res) v = d(rng);
+    std::vector<TaggedEvent> evs;
+    count_plane(m, TokProfile::HYB_B, cluster_map_grid(w), res, &evs);
+    auto merge = apply_cluster_budget(m, true);
+    int active = 0;
+    for (int c = 0; c < m.clusters; ++c)
+        if (m.samples_per_cluster[c] > 0) ++active;
+    ASSERT_LT(active, 2);                    // the floor really did merge
+    // Encoder contract: events retag through the transmitted mapping so
+    // both sides index identical table rows.
+    for (auto& te : evs) te.cluster = merge[te.cluster];
+    SmoothedTables t;
+    build_tables_enforced(m, t);
+    auto map_blob = serialize_merge_map(2, merge, nullptr);
+    auto payload = rans_encode_events(TokProfile::HYB_B, evs, t);
+    auto dec_merge = deserialize_merge_map(map_blob, 2);
+    ClusterMap cm = cluster_map_keyed(KeyingId::KGRID128);
+    cm.w = w;
+    cm.merge = &dec_merge;
+    auto dec = rans_decode_events(TokProfile::HYB_B, cm, res.size(), payload,
+                                  t);
+    EXPECT_EQ(dec, res);
 }
