@@ -36,7 +36,9 @@ static void print_usage() {
               << "  prism probe-xband <image>\n"
               << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n"
               << "                                            [--mixer LIST] [--zrun]\n"
-              << "                                            [--color LIST]\n";
+              << "                                            [--color LIST]\n"
+              << "  prism bench-ideal <image>... --orinit | --orinit-corrupt\n"
+              << "                             --props i[,ii][,iii]   (E0, production stream)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -185,30 +187,9 @@ void walk(const std::vector<int32_t>& res, uint32_t w, Acc& acc) {
     }
 }
 
-// ----- D2 sequential mixer scoring (spec section 12.4) -----
-//
-// One pass replays the exact encode_residual_v2 bin sequence and costs every
-// bin four ways at the probability each scheme would code with:
-//   bits_v2  - production hierarchical estimate E1 alone (the anchor; must
-//              reproduce measured v2 payload bytes within +-0.5 percent),
-//   bits_mx  - K=4 logistic mix of adaptive estimators, SSE off,
-//   bits_sse - the same mix plus one interpolated APM stage.
-// All state is causal: contexts come from the residual history and decoded
-// plane neighbors only, so a future decoder can mirror every update.
+// ----- Shared production-replay helpers (used by E0 orinit, D2 mixer, D4 zrun) -----
 
 constexpr int MIXK_ZERO = 0, MIXK_SIGN = 1, MIXK_Q = 2, MIXK_REM = 3;
-
-struct DualRateStates {
-    std::vector<uint16_t> pf, ps;
-    void init(size_t n, const uint16_t* table) {
-        if (table) {
-            pf.assign(n, 0); ps.assign(n, 0);
-            for (size_t i = 0; i < n; ++i) { pf[i] = table[i]; ps[i] = table[i]; }
-        } else {
-            pf.assign(n, 32768); ps.assign(n, 32768);
-        }
-    }
-};
 
 KindModelsV2& v2_kind(ACModelsV2& m, int k) {
     switch (k) {
@@ -237,6 +218,276 @@ inline double bin_cost(uint16_t p16, bool bit) {
     double q = (double)p16 / 65536.0; // q = P(bit == 0)
     return bit ? -std::log2(1.0 - q) : -std::log2(q);
 }
+
+// ----- E0 oracle-initialization scoring (spec addendum 14.1) -----
+//
+// M-A: pass 1 reads the class16-pooled per-bin-kind frequency optima out of
+// the SAME statistics the static scorer computes (Acc coarse level-1 keys are
+// kind*1024 + cls, so no new counting machinery exists); pass 2 replays the
+// exact production bin sequence through the production adaptation loop with
+// every model state initialized at its CLASS optimum. A is the warm-start
+// share a transmitted class-level table could recover (E2 step-1 shape).
+
+struct OrinitOut {
+    size_t nbins = 0;
+    double bits = 0;   // fractional bits (arithmetic-coder estimate)
+};
+
+OrinitOut run_orinit_pass(const std::vector<std::vector<int32_t>>& ress,
+                          uint32_t w, const Acc& stats, bool corrupt) {
+    // OA-corrupt injection: the blueprint sketched "inverted sign prior", but
+    // measured sign skew is so close to even that inverting only that kind
+    // moves total cost by ~0.02 points of v0 and could never trip the
+    // 0.05-point gate. The injection therefore generalizes to ALL four kinds:
+    // anti-optimum init (65536 - p) with adaptation frozen, so the error
+    // persists instead of healing - a STRICTER corruption that keeps the
+    // check honest (decision record 2026-08-25T12-00-00).
+    static const uint16_t* const kPrior[4] = {
+        AC_V2_PRIOR_ZERO, AC_V2_PRIOR_SIGN, AC_V2_PRIOR_Q, AC_V2_PRIOR_REM};
+    auto p_opt = [&](int kind, int cls) -> uint16_t {
+        auto it = stats.coarse.lv[1].find((uint32_t)kind * 1024u + (uint32_t)cls);
+        if (it == stats.coarse.lv[1].end() || it->second.n0 + it->second.n1 == 0)
+            return 0;   // sentinel: caller keeps the compile-time prior
+        double n = (double)(it->second.n0 + it->second.n1);
+        double v = std::floor(65536.0 * (double)it->second.n0 / n + 0.5);
+        return (uint16_t)(v < 1.0 ? 1 : (v > 65534.0 ? 65534 : v));
+    };
+    ACModelsV2 m(AC_V2_RESDIFF_CONTEXTS);
+    KindModelsV2* kinds[4] = {&m.zero, &m.sign, &m.q, &m.rem};
+    bool frozen[4] = {corrupt, corrupt, corrupt, corrupt};
+    for (int k = 0; k < 4; ++k) {
+        for (int c = 0; c < AC_V2_N_PRIORS; ++c) {
+            uint16_t p = p_opt(k, c);
+            if (p == 0) p = kPrior[k][c];
+            else if (corrupt) p = (uint16_t)(65536 - (int)p);
+            if (p < 1) p = 1;
+            if (p > 65534) p = 65534;
+            kinds[k]->cls.p_fast[c] = p;
+            kinds[k]->cls.p_slow[c] = p;
+        }
+        for (int cx = 0; cx < AC_V2_RESDIFF_CONTEXTS; ++cx) {
+            uint16_t p = kinds[k]->cls.p_fast[ac_v2_prior_class(cx)];
+            kinds[k]->ctx.p_fast[cx] = p;
+            kinds[k]->ctx.p_slow[cx] = p;
+        }
+    }
+    OrinitOut out;
+    auto code_bin = [&](int kind, int cx, bool bit) {
+        ++out.nbins;
+        out.bits += bin_cost(e1_prob(m, kind, cx), bit);
+        if (!frozen[kind]) e1_adapt(m, kind, cx, bit);
+    };
+    for (const auto& res : ress) {
+        for (size_t i = 0; i < res.size(); ++i) {
+            uint32_t x = (w == 0) ? 0 : (uint32_t)(i % w);
+            uint32_t y = (w == 0) ? 0 : (uint32_t)(i / w);
+            int32_t dL = 0, dU = 0, dUL = 0;
+            if (x > 0) dL = res[i - 1];
+            if (y > 0) dU = res[i - w];
+            if (x > 0 && y > 0) dUL = res[i - w - 1];
+            int cx = residual_diff_context(dL, dU, dUL);
+            uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
+            code_bin(0, cx, mag == 0);
+            if (mag == 0) continue;
+            code_bin(1, cx, res[i] < 0);
+            int L = 31 - __builtin_clz(mag);
+            for (int kk = 0; kk < L; ++kk) code_bin(2, cx, false);
+            code_bin(2, cx, true);
+            uint32_t rem = mag - (1u << L);
+            for (int kk = L - 1; kk >= 0; --kk)
+                code_bin(3, cx, ((rem >> kk) & 1u) != 0);
+        }
+    }
+    return out;
+}
+
+// ----- E0 property-conditioned ceilings (spec addendum 14.2) -----
+//
+// M-C: every fine bin conditioned jointly on a decoder-computable property
+// cell (previously-coded residual quotients qW/qN/qNW/qNE clamped to +-7,
+// CALIC-style gradient bucket pair gb from decoded pixels, plane id), under
+// three pre-registered poolings. Cells whose total observed count falls under
+// the floor score from the class16-pooled fine marginal, which makes the
+// PC-mono ordering true by construction.
+
+constexpr int E0_QCAP = 7;
+constexpr int E0_FLOOR = 64;
+constexpr uint32_t E0_CELLS_II = 4096;
+constexpr uint32_t E0_CELLS_III = 16384;
+
+inline int e0_quot(int32_t r) {
+    uint32_t a = (uint32_t)(r < 0 ? -r : r);
+    if (a == 0) return 0;
+    int q = 31 - __builtin_clz(a);
+    if (q > E0_QCAP) q = E0_QCAP;
+    return r < 0 ? -q : q;
+}
+
+inline int e0_bucket(int64_t g, int bd_shift) {
+    static const int64_t kT[7] = {0, 1, 2, 4, 8, 16, 32};
+    int64_t a = g < 0 ? -g : g;
+    int b = 0;
+    for (int i = 0; i < 7; ++i)
+        if ((kT[i] << bd_shift) < a) ++b;
+    return b;
+}
+
+struct PropCell {
+    uint64_t total = 0;
+    std::unordered_map<uint32_t, BinHist> fk;
+};
+
+struct PropPools {
+    std::unordered_map<uint32_t, PropCell> cells;
+    void add(uint32_t cell, uint32_t fkey, bool bit) {
+        PropCell& c = cells[cell];
+        BinHist& h = c.fk[fkey];
+        if (bit) h.n1++; else h.n0++;
+        c.total++;
+    }
+    void merge(const PropPools& o) {
+        for (const auto& kv : o.cells) {
+            PropCell& d = cells[kv.first];
+            d.total += kv.second.total;
+            for (const auto& kf : kv.second.fk) {
+                BinHist& h = d.fk[kf.first];
+                h.n0 += kf.second.n0; h.n1 += kf.second.n1;
+            }
+        }
+    }
+    size_t observed_cells() const { return cells.size(); }
+};
+
+struct PropOut {
+    size_t nbins = 0, fallback_bins = 0;
+    double bits = 0;
+};
+
+// One scoring pass against built pools. The class16 fine marginal lives in
+// the same fine-key space as Acc::fine level 1 and MUST come from the same
+// stream the pools were built from (per-image stats for per-image rows, pooled
+// stats for TOTAL rows). ML argument per (cell, fine-key) group: local
+// frequencies never cost more than applying the marginal model, and fallback
+// cells ARE scored with the marginal model, so PC-mono holds by construction.
+PropOut score_props(const PropPools& pools, const Pools& c16_fine) {
+    PropOut out;
+    auto marginal_p0 = [&](uint32_t fkey) -> double {
+        auto it = c16_fine.lv[1].find(fkey);
+        if (it == c16_fine.lv[1].end()) return 0.5;
+        double n = (double)(it->second.n0 + it->second.n1);
+        return n > 0 ? (double)it->second.n0 / n : 0.5;
+    };
+    for (const auto& kv : pools.cells) {
+        const PropCell& cell = kv.second;
+        bool fallback = cell.total < E0_FLOOR;
+        for (const auto& kf : cell.fk) {
+            double cnt = (double)(kf.second.n0 + kf.second.n1);
+            double q0 = fallback ? marginal_p0(kf.first)
+                                 : (double)kf.second.n0 / cnt;
+            if (kf.second.n0 > 0)
+                out.bits -= (double)kf.second.n0 * std::log2(q0);
+            if (kf.second.n1 > 0)
+                out.bits -= (double)kf.second.n1 * std::log2(1.0 - q0);
+            out.nbins += (size_t)cnt;
+            if (fallback) out.fallback_bins += (size_t)cnt;
+        }
+    }
+    return out;
+}
+
+// Build the per-pooling cell histograms for one image (pass 1). Every emitted
+// bin lands in every requested pooling; fine-key layout mirrors Acc::fine so
+// the class16 marginal is directly usable as the fallback model.
+struct PropBuild {
+    PropPools p1, p2, p3;
+};
+
+void build_props(const Raster& t, const std::vector<std::vector<int32_t>>& ress,
+                 PropBuild& b) {
+    const int bd_shift = (t.bd == BitDepth::BD16) ? 8 : 0;
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        const auto& plane = t.planes[pi];
+        const auto& res = ress[pi];
+        const uint32_t pl = (uint32_t)pi;
+        for (size_t i = 0; i < res.size(); ++i) {
+            uint32_t x = (uint32_t)(i % t.w), y = (uint32_t)(i / t.w);
+            int qW = (x > 0) ? e0_quot(res[i - 1]) : 0;
+            int qN = (y > 0) ? e0_quot(res[i - t.w]) : 0;
+            int qNW = (x > 0 && y > 0) ? e0_quot(res[i - t.w - 1]) : 0;
+            int qNE = (y > 0 && x + 1 < t.w) ? e0_quot(res[i - t.w + 1]) : 0;
+            // CALIC-style gradient pair from decoded pixels; any term with a
+            // missing neighbor contributes 0 (pre-registered border rule).
+            int64_t gn = 0, gw = 0;
+            if (y > 0) {
+                gn = (int64_t)plane[i - t.w] -
+                     ((x > 0 && y > 0) ? (int64_t)plane[i - t.w - 1] : 0);
+                gw = (x > 0 && y > 0)
+                    ? (int64_t)plane[i - 1] - (int64_t)plane[i - t.w - 1] : 0;
+            }
+            uint32_t gb = (uint32_t)(8 * e0_bucket(gn, bd_shift) +
+                                     e0_bucket(gw, bd_shift));
+            int cx = residual_diff_context(
+                (x > 0) ? res[i - 1] : 0,
+                (y > 0) ? res[i - t.w] : 0,
+                (x > 0 && y > 0) ? res[i - t.w - 1] : 0);
+            int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+            uint32_t c1 = (uint32_t)cls * 225u + (uint32_t)(qW + E0_QCAP) * 15u +
+                          (uint32_t)(qN + E0_QCAP);
+            uint32_t r2 = ((((uint32_t)cls * 15u + (uint32_t)(qW + E0_QCAP)) *
+                            15u + (uint32_t)(qN + E0_QCAP)) * 15u +
+                           (uint32_t)(qNW + E0_QCAP)) * 15u +
+                          (uint32_t)(qNE + E0_QCAP);
+            uint32_t c2 = r2 % E0_CELLS_II;
+            uint32_t r3 = ((((((pl * 16u + (uint32_t)cls) * 64u + gb) * 15u +
+                              (uint32_t)(qW + E0_QCAP)) * 15u +
+                             (uint32_t)(qN + E0_QCAP)) * 15u +
+                            (uint32_t)(qNW + E0_QCAP)) * 15u +
+                           (uint32_t)(qNE + E0_QCAP));
+            uint32_t c3 = r3 % E0_CELLS_III;
+            // Bin sequence mirrors encode_residual_v2 exactly.
+            uint32_t mag = (uint32_t)(res[i] < 0 ? -res[i] : res[i]);
+            auto emit = [&](int kind, int depthidx, bool bit) {
+                uint32_t fkey = (uint32_t)kind * 65536u + (uint32_t)depthidx;
+                b.p1.add(c1, fkey, bit);
+                b.p2.add(c2, fkey, bit);
+                b.p3.add(c3, fkey, bit);
+            };
+            emit(0, 0, mag == 0);
+            if (mag == 0) continue;
+            emit(1, 0, res[i] < 0);
+            int L = 31 - __builtin_clz(mag);
+            for (int kk = 0; kk < L; ++kk) emit(2, kk, false);
+            emit(2, L, true);
+            uint32_t rem = mag - (1u << L);
+            int rid = (L < 255 ? L : 255) * 256;
+            for (int pos = 0; pos < L; ++pos)
+                emit(3, rid + pos, ((rem >> (L - 1 - pos)) & 1u) != 0);
+        }
+    }
+}
+// ----- D2 sequential mixer scoring (spec section 12.4) -----
+//
+// One pass replays the exact encode_residual_v2 bin sequence and costs every
+// bin four ways at the probability each scheme would code with:
+//   bits_v2  - production hierarchical estimate E1 alone (the anchor; must
+//              reproduce measured v2 payload bytes within +-0.5 percent),
+//   bits_mx  - K=4 logistic mix of adaptive estimators, SSE off,
+//   bits_sse - the same mix plus one interpolated APM stage.
+// All state is causal: contexts come from the residual history and decoded
+// plane neighbors only, so a future decoder can mirror every update.
+
+struct DualRateStates {
+    std::vector<uint16_t> pf, ps;
+    void init(size_t n, const uint16_t* table) {
+        if (table) {
+            pf.assign(n, 0); ps.assign(n, 0);
+            for (size_t i = 0; i < n; ++i) { pf[i] = table[i]; ps[i] = table[i]; }
+        } else {
+            pf.assign(n, 32768); ps.assign(n, 32768);
+        }
+    }
+};
+
 
 struct SweepOut {
     size_t nbins = 0;
@@ -990,6 +1241,10 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> color_names;   // D4c rotation candidates
             bool opt_zrun = false;
             bool color_flag_given = false;
+            // E0 measurement modes (spec addendum 14): production streams only.
+            bool opt_orinit = false;
+            bool opt_orinit_corrupt = false;
+            std::vector<std::string> prop_poolings;
             auto split_list = [](const std::string& s) {
                 std::vector<std::string> out;
                 size_t pos = 0;
@@ -1014,6 +1269,19 @@ int main(int argc, char* argv[]) {
                     mixer_names.insert(mixer_names.end(), v.begin(), v.end());
                 } else if (a == "--zrun") {
                     opt_zrun = true;
+                } else if (a == "--orinit") {
+                    opt_orinit = true;
+                } else if (a == "--orinit-corrupt") {
+                    opt_orinit_corrupt = true;   // OA-corrupt self-check injection
+                } else if (a == "--props" && i + 1 < argc) {
+                    prop_poolings = split_list(argv[++i]);
+                    if (prop_poolings.empty()) prop_poolings.push_back("i");
+                    for (const auto& p : prop_poolings)
+                        if (p != "i" && p != "ii" && p != "iii") {
+                            std::cerr << "bench-ideal: unknown props pooling "
+                                      << p << " (use i, ii, iii)\n";
+                            return 2;
+                        }
                 } else if (a == "--color" && i + 1 < argc) {
                     auto v = split_list(argv[++i]);
                     color_names.insert(color_names.end(), v.begin(), v.end());
@@ -1025,6 +1293,20 @@ int main(int argc, char* argv[]) {
             if (imgs.empty()) { std::cerr << "bench-ideal: no images given\n"; return 2; }
             if (preds.empty() && blends.empty() && mixer_names.empty())
                 preds.push_back("med");
+            // E0 modes score the production stream only; the OA-order gate
+            // needs the med baseline rows in the same run, so anything that
+            // would move or decorate the baseline is rejected here.
+            if (opt_orinit || opt_orinit_corrupt || !prop_poolings.empty()) {
+                if (!blends.empty() || !mixer_names.empty() || opt_zrun ||
+                    color_flag_given) {
+                    std::cerr << "bench-ideal: --orinit/--props run on the "
+                                 "production baseline only (no --blend/--mixer/"
+                                 "--zrun/--color)\n";
+                    return 2;
+                }
+                preds.clear();
+                preds.push_back("med");
+            }
             for (const auto& cn : color_names) {
                 if (prism::codec::colorrot::id_of(cn) < 0) {
                     std::cerr << "bench-ideal: unknown color mode " << cn << "\n";
@@ -1135,6 +1417,17 @@ int main(int argc, char* argv[]) {
                 double bits_plain = 0, bits_adapt = 0;
             };
             std::unique_ptr<ZTotal> ztot = opt_zrun ? std::make_unique<ZTotal>() : nullptr;
+            // E0 aggregation across images (additive for ORINIT replays; the
+            // PROP marginal + cell pools pool into a JOINT estimate).
+            struct OrinitTotal { size_t nbins = 0, v0 = 0, v2 = 0; double bits = 0; };
+            OrinitTotal otot, octot;
+            struct PropTotal {
+                std::map<std::string, idealbench::PropPools> pools;
+                idealbench::Acc marginal;
+                size_t v0 = 0, v2 = 0;
+            };
+            std::unique_ptr<PropTotal> ptot =
+                !prop_poolings.empty() ? std::make_unique<PropTotal>() : nullptr;
             std::cout << "IDEAL,image,predictor,v0_bytes,v2_bytes,"
                       << "coarse_shared,coarse_class16,coarse_ctx343,"
                       << "fine_shared,fine_class16,fine_ctx343,"
@@ -1147,6 +1440,15 @@ int main(int argc, char* argv[]) {
                           << "bits_plain,bits_adapt,adapt_pct,"
                           << "base_fine_sh,base_fine_cl,base_fine_cx,"
                           << "zr_fine_sh,zr_fine_cl,zr_fine_cx\n";
+            // E0 row families (spec addendum 14). ORINIT TOTAL rows are
+            // additive (sequential per-image replays), NOT joint estimates;
+            // PROPTOTAL pools cell histograms before estimation (joint).
+            if (opt_orinit || opt_orinit_corrupt)
+                std::cout << "ORINIT,image,nbins,bits_orinit,v0_bytes,v2_bytes\n";
+            if (opt_orinit_corrupt)
+                std::cout << "ORINITCORRUPT,image,nbins,bits_orinit,v0_bytes,v2_bytes\n";
+            if (!prop_poolings.empty())
+                std::cout << "PROP,image,pooling,L_bits,L_bytes,pct_of_v0,cells,fallback_pct\n";
             char rowbuf[512];
             for (const auto& img : imgs) {
                 Raster r = frontend::decode_to_raster(img);
@@ -1292,6 +1594,68 @@ int main(int argc, char* argv[]) {
                     Z.bits_plain += zo.bits_plain;
                     Z.bits_adapt += zo.bits_adapt;
                 }
+                // ----- E0 per-image blocks (production stream only) -----
+                if (opt_orinit || opt_orinit_corrupt || !prop_poolings.empty()) {
+                    std::vector<std::vector<int32_t>> ress;
+                    ress.reserve(t.planes.size());
+                    for (auto& plane : t.planes)
+                        ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+                    size_t v0b = 0, v2b = 0;
+                    idealbench::Acc pacc;   // class16 fine marginal source
+                    for (auto& res : ress) {
+                        v0b += acoder_encode_plane(res, t.w, t.h, 343).size();
+                        v2b += acoder_encode_plane_v2(res, t.w, t.h,
+                                                      AC_V2_RESDIFF_CONTEXTS).size();
+                        idealbench::walk(res, t.w, pacc);
+                    }
+                    if (opt_orinit) {
+                        auto o = idealbench::run_orinit_pass(ress, t.w, pacc, false);
+                        std::snprintf(rowbuf, sizeof(rowbuf),
+                                      "ORINIT,%s,%zu,%.1f,%zu,%zu\n",
+                                      img.filename().c_str(), o.nbins, o.bits,
+                                      v0b, v2b);
+                        std::cout << rowbuf;
+                        otot.nbins += o.nbins; otot.bits += o.bits;
+                        otot.v0 += v0b; otot.v2 += v2b;
+                    }
+                    if (opt_orinit_corrupt) {
+                        auto o = idealbench::run_orinit_pass(ress, t.w, pacc, true);
+                        std::snprintf(rowbuf, sizeof(rowbuf),
+                                      "ORINITCORRUPT,%s,%zu,%.1f,%zu,%zu\n",
+                                      img.filename().c_str(), o.nbins, o.bits,
+                                      v0b, v2b);
+                        std::cout << rowbuf;
+                        octot.nbins += o.nbins; octot.bits += o.bits;
+                        octot.v0 += v0b; octot.v2 += v2b;
+                    }
+                    if (!prop_poolings.empty()) {
+                        idealbench::PropBuild pb;
+                        idealbench::build_props(t, ress, pb);
+                        for (const auto& pl_name : prop_poolings) {
+                            const idealbench::PropPools& pools =
+                                pl_name == "i" ? pb.p1
+                              : pl_name == "ii" ? pb.p2 : pb.p3;
+                            auto s = idealbench::score_props(pools, pacc.fine);
+                            double pct = 100.0 * (s.bits / 8.0 - (double)v0b) / (double)v0b;
+                            double fb = s.nbins
+                                ? 100.0 * (double)s.fallback_bins / (double)s.nbins : 0.0;
+                            std::snprintf(rowbuf, sizeof(rowbuf),
+                                          "PROP,%s,%s,%.1f,%zu,%.4f,%zu,%.2f\n",
+                                          img.filename().c_str(), pl_name.c_str(),
+                                          s.bits, (size_t)(s.bits / 8), pct,
+                                          pools.observed_cells(), fb);
+                            std::cout << rowbuf;
+                        }
+                        // Pool for TOTAL rows (joint estimation over images).
+                        for (const auto& pl_name : prop_poolings)
+                            ptot->pools[pl_name].merge(
+                                pl_name == "i" ? pb.p1
+                              : pl_name == "ii" ? pb.p2 : pb.p3);
+                        ptot->marginal.merge(pacc);
+                        ptot->v0 += v0b;
+                        ptot->v2 += v2b;
+                    }
+                }
             }
             for (auto& kv : totals) {
                 double c[3], f[3], v[3];
@@ -1332,6 +1696,32 @@ int main(int argc, char* argv[]) {
                               ztot->bits_plain, ztot->bits_adapt, adapt_pct,
                               bf[0], bf[1], bf[2], zst[0], zst[1], zst[2]);
                 std::cout << rowbuf;
+            }
+            if (opt_orinit) {
+                std::snprintf(rowbuf, sizeof(rowbuf),
+                              "ORINITTOTAL,all,%zu,%.1f,%zu,%zu\n",
+                              otot.nbins, otot.bits, otot.v0, otot.v2);
+                std::cout << rowbuf;
+            }
+            if (opt_orinit_corrupt) {
+                std::snprintf(rowbuf, sizeof(rowbuf),
+                              "ORINITCORRUPTTOTAL,all,%zu,%.1f,%zu,%zu\n",
+                              octot.nbins, octot.bits, octot.v0, octot.v2);
+                std::cout << rowbuf;
+            }
+            if (ptot) {
+                for (const auto& pl_name : prop_poolings) {
+                    const idealbench::PropPools& pools = ptot->pools.at(pl_name);
+                    auto s = idealbench::score_props(pools, ptot->marginal.fine);
+                    double pct = 100.0 * (s.bits / 8.0 - (double)ptot->v0) / (double)ptot->v0;
+                    double fb = s.nbins
+                        ? 100.0 * (double)s.fallback_bins / (double)s.nbins : 0.0;
+                    std::snprintf(rowbuf, sizeof(rowbuf),
+                                  "PROPTOTAL,all,%s,%.1f,%zu,%.4f,%zu,%.2f\n",
+                                  pl_name.c_str(), s.bits, (size_t)(s.bits / 8), pct,
+                                  pools.observed_cells(), fb);
+                    std::cout << rowbuf;
+                }
             }
         } else {
             print_usage(); return 2;
