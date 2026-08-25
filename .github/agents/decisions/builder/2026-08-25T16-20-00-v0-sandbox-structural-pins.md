@@ -79,3 +79,41 @@ Any change to these readings after the first sandbox measurement requires a
 numbered amendment BEFORE that measurement lands or it never happens.
 
 - the Builder
+
+## Amendment A1 (2026-08-25, still BEFORE any measurement)
+
+Structural readings forced by implementation, recorded before the first
+sandbox row exists:
+
+- **A1/D2 amendment (escape contexts)**: escape unary contexts are visited
+  PROGRESSIVELY: continuation position k codes in context min(k, T_ESC-1),
+  so the terminator lands in context min(q, T_ESC-1) exactly as D2 pinned -
+  this form is decodable, since the decoder learns q only at the terminator.
+  The addendum's "exactly T_ESC contexts" and "deeper absorb into the last"
+  are preserved verbatim.
+- **D9 (cap reduction rule)**: when active clusters exceed K_MAX = 256, the
+  adjacent ACTIVE pair with the smallest combined sample count merges,
+  keeping the lower id; repeated until legal. Floor merges go to the
+  NEAREST NONEMPTY sibling (ties: lower id); empty slots are not clusters.
+- **D10 (fidelity reference)**: VB-coder-fidelity compares each real
+  backend's payload against ceil(bits_tbl/8), where bits_tbl is the ideal
+  length implied by the transmitted (smoothed) tables - isolating ENGINE
+  overhead from smoothing drag. The raw-ML bracket stays the anchor figure.
+- **D11 (support floor)**: normalization keeps every key >= 1/4096 so both
+  coders stay legal; binary bins clamp to [1, 4095].
+- **D12 (anchor reference file)**: the committed quad reference is
+  benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv (per-image med rows;
+  supersedes the two-image 2026-08-24 file, which stays frozen for G-repro).
+- **D13 (HYB sign)**: the zigzag fold fixes the unsigned token ladder; the
+  sample sign rides the dedicated SIGN bin immediately after each nonzero
+  token (addendum 18.3 closing rule + L-C5). Token selection uses u = |r|.
+- **D14 (single-entry groups)**: a kind whose table has one entry per bin
+  normalizes per bin; saturation is clamped to 4095/4096 bounds by the
+  coders' common p16 clamp [16, 65535].
+- **D15 (per-bin normalization)**: every binary key is an INDEPENDENT bin:
+  pseudo joins the bin's own support and P(bit==0) = round((c0+ps)*4096/
+  (c0+c1+ps)) clamped [1,4095]. Only the TOKEN alphabet normalizes jointly
+  to exactly 2^12. (An earlier cross-key reading was structurally wrong and
+  was corrected before any measurement existed.)
+
+- the Builder

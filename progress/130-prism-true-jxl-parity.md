@@ -382,7 +382,17 @@ and locate where the gap lives before any blueprint.
       scoring; zero container bytes until a V4 PASS. Handoff {"action":
       "build"}.
 - [ ] V0 sandbox spine (Builder slice 1; blueprint section 6): IN PROGRESS
-      2026-08-25. Spec addendum 17 verified, never retuned; structural
+      2026-08-25. Continuation run (after the 17:05Z provider error):
+      tokenize.{h,cpp} + staticmodel.{h,cpp} LANDED format-unwired with 17
+      unit tests green (110/110 suite): zigzag bijection, ZERO-token
+      exclusivity, ladder edges T_ESC+-1, dense round-trips incl. extremes;
+      per-bin smoothing (amendment pins A1: progressive escape contexts,
+      D9 cap rule, D10 fidelity reference, D11 support floor, D12 anchor
+      file, D13 HYB sign, D15 per-bin normalization - all pre-measurement);
+      hierarchical blob serialization + CRC + length prefixes + NET audit;
+      interleaved-static rANS (NS=4) and B-BAC both round-trip every
+      profile x keying; cluster floor/cap enforcement proven. Next:
+      bench-sandbox CLI, probe_sandbox.sh rails, dated CSVs. Spec addendum 17 verified, never retuned; structural
       disambiguations pinned BEFORE any measurement in
       `.github/agents/decisions/builder/2026-08-25T16-20-00-v0-sandbox-
       structural-pins.md` (escape m = u-T_ESC+1 per the m>=1 guarantee;
