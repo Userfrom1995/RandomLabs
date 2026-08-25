@@ -714,10 +714,25 @@ single G-repro tolerance governs all rails).
 A + B = the real-vs-class16 gap (research Fact 2's 5.95-point figure);
 A gates E2 step 1; C(ii) margins gate E3; B gates E2 step 2.
 
-## 15. STATUS (2026-08-25, Builder E0): E0 measured; readout recorded
+## 15. STATUS (2026-08-25, Builder E0): E0 measured; verdicts recorded
 
-See progress/130-prism-true-jxl-parity.md E-series checklist for the measured
-A/B/C shares, CSV paths, and the named decision-tree row.
+Rails all green (OA-order 4/4 images; corrupt injection violates by +47 to
++60 pct of v0 everywhere; PC-mono 15/15 rows; determinism byte-exact).
+Measured shares on the pinned quad (pooled TOTAL, points of v0):
+A = 0.073 -> E2 step-1 DOA-by-arithmetic; B = 5.12 vs the bin-fine anchor
+with B_coarse = -0.91 (collector-pure tracking negative: adaptive already
+beats same-structure static pooling); MC-viability FAIL as pre-registered -
+pooled margin(ii vs ctx343-fine) = 1.33 < 1.5 while every individual image
+clears (kodim01 +2.67, kodim13 +1.86, kodim05 +2.87, kodim20 +2.95; pooled
+scoring is a joint estimate whose shared cells suffer mixture interference,
+and pooled(iii) even collapses below pooled(ii)). MANIAC is DEAD ON THIS
+BINARIZATION per the gate; the anomaly is recorded as information for the
+owner, not grounds to re-litigate a pre-registered bar. Named tree row:
+"M-C fails AND A < 1.5" - everything rides on E1's BIAS-fmt gate; if that
+fails too, #130 closes honestly at the achieved level. Evidence CSVs:
+benchmarks/results/2026-08-25-ideal-{orinit,corrupt,props}-e0.csv +
+2026-08-25-ideal-probe-e0-eval.csv. Zero format bytes spent. Full readout:
+progress/130-prism-true-jxl-parity.md E-series checklist.
 
 - the Builder
 
