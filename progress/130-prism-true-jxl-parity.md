@@ -468,12 +468,73 @@ and locate where the gap lives before any blueprint.
       recorded; fix committed separately, no number from that run survives.
       Zero container bytes by construction. Evidence CSV:
       benchmarks/results/2026-08-25-sandbox-v1.csv.
-- [ ] V-series continuation SUSPENDED at the V1 gate: V2/V3/V4 do not open
-      without an owner-directed pivot decision (decision tree row 1).
+- [x] V-series continuation SUSPENDED at the V1 gate, then RESOLVED by the
+      owner 2026-08-25T21:53:15Z on PR #145: STOP acknowledged; the
+      source-side-only pivot (or any architecture the Architect deems
+      necessary) authorized; NEW STANDING ORDER - future mathematical
+      ceilings may be pivoted autonomously without pausing for owner
+      permission, and the ONLY hard restriction is that the performance
+      gates (M2/M3 vs JPEG XL, WebP, PNG) may never be lifted, bypassed,
+      or altered. Mae dispatched `/oc architect` the same hour. The V1
+      verdict itself stands recorded permanently as FAIL/STOP under I10's
+      no-post-hoc-bar rule; see the S-series checklist below for the
+      authorized continuation.
+
+## Prism v2 S-series checklist (source-side-only pivot; owner-authorized
+## 2026-08-25T21:53Z)
+
+Program blueprint: `prism/docs/architecture-jxl-parity-sourcepivot.md`;
+pre-registration: spec addendum 19 (algorithmic-spec.md section 19),
+committed BEFORE any S-measurement. Evidence base: the V1 CSV numbers
+(static spine +5.81 pct median quad NET; spatial keyings lose to global
+flat tables; HYB ladders lose to ZFFCTRL everywhere). Dual-frame controls
+pinned (FRAME-A adaptive replay / FRAME-S static spine); FRAME-S gating;
+zero container bytes until an S4 threshold PASS (< 9.35 summed / < 3.117
+per-sample projected).
+
+- [x] S-pivot Architect phase (2026-08-25): blueprint + addendum 19 +
+      tracker/log updates delivered; reserved slots 18.6 resolved (no V1
+      winner; wall-clock per A3 precedent; P_ext frozen; tree features =
+      NONE). Handoff {"action":"build"}: Builder slice P1 = S1 predictors.
+- [ ] S1 predictor families (attacks B3): GAP + W ensemble replay per the
+      18.4 mathematics verbatim; dual-frame sweep on the pinned quad; gate
+      >= +1.5 RELPCT median FRAME-S vs same-frame MED; FAIL => MED ships,
+      B3 closed-with-numbers.
+- [ ] S2 error-feedback canary (ONE shot; opens ONLY on an S1 PASS):
+      >= +0.5 median AND no image regressing > 0.25 pct; second strike
+      closes bias feedback FOREVER.
+- [ ] S3 extended causal properties (attacks B2): flat hash over frozen
+      P_ext, K <= 256, floors inherited, NO spatial maps/trees; gate >= +1.5
+      RELPCT median FRAME-S vs same-stack best-flat-16; FAIL => flat-16
+      ships, B2 closed-with-numbers.
+- [ ] S4 composition + projection (proceed-to-format threshold): per-image
+      trial selection over {adaptive control, spine, spine + winners} x D4c
+      color trials, all NET (non-regressing vs e1 by construction);
+      projection via 18.5 formula; PASS hands to a fresh format-program
+      blueprint; FAIL stop-and-report.
+- [ ] S5 reserve (ONLY if S4 projects inside M3 reach but short): one-shot
+      squeeze-with-parent-properties, >= 2.0 median NET or third-strike
+      death (L-C7).
 
 ## Current step
 
-PRISM V2 V1 GATE READOUT COMPLETE (2026-08-25): instrument extended and
+PRISM V2 S-SERIES PIVOT AUTHORIZED AND BLUEPRINTED (2026-08-25): the owner
+acknowledged the V1 STOP on PR #145 at 21:53:15Z, authorized the
+source-side-only pivot (or any architecture deemed necessary), made pivot
+autonomy standing policy, and restated the single invariant: M2/M3 gates are
+never lifted, bypassed, or altered. The Architect delivered the S-series
+blueprint (`prism/docs/architecture-jxl-parity-sourcepivot.md`) and spec
+addendum 19 (section 19) BEFORE any measurement: dual-frame controls
+(FRAME-A adaptive / FRAME-S static spine, FRAME-S gating), frozen property
+list, all S-gates pinned. The program reuses the validated sandbox
+instrument wholesale; the measured static spine (+5.81 pct median quad,
+all bytes NETTED) enters composition as a candidate under fresh controls -
+the V1 FAIL verdict itself is permanent history and is not re-graded.
+Honest projection: midpoint composition ~9.5-9.8 summed => M2 PASS
+expected; M3 unlikely without near-edge outcomes or the S5 reserve.
+
+Prior state (superseded by the authorization above): V1 GATE READOUT
+COMPLETE (2026-08-25): instrument extended and
 validated, sweep measured on the pinned quad, verdicts recorded above.
 V1b FAILED the pre-registered retention bar => STOP rule fired; bucket B1
 closed-with-numbers (~5.8 pct realistic best vs >= 37.30 required
@@ -595,8 +656,37 @@ Previous slice summary (continuation run 3, C2b):
     ledger (tree row 1, final clause). E4 checkpoint ran in the same slice:
     fresh dual-unit corpus measure byte-identical to D4c-era CSVs; M2/M3
     honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
+6. [DONE 2026-08-25] V-series ran V0 (rails green) and V1 (STOP fired);
+    owner pivot authorization landed 21:53:15Z; Architect delivered the
+    S-series blueprint + addendum 19 (see S-series checklist above).
+7. Builder slice P1 = S1 predictors: verify addendum 19 (never retune);
+    implement GAP + W ensemble replay per 18.4 verbatim in format-unwired
+    predict.cpp + unit tests; extend bench-sandbox with --s1 dual-frame
+    sweep; all six VB rails green first; dated s1 CSV; verdicts same day.
+    Then P2 = S2-canary (conditional) + S3 properties; then P3 = S4
+    composition + projection readout. Zero container bytes until an S4
+    threshold PASS.
 
 ## Agent log
+
+- 2026-08-25 the Architect (S-series pivot): owner authorization received
+  via Mae's `/oc architect` dispatch after the V1 STOP. Delivered the pivot
+  program in three modular commits: (1) spec addendum 19 FIRST (section 19:
+  reserved-slot resolution - no V1 winner exists; FRAME-A/FRAME-S controls;
+  dual-frame contract with FRAME-S gating; frozen P_ext property list with
+  tree features = NONE; every S-gate; CSV naming) so no S-row may precede
+  its pins; (2) the S-series blueprint
+  (`prism/docs/architecture-jxl-parity-sourcepivot.md`) turning V1's three
+  durable numbers into design constraints: the static spine (+5.81 pct
+  median quad NET) is a first-class composition candidate under fresh
+  controls, transmitted spatial structure stays closed (KTREE/KGRID lost to
+  global flat tables), tokenization stays ZFFCTRL (HYB ladders lost
+  everywhere), and phases S1 predictors / S2 canary / S3 causal properties /
+  S4 composition-threshold / S5 reserve reuse the validated instrument with
+  zero container edits by construction; (3) this tracker + ideas writeup +
+  handoff {"action":"build"} for Builder slice P1. Honest arithmetic kept:
+  M2 expected, M3 unlikely without near-edge outcomes or S5; gates remain
+  the single invariant per the owner's standing order.
 
 - 2026-08-25 the Builder (V1 measurement slice): executed slice 2 to its
   gate readout. (1) Pins V-P1..V-P8 committed BEFORE any measurement
