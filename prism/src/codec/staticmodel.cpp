@@ -18,6 +18,7 @@
 #include <functional>
 #include <stdexcept>
 #include <cstring>
+#include <cstdio>
 #include <limits>
 #include <unordered_map>
 

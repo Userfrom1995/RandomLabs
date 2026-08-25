@@ -13,6 +13,7 @@
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
+#include <cstdio>
 #include <filesystem>
 #include <vector>
 #include <random>
@@ -42,6 +43,7 @@ static void print_usage() {
               << "  prism bench-ideal <image>... --orinit | --orinit-corrupt\n"
               << "                             --props i[,ii][,iii]   (E0, production stream)\n"
               << "  prism bench-sandbox <image>... [--profile LIST] [--backend LIST]\n"
+              << "      [--keying LIST] [--inject LIST] [--v1]\n"
               << "                             [--keying LIST] [--inject LIST]\n";
 }
 
@@ -921,6 +923,8 @@ static std::vector<std::string> split_list(const std::string& s) {
 
 } // namespace sandboxrun
 
+namespace sandboxrun { static void run_v1_image(const std::filesystem::path& img); }
+
 static int run_bench_sandbox(int argc, char** argv) {
     using namespace sandboxrun;
     using namespace prism::codec::sandbox;
@@ -932,6 +936,19 @@ static int run_bench_sandbox(int argc, char** argv) {
     std::vector<std::string> injects;
     for (int i = 2; i < argc; ++i) {
         std::string a = argv[i];
+        if (a == "--v1") {
+            // V-series slice 2 sweep (blueprint section 6); replaces the
+            // V0 config matrix with the V1 measurement instrument.
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --v1: no images given\n";
+                return 2;
+            }
+            int rc = 0;
+            for (const auto& img : imgs) sandboxrun::run_v1_image(img);
+            return rc;
+        }
         if (a == "--profile" && i + 1 < argc) {
             prof_names = split_list(argv[++i]);
         } else if (a == "--backend" && i + 1 < argc) {
@@ -1209,6 +1226,305 @@ static int run_bench_sandbox(int argc, char** argv) {
     }
     return 0;
 }
+
+// ----- bench-sandbox --v1 (V-series slice 2; blueprint section 6 + pins
+// V-P1..V-P8 in decisions/builder/2026-08-25T21-30-00) -----
+//
+// Sweeps {ZFFCTRL, HYB-A/B/C} x {KGRID128, KTREE, KFLAT16} x
+// {B-IDEAL, B-RANS, B-BAC} over the production residual streams, each
+// configuration as a REAL row (deterministic keying, all side-info NETTED)
+namespace sandboxrun {
+
+using namespace prism::codec::sandbox;
+
+// ----- bench-sandbox --v1 (V-series slice 2; blueprint section 6 +
+// pins V-P1..V-P8, decisions/builder/2026-08-25T21-30-00, committed BEFORE
+// any measurement) -----
+//
+// Sweeps {ZFFCTRL, HYB-A/B/C} x {KGRID128, KTREE, KFLAT16} x
+// {B-IDEAL, B-RANS, B-BAC} over the production residual streams. Each
+// configuration is emitted twice: a REAL row (deterministic keying, every
+// side-info byte NETTED) and an ORACLE twin (per-sample best-cluster
+// assignment under pin V-P4; map free but reported in dedicated columns).
+
+struct SweepArtifacts {
+    std::vector<uint8_t> table_blob;
+    std::vector<uint8_t> map_blob;
+    std::vector<uint8_t> tree_blob;      // KTREE only; empty otherwise
+    bool audits_ok = true;
+};
+
+struct PreparedConfig {
+    SandboxModel model;                  // enforced, recounted, final ids
+    SmoothedTables tabs;
+    std::vector<std::vector<TaggedEvent>> evts;
+    std::vector<ClusterMap> cms;         // decoder-side resolution
+    std::vector<std::vector<int32_t>> plane_residuals;   // rt reference
+    std::vector<uint32_t> merge;         // 'SBP1' payload (cms point here)
+    std::vector<uint32_t> leaf_map;      // KTREE context map (same)
+    SweepArtifacts art;
+};
+
+// Counts one configuration's planes under its deterministic keying,
+// applies the budget, recounts through the transmitted mapping ('SBP1'),
+// and serializes every artifact (pins V-P1..V-P3, V-P5).
+static void prepare_keyed_config(TokProfile prof, KeyingId key, uint32_t w,
+                                 const std::vector<std::vector<int32_t>>& ress,
+                                 PreparedConfig& out) {
+    ContextTree tree;
+    int raw_clusters;
+    ClusterMap keyed_cm;
+    switch (key) {
+        case KeyingId::KGRID128: {
+            uint32_t tiles_x = (w + GRID_TILE - 1) / GRID_TILE;
+            uint32_t h = (w == 0) ? 0 : (uint32_t)(ress[0].size() / w);
+            uint32_t tiles_y = (h + GRID_TILE - 1) / GRID_TILE;
+            raw_clusters = (int)(tiles_x * tiles_y);
+            keyed_cm = cluster_map_grid(w);
+            break;
+        }
+        case KeyingId::KTREE: {
+            // Pass-1 induction under KFLAT343 (planes pooled), pin V-P2.
+            SandboxModel flat;
+            flat.init(prof, KeyingId::KFLAT343);
+            for (const auto& r : ress)
+                count_plane(flat, prof, KeyingId::KFLAT343, r, w, nullptr);
+            tree = build_context_tree(prof, flat);
+            raw_clusters = (int)tree.leaves;
+            out.leaf_map = tree.leaf_of_context;
+            static const std::vector<uint32_t> kNoMerge;
+            keyed_cm = cluster_map_tree(out.leaf_map, kNoMerge);
+            break;
+        }
+        default:
+            raw_clusters = keying_cluster_count(key);
+            keyed_cm = cluster_map_keyed(key);
+            break;
+    }
+    SandboxModel m;
+    m.init(prof, raw_clusters);
+    for (const auto& r : ress) count_plane(m, prof, keyed_cm, r, nullptr);
+    out.merge = apply_cluster_budget(m, true);
+    // Recount through the transmitted mapping so encoder events, model,
+    // tables and decoder all index identical final rows.
+    ClusterMap final_cm = keyed_cm;
+    final_cm.merge = &out.merge;
+    out.model.init(prof, raw_clusters);
+    out.evts.assign(ress.size(), {});
+    for (size_t pi = 0; pi < ress.size(); ++pi)
+        count_plane(out.model, prof, final_cm, ress[pi], &out.evts[pi]);
+    build_tables_enforced(out.model, out.tabs);
+
+    size_t audit = 0;
+    out.art.audits_ok = true;
+    out.art.table_blob = serialize_tables(out.tabs, &audit);
+    out.art.audits_ok &= (audit == out.art.table_blob.size());
+    out.art.map_blob =
+        serialize_merge_map((uint32_t)raw_clusters, out.merge, &audit);
+    out.art.audits_ok &= (audit == out.art.map_blob.size());
+    if (key == KeyingId::KTREE) {
+        out.art.tree_blob = serialize_tree(tree, &audit);
+        out.art.audits_ok &= (audit == out.art.tree_blob.size());
+    } else {
+        out.art.tree_blob.clear();
+    }
+    out.cms.assign(ress.size(), final_cm);
+}
+
+// Codes one prepared configuration under all three backends and emits its
+// row triple. `real` selects which side-info columns are NETTED versus
+// merely reported (pin V-P5).
+static void emit_v1_rows(const std::string& img_name, TokProfile prof,
+                         KeyingId key, const PreparedConfig& cfg,
+                         double ml_bits, bool real, uint64_t ctrl_net,
+                         uint64_t v0_bytes, uint64_t map_rep,
+                         uint64_t tree_art_reported) {
+    char rowbuf[512];
+    for (int be : {0, 1, 2}) {
+        uint64_t payload = 0;
+        bool rt = true;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < cfg.evts.size(); ++pi) {
+            tbl_bits += table_ideal_bits(prof, cfg.evts[pi], cfg.tabs);
+            if (be == 0) continue;
+
+            std::vector<uint8_t> bytes;
+            std::vector<int32_t> dec;
+            const size_t nres = cfg.plane_residuals[pi].size();
+            if (be == 1) {
+                bytes = rans_encode_events(prof, cfg.evts[pi], cfg.tabs);
+                dec = rans_decode_events(prof, cfg.cms[pi], nres, bytes,
+                                         cfg.tabs);
+            } else {
+                bytes = bac_encode_events(prof, cfg.evts[pi], cfg.tabs);
+                dec = bac_decode_events(prof, cfg.cms[pi], nres, bytes,
+                                        cfg.tabs);
+            }
+            payload += bytes.size();
+            if (dec != cfg.plane_residuals[pi]) rt = false;
+        }
+        if (be == 0) payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+        const uint64_t counted_maps = real ? cfg.art.map_blob.size() : 0;
+        const uint64_t counted_trees = real ? cfg.art.tree_blob.size() : 0;
+        const uint64_t net =
+            payload + cfg.art.table_blob.size() + counted_maps +
+            counted_trees;
+        const double relpct =
+            100.0 * ((double)ctrl_net - (double)net) / (double)ctrl_net;
+        const double ptsv0 =
+            100.0 * ((double)net - (double)v0_bytes) / (double)v0_bytes;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "V1,%s,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%d,%d,"
+                      "%.3f,%.3f,%.3f,%.4f,%zu,%zu\n",
+                      img_name.c_str(), profile_name(prof),
+                      backend_name(be), keying_name(key),
+                      real ? "REAL" : "ORACLE", (size_t)payload,
+                      (size_t)cfg.art.table_blob.size(),
+                      (size_t)counted_maps, (size_t)counted_trees,
+                      (size_t)net, cfg.art.audits_ok ? 1 : 0, rt ? 1 : 0,
+                      tbl_bits, ml_bits, relpct, ptsv0, (size_t)map_rep,
+                      (size_t)tree_art_reported);
+        std::cout << rowbuf;
+    }
+}
+
+// Full V1 sweep over one image.
+static void run_v1_image(const std::filesystem::path& img) {
+    char rowbuf[512];
+    Raster r = frontend::decode_to_raster(img);
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    const std::string img_name = img.filename().string();
+
+    std::vector<std::vector<int32_t>> ress;
+    ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    // CONTROL row: fresh production replay (VB-anchor-adapt source).
+    {
+        bool rt = true;
+        for (size_t pi = 0; pi < ress.size(); ++pi) {
+            auto bytes = acoder_encode_plane_v2(ress[pi], w, t.h,
+                                                AC_V2_RESDIFF_CONTEXTS);
+            auto dec = acoder_decode_plane_v2(bytes, ress[pi].size(), w,
+                                              t.h,
+                                              AC_V2_RESDIFF_CONTEXTS);
+            if (dec != ress[pi]) rt = false;
+        }
+        double ptsv0 = 100.0 * ((double)v2b - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-ADAPT,KPROD,%zu,0,0,0,%zu,"
+                      "1,%d,0.000,0.000,0.0000,%.4f\n",
+                      img_name.c_str(), v2b, v2b, rt ? 1 : 0, ptsv0);
+        std::cout << rowbuf;
+    }
+    // BRACKET row from the frozen walk (bit-for-bit anchor source).
+    {
+        idealbench::Acc acc;
+        for (auto& res : ress) idealbench::walk(res, w, acc);
+        double bctmp[3], bfine[3], bval[3];
+        acc.bits(bctmp, bfine, bval);
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "BRACKET,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                      img_name.c_str(), v0b, v2b,
+                      bfine[0], bfine[1], bfine[2],
+                      bval[0], bval[1], bval[2]);
+        std::cout << rowbuf;
+    }
+    // Anchor trio under B-IDEAL only (enforcement-exempt, pins D4/V-P6):
+    // lets VB-anchor-ideal evaluate inside the v1 CSV unchanged.
+    for (KeyingId key :
+         {KeyingId::KSHARED, KeyingId::KFLAT16, KeyingId::KFLAT343}) {
+        SandboxModel m;
+        m.init(TokProfile::ZFFCTRL, key);
+        std::vector<std::vector<TaggedEvent>> evts(ress.size());
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            count_plane(m, TokProfile::ZFFCTRL, key, ress[pi], w,
+                        &evts[pi]);
+        SmoothedTables tabs;
+        build_tables(m, false, tabs);
+        size_t audit = 0;
+        auto blob = serialize_tables(tabs, &audit);
+        const bool audit_ok = (audit == blob.size());
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                         tabs);
+        const uint64_t payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+        const double ml = ml_ideal_bits(m);
+        const uint64_t net = payload + blob.size();
+        const double relpct =
+            100.0 * ((double)v2b - (double)net) / (double)v2b;
+        const double ptsv0 =
+            100.0 * ((double)net - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-IDEAL,%s,%zu,%zu,0,0,%zu,"
+                      "%d,1,%.3f,%.3f,%.3f,%.4f\n",
+                      img_name.c_str(), keying_name(key), (size_t)payload,
+                      blob.size(), (size_t)net, audit_ok ? 1 : 0, tbl_bits,
+                      ml, relpct, ptsv0);
+        std::cout << rowbuf;
+    }
+
+    // The sweep itself (pin V-P6).
+    for (TokProfile prof :
+         {TokProfile::ZFFCTRL, TokProfile::HYB_A, TokProfile::HYB_B,
+          TokProfile::HYB_C}) {
+        for (KeyingId key :
+             {KeyingId::KGRID128, KeyingId::KTREE, KeyingId::KFLAT16}) {
+            PreparedConfig cfg;
+            prepare_keyed_config(prof, key, w, ress, cfg);
+            cfg.plane_residuals = ress;
+            const double ml = ml_ideal_bits(cfg.model);
+            // REAL rows: deterministic keying, everything NETTED.
+            emit_v1_rows(img_name, prof, key, cfg, ml, true, v2b, v0b, 0,
+                         0);
+            // ORACLE twin (pin V-P4): needs >= 2 active clusters.
+            int active = 0;
+            for (int c = 0; c < cfg.model.clusters; ++c)
+                if (cfg.model.samples_per_cluster[c] > 0) ++active;
+            if (active < 2) continue;
+            auto omap = oracle_assign(prof, cfg.model, cfg.tabs, ress);
+            PreparedConfig ocfg;
+            ocfg.model.init(prof, cfg.model.clusters);
+            ocfg.evts.assign(ress.size(), {});
+            ocfg.plane_residuals = ress;
+            ocfg.cms.resize(ress.size());
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                ocfg.cms[pi] = cluster_map_explicit(omap[pi].data());
+                count_plane(ocfg.model, prof, ocfg.cms[pi], ress[pi],
+                            &ocfg.evts[pi]);
+            }
+            build_tables_enforced(ocfg.model, ocfg.tabs);   // no budget pass
+            size_t audit = 0;
+            ocfg.art.audits_ok = true;
+            ocfg.art.table_blob = serialize_tables(ocfg.tabs, &audit);
+            ocfg.art.audits_ok &= (audit == ocfg.art.table_blob.size());
+            ocfg.art.map_blob.clear();
+            ocfg.art.tree_blob.clear();
+            // Reported hypothetical map size (pin V-P4): ceil(log2(K))
+            // bits per sample, packed MSB-first across all planes.
+            uint64_t total_samples = 0;
+            for (const auto& r : ress) total_samples += r.size();
+            int bits_per = 1;
+            while ((1 << bits_per) < active) ++bits_per;
+            const uint64_t map_rep =
+                (total_samples * (uint64_t)bits_per + 7) / 8;
+            const double oml = ml_ideal_bits(ocfg.model);
+            emit_v1_rows(img_name, prof, key, ocfg, oml, false, v2b, v0b,
+                         map_rep, cfg.art.tree_blob.size());
+        }
+    }
+}
+
+} // namespace sandboxrun
+
+
 
 int main(int argc, char* argv[]) {
     if (argc < 2) { print_usage(); return 2; }
