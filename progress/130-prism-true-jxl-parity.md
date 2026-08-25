@@ -381,34 +381,47 @@ and locate where the gap lives before any blueprint.
       Builder slicing: slice 1 = V0 rails green + dated CSVs before any V1
       scoring; zero container bytes until a V4 PASS. Handoff {"action":
       "build"}.
-- [ ] V0 sandbox spine (Builder slice 1; blueprint section 6): IN PROGRESS
-      2026-08-25. Continuation run (after the 17:05Z provider error):
-      tokenize.{h,cpp} + staticmodel.{h,cpp} LANDED format-unwired with 17
-      unit tests green (110/110 suite): zigzag bijection, ZERO-token
-      exclusivity, ladder edges T_ESC+-1, dense round-trips incl. extremes;
-      per-bin smoothing (amendment pins A1: progressive escape contexts,
-      D9 cap rule, D10 fidelity reference, D11 support floor, D12 anchor
-      file, D13 HYB sign, D15 per-bin normalization - all pre-measurement);
-      hierarchical blob serialization + CRC + length prefixes + NET audit;
-      interleaved-static rANS (NS=4) and B-BAC both round-trip every
-      profile x keying; cluster floor/cap enforcement proven.
-      `prism bench-sandbox` CLI LANDED: config matrix (4 profiles x keyings
-      x 3 backends + B-ADAPT control), BRACKET rows from the frozen
-      idealbench walk (sandbox bits_ml reproduces fine_shared exactly),
-      round-trip verification on every real backend row, NET audit column,
-      three corruption injections all hard-detecting. ENGINE INTEGRITY
-      FIXES (decision-record amendment A2, BEFORE any measurement):
-      (1) build_tables' TOKEN block spilled past the ZFFCTRL stride and
-      overwrote every cluster boundary's ZERO_FLAG entry with the
-      single-symbol value 4096 - round-trips stayed green only because
-      encoder and decoder shared the damage; fixed + regression test
-      ZffctrlTokenBlockNeverSpillsIntoNeighborBins. (2) table_ideal_bits
-      now carries RAWBITS literal cost so B-IDEAL bounds its real
-      siblings; after both fixes all 18 real-backend configs on kodim05
-      sit within +0.03 pct of their B-IDEAL rows (bound +0.50). 111/111
-      unit tests green. Next:
-      probe_sandbox.sh rails + self-check, dated reference CSVs on the
-      pinned quad, docs sweep. Spec addendum 17 verified, never retuned; structural
+- [x] V0 sandbox spine (Builder slice 1; blueprint section 6): COMPLETE
+      2026-08-25. tokenize.{h,cpp} + staticmodel.{h,cpp} format-unwired
+      (zigzag bijection, ZERO-token exclusivity, ladder edges T_ESC+-1,
+      dense round-trips incl. extremes; per-bin smoothing per amendment
+      pins A1/D9-D15; hierarchical blob serialization + CRC + length
+      prefixes + NET audit; interleaved-static rANS (NS=4) and B-BAC
+      round-tripping every profile x keying; cluster floor/cap enforcement).
+      `prism bench-sandbox` CLI: config matrix (4 profiles x keyings x 3
+      backends + B-ADAPT control), BRACKET rows from the frozen idealbench
+      walk, round-trip verification on every real backend row, NET audit
+      column, three corruption injections all hard-detecting. ENGINE
+      INTEGRITY FIXES (decision-record amendment A2, BEFORE any
+      measurement): (1) build_tables' TOKEN block spilled past the ZFFCTRL
+      stride and overwrote every cluster boundary's ZERO_FLAG entry with
+      4096 - round-trips stayed green only because encoder and decoder
+      shared the damage; fixed + regression test. (2) table_ideal_bits now
+      carries RAWBITS literal cost so B-IDEAL bounds its real siblings.
+      RAILS: `benchmarks/probe_sandbox.sh` LANDED - all six VB rails green
+      on the pinned quad: VB-anchor-adapt (B-ADAPT payload bit-for-bit vs
+      committed v2 bytes, 4/4 images), VB-anchor-ideal (frozen-walk BRACKET
+      AND sandbox counting path both reproduce fine_shared/class16/ctx343
+      bit-for-bit, 4/4), VB-coder-fidelity (72 real-backend rows within
+      +0.50 pct of their own B-IDEAL rows; measured spread +0.02..+0.03),
+      VB-net-audit (112 rows: serializer audit == blob length, NET identity,
+      all coded rows decode), VB-corrupt (table/trunc/content injections all
+      hard-detect on a real pinned image), VB-rank (skew fixture: clustered
+      23169 < pooled 29383 NET; constant-image fixture: pooled 401 <=
+      clustered 1628), VB-determinism (byte-identical quad re-run).
+      --self-check proves every rail's FAIL path (anchor drift, fidelity
+      stub, double-count mismatch, silent corruption, flipped rank fixtures,
+      uncovered image) plus live rank/injection/determinism checks.
+      REFERENCE CSV COMMITTED:
+      benchmarks/results/2026-08-25-sandbox-v0.csv (144 rows: SANDBOX config
+      matrix + BRACKET + CORRUPT + SANDBOXTOTAL families). Wall-clock
+      deviation recorded honestly as amendment A3 (sandbox coding
+      instrument ~21-42x the plain bench-ideal bracket walk; structural to
+      the pairing, O(N) per config as blueprinted). Control truth re-verified
+      in-sandbox: B-ADAPT quad net = 2272270 == committed e1-era bytes.
+      V0 exit condition MET: all rails green + dated reference CSV committed;
+      V1 scoring may now run. Zero container bytes by construction.
+      Spec addendum 17 verified, never retuned; structural
       disambiguations pinned BEFORE any measurement in
       `.github/agents/decisions/builder/2026-08-25T16-20-00-v0-sandbox-
       structural-pins.md` (escape m = u-T_ESC+1 per the m>=1 guarantee;
@@ -425,10 +438,12 @@ and locate where the gap lives before any blueprint.
 
 ## Current step
 
-PRISM V2 V0 SLICE UNDERWAY (2026-08-25): Builder slice 1 implements the
-sandbox spine per `prism/docs/architecture-jxl-parity-vseries.md` - tokenize/
-staticmodel modules, bench-sandbox CLI, probe_sandbox.sh rails, dated v0
-reference CSVs; all six VB rails green before any V1 scoring may run.
+PRISM V2 V0 COMPLETE (2026-08-25): sandbox spine landed with all six VB
+rails green, fail-capable self-check, and the dated reference CSV
+(2026-08-25-sandbox-v0.csv) committed. Next: Builder slice 2 = the V1
+measurement phase (tokenization x keying x backend sweep on the pinned quad,
+V1a oracle-map / V1b realistic-map verdicts per spec addendum 18.1 controls;
+STOP rule binding on miss). Zero format bytes until a V4 PASS.
 
 v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
@@ -544,6 +559,33 @@ Previous slice summary (continuation run 3, C2b):
     honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
 
 ## Agent log
+
+- 2026-08-25 the Builder (V0 completion slice): landed the sandbox spine to
+  its exit condition. (1) Engine integrity first: wiring the fidelity
+  discipline exposed that build_tables' TOKEN block wrote past the ZFFCTRL
+  stride, corrupting every cluster boundary's ZERO_FLAG entry with the
+  value 4096 (round-trips green only because both sides shared the damage)
+  - fixed with regression test ZffctrlTokenBlockNeverSpillsIntoNeighborBins;
+  and table_ideal_bits now carries RAWBITS literal cost so B-IDEAL bounds
+  its real siblings (amendment A2, both BEFORE any measurement; kodim05
+  spread tightened from +12.7 pct apparent to +0.03 pct actual). Also fixed
+  a control-row ptsv0 unsigned-subtraction underflow (printed -3.1e15 on
+  any image where v2 beats v0) and aligned its sign to the worse-is-positive
+  convention of every other row. (2) `benchmarks/probe_sandbox.sh`: six VB
+  rails + fail-capable self-check (every rail's FAIL path demonstrated on
+  mutated fixtures; rank proven LIVE both ways - clustered beats pooled on
+  a two-half skew fixture, pooled beats clustering on a constant image,
+  after discovering iid noise is NOT homogeneous in the context-information
+  sense and picking fixtures accordingly); uncovered-image coverage guard.
+  (3) Reference measurement on the pinned quad, pins verified pre-run:
+  SANDBOX GATE PASS - anchors bit-for-bit 4/4 on BOTH the frozen walk and
+  the sandbox counting path, fidelity +0.02..+0.03 pct worst across 72
+  real-backend rows, net-audit clean 112 rows, injections all hard-detect,
+  determinism byte-exact. Dated CSV committed. Wall-clock deviation recorded
+  honestly as amendment A3. Control truth: B-ADAPT quad net = 2272270 ==
+  committed e1-era bytes (VB-anchor-adapt). 111/111 unit tests. Zero
+  container bytes. Handoff {"action":"continue"} for the V1 measurement
+  slice.
 
 - 2026-08-25 the Architect (V-series blueprint): delivered
   `prism/docs/architecture-jxl-parity-vseries.md` turning the clean-slate

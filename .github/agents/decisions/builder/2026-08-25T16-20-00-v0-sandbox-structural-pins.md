@@ -141,3 +141,24 @@ and regression-tested before the first sandbox row exists:
   the ML anchor brackets stay pure model entropy.
 
 - the Builder
+
+## Amendment A3 (2026-08-25, recorded with the V0 reference run)
+
+Wall-clock guard deviation, surfaced rather than normalized: blueprint
+section 5 texts "V0 <= 2.0x the bench-ideal quad time". Measured on this
+machine at reference time: sandbox quad single pass 62.4 s (125 s with the
+contractual determinism re-run; rank fixtures ~1 s) vs the plain bench-ideal
+quad (MED brackets only) 2-3 s - a ~21-42x ratio. The comparison text pits a
+CODING instrument (12 backend configurations per image, each a full rANS or
+arithmetic encode AND decode round-trip plus table serialization) against a
+pure histogramming walk; the ratio is structural to that pairing, not a
+runaway: per-configuration cost is O(N) exactly as blueprinted (section 5),
+and total time = config breadth x O(N), bounded and known in advance. The
+standing 5x PHASE guard compares same-instrument phase-to-phase runtimes and
+remains the operative resource control for V1+. No constant was tuned and no
+measured number depends on wall-clock; recorded per the honest-deviation
+discipline so the Maintainer/Reviewer see it, and so any baseline re-wording
+(e.g. "full E-mode bench-ideal suite" as the unit) lands as an Architect
+amendment BEFORE V1 scoring.
+
+- the Builder

@@ -36,6 +36,8 @@ prism probe-xband <image.ppm>
 prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST] [--mixer LIST]
 prism bench-ideal <image.ppm>... --orinit | --orinit-corrupt | --props i[,ii][,iii]
 prism bench-ideal <image.ppm>... --bias biasoff[,bias[,biasgain]]
+prism bench-sandbox <image.ppm>... [--profile LIST] [--backend LIST]
+                              [--keying LIST] [--inject table,trunc,content]
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -119,6 +121,29 @@ mode destroys the cheap exact-zero residuals that dominate the bit budget
 (`benchmarks/results/2026-08-25-ideal-bias-e1.csv`). This closed the last
 open E-series lever and moved #130 to honest closure at the achieved level.
 
+`bench-sandbox` is the V0 spine of the Prism v2 clean-slate program (V-series
+blueprint + spec addendum 17 = `docs/algorithmic-spec.md` section 18): a NEW
+offline instrument, deliberately separate from the frozen bench-ideal, that
+scores clustered-static coding of the production residual streams under
+tokenization profiles (ZFFCTRL control plus HYB escape ladders T_ESC =
+4/8/16 with zigzag fold and first-class ZERO token), keyings (KSHARED /
+KFLAT16 / KFLAT343; grid and tree arrive at V3 against the same interface),
+and backends (B-IDEAL exact static ideal, B-RANS interleaved-static rANS,
+B-BAC binary arithmetic; B-ADAPT production control). Everything here is
+FORMAT-UNWIRED: zero container bytes until a V4 PASS. Per-image smoothed
+tables (pseudo-count 32, r = 15/16, normalized to 2^12, cluster caps K <=
+256 with 4096-sample floors) serialize hierarchically with CRC32 protection,
+and every row carries joint NET accounting (payload + tables + maps +
+trees, invariant I12). Feed it through `benchmarks/probe_sandbox.sh`, which
+verifies SHA256 pins, writes the dated phase CSV, and enforces the six VB
+rails: bit-for-bit anchors against the committed bench-ideal references on
+all four probe images (both the frozen walk AND the sandbox counting path),
+a +0.50 percent coder-fidelity bound of each real backend against its own
+B-IDEAL row, double-count side-info audit, corrupt-injection failability,
+both-direction clustering rank fixtures, and byte-identical determinism -
+each proven able to FAIL by `--self-check`. Reference CSV:
+`benchmarks/results/2026-08-25-sandbox-v0.csv`.
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
@@ -167,6 +192,8 @@ analysis decision can never lose to doing nothing. See
 prism/benchmarks/run_kodak.sh --effort 4 --kodak data/kodak
 prism/benchmarks/fuzz_gate.sh
 prism/benchmarks/probe_backend.sh --build-dir <dir> --image <kodim01.ppm> --image <kodim13.ppm>
+prism/benchmarks/probe_sandbox.sh --build-dir <dir> --image <kodim01.ppm> [--image ...]
+prism/benchmarks/probe_sandbox.sh --self-check
 python3 prism/benchmarks/aggregate.py
 ```
 
