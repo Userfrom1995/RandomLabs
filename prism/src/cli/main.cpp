@@ -1618,6 +1618,41 @@ void run_s1_image(const std::filesystem::path& img) {
         std::cout << rowbuf;
     }
 
+    // Anchor trio under B-IDEAL only (enforcement-exempt): lets
+    // VB-anchor-ideal evaluate the sandbox COUNTING path inside every s1
+    // CSV, exactly as in v1 mode.
+    for (KeyingId key :
+         {KeyingId::KSHARED, KeyingId::KFLAT16, KeyingId::KFLAT343}) {
+        SandboxModel m;
+        m.init(TokProfile::ZFFCTRL, key);
+        std::vector<std::vector<TaggedEvent>> evts(med_ress.size());
+        for (size_t pi = 0; pi < med_ress.size(); ++pi)
+            count_plane(m, TokProfile::ZFFCTRL, key, med_ress[pi], w,
+                        &evts[pi]);
+        SmoothedTables tabs;
+        build_tables(m, false, tabs);
+        size_t audit = 0;
+        auto blob = serialize_tables(tabs, &audit);
+        const bool audit_ok = (audit == blob.size());
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < med_ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi], tabs);
+        const uint64_t payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+        const double ml = ml_ideal_bits(m);
+        const uint64_t net = payload + blob.size();
+        const double relpct =
+            100.0 * ((double)v2b - (double)net) / (double)v2b;
+        const double ptsv0 =
+            100.0 * ((double)net - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-IDEAL,%s,%zu,%zu,0,0,%zu,"
+                      "%d,1,%.3f,%.3f,%.3f,%.4f\n",
+                      img_name.c_str(), keying_name(key), (size_t)payload,
+                      blob.size(), (size_t)net, audit_ok ? 1 : 0, tbl_bits,
+                      ml, relpct, ptsv0);
+        std::cout << rowbuf;
+    }
+
     // The dual-frame family sweep (pins P-S1-8/P-S1-9).
     for (PredFamily fam :
          {PredFamily::MED, PredFamily::GAP, PredFamily::WENS}) {
