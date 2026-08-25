@@ -41,6 +41,20 @@ set -euo pipefail
 #              PASS only opens the door to container/trial wiring. A rejection
 #              is a legitimate measured outcome and never flips the exit code.
 #
+# E1 BIAS gates (spec addenda 14.3 + 16.2, pre-registered BEFORE any
+# measurement):
+#   BIAS-anchor (rail integrity, flips exit code): med@biasoff rows equal the
+#              plain med shipped-baseline rows byte-for-byte on v0/v2 columns
+#              (the off configuration applies no correction and no updates).
+#   BIAS-fmt   (DECISION verdict, never flips exit code): per candidate mode
+#              (med@bias, med@biasgain) the ctx343-fine bracket drop vs the
+#              old-stream row must be >= 1.5 points of v0 on the pooled TOTAL
+#              row (drop = (bits_old - bits_new)/8 / v0_old * 100, baseline
+#              reference frame), AND no probe image may drop below its own
+#              baseline by more than the series tolerance (0.05 points; mixed
+#              sign never adopts). Real-payload v2 deltas ride along as
+#              diagnostics only - format wiring runs its own trial later.
+#
 # CSV semantics (read before auditing): TOTAL rows pool frequency histograms
 # ACROSS images before entropy estimation (Acc::merge), so IDEALTOTAL columns
 # are joint-estimation figures over the pooled streams and are intentionally
@@ -87,8 +101,8 @@ set -euo pipefail
 # Usage:
 #   probe_ideal.sh --image /path/kodim01.ppm --image /path/kodim13.ppm \
 #                  [--predictor LIST] [--blend LIST] [--mixer LIST] [--zrun]
-#                  [--color LIST] [--orinit] [--orinit-corrupt]
-#                  [--props i,ii,iii]
+#                  [--color LIST] [--bias biasoff,bias,biasgain] [--orinit]
+#                  [--orinit-corrupt] [--props i,ii,iii]
 #   probe_ideal.sh --self-check
 #   probe_ideal.sh --image ... [--build-dir DIR]
 
@@ -100,6 +114,7 @@ BLENDS=""
 MIXERS=""
 ZRUN=0
 COLOR=""
+BIAS=""
 ORINIT=0
 ORINIT_CORRUPT=0
 PROPS=""
@@ -113,6 +128,7 @@ while [[ $# -gt 0 ]]; do
     --mixer) MIXERS="$2"; shift 2;;
     --zrun) ZRUN=1; shift;;
     --color) COLOR="$2"; shift 2;;
+    --bias) BIAS="$2"; shift 2;;
     --orinit) ORINIT=1; shift;;
     --orinit-corrupt) ORINIT_CORRUPT=1; shift;;
     --props) PROPS="$2"; shift 2;;
@@ -282,6 +298,60 @@ for mode in sorted(modes):
                     None)
     base_tot = next((r for r in rows
                      if r["image"] == "all" and r["predictor"] == "med"), None)
+    # ----- E1 BIAS gates (spec addenda 14.3 + 16.2) -----
+    if mode == "biasoff":
+        bad = [r["image"] for r in cand_imgs
+               if r["image"] in base_by_img
+               and (r["v0_bytes"] != base_by_img[r["image"]]["v0_bytes"]
+                    or r["v2_bytes"] != base_by_img[r["image"]]["v2_bytes"])]
+        missing = [r["image"] for r in cand_imgs if r["image"] not in base_by_img]
+        if missing:
+            print(f"BIAS-anchor SKIP ({mode}: no baseline row for {','.join(missing)})")
+        elif bad or not cand_imgs:
+            print(f"BIAS-anchor FAIL ({mode}: v0/v2 diverge from shipped MED "
+                  f"on {','.join(bad) if bad else 'ALL rows'})")
+            ok = False
+        elif cand_tot and base_tot and (
+                cand_tot["v0_bytes"] != base_tot["v0_bytes"]
+                or cand_tot["v2_bytes"] != base_tot["v2_bytes"]):
+            print(f"BIAS-anchor FAIL ({mode}: pooled totals diverge from shipped)")
+            ok = False
+        else:
+            print(f"BIAS-anchor OK (med@{mode} == shipped MED byte-for-byte)")
+        continue
+    if mode.startswith("bias"):
+        if cand_tot is None or base_tot is None or not cand_imgs:
+            continue
+        CX = "fine_ctx343"
+        drop_total = 100.0 * ((float(base_tot[CX]) - float(cand_tot[CX])) / 8.0) \
+            / float(base_tot["v0_bytes"])
+        per = {}
+        for r in cand_imgs:
+            b = base_by_img.get(r["image"])
+            if b:
+                per[r["image"]] = 100.0 * \
+                    ((float(b[CX]) - float(r[CX])) / 8.0) / float(b["v0_bytes"])
+        regressed = [k for k, v in per.items() if v < -TOL]
+        bv2 = int(base_tot["v2_bytes"])
+        payld = 100.0 * (int(cand_tot["v2_bytes"]) - bv2) / bv2
+        verdict = (f"BIAS-fmt ({mode}): ctx343-fine bracket drop "
+                   f"{drop_total:+.4f} points of v0 aggregate; payload "
+                   f"{payld:+.4f} pct (diagnostic); worst image "
+                   f"{min(per.values()):+.4f}" if per else
+                   f"BIAS-fmt ({mode}): no comparable images")
+        if per and drop_total >= 1.5 and not regressed:
+            print(verdict + " -> BIAS-fmt PASS (format work eligible; wiring "
+                  "behind the never-expand per-plane trial happens later)")
+        else:
+            why = []
+            if drop_total < 1.5:
+                why.append("aggregate bracket drop under the 1.5-point bar")
+            if regressed:
+                why.append(f"{len(regressed)}/{len(per)} probe images below "
+                           "their own baseline beyond tolerance: "
+                           + ",".join(sorted(regressed)))
+            print(verdict + " -> BIAS-fmt FAIL (" + "; ".join(why) + ")")
+        continue
     if mode == "ycocgr":
         bad = [r["image"] for r in cand_imgs
                if r["image"] in base_by_img
@@ -711,6 +781,94 @@ PY
   grep -q "OA-order FAIL" "$TMP/e0_bad.out" || { echo "SELF-CHECK FAIL: OA-order must reject a gross violation"; cat "$TMP/e0_bad.out"; ok=0; }
   [[ "$ok" == "1" ]] && echo "E0 SELF-CHECK PASS: deterministic, OA-order holds live, corrupt injection bites, OA/PC/MC verdicts render both ways"
   [[ "$ok" == "1" ]] || exit 1
+  # ----- E1 bias self-check (spec addenda 14.3 + 16.2) -----
+  # (a) determinism: identical --bias invocations must be byte-identical;
+  # (b) BIAS-anchor holds LIVE on a real pinned image (med@biasoff ==
+  #     shipped MED rows byte-for-byte);
+  # (c) mechanism-live: on a constructed sawtooth+spike image the
+  #     corrections demonstrably fire (med@add rows differ from med@off -
+  #     a pipeline that silently no-ops proves nothing);
+  # (d) evaluator renders BOTH BIAS-fmt verdicts plus a biting BIAS-anchor
+  #     from CSV rows alone.
+  REAL_IMG="${ROOT}/../obsidian/benchmarks/data/kodak/kodim05.ppm"
+  WANT="$(grep ' kodim05.ppm$' "${ROOT}/benchmarks/data/kodak.sha256" | awk '{print $1}')"
+  GOT="$(sha256sum "$REAL_IMG" | awk '{print $1}')"
+  [[ "$WANT" == "$GOT" ]] || { echo "SELF-CHECK FAIL: kodim05 pin mismatch"; exit 1; }
+  "$BIN" bench-ideal "$REAL_IMG" --bias biasoff,bias,biasgain > "$TMP/e1a.txt"
+  "$BIN" bench-ideal "$REAL_IMG" --bias biasoff,bias,biasgain > "$TMP/e1b.txt"
+  if ! cmp -s "$TMP/e1a.txt" "$TMP/e1b.txt"; then
+    echo "SELF-CHECK FAIL: E1 bias mode is nondeterministic"; ok=0
+  fi
+  row_of() { awk -F, -v img="$2" -v pred="$3" \
+    '$1=="IDEAL" && $2==img && $3==pred {print $4 "," $5; exit}' "$1"; }
+  base_row=$(row_of "$TMP/e1a.txt" kodim05.ppm med)
+  off_row=$(row_of "$TMP/e1a.txt" kodim05.ppm med@biasoff)
+  [[ -n "$base_row" && "$base_row" == "$off_row" ]] || \
+    { echo "SELF-CHECK FAIL: med@biasoff ($off_row) != shipped med ($base_row)"; ok=0; }
+  make_spiky() {
+    python3 - "$1" <<'PY'
+import sys
+w = h = 96
+px = bytearray()
+for y in range(h):
+    for x in range(w):
+        v = (x * 3 + y * 2) % 180
+        if x % 8 == 4 and y % 8 == 2:
+            v = 255
+        px += bytes([v, v, v])
+open(sys.argv[1], "wb").write(b"P6\n%d %d\n255\n" % (w, h) + bytes(px))
+PY
+  }
+  make_spiky "$TMP/spiky.ppm"
+  "$BIN" bench-ideal "$TMP/spiky.ppm" --bias biasoff,bias > "$TMP/e1s.txt"
+  s_off=$(row_of "$TMP/e1s.txt" spiky.ppm med@biasoff)
+  s_add=$(row_of "$TMP/e1s.txt" spiky.ppm med@bias)
+  [[ -n "$s_add" && "$s_add" != "$s_off" ]] || \
+    { echo "SELF-CHECK FAIL: corrections never fired on the constructed stream (add == off)"; ok=0; }
+  # (d) injected-verdict rendering. Fixture frame: v0 500000/image,
+  # old-stream ctx343-fine 3400000 bits (-15.00 percent of v0). Column
+  # orderings satisfy G-order by construction.
+  ih='IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343'
+  emit_base() { # file
+    { printf '%s\n' "$ih"
+      printf 'IDEAL,a.ppm,med,500000,480000,3600000,3500000,3400000,3500000,3450000,3400000,3600000,3550000,3500000\n'
+      printf 'IDEAL,b.ppm,med,500000,480000,3600000,3500000,3400000,3500000,3450000,3400000,3600000,3550000,3500000\n'
+      printf 'IDEALTOTAL,all,med,1000000,960000,7200000,7000000,6800000,7000000,6900000,6800000,7200000,7100000,7000000\n'
+    } > "$1"
+  }
+  emit_cand() { # file mode ctxA ctxB v2  (APPENDS to the base rows)
+    { printf 'IDEAL,a.ppm,%s,500000,%s,3600000,3500000,3400000,3380000,3330000,%s,3600000,3550000,3500000\n' "$2" "$5" "$3"
+      printf 'IDEAL,b.ppm,%s,500000,%s,3600000,3500000,3400000,3380000,3330000,%s,3600000,3550000,3500000\n' "$2" "$5" "$4"
+      local ta=$(( $3 + $4 ))
+      printf 'IDEALTOTAL,all,%s,1000000,%s,7200000,7000000,6800000,6760000,6660000,%s,7200000,7100000,7000000\n' "$2" "$5" "$ta"
+    } >> "$1"
+  }
+  emit_base "$TMP/e1_pass.csv";   emit_cand "$TMP/e1_pass.csv"   med@bias 3280000 3280000 470000
+  emit_base "$TMP/e1_loserA.csv"; emit_cand "$TMP/e1_loserA.csv" med@bias 3390000 3390000 477000
+  emit_base "$TMP/e1_loserB.csv"
+  { printf 'IDEAL,a.ppm,med@bias,500000,470000,3600000,3500000,3400000,3380000,3330000,3200000,3600000,3550000,3500000\n'
+    printf 'IDEAL,b.ppm,med@bias,500000,470000,3600000,3500000,3400000,3420000,3414000,3408000,3600000,3550000,3500000\n'
+    printf 'IDEALTOTAL,all,med@bias,1000000,940000,7200000,7000000,6800000,6800000,6744000,6608000,7200000,7100000,7000000\n'
+  } >> "$TMP/e1_loserB.csv"
+  # Anchor bite: biasoff diverges from shipped v2 (v0 kept equal).
+  { printf '%s\n' "$ih"
+    printf 'IDEAL,a.ppm,med,500000,480000,3600000,3500000,3400000,3500000,3450000,3400000,3600000,3550000,3500000\n'
+    printf 'IDEAL,a.ppm,med@biasoff,500000,480001,3600000,3500000,3400000,3500000,3450000,3400000,3600000,3550000,3500000\n'
+    printf 'IDEALTOTAL,all,med,500000,480000,3600000,3500000,3400000,3500000,3450000,3400000,3600000,3550000,3500000\n'
+    printf 'IDEALTOTAL,all,med@biasoff,500000,480001,3600000,3500000,3400000,3500000,3450000,3400000,3600000,3550000,3500000\n'
+  } > "$TMP/e1_anchor_bad.csv"
+  evaluate "$TMP/e1_pass.csv" > "$TMP/e1_pass.out" 2>&1 || true
+  evaluate "$TMP/e1_loserA.csv" > "$TMP/e1_failA.out" 2>&1 || true
+  evaluate "$TMP/e1_loserB.csv" > "$TMP/e1_failB.out" 2>&1 || true
+  if evaluate "$TMP/e1_anchor_bad.csv" > "$TMP/e1_bad.out" 2>&1; then
+    echo "SELF-CHECK FAIL: BIAS-anchor accepted a diverged biasoff row"; ok=0
+  fi
+  grep -q "BIAS-anchor FAIL" "$TMP/e1_bad.out" || { echo "SELF-CHECK FAIL: no BIAS-anchor verdict"; cat "$TMP/e1_bad.out"; ok=0; }
+  grep -q "BIAS-fmt (bias).*PASS" "$TMP/e1_pass.out" || { echo "SELF-CHECK FAIL: evaluator must grant BIAS-fmt on a winning projection"; cat "$TMP/e1_pass.out"; ok=0; }
+  grep -q "BIAS-fmt (bias).*FAIL" "$TMP/e1_failA.out" || { echo "SELF-CHECK FAIL: evaluator must refuse BIAS-fmt below the bar"; cat "$TMP/e1_failA.out"; ok=0; }
+  grep -q "below their own baseline" "$TMP/e1_failB.out" || { echo "SELF-CHECK FAIL: evaluator must refuse BIAS-fmt on mixed sign"; cat "$TMP/e1_failB.out"; ok=0; }
+  [[ "$ok" == "1" ]] && echo "E1 SELF-CHECK PASS: deterministic, anchor exact on a pinned image, corrections demonstrably fire, BIAS-anchor/BIAS-fmt render and bite"
+  [[ "$ok" == "1" ]] || exit 1
   exit 0
 fi
 
@@ -743,6 +901,7 @@ COLOR_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-color-d4c.csv"
 ORINIT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-orinit-e0.csv"
 CORRUPT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-corrupt-e0.csv"
 PROPS_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-props-e0.csv"
+BIAS_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-bias-e1.csv"
 RAW_CSV="$(mktemp)"
 MIX_RAW="$(mktemp)"
 ZR_RAW="$(mktemp)"
@@ -759,6 +918,7 @@ ARGS=()
 [[ "$ORINIT" == "1" ]] && ARGS+=(--orinit)
 [[ "$ORINIT_CORRUPT" == "1" ]] && ARGS+=(--orinit-corrupt)
 [[ -n "$PROPS" ]] && ARGS+=(--props "$PROPS")
+[[ -n "$BIAS" ]] && ARGS+=(--bias "$BIAS")
 "$BIN" bench-ideal "${IMAGES[@]}" "${ARGS[@]}" > "$ALL_RAW"
 grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$RAW_CSV"
 if [[ -n "$MIXERS" ]]; then
@@ -796,11 +956,18 @@ elif [[ -n "$COLOR" ]]; then
 elif [[ "$ORINIT" == "1" || "$ORINIT_CORRUPT" == "1" || -n "$PROPS" ]]; then
   EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-e0-eval.csv"
   cp "$RAW_CSV" "$EVAL_CSV"
+elif [[ -n "$BIAS" ]]; then
+  cp "$RAW_CSV" "$BIAS_CSV"
+  EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-bias-eval.csv"
+  cp "$RAW_CSV" "$EVAL_CSV"
 else
   cp "$RAW_CSV" "$OUT_CSV"
 fi
 echo "== ideal-bracket results (${OUT_CSV}) =="
 cat "$RAW_CSV"
+if [[ -n "$BIAS" ]]; then
+  echo "== E1 bias-candidate rows -> ${BIAS_CSV} =="
+fi
 if [[ "$ORINIT" == "1" || "$ORINIT_CORRUPT" == "1" ]]; then
   echo "== E0 oracle-init rows -> ${ORINIT_CSV} / ${CORRUPT_CSV} =="
   cat "$OR_RAW" "$CO_RAW" 2>/dev/null || true
