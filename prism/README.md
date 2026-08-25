@@ -34,6 +34,7 @@ prism info <file.prism>
 prism probe-backend <image.ppm> [--variants v0,v1,v1shared,v2,v2shared]
 prism probe-xband <image.ppm>
 prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST] [--mixer LIST]
+prism bench-ideal <image.ppm>... --orinit | --orinit-corrupt | --props i[,ii][,iii]
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -77,6 +78,22 @@ legacy color winner is re-trialed at the end of analyze() under its own
 decided predictor, and a rotation displaces it only on a strict production-
 flat win (22 wins / 2 ties / 0 regressions corpus-wide; e1 = 10.1210 summed
 / 3.3737 per-sample bpp, -1.65 percent bytes vs pre-D4c).
+
+The E0 measurement modes (spec addendum 14) decompose the remaining gap on
+the production stream. `--orinit` replays the exact v2 bin sequence through
+the production adaptation loop with every model state warm-started at its
+class16-pooled empirical optimum - the measured A share is precisely what a
+transmitted class-level table could recover. `--orinit-corrupt` injects an
+all-kind anti-optimum frozen init to prove the OA-order gate can fail.
+`--props i[,ii][,iii]` scores static conditionals over decoder-computable
+property cells (previously-coded residual quotients qW/qN/qNW/qNE clamped to
++-7, CALIC-style gradient bucket pair from decoded pixels, plane id) under
+three pre-registered poolings with a 64-count floor falling back to the
+class16 marginal; the MC-viability verdict against the ctx343 static row
+decides whether MANIAC-style conditioning ever opens on this binarization
+(measured 2026-08-25: pooled margin 1.33 points of v0 < the 1.5 bar -> FAIL,
+with all four per-image margins clearing - evidence in
+`benchmarks/results/2026-08-25-ideal-props-e0.csv`).
 
 The `--mixer LIST` extension (spec addendum 12) replays the exact
 production bin sequence and scores K=4 adaptive dual-rate estimators -

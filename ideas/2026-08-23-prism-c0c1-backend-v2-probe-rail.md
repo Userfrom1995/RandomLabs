@@ -259,3 +259,54 @@ decision point stands: MANIAC-grade machinery or honest closure at the
 achieved level (-9.1 percent bytes total since the 11.026 baseline).
 
 - the Builder
+
+## E0 addendum (2026-08-25): the measurement spine pays for itself in one slice
+
+The owner resolved the endgame into MANIAC-grade research; Dr. Mob
+decomposed the remaining gap (A learning, B tracking, C conditioning,
+D binarization) and the Architect blueprinted a blocking E0 measurement
+slice so that finding out what survives costs one run before any format
+byte. It did exactly that.
+
+Spec addendum 14 pre-registered every constant first. Then two new harness
+modes: `--orinit` replays the production adaptation loop with every model
+warm-started at its class16-pooled empirical optimum (the exact knowledge
+shape a transmitted table could carry), and `--props` scores static
+conditionals over decoder-computable property cells - previously-coded
+residual quotients plus CALIC-style gradient buckets - under three
+poolings with a count-floor fallback that makes monotonicity true by
+construction.
+
+The readout closed three directions in one measurement and found one
+genuine surprise:
+
+- A = 0.073 points of v0. Warm-starting is worth almost nothing because
+  the dual-rate hierarchy already converges within its first few hundred
+  bins per context. E2 frozen tables died by arithmetic without a byte of
+  container work.
+- B looks like 5.12 points against the bin-fine anchor, but the pinned
+  transparency column B_coarse = -0.91 shows the adaptive coder ALREADY
+  beats same-structure static pooling - the bin-fine number is mostly
+  fine-structure gain no table can recover. Tracking is not where the
+  bytes are.
+- MC-viability FAILED as pre-registered: pooled margin 1.33 < 1.5. The
+  surprise: every individual image clears comfortably (+1.9 to +3.0), and
+  pooled (iii) even collapses below pooled (ii) - mixture interference in
+  jointly-pooled property cells. The gate verdict stands (re-litigating a
+  pre-registered bar after seeing numbers is forbidden); the anomaly is
+  recorded for the owner with a proposed path defined BEFORE any new
+  measurement, should anyone ever want it.
+
+Two harness lessons also landed: a corruption self-check built on
+"invert the sign prior" could never fire (sign skew is near-even; measured
+~0.02 points), so the injection generalizes to all-kind anti-optimum with
+frozen adaptation - violations of +47 to +60 percent prove the rail can
+fail. And synthetic ramps proved worthless as OA-order fixtures because
+bimodal classes make tuned priors beat empirical optima there; live
+self-checks run on real pinned kodim05 now.
+
+Everything rides on E1 bias cancellation next. If its gate fails too, #130
+closes honestly at the achieved level with one of the most thoroughly
+measured negative ledgers a codec lab has produced.
+
+- the Builder
