@@ -272,5 +272,150 @@ std::vector<uint16_t> reconstruct_plane_blend(const std::vector<int32_t>& residu
     return plane;
 }
 
+// ----- E1 CALIC-class bias cancellation (spec addenda 14.3 + 16) -----
+
+namespace {
+
+int64_t floor_div(int64_t a, int64_t b) {
+    int64_t q = a / b;
+    if ((a % b != 0) && ((a < 0) != (b < 0))) --q;
+    return q;
+}
+
+} // namespace
+
+int bias_bucket(int64_t g, int bd_shift) {
+    static const int64_t kT[7] = {0, 1, 2, 4, 8, 16, 32};
+    int64_t a = g < 0 ? -g : g;
+    int n = 0;
+    for (int i = 0; i < 7; ++i)
+        if ((kT[i] << bd_shift) < a) ++n;
+    return n;
+}
+
+BiasModel::BiasModel(uint8_t bd, const BiasConfig& cfg) : cfg_(cfg), bmax_(0) {
+    // Bmax = 2^(BD-3), pinned in addendum 14.3.
+    bmax_ = 1 << (((bd >= 16) ? 8 : 0) + 5);   // BD8: 2^5 = 32; BD16: 2^13 = 8192
+    for (int i = 0; i < 64; ++i) {
+        b_[i] = 0;
+        g_[i] = 65536;   // exact unity: a fresh model corrects nothing
+    }
+}
+
+void BiasModel::reset() {
+    for (int i = 0; i < 64; ++i) {
+        b_[i] = 0;
+        g_[i] = 65536;
+    }
+}
+
+int32_t BiasModel::predict(int ctx, int32_t med) const {
+    int64_t p = med;
+    if (cfg_.additive) p += b_[ctx];
+    if (cfg_.gain) {
+        // sym_round(pred' * G): round half away from zero on magnitude.
+        int64_t v = p * g_[ctx];
+        p = v >= 0 ? ((v + 32768) >> 16) : -((-v + 32768) >> 16);
+    }
+    return (int32_t)p;
+}
+
+void BiasModel::update(int ctx, int32_t med, int32_t actual) {
+    if (cfg_.off()) return;   // identity path: no correction, no adaptation
+    // Recompute the chain from current state so encode and decode derive err
+    // through one shared path (mirror by construction).
+    int64_t pred_pregain = med + (cfg_.additive ? b_[ctx] : 0);
+    int32_t pred_final = predict(ctx, med);
+    int64_t err = (int64_t)actual - pred_final;
+    if (cfg_.additive)
+        b_[ctx] = (int32_t)std::clamp<int64_t>(
+            b_[ctx] + floor_div(err, 64), -(int64_t)bmax_, (int64_t)bmax_);
+    if (cfg_.gain) {
+        int64_t den = ((pred_pregain < 0 ? -pred_pregain : pred_pregain) >> 4) + 1;
+        int64_t g = g_[ctx] + floor_div(err << 9, den);
+        if (g < 32768) g = 32768;
+        if (g > 131072) g = 131072;
+        g_[ctx] = g;
+    }
+}
+
+namespace {
+
+// Shared border rule for the gradient pair (addendum 14.2): any term with a
+// missing neighbor contributes 0; when y > 0 but x == 0, gN keeps P[N] as its
+// term. Mirrors build_props so harness and library agree cell-for-cell.
+inline void bias_gradients(const std::vector<uint16_t>& hist, size_t idx,
+                           uint32_t w, uint32_t x, uint32_t y,
+                           int64_t* gn, int64_t* gw) {
+    *gn = 0;
+    *gw = 0;
+    if (y == 0) return;
+    int32_t T = (int32_t)hist[idx - w];
+    int32_t TL = (x > 0 && y > 0) ? (int32_t)hist[idx - w - 1] : 0;
+    int32_t L = (x > 0) ? (int32_t)hist[idx - 1] : 0;
+    *gn = (int64_t)T - TL;
+    *gw = (x > 0) ? (int64_t)L - TL : 0;
+}
+
+inline int bd_shift_of(uint8_t bd) { return (bd >= 16) ? 8 : 0; }
+
+} // namespace
+
+std::vector<int32_t> compute_residuals_bias(const std::vector<uint16_t>& plane,
+                                            uint32_t w, uint32_t h,
+                                            uint8_t bd, const BiasConfig& cfg) {
+    std::vector<int32_t> res(plane.size());
+    BiasModel model(bd, cfg);
+    const int sh = bd_shift_of(bd);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int64_t gn, gw;
+            bias_gradients(plane, idx, w, x, y, &gn, &gw);
+            int ctx = 8 * bias_bucket(gn, sh) + bias_bucket(gw, sh);
+            int32_t med = med_predictor(
+                x > 0 ? (int32_t)plane[idx - 1] : 0,
+                y > 0 ? (int32_t)plane[idx - w] : 0,
+                (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0);
+            int32_t s = (int32_t)plane[idx];
+            res[idx] = s - model.predict(ctx, med);
+            model.update(ctx, med, s);
+        }
+    }
+    return res;
+}
+
+std::vector<uint16_t> reconstruct_plane_bias(const std::vector<int32_t>& residuals,
+                                             uint32_t w, uint32_t h,
+                                             uint8_t bd, const BiasConfig& cfg,
+                                             uint16_t bd_max) {
+    std::vector<uint16_t> plane(residuals.size());
+    BiasModel model(bd, cfg);
+    const int sh = bd_shift_of(bd);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            size_t idx = (size_t)y * w + x;
+            int64_t gn, gw;
+            // History IS the output buffer under reconstruction: identical
+            // decoded values on both sides, so the states mirror exactly (I2).
+            bias_gradients(plane, idx, w, x, y, &gn, &gw);
+            int ctx = 8 * bias_bucket(gn, sh) + bias_bucket(gw, sh);
+            int32_t med = med_predictor(
+                x > 0 ? (int32_t)plane[idx - 1] : 0,
+                y > 0 ? (int32_t)plane[idx - w] : 0,
+                (x > 0 && y > 0) ? (int32_t)plane[idx - w - 1] : 0);
+            int32_t pred = model.predict(ctx, med);
+            int64_t s = (int64_t)pred + residuals[idx];
+            // States mirror exactly, so pred+residual is the original sample;
+            // the clamp bounds corrupt-stream damage instead of UB.
+            if (s < 0) s = 0;
+            if (s > bd_max) s = bd_max;
+            plane[idx] = (uint16_t)s;
+            model.update(ctx, med, (int32_t)s);
+        }
+    }
+    return plane;
+}
+
 } // namespace prism::codec
 
