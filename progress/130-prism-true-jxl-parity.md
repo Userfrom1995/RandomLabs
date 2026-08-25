@@ -438,12 +438,20 @@ and locate where the gap lives before any blueprint.
 
 ## Current step
 
-PRISM V2 V0 COMPLETE (2026-08-25): sandbox spine landed with all six VB
-rails green, fail-capable self-check, and the dated reference CSV
-(2026-08-25-sandbox-v0.csv) committed. Next: Builder slice 2 = the V1
-measurement phase (tokenization x keying x backend sweep on the pinned quad,
-V1a oracle-map / V1b realistic-map verdicts per spec addendum 18.1 controls;
-STOP rule binding on miss). Zero format bytes until a V4 PASS.
+PRISM V2 V1 MEASUREMENT SLICE IN FLIGHT (2026-08-25): structural pins
+V-P1..V-P8 committed BEFORE any measurement (`.github/agents/decisions/
+builder/2026-08-25T21-30-00-v1-measurement-pins.md`: KGRID-128 geometry,
+context-tree builder inheriting matree caps over qL/qU/qUL only, SBT1/SBP1
+blob formats incl. the budget merge-map that keeps decoders consistent,
+oracle cost model + single-pass assignment, NETTing rules, gate reading).
+Next: ClusterMap machinery + tree/oracle implementation + unit tests, then
+`bench-sandbox --v1`, probe rails, and the pinned-quad measurement with
+honest V1a/V1b verdicts. STOP rule binding on miss. Zero format bytes until
+a V4 PASS.
+
+V0 record (2026-08-25): sandbox spine landed with all six VB rails green,
+fail-capable self-check, and the dated reference CSV
+(2026-08-25-sandbox-v0.csv) committed.
 
 v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
