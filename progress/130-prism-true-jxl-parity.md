@@ -35,8 +35,16 @@
   `prism/docs/architecture-jxl-parity-eseries.md` - measurement-first build
   spine (E0 harness + gates BEFORE any format byte), ext-bit registry,
   binding decision tree back to the owner point, honest base case ~9.3-9.7
-  summed (M2 plausible, M3 likely stays open). Next: Builder executes E0;
-  interventions proceed only behind their pre-registered gates.
+  summed (M2 plausible, M3 likely stays open). **E0 COMPLETE 2026-08-25**
+  (spec addendum 14 pre-registered first; rails all green; readout in the
+  E-series checklist): A = 0.073 points -> E2 frozen tables DOA-by-
+  arithmetic; MC-viability FAIL as pre-registered (pooled margin 1.33 <
+  1.5; every per-image margin clears - anomaly recorded, gate stands) ->
+  MANIAC dead on this binarization; B_coarse = -0.91 -> collector-pure
+  tracking negative. NAMED TREE ROW: "M-C fails AND A < 1.5" - everything
+  rides on E1 bias cancellation behind its BIAS-fmt gate; if it fails,
+  #130 closes honestly at the achieved level. Zero format bytes spent in
+  E0.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
