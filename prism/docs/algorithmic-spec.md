@@ -565,4 +565,159 @@ Corpus: 22 wins / 2 ties / ZERO regressions at e1/e3/e7; e1 = 10.1210 summed
 *-pre-d4c.csv archives; decision record
 2026-08-24T21-45-00-d4c-color-rotation-adoption.md.
 
+## 14. Addendum 2026-08-25: E-series measurement constants (E0, written BEFORE any measurement)
+
+Binding order (blueprint `architecture-jxl-parity-eseries.md` section 1):
+every constant below was fixed before the first ORINIT/PROP row existed.
+No constant may be tuned after a measurement has been seen. Where this
+addendum conflicts with text above, this addendum wins.
+
+All E0 scoring rides `prism bench-ideal` on the production streams (shipped
+YCoCg-R + trial-decided predictor, resdiff-343 causal contexts, v2
+binarization), extending the D0 rail pattern: sha-pin verification, durable
+dated CSV in its OWN file (the 2026-08-24 reference CSV stays untouched),
+self-checks that can demonstrably fail, and I7/I8/I9 discipline.
+
+### 14.1 M-A oracle initialization (`--orinit`)
+
+Pass 1 accumulates per-(bin kind, class16 class) frequencies of every emitted
+bin over the image's full plane set (the same statistics the static scorer's
+coarse/class16 pooling computes; no new statistics machinery). Pass 2 replays
+the identical bin sequence through the PRODUCTION adaptation loop - dual-rate
+shifts AC_V2_FAST_SHIFT/AC_V2_SLOW_SHIFT (6/9), equal rate mix, 8/8 hierarchy
+- initialized at those optima:
+
+- INIT VALUE: for bin kind k and class c with counts (n0, n1),
+  p_init = round(65536 * n0 / (n0 + n1)) when n0 + n1 > 0, clamped to
+  [1, 65534]; slots whose class saw NO events of that kind keep their
+  compile-time prior table value. p_init estimates P(bit == 0) under the
+  established convention.
+- SCOPE OF THE WARM START (pinned interpretation of "initialized at those
+  optima"): BOTH the per-context states and the shared class states start at
+  their CLASS's optimum (fast and slow states both). This is exactly the
+  knowledge shape E2 step 1 can transmit (class-level tables), so A is
+  directly the frozen-table-recoverable learning share. Per-context optimum
+  initialization is NOT scored: it transmits information no cheap scheme can
+  carry, and would only shrink A optimistically.
+- REPLAY FIDELITY: fresh model state per plane (production scoping); cost
+  computed with the exact production probability (mix2 of mix(ctx-fast,ctx-
+  slow) and mix(cls-fast,cls-slow)); adaptation applied after every bin
+  exactly as `v2_put` does. The cost is fractional bits (arithmetic-coder
+  estimate); bytes quoted as bits/8.
+- Output rows: `ORINIT,image,nbins,bits_orinit,v0_bytes,v2_bytes` and pooled
+  `ORINITTOTAL,all,...`. TOTAL rows sum bits and bytes across images (the
+  replay is sequential per image, so TOTAL is additive, NOT a joint entropy
+  estimate - stated here because other TOTAL rows are joint).
+- CORRUPTION KNOB (`--orinit-corrupt`, self-check ONLY, never a measurement
+  mode): the SIGN kind's init is set to the ANTI-optimum
+  (65536 - p_init, clamped) AND its adaptation is disabled during the replay
+  (pure anti-table lookup). Rationale: plain inversion heals within the
+  settling length of the adaptation loop, which would make the failure
+  injection invisible precisely when the skew it must expose is mild;
+  freezing makes the injected error persist so the check deterministically
+  proves the evaluator bites. All other kinds warm-start and adapt normally.
+
+### 14.2 M-C property-conditioned ceilings (`--props i[,ii][,iii]`)
+
+Property vector, all decoder-computable at each sample from already-coded
+data (missing neighbor => quotient 0 / gradient term 0):
+
+    q(r)   := 0 if r == 0, else sign(r) * floor(log2(|r|)), |q| clamped to 7
+              (range -7..+7)
+    qW,qN,
+    qNW,qNE := q() of the already-coded residual QUOTIENTS west/north/
+              northwest/northeast
+    gN     := P[N] - P[NW], gW := P[W] - P[NW]   (decoded pixels)
+    bucket(g) := count of thresholds strictly below |g|, capped at 7, with
+              thresholds {0,1,2,4,8,16,32} scaled by s = 2^(BD-8)
+              (BD8: {0,1,2,4,8,16,32}; BD16: x256)
+    gb     := 8*bucket(gN) + bucket(gW)                (0..63)
+    pl     := plane id (0..2)
+
+Poolings (cell = conditioning key for every fine bin):
+
+- (i) `i`   : dense key cls*225 + (qW+7)*15 + (qN+7); <= 3600 cells, no hash.
+- (ii) `ii` : raw = ((((cls*15 + qW+7)*15 + qN+7)*15 + qNW+7)*15 + qNE+7);
+              cell = raw mod 4096 (pre-registered modulo hash, no mixing).
+- (iii)`iii`: raw = (((((( pl*16 + cls)*64 + gb)*15 + qW+7)*15 + qN+7)*15 +
+              qNW+7)*15 + qNE+7); cell = raw mod 16384.
+
+Scoring contract: bins are conditioned at BIN-FINE granularity (unary depth /
+remainder position keys exactly as the static fine brackets), each fine key
+jointly with the property cell. COUNT FLOOR: a cell whose TOTAL observed bin
+count < 64 scores ALL its bins from the class16-pooled fine-bin marginal
+model (cell-level fallback, pre-registered; guarantees PC-mono by the ML
+argument per (cell, fine-key) group). `fallback_share` = fraction of bins
+scored via fallback. Cells are capped by construction (modulus); the row's
+`cells` column reports OBSERVED distinct cells for audit.
+
+Output rows: `PROP,image,pooling,L_bits,L_bytes,pct_of_v0,cells,fallback_share`
+plus pooled-histogram `PROPTOTAL,all,...` rows (joint estimation, NOT row
+sums - same caveat as IDEALTOTAL).
+
+### 14.3 Gates (fixed now; OA/PC are rail integrity, MC/BIAS/FT/RT are decision verdicts)
+
+Evaluated by probe_ideal.sh; tolerance everywhere = 0.05 points of v0 (the
+single G-repro tolerance governs all rails).
+
+- OA-order: for every image row and the TOTAL row,
+  pct(L_stat(class16, fine)) <= pct(L_or) <= pct(L_ad) + tol. Gross violation
+  = broken harness or fabricated data; hard failure.
+- OA-corrupt (self-check): the corrupted-sign replay must VIOLATE the middle
+  inequality (pct(L_or_corrupt) > pct(L_ad) + tol) and the evaluator must
+  render FAIL; injection rows must render both verdicts.
+- PC-mono: pct(L_prop(ii|iii)) <= pct(L_stat(class16, fine)) + 1e-9 on every
+  image row and TOTAL. Violation = harness bug; hard failure.
+- MC-viability (MANIAC viability, decision verdict): pooled-TOTAL
+  pct(L_prop(ii)) must beat pct(L_stat(ctx343, fine)) by >= 1.5 points of v0,
+  AND the margin >= 1.0 points of v0 individually on kodim01 AND kodim13.
+  PASS opens E3 development and nothing else; FAIL declares MANIAC dead ON
+  THIS BINARIZATION with the committed CSV as evidence.
+- BIAS-fmt (E1, future): aggregate bracket drop >= 1.5 points of v0 on the
+  probe quad vs old-stream rows AND no probe image above its own baseline
+  bracket (mixed sign never adopts). BiasModel constants pinned NOW:
+  b[64] over gradient-pair cells (bucket(gN), bucket(gW), thresholds per
+  14.2); prediction pred' = med + round(b[ctx]); post-decode update
+  b[ctx] <- clamp(b[ctx] + floor_div(err', 2^BIAS_SHIFT), -Bmax, +Bmax) with
+  BIAS_SHIFT = 6 and Bmax = 2^(BD-3) (BD8: 32); err' = actual - pred' (the
+  bias-corrected residual). floor_div uses explicit floor semantics.
+- FT-fmt (E2 step 1, future): NET gain = payload delta PLUS blob bytes
+  >= 1.5 percent aggregate on the probe quad at TOTAL-row level (I9 joint
+  accounting). Table normalization sum = 2^12; serialization = per class,
+  per bin, 16-bit deltas from a shared shape prior; blob compressed by the
+  v2 coder itself; CRC32 over uncompressed table bytes; exact blob budget
+  MEASURED at implementation, never assumed. Precondition arithmetic: E2
+  step 1 is DOA-by-arithmetic unless the M-A readout's A-share > 1.5 points
+  of v0 (number recorded either way, no container work otherwise).
+- RT-fmt (E2 step 2, future): incremental >= 1.0 point of v0 NET, strictly
+  conditional on M-B's B >= 2 points of v0; region size 192x128 first,
+  shrink-once allowed, twice is not.
+
+### 14.4 Share definitions used by the tracker readout (points of v0)
+
+    pct_ad        = 100*(v2_bytes - v0)/v0            (real coder, TOTAL)
+    pct_or        = 100*(bits_orinit/8 - v0)/v0
+    pct_c16_fine  = IDEALTOTAL med fine_class16 pct
+    pct_cx_fine   = IDEALTOTAL med fine_ctx343  pct
+    A = pct_ad - pct_or                             (learning/warm-start share)
+    B = pct_or - pct_c16_fine                       (tracking share, bin-fine
+                                                     anchor per research Fact 2)
+    C(x) = pct_c16_fine - pct(PROPTOTAL x)          (conditioning deficit)
+    B_coarse = pct_or - coarse_class16 pct          (collector-pure tracking,
+                                                     transparency column: the
+                                                     bin-fine anchor includes
+                                                     the fine-structure gain,
+                                                     which class-level tables
+                                                     cannot recover)
+
+A + B = the real-vs-class16 gap (research Fact 2's 5.95-point figure);
+A gates E2 step 1; C(ii) margins gate E3; B gates E2 step 2.
+
+## 15. STATUS (2026-08-25, Builder E0): E0 measured; readout recorded
+
+See progress/130-prism-true-jxl-parity.md E-series checklist for the measured
+A/B/C shares, CSV paths, and the named decision-tree row.
+
+- the Builder
+
 - the Builder
