@@ -469,7 +469,8 @@ void WEnsemble::reset() {
 
 int64_t WEnsemble::weighted_mean(int32_t W, int32_t N, int32_t NW,
                                  int64_t maxval, int32_t p[4]) const {
-    // ORDER PINNED i = W, N, NW, TE; TE clamped into [0, maxval] (P-S1-6).
+    // ORDER PINNED i = W, N, NW, TE; TE clamped into [0, 2^16 - 1], the
+    // uint16 storage bound (amendment A4b) that `maxval` carries here.
     p[0] = W;
     p[1] = N;
     p[2] = NW;
@@ -528,7 +529,11 @@ std::vector<int32_t> compute_residuals_family(
     const std::vector<uint16_t>& plane, uint32_t w, uint32_t h, PredFamily fam,
     int bd) {
     std::vector<int32_t> res(plane.size());
-    const int64_t maxval = ((int64_t)1 << bd) - 1;
+    // Amendment A4b: predictions are UNCLAMPED integers in the transformed-
+    // plane domain (production parity; the color transform legitimately
+    // exceeds the source BD). `maxval` is the uint16 storage bound used by
+    // the TE sub-predictor only.
+    const int64_t maxval = 65535;
     WEnsemble ens;
     ens.reset();   // state reset per plane (18.4)
     for (uint32_t y = 0; y < h; ++y) {
@@ -552,10 +557,8 @@ std::vector<int32_t> compute_residuals_family(
                     pred = ens.weighted_mean(nb.L, nb.T, nb.TL, maxval, wp);
                     break;
             }
-            if (pred < 0) pred = 0;
-            if (pred > maxval) pred = maxval;   // output clamp (18.4)
             const int32_t actual = (int32_t)plane[idx];
-            const int32_t r = actual - (int32_t)pred;
+            const int32_t r = actual - (int32_t)pred;   // no output clamp (A4b)
             res[idx] = r;
             if (fam == PredFamily::WENS)
                 ens.update(wp, pred, (int64_t)r);   // err == residual (P-S1-6)
@@ -568,7 +571,7 @@ std::vector<uint16_t> reconstruct_plane_family(
     const std::vector<int32_t>& residuals, uint32_t w, uint32_t h,
     PredFamily fam, int bd) {
     std::vector<uint16_t> plane(residuals.size());
-    const int64_t maxval = ((int64_t)1 << bd) - 1;
+    const int64_t maxval = 65535;   // uint16 storage bound (TE only, A4b)
     WEnsemble ens;
     ens.reset();   // state reset per plane (18.4)
     for (uint32_t y = 0; y < h; ++y) {
@@ -592,12 +595,10 @@ std::vector<uint16_t> reconstruct_plane_family(
                     pred = ens.weighted_mean(nb.L, nb.T, nb.TL, maxval, wp);
                     break;
             }
-            if (pred < 0) pred = 0;
-            if (pred > maxval) pred = maxval;
-            int64_t s = pred + residuals[idx];
-            if (s < 0) s = 0;             // bounds corrupt-stream damage only:
-            if (s > maxval) s = maxval;   // mirrored states make it exact
-            plane[idx] = (uint16_t)s;
+            // Exact add, no post-add clamp (A4b): mirrored states make
+            // pred + residual exactly the original sample, which may exceed
+            // the source BD domain on transformed planes.
+            plane[idx] = (uint16_t)(pred + residuals[idx]);
             if (fam == PredFamily::WENS)
                 ens.update(wp, pred, (int64_t)residuals[idx]);
         }

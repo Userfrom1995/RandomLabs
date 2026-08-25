@@ -43,8 +43,9 @@ static void print_usage() {
               << "  prism bench-ideal <image>... --orinit | --orinit-corrupt\n"
               << "                             --props i[,ii][,iii]   (E0, production stream)\n"
               << "  prism bench-sandbox <image>... [--profile LIST] [--backend LIST]\n"
-              << "      [--keying LIST] [--inject LIST] [--v1]\n"
-              << "                             [--keying LIST] [--inject LIST]\n";
+              << "      [--keying LIST] [--inject LIST]\n"
+              << "  prism bench-sandbox --v1 <image>...   (V-series sweep)\n"
+              << "  prism bench-sandbox --s1 <image>...   (S-series dual-frame predictors)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -923,7 +924,10 @@ static std::vector<std::string> split_list(const std::string& s) {
 
 } // namespace sandboxrun
 
-namespace sandboxrun { static void run_v1_image(const std::filesystem::path& img); }
+namespace sandboxrun {
+static void run_v1_image(const std::filesystem::path& img);
+static void run_s1_image(const std::filesystem::path& img);
+}
 
 static int run_bench_sandbox(int argc, char** argv) {
     using namespace sandboxrun;
@@ -948,6 +952,18 @@ static int run_bench_sandbox(int argc, char** argv) {
             int rc = 0;
             for (const auto& img : imgs) sandboxrun::run_v1_image(img);
             return rc;
+        }
+        if (a == "--s1") {
+            // S-series slice P1 dual-frame predictor sweep (spec addendum
+            // 19; pins P-S1-1..11 BEFORE any measurement).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --s1: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_s1_image(img);
+            return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
             prof_names = split_list(argv[++i]);
@@ -1520,6 +1536,148 @@ static void run_v1_image(const std::filesystem::path& img) {
             const double oml = ml_ideal_bits(ocfg.model);
             emit_v1_rows(img_name, prof, key, ocfg, oml, false, v2b, v0b,
                          map_rep, cfg.art.tree_blob.size());
+        }
+    }
+}
+
+// ----- bench-sandbox --s1 (S-series slice P1; spec addendum 19 + pins
+// P-S1-1..P-S1-11 in decisions/builder/2026-08-25T22-30-00) -----
+//
+// Dual-frame predictor sweep: families {MED control, GAP, W ensemble} per
+// 18.4 verbatim (amendment A4 for GAP), each family's causal residual
+// stream scored in BOTH frames:
+//   FRAME-A  production adaptive replay under ZFFCTRL (payload only; for
+//            MED this equals the committed e1-era bytes - VB-anchor-adapt
+//            binds it via the SANDBOX control row emitted beside);
+//   FRAME-S  static spine ZFFCTRL x KFLAT16 x {B-IDEAL reference, B-RANS
+//            gating}, budget-enforced with every side-info byte NETTED
+//            (tables + 'SBP1' merge map; I12).
+// FRAME-S is PRIMARY/gating for the S1 verdict; FRAME-A is reported beside
+// it and never gates (19.3). Gate arithmetic lives in the shell evaluator.
+
+void emit_s1_row(const std::string& img_name, char frame, PredFamily fam,
+                 const char* backend, uint64_t payload, uint64_t tables,
+                 uint64_t maps, uint64_t trees, bool audit_ok, bool rt,
+                 double tbl_bits) {
+    char rowbuf[512];
+    const uint64_t net = payload + tables + maps + trees;
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "S1,%s,%c,%s,%s,%zu,%zu,%zu,%zu,%zu,%d,%d,%.3f\n",
+                  img_name.c_str(), frame, pred_family_name(fam), backend,
+                  (size_t)payload, (size_t)tables, (size_t)maps,
+                  (size_t)trees, (size_t)net, audit_ok ? 1 : 0,
+                  rt ? 1 : 0, tbl_bits);
+    std::cout << rowbuf;
+}
+
+void run_s1_image(const std::filesystem::path& img) {
+    char rowbuf[512];
+    Raster r = frontend::decode_to_raster(img);
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    const int bd = to_u8(t.bd);   // pin P-S1-7
+    const std::string img_name = img.filename().string();
+
+    // Control truth on the MED streams: v0/v2 anchors re-derived fresh so
+    // VB-anchor-adapt / VB-anchor-ideal guard EVERY s1 measurement.
+    std::vector<std::vector<int32_t>> med_ress;
+    med_ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(med_ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(med_ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    {
+        bool rt = true;
+        for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+            auto bytes = acoder_encode_plane_v2(med_ress[pi], w, t.h,
+                                                AC_V2_RESDIFF_CONTEXTS);
+            auto dec = acoder_decode_plane_v2(bytes, med_ress[pi].size(), w,
+                                              t.h, AC_V2_RESDIFF_CONTEXTS);
+            if (dec != med_ress[pi]) rt = false;
+        }
+        double ptsv0 = 100.0 * ((double)v2b - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-ADAPT,KPROD,%zu,0,0,0,%zu,"
+                      "1,%d,0.000,0.000,0.0000,%.4f\n",
+                      img_name.c_str(), v2b, v2b, rt ? 1 : 0, ptsv0);
+        std::cout << rowbuf;
+    }
+    {
+        idealbench::Acc acc;
+        for (auto& res : med_ress) idealbench::walk(res, w, acc);
+        double bctmp[3], bfine[3], bval[3];
+        acc.bits(bctmp, bfine, bval);
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "BRACKET,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                      img_name.c_str(), v0b, v2b,
+                      bfine[0], bfine[1], bfine[2],
+                      bval[0], bval[1], bval[2]);
+        std::cout << rowbuf;
+    }
+
+    // The dual-frame family sweep (pins P-S1-8/P-S1-9).
+    for (PredFamily fam :
+         {PredFamily::MED, PredFamily::GAP, PredFamily::WENS}) {
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(t.planes.size());
+        for (auto& plane : t.planes)
+            ress.push_back(compute_residuals_family(plane, t.w, t.h, fam, bd));
+
+        // FRAME-A row: production adaptive replay, payload only.
+        {
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes = acoder_encode_plane_v2(ress[pi], w, t.h,
+                                                    AC_V2_RESDIFF_CONTEXTS);
+                payload += bytes.size();
+                auto dec = acoder_decode_plane_v2(bytes, ress[pi].size(), w,
+                                                  t.h,
+                                                  AC_V2_RESDIFF_CONTEXTS);
+                if (dec != ress[pi]) rt = false;
+            }
+            emit_s1_row(img_name, 'A', fam, "B-ADAPT", payload, 0, 0, 0,
+                        true, rt, 0.0);
+        }
+
+        // FRAME-S rows: static spine, budget-enforced, side-info NETTED.
+        PreparedConfig cfg;
+        prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16, w, ress,
+                             cfg);
+        cfg.plane_residuals = ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                         cfg.tabs);
+        // B-IDEAL reference row.
+        {
+            const uint64_t payload =
+                (uint64_t)std::ceil(tbl_bits / 8.0);
+            emit_s1_row(img_name, 'S', fam, "B-IDEAL", payload,
+                        cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                        cfg.art.audits_ok, true, tbl_bits);
+        }
+        // B-RANS gating row.
+        {
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    rans_encode_events(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                       cfg.tabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                              cfg.cms[pi],
+                                              cfg.plane_residuals[pi].size(),
+                                              bytes, cfg.tabs);
+                if (dec != cfg.plane_residuals[pi]) rt = false;
+            }
+            emit_s1_row(img_name, 'S', fam, "B-RANS", payload,
+                        cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                        cfg.art.audits_ok, rt, tbl_bits);
         }
     }
 }

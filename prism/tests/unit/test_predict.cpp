@@ -39,9 +39,15 @@ std::vector<uint16_t> random_plane(size_t n, uint32_t seed, uint16_t maxv) {
     return p;
 }
 
+std::mt19937& rng_off() {
+    static std::mt19937 g(4711);
+    return g;
+}
+
 } // namespace
 
-// P-S1-1/P-S1-2: the MED family IS the production MED stream.
+// P-S1-1/P-S1-2 (+ A4b): the MED family IS the production MED stream,
+// including on out-of-BD-domain planes like real YCoCg-R chroma.
 TEST(S1Family, MedMatchesProductionByteForByte) {
     const uint16_t maxes[] = {255, 65535};
     for (uint32_t seed = 1; seed <= 5; ++seed) {
@@ -60,6 +66,28 @@ TEST(S1Family, MedMatchesProductionByteForByte) {
                                      << shape.first << "x" << shape.second;
             }
         }
+    }
+}
+
+// A4b: transformed-plane domains (e.g. YCoCg-R chroma offsets) must stay
+// byte-identical too - no prediction clamp may ever fire.
+TEST(S1Family, MedIdentityOnOffsetDomains) {
+    namespace pc = prism::codec;
+    std::mt19937 rng(20260825);
+    for (auto shape :
+         std::vector<std::pair<uint32_t, uint32_t>>{{768, 512}, {5, 9}}) {
+        std::vector<uint16_t> plane(shape.first * shape.second);
+        for (auto& v : plane)
+            v = (uint16_t)(477 + rng() % 163);   // kodim01-like chroma band
+        auto prod = pc::compute_residuals(plane, shape.second, shape.first,
+                                          pc::PredId::MED);
+        auto fam = pc::compute_residuals_family(plane, shape.second,
+                                                shape.first,
+                                                pc::PredFamily::MED, 8);
+        EXPECT_EQ(prod, fam);
+        EXPECT_EQ(pc::reconstruct_plane_family(fam, shape.second, shape.first,
+                                               pc::PredFamily::MED, 8),
+                  plane);   // exact reconstruction above the BD domain
     }
 }
 
@@ -175,7 +203,7 @@ TEST(S1Family, FamilyBijectionAndPlaneReset) {
             auto back2 = pc::reconstruct_plane_family(r2_after, 7, 5, fam, bd);
             EXPECT_EQ(back1, p1);
             EXPECT_EQ(back2, p2);
-            // Degenerate shapes too.
+            // Degenerate shapes and an out-of-BD-domain (offset) plane.
             for (auto shape : std::vector<std::pair<uint32_t, uint32_t>>{
                      {1, 1}, {1, 9}, {9, 1}}) {
                 auto pz = random_plane(shape.first * shape.second, 303, maxv);
@@ -185,6 +213,11 @@ TEST(S1Family, FamilyBijectionAndPlaneReset) {
                                                        shape.first, fam, bd),
                           pz);
             }
+            std::vector<uint16_t> poff(6 * 4);
+            for (auto& v : poff) v = (uint16_t)(477 + rng_off()() % 163);
+            auto roff =
+                pc::compute_residuals_family(poff, 6, 4, fam, bd);
+            EXPECT_EQ(pc::reconstruct_plane_family(roff, 6, 4, fam, bd), poff);
         }
     }
 }

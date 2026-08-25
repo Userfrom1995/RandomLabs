@@ -88,10 +88,34 @@ truncation). Used only by the W ensemble update.
 - Update AFTER coding each sample, order pinned i = W, N, NW, TE:
   w_i <- clamp(w_i + floor_div(err * (p_i - pred), 512), 16384, 1048576).
 
-## P-S1-7 Bit depth
+## P-S1-7 Bit depth and the prediction domain (AMENDED by A4b)
 
 bd = the raster's bit depth (8 or 16). t80 = 80 << (bd-8);
-t32 = 32 << (bd-8); prediction clamp range [0, 2^bd - 1].
+t32 = 32 << (bd-8).
+
+**Amendment A4b (recorded before any committed S-row):** the 18.4 line
+"clamp outputs to [0, 2^BD - 1]" cannot bind this instrument literally.
+The sandbox scores residuals of the COLOR-TRANSFORMED planes in production
+pipeline order, and those chroma domains legitimately exceed the source BD
+(measured on kodim01 at BD8: plane 1 in [477, 548], plane 2 in
+[506, 639]) - a literal prediction clamp destroys every chroma prediction
+and inflates MED's own FRAME-A payload 2.65x. Production truth, which the
+FRAME-A anchor binds bit-for-bit, is that `compute_residuals` applies NO
+prediction clamp. Therefore:
+
+- Predictions are UNCLAMPED int64 values in the transformed-plane domain,
+  exactly as production computes them; residual = actual - pred.
+- The W ensemble's TE sub-predictor clamps to [0, 2^16 - 1] (the uint16
+  storage bound; fires only on absurd extrapolation, deterministically on
+  both sides).
+- Reconstruction is the exact add s = pred + residual with NO post-add
+  clamp (mirrored states make it exact; a clamp would corrupt out-of-BD-
+  domain chroma reconstruction).
+- MED byte-identity vs `compute_residuals(MED)` across ALL planes of real
+  transformed images joins the pinned unit tests as the binding check.
+
+The bring-up run that used the literal clamp was discarded wholesale
+(V1 ClusterMap precedent); no number from it survives anywhere.
 
 ## P-S1-8 Dual-frame rows
 

@@ -1084,4 +1084,18 @@ edge derivation for WW/NN) - leaving every other pinned constant untouched.
 S1 implements GAP under A4; MED/W are unaffected. Structural readings
 P-S1-1..P-S1-11 in the same record.
 
+AMENDMENT A4b (2026-08-25, Builder, BEFORE any committed S-measurement; same
+record): the 18.4 line "clamp outputs to [0, 2^BD - 1]" cannot bind this
+instrument literally - the sandbox scores residuals of the COLOR-TRANSFORMED
+planes (production pipeline order), whose chroma domains legitimately exceed
+the source BD (measured: kodim01 chroma planes live in [477, 639] at BD8),
+so a literal prediction clamp corrupts every chroma prediction. A4b pins
+production parity instead: predictions are UNCLAMPED integers in the
+transformed-plane domain (exactly `compute_residuals`; MED byte-identity
+across ALL planes is the binding unit test), the W ensemble's TE
+sub-predictor clamps to [0, 2^16 - 1] (uint16 storage bound), and
+reconstruction adds pred + residual exactly (mirrored states make it exact;
+no post-add clamp). The bring-up run that used the literal clamp was
+discarded wholesale; no number from it survives.
+
 - the Architect

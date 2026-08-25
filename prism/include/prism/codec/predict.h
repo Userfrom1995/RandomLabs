@@ -161,8 +161,12 @@ std::vector<uint16_t> reconstruct_plane_bias(const std::vector<int32_t>& residua
 // Families {MED control, GAP, W ensemble}; raster order; production neighbor
 // derivation (missing primaries read 0, farther neighbors replicate the
 // nearest available one - the "replicated edge" border rule of 18.4);
-// predictions clamped to [0, 2^bd - 1]; per-plane state reset. MED is bound
-// byte-for-byte to compute_residuals(MED) by a pinned unit test.
+// per-plane state reset. Predictions are UNCLAMPED integers in the
+// transformed-plane domain (amendment A4b: production parity - the sandbox
+// scores color-transformed planes whose chroma domains exceed the source
+// BD). The W ensemble's TE sub-predictor clamps to [0, 2^16 - 1]. MED is
+// bound byte-for-byte to compute_residuals(MED) by pinned unit tests across
+// ALL planes of real transformed images.
 
 enum class PredFamily : uint8_t { MED = 0, GAP = 1, WENS = 2 };
 
@@ -185,10 +189,11 @@ int32_t gap_reduced_predict(int32_t W, int32_t WW, int32_t N, int32_t NW,
                             int32_t NE, int32_t NN, int bd);
 
 // W ensemble state (18.4 verbatim): four 16.16 weights over {W, N, NW, TE},
-// init 65536, clamp [16384, 1048576], per-plane lifetime. predict() returns
-// the UNCLAMPED weighted mean; the plane walk applies the output clamp and
-// derives err from the CLAMPED prediction (P-S1-6), so update() takes that
-// clamped pred explicitly - decoder-mirror by construction.
+// init 65536, clamp [16384, 1048576], per-plane lifetime. weighted_mean()
+// returns the UNCLAMPED weighted mean (amendment A4b); `maxval` carries the
+// uint16 storage bound for the TE sub-predictor. update() takes the
+// prediction exactly as it was coded against, so err = actual - pred equals
+// the coded residual and the decoder mirrors from decoded data alone.
 struct WEnsemble {
     static constexpr int kOrder[4] = {0, 1, 2, 3};   // W, N, NW, TE (labels)
     int64_t w[4];
