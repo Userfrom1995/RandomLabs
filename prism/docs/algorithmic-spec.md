@@ -1098,4 +1098,20 @@ reconstruction adds pred + residual exactly (mirrored states make it exact;
 no post-add clamp). The bring-up run that used the literal clamp was
 discarded wholesale; no number from it survives.
 
+S3 EXECUTION NOTE (2026-08-25, Builder, AFTER the S3 verdict; structural
+readings in `.github/agents/decisions/builder/2026-08-25T23-00-00-s3-property-
+pins.md`, committed BEFORE any S-row): P_ext was implemented exactly as
+frozen here (quotient buckets via production quant_residual with causal
+per-image octile edges, prefix-invariant by construction and unit-tested;
+gbW/gbN as the A4 CALIC gradient pair of the residual stream through the
+shared bias_bucket; raw plane id; e_max_prev per the literal 18.4 edge
+table), hashed by a pinned FNV-1a word mixer into k_raw {64, 256} clusters
+with inherited caps/floors. MEASURED VERDICT: S3 FAIL - best variant median
+-8.09 pct (SX-G k=64) vs the +1.50 bar in gating FRAME-S; every variant
+regresses on every quad image (worst -19.40). NETTED table bytes dominate:
+richer keyings pay more side info than the conditioning they buy.
+Bucket B2 closed-with-numbers; flat-16 keying ships unchanged; S4 composes
+{adaptive control, static spine} x D4c trials. Evidence:
+benchmarks/results/2026-08-25-sandbox-s3.csv.
+
 - the Architect

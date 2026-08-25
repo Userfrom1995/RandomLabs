@@ -147,6 +147,25 @@ new row families, and proves its own failability via `--self-check-v1`.
 Reference CSVs: `benchmarks/results/2026-08-25-sandbox-v0.csv` (V0 spine)
 and `benchmarks/results/2026-08-25-sandbox-v1.csv` (V1 measurement).
 
+After the V1 STOP and the owner-authorized source-side-only pivot, the same
+instrument runs the S-series (spec addendum 19 = section 19; blueprint
+`docs/architecture-jxl-parity-sourcepivot.md`). `--s1` scored predictor
+families {MED, GAP, W} in dual frames (FRAME-A adaptive replay / FRAME-S
+static spine) under amendments A4/A4b: FAIL, MED ships, B3 closed.
+`--s3` scores the frozen P_ext extended causal property list - quotient
+buckets with causal per-image octile edges (prefix-invariant), bucketed A4
+CALIC gradients of the residual stream, plane id, e_max_prev per 18.4 -
+through a pinned FNV-1a flat hash into k_raw {64, 256} clusters with the
+caps/floors inherited and every side-info byte NETTED; NO spatial maps or
+trees anywhere. The incremental PropHasher is decoder-mirrored by
+construction (a fresh hasher over decoded history reproduces the encoder's
+cluster sequence; pinned round-trip test). Measured on the pinned quad:
+S3 FAIL - best variant median -8.09 pct vs the +1.50 bar (all variants
+regress on all images; table bytes dominate), so flat-16 keying ships and
+bucket B2 closes with numbers (`benchmarks/results/2026-08-25-sandbox-
+s3.csv`). Feed it through `benchmarks/probe_sandbox.sh --s3`
+(failability: `--self-check-s3`).
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
