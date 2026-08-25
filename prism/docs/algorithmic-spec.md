@@ -734,6 +734,77 @@ benchmarks/results/2026-08-25-ideal-{orinit,corrupt,props}-e0.csv +
 2026-08-25-ideal-probe-e0-eval.csv. Zero format bytes spent. Full readout:
 progress/130-prism-true-jxl-parity.md E-series checklist.
 
-- the Builder
+## 16. Addendum 2026-08-25: E1 constants (mechanism b + gate interpretation,
+##     written BEFORE any measurement)
+
+Binding order (E-series blueprint section 1, same discipline as addendum 14):
+every constant below was fixed before the first `med@bias` row existed. No
+constant may be tuned after a measurement has been seen. Addendum 14.3
+already pins mechanism (a); this addendum pins the secondary mechanism (b)
+("gradient-adjusted multiplicative correction", research endgame section
+4.1) and the single reading of the BIAS-fmt gate text.
+
+### 16.1 Mechanism (b): per-cell multiplicative gain
+
+State `G[64]`, int64 fixed point 16.16, init 65536 (exact unity, so a fresh
+model corrects nothing until its cell has evidence); clamp range
+[G_MIN, G_MAX] = [32768, 131072] (0.5x .. 2.0x, generous bounds like
+BlendConfig's w_min/w_max). Same 64 gradient-pair cells as (a):
+ctx = 8*bucket(gN) + bucket(gW), buckets per addendum 14.2.
+
+Prediction chain (order pinned):
+
+    pred'  = med + b[ctx]                      (mechanism a, integer; b[]
+                                               stays integral because the
+                                               update adds floor_div terms)
+    pred'' = sym_round(pred' * G[ctx])         where
+             sym_round(v) = (v >= 0)
+               ?  (( v * G[ctx] + 32768) >> 16)
+               : -((-v * G[ctx] + 32768) >> 16)    (round half away from
+               zero on magnitude, symmetric, no platform-dependent rounding)
+
+Coded residual: E = actual - pred'' when the gain is active, else
+actual - pred'. Updates after decode, ORDER PINNED (b first, then G), both
+computed from err = actual - pred_final:
+
+    b[ctx] <- clamp(b[ctx] + floor_div(err, 64), -Bmax, +Bmax)
+              [addendum 14.3: BIAS_SHIFT 6, Bmax 2^(BD-3)]
+    den    = (|pred'| >> ENERGY_SHIFT) + 1      ENERGY_SHIFT = 4
+    G[ctx] <- clamp(G[ctx] + floor_div(err << LR_SHIFT, den),
+                    G_MIN, G_MAX)               LR_SHIFT = 9
+
+floor_div uses explicit floor semantics everywhere (quotient rounded toward
+negative infinity), never platform division truncation. Every input is
+decoded history (I2 mirror-exact); all arithmetic int64. Fresh model state
+per plane (production scoping, same as ORINIT replay fidelity).
+
+### 16.2 Gate interpretation (pinned now, before any measurement)
+
+- DECISION BRACKET: the fine_ctx343 static-entropy column (points of v0),
+  the same anchor every other E-series verdict uses (MC margins). Aggregate
+  figure = pooled IDEALTOTAL row; per-image figures = per-image IDEAL rows.
+- BIAS-fmt PASS (per candidate mode): pct_drop = pct_old(ctx343-fine) -
+  pct_new(ctx343-fine) >= 1.5 points of v0 on the pooled TOTAL row, AND no
+  probe image's own ctx343-fine percentage above its baseline value.
+  Candidates: `med@bias` (a only) and `med@biasgain` (a+b). Adoption
+  preference pre-registered: `med@bias` if it passes; else `med@biasgain`
+  if it passes (blueprint: "(a)+(b) clears -> adopt both"); if both pass,
+  the simpler (a) alone adopts. A rejection is a legitimate measured
+  outcome and never flips the exit code.
+- BIAS-anchor (rail integrity, flips exit code): `med@biasoff` rows equal
+  the plain `med` shipped-baseline rows BYTE-FOR-BYTE on v0_bytes and
+  v2_bytes (per-image and TOTAL). The off configuration applies no
+  correction AND performs no updates, so identity proves the whole new
+  walk (buckets, border rules, state plumbing) is inert when disabled -
+  exactly the CR-anchor pattern.
+- Real-coder payload deltas (v2_bytes) of every candidate are REPORTED in
+  the verdict line as diagnostics; they decide nothing in this offline
+  slice (format wiring runs its own production-flat trial behind the
+  never-expand rule in a LATER slice, only on a gate PASS).
+- Self-check obligations (fail-capable rails): determinism on a real pinned
+  image; a constructed image with known systematic MED bias where `med@bias`
+  MUST win against `med@biasoff`; a smooth centered ramp where the
+  correction MUST NOT invent a win; evaluator renders both BIAS-fmt
+  verdicts plus a biting BIAS-anchor from CSV rows alone.
 
 - the Builder

@@ -95,4 +95,61 @@ std::vector<uint16_t> reconstruct_plane_blend(const std::vector<int32_t>& residu
                                               const BlendConfig& cfg,
                                               uint16_t bd_max);
 
+// ----- E1 CALIC-class bias cancellation (issue #130, E-series blueprint) -----
+// Per-CONTEXT slow aggregation (64 gradient-pair cells) instead of per-sample
+// fast tracking: pred' = med + b[ctx], optionally followed by a multiplicative
+// gain G[ctx] (mechanism b). Constants are pinned in docs/algorithmic-spec.md
+// addenda 14.3 and 16 - this code is that contract, mirrored exactly by the
+// decoder side because every input is decoded history (I2).
+
+struct BiasConfig {
+    bool additive = true;   // mechanism (a): integer bias table b[64]
+    bool gain = false;      // mechanism (b): 16.16 gain table G[64] on top
+    bool off() const { return !additive && !gain; }
+};
+
+// Gradient bucket shared with the harness's property machinery: count of
+// thresholds {0,1,2,4,8,16,32} << bd_shift strictly below |g|, capped at 7
+// (addendum 14.2). One implementation serves BiasModel and bench-ideal.
+int bias_bucket(int64_t g, int bd_shift);
+
+class BiasModel {
+public:
+    BiasModel(uint8_t bd, const BiasConfig& cfg);
+    void reset();   // fresh state per plane (production scoping)
+    // Full prediction chain for cell `ctx`: med + b[ctx], then gain when active.
+    int32_t predict(int ctx, int32_t med) const;
+
+    // Pinned update order (b first, then G), both from err = actual -
+    // pred_final. The model recomputes its own prediction chain from (med,
+    // current state) so encode and decode sides share one code path for
+    // prediction AND error derivation (addendum 16.1).
+    void update(int ctx, int32_t med, int32_t actual);
+
+    // Test/harness observability only.
+    int32_t bias_at(int ctx) const { return b_[ctx]; }
+    int64_t gain_at(int ctx) const { return g_[ctx]; }
+
+private:
+    BiasConfig cfg_;
+    int32_t bmax_;
+    int32_t b_[64];
+    int64_t g_[64];
+};
+
+// Residual plane under MED + bias cancellation: e = sample - corrected_pred,
+// where the model state evolves causally exactly as the decoder will mirror
+// it. The off() configuration produces byte-identical residuals to plain
+// compute_residuals(MED) (BIAS-anchor contract).
+std::vector<int32_t> compute_residuals_bias(const std::vector<uint16_t>& plane,
+                                            uint32_t w, uint32_t h,
+                                            uint8_t bd, const BiasConfig& cfg);
+
+// Exact inverse walk: replays the identical model evolution. Hard bijection
+// property at BD8/BD16 and all border shapes.
+std::vector<uint16_t> reconstruct_plane_bias(const std::vector<int32_t>& residuals,
+                                             uint32_t w, uint32_t h,
+                                             uint8_t bd, const BiasConfig& cfg,
+                                             uint16_t bd_max);
+
 } // namespace prism::codec

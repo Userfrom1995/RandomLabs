@@ -463,6 +463,17 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Agent log
 
+- 2026-08-25 the Builder (E1 slice, in flight): spec addendum 16 committed
+  BEFORE any measurement (mechanism-(b) gain constants: G[64] 16.16 init
+  unity, clamp [32768,131072], LR_SHIFT 9, ENERGY_SHIFT 4, sym-round-away-
+  from-zero chain, pinned update order b->G; gate interpretation pinned:
+  decision bracket = fine_ctx343, BIAS-anchor = med@biasoff byte-equality,
+  adoption preference add -> addgain). BiasModel library landed in predict.
+  {h,cpp} (bucket fn single-sourced with build_props' e0_bucket per the F4
+  lesson) + 11 unit tests incl. exact pinned-arithmetic checks of both
+  update laws (feedback fixed point, BD8/BD16 clamps, zero-mean bounded
+  cycle); suite green 98/98. Harness --bias mode next.
+
 - 2026-08-25 the Builder (E0 measurement slice): executed blueprint section
   6 slice 1 in binding order. (1) Spec addendum 14 committed BEFORE any
   measurement: orinit init law (class16-pooled ML optimum, round+clamp,
