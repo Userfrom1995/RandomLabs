@@ -46,7 +46,8 @@ static void print_usage() {
               << "      [--keying LIST] [--inject LIST]\n"
               << "  prism bench-sandbox --v1 <image>...   (V-series sweep)\n"
               << "  prism bench-sandbox --s1 <image>...   (S-series dual-frame predictors)\n"
-              << "  prism bench-sandbox --s3 <image>...   (S-series extended causal properties)\n";
+              << "  prism bench-sandbox --s3 <image>...   (S-series extended causal properties)\n"
+              << "  prism bench-sandbox --s4 <image>...   (S-series composition + projection)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -929,6 +930,7 @@ namespace sandboxrun {
 static void run_v1_image(const std::filesystem::path& img);
 static void run_s1_image(const std::filesystem::path& img);
 static void run_s3_image(const std::filesystem::path& img);
+static void run_s4_image(const std::filesystem::path& img);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -977,6 +979,18 @@ static int run_bench_sandbox(int argc, char** argv) {
                 return 2;
             }
             for (const auto& img : imgs) sandboxrun::run_s3_image(img);
+            return 0;
+        }
+        if (a == "--s4") {
+            // S-series slice P3 composition + projection sweep (spec
+            // addendum 19.5 S4; pins P-S4-1..12 BEFORE any measurement).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --s4: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_s4_image(img);
             return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
@@ -1970,6 +1984,192 @@ void run_s3_image(const std::filesystem::path& img) {
         for (int k : {64, 256})
             run_s3_variant(img_name, TokProfile::ZFFCTRL, med_ress, w, h,
                            bd_shift, var, k);
+}
+
+} // namespace sandboxrun
+
+namespace sandboxrun {
+
+// ----- bench-sandbox --s4 (S-series slice P3; spec addendum 19.5 S4 +
+// pins P-S4-1..P-S4-12 in decisions/builder/2026-08-25T23-45-00) -----
+//
+// Composition + projection: per image, the candidate set {ADAPT control,
+// SPINE static spine} crossed with the FULL D4c color-rotation trial family
+// (colorrot kCount), decided strictly by real NET bytes. The adaptive
+// control is inside the candidate set with the SAME trial freedom as the
+// spine (pin P-S4-4), so composed NET is non-regressing vs e1 BY
+// CONSTRUCTION on every measured image. Winner selection, relpct_composed,
+// class medians and the verbatim-18.5 corpus projection against the
+// committed e1 CSV live in the shell evaluator; this command only measures.
+
+void emit_s4_row(const std::string& img_name, const char* cand,
+                 const char* trial, const char* backend, uint64_t payload,
+                 uint64_t tables, uint64_t maps, uint64_t trees,
+                 bool audit_ok, bool rt, double tbl_bits) {
+    char rowbuf[512];
+    const uint64_t net = payload + tables + maps + trees;
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "S4,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%d,%d,%.3f\n",
+                  img_name.c_str(), cand, trial, backend, (size_t)payload,
+                  (size_t)tables, (size_t)maps, (size_t)trees, (size_t)net,
+                  audit_ok ? 1 : 0, rt ? 1 : 0, tbl_bits);
+    std::cout << rowbuf;
+}
+
+// Anchors first under plain YCoCgR (pin P-S4-6): identical emission to
+// s1/s3/v1 so VB-anchor-adapt / VB-anchor-ideal guard EVERY s4 run against
+// the committed reference before any composition row exists.
+static void emit_s4_anchors(const std::string& img_name,
+                            const Raster& t,
+                            const std::vector<std::vector<int32_t>>& ress,
+                            size_t v0b, size_t v2b) {
+    char rowbuf[512];
+    const uint32_t w = t.w;
+    {
+        bool rt = true;
+        for (size_t pi = 0; pi < ress.size(); ++pi) {
+            auto bytes = acoder_encode_plane_v2(ress[pi], w, t.h,
+                                                AC_V2_RESDIFF_CONTEXTS);
+            auto dec = acoder_decode_plane_v2(bytes, ress[pi].size(), w,
+                                              t.h, AC_V2_RESDIFF_CONTEXTS);
+            if (dec != ress[pi]) rt = false;
+        }
+        double ptsv0 = 100.0 * ((double)v2b - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-ADAPT,KPROD,%zu,0,0,0,%zu,"
+                      "1,%d,0.000,0.0000,0.0000,%.4f\n",
+                      img_name.c_str(), v2b, v2b, rt ? 1 : 0, ptsv0);
+        std::cout << rowbuf;
+    }
+    {
+        idealbench::Acc acc;
+        for (auto& res : ress) idealbench::walk(res, w, acc);
+        double bctmp[3], bfine[3], bval[3];
+        acc.bits(bctmp, bfine, bval);
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "BRACKET,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                      img_name.c_str(), v0b, v2b,
+                      bfine[0], bfine[1], bfine[2],
+                      bval[0], bval[1], bval[2]);
+        std::cout << rowbuf;
+    }
+    for (KeyingId key :
+         {KeyingId::KSHARED, KeyingId::KFLAT16, KeyingId::KFLAT343}) {
+        SandboxModel m;
+        m.init(TokProfile::ZFFCTRL, key);
+        std::vector<std::vector<TaggedEvent>> evts(ress.size());
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            count_plane(m, TokProfile::ZFFCTRL, key, ress[pi], w, &evts[pi]);
+        SmoothedTables tabs;
+        build_tables(m, false, tabs);
+        size_t audit = 0;
+        auto blob = serialize_tables(tabs, &audit);
+        const bool audit_ok = (audit == blob.size());
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                         tabs);
+        const uint64_t payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+        const double ml = ml_ideal_bits(m);
+        const uint64_t net = payload + blob.size();
+        const double relpct =
+            100.0 * ((double)v2b - (double)net) / (double)v2b;
+        const double ptsv0 =
+            100.0 * ((double)net - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-IDEAL,%s,%zu,%zu,0,0,%zu,"
+                      "%d,1,%.3f,%.3f,%.3f,%.4f\n",
+                      img_name.c_str(), keying_name(key), (size_t)payload,
+                      blob.size(), (size_t)net, audit_ok ? 1 : 0, tbl_bits,
+                      ml, relpct, ptsv0);
+        std::cout << rowbuf;
+    }
+}
+
+void run_s4_image(const std::filesystem::path& img) {
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    // Anchor truth on the YCoCgR MED streams (pin P-S4-6).
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    std::vector<std::vector<int32_t>> med_ress;
+    med_ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(med_ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(med_ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    emit_s4_anchors(img_name, t, med_ress, v0b, v2b);
+
+    // The composition sweep (pins P-S4-2..P-S4-5): every color trial x
+    // {ADAPT, SPINE}, all side info NETTED, everything decided by real
+    // NET bytes downstream in the evaluator.
+    for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+        const char* tn = prism::codec::colorrot::name(id);
+        Raster tt = prism::codec::colorrot::apply(r, id);   // BD8 RGB only
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            ress.push_back(compute_residuals(plane, tt.w, tt.h,
+                                             PredId::MED));
+
+        // ADAPT: production adaptive replay, payload only (zero side info;
+        // schema-guarded downstream like frame-A rows). Trial ycocgr
+        // reproduces the anchor streams byte-for-byte by construction.
+        {
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    acoder_encode_plane_v2(ress[pi], tt.w, tt.h,
+                                           AC_V2_RESDIFF_CONTEXTS);
+                payload += bytes.size();
+                auto dec =
+                    acoder_decode_plane_v2(bytes, ress[pi].size(), tt.w,
+                                           tt.h, AC_V2_RESDIFF_CONTEXTS);
+                if (dec != ress[pi]) rt = false;
+            }
+            emit_s4_row(img_name, "ADAPT", tn, "B-ADAPT", payload, 0, 0, 0,
+                        true, rt, 0.0);
+        }
+
+        // SPINE: static spine ZFFCTRL x KFLAT16, budget-enforced, tables +
+        // 'SBP1' merge map fully NETTED (I12); B-RANS gating with decode
+        // mirror, B-IDEAL reference row for the fidelity rail only.
+        PreparedConfig cfg;
+        prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16, tt.w,
+                             ress, cfg);
+        cfg.plane_residuals = ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                         cfg.tabs);
+        emit_s4_row(img_name, "SPINE", tn, "B-IDEAL",
+                    (uint64_t)std::ceil(tbl_bits / 8.0),
+                    cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                    cfg.art.audits_ok, true, tbl_bits);
+        {
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    rans_encode_events(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                       cfg.tabs);
+                payload += bytes.size();
+                auto dec =
+                    rans_decode_events(TokProfile::ZFFCTRL, cfg.cms[pi],
+                                       cfg.plane_residuals[pi].size(),
+                                       bytes, cfg.tabs);
+                if (dec != cfg.plane_residuals[pi]) rt = false;
+            }
+            emit_s4_row(img_name, "SPINE", tn, "B-RANS", payload,
+                        cfg.art.table_blob.size(), cfg.art.map_blob.size(),
+                        0, cfg.art.audits_ok, rt, tbl_bits);
+        }
+    }
 }
 
 } // namespace sandboxrun
