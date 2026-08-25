@@ -985,4 +985,93 @@ NO winning configuration is reserved for later phases and no wall-clock
 budget transfers forward; V2/V3/V4 do not open without an owner-directed
 pivot decision. Zero container bytes were spent at any point.
 
+## 19. Addendum 2026-08-25 (registered as "spec addendum 19"): source-side-
+##     only pivot (S-series) pre-registration, written BEFORE any
+##     S-measurement
+
+Authority: owner authorization 2026-08-25T21:53:15Z on PR #145 (V1 STOP
+acknowledged; source-side-only pivot, or any architecture the Architect
+deems necessary, authorized; the M2/M3 dual-unit gates are the single
+invariant and may never be lifted, bypassed, or altered) and Mae's `/oc
+architect` dispatch on PR #145. Blueprint:
+`architecture-jxl-parity-sourcepivot.md`. Binding order unchanged: every
+constant below is fixed before the first S-row exists; deviations require a
+numbered amendment BEFORE the affected measurement or they never happen.
+
+### 19.1 Reserved-slot resolution (fills the slots 18.6 opened)
+
+- After-V1 slot: NO winning backend/tokenization/keying exists (V1 STOP at
+  head 3bc11dd). Wall-clock accounting: amendment A3 precedent stands -
+  structural instrument multipliers are recorded beside every phase and NO
+  gate depends on wall-clock.
+- Before-S2 slot: bias-table shape inherits addendum 14.3 defaults unless a
+  numbered amendment lands before S2 opens.
+- Before-S3 slot: frozen extended-property list pinned in 19.4; tree feature
+  set = NONE (spatial maps/trees excluded from S3 by V1's measured evidence).
+- Before-S5 slot: squeeze parent-property conditioning constants inherit the
+  Obsidian-shared bijection-tested variant; must be amended numerically
+  before S5 opens.
+
+### 19.2 S-controls (pinned now)
+
+- FRAME-A (adaptive): production ACModelsV2 replay over the phase's residual
+  stream under ZFFCTRL; equals the committed e1-era rows under
+  VB-anchor-adapt (bit-for-bit bound).
+- FRAME-S (static spine): ZFFCTRL x B-RANS x KFLAT16-static-spine with ALL
+  side-info NETTED (tables + merge map); the measured V1b best-realistic
+  family re-instrumented as a control, re-measured fresh each run.
+- Every CSV row carries frame=A|S; comparisons are valid WITHIN a frame
+  only; cross-frame comparisons are invalid and rejectable on sight.
+
+### 19.3 Dual-frame scoring contract (pinned now)
+
+FRAME-S is PRIMARY and gating for S1 and S3 verdicts. FRAME-A deltas are
+REPORTED beside every row (they answer what the shipped adaptive coder
+gains) but never gate any verdict inside this program.
+
+### 19.4 Frozen extended-property list (S3)
+
+P_ext = {qW, qN, qNW, qNE quotient buckets with octile edges computed per
+image from the causal stream (no future-sample leakage), bucketed CALIC
+gradient magnitudes gbW/gbN, plane id, optional e_max_prev bucket per 18.4}.
+Flat hash into K <= 256 clusters; 4096-sample floor binding; NO spatial
+maps or trees anywhere in S3.
+
+### 19.5 S-gates (pinned now; I10 per-image medians primary throughout)
+
+- S1 PREDICTORS: families {MED control, GAP, W} per the 18.4 mathematics
+  verbatim; best non-MED family >= +1.5 RELPCT median quad in FRAME-S vs
+  same-frame MED => PASS; FAIL => MED ships in both frames, B3 closed with
+  numbers.
+- S2 CANARY (opens ONLY on an S1 PASS): >= +0.5 RELPCT median AND no image
+  regressing more than 0.25 pct in the frame(s) where the winner passed;
+  second strike closes bias feedback FOREVER.
+- S3 PROPERTIES: >= +1.5 RELPCT median quad in FRAME-S vs the same-stack
+  best-flat-16 baseline (control includes adopted S1/S2 winners so the gate
+  reads the property extension's marginal value); FAIL => flat-16 ships,
+  B2 closed with numbers.
+- S4 COMPOSITION: candidates {adaptive control, static spine, spine + S1
+  winner, + S2 if passed, + S3 if passed} x D4c color-transform trials,
+  decided strictly by real NET bytes per image (L-C1; the adaptive control
+  in the candidate set makes composed NET non-regressing vs e1 BY
+  CONSTRUCTION on the quad). Projection formula 18.5 VERBATIM against the
+  committed e1 CSV, landscape/portrait class medians reported separately.
+  Threshold: projected < 9.35 summed AND < 3.117 per-sample => proceed-to-
+  format handoff; else stop-and-report. Zero container bytes until this
+  threshold PASSES.
+- S5 RESERVE: opens ONLY if S4 projects inside M3 reach but short of it;
+  strict gate >= 2.0 RELPCT median NET or the lever dies with its third
+  strike; never opened otherwise (L-C7).
+
+### 19.6 CSV naming
+
+`benchmarks/results/YYYY-MM-DD-sandbox-s{1,2,3}.csv` (+ `-s4`, `-s5` if
+opened); one file per phase so earlier references stay stable.
+
+### 19.7 STATUS
+
+Written 2026-08-25 BEFORE any S-row exists. The V1 STOP verdict stands
+recorded permanently; the static-table mechanism enters the S-program as a
+freshly-controlled component candidate under these pins, not as a V1 PASS.
+
 - the Architect
