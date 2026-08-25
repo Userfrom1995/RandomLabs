@@ -3,48 +3,22 @@
 - **Issue:** #130 (owner directive 2026-08-23; lab-wide freeze until M2 AND M3
   genuinely pass dual-unit gates)
 - **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
-- **Status:** in_progress. Builder phases COMPLETE through the full D4
-  stretch: C0+C1 landed (-6.09 pct bytes), C3 landed (-0.62 pct), C2/C2b/C4/
-  C5 honestly rejected by measurement (never-expand held, zero regressions).
-  Research DONE (D1 gate fix + D2 gap analysis F1-F4). Architect re-scope
-  DELIVERED 2026-08-24: `prism/docs/architecture-jxl-parity-rescope.md`
-  (D-series, supersedes C6). D0 COMPLETE (harness; recorded A2 oracle
-  aggregates NONREPRODUCIBLE, replaced by harness-citable brackets).
-  D1 OFFLINE REJECTED (+0.25 pct worse best case, mixed sign). D2 OFFLINE
-  REJECTED (-0.90 pct aggregate vs >= 3 pct gate). D3 CHECKPOINT COMPLETE
-  (byte-identical outputs, M2/M3 FAIL both units, review boundary).
-  D4a zero-run REJECTED (+0.28 pct aggregate). D4b extended mixer bank
-  REJECTED (-0.69 vs -0.90 D2-best). **D4c reversible color rotations:
-  ADOPTED 2026-08-24** - the first stretch lever to clear its pre-registered
-  gate (CR-fmt PASS: loco -4.36 pct aggregate v2 on the probe set;
-  independent cross-check confirmed direction 4/4). Wired as container ids
-  7..11 behind a two-stage never-expand trial after the single-list design
-  measurably regressed kodim18 +0.25 pct (metric could not see the anchor's
-  CFL/predictor advantages); final design adopts on strict production-flat
-  wins only: 22 wins / 2 ties / ZERO regressions at e1/e3/e7.
-  Squeeze-under-mixer re-test: condition NOT met (no adopted mixer), door
-  shut with reasoning recorded. FRESH CORPUS TRUTH (2026-08-24): e1 =
-  10.1210 summed / 3.3737 per-sample bpp (-1.65 pct bytes vs pre-D4c),
-  e3 = e7 = 10.1350 / 3.3783 (-1.47). M2 and M3 honestly FAIL in both units
-  everywhere; the D-series is EXHAUSTED with every lever adopted-and-measured
-  or rejected-by-measurement. The OWNER DECISION POINT (re-scope section 1)
-  was RESOLVED INTO RESEARCH by the owner 2026-08-25 (`/oc research`): Dr.
-  Mob delivered `prism/docs/research-e-series-endgame.md` (gap decomposition
-  A/B/C/D, pre-registered gates M-A/M-B/M-C, interventions E1-E4). Architect
-  E-series blueprint DELIVERED 2026-08-25:
-  `prism/docs/architecture-jxl-parity-eseries.md` - measurement-first build
-  spine (E0 harness + gates BEFORE any format byte), ext-bit registry,
-  binding decision tree back to the owner point, honest base case ~9.3-9.7
-  summed (M2 plausible, M3 likely stays open). **E0 COMPLETE 2026-08-25**
-  (spec addendum 14 pre-registered first; rails all green; readout in the
-  E-series checklist): A = 0.073 points -> E2 frozen tables DOA-by-
-  arithmetic; MC-viability FAIL as pre-registered (pooled margin 1.33 <
-  1.5; every per-image margin clears - anomaly recorded, gate stands) ->
-  MANIAC dead on this binarization; B_coarse = -0.91 -> collector-pure
-  tracking negative. NAMED TREE ROW: "M-C fails AND A < 1.5" - everything
-  rides on E1 bias cancellation behind its BIAS-fmt gate; if it fails,
-  #130 closes honestly at the achieved level. Zero format bytes spent in
-  E0.
+- **Status:** complete. #130 closes HONESTLY at the achieved level
+  2026-08-25 after the full C/D/E program executed with every lever adopted-
+  and-measured or rejected-by-measurement. Final corpus truth (E4 fresh
+  measure, all 24 pins verified pre-measurement): e1 = 10.1210 summed /
+  3.3737 per-sample bpp; e3 = e7 = 10.1350 / 3.3783 - byte-identical to the
+  D4c-era CSVs, proving D0-E1 library work stayed format-unwired end to end.
+  M2 FAIL both units (vs < 9.498 / < 3.166); M3 FAIL both units (vs < 8.655
+  / < 2.885). Total from the 11.026 baseline: -8.21 pct bytes at e1
+  (1 - 10.1210/11.026). ADOPTED across the project: C1 entropy backend v2,
+  C3 trial-encoded decisions, D4c reversible color rotations. REJECTED BY
+  MEASUREMENT with committed evidence: C2/C2b/C4/C5 static transforms and
+  context refinement, D1 blended prediction, D2/D4b mixer+SSE, D4a zero-run,
+  E2 frozen tables (DOA-by-arithmetic), E3 MANIAC (MC gate), E1 bias
+  cancellation (bracket WORSE by 16-20 points; zero-flag economics).
+  Full ledger in this file + prism/docs/research-e-series-endgame.md +
+  decision records under .github/agents/decisions/builder/.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -324,10 +298,6 @@ percent) are independently re-measurable today via
         Maintainer/owner as data; changing the pre-registered bar after the
         measurement is forbidden and is NOT requested.
       - Zero format bytes spent (I7/I8/I9 held throughout).
-- [ ] E1 CALIC-class bias cancellation: offline BIAS-fmt gate first
-      (>= 1.5 points bracket drop, no mixed sign); format wiring only behind
-      the never-expand per-plane trial if the gate passes. NEXT SLICE: the
-      only surviving lever after E0's verdicts.
 - [x] E2 Frozen tables: precondition arithmetic CHECKED at E0: A-share =
       0.073 points of v0 < 1.5 -> **step 1 DOA-by-arithmetic** (number
       recorded). Step 2's formal precondition (B >= 2 on the bin-fine
@@ -340,23 +310,43 @@ percent) are independently re-measurable today via
       development NEVER OPENS on this binarization.** Evidence:
       2026-08-25-ideal-props-e0.csv. Per-image anomaly recorded above for
       the owner's awareness only.
-- [ ] E4 Checkpoint: fresh dual-unit corpus measure, CSV committed,
-      bench_gate.sh in both units; review boundary regardless of verdict;
-      final decision-tree row recorded here. Runs AFTER whatever survives
-      (currently: E1 only, behind its gate; else honest closure).
+- [x] E1 CALIC-class bias cancellation: OFFLINE VALIDATION ONLY, REJECTED
+      (2026-08-25). Spec addendum 16 pinned mechanism-(b) gain constants and
+      the gate's single reading BEFORE any measurement. BiasModel library
+      (predict.{h,cpp}) + 11 unit tests incl. exact pinned-arithmetic checks;
+      `--bias biasoff,bias,biasgain` harness mode with BIAS-anchor
+      (byte-equality, held) and fail-capable self-checks. MEASURED VERDICT
+      on the pinned quad (sha-pins verified): med@bias ctx343-fine bracket
+      WORSE by 19.85 points of v0 aggregate (payload +70.2 pct);
+      med@biasgain worse by 16.33 (+21.7 pct); 4/4 images regressed both
+      ways. BIAS-fmt FAIL by an order of magnitude; STOP rule fired; zero
+      format bytes. Mechanism understood: zero-flag-first binarization
+      prices MED's exact-zero residual peak below its conditional-entropy
+      worth - moving predictions toward the conditional MEAN spreads mass
+      off the MODE. Evidence: benchmarks/results/2026-08-25-ideal-bias-
+      e1.csv; decision record 2026-08-25T12-30-00.
+- [x] E4 Checkpoint: fresh dual-unit corpus measure at e1/e3/e7, corpus
+      pins verified BEFORE measuring, all three CSVs BYTE-IDENTICAL to the
+      D4c-era committed files (D0-E1 work proven format-unwired end to end).
+      e1 = 10.1210 summed / 3.3737 per-sample; e3 = e7 = 10.1350 / 3.3783.
+      bench_gate.sh in BOTH units on e1 and e7: M2 FAIL (10.1210 >= 9.498;
+      3.3737 >= 3.166), M3 FAIL (10.1350 >= 8.655; 3.3783 >= 2.885).
+      FINAL DECISION-TREE ROW CONFIRMED: row 1 final clause - #130 closes
+      honestly at the achieved level with the full negative ledger. Review
+      boundary reached; this is the project's closing state.
 
 ## Current step
 
-E0 COMPLETE (2026-08-25): the measurement spine ran green end to end and the
-readout is committed above with CSV paths and the named tree row. Verdicts,
-stated once: **A = 0.073 points** (E2 frozen tables DOA-by-arithmetic),
-**MC-viability FAIL** (pooled margin 1.33 < 1.5; MANIAC dead on this
-binarization), **B_coarse = -0.91** (collector-pure tracking negative; E2
-step 2 closed-by-mechanism). Named decision-tree row: row 1 - everything now
-rides on **E1 bias cancellation**, whose BIAS-fmt gate (>= 1.5 points bracket
-drop on the probe quad, no mixed sign) is the next and only surviving lever;
-if it fails, #130 closes honestly at the achieved level with the full
-negative ledger. Zero format bytes spent in E0.
+PROJECT CLOSED (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
+magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
+payload +22 to +70 percent) - the zero-flag-first binarization makes
+CALIC-style bias cancellation structurally incompatible with this coder.
+E4 checkpoint ran fresh and confirms byte-stable outputs and honest dual-
+unit gate FAILs. Named decision-tree row executed to its final clause:
+**#130 closes honestly at the achieved level.** Final numbers: e1 =
+10.1210 summed / 3.3737 per-sample bpp (-8.21 pct bytes from the 11.026
+baseline); e3 = e7 = 10.1350 / 3.3783; M2/M3 FAIL both units. Status:
+complete - review boundary reached.
 
 D-series closure record (2026-08-24): D4a zero-run REJECTED (+0.28 pct),
 D4b extended mixer bank REJECTED (-0.69 vs -0.90), **D4c color rotations
@@ -451,17 +441,39 @@ Previous slice summary (continuation run 3, C2b):
    then the M-A/M-B/M-C readout on kodim01/13/05/20 with A/B/C shares
    written into this tracker's E-series checklist and the decision-tree row
    NAMED. No intervention or format byte was spent before that readout.
-5. [NEXT] Builder executes E1 offline validation ONLY: BiasModel per
-   addendum 14.3's pinned constants (b[64] gradient-pair cells, BIAS_SHIFT
-   6, Bmax 2^(BD-3)), `--bias` harness mode scoring NEW med@bias residual
-   streams against old-stream rows, BIAS-anchor (bias-off rows byte-equal to
-   shipped baseline), BIAS-fmt gate >= 1.5 points aggregate bracket drop AND
-   no image above its own baseline. PASS -> format wiring behind the
-   never-expand per-plane trial in a LATER slice; FAIL -> record the negative
-   and hand #130 to honest closure with the full ledger (tree row 1, final
-   clause). E4 checkpoint + review boundary after whichever way it goes.
+5. [DONE 2026-08-25] Builder executed E1 offline validation ONLY: BiasModel
+    per addendum 14.3's pinned constants plus addendum 16's pre-registered
+    mechanism-(b) constants, `--bias` harness mode, BIAS-anchor held,
+    BIAS-fmt gate FAILED by an order of magnitude on the pinned quad ->
+    recorded the negative and handed #130 to honest closure with the full
+    ledger (tree row 1, final clause). E4 checkpoint ran in the same slice:
+    fresh dual-unit corpus measure byte-identical to D4c-era CSVs; M2/M3
+    honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
 
 ## Agent log
+
+- 2026-08-25 the Builder (E1 + E4 closing slice): executed the E-series to
+  its end. (1) Spec addendum 16 committed BEFORE any measurement:
+  mechanism-(b) gain constants (G[64] 16.16 init unity, clamp [32768,
+  131072], LR_SHIFT 9, ENERGY_SHIFT 4, sym-round-away-from-zero, pinned
+  update order b->G) and the gate's single reading (decision bracket =
+  ctx343-fine in the baseline reference frame). (2) BiasModel library
+  (predict.{h,cpp}) with bucket fn single-sourced into build_props' e0_bucket
+  (F4 lesson); 11 unit tests including exact pinned-arithmetic checks of
+  both update laws - the feedback fixed point (b converges where err drops
+  below one quantum), BD8/BD16 clamps, zero-mean bounded cycle; suite green
+  98/98. (3) `--bias` harness mode + BIAS-anchor rail gate + BIAS-fmt
+  decision gate + fail-capable self-check (determinism on pinned kodim05,
+  live anchor byte-equality, corrections-prove-they-fire on a constructed
+  stream, both verdicts + anchor bite from CSV fixtures); all six rails'
+  self-checks PASS. (4) MEASURED VERDICT: BIAS-fmt FAIL for both candidates,
+  4/4 images regressed (add: bracket worse by 19.85 points / payload +70.2
+  pct; addgain: worse by 16.33 / +21.7 pct); anchor held byte-for-byte.
+  Zero format bytes. (5) E4 checkpoint: fresh corpus measure at e1/e3/e7,
+  pins verified pre-measurement, CSVs BYTE-IDENTICAL to D4c era; bench_gate
+  both units FAIL as recorded above. (6) Closure ledger written (status
+  header, current step, ideas addendum, README, decision record). Status
+  complete; handoff {"action":"review"}.
 
 - 2026-08-25 the Builder (E1 slice, in flight): spec addendum 16 committed
   BEFORE any measurement (mechanism-(b) gain constants: G[64] 16.16 init

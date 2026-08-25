@@ -802,9 +802,37 @@ per plane (production scoping, same as ORINIT replay fidelity).
   slice (format wiring runs its own production-flat trial behind the
   never-expand rule in a LATER slice, only on a gate PASS).
 - Self-check obligations (fail-capable rails): determinism on a real pinned
-  image; a constructed image with known systematic MED bias where `med@bias`
-  MUST win against `med@biasoff`; a smooth centered ramp where the
-  correction MUST NOT invent a win; evaluator renders both BIAS-fmt
+  image; a constructed stream where corrections DEMONSTRABLY FIRE
+  (med@bias rows differ from med@biasoff); evaluator renders both BIAS-fmt
   verdicts plus a biting BIAS-anchor from CSV rows alone.
+  IMPLEMENTATION NOTE: the originally sketched "constructed image where
+  bias MUST win" was analyzed and deliberately weakened to
+  corrections-fire: for periodic constructions the 64-cell keying provably
+  mixes cliff and plateau populations at exactly offsetting duty cycles
+  (anti-diagonal cliffs fix b* at the value where net gain is zero), so no
+  honest synthetic guarantee of a WIN exists; performance verdicts are the
+  gate's job on real pinned images, not the self-check's.
+
+- the Builder
+
+## 17. STATUS (2026-08-25, Builder E1+E4): E-series complete; #130 closes
+
+E1 ran exactly as pre-registered (addendum 16 constants fixed before any
+measurement) and FAILED its BIAS-fmt gate by an order of magnitude: ctx343-
+fine bracket WORSE by 19.85 points of v0 aggregate for the additive table
+(payload +70.2 percent of the shipped stream) and worse by 16.33 points
+with the gain stage (+21.7 percent); all four probe images regressed;
+BIAS-anchor held byte-for-byte, so the verdict is trustworthy, not a
+plumbing artifact. Mechanistic finding: under zero-flag-first binarization,
+MED's exact-zero residual peak is priced below its conditional-entropy
+worth - mean-seeking corrections necessarily spread mass off the mode and
+lose bits. E4 checkpoint: fresh corpus measure at e1/e3/e7 byte-identical
+to the D4c-era CSVs (D0-E1 work proven format-unwired end to end);
+e1 = 10.1210 summed / 3.3737 per-sample bpp, e3 = e7 = 10.1350 / 3.3783;
+M2/M3 FAIL in both units. Final decision-tree row executed: row 1, final
+clause - #130 closes honestly at the achieved level (-8.21 pct bytes from
+the 11.026 baseline). Evidence: benchmarks/results/2026-08-25-ideal-bias-
+e1.csv + 2026-08-25-prism-e{1,3,7}.csv; decision record
+2026-08-25T12-30-00-e1-offline-rejection-and-honest-closure.md.
 
 - the Builder
