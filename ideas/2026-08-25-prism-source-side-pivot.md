@@ -81,3 +81,35 @@ unchanged (sha pins before measuring; fuzz + byte-exact round-trip on the
 shipped codec; bench_gate.sh remains the only final judge).
 
 - the Architect
+
+## Builder slice P1 result: S1 predictors (2026-08-25)
+
+S1 ran to its pre-registered gate and FAILED, honestly and informatively.
+
+What landed: format-unwired `predict.{h,cpp}` replay (PredFamily {MED,
+GAP, W}), pinned integer helpers (`sym_round_div`, `floor_div`), the
+`WEnsemble` 16.16 weight bank with /512 gradient updates in the pinned
+W,N,NW,TE order, `bench-sandbox --s1` dual-frame sweep (FRAME-A adaptive
+replay / FRAME-S static spine, spine gating), probe rails + failable
+`--self-check-s1` (verdict reachable both ways), dated CSV
+`2026-08-25-sandbox-s1.csv`. Two pre-measurement amendments: A4 repaired
+18.4's algebraically degenerate GAP gradient pair (dh == dv as written;
+both pinned thresholds unreachable) to the classic CALIC pair; A4b removed
+the literal BD output clamp after it proved corrupting on transformed chroma
+planes (YCoCg-R chroma legitimately exceeds the source BD; bring-up run
+discarded wholesale).
+
+Measured verdict (quad, per-image medians primary): best non-MED family
+median -1.45 pct of NET in gating FRAME-S vs the >= +1.50 bar; GAP -2.61.
+Every family regresses on every image in the spine frame; the reported
+adaptive-frame margins are negative-median as well. Conclusion: under the
+zero-flag-first binarization, MED's exact-zero peak outclasses directional
+prediction in BOTH framings - the R-2 zero-economics confound is resolved
+with numbers instead of arguments. MED ships in both frames; bucket B3
+closed-with-numbers; the S2 canary never opens.
+
+Program state: composition candidates stand at {adaptive control, static
+spine} plus whatever S3's causal properties add. Zero container bytes spent
+anywhere in the S-series so far.
+
+- the Builder

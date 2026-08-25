@@ -496,13 +496,50 @@ per-sample projected).
       tracker/log updates delivered; reserved slots 18.6 resolved (no V1
       winner; wall-clock per A3 precedent; P_ext frozen; tree features =
       NONE). Handoff {"action":"build"}: Builder slice P1 = S1 predictors.
-- [ ] S1 predictor families (attacks B3): GAP + W ensemble replay per the
-      18.4 mathematics verbatim; dual-frame sweep on the pinned quad; gate
-      >= +1.5 RELPCT median FRAME-S vs same-frame MED; FAIL => MED ships,
-      B3 closed-with-numbers.
-- [ ] S2 error-feedback canary (ONE shot; opens ONLY on an S1 PASS):
-      >= +0.5 median AND no image regressing > 0.25 pct; second strike
-      closes bias feedback FOREVER.
+- [x] S1 predictor families (Builder slice P1; pins P-S1-1..P-S1-11 +
+      amendments A4/A4b in decisions/builder/2026-08-25T22-30-00, committed
+      BEFORE any measurement): COMPLETE 2026-08-25.
+      Machinery: format-unwired causal replay predict.{h,cpp} -
+      PredFamily {MED control, GAP reduced classic, W ensemble} per 18.4
+      with pinned integer helpers (sym_round_div half-away-from-zero,
+      floor_div toward -inf); WEnsemble weights 16.16 init 65536 clamp
+      [16384,1048576], /512 gradient updates in pinned W,N,NW,TE order;
+      production neighbor derivation bound to compute_residuals(MED)
+      byte-for-byte across ALL planes; decoder-mirror step-equality,
+      bijection, plane-reset, weight-clamp and BD-scaling unit tests
+      (124/124 green).
+      AMENDMENT A4 (pre-measurement): 18.4's literal GAP gradient pair is
+      algebraically degenerate (dh == dv term-by-term, t80/t32 branches
+      unreachable); repaired to the classic CALIC pair dh[1]=|W-WW|,
+      dv[2]=|N-NN| - smallest delta restoring the section's own branch
+      semantics. AMENDMENT A4b (pre-measurement, bring-up run DISCARDED
+      wholesale): the literal "[0,2^BD-1] output clamp" corrupts every
+      chroma prediction because YCoCg-R chroma planes legitimately exceed
+      the source BD (kodim01 chroma measured in [477,639]); predictions are
+      UNCLAMPED in the transformed-plane domain (production parity; MED
+      identity is the binding test), TE clamps to [0,2^16-1], reconstruction
+      is the exact unclamped add. No number from the clamped bring-up run
+      survives (V1 ClusterMap precedent).
+      MEASUREMENT (`bench-sandbox --s1`, quad pins verified pre-run; all
+      rails green FIRST: VB-anchor-adapt 4/4 bit-for-bit, VB-anchor-ideal
+      both frozen walk AND counting path 4/4, net-audit clean incl. frame-A
+      zero-side-info schema, rank fixtures live BOTH ways, fidelity within
+      +0.50 pct on 12 spine rows, determinism byte-identical re-run):
+      **S1 VERDICT: FAIL** per addendum 19.5 - best non-MED family median
+      in gating FRAME-S = **-1.45 pct (W)** vs bar >= +1.50; GAP -2.61
+      median (min -8.03 max -0.78); W min -5.84 max -0.85: EVERY family
+      regresses on EVERY image in the spine frame. FRAME-A beside (never
+      gating): GAP -1.68 median (max +0.70), W -0.42 (max +0.27) - nothing
+      near the bar in either framing, resolving R-2's zero-economics
+      confound honestly: no framing rescues directional predictors under
+      the zero-flag-first binarization; MED's exact-zero peak dominates.
+      Consequence: MED ships in both frames; bucket B3 closed-with-
+      numbers; S2 canary never opens (opens ONLY on an S1 PASS).
+      Evidence: benchmarks/results/2026-08-25-sandbox-s1.csv (56 rows).
+      Zero container bytes by construction.
+- [ ] S2 error-feedback canary: NOT OPENED - its trigger clause requires an
+      S1 PASS; S1 FAILED, so the canary is skipped by its own terms (no
+      second-strike cost against the bias-feedback budget).
 - [ ] S3 extended causal properties (attacks B2): flat hash over frozen
       P_ext, K <= 256, floors inherited, NO spatial maps/trees; gate >= +1.5
       RELPCT median FRAME-S vs same-stack best-flat-16; FAIL => flat-16
@@ -518,20 +555,26 @@ per-sample projected).
 
 ## Current step
 
-PRISM V2 S-SERIES PIVOT AUTHORIZED AND BLUEPRINTED (2026-08-25): the owner
-acknowledged the V1 STOP on PR #145 at 21:53:15Z, authorized the
-source-side-only pivot (or any architecture deemed necessary), made pivot
-autonomy standing policy, and restated the single invariant: M2/M3 gates are
-never lifted, bypassed, or altered. The Architect delivered the S-series
-blueprint (`prism/docs/architecture-jxl-parity-sourcepivot.md`) and spec
-addendum 19 (section 19) BEFORE any measurement: dual-frame controls
-(FRAME-A adaptive / FRAME-S static spine, FRAME-S gating), frozen property
-list, all S-gates pinned. The program reuses the validated sandbox
-instrument wholesale; the measured static spine (+5.81 pct median quad,
-all bytes NETTED) enters composition as a candidate under fresh controls -
-the V1 FAIL verdict itself is permanent history and is not re-graded.
-Honest projection: midpoint composition ~9.5-9.8 summed => M2 PASS
-expected; M3 unlikely without near-edge outcomes or the S5 reserve.
+S1 PREDICTORS MEASURED - FAIL (2026-08-25): the pre-registered dual-frame
+gate (addendum 19.5, FRAME-S primary per 19.3) rejected both directional
+families on the pinned quad: best non-MED median -1.45 pct (W) vs bar
+>= +1.50 in FRAME-S; every family regresses on every image there, and the
+reported FRAME-A margins are negative-median too. MED ships in both frames;
+bucket B3 closed-with-numbers; S2 never opens. Amendments A4/A4b landed
+BEFORE any measurement (A4: GAP gradient pair repaired from an algebraically
+degenerate transcription; A4b: unclamped predictions after the literal BD
+clamp proved corrupting on transformed chroma planes - bring-up run
+discarded wholesale). All six VB rails green on the new row family;
+124/124 unit tests; zero container bytes.
+
+Next: Builder slice P2 = S3 extended causal properties (flat hash over the
+frozen P_ext list of addendum 19.4, K <= 256 with floors inherited, NO
+spatial maps/trees; gate >= +1.5 RELPCT median FRAME-S vs same-stack
+best-flat-16 baseline). S2 is skipped by its own trigger clause (opens only
+on an S1 PASS). Then slice P3 = S4 composition + projection readout against
+the committed e1 CSV (threshold < 9.35 summed / < 3.117 per-sample).
+Composition candidates now: {adaptive control, static spine} + any S3
+winner x D4c color trials.
 
 Prior state (superseded by the authorization above): V1 GATE READOUT
 COMPLETE (2026-08-25): instrument extended and
@@ -659,15 +702,43 @@ Previous slice summary (continuation run 3, C2b):
 6. [DONE 2026-08-25] V-series ran V0 (rails green) and V1 (STOP fired);
     owner pivot authorization landed 21:53:15Z; Architect delivered the
     S-series blueprint + addendum 19 (see S-series checklist above).
-7. Builder slice P1 = S1 predictors: verify addendum 19 (never retune);
-    implement GAP + W ensemble replay per 18.4 verbatim in format-unwired
-    predict.cpp + unit tests; extend bench-sandbox with --s1 dual-frame
-    sweep; all six VB rails green first; dated s1 CSV; verdicts same day.
-    Then P2 = S2-canary (conditional) + S3 properties; then P3 = S4
-    composition + projection readout. Zero container bytes until an S4
-    threshold PASS.
+7. [PARTIAL 2026-08-25] Builder slice P1 = S1 predictors: DONE - pins +
+      amendments A4/A4b committed pre-measurement; GAP/W replay + tests;
+      `bench-sandbox --s1` dual-frame sweep; all six VB rails green; dated
+      s1 CSV; verdict FAIL recorded (MED ships, B3 closed-with-numbers).
+      REMAINING: P2 = S3 properties (S2 skipped by its trigger clause),
+      then P3 = S4 composition + projection. Zero container bytes until an
+      S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-25 the Builder (S1 predictor slice, S-series P1): executed slice
+  P1 to its gate readout. (1) Pins P-S1-1..P-S1-11 + amendment A4 committed
+  BEFORE any measurement - including the find that addendum 18.4's literal
+  GAP gradient pair is algebraically degenerate (dh == dv term-by-term;
+  t80/t32 provably dead branches), repaired by minimal delta to the classic
+  CALIC pair with production replicated-edge WW/NN. (2) Format-unwired
+  replay in predict.{h,cpp} + 5 new test groups (124/124): MED byte-identity
+  vs production, pinned GAP vectors across all five threshold branches +
+  BD-scaling pair, W decoder-mirror step equality, weight clamps, bijection
+  on degenerate shapes and offset domains. (3) Bring-up integrity: the first
+  quad run was DISCARDED wholesale when cross-checks showed MED's FRAME-A
+  payload 2.65x off its own anchor - root cause was 18.4's literal
+  "[0,2^BD-1] output clamp" firing on every YCoCg-R chroma sample (measured
+  chroma domain [477,639] at BD8); amendment A4b pins unclamped predictions
+  (production parity), TE bounded by uint16 storage; no number from that run
+  survives. After the fix, MED FRAME-A = committed e1-era bytes bit-for-bit
+  and the spine B-IDEAL net reproduces the V1 reference exactly (514496 on
+  kodim01). (4) `bench-sandbox --s1` dual-frame sweep + probe rails
+  (fidelity/net-audit incl. frame-A zero-side-info schema/S-gate readout)
+  + failable --self-check-s1 (verdict proven reachable BOTH ways).
+  (5) MEASURED VERDICT: S1 FAIL - best non-MED median -1.45 pct (W) vs
+  >= +1.50 bar in gating FRAME-S; all families regress everywhere there;
+  R-2's zero-economics confound resolved honestly: no framing rescues
+  directional predictors under zero-flag-first binarization. B3 closed-
+  with-numbers; S2 never opens; MED ships both frames. Zero container
+  bytes. Handoff {"action":"continue"}: slice P2 = S3 extended causal
+  properties.
 
 - 2026-08-25 the Architect (S-series pivot): owner authorization received
   via Mae's `/oc architect` dispatch after the V1 STOP. Delivered the pivot

@@ -196,10 +196,23 @@ prism/benchmarks/run_kodak.sh --effort 4 --kodak data/kodak
 prism/benchmarks/fuzz_gate.sh
 prism/benchmarks/probe_backend.sh --build-dir <dir> --image <kodim01.ppm> --image <kodim13.ppm>
 prism/benchmarks/probe_sandbox.sh --build-dir <dir> --image <kodim01.ppm> [--image ...]
-prism/benchmarks/probe_sandbox.sh --self-check
+prism/benchmarks/probe_sandbox.sh --s1 --build-dir <dir> --image ...   (S-series dual-frame predictors)
+prism/benchmarks/probe_sandbox.sh --self-check [--self-check-v1] [--self-check-s1]
 python3 prism/benchmarks/aggregate.py
 ```
 
 Results are committed under `prism/benchmarks/results/`.
+
+## S-series sandbox (v2 source-side pivot, issue #130)
+
+After the V-series STOP (transmitted side-info does not scale), the
+authorized pivot attacks the SOURCE side with the same offline-first gated
+method. `bench-sandbox --s1` scores causal predictor families {MED control,
+GAP, W ensemble} per spec addendum 18.4 (amendments A4/A4b) in TWO frames:
+the production adaptive replay (FRAME-A) and the static spine
+ZFFCTRL x KFLAT16 x rANS with every side-info byte NETTED (FRAME-S,
+primary/gating). Measured verdict on the pinned quad: S1 FAIL - MED's
+exact-zero peak beats directional prediction in both framings; bucket B3 is
+closed-with-numbers and the spine carries MED forward into S3/S4.
 
 - the Builder
