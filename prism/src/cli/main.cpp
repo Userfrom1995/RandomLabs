@@ -36,7 +36,7 @@ static void print_usage() {
               << "  prism probe-xband <image>\n"
               << "  prism bench-ideal <image>... [--predictor LIST] [--blend LIST]\n"
               << "                                            [--mixer LIST] [--zrun]\n"
-              << "                                            [--color LIST]\n"
+              << "                                            [--color LIST] [--bias biasoff,bias,biasgain]\n"
               << "  prism bench-ideal <image>... --orinit | --orinit-corrupt\n"
               << "                             --props i[,ii][,iii]   (E0, production stream)\n";
 }
@@ -1236,6 +1236,7 @@ int main(int argc, char* argv[]) {
             std::vector<std::string> blends;
             std::vector<std::string> mixer_names;
             std::vector<std::string> color_names;   // D4c rotation candidates
+            std::vector<std::string> bias_names;    // E1 bias candidates
             bool opt_zrun = false;
             bool color_flag_given = false;
             // E0 measurement modes (spec addendum 14): production streams only.
@@ -1283,6 +1284,16 @@ int main(int argc, char* argv[]) {
                     auto v = split_list(argv[++i]);
                     color_names.insert(color_names.end(), v.begin(), v.end());
                     color_flag_given = true;
+                } else if (a == "--bias" && i + 1 < argc) {
+                    auto v = split_list(argv[++i]);
+                    for (const auto& m : v) {
+                        if (m != "biasoff" && m != "bias" && m != "biasgain") {
+                            std::cerr << "bench-ideal: unknown bias mode "
+                                      << m << " (use biasoff, bias, biasgain)\n";
+                            return 2;
+                        }
+                    }
+                    bias_names.insert(bias_names.end(), v.begin(), v.end());
                 } else {
                     imgs.push_back(a);
                 }
@@ -1317,6 +1328,23 @@ int main(int argc, char* argv[]) {
                 std::cerr << "bench-ideal: --color beyond the shipped baseline is "
                              "mutually exclusive with --blend\n";
                 return 2;
+            }
+            if (color_beyond_default && !bias_names.empty()) {
+                std::cerr << "bench-ideal: --bias runs on the production "
+                             "YCoCg-R stream only (no --color candidates)\n";
+                return 2;
+            }
+            if (!bias_names.empty()) {
+                // E1 rides the production MED baseline: same-stream rows are
+                // what BIAS-anchor and BIAS-fmt compare against.
+                if (!blends.empty() || !mixer_names.empty() || opt_zrun ||
+                    opt_orinit || opt_orinit_corrupt || !prop_poolings.empty() ||
+                    preds.size() > 1 ||
+                    (preds.size() == 1 && preds[0] != "med")) {
+                    std::cerr << "bench-ideal: --bias runs on the production "
+                                 "MED baseline only\n";
+                    return 2;
+                }
             }
             if (color_names.empty()) color_names.push_back("ycocgr");
 
@@ -1467,31 +1495,54 @@ int main(int argc, char* argv[]) {
                     // Emission plan: the shipped baseline keeps its legacy row
                     // name; an explicit --color run additionally emits a
                     // namespaced id0 row so CR-anchor can compare them.
-                    std::vector<std::pair<std::string, const Raster*>> plans;
+                    // E1 bias candidates ride the production YCoCg-R + MED
+                    // stream as a third plan kind (bias cfg pointer set).
+                    struct IdealPlan {
+                        std::string name;
+                        const Raster* tc;
+                        const BiasConfig* bias;   // nullptr = plain walk
+                    };
+                    std::vector<IdealPlan> plans;
                     for (const auto& cn : color_names) {
                         if (job.second && cn != "ycocgr") continue;
                         if (cn == "ycocgr") {
-                            plans.push_back({job.first, &colored["ycocgr"]});
+                            plans.push_back({job.first, &colored["ycocgr"], nullptr});
                             if (color_flag_given)
                                 plans.push_back({job.first + "@ycocgr",
-                                                 &colored["ycocgr"]});
+                                                 &colored["ycocgr"], nullptr});
                         } else {
-                            plans.push_back({job.first + "@" + cn, &colored[cn]});
+                            plans.push_back({job.first + "@" + cn, &colored[cn], nullptr});
                         }
                     }
+                    if (!job.second)
+                        for (const auto& bn : bias_names) {
+                            static const BiasConfig kOff{false, false};
+                            static const BiasConfig kAdd{true, false};
+                            static const BiasConfig kAddGain{true, true};
+                            plans.push_back(
+                                {job.first + "@" + bn, &colored["ycocgr"],
+                                 bn == "biasoff" ? &kOff
+                                                 : (bn == "bias" ? &kAdd
+                                                                 : &kAddGain)});
+                        }
                     for (const auto& plan : plans) {
-                        const std::string& jname = plan.first;
-                        const Raster& tc = *plan.second;
+                        const std::string& jname = plan.name;
+                        const Raster& tc = *plan.tc;
                         idealbench::Acc acc;
                         size_t v0b = 0, v2b = 0;
                         BlendConfig bc;
                         PredId pid = PredId::MED;
                         if (job.second) blend_cfg(job.first, bc);
                         else pid = bank.at(job.first);
+                        const uint8_t bd = to_u8(tc.bd);
                         for (auto& plane : tc.planes) {
-                            auto res = job.second
-                                ? compute_residuals_blend(plane, tc.w, tc.h, bc)
-                                : compute_residuals(plane, tc.w, tc.h, pid);
+                            std::vector<int32_t> res =
+                                plan.bias
+                                    ? compute_residuals_bias(plane, tc.w, tc.h,
+                                                             bd, *plan.bias)
+                                : job.second
+                                    ? compute_residuals_blend(plane, tc.w, tc.h, bc)
+                                    : compute_residuals(plane, tc.w, tc.h, pid);
                             v0b += acoder_encode_plane(res, tc.w, tc.h, 343).size();
                             v2b += acoder_encode_plane_v2(res, tc.w, tc.h,
                                                           AC_V2_RESDIFF_CONTEXTS).size();
