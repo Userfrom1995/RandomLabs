@@ -439,6 +439,75 @@ jobs:
                   print(f"posted '{body}' on #{target}")
           PY
 
+      - name: PAT-backed merge for approved workflow-touching PRs
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set -euo pipefail
+          # Remove actions/checkout credential injection so PAT operations authenticate correctly
+          # (checkout v6 stores App-token extraheader in RUNNER_TEMP; plain unset insufficient)
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
+          git fetch origin main --quiet 2>/dev/null || true
+          prs=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null || true)
+          if [ -z "$prs" ]; then
+            echo "No open PRs to consider for PAT merge"
+            exit 0
+          fi
+          for pr in $prs; do
+            echo "--- Evaluating PR #$pr for PAT-backed workflow merge ---"
+            head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || continue)
+            [ -z "$head_ref" ] && continue
+            git fetch origin "$head_ref" --quiet 2>/dev/null || continue
+            if ! git diff --name-only "origin/main...origin/$head_ref" 2>/dev/null | grep -qE '^\.github/workflows/'; then
+              echo "PR #$pr does not touch workflows; skipping PAT merge"
+              continue
+            fi
+            echo "PR #$pr touches workflows; checking approval and mergeability"
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+            # Orphan guard: PR branch must share history with main
+            if [ -n "$head_sha" ]; then
+              git fetch origin "$head_sha" --quiet 2>/dev/null || true
+              if [ -z "$(git merge-base origin/main "$head_sha" 2>/dev/null)" ]; then
+                echo "PR #$pr has no common ancestor with main (orphan); skipping direct merge, requires re-link"
+                continue
+              fi
+            else
+              if [ -z "$(git merge-base origin/main "origin/$head_ref" 2>/dev/null)" ]; then
+                echo "PR #$pr has no common ancestor with main (orphan); skipping direct merge"
+                continue
+              fi
+            fi
+            comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" --jq '.' 2>/dev/null || echo "[]")
+            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|startswith("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -z "$approve_test_time" ]; then
+              echo "PR #$pr has no /oc approve-test; not merge-ready"
+              continue
+            fi
+            last_fix_time=$(echo "$comments" | jq -r '[.[] | select(.body | startswith("/oc fix"))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -n "$last_fix_time" ] && [ "$last_fix_time" \> "$approve_test_time" ]; then
+              echo "PR #$pr has /oc fix after approve-test ($last_fix_time > $approve_test_time); not merge-ready"
+              continue
+            fi
+            mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+            echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time"
+            if [ "$mergeable" != "MERGEABLE" ]; then
+              echo "PR #$pr not MERGEABLE ($mergeable); skipping"
+              continue
+            fi
+            echo "Attempting PAT-backed rebase merge for PR #$pr (workflow-touching, approved)"
+            if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1; then
+              echo "Successfully merged PR #$pr via PAT"
+              git fetch origin main --quiet 2>/dev/null || true
+            else
+              echo "::warning::PAT merge failed for PR #$pr (may need owner click or further checks)"
+            fi
+          done
+          echo "PAT merge sweep complete"
+
       - name: Trigger pages deployment if main advanced
         if: always()
         env:
@@ -520,45 +589,9 @@ jobs:
         run: |
           set +e
           pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
-          if [ -z "$pr" ]; then
-            echo "No PR context - repo-wide sweep of held runs (schedule/dispatch runs are never held, so this always works)"
-            for i in $(seq 1 10); do
-              held=$(gh run list --repo "${{ github.repository }}" --status action_required --limit 100 --json databaseId --jq '.[].databaseId' 2>/dev/null)
-              if [ -z "$held" ]; then
-                echo "No held runs remain (sweep $i)"
-                exit 0
-              fi
-              for run in $held; do
-                if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                  echo "Approved run $run"
-                else
-                  echo "APPROVE FAILED for run $run (a later sweep or a human click will retry)"
-                fi
-              done
-              sleep 5
-            done
-            echo "Held runs could not all be auto-approved after sweeping"
-            exit 0
-          fi
-          for i in $(seq 1 30); do
-            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
-            if [ -z "$head_sha" ]; then
-              echo "PR #$pr gone (poll $i); exiting"
-              exit 0
-            fi
-            held=$(gh run list --repo "${{ github.repository }}" --commit "$head_sha" --status action_required --json databaseId --jq '.[].databaseId' 2>/dev/null)
-            if [ -z "$held" ]; then
-              echo "No held runs remain (poll $i)"
-              exit 0
-            fi
-            for run in $held; do
-              if gh api --method POST "repos/${{ github.repository }}/actions/runs/$run/approve" -H "Accept: application/vnd.github+json" >/dev/null 2>&1; then
-                echo "Approved run $run"
-              else
-                echo "APPROVE FAILED for run $run"
-              fi
-            done
-            sleep 5
-          done
-          echo "Held runs could not be auto-approved after polling"
-          exit 0
+          # Shared self-healing logic (issue #137): head-scoped polling when a
+          # PR context resolves, then ALWAYS a terminal repo-wide sweep that
+          # also clears runs held on intermediate head SHAs, which head-scoped
+          # polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh
