@@ -35,6 +35,7 @@ prism probe-backend <image.ppm> [--variants v0,v1,v1shared,v2,v2shared]
 prism probe-xband <image.ppm>
 prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST] [--mixer LIST]
 prism bench-ideal <image.ppm>... --orinit | --orinit-corrupt | --props i[,ii][,iii]
+prism bench-ideal <image.ppm>... --bias biasoff[,bias[,biasgain]]
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -104,6 +105,19 @@ payload bytes within +-0.5 percent or no mixer number is trustworthy. The
 rail gates that anchor on every row. D2's measured verdict: best candidate
 -0.90 percent aggregate against a >= 3 percent gate; rejected offline with
 zero format work (see `benchmarks/results/2026-08-24-ideal-mixer-d2.csv`).
+
+The `--bias biasoff,bias,biasgain` extension (spec addenda 14.3 + 16) scores
+CALIC-class per-context bias cancellation: a 64-cell gradient-pair additive
+table (`pred' = med + b[ctx]`, floor-div updates clamped at 2^(BD-3)) with an
+optional multiplicative gain stage on top. `med@biasoff` is the rail's live
+anchor (byte-equal to the shipped MED stream); BIAS-fmt requires a
+>= 1.5-point ctx343-fine bracket drop with no image above its own baseline.
+Measured 2026-08-25 on the pinned quad: both candidates FAIL catastrophically
+(brackets WORSE by 16-20 points of v0; payload +22 to +70 percent) - under
+the zero-flag-first binarization, moving predictions off MED's conditional
+mode destroys the cheap exact-zero residuals that dominate the bit budget
+(`benchmarks/results/2026-08-25-ideal-bias-e1.csv`). This closed the last
+open E-series lever and moved #130 to honest closure at the achieved level.
 
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
