@@ -60,12 +60,16 @@ set -euo pipefail
 IMAGES=()
 BUILD_DIR=""
 SELF_CHECK=0
+SELF_CHECK_V1=0
+MODE_V1=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --image) IMAGES+=("$2"); shift 2;;
     --build-dir) BUILD_DIR="$2"; shift 2;;
     --self-check) SELF_CHECK=1; shift;;
+    --self-check-v1) SELF_CHECK_V1=1; shift;;
+    --v1) MODE_V1=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -89,7 +93,7 @@ def fail(msg):
 ok = True
 
 # ----- parse the sandbox run -----
-sand, bracket, corrupt = [], [], []
+sand, bracket, corrupt, v1rows = [], [], [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -104,6 +108,13 @@ for line in open(sys.argv[1]):
     elif f[0] == "CORRUPT":
         corrupt.append({"img": f[1], "inj": f[2], "det": f[3] == "1",
                         "mis": f[4] == "1", "pct": float(f[5])})
+    elif f[0] == "V1":
+        v1rows.append({"img": f[1], "prof": f[2], "be": f[3], "key": f[4],
+                       "variant": f[5], "payload": int(f[6]),
+                       "tables": int(f[7]), "maps": int(f[8]),
+                       "trees": int(f[9]), "net": int(f[10]),
+                       "audit": f[11], "rt": f[12], "map_rep": int(f[17]),
+                       "tree_art": int(f[18])})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -262,6 +273,118 @@ else:
     if ok:
         print(f"VB-rank OK (skew: clustered {skew_c} < pooled {skew_p}; "
               f"homo: pooled {homo_p} <= clustered {homo_c})")
+
+# ----- V1 rows: rail integrity (flips exit code) + gates (never do) -----
+if v1rows:
+    # Fidelity per (img, prof, key, variant): real backends within +0.50
+    # percent of their own B-IDEAL row.
+    cfgs = {}
+    for r in v1rows:
+        cfgs.setdefault((r["img"], r["prof"], r["key"], r["variant"]),
+                        {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        if ideal is None:
+            fail(f"fidelity {k}: no B-IDEAL row to bound against")
+            continue
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        for be in ("B-RANS", "B-BAC"):
+            r = bes.get(be)
+            if r is None:
+                continue
+            n_fid += 1
+            if r["payload"] > limit:
+                pct = 100.0 * (r["payload"] - ideal["payload"]) / \
+                    max(1, ideal["payload"])
+                fail(f"fidelity {k}/{be}: payload {r['payload']} exceeds "
+                     f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity OK ({n_fid} V1 real-backend rows within "
+              f"+0.50 pct of their own B-IDEAL rows)")
+
+    bad_audit = bad_net = bad_rt = 0
+    for r in v1rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != r["payload"] + r["tables"] + r["maps"] + r["trees"]:
+            bad_net += 1
+        if r["variant"] == "ORACLE" and (r["maps"] != 0 or r["trees"] != 0):
+            bad_net += 1     # the freebie must never ride inside NET (V-P5)
+        if r["be"] in ("B-RANS", "B-BAC") and r["rt"] != "1":
+            bad_rt += 1
+    if bad_audit or bad_net or bad_rt:
+        fail(f"net-audit(V1): {bad_audit} audit disagreements, "
+             f"{bad_net} NET identity/oracle-schema violations, "
+             f"{bad_rt} round-trip failures")
+    else:
+        print(f"VB-net-audit OK ({len(v1rows)} V1 rows: audits agree, NET "
+              f"identity holds incl. oracle freebie exclusion, all coded "
+              f"rows decode)")
+
+    # ----- gates (pin V-P7; verdict lines only) -----
+    ctrl = {}
+    for r in sand:
+        if r["be"] == "B-ADAPT":
+            ctrl[r["img"]] = r["payload"]
+    def median(xs):
+        s = sorted(xs)
+        n = len(s)
+        return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2.0
+    # Per (variant, prof, key, image): best NET across the backends present
+    # (every real backend is already bounded to its own B-IDEAL row by the
+    # fidelity rail, so the max is the configuration's honest offering).
+    best_net = {}
+    for r in v1rows:
+        k = (r["variant"], r["prof"], r["key"], r["img"])
+        if k not in best_net or r["net"] < best_net[k]:
+            best_net[k] = r["net"]
+    margins = {}   # (variant, prof, key) -> list of per-image relpct
+    for (variant, prof, key, img), net in sorted(best_net.items()):
+        if img not in ctrl or ctrl[img] == 0:
+            continue
+        rel = 100.0 * (ctrl[img] - net) / ctrl[img]
+        margins.setdefault((variant, prof, key), []).append((rel, img))
+    summary = {}
+    for kk, vals in sorted(margins.items()):
+        rels = [v for v, _ in vals]
+        summary[kk] = {"median": median(rels), "min": min(rels),
+                       "max": max(rels), "n": len(vals)}
+    print("== V1 GATE READOUT (per-image medians primary per I10; "
+          "addendum 18.1; pin V-P7) ==")
+    for kk in sorted(summary):
+        s = summary[kk]
+        print(f"GATE {kk[0]:6s} {kk[1]:8s} {kk[2]:9s} n={s['n']} "
+              f"median={s['median']:+.4f} pct min={s['min']:+.4f} "
+              f"max={s['max']:+.4f}")
+    oracle_meds = [v["median"] for k, v in summary.items()
+                   if k[0] == "ORACLE" and v["n"] > 0]
+    real_meds = [v["median"] for k, v in summary.items()
+                 if k[0] == "REAL" and v["n"] > 0]
+    if not oracle_meds or not real_meds:
+        print("V1 GATE INCOMPLETE (no rows for one variant)")
+    else:
+        m_a = max(oracle_meds)
+        m_b = max(real_meds)
+        best_a = max(((k, v) for k, v in summary.items() if k[0] == "ORACLE"),
+                     key=lambda kv: kv[1]["median"])
+        best_b = max(((k, v) for k, v in summary.items() if k[0] == "REAL"),
+                     key=lambda kv: kv[1]["median"])
+        v1a = m_a >= 2.0
+        v1b = m_b >= m_a / 2.0
+        print(f"V1a ORACLE-MAP: best median {m_a:+.4f} pct "
+              f"({best_a[0][1]} x {best_a[0][2]}) vs bar >= +2.0000 pct "
+              f"-> {'PASS' if v1a else 'FAIL'}")
+        print(f"V1b REALISTIC:  best median {m_b:+.4f} pct "
+              f"({best_b[0][1]} x {best_b[0][2]}) vs retention bar >= half "
+              f"of V1a ({m_a / 2.0:+.4f}) -> {'PASS' if v1b else 'FAIL'}")
+        if v1a and v1b:
+            print("V1 VERDICT: PASS - bucket B1 harvestable; proceed to V2 "
+                  "(winning configuration recorded in the reserved slot)")
+        else:
+            print("V1 VERDICT: FAIL - STOP rule fires: bucket B1 declared "
+                  "unreachable with this CSV as evidence; owner informed "
+                  "before any pivot blueprint (decision tree row 1)")
 
 sys.exit(0 if ok else 1)
 PY
@@ -426,13 +549,87 @@ EOF
   exit 0
 fi
 
-if [[ ${#IMAGES[@]} -eq 0 ]]; then
-  echo "no --image given"; exit 2
+if [[ "$SELF_CHECK_V1" == "1" ]]; then
+  # V1-mode failability: the evaluator must reject a consistent frame only
+  # when the named mutation is applied (fidelity violation, NET identity
+  # break, silent round-trip failure, oracle freebie leaking into NET).
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+
+  REF="$TMP/ref.csv"; SBX="$TMP/sbx.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+  mk_good_v1() {
+    cat > "$SBX" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.0000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+V1,kodim01.ppm,HYB-A,B-IDEAL,KGRID128,REAL,300000,600,12,0,300612,1,1,100000.000,0.000,-45.0625,0.0000,0,0
+V1,kodim01.ppm,HYB-A,B-RANS,KGRID128,REAL,300900,600,12,0,301512,1,1,100000.000,0.000,-44.7617,0.0000,0,0
+V1,kodim01.ppm,HYB-A,B-IDEAL,KGRID128,ORACLE,294000,600,0,0,294600,1,1,100000.000,0.000,-46.1359,0.0000,72000,0
+V1,kodim01.ppm,HYB-A,B-RANS,KGRID128,ORACLE,294800,600,0,0,295400,1,1,100000.000,0.000,-45.9640,0.0000,72000,0
+EOF
+  }
+
+  # 1. Consistent frame passes and produces gate verdicts.
+  mk_good_v1
+  if ! evaluate "$SBX" "$REF" "" "" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-V1 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "VB-anchor-adapt OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-V1 FAIL: no anchor verdict"; ok=0; }
+  grep -q "V1 GATE" "$TMP/good.out" || \
+    { echo "SELF-CHECK-V1 FAIL: no gate verdict lines"; ok=0; }
+  # 2. Fidelity violation on a V1 row must fail.
+  mk_good_v1
+  sed -i 's/,B-RANS,KGRID128,REAL,300900,/,B-RANS,KGRID128,REAL,320000,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-V1 FAIL: fidelity accepted +6.4 pct coder"; ok=0
+  fi
+  grep -q "VB FAIL (fidelity" "$TMP/a.out" || \
+    { echo "SELF-CHECK-V1 FAIL: no fidelity FAIL verdict"; ok=0; }
+  # 3. NET identity break must fail.
+  mk_good_v1
+  sed -i 's/,ORACLE,294000,600,0,0,294600,/,ORACLE,294000,600,500,0,294600,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-V1 FAIL: net-audit accepted a broken identity"; ok=0
+  fi
+  grep -q "net-audit" "$TMP/b.out" || \
+    { echo "SELF-CHECK-V1 FAIL: no net-audit FAIL verdict"; ok=0; }
+  # 4. Silent round-trip failure must fail.
+  mk_good_v1
+  sed -i 's/B-RANS,KGRID128,REAL,300900,600,12,0,301512,1,1,/B-RANS,KGRID128,REAL,300900,600,12,0,301512,1,0,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/c.out" 2>&1; then
+    echo "SELF-CHECK-V1 FAIL: net-audit accepted a failed decode"; ok=0
+  fi
+  grep -q "net-audit" "$TMP/c.out" || \
+    { echo "SELF-CHECK-V1 FAIL: no round-trip FAIL verdict"; ok=0; }
+  # 5. Oracle counted-map leakage (maps>0 on an ORACLE row) must fail.
+  mk_good_v1
+  sed -i 's/,ORACLE,294000,600,0,0,294600,/,ORACLE,294000,600,700,0,295300,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-V1 FAIL: schema accepted oracle map bytes in NET"; ok=0
+  fi
+  grep -q "net-audit\|oracle" "$TMP/d.out" || \
+    { echo "SELF-CHECK-V1 FAIL: no oracle-leak FAIL verdict"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-V1 PASS: consistent frame green, fidelity/NET/round-trip/oracle-schema mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
 fi
 
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
+fi
+
+if [[ ${#IMAGES[@]} -eq 0 ]]; then
+  echo "no --image given"; exit 2
 fi
 
 PIN_FILE="${ROOT}/benchmarks/data/kodak.sha256"
@@ -446,6 +643,61 @@ for IMG in "${IMAGES[@]}"; do
   fi
   echo "${NAME}: sha256 pin verified"
 done
+
+# ----- V-series slice 2: the V1 measurement flow (pins V-P6/V-P7) -----
+if [[ "$MODE_V1" == "1" ]]; then
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-v1.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  # Ranking fixtures stay LIVE in both directions (same engines code them).
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --v1 "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --v1 "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: quad re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|V1),' "$RAW1" > "$OUT_CSV"
+
+  # Wall-clock accounting per pin V-P8 (structural deviation, amendment A3
+  # precedent): ratio logged, no measurement depends on it.
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-v1 quad ${SB}s (incl. determinism re-run), bench-ideal quad ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-v1/re-run = {$SB/$ID:.2f}x bench-ideal (V-P8: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox V1 results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  # Gate verdicts NEVER flip the exit code; VB rail-integrity failures DO.
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; gate verdicts above are measured outcomes, not rail failures)"
+  exit 0
+fi
 
 STAMP=$(date +%Y-%m-%d)
 OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-v0.csv"
