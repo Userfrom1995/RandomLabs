@@ -27,9 +27,16 @@
   10.1210 summed / 3.3737 per-sample bpp (-1.65 pct bytes vs pre-D4c),
   e3 = e7 = 10.1350 / 3.3783 (-1.47). M2 and M3 honestly FAIL in both units
   everywhere; the D-series is EXHAUSTED with every lever adopted-and-measured
-  or rejected-by-measurement. The OWNER DECISION POINT (re-scope section 1:
-  MANIAC-grade machinery vs honest closure of #130) is now the only open
-  path; no further build phases are charted without new owner/Mae direction.
+  or rejected-by-measurement. The OWNER DECISION POINT (re-scope section 1)
+  was RESOLVED INTO RESEARCH by the owner 2026-08-25 (`/oc research`): Dr.
+  Mob delivered `prism/docs/research-e-series-endgame.md` (gap decomposition
+  A/B/C/D, pre-registered gates M-A/M-B/M-C, interventions E1-E4). Architect
+  E-series blueprint DELIVERED 2026-08-25:
+  `prism/docs/architecture-jxl-parity-eseries.md` - measurement-first build
+  spine (E0 harness + gates BEFORE any format byte), ext-bit registry,
+  binding decision tree back to the owner point, honest base case ~9.3-9.7
+  summed (M2 plausible, M3 likely stays open). Next: Builder executes E0;
+  interventions proceed only behind their pre-registered gates.
 - **Binding gates (both units, real corpus, byte-exact):**
   M2 summed < 9.498 AND per-sample < 3.166;
   M3 summed < 8.655 AND per-sample < 2.885.
@@ -263,18 +270,48 @@ percent) are independently re-measurable today via
       open unless measurements surprise upward. Handoff decision
       {"action":"architect"}.
 
+## E-series checklist (blueprint: prism/docs/architecture-jxl-parity-eseries.md)
+
+- [ ] E0 Harness modes + M-A/M-B/M-C (blueprint section 1): BLOCKING FIRST.
+      Spec addendum 14 lands before any measurement; --orinit/--props modes,
+      OA-order/OA-corrupt/PC-mono/MC-viability gates; measured A/B/C shares
+      written HERE with CSV paths and the decision-tree row NAMED before any
+      intervention work starts (zero format bytes before the readout).
+- [ ] E1 CALIC-class bias cancellation: offline BIAS-fmt gate first
+      (>= 1.5 points bracket drop, no mixed sign); format wiring only behind
+      the never-expand per-plane trial if the gate passes.
+- [ ] E2 Frozen tables: step 1 only if M-A's A-share > 1.5 points of v0
+      (DOA-by-arithmetic otherwise, number recorded); FT-fmt net gate
+      >= 1.5 percent; step 2 strictly conditional on B >= 2 points with its
+      own RT-fmt gate. Wires the FEATURE_EXT byte + ext registry once.
+- [ ] E3 MANIAC tree over quotient properties: enters development ONLY on an
+      MC-viability PASS; strict-win-only per plane, model bytes < 50 percent
+      of payload gain on EVERY probe image.
+- [ ] E4 Checkpoint: fresh dual-unit corpus measure, CSV committed,
+      bench_gate.sh in both units; review boundary regardless of verdict;
+      final decision-tree row recorded here.
+
 ## Current step
 
-D4 stretch COMPLETE (2026-08-24): D4a zero-run REJECTED (+0.28 pct), D4b
-extended mixer bank REJECTED (-0.69 vs -0.90), **D4c color rotations
-ADOPTED** (22 wins / 0 regressions, -1.65 pct bytes at e1), D4 item 4
-condition not met (no adopted mixer). Fresh corpus truth: e1 = 10.1210
-summed / 3.3737 per-sample bpp; e3 = e7 = 10.1350 / 3.3783. M2/M3 FAIL in
-both units; no parity claim. The re-scope's endgame clause fires: final
-numbers written, owner decision point SURFACED (MANIAC-grade machinery vs
-honest closure at the achieved gate level). No further build phases are
-charted without new owner/Mae direction; the branch goes to review with the
-complete D-series evidence chain.
+E-SERIES PROGRAM OPEN (2026-08-25): owner resolved the endgame decision
+point into MANIAC-grade research; Dr. Mob delivered the E-series spec and
+the Architect blueprinted it
+(`prism/docs/architecture-jxl-parity-eseries.md`). NEXT: Builder executes
+**E0 measurement-first** - spec addendum 14, then `--orinit`/`--props`
+harness modes with their OA/PC/MC gates on the pinned probe quad, measured
+A/B/C shares written into this tracker with CSV paths and the decision-tree
+row NAMED - before any intervention or format byte. Interventions (E1 bias
+cancellation, E2 frozen tables behind the FEATURE_EXT ext registry, E3
+MANIAC strictly conditional on M-C) proceed only behind their
+pre-registered offline gates. Honest base case stands: ~9.3-9.7 summed,
+M2 plausible, M3 likely stays open unless measurements surprise upward.
+
+D-series closure record (2026-08-24): D4a zero-run REJECTED (+0.28 pct),
+D4b extended mixer bank REJECTED (-0.69 vs -0.90), **D4c color rotations
+ADOPTED** (22 wins / 2 ties / 0 regressions, -1.65 pct bytes at e1), D4
+item 4 condition not met (no adopted mixer). Fresh corpus truth: e1 =
+10.1210 summed / 3.3737 per-sample bpp; e3 = e7 = 10.1350 / 3.3783. M2/M3
+FAIL in both units; no parity claim.
 
 Earlier slice (continuation run 5): review findings F1-F6 folded in first
 (gate arithmetic is the single source: capture 124%/140% from same-run
@@ -347,15 +384,43 @@ Previous slice summary (continuation run 3, C2b):
    the owner decision point rides alongside. Owner freeze stands throughout:
    nothing merges before both gates pass in both units on a fresh
    both-units measurement of real cjxl-comparison output.
-3. [NEXT] Architect blueprints the E-series from
-   `prism/docs/research-e-series-endgame.md`, measurement-first per I7/I8:
-   E0 harness modes (--orinit, --props) + M-A/M-B/M-C gates BEFORE any
-   format work; only gate-passing interventions (E1 bias cancellation,
-   E2 frozen tables behind FEATURE_EXT ext2/ext3, E3 conditional MANIAC)
-   become build phases. Section 6 of the spec holds the binding decision
-   tree back to the owner point.
+3. [DONE 2026-08-25] Architect blueprinted the E-series from
+   `prism/docs/research-e-series-endgame.md` ->
+   `prism/docs/architecture-jxl-parity-eseries.md`: measurement-first per
+   I7/I8/I9 - E0 harness modes (--orinit, --props, --bias scoring) +
+   OA-order/OA-corrupt/PC-mono/MC-viability gates BEFORE any format work;
+   only gate-passing interventions (E1 bias cancellation, E2 frozen tables
+   behind the FEATURE_EXT ext registry with ext2/ext3 and reserved-dead
+   ext0/ext1, E3 conditional MANIAC) become build phases; binding decision
+   tree back to the owner point (blueprint section 7).
+4. [NEXT] Builder executes E0 exactly as sliced in blueprint section 6:
+   spec addendum 14 first (every constant pre-registered), then harness
+   modes + rails + fail-capable self-checks + dated reference CSVs, then
+   the M-A/M-B/M-C readout on kodim01/13/05/20 with A/B/C shares written
+   into this tracker's E-series checklist and the decision-tree row NAMED.
+   No intervention or format byte before that readout exists.
 
 ## Agent log
+
+- 2026-08-25 the Architect (E-series blueprint): delivered
+  `prism/docs/architecture-jxl-parity-eseries.md` per tracker next-step
+  item 3, turning Dr. Mob's research spec into a gated build program.
+  Key architectural decisions: (1) E0 measurement spine is BLOCKING -
+  spec addendum 14 pre-registers every constant before any measurement,
+  and the M-A/M-B/M-C readout with named decision-tree row precedes all
+  intervention work; (2) resolved the research text's "both probe images"
+  ambiguity to the two anchors kodim01+kodim13 (kodim05/20 report and bind
+  later via strict-win-only adoption); (3) FEATURE_EXT byte wired ONCE by
+  the first adopting phase, with a binding ext registry: ext0/ext1 are
+  RESERVED-DEAD forever (D1/D2 rejections), ext2 FROZEN_TABLES, ext3
+  REGION_TABLES; (4) E2 step 1 is DOA-by-arithmetic unless A > 1.5 points
+  of v0 - checked BEFORE any blob format design; (5) E3 inherits the C2b
+  composite inside each leaf and adopts strict-win-only with the model-
+  byte cap applied at ADOPTION time (I9); (6) added OA tolerance = the
+  G-repro constant (one tolerance governs all rails). Builder slicing in
+  blueprint section 6: one measurement slice, then one gate-passing
+  intervention per slice, E4 checkpoint + review boundary last. Handoff
+  {"action":"build"}.
 
 - 2026-08-25 Dr. Mob (the Researcher, endgame mandate): owner resolved the
   decision point into MANIAC-grade research; delivered
