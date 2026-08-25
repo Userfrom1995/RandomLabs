@@ -64,6 +64,8 @@ SELF_CHECK_V1=0
 MODE_V1=0
 SELF_CHECK_S1=0
 MODE_S1=0
+SELF_CHECK_S3=0
+MODE_S3=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,6 +76,8 @@ while [[ $# -gt 0 ]]; do
     --v1) MODE_V1=1; shift;;
     --self-check-s1) SELF_CHECK_S1=1; shift;;
     --s1) MODE_S1=1; shift;;
+    --self-check-s3) SELF_CHECK_S3=1; shift;;
+    --s3) MODE_S3=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -97,7 +101,7 @@ def fail(msg):
 ok = True
 
 # ----- parse the sandbox run -----
-sand, bracket, corrupt, v1rows, s1rows = [], [], [], [], []
+sand, bracket, corrupt, v1rows, s1rows, s3rows = [], [], [], [], [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -124,6 +128,12 @@ for line in open(sys.argv[1]):
                        "payload": int(f[5]), "tables": int(f[6]),
                        "maps": int(f[7]), "trees": int(f[8]),
                        "net": int(f[9]), "audit": f[10], "rt": f[11]})
+    elif f[0] == "S3":
+        s3rows.append({"img": f[1], "frame": f[2], "variant": f[3],
+                       "kraw": int(f[4]), "be": f[5],
+                       "payload": int(f[6]), "tables": int(f[7]),
+                       "maps": int(f[8]), "trees": int(f[9]),
+                       "net": int(f[10]), "audit": f[11], "rt": f[12]})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -505,6 +515,107 @@ if s1rows:
             print("S1 VERDICT: FAIL - MED ships in both frames; bucket B3 "
                   "closed-with-numbers (dual-frame evidence recorded)")
 
+# ----- S3 rows: rail integrity (flips exit code) + gate (never does) -----
+if s3rows:
+    # Fidelity per (img, variant, k): B-RANS within +0.50 percent of its own
+    # B-IDEAL row.
+    cfgs = {}
+    for r in s3rows:
+        cfgs.setdefault((r["img"], r["variant"], r["kraw"]), {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        if ideal is None:
+            fail(f"S3 fidelity {k}: no B-IDEAL row to bound against")
+            continue
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        r = bes.get("B-RANS")
+        if r is None:
+            continue
+        n_fid += 1
+        if r["payload"] > limit:
+            pct = 100.0 * (r["payload"] - ideal["payload"]) / \
+                max(1, ideal["payload"])
+            fail(f"S3 fidelity {k}: B-RANS payload {r['payload']} exceeds "
+                 f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity OK ({n_fid} S3 rows within +0.50 pct of "
+              f"their own B-IDEAL rows)")
+
+    # Net-audit: serializer agreement, NET identity, zero-tree schema (no
+    # spatial maps or trees exist anywhere in S3), and every coded row
+    # decodes.
+    bad_audit = bad_net = bad_rt = bad_schema = 0
+    for r in s3rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != r["payload"] + r["tables"] + r["maps"] + r["trees"]:
+            bad_net += 1
+        if r["trees"] != 0:
+            bad_schema += 1     # S3 transmits tables + merge map ONLY
+        if r["be"] == "B-RANS" and r["rt"] != "1":
+            bad_rt += 1
+    if bad_audit or bad_net or bad_rt or bad_schema:
+        fail(f"net-audit(S3): {bad_audit} audit disagreements, "
+             f"{bad_net} NET identity violations, {bad_rt} round-trip "
+             f"failures, {bad_schema} nonzero-tree schema violations")
+    else:
+        print(f"VB-net-audit OK ({len(s3rows)} S3 rows: audits agree, NET "
+              f"identity holds, tree columns identically zero, all coded "
+              f"rows decode)")
+
+    # ----- gate (addendum 19.5 S3; pins P-S3-9/P-S3-10) -----
+    base = {}
+    for r in s3rows:
+        if r["variant"] != "KFLAT16":
+            continue
+        base[r["img"], r["be"]] = r["net"]
+    def median(xs):
+        s = sorted(xs)
+        n = len(s)
+        return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2.0
+    margins = {}
+    for r in s3rows:
+        if r["variant"] == "KFLAT16" or r["be"] != "B-RANS":
+            continue     # gating backend only; baseline itself excluded
+        c = base.get((r["img"], "B-RANS"))
+        if not c:
+            continue
+        rel = 100.0 * (c - r["net"]) / c
+        margins.setdefault((r["variant"], r["kraw"]), []).append(
+            (rel, r["img"]))
+    summary = {}
+    for kk, vals in sorted(margins.items()):
+        rels = [v for v, _ in vals]
+        summary[kk] = {"median": median(rels), "min": min(rels),
+                       "max": max(rels), "n": len(vals)}
+    print("== S3 GATE READOUT (FRAME-S primary/gating vs same-stack "
+          "best-flat-16 baseline; addendum 19.5; pin P-S3-9) ==")
+    for kk in sorted(summary):
+        s = summary[kk]
+        print(f"GATE {kk[0]:7s} k={kk[1]:3d} n={s['n']} "
+              f"median={s['median']:+.4f} pct min={s['min']:+.4f} "
+              f"max={s['max']:+.4f}")
+    if not summary:
+        print("S3 GATE INCOMPLETE (no scorable property rows or baseline "
+              "missing)")
+    else:
+        best_k, best_s = max(summary.items(), key=lambda kv: kv[1]["median"])
+        worst = min(v["min"] for v in summary.values())
+        s3_pass = best_s["median"] >= 1.5
+        print(f"S3 FRAME-S: best median {best_s['median']:+.4f} pct "
+              f"({best_k[0]} k={best_k[1]}) vs bar >= +1.5000 pct -> "
+              f"{'PASS' if s3_pass else 'FAIL'}")
+        print(f"S3 worst per-image outcome across variants: {worst:+.4f} "
+              f"pct (reported beside the median per I10)")
+        if s3_pass:
+            print(f"S3 VERDICT: PASS - {best_k[0]} k={best_k[1]} joins the "
+                  f"S4 composition candidate set as a property winner")
+        else:
+            print("S3 VERDICT: FAIL - flat-16 keying ships unchanged; "
+                  "bucket B2 closed-with-numbers (property evidence "
+                  "recorded)")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -834,6 +945,107 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_S3" == "1" ]]; then
+  # S3-mode failability (blueprint section 3): the evaluator must accept a
+  # consistent frame and reject each named mutation; the S3 verdict must be
+  # reachable in BOTH directions from fabricated-but-consistent numbers.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+
+  REF="$TMP/ref.csv"; SBX="$TMP/sbx.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+  mk_good_s3() {
+    cat > "$SBX" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+S3,kodim01.ppm,S,KFLAT16,16,B-IDEAL,511463,3007,26,0,514496,1,1,4091700.921
+S3,kodim01.ppm,S,KFLAT16,16,B-RANS,511589,3007,26,0,514622,1,1,4091700.921
+S3,kodim01.ppm,S,SX-FULL,64,B-IDEAL,520100,11800,262,0,532162,1,1,4160810.000
+S3,kodim01.ppm,S,SX-FULL,64,B-RANS,520300,11800,262,0,532362,1,1,4160810.000
+S3,kodim01.ppm,S,SX-FULL,256,B-IDEAL,524900,46200,262,0,571362,1,1,4198820.000
+S3,kodim01.ppm,S,SX-FULL,256,B-RANS,525100,46200,262,0,571562,1,1,4198820.000
+S3,kodim01.ppm,S,SX-Q,64,B-IDEAL,518000,11800,262,0,530062,1,1,4144030.000
+S3,kodim01.ppm,S,SX-Q,64,B-RANS,518200,11800,262,0,530262,1,1,4144030.000
+S3,kodim01.ppm,S,SX-Q,256,B-IDEAL,522800,46200,262,0,569262,1,1,4182440.000
+S3,kodim01.ppm,S,SX-Q,256,B-RANS,523000,46200,262,0,569462,1,1,4182440.000
+S3,kodim01.ppm,S,SX-G,64,B-IDEAL,519000,11800,262,0,531062,1,1,4152420.000
+S3,kodim01.ppm,S,SX-G,64,B-RANS,519200,11800,262,0,531262,1,1,4152420.000
+S3,kodim01.ppm,S,SX-G,256,B-IDEAL,523800,46200,262,0,570262,1,1,4190430.000
+S3,kodim01.ppm,S,SX-G,256,B-RANS,524000,46200,262,0,570462,1,1,4190430.000
+S3,kodim01.ppm,S,SX-E,64,B-IDEAL,518600,11800,262,0,530662,1,1,4148520.000
+S3,kodim01.ppm,S,SX-E,64,B-RANS,518800,11800,262,0,530862,1,1,4148520.000
+S3,kodim01.ppm,S,SX-E,256,B-IDEAL,523400,46200,262,0,569862,1,1,4186530.000
+S3,kodim01.ppm,S,SX-E,256,B-RANS,523600,46200,262,0,570062,1,1,4186530.000
+EOF
+  }
+
+  # 1. The consistent frame passes and renders a FAIL-direction verdict
+  #    (honest losing numbers: every property variant is NET-negative).
+  mk_good_s3
+  if ! evaluate "$SBX" "$REF" "" "" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-S3 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "VB-anchor-adapt OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S3 FAIL: no anchor verdict"; ok=0; }
+  grep -q "S3 GATE READOUT" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S3 FAIL: no gate readout"; ok=0; }
+  grep -q "S3 VERDICT: FAIL" "$TMP/good.out" || \
+    { echo "SELF-CHECK-S3 FAIL: honest losing numbers must render FAIL"; ok=0; }
+  # 2. PASS direction reachable: fabricate a property winner above the bar,
+  #    keeping coder fidelity inside its bound.
+  mk_good_s3
+  sed -i 's/S3,kodim01.ppm,S,SX-Q,64,B-IDEAL,518000,11800,262,0,530062,/S3,kodim01.ppm,S,SX-Q,64,B-IDEAL,493800,11800,262,0,505862,/' "$SBX"
+  sed -i 's/S3,kodim01.ppm,S,SX-Q,64,B-RANS,518200,11800,262,0,530262,/S3,kodim01.ppm,S,SX-Q,64,B-RANS,494000,11800,262,0,506062,/' "$SBX"
+  if ! evaluate "$SBX" "$REF" "" "" > "$TMP/pass.out" 2>&1; then
+    echo "SELF-CHECK-S3 FAIL: evaluator rejected the fabricated winner frame"; ok=0
+  fi
+  grep -q "S3 VERDICT: PASS" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-S3 FAIL: +1.66 pct winner must render PASS"; ok=0; }
+  # 3. Fidelity violation on an S3 row must fail (+2.6 pct coder).
+  mk_good_s3
+  sed -i 's/,SX-Q,64,B-RANS,518200,11800,/,SX-Q,64,B-RANS,532000,11800,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-S3 FAIL: fidelity accepted a +2.7 pct coder"; ok=0
+  fi
+  grep -q "VB FAIL (S3 fidelity" "$TMP/a.out" || \
+    { echo "SELF-CHECK-S3 FAIL: no S3 fidelity FAIL verdict"; ok=0; }
+  # 4. NET identity break must fail.
+  mk_good_s3
+  sed -i 's/S3,kodim01.ppm,S,KFLAT16,16,B-RANS,511589,3007,26,0,514622,/S3,kodim01.ppm,S,KFLAT16,16,B-RANS,511589,3007,26,0,999999,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-S3 FAIL: net-audit accepted a broken identity"; ok=0
+  fi
+  grep -q "net-audit(S3)" "$TMP/b.out" || \
+    { echo "SELF-CHECK-S3 FAIL: no S3 net-audit FAIL verdict"; ok=0; }
+  # 5. Silent round-trip failure must fail.
+  mk_good_s3
+  sed -i 's/S3,kodim01.ppm,S,SX-FULL,64,B-RANS,520300,11800,262,0,532362,1,1,/S3,kodim01.ppm,S,SX-FULL,64,B-RANS,520300,11800,262,0,532362,1,0,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/c.out" 2>&1; then
+    echo "SELF-CHECK-S3 FAIL: net-audit accepted a failed decode"; ok=0
+  fi
+  grep -q "net-audit(S3)" "$TMP/c.out" || \
+    { echo "SELF-CHECK-S3 FAIL: no S3 round-trip FAIL verdict"; ok=0; }
+  # 6. A nonzero tree column must fail the schema (NO trees anywhere in S3).
+  mk_good_s3
+  sed -i 's/S3,kodim01.ppm,S,SX-FULL,64,B-RANS,520300,11800,262,0,532362,1,1,/S3,kodim01.ppm,S,SX-FULL,64,B-RANS,520300,11800,262,99,532461,1,1,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-S3 FAIL: schema accepted tree bytes in an S3 row"; ok=0
+  fi
+  grep -q "net-audit(S3)" "$TMP/d.out" || \
+    { echo "SELF-CHECK-S3 FAIL: no S3 schema FAIL verdict"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-S3 PASS: consistent frame green, S3 verdict reachable both ways, fidelity/NET/round-trip/tree-schema mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
@@ -963,6 +1175,63 @@ if [[ "$MODE_S1" == "1" ]]; then
     exit 1
   fi
   echo "SANDBOX GATE PASS (all VB rails green; S1 verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+if [[ "$MODE_S3" == "1" ]]; then
+  # S-series slice P2 (spec addendum 19.4/19.5; pins P-S3-10/P-S3-12):
+  # extended causal properties sweep on sha-pinned images; dated one-file
+  # CSV; determinism re-run; rank fixtures stay LIVE; anchors re-emitted
+  # inside every CSV.
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-s3.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --s3 "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --s3 "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: quad re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|S3),' "$RAW1" > "$OUT_CSV"
+
+  # Wall-clock accounting per pin P-S3-12 (A3 precedent): structural
+  # multipliers logged beside every phase; NO measurement depends on it.
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-s3 quad ${SB}s (incl. determinism re-run), bench-ideal quad ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-s3/re-run = {$SB/$ID:.2f}x bench-ideal (P-S3-12: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox S3 results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  # Gate verdicts NEVER flip the exit code; VB rail-integrity failures DO.
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; S3 verdict above is a measured outcome, not a rail failure)"
   exit 0
 fi
 
