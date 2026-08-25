@@ -391,8 +391,14 @@ and locate where the gap lives before any blueprint.
       file, D13 HYB sign, D15 per-bin normalization - all pre-measurement);
       hierarchical blob serialization + CRC + length prefixes + NET audit;
       interleaved-static rANS (NS=4) and B-BAC both round-trip every
-      profile x keying; cluster floor/cap enforcement proven. Next:
-      bench-sandbox CLI, probe_sandbox.sh rails, dated CSVs. Spec addendum 17 verified, never retuned; structural
+      profile x keying; cluster floor/cap enforcement proven.
+      `prism bench-sandbox` CLI LANDED: config matrix (4 profiles x keyings
+      x 3 backends + B-ADAPT control), BRACKET rows from the frozen
+      idealbench walk (sandbox bits_ml reproduces fine_shared exactly),
+      round-trip verification on every real backend row, NET audit column,
+      three corruption injections all hard-detecting. Next:
+      probe_sandbox.sh rails + self-check, dated reference CSVs on the
+      pinned quad, docs sweep. Spec addendum 17 verified, never retuned; structural
       disambiguations pinned BEFORE any measurement in
       `.github/agents/decisions/builder/2026-08-25T16-20-00-v0-sandbox-
       structural-pins.md` (escape m = u-T_ESC+1 per the m>=1 guarantee;
