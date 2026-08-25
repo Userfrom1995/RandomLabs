@@ -381,15 +381,28 @@ and locate where the gap lives before any blueprint.
       Builder slicing: slice 1 = V0 rails green + dated CSVs before any V1
       scoring; zero container bytes until a V4 PASS. Handoff {"action":
       "build"}.
+- [ ] V0 sandbox spine (Builder slice 1; blueprint section 6): IN PROGRESS
+      2026-08-25. Spec addendum 17 verified, never retuned; structural
+      disambiguations pinned BEFORE any measurement in
+      `.github/agents/decisions/builder/2026-08-25T16-20-00-v0-sandbox-
+      structural-pins.md` (escape m = u-T_ESC+1 per the m>=1 guarantee;
+      ESC-B/C escape context = min(q, T_ESC-1); raw low bits unmodeled;
+      anchor poolings floor-exempt; per-image tables with 18-slot unary
+      caps; delta-stream rANS depth 1; TOKEN even pseudo; VB-corrupt map/
+      tree injections deferred to V3 artifacts). Deliverables: tokenize +
+      staticmodel format-unwired modules, `prism bench-sandbox` CLI,
+      interleaved-static rANS extension, probe_sandbox.sh with all six VB
+      rails + failable self-checks, dated reference CSVs under
+      benchmarks/results/. Zero container bytes by construction.
 - [ ] V1..V4 measurement phases per the spec gates (zero format bytes
       until V4 passes).
 
 ## Current step
 
-PRISM V2 CLEAN-SLATE UNDERWAY (2026-08-25): research delivered and the
-Architect blueprint landed (see Prism v2 checklist above); next: Builder
-slice 1 = V0 sandbox spine (spec addendum 17 already pre-registered; rails
-green + dated reference CSVs before any V1 scoring).
+PRISM V2 V0 SLICE UNDERWAY (2026-08-25): Builder slice 1 implements the
+sandbox spine per `prism/docs/architecture-jxl-parity-vseries.md` - tokenize/
+staticmodel modules, bench-sandbox CLI, probe_sandbox.sh rails, dated v0
+reference CSVs; all six VB rails green before any V1 scoring may run.
 
 v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
