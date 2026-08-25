@@ -609,13 +609,14 @@ shifts AC_V2_FAST_SHIFT/AC_V2_SLOW_SHIFT (6/9), equal rate mix, 8/8 hierarchy
   replay is sequential per image, so TOTAL is additive, NOT a joint entropy
   estimate - stated here because other TOTAL rows are joint).
 - CORRUPTION KNOB (`--orinit-corrupt`, self-check ONLY, never a measurement
-  mode): the SIGN kind's init is set to the ANTI-optimum
-  (65536 - p_init, clamped) AND its adaptation is disabled during the replay
-  (pure anti-table lookup). Rationale: plain inversion heals within the
-  settling length of the adaptation loop, which would make the failure
-  injection invisible precisely when the skew it must expose is mild;
-  freezing makes the injected error persist so the check deterministically
-  proves the evaluator bites. All other kinds warm-start and adapt normally.
+  mode): EVERY bin kind's init is set to its ANTI-optimum
+  (65536 - p_init, clamped) AND adaptation is disabled during the replay
+  (pure anti-table lookup). The blueprint sketched "inverted sign prior";
+  measurement showed inverting only that kind moves total cost by ~0.02
+  points of v0 (sign priors are near-even), so it could never trip the
+  0.05-point gate and the check would have been dead code. Generalizing the
+  injection to all four kinds is STRICTER and keeps the proof of failability
+  honest; recorded in decision record 2026-08-25T12-00-00.
 
 ### 14.2 M-C property-conditioned ceilings (`--props i[,ii][,iii]`)
 
