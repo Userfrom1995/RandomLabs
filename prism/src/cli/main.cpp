@@ -1301,6 +1301,8 @@ static void prepare_keyed_config(TokProfile prof, KeyingId key, uint32_t w,
             keyed_cm = cluster_map_keyed(key);
             break;
     }
+    keyed_cm.w = w;    // context computation needs the position even for
+                       // flat keyings (same lesson as the V0 wrapper)
     SandboxModel m;
     m.init(prof, raw_clusters);
     for (const auto& r : ress) count_plane(m, prof, keyed_cm, r, nullptr);
