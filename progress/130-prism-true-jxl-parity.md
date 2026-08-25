@@ -272,39 +272,83 @@ percent) are independently re-measurable today via
 
 ## E-series checklist (blueprint: prism/docs/architecture-jxl-parity-eseries.md)
 
-- [ ] E0 Harness modes + M-A/M-B/M-C (blueprint section 1): BLOCKING FIRST.
+- [x] E0 Harness modes + M-A/M-B/M-C (blueprint section 1): BLOCKING FIRST.
       Spec addendum 14 lands before any measurement; --orinit/--props modes,
       OA-order/OA-corrupt/PC-mono/MC-viability gates; measured A/B/C shares
       written HERE with CSV paths and the decision-tree row NAMED before any
       intervention work starts (zero format bytes before the readout).
+      **DONE 2026-08-25** (spec addendum 14 committed BEFORE any measurement;
+      all rails green; durable CSVs under prism/benchmarks/results/):
+      - CSVs: `2026-08-25-ideal-orinit-e0.csv` (+ `2026-08-25-ideal-corrupt-e0.csv`
+        failability evidence), `2026-08-25-ideal-props-e0.csv`, joint rows in
+        `2026-08-25-ideal-probe-e0-eval.csv`. Probe quad sha-pins verified
+        pre-measurement; determinism proven byte-for-byte.
+      - Rail integrity ALL GREEN: OA-order OK on all four images (e.g. kodim01
+        stat_c16 -12.455 <= or -6.465 <= ad -6.396); OA-corrupt injection
+        violates everywhere (+47 to +60 pct vs real coder, proving the rail
+        can fail); PC-mono OK on 15/15 PROP rows.
+      - **Measured shares (pooled TOTAL, points of v0):**
+        pct_ad = -5.709; pct_or = -5.781; stat(class16,fine) = -10.90;
+        stat(ctx343,fine) = -12.03.
+        **A (warm-start/learning) = 0.073 points** -> E2 step-1 is
+        DOA-BY-ARITHMETIC (< 1.5 bar; number recorded per blueprint).
+        **B (tracking vs bin-fine anchor) = 5.12 points**, BUT the pinned
+        transparency column **B_coarse = -0.91 points** (adaptive already
+        BEATS same-structure static pooling): the bin-fine B is dominated by
+        static fine-structure gain that class-level or region-level tables
+        cannot recover by mechanism. E2 as a family is dead absent an E1
+        stream change.
+        **C margins (pooling ii vs ctx343-fine): pooled-TOTAL margin =
+        1.33 points < 1.5 bar -> MC-viability FAIL AS PRE-REGISTERED.**
+        Anomaly recorded as information, not grounds for re-litigation
+        (forbidden per risk register): every INDIVIDUAL image clears the bar
+        comfortably - kodim01 +2.67, kodim13 +1.86 (anchors), kodim05 +2.87,
+        kodim20 +2.95 - and pooled scoring is a JOINT estimate across images
+        whose shared property cells suffer mixture interference (pooled(iii)
+        even collapses BELOW pooled(ii) while every per-image(iii) beats its
+        own (ii)).
+      - **NAMED DECISION-TREE ROW (blueprint section 7, row 1): "M-C fails
+        AND A < 1.5 points" -> MANIAC and E2 both DOA by arithmetic; if E1's
+        gate also fails, close #130 honestly at the achieved level with the
+        full negative ledger; if E1 passes, E1 alone proceeds then E4
+        decides.** M-C verdict: MANIAC DEAD ON THIS BINARIZATION (committed
+        CSV is the evidence). The per-image anomaly above is handed to the
+        Maintainer/owner as data; changing the pre-registered bar after the
+        measurement is forbidden and is NOT requested.
+      - Zero format bytes spent (I7/I8/I9 held throughout).
 - [ ] E1 CALIC-class bias cancellation: offline BIAS-fmt gate first
       (>= 1.5 points bracket drop, no mixed sign); format wiring only behind
-      the never-expand per-plane trial if the gate passes.
-- [ ] E2 Frozen tables: step 1 only if M-A's A-share > 1.5 points of v0
-      (DOA-by-arithmetic otherwise, number recorded); FT-fmt net gate
-      >= 1.5 percent; step 2 strictly conditional on B >= 2 points with its
-      own RT-fmt gate. Wires the FEATURE_EXT byte + ext registry once.
-- [ ] E3 MANIAC tree over quotient properties: enters development ONLY on an
-      MC-viability PASS; strict-win-only per plane, model bytes < 50 percent
-      of payload gain on EVERY probe image.
+      the never-expand per-plane trial if the gate passes. NEXT SLICE: the
+      only surviving lever after E0's verdicts.
+- [x] E2 Frozen tables: precondition arithmetic CHECKED at E0: A-share =
+      0.073 points of v0 < 1.5 -> **step 1 DOA-by-arithmetic** (number
+      recorded). Step 2's formal precondition (B >= 2 on the bin-fine
+      anchor) is numerically met at B = 5.12, but the measured decomposition
+      shows that share is structure gain, not recoverable tracking
+      (B_coarse = -0.91); treat step 2 as closed-by-mechanism unless a
+      future stream change reopens it. FEATURE_EXT byte NOT wired (nothing
+      adopted; registry unchanged).
+- [x] E3 MANIAC tree over quotient properties: **MC-viability FAIL ->
+      development NEVER OPENS on this binarization.** Evidence:
+      2026-08-25-ideal-props-e0.csv. Per-image anomaly recorded above for
+      the owner's awareness only.
 - [ ] E4 Checkpoint: fresh dual-unit corpus measure, CSV committed,
       bench_gate.sh in both units; review boundary regardless of verdict;
-      final decision-tree row recorded here.
+      final decision-tree row recorded here. Runs AFTER whatever survives
+      (currently: E1 only, behind its gate; else honest closure).
 
 ## Current step
 
-E-SERIES PROGRAM OPEN (2026-08-25): owner resolved the endgame decision
-point into MANIAC-grade research; Dr. Mob delivered the E-series spec and
-the Architect blueprinted it
-(`prism/docs/architecture-jxl-parity-eseries.md`). NEXT: Builder executes
-**E0 measurement-first** - spec addendum 14, then `--orinit`/`--props`
-harness modes with their OA/PC/MC gates on the pinned probe quad, measured
-A/B/C shares written into this tracker with CSV paths and the decision-tree
-row NAMED - before any intervention or format byte. Interventions (E1 bias
-cancellation, E2 frozen tables behind the FEATURE_EXT ext registry, E3
-MANIAC strictly conditional on M-C) proceed only behind their
-pre-registered offline gates. Honest base case stands: ~9.3-9.7 summed,
-M2 plausible, M3 likely stays open unless measurements surprise upward.
+E0 COMPLETE (2026-08-25): the measurement spine ran green end to end and the
+readout is committed above with CSV paths and the named tree row. Verdicts,
+stated once: **A = 0.073 points** (E2 frozen tables DOA-by-arithmetic),
+**MC-viability FAIL** (pooled margin 1.33 < 1.5; MANIAC dead on this
+binarization), **B_coarse = -0.91** (collector-pure tracking negative; E2
+step 2 closed-by-mechanism). Named decision-tree row: row 1 - everything now
+rides on **E1 bias cancellation**, whose BIAS-fmt gate (>= 1.5 points bracket
+drop on the probe quad, no mixed sign) is the next and only surviving lever;
+if it fails, #130 closes honestly at the achieved level with the full
+negative ledger. Zero format bytes spent in E0.
 
 D-series closure record (2026-08-24): D4a zero-run REJECTED (+0.28 pct),
 D4b extended mixer bank REJECTED (-0.69 vs -0.90), **D4c color rotations
@@ -393,14 +437,43 @@ Previous slice summary (continuation run 3, C2b):
    behind the FEATURE_EXT ext registry with ext2/ext3 and reserved-dead
    ext0/ext1, E3 conditional MANIAC) become build phases; binding decision
    tree back to the owner point (blueprint section 7).
-4. [NEXT] Builder executes E0 exactly as sliced in blueprint section 6:
-   spec addendum 14 first (every constant pre-registered), then harness
-   modes + rails + fail-capable self-checks + dated reference CSVs, then
-   the M-A/M-B/M-C readout on kodim01/13/05/20 with A/B/C shares written
-   into this tracker's E-series checklist and the decision-tree row NAMED.
-   No intervention or format byte before that readout exists.
+4. [DONE 2026-08-25] Builder executed E0 exactly as sliced in blueprint
+   section 6: spec addendum 14 first (every constant pre-registered), then
+   harness modes + rails + fail-capable self-checks + dated reference CSVs,
+   then the M-A/M-B/M-C readout on kodim01/13/05/20 with A/B/C shares
+   written into this tracker's E-series checklist and the decision-tree row
+   NAMED. No intervention or format byte was spent before that readout.
+5. [NEXT] Builder executes E1 offline validation ONLY: BiasModel per
+   addendum 14.3's pinned constants (b[64] gradient-pair cells, BIAS_SHIFT
+   6, Bmax 2^(BD-3)), `--bias` harness mode scoring NEW med@bias residual
+   streams against old-stream rows, BIAS-anchor (bias-off rows byte-equal to
+   shipped baseline), BIAS-fmt gate >= 1.5 points aggregate bracket drop AND
+   no image above its own baseline. PASS -> format wiring behind the
+   never-expand per-plane trial in a LATER slice; FAIL -> record the negative
+   and hand #130 to honest closure with the full ledger (tree row 1, final
+   clause). E4 checkpoint + review boundary after whichever way it goes.
 
 ## Agent log
+
+- 2026-08-25 the Builder (E0 measurement slice): executed blueprint section
+  6 slice 1 in binding order. (1) Spec addendum 14 committed BEFORE any
+  measurement: orinit init law (class16-pooled ML optimum, round+clamp,
+  empty slots keep priors, both ctx and cls states at the CLASS optimum =
+  exactly the E2-step-1 knowledge shape), props property vector q/gb/pl
+  with pre-registered borders, three poolings with modulo hashes and the
+  64-count floor, every gate constant, share definitions. (2) Harness:
+  `bench-ideal --orinit / --orinit-corrupt / --props i,ii,iii` + ORINIT/
+  PROP row families; shared production-replay helpers deduplicated once for
+  E0/D2/D4. OA-corrupt injection GENERALIZED from the blueprint's
+  "inverted sign" to all-four-kind anti-optimum+frozen: sign-only measured
+  ~0.02 points of v0 (near-even skew) and could never trip the 0.05-point
+  gate - a self-check that cannot fire is dead code; recorded as a STRICTER
+  deviation in spec 14.1 + decision record. Self-checks run on REAL pinned
+  kodim05 after discovering degenerate synthetic ramps invert the ordering
+  (bimodal classes make tuned priors beat class optima there - recorded).
+  (3) Measured quad readout committed; verdicts and named tree row in the
+  E-series checklist above; zero format bytes spent. Handoff
+  {"action":"continue"} - next slice E1 offline validation only.
 
 - 2026-08-25 the Architect (E-series blueprint): delivered
   `prism/docs/architecture-jxl-parity-eseries.md` per tracker next-step
