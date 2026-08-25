@@ -7,6 +7,8 @@
 #include "prism/codec/acoder.h"
 #include "prism/codec/mixer.h"
 #include "prism/codec/analyze.h"
+#include "prism/codec/tokenize.h"
+#include "prism/codec/staticmodel.h"
 #include "prism/codec/matree.h"
 #include "prism/bitstream.h"
 #include <iostream>
@@ -38,7 +40,9 @@ static void print_usage() {
               << "                                            [--mixer LIST] [--zrun]\n"
               << "                                            [--color LIST] [--bias biasoff,bias,biasgain]\n"
               << "  prism bench-ideal <image>... --orinit | --orinit-corrupt\n"
-              << "                             --props i[,ii][,iii]   (E0, production stream)\n";
+              << "                             --props i[,ii][,iii]   (E0, production stream)\n"
+              << "  prism bench-sandbox <image>... [--profile LIST] [--backend LIST]\n"
+              << "                             [--keying LIST] [--inject LIST]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -892,6 +896,315 @@ ZRunOut run_zrun_pass(const Raster& t,
 }
 
 } // namespace idealbench
+
+
+// ----- bench-sandbox (V0 spine; V-series blueprint + spec addendum 17) -----
+//
+// Offline clustered-static scoring instrument over the production residual
+// streams (YCoCg-R + MED). FORMAT-UNWIRED by construction: every byte this
+// command accounts for lives in its own CSV columns, none in any container.
+// Rails are evaluated by benchmarks/probe_sandbox.sh.
+
+namespace sandboxrun {
+
+static std::vector<std::string> split_list(const std::string& s) {
+    std::vector<std::string> out;
+    size_t pos = 0;
+    while (pos <= s.size()) {
+        size_t comma = s.find(',', pos);
+        if (comma == std::string::npos) comma = s.size();
+        if (comma > pos) out.push_back(s.substr(pos, comma - pos));
+        pos = comma + 1;
+    }
+    return out;
+}
+
+} // namespace sandboxrun
+
+static int run_bench_sandbox(int argc, char** argv) {
+    using namespace sandboxrun;
+    using namespace prism::codec::sandbox;
+    std::vector<std::filesystem::path> imgs;
+    std::vector<std::string> prof_names{"ZFFCTRL", "HYB-A", "HYB-B", "HYB-C"};
+    std::vector<std::string> be_names{"B-IDEAL", "B-RANS", "B-BAC"};
+    std::vector<std::string> key_filters;
+    bool key_filter_given = false;
+    std::vector<std::string> injects;
+    for (int i = 2; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--profile" && i + 1 < argc) {
+            prof_names = split_list(argv[++i]);
+        } else if (a == "--backend" && i + 1 < argc) {
+            be_names = split_list(argv[++i]);
+        } else if (a == "--keying" && i + 1 < argc) {
+            key_filters = split_list(argv[++i]);
+            key_filter_given = true;
+        } else if (a == "--inject" && i + 1 < argc) {
+            injects = split_list(argv[++i]);
+        } else {
+            imgs.push_back(a);
+        }
+    }
+    if (imgs.empty()) { std::cerr << "bench-sandbox: no images given\n"; return 2; }
+    std::vector<TokProfile> profiles;
+    for (const auto& n : prof_names) {
+        TokProfile p;
+        if (!parse_profile(n, p)) {
+            std::cerr << "bench-sandbox: unknown profile " << n << "\n";
+            return 2;
+        }
+        profiles.push_back(p);
+    }
+    std::vector<int> backends;
+    for (const auto& n : be_names) {
+        int b;
+        if (!parse_backend(n, b)) {
+            std::cerr << "bench-sandbox: unknown backend " << n << "\n";
+            return 2;
+        }
+        backends.push_back(b);
+    }
+    for (const auto& n : key_filters) {
+        KeyingId kk;
+        if (!parse_keying(n, kk)) {
+            std::cerr << "bench-sandbox: unknown keying " << n << "\n";
+            return 2;
+        }
+    }
+    for (const auto& n : injects)
+        if (n != "table" && n != "trunc" && n != "content" && n != "none") {
+            std::cerr << "bench-sandbox: unknown injection " << n
+                      << " (use table, trunc, content)\n";
+            return 2;
+        }
+
+    struct Total { uint64_t payload = 0, tables = 0, side = 0, net = 0; };
+    std::map<std::string, Total> totals;
+    char rowbuf[512];
+
+    for (const auto& img : imgs) {
+        Raster r = frontend::decode_to_raster(img);
+        Raster t = apply_color(r, ColorTransform::YCoCgR);
+        const uint32_t w = t.w;
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(t.planes.size());
+        size_t v0b = 0, v2b = 0;
+        for (auto& plane : t.planes) {
+            ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+            v0b += acoder_encode_plane(ress.back(), w, t.h, 343).size();
+            v2b += acoder_encode_plane_v2(ress.back(), w, t.h,
+                                          AC_V2_RESDIFF_CONTEXTS).size();
+        }
+        // CONTROL row: fresh production replay; VB-anchor-adapt compares its
+        // integer payload against the committed reference byte-for-byte.
+        {
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes = acoder_encode_plane_v2(ress[pi], w, t.h,
+                                                    AC_V2_RESDIFF_CONTEXTS);
+                auto dec = acoder_decode_plane_v2(bytes, ress[pi].size(), w,
+                                                  t.h,
+                                                  AC_V2_RESDIFF_CONTEXTS);
+                if (dec != ress[pi]) rt = false;
+            }
+            double ptsv0 =
+                -100.0 * (double)(v2b - v0b) / (double)v0b;
+            std::snprintf(rowbuf, sizeof(rowbuf),
+                          "SANDBOX,%s,ZFFCTRL,B-ADAPT,KPROD,%zu,0,0,0,%zu,"
+                          "1,%d,0.000,0.000,0.0000,%.4f\n",
+                          img.filename().c_str(), v2b, v2b, rt ? 1 : 0,
+                          ptsv0);
+            std::cout << rowbuf;
+            totals["ZFFCTRL|B-ADAPT|KPROD"].payload += v2b;
+            totals["ZFFCTRL|B-ADAPT|KPROD"].net += v2b;
+        }
+        // BRACKET row from the FROZEN ideal walk (bit-for-bit anchor source).
+        {
+            idealbench::Acc acc;
+            for (auto& res : ress) idealbench::walk(res, w, acc);
+            double bctmp[3], bfine[3], bval[3];
+            acc.bits(bctmp, bfine, bval);
+            std::snprintf(rowbuf, sizeof(rowbuf),
+                          "BRACKET,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                          img.filename().c_str(), v0b, v2b,
+                          bfine[0], bfine[1], bfine[2],
+                          bval[0], bval[1], bval[2]);
+            std::cout << rowbuf;
+        }
+        // Configuration matrix.
+        for (TokProfile prof : profiles) {
+            std::vector<KeyingId> keys =
+                (prof == TokProfile::ZFFCTRL)
+                    ? std::vector<KeyingId>{KeyingId::KSHARED,
+                                            KeyingId::KFLAT16,
+                                            KeyingId::KFLAT343}
+                    : std::vector<KeyingId>{KeyingId::KSHARED,
+                                            KeyingId::KFLAT16};
+            if (key_filter_given) {
+                std::vector<KeyingId> filtered;
+                for (auto& kk : keys)
+                    for (auto& f : key_filters)
+                        if (keying_name(kk) == f) filtered.push_back(kk);
+                keys = filtered;
+            }
+            const bool anchor_exempt = (prof == TokProfile::ZFFCTRL);
+            for (KeyingId key : keys) {
+                SandboxModel m;
+                m.init(prof, key);
+                std::vector<std::vector<TaggedEvent>> plane_events(
+                    ress.size());
+                for (size_t pi = 0; pi < ress.size(); ++pi)
+                    count_plane(m, prof, key, ress[pi], w, &plane_events[pi]);
+                SmoothedTables tabs;
+                build_tables(m, !anchor_exempt, tabs);   // pin D4 exemption
+                size_t audit = 0;
+                auto blob = serialize_tables(tabs, &audit);
+                const bool audit_ok = (audit == blob.size());
+                const double ml_bits = ml_ideal_bits(m);
+                for (int be : backends) {
+                    uint64_t payload = 0;
+                    bool rt = true;
+                    double tbl_bits = 0;
+                    if (be == 0) {
+                        for (size_t pi = 0; pi < ress.size(); ++pi) {
+                            tbl_bits += table_ideal_bits(prof,
+                                                         plane_events[pi],
+                                                         tabs);
+                        }
+                        payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+                    } else if (be == 1) {
+                        for (size_t pi = 0; pi < ress.size(); ++pi) {
+                            tbl_bits +=
+                                table_ideal_bits(prof, plane_events[pi], tabs);
+                            auto bytes = rans_encode_events(prof,
+                                                            plane_events[pi],
+                                                            tabs);
+                            payload += bytes.size();
+                            auto dec = rans_decode_events(prof, key, w,
+                                                          ress[pi].size(),
+                                                          bytes, tabs);
+                            if (dec != ress[pi]) rt = false;
+                        }
+                    } else {
+                        for (size_t pi = 0; pi < ress.size(); ++pi) {
+                            tbl_bits +=
+                                table_ideal_bits(prof, plane_events[pi], tabs);
+                            auto bytes = bac_encode_events(prof,
+                                                           plane_events[pi],
+                                                           tabs);
+                            payload += bytes.size();
+                            auto dec = bac_decode_events(prof, key, w,
+                                                         ress[pi].size(),
+                                                         bytes, tabs);
+                            if (dec != ress[pi]) rt = false;
+                        }
+                    }
+                    const uint64_t net = payload + blob.size();
+                    const double relpct =
+                        100.0 * ((double)v2b - (double)net) / (double)v2b;
+                    const double ptsv0 =
+                        100.0 * ((double)net - (double)v0b) / (double)v0b;
+                    std::snprintf(rowbuf, sizeof(rowbuf),
+                                  "SANDBOX,%s,%s,%s,%s,%zu,%zu,0,0,%zu,"
+                                  "%d,%d,%.3f,%.3f,%.4f,%.4f\n",
+                                  img.filename().c_str(), profile_name(prof),
+                                  backend_name(be), keying_name(key),
+                                  payload, blob.size(), net, audit_ok ? 1 : 0,
+                                  rt ? 1 : 0, tbl_bits, ml_bits, relpct,
+                                  ptsv0);
+                    std::cout << rowbuf;
+                    std::string id = std::string(profile_name(prof)) + "|" +
+                                     backend_name(be) + "|" + keying_name(key);
+                    totals[id].payload += payload;
+                    totals[id].tables += blob.size();
+                    totals[id].net += net;
+                }
+            }
+        }
+        // Corruption injections on a representative config (pin D8):
+        // ZFFCTRL x KFLAT16 x B-RANS exercises all three detection
+        // mechanisms that exist at V0 (map/tree injections arrive V3).
+        for (const auto& inj : injects) {
+            if (inj == "none") continue;
+            TokProfile prof = TokProfile::ZFFCTRL;
+            KeyingId key = KeyingId::KFLAT16;
+            SandboxModel m;
+            m.init(prof, key);
+            std::vector<TaggedEvent> events0;
+            for (size_t pi = 0; pi < ress.size(); ++pi)
+                count_plane(m, prof, key, ress[pi], w,
+                            pi == 0 ? &events0 : nullptr);
+            SmoothedTables tabs;
+            build_tables(m, false, tabs);          // anchor-exempt config
+            size_t audit_clean = 0;
+            auto clean_blob = serialize_tables(tabs, &audit_clean);
+            auto clean_payload = rans_encode_events(prof, events0, tabs);
+            bool detected = false;
+            bool mismatch = false;
+            double cost_pct = 0.0;
+            try {
+                if (inj == "table") {
+                    auto bad = clean_blob;
+                    bad[bad.size() / 2] ^= 0x01;
+                    deserialize_tables(bad, nullptr);   // CRC must fire
+                } else if (inj == "trunc") {
+                    auto bad = clean_blob;
+                    bad.resize(clean_blob.size() * 3 / 5);
+                    deserialize_tables(bad, nullptr);   // length must fire
+                } else {                                // content (CRC kept)
+                    // Tamper the TRANSMITTED representation (prior +
+                    // deltas): shift one entry's delta so the reconstructed
+                    // table provably differs while probabilities stay legal.
+                    SmoothedTables wrong = tabs;
+                    int target = (int)tabs.p[0] + 3;
+                    if (target > 4095 || target == (int)tabs.p[0])
+                        target = (int)tabs.p[0] - 3;
+                    wrong.delta[0] = (uint16_t)(int16_t)(
+                        target - (int)tabs.prior[0]);
+                    auto wrong_blob = serialize_tables(wrong, nullptr);
+                    deserialize_tables(wrong_blob, &tabs);  // mismatch fires
+                }
+            } catch (const std::exception& e) {
+                detected = true;
+                mismatch = std::string(e.what()).find("table mismatch") !=
+                           std::string::npos;
+            }
+            if (inj == "content") {
+                // Cost inflation when the tampered model is used anyway:
+                // rebuild it from its own blob and recode the stream
+                // (diagnostic column; the expect-mismatch IS the detector).
+                SmoothedTables wrong = tabs;
+                int target2 = (int)tabs.p[0] + 3;
+                if (target2 > 4095 || target2 == (int)tabs.p[0])
+                    target2 = (int)tabs.p[0] - 3;
+                wrong.delta[0] = (uint16_t)(int16_t)(
+                    target2 - (int)tabs.prior[0]);
+                auto wrong_blob = serialize_tables(wrong, nullptr);
+                auto rt_tabs = deserialize_tables(wrong_blob, nullptr);
+                auto wrong_payload =
+                    rans_encode_events(prof, events0, rt_tabs);
+                cost_pct = 100.0 *
+                    ((double)wrong_payload.size() -
+                     (double)clean_payload.size()) /
+                    (double)clean_payload.size();
+            }
+            std::snprintf(rowbuf, sizeof(rowbuf),
+                          "CORRUPT,%s,%s,%d,%d,%.4f\n",
+                          img.filename().c_str(), inj.c_str(),
+                          detected ? 1 : 0, mismatch ? 1 : 0, cost_pct);
+            std::cout << rowbuf;
+        }
+    }
+    for (const auto& kv : totals) {
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOXTOTAL,%s,payload=%zu,tables=%zu,side=%zu,"
+                      "net=%zu\n",
+                      kv.first.c_str(), kv.second.payload, kv.second.tables,
+                      kv.second.side, kv.second.net);
+        std::cout << rowbuf;
+    }
+    return 0;
+}
 
 int main(int argc, char* argv[]) {
     if (argc < 2) { print_usage(); return 2; }
@@ -1771,6 +2084,8 @@ int main(int argc, char* argv[]) {
                     std::cout << rowbuf;
                 }
             }
+        } else if (cmd == "bench-sandbox") {
+            return run_bench_sandbox(argc, argv);
         } else {
             print_usage(); return 2;
         }
