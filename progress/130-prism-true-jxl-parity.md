@@ -335,9 +335,45 @@ percent) are independently re-measurable today via
       honestly at the achieved level with the full negative ledger. Review
       boundary reached; this is the project's closing state.
 
+## Prism v2 clean-slate checklist (authorized by owner via Mae, 2026-08-25)
+
+The merge of PR #131 was ledger preservation only, NOT a parity declaration.
+Per the kickoff comment on #130 (2026-08-25T15:31Z): v2 may be an entirely
+new architecture family; M2/M3 dual-unit gates unchanged; brainstorm board
+stays frozen. Research mandate: study BOTH ledgers (Obsidian + Prism v1)
+and locate where the gap lives before any blueprint.
+
+- [x] R-v2 Research phase: gap decomposition into five measured/anchored
+      buckets (B1 collection layer up to 6.30 pct of current bytes via
+      forward-adaptive clustered static coding; B2 per-image conditioning
+      margins 2.0-3.1 pct killed in v1 only by pooled-joint scoring; B3
+      predictor headroom 2-5 pct literature-bounded, unmeasurable under
+      v1 zero-economics scoring; B4 trial-selection expansion 0.5-1.5;
+      B5 tokenization refinements 0.5-1.0) plus the consolidated
+      carried/reopened ledger (L-C1..L-C9 constraints, R-1..R-4 reopenings
+      each with written confound arguments), the candidate architecture
+      family, and the pre-registered offline V-series program (V0 spine,
+      V1 backend/tokenization, V2 predictors, V2b bias canary, V3 context
+      structures, V4 composition threshold < 9.35 summed projected, V5
+      squeeze-with-parent-properties reserve). New invariants I10
+      (per-image primacy - ratifies the E0 pooled-scoring anomaly lesson),
+      I11 (reopening requires named structural delta), I12 (net accounting
+      covers maps/tiles/trees). Spec:
+      `prism/docs/research-v2-clean-slate.md`. Honest base case: lands
+      summed 9.1-9.7 => M2 PASS expected, M3 only at optimistic edges or
+      via V5. Handoff {"action":"architect"}.
+- [ ] A-v2 Architect phase: V0 harness blueprint + spec addendum 17
+      skeleton (constants pinned BEFORE any measurement).
+- [ ] V1..V4 measurement phases per the spec gates (zero format bytes
+      until V4 passes).
+
 ## Current step
 
-PROJECT CLOSED (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
+PRISM V2 CLEAN-SLATE UNDERWAY (2026-08-25): v1 closed honestly at its
+achieved level (below); owner authorized v2 the same day. Research delivered
+(see Prism v2 checklist above); next: Architect.
+
+v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
 payload +22 to +70 percent) - the zero-flag-first binarization makes
 CALIC-style bias cancellation structurally incompatible with this coder.
@@ -451,6 +487,24 @@ Previous slice summary (continuation run 3, C2b):
     honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
 
 ## Agent log
+
+- 2026-08-25 Dr. Mob (the Researcher, v2 clean-slate mandate): delivered
+  `prism/docs/research-v2-clean-slate.md` answering the owner's question -
+  the gap to JXL decomposes into five buckets with committed provenance
+  (collection layer 6.30 pct gross via measured real-vs-static spread;
+  per-image conditioning margins +1.86..+2.95 points of v0 from the E0 CSVs,
+  invalidated in v1 only by pooled joint scoring; predictor headroom
+  literature-bounded but poisoned by zero-flag economics in every v1 probe;
+  trial-selection and tokenization refinements precedent-sized), summing
+  past the M3 requirement only at optimistic edges - hence an honest base
+  case of M2 PASS with M3 contingent. Consolidated both codecs' ledgers
+  into L-C1..L-C9 hard constraints, R-1..R-4 reopenings with written
+  confound arguments (forward-adaptive CLUSTERED static coding; weighted-
+  ensemble/GAP prediction families distinct from rejected NLMS; bias
+  canary under symmetric tokenization; per-image-scored context trees),
+  and pre-registered the V-series offline program with binding gates and
+  a proceed threshold of < 9.35 summed projected before any format byte.
+  New invariants I10/I11/I12. Decision {"action":"architect"}.
 
 - 2026-08-25 the Builder (E1 + E4 closing slice): executed the E-series to
   its end. (1) Spec addendum 16 committed BEFORE any measurement:
