@@ -1007,8 +1007,12 @@ static int run_bench_sandbox(int argc, char** argv) {
                                                   AC_V2_RESDIFF_CONTEXTS);
                 if (dec != ress[pi]) rt = false;
             }
+            // Same worse-is-positive orientation as every config row
+            // below (pct_ad convention); the subtraction happens in
+            // DOUBLE space - unsigned underflow here once printed a
+            // garbage -3e15 for any image where v2 beats v0.
             double ptsv0 =
-                -100.0 * (double)(v2b - v0b) / (double)v0b;
+                100.0 * ((double)v2b - (double)v0b) / (double)v0b;
             std::snprintf(rowbuf, sizeof(rowbuf),
                           "SANDBOX,%s,ZFFCTRL,B-ADAPT,KPROD,%zu,0,0,0,%zu,"
                           "1,%d,0.000,0.000,0.0000,%.4f\n",
