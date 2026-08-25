@@ -128,6 +128,20 @@ bytes may be spent before this readout exists (I7/I8).
 
 ### E1: CALIC-class bias cancellation (source-side; attacks nothing measured - it moves every bracket)
 
+> **STATUS (2026-08-25, Builder): OFFLINE VALIDATION ONLY, REJECTED.**
+> Spec addendum 16 pinned mechanism-(b) constants + the gate's single
+> reading BEFORE any measurement. Measured on the pinned quad: med@bias
+> ctx343-fine bracket WORSE by 19.85 points of v0 aggregate (payload
+> +70.2 pct), med@biasgain worse by 16.33 (+21.7 pct), 4/4 images regressed;
+> BIAS-anchor held byte-for-byte. Zero format bytes spent. Mechanism: the
+> zero-flag-first binarization prices MED's exact-zero peak below its
+> conditional-entropy worth, so mean-seeking corrections spread mass off the
+> mode. With E2 DOA-by-arithmetic, E3 gate-dead, and E4 checkpointed
+> (byte-identical outputs; M2/M3 honestly FAIL both units), the named tree
+> row executed its final clause: #130 closes honestly at the achieved level
+> (e1 = 10.1210 summed / 3.3737 per-sample; -8.21 pct bytes total). Decision
+> record 2026-08-25T12-30-00.
+
 Module: `BiasModel` in predict.h/cpp. State: `b[64]` over gradient-pair
 cells (bucket(g_N), bucket(g_W)); prediction `pred' = med + round(b[ctx])`;
 residual E' = actual - pred' enters the v2 coder unchanged; post-decode
