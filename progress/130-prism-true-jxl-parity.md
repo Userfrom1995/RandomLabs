@@ -362,16 +362,34 @@ and locate where the gap lives before any blueprint.
       `prism/docs/research-v2-clean-slate.md`. Honest base case: lands
       summed 9.1-9.7 => M2 PASS expected, M3 only at optimistic edges or
       via V5. Handoff {"action":"architect"}.
-- [ ] A-v2 Architect phase: V0 harness blueprint + spec addendum 17
-      skeleton (constants pinned BEFORE any measurement).
+- [x] A-v2 Architect phase: V-series blueprint delivered
+      (`prism/docs/architecture-jxl-parity-vseries.md`) + spec addendum 17
+      (algorithmic-spec.md section 18) committed BEFORE any measurement:
+      gate reading pinned (RELPCT per-image medians primary per I10, NET =
+      payload+tables+maps+trees per I12), V0 spine fully specified (new
+      `prism bench-sandbox` command, tokenize/staticmodel format-unwired
+      modules, six VB rails incl. bit-for-bit anchors against the frozen
+      bench-ideal references, coder-fidelity bound +0.50 pct, corrupt-
+      injection failability, ranking fixtures both directions), tokenization
+      ladders ESC-A/B/C (T_ESC 4/8/16), cluster caps K <= 256 with 4096-
+      sample floors, smoothing prior (pseudo-count 32, r = 15/16, sum 2^12),
+      V2 predictor mathematics integer-exact (reduced GAP thresholds
+      t80/t32 scaled by BD; W ensemble over {W,N,NW,TE} with normalized
+      16.16 weights, gradient update /512, clamps [16384, 1048576],
+      max-error-feedback property buckets), V4 projection formula against
+      the committed e1 CSV, and reserved-slot amendments for later phases.
+      Builder slicing: slice 1 = V0 rails green + dated CSVs before any V1
+      scoring; zero container bytes until a V4 PASS. Handoff {"action":
+      "build"}.
 - [ ] V1..V4 measurement phases per the spec gates (zero format bytes
       until V4 passes).
 
 ## Current step
 
-PRISM V2 CLEAN-SLATE UNDERWAY (2026-08-25): v1 closed honestly at its
-achieved level (below); owner authorized v2 the same day. Research delivered
-(see Prism v2 checklist above); next: Architect.
+PRISM V2 CLEAN-SLATE UNDERWAY (2026-08-25): research delivered and the
+Architect blueprint landed (see Prism v2 checklist above); next: Builder
+slice 1 = V0 sandbox spine (spec addendum 17 already pre-registered; rails
+green + dated reference CSVs before any V1 scoring).
 
 v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
@@ -487,6 +505,29 @@ Previous slice summary (continuation run 3, C2b):
     honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
 
 ## Agent log
+
+- 2026-08-25 the Architect (V-series blueprint): delivered
+  `prism/docs/architecture-jxl-parity-vseries.md` turning the clean-slate
+  research spec into a gated build program. Key architectural decisions:
+  (1) V0 is a NEW instrument - `prism bench-sandbox` with format-unwired
+  tokenize/staticmodel modules - so bench-ideal stays frozen as the v1-era
+  reference (its CSVs become bit-for-bit anchors VB-anchor-adapt /
+  VB-anchor-ideal); (2) six pre-registered VB rails with coder-fidelity
+  bound (+0.50 pct vs B-IDEAL), independent double-count side-info audit,
+  corrupt-injection failability, and both-direction ranking fixtures; (3)
+  gate reading pinned before any measurement: RELPCT per-image medians as
+  PRIMARY (I10), NET always payload+tables+maps+trees (I12), oracle-map
+  map-freebies visible in a dedicated column but never shipped arithmetic;
+  (4) tokenization ladders ESC-A/B/C pinned with zigzag fold + first-class
+  ZERO token (L-C5); (5) V2 predictor mathematics fixed integer-exact
+  (reduced GAP, W ensemble with normalized weights + gradient update /512)
+  so no constant can drift after data is seen; (6) V4 projection formula
+  against the committed e1 CSV with thresholds < 9.35 summed / < 3.117
+  per-sample; (7) reserved-slot amendment rule for post-V1 constants; (8)
+  module map contains zero container edits by construction until a V4 PASS.
+  Spec addendum 17 landed as algorithmic-spec.md section 18 (numbering note
+  recorded there). Handoff {"action":"build"}: Builder slice 1 = V0 spine,
+  all rails green + dated reference CSVs before any scoring.
 
 - 2026-08-25 Dr. Mob (the Researcher, v2 clean-slate mandate): delivered
   `prism/docs/research-v2-clean-slate.md` answering the owner's question -
