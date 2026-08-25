@@ -586,6 +586,22 @@ per-sample projected).
 
 ## Current step
 
+SLICE P3 OPENED (2026-08-25): S4 structural pins P-S4-1..P-S4-12 committed
+BEFORE any measurement
+(decisions/builder/2026-08-25T23-45-00-s4-composition-pins.md): candidates
+{ADAPT control, SPINE} x colorrot kCount=7 trials decided by real NET bytes
+per image; winner argmin with conservative tie-breaks; relpct_composed vs
+the trial-freed adaptive control (non-regressing vs e1 BY CONSTRUCTION);
+projection 18.5 VERBATIM against 2026-08-25-prism-e1.csv with pinned
+landscape/portrait class handling (quad is all-landscape; portrait inherits
+the overall quad median behind an explicit INHERITED marker, landscape-only
+projection reported beside); thresholds <9.35 summed / <3.117 per-sample;
+M2/M3 reported beside, never altered; S5 trigger quantified (summed <8.8316
+AND per-sample <2.9438 while failing the S4 bar); stretch KIND flag defers
+to the format program; zero container bytes.
+
+Prior state:
+
 S3 PROPERTIES MEASURED - FAIL (2026-08-25): the pre-registered gate
 (addendum 19.5 S3, FRAME-S primary, same-stack best-flat-16 baseline fresh
 in-run) rejected every extended causal property keying on the pinned quad:
