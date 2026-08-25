@@ -116,4 +116,28 @@ sandbox row exists:
   to exactly 2^12. (An earlier cross-key reading was structurally wrong and
   was corrected before any measurement existed.)
 
+## Amendment A2 (2026-08-25, still BEFORE any measurement)
+
+Engine-integrity findings from wiring the fidelity discipline, both fixed
+and regression-tested before the first sandbox row exists:
+
+- **A2/FIX1 (TOKEN block spill)**: build_tables wrote its TOKEN block at
+  the end-of-stride offset even for ZFFCTRL, whose TOKEN table span is 0.
+  The tok_syms()==1 write landed past the row, overwriting the next
+  cluster's ZERO_FLAG bin with the single-symbol value 4096 (and past the
+  whole array for KSHARED). All ZFFCTRL tables were silently corrupted;
+  round-trips stayed green because encoder and decoder shared the damage.
+  Fix: the TOKEN block runs only when table_span(profile, TOKEN) > 0.
+  Regression test StaticModel.ZffctrlTokenBlockNeverSpillsIntoNeighborBins.
+- **A2/D10 amendment (ideal bracket carries RAWBITS)**: D10 compares each
+  real backend's payload against ceil(bits_tbl/8) to isolate ENGINE
+  overhead. The HYB ladders' escaped low bits are unmodeled (pin D3) but
+  cost exactly q literal bits in every backend, so bits_tbl now includes
+  them (table_ideal_bits adds te.ev.key per RAWBITS event); B-IDEAL must
+  BOUND its real siblings, which count these bytes fully. Measured effect
+  on kodim05: all 18 real-backend configs land within +0.03 percent of
+  their B-IDEAL row after the two fixes (was +12.7 pct apparent for
+  HYB-A/KSHARED under the unamended reading). ml_ideal_bits is unchanged:
+  the ML anchor brackets stay pure model entropy.
+
 - the Builder

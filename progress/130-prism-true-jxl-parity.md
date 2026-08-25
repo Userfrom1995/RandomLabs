@@ -396,7 +396,17 @@ and locate where the gap lives before any blueprint.
       x 3 backends + B-ADAPT control), BRACKET rows from the frozen
       idealbench walk (sandbox bits_ml reproduces fine_shared exactly),
       round-trip verification on every real backend row, NET audit column,
-      three corruption injections all hard-detecting. Next:
+      three corruption injections all hard-detecting. ENGINE INTEGRITY
+      FIXES (decision-record amendment A2, BEFORE any measurement):
+      (1) build_tables' TOKEN block spilled past the ZFFCTRL stride and
+      overwrote every cluster boundary's ZERO_FLAG entry with the
+      single-symbol value 4096 - round-trips stayed green only because
+      encoder and decoder shared the damage; fixed + regression test
+      ZffctrlTokenBlockNeverSpillsIntoNeighborBins. (2) table_ideal_bits
+      now carries RAWBITS literal cost so B-IDEAL bounds its real
+      siblings; after both fixes all 18 real-backend configs on kodim05
+      sit within +0.03 pct of their B-IDEAL rows (bound +0.50). 111/111
+      unit tests green. Next:
       probe_sandbox.sh rails + self-check, dated reference CSVs on the
       pinned quad, docs sweep. Spec addendum 17 verified, never retuned; structural
       disambiguations pinned BEFORE any measurement in

@@ -148,7 +148,15 @@ TEST(StaticModel, TransmittedTablesNeverBeatInSampleMl) {
     // In-sample ML is the entropy optimum: the smoothed, normalized
     // transmitted tables can only cost MORE (KL >= 0). On dense inputs the
     // drag stays bounded; on sparse clusters it legitimately explodes,
-    // which is exactly what NET accounting must see.
+    // which is exactly what NET accounting must see. RAWBITS carry a
+    // deterministic q-bits literal cost (pin D3) that ML does not model,
+    // so they are added to the ML side rather than counted as drag.
+    auto rawbit_cost = [](const std::vector<TaggedEvent>& evs) {
+        double r = 0;
+        for (const TaggedEvent& te : evs)
+            if (te.ev.kind == EvKind::RAWBITS) r += (double)te.ev.key;
+        return r;
+    };
     for (TokProfile p : {TokProfile::ZFFCTRL, TokProfile::HYB_A,
                          TokProfile::HYB_B, TokProfile::HYB_C}) {
         Built sparse = build(p, KeyingId::KFLAT16, 800, (uint32_t)p + 7, false);
@@ -157,11 +165,60 @@ TEST(StaticModel, TransmittedTablesNeverBeatInSampleMl) {
         EXPECT_GE(tbl_s, ml_s - 1e-6) << "profile=" << (int)p;
         Built dense = build(p, KeyingId::KFLAT16, 40000, (uint32_t)p + 99,
                             false);
-        double ml_d = ml_ideal_bits(dense.m);
+        double ml_d = ml_ideal_bits(dense.m) + rawbit_cost(dense.evs);
         double tbl_d = table_ideal_bits(p, dense.evs, dense.t);
-        EXPECT_GE(tbl_d, ml_d - 1e-6) << "profile=" << (int)p;
+        EXPECT_GE(tbl_d, ml_d - rawbit_cost(dense.evs) - 1e-6)
+            << "profile=" << (int)p;
         EXPECT_LE(tbl_d, ml_d * 1.02 + 4096.0)
             << "profile=" << (int)p << " (smoothing drag unbounded)";
+    }
+}
+
+TEST(StaticModel, ZffctrlTokenBlockNeverSpillsIntoNeighborBins) {
+    // Regression (V0 fidelity discipline, BEFORE any measurement): for
+    // ZFFCTRL the TOKEN table span is 0 (no token alphabet exists), and
+    // build_tables must skip the TOKEN block entirely. It used to write
+    // tok_syms() == 1 entries at the end-of-stride offset anyway, spilling
+    // the value 4096 over the next cluster's ZERO_FLAG bin (and past the
+    // whole array for single-cluster keyings). Every active cluster's
+    // ZERO_FLAG entry must therefore stay a legal two-outcome probability
+    // that tracks its own majority side.
+    Built b = build(TokProfile::ZFFCTRL, KeyingId::KFLAT16, 60000, 424242,
+                    false);
+    const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+    int active = 0;
+    for (int c = 0; c < b.m.clusters; ++c) {
+        uint64_t c0 = b.m.n0[(size_t)c * stride + 0];   // nonzero count
+        uint64_t c1 = b.m.n1[(size_t)c * stride + 0];   // zero count
+        if (c0 + c1 == 0) continue;
+        ++active;
+        uint16_t p12 = b.t.at((uint32_t)c, (int)EvKind::ZERO_FLAG, 0);
+        EXPECT_LT(p12, 4096u) << "cluster " << c
+                              << ": ZERO_FLAG overwritten by the TOKEN block";
+        EXPECT_GE(p12, 1u);
+        if (c0 > 1000 && c1 > 1000)
+            EXPECT_EQ(p12 > 2048u, c0 > c1)
+                << "cluster " << c << ": majority side not tracked";
+    }
+    EXPECT_GE(active, 2);
+    // Single-cluster keying: the old bug wrote one entry past the whole
+    // array; assert the last slot is still the SIGN bin's legal value.
+    Built s = build(TokProfile::ZFFCTRL, KeyingId::KSHARED, 20000, 777, false);
+    uint16_t sign_p12 = s.t.at(0, (int)EvKind::SIGN, 0);
+    EXPECT_GE(sign_p12, 1u);
+    EXPECT_LE(sign_p12, 4095u);
+    // HYB keeps a real TOKEN alphabet: entries sum to exactly 4096 per
+    // cluster while neighboring kinds remain untouched.
+    Built h = build(TokProfile::HYB_A, KeyingId::KFLAT16, 60000, 991, false);
+    const size_t hstride = SandboxModel::init_stride(TokProfile::HYB_A);
+    size_t tok_off = 0;
+    for (int kk = 0; kk < (int)EvKind::TOKEN; ++kk)
+        tok_off += h.t.span(kk);
+    for (int c = 0; c < h.m.clusters; ++c) {
+        uint32_t sum = 0;
+        for (size_t sym = 0; sym < h.t.tok_syms(); ++sym)
+            sum += h.t.p[(size_t)c * hstride + tok_off + sym];
+        EXPECT_EQ(sum, 4096u) << "cluster " << c;
     }
 }
 

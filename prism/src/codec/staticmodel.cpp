@@ -433,19 +433,26 @@ void build_tables(const SandboxModel& mm, bool apply_caps_floors,
                 out.p[(size_t)c * stride + off + key] = norm[key];
         }
     }
-    {   // TOKEN symbol tables (even pseudo over the alphabet, pin D7)
-        size_t span = m.tok_syms();
-        size_t off = 0;
-        for (int kk = 0; kk < (int)EvKind::TOKEN; ++kk)
-            off += table_span(m.profile, kk);
-        smooth_token_group(pooled, 0, cp);
-        normalize_counts_4096(cp, norm);
-        for (size_t s = 0; s < span; ++s) out.prior[off + s] = norm[s];
-        for (int c = 0; c < m.clusters; ++c) {
-            smooth_token_group(m, (uint32_t)c, cp);
+    {   // TOKEN symbol tables (even pseudo over the alphabet, pin D7).
+        // Skipped entirely when the profile has no TOKEN table span
+        // (ZFFCTRL): writing there would fall past the row and corrupt the
+        // next cluster's leading bins (found by the V0 fidelity discipline
+        // BEFORE any measurement; regression-tested in test_staticmodel.cpp).
+        const size_t tspan = table_span(m.profile, (int)EvKind::TOKEN);
+        if (tspan > 0) {
+            size_t span = m.tok_syms();
+            size_t off = 0;
+            for (int kk = 0; kk < (int)EvKind::TOKEN; ++kk)
+                off += table_span(m.profile, kk);
+            smooth_token_group(pooled, 0, cp);
             normalize_counts_4096(cp, norm);
-            for (size_t s = 0; s < span; ++s)
-                out.p[(size_t)c * stride + off + s] = norm[s];
+            for (size_t s = 0; s < span; ++s) out.prior[off + s] = norm[s];
+            for (int c = 0; c < m.clusters; ++c) {
+                smooth_token_group(m, (uint32_t)c, cp);
+                normalize_counts_4096(cp, norm);
+                for (size_t s = 0; s < span; ++s)
+                    out.p[(size_t)c * stride + off + s] = norm[s];
+            }
         }
     }
     out.delta.resize(out.p.size());
@@ -700,7 +707,12 @@ double table_ideal_bits(TokProfile, const std::vector<TaggedEvent>& ev,
     for (const TaggedEvent& te : ev) {
         switch (te.ev.kind) {
         case EvKind::RAWBITS:
-            break;                              // unmodeled (pin D3)
+            // Unmodeled (pin D3) but not unpaid: the escaped magnitude's
+            // low q bits cost exactly q literal bits in every backend, so
+            // the oracle bracket carries them too (it must BOUND the real
+            // coders, which count these bytes fully).
+            bits += (double)te.ev.key;
+            break;
         case EvKind::TOKEN: {
             uint32_t sym = te.ev.value;
             uint32_t node = 0;
