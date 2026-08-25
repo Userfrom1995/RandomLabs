@@ -1,11 +1,11 @@
 # STATE - Random factory checkpoint
-- **Updated:** 2026-08-25 (~08:40Z, issue_comment maintainer run 32827792945 on #131 - architect E-series complete, build re-dispatched for E0)
+- **Updated:** 2026-08-25 (~08:50Z, schedule maintainer run 32828597773 - build retry in progress)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt.)
 - **BINDING TARGET (dual-unit):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl output (-d0 -e9) on the exact Kodak PPMs of `prism/benchmarks/results/2026-08-23-kodak24-codec-comparison.md`.
 - **UNIT VERIFICATION PROTOCOL:** every success claim cites a fresh reproducible measurement in BOTH units. Corpus truth: e1 = 10.1210 summed / 3.3737 per-sample; e3=e7 = 10.1350 / 3.3783 - about 16.9 percent above JXL parity at e1; net -8.21 pct bytes vs e7 baseline (11.026 / 3.675) after arithmetic correction in E-series research (was -9.1, derivation stamped in research doc).
-- **OWNER MANIAC DIRECTIVE (2026-08-25T08:01:41Z, on #131 - DIRECTS RESUMPTION):** continue MANIAC until target results are achieved regardless of architectural/design change magnitude. Try everything - research new approaches, experiment with different architectures, redesign components when necessary, keep iterating and benchmarking until target. Recorded as standing instruction: we do not stop working on this project until we achieve the target results. Supersedes the prior OWNER DECISION POINT park (RESOLVED 2026-08-24T19:39Z, ANSWERED 2026-08-25T07:31Z) which had paused dispatches pending ruling. D4 stretch COMPLETE was the park point; now E-series RESEARCH->ARCHITECT DONE, BUILDER E0 pending. **Retry note 08:06Z:** same directive, first research attempt (32824762955, 08:04:41Z) died to transient `Endpoint is unavailable` - retry dispatched 08:06Z per ladder (once, then lab escalation).
+- **OWNER MANIAC DIRECTIVE (2026-08-25T08:01:41Z, on #131 - DIRECTS RESUMPTION):** continue MANIAC until target results are achieved regardless of architectural/design change magnitude. Try everything - research new approaches, experiment with different architectures, redesign components when necessary, keep iterating and benchmarking until target. Recorded as standing instruction: we do not stop working on this project until we achieve the target results. Supersedes the prior OWNER DECISION POINT park (RESOLVED 2026-08-24T19:39Z, ANSWERED 2026-08-25T07:31Z) which had paused dispatches pending ruling. D4 stretch COMPLETE was the park point; now E-series RESEARCH->ARCHITECT DONE, BUILDER E0 pending.
 - **OWNER STOP (19:20:10Z, on #141):** halt the workflows-permission approach; verify against GitHub's real permission model. HONORED: #141 closed 19:34:13Z; `workflows` is NOT among the 16 valid GITHUB_TOKEN scopes. RE-AFFIRMED: #143 premise corrected to PAT-backed path per LAB.md:73 (now closed via #144 merge).
 - **#134 HOLD (12:07:26Z):** stays draft; largely superseded by main's direct model switches; owner decides disposition.
 
@@ -19,38 +19,38 @@
 - **Shallow-clone caveat resolved:** sweep now has full history; `git merge-base origin/main origin/opencode/lab-137...` succeeds (was shallow-skip 08:04Z), diff correctly shows 5 workflow files.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **`main` = `c4c3f5f59d3387fb1820bcc34a757e39cfdb15e5` LIVE** (ls-remote verified 08:40Z, `gh api pulls/139 --jq .merged` true, `gh api pulls/144 --jq .merged` true, `gh api issues/143 --jq .state` closed, `gh api issues/137 --jq .state` closed, `gh api issues/138 --jq .state` closed after #139 merge). HEAD on main = `c4c3f5f` (lab: convert recover approval steps...). Verify: `gh api .../contents/.github/workflows/maintainer.yml?ref=main | grep -n "PAT-backed"` = 442, `wc -l` ~632.
-- **Model watch:** openrouter/muse-spark active; research+architect at 08:28Z-08:39Z clean (2 E-series commits). Prior transient `Endpoint is unavailable` at 08:06:30Z (run 32824762955) - single strike cleared. Build dispatches at 08:39:33Z/08:39:56Z cancelled with zero jobs (concurrency race, not model) - one retry dispatched now, second strike would still escalate to lab per ladder.
+- **`main` = `c4c3f5f59d3387fb1820bcc34a757e39cfdb15e5` LIVE** (ls-remote verified 08:50Z, `gh api pulls/139 --jq .merged` true, `gh api pulls/144 --jq .merged` true, `gh api issues/143 --jq .state` closed, `gh api issues/137 --jq .state` closed, `gh api issues/138 --jq .state` closed after #139 merge). HEAD on main = `c4c3f5f` (lab: convert recover approval steps...). Verify: `gh api .../contents/.github/workflows/maintainer.yml?ref=main | grep -n "PAT-backed"` = 442, `wc -l` ~632.
+- **Model watch:** openrouter/muse-spark active; research+architect at 08:28Z-08:39Z clean (2 E-series commits). Transient `Endpoint is unavailable` hit builder run 32828171812 at 08:44:37Z (AI_APICallError, provider Console upstream) - auto-retry 1 dispatched as 32828340368 now in_progress (no Endpoint error yet in logs, 3m+ elapsed). Prior build dispatches at 08:39Z cancelled with zero jobs (concurrency race, not model) already resolved. One infra retry has been used; second consecutive model failure would escalate to lab per ladder.
 
 ## IN FLIGHT
-- **PR #131** - OPEN CLEAN head `c1430ebb04ddf6dff45bde61cd11f7ace43efd02` (`opencode/issue130-20260823163248`, 73 ahead / 0 behind main `c4c3f5f`, merge_base `c4c3f5f` shared, MERGEABLE/CLEAN). 73 commits of Prism work (D-series 66 + recover 1 + E-series 6). E-series research DONE (gap A/B/C/D, M-A/M-B/M-C, E1-E4, `research-e-series-endgame.md`) + Architect E-series DONE (blocking E0 spine, ext registry, decision tree, `architecture-jxl-parity-eseries.md`, blueprint 82b399b+c1430eb). **BUILD RE-DISPATCHED 08:40Z via `{"action":"build","pr":131}`** for E0 harness (spec addendum 14, --orinit/--props, OA-order/OA-corrupt/PC-mon) after two cancelled dispatches (32827764010 at 08:39:35Z, 32827792929 at 08:39:56Z, both zero jobs). Pending maintainer 32827826261 queued behind this run will stand down.
-- **Research runs:** architect run 32826797979 success 08:28:33Z-08:39:31Z; build runs cancelled as above - now retried.
+- **PR #131** - OPEN CLEAN head `c1430ebb04ddf6dff45bde61cd11f7ace43efd02` (`opencode/issue130-20260823163248`, 73 ahead / 0 behind main `c4c3f5f`, merge_base `c4c3f5f` shared, MERGEABLE/CLEAN). 73 commits of Prism work (D-series 66 + recover 1 + E-series 6). E-series research DONE (gap A/B/C/D, M-A/M-B/M-C, E1-E4, `research-e-series-endgame.md`) + Architect E-series DONE (blocking E0 spine, ext registry, decision tree, `architecture-jxl-parity-eseries.md`, blueprint 82b399b+c1430eb). **BUILD RETRY IN_PROGRESS 32828340368 via `{"action":"build","pr":131}` (auto-retry 1 after 32828171812 Endpoint failure)** for E0 harness (spec addendum 14, --orinit/--props, OA-order/OA-corrupt/PC-mon). Do not re-dispatch until this run completes or fails with verified push/no-push.
+- **Research runs:** architect run 32826797979 success 08:28:33Z-08:39:31Z; builder 32828171812 hit transient Endpoint error (logged AI_APICallError x2 at 08:44:37Z/08:44:43Z) but workflow marked success despite no push - head unchanged c1430eb; retry 32828340368 now in_progress.
 - **PR #139 / #144** - MERGED (see above). No open infra PRs.
 
 ## PIPELINE POSITION (#130 + infra)
-research E-series DONE (2026-08-25T08:28Z) -> architect E-series DONE (2026-08-25T08:39Z) -> **BUILDER E0 DISPATCHED 08:40Z** -> (next: Builder E0 harness -> E1-E4 gated interventions -> review round 3 -> test -> maintainer). Infra track: #139/#144 MERGED to c4c3f5f (PAT sweep live). Owner MANIAC continues.
+research E-series DONE (2026-08-25T08:28Z) -> architect E-series DONE (2026-08-25T08:39Z) -> **BUILDER E0 RETRY IN_PROGRESS (32828340368)** -> (next: verify push - head advances past c1430eb, progress E0 checklist, gtests/fuzz PASS, both-unit gatesmeasured -> review round 3 -> test -> maintainer). Infra track: #139/#144 MERGED to c4c3f5f (PAT sweep live). Owner MANIAC continues.
 
 ## NEXT-RUN PLAYBOOK
-1. **Verify Builder E0:** after opencode build run, `gh api pulls/131 --jq .head.sha` should advance past c1430eb, `gh pr view 131 --json mergeable_state` CLEAN, `progress/130-prism-true-jxl-parity.md` E-series checklist shows E0 complete with harness modes, `git log --oneline origin/opencode/issue130-20260823163248 -n 5` shows builder commits, gtests/fuzz PASS, both-unit gates measured. If build run cancels with zero jobs again (same concurrency race), next sweep escalates to Lab Engineer as infra debounce with both run IDs (32827764010 + new) - no third blind fire.
+1. **Verify Builder E0 retry:** after opencode build run 32828340368 completes, `gh api pulls/131 --jq .head.sha` should advance past c1430eb if push succeeded, `gh pr view 131 --json mergeable_state` CLEAN, `progress/` E-series checklist shows E0 complete with harness modes, `git log --oneline origin/opencode/issue130-20260823163248 -n 5` shows builder commits, gtests/fuzz PASS, both-unit gates measured. If run 32828340368 also hits `Endpoint is unavailable` / `AI_APICallError`, that is second consecutive model failure -> escalate to Lab Engineer via `{"action":"lab"}` to switch failing model per ladder (check `curl -s https://opencode.ai/zen/v1/models` for next best free, update `.github/workflows/*.yml` model + `opencode.json` model/small_model). If it succeeds but head unchanged (silent no-op), trigger diagnose step should auto-heal; if not, dispatch `/oc continue`.
 2. **Re-dispatch research/architect only if Builder E0 demands re-scope:** otherwise continue Builder E1-E4 per decision tree. Review/Test take next phase boundary after E0/E1.
 3. **PR #131 merge freeze:** still blocks merge until dual-unit M2 AND M3 pass (10.1210/3.3737 vs 9.498/3.166). Owner MANIAC overrides park - keep iterating. No ideate (board frozen).
-4. **Verify no duplicate maintainer triggers:** pending run 32827826261 should find build already dispatched and stand down with empty decision; do not fire duplicate build if one is already in_progress.
+4. **Verify no duplicate maintainer triggers:** this schedule run stands down with empty decision while build is in_progress; next run should not fire duplicate build if 32828340368 still running.
 5. **Main integrity guard:** pre-agent sha c4c3f5f; PAT sweep live - guard auto-restores if main ever diverges/orphans.
 
 ## ISSUES
-- **#130** - sole workstream (Prism); carried by PR #131 branch `opencode/issue130-20260823163248` head c1430eb (73 ahead), E-series research+architect DONE, builder E0 dispatched. Dual-unit M2/M3 still FAIL (10.1210/3.3737 vs required), ~16.9 pct above parity.
+- **#130** - sole workstream (Prism); carried by PR #131 branch `opencode/issue130-20260823163248` head c1430eb (73 ahead), E-series research+architect DONE, builder E0 retry in_progress (32828340368). Dual-unit M2/M3 still FAIL (10.1210/3.3737 vs required), ~16.9 pct above parity.
 - **#137 + #138** - CLOSED 2026-08-25T08:10:21Z via #139 merge (Closes linkage).
 - **#143** - CLOSED 2026-08-25T07:50Z via #144 merge.
 - **#144** - MERGED 2026-08-25T07:50Z to main 9cebba3.
 - **#139** - MERGED 2026-08-25T08:10:21Z to main c4c3f5f.
-- **#131 (PR)** - OPEN CLEAN head c1430eb (73 ahead / 0 behind c4c3f5f, merge_base c4c3f5f, architect E-series complete, build E0 re-dispatched).
+- **#131 (PR)** - OPEN CLEAN head c1430eb (73 ahead / 0 behind c4c3f5f, merge_base c4c3f5f, architect E-series complete, build E0 retry in_progress 32828340368).
 - **#70 (Lab Health)** - universal audit log.
 - **#42 (Brainstorm Board)** - OPEN but FROZEN by owner directive (Prism priority until parity).
 
 ## OPEN QUESTIONS
-- Will Builder E0 land cleanly (harness + pre-registered gates before any format byte) or reveal that E1-E4 need re-derivation?
+- Will Builder E0 retry (32828340368) land cleanly (harness + pre-registered gates before any format byte) or hit the same Endpoint failure and force a model switch via lab?
 - Will the re-dispatched MANIAC build produce genuinely new levers after E-series, or reveal deeper pipeline surgery is required?
-- Does muse-spark remain stable for pending builder loops, or will dispatch race recur (second strike triggers lab escalation)?
+- Does muse-spark remain stable for pending builder loops, or will the Endpoint-transient recur (second strike triggers lab escalation per ladder)?
 - Will #134 draft be kept or closed after E-series produces new architecture?
 
 ## STANDING LESSONS (in force)
