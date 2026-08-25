@@ -974,7 +974,15 @@ per-sample < 3.117 bpp => proceed-to-format. Below: stop-and-report.
 - Before V3: frozen extended-property list + tree feature set.
 - Before V5 (only if opened): squeeze parent-property conditioning constants.
 
-STATUS: none yet - this addendum pre-registers constants only; measured
-verdicts will be recorded as later STATUS sections.
+STATUS 2026-08-25 (V-series slice 2 readout): V1 measured on the pinned quad
+(`benchmarks/results/2026-08-25-sandbox-v1.csv`; pins verified pre-measure;
+structural readings in decisions/builder/2026-08-25T21-30-00 BEFORE it):
+V1a oracle bound PASS (+74.60 pct best median, freebie-dominated - reported
+map_rep exceeds the explained gain), V1b realistic maps FAIL (best median
++5.81 pct, ZFFCTRL x KFLAT16 with every side-info byte NETTED, vs retention
+bar +37.30). Overall V1 FAIL => STOP rule fired per decision tree row 1.
+NO winning configuration is reserved for later phases and no wall-clock
+budget transfers forward; V2/V3/V4 do not open without an owner-directed
+pivot decision. Zero container bytes were spent at any point.
 
 - the Architect

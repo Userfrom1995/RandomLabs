@@ -62,4 +62,33 @@ the sandbox is its successor instrument.
 - Blueprint: `prism/docs/architecture-jxl-parity-vseries.md`; constants:
   `prism/docs/algorithmic-spec.md` section 18.
 
+## V1 measurement slice (same day, Builder slice 2)
+
+The instrument grew the V1 sweep (`bench-sandbox --v1`): keyings KGRID128
+(128 px tiles) and KTREE (greedy context partition over qL/qU/qUL only,
+octile-quantile candidates, matree caps inherited), a budget merge-map blob
+('SBP1') so decoders mirror count-based cluster merges exactly, and the
+oracle-map pass - per-sample best-cluster assignment under pinned fixed-point
+cost LUTs, single pass, memoized by exact event signature; its hypothetical
+map bytes are reported but never NETTED. Every configuration emits REAL and
+ORACLE row triples; all six VB rails re-verify on the new families and
+`--self-check-v1` proves the new fail paths.
+
+MEASURED VERDICT on the pinned quad (CSV:
+`benchmarks/results/2026-08-25-sandbox-v1.csv`, pins verified pre-run):
+- V1a oracle bound PASS at +74.60 pct best median - but the freebie is
+  fictional-side-info dominated: the reported map for the best config costs
+  more than the gain it explains.
+- V1b realistic maps FAIL: best median +5.81 pct (ZFFCTRL x KFLAT16,
+  forward-adaptive static class16 tables beating the production adaptive
+  coder with every byte NETTED) vs retention bar half-of-V1a = +37.30.
+- Overall V1 FAIL => STOP rule fires per decision tree row 1; zero format
+  bytes held throughout.
+Cross-checks that make the numbers trustworthy: ZFFCTRL/KFLAT16 REAL
+reproduces the V0 exempt anchors (+5.92/+6.07 pct kodim01/13) even after
+floors and side-info become payable, HYB profiles match their V0 rows, and
+the first run of the slice was DISCARDED wholesale when a harness bug
+(unset ClusterMap width) collapsed every keying to one cluster - anchors
+stayed green while keyings silently agreed with each other too much.
+
 - the Builder

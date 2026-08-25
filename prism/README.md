@@ -127,22 +127,25 @@ offline instrument, deliberately separate from the frozen bench-ideal, that
 scores clustered-static coding of the production residual streams under
 tokenization profiles (ZFFCTRL control plus HYB escape ladders T_ESC =
 4/8/16 with zigzag fold and first-class ZERO token), keyings (KSHARED /
-KFLAT16 / KFLAT343; grid and tree arrive at V3 against the same interface),
-and backends (B-IDEAL exact static ideal, B-RANS interleaved-static rANS,
-B-BAC binary arithmetic; B-ADAPT production control). Everything here is
-FORMAT-UNWIRED: zero container bytes until a V4 PASS. Per-image smoothed
-tables (pseudo-count 32, r = 15/16, normalized to 2^12, cluster caps K <=
-256 with 4096-sample floors) serialize hierarchically with CRC32 protection,
-and every row carries joint NET accounting (payload + tables + maps +
-trees, invariant I12). Feed it through `benchmarks/probe_sandbox.sh`, which
-verifies SHA256 pins, writes the dated phase CSV, and enforces the six VB
-rails: bit-for-bit anchors against the committed bench-ideal references on
-all four probe images (both the frozen walk AND the sandbox counting path),
-a +0.50 percent coder-fidelity bound of each real backend against its own
-B-IDEAL row, double-count side-info audit, corrupt-injection failability,
-both-direction clustering rank fixtures, and byte-identical determinism -
-each proven able to FAIL by `--self-check`. Reference CSV:
-`benchmarks/results/2026-08-25-sandbox-v0.csv`.
+KFLAT16 / KFLAT343; V1 adds KGRID128 position tiles and KTREE, a learned
+context partition over qL/qU/qUL inheriting matree caps), and backends
+(B-IDEAL exact static ideal, B-RANS interleaved-static rANS, B-BAC binary
+arithmetic; B-ADAPT production control). Everything here is FORMAT-UNWIRED:
+zero container bytes until a V4 PASS. Per-image smoothed tables (pseudo-count
+32, r = 15/16, normalized to 2^12, cluster caps K <= 256 with 4096-sample
+floors) serialize hierarchically with CRC32 protection, and every row carries
+joint NET accounting (payload + tables + maps + trees, invariant I12).
+`--v1` runs the slice-2 measurement sweep: every configuration is scored as
+a REAL row (deterministic keying with the 'SBP1' budget merge-map and any
+'SBT1' tree blob fully NETTED) plus an ORACLE twin (per-sample best-cluster
+assignment under pin V-P4; map free but reported in dedicated columns), and
+the evaluator prints the pre-registered V1a/V1b gate verdicts (addendum 18.1,
+per-image medians primary per I10). Feed it through
+`benchmarks/probe_sandbox.sh --v1`, which verifies SHA256 pins, writes the
+dated phase CSV (`...sandbox-v1.csv`), re-enforces all six VB rails on the
+new row families, and proves its own failability via `--self-check-v1`.
+Reference CSVs: `benchmarks/results/2026-08-25-sandbox-v0.csv` (V0 spine)
+and `benchmarks/results/2026-08-25-sandbox-v1.csv` (V1 measurement).
 
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,

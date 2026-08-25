@@ -433,25 +433,55 @@ and locate where the gap lives before any blueprint.
       interleaved-static rANS extension, probe_sandbox.sh with all six VB
       rails + failable self-checks, dated reference CSVs under
       benchmarks/results/. Zero container bytes by construction.
-- [ ] V1..V4 measurement phases per the spec gates (zero format bytes
-      until V4 passes).
+- [x] V1 measurement slice (Builder slice 2; blueprint section 6 + pins
+      V-P1..V-P8 in decisions/builder/2026-08-25T21-30-00, committed BEFORE
+      any measurement): COMPLETE 2026-08-25. Machinery: ClusterMap
+      resolution layer; KGRID128 tiles; KTREE = greedy context partition
+      over qL/qU/qUL ONLY (octile-quantile candidates weighted by per-
+      context samples, matree caps depth<=10/leaves<=256 inherited,
+      4096-sample floor binding both split sides, fixed scan order, strict
+      max gain, DFS preorder leaves); 'SBT1' tree blob and 'SBP1' budget
+      merge-map blob so decoders mirror count-based merges exactly; oracle
+      pass = per-sample best-cluster assignment under pinned fixed-point
+      cost LUTs, single pass, memoized by exact event signature, recount
+      WITHOUT enforcement, tables fully transmitted, map FREE but reported.
+      Sweep: 4 profiles x 3 keyings x 3 backends x {REAL, ORACLE} x quad =
+      288 V1 rows + control/bracket/anchor rows; all six VB rails green on
+      the new families (fidelity 192 rows within bound, net-audit 288 rows
+      incl. oracle freebie exclusion); --self-check-v1 proves the new fail
+      paths; determinism byte-identical; wall-clock 147x bench-ideal
+      recorded per V-P8 (A3 precedent).
+      MEASURED VERDICT: V1a PASS (+74.60 pct best median, HYB-A x KTREE;
+      freebie-dominated - the hypothetical map costs more than the gain it
+      explains). V1b FAIL (best median +5.81 pct, ZFFCTRL x KFLAT16 with
+      every side-info byte NETTED: tables ~2.9 KB + merge-map 26 B;
+      per-image +5.92/+6.08/+5.69/+3.20) vs retention bar half-of-V1a
+      (+37.30). **Overall V1 FAIL => STOP rule fired, decision tree row 1:
+      bucket B1 closed-with-numbers - harvestable only at ~5.8 pct via
+      forward-adaptive static class16 tables, far under the pre-registered
+      bar; owner to be informed BEFORE any pivot blueprint commits.**
+      Cross-checks: ZFFCTRL/KFLAT16 REAL reproduces the V0 exempt anchors
+      after floors+side-info become payable; HYB rows match V0 references.
+      The slice's FIRST run was discarded wholesale when a harness bug
+      (unset ClusterMap width collapsed every keying to one cluster) was
+      caught by cross-instrument agreement checks before any verdict was
+      recorded; fix committed separately, no number from that run survives.
+      Zero container bytes by construction. Evidence CSV:
+      benchmarks/results/2026-08-25-sandbox-v1.csv.
+- [ ] V-series continuation SUSPENDED at the V1 gate: V2/V3/V4 do not open
+      without an owner-directed pivot decision (decision tree row 1).
 
 ## Current step
 
-PRISM V2 V1 MEASUREMENT SLICE IN FLIGHT (2026-08-25): structural pins
-V-P1..V-P8 committed BEFORE any measurement (`.github/agents/decisions/
-builder/2026-08-25T21-30-00-v1-measurement-pins.md`: KGRID-128 geometry,
-context-tree builder inheriting matree caps over qL/qU/qUL only, SBT1/SBP1
-blob formats incl. the budget merge-map that keeps decoders consistent,
-oracle cost model + single-pass assignment, NETTing rules, gate reading).
-Next: ClusterMap machinery + tree/oracle implementation + unit tests, then
-`bench-sandbox --v1`, probe rails, and the pinned-quad measurement with
-honest V1a/V1b verdicts. STOP rule binding on miss. Zero format bytes until
-a V4 PASS.
-
-V0 record (2026-08-25): sandbox spine landed with all six VB rails green,
-fail-capable self-check, and the dated reference CSV
-(2026-08-25-sandbox-v0.csv) committed.
+PRISM V2 V1 GATE READOUT COMPLETE (2026-08-25): instrument extended and
+validated, sweep measured on the pinned quad, verdicts recorded above.
+V1b FAILED the pre-registered retention bar => STOP rule fired; bucket B1
+closed-with-numbers (~5.8 pct realistic best vs >= 37.30 required
+retention). Per the binding decision tree, the OWNER is informed BEFORE
+the Architect re-engages for any pivot blueprint (source-side-only pivot
+is the default candidate); Mae routes this handoff. No further build
+phases are authorized on this program until that decision lands. Zero
+format bytes were spent anywhere in the V-series so far.
 
 v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
@@ -567,6 +597,27 @@ Previous slice summary (continuation run 3, C2b):
     honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
 
 ## Agent log
+
+- 2026-08-25 the Builder (V1 measurement slice): executed slice 2 to its
+  gate readout. (1) Pins V-P1..V-P8 committed BEFORE any measurement
+  (grid geometry, context-tree definition, SBT1/SBP1 blob formats, oracle
+  cost model, NETTing rules, gate reading, wall-clock accounting). (2)
+  Machinery: ClusterMap, KGRID128, KTREE context partition (86 leaves on
+  kodim01 - real splits), oracle assignment with fixed-point LUTs and
+  signature memoization; seven new unit tests (118/118 green). (3) CLI
+  `--v1` sweep + probe rails/gates + `--self-check-v1`; both self-checks
+  PASS. (4) Harness integrity: the first quad run was DISCARDED when
+  cross-checks showed every keying producing byte-identical payloads -
+  root cause was an unset ClusterMap width making all samples resolve as
+  position (0,0); fixed and re-measured from scratch (same discipline as
+  the V0 TOKEN-spill find: anchors alone could not catch it because they
+  bypass ClusterMap). Also fixed a latent V0-era inconsistency by making
+  budget merges decoder-visible through the transmitted SBP1 map. (5)
+  MEASURED VERDICT: V1a PASS / V1b FAIL => overall V1 FAIL, STOP rule
+  fired; best realistic config ZFFCTRL x KFLAT16 at +5.81 pct median NET
+  with everything payable included. Zero container bytes. Handoff
+  {"action":"maintainer"}: owner informs the pivot decision before any
+  Architect re-engagement.
 
 - 2026-08-25 the Builder (V0 completion slice): landed the sandbox spine to
   its exit condition. (1) Engine integrity first: wiring the fidelity
