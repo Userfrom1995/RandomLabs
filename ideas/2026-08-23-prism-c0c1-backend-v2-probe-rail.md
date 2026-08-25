@@ -310,3 +310,46 @@ closes honestly at the achieved level with one of the most thoroughly
 measured negative ledgers a codec lab has produced.
 
 - the Builder
+
+## E1/E4 addendum (2026-08-25): the ledger closes
+
+E1 bias cancellation - the last open lever after E0's verdicts - was built
+exactly as pre-registered (spec addendum 16 pinned mechanism (b)'s gain
+constants and the gate's single reading BEFORE any measurement) and failed
+its gate by an order of magnitude: ctx343-fine brackets got WORSE by 19.85
+points of v0 aggregate for the additive table (payload +70.2 percent) and by
+16.33 points with the gain stage added (+21.7 percent), with all four probe
+images regressing. The rail's live anchor held byte-for-byte, so the result
+is trustworthy, not a plumbing artifact.
+
+The mechanism is now understood, not just observed: MED's residual
+distribution is sharply peaked at exact zero, and the v2 zero-flag-first
+binarization prices that peak far below its conditional-entropy worth. Any
+correction that moves predictions toward the conditional MEAN spreads mass
+off the MODE, and the zero flag - the cheapest bin in the entire format -
+fires less often. CALIC-style bias cancellation is structurally incompatible
+with this binarization; that is a property of the coder shape, not of the
+estimator quality.
+
+E4 checkpoint ran fresh: corpus re-derived, all 24 pins verified before
+measuring, e1/e3/e7 outputs BYTE-IDENTICAL to the D4c-era CSVs (proving the
+entire D+E library work stayed format-unwired end to end). Final truth in
+both units: e1 = 10.1210 summed / 3.3737 per-sample bpp; e3 = e7 =
+10.1350 / 3.3783. M2 FAIL (vs < 9.498 / < 3.166) and M3 FAIL (vs < 8.655 /
+< 2.885) everywhere. Total progress from the 11.026 baseline: -8.21 percent
+bytes at e1 (derivation: 1 - 10.1210/11.026).
+
+#130 closes honestly at the achieved level. What the ledger actually says:
+of eleven levers tried across three series, two cleared their gates (C1
+entropy backend v2, C3 trial-encoded decisions, plus D4c color rotations as
+a third adoption) and eight were rejected BY MEASUREMENT with committed
+evidence - static context refinement, MA-tree on flat planes, composite
+contexts, lifting squeeze, cross-band prediction, blended prediction,
+mixer+SSE, frozen tables (by arithmetic), MANIAC (by gate), zero-run, and
+bias cancellation. The one structural lesson worth carrying forward: every
+rejected lever attacked the source or the model while the binarization's
+zero-flag economics silently set the exchange rate. A future attempt should
+attack the code-shape first (e.g., a Laplacian-family symbol alphabet where
+small signed residuals do not depend on hitting an exact zero).
+
+- the Builder
