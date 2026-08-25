@@ -19,7 +19,8 @@ enum class KeyingId : uint8_t {
     KFLAT16 = 1,
     KFLAT343 = 2,
     KGRID128 = 3,
-    KTREE = 4
+    KTREE = 4,
+    KPROP = 5
 };
 
 int keying_cluster_count(KeyingId k);   // nominal count (grid/tree: see below)
@@ -38,6 +39,46 @@ constexpr uint32_t RANS_NS = 4;
 // KGRID128 tile edge (pin V-P1): tiles are 128 x 128 pixels.
 constexpr uint32_t GRID_TILE = 128;
 
+// ----- S3 extended causal properties (addendum 19.4; pins P-S3-1..P-S3-12
+// in decisions/builder/2026-08-25T23-00-00 BEFORE any measurement) -----
+//
+// Flat hashed keying over the frozen P_ext property list. The hasher is an
+// INCREMENTAL causal object: it consumes the residual stream in raster
+// order and answers per-sample raw cluster ids from prior samples only,
+// so a decoder running a fresh hasher over its decoded history reproduces
+// the encoder's sequence exactly (prefix-invariant by construction; pinned
+// unit tests bind determinism, prefix-invariance, decode-mirror equality).
+
+struct PropSpec {
+    bool qW = false, qN = false, qNW = false, qNE = false;  // quotients
+    bool gbW = false, gbN = false;   // CALIC gradient magnitude buckets
+    bool plane = false;              // plane id coordinate
+    bool emax = false;               // e_max_prev bucket per 18.4
+    bool any() const {
+        return qW || qN || qNW || qNE || gbW || gbN || plane || emax;
+    }
+};
+
+class PropHasher {
+public:
+    // spec must enable at least one coordinate; bd_shift = bd - 8.
+    PropHasher(uint32_t w, uint32_t h, uint32_t plane_id,
+               const PropSpec& spec, int k_raw, int bd_shift);
+    // Causal raw cluster id of sample idx from hist[0..idx) (the caller
+    // walks i = 0..n-1 exactly once per hasher instance).
+    uint32_t at(size_t idx, const std::vector<int32_t>& hist);
+    int k_raw() const { return k_raw_; }
+
+private:
+    uint32_t octile_bucket(int which, int32_t v);   // quotient coords 0..6
+    uint32_t w_, h_, plane_id_;
+    PropSpec spec_;
+    int k_raw_;
+    int bd_shift_;
+    uint32_t counts_[4][7];   // qW,qN,qNW,qNE histograms over seen values
+    uint64_t totals_[4];
+};
+
 // ----- Cluster resolution -----
 //
 // One place that turns (sample index, decoded history) into the FINAL
@@ -53,6 +94,7 @@ struct ClusterMap {
     const std::vector<uint32_t>* ctx_leaf = nullptr;  // KTREE: [343]
     const std::vector<uint32_t>* merge = nullptr;     // raw -> final ('SBP1')
     const uint32_t* explicit_map = nullptr;           // EXPLICIT: per sample
+    PropHasher* hasher = nullptr;                     // KPROP: live hasher
 
     // Raw (pre-merge) cluster id from the keying definition.
     uint32_t raw_at(size_t idx, const std::vector<int32_t>& hist) const;
@@ -63,6 +105,10 @@ struct ClusterMap {
 ClusterMap cluster_map_keyed(KeyingId k);
 ClusterMap cluster_map_grid(uint32_t w);
 ClusterMap cluster_map_tree(const std::vector<uint32_t>& ctx_leaf,
+                            const std::vector<uint32_t>& merge);
+// KPROP: the hasher is owned by the CALLER; every counting/coding pass
+// must run against a FRESH hasher instance (state advances per sample).
+ClusterMap cluster_map_prop(PropHasher* hasher, uint32_t w,
                             const std::vector<uint32_t>& merge);
 ClusterMap cluster_map_explicit(const uint32_t* per_sample);
 

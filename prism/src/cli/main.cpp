@@ -45,7 +45,8 @@ static void print_usage() {
               << "  prism bench-sandbox <image>... [--profile LIST] [--backend LIST]\n"
               << "      [--keying LIST] [--inject LIST]\n"
               << "  prism bench-sandbox --v1 <image>...   (V-series sweep)\n"
-              << "  prism bench-sandbox --s1 <image>...   (S-series dual-frame predictors)\n";
+              << "  prism bench-sandbox --s1 <image>...   (S-series dual-frame predictors)\n"
+              << "  prism bench-sandbox --s3 <image>...   (S-series extended causal properties)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -927,6 +928,7 @@ static std::vector<std::string> split_list(const std::string& s) {
 namespace sandboxrun {
 static void run_v1_image(const std::filesystem::path& img);
 static void run_s1_image(const std::filesystem::path& img);
+static void run_s3_image(const std::filesystem::path& img);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -963,6 +965,18 @@ static int run_bench_sandbox(int argc, char** argv) {
                 return 2;
             }
             for (const auto& img : imgs) sandboxrun::run_s1_image(img);
+            return 0;
+        }
+        if (a == "--s3") {
+            // S-series slice P2 extended causal properties sweep (spec
+            // addendum 19.4/19.5; pins P-S3-1..12 BEFORE any measurement).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --s3: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_s3_image(img);
             return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
@@ -1719,7 +1733,246 @@ void run_s1_image(const std::filesystem::path& img) {
 
 } // namespace sandboxrun
 
+namespace sandboxrun {
 
+// ----- bench-sandbox --s3 (S-series slice P2; spec addendum 19.4/19.5 +
+// pins P-S3-1..P-S3-12 in decisions/builder/2026-08-25T23-00-00) -----
+//
+// Extended causal properties over the frozen P_ext list: flat hashed
+// keying (FNV-1a word mixer), K <= 256 raw clusters with inherited caps/
+// floors ('SBP1' merge map NETTED), NO spatial maps or trees anywhere.
+// FRAME-S only (blueprint scope note); baseline is the same-stack
+// best-flat-16 spine measured fresh in-run; gate arithmetic lives in the
+// shell evaluator (median >= +1.5 pct => PASS, else flat-16 ships).
+
+struct S3Variant {
+    const char* name;
+    PropSpec spec;
+};
+
+std::vector<S3Variant> s3_variant_list() {
+    // Pin P-S3-8: pre-named variants only; no post-hoc additions.
+    return {
+        {"SX-FULL", [] {
+             PropSpec s;
+             s.qW = s.qN = s.qNW = s.qNE = true;
+             s.gbW = s.gbN = true;
+             s.plane = true;
+             s.emax = true;
+             return s;
+         }()},
+        {"SX-Q", [] {
+             PropSpec s;
+             s.qW = s.qN = s.qNW = s.qNE = true;
+             return s;
+         }()},
+        {"SX-G", [] {
+             PropSpec s;
+             s.qW = s.qN = true;
+             s.gbW = s.gbN = true;
+             return s;
+         }()},
+        {"SX-E", [] {
+             PropSpec s;
+             s.qW = s.qN = s.qNW = s.qNE = true;
+             s.emax = true;
+             return s;
+         }()},
+    };
+}
+
+void emit_s3_row(const std::string& img_name, const char* variant, int kraw,
+                 const char* backend, uint64_t payload, uint64_t tables,
+                 uint64_t maps, uint64_t trees, bool audit_ok, bool rt,
+                 double tbl_bits) {
+    char rowbuf[512];
+    const uint64_t net = payload + tables + maps + trees;
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "S3,%s,S,%s,%d,%s,%zu,%zu,%zu,%zu,%zu,%d,%d,%.3f\n",
+                  img_name.c_str(), variant, kraw, backend, (size_t)payload,
+                  (size_t)tables, (size_t)maps, (size_t)trees, (size_t)net,
+                  audit_ok ? 1 : 0, rt ? 1 : 0, tbl_bits);
+    std::cout << rowbuf;
+}
+
+// One variant configuration: causal counting pass, budget enforcement,
+// 'SBP1'-mirrored recount, artifact serialization, B-IDEAL/B-RANS rows.
+void run_s3_variant(const std::string& img_name, TokProfile prof,
+                    const std::vector<std::vector<int32_t>>& ress,
+                    uint32_t w, uint32_t h, int bd_shift,
+                    const S3Variant& var, int k_raw) {
+    SandboxModel m;
+    m.init(prof, k_raw);
+    for (size_t pi = 0; pi < ress.size(); ++pi) {
+        PropHasher hs(w, h, (uint32_t)pi, var.spec, k_raw, bd_shift);
+        ClusterMap cm = cluster_map_prop(&hs, w, {});
+        count_plane(m, prof, cm, ress[pi], nullptr);
+    }
+    const std::vector<uint32_t> merge = apply_cluster_budget(m, true);
+
+    SandboxModel mf;
+    mf.init(prof, k_raw);
+    std::vector<std::vector<TaggedEvent>> evts(ress.size());
+    for (size_t pi = 0; pi < ress.size(); ++pi) {
+        PropHasher hs(w, h, (uint32_t)pi, var.spec, k_raw, bd_shift);
+        ClusterMap cm = cluster_map_prop(&hs, w, merge);
+        count_plane(mf, prof, cm, ress[pi], &evts[pi]);
+    }
+    SmoothedTables tabs;
+    build_tables_enforced(mf, tabs);
+    size_t audit = 0;
+    auto tab_blob = serialize_tables(tabs, &audit);
+    bool audits_ok = (audit == tab_blob.size());
+    auto map_blob = serialize_merge_map((uint32_t)k_raw, merge, &audit);
+    audits_ok &= (audit == map_blob.size());
+
+    double tbl_bits = 0;
+    for (size_t pi = 0; pi < ress.size(); ++pi)
+        tbl_bits += table_ideal_bits(prof, evts[pi], tabs);
+    emit_s3_row(img_name, var.name, k_raw, "B-IDEAL",
+                (uint64_t)std::ceil(tbl_bits / 8.0), tab_blob.size(),
+                map_blob.size(), 0, audits_ok, true, tbl_bits);
+
+    auto dec_merge = deserialize_merge_map(map_blob, (uint32_t)k_raw);
+    uint64_t payload = 0;
+    bool rt = true;
+    for (size_t pi = 0; pi < ress.size(); ++pi) {
+        auto bytes = rans_encode_events(prof, evts[pi], tabs);
+        payload += bytes.size();
+        PropHasher hd(w, h, (uint32_t)pi, var.spec, k_raw, bd_shift);
+        ClusterMap dcm = cluster_map_prop(&hd, w, dec_merge);
+        auto dec =
+            rans_decode_events(prof, dcm, ress[pi].size(), bytes, tabs);
+        if (dec != ress[pi]) rt = false;
+    }
+    emit_s3_row(img_name, var.name, k_raw, "B-RANS", payload,
+                tab_blob.size(), map_blob.size(), 0, audits_ok, rt,
+                tbl_bits);
+}
+
+void run_s3_image(const std::filesystem::path& img) {
+    char rowbuf[512];
+    Raster r = frontend::decode_to_raster(img);
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    const uint32_t h = (w == 0) ? 0 : (uint32_t)(t.planes[0].size() / w);
+    const int bd_shift = (int)to_u8(t.bd) - 8;   // pin P-S3-3
+    const std::string img_name = img.filename().string();
+
+    // Control truth on the MED streams: v0/v2 anchors re-derived fresh so
+    // VB-anchor-adapt / VB-anchor-ideal guard EVERY s3 measurement
+    // (identical emission to s1/v1 modes, pins P-S3-10).
+    std::vector<std::vector<int32_t>> med_ress;
+    med_ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(med_ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(med_ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    {
+        bool rt = true;
+        for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+            auto bytes = acoder_encode_plane_v2(med_ress[pi], w, t.h,
+                                                AC_V2_RESDIFF_CONTEXTS);
+            auto dec = acoder_decode_plane_v2(bytes, med_ress[pi].size(), w,
+                                              t.h, AC_V2_RESDIFF_CONTEXTS);
+            if (dec != med_ress[pi]) rt = false;
+        }
+        double ptsv0 = 100.0 * ((double)v2b - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-ADAPT,KPROD,%zu,0,0,0,%zu,"
+                      "1,%d,0.000,0.000,0.0000,%.4f\n",
+                      img_name.c_str(), v2b, v2b, rt ? 1 : 0, ptsv0);
+        std::cout << rowbuf;
+    }
+    {
+        idealbench::Acc acc;
+        for (auto& res : med_ress) idealbench::walk(res, w, acc);
+        double bctmp[3], bfine[3], bval[3];
+        acc.bits(bctmp, bfine, bval);
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "BRACKET,%s,%zu,%zu,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f\n",
+                      img_name.c_str(), v0b, v2b,
+                      bfine[0], bfine[1], bfine[2],
+                      bval[0], bval[1], bval[2]);
+        std::cout << rowbuf;
+    }
+    for (KeyingId key :
+         {KeyingId::KSHARED, KeyingId::KFLAT16, KeyingId::KFLAT343}) {
+        SandboxModel m;
+        m.init(TokProfile::ZFFCTRL, key);
+        std::vector<std::vector<TaggedEvent>> evts(med_ress.size());
+        for (size_t pi = 0; pi < med_ress.size(); ++pi)
+            count_plane(m, TokProfile::ZFFCTRL, key, med_ress[pi], w,
+                        &evts[pi]);
+        SmoothedTables tabs;
+        build_tables(m, false, tabs);
+        size_t audit = 0;
+        auto blob = serialize_tables(tabs, &audit);
+        const bool audit_ok = (audit == blob.size());
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < med_ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                         tabs);
+        const uint64_t payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+        const double ml = ml_ideal_bits(m);
+        const uint64_t net = payload + blob.size();
+        const double relpct =
+            100.0 * ((double)v2b - (double)net) / (double)v2b;
+        const double ptsv0 =
+            100.0 * ((double)net - (double)v0b) / (double)v0b;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "SANDBOX,%s,ZFFCTRL,B-IDEAL,%s,%zu,%zu,0,0,%zu,"
+                      "%d,1,%.3f,%.3f,%.3f,%.4f\n",
+                      img_name.c_str(), keying_name(key), (size_t)payload,
+                      blob.size(), (size_t)net, audit_ok ? 1 : 0, tbl_bits,
+                      ml, relpct, ptsv0);
+        std::cout << rowbuf;
+    }
+
+    // The same-stack best-flat-16 BASELINE (pin P-S3-9): ZFFCTRL x KFLAT16
+    // static spine over the MED stream, budget-enforced, fully NETTED -
+    // the s1 FRAME-S MED flow unchanged, re-measured fresh in this run.
+    {
+        PreparedConfig cfg;
+        prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16, w,
+                             med_ress, cfg);
+        cfg.plane_residuals = med_ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < med_ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                         cfg.tabs);
+        emit_s3_row(img_name, "KFLAT16", 16, "B-IDEAL",
+                    (uint64_t)std::ceil(tbl_bits / 8.0),
+                    cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                    cfg.art.audits_ok, true, tbl_bits);
+        uint64_t payload = 0;
+        bool rt = true;
+        for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+            auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                            cfg.evts[pi], cfg.tabs);
+            payload += bytes.size();
+            auto dec = rans_decode_events(TokProfile::ZFFCTRL, cfg.cms[pi],
+                                          cfg.plane_residuals[pi].size(),
+                                          bytes, cfg.tabs);
+            if (dec != cfg.plane_residuals[pi]) rt = false;
+        }
+        emit_s3_row(img_name, "KFLAT16", 16, "B-RANS", payload,
+                    cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                    cfg.art.audits_ok, rt, tbl_bits);
+    }
+
+    // The property sweep (pins P-S3-8/P-S3-9): four pre-named variants x
+    // k_raw {64, 256}, FRAME-S only, every side-info byte NETTED.
+    for (const S3Variant& var : s3_variant_list())
+        for (int k : {64, 256})
+            run_s3_variant(img_name, TokProfile::ZFFCTRL, med_ress, w, h,
+                           bd_shift, var, k);
+}
+
+} // namespace sandboxrun
 
 int main(int argc, char* argv[]) {
     if (argc < 2) { print_usage(); return 2; }

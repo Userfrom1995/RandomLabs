@@ -488,3 +488,116 @@ TEST(StaticModelV1, GridDecodeNeedsMergeMapConsistently) {
                                   t);
     EXPECT_EQ(dec, res);
 }
+
+// ----- S3 extended causal properties (pins P-S3-1..P-S3-12) -----
+
+TEST(PropKeying, DeterministicAndInRange) {
+    PropSpec spec;
+    spec.qW = spec.qN = spec.qNW = spec.qNE = true;
+    spec.gbW = spec.gbN = spec.plane = spec.emax = true;
+    const uint32_t w = 37, h = 23;           // awkward border shape
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(7);
+    std::uniform_int_distribution<int32_t> d(-300, 300);
+    for (auto& v : res) v = d(rng);
+    for (int k : {1, 64, 256}) {
+        PropHasher a(w, h, 0, spec, k, 0), b(w, h, 0, spec, k, 0);
+        for (size_t i = 0; i < res.size(); ++i)
+            EXPECT_EQ(a.at(i, res), b.at(i, res)) << "i=" << i << " k=" << k;
+        PropHasher c(w, h, 0, spec, k, 0);
+        for (size_t i = 0; i < res.size(); ++i) {
+            uint32_t id = c.at(i, res);
+            ASSERT_LT(id, (uint32_t)k) << "id out of range i=" << i;
+        }
+    }
+}
+
+TEST(PropKeying, PrefixInvariance) {
+    // Mutating the TRAILING half of the stream must not move a single
+    // earlier assignment: octile edges and neighbor reads touch strictly
+    // past samples only (pin P-S3-6).
+    PropSpec spec;
+    spec.qW = spec.qN = spec.gbW = spec.emax = true;
+    const uint32_t w = 64, h = 64;
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(11);
+    std::uniform_int_distribution<int32_t> d(-500, 500);
+    for (auto& v : res) v = d(rng);
+    PropHasher full(w, h, 2, spec, 64, 0);
+    std::vector<uint32_t> ids_full(res.size());
+    for (size_t i = 0; i < res.size(); ++i)
+        ids_full[i] = full.at(i, res);
+    auto truncated = res;
+    const size_t cut = res.size() / 2;
+    for (size_t i = cut; i < truncated.size(); ++i) truncated[i] = 12345;
+    PropHasher part(w, h, 2, spec, 64, 0);
+    for (size_t i = 0; i < cut; ++i)
+        EXPECT_EQ(part.at(i, truncated), ids_full[i]) << "prefix moved " << i;
+}
+
+TEST(PropKeying, PlaneCoordinateParticipates) {
+    PropSpec on, off;
+    on.qW = off.qW = true;
+    on.plane = true;                          // only difference
+    const uint32_t w = 33, h = 40;
+    std::vector<int32_t> res((size_t)w * h, 17);
+    // Plane disabled: plane_id must not matter anywhere.
+    PropHasher o0(w, h, 0, off, 16, 0), o1(w, h, 7, off, 16, 0);
+    for (size_t i = 0; i < res.size(); ++i)
+        EXPECT_EQ(o0.at(i, res), o1.at(i, res)) << "i=" << i;
+    // Plane enabled: different plane ids diverge somewhere past borders.
+    PropHasher a(w, h, 0, on, 16, 0), b(w, h, 1, on, 16, 0);
+    bool diff = false;
+    for (size_t i = 8; i < res.size(); ++i)   // past the border rows
+        if (a.at(i, res) != b.at(i, res)) { diff = true; break; }
+    EXPECT_TRUE(diff);
+    // All-disabled specs are rejected loudly (pin P-S3-7 mixer contract).
+    PropSpec none;
+    EXPECT_THROW(PropHasher(w, h, 0, none, 16, 0), std::runtime_error);
+}
+
+TEST(PropKeying, DecodeMirrorRoundTripZFFCTRL) {
+    // The binding decoder-mirror test (pin P-S3-11): encode-side events are
+    // tagged through the live hasher; the decode side runs a FRESH hasher
+    // over its growing decoded history and must reproduce identical cluster
+    // sequences, so residuals round-trip byte-for-byte through 'SBP1'.
+    PropSpec spec;
+    spec.qW = spec.qN = spec.qNE = spec.gbW = spec.plane = true;
+    const TokProfile prof = TokProfile::ZFFCTRL;
+    const uint32_t w = 96, h = 24;
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(13);
+    std::uniform_int_distribution<int32_t> d(-2000, 2000);
+    for (auto& v : res) v = d(rng);
+
+    const int k_raw = 64;
+    SandboxModel m;
+    m.init(prof, k_raw);
+    {
+        PropHasher hs(w, h, 1, spec, k_raw, 0);
+        ClusterMap cm = cluster_map_prop(&hs, w, {});
+        count_plane(m, prof, cm, res, nullptr);
+    }
+    auto merge = apply_cluster_budget(m, true);
+    SandboxModel m2;
+    m2.init(prof, k_raw);
+    std::vector<TaggedEvent> evs;
+    {
+        PropHasher hs(w, h, 1, spec, k_raw, 0);   // fresh state per pass
+        ClusterMap cm = cluster_map_prop(&hs, w, merge);
+        count_plane(m2, prof, cm, res, &evs);
+    }
+    SmoothedTables t;
+    build_tables_enforced(m2, t);
+    size_t audit = 0;
+    auto tab_blob = serialize_tables(t, &audit);
+    ASSERT_EQ(audit, tab_blob.size());
+    auto map_blob = serialize_merge_map(k_raw, merge, nullptr);
+    auto payload = rans_encode_events(prof, evs, t);
+
+    auto dec_merge = deserialize_merge_map(map_blob, k_raw);
+    PropHasher hd(w, h, 1, spec, k_raw, 0);
+    ClusterMap dcm = cluster_map_prop(&hd, w, dec_merge);
+    auto dec = rans_decode_events(prof, dcm, res.size(), payload, t);
+    EXPECT_EQ(dec, res);
+}

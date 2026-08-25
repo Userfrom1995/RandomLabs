@@ -11,6 +11,7 @@
 #include "prism/codec/staticmodel.h"
 #include "prism/codec/rans.h"
 #include "prism/codec/acoder.h"
+#include "prism/codec/predict.h"
 #include "prism/crc32.h"
 #include <algorithm>
 #include <array>
@@ -75,6 +76,7 @@ const char* keying_name(KeyingId k) {
         case KeyingId::KFLAT343: return "KFLAT343";
         case KeyingId::KGRID128: return "KGRID128";
         case KeyingId::KTREE: return "KTREE";
+        case KeyingId::KPROP: return "KPROP";
     }
     return "?";
 }
@@ -187,6 +189,10 @@ uint32_t ClusterMap::raw_at(size_t idx,
             if (!ctx_leaf || ctx_leaf->size() < (size_t)cx + 1)
                 throw std::runtime_error("ClusterMap: missing tree map");
             return (*ctx_leaf)[(size_t)cx];
+        case KeyingId::KPROP:
+            if (!hasher)
+                throw std::runtime_error("ClusterMap: missing prop hasher");
+            return hasher->at(idx, hist);
     }
     throw std::runtime_error("ClusterMap: unknown keying");
 }
@@ -227,11 +233,126 @@ ClusterMap cluster_map_tree(const std::vector<uint32_t>& ctx_leaf,
     return cm;
 }
 
+ClusterMap cluster_map_prop(PropHasher* hasher, uint32_t w,
+                            const std::vector<uint32_t>& merge) {
+    ClusterMap cm = cluster_map_keyed(KeyingId::KPROP);
+    cm.hasher = hasher;
+    cm.w = w;
+    cm.merge = &merge;
+    return cm;
+}
+
 ClusterMap cluster_map_explicit(const uint32_t* per_sample) {
     ClusterMap cm;
     cm.kind = ClusterMap::Kind::EXPLICIT;
     cm.explicit_map = per_sample;
     return cm;
+}
+
+// ----- S3 extended causal properties (pins P-S3-1..P-S3-12) -----
+
+namespace {
+
+// e_max_prev bucket per 18.4 verbatim edge table (pin P-S3-5).
+uint32_t emax_bucket(int32_t a) {
+    uint32_t m = (uint32_t)std::abs((long long)a);
+    if (m <= 3) return m;                 // [0],[1],[2],[3]
+    if (m <= 5) return 4;                 // [4-5]
+    if (m <= 7) return 5;                 // [6-7]
+    if (m <= 11) return 6;                // [8-11]
+    if (m <= 15) return 7;                // [12-15]
+    if (m <= 23) return 8;                // [16-23]
+    if (m <= 31) return 9;                // [24-31]
+    if (m <= 63) return 10;               // [32-63]
+    return 11;                            // [64+]
+}
+
+} // namespace
+
+PropHasher::PropHasher(uint32_t w, uint32_t h, uint32_t plane_id,
+                       const PropSpec& spec, int k_raw, int bd_shift)
+    : w_(w), h_(h), plane_id_(plane_id), spec_(spec), k_raw_(k_raw),
+      bd_shift_(bd_shift) {
+    if (!spec_.any())
+        throw std::runtime_error("PropHasher: empty property set");
+    if (k_raw_ <= 0)
+        throw std::runtime_error("PropHasher: bad cluster count");
+    for (int c = 0; c < 4; ++c) {
+        for (int v = 0; v < 7; ++v) counts_[c][v] = 0;
+        totals_[c] = 0;
+    }
+}
+
+uint32_t PropHasher::octile_bucket(int which, int32_t v) {
+    // Edge k = smallest value whose cumulative count reaches k/8 of the
+    // total-so-far, evaluated exactly as cum * 8 >= total * k, deduped
+    // ascending (pin P-S3-6). Bucket of v = #{deduped edges <= v}.
+    const uint64_t total = totals_[which];
+    if (total == 0) return 0;
+    uint32_t bucket = 0;
+    int prev_edge = -1;
+    uint64_t cum = 0;
+    size_t vi = 0;
+    for (int k = 1; k <= 7; ++k) {
+        while (vi < 7 && cum * 8 < total * (uint64_t)k)
+            cum += counts_[which][vi++];
+        const int edge = vi - 1;
+        if (edge == prev_edge) continue;   // duplicate octile value
+        prev_edge = edge;
+        if (edge <= v) ++bucket;
+        else break;                        // later edges are larger
+    }
+    return bucket;
+}
+
+uint32_t PropHasher::at(size_t idx, const std::vector<int32_t>& hist) {
+    const uint32_t x = (w_ == 0) ? 0u : (uint32_t)(idx % w_);
+    const uint32_t y = (w_ == 0) ? 0u : (uint32_t)(idx / w_);
+    auto at_or_zero = [&](int dx, int dy) -> int32_t {
+        // Quotient coordinates use the production context border rule:
+        // missing primaries read 0 (pin P-S3-2). Off-plane reads 0.
+        long long cx = (long long)x + dx;
+        long long cy = (long long)y + dy;
+        if (cx < 0 || cy < 0 || cx >= w_ || cy >= h_) return 0;
+        return hist[(size_t)(cy * w_ + cx)];
+    };
+    const int32_t rW = at_or_zero(-1, 0), rN = at_or_zero(0, -1);
+    const int32_t rNW = at_or_zero(-1, -1), rNE = at_or_zero(1, -1);
+
+    // CALIC gradient pair on the residual stream under amendment A4 with
+    // the P-S1-2 replicated-edge derivation (pin P-S3-3): WW replicates W
+    // when x <= 1, NN replicates N when y <= 1.
+    const int32_t rWW = (x > 1) ? at_or_zero(-2, 0) : rW;
+    const int32_t rNN = (y > 1) ? at_or_zero(0, -2) : rN;
+    const int64_t dh = std::abs((long long)rW - rWW) +
+                       std::abs((long long)rN - rNW) +
+                       std::abs((long long)rNE - rN);
+    const int64_t dv = std::abs((long long)rNW - rW) +
+                       std::abs((long long)rN - rNN) +
+                       std::abs((long long)rN - rNE);
+
+    const int q[4] = {quant_residual(rW), quant_residual(rN),
+                      quant_residual(rNW), quant_residual(rNE)};
+    const bool is_q[4] = {spec_.qW, spec_.qN, spec_.qNW, spec_.qNE};
+
+    uint32_t h = 2166136261u;   // FNV-1a word variant (pin P-S3-7)
+    auto mix = [&](uint32_t v) { h = (h ^ v) * 16777619u; };
+    for (int c = 0; c < 4; ++c) {
+        if (!is_q[c]) continue;
+        mix(octile_bucket(c, q[c]));
+    }
+    if (spec_.gbW) mix(bias_bucket(dh, bd_shift_));
+    if (spec_.gbN) mix(bias_bucket(dv, bd_shift_));
+    if (spec_.plane) mix(plane_id_);
+    if (spec_.emax) mix(emax_bucket(x > 0 ? hist[idx - 1] : 0));
+
+    // Update causal histograms AFTER hashing (strictly past samples only).
+    for (int c = 0; c < 4; ++c) {
+        if (!is_q[c]) continue;
+        ++counts_[c][q[c]];
+        ++totals_[c];
+    }
+    return h % (uint32_t)k_raw_;
 }
 
 size_t SandboxModel::span(int kind) const { return table_span(profile, kind); }
