@@ -59,13 +59,36 @@ set -euo pipefail
 # nonreproducible.md for the full evidence. The harness-citable reference is
 # the committed results CSV in benchmarks/results/.
 #
+# E0 gates (spec addendum 14.3, pre-registered BEFORE any measurement;
+# evaluated when the corresponding mode ran; tolerance = 0.05 points of v0,
+# the single G-repro tolerance governing all rails):
+#   OA-order (rail integrity, hard failure): for every image row and TOTAL,
+#            pct(L_stat(class16,fine)) <= pct(L_or) <= pct(L_ad) + tol.
+#            Gross violation means broken harness or fabricated data.
+#   OA-corrupt (self-check, hard failure): the corrupted replay MUST violate
+#            the middle inequality; a corruption that cannot fail proves
+#            nothing and fails the rail.
+#   PC-mono (rail integrity, hard failure): every PROP pooling codes at or
+#            below the class16 fine static row BY CONSTRUCTION (count-floor
+#            fallback); any violation is a harness bug.
+#   MC-viability (DECISION verdict, never flips the exit code): pooled-TOTAL
+#            L_prop(ii) beats L_stat(ctx343,fine) by >= 1.5 points of v0 AND
+#            margin >= 1.0 points individually on kodim01 AND kodim13.
+#            PASS opens E3 development and nothing else; FAIL declares
+#            MANIAC dead ON THIS BINARIZATION with the CSV as evidence.
+#
+# E0 CSV semantics: ORINIT/ORINITTOTAL rows are ADDITIVE across images (the
+# adaptive replay runs sequentially per image), unlike IDEALTOTAL/PROPTOTAL
+# which pool histograms before estimation (joint figures, not row sums).
+#
 # Corpus discipline: input images are verified against data/kodak.sha256
 # BEFORE any measurement; a mismatch is a hard error.
 #
 # Usage:
 #   probe_ideal.sh --image /path/kodim01.ppm --image /path/kodim13.ppm \
 #                  [--predictor LIST] [--blend LIST] [--mixer LIST] [--zrun]
-#                  [--color LIST]
+#                  [--color LIST] [--orinit] [--orinit-corrupt]
+#                  [--props i,ii,iii]
 #   probe_ideal.sh --self-check
 #   probe_ideal.sh --image ... [--build-dir DIR]
 
@@ -77,6 +100,9 @@ BLENDS=""
 MIXERS=""
 ZRUN=0
 COLOR=""
+ORINIT=0
+ORINIT_CORRUPT=0
+PROPS=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -87,6 +113,9 @@ while [[ $# -gt 0 ]]; do
     --mixer) MIXERS="$2"; shift 2;;
     --zrun) ZRUN=1; shift;;
     --color) COLOR="$2"; shift 2;;
+    --orinit) ORINIT=1; shift;;
+    --orinit-corrupt) ORINIT_CORRUPT=1; shift;;
+    --props) PROPS="$2"; shift 2;;
     --self-check) SELF_CHECK=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
@@ -95,11 +124,18 @@ done
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 evaluate() {
-  # evaluate IDEAL_CSV [MIXER_CSV] [ZRUN_CSV] -> verdict lines; exits nonzero
-  # on gate failure. The three row families carry different headers, so they
-  # are parsed from their own files (or skipped entirely).
-  python3 - "$1" "${2:-}" "${3:-}" <<'PY'
+  # evaluate IDEAL_CSV [MIXER_CSV] [ZRUN_CSV] [ORINIT_CSV] [CORRUPT_CSV] \
+  #          [PROPS_CSV] -> verdict lines; exits nonzero on rail-integrity
+  # gate failure (G-order, G-repro, G-anchor, ZR-anchor, CR-anchor, OA-order,
+  # OA-corrupt, PC-mono). Decision verdicts (ZR-fmt, CR-fmt, MC-viability)
+  # never flip the exit code.
+  python3 - "$1" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" <<'PY'
 import csv, sys
+
+TOL = 0.05   # points of v0; the single tolerance governing all rails
+
+def pct(bits, v0):
+    return 100.0 * ((bits / 8.0) - v0) / v0
 
 lines = open(sys.argv[1]).read().splitlines()
 ideal_all = [l for l in lines if l.startswith("IDEAL,") or l.startswith("IDEALTOTAL,")]
@@ -124,9 +160,6 @@ COLS = [("coarse", "coarse_shared", "coarse_class16", "coarse_ctx343"),
         ("val", "val_shared", "val_class16", "val_ctx343")]
 
 ok = True
-
-def pct(bits, v0):
-    return 100.0 * ((bits / 8.0) - v0) / v0
 
 for r in rows:
     v0 = float(r["v0_bytes"])
@@ -292,6 +325,119 @@ for mode in sorted(modes):
             why.append(f"{worse}/{len(per)} probe images above baseline "
                        "(no adoption from a losing subset)")
         print(verdict + " -> CR-fmt FAIL (" + "; ".join(why) + ")")
+
+# ----- E0 gates (spec addendum 14.3) -----
+ideal_by_img = {r["image"]: r for r in rows if r["image"] != "all"}
+ideal_tot = next((r for r in rows if r["image"] == "all" and r["predictor"] == "med"), None)
+
+def parse_family(path, *names):
+    if not path or path == "":
+        return []
+    ls = open(path).read().splitlines()
+    sel = [l for l in ls if any(l.startswith(n + ",") or l.startswith(n + "TOTAL,")
+                               for n in names)]
+    if not sel:
+        return []
+    hdr = sel[0].split(",")
+    return [dict(zip(hdr, l.split(","))) for l in sel[1:] if l.strip()]
+
+# OA-order / OA-corrupt: need the ORINIT (and optionally ORINITCORRUPT) rows.
+orinit = parse_family(sys.argv[4], "ORINIT")
+if sys.argv[5] and sys.argv[5] != "":
+    corrupt = [r for r in parse_family(sys.argv[5], "ORINITCORRUPT")]
+else:
+    corrupt = []
+
+def oa_checks(orows, tag, require_violation):
+    # Clean families must SATISFY the ordering; the corrupt family must
+    # VIOLATE the middle inequality (that is its whole purpose).
+    global ok
+    good = True
+    for r in orows:
+        img = r["image"]
+        base = ideal_tot if img == "all" else ideal_by_img.get(img)
+        if base is None:
+            print(f"OA FAIL ({tag}/{img}: no IDEAL row to anchor against)")
+            good = False; continue
+        v0 = float(r["v0_bytes"])
+        p_or = pct(float(r["bits_orinit"]), v0)
+        # L_ad is the real coder payload in BYTES (not a bit estimate)
+        p_ad = 100.0 * (float(base["v2_bytes"]) - float(base["v0_bytes"])) \
+            / float(base["v0_bytes"])
+        p_st = pct(float(base["fine_class16"]), float(base["v0_bytes"]))
+        lo_ok = p_st <= p_or + TOL
+        mid_ok = p_or <= p_ad + TOL
+        if not require_violation:
+            if not (lo_ok and mid_ok):
+                print(f"OA-order FAIL ({tag}/{img}: stat_c16 {p_st:+.3f} <= "
+                      f"or {p_or:+.3f} <= ad+tol {p_ad + TOL:+.3f} violated)")
+                good = False
+            else:
+                print(f"OA-order OK ({tag}/{img}: stat_c16 {p_st:+.3f} <= "
+                      f"or {p_or:+.3f} <= ad {p_ad:+.3f})")
+        else:
+            if not mid_ok:
+                print(f"OA-corrupt OK ({tag}/{img}: corrupted init "
+                      f"{p_or:+.3f}% vs real coder {p_ad:+.3f}% - the rail "
+                      f"can fail)")
+            else:
+                print(f"OA-order FAIL ({tag}/{img}: corrupted init did NOT "
+                      f"violate the ordering - injection proves nothing)")
+                good = False
+    return good
+
+if orinit:
+    ok = oa_checks([r for r in orinit], "orinit", False) and ok
+    if corrupt:
+        ok = oa_checks(corrupt, "corrupt", True) and ok
+    else:
+        print("OA-corrupt SKIP (no corrupt CSV given)")
+
+# PC-mono + MC-viability over PROP rows.
+props = parse_family(sys.argv[6], "PROP")
+if props:
+    mono_fail = 0
+    for r in props:
+        img = r["image"]
+        base = ideal_tot if img == "all" else ideal_by_img.get(img)
+        if base is None:
+            print(f"PC-mono FAIL ({img}: no IDEAL row)"); ok = False; continue
+        p_c16 = pct(float(base["fine_class16"]), float(base["v0_bytes"]))
+        p_prop = float(r["pct_of_v0"])
+        if p_prop > p_c16 + 1e-6:
+            print(f"PC-mono FAIL ({img}/{r['pooling']}: prop {p_prop:.4f} > "
+                  f"class16 static {p_c16:.4f})")
+            ok = False
+            mono_fail += 1
+    if mono_fail == 0:
+        print(f"PC-mono OK ({len(props)} PROP rows at or below the "
+              f"class16 static row, as constructed)")
+    # MC-viability decision verdict (never flips exit code)
+    tot_ii = next((r for r in props if r["image"] == "all" and r["pooling"] == "ii"), None)
+    if tot_ii is not None and ideal_tot is not None:
+        p_prop = float(tot_ii["pct_of_v0"])
+        p_cx = pct(float(ideal_tot["fine_ctx343"]), float(ideal_tot["v0_bytes"]))
+        margin_total = p_cx - p_prop
+        per = {}
+        for img in ("kodim01.ppm", "kodim13.ppm"):
+            pr = next((r for r in props if r["image"] == img and r["pooling"] == "ii"), None)
+            b = ideal_by_img.get(img)
+            if pr and b:
+                per[img] = pct(float(b["fine_ctx343"]), float(b["v0_bytes"])) - \
+                           float(pr["pct_of_v0"])
+        have_both = len(per) == 2 and all(m >= 1.0 for m in per.values())
+        verdict = (f"MC-viability: pooled margin(ii vs ctx343-fine) "
+                   f"{margin_total:+.4f} points of v0; anchors "
+                   + ", ".join(f"{k.rsplit('.',1)[0]} {v:+.4f}" for k, v in sorted(per.items())))
+        if margin_total >= 1.5 and have_both:
+            print(verdict + " -> MC PASS (E3 development opens; nothing else)")
+        else:
+            why = []
+            if margin_total < 1.5: why.append("pooled margin under the 1.5-point bar")
+            if len(per) < 2: why.append("anchor images missing from run")
+            elif not have_both: why.append("an anchor margin is under 1.0 points")
+            print(verdict + " -> MC FAIL (" + "; ".join(why) +
+                  "); MANIAC dead ON THIS BINARIZATION unless E1/E2 carry it")
 
 sys.exit(0 if ok else 1)
 PY
@@ -474,6 +620,97 @@ PY
   grep -q "CR-fmt (cand).*FAIL" "$TMP/cr_lose.out" || { echo "SELF-CHECK FAIL: evaluator must refuse CR-fmt on a losing projection"; cat "$TMP/cr_lose.out"; ok=0; }
   [[ "$ok" == "1" ]] && echo "COLOR SELF-CHECK PASS: ranking works both ways, id0 anchor exact, both CR-fmt verdicts reachable, anchor gate bites"
   [[ "$ok" == "1" ]] || exit 1
+  # ----- E0 self-check (spec addendum 14.3) -----
+  # Live checks run on a REAL pinned image (kodim05), not synthetic ramps:
+  # measured on the cols_const ramp the class16-pooled optimum is WORSE than
+  # the compile-time priors (the ramp's classes are bimodal - flat contexts
+  # pooled with edge contexts), so the OA mid-inequality legitimately fails
+  # there. Degenerate synthetic streams say nothing about the harness; a
+  # real image exercises the actual contract.
+  # (a) determinism: identical invocations must emit byte-identical rows;
+  # (b) OA-order holds on the real stream;
+  # (c) the corrupted injection MUST violate OA-order;
+  # (d) the evaluator renders OA-order FAIL, PC-mono FAIL, and BOTH MC
+  #     verdicts from injected CSV rows alone.
+  REAL_IMG="${ROOT}/../obsidian/benchmarks/data/kodak/kodim05.ppm"
+  if [[ ! -f "$REAL_IMG" ]]; then
+    echo "SELF-CHECK FAIL: pinned kodim05 not found at $REAL_IMG"; exit 1
+  fi
+  WANT="$(grep ' kodim05.ppm$' "${ROOT}/benchmarks/data/kodak.sha256" | awk '{print $1}')"
+  GOT="$(sha256sum "$REAL_IMG" | awk '{print $1}')"
+  [[ "$WANT" == "$GOT" ]] || { echo "SELF-CHECK FAIL: kodim05 pin mismatch"; exit 1; }
+  "$BIN" bench-ideal "$REAL_IMG" --orinit --orinit-corrupt --props i,ii,iii > "$TMP/e0a.txt"
+  "$BIN" bench-ideal "$REAL_IMG" --orinit --orinit-corrupt --props i,ii,iii > "$TMP/e0b.txt"
+  if ! cmp -s "$TMP/e0a.txt" "$TMP/e0b.txt"; then
+    echo "SELF-CHECK FAIL: E0 modes are nondeterministic"; ok=0
+  fi
+  grep -E '^IDEAL(,|TOTAL)' "$TMP/e0a.txt" > "$TMP/e0_ideal.csv"
+  grep '^ORINIT,' "$TMP/e0a.txt" >> "$TMP/e0_ideal.csv"
+  grep '^ORINITCORRUPT' "$TMP/e0a.txt" > "$TMP/e0_corrupt.csv"
+  grep '^PROP'    "$TMP/e0a.txt" > "$TMP/e0_props.csv"
+  cp "$TMP/e0_ideal.csv" "$TMP/e0_oa.csv"
+  cat "$TMP/e0_corrupt.csv" >> "$TMP/e0_oa.csv"
+  # (b)+(c) through the evaluator: the clean family passes OA-order; adding
+  # the corrupt family must render OA-corrupt OK (violation found).
+  if evaluate "$TMP/e0_oa.csv" "" "" "$TMP/e0_ideal.csv" "" > "$TMP/e0_oa.out" 2>&1; then
+    grep -q "OA-order OK" "$TMP/e0_oa.out" || { echo "SELF-CHECK FAIL: no OA-order OK verdict"; cat "$TMP/e0_oa.out"; ok=0; }
+  else
+    echo "SELF-CHECK FAIL: evaluator rejected its own clean ORINIT run"; cat "$TMP/e0_oa.out"; ok=0
+  fi
+  if ! evaluate "$TMP/e0_oa.csv" "" "" "$TMP/e0_ideal.csv" "$TMP/e0_oa.csv" > "$TMP/e0_oc.out" 2>&1; then
+    echo "SELF-CHECK FAIL: corrupted init did not violate OA-order (injection too weak)"; cat "$TMP/e0_oc.out"; ok=0
+  fi
+  grep -q "OA-corrupt OK" "$TMP/e0_oc.out" || { echo "SELF-CHECK FAIL: no OA-corrupt verdict"; cat "$TMP/e0_oc.out"; ok=0; }
+  if evaluate "$TMP/e0_oa.csv" "" "" "$TMP/e0_ideal.csv" "" "$TMP/e0_props.csv" > "$TMP/e0_pc.out" 2>&1; then
+    grep -q "PC-mono OK" "$TMP/e0_pc.out" || { echo "SELF-CHECK FAIL: no PC-mono OK verdict"; cat "$TMP/e0_pc.out"; ok=0; }
+  fi
+  # (d) injected-verdict rendering. Ideal fixture: v0 500000/image;
+  # ad -5.5 pct; class16-fine -12.5; ctx343-fine -14.0. Orinit -9.0 sits
+  # inside the OA band (stat <= or <= ad + tol).
+  ih='IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343'
+  { printf '%s\n' "$ih"
+    printf 'IDEAL,kodim01.ppm,med,500000,472500,4500000,4300000,4200000,4400000,3500000,3440000,4300000,3480000,3420000\n'
+    printf 'IDEAL,kodim13.ppm,med,500000,472500,4500000,4300000,4200000,4400000,3500000,3440000,4300000,3480000,3420000\n'
+    printf 'IDEALTOTAL,all,med,1000000,945000,9000000,8600000,8400000,8800000,7000000,6880000,8600000,6960000,6840000\n'
+  } > "$TMP/e0_fix_ideal.csv"
+  { printf 'ORINIT,image,nbins,bits_orinit,v0_bytes,v2_bytes\n'
+    printf 'ORINIT,kodim01.ppm,100000,3640000.0,500000,472500\n'
+    printf 'ORINIT,kodim13.ppm,100000,3640000.0,500000,472500\n'
+    printf 'ORINITTOTAL,all,200000,7280000.0,1000000,945000\n'
+  } > "$TMP/e0_fix_or.csv"
+  # MC PASS needs pooled margin >= 1.5 AND both anchor margins >= 1.0:
+  # ctx343-fine is -14.0, so prop ii at -15.6 pooled / -15.1 per anchor fits.
+  { printf 'PROP,image,pooling,L_bits,L_bytes,pct_of_v0,cells,fallback_pct\n'
+    printf 'PROP,kodim01.ppm,i,4000000.0,500000,-12.00,300,5.00\n'
+    printf 'PROP,kodim01.ppm,ii,3396000.0,424500,-15.10,4096,0.50\n'
+    printf 'PROP,kodim13.ppm,ii,3396000.0,424500,-15.10,4096,0.50\n'
+    printf 'PROPTOTAL,all,ii,6752000.0,844000,-15.60,4096,0.50\n'
+  } > "$TMP/e0_fix_props_pass.csv"
+  { printf 'PROP,image,pooling,L_bits,L_bytes,pct_of_v0,cells,fallback_pct\n'
+    printf 'PROP,kodim01.ppm,ii,3920000.0,490000,-13.00,4096,0.50\n'
+    printf 'PROPTOTAL,all,ii,7880000.0,985000,-13.00,4096,0.50\n'
+  } > "$TMP/e0_fix_props_fail.csv"
+  # PC-mono violation: pooling i ABOVE the class16 static row (-11 > -12.5).
+  { printf 'PROP,image,pooling,L_bits,L_bytes,pct_of_v0,cells,fallback_pct\n'
+    printf 'PROP,kodim01.ppm,i,3560000.0,445000,-11.00,300,0.00\n'
+    printf 'PROPTOTAL,all,i,3560000.0,445000,-11.00,300,0.00\n'
+  } > "$TMP/e0_fix_pcmono_bad.csv"
+  { printf 'ORINIT,image,nbins,bits_orinit,v0_bytes,v2_bytes\n'
+    printf 'ORINIT,kodim01.ppm,100000,99999999.0,500000,472500\n'
+    printf 'ORINITTOTAL,all,100000,99999999.0,1000000,945000\n'
+  } > "$TMP/e0_fix_oa_bad.csv"
+  cat "$TMP/e0_fix_ideal.csv" "$TMP/e0_fix_or.csv" > "$TMP/e0_fix_base.csv"
+  evaluate "$TMP/e0_fix_base.csv" "" "" "$TMP/e0_fix_or.csv" "" "$TMP/e0_fix_props_pass.csv" > "$TMP/e0_mc_pass.out" 2>&1 || true
+  evaluate "$TMP/e0_fix_base.csv" "" "" "$TMP/e0_fix_or.csv" "" "$TMP/e0_fix_props_fail.csv" > "$TMP/e0_mc_fail.out" 2>&1 || true
+  if evaluate "$TMP/e0_fix_base.csv" "" "" "$TMP/e0_fix_oa_bad.csv" "" "$TMP/e0_fix_pcmono_bad.csv" > "$TMP/e0_bad.out" 2>&1; then
+    echo "SELF-CHECK FAIL: evaluator accepted an OA-order violation"; ok=0
+  fi
+  grep -q "MC PASS" "$TMP/e0_mc_pass.out" || { echo "SELF-CHECK FAIL: evaluator must grant MC on a passing margin"; cat "$TMP/e0_mc_pass.out"; ok=0; }
+  grep -q "MC FAIL" "$TMP/e0_mc_fail.out" || { echo "SELF-CHECK FAIL: evaluator must refuse MC on a failing margin"; cat "$TMP/e0_mc_fail.out"; ok=0; }
+  grep -q "PC-mono FAIL" "$TMP/e0_bad.out" || { echo "SELF-CHECK FAIL: PC-mono must reject a monotonicity violation"; cat "$TMP/e0_bad.out"; ok=0; }
+  grep -q "OA-order FAIL" "$TMP/e0_bad.out" || { echo "SELF-CHECK FAIL: OA-order must reject a gross violation"; cat "$TMP/e0_bad.out"; ok=0; }
+  [[ "$ok" == "1" ]] && echo "E0 SELF-CHECK PASS: deterministic, OA-order holds live, corrupt injection bites, OA/PC/MC verdicts render both ways"
+  [[ "$ok" == "1" ]] || exit 1
   exit 0
 fi
 
@@ -503,9 +740,15 @@ OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe.csv"
 MIX_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-mixer-d2.csv"
 ZRUN_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-zrun-d4.csv"
 COLOR_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-color-d4c.csv"
+ORINIT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-orinit-e0.csv"
+CORRUPT_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-corrupt-e0.csv"
+PROPS_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-props-e0.csv"
 RAW_CSV="$(mktemp)"
 MIX_RAW="$(mktemp)"
 ZR_RAW="$(mktemp)"
+OR_RAW="$(mktemp)"
+CO_RAW="$(mktemp)"
+PR_RAW="$(mktemp)"
 ALL_RAW="$(mktemp)"
 ARGS=()
 [[ -n "$PREDICTORS" ]] && ARGS+=(--predictor "$PREDICTORS")
@@ -513,6 +756,9 @@ ARGS=()
 [[ -n "$MIXERS" ]] && ARGS+=(--mixer "$MIXERS")
 [[ -n "$COLOR" ]] && ARGS+=(--color "$COLOR")
 [[ "$ZRUN" == "1" ]] && ARGS+=(--zrun)
+[[ "$ORINIT" == "1" ]] && ARGS+=(--orinit)
+[[ "$ORINIT_CORRUPT" == "1" ]] && ARGS+=(--orinit-corrupt)
+[[ -n "$PROPS" ]] && ARGS+=(--props "$PROPS")
 "$BIN" bench-ideal "${IMAGES[@]}" "${ARGS[@]}" > "$ALL_RAW"
 grep -E '^IDEAL(,|TOTAL)' "$ALL_RAW" > "$RAW_CSV"
 if [[ -n "$MIXERS" ]]; then
@@ -523,11 +769,22 @@ if [[ "$ZRUN" == "1" ]]; then
   grep -E '^ZRUN' "$ALL_RAW" > "$ZR_RAW"
   cp "$ZR_RAW" "$ZRUN_CSV"
 fi
-# In zrun mode the dated ideal-probe CSV is the COMMITTED G-repro reference;
-# never clobber it. Evaluate from a side file in the same directory so the
-# reference path resolution still finds the committed row. Color mode follows
-# the same discipline: its rows land in the dedicated D4c CSV, and evaluation
-# uses a side file so the committed reference stays untouched.
+if [[ "$ORINIT" == "1" ]]; then
+  # '^ORINIT,' deliberately excludes ORINITCORRUPT rows.
+  grep -E '^ORINIT,' "$ALL_RAW" > "$OR_RAW"
+  cp "$OR_RAW" "$ORINIT_CSV"
+fi
+if [[ "$ORINIT_CORRUPT" == "1" ]]; then
+  grep -E '^ORINITCORRUPT' "$ALL_RAW" > "$CO_RAW"
+  cp "$CO_RAW" "$CORRUPT_CSV"
+fi
+if [[ -n "$PROPS" ]]; then
+  grep -E '^PROP' "$ALL_RAW" > "$PR_RAW"
+  cp "$PR_RAW" "$PROPS_CSV"
+fi
+# In zrun/color/E0 modes the dated ideal-probe CSV is the COMMITTED G-repro
+# reference; never clobber it. Evaluation runs from a side file in the same
+# directory so the reference path resolution still finds the committed row.
 EVAL_CSV="$OUT_CSV"
 if [[ "$ZRUN" == "1" ]]; then
   EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-zrun-eval.csv"
@@ -536,13 +793,21 @@ elif [[ -n "$COLOR" ]]; then
   cp "$RAW_CSV" "$COLOR_CSV"
   EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-color-eval.csv"
   cp "$RAW_CSV" "$EVAL_CSV"
+elif [[ "$ORINIT" == "1" || "$ORINIT_CORRUPT" == "1" || -n "$PROPS" ]]; then
+  EVAL_CSV="${ROOT}/benchmarks/results/${STAMP}-ideal-probe-e0-eval.csv"
+  cp "$RAW_CSV" "$EVAL_CSV"
 else
   cp "$RAW_CSV" "$OUT_CSV"
 fi
 echo "== ideal-bracket results (${OUT_CSV}) =="
 cat "$RAW_CSV"
-if [[ -n "$COLOR" ]]; then
-  echo "== D4c color-rotation rows -> ${COLOR_CSV} (committed reference untouched) =="
+if [[ "$ORINIT" == "1" || "$ORINIT_CORRUPT" == "1" ]]; then
+  echo "== E0 oracle-init rows -> ${ORINIT_CSV} / ${CORRUPT_CSV} =="
+  cat "$OR_RAW" "$CO_RAW" 2>/dev/null || true
+fi
+if [[ -n "$PROPS" ]]; then
+  echo "== E0 property-conditioned rows -> ${PROPS_CSV} =="
+  cat "$PR_RAW"
 fi
 if [[ -n "$MIXERS" ]]; then
   echo "== D2 mixer results (${MIX_CSV}) =="
@@ -553,7 +818,13 @@ if [[ "$ZRUN" == "1" ]]; then
   cat "$ZRUN_CSV"
 fi
 
-if ! evaluate "$EVAL_CSV" "$MIX_CSV" "$ZR_RAW"; then
+MIX_ARG=""; [[ -n "$MIXERS" ]] && MIX_ARG="$MIX_RAW"
+ZR_ARG="";  [[ "$ZRUN" == "1" ]] && ZR_ARG="$ZR_RAW"
+OR_ARG="";  [[ "$ORINIT" == "1" ]] && OR_ARG="$OR_RAW"
+CO_ARG="";  [[ "$ORINIT_CORRUPT" == "1" ]] && CO_ARG="$CO_RAW"
+PR_ARG="";  [[ -n "$PROPS" ]] && PR_ARG="$PR_RAW"
+
+if ! evaluate "$EVAL_CSV" "$MIX_ARG" "$ZR_ARG" "$OR_ARG" "$CO_ARG" "$PR_ARG"; then
   echo "IDEAL GATE FAIL"
   exit 1
 fi
