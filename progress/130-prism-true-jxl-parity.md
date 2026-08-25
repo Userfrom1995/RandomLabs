@@ -244,8 +244,24 @@ percent) are independently re-measurable today via
       (10.1210 vs < 8.655 summed); the owner decides between MANIAC-grade
       machinery (meta-adaptive tree over mixer weights, with our C2/C2b
       negatives constraining expectations) or closing #130 honestly at the
-      achieved level (C-series + D4c = -9.1 pct bytes total from the 11.026
-      baseline). No silent scope creep.
+      achieved level (C-series + D4c = -8.21 pct bytes total from the 11.026
+      baseline; CORRECTED 2026-08-25 by the Researcher with the derivation
+      1 - 10.1210/11.026 = 8.21 pct; earlier text printed -9.1). No silent
+      scope creep.
+- [x] OWNER DECISION POINT RESOLVED INTO RESEARCH (2026-08-25): the owner
+      dispatched `/oc research` on the PR thread; Dr. Mob delivered the
+      endgame specification `prism/docs/research-e-series-endgame.md` -
+      four-component decomposition of the remaining gap (A learning /
+      B tracking / C conditioning-deficit / D binarization), pre-registered
+      harness measurements M-A/M-B/M-C with binding gates (MANIAC viability
+      bar: property-conditioned ideal must beat ctx343 by >= 1.5 points of
+      v0), and intervention specs E1 CALIC-class per-context bias
+      cancellation, E2 forward-adaptive frozen tables (ext-bit container),
+      E3 MANIAC tree over previously-coded residual quotients (strictly
+      conditional on M-C), E4 checkpoint. Honest base case recorded there:
+      best-case stack lands ~9.3-9.7 summed => M2 plausible, M3 likely stays
+      open unless measurements surprise upward. Handoff decision
+      {"action":"architect"}.
 
 ## Current step
 
@@ -331,8 +347,37 @@ Previous slice summary (continuation run 3, C2b):
    the owner decision point rides alongside. Owner freeze stands throughout:
    nothing merges before both gates pass in both units on a fresh
    both-units measurement of real cjxl-comparison output.
+3. [NEXT] Architect blueprints the E-series from
+   `prism/docs/research-e-series-endgame.md`, measurement-first per I7/I8:
+   E0 harness modes (--orinit, --props) + M-A/M-B/M-C gates BEFORE any
+   format work; only gate-passing interventions (E1 bias cancellation,
+   E2 frozen tables behind FEATURE_EXT ext2/ext3, E3 conditional MANIAC)
+   become build phases. Section 6 of the spec holds the binding decision
+   tree back to the owner point.
 
 ## Agent log
+
+- 2026-08-25 Dr. Mob (the Researcher, endgame mandate): owner resolved the
+  decision point into MANIAC-grade research; delivered
+  `prism/docs/research-e-series-endgame.md`. Core results: (1) binarization
+  overhead bounded at 0.38 points of v0 (value vs fine static rows) - not
+  the bottleneck; (2) the real-vs-class16 collection gap is exactly 5.95
+  points of v0 = 6.30 percent of current real bytes, and decomposes by
+  construction into A learning + B tracking on a FIXED stream, with C
+  (conditioning dimensions beyond resdiff-343 via previously-coded residual
+  quotients) genuinely unmeasured - C2/C2b never tested those coordinates;
+  (3) pre-registered gates M-A/M-B/M-C with a MANIAC viability bar ABOVE the
+  known 1.13-point static-refinement ceiling; (4) intervention specs E1
+  (per-context bias cancellation - distinct from rejected per-sample NLMS:
+  sigma^2/n(ctx) vs lambda*sigma^2/2 estimator variance), E2 frozen-table
+  forward adaptation (attacks A only; hard cap A+B <= 6.30 percent), E3
+  conditional tree (strict-win-only, model bytes < 50 percent of gain);
+  (5) honest base case: stack lands ~9.3-9.7 summed, M2 plausible, M3 out
+  of reach unless measurements surprise. Synced branch with origin/main
+  first per item 0 (unshallowed, merge-base 5bc4b9d verified, ordinary
+  merge of 9cebba3..c4c3f5f). Corrected the D4 bullet's total-progress
+  arithmetic (-9.1 -> -8.21 pct, derivation stamped). Decision
+  {"action":"architect"}.
 
 - 2026-08-24 the Builder (continuation run 14, D4c complete - D-series
   closed): synced with origin/main first (unshallowed; merge-base re-verified
