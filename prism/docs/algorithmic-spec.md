@@ -1074,4 +1074,14 @@ Written 2026-08-25 BEFORE any S-row exists. The V1 STOP verdict stands
 recorded permanently; the static-table mechanism enters the S-program as a
 freshly-controlled component candidate under these pins, not as a V1 PASS.
 
+AMENDMENT A4 (2026-08-25, Builder, BEFORE any S-measurement; decision record
+`.github/agents/decisions/builder/2026-08-25T22-30-00-s1-predictor-pins-and-
+amendment-a4.md`): the 18.4 GAP gradient pair as literally written is
+algebraically degenerate (dh == dv term-by-term for every sample, making the
+pinned t80/t32 branches unreachable). A4 repairs exactly two terms to the
+classic CALIC pair - dh[1] = |W-WW|, dv[2] = |N-NN| (production replicated-
+edge derivation for WW/NN) - leaving every other pinned constant untouched.
+S1 implements GAP under A4; MED/W are unaffected. Structural readings
+P-S1-1..P-S1-11 in the same record.
+
 - the Architect
