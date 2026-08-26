@@ -701,9 +701,8 @@ field disagreeing with its own pinned layout (P-T0-5: per-proto block =
 the pinned shape; (4) the 'SBD1' decoder mirror indexed parents by a flat
 modulo instead of the transmitted parent map (children 16+ silently paired
 wrong), and its expect-compare ignored child_delta - both fixed. a_c = 0
-is legal per P-T0-8. 137/137 unit tests green (9 new T0 tests: group
-geometry hand-checked, collapse/separation/determinism, 'SBP2'/'SBC1'/
-'SBD1' round-trips + hard-detect, decode-mirror payload round-trip).
+is legal per P-T0-8. Unit suite later reconciled to 142/142 (see the
+RECONCILED log entry below).
 Remaining for Q0: --t0 smoke mode + --t0-synth fixtures in main.cpp,
 probe rails VB-proto-roundtrip / VB-assign-mirror / net-audit-t +
 failable --self-check-t0, dated diagnostic CSV on kodim01, ledger sweep.
@@ -961,6 +960,21 @@ stacking note above but kept as hard-won context):
 
 ## Agent log
 
+- 2026-08-26 the Builder (T-series slice Q0, RECONCILED + COMPLETE): a
+  second continuation session landed amendment A-T0-1 (f2c2eae) while
+  this one was finishing the same repairs; branches rebased and merged
+  without losing either side. Adopted from A-T0-1: the single image-
+  global 'SBC1' prior layout (A-T0-1d supersedes this record's per-row
+  reading - addendum verbatim wins), the FULL-block Lloyd metric
+  (A-T0-1b: class-blind distances would have silently demoted the joint
+  mechanism), and the symbol-rANS tail-order repair (A-T0-1e; this
+  session's word fixtures were too small to trigger renormalization and
+  missed it). Retained from this record: the global crc32_combine chaining
+  fix (subsumes A-T0-1f), the child_delta expect surface, a_c = 0, and
+  five additional tests. Reconciled state: 142/142 tests; t0 CSV
+  regenerated post-reconciliation - CB1 tables = 3008 B vs SPINE's
+  3007 B (CB1 IS the spine, measured twice); all rails green;
+  --self-check-t0 PASS with updated frame numbers.
 - 2026-08-26 the Builder (T-series slice Q0, COMPLETE): T0 instrument
   extension finished on PR #146; T0 exit condition MET - all rails green
   + dated diagnostic CSV committed, T1a may run. (1) Core bring-up under
@@ -985,7 +999,7 @@ stacking note above but kept as hard-won context):
   failable --self-check-t0 proves every rail's FAIL path AND both live
   rank directions (homo collapses to transmitted K=1 at 12 assign bytes;
   skew beats its random twin). (4) Dated CSV
-  `2026-08-25..26-sandbox-t0.csv` (kodim01, sha pin verified pre-run,
+  `2026-08-26-sandbox-t0.csv` (kodim01, sha pin verified pre-run,
   byte-identical re-run): honest smoke readings - Lloyd collapses kodim01
   to K=1 at every pinned K under the chi-square metric (CB1 payload ==
   SPINE exactly: cross-instrument agreement), CEILING payload-gain is
