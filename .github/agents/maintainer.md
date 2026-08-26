@@ -104,7 +104,8 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
 
 - When the Tester has approved a PR (`/oc approve-test` by `github-actions[bot]`
   on that PR, and NO newer `/oc fix` findings after it), merge it:
-  `gh pr merge <N> --repo <owner>/<repo> --rebase --delete-branch`.
+  `gh pr merge <N> --repo <owner>/<repo> --rebase`.
+  **Do NOT use `--delete-branch`**: PR branches must always remain intact after merging for archival, history, and reference purposes.
 - **Orphan-main protection (hard rule)**: `main` is the lab's shared spine and must
   NEVER become a divergent/orphan root. Before merging, verify the PR branch shares
   history with `main`: `git fetch origin main && git merge-base origin/main <pr-head-sha>`.
