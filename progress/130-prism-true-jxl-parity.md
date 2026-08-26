@@ -684,6 +684,14 @@ bytes until T4 PASS.
       winning tokenization else GAP/W third-and-final strike; bar (ii)
       tokenization main effect both directions. T3b canary once on winner
       (>= +0.50 median, no image worse than -0.25; second strike permanent).
+      IN PROGRESS 2026-08-26: slice Q3 opened - pins P-Q3-1..P-Q3-12
+      committed BEFORE any measurement
+      (decisions/builder/2026-08-26T13-13-00-t3-factorial-pins.md: bar-(i)
+      per-image same-tokenization pairing with control-conservative ties;
+      canary rides once on the winner regardless of bar outcome; W-ensemble
+      self-error interaction + per-plane b reset pinned; 'SBB2' bias-blob
+      shape named). Engine + evaluator land next; quad sweep after rails
+      are green.
 - [ ] T4 composition + projection: per-image winners by real NET bytes x
       color trials; projection 18.5 VERBATIM vs committed e1 CSV; threshold
       UNCHANGED < 9.35 summed / < 3.117 per-sample; M2/M3 reported beside,
@@ -693,6 +701,17 @@ bytes until T4 PASS.
       third-strike death (L-C7).
 
 ## Current step
+
+SLICE Q3 IN PROGRESS (2026-08-26, Builder): pins P-Q3-1..P-Q3-12
+committed BEFORE any T3/T3b measurement
+(decisions/builder/2026-08-26T13-13-00-t3-factorial-pins.md). Landing
+order: family-bias canary walk + 'SBB2' serializer with unit tests, then
+`bench-sandbox --t3` / `--t3b` drivers, then probe rails + failable
+`--self-check-t3`, then the quad sweep into dated
+`benchmarks/results/2026-08-26-sandbox-t3.csv`. Zero container bytes
+until a future T4 PASS.
+
+Prior state:
 
 SLICE Q1 COMPLETE (2026-08-26, Builder): T1a ceiling kill test MEASURED
 FAIL per the pre-registered gate - bucket C1 closed-with-numbers,
