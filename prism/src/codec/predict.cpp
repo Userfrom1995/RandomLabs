@@ -273,16 +273,8 @@ std::vector<uint16_t> reconstruct_plane_blend(const std::vector<int32_t>& residu
 }
 
 // ----- E1 CALIC-class bias cancellation (spec addenda 14.3 + 16) -----
-
-namespace {
-
-int64_t floor_div(int64_t a, int64_t b) {
-    int64_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0))) --q;
-    return q;
-}
-
-} // namespace
+// (floor_div now lives once as the public pinned helper below; same
+// floor-toward-negative-infinity semantics this file always used.)
 
 int bias_bucket(int64_t g, int bd_shift) {
     static const int64_t kT[7] = {0, 1, 2, 4, 8, 16, 32};
@@ -417,5 +409,201 @@ std::vector<uint16_t> reconstruct_plane_bias(const std::vector<int32_t>& residua
     return plane;
 }
 
-} // namespace prism::codec
+// ----- S1 predictor families (spec 18.4 verbatim except amendment A4;
+// pins P-S1-1..P-S1-7 in decisions/builder/2026-08-25T22-30-00) -----
 
+bool parse_pred_family(const std::string& s, PredFamily& out) {
+    if (s == "MED") { out = PredFamily::MED; return true; }
+    if (s == "GAP") { out = PredFamily::GAP; return true; }
+    if (s == "W") { out = PredFamily::WENS; return true; }
+    return false;
+}
+
+const char* pred_family_name(PredFamily f) {
+    switch (f) {
+        case PredFamily::GAP: return "GAP";
+        case PredFamily::WENS: return "W";
+        default: return "MED";
+    }
+}
+
+int64_t sym_round_div(int64_t a, int64_t b) {
+    // Round half away from zero, b > 0 (pin P-S1-4).
+    if (a >= 0) return (a + b / 2) / b;
+    return -((-a + b / 2) / b);
+}
+
+int64_t floor_div(int64_t b_a, int64_t b_b) {
+    // Floor toward negative infinity, b_b > 0 (pin P-S1-5).
+    int64_t q = b_a / b_b;
+    if ((b_a % b_b) != 0 && b_a < 0) --q;
+    return q;
+}
+
+int32_t gap_reduced_predict(int32_t W, int32_t WW, int32_t N, int32_t NW,
+                            int32_t NE, int32_t NN, int bd) {
+    // Amendment A4 gradient pair (pins P-S1-3); everything else 18.4
+    // verbatim. int64 internal arithmetic per 18.4.
+    const int64_t dh = std::abs((int64_t)W - WW) + std::abs((int64_t)N - NW) +
+                       std::abs((int64_t)NE - N);
+    const int64_t dv = std::abs((int64_t)NW - W) + std::abs((int64_t)N - NN) +
+                       std::abs((int64_t)N - NE);
+    const int64_t t80 = (int64_t)80 << (bd - 8);
+    const int64_t t32 = (int64_t)32 << (bd - 8);
+    if (dv - dh > t80) return N;
+    if (dh - dv > t80) return W;
+    const int64_t num = 2 * (int64_t)W + 2 * (int64_t)N + (int64_t)NE -
+                        (int64_t)NW;
+    int64_t dhat = sym_round_div(num, 4);
+    if (dh - dv > t32) {
+        dhat = sym_round_div(dhat + W, 2);
+    } else if (dv - dh > t32) {
+        dhat = sym_round_div(dhat + N, 2);
+    }
+    return (int32_t)dhat;
+}
+
+void WEnsemble::reset() {
+    w[0] = w[1] = w[2] = w[3] = 65536;
+}
+
+int64_t WEnsemble::weighted_mean(int32_t W, int32_t N, int32_t NW,
+                                 int64_t maxval, int32_t p[4]) const {
+    // ORDER PINNED i = W, N, NW, TE; TE clamped into [0, 2^16 - 1], the
+    // uint16 storage bound (amendment A4b) that `maxval` carries here.
+    p[0] = W;
+    p[1] = N;
+    p[2] = NW;
+    int64_t te = (int64_t)W + N - NW;
+    if (te < 0) te = 0;
+    if (te > maxval) te = maxval;
+    p[3] = (int32_t)te;
+    const int64_t sumw = w[0] + w[1] + w[2] + w[3];
+    return sym_round_div(w[0] * (int64_t)p[0] + w[1] * (int64_t)p[1] +
+                             w[2] * (int64_t)p[2] + w[3] * (int64_t)p[3],
+                         sumw);
+}
+
+void WEnsemble::update(const int32_t p[4], int64_t clamped_pred,
+                       int64_t err) {
+    for (int i = 0; i < 4; ++i) {
+        int64_t wi = w[i] + floor_div(err * ((int64_t)p[i] - clamped_pred),
+                                      512);
+        if (wi < 16384) wi = 16384;
+        if (wi > 1048576) wi = 1048576;
+        w[i] = wi;
+    }
+}
+
+bool WEnsemble::weights_in_bounds() const {
+    for (int i = 0; i < 4; ++i)
+        if (w[i] < 16384 || w[i] > 1048576) return false;
+    return true;
+}
+
+namespace {
+
+// One sample's causal neighborhood under the production derivation
+// (pin P-S1-2): missing primaries read 0, farther neighbors replicate the
+// nearest available one - 18.4's "replicated edge" border rule.
+struct Neighborhood {
+    int32_t L, T, TL, TR, WW, NN;
+};
+
+template <typename Hist>
+inline Neighborhood neighbors_at(const Hist& hist, uint32_t w,
+                                 size_t idx, uint32_t x, uint32_t y) {
+    Neighborhood nb;
+    nb.L = (x > 0) ? (int32_t)hist[idx - 1] : 0;
+    nb.T = (y > 0) ? (int32_t)hist[idx - w] : 0;
+    nb.TL = (x > 0 && y > 0) ? (int32_t)hist[idx - w - 1] : 0;
+    nb.TR = (y > 0 && x + 1 < w) ? (int32_t)hist[idx - w + 1] : 0;
+    nb.WW = (x > 1) ? (int32_t)hist[idx - 2] : nb.L;
+    nb.NN = (y > 1) ? (int32_t)hist[idx - 2 * w] : nb.T;
+    return nb;
+}
+
+} // namespace
+
+std::vector<int32_t> compute_residuals_family(
+    const std::vector<uint16_t>& plane, uint32_t w, uint32_t h, PredFamily fam,
+    int bd) {
+    std::vector<int32_t> res(plane.size());
+    // Amendment A4b: predictions are UNCLAMPED integers in the transformed-
+    // plane domain (production parity; the color transform legitimately
+    // exceeds the source BD). `maxval` is the uint16 storage bound used by
+    // the TE sub-predictor only.
+    const int64_t maxval = 65535;
+    WEnsemble ens;
+    ens.reset();   // state reset per plane (18.4)
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            const size_t idx = (size_t)y * w + x;
+            // Encode side: history IS the source plane; because every stream
+            // here is losslessly reversible, decoded history equals original
+            // history and the decoder mirrors this walk step-for-step (I2).
+            const Neighborhood nb = neighbors_at(plane, w, idx, x, y);
+            int64_t pred;
+            int32_t wp[4] = {0, 0, 0, 0};
+            switch (fam) {
+                case PredFamily::MED:
+                    pred = med_predictor(nb.L, nb.T, nb.TL);
+                    break;
+                case PredFamily::GAP:
+                    pred = gap_reduced_predict(nb.L, nb.WW, nb.T, nb.TL,
+                                               nb.TR, nb.NN, bd);
+                    break;
+                default:   // PredFamily::WENS
+                    pred = ens.weighted_mean(nb.L, nb.T, nb.TL, maxval, wp);
+                    break;
+            }
+            const int32_t actual = (int32_t)plane[idx];
+            const int32_t r = actual - (int32_t)pred;   // no output clamp (A4b)
+            res[idx] = r;
+            if (fam == PredFamily::WENS)
+                ens.update(wp, pred, (int64_t)r);   // err == residual (P-S1-6)
+        }
+    }
+    return res;
+}
+
+std::vector<uint16_t> reconstruct_plane_family(
+    const std::vector<int32_t>& residuals, uint32_t w, uint32_t h,
+    PredFamily fam, int bd) {
+    std::vector<uint16_t> plane(residuals.size());
+    const int64_t maxval = 65535;   // uint16 storage bound (TE only, A4b)
+    WEnsemble ens;
+    ens.reset();   // state reset per plane (18.4)
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            const size_t idx = (size_t)y * w + x;
+            // Decode side: history is the RECONSTRUCTED plane so far; it
+            // equals the encoder-side history by induction, so predictions
+            // and weight states mirror exactly (pinned step-equality test).
+            const Neighborhood nb = neighbors_at(plane, w, idx, x, y);
+            int64_t pred;
+            int32_t wp[4] = {0, 0, 0, 0};
+            switch (fam) {
+                case PredFamily::MED:
+                    pred = med_predictor(nb.L, nb.T, nb.TL);
+                    break;
+                case PredFamily::GAP:
+                    pred = gap_reduced_predict(nb.L, nb.WW, nb.T, nb.TL,
+                                               nb.TR, nb.NN, bd);
+                    break;
+                default:   // PredFamily::WENS
+                    pred = ens.weighted_mean(nb.L, nb.T, nb.TL, maxval, wp);
+                    break;
+            }
+            // Exact add, no post-add clamp (A4b): mirrored states make
+            // pred + residual exactly the original sample, which may exceed
+            // the source BD domain on transformed planes.
+            plane[idx] = (uint16_t)(pred + residuals[idx]);
+            if (fam == PredFamily::WENS)
+                ens.update(wp, pred, (int64_t)residuals[idx]);
+        }
+    }
+    return plane;
+}
+
+} // namespace prism::codec
