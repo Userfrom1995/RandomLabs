@@ -645,13 +645,23 @@ bytes until T4 PASS.
       committed (Lloyd honestly collapses kodim01 to K=1; CEILING
       payload-gain negative vs fresh T-BASE). No T-phase verdict is valid
       without a green T0.
-- [ ] T1a ceiling kill test (runs FIRST): per-group exact stacks, tables
+- [x] T1a ceiling kill test (runs FIRST): per-group exact stacks, tables
       paid realistically; PASS >= +2.00 pct median NET beyond fresh T-BASE;
       FAIL closes C1 unless payload gain >= +4.00 pct median with tables
       the sole losing term (then T1b opens).
+      DONE 2026-08-26: per-plane group repair landed pre-measurement (pin
+      P-Q1-1; Q0 pooled smoke rows voided, t0 CSV regenerated), pins
+      P-Q1-2..9 before the sweep, all rails + TSUM decomposition
+      cross-checks green, determinism byte-exact. MEASURED FAIL: GS128 won
+      every image but 182-213 KB per-group tables swamp a +2.13 pct median
+      payload gain => RELPCT median -32.76 vs bar >= +2.00; opener NOT met
+      (+2.13 < +4.00) and sole-tables-loss false on all four images =>
+      T1b never opens. C1 closed-with-numbers; zero container bytes.
 - [ ] T1b content-defined codebook (conditional): K in {4,8,16,24} measured
       whole; retain >= half of best T1a payload gain NET AND floor >= +1.00
-      pct median NET beyond the same T-BASE.
+      pct median NET beyond the same T-BASE. NEVER OPENED - the T1a fail
+      clause was not met (measured 2026-08-26); the --t1b instrument exists
+      and is self-checked but stays unused on the quad by pre-registration.
 - [ ] T2a shrunk fine contexting: class16 -> class343 shrinkage, arms
       TW-A/TW-B; PASS >= +0.50 pct median NET vs same-stack class16
       baseline fresh in-run.
@@ -673,17 +683,20 @@ bytes until T4 PASS.
 
 ## Current step
 
-SLICE Q0 COMPLETE (2026-08-26, Builder): T0 instrument extension DONE -
-all rails green + dated diagnostic CSV committed (see agent log and
-amendment A5). NEXT: slice Q1 = T1a ceiling kill test per blueprint
-section 2 / addendum 20.5 - per-group EXACT static stacks on the QUAD,
-tables paid at realistic serialization, T-BASE re-run fresh in-run, gate
->= +2.00 pct median NET beyond T-BASE; FAIL closes C1 unless the recorded
-decomposition shows payload gain >= +4.00 pct median with table bytes as
-the SOLE losing term (then T1b opens). Honest prior from the smoke: the
-pinned chi-square metric collapsed kodim01 to K=1 and CEILING payload-gain
-was negative on that image - Q1's quad measurement decides with numbers.
-Zero container bytes until a future T4 PASS.
+SLICE Q1 COMPLETE (2026-08-26, Builder): T1a ceiling kill test MEASURED
+FAIL per the pre-registered gate - bucket C1 closed-with-numbers,
+conditional T1b never opened (opener arithmetic not met). NEXT: slice Q2 =
+T2a shrunk fine contexting (class16 -> class343 shrinkage under the pinned
+a_c arms TW-A/TW-B via 'SBD1', gate >= +0.50 pct median NET vs the
+same-stack class16 baseline fresh in-run; FAIL => flat-16 ships unchanged),
+then slice Q3 = T3 factorial (+ T3b canary on winner), then Q4 = T4
+composition + projection vs the committed e1 CSV (< 9.35 / < 3.117
+unchanged; M2/M3 reported beside, never altered). Zero container bytes
+until a future T4 PASS. Honest reading so far: every locality/conditioning
+mechanism measured under payable side info (V1, S3, now T1a) loses to its
+own table economics on this instrument; the surviving composition
+candidates remain {adaptive control, static spine +5.5} x color trials
+pending T2a/T3.
 
 Prior state:
 
@@ -959,6 +972,42 @@ stacking note above but kept as hard-won context):
       S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-26 the Builder (T-series slice Q1, COMPLETE): T1a measured,
+  FAIL per the pre-registered gate. (1) Per-plane repair FIRST (pin
+  P-Q1-1, decisions/builder/2026-08-26T11-20-00): ClusterMap::raw_at
+  pooled all three planes into one tile stack, violating addendum 20.2's
+  "group identity is per-plane" and the 08-00-00 record's explicit pin;
+  repaired via ClusterMap::group_base + per-plane maps at every T0/T1
+  site with a binding regression test (GroupKeying.PlanesNeverShareAStack);
+  the Q0 smoke's CEIL/CB rows are voided as evidence (non-gating per
+  P-T0-11 so no verdict ever depended on them) and the t0 CSV regenerated
+  under the repaired geometry - anchors and T-BASE rows unchanged
+  bit-for-bit; GS64 tables on kodim01 went 248 KB -> 728 KB with the third
+  axis of groups. (2) Pins P-Q1-2..P-Q1-9 committed before any quad row:
+  candidate scope {GS64,GS128} x all seven D4c trials with arm winners by
+  real NET (ties smaller tile edge), mechanical RELPCT/decomposition/
+  sole-tables-loss definitions, T1b opener arithmetic (payload-gain median
+  >= +4.00 AND sole loss on ALL images), coding tables == transmitted
+  artifact verbatim (the smoke's recount-rebuilt tables never ship), whole
+  K set rules, rails-before-verdicts, TSUM schema. (3) Instruments:
+  bench-sandbox --t1a/--t1b drivers emitting T1 + TSUM rows;
+  probe_sandbox T1 net-audit/fidelity rails, TSUM decomposition
+  cross-check rail, T1A/T1B gate readouts (never flip exit codes), and a
+  failable --self-check-t1 proving both gate directions plus decomposition/
+  identity/round-trip/schema mutations; --t1b exists but stayed UNUSED on
+  the quad by pre-registration. (4) MEASUREMENT (quad pins verified,
+  determinism byte-exact re-run, wall-clock 47.50x bench-ideal recorded
+  per A3): GS128 won every image (182534/187931/190650/212724 NETTED table
+  bytes vs payload gains +1.82/+1.31/+2.44/+3.94 pct); RELPCT -33.46 /
+  -32.05 / -28.57 / -49.52 => median -32.7552 vs bar >= +2.00 => FAIL.
+  Opener: payload-gain median +2.1306 < +4.00 AND sole-tables-loss false
+  on all four (SPINE's 26 B 'SBP1' map delta alone breaks it) => T1b NEVER
+  opens. C1 closed-with-numbers: locality-conditioned exact stacks are not
+  payable at realistic serialization on this instrument. Evidence:
+  benchmarks/results/2026-08-26-sandbox-t1a.csv (+ regenerated t0 CSV).
+  143/143 unit tests, all seven self-checks green. Handoff
+  {"action":"continue"} - slice Q2 = T2a shrunk contexting.
 
 - 2026-08-26 the Builder (T-series slice Q0, RECONCILED + COMPLETE): a
   second continuation session landed amendment A-T0-1 (f2c2eae) while
