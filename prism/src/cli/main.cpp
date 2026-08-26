@@ -4417,17 +4417,24 @@ void run_u0_image(const std::filesystem::path& img) {
     }
 
     // VB-transform-roundtrip: forward DCT -> inverse DCT reproduces the
-    // source within the integer rounding bound (pin P-U0-5).
+    // source within the integer rounding bound (spec amendment 22: bounded
+    // error <= 1 per block, <= 2 at plane level due to replicate padding;
+    // not byte-exact per slot 3a because transform domain was measured-closed
+    // at U1 FAIL). Two 12-bit fixed-point passes accumulate <= 2 error.
+    // Use channel max (not hardcoded 255) because YCoCgR Co/Cg channels
+    // have +512 bias and exceed BD8 range.
     {
         bool all_pass = true;
         for (auto& plane : t.planes) {
+            uint16_t ch_max = 0;
+            for (auto v : plane) if (v > ch_max) ch_max = v;
             auto dct = block_dct_forward_plane(plane, w, h);
             auto recon = block_dct_inverse_plane(dct.coefficients.data(),
                                                   dct.blocks_x, dct.blocks_y,
-                                                  w, h, 255);
+                                                  w, h, ch_max);
             for (size_t i = 0; i < plane.size(); ++i) {
                 int32_t diff = (int32_t)recon[i] - (int32_t)plane[i];
-                if (std::abs(diff) > 1) {
+                if (std::abs(diff) > 2) {
                     all_pass = false;
                     break;
                 }
