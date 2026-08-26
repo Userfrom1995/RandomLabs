@@ -335,9 +335,366 @@ percent) are independently re-measurable today via
       honestly at the achieved level with the full negative ledger. Review
       boundary reached; this is the project's closing state.
 
+## Prism v2 clean-slate checklist (authorized by owner via Mae, 2026-08-25)
+
+The merge of PR #131 was ledger preservation only, NOT a parity declaration.
+Per the kickoff comment on #130 (2026-08-25T15:31Z): v2 may be an entirely
+new architecture family; M2/M3 dual-unit gates unchanged; brainstorm board
+stays frozen. Research mandate: study BOTH ledgers (Obsidian + Prism v1)
+and locate where the gap lives before any blueprint.
+
+- [x] R-v2 Research phase: gap decomposition into five measured/anchored
+      buckets (B1 collection layer up to 6.30 pct of current bytes via
+      forward-adaptive clustered static coding; B2 per-image conditioning
+      margins 2.0-3.1 pct killed in v1 only by pooled-joint scoring; B3
+      predictor headroom 2-5 pct literature-bounded, unmeasurable under
+      v1 zero-economics scoring; B4 trial-selection expansion 0.5-1.5;
+      B5 tokenization refinements 0.5-1.0) plus the consolidated
+      carried/reopened ledger (L-C1..L-C9 constraints, R-1..R-4 reopenings
+      each with written confound arguments), the candidate architecture
+      family, and the pre-registered offline V-series program (V0 spine,
+      V1 backend/tokenization, V2 predictors, V2b bias canary, V3 context
+      structures, V4 composition threshold < 9.35 summed projected, V5
+      squeeze-with-parent-properties reserve). New invariants I10
+      (per-image primacy - ratifies the E0 pooled-scoring anomaly lesson),
+      I11 (reopening requires named structural delta), I12 (net accounting
+      covers maps/tiles/trees). Spec:
+      `prism/docs/research-v2-clean-slate.md`. Honest base case: lands
+      summed 9.1-9.7 => M2 PASS expected, M3 only at optimistic edges or
+      via V5. Handoff {"action":"architect"}.
+- [x] A-v2 Architect phase: V-series blueprint delivered
+      (`prism/docs/architecture-jxl-parity-vseries.md`) + spec addendum 17
+      (algorithmic-spec.md section 18) committed BEFORE any measurement:
+      gate reading pinned (RELPCT per-image medians primary per I10, NET =
+      payload+tables+maps+trees per I12), V0 spine fully specified (new
+      `prism bench-sandbox` command, tokenize/staticmodel format-unwired
+      modules, six VB rails incl. bit-for-bit anchors against the frozen
+      bench-ideal references, coder-fidelity bound +0.50 pct, corrupt-
+      injection failability, ranking fixtures both directions), tokenization
+      ladders ESC-A/B/C (T_ESC 4/8/16), cluster caps K <= 256 with 4096-
+      sample floors, smoothing prior (pseudo-count 32, r = 15/16, sum 2^12),
+      V2 predictor mathematics integer-exact (reduced GAP thresholds
+      t80/t32 scaled by BD; W ensemble over {W,N,NW,TE} with normalized
+      16.16 weights, gradient update /512, clamps [16384, 1048576],
+      max-error-feedback property buckets), V4 projection formula against
+      the committed e1 CSV, and reserved-slot amendments for later phases.
+      Builder slicing: slice 1 = V0 rails green + dated CSVs before any V1
+      scoring; zero container bytes until a V4 PASS. Handoff {"action":
+      "build"}.
+- [x] V0 sandbox spine (Builder slice 1; blueprint section 6): COMPLETE
+      2026-08-25. tokenize.{h,cpp} + staticmodel.{h,cpp} format-unwired
+      (zigzag bijection, ZERO-token exclusivity, ladder edges T_ESC+-1,
+      dense round-trips incl. extremes; per-bin smoothing per amendment
+      pins A1/D9-D15; hierarchical blob serialization + CRC + length
+      prefixes + NET audit; interleaved-static rANS (NS=4) and B-BAC
+      round-tripping every profile x keying; cluster floor/cap enforcement).
+      `prism bench-sandbox` CLI: config matrix (4 profiles x keyings x 3
+      backends + B-ADAPT control), BRACKET rows from the frozen idealbench
+      walk, round-trip verification on every real backend row, NET audit
+      column, three corruption injections all hard-detecting. ENGINE
+      INTEGRITY FIXES (decision-record amendment A2, BEFORE any
+      measurement): (1) build_tables' TOKEN block spilled past the ZFFCTRL
+      stride and overwrote every cluster boundary's ZERO_FLAG entry with
+      4096 - round-trips stayed green only because encoder and decoder
+      shared the damage; fixed + regression test. (2) table_ideal_bits now
+      carries RAWBITS literal cost so B-IDEAL bounds its real siblings.
+      RAILS: `benchmarks/probe_sandbox.sh` LANDED - all six VB rails green
+      on the pinned quad: VB-anchor-adapt (B-ADAPT payload bit-for-bit vs
+      committed v2 bytes, 4/4 images), VB-anchor-ideal (frozen-walk BRACKET
+      AND sandbox counting path both reproduce fine_shared/class16/ctx343
+      bit-for-bit, 4/4), VB-coder-fidelity (72 real-backend rows within
+      +0.50 pct of their own B-IDEAL rows; measured spread +0.02..+0.03),
+      VB-net-audit (112 rows: serializer audit == blob length, NET identity,
+      all coded rows decode), VB-corrupt (table/trunc/content injections all
+      hard-detect on a real pinned image), VB-rank (skew fixture: clustered
+      23169 < pooled 29383 NET; constant-image fixture: pooled 401 <=
+      clustered 1628), VB-determinism (byte-identical quad re-run).
+      --self-check proves every rail's FAIL path (anchor drift, fidelity
+      stub, double-count mismatch, silent corruption, flipped rank fixtures,
+      uncovered image) plus live rank/injection/determinism checks.
+      REFERENCE CSV COMMITTED:
+      benchmarks/results/2026-08-25-sandbox-v0.csv (144 rows: SANDBOX config
+      matrix + BRACKET + CORRUPT + SANDBOXTOTAL families). Wall-clock
+      deviation recorded honestly as amendment A3 (sandbox coding
+      instrument ~21-42x the plain bench-ideal bracket walk; structural to
+      the pairing, O(N) per config as blueprinted). Control truth re-verified
+      in-sandbox: B-ADAPT quad net = 2272270 == committed e1-era bytes.
+      V0 exit condition MET: all rails green + dated reference CSV committed;
+      V1 scoring may now run. Zero container bytes by construction.
+      Spec addendum 17 verified, never retuned; structural
+      disambiguations pinned BEFORE any measurement in
+      `.github/agents/decisions/builder/2026-08-25T16-20-00-v0-sandbox-
+      structural-pins.md` (escape m = u-T_ESC+1 per the m>=1 guarantee;
+      ESC-B/C escape context = min(q, T_ESC-1); raw low bits unmodeled;
+      anchor poolings floor-exempt; per-image tables with 18-slot unary
+      caps; delta-stream rANS depth 1; TOKEN even pseudo; VB-corrupt map/
+      tree injections deferred to V3 artifacts). Deliverables: tokenize +
+      staticmodel format-unwired modules, `prism bench-sandbox` CLI,
+      interleaved-static rANS extension, probe_sandbox.sh with all six VB
+      rails + failable self-checks, dated reference CSVs under
+      benchmarks/results/. Zero container bytes by construction.
+- [x] V1 measurement slice (Builder slice 2; blueprint section 6 + pins
+      V-P1..V-P8 in decisions/builder/2026-08-25T21-30-00, committed BEFORE
+      any measurement): COMPLETE 2026-08-25. Machinery: ClusterMap
+      resolution layer; KGRID128 tiles; KTREE = greedy context partition
+      over qL/qU/qUL ONLY (octile-quantile candidates weighted by per-
+      context samples, matree caps depth<=10/leaves<=256 inherited,
+      4096-sample floor binding both split sides, fixed scan order, strict
+      max gain, DFS preorder leaves); 'SBT1' tree blob and 'SBP1' budget
+      merge-map blob so decoders mirror count-based merges exactly; oracle
+      pass = per-sample best-cluster assignment under pinned fixed-point
+      cost LUTs, single pass, memoized by exact event signature, recount
+      WITHOUT enforcement, tables fully transmitted, map FREE but reported.
+      Sweep: 4 profiles x 3 keyings x 3 backends x {REAL, ORACLE} x quad =
+      288 V1 rows + control/bracket/anchor rows; all six VB rails green on
+      the new families (fidelity 192 rows within bound, net-audit 288 rows
+      incl. oracle freebie exclusion); --self-check-v1 proves the new fail
+      paths; determinism byte-identical; wall-clock 147x bench-ideal
+      recorded per V-P8 (A3 precedent).
+      MEASURED VERDICT: V1a PASS (+74.60 pct best median, HYB-A x KTREE;
+      freebie-dominated - the hypothetical map costs more than the gain it
+      explains). V1b FAIL (best median +5.81 pct, ZFFCTRL x KFLAT16 with
+      every side-info byte NETTED: tables ~2.9 KB + merge-map 26 B;
+      per-image +5.92/+6.08/+5.69/+3.20) vs retention bar half-of-V1a
+      (+37.30). **Overall V1 FAIL => STOP rule fired, decision tree row 1:
+      bucket B1 closed-with-numbers - harvestable only at ~5.8 pct via
+      forward-adaptive static class16 tables, far under the pre-registered
+      bar; owner to be informed BEFORE any pivot blueprint commits.**
+      Cross-checks: ZFFCTRL/KFLAT16 REAL reproduces the V0 exempt anchors
+      after floors+side-info become payable; HYB rows match V0 references.
+      The slice's FIRST run was discarded wholesale when a harness bug
+      (unset ClusterMap width collapsed every keying to one cluster) was
+      caught by cross-instrument agreement checks before any verdict was
+      recorded; fix committed separately, no number from that run survives.
+      Zero container bytes by construction. Evidence CSV:
+      benchmarks/results/2026-08-25-sandbox-v1.csv.
+- [x] V-series continuation SUSPENDED at the V1 gate, then RESOLVED by the
+      owner 2026-08-25T21:53:15Z on PR #145: STOP acknowledged; the
+      source-side-only pivot (or any architecture the Architect deems
+      necessary) authorized; NEW STANDING ORDER - future mathematical
+      ceilings may be pivoted autonomously without pausing for owner
+      permission, and the ONLY hard restriction is that the performance
+      gates (M2/M3 vs JPEG XL, WebP, PNG) may never be lifted, bypassed,
+      or altered. Mae dispatched `/oc architect` the same hour. The V1
+      verdict itself stands recorded permanently as FAIL/STOP under I10's
+      no-post-hoc-bar rule; see the S-series checklist below for the
+      authorized continuation.
+
+## Prism v2 S-series checklist (source-side-only pivot; owner-authorized
+## 2026-08-25T21:53Z)
+
+Program blueprint: `prism/docs/architecture-jxl-parity-sourcepivot.md`;
+pre-registration: spec addendum 19 (algorithmic-spec.md section 19),
+committed BEFORE any S-measurement. Evidence base: the V1 CSV numbers
+(static spine +5.81 pct median quad NET; spatial keyings lose to global
+flat tables; HYB ladders lose to ZFFCTRL everywhere). Dual-frame controls
+pinned (FRAME-A adaptive replay / FRAME-S static spine); FRAME-S gating;
+zero container bytes until an S4 threshold PASS (< 9.35 summed / < 3.117
+per-sample projected).
+
+- [x] S-pivot Architect phase (2026-08-25): blueprint + addendum 19 +
+      tracker/log updates delivered; reserved slots 18.6 resolved (no V1
+      winner; wall-clock per A3 precedent; P_ext frozen; tree features =
+      NONE). Handoff {"action":"build"}: Builder slice P1 = S1 predictors.
+- [x] S1 predictor families (Builder slice P1; pins P-S1-1..P-S1-11 +
+      amendments A4/A4b in decisions/builder/2026-08-25T22-30-00, committed
+      BEFORE any measurement): COMPLETE 2026-08-25.
+      Machinery: format-unwired causal replay predict.{h,cpp} -
+      PredFamily {MED control, GAP reduced classic, W ensemble} per 18.4
+      with pinned integer helpers (sym_round_div half-away-from-zero,
+      floor_div toward -inf); WEnsemble weights 16.16 init 65536 clamp
+      [16384,1048576], /512 gradient updates in pinned W,N,NW,TE order;
+      production neighbor derivation bound to compute_residuals(MED)
+      byte-for-byte across ALL planes; decoder-mirror step-equality,
+      bijection, plane-reset, weight-clamp and BD-scaling unit tests
+      (124/124 green).
+      AMENDMENT A4 (pre-measurement): 18.4's literal GAP gradient pair is
+      algebraically degenerate (dh == dv term-by-term, t80/t32 branches
+      unreachable); repaired to the classic CALIC pair dh[1]=|W-WW|,
+      dv[2]=|N-NN| - smallest delta restoring the section's own branch
+      semantics. AMENDMENT A4b (pre-measurement, bring-up run DISCARDED
+      wholesale): the literal "[0,2^BD-1] output clamp" corrupts every
+      chroma prediction because YCoCg-R chroma planes legitimately exceed
+      the source BD (kodim01 chroma measured in [477,639]); predictions are
+      UNCLAMPED in the transformed-plane domain (production parity; MED
+      identity is the binding test), TE clamps to [0,2^16-1], reconstruction
+      is the exact unclamped add. No number from the clamped bring-up run
+      survives (V1 ClusterMap precedent).
+      MEASUREMENT (`bench-sandbox --s1`, quad pins verified pre-run; all
+      rails green FIRST: VB-anchor-adapt 4/4 bit-for-bit, VB-anchor-ideal
+      both frozen walk AND counting path 4/4, net-audit clean incl. frame-A
+      zero-side-info schema, rank fixtures live BOTH ways, fidelity within
+      +0.50 pct on 12 spine rows, determinism byte-identical re-run):
+      **S1 VERDICT: FAIL** per addendum 19.5 - best non-MED family median
+      in gating FRAME-S = **-1.45 pct (W)** vs bar >= +1.50; GAP -2.61
+      median (min -8.03 max -0.78); W min -5.84 max -0.85: EVERY family
+      regresses on EVERY image in the spine frame. FRAME-A beside (never
+      gating): GAP -1.68 median (max +0.70), W -0.42 (max +0.27) - nothing
+      near the bar in either framing, resolving R-2's zero-economics
+      confound honestly: no framing rescues directional predictors under
+      the zero-flag-first binarization; MED's exact-zero peak dominates.
+      Consequence: MED ships in both frames; bucket B3 closed-with-
+      numbers; S2 canary never opens (opens ONLY on an S1 PASS).
+      Evidence: benchmarks/results/2026-08-25-sandbox-s1.csv (56 rows).
+      Zero container bytes by construction.
+- [ ] S2 error-feedback canary: NOT OPENED - its trigger clause requires an
+      S1 PASS; S1 FAILED, so the canary is skipped by its own terms (no
+      second-strike cost against the bias-feedback budget).
+- [x] S3 extended causal properties (attacks B2; pins P-S3-1..P-S3-12 in
+      decisions/builder/2026-08-25T23-00-00, committed BEFORE any
+      measurement): COMPLETE 2026-08-25. Machinery: incremental causal
+      PropHasher over the frozen P_ext list exactly as 19.4 freezes it -
+      quotient buckets qW/qN/qNW/qNE via production quant_residual with
+      per-image octile edges computed from strictly-past samples
+      (prefix-invariant by construction, pinned unit test), gbW/gbN as the
+      A4 CALIC gradient pair of the residual stream through the shared
+      bias_bucket (bd_shift = bd - 8), raw plane id, e_max_prev per the
+      literal 18.4 edge table - mixed by a pinned FNV-1a word mixer into
+      k_raw {64, 256} clusters; caps/floors inherited ('SBP1' merge map
+      NETTED, decoder mirrors count-based merges); NO spatial maps or trees
+      anywhere (tree columns identically zero, schema-guarded). Decode-
+      mirror round-trip unit test binds encoder/decoder hash-sequence
+      equality (128/128 green).
+      MEASUREMENT (`bench-sandbox --s3`, quad pins verified pre-run; rails
+      FIRST: VB-anchor-adapt 4/4 bit-for-bit, VB-anchor-ideal frozen walk +
+      counting path bit-for-bit, rank fixtures live BOTH ways, fidelity 36
+      rows within +0.50 pct, net-audit 72 rows clean incl. zero-tree schema,
+      determinism byte-identical re-run): **S3 VERDICT: FAIL** per addendum
+      19.5 - best variant median **-8.09 pct** (SX-G k=64) vs bar >= +1.50
+      in gating FRAME-S vs the same-stack best-flat-16 baseline measured
+      fresh in-run (kodim01 spine B-IDEAL net reproduces the committed V1
+      reference 514496 exactly). Every variant regresses on every image:
+      SX-G k=64 median -8.09 (min -9.94 max -5.95); SX-FULL k=256 median
+      -16.62 (worst per-image -19.40); k=256 table bytes (~40 KB) bury any
+      conditioning gain, and even k=64 (~11 KB) never approaches breakeven.
+      Mechanism recorded: under I12 NET accounting, extended causal
+      property keyings pay more transmitted side info than the conditioning
+      they buy at these cluster counts; E0's static-ceiling margins do not
+      survive contact with payable tables. Consequence: bucket B2 closed-
+      with-numbers; flat-16 keying ships unchanged; S4 composes {adaptive
+      control, static spine} x D4c color trials only.
+      Evidence: benchmarks/results/2026-08-25-sandbox-s3.csv (92 rows).
+      Zero container bytes by construction.
+- [x] S4 composition + projection (proceed-to-format threshold): COMPLETE
+      2026-08-25. Pins P-S4-1..P-S4-12 committed BEFORE any measurement
+      (decisions/builder/2026-08-25T23-45-00-s4-composition-pins.md):
+      candidates {ADAPT control, SPINE} x colorrot kCount=7 trials decided
+      per image by real NET bytes; winner argmin with conservative
+      tie-breaks (ties to ADAPT); relpct_composed vs the TRIAL-FREED
+      adaptive control so composed NET is non-regressing vs e1 BY
+      CONSTRUCTION; projection via 18.5 VERBATIM against
+      2026-08-25-prism-e1.csv; portrait-class handling pinned before
+      measurement (quad is all-landscape: portrait inherits the overall
+      quad median behind an explicit INHERITED marker, landscape-only
+      projection reported beside); stretch KIND flag deferred to the format
+      program per its own clause.
+      MEASUREMENT (`bench-sandbox --s4`, quad pins verified pre-run; rails
+      FIRST: VB-anchor-adapt 4/4 bit-for-bit, VB-anchor-ideal frozen walk +
+      counting path bit-for-bit, rank fixtures live BOTH ways, fidelity 28
+      spine rows within +0.50 pct, net-audit clean on all rows incl.
+      candidate schemas, determinism byte-identical re-run; wall-clock
+      26.33x bench-ideal recorded, P-S4-12/A3 precedent): **S4 VERDICT:
+      FAIL - stop-and-report** per the verbatim threshold. SPINE won all
+      four images but with thin margins over the trial-freed control:
+      kodim01 SPINE/rct-rbg +5.4481 pct, kodim05 SPINE/rct-rbg +5.5627,
+      kodim13 SPINE/loco +5.9303, kodim20 SPINE/loco +2.9772; landscape
+      class median +5.5054 pct (I10). Projected corpus: summed 9.5638 >=
+      9.35 AND per-sample 3.1879 >= 3.117 => proceed-to-format threshold
+      NOT met. M2 (<9.498/<3.166) and M3 (<8.655/<2.885) context both
+      projected FAIL - reported only, never altered (owner standing
+      order); final judgment stays bench_gate.sh dual-unit vs real cjxl.
+      Honest readings: the trial-freed control itself gains ~1.5 pct from
+      color trials (B4 helps both sides, narrowing V1's +5.81 to +5.51);
+      kodim20 thins further (+2.98); sandbox controls sit within ~60 B of
+      committed e1 bytes (container overhead), validating the instrument
+      product form. Decision tree row 1 executed: the spine improvement is
+      recorded as available-but-insufficient; S5 trigger clause NOT met
+      (projection nowhere near M3 reach), so the reserve stays closed and
+      the S-program's measurement phases END here with stop-and-report.
+      Evidence: benchmarks/results/2026-08-25-sandbox-s4.csv (104 rows).
+      Zero container bytes by construction across the ENTIRE program.
+- [ ] S5 reserve (ONLY if S4 projects inside M3 reach but short): one-shot
+      squeeze-with-parent-properties, >= 2.0 median NET or third-strike
+      death (L-C7).
+
 ## Current step
 
-PROJECT CLOSED (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
+S4 COMPOSITION MEASURED - FAIL, STOP-AND-REPORT (2026-08-25): the
+pre-registered threshold (18.5 verbatim: projected <9.35 summed AND
+<3.117 per-sample) rejected the composed program on the pinned quad.
+Composition of {adaptive control, static spine} x D4c color trials decided
+by real NET bytes put SPINE over ADAPT on all four images (per-image
++5.45/+5.56/+5.93/+2.98 pct vs the trial-freed control; landscape median
++5.51), but the corpus projection lands summed 9.5638 / per-sample 3.1879,
+ABOVE both S4 bars. All six VB rails green first (anchors bit-for-bit 4/4;
+determinism byte-identical); pins P-S4-1..12 landed BEFORE any measurement;
+zero container bytes by construction across the whole V+S program. The
+S-program's measurement phases are COMPLETE: buckets B1/B2/B3 closed with
+numbers, B4 measured inside composition (+~1.5 pct to both sides), B5
+demoted. Per the binding decision tree this is stop-and-report with the
+full ledger; the owner/Mae decide any next program (the standing order
+makes a future pivot autonomous for Mae, and the gates remain invariant).
+
+Next: handoff {"action":"maintainer"} - Mae routes the stop-and-report to
+the owner; no review/test dispatch is warranted on measurement-negative
+closure unless Mae directs otherwise; PR #145 stays OPEN with the full
+S-series evidence (V0 rails, V1 STOP, S1/S3/S4 verdicts) merge-blocked as
+before.
+
+Prior state:
+
+SLICE P3 OPENED (2026-08-25): S4 structural pins P-S4-1..P-S4-12 committed
+BEFORE any measurement
+(decisions/builder/2026-08-25T23-45-00-s4-composition-pins.md): candidates
+{ADAPT control, SPINE} x colorrot kCount=7 trials decided by real NET bytes
+per image; winner argmin with conservative tie-breaks; relpct_composed vs
+the trial-freed adaptive control (non-regressing vs e1 BY CONSTRUCTION);
+projection 18.5 VERBATIM against 2026-08-25-prism-e1.csv with pinned
+landscape/portrait class handling (quad is all-landscape; portrait inherits
+the overall quad median behind an explicit INHERITED marker, landscape-only
+projection reported beside); thresholds <9.35 summed / <3.117 per-sample;
+M2/M3 reported beside, never altered; S5 trigger quantified (summed <8.8316
+AND per-sample <2.9438 while failing the S4 bar); stretch KIND flag defers
+to the format program; zero container bytes.
+
+Prior state:
+
+S3 PROPERTIES MEASURED - FAIL (2026-08-25): the pre-registered gate
+(addendum 19.5 S3, FRAME-S primary, same-stack best-flat-16 baseline fresh
+in-run) rejected every extended causal property keying on the pinned quad:
+best variant median -8.09 pct (SX-G k=64) vs bar >= +1.50; all four
+pre-named variants x k_raw {64, 256} regress on ALL FOUR images (worst
+per-image -19.40 at SX-FULL k=256). Pins P-S3-1..P-S3-12 landed BEFORE any
+measurement (causal octile edges prefix-invariant and unit-tested; A4 CALIC
+gradient buckets; literal 18.4 e_max_prev table; pinned FNV-1a mixer);
+'SBP1' merge maps NETTED per I12; zero spatial maps/trees by construction.
+All six VB rails green on the new row family (anchors bit-for-bit 4/4;
+kodim01 spine reproduces the committed V1 reference 514496 exactly);
+128/128 unit tests; zero container bytes. Bucket B2 closed-with-numbers.
+
+Next: Builder slice P3 = S4 composition + projection readout against the
+committed e1 CSV (threshold < 9.35 summed / < 3.117 per-sample). With S1
+and S3 both failed honestly, composition candidates are exactly {adaptive
+control, static spine (+5.81 measured)} x D4c color trials, decided per
+image by real NET bytes (non-regressing vs e1 BY CONSTRUCTION); projection
+via 18.5 VERBATIM with landscape/portrait class medians separate.
+Decision tree row 1 is now the live path: midpoint composition ~9.5-9.6
+summed > 9.35 => stop-and-report with the full ledger unless measurement
+surprises upward; S5 reserve opens ONLY if S4 projects inside M3 reach but
+short of it.
+
+Prior state (superseded by the authorization above): V1 GATE READOUT
+COMPLETE (2026-08-25): instrument extended and
+validated, sweep measured on the pinned quad, verdicts recorded above.
+V1b FAILED the pre-registered retention bar => STOP rule fired; bucket B1
+closed-with-numbers (~5.8 pct realistic best vs >= 37.30 required
+retention). Per the binding decision tree, the OWNER is informed BEFORE
+the Architect re-engages for any pivot blueprint (source-side-only pivot
+is the default candidate); Mae routes this handoff. No further build
+phases are authorized on this program until that decision lands. Zero
+format bytes were spent anywhere in the V-series so far.
+
+v1 closure record (2026-08-25): E1's BIAS-fmt gate FAILED by an order of
 magnitude (bracket worse by 16-20 points of v0, 4/4 images regressed,
 payload +22 to +70 percent) - the zero-flag-first binarization makes
 CALIC-style bias cancellation structurally incompatible with this coder.
@@ -449,8 +806,211 @@ Previous slice summary (continuation run 3, C2b):
     ledger (tree row 1, final clause). E4 checkpoint ran in the same slice:
     fresh dual-unit corpus measure byte-identical to D4c-era CSVs; M2/M3
     honestly FAIL both units; review boundary reached. PROJECT COMPLETE.
+6. [DONE 2026-08-25] V-series ran V0 (rails green) and V1 (STOP fired);
+    owner pivot authorization landed 21:53:15Z; Architect delivered the
+    S-series blueprint + addendum 19 (see S-series checklist above).
+7. [PARTIAL 2026-08-25] Builder slice P1 = S1 predictors: DONE - pins +
+      amendments A4/A4b committed pre-measurement; GAP/W replay + tests;
+      `bench-sandbox --s1` dual-frame sweep; all six VB rails green; dated
+      s1 CSV; verdict FAIL recorded (MED ships, B3 closed-with-numbers).
+      Slice P2 = S3 properties: DONE the same day (S2 skipped by its own
+      trigger clause) - pins P-S3-1..12 committed pre-measurement, causal
+      PropHasher + tests, `bench-sandbox --s3` sweep, all six VB rails
+      green, dated s3 CSV, verdict FAIL recorded (flat-16 ships, B2
+      closed-with-numbers).
+      REMAINING: P3 = S4 composition + projection. Zero container bytes
+      until an
+      S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-25 the Builder (S4 composition slice, S-series P3): executed the
+  program's final measurement slice to its threshold readout. (1) Pins
+  P-S4-1..P-S4-12 committed BEFORE any measurement - candidates {ADAPT,
+  SPINE} x colorrot kCount=7, winner argmin by real NET bytes with
+  conservative tie-breaks (ties to ADAPT), control = trial-freed adaptive
+  control (non-regression vs e1 BY CONSTRUCTION), projection 18.5 verbatim,
+  portrait-inheritance handling pinned before measurement (quad is
+  all-landscape; landscape-only projection reported beside), S5 trigger
+  quantified (summed <8.8316 AND per-sample <2.9438 while failing the S4
+  bar), stretch KIND flag deferred per its own clause. (2) Machinery:
+  `bench-sandbox --s4` composition driver (anchors first under plain
+  YCoCgR - trial ycocgr reproduces B-ADAPT bit-for-bit - then ADAPT/SPINE
+  rows for every color trial with all side info NETTED); probe_sandbox --s4
+  rails + composition readout + class-median projection vs the committed
+  e1 CSV + failable `--self-check-s4` proving both verdict directions and
+  six mutation classes. All five self-checks green; 128/128 unit tests.
+  (3) MEASURED VERDICT: S4 FAIL - stop-and-report. SPINE won all four
+  images (+5.45/+5.56/+5.93/+2.98 pct vs trial-freed controls; landscape
+  median +5.51), projected corpus summed 9.5638 / per-sample 3.1879 >=
+  9.35/3.117 thresholds; M2/M3 context projected FAIL (reported only).
+  Honest readings recorded beside the verdict: color trials help both
+  sides ~1.5 pct (B4 measured inside composition), kodim20 thins to
+  +2.98, sandbox controls within ~60 B of committed e1 bytes. Rails green
+  first (anchors 4/4 bit-for-bit, determinism byte-identical); quad pins
+  verified pre-run; wall-clock 26.33x logged per A3 precedent; zero
+  container bytes across the ENTIRE V+S program. Decision tree row 1
+  executed to stop-and-report; S5 trigger NOT met, reserve stays closed.
+  Handoff {"action":"maintainer"}: Mae routes the closure to the owner.
+
+- 2026-08-25 the Builder (S3 property slice, S-series P2): executed slice
+  P2 to its gate readout. (1) Pins P-S3-1..P-S3-12 committed BEFORE any
+  measurement - causal octile edges defined exactly (cum*8 >= total*k,
+  deduped, bucket = #{deduped edges <= v}, strictly-past histograms,
+  prefix-invariant by construction), gbW/gbN as the A4 CALIC gradient pair
+  on the residual stream via the shared bias_bucket, raw plane id, e_max_prev
+  per the literal 18.4 edge table, FNV-1a word mixer with disabled
+  coordinates skipped entirely, pre-named variants SX-FULL/SX-Q/SX-G/SX-E x
+  k_raw {64, 256}. (2) Machinery: incremental PropHasher in staticmodel
+  (decoder-mirror by construction - a fresh hasher over decoded history
+  reproduces the encoder's cluster sequence; pinned round-trip test through
+  'SBP1'), KPROP ClusterMap kind, `bench-sandbox --s3` sweep + baseline
+  re-measured fresh in-run; 4 new test groups, 128/128 green. (3)
+  MEASURED VERDICT: S3 FAIL - best median -8.09 pct (SX-G k=64) vs >=
+  +1.50 bar in gating FRAME-S; every variant regresses on every image;
+  NETTED table bytes dominate the conditioning gain at every cluster count.
+  B2 closed-with-numbers; flat-16 ships unchanged; S2 stays closed; S4
+  composition candidates are {adaptive control, static spine} x D4c
+  trials. All six VB rails green first; determinism byte-identical; quad
+  pins verified pre-run; kodim01 baseline cross-check = committed V1
+  reference exactly. Zero container bytes. Handoff {"action":"continue"}:
+  slice P3 = S4 composition + projection.
+
+- 2026-08-25 the Builder (S1 predictor slice, S-series P1): executed slice
+  P1 to its gate readout. (1) Pins P-S1-1..P-S1-11 + amendment A4 committed
+  BEFORE any measurement - including the find that addendum 18.4's literal
+  GAP gradient pair is algebraically degenerate (dh == dv term-by-term;
+  t80/t32 provably dead branches), repaired by minimal delta to the classic
+  CALIC pair with production replicated-edge WW/NN. (2) Format-unwired
+  replay in predict.{h,cpp} + 5 new test groups (124/124): MED byte-identity
+  vs production, pinned GAP vectors across all five threshold branches +
+  BD-scaling pair, W decoder-mirror step equality, weight clamps, bijection
+  on degenerate shapes and offset domains. (3) Bring-up integrity: the first
+  quad run was DISCARDED wholesale when cross-checks showed MED's FRAME-A
+  payload 2.65x off its own anchor - root cause was 18.4's literal
+  "[0,2^BD-1] output clamp" firing on every YCoCg-R chroma sample (measured
+  chroma domain [477,639] at BD8); amendment A4b pins unclamped predictions
+  (production parity), TE bounded by uint16 storage; no number from that run
+  survives. After the fix, MED FRAME-A = committed e1-era bytes bit-for-bit
+  and the spine B-IDEAL net reproduces the V1 reference exactly (514496 on
+  kodim01). (4) `bench-sandbox --s1` dual-frame sweep + probe rails
+  (fidelity/net-audit incl. frame-A zero-side-info schema/S-gate readout)
+  + failable --self-check-s1 (verdict proven reachable BOTH ways).
+  (5) MEASURED VERDICT: S1 FAIL - best non-MED median -1.45 pct (W) vs
+  >= +1.50 bar in gating FRAME-S; all families regress everywhere there;
+  R-2's zero-economics confound resolved honestly: no framing rescues
+  directional predictors under zero-flag-first binarization. B3 closed-
+  with-numbers; S2 never opens; MED ships both frames. Zero container
+  bytes. Handoff {"action":"continue"}: slice P2 = S3 extended causal
+  properties.
+
+- 2026-08-25 the Architect (S-series pivot): owner authorization received
+  via Mae's `/oc architect` dispatch after the V1 STOP. Delivered the pivot
+  program in three modular commits: (1) spec addendum 19 FIRST (section 19:
+  reserved-slot resolution - no V1 winner exists; FRAME-A/FRAME-S controls;
+  dual-frame contract with FRAME-S gating; frozen P_ext property list with
+  tree features = NONE; every S-gate; CSV naming) so no S-row may precede
+  its pins; (2) the S-series blueprint
+  (`prism/docs/architecture-jxl-parity-sourcepivot.md`) turning V1's three
+  durable numbers into design constraints: the static spine (+5.81 pct
+  median quad NET) is a first-class composition candidate under fresh
+  controls, transmitted spatial structure stays closed (KTREE/KGRID lost to
+  global flat tables), tokenization stays ZFFCTRL (HYB ladders lost
+  everywhere), and phases S1 predictors / S2 canary / S3 causal properties /
+  S4 composition-threshold / S5 reserve reuse the validated instrument with
+  zero container edits by construction; (3) this tracker + ideas writeup +
+  handoff {"action":"build"} for Builder slice P1. Honest arithmetic kept:
+  M2 expected, M3 unlikely without near-edge outcomes or S5; gates remain
+  the single invariant per the owner's standing order.
+
+- 2026-08-25 the Builder (V1 measurement slice): executed slice 2 to its
+  gate readout. (1) Pins V-P1..V-P8 committed BEFORE any measurement
+  (grid geometry, context-tree definition, SBT1/SBP1 blob formats, oracle
+  cost model, NETTing rules, gate reading, wall-clock accounting). (2)
+  Machinery: ClusterMap, KGRID128, KTREE context partition (86 leaves on
+  kodim01 - real splits), oracle assignment with fixed-point LUTs and
+  signature memoization; seven new unit tests (118/118 green). (3) CLI
+  `--v1` sweep + probe rails/gates + `--self-check-v1`; both self-checks
+  PASS. (4) Harness integrity: the first quad run was DISCARDED when
+  cross-checks showed every keying producing byte-identical payloads -
+  root cause was an unset ClusterMap width making all samples resolve as
+  position (0,0); fixed and re-measured from scratch (same discipline as
+  the V0 TOKEN-spill find: anchors alone could not catch it because they
+  bypass ClusterMap). Also fixed a latent V0-era inconsistency by making
+  budget merges decoder-visible through the transmitted SBP1 map. (5)
+  MEASURED VERDICT: V1a PASS / V1b FAIL => overall V1 FAIL, STOP rule
+  fired; best realistic config ZFFCTRL x KFLAT16 at +5.81 pct median NET
+  with everything payable included. Zero container bytes. Handoff
+  {"action":"maintainer"}: owner informs the pivot decision before any
+  Architect re-engagement.
+
+- 2026-08-25 the Builder (V0 completion slice): landed the sandbox spine to
+  its exit condition. (1) Engine integrity first: wiring the fidelity
+  discipline exposed that build_tables' TOKEN block wrote past the ZFFCTRL
+  stride, corrupting every cluster boundary's ZERO_FLAG entry with the
+  value 4096 (round-trips green only because both sides shared the damage)
+  - fixed with regression test ZffctrlTokenBlockNeverSpillsIntoNeighborBins;
+  and table_ideal_bits now carries RAWBITS literal cost so B-IDEAL bounds
+  its real siblings (amendment A2, both BEFORE any measurement; kodim05
+  spread tightened from +12.7 pct apparent to +0.03 pct actual). Also fixed
+  a control-row ptsv0 unsigned-subtraction underflow (printed -3.1e15 on
+  any image where v2 beats v0) and aligned its sign to the worse-is-positive
+  convention of every other row. (2) `benchmarks/probe_sandbox.sh`: six VB
+  rails + fail-capable self-check (every rail's FAIL path demonstrated on
+  mutated fixtures; rank proven LIVE both ways - clustered beats pooled on
+  a two-half skew fixture, pooled beats clustering on a constant image,
+  after discovering iid noise is NOT homogeneous in the context-information
+  sense and picking fixtures accordingly); uncovered-image coverage guard.
+  (3) Reference measurement on the pinned quad, pins verified pre-run:
+  SANDBOX GATE PASS - anchors bit-for-bit 4/4 on BOTH the frozen walk and
+  the sandbox counting path, fidelity +0.02..+0.03 pct worst across 72
+  real-backend rows, net-audit clean 112 rows, injections all hard-detect,
+  determinism byte-exact. Dated CSV committed. Wall-clock deviation recorded
+  honestly as amendment A3. Control truth: B-ADAPT quad net = 2272270 ==
+  committed e1-era bytes (VB-anchor-adapt). 111/111 unit tests. Zero
+  container bytes. Handoff {"action":"continue"} for the V1 measurement
+  slice.
+
+- 2026-08-25 the Architect (V-series blueprint): delivered
+  `prism/docs/architecture-jxl-parity-vseries.md` turning the clean-slate
+  research spec into a gated build program. Key architectural decisions:
+  (1) V0 is a NEW instrument - `prism bench-sandbox` with format-unwired
+  tokenize/staticmodel modules - so bench-ideal stays frozen as the v1-era
+  reference (its CSVs become bit-for-bit anchors VB-anchor-adapt /
+  VB-anchor-ideal); (2) six pre-registered VB rails with coder-fidelity
+  bound (+0.50 pct vs B-IDEAL), independent double-count side-info audit,
+  corrupt-injection failability, and both-direction ranking fixtures; (3)
+  gate reading pinned before any measurement: RELPCT per-image medians as
+  PRIMARY (I10), NET always payload+tables+maps+trees (I12), oracle-map
+  map-freebies visible in a dedicated column but never shipped arithmetic;
+  (4) tokenization ladders ESC-A/B/C pinned with zigzag fold + first-class
+  ZERO token (L-C5); (5) V2 predictor mathematics fixed integer-exact
+  (reduced GAP, W ensemble with normalized weights + gradient update /512)
+  so no constant can drift after data is seen; (6) V4 projection formula
+  against the committed e1 CSV with thresholds < 9.35 summed / < 3.117
+  per-sample; (7) reserved-slot amendment rule for post-V1 constants; (8)
+  module map contains zero container edits by construction until a V4 PASS.
+  Spec addendum 17 landed as algorithmic-spec.md section 18 (numbering note
+  recorded there). Handoff {"action":"build"}: Builder slice 1 = V0 spine,
+  all rails green + dated reference CSVs before any scoring.
+
+- 2026-08-25 Dr. Mob (the Researcher, v2 clean-slate mandate): delivered
+  `prism/docs/research-v2-clean-slate.md` answering the owner's question -
+  the gap to JXL decomposes into five buckets with committed provenance
+  (collection layer 6.30 pct gross via measured real-vs-static spread;
+  per-image conditioning margins +1.86..+2.95 points of v0 from the E0 CSVs,
+  invalidated in v1 only by pooled joint scoring; predictor headroom
+  literature-bounded but poisoned by zero-flag economics in every v1 probe;
+  trial-selection and tokenization refinements precedent-sized), summing
+  past the M3 requirement only at optimistic edges - hence an honest base
+  case of M2 PASS with M3 contingent. Consolidated both codecs' ledgers
+  into L-C1..L-C9 hard constraints, R-1..R-4 reopenings with written
+  confound arguments (forward-adaptive CLUSTERED static coding; weighted-
+  ensemble/GAP prediction families distinct from rejected NLMS; bias
+  canary under symmetric tokenization; per-image-scored context trees),
+  and pre-registered the V-series offline program with binding gates and
+  a proceed threshold of < 9.35 summed projected before any format byte.
+  New invariants I10/I11/I12. Decision {"action":"architect"}.
 
 - 2026-08-25 the Builder (E1 + E4 closing slice): executed the E-series to
   its end. (1) Spec addendum 16 committed BEFORE any measurement:

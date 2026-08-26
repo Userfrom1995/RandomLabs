@@ -22,6 +22,8 @@ add_library(prism_core STATIC
     src/codec/squeeze.cpp
     src/codec/cm.cpp
     src/codec/lzp.cpp
+    src/codec/tokenize.cpp
+    src/codec/staticmodel.cpp
     src/codec/analyze.cpp
     src/codec/container.cpp
     src/frontend/ppm_raw.cpp
@@ -89,6 +91,8 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_xband.cpp
         tests/unit/test_blend.cpp
         tests/unit/test_bias.cpp
+        tests/unit/test_tokenize.cpp
+        tests/unit/test_staticmodel.cpp
         tests/unit/test_container.cpp
         tests/unit/test_roundtrip.cpp
         tests/unit/test_fuzz_gate.cpp
