@@ -50,8 +50,9 @@ static void print_usage() {
               << "  prism bench-sandbox --s4 <image>...   (S-series composition + projection)\n"
               << "  prism bench-sandbox --t0 <image>...   (T-series instrument smoke; kodim01 only)\n"
               << "  prism bench-sandbox --t0-synth homo|skew  (T0 synthetic fixtures, no anchors)\n"
-              << "  prism bench-sandbox --t1a <image>...  (T-series ceiling kill test)\n"
-              << "  prism bench-sandbox --t1b <image>...  (T-series content-defined codebooks)\n";
+  << "  prism bench-sandbox --t1a <image>...  (T-series ceiling kill test)\n"
+  << "  prism bench-sandbox --t1b <image>...  (T-series content-defined codebooks)\n"
+  << "  prism bench-sandbox --t2a <image>...  (T-series shrunk fine contexting)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -939,6 +940,7 @@ static void run_t0_image(const std::filesystem::path& img);
 static int run_t0_synth(const std::string& kind);
 static void run_t1a_image(const std::filesystem::path& img);
 static void run_t1b_image(const std::filesystem::path& img);
+static void run_t2a_image(const std::filesystem::path& img);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -1051,6 +1053,18 @@ static int run_bench_sandbox(int argc, char** argv) {
                 return 2;
             }
             for (const auto& img : imgs) sandboxrun::run_t1b_image(img);
+            return 0;
+        }
+        if (a == "--t2a") {
+            // T-series slice Q2 shrunk fine contexting (spec addendum
+            // 20.3/20.5; pins P-Q2-1..P-Q2-9 BEFORE any measurement).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --t2a: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_t2a_image(img);
             return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
@@ -3450,6 +3464,203 @@ void run_t1b_image(const std::filesystem::path& img) {
         }
     }
     emit_rows(img_name, rows, base);
+}
+
+// ----- bench-sandbox --t2a (T-series slice Q2; spec addendum 20.3/20.5 +
+// pins P-Q2-1..P-Q2-9 in decisions/builder/2026-08-26T12-30-00) -----
+//
+// Shrunk fine contexting: the class16 spine's transmitted tables become
+// PARENTS; every residual-DIFF context gets its own child table shrunk
+// toward that parent (a_c in {32, 128}, arms TW-A/TW-B), serialized as
+// ONE 'SBD1' blob per candidate and fully NETTED. Coding happens ONLY
+// against tables rebuilt from the transmitted blob (pin P-Q2-3); decode
+// mirrors contexts causally under KFLAT343 - zero maps/trees/assignment
+// bytes by schema.
+//
+// Row schemas (pin P-Q2-6):
+//   T2,img,cand,trial,be,payload,tables,maps,trees,assign,net,audit,rt,
+//       tbl_bits
+//   T2SUM,img,arm,bp,bt,bm,btr,ba,bnet,p,t,m,tr,a,net,relpct
+// Baseline (pin P-Q2-4): per image the minimum-NET fresh SPINE B-RANS row
+// across trials (first strict minimum scanning trials ascending). Arm
+// winners keep their own first strict minimum (ties = lowest trial id);
+// arm-vs-arm ties keep TW-A (pin P-Q2-5). The gate arithmetic (quad
+// median relpct >= +0.50) lives in the evaluator, never here.
+
+namespace t2run {
+
+struct T2Row {
+    std::string cand, trial, be;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, assign = 0;
+    bool audit_ok = true, rt = true;
+    double tbl_bits = 0;
+    uint64_t net() const {
+        return payload + tables + maps + trees + assign;
+    }
+};
+
+struct ShrunkArm {
+    int a_c;
+    const char* cand;
+    const char* arm;
+};
+// Both pinned arms measured whenever T2a runs (addendum 20.3 verbatim).
+constexpr ShrunkArm SHRUNK_ARMS[2] = {
+    {32, "SHRUNKA", "SHRUNK@TW-A"},
+    {128, "SHRUNKB", "SHRUNK@TW-B"}};
+
+static SmoothedTables wrap_shrunk_p(const std::vector<uint16_t>& p) {
+    SmoothedTables t;
+    t.profile = TokProfile::ZFFCTRL;
+    t.clusters = AC_V2_RESDIFF_CONTEXTS;
+    t.p = p;
+    return t;
+}
+
+static void emit_t2sum(const std::string& img, const char* arm,
+                       const t1run::T1Row& b, const T2Row& c) {
+    char rowbuf[512];
+    const double relpct =
+        (b.net() > 0)
+            ? 100.0 * ((double)b.net() - (double)c.net()) / (double)b.net()
+            : 0.0;
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "T2SUM,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
+                  "%zu,%zu,%.4f\n",
+                  img.c_str(), arm, (size_t)b.payload, (size_t)b.tables,
+                  (size_t)b.maps, (size_t)b.trees, (size_t)b.assign,
+                  (size_t)b.net(), (size_t)c.payload, (size_t)c.tables,
+                  (size_t)c.maps, (size_t)c.trees, (size_t)c.assign,
+                  (size_t)c.net(), relpct);
+    std::cout << rowbuf;
+}
+
+static void emit_rows(const std::string& img_name,
+                      const std::vector<T2Row>& rows) {
+    char rowbuf[512];
+    for (const T2Row& r : rows) {
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "T2,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%d,%d,%.3f\n",
+                      img_name.c_str(), r.cand.c_str(), r.trial.c_str(),
+                      r.be.c_str(), (size_t)r.payload, (size_t)r.tables,
+                      (size_t)r.maps, (size_t)r.trees, (size_t)r.assign,
+                      (size_t)r.net(), r.audit_ok ? 1 : 0, r.rt ? 1 : 0,
+                      r.tbl_bits);
+        std::cout << rowbuf;
+    }
+}
+
+// One arm x one color trial (pins P-Q2-2/P-Q2-3): parent tables from the
+// SAME-RUN KFLAT16 config exactly as the baseline SPINE row counts them;
+// children pool all planes under KFLAT343 with NO budget enforcement;
+// coding uses ONLY the transmitted 'SBD1' rebuild and the round-trip
+// decodes under the decoder-side rebuild.
+static void measure_shrunk_arm(const Raster& r, int trial_id,
+                               const ShrunkArm& arm,
+                               std::vector<T2Row>& out) {
+    const char* tn = prism::codec::colorrot::name(trial_id);
+    Raster tt = prism::codec::colorrot::apply(r, trial_id);   // BD8 RGB only
+    std::vector<std::vector<int32_t>> ress;
+    ress.reserve(tt.planes.size());
+    for (auto& plane : tt.planes)
+        ress.push_back(compute_residuals(plane, tt.w, tt.h, PredId::MED));
+
+    PreparedConfig cfg16;
+    prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16, tt.w, ress,
+                         cfg16);
+    SandboxModel flat;
+    flat.init(TokProfile::ZFFCTRL, KeyingId::KFLAT343);
+    for (const auto& res : ress)
+        count_plane(flat, TokProfile::ZFFCTRL, KeyingId::KFLAT343, res,
+                    tt.w, nullptr);
+
+    ShrunkTables shr =
+        shrink_child_tables(TokProfile::ZFFCTRL, flat, cfg16.tabs, arm.a_c);
+    size_t audit = 0;
+    auto blob = serialize_shrunk(shr, &audit);
+    const bool audit_ok = (audit == blob.size());
+    ShrunkTables back = deserialize_shrunk(blob, &shr);   // transmitted view
+
+    const SmoothedTables enc_tabs = wrap_shrunk_p(shr.p);
+    const SmoothedTables dec_tabs = wrap_shrunk_p(back.p);
+
+    SandboxModel rec;
+    rec.init(TokProfile::ZFFCTRL, AC_V2_RESDIFF_CONTEXTS);
+    std::vector<std::vector<TaggedEvent>> evts(ress.size());
+    for (size_t pi = 0; pi < ress.size(); ++pi)
+        count_plane(rec, TokProfile::ZFFCTRL, KeyingId::KFLAT343, ress[pi],
+                    tt.w, &evts[pi]);
+    double tbl_bits = 0;
+    for (size_t pi = 0; pi < ress.size(); ++pi)
+        tbl_bits +=
+            table_ideal_bits(TokProfile::ZFFCTRL, evts[pi], enc_tabs);
+    {
+        T2Row row;
+        row.cand = arm.cand;
+        row.trial = tn;
+        row.be = "B-IDEAL";
+        row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+        row.tables = blob.size();
+        row.audit_ok = audit_ok;
+        row.tbl_bits = tbl_bits;
+        out.push_back(row);
+    }
+    uint64_t payload = 0;
+    bool rt = true;
+    for (size_t pi = 0; pi < ress.size(); ++pi) {
+        auto bytes =
+            rans_encode_events(TokProfile::ZFFCTRL, evts[pi], enc_tabs);
+        payload += bytes.size();
+        auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                      KeyingId::KFLAT343, tt.w,
+                                      ress[pi].size(), bytes, dec_tabs);
+        if (dec != ress[pi]) rt = false;
+    }
+    T2Row row;
+    row.cand = arm.cand;
+    row.trial = tn;
+    row.be = "B-RANS";
+    row.payload = payload;
+    row.tables = blob.size();
+    row.audit_ok = audit_ok;
+    row.rt = rt;
+    row.tbl_bits = tbl_bits;
+    out.push_back(row);
+}
+
+} // namespace t2run
+
+void run_t2a_image(const std::filesystem::path& img) {
+    using namespace t2run;
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    // Anchors + the fresh-in-run control sweep (identical emission rules
+    // to t1a/t1b so every rail guards this file too).
+    std::vector<t1run::T1Row> base_rows;
+    t1run::measure_base(r, img_name, base_rows);
+    const t1run::T1Row* cls16 = t1run::arm_winner(
+        base_rows, [](const t1run::T1Row& q) {
+            return q.cand == "SPINE" && q.be == "B-RANS";
+        });
+    if (!cls16)
+        throw std::runtime_error("bench-sandbox --t2a: no class16 baseline");
+
+    std::vector<T2Row> rows;
+    for (const ShrunkArm& arm : SHRUNK_ARMS) {
+        std::vector<T2Row> arm_rows;
+        for (int id = 0; id < prism::codec::colorrot::kCount; ++id)
+            measure_shrunk_arm(r, id, arm, arm_rows);
+        const T2Row* w = nullptr;
+        for (const T2Row& q : arm_rows)
+            if (q.be == "B-RANS" && (!w || q.net() < w->net())) w = &q;
+        if (!w)
+            throw std::runtime_error(
+                "bench-sandbox --t2a: missing shrunk arm");
+        emit_t2sum(img_name, arm.arm, *cls16, *w);
+        for (const T2Row& q : arm_rows) rows.push_back(q);
+    }
+    emit_rows(img_name, rows);
 }
 
 } // namespace sandboxrun
