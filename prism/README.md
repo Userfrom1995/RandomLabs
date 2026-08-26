@@ -223,6 +223,25 @@ vs bar >= +2.00, FAIL; payload-gain median under the +4.00 opener and
 sole-tables-loss false on all four images, so conditional T1b never opens.
 Bucket C1 is closed-with-numbers; zero container bytes spent.
 
+`--t2a` is the T-series shrunk fine contexting phase (spec addendum
+20.3/20.5; pins P-Q2-1..P-Q2-9 committed before any measurement). The
+class16 spine's transmitted tables become PARENTS; every residual-DIFF
+context gets its own child table shrunk toward that parent (pinned arms
+TW-A a_c = 32 / TW-B a_c = 128), serialized as ONE 'SBD1' blob (u16 class16
+rows + rANS-compressed s16 child deltas, CRC32) and fully NETTED; coding
+happens only against tables rebuilt from the transmitted blob, and decode
+mirrors contexts causally under KFLAT343 - zero maps/trees/assignment bytes
+by schema. Per image it re-runs the fresh-in-run control sweep, sweeps BOTH
+arms x ALL seven D4c color trials, and reads the gate against each image's
+minimum-NET same-stack class16 spine row. Measured quad verdict
+(`benchmarks/results/2026-08-26-sandbox-t2a.csv`; failability:
+`--self-check-t2a`): winner SHRUNK@TW-A median -13.09 pct (min -18.35 /
+max -11.20) vs bar >= +0.50, FAIL - every arm regresses on every image,
+the ~80 KB 'SBD1' blob swamping any refinement gain exactly as the V1/S3
+table-economics lesson predicts under I12 NET accounting. The conditional
+T2b static reopening never opens; flat-16 ships unchanged; zero container
+bytes spent.
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
