@@ -183,6 +183,28 @@ bytes spent across the entire V+S program
 (`benchmarks/results/2026-08-25-sandbox-s4.csv`; failability:
 `--self-check-s4`).
 
+`--t0` opens the T-series (joint locality-context program, addendum 20):
+a BLOCKING instrument-extension smoke on kodim01 only, explicitly
+NON-GATING. It re-emits the anchors, re-runs the S4 composition fresh as
+the T-BASE control, then exercises the new group machinery end to end:
+GS64/GS128 per-group exact stacks under CEILING mode, integer Lloyd
+clustering at the pinned K set with 'SBC1' codebooks + single-state
+assignment words NETTED via a mechanical words-tail split, pseudo-random
+assignment twins for rank direction, 'SBD1' shrinkage surfaces, and a
+ZZ-HU identity echo. New rails: VB-proto-roundtrip / VB-zzhu-identity /
+VB-assign-mirror / VB-net-audit-t / fidelity-t; `--self-check-t0` proves
+every FAIL path plus both live directions (a constant image collapses to
+transmitted K=1 at 12 assignment bytes; a half-constant/half-noise image
+beats its random twin). Bring-up repairs landed BEFORE any measurement as
+amendment A5 - most notably `crc32_combine` now truly chains (multi-part
+blob CRCs previously covered only their final section) and Lloyd seeds
+initialize their centroids before the first assignment. Honest smoke
+reading: under the pinned symmetric chi-square metric kodim01's groups
+collapse to K=1 at every K (CB1 payload == SPINE exactly - the instruments
+agree), and CEILING payload-gain is negative vs fresh T-BASE with tables
+248/62 KB NETTED (`benchmarks/results/2026-08-26-sandbox-t0.csv`;
+failability: `--self-check-t0`). Quad verdict numbers start at T1a.
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
@@ -234,7 +256,8 @@ prism/benchmarks/probe_backend.sh --build-dir <dir> --image <kodim01.ppm> --imag
 prism/benchmarks/probe_sandbox.sh --build-dir <dir> --image <kodim01.ppm> [--image ...]
 prism/benchmarks/probe_sandbox.sh --s1 --build-dir <dir> --image ...   (S-series dual-frame predictors)
 prism/benchmarks/probe_sandbox.sh --s4 --build-dir <dir> --image ...   (S-series composition + projection)
-prism/benchmarks/probe_sandbox.sh --self-check [--self-check-v1] [--self-check-s1] [--self-check-s3] [--self-check-s4]
+prism/benchmarks/probe_sandbox.sh --t0 --build-dir <dir> --image <kodim01.ppm>   (T0 instrument smoke, non-gating)
+prism/benchmarks/probe_sandbox.sh --self-check [--self-check-v1] [--self-check-s1] [--self-check-s3] [--self-check-s4] [--self-check-t0]
 python3 prism/benchmarks/aggregate.py
 ```
 
