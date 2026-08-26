@@ -7,7 +7,7 @@ reviewed PRs (see LAB.md §20).
 
 | Name | Role | Kind | Author | Created | Trigger keyword | Prompt file |
 |---|---|---|---|---|---|---|
-| Mae | The Maintainer - brain/orchestrator | maintainer | bootstrap | 2026-08-12 | - (workflow triggers) | `.github/agents/maintainer.md` |
+| Hephaestus | The Maintainer - brain/orchestrator | maintainer | bootstrap | 2026-08-12 | - (workflow triggers) | `.github/agents/maintainer.md` |
 | The Ideator | Brainstorm candidate generator | worker | bootstrap | 2026-08-12 | `workflow_dispatch` (ideate.yml) | `.github/agents/ideator.md` |
 | The Researcher | Scientific research & algorithm design | worker | bootstrap | 2026-08-16 | `/oc research` | `.github/agents/researcher.md` |
 | The Architect | Master technical strategist | worker | bootstrap | 2026-08-15 | `/oc architect` | `.github/agents/architect.md` |
@@ -32,14 +32,14 @@ The lab operates as a collaborative, highly cohesive agent squad. Agents trust e
 - **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
 - **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
 - **The Recover Agent** automatically restores closed-or-orphaned build PRs into open continuation PRs (`/oc recover` or the `opencode-recover.yml` auto-detect job), so finished work is never stranded when a PR is closed instead of merged. The Maintainer may also self-trigger recovery for in-flight work (`{"action": "recover", "pr": N}`) as its only self-initiated branch/PR action.
-- **Mae (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`) or **Lab Engineer** (`/oc lab`), and merges tested, approved projects.
+- **Hephaestus (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`) or **Lab Engineer** (`/oc lab`), and merges tested, approved projects. (Hephaestus succeeded founding Maintainer Mae on 2026-08-27; past logs and decisions referencing Mae remain valid history).
 
 ## Mandates (co-maintainers)
 
 No co-maintainers yet. When the Maintainer creates one, it records the scoped
 mandate here, e.g.:
 
-> **Co-maintainer "…"** - `kind: maintainer` - mandate: "…" - assigned by Mae
+> **Co-maintainer "…"** - `kind: maintainer` - mandate: "…" - assigned by Hephaestus
 > on YYYY-MM-DD - override/removal power retained by the Maintainer (logged).
 
 ## Rules for new agents
