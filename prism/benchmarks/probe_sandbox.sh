@@ -77,6 +77,8 @@ SELF_CHECK_T2A=0
 MODE_T2A=0
 SELF_CHECK_T3=0
 MODE_T3=0
+SELF_CHECK_T4=0
+MODE_T4=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -100,6 +102,8 @@ while [[ $# -gt 0 ]]; do
     --t2a) MODE_T2A=1; shift;;
     --self-check-t3) SELF_CHECK_T3=1; shift;;
     --t3) MODE_T3=1; shift;;
+    --self-check-t4) SELF_CHECK_T4=1; shift;;
+    --t4) MODE_T4=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -1590,6 +1594,107 @@ if t3bsrows:
         print(f"{s['img']}: {s['arm']} base NET {s['bnet']} -> "
               f"canary NET {s['cnet']} -> relpct {s['relpct']:+.4f} pct")
 
+# ---- T4 composition + projection (spec 18.5 VERBATIM; pins P-Q3-5
+# inherited, P-S4-3/P-S4-4/P-S4-7/P-S4-8) ----
+# T4 composes the MED-only spine baseline (GAP/W closed permanently by T3
+# FAIL) with per-image winners by real NET bytes across all D4c color
+# trials, then projects against the committed e1 CSV.
+PORT = {"kodim04.ppm", "kodim09.ppm", "kodim10.ppm", "kodim17.ppm",
+        "kodim18.ppm", "kodim19.ppm"}
+e1_path = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else ""
+if t3rows and e1_path:
+    e1 = {}
+    try:
+        for line in open(e1_path):
+            f = line.rstrip("\n").split(",")
+            if len(f) >= 3 and f[0] != "image" and f[0]:
+                e1[f[0]] = (float(f[1]), float(f[2]))  # (bytes, bpp)
+    except OSError:
+        e1 = {}
+    if e1:
+        # Per-image: collect MED T3 rows (B-RANS) across all trials.
+        med_trials = {}   # img -> list of (net, cs_name)
+        for r in t3rows:
+            if r.get("fam") == "MED" and r.get("be") == "B-RANS":
+                med_trials.setdefault(r["img"], []).append(
+                    (r["net"], r.get("cs", "?")))
+        # Per-image winner: min NET over all MED trials.
+        composed = {}
+        rel_by_class = {"L": [], "P": []}
+        for img in sorted(e1):
+            if img not in med_trials:
+                continue
+            trials = med_trials[img]
+            if not trials:
+                continue
+            win_net, win_trial = min(trials, key=lambda x: (x[0], x[1]))
+            ctrl_bytes, ctrl_bpp = e1[img]
+            rel = 100.0 * (ctrl_bytes - win_net) / ctrl_bytes if ctrl_bytes > 0 else 0.0
+            cls = "P" if img in PORT else "L"
+            rel_by_class[cls].append(rel)
+            composed[img] = (rel, win_trial, ctrl_bytes, win_net)
+            print(f"T4 COMPOSED {img} winner=MED/{win_trial} ctrl={ctrl_bytes:.0f} "
+                  f"net={win_net} relpct={rel:+.4f}")
+        if composed:
+            print(f"\n== T4 COMPOSITION READOUT (MED-only x D4c; spec 18.5) ==")
+            if rel_by_class["L"]:
+                med_L = median(rel_by_class["L"])
+                med_P_vals = rel_by_class["P"]
+                med_P = median(med_P_vals) if med_P_vals else None
+                inherited = med_P is None
+                if inherited:
+                    med_P = median([v for vals in rel_by_class.values()
+                                    for v in vals])
+                inh_txt = (f"; portrait UNMEASURED on this quad -> inherits "
+                           f"the overall quad median {med_P:+.4f} pct "
+                           f"[INHERITED, pin P-S4-7]") if inherited else ""
+                print(f"T4 class medians (I10): landscape {med_L:+.4f} pct "
+                      f"over {len(rel_by_class['L'])} quad images{inh_txt}")
+                # Projection 18.5 VERBATIM vs committed e1
+                proj_ps = []
+                land_ps = []
+                for img2 in sorted(e1):
+                    cls2 = "P" if img2 in PORT else "L"
+                    rel2 = med_P if cls2 == "P" else med_L
+                    e1_bpp = e1[img2][1]
+                    ps = e1_bpp * (1.0 - rel2 / 100.0)
+                    proj_ps.append(ps)
+                    if cls2 == "L":
+                        land_ps.append(ps)
+                mean_ps = sum(proj_ps) / len(proj_ps)
+                mean_sum = mean_ps * 3     # RGB corpus convention
+                land_sum = 3.0 * sum(land_ps) / len(land_ps) if land_ps else 0
+                t4_pass = mean_sum < 9.35 and mean_ps < 3.117
+                m2 = mean_sum < 9.498 and mean_ps < 3.166
+                m3 = mean_sum < 8.655 and mean_ps < 2.885
+                s5_open = (not t4_pass) and mean_sum < 8.8316 and \
+                    mean_ps < 2.9438
+                print(f"\nT4 PROJECTION (18.5 verbatim vs committed e1): "
+                      f"summed {mean_sum:.4f} vs threshold < 9.3500 | "
+                      f"per-sample {mean_ps:.4f} vs threshold < 3.1170")
+                print(f"T4 landscape-only projection beside (P-S4-7 "
+                      f"sensitivity): summed {land_sum:.4f}")
+                print(f"M2 context (<9.498/<3.166): projected "
+                      f"{'PASS-shaped' if m2 else 'FAIL'} - REPORTED ONLY; "
+                      f"the gates are judged solely by bench_gate.sh "
+                      f"dual-unit vs real cjxl (owner standing order)")
+                print(f"M3 context (<8.655/<2.885): projected "
+                      f"{'PASS-shaped' if m3 else 'FAIL'} - REPORTED ONLY")
+                if t4_pass:
+                    print("T4 VERDICT: PASS - proceed-to-format handoff")
+                elif s5_open:
+                    print("T4 VERDICT: inside-M3-reach-but-short - S5 "
+                          "reserve opens ONCE (pin P-S4-9), then compose "
+                          "again")
+                else:
+                    print("T4 VERDICT: FAIL - stop-and-report with the "
+                          "full honest reading above")
+            else:
+                print("T4 GATE INCOMPLETE (no landscape images measured)")
+    else:
+        fail("T4 projection: committed e1 CSV missing or unreadable "
+             f"(got '{e1_path}') - pin P-S4-8 requires it verbatim")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -2630,7 +2735,7 @@ if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
 fi
 
-if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" ]]; then
+if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" ]]; then
   echo "no --image given"; exit 2
 fi
 
@@ -3136,6 +3241,34 @@ if [[ "$MODE_T3" == "1" ]]; then
     exit 1
   fi
   echo "SANDBOX GATE PASS (all VB rails green; T3 bar(i) verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+# ----- T-series slice Q4: T4 composition + projection (pins P-Q3-5..P-Q3-12
+# inherited, plus 18.5 VERBATIM projection vs committed e1 CSV). -----
+if [[ "$MODE_T4" == "1" ]]; then
+  # T4 composition: per-image winners by real NET bytes from T3 MED rows
+  # (GAP/W closed permanently by T3 FAIL); projection 18.5 VERBATIM vs
+  # committed e1 CSV; threshold UNCHANGED < 9.35 summed / < 3.117
+  # per-sample; M2/M3 reported beside, never altered; portrait INHERITED
+  # marker inherited from P-S4.
+  T3_CSV="${ROOT}/benchmarks/results/2026-08-26-sandbox-t3.csv"
+  E1_CSV="${ROOT}/benchmarks/results/2026-08-25-prism-e1.csv"
+  if [[ ! -f "$T3_CSV" ]]; then
+    echo "T4: committed T3 CSV ${T3_CSV} missing"; exit 1
+  fi
+  if [[ ! -f "$E1_CSV" ]]; then
+    echo "T4: committed e1 CSV ${E1_CSV} missing"; exit 1
+  fi
+  # Feed T3 CSV + e1 CSV to the evaluate function; T4 rails + composition
+  # live in the Python evaluator.
+  if ! evaluate "$T3_CSV" "${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv" "" "" "$E1_CSV" > /tmp/t4_eval.out 2>&1; then
+    cat /tmp/t4_eval.out
+    echo "SANDBOX GATE FAIL (T4 rail integrity)"
+    exit 1
+  fi
+  cat /tmp/t4_eval.out
+  echo "SANDBOX GATE PASS (all VB rails green; T4 verdict above is a measured outcome, not a rail failure)"
   exit 0
 fi
 
