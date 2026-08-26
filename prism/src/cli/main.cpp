@@ -3636,7 +3636,8 @@ void run_t2a_image(const std::filesystem::path& img) {
     const std::string img_name = img.filename().string();
 
     // Anchors + the fresh-in-run control sweep (identical emission rules
-    // to t1a/t1b so every rail guards this file too).
+    // to t1a/t1b so every rail guards this file too); the control rows
+    // ride the T1 schema, candidates ride T2/T2SUM.
     std::vector<t1run::T1Row> base_rows;
     t1run::measure_base(r, img_name, base_rows);
     const t1run::T1Row* cls16 = t1run::arm_winner(
@@ -3645,6 +3646,7 @@ void run_t2a_image(const std::filesystem::path& img) {
         });
     if (!cls16)
         throw std::runtime_error("bench-sandbox --t2a: no class16 baseline");
+    t1run::emit_rows(img_name, base_rows, t1run::pick_base(base_rows));
 
     std::vector<T2Row> rows;
     for (const ShrunkArm& arm : SHRUNK_ARMS) {
