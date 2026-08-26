@@ -73,7 +73,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/mimo-v2.5-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Researcher of the Random lab, triggered by "/oc research".
@@ -214,7 +214,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/mimo-v2.5-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
@@ -239,7 +239,7 @@ jobs:
           # architect ALWAYS writes the decision file as its final act, so
           # "no decision file + failed agent step" is exactly the mid-stream
           # crash signature (e.g. 'Provider finish_reason: network_error').
-          # Mandated by Maintainer's 08:46Z escalation after four architect deaths.
+          # Mandated by Mae's 08:46Z escalation after four architect deaths.
           if [ -f /tmp/random-lab-decision.json ]; then
             echo "Decision file present; architect phase produced a handoff."
             exit 0
@@ -460,7 +460,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/mimo-v2.5-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
@@ -855,7 +855,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/mimo-v2.5-free
+          model: opencode/x-preview-f-free
           use_github_token: true
           prompt: |
             You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.

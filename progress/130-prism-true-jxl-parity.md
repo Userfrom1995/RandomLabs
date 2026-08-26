@@ -4,10 +4,8 @@
   genuinely pass dual-unit gates)
 - **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
 - **Status:** complete. #130 closes HONESTLY at the achieved level
-  2026-08-26 after the full C/D/E/V/S/T programs executed with every
-  lever adopted-and-measured or rejected-by-measurement. T4 composition
-  projected 9.5671 summed / 3.1890 per-sample bpp (threshold < 9.35 /
-  < 3.117; both exceeded). T5 NOT triggered. Final corpus truth (E4 fresh
+  2026-08-25 after the full C/D/E program executed with every lever adopted-
+  and-measured or rejected-by-measurement. Final corpus truth (E4 fresh
   measure, all 24 pins verified pre-measurement): e1 = 10.1210 summed /
   3.3737 per-sample bpp; e3 = e7 = 10.1350 / 3.3783 - byte-identical to the
   D4c-era CSVs, proving D0-E1 library work stayed format-unwired end to end.
@@ -664,20 +662,9 @@ bytes until T4 PASS.
       pct median NET beyond the same T-BASE. NEVER OPENED - the T1a fail
       clause was not met (measured 2026-08-26); the --t1b instrument exists
       and is self-checked but stays unused on the quad by pre-registration.
-- [x] T2a shrunk fine contexting: class16 -> class343 shrinkage, arms
+- [ ] T2a shrunk fine contexting: class16 -> class343 shrinkage, arms
       TW-A/TW-B; PASS >= +0.50 pct median NET vs same-stack class16
       baseline fresh in-run.
-      DONE 2026-08-26 (reconciled two-session slice): pins P-Q2-1..9 +
-      engine + evaluator landed BEFORE any measurement ('SBD1' one-blob
-      side info, coding only against the transmitted rebuild, zero
-      maps/trees/assign by schema). MEASURED FAIL: winner SHRUNK@TW-A
-      quad median -13.09 pct (min -18.35 / max -11.20) vs bar >= +0.50;
-      every arm regresses on every image (~80 KB 'SBD1' per image swamps
-      the refinement; TW-B within 0.03 of TW-A). Conditional T2b never
-      opens; flat-16 ships unchanged; C2's static branch priced-and-
-      closed at its gate. Rails green first (anchors 4/4 bit-for-bit,
-      fidelity 56 families <= +0.50 pct, net-audit clean, determinism
-      byte-exact); wall-clock 49.25x bench-ideal per A3 precedent.
 - [ ] T2b extended-property static reopening (conditional on T2a): E0 M-C
       poolings ii/iii under static two-pass scoring; PASS >= +1.50 pct
       median NET; second failure closes B2's static branch permanently.
@@ -686,130 +673,15 @@ bytes until T4 PASS.
       winning tokenization else GAP/W third-and-final strike; bar (ii)
       tokenization main effect both directions. T3b canary once on winner
       (>= +0.50 median, no image worse than -0.25; second strike permanent).
-      IN PROGRESS 2026-08-26: slice Q3 opened - pins P-Q3-1..P-Q3-12
-      committed BEFORE any measurement
-      (decisions/builder/2026-08-26T13-13-00-t3-factorial-pins.md: bar-(i)
-      per-image same-tokenization pairing with control-conservative ties;
-      canary rides once on the winner regardless of bar outcome; W-ensemble
-      self-error interaction + per-plane b reset pinned; 'SBB2' bias-blob
-      shape named). Engine + evaluator land next; quad sweep after rails
-      are green.
-      DONE 2026-08-26: evaluator rails in probe_sandbox.sh (T3/T3B/T3BS/
-      T3CELL parsing, net-audit-t(T3) identity/schema, fidelity-t3,
-      T3CELL decomposition cross-check, bar(i) gate readout, failable
-      --self-check-t3). All VB rails GREEN on committed CSV (336 T3 rows,
-      168 families, 24 T3CELL). Formal bar(i) verdict: W best non-MED at
-      ZFFCTRL quad median -2.11 pct vs bar >= +1.50 => FAIL. GAP and W
-      take third and final strike; B3/B5 close permanently. T3b canary
-      does NOT ride (bar(i) not met). T4 composition proceeds with
-      {MED only} x D4c color trials.
-- [x] T4 composition + projection: per-image winners by real NET bytes x
+- [ ] T4 composition + projection: per-image winners by real NET bytes x
       color trials; projection 18.5 VERBATIM vs committed e1 CSV; threshold
       UNCHANGED < 9.35 summed / < 3.117 per-sample; M2/M3 reported beside,
       never altered; portrait INHERITED marker inherited from P-S4.
-      COMPLETE 2026-08-26: T4 FAIL - projected 9.5671 summed / 3.1890
-      per-sample vs threshold < 9.35 / < 3.117 (above both limits). M2
-      (<9.498/<3.166) FAIL-shaped; M3 (<8.655/<2.885) FAIL-shaped - both
-      reported only. Per-image: MED/rct-rbg wins kodim01/05 (+5.46/+5.49
-      pct), MED/loco wins kodim13/20 (+5.68/+0.60 pct). Landscape median
-      +5.47 pct over all4 quad images; portrait UNMEASURED -> INHERITED.
-      Honest reading: every conditioning refinement measured under payable
-      side info has lost; the surviving MED composition projects above
-      threshold. T5 NOT triggered (9.5671 > 8.8316 summed threshold);
-      decision tree row 1 final clause executes.
-- [x] T5 reserve: **NOT TRIGGERED**. T4 projected 9.5671 summed / 3.1890
-      per-sample; T5 trigger requires projected summed < 8.8316 AND
-      per-sample < 2.9438 while failing the format bar. 9.5671 > 8.8316
-      => trigger not met. #130 closes honestly at the achieved level per
-      the decision tree's final clause (correction of prior Builder error
-      in decision record 2026-08-26T16-00-00).
+- [ ] T5 reserve (ONLY if T4 projects inside M3 reach but short of it):
+      one-shot squeeze-with-parent-properties, >= +2.00 pct median NET or
+      third-strike death (L-C7).
 
 ## Current step
-
-U-series Architect phase IN PROGRESS (2026-08-26): Researcher delivered
-`research-v4-transform-domain.md` on PR #151 (B6 source decorrelation
-bucket; block DCT as the unmeasured transform-domain opportunity; U0-U3
-phases; I13/I14 invariants; addendum 21 skeleton). Architect blueprint
-delivered (`prism/docs/architecture-jxl-parity-useries.md`) + spec
-addendum 21 (algorithmic-spec.md section 21) committed BEFORE any
-measurement. Handoff {"action":"build"}: Builder slice R0 = U0 transform
-harness extension. Binding gates unchanged: M2 summed < 9.498 AND
-per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885.
-
-## Prism v4 U-series checklist (transform-domain program; owner
-## Anti-Surrender directive 2026-08-26T20:05Z)
-
-Program blueprint: `prism/docs/architecture-jxl-parity-useries.md`;
-pre-registration: spec addendum 21 (algorithmic-spec.md section 21),
-committed BEFORE any U-measurement. Research:
-`research-v4-transform-domain.md`. Stacking: the V+S+T sandbox instrument
-is reused and extended; U-work adds BlockDCT + TransformDomainMED modules
-format-unwired. U-BASE control = FRAME-T spatial MED prediction (existing
-production path); U-FREQ = FRAME-F DCT-domain MED prediction; zero
-container bytes until U2 PASS.
-
-- [x] U-pivot Architect phase (2026-08-26): blueprint + addendum 21 +
-      tracker/log updates delivered. Handoff {"action":"build"}: Builder
-      slice R0 = U0 transform harness extension.
-- [ ] U0 transform harness extension (BLOCKING): BlockDCT module
-      (8x8 forward/inverse DCT, AAN integer-exact, replicate padding,
-      Q=0 lossless); TransformDomainMED adapter (MED stencil over DCT
-      coefficient planes); VB-transform-roundtrip/fidelity/net-audit
-      rails + failable --self-check-u0; DIAGNOSTIC smoke CSV on kodim01
-      only (non-gating). Exit: all VB rails green + dated reference CSV.
-- [ ] U1 block DCT predictor measurement (attacks B6): sweep {FRAME-T,
-      FRAME-F} x {ZFFCTRL, ZZ-HU} x {MED-only} x D4c color trials on
-      pinned quad. Gate: FRAME-F median NET >= +1.50 pct over FRAME-T.
-      Sub-gates: U1a payload >= +3.0 pct; U1b NET >= +1.50 pct; U1c no
-      image worse than -0.50 pct. FAIL => transform domain closed with
-      numbers; recommend honest closure.
-- [ ] U2 hybrid predictor composition (conditional on U1 PASS):
-      {FRAME-T spatial MED, FRAME-F DCT-predicted} x D4c color trials
-      per image by real NET bytes; projection 18.5 VERBATIM vs committed
-      e1 CSV; threshold UNCHANGED < 9.35 summed / < 3.117 per-sample.
-- [ ] U3 final gate check: fresh bench_gate.sh against REAL cjxl/WebP on
-      full Kodak-24; byte-exact round-trip 24/24; fuzz clean.
-
-## Prior state (T-series closure):
-
-#130 HONESTLY CLOSED (2026-08-26, Builder, T5 trigger correction):
-T5 reserve was incorrectly triggered by the prior Builder run - T4
-projected 9.5671 summed which exceeds the T5 trigger threshold of
-< 8.8316 summed (blueprint section 2, T5 reserve). The T5 trigger
-condition is NOT met; decision tree row 1 final clause executes: #130
-closes honestly at the achieved level. Correction decision record:
-`.github/agents/decisions/builder/2026-08-26T18-00-00-t5-trigger-
-correction-and-closure.md`. No further build phases authorized.
-
-Final achieved numbers: T4 projected 9.5671 summed / 3.1890 per-sample
-bpp vs threshold < 9.35 / < 3.117 (both exceeded). M2 (< 9.498 / < 3.166)
-FAIL-shaped; M3 (< 8.655 / < 2.885) FAIL-shaped (reported only).
-Every conditioning refinement measured under payable side info has lost
-to its own table economics. Full negative ledger in the T-series
-checklist and decision records.
-
-Prior state:
-
-SLICE Q3 COMPLETE (2026-08-26, Builder): T3 factorial evaluator rails
-landed in probe_sandbox.sh; all VB rails GREEN on committed CSV (336 T3
-rows, 168 families, 24 T3CELL). Formal bar(i) verdict: FAIL (W best
-non-MED at ZFFCTRL quad median -2.11 pct vs bar >= +1.50). GAP and W
-take third and final strike; B3/B5 close permanently. T3b canary does NOT
-ride (bar(i) not met). T4 composition proceeds with {MED only} x D4c
-color trials. Zero container bytes until a future T4 PASS.
-
-Prior state:
-
-SLICE Q3 IN PROGRESS (2026-08-26, Builder): pins P-Q3-1..P-Q3-12
-committed BEFORE any T3/T3b measurement
-(decisions/builder/2026-08-26T13-13-00-t3-factorial-pins.md). Landing
-order: family-bias canary walk + 'SBB2' serializer with unit tests, then
-`bench-sandbox --t3` / `--t3b` drivers, then probe rails + failable
-`--self-check-t3`, then the quad sweep into dated
-`benchmarks/results/2026-08-26-sandbox-t3.csv`. Zero container bytes
-until a future T4 PASS.
-
-Prior state:
 
 SLICE Q1 COMPLETE (2026-08-26, Builder): T1a ceiling kill test MEASURED
 FAIL per the pre-registered gate - bucket C1 closed-with-numbers,
@@ -820,46 +692,11 @@ same-stack class16 baseline fresh in-run; FAIL => flat-16 ships unchanged),
 then slice Q3 = T3 factorial (+ T3b canary on winner), then Q4 = T4
 composition + projection vs the committed e1 CSV (< 9.35 / < 3.117
 unchanged; M2/M3 reported beside, never altered). Zero container bytes
-until a future T4 PASS.
-
-SLICE Q2 COMPLETE (2026-08-26, Builder): T2a shrunk fine contexting
-MEASURED FAIL per the pre-registered gate - winner SHRUNK@TW-A quad
-median -13.09 pct (min -18.35 / max -11.20) vs bar >= +0.50; every arm
-regresses on every image (~80 KB 'SBD1' per image swamps the refinement;
-TW-B within 0.03 pct of TW-A). Conditional T2b never opened (its opener
-requires a T2a PASS); flat-16 ships unchanged; C2's static branch is
-priced-and-closed at its gate. Rails green first: anchors bit-for-bit
-4/4, fidelity 56 families within +0.50 pct, net-audit clean on 112 T2 +
-8 T2SUM rows, determinism byte-identical re-run; wall-clock 49.25x
-bench-ideal per A3 precedent. Evidence:
-`benchmarks/results/2026-08-26-sandbox-t2a.csv` (224 lines). NEXT: slice
-Q3 = T3 joint predictor x tokenization factorial ({MED,GAP,W} x
-{ZFFCTRL,ZZ-HU}; bars verbatim addendum 20.5) + T3b canary on the winner,
-then slice Q4 = T4 composition + projection vs the committed e1 CSV
-(< 9.35 / < 3.117 unchanged). Honest reading so far: every conditioning
-refinement measured under payable side info (V1 spatial keyings, S3
-causal properties, T1a group stacks, T2a shrunk class343) has lost to its
-own table economics; surviving composition candidates remain {adaptive
-control, static spine +5.5} x color trials pending T3.
-
-Prior state:
-
-SLICE Q2 IN PROGRESS (2026-08-26, Builder, reconciled continuation): two
-sessions landed concurrently and both survived - the pins record
-(2026-08-26T12-30-00-t2a-shrunk-contexting-pins.md, P-Q2-1..P-Q2-9: arms
-{TW-A 32, TW-B 128} x seven trials; parents = same-run transmitted class16
-spine tables; NO budget merge on the 343 axis - shrinkage IS the floor;
-coding only against the deserialized 'SBD1' rebuild; baseline = per-image
-min-NET SPINE B-RANS row scanning trials ascending; winner = higher
-quad-median relpct, ties TW-A; T2b conditional only on PASS) and the
-`bench-sandbox --t2a` engine + transmitted-SBD1 unit test (144/144 green).
-This session added the evaluator half of P-Q2-7/P-Q2-8: T2/T2SUM parsing,
-net-audit-t(T2) identity/schema rails, fidelity-t2, TSUM-style mechanical
-cross-check against raw rows, NON-GATING T2A gate readout, --t2a runner,
-and failable --self-check-t2a (all mutations proven to bite, both verdict
-directions reachable); the engine session then reconciled its row
-emission to the adopted evaluator contract (control rows under the T1
-schema) and measured the quad.
+until a future T4 PASS. Honest reading so far: every locality/conditioning
+mechanism measured under payable side info (V1, S3, now T1a) loses to its
+own table economics on this instrument; the surviving composition
+candidates remain {adaptive control, static spine +5.5} x color trials
+pending T2a/T3.
 
 Prior state:
 
@@ -1041,21 +878,17 @@ Previous slice summary (continuation run 3, C2b):
    builder pins land BEFORE each slice's first sweep; dated CSVs one per
    phase; T-BASE re-measured fresh in-run for every comparison; zero
    container bytes until T4 PASS; M2/M3 dual-unit gates invariant.
-1. ~~Slice Q0~~ DONE (T0 instrument + rails + smoke CSV).
-2. ~~Slice Q1: T1a ceiling kill test~~ DONE - FAIL, C1 closed; T1b never
-   opened.
-3. ~~Slice Q2: T2a shrunk contexting~~ DONE (2026-08-26) - FAIL, best arm
-   median -13.09 vs +0.50; conditional T2b never opened.
-4. ~~Slice Q3~~ DONE (2026-08-26) - T3 factorial evaluator rails + formal
-   bar(i) verdict: FAIL (W best non-MED quad median -2.11 pct vs
-   +1.50). B3/B5 close permanently; T3b canary never rides. {MED only}
-   x D4c color trials for T4.
-5. ~~Slice Q4~~ DONE (2026-08-26) - T4 composition + projection: FAIL
-   (9.5671/3.1890 vs < 9.35/3.117). T5 NOT triggered (9.5671 > 8.8316
-   summed threshold). #130 closes honestly per decision tree row 1 final
-   clause. Correction of prior Builder T5 trigger error committed.
-
-## Project status: COMPLETE - honest closure
+1. **Slice Q0 (Builder, next):** T0 instrument extension per blueprint
+   section 1 - GroupPartition tiling, per-group counting, integer Lloyd,
+   'SBC1' + assignment words, CEILING mode with decomposition columns,
+   shrinkage + 'SBD1', ZZ-HU identity alias, new rails + failable
+   --self-check-t0, DIAGNOSTIC smoke CSV on kodim01 only. Handoff
+   continue.
+2. Slice Q1: T1a ceiling kill test (+ conditional T1b codebook).
+3. Slice Q2: T2a shrunk contexting (+ conditional T2b static reopening).
+4. Slice Q3: T3 factorial (+ T3b canary on winner).
+5. Slice Q4: T4 composition + projection vs the committed e1 CSV
+   (< 9.35 summed / < 3.117 per-sample); T5 reserve only per trigger.
 
 Legacy branch-update policy from the v1 era (superseded in practice by the
 stacking note above but kept as hard-won context):
@@ -1139,82 +972,6 @@ stacking note above but kept as hard-won context):
       S4 threshold PASS.
 
 ## Agent log
-
-- 2026-08-26 the Builder (T5 trigger correction + honest closure): T5
-  reserve was incorrectly triggered by the prior Builder run. T4 projected
-  9.5671 summed / 3.1890 per-sample; T5 trigger requires projected summed
-  < 8.8316 AND per-sample < 2.9438 while failing the format bar
-  (blueprint section 2, T5 reserve). 9.5671 > 8.8316 => trigger NOT met.
-  Correction decision record:
-  `.github/agents/decisions/builder/2026-08-26T18-00-00-t5-trigger-
-  correction-and-closure.md`. #130 closes honestly at the achieved level
-  per the decision tree's final clause (row 1: S4 threshold not met =>
-  stop-and-report). All 144 unit tests green. Full negative ledger in the
-  T-series checklist and decision records. PR #147 ready for Maintainer
-  merge. Zero container bytes spent across the ENTIRE V+S+T program.
-
-- 2026-08-26 the Builder (T-series slice Q3, ENGINE + SMOKE COMPLETE):
-  T3 factorial engine landed (PR #147, branch re-based onto fresh main
-  with model fix). Dated CSV: 2026-08-26-sandbox-t3.csv (464 rows, quad
-  sha-pins verified pre-run). Six cells {MED, GAP, W} x {ZFFCTRL, ZZ-HU}
-  x 7 D4c color trials, KFLAT16 keying, B-IDEAL + B-RANS rows; T3CELL
-  per-image min-trial decomposition; T3b canary instrument (bias
-  correction b[64], 'SBB2' serializer) proven functional on kodim01.
-  144/144 unit tests pass. PR #146 was closed during the model outage
-  (opencode/x-preview-f-free dead); branch restored via rebase onto
-  d362886 (Lab Engineer model fix).
-
-  Honest smoke (NON-GATING, same-run measured): MED@ZFFCTRL wins every
-  image. ZZ-HU is ~26 pct WORSE than ZFFCTRL across all families.
-  GAP margin over MED at best +0.93 pct (kodim01 rct-gbr) - below the
-  +1.50 bar. W margin +0.51 pct (kodim01 rct-grb). Bar (i) preliminary
-  reading: FAIL. Formal verdict pending evaluator (probe_sandbox T3
-  rails + self-check-t3).
-
-  Next: (1) evaluator rails in probe_sandbox.sh, (2) formal verdict,
-  (3) if bar (i) FAIL: GAP and W take their third and final strike,
-  B3/B5 close permanently. If bar (i) PASS: T3b canary rides on the
-  winner. (4) T4 composition if anything survives. Zero container bytes
-  throughout.
-
-- 2026-08-26 the Builder (T-series slice Q3, FORMAL VERDICT COMPLETE):
-  T3 evaluator rails landed in probe_sandbox.sh (T3/T3B/T3BS/T3CELL
-  parsing, net-audit-t(T3) identity/schema, fidelity-t3, T3CELL
-  decomposition cross-check, bar(i) gate readout, failable --self-check-t3,
-  --t3 mode dispatch). All VB rails GREEN on committed CSV (336 T3 rows,
-  168 families, 24 T3CELL). Formal bar(i) verdict: W best non-MED at
-  ZFFCTRL quad median -2.11 pct (min -6.59 / max -1.55) vs bar >= +1.50
-  => FAIL. GAP and W take third and final strike; B3/B5 close permanently.
-  T3b canary does NOT ride (bar(i) not met). T4 composition proceeds with
-  {MED only} x D4c color trials. All seven self-checks green; 144/144
-  unit tests. Decision record:
-  .github/agents/decisions/builder/2026-08-26T15-00-00-t3-formal-verdict.md.
-  Next: slice Q4 = T4 composition + projection vs committed e1 CSV
-  (< 9.35 summed / < 3.117 per-sample; M2/M3 reported beside, never
-  altered). Zero container bytes throughout.
-
-- 2026-08-26 the Builder (T-series slice Q2, COMPLETE): T2a measured,
-  FAIL per the pre-registered gate. Two concurrent sessions reconciled
-  BEFORE any measurement (Q0 precedent): pins P-Q2-1..P-Q2-9
-  (decisions/builder/2026-08-26T12-30-00) + the --t2a engine with
-  coding-tables==transmitted-'SBD1' binding test from one session; the
-  evaluator half (T2/T2SUM parsing, net-audit-t(T2) identity/schema,
-  fidelity-t2, TSUM mechanical cross-check, NON-GATING readout, runner,
-  failable --self-check-t2a) from the other; the engine then adopted the
-  evaluator's row contract (control rows under the T1 schema) and both
-  self-checks re-proven green. MEASUREMENT (all rails green first:
-  anchors bit-for-bit 4/4, VB-net-audit OK, rank live both ways, fidelity
-  56 shrunk families within +0.50 pct of their own B-IDEAL rows,
-  determinism byte-identical): winner SHRUNK@TW-A quad median -13.09 pct
-  (min -18.35 kodim20 / max -11.20 kodim13) vs bar >= +0.50 => FAIL;
-  TW-B within 0.03 pct of TW-A everywhere; ~80 KB 'SBD1' per image vs
-  refinement gains an order smaller - the table-economics law now
-  confirmed for one-delta-layer-over-parents refinements. Conditional
-  T2b NEVER OPENS; flat-16 ships unchanged. Ledger sweep: tracker
-  checklist + current step + next steps, README sandbox section,
-  ideas/2026-08-26-prism-t2a-shrunk-contexting.md, dated CSV committed.
-  Wall-clock 49.25x bench-ideal recorded (A3 precedent). Handoff
-  {"action":"continue"} - slice Q3 = T3 factorial.
 
 - 2026-08-26 the Builder (T-series slice Q1, COMPLETE): T1a measured,
   FAIL per the pre-registered gate. (1) Per-plane repair FIRST (pin

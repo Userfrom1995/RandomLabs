@@ -54,7 +54,7 @@ full architecture is documented in `FACTORY.md`; the agent prompts live in
 
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
-- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase` as the bot - never use `--delete-branch`; keep PR branches intact after merging), closes linked issues, updates memory, and advances the pipeline.
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
 - In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
 
 ## The multi-stage review & testing loop

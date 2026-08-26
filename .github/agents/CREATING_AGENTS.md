@@ -9,7 +9,7 @@ Agents must never be granted the authority or credentials of the repository owne
 - **CRITICAL**: Never pass `${{ secrets.OPENCODE_PAT }}` into the agent's environment (the `env:` block of `uses: anomalyco/opencode/github@latest`).
 - Always use `GITHUB_TOKEN: ${{ github.token }}` for the agent's run environment. This ensures the agent authenticates properly as `github-actions[bot]`.
 - The owner's PAT (`OPENCODE_PAT`) is strictly reserved for hardcoded, human-written YAML steps that execute *outside* the agent's environment.
-- Always configure the git identity with the agent's persona display name (e.g. `The Builder`, `Hephaestus (Maintainer)`, `The Lab Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` before running any agent.
+- Always configure the git identity with the agent's persona display name (e.g. `The Builder`, `Mae (Maintainer)`, `The Lab Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` before running any agent.
 
 ---
 
@@ -109,10 +109,10 @@ Every new agent addition or modification MUST be synchronized across all core re
 
 When authoring `.github/agents/<agent>.md`:
 1. **Clear Role & Boundaries**: Explicitly state what the agent can and cannot do (e.g. read-only, code modifications allowed, specific issue labels).
-2. **Authority Hierarchy**: Explicitly recognize that the Owner is the supreme authority (whose decisions override everything) and Hephaestus (Maintainer / Chief Orchestrator) is the main operational authority directing the squad. All agents must listen to and obey both Hephaestus and the Owner.
+2. **Authority Hierarchy**: Explicitly recognize that the Owner is the supreme authority (whose decisions override everything) and Mae (Maintainer / CEO) is the main operational authority directing the squad. All agents must listen to and obey both Mae and the Owner.
 3. **Safety Net**: Provide a concise fallback safety net in the workflow prompt string in case `.github/agents/<agent>.md` cannot be read.
 4. **Sign-off Instruction**: Every agent must end its output comments with its distinctive sign-off:
-   - Example: `- the Auditor`, `- Hephaestus, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`, `- the Reviewer`, `- the Tester`, `- the Lab Engineer`, `- the General agent`.
+   - Example: `- the Auditor`, `- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`, `- the Reviewer`, `- the Tester`, `- the Lab Engineer`, `- the General agent`.
 5. **Commit Subject Prefix**: Every agent that commits code must prefix commit messages with its role:
    - Example: `auditor: ...`, `researcher: ...`, `architect: ...`, `builder: ...`, `fixer: ...`, `lab: ...`, `maintainer: ...`.
 6. **JSON Decision Protocol**: Prefer structured JSON output written to files over free-form chat for workflow handoffs.

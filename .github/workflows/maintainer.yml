@@ -51,7 +51,7 @@ jobs:
 
       - name: Configure git identity
         run: |
-          git config --global user.name "Hephaestus (Maintainer)"
+          git config --global user.name "Mae (Maintainer)"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Load Maintainer memory (maintainer/logs)
@@ -112,7 +112,7 @@ jobs:
           model: opencode/muse-spark-1.2-contributor-free
           use_github_token: true
           prompt: |
-            You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
+            You are the lab Maintainer (Mae) on the Random repo, in a scheduled/dispatched/event run.
 
             READ FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.
 
@@ -124,7 +124,7 @@ jobs:
 
             OUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):
             1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | build | lab | auditor | fix | ideate | recover | ping. One entry max per PR/issue. Empty array [] is fine - do not invent work.
-            2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).
+            2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Mae, the Maintainer` (a hardcoded step appends it if missing).
             3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
             4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
             5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.
@@ -152,9 +152,9 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          GIT_AUTHOR_NAME: "Hephaestus (Maintainer)"
+          GIT_AUTHOR_NAME: "Mae (Maintainer)"
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
-          GIT_COMMITTER_NAME: "Hephaestus (Maintainer)"
+          GIT_COMMITTER_NAME: "Mae (Maintainer)"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
         run: |
           dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
@@ -201,7 +201,7 @@ jobs:
             exit 0
           fi
 
-          echo "Emergency contract satisfied. Staging and committing strictly as Hephaestus (Maintainer)..."
+          echo "Emergency contract satisfied. Staging and committing strictly as Mae (Maintainer)..."
           # Remove actions/checkout credential injection so the PAT URL actually authenticates:
           # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
           # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
@@ -211,7 +211,7 @@ jobs:
           done
           git add .github/workflows/*.yml
           [ -f opencode.json ] && git add opencode.json || true
-          git commit --author="Hephaestus (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: emergency revival - update workflow model configuration (see .maintainer/emergency.json declaration in run log)"
+          git commit --author="Mae (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: emergency revival - update workflow model configuration (see .maintainer/emergency.json declaration in run log)"
           git fetch origin main --quiet
           # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
           # main must stay a strict descendant of origin/main (fast-forwardable). Rebase first if needed;
@@ -230,7 +230,7 @@ jobs:
             git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main
           }
           echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"
-          echo "Emergency revival pushed to main as Hephaestus (Maintainer)."
+          echo "Emergency revival pushed to main as Mae (Maintainer)."
 
       - name: Commit Maintainer memory (maintainer/logs)
         if: always()
@@ -257,7 +257,7 @@ jobs:
           # Stage ONLY the memory files - never the whole repo - then commit and push.
           git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
           if ! git diff --cached --quiet; then
-            git -c user.name="Hephaestus (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
+            git -c user.name="Mae (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
               commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"
             git push origin "HEAD:maintainer/logs" --quiet || {
               git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet
@@ -295,7 +295,7 @@ jobs:
           if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
               posts.append((target, open(".maintainer/comment.md").read(), True))
 
-          # Emergency-gate transparency: keep Hephaestus's public comments consistent with
+          # Emergency-gate transparency: keep Mae's public comments consistent with
           # what the hardcoded steps actually did with any protected-path edits.
           gate_notice = ""
           gate = os.environ.get("EMERGENCY_GATE", "")
@@ -312,7 +312,7 @@ jobs:
                   ".maintainer/emergency.json).\n\n"
               )
 
-          sign = "- Hephaestus, the Maintainer"
+          sign = "\u2014 Mae, the Maintainer"
           for t, body, is_main_comment in posts:
               body = body.strip()
               if not body:

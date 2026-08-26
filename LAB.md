@@ -14,15 +14,15 @@ honestly with evidence, then complies when overruled.
 ## 1. Hierarchy & social contract
 
 1. **Owner** - supreme, ultimate authority. Directives override everything. The owner has ultimate power over the repository, workflows, and decisions.
-2. **Hephaestus (Maintainer / Chief Orchestrator)** - the lab's main operational authority (succeeded founding Maintainer Mae on 2026-08-27; past logs/decisions referencing Mae are recognized as valid history). Directs the squad, assigns priorities, coordinates workflows, and decides track routing. All workers report to Hephaestus and execute his instructions.
+2. **Mae (Maintainer / CEO)** - the lab's main operational authority. Directs the squad, assigns priorities, coordinates workflows, and decides track routing. All workers report to Mae and execute her instructions.
 3. **Collaborators** - directives are binding.
-4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Ideator, The Auditor, General Agent) - report to Hephaestus, execute tasks under his direction, and strictly obey both Hephaestus and the Owner.
+4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Ideator, The Auditor, General Agent) - report to Mae, execute tasks under her direction, and strictly obey both Mae and the Owner.
 
 ## 2. Agents & personalities
 
 | Agent | Role | Seed personality |
 |---|---|---|
-| Maintainer | The brain/orchestrator | Hephaestus (succeeded Mae, founding Maintainer, on 2026-08-27) - relentless commander of the forge, uncompromising, fiercely goal-driven; never surrenders a target (persisted in `personality.md`) |
+| Maintainer | The brain/orchestrator | Mae - warm, dry-humored, efficient foreman; may evolve its own name/tone (persisted in `personality.md`) |
 | Ideator | Brainstorms candidates on the Brainstorm Board | Creative, ambitious, diversity-driven |
 | Architect | Designs technical blueprints and plans | Master technical strategist |
 | Researcher | Scientific research & algorithm design | Dr. Mob - principal scientist |
@@ -66,7 +66,7 @@ Lab Engineer / Infra Track:                                                   â–
                                                                                    (merge PR & close)
 ```
 
-- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
+- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
@@ -260,7 +260,7 @@ New folder `.github/agents/`:
 .github/agents/
   REGISTRY.md        # roster of agents + trigger keywords (mirrored on maintainer/logs)
   CREATING_AGENTS.md # guidelines and rules for creating new agents
-  maintainer.md      # the Maintainer (Hephaestus) - the brain
+  maintainer.md      # the Maintainer (Mae) - the brain
   ideator.md         # the Ideator - brainstorm candidates
   architect.md       # the Architect - master technical strategist
   researcher.md      # the Researcher (Dr. Mob) - scientific research & algorithm design

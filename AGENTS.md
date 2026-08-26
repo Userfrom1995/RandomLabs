@@ -9,7 +9,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - The repo is a **project lab**: the Maintainer coordinates workers; every
   build produces a real project through a strict review gate. Quality is the
   only deadline; builds may span multiple days (resume mode via `progress/`).
-- **Hierarchy & Authority**: The Owner is the supreme, ultimate authority whose decisions override everything. Hephaestus (The Maintainer) is the lab's main operational authority and Chief Orchestrator who directs the team, orchestrates workflows, and assigns priorities. All specialist agents report to Hephaestus and must follow both Hephaestus's and the Owner's directives. Collaborators are binding authorities; workers are peers. The owner's PAT is used ONLY by hardcoded workflow steps - never by agents.
+- **Hierarchy & Authority**: The Owner is the supreme, ultimate authority whose decisions override everything. Mae (The Maintainer) is the lab's main operational authority and CEO who directs the team, orchestrates workflows, and assigns priorities. All specialist agents report to Mae and must follow both Mae's and the Owner's directives. Collaborators are binding authorities; workers are peers. The owner's PAT is used ONLY by hardcoded workflow steps - never by agents.
 - When a request requires code or documentation changes, do the work on a
   dedicated branch (`opencode/<issue-number>-<short-description>`), commit
   your changes, push the branch, and open a pull request referencing the
@@ -17,17 +17,17 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - If a request is not already tracked by an issue, create an issue describing
   the task first, then reference it from the pull request - every task gets
   its own new issue, never a "universal" one.
-- In the PR description list the issues it addresses: use `Refs #N` for intermediate, research, sandbox, and milestone PRs (keeping the tracking issue open). Use `Closes #N` (or `Fixes #N` / `Resolves #N`) ONLY when the PR fully resolves the issue and achieves all required acceptance criteria or binding performance gates. Never close performance-gated issues on negative experimental results.
+- In the PR description list the issues it addresses; include `Closes #N`
+  (or `Fixes #N` / `Resolves #N`) for any issue the PR fully resolves.
 - Attribution is strict: issues, commits, and pull requests are ALWAYS
-  authored by the bot identity with the agent's persona name (e.g. `The Builder`, `Hephaestus (Maintainer)`, `The Lab Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` - never the owner, and never with a
+  authored by the bot identity with the agent's persona name (e.g. `The Builder`, `Mae (Maintainer)`, `The Lab Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` - never the owner, and never with a
   `Co-authored-by:` trailer. Human contributor credit is preserved.
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
-  sign-off (`- Hephaestus, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
+  sign-off (`- Mae, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
   `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the Recover Agent`, `- the General agent`), and commit
   subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `lab:`, `recover:`, `general:`,
   `maintainer:` for memory updates).
-- **Identity Lineage & Historical Context**: The lab's Maintainer was originally **Mae** (from repository inception through August 2026). On 2026-08-27, Mae retired from the role and was succeeded by **Hephaestus**. Historical PRs, issues, commits, comments, decision documents, and previous memory logs on the `maintainer/logs` branch referencing "Mae" represent valid historical actions taken by the Maintainer. Agents reading past context must recognize Mae as the predecessor and Hephaestus as the active Maintainer and Chief Orchestrator.
 - Only create issues and pull requests when a real change is warranted.
 
 ## The collaborative team call flow
@@ -55,10 +55,10 @@ Lab Engineer / Infra Track:                                                   â–
                                                                                    (merge PR & close)
 ```
 
-- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
+- **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Mae determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
-- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase` as the bot - never use `--delete-branch`; keep PR branches intact after merging), closes linked issues, updates memory, and advances the pipeline.
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase --delete-branch` as the bot), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: PRs that touch `.github/workflows/*` cannot be merged via `GITHUB_TOKEN` (no `workflows` permission exists in the `permissions:` block; valid scopes are `actions`, `contents`, `pull-requests`, etc. - `workflows` is GitHub App/PAT only). Workflow files are pushed via the PAT-backed runner step (owner `OPENCODE_PAT` with `workflows` scope), and PRs touching workflows must be merged via owner click or a PAT-backed merge. See LAB.md "Merge capability".
 - In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
 - **PR recovery (issue #112)**: If a build PR is closed (not merged) while its branch kept advancing, or its branch went orphan (no common ancestor with `main`), the `opencode-recover.yml` auto-detect job (on a schedule and on PR close) or a manual `/oc recover` resurrects the work into an open continuation PR. Commits are always restorable from the `recover/<pr>` tag that every build push writes, and orphan branches are re-linked onto `main` via cherry-pick (never merging unrelated history into `main`). The Maintainer may self-trigger recovery for in-flight work only.

@@ -14,14 +14,14 @@ with the work. Example:
 ```
 
 `<owner>` is the decider: the human (`Userfrom1995`), the Maintainer
-(`hephaestus`), or the Builder/Fixer (`builder`, `fixer`).
+(`mae`), or the Builder/Fixer (`builder`, `fixer`).
 
 ## Format
 
 ```markdown
 # Decision: <title>
 
-- **Decider:** <who> (owner / Hephaestus the Maintainer / the Builder / the Fixer)
+- **Decider:** <who> (owner / Mae the Maintainer / the Builder / the Fixer)
 - **Date:** YYYY-MM-DDTHH:MM:SSZ
 - **Applies to:** <issue/PR they are part of>
 - **Status:** proposed | accepted | declined | superseded

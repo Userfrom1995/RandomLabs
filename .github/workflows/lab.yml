@@ -71,7 +71,7 @@ jobs:
             - NEVER run `git push` yourself. The runner's PAT-backed step pushes the branch. Any push you make uses the App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission".
             - For model switches/upgrades on main: modify `.github/workflows/*.yml` directly on disk and leave modified. The runner PAT step will commit and push to main.
             - You never post "/oc" comments directly. Write your structured machine decision to `/tmp/random-lab-decision.json`:
-              `{"action": "review"}` when PR is ready, or `{"action": "maintainer"}` when Hephaestus should retry/triage.
+              `{"action": "review"}` when PR is ready, or `{"action": "maintainer"}` when Mae should retry/triage.
             - NO EM DASHES anywhere in commits, comments, or documentation.
 
       - name: Strip owner Co-authored-by trailers from the PR branch
