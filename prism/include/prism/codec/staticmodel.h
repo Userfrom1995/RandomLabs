@@ -295,10 +295,14 @@ std::vector<uint32_t> deserialize_merge_map16(const std::vector<uint8_t>& blob,
 // rows; prior tables ride raw) plus the 4096-normalized assignment context,
 // then the words themselves as a symbol-rANS stream under that context.
 // Words are one per group in plane-major raster order (pin P-T0-4).
-// Layout pinned in decisions/builder/2026-08-26T08-05-00 P-T0-5.
+// Layout pinned in decisions/builder/2026-08-26T08-05-00 P-T0-5. When
+// words_bytes is non-null it receives the exact tail size (u32 nwords +
+// u32 len + coded words) so callers can decompose NET into prototype-table
+// and assignment-word columns without reparsing the blob.
 std::vector<uint8_t> serialize_codebook(const SmoothedTables& protos,
                                         const std::vector<uint32_t>& words,
-                                        size_t* audit_counted);
+                                        size_t* audit_counted,
+                                        size_t* words_bytes = nullptr);
 
 struct DecodedCodebook {
     SmoothedTables tabs;                // clusters = K * 16 joint rows
