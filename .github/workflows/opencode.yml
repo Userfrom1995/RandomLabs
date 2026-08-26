@@ -239,7 +239,7 @@ jobs:
           # architect ALWAYS writes the decision file as its final act, so
           # "no decision file + failed agent step" is exactly the mid-stream
           # crash signature (e.g. 'Provider finish_reason: network_error').
-          # Mandated by Mae's 08:46Z escalation after four architect deaths.
+          # Mandated by Maintainer's 08:46Z escalation after four architect deaths.
           if [ -f /tmp/random-lab-decision.json ]; then
             echo "Decision file present; architect phase produced a handoff."
             exit 0

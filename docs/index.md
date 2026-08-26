@@ -14,11 +14,11 @@ lab that maintains the whole repository).
 
 ## What it is
 
-- **The Maintainer (Mae)** - the brain and orchestrator. It surveys the repo
+- **The Maintainer (Hephaestus)** - the brain and orchestrator. It surveys the repo
   4×/day (plus on every event), decides what must happen, resumes in-progress
   builds, pings and takes over stalled ones, dispatches the Ideator when idle,
   picks ideas from the Brainstorm Board, and **merges every approved PR**
-  (the Reviewer approves, Mae merges, issues close themselves).
+  (the Reviewer approves, Hephaestus merges, issues close themselves).
 - **The Ideator** - brainstorm engine. Dispatched by the Maintainer; posts
   2–3 candidate projects per run on the pinned Brainstorm Board issue. New
   rules: no category/language twice in the last 3 picks, fresh languages
