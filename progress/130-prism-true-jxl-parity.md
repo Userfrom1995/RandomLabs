@@ -692,11 +692,33 @@ same-stack class16 baseline fresh in-run; FAIL => flat-16 ships unchanged),
 then slice Q3 = T3 factorial (+ T3b canary on winner), then Q4 = T4
 composition + projection vs the committed e1 CSV (< 9.35 / < 3.117
 unchanged; M2/M3 reported beside, never altered). Zero container bytes
-until a future T4 PASS. Honest reading so far: every locality/conditioning
-mechanism measured under payable side info (V1, S3, now T1a) loses to its
-own table economics on this instrument; the surviving composition
-candidates remain {adaptive control, static spine +5.5} x color trials
-pending T2a/T3.
+until a future T4 PASS.
+
+SLICE Q2 IN PROGRESS (2026-08-26, Builder, reconciled continuation): two
+sessions landed concurrently and both survived - the pins record
+(2026-08-26T12-30-00-t2a-shrunk-contexting-pins.md, P-Q2-1..P-Q2-9: arms
+{TW-A 32, TW-B 128} x seven trials; parents = same-run transmitted class16
+spine tables; NO budget merge on the 343 axis - shrinkage IS the floor;
+coding only against the deserialized 'SBD1' rebuild; baseline = per-image
+min-NET SPINE B-RANS row scanning trials ascending; winner = higher
+quad-median relpct, ties TW-A; T2b conditional only on PASS) and the
+`bench-sandbox --t2a` engine + transmitted-SBD1 unit test (144/144 green).
+This session added the evaluator half of P-Q2-7/P-Q2-8: T2/T2SUM parsing,
+net-audit-t(T2) identity/schema rails, fidelity-t2, TSUM-style mechanical
+cross-check against raw rows, NON-GATING T2A gate readout, --t2a runner,
+and failable --self-check-t2a (all mutations proven to bite, both verdict
+directions reachable). Remaining: quad measurement + dated CSV + ledger
+sweep; T2b opens ONLY on a >= +0.50 median PASS.
+
+Prior state:
+
+SLICE Q1 COMPLETE (2026-08-26, Builder): T1a ceiling kill test MEASURED
+FAIL per the pre-registered gate - bucket C1 closed-with-numbers,
+conditional T1b never opened (opener arithmetic not met). Honest reading
+so far: every locality/conditioning mechanism measured under payable side
+info (V1, S3, now T1a) loses to its own table economics on this instrument;
+the surviving composition candidates remain {adaptive control, static
+spine +5.5} x color trials pending T2a/T3.
 
 Prior state:
 

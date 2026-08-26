@@ -73,6 +73,8 @@ MODE_T0=0
 SELF_CHECK_T1=0
 MODE_T1A=0
 MODE_T1B=0
+SELF_CHECK_T2A=0
+MODE_T2A=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -92,6 +94,8 @@ while [[ $# -gt 0 ]]; do
     --self-check-t1) SELF_CHECK_T1=1; shift;;
     --t1a) MODE_T1A=1; shift;;
     --t1b) MODE_T1B=1; shift;;
+    --self-check-t2a) SELF_CHECK_T2A=1; shift;;
+    --t2a) MODE_T2A=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -139,6 +143,7 @@ sand, bracket, corrupt, v1rows, s1rows, s3rows, s4rows = [], [], [], [], \
     [], [], []
 t0rows, tproto, tamirror, tzzhu = [], [], [], []
 t1rows, tsumrows = [], []
+t2rows, t2sumrows = [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -208,6 +213,20 @@ for line in open(sys.argv[1]):
                          "tr": int(f[12]), "a": int(f[13]),
                          "net": int(f[14]), "paygain": float(f[15]),
                          "relpct": float(f[16]), "sole": f[17] == "1"})
+    elif f[0] == "T2" and len(f) >= 14:
+        t2rows.append({"img": f[1], "cand": f[2], "trial": f[3],
+                       "be": f[4], "payload": int(f[5]),
+                       "tables": int(f[6]), "maps": int(f[7]),
+                       "trees": int(f[8]), "assign": int(f[9]),
+                       "net": int(f[10]), "audit": f[11], "rt": f[12]})
+    elif f[0] == "T2SUM" and len(f) >= 16:
+        t2sumrows.append({"img": f[1], "arm": f[2], "bp": int(f[3]),
+                          "bt": int(f[4]), "bm": int(f[5]),
+                          "btr": int(f[6]), "ba": int(f[7]),
+                          "bnet": int(f[8]), "p": int(f[9]),
+                          "t": int(f[10]), "m": int(f[11]),
+                          "tr": int(f[12]), "a": int(f[13]),
+                          "net": int(f[14]), "relpct": float(f[15])})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -1241,6 +1260,148 @@ if t1rows:
                 print("T1B VERDICT: FAIL - bucket C1 closed; the spine's "
                       "+5.5 pct stays the harvested share")
 
+# ----- T2 rows (slice Q2; pins P-Q2-1..P-Q2-9): rail integrity flips the
+# exit code, the T2a gate verdict never does. -----
+if t2rows:
+    # VB-net-audit-t on T2 rows: identity + 'SBD1'-only schema contracts.
+    bad_audit = bad_net = bad_rt = bad_schema = 0
+    for r in t2rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != (r["payload"] + r["tables"] + r["maps"] +
+                        r["trees"] + r["assign"]):
+            bad_net += 1
+        if r["be"] in ("B-RANS", "B-ADAPT") and r["rt"] != "1":
+            bad_rt += 1
+        if r["cand"].startswith("SHRUNK") and (r["maps"] or r["trees"] or
+                                               r["assign"]):
+            bad_schema += 1     # one 'SBD1' blob; zero other side info
+    if bad_audit or bad_net or bad_rt or bad_schema:
+        fail(f"net-audit-t(T2): {bad_audit} audit disagreements, "
+             f"{bad_net} NET identity violations, {bad_rt} round-trip "
+             f"failures, {bad_schema} schema violations")
+    else:
+        print(f"VB-net-audit-t OK ({len(t2rows)} T2 rows: audits agree, "
+              f"NET identity holds, shrunk schemas clean)")
+
+    # Coder fidelity on SHRUNK families per (img, cand, trial).
+    cfgs = {}
+    for r in t2rows:
+        if r["be"] not in ("B-IDEAL", "B-RANS"):
+            continue
+        cfgs.setdefault((r["img"], r["cand"], r["trial"]), {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        rr = bes.get("B-RANS")
+        if ideal is None or rr is None:
+            continue
+        n_fid += 1
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        if rr["payload"] > limit:
+            pct = 100.0 * (rr["payload"] - ideal["payload"]) / \
+                max(1, ideal["payload"])
+            fail(f"fidelity-t2 {k}: B-RANS payload {rr['payload']} exceeds "
+                 f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity-t OK ({n_fid} shrunk families within "
+              f"+0.50 pct of their own B-IDEAL rows)")
+
+    # Real T2 images must sit under the committed anchors.
+    t2_imgs = {r["img"] for r in t2rows}
+    san_imgs = {r["img"] for r in sand}
+    for img in sorted(t2_imgs - san_imgs):
+        fail(f"t2 anchor coverage: {img} has no SANDBOX anchor row")
+
+    # T2SUM decomposition rail (pin P-Q2-6/P-Q2-8): every summary row's
+    # components must match a real shrunk B-RANS row and the real SPINE
+    # B-RANS class16 baseline row; NET identities and relpct recompute.
+    spine_base = {}
+    shrunk_rows = {}
+    _arm_cand = {"SHRUNK@TW-A": "SHRUNKA", "SHRUNK@TW-B": "SHRUNKB"}
+    for r in t1rows:
+        if r["cand"] == "SPINE" and r["be"] == "B-RANS":
+            spine_base.setdefault(r["img"], set()).add(
+                _comp(r["payload"], r["tables"], r["maps"], r["trees"],
+                      r["assign"]))
+    for r in t2rows:
+        if r["be"] == "B-RANS":
+            shrunk_rows.setdefault((r["img"], r["cand"]), set()).add(
+                _comp(r["payload"], r["tables"], r["maps"], r["trees"],
+                      r["assign"]))
+    bad_t2sum = 0
+    for s in t2sumrows:
+        cname = _arm_cand.get(s["arm"])
+        if cname is None:
+            bad_t2sum += 1
+            continue
+        ok_row = _comp(s["p"], s["t"], s["m"], s["tr"], s["a"]) in \
+            shrunk_rows.get((s["img"], cname), set())
+        ok_base = _comp(s["bp"], s["bt"], s["bm"], s["btr"], s["ba"]) in \
+            spine_base.get(s["img"], set())
+        net_ok = (s["net"] == s["p"] + s["t"] + s["m"] + s["tr"] +
+                  s["a"]) and \
+                 (s["bnet"] == s["bp"] + s["bt"] + s["bm"] + s["btr"] +
+                  s["ba"])
+        rel_ok = abs(s["relpct"] -
+                     (100.0 * (s["bnet"] - s["net"]) / s["bnet"]
+                      if s["bnet"] else 0.0)) < 1e-3
+        if not (ok_row and ok_base and net_ok and rel_ok):
+            bad_t2sum += 1
+    if bad_t2sum:
+        fail(f"net-audit-t(T2SUM): {bad_t2sum} rows failed mechanical "
+             f"cross-check against raw T2/T1 rows")
+    else:
+        print(f"VB-net-audit-t OK ({len(t2sumrows)} T2SUM rows re-derived "
+              f"exactly from raw rows)")
+
+# ---- T2A gate readout (addendum 20.5 T2a; NON-GATING verdict) ----
+if t2sumrows:
+    print("== T2A SHRUNK CONTEXTING READOUT (addendum 20.5 T2a; pins "
+          "P-Q2-5..P-Q2-8) ==")
+    tb_win = {}
+    for r in t1rows:
+        if r["cand"] not in ("ADAPT", "SPINE"):
+            continue
+        if r["be"] not in ("B-ADAPT", "B-RANS"):
+            continue
+        if r["img"] not in tb_win or r["net"] < tb_win[r["img"]]["net"]:
+            tb_win[r["img"]] = r
+    arms = ["SHRUNK@TW-A", "SHRUNK@TW-B"]
+    stat = {}
+    for arm in arms:
+        xs = [s["relpct"] for s in t2sumrows if s["arm"] == arm]
+        if xs:
+            stat[arm] = median(xs)
+    imgs_t2 = sorted({s["img"] for s in t2sumrows})
+    for img in imgs_t2:
+        row = {s["arm"]: s for s in t2sumrows if s["img"] == img}
+        parts = ", ".join(
+            f"{a.split('@')[1]} {row[a]['relpct']:+.4f} pct"
+            for a in arms if a in row)
+        tb = tb_win.get(img)
+        ctx = f" | T-BASE winner {tb['cand']} net {tb['net']}" if tb else ""
+        tabs = min(row[a]["t"] for a in arms if a in row)
+        print(f"T2A {img}: {parts} | 'SBD1' tables from {tabs} B{ctx}")
+    if stat:
+        for a in arms:
+            if a in stat:
+                xs = [s["relpct"] for s in t2sumrows if s["arm"] == a]
+                print(f"T2A {a}: quad median NET gain {stat[a]:+.4f} pct "
+                      f"(min {min(xs):+.4f} / max {max(xs):+.4f}) vs "
+                      f"same-stack class16 spine")
+        winner = sorted(stat.items(), key=lambda kv: (-kv[1],
+                                                      kv[0]))[0]
+        wm = winner[1]
+        print(f"T2A winner {winner[0]}: median {wm:+.4f} pct vs bar "
+              f">= +0.50")
+        if wm >= 0.5:
+            print("T2A VERDICT: PASS - shrunk class343 contexting clears "
+                  "its bar; the T2b conditional OPENS")
+        else:
+            print("T2A VERDICT: FAIL - flat-16 ships unchanged; the T2b "
+                  "conditional stays CLOSED")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -2065,6 +2226,120 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_T2A" == "1" ]]; then
+  # T2a failability (pins P-Q2-6..P-Q2-8): a fabricated consistent frame
+  # must pass the rails and render an honest losing T2A verdict; the
+  # +0.50 bar must be reachable in BOTH directions; NET identity,
+  # round-trip, schema and T2SUM decomposition mutations must each flip
+  # their named rail.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+  BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
+  if [[ ! -x "$BIN" ]]; then echo "prism binary not found at $BIN"; exit 1; fi
+
+  REF="$TMP/ref.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+
+  mk_good_t2() {
+    cat > "$TMP/sbx.csv" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+T1,kodim01.ppm,ADAPT,ycocgr,NONE,B-ADAPT,546852,0,0,0,0,546852,1,1,0.000,0,-6.8898
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-IDEAL,511456,2814,0,0,0,514270,1,1,4091650.433,16,0.0281
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-RANS,511600,2814,0,0,0,514414,1,1,4091650.433,16,0.0000
+T2,kodim01.ppm,SHRUNKA,ycocgr,B-IDEAL,512300,2900,0,0,0,515200,1,1,514200.000
+T2,kodim01.ppm,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515400,1,1,514200.000
+T2,kodim01.ppm,SHRUNKB,ycocgr,B-IDEAL,512900,2950,0,0,0,515850,1,1,514700.000
+T2,kodim01.ppm,SHRUNKB,ycocgr,B-RANS,513000,2950,0,0,0,515950,1,1,514700.000
+T2SUM,kodim01.ppm,SHRUNK@TW-A,511600,2814,0,0,0,514414,512500,2900,0,0,0,515400,-0.1917
+T2SUM,kodim01.ppm,SHRUNK@TW-B,511600,2814,0,0,0,514414,513000,2950,0,0,0,515950,-0.2986
+EOF
+  }
+
+  # 1. The consistent losing frame passes every rail and renders the
+  #    honest FAIL verdict (best arm median -0.1917 pct vs bar >= +0.50).
+  mk_good_t2
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "T2A VERDICT: FAIL" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T2A FAIL: losing frame must render T2A FAIL"; ok=0; }
+  grep -q "flat-16 ships unchanged" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T2A FAIL: losing verdict must close the conditional"; ok=0; }
+  grep -q "VB-net-audit-t OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T2A FAIL: no net-audit-t OK verdict"; ok=0; }
+
+  # 2. PASS direction reachable: lift the TW-A arm above the bar with
+  #    component-consistent numbers (+1.2663 pct median).
+  mk_good_t2
+  sed -i 's/,SHRUNKA,ycocgr,B-IDEAL,512300,2900,0,0,0,515200,/,SHRUNKA,ycocgr,B-IDEAL,505000,2900,0,0,0,507900,/;' "$TMP/sbx.csv"
+  sed -i 's/,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515400,1,1,514200.000/,SHRUNKA,ycocgr,B-RANS,505000,2900,0,0,0,507900,1,1,506800.000/' "$TMP/sbx.csv"
+  sed -i 's/^T2SUM,kodim01.ppm,SHRUNK@TW-A,511600,2814,0,0,0,514414,512500,2900,0,0,0,515400,-0.1917/T2SUM,kodim01.ppm,SHRUNK@TW-A,511600,2814,0,0,0,514414,505000,2900,0,0,0,507900,1.2663/' "$TMP/sbx.csv"
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/pass.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: evaluator rejected the fabricated winner frame"; ok=0
+  fi
+  grep -q "T2A VERDICT: PASS" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-T2A FAIL: +1.2663 pct must render T2A PASS"; ok=0; }
+  grep -q "T2b conditional OPENS" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-T2A FAIL: passing verdict must open the T2b conditional"; ok=0; }
+
+  # 3. A broken T2 NET identity must fail.
+  mk_good_t2
+  sed -i 's/,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515400,/,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515401,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: net-audit accepted a broken T2 identity"; ok=0
+  fi
+  grep -q "net-audit-t(T2)" "$TMP/a.out" || \
+    { echo "SELF-CHECK-T2A FAIL: no T2 net-audit FAIL verdict"; ok=0; }
+
+  # 4. A silent round-trip failure must fail.
+  mk_good_t2
+  sed -i 's/,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515400,1,1,/,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515400,1,0,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: net-audit accepted a failed T2 decode"; ok=0
+  fi
+  grep -q "net-audit-t(T2)" "$TMP/b.out" || \
+    { echo "SELF-CHECK-T2A FAIL: no T2 round-trip FAIL verdict"; ok=0; }
+
+  # 5. Side info leaking into a SHRUNK row must fail the schema.
+  mk_good_t2
+  sed -i 's/,SHRUNKA,ycocgr,B-RANS,512500,2900,0,0,0,515400,1,1,/,SHRUNKA,ycocgr,B-RANS,512500,2900,12,0,0,515412,1,1,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/c.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: schema accepted side info in SHRUNK"; ok=0
+  fi
+  grep -q "net-audit-t(T2)" "$TMP/c.out" || \
+    { echo "SELF-CHECK-T2A FAIL: no T2 schema FAIL verdict"; ok=0; }
+
+  # 6. A T2SUM relpct lie must fail the decomposition rail.
+  mk_good_t2
+  sed -i 's/^T2SUM,kodim01.ppm,SHRUNK@TW-A,511600,2814,0,0,0,514414,512500,2900,0,0,0,515400,-0.1917/T2SUM,kodim01.ppm,SHRUNK@TW-A,511600,2814,0,0,0,514414,512500,2900,0,0,0,515400,-0.0917/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: T2SUM accepted a relpct lie"; ok=0
+  fi
+  grep -q "rows failed mechanical" "$TMP/d.out" || \
+    { echo "SELF-CHECK-T2A FAIL: no T2SUM decomposition FAIL verdict"; ok=0; }
+
+  # 7. A baseline-component lie must fail the same rail.
+  mk_good_t2
+  sed -i 's/^T2SUM,kodim01.ppm,SHRUNK@TW-A,511600,2814,0,0,0,514414,/T2SUM,kodim01.ppm,SHRUNK@TW-A,511601,2814,0,0,0,514414,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/e.out" 2>&1; then
+    echo "SELF-CHECK-T2A FAIL: T2SUM accepted a foreign baseline"; ok=0
+  fi
+  grep -q "rows failed mechanical" "$TMP/e.out" || \
+    { echo "SELF-CHECK-T2A FAIL: no T2SUM baseline FAIL verdict"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-T2A PASS: consistent frame green with honest losing verdict, gate reachable both directions, identity/round-trip/schema/decomposition mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
@@ -2468,6 +2743,60 @@ if [[ "$MODE_T1B" == "1" ]]; then
     exit 1
   fi
   echo "SANDBOX GATE PASS (all VB rails green; T1b verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+if [[ "$MODE_T2A" == "1" ]]; then
+  # T-series slice Q2 (spec addendum 20.3/20.5; pins P-Q2-1..P-Q2-9):
+  # shrunk fine contexting on sha-pinned images; dated one-file CSV;
+  # determinism re-run; rank fixtures stay LIVE; anchors re-emitted inside
+  # the CSV; verdicts computed ONLY from same-run rows.
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-t2a.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --t2a "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --t2a "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: quad re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|T1|T2|T2SUM),' "$RAW1" > "$OUT_CSV"
+
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-t2a quad ${SB}s (incl. determinism re-run), bench-ideal quad ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-t2a/re-run = {$SB/$ID:.2f}x bench-ideal (P-Q2-9/A3 precedent: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox T2a results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; T2a verdict above is a measured outcome, not a rail failure)"
   exit 0
 fi
 
