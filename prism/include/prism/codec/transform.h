@@ -7,24 +7,27 @@ namespace prism::codec {
 
 // ----- BlockDCT: reversible integer 8x8 block DCT (spec addendum 21) -----
 //
-// Non-overlapping 8x8 Type-II DCT. Internally uses double precision to
-// guarantee |fwd(inv(x)) - x| <= 1 for all inputs in [0, 2^BD - 1].
+// Non-overlapping 8x8 Type-II DCT. Integer-exact per the pinned spec:
+// 12-bit fixed-point cosine constants (C_SCALE = 4096), round-to-nearest,
+// |fwd(inv(x)) - x| <= 1 for all inputs in [0, 2^BD - 1].
 //
 // FORMAT-UNWIRED: this module touches no container, no production path,
 // and no entropy coding. It is a pure source-domain preprocessing step
 // for the U-series sandbox instrument.
 
 constexpr int DCT_BLOCK = 8;
+constexpr int32_t C_SCALE = 4096;  // 12-bit fractional precision
 
 // Forward 8x8 block DCT: src[64] -> dst[64].
 // Input: pixel samples as int32.
-// Output: DCT coefficients as double.
-void block_dct_forward_8x8(const int32_t* src, double* dst);
+// Output: DCT coefficients as int32 (12-bit fixed-point domain).
+void block_dct_forward_8x8(const int32_t* src, int32_t* dst);
 
 // Inverse 8x8 block DCT: src[64] -> dst[64].
-// Input: DCT coefficients as double.
+// Input: DCT coefficients as int32 (12-bit fixed-point domain).
 // Output: reconstructed pixel samples as int32 (rounded).
-void block_dct_inverse_8x8(const double* src, int32_t* dst);
+// |fwd(inv(x)) - x| <= 1 for all inputs in [0, 2^BD - 1].
+void block_dct_inverse_8x8(const int32_t* src, int32_t* dst);
 
 // Apply forward 8x8 block DCT to an entire plane.
 // The plane is padded with replicate edge pixels to fill partial blocks
@@ -33,7 +36,7 @@ void block_dct_inverse_8x8(const double* src, int32_t* dst);
 // blocks_x = ceil(w / 8), blocks_y = ceil(h / 8).
 // Output size: blocks_x * blocks_y * 64 coefficients.
 struct DctPlaneResult {
-    std::vector<double> coefficients;    // DCT coefficients, raster block order
+    std::vector<int32_t> coefficients;   // DCT coefficients, raster block order
     uint32_t blocks_x;                   // number of blocks horizontally
     uint32_t blocks_y;                   // number of blocks vertically
     uint32_t padded_w;                   // padded width (blocks_x * 8)
@@ -46,7 +49,7 @@ DctPlaneResult block_dct_forward_plane(const std::vector<uint16_t>& plane,
 // Apply inverse 8x8 block DCT to reconstruct the original plane.
 // Input: DCT coefficients from block_dct_forward_plane.
 // Output: reconstructed pixel values (clamped to [0, max_val]).
-std::vector<uint16_t> block_dct_inverse_plane(const double* coeffs,
+std::vector<uint16_t> block_dct_inverse_plane(const int32_t* coeffs,
                                                uint32_t blocks_x,
                                                uint32_t blocks_y,
                                                uint32_t orig_w,
@@ -68,8 +71,9 @@ std::vector<int32_t> compute_transform_residuals(const DctPlaneResult& dct);
 
 // Reconstruct DCT coefficients from transform-domain residuals.
 // Replays the MED prediction from reconstructed history to recover
-// the original coefficients.
-std::vector<double> reconstruct_transform_coefficients(
+// the original coefficients. Both prediction and reconstruction operate
+// on int32 rounded coefficients (no floating-point).
+std::vector<int32_t> reconstruct_transform_coefficients(
     const std::vector<int32_t>& residuals,
     uint32_t blocks_x, uint32_t blocks_y);
 
