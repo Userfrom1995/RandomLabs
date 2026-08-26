@@ -4,8 +4,10 @@
   genuinely pass dual-unit gates)
 - **Branch:** opencode/issue130-20260823163248 (research + architect + builder phases)
 - **Status:** complete. #130 closes HONESTLY at the achieved level
-  2026-08-25 after the full C/D/E program executed with every lever adopted-
-  and-measured or rejected-by-measurement. Final corpus truth (E4 fresh
+  2026-08-26 after the full C/D/E/V/S/T programs executed with every
+  lever adopted-and-measured or rejected-by-measurement. T4 composition
+  projected 9.5671 summed / 3.1890 per-sample bpp (threshold < 9.35 /
+  < 3.117; both exceeded). T5 NOT triggered. Final corpus truth (E4 fresh
   measure, all 24 pins verified pre-measurement): e1 = 10.1210 summed /
   3.3737 per-sample bpp; e3 = e7 = 10.1350 / 3.3783 - byte-identical to the
   D4c-era CSVs, proving D0-E1 library work stayed format-unwired end to end.
@@ -713,25 +715,32 @@ bytes until T4 PASS.
       +5.47 pct over all4 quad images; portrait UNMEASURED -> INHERITED.
       Honest reading: every conditioning refinement measured under payable
       side info has lost; the surviving MED composition projects above
-      threshold. T5 reserve triggered (inside M3 reach but short).
-- [ ] T5 reserve (ONLY if T4 projects inside M3 reach but short of it):
-      one-shot squeeze-with-parent-properties, >= +2.00 pct median NET or
-      third-strike death (L-C7).
+      threshold. T5 NOT triggered (9.5671 > 8.8316 summed threshold);
+      decision tree row 1 final clause executes.
+- [x] T5 reserve: **NOT TRIGGERED**. T4 projected 9.5671 summed / 3.1890
+      per-sample; T5 trigger requires projected summed < 8.8316 AND
+      per-sample < 2.9438 while failing the format bar. 9.5671 > 8.8316
+      => trigger not met. #130 closes honestly at the achieved level per
+      the decision tree's final clause (correction of prior Builder error
+      in decision record 2026-08-26T16-00-00).
 
 ## Current step
 
-SLICE Q4 COMPLETE (2026-08-26, Builder): T4 composition + projection
-MEASURED FAIL - projected 9.5671 summed / 3.1890 per-sample vs threshold
-< 9.35 / < 3.117 (above both limits). M2 FAIL-shaped, M3 FAIL-shaped
-(reported only). Per-image winners: MED/rct-rbg on kodim01/05
-(+5.46/+5.49 pct), MED/loco on kodim13/20 (+5.68/+0.60 pct). Landscape
-median +5.47 pct over all4 quad images; portrait INHERITED per P-S4-7.
-Rails green: all VB rails pass. Honest reading: every conditioning
-refinement measured under payable side info has lost to its own table
-economics; the surviving MED composition projects above threshold.
-T5 reserve triggered (inside M3 reach but short, per P-S4-9). NEXT:
-T5 reserve = one-shot squeeze-with-parent-properties, >= +2.00 pct median
-NET or third-strike death (L-C7).
+#130 HONESTLY CLOSED (2026-08-26, Builder, T5 trigger correction):
+T5 reserve was incorrectly triggered by the prior Builder run - T4
+projected 9.5671 summed which exceeds the T5 trigger threshold of
+< 8.8316 summed (blueprint section 2, T5 reserve). The T5 trigger
+condition is NOT met; decision tree row 1 final clause executes: #130
+closes honestly at the achieved level. Correction decision record:
+`.github/agents/decisions/builder/2026-08-26T18-00-00-t5-trigger-
+correction-and-closure.md`. No further build phases authorized.
+
+Final achieved numbers: T4 projected 9.5671 summed / 3.1890 per-sample
+bpp vs threshold < 9.35 / < 3.117 (both exceeded). M2 (< 9.498 / < 3.166)
+FAIL-shaped; M3 (< 8.655 / < 2.885) FAIL-shaped (reported only).
+Every conditioning refinement measured under payable side info has lost
+to its own table economics. Full negative ledger in the T-series
+checklist and decision records.
 
 Prior state:
 
@@ -995,10 +1004,12 @@ Previous slice summary (continuation run 3, C2b):
    bar(i) verdict: FAIL (W best non-MED quad median -2.11 pct vs
    +1.50). B3/B5 close permanently; T3b canary never rides. {MED only}
    x D4c color trials for T4.
-5. **Slice Q4 (Builder, next):** T4 composition + projection vs the
-   committed e1 CSV (< 9.35 summed / < 3.117 per-sample); T5 reserve
-   only per trigger. Per-image winners by real NET bytes x color trials;
-   projection 18.5 VERBATIM; M2/M3 reported beside, never altered.
+5. ~~Slice Q4~~ DONE (2026-08-26) - T4 composition + projection: FAIL
+   (9.5671/3.1890 vs < 9.35/3.117). T5 NOT triggered (9.5671 > 8.8316
+   summed threshold). #130 closes honestly per decision tree row 1 final
+   clause. Correction of prior Builder T5 trigger error committed.
+
+## Project status: COMPLETE - honest closure
 
 Legacy branch-update policy from the v1 era (superseded in practice by the
 stacking note above but kept as hard-won context):
@@ -1082,6 +1093,19 @@ stacking note above but kept as hard-won context):
       S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-26 the Builder (T5 trigger correction + honest closure): T5
+  reserve was incorrectly triggered by the prior Builder run. T4 projected
+  9.5671 summed / 3.1890 per-sample; T5 trigger requires projected summed
+  < 8.8316 AND per-sample < 2.9438 while failing the format bar
+  (blueprint section 2, T5 reserve). 9.5671 > 8.8316 => trigger NOT met.
+  Correction decision record:
+  `.github/agents/decisions/builder/2026-08-26T18-00-00-t5-trigger-
+  correction-and-closure.md`. #130 closes honestly at the achieved level
+  per the decision tree's final clause (row 1: S4 threshold not met =>
+  stop-and-report). All 144 unit tests green. Full negative ledger in the
+  T-series checklist and decision records. PR #147 ready for Maintainer
+  merge. Zero container bytes spent across the ENTIRE V+S+T program.
 
 - 2026-08-26 the Builder (T-series slice Q3, ENGINE + SMOKE COMPLETE):
   T3 factorial engine landed (PR #147, branch re-based onto fresh main
