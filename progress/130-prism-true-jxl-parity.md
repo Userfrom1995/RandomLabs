@@ -726,16 +726,14 @@ bytes until T4 PASS.
 
 ## Current step
 
-HONEST CLOSURE COMPLETE (2026-08-26): Researcher delivered complete negative
-ledger (`research-complete-negative-ledger.md`) on PR #155 with handoff
-`{"action":"architect"}`. Architect delivered honest closure blueprint
-(`ideas/2026-08-26-prism-honest-closure.md`). Every legitimate mechanism
-class measured and rejected across 7 independent programs (28 phases, 5
-adopted, 18 rejected). The decision tree's final clause executes: #130
-closes honestly at the achieved level (e1 = 10.1210 summed / 3.3737
-per-sample, -8.21% bytes from 11.026 baseline). M2 FAIL both units.
-M3 FAIL both units. Full negative ledger is the permanent record.
-Handoff {"action":"build"}: Builder executes closure deliverables.
+HONEST CLOSURE FINALIZED (2026-08-26, Builder): closure deliverables committed
+on PR #155. Decision record 2026-08-26T23-00-00-honest-closure.md created.
+Both progress trackers updated to Status: complete (closed). The complete
+negative ledger spans C/D/E/V/S/T/U programs: 28 phases, 5 adopted, 18
+rejected with committed numbers. Every legitimate mechanism class measured and
+rejected. The table-economics law confirmed across 7 programs. The 14.48% gap
+to M3 lives in the architectural difference between Prism and JXL, not in any
+unmeasured mechanism. #130 closes honestly at the achieved level.
 
 ## Prism v4 U-series checklist (transform-domain program; owner
 ## Anti-Surrender directive 2026-08-26T20:05Z)
@@ -1186,6 +1184,20 @@ stacking note above but kept as hard-won context):
       S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-26 the Builder (honest closure finalized on PR #155): closure
+  deliverables committed: decision record 2026-08-26T23-00-00-honest-closure.md,
+  both progress trackers updated to "Status: complete (closed)". The complete
+  negative ledger is permanent: 28 phases across 7 programs (C/D/E/V/S/T/U),
+  5 adopted (C1 entropy backend v2, C3 trial-encoded decisions, D4c reversible
+  color rotations, plus instrument harnesses), 18 rejected with committed
+  numbers. Table-economics law confirmed: every content-adaptive refinement
+  measured under payable side info lost to its own table bytes. The 14.48%
+  gap to M3 lives in the architectural difference (single-pass vs multi-pass,
+  online-adaptive vs static histograms, binary vs ANS coding). #130 closes
+  honestly at e1 = 10.1210 summed / 3.3737 per-sample (-8.21% bytes from
+  11.026 baseline). M2 FAIL both units. M3 FAIL both units. Owner options
+  for exotic programs documented in ideas/2026-08-26-prism-honest-closure.md.
 
 - 2026-08-26 the Builder (U-series complete, U1 FAIL, escalation on PR #153):
   U1 measured on pinned quad x 7 D4c color trials: FRAME-F (frequency-domain
