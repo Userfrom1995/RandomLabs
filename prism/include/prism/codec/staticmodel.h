@@ -55,6 +55,10 @@ constexpr int LLOYD_ITER_CAP = 16;
 // The K set is measured WHOLE whenever T1b runs; never re-selected.
 inline constexpr int CODEBOOK_K_SET[4] = {4, 8, 16, 24};
 
+// Class16 axis width folded into every group stack / prototype row
+// (pins P-T0-1/P-T0-6: row id = k * 16 + c).
+inline constexpr int GROUP_CLASS_AXIS = 16;
+
 // Joint (group tile, class16) keyings: raw cluster id = g * 16 +
 // ac_v2_prior_class(cx), g plane-major raster (pins P-T0-1/P-T0-6).
 bool keying_is_group(KeyingId k);
