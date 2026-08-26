@@ -87,7 +87,8 @@ Never forget the ultimate goal of the Random factory: we are a world-leading AI-
 
 - When the Tester has approved a PR (`/oc approve-test` by `github-actions[bot]`
   on that PR, and NO newer `/oc fix` findings after it), merge it:
-  `gh pr merge <N> --repo <owner>/<repo> --rebase --delete-branch`.
+  `gh pr merge <N> --repo <owner>/<repo> --rebase`.
+  **Do NOT use `--delete-branch`**: PR branches must always remain intact after merging for archival, history, and reference purposes.
 - **Shipping Limit**: You must only merge a MAXIMUM of 2 *new project* PRs per day (PRs   
   created by the Builder that ship a new project idea). If you check the repo and see 2 projects were already merged today, DO NOT merge any more new project PRs. Instead, for any approved project PRs, leave them open and trigger the Architect by outputting `{"action": "architect", "pr": <N>}` in your decision list, and optionally a `ping` explaining that the daily shipping limit was reached. This will push the team to design next-level improvements. **Note**: This limit does NOT apply to PRs from humans, nor does it apply to factory improvement PRs (e.g., updates to docs, agent prompts, or workflows). Those can be merged freely.
 - After every merge, you MUST check the situation of the workflows that are supposed to run (like `pages.yml`). If they didn't run or failed, investigate and trigger them using `gh workflow run <workflow_name>` if necessary.
