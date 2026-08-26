@@ -2730,8 +2730,95 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_T4" == "1" ]]; then
+  # T4 failability (pins P-Q4-1..P-Q4-8): a fabricated consistent frame
+  # must pass the rails and render an honest FAIL verdict; the threshold
+  # must be reachable in BOTH directions; NET identity and projection
+  # mutations must each flip their named rail.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+
+  REF="$TMP/ref.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+
+  E1="$TMP/e1.csv"
+  cat > "$E1" <<'EOF'
+image,bytes,bpp
+kodim01.ppm,538244,3.6502
+kodim05.ppm,586481,3.97733
+kodim13.ppm,641348,4.34942
+kodim20.ppm,394162,2.67308
+EOF
+
+  mk_good_t4() {
+    cat > "$TMP/sbx.csv" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.000,0.0000,-6.4042
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577855,390,0,0,578245,1,1,4622834.334,4622834.334,-5.741,-1.0224
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511463,3007,0,0,514470,1,1,4091700.921,4091650.433,5.922,-11.9387
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+T3,kodim01.ppm,MED,ZFFCTRL,ycocgr,B-IDEAL,511463,3007,26,0,0,514496,1,1,4091700.921
+T3,kodim01.ppm,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514622,1,1,4091700.921
+T3,kodim01.ppm,MED,ZFFCTRL,rct-grb,B-IDEAL,511150,3063,26,0,0,514239,1,1,4089195.576
+T3,kodim01.ppm,MED,ZFFCTRL,rct-grb,B-RANS,511276,3063,26,0,0,514365,1,1,4089195.576
+T3,kodim01.ppm,MED,ZFFCTRL,rct-gbr,B-IDEAL,505696,3022,26,0,0,508744,1,1,4045566.547
+T3,kodim01.ppm,MED,ZFFCTRL,rct-gbr,B-RANS,505822,3022,26,0,0,508870,1,1,4045566.547
+EOF
+  }
+
+  # 1. The consistent modest frame passes every rail and renders the
+  #    honest FAIL verdict (MED best = rct-gbr at 508870 vs ctrl 546852,
+  #    gain ~6.93 pct; projected summed ~10.25 >= 9.35).
+  mk_good_t4
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" "$E1" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-T4 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "T4 COMPOSITION" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T4 FAIL: no T4 composition header"; ok=0; }
+  grep -q "T4 VERDICT: FAIL" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T4 FAIL: modest numbers must render FAIL verdict"; ok=0; }
+  grep -q "INHERITED" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T4 FAIL: portrait inheritance marker missing"; ok=0; }
+
+  # 2. PASS direction reachable: fabricate a strong MED winner
+  #    (rct-gbr NET much lower than e1 control, ~15.5 pct gain -> proj < 9.35).
+  mk_good_t4
+  sed -i 's/T3,kodim01.ppm,MED,ZFFCTRL,rct-gbr,B-IDEAL,505696,3022,26,0,0,508744,/T3,kodim01.ppm,MED,ZFFCTRL,rct-gbr,B-IDEAL,452000,3022,26,0,0,455048,/' "$TMP/sbx.csv"
+  sed -i 's/T3,kodim01.ppm,MED,ZFFCTRL,rct-gbr,B-RANS,505822,3022,26,0,0,508870,/T3,kodim01.ppm,MED,ZFFCTRL,rct-gbr,B-RANS,452120,3022,26,0,0,455168,/' "$TMP/sbx.csv"
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" "$E1" > "$TMP/pass.out" 2>&1; then
+    echo "SELF-CHECK-T4 FAIL: evaluator rejected the fabricated winner frame"; ok=0
+  fi
+  grep -q "T4 VERDICT: PASS" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-T4 FAIL: strong winner must render PASS verdict"; ok=0; }
+
+  # 3. A broken T4 NET identity must fail.
+  mk_good_t4
+  sed -i 's/T3,kodim01.ppm,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514622,/T3,kodim01.ppm,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514623,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" "$E1" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-T4 FAIL: net-audit accepted a broken T4 identity"; ok=0
+  fi
+  grep -q "net-audit-t(T3)" "$TMP/a.out" || \
+    { echo "SELF-CHECK-T4 FAIL: no T4 net-audit FAIL verdict"; ok=0; }
+
+  # 4. A missing e1 CSV must fail the projection.
+  mk_good_t4
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" "/nonexistent/e1.csv" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-T4 FAIL: evaluator accepted missing e1 CSV"; ok=0
+  fi
+  grep -q "T4 projection\|e1 CSV missing" "$TMP/b.out" || \
+    { echo "SELF-CHECK-T4 FAIL: no T4 projection FAIL verdict for missing e1"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-T4 PASS: consistent frame green with honest FAIL verdict, PASS reachable both directions, identity/projection mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
-if [[ ! -x "$BIN" ]]; then
+if [[ ! -x "$BIN" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
 fi
 
