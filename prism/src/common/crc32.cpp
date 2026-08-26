@@ -33,14 +33,18 @@ uint32_t crc32(const std::vector<uint8_t>& data) {
 }
 
 uint32_t crc32_combine(uint32_t crc, const uint8_t* data, size_t len) {
+    // True incremental append: continue the stream `crc` left off at, so
+    // chaining parts A -> B -> C yields exactly crc32(A++B++C). Every
+    // serializer/deserializer pair in staticmodel relies on this contract
+    // (found by the T0 bring-up tests BEFORE any measurement: the previous
+    // stub dropped the running state, leaving multi-part blobs' CRCs
+    // covering only their final section).
     init_table();
     uint32_t c = crc ^ 0xFFFFFFFFu;
-    // This is not the correct combine for appended data without reinitializing,
-    // but we provide incremental: caller should keep state. For simplicity,
-    // we recompute from scratch in container. This helper just computes CRC of data.
-    // To combine, compute crc of data and then combine via standard method? For M0 we just compute separately.
-    (void)c;
-    return crc32(data, len);
+    for (size_t i = 0; i < len; ++i) {
+        c = table[(c ^ data[i]) & 0xFF] ^ (c >> 8);
+    }
+    return c ^ 0xFFFFFFFFu;
 }
 
 } // namespace prism
