@@ -3,6 +3,7 @@
 Lossless image codec in C++17, successor to Obsidian, targeting JPEG XL on Kodak.
 
 - [Research](research.md)
+- [Research: v3 content-clustering program](research-v3-content-clustering.md)
 - [Algorithmic spec](algorithmic-spec.md)
 - [Architecture](architecture.md)
 - [Benchmark methodology](benchmark-methodology.md)
