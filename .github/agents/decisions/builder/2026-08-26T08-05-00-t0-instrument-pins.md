@@ -1,165 +1,161 @@
-# T0 instrument extension: structural pins before any measurement
+# T0 instrument extension: superseding and converging structural pins
 
 - **Role:** the Builder
 - **Date:** 2026-08-26 (Builder slice Q0 of the T-series program, PR #146,
   issue #130)
 - **Authority:** spec addendum 20 (algorithmic-spec.md section 20) and the
   T-series blueprint (`architecture-jxl-parity-tseries.md` section 1) are
-  binding. This record fixes ONLY the structural readings those texts leave
-  open - all BEFORE any `bench-sandbox --t0` row exists (same discipline as
-  records 2026-08-25T16-20-00 / 2026-08-25T21-30-00 / 2026-08-25T22-30-00 /
-  2026-08-25T23-00-00 / 2026-08-25T23-45-00). No constant here may be retuned
-  after a measurement has been seen.
+  binding. Two Builder sessions opened slice Q0 concurrently; both landed
+  pre-measurement pin records (2026-08-26T08-00-00 first, this one minutes
+  later). This record RESOLVES the overlap: it supersedes exactly one
+  reading of the earlier record with the addendum-verbatim justification,
+  ADOPTS the rest of that record's readings wholesale, and adds the
+  remaining implementation pins. Nothing here retunes any addendum-20
+  constant; all of it lands BEFORE any `bench-sandbox --t0` row exists.
 
-## P-T0-1 Lloyd metric bin flattening
+## P-T0-1 SUPERSEDES 08-00-00 P-T0-1/P-T0-4/P-T0-5 shape: class16 stays INSIDE every group stack
 
-The symmetric chi-square distance operates on BIN VECTORS realized as the
-interleaved outcome counts (n0, n1) of every (class16 class, kind offset +
-key) cell of the ZFFCTRL counting layout, flattened in ascending (class,
-kind, key) order - n0 before n1 within a cell. RAWBITS carries no table
-entries and is excluded; TOKEN has zero span under ZFFCTRL. Distances are
-accumulated in unsigned 128-bit and saturating-clamped to INT64_MAX for the
-int64 argmin comparison; they are never serialized and never reported as
-data (addendum 20.2 verbatim).
+Addendum 20.2 is a three-index sentence: "GROUP STACK X_j: per-(class16
+class, bin kind, key) event counts ... exactly the counting layout of
+addendum 18.2". The earlier record's "one cluster row per group over
+(kind, key) only" drops the middle index and would silently demote the
+joint locality-context mechanism - the exact thing research v3 says was
+never measured - into another single-axis replacement. Binding reading for
+all T-machinery:
 
-## P-T0-2 'SBC1' exact byte layout
+    stack X_j[g][(class16 c, kind off + key)] with n0/n1 per cell
+    'SBC1' u32 stride = 16 * SandboxModel::init_stride(ZFFCTRL)
+                       (the PER-PROTOTYPE block folds the class16 axis)
+    prototype/cluster row id = k * 16 + c   (clusters = K * 16)
+    ceiling joint cluster id = g * 16 + c   (clusters = G * 16)
 
-Little-endian throughout: magic 'SBC1'; u32 K; u32 stride = the PER-
-PROTOTYPE span, defined as 16 * SandboxModel::init_stride(ZFFCTRL) (the
-class16 axis folds into the prototype's table block, matching the counting
-layout "cluster := group" reading); u32 profile id; the image-global prior
-tables as raw u16 pairs (stride entries, UNCOMPRESSED); u32 coded_len;
-then ONE plane-rANS application (pin D6 scheme) over the concatenation
-delta_raw ++ assignctx_raw, where delta_raw is K * stride s16 pairs
-(proto_u12 - prior_u12) and assignctx_raw is K u12 pairs (the 4096-
-normalized assignment-word histogram over alphabet K); trailing u32 =
-CRC32 over prior_bytes ++ delta_raw ++ assignctx_raw. Decoder mirror exact;
-truncation/CRC/trailing-byte hard-detect; expect-match tamper surface
-identical to deserialize_tables.
+Prototype estimation pools member groups' stacks into a SandboxModel whose
+cluster axis indexes (k, c) joint cells and runs build_tables_enforced
+VERBATIM (prior = image-global pooled across prototypes; every smoothing
+constant is the shipped 18.2 arithmetic). Assignment words stay ONE WORD
+PER GROUP over alphabet K - the class16 axis is resolved causally on both
+sides exactly as in every prior row family.
 
-## P-T0-3 Ceiling mode budget policy
+## P-T0-2 Lloyd metric realization
 
-T1a ceiling stacks are measured with NO cluster-budget enforcement (no
-4096-sample floor, no K_MAX cap): "per-group EXACT static stacks" is read
-as exactness by construction, and the mandatory decomposition columns exist
-precisely to expose the true serialized-table cost. The joint (group tile,
-class16) cluster id is g * 16 + c delivered by new keyings KGROUP64 /
-KGROUP128 (position tile from the pinned GS64/GS128 geometry crossed with
-the shipped ac_v2_prior_class reduction); tables serialize through the
-EXISTING 'SBM1' hierarchical serializer with clusters = G * 16 - it already
-IS the global-prior + s16-delta rANS-compressed CRC32 shape addendum 20.2
-names. Zero assignment bits by construction (assign column pinned 0).
+Bins flatten to the interleaved outcome counts (n0 then n1) of every
+(class, kind offset + key) cell in ascending cell order (P-T0-1 layout);
+RAWBITS excluded (no table entries), TOKEN zero-span under ZFFCTRL. Term =
+floor(((X' - P')^2 << 16) / (X' + P')), X' = X + 1, P' = P + 1; accumulated
+in unsigned 128-bit and saturating-clamped to INT64_MAX for the int64
+argmin comparison; distances are never serialized and never reported as
+data.
 
-## P-T0-4 Assignment-word container 'SBA1'
+## P-T0-3 ADOPTS 08-00-00 P-T0-3 verbatim (seeding/loop/drop)
 
-Magic 'SBA1'; u32 word count; RANS_NS = 4 interleaved states using the SAME
-local-port constants (RB_L = 2^23, RB_M = 2^16) and the SAME reverse-order
-interleaving discipline as B-RANS (global symbol index g handled by state
-g % NS, encoded in descending g so forward pops decode ascending); multi-
-symbol rANS coding each word against the blob-carried single 4096-
-normalized context (cumulative frequencies computed once, ascending symbol
-order). Word order: raster group order within a plane, planes in plane
-order (plane-major, pin P-T0-5). Encoder emits proto_of_group[g];
-decoder reconstruction must equal the encoder sequence exactly (VB-assign-
-mirror rail + unit tests on random AND skewed fixtures).
+Total event count = sum of ALL n0+n1 entries of the stack. First center =
+max total, ties lowest group id; next centers maximize the minimum distance
+to already-chosen centers among NOT-YET-CHOSEN groups (candidate exclusion
+is this record's only addition), ties lowest id; assignment ties lowest
+prototype id; centroids are per-bin SUMS; convergence = assignment vector
+unchanged, hard cap 16 iterations; empty prototypes drop ONCE afterwards,
+survivors renumber ascending, EVERY group reassigned to its nearest
+surviving prototype by the same metric (ties lowest new id), centroids NOT
+recomputed after the drop, transmitted K = survivor count. A constant
+image collapses to transmitted K = 1 (the --self-check-t0 direction
+fixture).
 
-## P-T0-5 Group identity and geometry
+## P-T0-4 ADOPTS 08-00-00 P-T0-6 verbatim (assignment symbol rANS)
 
-gid = plane_group_base + ty * tiles_x + tx with tiles_x/tiles_y from the
-pinned GS64/GS128 geometry (ceil division; partial right/bottom edge groups
-counted in full); plane_group_base accumulates in plane order (plane-major).
-Group identity is per-plane (no cross-plane grouping, addendum 20.2).
+Single-state symbol rANS on the vendored port's constants L = 1 << 23,
+scale_bits = 12 (M = 4096); frequencies = the blob-carried 4096-normalized
+context histogram (support >= 1 by construction); encoder walks words in
+REVERSE raster-group order per plane, planes concatenated in plane order;
+flush writes the u32 state; decoder reads forward from 4 bytes; round-trip
+unit-bound both directions.
 
-## P-T0-6 Seeding and drop determinism
+## P-T0-5 ADOPTS 08-00-00 P-T0-5 blob skeleton as amended by P-T0-1
 
-Farthest-point seeding excludes ALREADY-CHOSEN groups from the candidate
-pool; ties resolve to the LOWEST group id among remaining candidates, so a
-fully degenerate (all-identical-stacks) corpus seeds centers in ascending
-id order. Assignment ties go to the lowest prototype id. After convergence
-(or the 16-iteration cap) empty prototypes drop ONCE with ascending
-renumbering and ONLY the dropped prototypes' member groups reassign to
-their nearest surviving prototype under the same metric; transmitted K
-adjusts downward accordingly. A constant image therefore collapses to
-transmitted K = 1 with every word tied to prototype 0 (the --self-check-t0
-direction fixture).
+'SBC1', u32 K, u32 stride (= 16 x profile stride here), u32 profile_id,
+u16[K * stride] priors raw, u32 coded_len + plane-rANS(pin D6) bytes over
+delta_raw ++ ctx_raw (delta_raw = K * stride s16 pairs proto_u12 -
+prior_u12; ctx_raw = K u16 pairs assignment histogram), u32 crc32 over
+prior_bytes ++ delta_raw ++ ctx_raw, u32 assign_nwords, u32 assign_len +
+symbol-rANS words. Audit counter counts every emitted byte once; decoder
+mirror exact; expect-match compares prior, p, context AND words.
 
-## P-T0-7 Prototype estimation output shape
+## P-T0-6 CEILING mode
 
-Member groups' stacks pool into a SandboxModel whose cluster axis indexes
-(k, c) joint cells (clusters = K * 16, row id k * 16 + c); build_tables_
-enforced runs VERBATIM on that model, so the image-global prior pools
-across prototypes (whole image) and every smoothing/normalization constant
-is the shipped 18.2 arithmetic (pseudo-count 32 geometric/uniform per kind,
-normalize to exactly 4096, support floor 1, ascending-id largest-
-remainder). The codebook's smoothed content is thus byte-comparable with
-the ceiling machinery's tables.
+Per-group exact stacks with NO budget pass (exactness by construction; the
+decomposition columns expose the true serialized cost). Joint ids g * 16 +
+c arrive through NEW keyings KGROUP64 / KGROUP128 (position tile x shipped
+ac_v2_prior_class reduction) so counting, serialization ('SBM1' verbatim at
+clusters = G * 16), B-RANS coding and decode mirrors all reuse the existing
+paths unchanged. assign column pinned 0 on every ceiling row.
 
-## P-T0-8 'SBP2' wide merge map
+## P-T0-7 'SBP2' wide merge map
 
-The joint (g, c) raw ids exceed 'SBP1's u8 entry width, so the T-series
-carries its own map format: magic 'SBP2'; u16 raw-cluster count; u16 entry
-per raw cluster (final id, range-checked); trailing u32 CRC32 over
-everything before it. Same audit-counter contract as 'SBP1' (serializer
-audit == blob length). Decode-side ClusterMap consumes it transparently
-(the merge vector stays u32 internally).
+Joint raw ids exceed 'SBP1's u8 entries: magic 'SBP2'; u16 raw-cluster
+count; u16 entry per raw cluster (final id, range-checked); trailing u32
+CRC32 over everything before it; audit-counter contract identical to
+'SBP1'. ClusterMap consumes it transparently (internal vector stays u32).
 
-## P-T0-9 Shrinkage integer realization
+## P-T0-8 Shrinkage integer form
 
-Child shrinkage reuses the PINNED normalize_counts_4096 arithmetic
-verbatim: per alphabet cell, weighted counts w_i = n_i * 4096 +
-a_c * p_parent_u12(i) and total W = N_child * 4096 + a_c * 4096, then out_i
-= 1 + floor(w_i * (4096 - n_entries) / W) with the leftover distributed by
-largest fractional remainder, ascending-index ties (support floor 1).
-Consequences tested, not assumed: a_c -> 0 reproduces the unshrunk child ML
-proportions; N_child = 0 reproduces the parent entry EXACTLY (parent u12
-sums to 4096, so the floors leave zero leftover); every child table sums to
-exactly 4096; the 'SBD1' decoder mirror is step-equal. Binary cells are the
-two-entry case of the same function (no separate rounding path).
+ADOPTS 08-00-00 P-T0-8 including its test-limit reading: cp[bin] =
+n_child(bin) * 4096 + a_c * parent_u12(bin) through the standard
+normalize_counts_4096 pass (floor + largest remainder, support floor 1,
+ascending-id ties). The blueprint matrix line "a_c -> 0 limit reproduces
+parent entry" reads as its INVERSE limit (a_c large / n_child zero); the
+addendum 20.3 formula is authoritative. Consequences unit-bound: a_c = 0
+reproduces child ML normalization; zero-count child reproduces the parent
+proportions EXACTLY; every child table sums to exactly 4096; decoder mirror
+step-equal.
 
-## P-T0-10 'SBD1' exact byte layout
+## P-T0-9 'SBD1' layout
 
-Magic 'SBD1'; u32 nchildren = 343; the parent map as u16 entries [343]
-(parent of residual-DIFF context cq = ac_v2_prior_class(cq), the SHIPPED
-class16 reduction - encoder and decoder compute nothing; the map rides the
-blob); the global class16-pooled prior tables as raw u16 pairs (16 *
-stride entries, UNCOMPRESSED); u32 coded_len; ONE plane-rANS application
-over child_delta_raw = 343 * 16 * stride s16 pairs (child_u12 -
-parent_u12); trailing u32 CRC32 over parentmap_bytes ++ prior_bytes ++
-child_delta_raw. Decoder mirror exact; truncation/CRC hard-detect;
-expect-match tamper surface as P-T0-2.
+ADOPTS 08-00-00 P-T0-9 verbatim: 'SBD1', u32 nchildren = 343, u32 stride,
+u32 profile_id, u8[343] parent map (ac_v2_prior_class per context),
+u16[16 * stride] ALL class16 pooled rows, u32 coded_len + plane-rANS over
+the 343 * stride s16 delta stream (child_u12 - parent_u12), u32 crc32 over
+parent_map ++ class16 bytes ++ delta_raw. Decoder mirror exact; truncation/
+CRC hard-detect; expect-match surface as P-T0-5.
 
-## P-T0-11 ZZ-HU identity
+## P-T0-10 ADOPTS 08-00-00 P-T0-10 verbatim (scope, fixtures, schemas)
+
+--t0 measures kodim01 ONLY (any other input refused); anchors first
+(SANDBOX control, BRACKET, anchor trio exactly like every other phase so
+VB-anchor-* guard the CSV); TB rows re-run the S4 composition procedure
+FRESH in-process (winner by real NET bytes, ties ADAPT = the denominator of
+every payload_pct_gain column); candidate rows T0,<img>,CEIL|CB<K>,<gs>,<be>
+,... with NET = payload+tables+maps+trees+assign (I12 extended) and
+mandatory decomposition columns; PROTO/AMIRROR rail-fixture rows emitted by
+the live run; synthetic self-check fixtures generated deterministically
+in-process, tagged SYNTHETIC, carrying NO anchor rows, excluded from
+anchor-coverage rules.
+
+## P-T0-11 ADOPTS 08-00-00 P-T0-11 verbatim (non-gating boundary)
+
+Every T0 diagnostic readout prints but NEVER gates; only VB-* rail-
+integrity checks flip exit codes, and only inside probe_sandbox.sh. No quad
+verdict number exists at T0; T1a starts that series.
+
+## P-T0-12 ZZ-HU identity
 
 ZZ-HU is a ROW-SCHEMA LABEL ONLY: TokProfile::HYB_C reused verbatim
-(addendum 18.3 ladder ESC-C). No tokenization code exists behind the name.
+(addendum 18.3 ladder ESC-C); no tokenization code exists behind the name.
 The --t0 smoke emits one ZZHU identity row echoing profile id 3 so the
-schema wiring is provably present before T3 ever reads it.
-
-## P-T0-12 T0 CSV grammar and gating discipline
-
-All T0 rows are prefixed `T0` in field 1 with kinds PROTO / ASSIGN / CBOOK /
-CEIL / LLOYD / SHRINK / ZZHU in field 3. The dated file
-`benchmarks/results/YYYY-MM-DD-sandbox-t0.csv` carries anchors + rails +
-DIAGNOSTIC smoke rows on kodim01 ONLY, explicitly marked non-gating (no
-quad verdict numbers exist at T0; they start at T1a per addendum 20.6).
-Rail-integrity checks VB-proto-roundtrip / VB-assign-mirror / VB-net-audit-t
-FLIP exit codes; gate rejections never do (addendum 20.1 verbatim). NET
-identity extends to every codebook row: net = payload + tables + assign +
-cbook; ceiling rows additionally assert assign = 0 (decomposition identity).
+wiring is provably present before T3 ever reads it.
 
 ## P-T0-13 Explicit-count model cap
 
 SandboxModel::init(explicit count) raises its guard 4096 -> 16384 joint
-cells: the GS64 quad worst case (kodim13-class geometry, 768x512) needs
-288 groups x 16 classes = 4608 rows. Allocation stays bounded and
-sandbox-only; no production path is touched.
+cells (GS64 kodim13-class geometry needs 288 groups x 16 classes = 4608
+rows). Allocation stays bounded and sandbox-only; no production path is
+touched.
 
 ## STATUS
 
-Committed 2026-08-26 BEFORE any T-row exists. Addendum 20 precedes this
-record and is unchanged; every reading above narrows implementation
-freedom, never the gates. T-BASE fresh-in-run comparisons begin at slice
-Q1 (T1a); zero container/format bytes spent or exposed anywhere in this
-slice.
+Committed 2026-08-26 BEFORE any T-row exists, reconciling the two
+concurrent Q0 openings into ONE implementable reading. The 08-00-00 record
+stands as first-landed provenance; where the two disagreed, this record
+follows addendum 20 verbatim and says so above. T-BASE fresh-in-run
+comparisons begin at slice Q1 (T1a); zero container/format bytes spent or
+exposed anywhere in this slice.
 
 - the Builder
