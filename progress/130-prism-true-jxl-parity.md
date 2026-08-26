@@ -669,19 +669,16 @@ bytes until T4 PASS.
 
 ## Current step
 
-SLICE Q0 OPENED (2026-08-26, Builder): T0 instrument extension in progress -
-pins P-T0-1..P-T0-13 committed BEFORE any measurement
-(decisions/builder/2026-08-26T08-05-00-t0-instrument-pins.md): Lloyd metric
-bin flattening + saturating 128-bit accumulation, 'SBC1' exact byte layout
-(per-proto stride = 16 x ZFFCTRL stride), ceiling NO-budget exactness +
-KGROUP64/KGROUP128 joint keying through the existing 'SBM1' serializer,
-'SBA1' assignment container (4-state interleaved symbol rANS), plane-major
-group identity, seeding/drop determinism (constant image collapses to K=1),
-prototype estimation via build_tables_enforced verbatim at clusters=K*16,
-'SBP2' u16 merge map, shrinkage through normalize_counts_4096 verbatim,
-'SBD1' layout, ZZ-HU label-only alias, T0 CSV grammar + rail discipline,
-explicit-count cap 16384. Next machinery: staticmodel T0 core, then --t0
-smoke mode, tests, probe rails + self-check-t0.
+SLICE Q0 OPENED (2026-08-26, Builder): T0 instrument extension in progress.
+TWO Builder sessions opened this slice concurrently; pins reconciled BEFORE
+any measurement in decisions/builder/2026-08-26T08-05-00-t0-instrument-
+pins.md (supersedes exactly the 08-00-00 stack-axis reading back to the
+addendum 20.2 verbatim three-index form: class16 INSIDE every group stack,
+per-proto stride = 16 x profile stride, joint row ids k*16+c / g*16+c,
+KGROUP64/KGROUP128 keyings, 'SBP2' wide merge map; ADOPTS that record's
+seeding/drop details, single-state symbol rANS, shrinkage test-limit
+reading, 'SBD1'/row-schema/non-gating pins wholesale). Machinery next:
+staticmodel T0 core, --t0 smoke mode, tests, probe rails + self-check-t0.
 
 Prior state:
 
