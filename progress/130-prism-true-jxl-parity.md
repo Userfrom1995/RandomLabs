@@ -613,11 +613,74 @@ per-sample projected).
       the S-program's measurement phases END here with stop-and-report.
       Evidence: benchmarks/results/2026-08-25-sandbox-s4.csv (104 rows).
       Zero container bytes by construction across the ENTIRE program.
-- [ ] S5 reserve (ONLY if S4 projects inside M3 reach but short): one-shot
-      squeeze-with-parent-properties, >= 2.0 median NET or third-strike
-      death (L-C7).
+ - [ ] S5 reserve (ONLY if S4 projects inside M3 reach but short): one-shot
+       squeeze-with-parent-properties, >= 2.0 median NET or third-strike
+       death (L-C7).
+
+## Prism v3 T-series checklist (joint locality-context program; fresh owner
+## research dispatch 2026-08-26T06:59Z)
+
+Program blueprint: `prism/docs/architecture-jxl-parity-tseries.md`;
+pre-registration: spec addendum 20 (algorithmic-spec.md section 20),
+committed BEFORE any T-measurement. Research:
+`research-v3-content-clustering.md`. Stacking: the V+S sandbox instrument
+was snapshot-imported from PR #145 @ 7600377 onto this branch as a labeled
+ordinary commit (linear history rooted at main; #145 stays OPEN untouched
+as the standalone evidence chain and closes cleanly once this content
+ships). T-BASE control = the S4 composition procedure re-run fresh in-run;
+all gates verbatim from research section 3 / addendum 20.5; zero container
+bytes until T4 PASS.
+
+- [x] T-pivot Architect phase (2026-08-26): stacking import + blueprint +
+      addendum 20 + tracker/log updates delivered. Handoff
+      {"action":"build"}: Builder slice Q0 = T0 instrument extension.
+- [ ] T0 instrument extension (BLOCKING): GroupPartition tiling GS64/GS128,
+      per-group counting stacks, integer Lloyd clustering, 'SBC1' codebook
+      serializer + assignment words, CEILING mode with decomposition
+      columns, shrinkage + 'SBD1', ZZ-HU identity, new rails
+      (VB-proto-roundtrip / VB-assign-mirror / net-audit-t) + failable
+      --self-check-t0; DIAGNOSTIC smoke CSV on kodim01 only (non-gating).
+      No T-phase verdict is valid without a green T0.
+- [ ] T1a ceiling kill test (runs FIRST): per-group exact stacks, tables
+      paid realistically; PASS >= +2.00 pct median NET beyond fresh T-BASE;
+      FAIL closes C1 unless payload gain >= +4.00 pct median with tables
+      the sole losing term (then T1b opens).
+- [ ] T1b content-defined codebook (conditional): K in {4,8,16,24} measured
+      whole; retain >= half of best T1a payload gain NET AND floor >= +1.00
+      pct median NET beyond the same T-BASE.
+- [ ] T2a shrunk fine contexting: class16 -> class343 shrinkage, arms
+      TW-A/TW-B; PASS >= +0.50 pct median NET vs same-stack class16
+      baseline fresh in-run.
+- [ ] T2b extended-property static reopening (conditional on T2a): E0 M-C
+      poolings ii/iii under static two-pass scoring; PASS >= +1.50 pct
+      median NET; second failure closes B2's static branch permanently.
+- [ ] T3 joint predictor-tokenization factorial: {MED,GAP,W} x
+      {ZFFCTRL,ZZ-HU}; bar (i) best non-MED >= +1.50 median NET under its
+      winning tokenization else GAP/W third-and-final strike; bar (ii)
+      tokenization main effect both directions. T3b canary once on winner
+      (>= +0.50 median, no image worse than -0.25; second strike permanent).
+- [ ] T4 composition + projection: per-image winners by real NET bytes x
+      color trials; projection 18.5 VERBATIM vs committed e1 CSV; threshold
+      UNCHANGED < 9.35 summed / < 3.117 per-sample; M2/M3 reported beside,
+      never altered; portrait INHERITED marker inherited from P-S4.
+- [ ] T5 reserve (ONLY if T4 projects inside M3 reach but short of it):
+      one-shot squeeze-with-parent-properties, >= +2.00 pct median NET or
+      third-strike death (L-C7).
 
 ## Current step
+
+T-SERIES PROGRAM OPENED (2026-08-26): the v3 research located the unmeasured
+mechanism - content-defined conditional clustering layered ON TOP OF class16
+conditioning, the joint structure every prior experiment replaced or refined
+one axis of - and pre-registered the fail-fast T-series against it. The
+Architect phase delivered the stacking resolution (V+S instrument imported
+from PR #145 @ 7600377 in one labeled commit), the blueprint
+(architecture-jxl-parity-tseries.md), and spec addendum 20 with every
+constant pinned BEFORE any measurement (group geometry, Lloyd metric/init/
+caps, K set, 'SBC1'/'SBD1' serialization, ceiling decomposition, shrinkage
+arms, ZZ-HU identity, all gates verbatim). Prior state below:
+
+Prior state:
 
 S4 COMPOSITION MEASURED - FAIL, STOP-AND-REPORT (2026-08-25): the
 pre-registered threshold (18.5 verbatim: projected <9.35 summed AND
@@ -744,6 +807,28 @@ Previous slice summary (continuation run 3, C2b):
 
 ## Next steps (in order)
 
+0. **T-series continuation policy (binding for every future run on this
+   branch, 2026-08-26):** all T-work happens HERE on PR #146; nothing
+   pushes to PR #145 anymore (its tree is fully contained here via the
+   labeled snapshot import @ 7600377). Addendum 20 precedes any T-row;
+   builder pins land BEFORE each slice's first sweep; dated CSVs one per
+   phase; T-BASE re-measured fresh in-run for every comparison; zero
+   container bytes until T4 PASS; M2/M3 dual-unit gates invariant.
+1. **Slice Q0 (Builder, next):** T0 instrument extension per blueprint
+   section 1 - GroupPartition tiling, per-group counting, integer Lloyd,
+   'SBC1' + assignment words, CEILING mode with decomposition columns,
+   shrinkage + 'SBD1', ZZ-HU identity alias, new rails + failable
+   --self-check-t0, DIAGNOSTIC smoke CSV on kodim01 only. Handoff
+   continue.
+2. Slice Q1: T1a ceiling kill test (+ conditional T1b codebook).
+3. Slice Q2: T2a shrunk contexting (+ conditional T2b static reopening).
+4. Slice Q3: T3 factorial (+ T3b canary on winner).
+5. Slice Q4: T4 composition + projection vs the committed e1 CSV
+   (< 9.35 summed / < 3.117 per-sample); T5 reserve only per trigger.
+
+Legacy branch-update policy from the v1 era (superseded in practice by the
+stacking note above but kept as hard-won context):
+
 0. **Branch update policy (binding for every future run on this branch):**
    REWRITTEN 2026-08-24 (continuation run 13) after a second topology event.
    Main's history was REWRITTEN server-side at some point after run 12's
@@ -823,6 +908,31 @@ Previous slice summary (continuation run 3, C2b):
       S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-26 the Architect (T-series pivot phase): executed the v3
+  research handoff on PR #146. (1) Stacking resolution: PR #145's branch
+  is orphan-rooted, so instead of an unrelated-histories merge that would
+  leave two unmergeable roots, imported the full V+S tree state from
+  opencode/issue130-20260825153143 @ 7600377 as ONE labeled snapshot
+  commit (provenance in its message; differences kept: decision.json,
+  docs/index.md, the v3 research doc). Linear history rooted at main;
+  #145 stays OPEN untouched and closes cleanly once this content ships.
+  (2) Blueprint `architecture-jxl-parity-tseries.md`: T0 blocking
+  instrument extension (GroupPartition GS64/GS128 tiling, per-group
+  counting stacks, integer Lloyd clustering with farthest-point seeding,
+  'SBC1' codebook serializer + assignment words, CEILING mode with
+  mandatory decomposition columns, shrinkage + 'SBD1', ZZ-HU = HYB_C
+  identity), new failable rails + --self-check-t0, phases T1a/T1b/T2a/
+  T2b/T3+T3b/T4/T5 with the research gates verbatim, module map with zero
+  container edits until T4 PASS, test matrix, risk register, slicing
+  Q0-Q4, binding decision tree, honest projections. (3) Spec addendum 20
+  (section 20) committed BEFORE any T-measurement: every constant slot
+  pinned - T-BASE fresh-in-run rule, Lloyd metric/init/caps/drop rules,
+  K set {4,8,16,24} measured whole, serialization shapes, a_c arms
+  TW-A/TW-B, canary mechanism inheriting 14.3, CSV naming, reserved
+  slots. (4) Tracker: T-series checklist opened, current step advanced to
+  Builder slice Q0, next steps rewritten for this branch, agent log entry.
+  Handoff {"action":"build"}.
 
 - 2026-08-25 the Builder (S4 composition slice, S-series P3): executed the
   program's final measurement slice to its threshold readout. (1) Pins
