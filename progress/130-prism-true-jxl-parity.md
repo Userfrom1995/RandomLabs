@@ -701,15 +701,39 @@ bytes until T4 PASS.
       take third and final strike; B3/B5 close permanently. T3b canary
       does NOT ride (bar(i) not met). T4 composition proceeds with
       {MED only} x D4c color trials.
-- [ ] T4 composition + projection: per-image winners by real NET bytes x
+- [x] T4 composition + projection: per-image winners by real NET bytes x
       color trials; projection 18.5 VERBATIM vs committed e1 CSV; threshold
       UNCHANGED < 9.35 summed / < 3.117 per-sample; M2/M3 reported beside,
       never altered; portrait INHERITED marker inherited from P-S4.
+      COMPLETE 2026-08-26: T4 FAIL - projected 9.5671 summed / 3.1890
+      per-sample vs threshold < 9.35 / < 3.117 (above both limits). M2
+      (<9.498/<3.166) FAIL-shaped; M3 (<8.655/<2.885) FAIL-shaped - both
+      reported only. Per-image: MED/rct-rbg wins kodim01/05 (+5.46/+5.49
+      pct), MED/loco wins kodim13/20 (+5.68/+0.60 pct). Landscape median
+      +5.47 pct over all4 quad images; portrait UNMEASURED -> INHERITED.
+      Honest reading: every conditioning refinement measured under payable
+      side info has lost; the surviving MED composition projects above
+      threshold. T5 reserve triggered (inside M3 reach but short).
 - [ ] T5 reserve (ONLY if T4 projects inside M3 reach but short of it):
       one-shot squeeze-with-parent-properties, >= +2.00 pct median NET or
       third-strike death (L-C7).
 
 ## Current step
+
+SLICE Q4 COMPLETE (2026-08-26, Builder): T4 composition + projection
+MEASURED FAIL - projected 9.5671 summed / 3.1890 per-sample vs threshold
+< 9.35 / < 3.117 (above both limits). M2 FAIL-shaped, M3 FAIL-shaped
+(reported only). Per-image winners: MED/rct-rbg on kodim01/05
+(+5.46/+5.49 pct), MED/loco on kodim13/20 (+5.68/+0.60 pct). Landscape
+median +5.47 pct over all4 quad images; portrait INHERITED per P-S4-7.
+Rails green: all VB rails pass. Honest reading: every conditioning
+refinement measured under payable side info has lost to its own table
+economics; the surviving MED composition projects above threshold.
+T5 reserve triggered (inside M3 reach but short, per P-S4-9). NEXT:
+T5 reserve = one-shot squeeze-with-parent-properties, >= +2.00 pct median
+NET or third-strike death (L-C7).
+
+Prior state:
 
 SLICE Q3 COMPLETE (2026-08-26, Builder): T3 factorial evaluator rails
 landed in probe_sandbox.sh; all VB rails GREEN on committed CSV (336 T3
