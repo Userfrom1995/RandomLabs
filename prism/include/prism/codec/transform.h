@@ -11,7 +11,8 @@ namespace prism::codec {
 // (C_SCALE = 4096), symmetric round-to-nearest (ties away from zero).
 // For BD8 inputs [0, 255]: |fwd(inv(x)) - x| <= 1 (bounded error, not
 // byte-exact; see spec amendment 22). Plane-level with replicate padding
-// may compound to <= 2 at block boundaries.
+// may compound to <= 2 at block boundaries; YCoCgR Co/Cg channels
+// (range up to 767 due to +512 bias) may reach <= 3 at plane level.
 //
 // FORMAT-UNWIRED: this module touches no container, no production path,
 // and no entropy coding. It is a pure source-domain preprocessing step
