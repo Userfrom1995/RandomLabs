@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-26 (~18:50Z, maintainer run 33001721447 - DISPATCH REVIEW PR #149 at 91dc672, issue #148 open)
+ - **Updated:** 2026-08-26 (~18:53Z, maintainer run 33002112165 - PR #149 review+test green at 91dc672, second test in_progress, pending merge)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt.) - RESOLVED via honest closure at 3a521fe: #130 closed honestly after full T-series negative ledger, gates never passed but program stops at decision tree row 1 final clause.
@@ -15,12 +15,12 @@
 - PR #149 `opencode/issue148-retain-pr-branches` at 91dc672 diverged ahead 1 / behind 126 vs 3a521fe, merge_base 5bc4b9d shared (not orphan, `git merge-base origin/main 91dc672` = 5bc4b9d), mergeable true. Diff has zero `.github/workflows` files - App-token review safe.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **Model FIXED on main:** `opencode/mimo-v2.5-free` + `muse-spark-1.2-contributor-free` verified at 3a521fe via contents API (main now contains PR #147 merge, no workflow diff vs d362886). PAT sweep live on main (442).
+- **Model FIXED on main:** `opencode/mimo-v2.5-free` + `muse-spark-1.2-contributor-free` verified at 3a521fe via contents API (main now contains PR #147 merge, no workflow diff vs d362886).
 - **Retain fix pending:** PR #149 at 91dc672 contains `gh pr merge ... --rebase` without --delete-branch + explicit retain note in maintainer.md:107 and AGENTS.md:61, corpus mirrors, author The Lab Engineer (CTO).
-- **Lab ladder:** completed for prism; no lab needed for #149 (docs-only).
+- **Lab ladder:** completed for prism; no lab needed for #149 (docs-only, no workflow files).
 
 ## IN FLIGHT
-- **PR #149** - OPEN MERGEABLE head `91dc672b9fd57e4793bb790e8fe357e8e8fd3266` (`opencode/issue148-retain-pr-branches`, ahead 1 / behind 126 vs 3a521fe, merge_base 5bc4b9d, base 3a521fe, Closes #148). Single `lab:` commit retain fix. Review dispatched at 91dc672 this run (18:50Z) - awaiting Reviewer `/oc approve` at same head, then Tester `/oc approve-test`, then Maintainer rebase-merge without --delete-branch.
+- **PR #149** - OPEN MERGEABLE head `91dc672b9fd57e4793bb790e8fe357e8e8fd3266` (`opencode/issue148-retain-pr-branches`, ahead 1 / behind 126 vs 3a521fe, merge_base 5bc4b9d, base 3a521fe, Closes #148). Single `lab:` commit retain fix. Reviewer APPROVED at 18:51:47Z and 18:53:01Z at same head (14/14 PASS, no workflow files), Tester PASSED at 18:52:36Z at same head, second Tester run triggered at 18:53:02Z now in_progress (33002144903) - awaiting second approve-test to authorize merge. Head stable, no fix after approvals.
 - **PR #145** - OPEN CONFLICTING head `7600377b48f4760156ec3a005b0de060221f3dbf` (`opencode/issue130-20260825153143`, now CONFLICTING, ~126 behind 3a521fe, base 14bd9e6c). V+S program COMPLETE stop-and-report (S4 FAIL 9.5638/3.1879 vs 9.35/3.117). Parked as ledger; snapshot-imported into #147 via 93e0bf2. No active builder. Superseded by T-series honest closure; disposition as archival/close pending next sweep.
 - **PR #147** - MERGED at `3a521fe233e98b318c1a6de1b173fa231a55eba1` (rebase, 38 commits, Closes #130 closed honestly). Branch deleted via old --delete-branch (motivates #148).
 - **Issue #148** - OPEN `[Infra] Retain PR branches after merge` - awaiting PR #149 merge via Closes #148.
@@ -28,19 +28,19 @@
 - **PR #146** - CLOSED head `9314283` predecessor.
 
 ## PIPELINE POSITION
-Research v2 DONE -> Architect S-pivot DONE -> Builder S1/S3/S4 COMPLETE FAIL (stop-and-report) -> Research v3 COMPLETE 07:15Z -> Architect COMPLETE 07:34Z (f4c220) -> Builder T0 Q0 COMPLETE -> Q1 T1a FAIL -> Q2 T2a FAIL -> Q3 pins+engine -> Lab fix d362886 -> Continuation PR #147 -> Lab on branch 78406b0 -> T3 verdict FAIL c5a4c2d -> T4 FAIL cf37dee/124b38c -> T5 correction 2c8d3f5 (T5 NOT triggered) -> Review APPROVED 17:29Z -> Tester PASS 17:41Z -> Merge 3a521fe -> Close #130 -> Pages dispatched 32995781311 -> New infra PR #149 retain-branches at 91dc672 -> Review dispatched 18:50Z -> awaiting test/merge.
+Research v2 DONE -> Architect S-pivot DONE -> Builder S1/S3/S4 COMPLETE FAIL (stop-and-report) -> Research v3 COMPLETE 07:15Z -> Architect COMPLETE 07:34Z (f4c220) -> Builder T0 Q0 COMPLETE -> Q1 T1a FAIL -> Q2 T2a FAIL -> Q3 pins+engine -> Lab fix d362886 -> Continuation PR #147 -> Lab on branch 78406b0 -> T3 verdict FAIL c5a4c2d -> T4 FAIL cf37dee/124b38c -> T5 correction 2c8d3f5 (T5 NOT triggered) -> Review APPROVED 17:29Z -> Tester PASS 17:41Z -> Merge 3a521fe -> Close #130 -> Pages dispatched 32995781311 -> New infra PR #149 retain-branches at 91dc672 -> Review dispatched 18:50Z -> Review APPROVED 18:51:47Z -> Tester PASS 18:52:36Z -> Review re-approved 18:53:01Z -> Tester re-dispatched 18:53:02Z (in_progress) -> awaiting final approve-test then Maintainer rebase-merge without --delete-branch.
 
 ## NEXT-RUN PLAYBOOK
 1. Verify `git ls-remote origin main` stays 3a521fe until PR #149 merges, `gh api pulls/149 --jq .merged` false pre-merge, `gh api pulls/149 --jq .head.sha` stays 91dc672, `gh api issues/148 --jq .state` open, PR #149 files 0 workflows.
-2. Watch Reviewer on PR #149: expect `/oc approve` at 91dc672 (or `/oc fix` with exact file:line if corpus/AGENTS wording off). If fix, gate requires Lab? No - no workflow diff, so Fixer via App token safe, route via `{"action":"fix","pr":149}` not lab.
-3. After approve, dispatch `{"action":"test","pr":149}` (infra docs: preview 200 OK, no model error). After approve-test, Maintainer merges via `gh pr merge 149 --rebase` (never --delete-branch), verifies `git ls-remote origin main` advances, `gh api pulls/149 --jq .merged` true, `gh api issues/148 --jq .state` closed, `git ls-remote origin opencode/issue148-retain-pr-branches` still intact, `gh api .../contents/.github/agents/maintainer.md?ref=main | grep -n "Do NOT use --delete-branch"` present, then `gh workflow run pages.yml`.
+2. Watch Tester second run 33002144903: expect `/oc approve-test` at 91dc672 (infra docs: preview 200 OK at /preview/pr-149/, no model error, no fix). If `/oc fix` appears with exact file:line, route via {"action":"fix","pr":149} (App-token safe, no lab needed).
+3. After second approve-test with no later fix, Maintainer merges via `gh pr merge 149 --repo Userfrom1995/RandomLabs --rebase` (never --delete-branch, orphan guard via 5bc4b9d), verifies `git ls-remote origin main` advances, `gh api pulls/149 --jq .merged` true, `gh api issues/148 --jq .state` closed, `git ls-remote origin opencode/issue148-retain-pr-branches` still intact, `gh api .../contents/.github/agents/maintainer.md?ref=main | grep -n "Do NOT use --delete-branch"` present, then `gh workflow run pages.yml`.
 4. Evaluate PR #145 CONFLICTING parked ledger: decide close as superseded (gh pr close 145 with ledger note) vs keep archival. No builder work; <3d threshold so no ping needed this run.
-5. Monitor `gh run list` for deploy runs 32995781311 + 33001728376 - ensure pages preview + production succeed, no `Model not found`.
+5. Monitor `gh run list` for deploy runs 32995781311 + 33001728376 + new post-149 dispatch - ensure pages preview + production succeed, no `Model not found`.
 6. Freeze remains until owner explicitly lifts (M2/M3 never passed). No ideate.
 
 ## ISSUES
 - **#148** - OPEN (retain branches, Closes via #149 at 91dc672).
-- **#149** - OPEN review dispatched 91dc672.
+- **#149** - OPEN review approved 18:51:47Z + 18:53:01Z, tester passed 18:52:36Z, second test in_progress 18:53:02Z.
 - **#145** - OPEN CONFLICTING 7600377 parked V+S ledger (evaluate next sweep).
 - **#130** - CLOSED (merged via #147 at 3a521fe, honest closure).
 - **#147** - MERGED (3a521fe, 38 commits, Closes #130).
@@ -49,8 +49,7 @@ Research v2 DONE -> Architect S-pivot DONE -> Builder S1/S3/S4 COMPLETE FAIL (st
 - **#42** - Brainstorm Board FROZEN.
 
 ## OPEN QUESTIONS
-- Will Reviewer approve retain fix at 91dc672 (4 files, no workflow files, mergeable diverged but shared history)?
-- Will Tester approve-test after review (docs preview)?
+- Will second Tester run 33002144903 post approve-test at 91dc672 (same head, no new fix) to authorize merge?
 - Will merge correctly keep branch intact (no --delete-branch) and correctly auto-close #148?
 - Will pages deploys succeed on 3a521fe and on post-149 main?
 - Is PR #145 disposition close vs keep as ledger?
