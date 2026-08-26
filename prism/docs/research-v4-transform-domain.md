@@ -132,13 +132,16 @@ effective, and the residual is still coded in the spatial domain.
 
 Transform coding gains over spatial prediction on continuous-tone images:
 
-- JPEG (8x8 DCT): typically 15-25% better than spatial prediction alone
-  on photographic content (Wallace 1992; NGO 1996).
-- JPEG XL VarDCT: the DCT mode is the primary mode for lossless coding;
-  the modular mode (spatial prediction + entropy coding) is the fallback.
-  The comparison table shows JXL -d0 -e9 at 9,971 KB vs Prism at 12,702
-  KB - a 27.4% gap. JXL's advantage comes primarily from its VarDCT mode
-  (frequency-domain prediction + context clustering + ANS coding).
+- JPEG (8x8 DCT): typically 15-25% better than spatial DPCM prediction
+  alone on photographic content (Wallace 1992; NGO 1996). Note: these
+  gains were measured against spatial DPCM, not MED+ZFF; the Prism context
+  differs.
+- JPEG XL Modular (lossless -d0): the Modular mode (spatial prediction +
+  MA-tree contexts + ANS) is the primary mode for lossless coding; VarDCT
+  is the lossy/near-lossless mode. The comparison table shows JXL -d0 -e9
+  (Modular) at 9,971 KB vs Prism at 12,702 KB - a 27.4% gap. JXL's
+  advantage comes primarily from its Modular context clustering and entropy
+  coding, not VarDCT frequency prediction.
 - CALIC (the spatial-prediction reference): achieves ~3.2 bpp on Kodak,
   which is between Prism (3.37) and JXL (2.885). CALIC uses no transform;
   its advantage over Prism is in adaptive bias correction and context
@@ -221,8 +224,13 @@ Add to the V+S+T sandbox instrument:
    - Non-overlapping 8x8 blocks across the full image (padding right/bottom
      edges with replicate border to fill partial blocks; padding bits
      counted in NET).
-   - Quantization parameter Q = 0 (lossless: the transform is exact up to
-     integer rounding; rounding error bounded and measured).
+    - Quantization parameter Q = 0 (lossless: byte-exact). The pinned
+      transform MUST be integer-reversible (e.g., RCT-style lifting integer
+      DCT or 8x8 integer DCT with explicit rounding residual coded) -
+      forward DCT -> inverse DCT reproduces the source byte-exact (4/4
+      images), not within a bound. If a non-reversible AAN DCT is retained,
+      the rounding residual must be transmitted as side channel and counted
+      in NET.
 
 2. **TransformDomainMED module**:
    - For each 8x8 block: apply forward DCT to the source block; predict
@@ -241,7 +249,9 @@ Add to the V+S+T sandbox instrument:
 
 4. **New VB rails**:
    - VB-transform-roundtrip: forward DCT -> inverse DCT reproduces the
-     source within the integer rounding bound (4/4 images).
+     source byte-exact (4/4 images, 0 bytes delta) - fails otherwise. Add
+     VB-transform-lossless: FRAME-F decode byte-exact vs source on the
+     pinned quad.
    - VB-transform-fidelity: FRAME-F payload is finite and decodable.
    - VB-transform-net-audit: NET = payload + side-info on every row.
 
@@ -409,8 +419,8 @@ increases by ~30-50% (well within the 5x phase guard).
 
 Decode: standard MED prediction + entropy coding produces the residual;
 one inverse DCT per 8x8 block reconstructs the source. Total decoder
-complexity: O(N); mirror-exact by construction (integer DCT is
-bijective within rounding bounds).
+complexity: O(N); mirror-exact by construction (pinned integer-reversible
+DCT is bijective byte-exact; otherwise residual-coded).
 
 Memory: O(N) for the block buffers; no second frame buffer beyond
 the image itself.
@@ -423,12 +433,19 @@ Constants to pin BEFORE any U-measurement:
 2. Transform: Type-II DCT (AAN factorization, integer-exact)
 3. Integer scaling: 12-bit precision (matching the entropy backend's
    frequency normalization)
+3a. Reversibility: byte-exact round-trip proof required; no bounded-error
+    acceptance
 4. Rounding: round-to-nearest (symmetric)
 5. Padding: replicate right/bottom edges to fill partial blocks
-6. Padding cost: included in NET (the coded padding bits are side-info)
+6. Padding cost: replicate padding pixels INCLUDED in coded payload and
+   counted in NET per I12; padding method pinned and decoder-verified
 7. Prediction domain: frequency coefficients (DC plane + AC planes)
+7b. Reversibility proof: byte-exact round-trip required; no bounded-error
+     acceptance (forward DCT -> inverse DCT reproduces source byte-exact
+     on the pinned quad; 0 bytes delta)
 8. Prediction method: MED with the same four-neighbor stencil as spatial
-9. Quantization: Q = 0 (lossless; rounding error is the only distortion)
+9. Quantization: Q = 0 (lossless; byte-exact with pinned integer-reversible
+   DCT; rounding residual coded as side channel if non-reversible DCT used)
 10. D4c interaction: DCT applied AFTER color transform (same as production
     pipeline order)
 11. Gate: U1 NET >= +1.50 pct median quad over FRAME-T control
