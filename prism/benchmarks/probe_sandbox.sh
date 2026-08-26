@@ -68,6 +68,8 @@ SELF_CHECK_S3=0
 MODE_S3=0
 SELF_CHECK_S4=0
 MODE_S4=0
+SELF_CHECK_T0=0
+MODE_T0=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -82,6 +84,8 @@ while [[ $# -gt 0 ]]; do
     --s3) MODE_S3=1; shift;;
     --self-check-s4) SELF_CHECK_S4=1; shift;;
     --s4) MODE_S4=1; shift;;
+    --self-check-t0) SELF_CHECK_T0=1; shift;;
+    --t0) MODE_T0=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -107,6 +111,7 @@ ok = True
 # ----- parse the sandbox run -----
 sand, bracket, corrupt, v1rows, s1rows, s3rows, s4rows = [], [], [], [], \
     [], [], []
+t0rows, tproto, tamirror, tzzhu = [], [], [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -145,6 +150,21 @@ for line in open(sys.argv[1]):
                        "tables": int(f[6]), "maps": int(f[7]),
                        "trees": int(f[8]), "net": int(f[9]),
                        "audit": f[10], "rt": f[11]})
+    elif f[0] == "T0" and len(f) >= 16:
+        t0rows.append({"img": f[1], "cand": f[2], "gs": f[3], "be": f[4],
+                       "payload": int(f[5]), "tables": int(f[6]),
+                       "maps": int(f[7]), "trees": int(f[8]),
+                       "assign": int(f[9]), "net": int(f[10]),
+                       "audit": f[11], "rt": f[12], "keff": int(f[14])})
+    elif f[0] == "TPROTO":
+        tproto.append({"img": f[1], "kind": f[2], "mirror": f[3] == "1",
+                       "trunc": f[4] == "1", "crc": f[5] == "1",
+                       "tamper": f[6] == "1", "audit": f[7] == "1"})
+    elif f[0] == "TAMIRROR":
+        tamirror.append({"img": f[1], "fixture": f[2],
+                         "nwords": int(f[3]), "rt": f[4] == "1"})
+    elif f[0] == "TZZHU":
+        tzzhu.append({"img": f[1], "label": f[2], "prof": int(f[3])})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -796,6 +816,180 @@ if s4rows:
                       "ledger; zero container bytes spent across the whole "
                       "program")
 
+# ----- T0 rows: rail integrity ONLY flips exit codes; every diagnostic
+# readout below is NON-GATING (pin P-T0-11). -----
+if t0rows or tproto or tamirror or tzzhu:
+    # VB-proto-roundtrip: every serializer surface must decode mirror-exact
+    # and hard-detect truncation, CRC break and content tamper.
+    need = {"SBP2", "SBC1", "SBD1"}
+    seen = {}
+    for p in tproto:
+        seen[p["kind"]] = p
+        down = [k for k in ("mirror", "trunc", "crc", "tamper", "audit")
+                if not p[k]]
+        if down:
+            fail(f"proto-roundtrip {p['img']}/{p['kind']}: flags down: "
+                 f"{','.join(down)}")
+    miss = sorted(need - set(seen))
+    if miss:
+        fail(f"proto-roundtrip: missing serializer surfaces {miss}")
+    elif not [p for p in tproto if not all((p["mirror"], p["trunc"],
+                                            p["crc"], p["tamper"],
+                                            p["audit"]))]:
+        print(f"VB-proto-roundtrip OK ({len(tproto)} surfaces: 'SBP2'/"
+              f"'SBC1'/'SBD1' decode mirror-exact; truncation/CRC/tamper "
+              f"all hard-detect)")
+
+    # ZZ-HU identity wiring (pin P-T0-12): one echo row with profile id 3.
+    if not any(z["prof"] == 3 and z["label"] == "HYB_C" for z in tzzhu):
+        fail("zzhu-identity: no TZZHU row echoing HYB_C profile id 3")
+    else:
+        print("VB-zzhu-identity OK (ZZ-HU = TokProfile::HYB_C reused "
+              "verbatim; row-schema label only)")
+
+    # VB-assign-mirror: decoder-side word reconstruction equals encoder
+    # words on BOTH fixtures.
+    by_fx = {}
+    for a in tamirror:
+        by_fx.setdefault(a["img"], {})[a["fixture"]] = a
+        if not a["rt"]:
+            fail(f"assign-mirror {a['img']}/{a['fixture']}: decoded words "
+                 f"differ from encoder words")
+        if a["nwords"] <= 0:
+            fail(f"assign-mirror {a['img']}/{a['fixture']}: empty words")
+    n_am_ok = 0
+    for img, fx in sorted(by_fx.items()):
+        if {"RANDOM", "SKEW"} - set(fx):
+            fail(f"assign-mirror {img}: missing fixture(s) "
+                 f"{sorted({'RANDOM', 'SKEW'} - set(fx))}")
+        elif fx["RANDOM"]["rt"] and fx["SKEW"]["rt"]:
+            n_am_ok += 1
+    if n_am_ok:
+        print(f"VB-assign-mirror OK ({n_am_ok} image(s): random AND skewed "
+              f"assignment streams reconstruct exactly)")
+
+    # VB-net-audit-t on cost rows: I12 extended with the assign column,
+    # schema per candidate kind.
+    bad_audit = bad_net = bad_rt = bad_schema = 0
+    for r in t0rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != (r["payload"] + r["tables"] + r["maps"] +
+                        r["trees"] + r["assign"]):
+            bad_net += 1
+        if r["be"] == "B-RANS" and r["rt"] != "1":
+            bad_rt += 1
+        if r["cand"] == "ADAPT" and (r["tables"] or r["maps"] or
+                                     r["trees"] or r["assign"]):
+            bad_schema += 1     # production replay carries zero side info
+        if r["cand"] == "SPINE" and (r["trees"] or r["assign"]):
+            bad_schema += 1     # spine transmits tables + 'SBP1' only
+        if r["cand"] == "CEIL" and (r["maps"] or r["trees"] or
+                                    r["assign"]):
+            bad_schema += 1     # ceiling: assignment bits impossible BY
+                                # CONSTRUCTION (pin P-T0-6)
+        if r["cand"].startswith(("CB", "CBRAND")) and (r["maps"] or
+                                                       r["trees"]):
+            bad_schema += 1     # codebooks carry tables + words only
+        if r["cand"] not in ("ADAPT", "SPINE") and r["keff"] < 1:
+            bad_schema += 1     # group machinery must report its K
+    if bad_audit or bad_net or bad_rt or bad_schema:
+        fail(f"net-audit-t: {bad_audit} audit disagreements, {bad_net} NET "
+             f"identity violations, {bad_rt} round-trip failures, "
+             f"{bad_schema} schema violations")
+    else:
+        print(f"VB-net-audit-t OK ({len(t0rows)} T0 rows: audits agree, NET "
+              f"identity holds incl. assign column, schemas clean)")
+
+    # Coder fidelity on CEIL/CB families: B-RANS within +0.50 pct of its
+    # own B-IDEAL row per (img, cand, gs).
+    cfgs = {}
+    for r in t0rows:
+        if r["be"] not in ("B-IDEAL", "B-RANS"):
+            continue
+        if r["cand"] in ("ADAPT", "SPINE"):
+            continue
+        cfgs.setdefault((r["img"], r["cand"], r["gs"]), {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        rr = bes.get("B-RANS")
+        if ideal is None or rr is None:
+            continue
+        n_fid += 1
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        if rr["payload"] > limit:
+            pct = 100.0 * (rr["payload"] - ideal["payload"]) / \
+                max(1, ideal["payload"])
+            fail(f"fidelity-t {k}: B-RANS payload {rr['payload']} exceeds "
+                 f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity-t OK ({n_fid} CEIL/CB rows within +0.50 "
+              f"pct of their own B-IDEAL rows)")
+
+    # Real T0 images must sit under the committed anchors (synthetic
+    # fixtures never reach this evaluator - pin P-T0-10).
+    t0_imgs = {r["img"] for r in t0rows}
+    san_imgs = {r["img"] for r in sand}
+    for img in sorted(t0_imgs - san_imgs):
+        fail(f"t0 anchor coverage: {img} has no SANDBOX anchor row")
+
+    # ---- NON-GATING diagnostic readout (prints, decides nothing) ----
+    def median(xs):
+        s = sorted(xs)
+        return s[len(s) // 2] if len(s) % 2 else \
+            (s[len(s) // 2 - 1] + s[len(s) // 2]) / 2.0
+
+    print("== T0 DIAGNOSTIC READOUT (addendum 20.6; NON-GATING per pin "
+          "P-T0-11 - no verdict here opens any phase) ==")
+    tb_win = {}
+    for r in t0rows:
+        if r["cand"] not in ("ADAPT", "SPINE"):
+            continue
+        if r["be"] not in ("B-ADAPT", "B-RANS"):
+            continue
+        if r["img"] not in tb_win or r["net"] < tb_win[r["img"]]["net"]:
+            tb_win[r["img"]] = r
+    for img in sorted(tb_win):
+        w = tb_win[img]
+        print(f"T-BASE {img}: winner={w['cand']} net={w['net']} "
+              f"(fresh S4-composition replay)")
+    ceil_rows = [r for r in t0rows if r["cand"] == "CEIL" and
+                 r["be"] == "B-RANS"]
+    for gs in ("GS64", "GS128"):
+        rs = [r for r in ceil_rows if r["gs"] == gs]
+        if not rs:
+            continue
+        gains = []
+        for r in rs:
+            tb = tb_win.get(r["img"])
+            if tb and tb["payload"]:
+                gains.append(100.0 * (tb["payload"] - r["payload"]) /
+                             tb["payload"])
+        if gains:
+            print(f"CEILING {gs}: payload-gain median "
+                  f"{median(gains):+.4f} pct vs T-BASE payload | tables "
+                  f"{rs[0]['tables']} B fully NETTED | assign=0 by "
+                  f"construction")
+    cb_rows = [r for r in t0rows if r["cand"].startswith("CB") and
+               r["be"] == "B-RANS"]
+    keffs = sorted({r["keff"] for r in cb_rows})
+    for gs in ("GS64", "GS128"):
+        fit = [r for r in cb_rows if r["gs"] == gs and
+               not r["cand"].startswith("CBRAND")]
+        rnd = [r for r in cb_rows if r["gs"] == gs and
+               r["cand"].startswith("CBRAND")]
+        if fit and rnd:
+            bf = min(r["net"] for r in fit)
+            br = min(r["net"] for r in rnd)
+            print(f"CODEBOOK {gs}: fitted best NET {bf} vs random twin "
+                  f"{br} -> fitted {'BEATS' if bf < br else 'LOSES TO'} "
+                  f"random (rank direction) | transmitted K observed "
+                  f"{sorted({r['keff'] for r in fit})}")
+    print(f"T0 smoke complete on {sorted(t0_imgs)}; quad verdict numbers "
+          f"start at T1a (K set {keffs if cb_rows else '[]'} observed on "
+          f"kodim01)")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -1336,12 +1530,152 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_T0" == "1" ]]; then
+  # Prove every T-rail can FAIL and the live fixtures rank BOTH ways
+  # (pin P-T0-10/P-T0-11: failable --self-check-t0).
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
+  if [[ ! -x "$BIN" ]]; then echo "prism binary not found at $BIN"; exit 1; fi
+  ok=1
+
+  # Live synthetic fixtures (pin P-T0-10: deterministic, in-process,
+  # SYNTHETIC-tagged, no anchors). homo must collapse to transmitted K=1
+  # at near-zero assignment cost; skew must let fitted beat random.
+  "$BIN" bench-sandbox --t0-synth homo > "$TMP/homo.csv" || ok=0
+  "$BIN" bench-sandbox --t0-synth skew > "$TMP/skew.csv" || ok=0
+  hkeff="$(awk -F, '/^T0,.*CB[0-9]/ {print $15; exit}' "$TMP/homo.csv")"
+  hassign="$(awk -F, '/^T0,.*CB[0-9]/ {print $10; exit}' "$TMP/homo.csv")"
+  [[ -n "$hkeff" && -n "$hassign" ]] || \
+    { echo "SELF-CHECK-T0 FAIL: homo fixture rows missing"; ok=0; }
+  python3 -c "import sys; sys.exit(0 if $hkeff == 1 else 1)" 2>/dev/null || \
+    { echo "SELF-CHECK-T0 FAIL: constant image must collapse to K=1 (got keff=$hkeff)"; ok=0; }
+  python3 -c "import sys; sys.exit(0 if 0 < $hassign <= 64 else 1)" 2>/dev/null || \
+    { echo "SELF-CHECK-T0 FAIL: collapse must cost near-zero assignment bytes (got $hassign)"; ok=0; }
+  sbest="$(awk -F, '/^T0,synth-skew,CB[0-9]/ {if ($11 < m || m == 0) m = $11} END {print m+0}' "$TMP/skew.csv")"
+  srand="$(awk -F, '/^T0,synth-skew,CBRAND/ {if ($11 < m || m == 0) m = $11} END {print m+0}' "$TMP/skew.csv")"
+  [[ -n "$sbest" && -n "$srand" && "$sbest" != "0" && "$srand" != "0" ]] || \
+    { echo "SELF-CHECK-T0 FAIL: skew fixture rows missing"; ok=0; }
+  python3 -c "import sys; sys.exit(0 if $sbest < $srand else 1)" 2>/dev/null || \
+    { echo "SELF-CHECK-T0 FAIL: skewed groups must beat random assignment ($sbest vs $srand)"; ok=0; }
+
+  # Fabricated-consistent frame for evaluator mutations (real anchor
+  # numbers from the committed reference; realistic T0 magnitudes).
+  REF="$TMP/ref.csv"; SBX="$TMP/sbx.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+  mk_good_t0() {
+    cat > "$SBX" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.0000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+T0,kodim01.ppm,ADAPT,NONE,B-ADAPT,546852,0,0,0,0,546852,1,1,0.000,0,-8.1120
+T0,kodim01.ppm,SPINE,NONE,B-IDEAL,511463,3007,26,0,0,514496,1,1,4091700.921,16,-1.1156
+T0,kodim01.ppm,SPINE,NONE,B-RANS,511589,3007,26,0,0,514622,1,1,4091700.921,16,-1.1405
+T0,kodim01.ppm,CEIL,GS64,B-IDEAL,507751,248430,0,0,0,756181,1,1,4062006.866,96,-0.3818
+T0,kodim01.ppm,CEIL,GS64,B-RANS,507882,248430,0,0,0,756312,1,1,4062006.866,96,-0.4077
+T0,kodim01.ppm,CEIL,GS128,B-RANS,509653,62777,0,0,0,572430,1,1,4076194.857,24,-0.7578
+T0,kodim01.ppm,CB1,GS64,B-IDEAL,511463,7238,0,0,12,518713,1,1,4091700.921,1,-1.1156
+T0,kodim01.ppm,CB1,GS64,B-RANS,511589,7238,0,0,12,518839,1,1,4091700.921,1,-1.1405
+T0,kodim01.ppm,CBRAND4,GS64,B-RANS,511464,28685,0,0,35,540184,1,1,4090699.029,4,-1.1158
+TPROTO,kodim01.ppm,SBP2,1,1,1,1,1
+TPROTO,kodim01.ppm,SBC1,1,1,1,1,1
+TPROTO,kodim01.ppm,SBD1,1,1,1,1,1
+TAMIRROR,kodim01.ppm,RANDOM,96,1
+TAMIRROR,kodim01.ppm,SKEW,96,1
+TZZHU,kodim01.ppm,HYB_C,3
+EOF
+  }
+
+  # 1. Consistent frame passes with NON-GATING diagnostics rendered.
+  mk_good_t0
+  if ! evaluate "$SBX" "$REF" "" "" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "VB-anchor-adapt OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no anchor verdict"; ok=0; }
+  grep -q "VB-proto-roundtrip OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no proto-roundtrip verdict"; ok=0; }
+  grep -q "VB-assign-mirror OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no assign-mirror verdict"; ok=0; }
+  grep -q "VB-net-audit-t OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no net-audit-t verdict"; ok=0; }
+  grep -q "NON-GATING" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T0 FAIL: non-gating marker missing"; ok=0; }
+
+  # 2. NET identity break (incl. the assign column) must fail.
+  mk_good_t0
+  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,7238,0,0,12,518839,/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,7238,0,0,12,999999,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: net-audit-t accepted a broken identity"; ok=0
+  fi
+  grep -q "net-audit-t" "$TMP/a.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no net-audit-t FAIL verdict"; ok=0; }
+  # 3. A downed serializer flag must fail proto-roundtrip.
+  mk_good_t0
+  sed -i 's/TPROTO,kodim01.ppm,SBC1,1,1,1,1,1/TPROTO,kodim01.ppm,SBC1,1,0,1,1,1/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: proto-roundtrip accepted trunc-detect=0"; ok=0
+  fi
+  grep -q "proto-roundtrip" "$TMP/b.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no proto FAIL verdict"; ok=0; }
+  # 4. Silent assignment mismatch must fail.
+  mk_good_t0
+  sed -i 's/TAMIRROR,kodim01.ppm,SKEW,96,1/TAMIRROR,kodim01.ppm,SKEW,96,0/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/c.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: assign-mirror accepted a failed decode"; ok=0
+  fi
+  grep -q "assign-mirror" "$TMP/c.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no assign-mirror FAIL verdict"; ok=0; }
+  # 5. Assignment bits on a CEILING row are schema-impossible.
+  mk_good_t0
+  sed -i 's/T0,kodim01.ppm,CEIL,GS64,B-RANS,507882,248430,0,0,0,756312,/T0,kodim01.ppm,CEIL,GS64,B-RANS,507882,248430,0,0,99,756411,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: schema accepted assign bits on CEIL"; ok=0
+  fi
+  grep -q "net-audit-t" "$TMP/d.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no schema FAIL verdict"; ok=0; }
+  # 6. Coder-fidelity violation on a CB row (+1.6 pct) must fail.
+  mk_good_t0
+  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,/' "$SBX"
+  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,7238,0,0,12,518839,/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,7238,0,0,12,527250,/' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/e.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: fidelity accepted a +1.6 pct coder"; ok=0
+  fi
+  grep -q "fidelity-t" "$TMP/e.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no fidelity-t FAIL verdict"; ok=0; }
+  # 7. Missing ZZ-HU identity wiring must fail.
+  mk_good_t0
+  sed -i '/^TZZHU,/d' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/f.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: zzhu accepted missing identity row"; ok=0
+  fi
+  grep -q "zzhu-identity" "$TMP/f.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no zzhu FAIL verdict"; ok=0; }
+  # 8. Missing anchors must fail coverage.
+  mk_good_t0
+  sed -i '/^BRACKET,/d' "$SBX"
+  if evaluate "$SBX" "$REF" "" "" > "$TMP/g.out" 2>&1; then
+    echo "SELF-CHECK-T0 FAIL: coverage accepted missing BRACKET"; ok=0
+  fi
+  grep -q "anchor-ideal\|no BRACKET" "$TMP/g.out" || \
+    { echo "SELF-CHECK-T0 FAIL: no anchor FAIL verdict"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-T0 PASS: homo collapses to K=1 at near-zero assign cost, skew beats random live, consistent frame green with NON-GATING diagnostics, and identity/proto/assign/schema/fidelity/zzhu/coverage mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
 fi
 
-if [[ ${#IMAGES[@]} -eq 0 ]]; then
+if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" ]]; then
   echo "no --image given"; exit 2
 fi
 
@@ -1356,6 +1690,52 @@ for IMG in "${IMAGES[@]}"; do
   fi
   echo "${NAME}: sha256 pin verified"
 done
+
+# ----- T-series slice Q0: the T0 instrument smoke (pins P-T0-10/P-T0-11) -----
+if [[ "$MODE_T0" == "1" ]]; then
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-t0.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2"' EXIT
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --t0 "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --t0 "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: t0 re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|T0|TPROTO|TAMIRROR|TZZHU),' "$RAW1" > "$OUT_CSV"
+
+  # Wall-clock accounting per the A3 precedent (pin P-T0-13's structural
+  # note): multiplier logged, no measurement depends on it.
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-t0 ${SB}s (incl. determinism re-run), bench-ideal ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-t0/re-run = {$SB/$ID:.2f}x bench-ideal (A3 precedent: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox T0 results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  # Rail integrity flips the exit code; every T0 diagnostic is non-gating.
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "" ""; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails + T-rails green; T0 diagnostics above are NON-GATING, quad verdicts start at T1a)"
+  exit 0
+fi
 
 # ----- V-series slice 2: the V1 measurement flow (pins V-P6/V-P7) -----
 if [[ "$MODE_V1" == "1" ]]; then
