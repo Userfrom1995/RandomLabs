@@ -634,13 +634,17 @@ bytes until T4 PASS.
 - [x] T-pivot Architect phase (2026-08-26): stacking import + blueprint +
       addendum 20 + tracker/log updates delivered. Handoff
       {"action":"build"}: Builder slice Q0 = T0 instrument extension.
-- [ ] T0 instrument extension (BLOCKING): GroupPartition tiling GS64/GS128,
+- [x] T0 instrument extension (BLOCKING): GroupPartition tiling GS64/GS128,
       per-group counting stacks, integer Lloyd clustering, 'SBC1' codebook
       serializer + assignment words, CEILING mode with decomposition
       columns, shrinkage + 'SBD1', ZZ-HU identity, new rails
       (VB-proto-roundtrip / VB-assign-mirror / net-audit-t) + failable
       --self-check-t0; DIAGNOSTIC smoke CSV on kodim01 only (non-gating).
-      No T-phase verdict is valid without a green T0.
+      DONE 2026-08-26: core bring-up repaired pre-measurement (amendment
+      A5), 137/137 tests, all rails + T-rails green, dated smoke CSV
+      committed (Lloyd honestly collapses kodim01 to K=1; CEILING
+      payload-gain negative vs fresh T-BASE). No T-phase verdict is valid
+      without a green T0.
 - [ ] T1a ceiling kill test (runs FIRST): per-group exact stacks, tables
       paid realistically; PASS >= +2.00 pct median NET beyond fresh T-BASE;
       FAIL closes C1 unless payload gain >= +4.00 pct median with tables
@@ -668,6 +672,20 @@ bytes until T4 PASS.
       third-strike death (L-C7).
 
 ## Current step
+
+SLICE Q0 COMPLETE (2026-08-26, Builder): T0 instrument extension DONE -
+all rails green + dated diagnostic CSV committed (see agent log and
+amendment A5). NEXT: slice Q1 = T1a ceiling kill test per blueprint
+section 2 / addendum 20.5 - per-group EXACT static stacks on the QUAD,
+tables paid at realistic serialization, T-BASE re-run fresh in-run, gate
+>= +2.00 pct median NET beyond T-BASE; FAIL closes C1 unless the recorded
+decomposition shows payload gain >= +4.00 pct median with table bytes as
+the SOLE losing term (then T1b opens). Honest prior from the smoke: the
+pinned chi-square metric collapsed kodim01 to K=1 and CEILING payload-gain
+was negative on that image - Q1's quad measurement decides with numbers.
+Zero container bytes until a future T4 PASS.
+
+Prior state:
 
 SLICE Q0 IN PROGRESS (2026-08-26, Builder): T0 core landed and
 BRING-UP-REPAIRED under the A2/A4b precedent - four defects found by the
@@ -943,6 +961,36 @@ stacking note above but kept as hard-won context):
 
 ## Agent log
 
+- 2026-08-26 the Builder (T-series slice Q0, COMPLETE): T0 instrument
+  extension finished on PR #146; T0 exit condition MET - all rails green
+  + dated diagnostic CSV committed, T1a may run. (1) Core bring-up under
+  the A2/A4b precedent: FOUR defects found by the new unit suite and
+  fixed BEFORE any measurement, recorded as amendment A5
+  (decisions/builder/2026-08-26T10-40-00-t0-bringup-amendment-a5.md):
+  crc32_combine dropped its running state so multi-part blob CRCs covered
+  only the final section; Lloyd's first assignment ran against unfilled
+  zero centroids collapsing every K to one survivor; the 'SBC1' serializer
+  disagreed with its own pinned layout (impossible prior-shape assert,
+  wrong stride field); the 'SBD1' decoder mirror indexed parents by flat
+  modulo and its expect-compare ignored child_delta. a_c = 0 legalized per
+  P-T0-8. 137/137 unit tests (9 new: group geometry hand-checked,
+  collapse/separation/determinism, 'SBP2'/'SBC1'/'SBD1' round-trips +
+  hard-detect, word-driven decode-mirror payload round-trip). (2) CLI:
+  `bench-sandbox --t0` (kodim01-only refusal per P-T0-10) emits anchors +
+  fresh T-BASE replay + CEIL/CB/CBRAND rows with mechanical NET
+  decomposition ('SBC1' words-tail out-param), plus `--t0-synth homo|skew`
+  deterministic fixtures outside anchor coverage. (3) Probe rails:
+  VB-proto-roundtrip / VB-zzhu-identity / VB-assign-mirror /
+  VB-net-audit-t / fidelity-t + NON-GATING decomposition readout;
+  failable --self-check-t0 proves every rail's FAIL path AND both live
+  rank directions (homo collapses to transmitted K=1 at 12 assign bytes;
+  skew beats its random twin). (4) Dated CSV
+  `2026-08-25..26-sandbox-t0.csv` (kodim01, sha pin verified pre-run,
+  byte-identical re-run): honest smoke readings - Lloyd collapses kodim01
+  to K=1 at every pinned K under the chi-square metric (CB1 payload ==
+  SPINE exactly: cross-instrument agreement), CEILING payload-gain is
+  NEGATIVE (-0.41/-0.76 pct vs fresh T-BASE) with tables 248/62 KB NETTED.
+  Zero container bytes throughout.
 - 2026-08-26 the Builder (T-series slice Q0, IN PROGRESS): T0 instrument
   extension started on PR #146. Structural pins P-T0-1..P-T0-11 committed
   BEFORE any machinery output or measurement
