@@ -36,6 +36,8 @@ prism probe-xband <image.ppm>
 prism bench-ideal <image.ppm>... [--predictor LIST] [--blend LIST] [--mixer LIST]
 prism bench-ideal <image.ppm>... --orinit | --orinit-corrupt | --props i[,ii][,iii]
 prism bench-ideal <image.ppm>... --bias biasoff[,bias[,biasgain]]
+prism bench-sandbox <image.ppm>... [--profile LIST] [--backend LIST]
+                              [--keying LIST] [--inject table,trunc,content]
 ```
 
 `probe-backend` is the entropy-backend A-B rail for issue #130: it measures
@@ -119,6 +121,68 @@ mode destroys the cheap exact-zero residuals that dominate the bit budget
 (`benchmarks/results/2026-08-25-ideal-bias-e1.csv`). This closed the last
 open E-series lever and moved #130 to honest closure at the achieved level.
 
+`bench-sandbox` is the V0 spine of the Prism v2 clean-slate program (V-series
+blueprint + spec addendum 17 = `docs/algorithmic-spec.md` section 18): a NEW
+offline instrument, deliberately separate from the frozen bench-ideal, that
+scores clustered-static coding of the production residual streams under
+tokenization profiles (ZFFCTRL control plus HYB escape ladders T_ESC =
+4/8/16 with zigzag fold and first-class ZERO token), keyings (KSHARED /
+KFLAT16 / KFLAT343; V1 adds KGRID128 position tiles and KTREE, a learned
+context partition over qL/qU/qUL inheriting matree caps), and backends
+(B-IDEAL exact static ideal, B-RANS interleaved-static rANS, B-BAC binary
+arithmetic; B-ADAPT production control). Everything here is FORMAT-UNWIRED:
+zero container bytes until a V4 PASS. Per-image smoothed tables (pseudo-count
+32, r = 15/16, normalized to 2^12, cluster caps K <= 256 with 4096-sample
+floors) serialize hierarchically with CRC32 protection, and every row carries
+joint NET accounting (payload + tables + maps + trees, invariant I12).
+`--v1` runs the slice-2 measurement sweep: every configuration is scored as
+a REAL row (deterministic keying with the 'SBP1' budget merge-map and any
+'SBT1' tree blob fully NETTED) plus an ORACLE twin (per-sample best-cluster
+assignment under pin V-P4; map free but reported in dedicated columns), and
+the evaluator prints the pre-registered V1a/V1b gate verdicts (addendum 18.1,
+per-image medians primary per I10). Feed it through
+`benchmarks/probe_sandbox.sh --v1`, which verifies SHA256 pins, writes the
+dated phase CSV (`...sandbox-v1.csv`), re-enforces all six VB rails on the
+new row families, and proves its own failability via `--self-check-v1`.
+Reference CSVs: `benchmarks/results/2026-08-25-sandbox-v0.csv` (V0 spine)
+and `benchmarks/results/2026-08-25-sandbox-v1.csv` (V1 measurement).
+
+After the V1 STOP and the owner-authorized source-side-only pivot, the same
+instrument runs the S-series (spec addendum 19 = section 19; blueprint
+`docs/architecture-jxl-parity-sourcepivot.md`). `--s1` scored predictor
+families {MED, GAP, W} in dual frames (FRAME-A adaptive replay / FRAME-S
+static spine) under amendments A4/A4b: FAIL, MED ships, B3 closed.
+`--s3` scores the frozen P_ext extended causal property list - quotient
+buckets with causal per-image octile edges (prefix-invariant), bucketed A4
+CALIC gradients of the residual stream, plane id, e_max_prev per 18.4 -
+through a pinned FNV-1a flat hash into k_raw {64, 256} clusters with the
+caps/floors inherited and every side-info byte NETTED; NO spatial maps or
+trees anywhere. The incremental PropHasher is decoder-mirrored by
+construction (a fresh hasher over decoded history reproduces the encoder's
+cluster sequence; pinned round-trip test). Measured on the pinned quad:
+S3 FAIL - best variant median -8.09 pct vs the +1.50 bar (all variants
+regress on all images; table bytes dominate), so flat-16 keying ships and
+bucket B2 closes with numbers (`benchmarks/results/2026-08-25-sandbox-
+s3.csv`). Feed it through `benchmarks/probe_sandbox.sh --s3`
+(failability: `--self-check-s3`).
+
+`--s4` is the composition + projection readout that closes the S-program:
+per image it crosses {ADAPT production control, SPINE static spine} with
+the full D4c color-rotation trial family (colorrot kCount=7), decides the
+winner strictly by real NET bytes (ties to ADAPT, so composed NET is
+non-regressing vs e1 by construction), and projects the corpus via the
+verbatim 18.5 formula against the committed e1 CSV - landscape/portrait
+class medians per I10, with the all-landscape quad's portrait gap handled
+by a pre-pinned INHERITED marker. Measured verdict: S4 FAIL -
+stop-and-report. SPINE won all four quad images (+5.45/+5.56/+5.93/+2.98
+pct vs trial-freed controls) but the projection lands summed 9.5638 /
+per-sample 3.1879, above both bars (<9.35/<3.117); M2/M3 contexts stay
+projected FAIL and untouched. Buckets B1/B2/B3 are closed with numbers,
+B4 measured inside composition (~+1.5 pct to both sides), zero container
+bytes spent across the entire V+S program
+(`benchmarks/results/2026-08-25-sandbox-s4.csv`; failability:
+`--self-check-s4`).
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
@@ -167,9 +231,25 @@ analysis decision can never lose to doing nothing. See
 prism/benchmarks/run_kodak.sh --effort 4 --kodak data/kodak
 prism/benchmarks/fuzz_gate.sh
 prism/benchmarks/probe_backend.sh --build-dir <dir> --image <kodim01.ppm> --image <kodim13.ppm>
+prism/benchmarks/probe_sandbox.sh --build-dir <dir> --image <kodim01.ppm> [--image ...]
+prism/benchmarks/probe_sandbox.sh --s1 --build-dir <dir> --image ...   (S-series dual-frame predictors)
+prism/benchmarks/probe_sandbox.sh --s4 --build-dir <dir> --image ...   (S-series composition + projection)
+prism/benchmarks/probe_sandbox.sh --self-check [--self-check-v1] [--self-check-s1] [--self-check-s3] [--self-check-s4]
 python3 prism/benchmarks/aggregate.py
 ```
 
 Results are committed under `prism/benchmarks/results/`.
+
+## S-series sandbox (v2 source-side pivot, issue #130)
+
+After the V-series STOP (transmitted side-info does not scale), the
+authorized pivot attacks the SOURCE side with the same offline-first gated
+method. `bench-sandbox --s1` scores causal predictor families {MED control,
+GAP, W ensemble} per spec addendum 18.4 (amendments A4/A4b) in TWO frames:
+the production adaptive replay (FRAME-A) and the static spine
+ZFFCTRL x KFLAT16 x rANS with every side-info byte NETTED (FRAME-S,
+primary/gating). Measured verdict on the pinned quad: S1 FAIL - MED's
+exact-zero peak beats directional prediction in both framings; bucket B3 is
+closed-with-numbers and the spine carries MED forward into S3/S4.
 
 - the Builder

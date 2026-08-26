@@ -1,6 +1,7 @@
 #pragma once
 #include "prism/types.h"
 #include <cstdint>
+#include <string>
 
 namespace prism::codec {
 
@@ -151,5 +152,73 @@ std::vector<uint16_t> reconstruct_plane_bias(const std::vector<int32_t>& residua
                                              uint32_t w, uint32_t h,
                                              uint8_t bd, const BiasConfig& cfg,
                                              uint16_t bd_max);
+
+// ----- S1 predictor families (issue #130 S-series; spec 18.4 verbatim
+// except amendment A4, pinned in decisions/builder/2026-08-25T22-30-00
+// BEFORE any measurement) -----
+//
+// FORMAT-UNWIRED causal replay for the bench-sandbox dual-frame sweep.
+// Families {MED control, GAP, W ensemble}; raster order; production neighbor
+// derivation (missing primaries read 0, farther neighbors replicate the
+// nearest available one - the "replicated edge" border rule of 18.4);
+// per-plane state reset. Predictions are UNCLAMPED integers in the
+// transformed-plane domain (amendment A4b: production parity - the sandbox
+// scores color-transformed planes whose chroma domains exceed the source
+// BD). The W ensemble's TE sub-predictor clamps to [0, 2^16 - 1]. MED is
+// bound byte-for-byte to compute_residuals(MED) by pinned unit tests across
+// ALL planes of real transformed images.
+
+enum class PredFamily : uint8_t { MED = 0, GAP = 1, WENS = 2 };
+
+bool parse_pred_family(const std::string& s, PredFamily& out);
+const char* pred_family_name(PredFamily f);
+
+// Pinned integer arithmetic of addendum 18.4 (exposed for exact unit tests).
+// sym_round_div: round half away from zero, b > 0.
+int64_t sym_round_div(int64_t a, int64_t b);
+// floor_div: quotient floored toward negative infinity, b > 0.
+int64_t floor_div(int64_t b_a, int64_t b_b);
+
+// GAP reduced classic under amendment A4:
+//   dh = |W-WW| + |N-NW| + |NE-N|;  dv = |NW-W| + |N-NN| + |N-NE|
+//   t80 = 80 << (bd-8); t32 = 32 << (bd-8)
+//   |dv-dh| > t80 -> N/W; else dhat = sym_round_div(2W+2N+NE-NW, 4),
+//   tilted toward W/N when |dh-dv| > t32. Inputs are raw samples; the
+//   caller clamps the returned prediction into [0, 2^bd - 1].
+int32_t gap_reduced_predict(int32_t W, int32_t WW, int32_t N, int32_t NW,
+                            int32_t NE, int32_t NN, int bd);
+
+// W ensemble state (18.4 verbatim): four 16.16 weights over {W, N, NW, TE},
+// init 65536, clamp [16384, 1048576], per-plane lifetime. weighted_mean()
+// returns the UNCLAMPED weighted mean (amendment A4b); `maxval` carries the
+// uint16 storage bound for the TE sub-predictor. update() takes the
+// prediction exactly as it was coded against, so err = actual - pred equals
+// the coded residual and the decoder mirrors from decoded data alone.
+struct WEnsemble {
+    static constexpr int kOrder[4] = {0, 1, 2, 3};   // W, N, NW, TE (labels)
+    int64_t w[4];
+    void reset();                                    // init 65536 each
+    // Sub-predictors p_i with TE = W + N - NW clamped to [0, maxval];
+    // returns sym_round_div(sum w_i p_i, sum w_i).
+    int64_t weighted_mean(int32_t W, int32_t N, int32_t NW, int64_t maxval,
+                          int32_t p[4]) const;
+    // Update AFTER coding: err = actual - clamped_pred, order W,N,NW,TE,
+    // w_i <- clamp(w_i + floor_div(err * (p_i - clamped_pred), 512), ...).
+    void update(const int32_t p[4], int64_t clamped_pred, int64_t err);
+    bool weights_in_bounds() const;
+};
+
+// Causal residual stream of one plane under a family: e = sample -
+// clamp(pred). Fresh predictor state per call (state reset per plane).
+std::vector<int32_t> compute_residuals_family(const std::vector<uint16_t>& plane,
+                                              uint32_t w, uint32_t h,
+                                              PredFamily fam, int bd);
+
+// Exact inverse walk (decoder mirror): replays the identical prediction
+// evolution from decoded history; reconstruct(compute(plane)) == plane is a
+// hard bijection property tested at BD extremes and all border shapes.
+std::vector<uint16_t> reconstruct_plane_family(const std::vector<int32_t>& residuals,
+                                               uint32_t w, uint32_t h,
+                                               PredFamily fam, int bd);
 
 } // namespace prism::codec
