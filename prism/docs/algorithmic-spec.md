@@ -1139,3 +1139,193 @@ insufficient; zero container bytes were spent anywhere in the S-series.
 Evidence: benchmarks/results/2026-08-25-sandbox-s4.csv.
 
 - the Architect
+
+## 20. Addendum 2026-08-26 (registered as "spec addendum 20"): T-series
+##     pre-registration for the joint locality-context program, written
+##     BEFORE any T-measurement
+
+Authority: research handoff `research-v3-content-clustering.md` section 7
+(`{"action":"architect"}`), dispatched by the owner's fresh `/oc research`
+2026-08-26T06:59Z after the V+S programs closed stop-and-report. Blueprint:
+`architecture-jxl-parity-tseries.md`. Binding order unchanged from addenda
+18 and 19: every constant below is fixed before the first T-row exists;
+deviations require a numbered amendment BEFORE the affected measurement or
+they never happen.
+
+### 20.0 Scope
+
+Applies to `prism bench-sandbox` modes --t0/--t1a/--t1b/--t2a/--t2b/--t3/
+--t4 (and --t5 only if opened) on the probe quad kodim01/kodim13/kodim05/
+kodim20 with sha-pins verified before ANY measurement
+(`benchmarks/data/kodak.sha256`). Zero container/format bytes until a T4
+threshold PASS (standing rule, unchanged).
+
+### 20.1 T-controls: baselines and gate reading (pinned now)
+
+- RELPCT per I10: 100 * (net_ctrl - net_cand) / net_ctrl computed PER IMAGE
+  from joint NET bytes (payload + tables + maps + trees + codebooks +
+  assignment words; I12 extended to codebook rows), then MEDIAN over the
+  quad; per-image min/max reported beside every median; pooled TOTAL rows
+  diagnostic only.
+- T-BASE control (every phase): the S4 composition procedure re-run FRESH
+  in the same process - per-image winner among {ADAPT production replay,
+  SPINE = ZFFCTRL x B-RANS x KFLAT16 static spine, all side info NETTED}
+  x D4c color trials (kCount=7) decided strictly by real NET bytes, ties
+  to ADAPT. Every RELPCT figure cites SAME-RUN T-BASE rows; cross-run
+  baseline comparisons are invalid and rejectable on sight.
+- A gate rejection is a legitimate measured outcome and never flips the
+  exit code; rail-integrity checks (VB-* including the new T-rails) DO
+  flip exit codes.
+- Units discipline verbatim: summed vs per-sample stated on every corpus
+  projection; percent-of-current-bytes = points-of-v0 / 0.9447 for
+  reporting only.
+
+### 20.2 C1 clustering constants (T1a ceiling mode + T1b codebook)
+
+- GROUP GEOMETRY: two pre-named trials GS64 = 64x64 pixels and GS128 =
+  128x128 pixels, per plane, raster tiling; partial right/bottom edge
+  groups counted in full; group id = raster order within the plane; group
+  identity is per-plane (no cross-plane grouping).
+- GROUP STACK X_j: per-(class16 class, bin kind, key) event counts of the
+  ZFFCTRL profile over the group's residual samples, exactly the counting
+  layout of addendum 18.2 with cluster := group.
+- LLOYD METRIC (pinned integer form): symmetric chi-square on add-one-
+  smoothed counts, d(X, P) = sum over bins of floor( ((X' - P')^2 << 16)
+  / (X' + P') ) with X' = X + 1, P' = P + 1 (the +2 denominator shift is
+  implied); all distances live in int64 fixed point and are used ONLY for
+  argmin comparisons - never serialized, never reported as data.
+- LLOYD INIT AND LOOP (deterministic, NO RNG): first center = the group
+  stack with maximum total event count; each next center = the group
+  maximizing its minimum distance to already-chosen centers (ties =
+  lowest group id). Iterate assign/update to convergence or the cap of
+  16 iterations, whichever first; assignment ties = lowest prototype id;
+  centroid update = per-bin sums of member stacks. An empty prototype at
+  convergence is dropped ONCE at the end with ascending renumbering and
+  its groups reassigned by the same metric; transmitted K adjusts.
+- K SET: {4, 8, 16, 24}, ALL FOUR measured whenever T1b runs (the set IS
+  the trial matrix); K > G clamps to G. The winner is the best quad-median
+  NET row, reported once; no post-hoc re-selection ever.
+- PROTOTYPE ESTIMATION: each prototype's pooled counts pass through the
+  EXISTING 18.2 pipeline verbatim (pseudo-count 32 geometric r = 15/16,
+  normalize to 4096, support floor 1, ascending-id largest-remainder)
+  against the image-global pooled prior tables.
+- 'SBC1' CODEBOOK SERIALIZATION: magic 'SBC1', u32 K, u32 stride, u32
+  profile id, image-global prior tables (u16 each), per-prototype s16
+  delta stream (proto_u12 - prior_u12), then the assignment-word context
+  table (one 4096-normalized u12 histogram over alphabet K); delta +
+  assignment-table bytes compressed ONCE by the plane-rANS engine (pin D6
+  scheme); CRC32 over the UNCOMPRESSED serialized span. Decoder mirror
+  exact; expect-match tamper surface identical to deserialize_tables.
+- ASSIGNMENT WORDS: one symbol per group over alphabet K, coded by B-RANS
+  under the blob-carried single context, raster group order per plane;
+  ALWAYS NETTED as side info; reported beside payload in an `assign_rep`
+  column.
+- CEILING MODE (T1a): per-group EXACT static stacks under the same
+  machinery - no codebook, no clustering, no assignment bits BY
+  CONSTRUCTION; tables serialized realistically through the hierarchical
+  shape (global prior + per-group s16 deltas, rANS-compressed, CRC32) and
+  fully NETTED. Every T1a CSV row carries mandatory decomposition columns
+  payload_pct_gain, tables_bytes, assign_bytes so the fail clause below is
+  mechanically readable without re-measurement.
+
+### 20.3 C2 shrinkage constants (T2a + 'SBD1'; T2b conditional)
+
+- SHRINKAGE FORMULA: p_hat(child bin) = (n_child(bin) + a_c * p_parent_u12(bin))
+  / (N_child + a_c), then renormalized to exactly 4096 by the standard
+  largest-remainder pass (support floor 1). Parent of residual-DIFF
+  context cq = the SHIPPED class16 reduction class(cq), identical
+  encoder/decoder side; parent entry = that class's pooled u12 table.
+- a_c ARMS (both measured when T2a runs): TW-A a_c = 32, TW-B a_c = 128.
+- 'SBD1' RECURSIVE DELTA TABLES: magic 'SBD1', u32 nchildren = 343, u16
+  parent-map table [343] (bytes), global class16-pooled prior tables (u16),
+  child s16 delta stream (child_u12 - parent_u12) compressed ONCE by the
+  plane-rANS engine, CRC32 over uncompressed bytes; decoder mirror exact.
+- T2b PROPERTY VECTOR: frozen = addendum 14.2 M-C poolings (ii) and (iii)
+  VERBATIM (same q/g definitions, same moduli 4096/16384), scored STATIC
+  two-pass with T2a table economics: cell tables shrunk toward the
+  image-global class16-pooled entry (single-level parent) using the
+  T2a-winning arm if T2a passed, else both arms; cell total < 64 scores
+  from its parent entry with `fallback_share` reported (cell-level
+  fallback precedent 14.2).
+
+### 20.4 C3 factorial constants (T3 + T3b canary)
+
+- ZZ-HU IDENTITY: TokProfile::HYB_C reused VERBATIM (addendum 18.3 ladder
+  ESC-C: T_ESC = 16, per-token escape unary contexts, pin D3 raw low
+  bits). No new tokenization mathematics exists in this program; the name
+  marks the role in row schemas only.
+- FACTORIAL CELL SET: {MED, GAP, W} x {ZFFCTRL, ZZ-HU} = six cells, all
+  measured on the quad, predictor mathematics per 18.4 as repaired by
+  amendments A4/A4b (verbatim, no new predictor work).
+- T3b CANARY MECHANISM (rides once on the T3 winner): bias table b[64]
+  over gradient-pair cells (bucket(gN), bucket(gW)) with 14.2 thresholds;
+  pred' = pred_family + round_half_away(b[ctx]); post-decode update
+  b[ctx] <- clamp(b[ctx] + floor_div(err', 2^BIAS_SHIFT), -Bmax, +Bmax)
+  with BIAS_SHIFT = 6, Bmax = 2^(BD-3), err' = actual - pred' (14.3
+  constants inherited unchanged); b serialized as s16 deltas toward zero,
+  NETTED.
+
+### 20.5 T-gates (pinned now, verbatim from the research; I10 medians primary throughout)
+
+- T1a CEILING: per-group exact static stacks, tables paid at realistic
+  serialization; PASS requires >= +2.00 pct median NET beyond T-BASE
+  measured fresh in-run. FAIL closes bucket C1 UNLESS the recorded
+  decomposition shows payload gain >= +4.00 pct median with table bytes
+  as the SOLE losing term - then and only then T1b opens.
+- T1b CODEBOOK (conditional on T1a): retain >= half of the best measured
+  T1a PAYLOAD gain NET, floor >= +1.00 pct median NET beyond the same
+  T-BASE; BOTH must hold on the quad median.
+- T2a SHRUNK CONTEXTING: >= +0.50 pct median NET vs the same-stack class16
+  baseline fresh in-run; FAIL => flat-16 ships unchanged.
+- T2b STATIC E0 REOPENING (conditional on T2a): >= +1.50 pct median NET,
+  per-image primary; second failure closes B2's static branch permanently.
+- T3 FACTORIAL: (i) best non-MED family >= +1.50 pct median NET over MED
+  under ITS winning tokenization, else GAP and W take their THIRD AND
+  FINAL strike; (ii) tokenization main effect recorded in both directions
+  (per-family ZFFCTRL-vs-ZZ-HU median deltas) as the F3 cross-check.
+- T3b CANARY: rides exactly once on the winner; >= +0.50 pct median AND
+  no image worse than -0.25 pct; second strike permanent.
+- T4 COMPOSITION: candidates {ADAPT control, SPINE} + every phase winner
+  decided PER IMAGE by real NET bytes (L-C1, ties conservative; the ADAPT
+  candidate keeps composed NET non-regressing vs e1 BY CONSTRUCTION);
+  projection formula 18.5 VERBATIM against the committed e1 CSV;
+  threshold UNCHANGED: projected < 9.35 summed AND < 3.117 per-sample =>
+  proceed-to-format; portrait-class handling inherits P-S4 behind the
+  explicit INHERITED marker; landscape-only projection reported beside;
+  M2 (< 9.498 / < 3.166) and M3 (< 8.655 / < 2.885) reported beside,
+  NEVER altered (owner standing order).
+- T5 RESERVE: opens ONLY if T4 projects summed < 8.8316 AND per-sample
+  < 2.9438 while failing the format bar; one-shot squeeze-with-parent-
+  properties; >= +2.00 pct median NET or third-strike death (L-C7).
+- STOP-rule discipline verbatim: any gate failure records the negative in
+  the tracker the same day and moves budget; discarded bring-up runs are
+  discarded wholesale with no surviving numbers; wall-clock logged per
+  the A3 precedent (no verdict depends on it); fuzz + byte-exact
+  round-trip always; final judgment ONLY by bench_gate.sh in both units
+  on a fresh corpus measurement against REAL cjxl and WebP references.
+
+### 20.6 CSV naming
+
+`benchmarks/results/YYYY-MM-DD-sandbox-t{0,1a,1b,2a,2b,3,4}.csv` (+ `-t5`
+if opened); one file per phase so earlier references stay stable. The t0
+file carries rails + anchor reproductions + DIAGNOSTIC smoke rows on
+kodim01 ONLY, explicitly marked non-gating.
+
+### 20.7 Reserved slots (must land as numbered amendments BEFORE the named phase's first CSV)
+
+- Before T1b: none expected (K set pinned above); any structural reading
+  discovered during implementation lands as builder pins first.
+- Before T5 (only if opened): squeeze parent-property conditioning
+  constants inherit the Obsidian-shared bijection-tested variant; must be
+  amended numerically before T5 opens.
+- Wall-clock: amendment A3 precedent stands - structural multipliers
+  recorded beside every phase; NO gate depends on wall-clock.
+
+### 20.8 STATUS
+
+Written 2026-08-26 BEFORE any T-row exists. The V+S verdicts (V1 STOP, S1/
+S3/S4 FAIL) stand recorded permanently under I10's no-post-hoc-bar rule;
+this addendum prices the surviving mechanisms around those numbers and
+relaxes nothing.
+
+- the Architect
