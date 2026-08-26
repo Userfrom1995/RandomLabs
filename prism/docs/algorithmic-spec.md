@@ -836,3 +836,306 @@ e1.csv + 2026-08-25-prism-e{1,3,7}.csv; decision record
 2026-08-25T12-30-00-e1-offline-rejection-and-honest-closure.md.
 
 - the Builder
+
+## 18. Addendum 2026-08-25 (registered as "spec addendum 17"): V-series
+##     pre-registration for the v2 clean-slate sandbox, written BEFORE any
+##     measurement
+
+Binding order (V-series blueprint section 1, same discipline as addenda 14
+and 16): every constant below was fixed before the first `bench-sandbox`
+row existed and before any predictor replay ran. Section numbering follows
+this file's sequence (15 and 17 are STATUS records); the research handoff
+name "spec addendum 17" maps to THIS section. No constant may be tuned
+after a measurement has been seen; a deviation requires a numbered amendment
+BEFORE the affected measurement or it never happens.
+
+### 18.0 Scope
+
+Applies to `prism bench-sandbox` (the V0 spine) and all V-phase offline
+scoring on the probe quad kodim01/kodim13/kodim05/kodim20 with sha-pins
+verified before ANY measurement (`benchmarks/data/kodak.sha256`). Zero
+container/format bytes until a V4 PASS (standing rule).
+
+### 18.1 Gate reading and units (pinned now)
+
+- PRIMARY gate figure (I10): RELPCT = 100 * (net_ctrl - net_cand) /
+  net_ctrl computed PER IMAGE from joint NET bytes (payload + tables +
+  maps + trees; I12), then MEDIAN over the quad. Per-image min and max are
+  reported beside every median; pooled TOTAL rows are diagnostics only.
+- CONTROL definitions (pinned per phase): V1 control = fresh production
+  ACModelsV2 replay of the shipped ZFFCTRL profile on the same residual
+  stream (equals committed e1-era rows under VB-anchor-adapt). V2 control =
+  MED family scored under the V1-winning configuration. V2b/V3 controls =
+  the V2 winner / best-flat keying respectively, same backend throughout
+  each comparison.
+- Unit conversion for reporting only: percent-of-current-bytes =
+  points-of-v0 / 0.9447 (factor 1.06, research section 1).
+- A gate rejection is a legitimate measured outcome and never flips the
+  exit code; rail-integrity checks (VB-*) DO flip exit codes.
+
+### 18.2 V0 constants
+
+- VB-anchor tolerance policy: anchor rails require BIT-FOR-BIT equality of
+  bits columns against committed reference rows (no rounding slack; ideal
+  lengths and adaptive replays are deterministic integers).
+- VB-coder-fidelity bound: B-RANS and B-BAC(static) total bytes <=
+  1.005 x their own B-IDEAL row per image (+0.50 percent).
+- VB-corrupt threshold: any injected corruption that does not hard-detect
+  must inflate cost by > +10 percent vs the clean row AND flag a round-trip
+  mismatch; silent pass => rail failure.
+- Model smoothing prior (per cluster, per bin type): c'(bin) = c(bin) +
+  PSEUDO where PSEUDO = 32 counts total distributed geometrically over
+  quotient bins with ratio r = 15/16 falling away from zero, uniformly over
+  remainder-bit bins below the escape point, and evenly over sign and ZERO
+  tokens. Normalization sum exactly 2^12 = 4096 (floor_div redistribution,
+  largest-remainder assignment, deterministic order = ascending bin id).
+- Cluster caps and floors: K_MAX = 256 clusters; MIN_SAMPLES_PER_CLUSTER =
+  4096 (clusters under the floor merge into their nearest sibling by
+  ascending id order until legal); grid tile default 128x128 pixels;
+  KTREE inherits matree_builder caps depth <= 10, leaves <= 256,
+  octile-quantile split candidates, strided induction subsample.
+- Table serialization shape: image-level prior tables first, then
+  per-cluster tables as 16-bit deltas from the prior, delta stream
+  compressed recursively by the same backend; CRC32 over the uncompressed
+  table bytes; map/tree blobs length-prefixed; ALL side-info counted in
+  every NET figure.
+- Determinism: integer-only arithmetic everywhere in the sandbox (no FP in
+  scoring paths); fixed iteration orders (raster samples, ascending ids);
+  two runs on the same inputs produce byte-identical CSVs.
+
+### 18.3 Tokenization ladders (HYB profiles; pinned now)
+
+Fold r via zigzag to u >= 0. Tokens: t = 0 exclusively for r = 0 (ZERO
+token, cheapest symbol in every table); t = u for 0 < u < T_ESC; t = T_ESC
+escapes. Escaped magnitude m = u - T_ESC > 0 coded as q = bit_length(m) - 1
+emitted unary over a dedicated escape-context bin sequence, then the low q
+bits of m raw (m >= 1 guaranteed). Ladders:
+
+| profile | T_ESC | escape contexts |
+|---|---|---|
+| ESC-A | 4 | one shared unary context |
+| ESC-B | 8 | per-token escape context (T_ESC separate unary contexts) |
+| ESC-C | 16 | per-token escape context |
+
+ZFFCTRL is the shipped zero-flag-first sequence (anchor control; F3
+precedent). Sign bit emitted immediately after each nonzero token; no
+sign-before-zero ordering may ever appear (L-C5).
+
+### 18.4 V2 predictor mathematics (pinned before ANY V2 measurement)
+
+All predictors causal (decoded history only), raster order, border rule =
+replicated edge (production rule), state reset per plane, clamp outputs to
+[0, 2^BD - 1], all arithmetic int64.
+
+- MED control: exact production definition (section 4 of this spec).
+- GAP (reduced classic, integer-exact):
+      dh = |W - NW| + |N - NW| + |NE - N|
+      dv = |NW - W| + |N - NW| + |N - NE|
+      t80 = 80 << (BD - 8);  t32 = 32 << (BD - 8)
+      if   dv - dh > t80: pred = N
+      elif dh - dv > t80: pred = W
+      else:
+        num = 2*W + 2*N + NE - NW
+        dhat = sym_round_div(num, 4)          (half away from zero)
+        if   dh - dv > t32: dhat = sym_round_div(dhat + W, 2)
+        elif dv - dh > t32: dhat = sym_round_div(dhat + N, 2)
+        pred = dhat
+- W ensemble (weighted sub-predictor pool, JXL-class, integer-exact):
+      sub-predictors p_i, i in {W, N, NW, TE}, TE = W + N - NW (clamped)
+      weights w_i int64 16.16, init 65536 each, clamp [16384, 1048576]
+      pred = sym_round_div(sum_i w_i * p_i, sum_i w_i)
+      update AFTER coding err = actual - pred, ORDER PINNED i = W,N,NW,TE:
+        w_i <- clamp(w_i + floor_div(err * (p_i - pred), 512), 16384,
+                     1048576)
+- Max-error feedback property (context property only, never modifies
+  prediction): e_max_prev = max_i |actual - p_i| of the PREVIOUS sample,
+  bucketed [0,1,2,3,4-5,6-7,8-11,12-15,16-23,24-31,32-63,64+]; usable as
+  an extra keying coordinate from V2 scoring onward.
+- Scoring contract: each family's stream scored BOTH as static-ideal
+  lengths AND real backend bytes under the V1-winning configuration; the
+  gate reads REAL NET bytes; both columns reported.
+
+### 18.5 V4 projection formula (pinned now)
+
+    proj_bytes(img) = e1_bytes(img) * (1 - relpct_composed(img)/100)
+
+with e1_bytes(img) taken verbatim from the committed
+`benchmarks/results/2026-08-25-prism-e1.csv` per-image payload+model bytes
+and relpct_composed measured on the quad under the composed winner stack;
+quad relpct applies corpus-wide per image class (landscape/portrait medians
+reported separately). Threshold: projected summed < 9.35 bpp AND projected
+per-sample < 3.117 bpp => proceed-to-format. Below: stop-and-report.
+
+### 18.6 Reserved slots (must land as numbered amendments BEFORE the named phase's first CSV)
+
+- After V1: winning backend/tokenization/keying identity + wall-clock budget.
+- Before V2b (only if opened): per-cluster bias-table shape confirmation
+  (defaults inherit addendum 14.3 shifts unless amended).
+- Before V3: frozen extended-property list + tree feature set.
+- Before V5 (only if opened): squeeze parent-property conditioning constants.
+
+STATUS 2026-08-25 (V-series slice 2 readout): V1 measured on the pinned quad
+(`benchmarks/results/2026-08-25-sandbox-v1.csv`; pins verified pre-measure;
+structural readings in decisions/builder/2026-08-25T21-30-00 BEFORE it):
+V1a oracle bound PASS (+74.60 pct best median, freebie-dominated - reported
+map_rep exceeds the explained gain), V1b realistic maps FAIL (best median
++5.81 pct, ZFFCTRL x KFLAT16 with every side-info byte NETTED, vs retention
+bar +37.30). Overall V1 FAIL => STOP rule fired per decision tree row 1.
+NO winning configuration is reserved for later phases and no wall-clock
+budget transfers forward; V2/V3/V4 do not open without an owner-directed
+pivot decision. Zero container bytes were spent at any point.
+
+## 19. Addendum 2026-08-25 (registered as "spec addendum 19"): source-side-
+##     only pivot (S-series) pre-registration, written BEFORE any
+##     S-measurement
+
+Authority: owner authorization 2026-08-25T21:53:15Z on PR #145 (V1 STOP
+acknowledged; source-side-only pivot, or any architecture the Architect
+deems necessary, authorized; the M2/M3 dual-unit gates are the single
+invariant and may never be lifted, bypassed, or altered) and Mae's `/oc
+architect` dispatch on PR #145. Blueprint:
+`architecture-jxl-parity-sourcepivot.md`. Binding order unchanged: every
+constant below is fixed before the first S-row exists; deviations require a
+numbered amendment BEFORE the affected measurement or they never happen.
+
+### 19.1 Reserved-slot resolution (fills the slots 18.6 opened)
+
+- After-V1 slot: NO winning backend/tokenization/keying exists (V1 STOP at
+  head 3bc11dd). Wall-clock accounting: amendment A3 precedent stands -
+  structural instrument multipliers are recorded beside every phase and NO
+  gate depends on wall-clock.
+- Before-S2 slot: bias-table shape inherits addendum 14.3 defaults unless a
+  numbered amendment lands before S2 opens.
+- Before-S3 slot: frozen extended-property list pinned in 19.4; tree feature
+  set = NONE (spatial maps/trees excluded from S3 by V1's measured evidence).
+- Before-S5 slot: squeeze parent-property conditioning constants inherit the
+  Obsidian-shared bijection-tested variant; must be amended numerically
+  before S5 opens.
+
+### 19.2 S-controls (pinned now)
+
+- FRAME-A (adaptive): production ACModelsV2 replay over the phase's residual
+  stream under ZFFCTRL; equals the committed e1-era rows under
+  VB-anchor-adapt (bit-for-bit bound).
+- FRAME-S (static spine): ZFFCTRL x B-RANS x KFLAT16-static-spine with ALL
+  side-info NETTED (tables + merge map); the measured V1b best-realistic
+  family re-instrumented as a control, re-measured fresh each run.
+- Every CSV row carries frame=A|S; comparisons are valid WITHIN a frame
+  only; cross-frame comparisons are invalid and rejectable on sight.
+
+### 19.3 Dual-frame scoring contract (pinned now)
+
+FRAME-S is PRIMARY and gating for S1 and S3 verdicts. FRAME-A deltas are
+REPORTED beside every row (they answer what the shipped adaptive coder
+gains) but never gate any verdict inside this program.
+
+### 19.4 Frozen extended-property list (S3)
+
+P_ext = {qW, qN, qNW, qNE quotient buckets with octile edges computed per
+image from the causal stream (no future-sample leakage), bucketed CALIC
+gradient magnitudes gbW/gbN, plane id, optional e_max_prev bucket per 18.4}.
+Flat hash into K <= 256 clusters; 4096-sample floor binding; NO spatial
+maps or trees anywhere in S3.
+
+### 19.5 S-gates (pinned now; I10 per-image medians primary throughout)
+
+- S1 PREDICTORS: families {MED control, GAP, W} per the 18.4 mathematics
+  verbatim; best non-MED family >= +1.5 RELPCT median quad in FRAME-S vs
+  same-frame MED => PASS; FAIL => MED ships in both frames, B3 closed with
+  numbers.
+- S2 CANARY (opens ONLY on an S1 PASS): >= +0.5 RELPCT median AND no image
+  regressing more than 0.25 pct in the frame(s) where the winner passed;
+  second strike closes bias feedback FOREVER.
+- S3 PROPERTIES: >= +1.5 RELPCT median quad in FRAME-S vs the same-stack
+  best-flat-16 baseline (control includes adopted S1/S2 winners so the gate
+  reads the property extension's marginal value); FAIL => flat-16 ships,
+  B2 closed with numbers.
+- S4 COMPOSITION: candidates {adaptive control, static spine, spine + S1
+  winner, + S2 if passed, + S3 if passed} x D4c color-transform trials,
+  decided strictly by real NET bytes per image (L-C1; the adaptive control
+  in the candidate set makes composed NET non-regressing vs e1 BY
+  CONSTRUCTION on the quad). Projection formula 18.5 VERBATIM against the
+  committed e1 CSV, landscape/portrait class medians reported separately.
+  Threshold: projected < 9.35 summed AND < 3.117 per-sample => proceed-to-
+  format handoff; else stop-and-report. Zero container bytes until this
+  threshold PASSES.
+- S5 RESERVE: opens ONLY if S4 projects inside M3 reach but short of it;
+  strict gate >= 2.0 RELPCT median NET or the lever dies with its third
+  strike; never opened otherwise (L-C7).
+
+### 19.6 CSV naming
+
+`benchmarks/results/YYYY-MM-DD-sandbox-s{1,2,3}.csv` (+ `-s4`, `-s5` if
+opened); one file per phase so earlier references stay stable.
+
+### 19.7 STATUS
+
+Written 2026-08-25 BEFORE any S-row exists. The V1 STOP verdict stands
+recorded permanently; the static-table mechanism enters the S-program as a
+freshly-controlled component candidate under these pins, not as a V1 PASS.
+
+AMENDMENT A4 (2026-08-25, Builder, BEFORE any S-measurement; decision record
+`.github/agents/decisions/builder/2026-08-25T22-30-00-s1-predictor-pins-and-
+amendment-a4.md`): the 18.4 GAP gradient pair as literally written is
+algebraically degenerate (dh == dv term-by-term for every sample, making the
+pinned t80/t32 branches unreachable). A4 repairs exactly two terms to the
+classic CALIC pair - dh[1] = |W-WW|, dv[2] = |N-NN| (production replicated-
+edge derivation for WW/NN) - leaving every other pinned constant untouched.
+S1 implements GAP under A4; MED/W are unaffected. Structural readings
+P-S1-1..P-S1-11 in the same record.
+
+AMENDMENT A4b (2026-08-25, Builder, BEFORE any committed S-measurement; same
+record): the 18.4 line "clamp outputs to [0, 2^BD - 1]" cannot bind this
+instrument literally - the sandbox scores residuals of the COLOR-TRANSFORMED
+planes (production pipeline order), whose chroma domains legitimately exceed
+the source BD (measured: kodim01 chroma planes live in [477, 639] at BD8),
+so a literal prediction clamp corrupts every chroma prediction. A4b pins
+production parity instead: predictions are UNCLAMPED integers in the
+transformed-plane domain (exactly `compute_residuals`; MED byte-identity
+across ALL planes is the binding unit test), the W ensemble's TE
+sub-predictor clamps to [0, 2^16 - 1] (uint16 storage bound), and
+reconstruction adds pred + residual exactly (mirrored states make it exact;
+no post-add clamp). The bring-up run that used the literal clamp was
+discarded wholesale; no number from it survives.
+
+S3 EXECUTION NOTE (2026-08-25, Builder, AFTER the S3 verdict; structural
+readings in `.github/agents/decisions/builder/2026-08-25T23-00-00-s3-property-
+pins.md`, committed BEFORE any S-row): P_ext was implemented exactly as
+frozen here (quotient buckets via production quant_residual with causal
+per-image octile edges, prefix-invariant by construction and unit-tested;
+gbW/gbN as the A4 CALIC gradient pair of the residual stream through the
+shared bias_bucket; raw plane id; e_max_prev per the literal 18.4 edge
+table), hashed by a pinned FNV-1a word mixer into k_raw {64, 256} clusters
+with inherited caps/floors. MEASURED VERDICT: S3 FAIL - best variant median
+-8.09 pct (SX-G k=64) vs the +1.50 bar in gating FRAME-S; every variant
+regresses on every quad image (worst -19.40). NETTED table bytes dominate:
+richer keyings pay more side info than the conditioning they buy.
+Bucket B2 closed-with-numbers; flat-16 keying ships unchanged; S4 composes
+{adaptive control, static spine} x D4c trials. Evidence:
+benchmarks/results/2026-08-25-sandbox-s3.csv.
+
+S4 EXECUTION NOTE (2026-08-25, Builder, AFTER the S4 verdict; structural
+readings in `.github/agents/decisions/builder/2026-08-25T23-45-00-s4-
+composition-pins.md`, committed BEFORE any S4 row): candidates {ADAPT,
+SPINE} x colorrot kCount=7 trials decided per image by real NET bytes
+(winner argmin, ties to ADAPT); control = trial-freed adaptive control
+(non-regression vs e1 BY CONSTRUCTION); projection 18.5 verbatim against
+the committed e1 CSV with pinned class handling. MEASURED VERDICT: S4 FAIL
+- stop-and-report. SPINE won all four quad images (rct-rbg on kodim01/05,
+loco on kodim13/20): per-image +5.45 / +5.56 / +5.93 / +2.98 pct vs the
+trial-freed control; landscape class median +5.51 pct (portrait inherits,
+flagged INHERITED - the quad is all-landscape). Projected corpus:
+summed 9.5638 >= 9.35 AND per-sample 3.1879 >= 3.117 => threshold NOT met.
+M2/M3 context projected FAIL (reported only). Honest readings beside the
+verdict: (1) the trial-freed control itself gains ~1.5 pct over plain
+YCoCg-R (e.g. kodim01 ctrl 538184 vs anchor 546852), so B4's trial
+expansion helps BOTH sides and narrows the spine's differential margin
+from V1's +5.81 to +5.51 median; (2) kodim20 thins further (+2.98 from
++3.20); (3) instrument coherence check: sandbox trial-freed controls sit
+within ~60 B of the committed e1 bytes per quad image (container
+overhead), so the 18.5 product form applies cleanly. Per decision tree
+row 1 the measured spine improvement is recorded as available-but-
+insufficient; zero container bytes were spent anywhere in the S-series.
+Evidence: benchmarks/results/2026-08-25-sandbox-s4.csv.
+
+- the Architect
