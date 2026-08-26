@@ -166,6 +166,23 @@ bucket B2 closes with numbers (`benchmarks/results/2026-08-25-sandbox-
 s3.csv`). Feed it through `benchmarks/probe_sandbox.sh --s3`
 (failability: `--self-check-s3`).
 
+`--s4` is the composition + projection readout that closes the S-program:
+per image it crosses {ADAPT production control, SPINE static spine} with
+the full D4c color-rotation trial family (colorrot kCount=7), decides the
+winner strictly by real NET bytes (ties to ADAPT, so composed NET is
+non-regressing vs e1 by construction), and projects the corpus via the
+verbatim 18.5 formula against the committed e1 CSV - landscape/portrait
+class medians per I10, with the all-landscape quad's portrait gap handled
+by a pre-pinned INHERITED marker. Measured verdict: S4 FAIL -
+stop-and-report. SPINE won all four quad images (+5.45/+5.56/+5.93/+2.98
+pct vs trial-freed controls) but the projection lands summed 9.5638 /
+per-sample 3.1879, above both bars (<9.35/<3.117); M2/M3 contexts stay
+projected FAIL and untouched. Buckets B1/B2/B3 are closed with numbers,
+B4 measured inside composition (~+1.5 pct to both sides), zero container
+bytes spent across the entire V+S program
+(`benchmarks/results/2026-08-25-sandbox-s4.csv`; failability:
+`--self-check-s4`).
+
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,
 min-samples 512, quantile split candidates) and accepts it ONLY if trial
@@ -216,7 +233,8 @@ prism/benchmarks/fuzz_gate.sh
 prism/benchmarks/probe_backend.sh --build-dir <dir> --image <kodim01.ppm> --image <kodim13.ppm>
 prism/benchmarks/probe_sandbox.sh --build-dir <dir> --image <kodim01.ppm> [--image ...]
 prism/benchmarks/probe_sandbox.sh --s1 --build-dir <dir> --image ...   (S-series dual-frame predictors)
-prism/benchmarks/probe_sandbox.sh --self-check [--self-check-v1] [--self-check-s1]
+prism/benchmarks/probe_sandbox.sh --s4 --build-dir <dir> --image ...   (S-series composition + projection)
+prism/benchmarks/probe_sandbox.sh --self-check [--self-check-v1] [--self-check-s1] [--self-check-s3] [--self-check-s4]
 python3 prism/benchmarks/aggregate.py
 ```
 
