@@ -121,6 +121,10 @@ def median(xs):
     return s[len(s) // 2] if len(s) % 2 else \
         (s[len(s) // 2 - 1] + s[len(s) // 2]) / 2.0
 
+def _comp(p, t, m_, tr, a):
+    return (p, t, m_, tr, a)
+
+
 def _read_t1a_pg(path):
     # PG (pin P-Q1-6): max over CEIL@* arms of the quad-median
     # payload_pct_gain from the same-run t1a CSV.
@@ -1120,9 +1124,6 @@ if t1rows:
     # candidate B-RANS row and the base winner, NET identity and both
     # derived columns must recompute exactly, and the sole-term flag must
     # equal its pinned boolean form.
-    def _comp(p, t, m_, tr, a):
-        return (p, t, m_, tr, a)
-
     base_rows = {}
     cand_rows = {}
     for r in t1rows:
