@@ -207,10 +207,13 @@ uint32_t ClusterMap::raw_at(size_t idx,
         }
         case KeyingId::KGROUP64:
         case KeyingId::KGROUP128: {
-            // Joint (group tile, class16) id: g * 16 + class (pin P-T0-1).
+            // Joint (group tile, class16) id: g * 16 + class (pin P-T0-1),
+            // offset by this plane's group base so group identity stays
+            // per-plane (addendum 20.2; pin P-Q1-1).
             const uint32_t gs = keying_group_px(keying);
             const uint32_t tiles_x = (w + gs - 1) / gs;
-            const uint32_t g = (y / gs) * tiles_x + (x / gs);
+            const uint32_t g =
+                group_base + (y / gs) * tiles_x + (x / gs);
             return g * 16u + ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
         }
         case KeyingId::KTREE:

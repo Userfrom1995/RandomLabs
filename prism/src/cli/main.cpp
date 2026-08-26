@@ -2242,20 +2242,31 @@ static uint32_t lcg_next(uint32_t& s) {
 }
 
 // Counts one plane set into a joint (group tile x class16) model and
-// returns the ClusterMap used (pin P-T0-6: counting layout of 18.2 with
-// cluster := group).
-static ClusterMap count_joint(TokProfile prof, KeyingId key, uint32_t w,
-                              const std::vector<std::vector<int32_t>>& ress,
-                              SandboxModel& m) {
-    ClusterMap cm = cluster_map_keyed(key);
-    cm.w = w;
+// returns ONE ClusterMap PER PLANE (pin P-Q1-1: group identity is
+// per-plane - addendum 20.2 "no cross-plane grouping"; plane p's map
+// carries group_base = p * tiles_per_plane so stacks never pool across
+// planes). Counting layout of 18.2 with cluster := group otherwise.
+static std::vector<ClusterMap> count_joint(TokProfile prof, KeyingId key,
+                                           uint32_t w,
+                                           const std::vector<
+                                               std::vector<int32_t>>& ress,
+                                           SandboxModel& m) {
     const uint32_t gs = keying_group_px(key);
     const uint32_t h = (w == 0) ? 0 : (uint32_t)(ress[0].size() / w);
     const uint32_t tiles_x = (w + gs - 1) / gs;
     const uint32_t tiles_y = (h + gs - 1) / gs;
-    m.init(prof, (int)(tiles_x * tiles_y) * GROUP_CLASS_AXIS);
-    for (const auto& r : ress) count_plane(m, prof, cm, r, nullptr);
-    return cm;
+    const uint32_t tiles = tiles_x * tiles_y;
+    m.init(prof, (int)(ress.size() * tiles) * GROUP_CLASS_AXIS);
+    std::vector<ClusterMap> cms;
+    cms.reserve(ress.size());
+    for (size_t pi = 0; pi < ress.size(); ++pi) {
+        ClusterMap cm = cluster_map_keyed(key);
+        cm.w = w;
+        cm.group_base = (uint32_t)pi * tiles;
+        cms.push_back(cm);
+        count_plane(m, prof, cms.back(), ress[pi], nullptr);
+    }
+    return cms;
 }
 
 } // namespace t0run
@@ -2365,8 +2376,8 @@ void run_t0_image(const std::filesystem::path& img) {
     for (KeyingId key : {KeyingId::KGROUP64, KeyingId::KGROUP128}) {
         const char* gs_name = (key == KeyingId::KGROUP64) ? "GS64" : "GS128";
         SandboxModel joint;
-        ClusterMap cm = count_joint(TokProfile::ZFFCTRL, key, w, med_ress,
-                                    joint);
+        std::vector<ClusterMap> cms =
+            count_joint(TokProfile::ZFFCTRL, key, w, med_ress, joint);
         const int G = joint.clusters / GROUP_CLASS_AXIS;
 
         // CEILING: exact per-group stacks, no budget pass by construction.
@@ -2381,7 +2392,7 @@ void run_t0_image(const std::filesystem::path& img) {
                 SandboxModel recount;
                 recount.init(TokProfile::ZFFCTRL, joint.clusters);
                 for (size_t pi = 0; pi < med_ress.size(); ++pi)
-                    count_plane(recount, TokProfile::ZFFCTRL, cm,
+                    count_plane(recount, TokProfile::ZFFCTRL, cms[pi],
                                 med_ress[pi], &evts[pi]);
             }
             double tbl_bits = 0;
@@ -2397,7 +2408,7 @@ void run_t0_image(const std::filesystem::path& img) {
                 auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
                                                 evts[pi], tabs);
                 payload += bytes.size();
-                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cm,
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cms[pi],
                                               med_ress[pi].size(), bytes,
                                               tabs);
                 if (dec != med_ress[pi]) rt = false;
@@ -2430,13 +2441,13 @@ void run_t0_image(const std::filesystem::path& img) {
                     fit.proto_of_group[(size_t)(graw / GROUP_CLASS_AXIS)] *
                         GROUP_CLASS_AXIS +
                     (graw % GROUP_CLASS_AXIS);
-            ClusterMap cb_cm = cm;
-            cb_cm.merge = &merge;
+            std::vector<ClusterMap> cb_cms = cms;
+            for (auto& m_ : cb_cms) m_.merge = &merge;
             SandboxModel recount;
             recount.init(TokProfile::ZFFCTRL, fit.centroids.clusters);
             std::vector<std::vector<TaggedEvent>> evts(med_ress.size());
             for (size_t pi = 0; pi < med_ress.size(); ++pi)
-                count_plane(recount, TokProfile::ZFFCTRL, cb_cm,
+                count_plane(recount, TokProfile::ZFFCTRL, cb_cms[pi],
                             med_ress[pi], &evts[pi]);
             SmoothedTables eff_tabs;
             build_tables_enforced(recount, eff_tabs);
@@ -2456,7 +2467,8 @@ void run_t0_image(const std::filesystem::path& img) {
                 auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
                                                 evts[pi], eff_tabs);
                 payload += bytes.size();
-                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cb_cm,
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                              cb_cms[pi],
                                               med_ress[pi].size(), bytes,
                                               eff_tabs);
                 if (dec != med_ress[pi]) rt = false;
@@ -2518,13 +2530,13 @@ void run_t0_image(const std::filesystem::path& img) {
                     rnd_words[(size_t)(graw / GROUP_CLASS_AXIS)] *
                         GROUP_CLASS_AXIS +
                     (graw % GROUP_CLASS_AXIS);
-            ClusterMap rnd_cm = cm;
-            rnd_cm.merge = &rnd_merge;
+            std::vector<ClusterMap> rnd_cms = cms;
+            for (auto& m_ : rnd_cms) m_.merge = &rnd_merge;
             SandboxModel rnd_recount;
             rnd_recount.init(TokProfile::ZFFCTRL, rnd_cent.clusters);
             std::vector<std::vector<TaggedEvent>> rnd_evts(med_ress.size());
             for (size_t pi = 0; pi < med_ress.size(); ++pi)
-                count_plane(rnd_recount, TokProfile::ZFFCTRL, rnd_cm,
+                count_plane(rnd_recount, TokProfile::ZFFCTRL, rnd_cms[pi],
                             med_ress[pi], &rnd_evts[pi]);
             SmoothedTables rnd_eff;
             build_tables_enforced(rnd_recount, rnd_eff);
@@ -2540,7 +2552,8 @@ void run_t0_image(const std::filesystem::path& img) {
                 auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
                                                 rnd_evts[pi], rnd_eff);
                 rnd_payload += bytes.size();
-                auto dec = rans_decode_events(TokProfile::ZFFCTRL, rnd_cm,
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                              rnd_cms[pi],
                                               med_ress[pi].size(), bytes,
                                               rnd_eff);
                 if (dec != med_ress[pi]) rnd_rt = false;
@@ -2599,8 +2612,9 @@ void run_t0_image(const std::filesystem::path& img) {
     {
         // 'SBC1': the real GS64 CB8 codebook, expect-exact round trip.
         SandboxModel joint;
-        ClusterMap cm = count_joint(TokProfile::ZFFCTRL, KeyingId::KGROUP64,
-                                    w, med_ress, joint);
+        std::vector<ClusterMap> cms =
+            count_joint(TokProfile::ZFFCTRL, KeyingId::KGROUP64, w,
+                        med_ress, joint);
         CodebookFit fit = lloyd_cluster(joint, 8);
         SmoothedTables prot;
         build_tables_enforced(fit.centroids, prot);
@@ -2631,7 +2645,7 @@ void run_t0_image(const std::filesystem::path& img) {
             deserialize_codebook(tmr, &wrongp, nullptr);
         } catch (const std::exception&) { dtam = true; }
         protos.push_back({"SBC1", mir, dt, dcrc, dtam, ca == cblob.size()});
-        (void)cm;
+        (void)cms;
     }
     {
         // 'SBD1': TW-A shrinkage over the image's flat343/class16 tables.
@@ -2809,8 +2823,8 @@ static int run_t0_synth(const std::string& kind) {
 
     for (KeyingId key : {KeyingId::KGROUP64}) {
         SandboxModel joint;
-        ClusterMap cm = count_joint(TokProfile::ZFFCTRL, key, w, med_ress,
-                                    joint);
+        std::vector<ClusterMap> cms =
+            count_joint(TokProfile::ZFFCTRL, key, w, med_ress, joint);
         // CEILING row: exact per-group stacks, coded for real.
         {
             SmoothedTables ctabs;
@@ -2822,14 +2836,14 @@ static int run_t0_synth(const std::string& kind) {
             bool rt = true;
             double bits = 0;
             for (size_t pi = 0; pi < med_ress.size(); ++pi) {
-                count_plane(joint, TokProfile::ZFFCTRL, cm, med_ress[pi],
-                            &evts[pi]);
+                count_plane(joint, TokProfile::ZFFCTRL, cms[pi],
+                            med_ress[pi], &evts[pi]);
                 bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
                                          ctabs);
                 auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
                                                 evts[pi], ctabs);
                 payload += bytes.size();
-                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cm,
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cms[pi],
                                               med_ress[pi].size(), bytes,
                                               ctabs);
                 if (dec != med_ress[pi]) rt = false;
@@ -2858,13 +2872,13 @@ static int run_t0_synth(const std::string& kind) {
                     fit.proto_of_group[(size_t)(graw / GROUP_CLASS_AXIS)] *
                         GROUP_CLASS_AXIS +
                     (graw % GROUP_CLASS_AXIS);
-            ClusterMap fcm = cm;
-            fcm.merge = &merge;
+            std::vector<ClusterMap> fcms = cms;
+            for (auto& m_ : fcms) m_.merge = &merge;
             SandboxModel fr;
             fr.init(TokProfile::ZFFCTRL, fit.centroids.clusters);
             std::vector<std::vector<TaggedEvent>> fevts(med_ress.size());
             for (size_t pi = 0; pi < med_ress.size(); ++pi)
-                count_plane(fr, TokProfile::ZFFCTRL, fcm, med_ress[pi],
+                count_plane(fr, TokProfile::ZFFCTRL, fcms[pi], med_ress[pi],
                             &fevts[pi]);
             SmoothedTables ftabs;
             build_tables_enforced(fr, ftabs);
@@ -2877,7 +2891,7 @@ static int run_t0_synth(const std::string& kind) {
                 auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
                                                 fevts[pi], ftabs);
                 payload += bytes.size();
-                auto dec = rans_decode_events(TokProfile::ZFFCTRL, fcm,
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, fcms[pi],
                                               med_ress[pi].size(), bytes,
                                               ftabs);
                 if (dec != med_ress[pi]) rt = false;
@@ -2939,13 +2953,13 @@ static int run_t0_synth(const std::string& kind) {
                     rw_words[(size_t)(graw / GROUP_CLASS_AXIS)] *
                         GROUP_CLASS_AXIS +
                     (graw % GROUP_CLASS_AXIS);
-            ClusterMap rcm = cm;
-            rcm.merge = &rm;
+            std::vector<ClusterMap> rcms = cms;
+            for (auto& m_ : rcms) m_.merge = &rm;
             SandboxModel rr;
             rr.init(TokProfile::ZFFCTRL, n_rp * GROUP_CLASS_AXIS);
             std::vector<std::vector<TaggedEvent>> revts(med_ress.size());
             for (size_t pi = 0; pi < med_ress.size(); ++pi)
-                count_plane(rr, TokProfile::ZFFCTRL, rcm, med_ress[pi],
+                count_plane(rr, TokProfile::ZFFCTRL, rcms[pi], med_ress[pi],
                             &revts[pi]);
             SmoothedTables rtabs;
             build_tables_enforced(rr, rtabs);
@@ -2958,7 +2972,7 @@ static int run_t0_synth(const std::string& kind) {
                 auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
                                                 revts[pi], rtabs);
                 rpay += bytes.size();
-                auto dec = rans_decode_events(TokProfile::ZFFCTRL, rcm,
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, rcms[pi],
                                               med_ress[pi].size(), bytes,
                                               rtabs);
                 if (dec != med_ress[pi]) rrt = false;

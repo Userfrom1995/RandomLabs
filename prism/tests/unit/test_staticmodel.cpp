@@ -1011,6 +1011,83 @@ TEST(GroupKeying, JointIdsArePlaneMajorRasterTimesClassAxis) {
     }
 }
 
+TEST(GroupKeying, PlanesNeverShareAStack) {
+    // Pin P-Q1-1 / addendum 20.2 ("group identity is per-plane"): two
+    // planes with opposite-sign content at the SAME tile positions land in
+    // DISJOINT stack ranges, and the joint model spans every plane's tiles.
+    const uint32_t w = 128, h = 64;   // exactly 2 GS64 tiles per plane
+    std::vector<int32_t> p0((size_t)w * h, -4000);
+    std::vector<int32_t> p1((size_t)w * h);
+    {
+        std::mt19937 rng(7);
+        std::uniform_int_distribution<int32_t> d(-5000, 5000);
+        for (auto& v : p1) v = d(rng);
+    }
+    SandboxModel m;
+    m.init(TokProfile::ZFFCTRL, 2 * 2 * GROUP_CLASS_AXIS);
+    std::vector<ClusterMap> cms(2);
+    for (int pi = 0; pi < 2; ++pi) {
+        cms[(size_t)pi] = cluster_map_keyed(KeyingId::KGROUP64);
+        cms[(size_t)pi].w = w;
+        cms[(size_t)pi].group_base = (uint32_t)pi * 2u;
+    }
+    count_plane(m, TokProfile::ZFFCTRL, cms[0], p0, nullptr);
+    count_plane(m, TokProfile::ZFFCTRL, cms[1], p1, nullptr);
+
+    const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+    auto span_events = [&](uint32_t g_lo, uint32_t g_hi) {
+        uint64_t t = 0;
+        for (uint32_t g = g_lo; g < g_hi; ++g)
+            for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+                const size_t base =
+                    ((size_t)g * GROUP_CLASS_AXIS + (size_t)c) * stride;
+                for (size_t i = 0; i < stride; ++i)
+                    t += m.n0[base + i] + m.n1[base + i];
+            }
+        return t;
+    };
+    // Plane 0 owns groups {0,1}; plane 1 owns groups {2,3}. Pooling (the
+    // pre-repair defect) leaves the second span EMPTY and doubles the
+    // first; per-plane identity fills both.
+    const uint64_t lo = span_events(0, 2), hi = span_events(2, 4);
+    EXPECT_GT(lo, (uint64_t)0);
+    EXPECT_GT(hi, (uint64_t)0);
+    EXPECT_EQ(m.clusters, 4 * GROUP_CLASS_AXIS);
+    // Distinct plane content must yield DISTINCT stack blocks across the
+    // boundary: concatenating each plane's joint rows shows no copying.
+    {
+        std::vector<uint64_t> blk0, blk1;
+        for (uint32_t g = 0; g < 2; ++g)
+            for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+                const size_t base =
+                    ((size_t)(g * GROUP_CLASS_AXIS + c)) * stride;
+                blk0.insert(blk0.end(), m.n0.begin() + base,
+                            m.n0.begin() + base + stride);
+                blk0.insert(blk0.end(), m.n1.begin() + base,
+                            m.n1.begin() + base + stride);
+            }
+        for (uint32_t g = 2; g < 4; ++g)
+            for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+                const size_t base =
+                    ((size_t)(g * GROUP_CLASS_AXIS + c)) * stride;
+                blk1.insert(blk1.end(), m.n0.begin() + base,
+                            m.n0.begin() + base + stride);
+                blk1.insert(blk1.end(), m.n1.begin() + base,
+                            m.n1.begin() + base + stride);
+            }
+        EXPECT_NE(blk0, blk1);
+    }
+    // The base offset moves whole tiles: plane 1's top-left tile is g2.
+    {
+        std::vector<int32_t> probe((size_t)w * h, 0);
+        const int cx = residual_diff_context(0, 0, 0);
+        EXPECT_EQ(cms[1].raw_at(0, probe),
+                  (2u * 16u) + ac_v2_prior_class((uint32_t)cx % 343u));
+        EXPECT_EQ(cms[0].raw_at(0, probe),
+                  ac_v2_prior_class((uint32_t)cx % 343u));
+    }
+}
+
 TEST(LloydCluster, SeparatedStacksStaySplitDeterministically) {
     // Byte-for-byte reproducibility (no RNG anywhere) plus the K > G clamp.
     const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
