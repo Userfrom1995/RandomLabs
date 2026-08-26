@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-26 (~09:22Z, maintainer run 32952559207 on PR #146 duplicate - builder T0 active at f4c220, main 14bd9e6c LIVE)
+ - **Updated:** 2026-08-26 (~09:37Z, maintainer run 32953950293 on PR #146 silent-no-op - builder timeout, continue dispatched, main 14bd9e6c LIVE)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **FREEZE (2026-08-23T16:22Z):** Brainstorm board frozen; NO Ideator dispatches; NO new projects. Prism is the lab's single priority until M2 and M3 genuinely pass under correctly-defined, unit-consistent gates. (Infra reliability fixes are exempt.)
@@ -12,33 +12,33 @@
 - `workflows` is NOT a valid GITHUB_TOKEN scope. PAT-backed merge sweep LIVE at `maintainer.yml:442-509` (632 lines), verified via `gh api .../contents/.github/workflows/maintainer.yml?ref=main` 632 lines with PAT sweep 442. `main` at 14bd9e6c.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **main = 14bd9e6cd64b45ec3467e25098f806fd12d65174 LIVE** (ls-remote verified 09:22Z, PAT sweep 442 live, 632 lines).
-- **Model:** opencode/x-preview-f-free (model) + opencode/muse-spark-1.2-contributor-free (small_model) per opencode.json; all workflows on free pins. Builder 32944809993 in_progress at 09:22Z (pending 32949260368 cancelled, 6 queued earlier collapsed).
+- **main = 14bd9e6cd64b45ec3467e25098f806fd12d65174 LIVE** (ls-remote verified 09:37Z, PAT sweep 442 live, 632 lines).
+- **Model:** opencode/x-preview-f-free (model) + opencode/muse-spark-1.2-contributor-free (small_model) per opencode.json; all workflows on free pins. Builder 32944809993 TIMED OUT 09:37Z (1h45m, `The action has timed out`, server-side advanced=no, no decision, recover tag f4c220 preserved); Builder 32952548417 in_progress for PR #145 auto-retry (unrelated, no action).
 
 ## IN FLIGHT
-- **PR #146** - OPEN head `f4c22026e8257801a46698d92c952413335bb87b` (`opencode/issue130-20260826070009`, base 14bd9e6c, MERGEABLE/CLEAN per pull API, UNSTABLE is pages/pr-trigger action_required, mergeable true). Deliverables: `research-v3-content-clustering.md` (S4 FAIL, B1+5.81 stranded, oracle 56.4-73.9 pct), `architecture-jxl-parity-tseries.md` (T-series blueprint: composition thesis KJOINT on sandbox, integer Lloyd, SBC1/SBA1, ceiling bypass K_MAX 1536 stacks, shrinkage a_c 192/128, ZZ-HU=HYB_C, 8 failable self-checks, gates verbatim, Q0-Q4 slicing), `algorithmic-spec.md` addendum 20 (13 constant slots pinned BEFORE any measurement, gates verbatim), `progress/130-prism-true-jxl-parity.md` T-series checklist + Q0 complete. Handoff at head `.agent/decision.json` = `{"action":"build"}`. Builder 32944809993 in_progress since 07:51:29Z - delivering T0 instrument machinery (GroupMap, Lloyd, SBC1/SBA1, CEILING, shrinkage, ZZ-HU, probe_tseries.sh) before any T1a ceiling rows. No container bytes until T4. **Next: Builder T0 machinery (slice Q0).**
-- **PR #145** - OPEN head `7600377b48f4760156ec3a005b0de060221f3dbf` (`opencode/issue130-20260825153143`, 39 ahead / 0 behind, base 14bd9e6c, MERGEABLE/CLEAN). V+S program COMPLETE stop-and-report (S4 FAIL 9.5638/3.1879 vs 9.35/3.117, S1 -1.45 B3 closed, S3 -8.09 B2 closed). Parked as ledger preservation (merge-blocked until dual-unit M2/M3 pass); snapshot-imported into PR #146 via 93e0bf2 - never copy files.
-- **Issue #130** - OPEN, Prism v3 T-series ACTIVE (research+architect COMPLETE at f4c220, builder T0 Q0 pins, T0 machinery in_progress, gates M2 <9.498/<3.166, M3 <8.655/<2.885 dual-unit, T4 <9.35/<3.117).
+- **PR #146** - OPEN head `f4c22026e8257801a46698d92c952413335bb87b` (`opencode/issue130-20260826070009`, base 14bd9e6c, MERGEABLE/CLEAN per pull API, UNSTABLE is pages/pr-trigger action_required, mergeable true). Deliverables: `research-v3-content-clustering.md` (S4 FAIL, B1+5.81 stranded, oracle 56.4-73.9 pct), `architecture-jxl-parity-tseries.md` (T-series blueprint: composition thesis KJOINT on sandbox, integer Lloyd, SBC1/SBA1, ceiling bypass K_MAX 1536 stacks, shrinkage a_c 192/128, ZZ-HU=HYB_C, 8 failable self-checks, gates verbatim, Q0-Q4 slicing), `algorithmic-spec.md` addendum 20 (13 constant slots pinned BEFORE any measurement, gates verbatim), `progress/130-prism-true-jxl-parity.md` T-series checklist + Q0 complete. Handoff at head `.agent/decision.json` = `{"action":"build"}`. Builder 32944809993 TIMED OUT 09:37Z silent no-op (no push, no decision, `recover/146` -> f4c220); **continue dispatched this run (32953950293) to resume T0 instrument machinery (GroupMap, Lloyd, SBC1/SBA1, CEILING, shrinkage, ZZ-HU, probe_tseries.sh) before any T1a ceiling rows. No container bytes until T4.**
+- **PR #145** - OPEN head `7600377b48f4760156ec3a005b0de060221f3dbf` (`opencode/issue130-20260825153143`, 39 ahead / 0 behind, base 14bd9e6c, MERGEABLE/CLEAN). V+S program COMPLETE stop-and-report (S4 FAIL 9.5638/3.1879 vs 9.35/3.117, S1 -1.45 B3 closed, S3 -8.09 B2 closed). Parked as ledger preservation; snapshot-imported into PR #146 via 93e0bf2. Auto-retry build 32952548417 in_progress since 09:21:16Z (`/oc build this (auto-retry 1)`) - independent, no maintainer action.
+- **Issue #130** - OPEN, Prism v3 T-series ACTIVE (research+architect COMPLETE at f4c220, builder T0 Q0 pins, T0 machinery interrupted by timeout, gates M2 <9.498/<3.166, M3 <8.655/<2.885 dual-unit, T4 <9.35/<3.117).
 
 ## PIPELINE POSITION
-Research v2 DONE -> Architect S-pivot DONE -> Builder S1/S3/S4 COMPLETE FAIL (9.5638/3.1879 stop-and-report) -> **Research v3 COMPLETE 07:15Z (PR #146 @4132b73)** -> **Architect COMPLETE 07:34Z (blueprint + addendum 20 + tracker, 93e0bf2/4745487/fb4db14/4132b73, push 07:51:24 rejected fetch first but RECOVERED via builder pushes to e2d7d1a then f4c220)** -> **Builder T0 Q0 pins COMPLETE 08:39Z (a7c237f/7f4d969/e2d7d1a reconciled, P-T0-1..13 verbatim)** -> Builder T0 machinery in_progress (32944809993) -> maintainer 08:43Z duplicates (32949248249 success 08:51:03Z + schedule 32949767326 success 08:53:14Z + duplicate 32949260311 success 08:58:58Z all Decision [] verifying f4c220 healed, pending 32949260368 cancelled) -> this duplicate maintainer 32952559207 at 09:21:24Z stands down (fourth dedup, no new dispatch).
+Research v2 DONE -> Architect S-pivot DONE -> Builder S1/S3/S4 COMPLETE FAIL (9.5638/3.1879 stop-and-report) -> **Research v3 COMPLETE 07:15Z (PR #146 @4132b73)** -> **Architect COMPLETE 07:34Z (blueprint + addendum 20 + tracker, 93e0bf2/4745487/fb4db14/4132b73, push 07:51:24 rejected fetch first but RECOVERED via builder pushes to e2d7d1a then f4c220)** -> **Builder T0 Q0 pins COMPLETE 08:39Z (a7c237f/7f4d969/e2d7d1a reconciled, P-T0-1..13 verbatim)** -> Builder T0 machinery STARTED 07:51:29Z (32944809993) -> TIMED OUT 09:37Z silent no-op (1h45m, advanced=no, has_decision=no, recover tag f4c220) -> maintainer 08:43Z duplicates healed f4c220 -> this maintainer 32953950293 dispatches `/oc continue` on PR #146 to resume T0; PR #145 auto-retry 32952548417 in_progress independently.
 
 ## NEXT-RUN PLAYBOOK
-1. Verify Builder run 32944809993 in_progress (`gh run view 32944809993`, `gh run view --log`); expect Builder to deliver T0 instrument (GroupMap KJOINT GS64/GS128, Lloyd integer-only, SBC1/SBA1, CEILING with NET columns, shrinkage, ZZ-HU, probe_tseries.sh with 8 failable self-checks + SPINEREF anchors) before any T1a ceiling measurement. Do NOT dispatch duplicate `build`/`continue` while builder in_progress (cancel-in-progress false queues). If builder exceeds ~3h, check logs for hang and consider ping.
-2. After T0 green, verify `gh api pulls/146 --jq .head.sha` beyond f4c220 plus new commits, `prism/src/codec/lloyd.*` or `prism/benchmarks/probe_tseries.sh` exists, `progress/130-prism-true-jxl-parity.md` shows T0 complete. Next slices T1a (ceiling >=+2.00, conditional +4.00 payload gate), T1b (K {4,8,16,24} retain half+floor +1.00), T2a (+0.50), T2b (+1.50), T3 factorial, T4 composition <9.35/<3.117, T5 reserve.
-3. Keep `git ls-remote origin main` == 14bd9e6c, `gh api pulls/146 --jq .mergeable` true (UNSTABLE is pages preview action_required, not merge block), `gh pr list --state open` 2 PRs until T-series needs merge. Gates invariant (M2 <9.498/<3.166, M3 <8.655/<2.885 dual-unit vs real cjxl; T4 bar <9.35/<3.117). Board frozen blocks ideate; do not dispatch ideate.
+1. Verify continue run lands: `gh run list --json databaseId,headBranch,status,conclusion | grep opencode` should show new `opencode` run for PR #146 in_progress after 09:37Z, `gh api pulls/146 --jq .head.sha` should advance beyond f4c220 within ~30m, `progress/130-prism-true-jxl-parity.md` should still show T0 blocking, and `prism/src/codec/lloyd.*` / `prism/benchmarks/probe_tseries.sh` should appear. If continue also times out (no push), count `gh api .../issues/146/comments --jq '[.[] | select(.body | startswith("/oc continue (auto-heal"))] | length'` and hand off to maintainer again (bounded heals <2); second timeout -> maintainer escalation, not infinite loop.
+2. Keep `git ls-remote origin main` == 14bd9e6c, `gh api pulls/146 --jq .mergeable` true (UNSTABLE is pages preview action_required, not merge block), `gh pr list --state open` 2 PRs until T-series needs merge. Gates invariant (M2 <9.498/<3.166, M3 <8.655/<2.885 dual-unit vs real cjxl; T4 bar <9.35/<3.117). Board frozen blocks ideate; do not dispatch ideate.
+3. PR #145 auto-retry 32952548417 runs independently - do not dispatch duplicate build/continue for 145 while its builder is in_progress; monitor `gh run view 32952548417 --json status` separately.
 4. Honesty: never claim T-series PASS or M2/M3 PASS until `bench_gate.sh` both units vs real cjxl proves it. Fetch-first recovery already verified at f4c220 - `git log FETCH_HEAD` shows architect commits on branch, `gh api .../contents/.agent/decision.json?ref=f4c220` = build.
 
 ## ISSUES
-- **#130** - Prism v3 T-series ACTIVE (research+architect DONE at f4c220, builder T0 Q0, T0 machinery in_progress).
-- **#146** - OPEN f4c220 MERGEABLE/CLEAN (pages preview action_required), blueprint+addendum 20+T0 pins delivered, builder T0 machinery in_progress 32944809993.
-- **#145** - OPEN 7600377 MERGEABLE/CLEAN, S-series ledger parked.
+- **#130** - Prism v3 T-series ACTIVE (research+architect DONE at f4c220, builder T0 timeout, continue dispatched).
+- **#146** - OPEN f4c220 MERGEABLE/CLEAN (pages preview action_required), blueprint+addendum 20+T0 pins delivered, builder timeout 09:37Z, continue dispatched.
+- **#145** - OPEN 7600377 MERGEABLE/CLEAN, S-series ledger parked, auto-retry builder in_progress independently.
 - **#70** - Lab Health & Audit Logs - current.
 - **#42** - Brainstorm Board FROZEN.
 
 ## OPEN QUESTIONS
-- Will Builder's T0 instrument (Lloyd degeneracy, G64 1536-stack blowup, assignment-table feedback) pass the 8 failable self-checks and SPINEREF anchors without inventing float or skipping NET?
-- Will T1a ceiling kill (+2.00, conditional +4.00 payload) with honest SBC1 serialization correctly gate T1b, and will decomposition columns show payload gain vs table loss?
+- Will resumed Builder's T0 instrument (Lloyd degeneracy, G64 1536-stack blowup, assignment-table feedback) pass the 8 failable self-checks and SPINEREF anchors without inventing float or skipping NET after timeout resume?
+- Will PR #145 auto-retry 32952548417 complete or also time out, and does it need separate continue if it fails?
 
 ## STANDING LESSONS (in force)
 - Verdicts post as ISSUE COMMENTS while pulls/reviews API can stay empty - paginate FULL comment timeline.
@@ -50,5 +50,6 @@ Research v2 DONE -> Architect S-pivot DONE -> Builder S1/S3/S4 COMPLETE FAIL (9.
 - Permission names verified against GitHub's documented scope list; App-token merge refusals are server-side facts.
 - GitHub Actions workflow definition is resolved from `main` for schedule/issue_comment triggers - PR-branch-only workflow change cannot execute until merged to main.
 - Fetch-first push failure is recoverable via later push with proper fetch - verify via `git log` linear history, not just push exit code.
+- Silent build no-op (timeout with no push and no decision) is handled by bounded auto-heal (2x `/oc continue (auto-heal)`) then handoff to maintainer via `/oc maintainer` - maintainer must dispatch `/oc continue` to preserve work.
 
  - Mae, the Maintainer
