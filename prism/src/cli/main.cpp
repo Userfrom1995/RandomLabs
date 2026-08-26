@@ -49,7 +49,9 @@ static void print_usage() {
               << "  prism bench-sandbox --s3 <image>...   (S-series extended causal properties)\n"
               << "  prism bench-sandbox --s4 <image>...   (S-series composition + projection)\n"
               << "  prism bench-sandbox --t0 <image>...   (T-series instrument smoke; kodim01 only)\n"
-              << "  prism bench-sandbox --t0-synth homo|skew  (T0 synthetic fixtures, no anchors)\n";
+              << "  prism bench-sandbox --t0-synth homo|skew  (T0 synthetic fixtures, no anchors)\n"
+              << "  prism bench-sandbox --t1a <image>...  (T-series ceiling kill test)\n"
+              << "  prism bench-sandbox --t1b <image>...  (T-series content-defined codebooks)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -935,6 +937,8 @@ static void run_s3_image(const std::filesystem::path& img);
 static void run_s4_image(const std::filesystem::path& img);
 static void run_t0_image(const std::filesystem::path& img);
 static int run_t0_synth(const std::string& kind);
+static void run_t1a_image(const std::filesystem::path& img);
+static void run_t1b_image(const std::filesystem::path& img);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -1024,6 +1028,30 @@ static int run_bench_sandbox(int argc, char** argv) {
                 return 2;
             }
             return sandboxrun::run_t0_synth(argv[++i]);
+        }
+        if (a == "--t1a") {
+            // T-series slice Q1 ceiling kill test (spec addendum 20.2/
+            // 20.5; pins P-Q1-1..P-Q1-9 BEFORE any measurement).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --t1a: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_t1a_image(img);
+            return 0;
+        }
+        if (a == "--t1b") {
+            // T-series slice Q1 conditional codebook phase (spec addendum
+            // 20.2 K SET measured whole; pins P-Q1-5/P-Q1-6).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --t1b: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_t1b_image(img);
+            return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
             prof_names = split_list(argv[++i]);
@@ -2990,6 +3018,438 @@ static int run_t0_synth(const std::string& kind) {
         }
     }
     return 0;
+}
+
+// ----- bench-sandbox --t1a / --t1b (T-series slice Q1; spec addendum
+// 20.2/20.5 + pins P-Q1-1..P-Q1-9 in decisions/builder/2026-08-26T11-20-00)
+// -----
+//
+// T1a ceiling kill test: per-group EXACT static stacks serialized through
+// the 'SBM1' hierarchical shape (global prior + per-group s16 deltas,
+// rANS-compressed, CRC32), fully NETTED, no assignment bits by
+// construction; swept over BOTH group sizes x ALL SEVEN D4c color trials.
+// T1b (separate invocation and CSV): content-defined codebooks at the
+// pinned K set under 'SBC1', assignment words NETTED, coding ALWAYS
+// against the TRANSMITTED prototype tables (pin P-Q1-5). Both re-run the
+// fresh-in-run T-BASE control beside every candidate (addendum 20.1).
+//
+// Row schemas (pin P-Q1-8):
+//   T1,img,cand,trial,gs,be,payload,tables,maps,trees,assign,net,audit,
+//       rt,tbl_bits,keff,payload_pct_gain
+//   TSUM,img,arm,bp,bt,bm,btr,ba,bnet,p,t,m,tr,a,net,paygain,relpct,sole
+// Winner rules: T-BASE ties go to ADAPT; CEIL/CB arms keep their first
+// strict minimum scanning trials ascending (ties = lowest color-trial
+// id); CEIL arm-vs-arm ties keep the SMALLER tile edge (pin P-Q1-2).
+
+namespace t1run {
+
+struct T1Row {
+    std::string img, cand, trial, gs, be;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, assign = 0;
+    bool audit_ok = true, rt = true;
+    double tbl_bits = 0;
+    int keff = 0;
+    uint64_t net() const {
+        return payload + tables + maps + trees + assign;
+    }
+};
+
+struct TBaseWin {
+    bool have = false;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, assign = 0,
+             net = 0;
+};
+
+// Fresh-in-run T-BASE winner: real NET bytes over {ADAPT, SPINE} rows
+// (B-ADAPT / B-RANS gating rows only); ties to ADAPT (addendum 20.1).
+static TBaseWin pick_base(const std::vector<T1Row>& rows) {
+    TBaseWin w;
+    bool best_is_adapt = false;
+    for (const T1Row& r : rows) {
+        if (r.cand != "ADAPT" && r.cand != "SPINE") continue;
+        if (r.be != "B-ADAPT" && r.be != "B-RANS") continue;
+        const bool adapt = (r.cand == "ADAPT");
+        if (!w.have || r.net() < w.net ||
+            (r.net() == w.net && adapt && !best_is_adapt)) {
+            w.have = true;
+            w.payload = r.payload;
+            w.tables = r.tables;
+            w.maps = r.maps;
+            w.trees = r.trees;
+            w.assign = r.assign;
+            w.net = r.net();
+            best_is_adapt = adapt;
+        }
+    }
+    return w;
+}
+
+// First strict minimum in scan order (deterministic tie to the earliest
+// trial id) among the rows matching pred.
+template <typename Pred>
+static const T1Row* arm_winner(const std::vector<T1Row>& rows, Pred pred) {
+    const T1Row* best = nullptr;
+    for (const T1Row& r : rows)
+        if (pred(r) && (!best || r.net() < best->net())) best = &r;
+    return best;
+}
+
+static void emit_tsum(const std::string& img, const char* arm,
+                      const TBaseWin& b, const T1Row& c) {
+    char rowbuf[512];
+    const int64_t dp = (int64_t)c.payload - (int64_t)b.payload;
+    const int64_t dt = (int64_t)c.tables - (int64_t)b.tables;
+    const int64_t dm = (int64_t)c.maps - (int64_t)b.maps;
+    const int64_t dtr = (int64_t)c.trees - (int64_t)b.trees;
+    const int64_t da = (int64_t)c.assign - (int64_t)b.assign;
+    const double paygain =
+        (b.payload > 0)
+            ? 100.0 * ((double)b.payload - (double)c.payload) /
+                  (double)b.payload
+            : 0.0;
+    const double relpct =
+        (b.net > 0)
+            ? 100.0 * ((double)b.net - (double)c.net()) / (double)b.net
+            : 0.0;
+    // Pin P-Q1-4: table bytes are the SOLE losing term iff they grew while
+    // payload did not and every other component stayed identical.
+    const bool sole = (dt > 0) && (dp <= 0) && (dm == 0) && (dtr == 0) &&
+                      (da == 0);
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "TSUM,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
+                  "%zu,%.4f,%.4f,%d\n",
+                  img.c_str(), arm, (size_t)b.payload, (size_t)b.tables,
+                  (size_t)b.maps, (size_t)b.trees, (size_t)b.assign,
+                  (size_t)b.net, (size_t)c.payload, (size_t)c.tables,
+                  (size_t)c.maps, (size_t)c.trees, (size_t)c.assign,
+                  (size_t)c.net(), paygain, relpct, sole ? 1 : 0);
+    std::cout << rowbuf;
+}
+
+static void emit_rows(const std::string& img_name,
+                      const std::vector<T1Row>& rows, const TBaseWin& base) {
+    char rowbuf[512];
+    for (const T1Row& r : rows) {
+        const double paygain =
+            (base.have && base.payload > 0)
+                ? 100.0 * ((double)base.payload - (double)r.payload) /
+                      (double)base.payload
+                : 0.0;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "T1,%s,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%d,%d,"
+                      "%.3f,%d,%.4f\n",
+                      img_name.c_str(), r.cand.c_str(), r.trial.c_str(),
+                      r.gs.c_str(), r.be.c_str(), (size_t)r.payload,
+                      (size_t)r.tables, (size_t)r.maps, (size_t)r.trees,
+                      (size_t)r.assign, (size_t)r.net(),
+                      r.audit_ok ? 1 : 0, r.rt ? 1 : 0, r.tbl_bits, r.keff,
+                      paygain);
+        std::cout << rowbuf;
+    }
+}
+
+// Anchors on the plain YCoCgR MED streams plus the fresh T-BASE control
+// sweep across ALL seven D4c color trials (identical emission rules to
+// s4/t0 so every rail guards this file too).
+static void measure_base(const Raster& r, const std::string& img_name,
+                         std::vector<T1Row>& rows) {
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    std::vector<std::vector<int32_t>> med_ress;
+    med_ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(med_ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(med_ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    emit_s4_anchors(img_name, t, med_ress, v0b, v2b);
+
+    for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+        const char* tn = prism::codec::colorrot::name(id);
+        Raster tt = prism::codec::colorrot::apply(r, id);   // BD8 RGB only
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            ress.push_back(compute_residuals(plane, tt.w, tt.h,
+                                             PredId::MED));
+        {   // ADAPT candidate: production replay, zero side info.
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    acoder_encode_plane_v2(ress[pi], tt.w, tt.h,
+                                           AC_V2_RESDIFF_CONTEXTS);
+                payload += bytes.size();
+                auto dec =
+                    acoder_decode_plane_v2(bytes, ress[pi].size(), tt.w,
+                                           tt.h, AC_V2_RESDIFF_CONTEXTS);
+                if (dec != ress[pi]) rt = false;
+            }
+            T1Row row;
+            row.img = img_name; row.cand = "ADAPT"; row.trial = tn;
+            row.gs = "NONE"; row.be = "B-ADAPT"; row.payload = payload;
+            row.rt = rt;
+            rows.push_back(row);
+        }
+        {   // SPINE candidate: static spine ZFFCTRL x KFLAT16 NETTED.
+            PreparedConfig cfg;
+            prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16,
+                                 tt.w, ress, cfg);
+            cfg.plane_residuals = ress;
+            double tbl_bits = 0;
+            for (size_t pi = 0; pi < ress.size(); ++pi)
+                tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL,
+                                             cfg.evts[pi], cfg.tabs);
+            {
+                T1Row row;
+                row.img = img_name; row.cand = "SPINE"; row.trial = tn;
+                row.gs = "NONE"; row.be = "B-IDEAL";
+                row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+                row.tables = cfg.art.table_blob.size();
+                row.maps = cfg.art.map_blob.size();
+                row.audit_ok = cfg.art.audits_ok;
+                row.tbl_bits = tbl_bits; row.keff = 16;
+                rows.push_back(row);
+            }
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    rans_encode_events(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                       cfg.tabs);
+                payload += bytes.size();
+                auto dec =
+                    rans_decode_events(TokProfile::ZFFCTRL, cfg.cms[pi],
+                                       cfg.plane_residuals[pi].size(),
+                                       bytes, cfg.tabs);
+                if (dec != cfg.plane_residuals[pi]) rt = false;
+            }
+            T1Row row;
+            row.img = img_name; row.cand = "SPINE"; row.trial = tn;
+            row.gs = "NONE"; row.be = "B-RANS"; row.payload = payload;
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.audit_ok = cfg.art.audits_ok; row.rt = rt;
+            row.tbl_bits = tbl_bits; row.keff = 16;
+            rows.push_back(row);
+        }
+    }
+}
+
+} // namespace t1run
+
+void run_t1a_image(const std::filesystem::path& img) {
+    using namespace t1run;
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    std::vector<T1Row> rows;
+    measure_base(r, img_name, rows);
+
+    // CEILING candidates: exact per-group stacks under BOTH pinned group
+    // sizes x ALL color trials ('SBM1' serialization fully NETTED;
+    // assignment bits impossible BY CONSTRUCTION, pin P-T0-6/P-Q1-2).
+    for (KeyingId key : {KeyingId::KGROUP64, KeyingId::KGROUP128}) {
+        const char* gs_name = (key == KeyingId::KGROUP64) ? "GS64" : "GS128";
+        for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+            const char* tn = prism::codec::colorrot::name(id);
+            Raster tt = prism::codec::colorrot::apply(r, id);
+            std::vector<std::vector<int32_t>> ress;
+            ress.reserve(tt.planes.size());
+            for (auto& plane : tt.planes)
+                ress.push_back(compute_residuals(plane, tt.w, tt.h,
+                                                 PredId::MED));
+            SandboxModel joint;
+            std::vector<ClusterMap> cms =
+                t0run::count_joint(TokProfile::ZFFCTRL, key, tt.w, ress,
+                                   joint);
+            const int G = joint.clusters / GROUP_CLASS_AXIS;
+            SmoothedTables tabs;
+            build_tables_enforced(joint, tabs);
+            size_t audit = 0;
+            auto blob = serialize_tables(tabs, &audit);
+            const bool audit_ok = (audit == blob.size());
+            std::vector<std::vector<TaggedEvent>> evts(ress.size());
+            {
+                SandboxModel recount;
+                recount.init(TokProfile::ZFFCTRL, joint.clusters);
+                for (size_t pi = 0; pi < ress.size(); ++pi)
+                    count_plane(recount, TokProfile::ZFFCTRL, cms[pi],
+                                ress[pi], &evts[pi]);
+            }
+            double tbl_bits = 0;
+            for (size_t pi = 0; pi < ress.size(); ++pi)
+                tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                             tabs);
+            {
+                T1Row row;
+                row.img = img_name; row.cand = "CEIL"; row.trial = tn;
+                row.gs = gs_name; row.be = "B-IDEAL";
+                row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+                row.tables = blob.size();
+                row.audit_ok = audit_ok; row.tbl_bits = tbl_bits;
+                row.keff = G;
+                rows.push_back(row);
+            }
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                evts[pi], tabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cms[pi],
+                                              ress[pi].size(), bytes, tabs);
+                if (dec != ress[pi]) rt = false;
+            }
+            T1Row row;
+            row.img = img_name; row.cand = "CEIL"; row.trial = tn;
+            row.gs = gs_name; row.be = "B-RANS"; row.payload = payload;
+            row.tables = blob.size(); row.audit_ok = audit_ok; row.rt = rt;
+            row.tbl_bits = tbl_bits; row.keff = G;
+            rows.push_back(row);
+        }
+    }
+
+    // Winners + emission (pins P-Q1-2..P-Q1-4): the T-BASE winner is the
+    // denominator; CEIL arms keep their first strict minimum scanning
+    // trials ascending; arm-vs-arm ties keep GS64 (smaller tile edge).
+    const TBaseWin base = pick_base(rows);
+    if (!base.have)
+        throw std::runtime_error("bench-sandbox --t1a: no T-BASE rows");
+    const T1Row* w64 = arm_winner(rows, [](const T1Row& q) {
+        return q.cand == "CEIL" && q.gs == "GS64" && q.be == "B-RANS";
+    });
+    const T1Row* w128 = arm_winner(rows, [](const T1Row& q) {
+        return q.cand == "CEIL" && q.gs == "GS128" && q.be == "B-RANS";
+    });
+    if (!w64 || !w128)
+        throw std::runtime_error("bench-sandbox --t1a: missing CEIL arm");
+    emit_tsum(img_name, "CEIL@GS64", base, *w64);
+    emit_tsum(img_name, "CEIL@GS128", base, *w128);
+    emit_rows(img_name, rows, base);
+}
+
+void run_t1b_image(const std::filesystem::path& img) {
+    using namespace t1run;
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    std::vector<T1Row> rows;
+    measure_base(r, img_name, rows);
+
+    // Content-defined codebooks: K measured WHOLE (addendum 20.2), both
+    // group sizes, all color trials. Coding uses ONLY the transmitted
+    // prototype tables (pin P-Q1-5); assignment words ride inside 'SBC1'
+    // and are NETTED in the assign column.
+    for (int k_want : CODEBOOK_K_SET) {
+        for (KeyingId key : {KeyingId::KGROUP64, KeyingId::KGROUP128}) {
+            const char* gs_name =
+                (key == KeyingId::KGROUP64) ? "GS64" : "GS128";
+            for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+                const char* tn = prism::codec::colorrot::name(id);
+                Raster tt = prism::codec::colorrot::apply(r, id);
+                std::vector<std::vector<int32_t>> ress;
+                ress.reserve(tt.planes.size());
+                for (auto& plane : tt.planes)
+                    ress.push_back(compute_residuals(plane, tt.w, tt.h,
+                                                     PredId::MED));
+                SandboxModel joint;
+                std::vector<ClusterMap> cms =
+                    t0run::count_joint(TokProfile::ZFFCTRL, key, tt.w, ress,
+                                       joint);
+                CodebookFit fit = lloyd_cluster(joint, k_want);
+                SmoothedTables protos;
+                build_tables_enforced(fit.centroids, protos);
+                size_t audit = 0;
+                size_t words_tail = 0;
+                auto blob = serialize_codebook(protos, fit.proto_of_group,
+                                               &audit, &words_tail);
+                if (audit != blob.size()) {
+                    throw std::runtime_error(
+                        "bench-sandbox --t1b: 'SBC1' audit disagrees");
+                }
+                deserialize_codebook(blob, &protos,
+                                     &fit.proto_of_group);   // mirror-exact
+                std::vector<uint32_t> merge((size_t)joint.clusters);
+                for (uint32_t graw = 0; graw < (uint32_t)joint.clusters;
+                     ++graw)
+                    merge[(size_t)graw] =
+                        fit.proto_of_group[(size_t)(graw /
+                                                    GROUP_CLASS_AXIS)] *
+                            GROUP_CLASS_AXIS +
+                        (graw % GROUP_CLASS_AXIS);
+                std::vector<ClusterMap> cb_cms = cms;
+                for (auto& m_ : cb_cms) m_.merge = &merge;
+                SandboxModel recount;
+                recount.init(TokProfile::ZFFCTRL, fit.centroids.clusters);
+                std::vector<std::vector<TaggedEvent>> evts(ress.size());
+                for (size_t pi = 0; pi < ress.size(); ++pi)
+                    count_plane(recount, TokProfile::ZFFCTRL, cb_cms[pi],
+                                ress[pi], &evts[pi]);
+                double tbl_bits = 0;
+                for (size_t pi = 0; pi < ress.size(); ++pi)
+                    tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL,
+                                                 evts[pi], protos);
+                char cand[16];
+                std::snprintf(cand, sizeof(cand), "CB%d", k_want);
+                {
+                    T1Row row;
+                    row.img = img_name; row.cand = cand; row.trial = tn;
+                    row.gs = gs_name; row.be = "B-IDEAL";
+                    row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+                    row.tables = blob.size() - words_tail;
+                    row.assign = words_tail;
+                    row.audit_ok = true; row.tbl_bits = tbl_bits;
+                    row.keff = fit.k_transmitted;
+                    rows.push_back(row);
+                }
+                uint64_t payload = 0;
+                bool rt = true;
+                for (size_t pi = 0; pi < ress.size(); ++pi) {
+                    auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                    evts[pi], protos);
+                    payload += bytes.size();
+                    auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                                  cb_cms[pi],
+                                                  ress[pi].size(), bytes,
+                                                  protos);
+                    if (dec != ress[pi]) rt = false;
+                }
+                T1Row row;
+                row.img = img_name; row.cand = cand; row.trial = tn;
+                row.gs = gs_name; row.be = "B-RANS"; row.payload = payload;
+                row.tables = blob.size() - words_tail;
+                row.assign = words_tail; row.audit_ok = true; row.rt = rt;
+                row.tbl_bits = tbl_bits; row.keff = fit.k_transmitted;
+                rows.push_back(row);
+            }
+        }
+    }
+
+    // Winners + emission: one TSUM per pre-named configuration (the K set
+    // is reported whole; the EVALUATOR picks the median winner once).
+    const TBaseWin base = pick_base(rows);
+    if (!base.have)
+        throw std::runtime_error("bench-sandbox --t1b: no T-BASE rows");
+    char arm[24];
+    for (int k_want : CODEBOOK_K_SET) {
+        for (const char* gs_name : {"GS64", "GS128"}) {
+            const T1Row* w = arm_winner(rows, [&](const T1Row& q) {
+                char cand[16];
+                std::snprintf(cand, sizeof(cand), "CB%d", k_want);
+                return q.cand == cand &&
+                       q.gs == gs_name && q.be == "B-RANS";
+            });
+            if (!w)
+                throw std::runtime_error(
+                    "bench-sandbox --t1b: missing configuration");
+            std::snprintf(arm, sizeof(arm), "CB%d@%s", k_want, gs_name);
+            emit_tsum(img_name, arm, base, *w);
+        }
+    }
+    emit_rows(img_name, rows, base);
 }
 
 } // namespace sandboxrun
