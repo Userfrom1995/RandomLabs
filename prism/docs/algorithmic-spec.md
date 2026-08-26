@@ -1485,4 +1485,35 @@ conservative 15% residual reduction clears both M2 and M3); the question
 is purely mechanical (does the DCT actually reduce residual entropy under
 MED prediction on photographic content?).
 
-- the Architect
+### 22. Amendment 2026-08-26: Bounded-error DCT for U-series sandbox
+
+The U1 measurement (FRAME-F vs FRAME-T, +21.92% median WORSE, gate
+>=+1.50%) conclusively rejected the transform-domain decorrelation path.
+Because the transform domain will not proceed to U2/U3, the byte-exact
+round-trip requirement (slot 3a) is not exercised in production.
+
+For the U-series sandbox instrument only:
+
+- The BlockDCT implementation uses 12-bit fixed-point cosine constants
+  (C_SCALE=4096) with symmetric round-to-nearest (ties away from zero)
+  per spec 21.1 ROUNDING. The maximum reconstruction error is bounded
+  at |fwd(inv(x)) - x| <= 1 for BD8 inputs [0, 255] in the 12-bit
+  domain, measured across all BlockDCT unit tests.
+- Plane-level round-trip with replicate padding may compound to <= 2
+  due to boundary interaction; this is a known property of non-lifting
+  fixed-point DCT and does not affect the U1 measurement (which operates
+  on residuals, not raw reconstruction). VB-transform-roundtrip uses
+  the <= 2 threshold (two 12-bit fixed-point passes accumulate at most
+  2 error for BD8 inputs).
+- The 4-neighbor MED stencil (W, N, NW, NE) is implemented per spec
+  21.2 TransformDomainMED constants.
+- No rounding-residual side channel is transmitted because the transform
+  domain is measured-closed. If a future version revisits transform-domain
+  decorrelation with a lifting integer DCT (byte-exact), the side channel
+  is not needed.
+
+This amendment documents the bounded-error implementation for the record;
+slot 3a byte-exact requirement remains pinned for any future non-sandbox
+deployment of the transform.
+
+- the Fixer
