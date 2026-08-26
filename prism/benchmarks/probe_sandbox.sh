@@ -70,6 +70,9 @@ SELF_CHECK_S4=0
 MODE_S4=0
 SELF_CHECK_T0=0
 MODE_T0=0
+SELF_CHECK_T1=0
+MODE_T1A=0
+MODE_T1B=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -86,6 +89,9 @@ while [[ $# -gt 0 ]]; do
     --s4) MODE_S4=1; shift;;
     --self-check-t0) SELF_CHECK_T0=1; shift;;
     --t0) MODE_T0=1; shift;;
+    --self-check-t1) SELF_CHECK_T1=1; shift;;
+    --t1a) MODE_T1A=1; shift;;
+    --t1b) MODE_T1B=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -95,7 +101,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # evaluate SANDBOX_CSV REF_CSV RANK_SKEW_CSV RANK_HOMO_CSV [E1_CSV]
 # Exits nonzero when any VB rail-integrity check fails.
 evaluate() {
-  python3 - "$1" "$2" "$3" "$4" "${5:-}" <<'PY'
+  python3 - "$1" "$2" "$3" "$4" "${5:-}" "${6:-}" <<'PY'
 import sys
 
 FID_NUM, FID_DEN = 1005, 1000     # +0.50 percent coder-fidelity bound
@@ -106,12 +112,33 @@ def fail(msg):
     global ok
     ok = False
 
+def median(xs):
+    s = sorted(xs)
+    return s[len(s) // 2] if len(s) % 2 else \
+        (s[len(s) // 2 - 1] + s[len(s) // 2]) / 2.0
+
+def _read_t1a_pg(path):
+    # PG (pin P-Q1-6): max over CEIL@* arms of the quad-median
+    # payload_pct_gain from the same-run t1a CSV.
+    try:
+        arms = {}
+        for line in open(path):
+            f = line.rstrip("\n").split(",")
+            if f[0] == "TSUM" and f[2].startswith("CEIL@"):
+                arms.setdefault(f[2], []).append(float(f[15]))
+        if not arms:
+            return None
+        return max(median(v) for v in arms.values())
+    except OSError:
+        return None
+
 ok = True
 
 # ----- parse the sandbox run -----
 sand, bracket, corrupt, v1rows, s1rows, s3rows, s4rows = [], [], [], [], \
     [], [], []
 t0rows, tproto, tamirror, tzzhu = [], [], [], []
+t1rows, tsumrows = [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -165,6 +192,22 @@ for line in open(sys.argv[1]):
                          "nwords": int(f[3]), "rt": f[4] == "1"})
     elif f[0] == "TZZHU":
         tzzhu.append({"img": f[1], "label": f[2], "prof": int(f[3])})
+    elif f[0] == "T1" and len(f) >= 17:
+        t1rows.append({"img": f[1], "cand": f[2], "trial": f[3],
+                       "gs": f[4], "be": f[5], "payload": int(f[6]),
+                       "tables": int(f[7]), "maps": int(f[8]),
+                       "trees": int(f[9]), "assign": int(f[10]),
+                       "net": int(f[11]), "audit": f[12], "rt": f[13],
+                       "keff": int(f[15])})
+    elif f[0] == "TSUM" and len(f) >= 18:
+        tsumrows.append({"img": f[1], "arm": f[2], "bp": int(f[3]),
+                         "bt": int(f[4]), "bm": int(f[5]),
+                         "btr": int(f[6]), "ba": int(f[7]),
+                         "bnet": int(f[8]), "p": int(f[9]),
+                         "t": int(f[10]), "m": int(f[11]),
+                         "tr": int(f[12]), "a": int(f[13]),
+                         "net": int(f[14]), "paygain": float(f[15]),
+                         "relpct": float(f[16]), "sole": f[17] == "1"})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -935,11 +978,6 @@ if t0rows or tproto or tamirror or tzzhu:
         fail(f"t0 anchor coverage: {img} has no SANDBOX anchor row")
 
     # ---- NON-GATING diagnostic readout (prints, decides nothing) ----
-    def median(xs):
-        s = sorted(xs)
-        return s[len(s) // 2] if len(s) % 2 else \
-            (s[len(s) // 2 - 1] + s[len(s) // 2]) / 2.0
-
     print("== T0 DIAGNOSTIC READOUT (addendum 20.6; NON-GATING per pin "
           "P-T0-11 - no verdict here opens any phase) ==")
     tb_win = {}
@@ -989,6 +1027,219 @@ if t0rows or tproto or tamirror or tzzhu:
     print(f"T0 smoke complete on {sorted(t0_imgs)}; quad verdict numbers "
           f"start at T1a (K set {keffs if cb_rows else '[]'} observed on "
           f"kodim01)")
+
+# ----- T1 rows (slice Q1; pins P-Q1-2..P-Q1-9): rail integrity flips the
+# exit code, gate verdicts never do. -----
+if t1rows:
+    # VB-net-audit-t on T1 rows: I12 extended identity + per-candidate
+    # schema contracts.
+    bad_audit = bad_net = bad_rt = bad_schema = 0
+    for r in t1rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != (r["payload"] + r["tables"] + r["maps"] +
+                        r["trees"] + r["assign"]):
+            bad_net += 1
+        if r["be"] in ("B-RANS", "B-ADAPT") and r["rt"] != "1":
+            bad_rt += 1
+        if r["cand"] == "ADAPT" and (r["tables"] or r["maps"] or
+                                     r["trees"] or r["assign"]):
+            bad_schema += 1     # production replay carries zero side info
+        if r["cand"] == "SPINE" and (r["trees"] or r["assign"]):
+            bad_schema += 1     # spine transmits tables + 'SBP1' only
+        if r["cand"] == "CEIL" and (r["maps"] or r["trees"] or
+                                    r["assign"]):
+            bad_schema += 1     # ceiling: assignment bits impossible BY
+                                # CONSTRUCTION (pin P-T0-6)
+        if r["cand"].startswith("CB") and (r["maps"] or r["trees"]):
+            bad_schema += 1     # codebooks carry tables + words only
+        if r["cand"] not in ("ADAPT",) and r["keff"] < 1:
+            bad_schema += 1     # every sandbox family reports its K
+    if bad_audit or bad_net or bad_rt or bad_schema:
+        fail(f"net-audit-t(T1): {bad_audit} audit disagreements, "
+             f"{bad_net} NET identity violations, {bad_rt} round-trip "
+             f"failures, {bad_schema} schema violations")
+    else:
+        print(f"VB-net-audit-t OK ({len(t1rows)} T1 rows: audits agree, "
+              f"NET identity holds incl. assign column, schemas clean)")
+
+    # Coder fidelity on CEIL/CB families: B-RANS within +0.50 pct of its
+    # own B-IDEAL row per (img, cand, gs, trial).
+    cfgs = {}
+    for r in t1rows:
+        if r["be"] not in ("B-IDEAL", "B-RANS"):
+            continue
+        if r["cand"] in ("ADAPT", "SPINE"):
+            continue
+        cfgs.setdefault((r["img"], r["cand"], r["gs"], r["trial"]),
+                        {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        rr = bes.get("B-RANS")
+        if ideal is None or rr is None:
+            continue
+        n_fid += 1
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        if rr["payload"] > limit:
+            pct = 100.0 * (rr["payload"] - ideal["payload"]) / \
+                max(1, ideal["payload"])
+            fail(f"fidelity-t {k}: B-RANS payload {rr['payload']} exceeds "
+                 f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity-t OK ({n_fid} CEIL/CB families within "
+              f"+0.50 pct of their own B-IDEAL rows)")
+
+    # Real T1 images must sit under the committed anchors.
+    t1_imgs = {r["img"] for r in t1rows}
+    san_imgs = {r["img"] for r in sand}
+    for img in sorted(t1_imgs - san_imgs):
+        fail(f"t1 anchor coverage: {img} has no SANDBOX anchor row")
+
+    # TSUM decomposition rail (pin P-Q1-8): every summary row must be
+    # mechanically re-derived from raw rows - components must match a real
+    # candidate B-RANS row and the base winner, NET identity and both
+    # derived columns must recompute exactly, and the sole-term flag must
+    # equal its pinned boolean form.
+    def _comp(p, t, m_, tr, a):
+        return (p, t, m_, tr, a)
+
+    base_rows = {}
+    cand_rows = {}
+    for r in t1rows:
+        if r["cand"] in ("ADAPT", "SPINE") and \
+                r["be"] in ("B-ADAPT", "B-RANS"):
+            base_rows.setdefault(r["img"], set()).add(
+                _comp(r["payload"], r["tables"], r["maps"], r["trees"],
+                      r["assign"]))
+        elif r["be"] == "B-RANS":
+            cand_rows.setdefault((r["img"], r["cand"], r["gs"]),
+                                 set()).add(_comp(r["payload"],
+                                                  r["tables"], r["maps"],
+                                                  r["trees"],
+                                                  r["assign"]))
+    bad_tsum = 0
+    for s in tsumrows:
+        if "@" not in s["arm"]:
+            bad_tsum += 1
+            continue
+        cname, gs = s["arm"].split("@", 1)
+        ok_row = _comp(s["p"], s["t"], s["m"], s["tr"], s["a"]) in \
+            cand_rows.get((s["img"], cname, gs), set())
+        ok_base = _comp(s["bp"], s["bt"], s["bm"], s["btr"], s["ba"]) in \
+            base_rows.get(s["img"], set())
+        net_ok = (s["net"] == s["p"] + s["t"] + s["m"] + s["tr"] +
+                  s["a"]) and \
+                 (s["bnet"] == s["bp"] + s["bt"] + s["bm"] + s["btr"] +
+                  s["ba"])
+        dp = s["p"] - s["bp"]
+        dt = s["t"] - s["bt"]
+        dm = s["m"] - s["bm"]
+        dtr = s["tr"] - s["btr"]
+        da = s["a"] - s["ba"]
+        sole_ok = s["sole"] == ((dt > 0) and (dp <= 0) and (dm == 0) and
+                                (dtr == 0) and (da == 0))
+        pay_ok = abs(s["paygain"] -
+                     (100.0 * (s["bp"] - s["p"]) / s["bp"]
+                      if s["bp"] else 0.0)) < 1e-3
+        rel_ok = abs(s["relpct"] -
+                     (100.0 * (s["bnet"] - s["net"]) / s["bnet"]
+                      if s["bnet"] else 0.0)) < 1e-3
+        if not (ok_row and ok_base and net_ok and sole_ok and pay_ok and
+                rel_ok):
+            bad_tsum += 1
+    if bad_tsum:
+        fail(f"net-audit-t(TSUM): {bad_tsum} decomposition rows failed "
+             f"mechanical cross-check against raw T1 rows")
+    else:
+        print(f"VB-net-audit-t OK ({len(tsumrows)} TSUM rows re-derived "
+              f"exactly from raw rows)")
+
+    # ---- T1A gate readout (addendum 20.5 T1a; NON-GATING verdict) ----
+    ceil_arms = [s for s in tsumrows if s["arm"].startswith("CEIL@")]
+    cb_arms = [s for s in tsumrows if s["arm"].startswith("CB")]
+    if ceil_arms and not cb_arms:
+        print("== T1A CEILING READOUT (addendum 20.5 T1a; pins "
+              "P-Q1-2..P-Q1-4) ==")
+        imgs_t1 = sorted({s["img"] for s in ceil_arms})
+        per_img = {}
+        for img in imgs_t1:
+            arms = {s["arm"]: s for s in ceil_arms if s["img"] == img}
+            a64 = arms.get("CEIL@GS64")
+            a128 = arms.get("CEIL@GS128")
+            best = a64 if a64 and (not a128 or a64["net"] <= a128["net"]) \
+                else a128
+            per_img[img] = best
+        for img in imgs_t1:
+            b = per_img[img]
+            print(f"T1A {img}: arm={b['arm']} relpct={b['relpct']:+.4f} "
+                  f"pct | payload gain {b['paygain']:+.4f} pct | tables "
+                  f"{b['t']} B vs payload delta {b['p'] - b['bp']:+d} B | "
+                  f"sole_tables_loss={str(b['sole']).lower()}")
+        relps = [per_img[i]["relpct"] for i in imgs_t1]
+        pays = [per_img[i]["paygain"] for i in imgs_t1]
+        med_r = median(relps)
+        med_p = median(pays)
+        sole_all = all(per_img[i]["sole"] for i in imgs_t1)
+        pg = max(median([s["paygain"] for s in ceil_arms
+                         if s["arm"] == a]) for a in
+                 sorted({s["arm"] for s in ceil_arms}))
+        print(f"T1A quad median RELPCT {med_r:+.4f} pct (min "
+              f"{min(relps):+.4f} / max {max(relps):+.4f}) vs bar >= +2.00 "
+              f"| median payload gain {med_p:+.4f} pct (bar >= +4.00 for "
+              f"the opener) | sole-tables-loss on ALL images: "
+              f"{str(sole_all).lower()} | PG (best arm median payload "
+              f"gain) {pg:+.4f} pct")
+        t1a_pass = med_r >= 2.0
+        opens_t1b = (not t1a_pass) and med_p >= 4.0 and sole_all
+        if t1a_pass:
+            print("T1A VERDICT: PASS - locality-conditioned ceiling clears "
+                  "its bar; C1 harvestable")
+        elif opens_t1b:
+            print("T1A VERDICT: FAIL - but the recorded decomposition "
+                  "shows payload gain >= +4.00 pct with table bytes as the "
+                  "SOLE losing term on every image: T1b OPENS (pin "
+                  "P-Q1-4)")
+        else:
+            print("T1A VERDICT: FAIL - bucket C1 closed-with-numbers; no "
+                  "payable decomposition, T1b stays CLOSED")
+
+    # ---- T1B gate readout (addendum 20.5 T1b; NON-GATING verdict) ----
+    if cb_arms:
+        print("== T1B CODEBOOK READOUT (addendum 20.5 T1b; pin P-Q1-6) ==")
+        order = [f"CB{k}@{g}" for k in (4, 8, 16, 24)
+                 for g in ("GS64", "GS128")]
+        configs = [c for c in order if any(s["arm"] == c
+                                           for s in cb_arms)]
+        stat = {}
+        for cfg in configs:
+            xs = [s["relpct"] for s in cb_arms if s["arm"] == cfg]
+            stat[cfg] = median(xs)
+        for cfg in configs:
+            print(f"T1B {cfg}: median NET gain {stat[cfg]:+.4f} pct over "
+                  f"fresh T-BASE")
+        winner = configs[0]
+        for cfg in configs[1:]:
+            if stat[cfg] > stat[winner]:
+                winner = cfg
+        win_med = stat[winner]
+        t1a_csv = sys.argv[6] if len(sys.argv) > 6 else ""
+        pg = _read_t1a_pg(t1a_csv) if t1a_csv else None
+        if pg is None:
+            fail("T1b readout: same-run t1a CSV missing or unreadable "
+                 "(pin P-Q1-6 requires PG from it)")
+        else:
+            retain_bar = pg / 2.0
+            floor_bar = 1.0
+            print(f"T1B winner {winner}: median NET gain {win_med:+.4f} "
+                  f"pct | gates: retain >= half of T1a PG "
+                  f"({retain_bar:+.4f}) AND floor >= +1.00")
+            if win_med >= retain_bar and win_med >= floor_bar:
+                print("T1B VERDICT: PASS - content-defined codebook joins "
+                      "the composition candidate set")
+            else:
+                print("T1B VERDICT: FAIL - bucket C1 closed; the spine's "
+                      "+5.5 pct stays the harvested share")
 
 sys.exit(0 if ok else 1)
 PY
@@ -1670,6 +1921,150 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_T1" == "1" ]]; then
+  # T1 failability (pins P-Q1-4/P-Q1-6/P-Q1-9): a fabricated consistent
+  # frame must PASS the rails and render an honest losing T1A verdict; the
+  # gate must be reachable in BOTH directions; every decomposition,
+  # identity, round-trip and schema mutation must flip its named rail.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+  BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
+  if [[ ! -x "$BIN" ]]; then echo "prism binary not found at $BIN"; exit 1; fi
+
+  REF="$TMP/ref.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+
+  mk_good_t1() {
+    cat > "$TMP/sbx.csv" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+T1,kodim01.ppm,ADAPT,ycocgr,NONE,B-ADAPT,546852,0,0,0,0,546852,1,1,0.000,0,-6.8898
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-IDEAL,511456,2814,0,0,0,514270,1,1,4091650.433,16,0.0281
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-RANS,511600,2814,0,0,0,514414,1,1,4091650.433,16,0.0000
+T1,kodim01.ppm,CEIL,rct-rbg,GS64,B-IDEAL,505000,26000,0,0,0,531000,1,1,4040000.000,288,1.2900
+T1,kodim01.ppm,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531300,1,1,4040000.000,288,1.2314
+T1,kodim01.ppm,CEIL,rct-rbg,GS128,B-IDEAL,500000,13000,0,0,0,513000,1,1,4000000.000,72,2.2674
+T1,kodim01.ppm,CEIL,rct-rbg,GS128,B-RANS,500200,13000,0,0,0,513200,1,1,4000000.000,72,2.2283
+TSUM,kodim01.ppm,CEIL@GS64,511600,2814,0,0,0,514414,505300,26000,0,0,0,531300,1.2314,-3.2827,1
+TSUM,kodim01.ppm,CEIL@GS128,511600,2814,0,0,0,514414,500200,13000,0,0,0,513200,2.2283,0.2360,1
+EOF
+  }
+
+  # 1. The consistent losing frame passes every rail and renders the
+  #    honest FAIL verdict (median +0.2360 pct vs bar >= +2.00; payload
+  #    gains under +4.00 => T1b stays closed).
+  mk_good_t1
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "T1A VERDICT: FAIL" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T1 FAIL: losing frame must render T1A FAIL"; ok=0; }
+  grep -q "T1b stays CLOSED" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T1 FAIL: sub-bar payload gain must keep T1b closed"; ok=0; }
+  grep -q "VB-net-audit-t OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T1 FAIL: no net-audit-t OK verdict"; ok=0; }
+
+  # 2. PASS direction reachable: lift both ceiling arms above the bar with
+  #    component-consistent numbers.
+  mk_good_t1
+  sed -i 's/,CEIL,rct-rbg,GS64,B-IDEAL,505000,26000,0,0,0,531000,/,CEIL,rct-rbg,GS64,B-IDEAL,480000,26000,0,0,0,506000,/;' "$TMP/sbx.csv"
+  sed -i 's/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531300,1,1,4040000.000,288,1.2314/,CEIL,rct-rbg,GS64,B-RANS,480200,26000,0,0,0,506200,1,1,4040000.000,288,6.1370/' "$TMP/sbx.csv"
+  sed -i 's/,CEIL,rct-rbg,GS128,B-IDEAL,500000,13000,0,0,0,513000,/,CEIL,rct-rbg,GS128,B-IDEAL,470000,13000,0,0,0,483000,/;' "$TMP/sbx.csv"
+  sed -i 's/,CEIL,rct-rbg,GS128,B-RANS,500200,13000,0,0,0,513200,1,1,4000000.000,72,2.2283/,CEIL,rct-rbg,GS128,B-RANS,470200,13000,0,0,0,483200,1,1,4000000.000,72,8.0927/' "$TMP/sbx.csv"
+  sed -i 's/^TSUM,kodim01.ppm,CEIL@GS64,511600,2814,0,0,0,514414,505300,26000,0,0,0,531300,1.2314,-3.2827,1/TSUM,kodim01.ppm,CEIL@GS64,511600,2814,0,0,0,514414,480200,26000,0,0,0,506200,6.1370,1.5968,1/' "$TMP/sbx.csv"
+  sed -i 's/^TSUM,kodim01.ppm,CEIL@GS128,511600,2814,0,0,0,514414,500200,13000,0,0,0,513200,2.2283,0.2360,1/TSUM,kodim01.ppm,CEIL@GS128,511600,2814,0,0,0,514414,470200,13000,0,0,0,483200,8.0927,6.0674,1/' "$TMP/sbx.csv"
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/pass.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: evaluator rejected the fabricated winner frame"; ok=0
+  fi
+  grep -q "T1A VERDICT: PASS" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-T1 FAIL: +6.06 pct ceiling must render T1A PASS"; ok=0; }
+
+  # 3. A sole-term lie must fail the TSUM decomposition rail.
+  mk_good_t1
+  sed -i 's/^TSUM,kodim01.ppm,CEIL@GS64,511600,2814,0,0,0,514414,505300,26000,0,0,0,531300,1.2314,-3.2827,1/TSUM,kodim01.ppm,CEIL@GS64,511600,2814,0,0,0,514414,505300,26000,0,0,0,531300,1.2314,-3.2827,0/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: TSUM accepted a flipped sole-term flag"; ok=0
+  fi
+  grep -q "decomposition rows failed" "$TMP/a.out" || \
+    { echo "SELF-CHECK-T1 FAIL: no TSUM decomposition FAIL verdict"; ok=0; }
+
+  # 4. A NET identity break on a T1 row must fail.
+  mk_good_t1
+  sed -i 's/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531300,/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531301,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: net-audit accepted a broken T1 identity"; ok=0
+  fi
+  grep -q "net-audit-t(T1)" "$TMP/b.out" || \
+    { echo "SELF-CHECK-T1 FAIL: no T1 net-audit FAIL verdict"; ok=0; }
+
+  # 5. A silent round-trip failure must fail.
+  mk_good_t1
+  sed -i 's/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531300,1,1,/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531300,1,0,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/c.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: net-audit accepted a failed T1 decode"; ok=0
+  fi
+  grep -q "net-audit-t(T1)" "$TMP/c.out" || \
+    { echo "SELF-CHECK-T1 FAIL: no T1 round-trip FAIL verdict"; ok=0; }
+
+  # 6. Assignment bytes leaking into a CEILING row must fail the schema.
+  mk_good_t1
+  sed -i 's/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,0,531300,1,1,/,CEIL,rct-rbg,GS64,B-RANS,505300,26000,0,0,12,531312,1,1,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: schema accepted assignment bits in CEILING"; ok=0
+  fi
+  grep -q "net-audit-t(T1)" "$TMP/d.out" || \
+    { echo "SELF-CHECK-T1 FAIL: no T1 schema FAIL verdict"; ok=0; }
+
+  # 7. T1b gates reachable both ways, citing PG from the same-run t1a CSV.
+  cat > "$TMP/t1a.csv" <<'EOF'
+TSUM,kodim01.ppm,CEIL@GS64,511600,2814,0,0,0,514414,505300,26000,0,0,0,531300,1.2314,-3.2827,1
+TSUM,kodim01.ppm,CEIL@GS128,511600,2814,0,0,0,514414,500200,13000,0,0,0,513200,2.2283,0.2360,1
+EOF
+  mkt1b() {
+    cat > "$TMP/cbx.csv" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577854,390,0,0,578244,1,1,4622834.334,4622834.334,-5.7841,28.8183
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511456,2814,0,0,514270,1,1,4091650.433,4091650.433,-5.9632,0.0000
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+T1,kodim01.ppm,ADAPT,ycocgr,NONE,B-ADAPT,546852,0,0,0,0,546852,1,1,0.000,0,-6.8898
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-IDEAL,511456,2814,0,0,0,514270,1,1,4091650.433,16,0.0281
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-RANS,511600,2814,0,0,0,514414,1,1,4091650.433,16,0.0000
+T1,kodim01.ppm,CB8,rct-rbg,GS128,B-IDEAL,503400,2950,0,0,12,506362,1,1,4027000.000,1,1.6028
+T1,kodim01.ppm,CB8,rct-rbg,GS128,B-RANS,505800,2950,0,0,12,508762,1,1,4027000.000,1,1.1339
+TSUM,kodim01.ppm,CB8@GS128,511600,2814,0,0,0,514414,505800,2950,0,0,12,508762,1.1339,1.0990,0
+EOF
+  }
+  mkt1b
+  if ! evaluate "$TMP/cbx.csv" "$REF" "" "" "" "$TMP/t1a.csv" \
+      > "$TMP/t1bfail.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: evaluator rejected the consistent T1b frame"; ok=0
+  fi
+  grep -q "T1B VERDICT: FAIL" "$TMP/t1bfail.out" || \
+    { echo "SELF-CHECK-T1 FAIL: +1.0990 pct below the retention bar must render T1B FAIL"; ok=0; }
+  mkt1b
+  sed -i 's/,CB8,rct-rbg,GS128,B-IDEAL,503400,2950,0,0,12,506362,1,1,4027000.000,1,1.6028/,CB8,rct-rbg,GS128,B-IDEAL,498000,2950,0,0,12,500962,1,1,4027000.000,1,2.6583/' "$TMP/cbx.csv"
+  sed -i 's/,CB8,rct-rbg,GS128,B-RANS,505800,2950,0,0,12,508762,1,1,4027000.000,1,1.1339/,CB8,rct-rbg,GS128,B-RANS,500000,2950,0,0,12,502962,1,1,4027000.000,1,2.2690/' "$TMP/cbx.csv"
+  sed -i 's/^TSUM,kodim01.ppm,CB8@GS128,511600,2814,0,0,0,514414,505800,2950,0,0,12,508762,1.1339,1.0990,0/TSUM,kodim01.ppm,CB8@GS128,511600,2814,0,0,0,514414,500000,2950,0,0,12,502962,2.2674,2.2258,0/' "$TMP/cbx.csv"
+  if ! evaluate "$TMP/cbx.csv" "$REF" "" "" "" "$TMP/t1a.csv" \
+      > "$TMP/t1bpass.out" 2>&1; then
+    echo "SELF-CHECK-T1 FAIL: evaluator rejected the T1b winner frame"; ok=0
+  fi
+  grep -q "T1B VERDICT: PASS" "$TMP/t1bpass.out" || \
+    { echo "SELF-CHECK-T1 FAIL: +2.2258 pct above both bars must render T1B PASS"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-T1 PASS: consistent frame green with honest losing verdicts, T1A/T1B gates reachable both directions, decomposition/identity/round-trip/schema mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
@@ -1963,6 +2358,116 @@ if [[ "$MODE_S4" == "1" ]]; then
     exit 1
   fi
   echo "SANDBOX GATE PASS (all VB rails green; S4 verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+if [[ "$MODE_T1A" == "1" ]]; then
+  # T-series slice Q1 (spec addendum 20.2/20.5; pins P-Q1-1..P-Q1-9):
+  # ceiling kill test on sha-pinned images; dated one-file CSV;
+  # determinism re-run; rank fixtures stay LIVE; anchors re-emitted inside
+  # the CSV; verdicts computed ONLY from same-run rows.
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-t1a.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --t1a "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --t1a "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: quad re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|T1|TSUM),' "$RAW1" > "$OUT_CSV"
+
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-t1a quad ${SB}s (incl. determinism re-run), bench-ideal quad ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-t1a/re-run = {$SB/$ID:.2f}x bench-ideal (P-Q1-9/A3 precedent: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox T1a results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; T1a verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+if [[ "$MODE_T1B" == "1" ]]; then
+  # T-series slice Q1 conditional phase (spec addendum 20.5 T1b; pin
+  # P-Q1-6): whole-K codebook set; PG cited from the SAME-RUN t1a CSV.
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-t1b.csv"
+  T1A_CSV="${T1A_CSV:-${ROOT}/benchmarks/results/${STAMP}-sandbox-t1a.csv}"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --t1b "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --t1b "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: quad re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|T1|TSUM),' "$RAW1" > "$OUT_CSV"
+
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-t1b quad ${SB}s (incl. determinism re-run), bench-ideal quad ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-t1b/re-run = {$SB/$ID:.2f}x bench-ideal (P-Q1-9/A3 precedent: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox T1b results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  if [[ ! -f "$T1A_CSV" ]]; then
+    echo "T1B FAIL: same-run t1a CSV ${T1A_CSV} missing (pin P-Q1-6)"; exit 1
+  fi
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO" "" "$T1A_CSV"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; T1b verdict above is a measured outcome, not a rail failure)"
   exit 0
 fi
 
