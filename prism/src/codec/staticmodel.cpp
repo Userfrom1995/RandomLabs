@@ -1397,10 +1397,18 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
         return t;
     };
 
-    // Farthest-point seeding among distinct groups (pins P-T0-3).
+    // Farthest-point seeding among distinct groups (pins P-T0-3). The
+    // metric flattens the FULL joint block - every (class, bin) cell of the
+    // group stack in ascending cell order, pin P-T0-2 - so ncells here is
+    // the whole per-group block, never a single class row.
     std::vector<int> center_of_proto;
     std::vector<char> chosen((size_t)G, 0);
     {
+        auto block_dist = [&](int a, int b) -> int64_t {
+            return stack_dist128(
+                &gj.n0[row_at(a, 0)], &gj.n1[row_at(a, 0)],
+                &gj.n0[row_at(b, 0)], &gj.n1[row_at(b, 0)], block);
+        };
         int first = 0;
         uint64_t best = total_events(0);
         for (int g = 1; g < G; ++g) {
@@ -1416,9 +1424,7 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
                 if (chosen[(size_t)g]) continue;
                 int64_t mind = std::numeric_limits<int64_t>::max();
                 for (int p : center_of_proto) {
-                    int64_t d = stack_dist128(
-                        &gj.n0[row_at(g, 0)], &gj.n1[row_at(g, 0)],
-                        &gj.n0[row_at(p, 0)], &gj.n1[row_at(p, 0)], stride);
+                    int64_t d = block_dist(g, p);
                     if (d < mind) mind = d;
                 }
                 if (mind > best_min) { best_min = mind; next = g; }
@@ -1430,9 +1436,22 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
     }
     const int Kseed = (int)center_of_proto.size();
 
-    // Assign/update to convergence or the pinned cap.
+    // Assign/update to convergence or the pinned cap. The first centers ARE
+    // the seeded groups' stacks (addendum 20.2 "first center = the group
+    // stack ..."): centroids start as copies of them, never zero, so the
+    // initial assignment is measured against real prototypes.
     SandboxModel centroids;
     centroids.init(TokProfile::ZFFCTRL, Kseed * GROUP_CLASS_AXIS);
+    for (int p = 0; p < Kseed; ++p) {
+        const int src = center_of_proto[(size_t)p];
+        for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+            size_t s = row_at(src, c), d = row_at(p, c);
+            for (size_t i = 0; i < stride; ++i) {
+                centroids.n0[d + i] = gj.n0[s + i];
+                centroids.n1[d + i] = gj.n1[s + i];
+            }
+        }
+    }
     std::vector<uint32_t> assign((size_t)G, 0);
     int iters = 0;
     auto proto_block_sum = [&](SandboxModel& dst) {
@@ -1462,7 +1481,7 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
                 int64_t d = stack_dist128(
                     &gj.n0[row_at(g, 0)], &gj.n1[row_at(g, 0)],
                     &centroids.n0[row_at(p, 0)],
-                    &centroids.n1[row_at(p, 0)], stride);
+                    &centroids.n1[row_at(p, 0)], block);
                 if (d < best_d) { best_d = d; best_p = p; }  // lowest id ties
             }
             if ((uint32_t)best_p != assign[(size_t)g]) changed = true;
@@ -1498,9 +1517,6 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
         }
     }
     fit.proto_of_group.assign((size_t)G, 0);
-    std::vector<uint32_t> remap((size_t)Kseed, 0);
-    for (int np = 0; np < Kout; ++np)
-        remap[(size_t)survivor_proto[(size_t)np]] = (uint32_t)np;
     for (int g = 0; g < G; ++g) {
         int best_np = 0;
         int64_t best_d = std::numeric_limits<int64_t>::max();
@@ -1508,12 +1524,11 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
             int64_t d = stack_dist128(
                 &gj.n0[row_at(g, 0)], &gj.n1[row_at(g, 0)],
                 &fit.centroids.n0[row_at(np, 0)],
-                &fit.centroids.n1[row_at(np, 0)], stride);
+                &fit.centroids.n1[row_at(np, 0)], block);
             if (d < best_d) { best_d = d; best_np = np; }
         }
         fit.proto_of_group[(size_t)g] = (uint32_t)best_np;
     }
-    (void)remap;
     return fit;
 }
 
@@ -1634,14 +1649,21 @@ struct SymDecoder {
 
 std::vector<uint8_t> serialize_codebook(const SmoothedTables& protos,
                                         const std::vector<uint32_t>& words,
-                                        size_t* audit_counted) {
-    if (protos.prior.empty() || protos.delta.size() != protos.p.size())
-        throw std::runtime_error("staticmodel: bad prototype tables");
-    const uint32_t stride = (uint32_t)protos.stride();
+                                        size_t* audit_counted,
+                                        size_t* words_bytes) {
+    // Shape (addendum 20.2 verbatim): ONE image-global prior table
+    // (SmoothedTables' one-cluster layout, pooled across prototypes per
+    // pin P-T0-1) plus a per-joint-row s16 delta stream (proto_u12 -
+    // prior_u12) covering all K * 16 joint rows. The u32 stride field
+    // carries 16 x profile stride per pin P-T0-5.
+    const uint32_t prof_stride = (uint32_t)protos.stride();
     const int K = protos.clusters / GROUP_CLASS_AXIS;
     if (K <= 0 || (size_t)K * GROUP_CLASS_AXIS != (size_t)protos.clusters ||
-        protos.prior.size() != (size_t)K * GROUP_CLASS_AXIS * stride)
+        protos.prior.empty() || protos.delta.size() != protos.p.size() ||
+        protos.prior.size() != (size_t)prof_stride ||
+        protos.p.size() != (size_t)K * GROUP_CLASS_AXIS * prof_stride)
         throw std::runtime_error("staticmodel: bad prototype shape");
+    const uint32_t stride_field = prof_stride * GROUP_CLASS_AXIS;
 
     std::vector<uint8_t> prior_bytes(protos.prior.size() * 2);
     for (size_t i = 0; i < protos.prior.size(); ++i) {
@@ -1673,11 +1695,23 @@ std::vector<uint8_t> serialize_codebook(const SmoothedTables& protos,
     std::vector<uint8_t> comp_input = delta_raw;
     comp_input.insert(comp_input.end(), ctx_raw.begin(), ctx_raw.end());
     std::vector<uint8_t> coded = plane_rans_compress(comp_input);
+    // CRC over the WHOLE uncompressed span (prior ++ delta ++ ctx) computed
+    // as one true crc32 pass: the shipped crc32_combine helper is a
+    // single-buffer CRC that ignores its running argument (see A-T0-1d),
+    // so multi-segment chains would silently reduce to a CRC of the last
+    // segment only. This blob is new with zero rows in the world, so it
+    // gets the honest whole-span form.
+    std::vector<uint8_t> crc_span;
+    crc_span.reserve(prior_bytes.size() + delta_raw.size() +
+                     ctx_raw.size());
+    crc_span.insert(crc_span.end(), prior_bytes.begin(), prior_bytes.end());
+    crc_span.insert(crc_span.end(), delta_raw.begin(), delta_raw.end());
+    crc_span.insert(crc_span.end(), ctx_raw.begin(), ctx_raw.end());
 
     std::vector<uint8_t> blob;
     blob.insert(blob.end(), CODEBOOK_MAGIC, CODEBOOK_MAGIC + 4);
     put_u32(blob, (uint32_t)K);
-    put_u32(blob, stride);
+    put_u32(blob, stride_field);
     put_u32(blob, (uint32_t)protos.profile);
     size_t counted = blob.size();
     blob.insert(blob.end(), prior_bytes.begin(), prior_bytes.end());
@@ -1686,25 +1720,29 @@ std::vector<uint8_t> serialize_codebook(const SmoothedTables& protos,
     counted += 4;
     blob.insert(blob.end(), coded.begin(), coded.end());
     counted += coded.size();
-    uint32_t crc = prism::crc32(prior_bytes);
-    crc = prism::crc32_combine(crc, delta_raw.data(), delta_raw.size());
-    crc = prism::crc32_combine(crc, ctx_raw.data(), ctx_raw.size());
-    put_u32(blob, crc);
+    put_u32(blob, prism::crc32(crc_span));
     counted += 4;
-    // Words tail: symbol-rANS stream under the carried context.
+    // Words tail: symbol-rANS stream under the carried context. Renorm
+    // bytes collect in push order, but the decoder consumes the buffer
+    // forward with the flushed state FIRST (vendored-port layout: state
+    // word, then renorm bytes last-pushed-first), so the tail is composed
+    // as [u32 nwords][u32 len][state BE][renorm bytes reversed].
     put_u32(blob, (uint32_t)words.size());
     counted += 4;
     SymFreqs freqs;
     freqs.init(ctx);
-    std::vector<uint8_t> wbytes;
+    std::vector<uint8_t> pushed, wbytes;
     uint32_t x = RB_L;
     for (size_t i = words.size(); i-- > 0;)       // reverse raster order
-        sym_encode(wbytes, x, freqs, words[i]);
+        sym_encode(pushed, x, freqs, words[i]);
     sym_flush(wbytes, x);
+    for (size_t i = pushed.size(); i-- > 0;)
+        wbytes.push_back(pushed[(size_t)i]);
     put_u32(blob, (uint32_t)wbytes.size());
     counted += 4;
     blob.insert(blob.end(), wbytes.begin(), wbytes.end());
     counted += wbytes.size();
+    if (words_bytes) *words_bytes = 8 + wbytes.size();
 
     if (audit_counted) *audit_counted = counted;
     return blob;
@@ -1727,9 +1765,13 @@ DecodedCodebook deserialize_codebook(const std::vector<uint8_t>& blob,
                       GROUP_CLASS_AXIS)
         throw std::runtime_error("staticmodel: bad codebook shape");
     out.tabs.clusters = (int)(K * GROUP_CLASS_AXIS);
-    const uint32_t nprior = K * stride;
-    out.tabs.prior.resize(nprior);
-    for (uint32_t i = 0; i < nprior; ++i) out.tabs.prior[i] = get_u16(blob, pos);
+    // ONE image-global prior row per bin (addendum 20.2); deltas follow
+    // per joint row.
+    const uint32_t prof_stride = stride / GROUP_CLASS_AXIS;
+    out.tabs.prior.resize(prof_stride);
+    for (uint32_t i = 0; i < prof_stride; ++i)
+        out.tabs.prior[i] = get_u16(blob, pos);
+    const size_t ndelta = (size_t)K * stride;
     uint32_t coded_len = get_u32(blob, pos);
     if (pos + (size_t)coded_len + 4 > blob.size())
         throw std::runtime_error("staticmodel: truncated");
@@ -1745,38 +1787,46 @@ DecodedCodebook deserialize_codebook(const std::vector<uint8_t>& blob,
     uint32_t nbytes = (uint32_t)coded[0] | ((uint32_t)coded[1] << 8) |
                       ((uint32_t)coded[2] << 16) |
                       ((uint32_t)coded[3] << 24);
-    if (nbytes % 2 != 0 || nbytes / 2 != nprior + (size_t)K)
+    if (nbytes % 2 != 0 || nbytes / 2 != ndelta + (size_t)K)
         throw std::runtime_error("staticmodel: bad compressed length");
     size_t cpos = 4;
     std::vector<uint8_t> raw = plane_rans_decompress(coded, cpos, nbytes);
 
-    std::vector<uint8_t> prior_bytes(nprior * 2);
-    for (uint32_t i = 0; i < nprior; ++i) {
+    std::vector<uint8_t> prior_bytes(out.tabs.prior.size() * 2);
+    for (size_t i = 0; i < out.tabs.prior.size(); ++i) {
         prior_bytes[2 * i] = (uint8_t)out.tabs.prior[i];
         prior_bytes[2 * i + 1] = (uint8_t)(out.tabs.prior[i] >> 8);
     }
-    uint32_t crc = prism::crc32(prior_bytes);
-    crc = prism::crc32_combine(crc, raw.data(), raw.size());
-    if (crc != stored_crc)
+    // Whole uncompressed span (prior ++ decompressed deltas ++ ctx), the
+    // exact encoder form - see serialize_codebook for why this is a single
+    // crc32 pass rather than a combine chain.
+    std::vector<uint8_t> crc_span;
+    crc_span.reserve(prior_bytes.size() + raw.size());
+    crc_span.insert(crc_span.end(), prior_bytes.begin(), prior_bytes.end());
+    crc_span.insert(crc_span.end(), raw.begin(), raw.end());
+    if (prism::crc32(crc_span) != stored_crc)
         throw std::runtime_error("staticmodel: CRC mismatch");
 
     // Split raw into deltas ++ ctx (deltas lead by construction).
-    out.tabs.delta.resize((size_t)nprior);
+    out.tabs.delta.resize(ndelta);
     out.assign_ctx.resize(K);
-    for (uint32_t i = 0; i < nprior; ++i)
+    for (size_t i = 0; i < ndelta; ++i)
         out.tabs.delta[i] = (uint16_t)(raw[2 * i] |
                                        ((uint16_t)raw[2 * i + 1] << 8));
     for (uint32_t i = 0; i < (uint32_t)K; ++i) {
-        size_t o = (size_t)(nprior + i) * 2;
+        size_t o = (ndelta + (size_t)i) * 2;
         out.assign_ctx[i] = (uint16_t)(raw[o] | ((uint16_t)raw[o + 1] << 8));
     }
-    out.tabs.p.assign(out.tabs.delta.size(), 0);
-    for (size_t i = 0; i < out.tabs.delta.size(); ++i) {
-        int v = (int)out.tabs.prior[i % nprior] + (int16_t)out.tabs.delta[i];
-        if (v < 1 || v > 4096)
-            throw std::runtime_error("staticmodel: probability out of range");
-        out.tabs.p[i] = (uint16_t)v;
-    }
+    out.tabs.p.assign(ndelta, 0);
+    for (int cl = 0; cl < (int)K * GROUP_CLASS_AXIS; ++cl)
+        for (uint32_t j = 0; j < prof_stride; ++j) {
+            const size_t i = (size_t)cl * prof_stride + j;
+            int v = (int)out.tabs.prior[j] + (int16_t)out.tabs.delta[i];
+            if (v < 1 || v > 4096)
+                throw std::runtime_error(
+                    "staticmodel: probability out of range");
+            out.tabs.p[i] = (uint16_t)v;
+        }
 
     SymFreqs freqs;
     freqs.init(out.assign_ctx);
@@ -1957,13 +2007,21 @@ ShrunkTables deserialize_shrunk(const std::vector<uint8_t>& blob,
     for (size_t i = 0; i < out.child_delta.size(); ++i)
         out.child_delta[i] =
             (int16_t)(delta_raw[2 * i] | ((uint16_t)delta_raw[2 * i + 1] << 8));
+    // Rebuild each child row against ITS OWN blob-carried parent (the
+    // shipped class16 reduction, pin P-T0-9): child cq's parent row is
+    // pmap[cq], never the positional i % 16 fallback.
     out.p.resize(out.child_delta.size());
-    for (size_t i = 0; i < out.p.size(); ++i) {
-        int v = (int)out.class16[i % out.class16.size()] +
-                (int)out.child_delta[i];
-        if (v < 1 || v > 4096)
-            throw std::runtime_error("staticmodel: probability out of range");
-        out.p[i] = (uint16_t)v;
+    for (int cq = 0; cq < AC_V2_RESDIFF_CONTEXTS; ++cq) {
+        const size_t pbase = (size_t)pmap[(size_t)cq] * stride;
+        const size_t base = (size_t)cq * stride;
+        for (size_t j = 0; j < stride; ++j) {
+            int v = (int)out.class16[pbase + j] +
+                    (int)out.child_delta[base + j];
+            if (v < 1 || v > 4096)
+                throw std::runtime_error(
+                    "staticmodel: probability out of range");
+            out.p[base + j] = (uint16_t)v;
+        }
     }
     if (expect &&
         (expect->p != out.p || expect->class16 != out.class16))
