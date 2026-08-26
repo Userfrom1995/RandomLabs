@@ -47,7 +47,9 @@ static void print_usage() {
               << "  prism bench-sandbox --v1 <image>...   (V-series sweep)\n"
               << "  prism bench-sandbox --s1 <image>...   (S-series dual-frame predictors)\n"
               << "  prism bench-sandbox --s3 <image>...   (S-series extended causal properties)\n"
-              << "  prism bench-sandbox --s4 <image>...   (S-series composition + projection)\n";
+              << "  prism bench-sandbox --s4 <image>...   (S-series composition + projection)\n"
+              << "  prism bench-sandbox --t0 <image>...   (T-series instrument smoke; kodim01 only)\n"
+              << "  prism bench-sandbox --t0-synth homo|skew  (T0 synthetic fixtures, no anchors)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -931,6 +933,8 @@ static void run_v1_image(const std::filesystem::path& img);
 static void run_s1_image(const std::filesystem::path& img);
 static void run_s3_image(const std::filesystem::path& img);
 static void run_s4_image(const std::filesystem::path& img);
+static void run_t0_image(const std::filesystem::path& img);
+static int run_t0_synth(const std::string& kind);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -992,6 +996,34 @@ static int run_bench_sandbox(int argc, char** argv) {
             }
             for (const auto& img : imgs) sandboxrun::run_s4_image(img);
             return 0;
+        }
+        if (a == "--t0") {
+            // T-series slice Q0 instrument smoke (spec addendum 20.0/20.6;
+            // pins P-T0-10/P-T0-11: kodim01 ONLY, DIAGNOSTIC, non-gating).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --t0: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) {
+                const std::string n = img.filename().string();
+                if (n != "kodim01.ppm") {
+                    std::cerr << "bench-sandbox --t0: " << n
+                              << " refused (pin P-T0-10: kodim01.ppm only)"
+                              << "\n";
+                    return 2;
+                }
+                sandboxrun::run_t0_image(img);
+            }
+            return 0;
+        }
+        if (a == "--t0-synth") {
+            if (i + 1 >= argc) {
+                std::cerr << "bench-sandbox --t0-synth: need homo|skew\n";
+                return 2;
+            }
+            return sandboxrun::run_t0_synth(argv[++i]);
         }
         if (a == "--profile" && i + 1 < argc) {
             prof_names = split_list(argv[++i]);
@@ -2170,6 +2202,778 @@ void run_s4_image(const std::filesystem::path& img) {
                         0, cfg.art.audits_ok, rt, tbl_bits);
         }
     }
+}
+
+// ----- bench-sandbox --t0 (T-series slice Q0; spec addendum
+// 20.0/20.2/20.6 + pins P-T0-1..P-T0-13 in
+// decisions/builder/2026-08-26T08-05-00) -----
+//
+// Instrument-extension smoke: anchors first (identical emission to every
+// prior phase so VB-anchor-* guard the CSV), then T-BASE rows re-running
+// the S4 composition procedure FRESH in-process, then CEILING / codebook /
+// random-codebook rows over the joint (group, class16) keyings with every
+// byte NETTED per I12 extended. DIAGNOSTIC ONLY (pin P-T0-11): no verdict
+// here gates anything; quad verdict numbers start at T1a.
+//
+// Cost-row schema (one line, comma-separated):
+//   T0,img,cand,gs,be,payload,tables,maps,trees,assign,net,audit,rt,
+//       tbl_bits,keff,payload_pct_gain
+// cand in {ADAPT, SPINE} = fresh T-BASE candidates; CEIL = per-group exact
+// static stacks; CB<K> = Lloyd codebook at pinned K; CBRAND<K> = same-shape
+// codebook under a deterministic pseudo-random assignment (rank fixture).
+// payload_pct_gain is the candidate's payload gain vs the image's T-BASE
+// winner payload (the mandatory decomposition column beside tables_bytes =
+// tables and assign_bytes = assign).
+
+namespace t0run {
+
+struct T0Row {
+    std::string img, cand, gs, be;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, assign = 0;
+    bool audit_ok = true, rt = true;
+    double tbl_bits = 0;
+    int keff = 0;
+};
+
+// Deterministic LCG for fixture assignments (no RNG state anywhere).
+static uint32_t lcg_next(uint32_t& s) {
+    s = s * 1664525u + 1013904223u;
+    return s >> 8;
+}
+
+// Counts one plane set into a joint (group tile x class16) model and
+// returns the ClusterMap used (pin P-T0-6: counting layout of 18.2 with
+// cluster := group).
+static ClusterMap count_joint(TokProfile prof, KeyingId key, uint32_t w,
+                              const std::vector<std::vector<int32_t>>& ress,
+                              SandboxModel& m) {
+    ClusterMap cm = cluster_map_keyed(key);
+    cm.w = w;
+    const uint32_t gs = keying_group_px(key);
+    const uint32_t h = (w == 0) ? 0 : (uint32_t)(ress[0].size() / w);
+    const uint32_t tiles_x = (w + gs - 1) / gs;
+    const uint32_t tiles_y = (h + gs - 1) / gs;
+    m.init(prof, (int)(tiles_x * tiles_y) * GROUP_CLASS_AXIS);
+    for (const auto& r : ress) count_plane(m, prof, cm, r, nullptr);
+    return cm;
+}
+
+} // namespace t0run
+
+void run_t0_image(const std::filesystem::path& img) {
+    using namespace t0run;
+    char rowbuf[512];
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    // Anchor truth on the YCoCgR MED streams (pin P-T0-10: SANDBOX control,
+    // BRACKET, anchor trio exactly like every other phase).
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    std::vector<std::vector<int32_t>> med_ress;
+    med_ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(med_ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(med_ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    emit_s4_anchors(img_name, t, med_ress, v0b, v2b);
+
+    // T-BASE: the S4 composition procedure re-run FRESH in-process
+    // (addendum 20.1; winners decided downstream by real NET bytes).
+    std::vector<T0Row> rows;
+    auto push_cost = [&](const char* cand, const char* gs, const char* be,
+                         uint64_t payload, uint64_t tabs_b, uint64_t maps_b,
+                         uint64_t assign_b, bool audit_ok, bool rt,
+                         double tbl_bits, int keff) {
+        T0Row row;
+        row.img = img_name;
+        row.cand = cand;
+        row.gs = gs;
+        row.be = be;
+        row.payload = payload;
+        row.tables = tabs_b;
+        row.maps = maps_b;
+        row.assign = assign_b;
+        row.audit_ok = audit_ok;
+        row.rt = rt;
+        row.tbl_bits = tbl_bits;
+        row.keff = keff;
+        rows.push_back(row);
+    };
+    for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+        const char* tn = prism::codec::colorrot::name(id);
+        Raster tt = prism::codec::colorrot::apply(r, id);   // BD8 RGB only
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            ress.push_back(compute_residuals(plane, tt.w, tt.h,
+                                             PredId::MED));
+        {   // ADAPT candidate: production replay, zero side info.
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    acoder_encode_plane_v2(ress[pi], tt.w, tt.h,
+                                           AC_V2_RESDIFF_CONTEXTS);
+                payload += bytes.size();
+                auto dec =
+                    acoder_decode_plane_v2(bytes, ress[pi].size(), tt.w,
+                                           tt.h, AC_V2_RESDIFF_CONTEXTS);
+                if (dec != ress[pi]) rt = false;
+            }
+            push_cost("ADAPT", "NONE", "B-ADAPT", payload, 0, 0, 0, true,
+                      rt, 0.0, 0);
+        }
+        {   // SPINE candidate: static spine ZFFCTRL x KFLAT16 NETTED.
+            PreparedConfig cfg;
+            prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16,
+                                 tt.w, ress, cfg);
+            cfg.plane_residuals = ress;
+            double tbl_bits = 0;
+            for (size_t pi = 0; pi < ress.size(); ++pi)
+                tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL,
+                                             cfg.evts[pi], cfg.tabs);
+            push_cost("SPINE", "NONE", "B-IDEAL",
+                      (uint64_t)std::ceil(tbl_bits / 8.0),
+                      cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                      cfg.art.audits_ok, true, tbl_bits, 16);
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes =
+                    rans_encode_events(TokProfile::ZFFCTRL, cfg.evts[pi],
+                                       cfg.tabs);
+                payload += bytes.size();
+                auto dec =
+                    rans_decode_events(TokProfile::ZFFCTRL, cfg.cms[pi],
+                                       cfg.plane_residuals[pi].size(),
+                                       bytes, cfg.tabs);
+                if (dec != cfg.plane_residuals[pi]) rt = false;
+            }
+            push_cost("SPINE", "NONE", "B-RANS", payload,
+                      cfg.art.table_blob.size(), cfg.art.map_blob.size(), 0,
+                      cfg.art.audits_ok, rt, tbl_bits, 16);
+        }
+    }
+
+    // Group machinery on the plain YCoCgR MED streams: CEILING mode and
+    // content-defined codebooks at the pinned K set, all side info NETTED
+    // (pins P-T0-5/P-T0-6; K measured whole whenever codebooks run).
+    for (KeyingId key : {KeyingId::KGROUP64, KeyingId::KGROUP128}) {
+        const char* gs_name = (key == KeyingId::KGROUP64) ? "GS64" : "GS128";
+        SandboxModel joint;
+        ClusterMap cm = count_joint(TokProfile::ZFFCTRL, key, w, med_ress,
+                                    joint);
+        const int G = joint.clusters / GROUP_CLASS_AXIS;
+
+        // CEILING: exact per-group stacks, no budget pass by construction.
+        {
+            SmoothedTables tabs;
+            build_tables_enforced(joint, tabs);
+            size_t audit = 0;
+            auto blob = serialize_tables(tabs, &audit);
+            const bool audit_ok = (audit == blob.size());
+            std::vector<std::vector<TaggedEvent>> evts(med_ress.size());
+            {
+                SandboxModel recount;
+                recount.init(TokProfile::ZFFCTRL, joint.clusters);
+                for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                    count_plane(recount, TokProfile::ZFFCTRL, cm,
+                                med_ress[pi], &evts[pi]);
+            }
+            double tbl_bits = 0;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                             tabs);
+            push_cost("CEIL", gs_name, "B-IDEAL",
+                      (uint64_t)std::ceil(tbl_bits / 8.0), blob.size(), 0, 0,
+                      audit_ok, true, tbl_bits, G);
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                evts[pi], tabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cm,
+                                              med_ress[pi].size(), bytes,
+                                              tabs);
+                if (dec != med_ress[pi]) rt = false;
+            }
+            push_cost("CEIL", gs_name, "B-RANS", payload, blob.size(), 0, 0,
+                      audit_ok, rt, tbl_bits, G);
+        }
+
+        // Codebooks at the pinned K set plus the pseudo-random twin.
+        for (int k_want : CODEBOOK_K_SET) {
+            CodebookFit fit = lloyd_cluster(joint, k_want);
+            SmoothedTables protos;
+            build_tables_enforced(fit.centroids, protos);
+            size_t audit = 0;
+            size_t words_tail = 0;
+            auto blob = serialize_codebook(protos, fit.proto_of_group,
+                                           &audit, &words_tail);
+            if (audit != blob.size()) {
+                throw std::runtime_error(
+                    "bench-sandbox --t0: 'SBC1' audit counter disagrees");
+            }
+            {   // Mirror-exactness is rail-fatal even in a smoke slice.
+                deserialize_codebook(blob, &protos, &fit.proto_of_group);
+            }
+            const uint64_t tables_net = blob.size() - words_tail;
+            // Word-driven final mapping: raw (g,c) -> (word(g), c).
+            std::vector<uint32_t> merge((size_t)joint.clusters);
+            for (uint32_t graw = 0; graw < (uint32_t)joint.clusters; ++graw)
+                merge[(size_t)graw] =
+                    fit.proto_of_group[(size_t)(graw / GROUP_CLASS_AXIS)] *
+                        GROUP_CLASS_AXIS +
+                    (graw % GROUP_CLASS_AXIS);
+            ClusterMap cb_cm = cm;
+            cb_cm.merge = &merge;
+            SandboxModel recount;
+            recount.init(TokProfile::ZFFCTRL, fit.centroids.clusters);
+            std::vector<std::vector<TaggedEvent>> evts(med_ress.size());
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                count_plane(recount, TokProfile::ZFFCTRL, cb_cm,
+                            med_ress[pi], &evts[pi]);
+            SmoothedTables eff_tabs;
+            build_tables_enforced(recount, eff_tabs);
+            double tbl_bits = 0;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                             eff_tabs);
+            char cand[16];
+            std::snprintf(cand, sizeof(cand), "CB%d", fit.k_transmitted);
+            push_cost(cand, gs_name, "B-IDEAL",
+                      (uint64_t)std::ceil(tbl_bits / 8.0), tables_net, 0,
+                      words_tail, true, true, tbl_bits,
+                      fit.k_transmitted);
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                evts[pi], eff_tabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cb_cm,
+                                              med_ress[pi].size(), bytes,
+                                              eff_tabs);
+                if (dec != med_ress[pi]) rt = false;
+            }
+            push_cost(cand, gs_name, "B-RANS", payload, tables_net, 0,
+                      words_tail, true, rt, tbl_bits,
+                      fit.k_transmitted);
+
+            // Random-assignment twin (deterministic LCG; rank fixture):
+            // identical artifact shape, assignment unrelated to content.
+            // Occupied prototypes are compacted ascending exactly like the
+            // Lloyd drop, so the twin transmits the SAME row count as its
+            // fitted sibling and the comparison is shape-fair.
+            const size_t stride_sz =
+                SandboxModel::init_stride(TokProfile::ZFFCTRL);
+            std::vector<uint32_t> rnd_words((size_t)G);
+            uint32_t seed = 20260826u ^ (uint32_t)(k_want * 7919);
+            for (uint32_t& rw : rnd_words)
+                rw = lcg_next(seed) % (uint32_t)std::max(1, k_want);
+            {
+                std::vector<uint32_t> renum((size_t)k_want, UINT32_MAX);
+                uint32_t next = 0;
+                for (uint32_t& rw : rnd_words) {
+                    if (renum[(size_t)rw] == UINT32_MAX)
+                        renum[(size_t)rw] = next++;
+                    rw = renum[(size_t)rw];
+                }
+            }
+            uint32_t rnd_span = 0;
+            for (uint32_t rw : rnd_words) rnd_span = std::max(rnd_span, rw);
+            const int n_rnd_proto = (int)rnd_span + 1;
+            SandboxModel rnd_cent;
+            rnd_cent.init(TokProfile::ZFFCTRL,
+                          n_rnd_proto * GROUP_CLASS_AXIS);
+            for (uint32_t g = 0; g < (uint32_t)G; ++g) {
+                const uint32_t p = rnd_words[(size_t)g];
+                for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+                    const size_t src =
+                        ((size_t)g * GROUP_CLASS_AXIS + (size_t)c) *
+                        stride_sz;
+                    const size_t dst =
+                        ((size_t)p * GROUP_CLASS_AXIS + (size_t)c) *
+                        stride_sz;
+                    for (size_t i = 0; i < stride_sz; ++i) {
+                        rnd_cent.n0[dst + i] += joint.n0[src + i];
+                        rnd_cent.n1[dst + i] += joint.n1[src + i];
+                    }
+                }
+            }
+            SmoothedTables rnd_protos;
+            build_tables_enforced(rnd_cent, rnd_protos);
+            size_t rnd_audit = 0;
+            auto rnd_blob = serialize_codebook(rnd_protos, rnd_words,
+                                               &rnd_audit);
+            std::vector<uint32_t> rnd_merge((size_t)joint.clusters);
+            for (uint32_t graw = 0; graw < (uint32_t)joint.clusters; ++graw)
+                rnd_merge[(size_t)graw] =
+                    rnd_words[(size_t)(graw / GROUP_CLASS_AXIS)] *
+                        GROUP_CLASS_AXIS +
+                    (graw % GROUP_CLASS_AXIS);
+            ClusterMap rnd_cm = cm;
+            rnd_cm.merge = &rnd_merge;
+            SandboxModel rnd_recount;
+            rnd_recount.init(TokProfile::ZFFCTRL, rnd_cent.clusters);
+            std::vector<std::vector<TaggedEvent>> rnd_evts(med_ress.size());
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                count_plane(rnd_recount, TokProfile::ZFFCTRL, rnd_cm,
+                            med_ress[pi], &rnd_evts[pi]);
+            SmoothedTables rnd_eff;
+            build_tables_enforced(rnd_recount, rnd_eff);
+            double rnd_bits = 0;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                rnd_bits += table_ideal_bits(TokProfile::ZFFCTRL,
+                                             rnd_evts[pi], rnd_eff);
+            char rcand[20];
+            std::snprintf(rcand, sizeof(rcand), "CBRAND%d", n_rnd_proto);
+            uint64_t rnd_payload = 0;
+            bool rnd_rt = true;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                rnd_evts[pi], rnd_eff);
+                rnd_payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, rnd_cm,
+                                              med_ress[pi].size(), bytes,
+                                              rnd_eff);
+                if (dec != med_ress[pi]) rnd_rt = false;
+            }
+            push_cost(rcand, gs_name, "B-RANS", rnd_payload,
+                      rnd_blob.size(), 0, 0, rnd_audit == rnd_blob.size(),
+                      rnd_rt, rnd_bits, n_rnd_proto);
+        }
+    }
+
+    // Rail-fixture rows emitted by the live run (pin P-T0-10): serializer
+    // round-trip surfaces ('SBC1'/'SBD1'/'SBP2') and the assignment-word
+    // decode mirror on random AND skewed fixtures.
+    struct ProtoResult {
+        const char* kind;
+        bool mirror, trunc, crc, tamper, audit;
+    };
+    std::vector<ProtoResult> protos;
+    {
+        // 'SBP2': wide merge map round-trip over the real GS64 raw width.
+        const uint32_t gs = GROUP_PX64;
+        const uint32_t tiles_x = (w + gs - 1) / gs;
+        const uint32_t h = (w == 0) ? 0 : (uint32_t)(med_ress[0].size() / w);
+        const uint32_t tiles_y = (h + gs - 1) / gs;
+        const uint32_t raw_n = tiles_x * tiles_y * GROUP_CLASS_AXIS;
+        std::vector<uint32_t> mp((size_t)raw_n);
+        for (uint32_t i = 0; i < raw_n; ++i) mp[(size_t)i] = i / 4;
+        size_t pa = 0;
+        auto pblob = serialize_merge_map16(raw_n, mp, &pa);
+        bool mir = false;
+        try {
+            auto back = deserialize_merge_map16(pblob, raw_n);
+            mir = (back == mp);
+        } catch (const std::exception&) {
+            mir = false;
+        }
+        bool dt = false, dcrc = false, dtam = false;
+        try {
+            auto tr = pblob;
+            tr.resize(pblob.size() - 5);
+            deserialize_merge_map16(tr, raw_n);
+        } catch (const std::exception&) { dt = true; }
+        try {
+            auto cc = pblob;
+            cc[cc.size() - 1] ^= 0x01;
+            deserialize_merge_map16(cc, raw_n);
+        } catch (const std::exception&) { dcrc = true; }
+        try {
+            auto tmr = pblob;
+            tmr[12] ^= 0x01;   // entry region, CRC-consistent? CRC covers it
+            deserialize_merge_map16(tmr, raw_n);
+        } catch (const std::exception&) { dtam = true; }
+        protos.push_back({"SBP2", mir, dt, dcrc, dtam, pa == pblob.size()});
+    }
+    {
+        // 'SBC1': the real GS64 CB8 codebook, expect-exact round trip.
+        SandboxModel joint;
+        ClusterMap cm = count_joint(TokProfile::ZFFCTRL, KeyingId::KGROUP64,
+                                    w, med_ress, joint);
+        CodebookFit fit = lloyd_cluster(joint, 8);
+        SmoothedTables prot;
+        build_tables_enforced(fit.centroids, prot);
+        size_t ca = 0;
+        auto cblob = serialize_codebook(prot, fit.proto_of_group, &ca);
+        bool mir = false;
+        try {
+            deserialize_codebook(cblob, &prot, &fit.proto_of_group);
+            mir = true;
+        } catch (const std::exception&) { mir = false; }
+        bool dt = false, dcrc = false, dtam = false;
+        try {
+            auto tr = cblob;
+            tr.resize(cblob.size() / 3);
+            deserialize_codebook(tr, nullptr, nullptr);
+        } catch (const std::exception&) { dt = true; }
+        try {
+            auto cc = cblob;
+            cc[24] ^= 0x80;   // inside the CRC-covered priors region
+            deserialize_codebook(cc, nullptr, nullptr);
+        } catch (const std::exception&) { dcrc = true; }
+        try {
+            auto tmr = cblob;
+            tmr[24] ^= 0x01;   // inside the priors region
+            SmoothedTables wrongp = prot;
+            wrongp.p[10] = (uint16_t)(wrongp.p[10] == 1
+                                          ? 2 : wrongp.p[10] - 1);
+            deserialize_codebook(tmr, &wrongp, nullptr);
+        } catch (const std::exception&) { dtam = true; }
+        protos.push_back({"SBC1", mir, dt, dcrc, dtam, ca == cblob.size()});
+        (void)cm;
+    }
+    {
+        // 'SBD1': TW-A shrinkage over the image's flat343/class16 tables.
+        SandboxModel flat;
+        flat.init(TokProfile::ZFFCTRL, KeyingId::KFLAT343);
+        SandboxModel m16;
+        m16.init(TokProfile::ZFFCTRL, KeyingId::KFLAT16);
+        for (const auto& res : med_ress) {
+            count_plane(flat, TokProfile::ZFFCTRL, KeyingId::KFLAT343, res,
+                        w, nullptr);
+            count_plane(m16, TokProfile::ZFFCTRL, KeyingId::KFLAT16, res, w,
+                        nullptr);
+        }
+        SmoothedTables t16;
+        build_tables_enforced(m16, t16);
+        ShrunkTables shr = shrink_child_tables(TokProfile::ZFFCTRL, flat,
+                                               t16, 32);
+        size_t sa = 0;
+        auto sblob = serialize_shrunk(shr, &sa);
+        bool mir = false;
+        try {
+            deserialize_shrunk(sblob, &shr);
+            mir = true;
+        } catch (const std::exception&) { mir = false; }
+        bool dt = false, dcrc = false, dtam = false;
+        try {
+            auto tr = sblob;
+            tr.resize(sblob.size() - 40);
+            deserialize_shrunk(tr, nullptr);
+        } catch (const std::exception&) { dt = true; }
+        try {
+            auto cc = sblob;
+            cc[sblob.size() - 6] ^= 0x40;
+            deserialize_shrunk(cc, nullptr);
+        } catch (const std::exception&) { dcrc = true; }
+        try {
+            ShrunkTables wrongs = shr;
+            const size_t st = shr.stride();
+            wrongs.child_delta[9 * st + 5] =
+                (int16_t)(wrongs.child_delta[9 * st + 5] + 7);
+            deserialize_shrunk(sblob, &wrongs);
+        } catch (const std::exception&) { dtam = true; }
+        protos.push_back({"SBD1", mir, dt, dcrc, dtam, sa == sblob.size()});
+    }
+    for (const ProtoResult& pr : protos) {
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "TPROTO,%s,%s,%d,%d,%d,%d,%d\n", img_name.c_str(),
+                      pr.kind, pr.mirror ? 1 : 0, pr.trunc ? 1 : 0,
+                      pr.crc ? 1 : 0, pr.tamper ? 1 : 0,
+                      pr.audit ? 1 : 0);
+        std::cout << rowbuf;
+    }
+
+    // Assignment-word decode-mirror fixtures (VB-assign-mirror basis):
+    // random-uniform and heavily skewed word vectors over a two-stack
+    // synthetic grouping, serialized through 'SBC1' and decoded back.
+    {
+        const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+        SandboxModel two;
+        two.init(TokProfile::ZFFCTRL, 2 * GROUP_CLASS_AXIS);
+        for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+            two.n0[(size_t)c * stride] = 90;
+            two.n1[(size_t)(GROUP_CLASS_AXIS + c) * stride] = 90;
+        }
+        CodebookFit fit = lloyd_cluster(two, 2);
+        SmoothedTables prot;
+        build_tables_enforced(fit.centroids, prot);
+        for (const char* fname : {"RANDOM", "SKEW"}) {
+            std::vector<uint32_t> words((size_t)fit.proto_of_group.size());
+            uint32_t s = 77u;
+            for (size_t i = 0; i < words.size(); ++i) {
+                if (fname[0] == 'R')
+                    words[i] = lcg_next(s) %
+                               (uint32_t)std::max(1, fit.k_transmitted);
+                else
+                    words[i] = (i % 29 == 0)
+                                   ? (uint32_t)(i % 3) %
+                                         (uint32_t)std::max(
+                                             1, fit.k_transmitted)
+                                   : 0;
+            }
+            size_t aa = 0;
+            auto wblob = serialize_codebook(prot, words, &aa);
+            bool ok = false;
+            try {
+                DecodedCodebook back =
+                    deserialize_codebook(wblob, &prot, &words);
+                ok = (back.words == words);
+            } catch (const std::exception&) { ok = false; }
+            std::snprintf(rowbuf, sizeof(rowbuf), "TAMIRROR,%s,%s,%zu,%d\n",
+                          img_name.c_str(), fname, words.size(),
+                          ok ? 1 : 0);
+            std::cout << rowbuf;
+        }
+    }
+
+    // ZZ-HU identity echo (pin P-T0-12): row-schema label only, profile id
+    // proves the wiring before T3 ever reads it.
+    std::snprintf(rowbuf, sizeof(rowbuf), "TZZHU,%s,HYB_C,%d\n",
+                  img_name.c_str(), (int)TokProfile::HYB_C);
+    std::cout << rowbuf;
+
+    // Emit cost rows with the decomposition column filled against this
+    // image's fresh T-BASE winner (real NET bytes, ties ADAPT).
+    uint64_t tb_win_payload = 0, tb_win_net = 0;
+    bool tb_have = false;
+    for (const T0Row& row : rows) {
+        if (row.cand != "ADAPT" && row.cand != "SPINE") continue;
+        if (row.be != "B-RANS" && row.be != "B-ADAPT") continue;
+        const uint64_t net = row.payload + row.tables + row.maps +
+                             row.trees + row.assign;
+        if (!tb_have || net < tb_win_net) {
+            tb_have = true;
+            tb_win_net = net;
+            tb_win_payload = row.payload;
+        }
+    }
+    for (const T0Row& row : rows) {
+        const uint64_t net = row.payload + row.tables + row.maps +
+                             row.trees + row.assign;
+        const double paygain =
+            (tb_have && tb_win_payload > 0)
+                ? 100.0 * ((double)tb_win_payload - (double)row.payload) /
+                      (double)tb_win_payload
+                : 0.0;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "T0,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%d,%d,"
+                      "%.3f,%d,%.4f\n",
+                      row.img.c_str(), row.cand.c_str(), row.gs.c_str(),
+                      row.be.c_str(), (size_t)row.payload,
+                      (size_t)row.tables, (size_t)row.maps,
+                      (size_t)row.trees, (size_t)row.assign,
+                      (size_t)net, row.audit_ok ? 1 : 0, row.rt ? 1 : 0,
+                      row.tbl_bits, row.keff, paygain);
+        std::cout << rowbuf;
+    }
+}
+
+// --t0-synth: deterministic in-process fixtures for the failable rails
+// (pin P-T0-10: SYNTHETIC-tagged, NO anchor rows, outside anchor coverage;
+// pin P-T0-11: diagnostics only, never gates). homo must collapse to
+// transmitted K=1 at near-zero assignment cost; skew must let the fitted
+// codebook beat its random-assignment twin.
+static void synth_raster(const std::string& kind, Raster& r) {
+    r = Raster(192, 192, Channels::RGB, BitDepth::BD8);
+    uint32_t s = 20260826u;
+    for (uint32_t y = 0; y < 192; ++y) {
+        for (uint32_t x = 0; x < 192; ++x) {
+            uint8_t v;
+            if (kind == "skew")
+                v = (x < 96) ? 128 : (uint8_t)(t0run::lcg_next(s) & 0xFF);
+            else
+                v = 77;
+            for (auto& plane : r.planes) plane[(size_t)y * 192 + x] = v;
+        }
+    }
+}
+
+static int run_t0_synth(const std::string& kind) {
+    if (kind != "homo" && kind != "skew") {
+        std::cerr << "bench-sandbox --t0-synth: unknown fixture " << kind
+                  << " (use homo|skew)\n";
+        return 2;
+    }
+    using namespace t0run;
+    char rowbuf[512];
+    Raster r;
+    synth_raster(kind, r);
+    const std::string img_name = "synth-" + kind;
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    std::vector<std::vector<int32_t>> med_ress;
+    for (auto& plane : t.planes)
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+
+    for (KeyingId key : {KeyingId::KGROUP64}) {
+        SandboxModel joint;
+        ClusterMap cm = count_joint(TokProfile::ZFFCTRL, key, w, med_ress,
+                                    joint);
+        // CEILING row: exact per-group stacks, coded for real.
+        {
+            SmoothedTables ctabs;
+            build_tables_enforced(joint, ctabs);
+            size_t audit = 0;
+            auto cblob = serialize_tables(ctabs, &audit);
+            std::vector<std::vector<TaggedEvent>> evts(med_ress.size());
+            uint64_t payload = 0;
+            bool rt = true;
+            double bits = 0;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+                count_plane(joint, TokProfile::ZFFCTRL, cm, med_ress[pi],
+                            &evts[pi]);
+                bits += table_ideal_bits(TokProfile::ZFFCTRL, evts[pi],
+                                         ctabs);
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                evts[pi], ctabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, cm,
+                                              med_ress[pi].size(), bytes,
+                                              ctabs);
+                if (dec != med_ress[pi]) rt = false;
+            }
+            const uint64_t net = payload + cblob.size();
+            std::snprintf(rowbuf, sizeof(rowbuf),
+                          "T0,%s,CEIL,GS64,B-RANS,%zu,%zu,0,0,0,%zu,%d,"
+                          "%d,%.3f,%d,0.0000\n",
+                          img_name.c_str(), (size_t)payload,
+                          (size_t)cblob.size(), (size_t)net,
+                          audit == cblob.size() ? 1 : 0, rt ? 1 : 0, bits,
+                          joint.clusters / GROUP_CLASS_AXIS);
+            std::cout << rowbuf;
+        }
+        for (int k_want : {4}) {
+            CodebookFit fit = lloyd_cluster(joint, k_want);
+            SmoothedTables protos;
+            build_tables_enforced(fit.centroids, protos);
+            size_t fa = 0;
+            size_t ftail = 0;
+            auto fblob = serialize_codebook(protos, fit.proto_of_group,
+                                            &fa, &ftail);
+            std::vector<uint32_t> merge((size_t)joint.clusters);
+            for (uint32_t graw = 0; graw < (uint32_t)joint.clusters; ++graw)
+                merge[(size_t)graw] =
+                    fit.proto_of_group[(size_t)(graw / GROUP_CLASS_AXIS)] *
+                        GROUP_CLASS_AXIS +
+                    (graw % GROUP_CLASS_AXIS);
+            ClusterMap fcm = cm;
+            fcm.merge = &merge;
+            SandboxModel fr;
+            fr.init(TokProfile::ZFFCTRL, fit.centroids.clusters);
+            std::vector<std::vector<TaggedEvent>> fevts(med_ress.size());
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                count_plane(fr, TokProfile::ZFFCTRL, fcm, med_ress[pi],
+                            &fevts[pi]);
+            SmoothedTables ftabs;
+            build_tables_enforced(fr, ftabs);
+            double fbits = 0;
+            uint64_t payload = 0;
+            bool rt = true;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+                fbits += table_ideal_bits(TokProfile::ZFFCTRL, fevts[pi],
+                                          ftabs);
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                fevts[pi], ftabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, fcm,
+                                              med_ress[pi].size(), bytes,
+                                              ftabs);
+                if (dec != med_ress[pi]) rt = false;
+            }
+            const uint64_t net = payload + fblob.size();
+            std::snprintf(rowbuf, sizeof(rowbuf),
+                          "T0,%s,CB%d,GS64,B-RANS,%zu,%zu,0,0,%zu,%zu,%d,"
+                          "%d,%.3f,%d,0.0000\n",
+                          img_name.c_str(), fit.k_transmitted,
+                          (size_t)payload,
+                          (size_t)(fblob.size() - ftail),
+                          (size_t)ftail, (size_t)net,
+                          fa == fblob.size() ? 1 : 0, rt ? 1 : 0, fbits,
+                          fit.k_transmitted);
+            std::cout << rowbuf;
+
+            // Random-assignment twin (rank-fixture direction): identical
+            // shape after occupied-prototype compaction.
+            std::vector<uint32_t> rw_words((size_t)joint.clusters /
+                                           GROUP_CLASS_AXIS);
+            uint32_t rs = 20260826u;
+            for (uint32_t& rw : rw_words) rw = t0run::lcg_next(rs) % 4u;
+            {
+                std::vector<uint32_t> renum(4u, UINT32_MAX);
+                uint32_t nxt = 0;
+                for (uint32_t& rw : rw_words) {
+                    if (renum[(size_t)rw] == UINT32_MAX)
+                        renum[(size_t)rw] = nxt++;
+                    rw = renum[(size_t)rw];
+                }
+            }
+            uint32_t rspan = 0;
+            for (uint32_t rw : rw_words) rspan = std::max(rspan, rw);
+            const int n_rp = (int)rspan + 1;
+            SandboxModel rc2;
+            rc2.init(TokProfile::ZFFCTRL, n_rp * GROUP_CLASS_AXIS);
+            const size_t ssz = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+            for (size_t g = 0; g < rw_words.size(); ++g) {
+                for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+                    const size_t s0 =
+                        (g * (size_t)GROUP_CLASS_AXIS + (size_t)c) * ssz;
+                    const size_t d0 =
+                        ((size_t)rw_words[g] * GROUP_CLASS_AXIS +
+                         (size_t)c) * ssz;
+                    for (size_t i = 0; i < ssz; ++i) {
+                        rc2.n0[d0 + i] += joint.n0[s0 + i];
+                        rc2.n1[d0 + i] += joint.n1[s0 + i];
+                    }
+                }
+            }
+            SmoothedTables rp;
+            build_tables_enforced(rc2, rp);
+            size_t ra2 = 0;
+            size_t rtail = 0;
+            auto rblob = serialize_codebook(rp, rw_words, &ra2, &rtail);
+            std::vector<uint32_t> rm((size_t)joint.clusters);
+            for (uint32_t graw = 0; graw < (uint32_t)joint.clusters; ++graw)
+                rm[(size_t)graw] =
+                    rw_words[(size_t)(graw / GROUP_CLASS_AXIS)] *
+                        GROUP_CLASS_AXIS +
+                    (graw % GROUP_CLASS_AXIS);
+            ClusterMap rcm = cm;
+            rcm.merge = &rm;
+            SandboxModel rr;
+            rr.init(TokProfile::ZFFCTRL, n_rp * GROUP_CLASS_AXIS);
+            std::vector<std::vector<TaggedEvent>> revts(med_ress.size());
+            for (size_t pi = 0; pi < med_ress.size(); ++pi)
+                count_plane(rr, TokProfile::ZFFCTRL, rcm, med_ress[pi],
+                            &revts[pi]);
+            SmoothedTables rtabs;
+            build_tables_enforced(rr, rtabs);
+            uint64_t rpay = 0;
+            bool rrt = true;
+            double rbits = 0;
+            for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+                rbits += table_ideal_bits(TokProfile::ZFFCTRL, revts[pi],
+                                          rtabs);
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                revts[pi], rtabs);
+                rpay += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL, rcm,
+                                              med_ress[pi].size(), bytes,
+                                              rtabs);
+                if (dec != med_ress[pi]) rrt = false;
+            }
+            const uint64_t rnet = rpay + rblob.size();
+            std::snprintf(rowbuf, sizeof(rowbuf),
+                          "T0,%s,CBRAND%d,GS64,B-RANS,%zu,%zu,0,0,%zu,%zu,"
+                          "%d,%d,%.3f,%d,0.0000\n",
+                          img_name.c_str(), n_rp, (size_t)rpay,
+                          (size_t)(rblob.size() - rtail),
+                          (size_t)rtail, (size_t)rnet,
+                          ra2 == rblob.size() ? 1 : 0, rrt ? 1 : 0, rbits,
+                          n_rp);
+            std::cout << rowbuf;
+        }
+    }
+    return 0;
 }
 
 } // namespace sandboxrun
