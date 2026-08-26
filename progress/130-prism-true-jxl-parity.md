@@ -909,6 +909,16 @@ stacking note above but kept as hard-won context):
 
 ## Agent log
 
+- 2026-08-26 the Builder (T-series slice Q0, IN PROGRESS): T0 instrument
+  extension started on PR #146. Structural pins P-T0-1..P-T0-11 committed
+  BEFORE any machinery output or measurement
+  (decisions/builder/2026-08-26T08-00-00-t0-instrument-pins.md): group
+  stacks as SandboxModel rows via explicit maps, Lloyd flattening/init/
+  drop details, prototype estimation = build_tables_enforced verbatim,
+  'SBC1'/'SBD1' layouts, assignment symbol-rANS (L = 2^23, M = 4096),
+  CEILING serialization, shrinkage integer form + test-limit reading,
+  diagnostic scope (kodim01 only) + row schemas + synthetic-fixture
+  policy, non-gating boundary. Implementation milestones follow.
 - 2026-08-26 the Architect (T-series pivot phase): executed the v3
   research handoff on PR #146. (1) Stacking resolution: PR #145's branch
   is orphan-rooted, so instead of an unrelated-histories merge that would
