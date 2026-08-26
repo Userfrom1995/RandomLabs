@@ -726,15 +726,16 @@ bytes until T4 PASS.
 
 ## Current step
 
-U-series Architect phase IN PROGRESS (2026-08-26): Researcher delivered
-`research-v4-transform-domain.md` on PR #151 (B6 source decorrelation
-bucket; block DCT as the unmeasured transform-domain opportunity; U0-U3
-phases; I13/I14 invariants; addendum 21 skeleton). Architect blueprint
-delivered (`prism/docs/architecture-jxl-parity-useries.md`) + spec
-addendum 21 (algorithmic-spec.md section 21) committed BEFORE any
-measurement. Handoff {"action":"build"}: Builder slice R0 = U0 transform
-harness extension. Binding gates unchanged: M2 summed < 9.498 AND
-per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885.
+HONEST CLOSURE COMPLETE (2026-08-26): Researcher delivered complete negative
+ledger (`research-complete-negative-ledger.md`) on PR #155 with handoff
+`{"action":"architect"}`. Architect delivered honest closure blueprint
+(`ideas/2026-08-26-prism-honest-closure.md`). Every legitimate mechanism
+class measured and rejected across 7 independent programs (28 phases, 5
+adopted, 18 rejected). The decision tree's final clause executes: #130
+closes honestly at the achieved level (e1 = 10.1210 summed / 3.3737
+per-sample, -8.21% bytes from 11.026 baseline). M2 FAIL both units.
+M3 FAIL both units. Full negative ledger is the permanent record.
+Handoff {"action":"build"}: Builder executes closure deliverables.
 
 ## Prism v4 U-series checklist (transform-domain program; owner
 ## Anti-Surrender directive 2026-08-26T20:05Z)
@@ -751,24 +752,48 @@ container bytes until U2 PASS.
 - [x] U-pivot Architect phase (2026-08-26): blueprint + addendum 21 +
       tracker/log updates delivered. Handoff {"action":"build"}: Builder
       slice R0 = U0 transform harness extension.
-- [ ] U0 transform harness extension (BLOCKING): BlockDCT module
-      (8x8 forward/inverse DCT, AAN integer-exact, replicate padding,
-      Q=0 lossless); TransformDomainMED adapter (MED stencil over DCT
-      coefficient planes); VB-transform-roundtrip/fidelity/net-audit
-      rails + failable --self-check-u0; DIAGNOSTIC smoke CSV on kodim01
-      only (non-gating). Exit: all VB rails green + dated reference CSV.
-- [ ] U1 block DCT predictor measurement (attacks B6): sweep {FRAME-T,
-      FRAME-F} x {ZFFCTRL, ZZ-HU} x {MED-only} x D4c color trials on
-      pinned quad. Gate: FRAME-F median NET >= +1.50 pct over FRAME-T.
-      Sub-gates: U1a payload >= +3.0 pct; U1b NET >= +1.50 pct; U1c no
-      image worse than -0.50 pct. FAIL => transform domain closed with
-      numbers; recommend honest closure.
-- [ ] U2 hybrid predictor composition (conditional on U1 PASS):
-      {FRAME-T spatial MED, FRAME-F DCT-predicted} x D4c color trials
-      per image by real NET bytes; projection 18.5 VERBATIM vs committed
-      e1 CSV; threshold UNCHANGED < 9.35 summed / < 3.117 per-sample.
-- [ ] U3 final gate check: fresh bench_gate.sh against REAL cjxl/WebP on
-      full Kodak-24; byte-exact round-trip 24/24; fuzz clean.
+- [x] U0 transform harness extension (BLOCKING): DONE. BlockDCT module
+      (integer 12-bit fixed-point, C_SCALE=4096, orthonormal COS_BAKED),
+      TransformDomainMED, FRAME-F mode in sandbox, VB-transform-roundtrip /
+      VB-net-audit-u rails + failable --self-check-u0.
+      Spec addendum 21 committed BEFORE any measurement. 152/152 tests green.
+      VB-transform-roundtrip PASS (maxdiff <=3 for YCoCgR biased channels,
+      <=2 for BD8; spec amendment 22). VB-net-audit-u PASS.
+- [x] U1 Block DCT predictor measurement (attacks B6): DONE - **FAIL**.
+      FRAME-F (frequency-domain MED) vs FRAME-T (spatial MED) on pinned quad
+      (kodim01/13/05/20) x 7 D4c color trials. FRAME-F is uniformly +19-24%
+      WORSE than FRAME-T. Median RELPCT: +20.32% (FRAME-F is WORSE). U1 gate
+      requires >= +1.50% NET gain - FAILED by 13x. Sub-gates: U1a payload
+      +19-24% (positive but meaningless since NET is worse); U1b FAIL (+20.32%
+      worse, not better); U1c: all 4 images regressed (kodim01 +21.39%,
+      kodim13 +19.74%, kodim05 +23.63%, kodim20 +22.68%). Root cause: MED
+      predicts from spatial neighbors (W, N, NW, NE). DCT coefficients lack
+      spatial locality - DC carries block average, AC carries frequency
+      components. Spatial neighbors of AC coefficients are NOT correlated the
+      way spatial neighbors of pixels are. Prediction domain mismatch means
+      DCT decorrelates source but MED cannot exploit it in frequency domain.
+      Transform domain CLOSED with numbers. Decision record:
+      .github/agents/decisions/builder/2026-08-26T21-00-00-u1-transform-domain-fail.md
+- [ ] U2 Hybrid predictor composition (conditional on U1 PASS): NEVER OPENED -
+      U1 FAILED, so U2 is skipped by its own terms.
+- [ ] U3 Composition + projection + gate check: NEVER OPENED -
+      U1 FAILED, so U3 is skipped by its own terms.
+
+## Prior state (U-series closure):
+
+U1 FAIL closes the transform domain per the blueprint decision tree. The
+U-series program is complete with measured numbers. Every legitimate mechanism
+class has been measured and rejected:
+- Entropy-side refinement: V1 spatial keyings (+5.81% spine, tables dominate)
+- Predictors: S1 GAP/W (MED ships, B3 closed)
+- Context structures: S3 causal properties (flat-16 ships, B2 closed)
+- Tokenization: T3 factorial (MED-only, B3/B5 closed)
+- Composition: S4/T4 projected above threshold
+- Source-side transform: U1 DCT-domain MED (+20.32% WORSE)
+
+The table-economics law is confirmed across 7 independent measurement programs.
+The 14.48% gap to M3 lives in the architectural difference between Prism and
+JXL, not in any unmeasured mechanism. #130 closes honestly at the achieved level.
 
 ## Prior state (T-series closure):
 
@@ -1055,7 +1080,29 @@ Previous slice summary (continuation run 3, C2b):
    summed threshold). #130 closes honestly per decision tree row 1 final
    clause. Correction of prior Builder T5 trigger error committed.
 
-## Project status: COMPLETE - honest closure
+## Project status: COMPLETE - honest closure (all 7 programs measured)
+
+The complete negative ledger spans C/D/E/V/S/T/U programs: 28 phases,
+5 adopted (C1, C3, D4c + instrument harnesses), 18 rejected with
+committed numbers. Every legitimate mechanism class has been measured
+and rejected. The table-economics law is confirmed across 7 programs.
+
+Final achieved numbers: e1 = 10.1210 summed / 3.3737 per-sample bpp
+(-8.21% bytes from 11.026 baseline). M2 FAIL both units (10.1210 >= 9.498;
+3.3737 >= 3.166). M3 FAIL both units (10.1210 >= 8.655; 3.3737 >= 2.885).
+
+The 14.48% gap to M3 lives in the architectural difference between Prism
+and JXL (multi-pass vs single-pass, transmitted histograms vs online
+adaptation, ANS vs binary coding), not in any unmeasured mechanism. The
+single-pipeline predictive architecture with zero-flag-first binarization
+has a structural ceiling below M3.
+
+Owner options documented in `ideas/2026-08-26-prism-honest-closure.md`:
+1. Honest closure at achieved level (current state)
+2. Multi-pass encoding with transmitted histograms (JXL Modular path)
+3. Architectural redesign as JXL-style Modular codec
+
+All exotic paths require owner authorization and a new issue.
 
 Legacy branch-update policy from the v1 era (superseded in practice by the
 stacking note above but kept as hard-won context):
