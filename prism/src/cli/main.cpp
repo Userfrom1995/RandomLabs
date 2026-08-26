@@ -10,6 +10,7 @@
 #include "prism/codec/tokenize.h"
 #include "prism/codec/staticmodel.h"
 #include "prism/codec/matree.h"
+#include "prism/codec/transform.h"
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
@@ -54,7 +55,8 @@ static void print_usage() {
   << "  prism bench-sandbox --t1b <image>...  (T-series content-defined codebooks)\n"
   << "  prism bench-sandbox --t2a <image>...  (T-series shrunk fine contexting)\n"
   << "  prism bench-sandbox --t3 <image>...   (T-series predictor-tokenization factorial)\n"
-  << "  prism bench-sandbox --t3b FAM@TOK <image>...  (T-series canary-on-winner)\n";
+  << "  prism bench-sandbox --t3b FAM@TOK <image>...  (T-series canary-on-winner)\n"
+  << "  prism bench-sandbox --u0 <image>...   (U-series transform-domain smoke)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -945,6 +947,7 @@ static void run_t1b_image(const std::filesystem::path& img);
 static void run_t2a_image(const std::filesystem::path& img);
 static void run_t3_image(const std::filesystem::path& img);
 static void run_t3b_image(const std::filesystem::path& img, const std::string& target);
+static void run_u0_image(const std::filesystem::path& img);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -1105,6 +1108,19 @@ static int run_bench_sandbox(int argc, char** argv) {
             }
             for (const auto& img : imgs)
                 sandboxrun::run_t3b_image(img, target);
+            return 0;
+        }
+        if (a == "--u0") {
+            // U-series slice U0 transform instrument smoke (spec addendum
+            // 21.0/21.6; BLOCKING first phase).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --u0: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs)
+                sandboxrun::run_u0_image(img);
             return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
@@ -4164,6 +4180,294 @@ void run_t3b_image(const std::filesystem::path& img,
     if (canary_rans && base_rans)
         emit_t3bs_rows(img_name, fam_s + "@" + tok_s, *base_rans,
                        *canary_rans);
+}
+
+// ----- bench-sandbox --u0 (U-series slice U0; spec addendum 21;
+// pins P-U0-1..P-U0-8 in decisions/builder/2026-08-26T20-30-00) -----
+//
+// Transform instrument smoke: anchors first (identical emission to every
+// prior phase so VB-anchor-* guard the CSV), then FRAME-T (spatial MED)
+// and FRAME-F (frequency-domain MED on DCT coefficients) rows for the
+// pinned quad. DIAGNOSTIC ONLY: no verdict gates anything; quad verdict
+// numbers start at U1.
+//
+// Cost-row schema (one line, comma-separated):
+//   U0,img,frame,cand,trial,be,payload,tables,maps,net,audit,rt,tbl_bits
+// frame in {T, F} = spatial vs frequency domain.
+// cand in {ADAPT, FRAMEF} = production replay vs DCT-predicted path.
+
+namespace u0run {
+
+struct U0Row {
+    std::string img, frame, cand, trial, be;
+    uint64_t payload = 0, tables = 0, maps = 0;
+    bool audit_ok = true, rt = true;
+    double tbl_bits = 0;
+};
+
+static void emit_u0_anchors(const std::string& img_name, const Raster& t,
+                             const std::vector<std::vector<int32_t>>& med_ress,
+                             size_t v0b, size_t v2b) {
+    char rowbuf[512];
+    for (size_t pi = 0; pi < med_ress.size(); ++pi) {
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "ANCHOR,%s,plane%zu,%zu,%zu\n",
+                      img_name.c_str(), pi, v0b, v2b);
+        std::cout << rowbuf;
+    }
+}
+
+static void emit_u0_row(const U0Row& row) {
+    char rowbuf[512];
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "U0,%s,%s,%s,%s,%s,%zu,%zu,%zu,%d,%d,%.1f\n",
+                  row.img.c_str(), row.frame.c_str(), row.cand.c_str(),
+                  row.trial.c_str(), row.be.c_str(),
+                  row.payload, row.tables, row.maps,
+                  row.audit_ok ? 1 : 0, row.rt ? 1 : 0,
+                  row.tbl_bits);
+    std::cout << rowbuf;
+}
+
+} // namespace u0run
+
+void run_u0_image(const std::filesystem::path& img) {
+    using namespace u0run;
+    using namespace prism::codec;
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    // Anchor truth on the YCoCgR MED streams (pin P-U0-1: SANDBOX control,
+    // BRACKET, anchor trio exactly like every other phase).
+    Raster t = apply_color(r, ColorTransform::YCoCgR);
+    const uint32_t w = t.w;
+    const uint32_t h = t.h;
+    std::vector<std::vector<int32_t>> med_ress;
+    med_ress.reserve(t.planes.size());
+    size_t v0b = 0, v2b = 0;
+    for (auto& plane : t.planes) {
+        med_ress.push_back(compute_residuals(plane, t.w, t.h, PredId::MED));
+        v0b += acoder_encode_plane(med_ress.back(), w, t.h, 343).size();
+        v2b += acoder_encode_plane_v2(med_ress.back(), w, t.h,
+                                      AC_V2_RESDIFF_CONTEXTS).size();
+    }
+    emit_u0_anchors(img_name, t, med_ress, v0b, v2b);
+
+    // FRAME-T: spatial MED on original source (the existing production path).
+    // For each color trial, compute MED residuals and encode via v2 backend.
+    for (int id = 0; id < colorrot::kCount; ++id) {
+        const char* tn = colorrot::name(id);
+        Raster tt = colorrot::apply(r, id);
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            ress.push_back(compute_residuals(plane, tt.w, tt.h, PredId::MED));
+
+        // ADAPT: production adaptive replay, zero side info.
+        {
+            uint64_t payload = 0;
+            bool rt_ok = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes = acoder_encode_plane_v2(ress[pi], tt.w, tt.h,
+                                                    AC_V2_RESDIFF_CONTEXTS);
+                payload += bytes.size();
+                auto dec = acoder_decode_plane_v2(bytes, ress[pi].size(), tt.w,
+                                                  tt.h, AC_V2_RESDIFF_CONTEXTS);
+                if (dec != ress[pi]) rt_ok = false;
+            }
+            U0Row row;
+            row.img = img_name; row.frame = "T"; row.cand = "ADAPT";
+            row.trial = tn; row.be = "B-ADAPT";
+            row.payload = payload; row.tables = 0; row.maps = 0;
+            row.audit_ok = true; row.rt = rt_ok; row.tbl_bits = 0;
+            emit_u0_row(row);
+        }
+
+        // SPINE: static spine ZFFCTRL x KFLAT16, all side info NETTED.
+        PreparedConfig cfg;
+        prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16,
+                             tt.w, ress, cfg);
+        cfg.plane_residuals = ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL,
+                                         cfg.evts[pi], cfg.tabs);
+        {
+            U0Row row;
+            row.img = img_name; row.frame = "T"; row.cand = "SPINE";
+            row.trial = tn; row.be = "B-IDEAL";
+            row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.audit_ok = cfg.art.audits_ok; row.rt = true;
+            row.tbl_bits = tbl_bits;
+            emit_u0_row(row);
+        }
+        {
+            uint64_t payload = 0;
+            bool rt_ok = true;
+            for (size_t pi = 0; pi < ress.size(); ++pi) {
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                cfg.evts[pi], cfg.tabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                              cfg.cms[pi],
+                                              cfg.plane_residuals[pi].size(),
+                                              bytes, cfg.tabs);
+                if (dec != cfg.plane_residuals[pi]) rt_ok = false;
+            }
+            U0Row row;
+            row.img = img_name; row.frame = "T"; row.cand = "SPINE";
+            row.trial = tn; row.be = "B-RANS";
+            row.payload = payload;
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.audit_ok = cfg.art.audits_ok; row.rt = rt_ok;
+            row.tbl_bits = tbl_bits;
+            emit_u0_row(row);
+        }
+    }
+
+    // FRAME-F: frequency-domain MED on DCT coefficients.
+    // For each color trial, apply forward DCT to each plane, compute MED
+    // residuals in the coefficient domain, and encode via v2 backend.
+    for (int id = 0; id < colorrot::kCount; ++id) {
+        const char* tn = colorrot::name(id);
+        Raster tt = colorrot::apply(r, id);
+
+        // Forward DCT on each plane
+        std::vector<DctPlaneResult> dcts;
+        dcts.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            dcts.push_back(block_dct_forward_plane(plane, tt.w, tt.h));
+
+        // Compute transform-domain residuals
+        std::vector<std::vector<int32_t>> tf_ress;
+        tf_ress.reserve(dcts.size());
+        for (auto& dct : dcts)
+                tf_ress.push_back(compute_transform_residuals(dct));
+
+        // ADAPT: production adaptive replay on transform residuals, zero side info.
+        // Use single context (w=0) for transform residuals: the block-grid
+        // coefficient layout does not match pixel-grid adjacency, so spatial
+        // residual-diff contexts are disabled (spec 21.3 pin, fix #3).
+        {
+            uint64_t payload = 0;
+            bool rt_ok = true;
+            for (size_t pi = 0; pi < tf_ress.size(); ++pi) {
+                auto bytes = acoder_encode_plane_v2(tf_ress[pi], 0, 0, 1);
+                payload += bytes.size();
+                auto dec = acoder_decode_plane_v2(bytes, tf_ress[pi].size(), 0,
+                                                  0, 1);
+                if (dec != tf_ress[pi]) rt_ok = false;
+            }
+            U0Row row;
+            row.img = img_name; row.frame = "F"; row.cand = "ADAPT";
+            row.trial = tn; row.be = "B-ADAPT";
+            row.payload = payload; row.tables = 0; row.maps = 0;
+            row.audit_ok = true; row.rt = rt_ok; row.tbl_bits = 0;
+            emit_u0_row(row);
+        }
+
+        // SPINE: static spine on transform residuals, all side info NETTED.
+        // Use w=0: transform residual block-grid does not match pixel-grid
+        // adjacency; KFLAT16 clusters are position-independent (fix #3).
+        PreparedConfig cfg;
+        prepare_keyed_config(TokProfile::ZFFCTRL, KeyingId::KFLAT16,
+                             0, tf_ress, cfg);
+        cfg.plane_residuals = tf_ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < tf_ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(TokProfile::ZFFCTRL,
+                                         cfg.evts[pi], cfg.tabs);
+        {
+            U0Row row;
+            row.img = img_name; row.frame = "F"; row.cand = "SPINE";
+            row.trial = tn; row.be = "B-IDEAL";
+            row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.audit_ok = cfg.art.audits_ok; row.rt = true;
+            row.tbl_bits = tbl_bits;
+            emit_u0_row(row);
+        }
+        {
+            uint64_t payload = 0;
+            bool rt_ok = true;
+            for (size_t pi = 0; pi < tf_ress.size(); ++pi) {
+                auto bytes = rans_encode_events(TokProfile::ZFFCTRL,
+                                                cfg.evts[pi], cfg.tabs);
+                payload += bytes.size();
+                auto dec = rans_decode_events(TokProfile::ZFFCTRL,
+                                              cfg.cms[pi],
+                                              cfg.plane_residuals[pi].size(),
+                                              bytes, cfg.tabs);
+                if (dec != cfg.plane_residuals[pi]) rt_ok = false;
+            }
+            U0Row row;
+            row.img = img_name; row.frame = "F"; row.cand = "SPINE";
+            row.trial = tn; row.be = "B-RANS";
+            row.payload = payload;
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.audit_ok = cfg.art.audits_ok; row.rt = rt_ok;
+            row.tbl_bits = tbl_bits;
+            emit_u0_row(row);
+        }
+    }
+
+    // VB-transform-roundtrip: forward DCT -> inverse DCT reproduces the
+    // source within the integer rounding bound (pin P-U0-5).
+    {
+        bool all_pass = true;
+        for (auto& plane : t.planes) {
+            auto dct = block_dct_forward_plane(plane, w, h);
+            auto recon = block_dct_inverse_plane(dct.coefficients.data(),
+                                                  dct.blocks_x, dct.blocks_y,
+                                                  w, h, 255);
+            for (size_t i = 0; i < plane.size(); ++i) {
+                int32_t diff = (int32_t)recon[i] - (int32_t)plane[i];
+                if (std::abs(diff) > 1) {
+                    all_pass = false;
+                    break;
+                }
+            }
+            if (!all_pass) break;
+        }
+        U0Row row;
+        row.img = img_name; row.frame = "RT"; row.cand = "ROUNDTRIP";
+        row.trial = "NONE"; row.be = "VB-RT";
+        row.payload = 0; row.tables = 0; row.maps = 0;
+        row.audit_ok = all_pass; row.rt = all_pass; row.tbl_bits = 0;
+        emit_u0_row(row);
+    }
+
+    // VB-net-audit-u: FRAME-F payload is finite and decodable, verifying
+    // that transform-domain residuals encode/decode cleanly (spec 21.5).
+    // Uses single context (w=0) for transform residuals (fix #3).
+    {
+        bool all_finite = true;
+        for (int id = 0; id < colorrot::kCount; ++id) {
+            Raster tt = colorrot::apply(r, id);
+            std::vector<DctPlaneResult> dcts;
+            for (auto& plane : tt.planes)
+                dcts.push_back(block_dct_forward_plane(plane, tt.w, tt.h));
+            std::vector<std::vector<int32_t>> tf_ress;
+            for (auto& dct : dcts)
+            tf_ress.push_back(compute_transform_residuals(dct));
+            for (size_t pi = 0; pi < tf_ress.size(); ++pi) {
+                auto bytes = acoder_encode_plane_v2(tf_ress[pi], 0, 0, 1);
+                if (bytes.empty()) { all_finite = false; break; }
+            }
+            if (!all_finite) break;
+        }
+        U0Row row;
+        row.img = img_name; row.frame = "F"; row.cand = "FIDELITY";
+        row.trial = "NONE"; row.be = "VB-NET-AUDIT-U";
+        row.payload = 0; row.tables = 0; row.maps = 0;
+        row.audit_ok = all_finite; row.rt = all_finite; row.tbl_bits = 0;
+        emit_u0_row(row);
+    }
 }
 
 } // namespace sandboxrun
