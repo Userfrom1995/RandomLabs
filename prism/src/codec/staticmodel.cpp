@@ -1451,9 +1451,6 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
             }
         }
     }
-            }
-        }
-    }
     std::vector<uint32_t> assign((size_t)G, 0);
     int iters = 0;
     auto proto_block_sum = [&](SandboxModel& dst) {
@@ -1747,8 +1744,6 @@ std::vector<uint8_t> serialize_codebook(const SmoothedTables& protos,
     if (words_bytes) *words_bytes = 8 + wbytes.size();
 
     if (audit_counted) *audit_counted = counted;
-    if (words_tail_bytes)
-        *words_tail_bytes = 8 + wbytes.size();   // u32 nwords + u32 + stream
     return blob;
 }
 
