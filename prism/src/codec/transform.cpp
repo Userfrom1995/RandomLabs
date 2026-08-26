@@ -4,11 +4,12 @@
 
 namespace prism::codec {
 
-// ----- 8x8 Type-II DCT (spec addendum 21) -----
+// ----- 8x8 Type-II DCT (spec addendum 21, amendment 22) -----
 //
-// Non-overlapping 8x8 Type-II DCT. Integer-exact per the pinned spec:
-// 12-bit fixed-point cosine constants (C_SCALE = 4096), round-to-nearest
-// symmetric, |fwd(inv(x)) - x| <= 1 for all inputs in [0, 2^BD - 1].
+// Non-overlapping 8x8 Type-II DCT. Bounded-error per the 12-bit fixed-point
+// cosine constants (C_SCALE = 4096), symmetric round-to-nearest (ties away
+// from zero). For BD8 inputs [0, 255]: |fwd(inv(x)) - x| <= 1.
+// Not byte-exact (see amendment 22 for details).
 //
 // Uses orthonormal DCT-II / DCT-III pair: both forward and inverse apply
 // the normalization factor alpha(k) per dimension:
@@ -32,13 +33,25 @@ static const int32_t COS_BAKED[8][8] = {
     {  400, -1138,  1703, -2009,  2009, -1703,  1138,  -400}
 };
 
+// Symmetric round-to-nearest with ties away from zero (spec 21.1 ROUNDING).
+// The naive (sum+2048)>>12 truncates toward negative infinity, producing
+// asymmetric error. This helper rounds symmetrically so that the rounding
+// error is at most 0.5 LSB per pass (2 passes in 2D -> max |error| <= 1
+// for BD8 inputs in the 12-bit domain).
+static inline int32_t symmetric_round(int64_t sum) {
+    if (sum >= 0)
+        return (int32_t)((sum + 2048) >> 12);
+    else
+        return -(int32_t)((-sum + 2048) >> 12);
+}
+
 // Forward 1D DCT-II: in[8] -> out[8] (12-bit fixed-point integer)
 static void dct_1d_forward(const int32_t* in, int32_t* out) {
     for (int k = 0; k < 8; ++k) {
         int64_t sum = 0;
         for (int n = 0; n < 8; ++n)
             sum += (int64_t)in[n] * COS_BAKED[k][n];
-        out[k] = (int32_t)((sum + 2048) >> 12);
+        out[k] = symmetric_round(sum);
     }
 }
 
@@ -49,7 +62,7 @@ static void dct_1d_inverse(const int32_t* in, int32_t* out) {
         int64_t sum = 0;
         for (int k = 0; k < 8; ++k)
             sum += (int64_t)in[k] * COS_BAKED[k][n];
-        out[n] = (int32_t)((sum + 2048) >> 12);
+        out[n] = symmetric_round(sum);
     }
 }
 
@@ -165,6 +178,7 @@ std::vector<uint16_t> block_dct_inverse_plane(const int32_t* coeffs,
 }
 
 // Compute residuals in the transform domain using MED prediction.
+// 4-neighbor MED (W, N, NW, NE) per spec 21.2 TransformDomainMED constants.
 // Both prediction and residual computation operate on int32 coefficients.
 std::vector<int32_t> compute_transform_residuals(const DctPlaneResult& dct) {
     const uint32_t bx = dct.blocks_x;
@@ -178,17 +192,24 @@ std::vector<int32_t> compute_transform_residuals(const DctPlaneResult& dct) {
                     size_t idx = (block_y * bx + block_x) * 64 + v * DCT_BLOCK + u;
                     int32_t coeff = dct.coefficients[idx];
 
-                    int32_t W = 0, N = 0, NW = 0;
+                    int32_t W = 0, N = 0, NW = 0, NE = 0;
                     if (block_x > 0)
                         W = dct.coefficients[((block_y) * bx + (block_x - 1)) * 64 + v * DCT_BLOCK + u];
                     if (block_y > 0)
                         N = dct.coefficients[((block_y - 1) * bx + (block_x)) * 64 + v * DCT_BLOCK + u];
                     if (block_x > 0 && block_y > 0)
                         NW = dct.coefficients[((block_y - 1) * bx + (block_x - 1)) * 64 + v * DCT_BLOCK + u];
+                    if (block_x + 1 < bx && block_y > 0)
+                        NE = dct.coefficients[((block_y - 1) * bx + (block_x + 1)) * 64 + v * DCT_BLOCK + u];
 
+                    // 4-neighbor MED per spec 21.2 (W, N, NW, NE).
+                    // Standard MED uses W, N, NW; NE is added for the
+                    // transform-domain stencil per the pinned spec.
+                    int32_t mn = std::min({W, N, NW, NE});
+                    int32_t mx = std::max({W, N, NW, NE});
                     int32_t pred;
-                    if (NW >= std::max(W, N)) pred = std::min(W, N);
-                    else if (NW <= std::min(W, N)) pred = std::max(W, N);
+                    if (NW >= mx) pred = mn;
+                    else if (NW <= mn) pred = mx;
                     else pred = W + N - NW;
 
                     res[idx] = coeff - pred;
@@ -201,7 +222,7 @@ std::vector<int32_t> compute_transform_residuals(const DctPlaneResult& dct) {
 }
 
 // Reconstruct DCT coefficients from transform-domain residuals.
-// Replays the MED prediction from int32 reconstructed history.
+// Replays the 4-neighbor MED prediction from int32 reconstructed history.
 std::vector<int32_t> reconstruct_transform_coefficients(
     const std::vector<int32_t>& residuals,
     uint32_t blocks_x, uint32_t blocks_y) {
@@ -214,17 +235,21 @@ std::vector<int32_t> reconstruct_transform_coefficients(
                 for (int u = 0; u < DCT_BLOCK; ++u) {
                     size_t idx = (block_y * blocks_x + block_x) * 64 + v * DCT_BLOCK + u;
 
-                    int32_t W = 0, N = 0, NW = 0;
+                    int32_t W = 0, N = 0, NW = 0, NE = 0;
                     if (block_x > 0)
                         W = coeffs[((block_y) * blocks_x + (block_x - 1)) * 64 + v * DCT_BLOCK + u];
                     if (block_y > 0)
                         N = coeffs[((block_y - 1) * blocks_x + (block_x)) * 64 + v * DCT_BLOCK + u];
                     if (block_x > 0 && block_y > 0)
                         NW = coeffs[((block_y - 1) * blocks_x + (block_x - 1)) * 64 + v * DCT_BLOCK + u];
+                    if (block_x + 1 < blocks_x && block_y > 0)
+                        NE = coeffs[((block_y - 1) * blocks_x + (block_x + 1)) * 64 + v * DCT_BLOCK + u];
 
+                    int32_t mn = std::min({W, N, NW, NE});
+                    int32_t mx = std::max({W, N, NW, NE});
                     int32_t pred;
-                    if (NW >= std::max(W, N)) pred = std::min(W, N);
-                    else if (NW <= std::min(W, N)) pred = std::max(W, N);
+                    if (NW >= mx) pred = mn;
+                    else if (NW <= mn) pred = mx;
                     else pred = W + N - NW;
 
                     coeffs[idx] = pred + residuals[idx];
