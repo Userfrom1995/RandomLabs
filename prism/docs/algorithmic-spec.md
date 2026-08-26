@@ -1357,3 +1357,157 @@ benchmarks/results/2026-08-26-sandbox-t2a.csv. No constant above was
 tuned after measurement; zero container bytes.
 
 - the Architect
+
+## 21. Addendum 2026-08-26 (registered as "spec addendum 21"): U-series
+##     pre-registration for transform-domain decorrelation, written
+##     BEFORE any U-measurement
+
+Authority: research handoff `research-v4-transform-domain.md` section 9
+(`{"action":"architect"}`), dispatched by the owner's Anti-Surrender
+directive 2026-08-26T20:05Z on #147 (iterate versions until M2 AND M3
+genuinely pass dual-unit gates). Blueprint: Architect v4 assessment on
+PR #150. Binding order unchanged from addenda 18-20: every constant below
+is fixed before the first U-row exists; deviations require a numbered
+amendment BEFORE the affected measurement or they never happen.
+
+### 21.0 Scope
+
+Applies to `prism bench-sandbox` mode --u0 on the probe quad
+kodim01/kodim13/kodim05/kodim20 with sha-pins verified before ANY
+measurement (`benchmarks/data/kodak.sha256`). Zero container/format bytes
+until a U4 threshold PASS (standing rule, unchanged).
+
+### 21.1 U-controls: baselines and gate reading (pinned now)
+
+- RELPCT per I10: 100 * (net_ctrl - net_cand) / net_ctrl computed PER
+  IMAGE from joint NET bytes (payload + tables + maps + trees; I12),
+  then MEDIAN over the quad; per-image min/max reported beside every
+  median; pooled TOTAL rows diagnostic only.
+- FRAME-T control (spatial MED): production MED prediction on the original
+  source (YCoCg-R + MED), identical to the committed e1-era production
+  path. Every FRAME-T row reproduces the anchor streams byte-for-byte
+  under VB-anchor-adapt.
+- FRAME-F candidate (frequency-domain MED): 8x8 block DCT applied to
+  the source, then MED prediction on each frequency coefficient from its
+  four spatial neighbors in the coefficient plane. The residual is coded
+  by the existing entropy backend (v2 binarization, class16 conditioning,
+  ZFF or ZZ-HU tokenization).
+- A gate rejection is a legitimate measured outcome and never flips the
+  exit code; rail-integrity checks (VB-* including the new U-rails) DO
+  flip exit codes.
+- Units discipline verbatim: summed vs per-sample stated on every corpus
+  projection; percent-of-current-bytes = points-of-v0 / 0.9447 for
+  reporting only.
+
+### 21.2 BlockDCT constants (pinned now)
+
+- BLOCK SIZE: 8x8 pixels, non-overlapping.
+- TRANSFORM: Type-II DCT, AAN factorization (Arai, Agui, Nakajima 1988),
+  integer-exact per the pinned specification below.
+- INTEGER SCALING: 12-bit precision for the cosine constants. The basis
+  matrix C[k][n] = cos(pi*(2n+1)*k/16) is precomputed as fixed-point
+  int32 with 12 fractional bits (C_SCALE = 4096). The AAN factorization
+  factors are similarly scaled.
+- ROUNDING: round-to-nearest (symmetric); the rounding error per
+  coefficient is bounded by +/- 0.5 in the unscaled domain, which maps
+  to +/- 1 in the 12-bit fixed-point domain.
+- PADDING: replicate right/bottom edge pixels to fill partial 8x8 blocks
+  at image boundaries. Padding bits are included in NET (the coded
+  padding values are side-info equivalent to the original pixels).
+- LOSSLESS: Q = 0 (no quantization). The transform is exact up to
+  integer rounding; the rounding error is bounded and measured.
+- RECONSTRUCTION: the inverse DCT reproduces the source within the
+  integer rounding bound. |fwd(inv(x)) - x| <= 1 in the 12-bit
+  fixed-point domain for all inputs in [0, 2^BD - 1].
+
+### 21.3 TransformDomainMED constants (pinned now)
+
+- PREDICTION DOMAIN: frequency coefficients (DC plane + AC planes).
+  Each 8x8 block produces 64 coefficients; the coefficient at position
+  (u,v) in block (bx,by) has spatial neighbors at (u,v) in adjacent
+  blocks.
+- PREDICTION METHOD: MED with the same four-neighbor stencil as spatial
+  prediction (addendum 18.4 MED control). For coefficient (u,v) in
+  block (bx,by):
+  - W = coefficient (u,v) in block (bx-1, by)  [left block]
+  - N = coefficient (u,v) in block (bx, by-1)  [top block]
+  - NW = coefficient (u,v) in block (bx-1, by-1) [top-left block]
+  - prediction = med(W, N, NW)
+- BORDER RULE: replicated edge (same as spatial MED). Missing neighbors
+  at image boundaries read the nearest available value; at the top-left
+  corner, prediction = 0 (the DC coefficient's spatial mean is subtracted
+  by the transform itself).
+- RESIDUAL: e = coefficient - prediction. The residual is coded by the
+  existing entropy backend verbatim (v2 binarization, class16 conditioning).
+- QUANTIZATION: Q = 0 (lossless). The residual reflects only the
+  integer rounding of the DCT, not any quantization distortion.
+
+### 21.4 Frame definitions (pinned now)
+
+- FRAME-T: spatial MED prediction on the original source. Identical to
+  the production path. This is the control for U1 comparisons.
+- FRAME-F: frequency-domain MED prediction on DCT coefficients. This is
+  the candidate for U1 comparisons.
+- Both frames are scored on the same backend configuration; the only
+  difference is the prediction domain (spatial vs frequency).
+- Every CSV row carries frame=T|F; cross-frame comparisons within a
+  single row are invalid.
+
+### 21.5 U-gates (pinned now; I10 per-image medians primary throughout)
+
+- U0 HARNESS: all VB rails green + dated reference CSV committed. No
+  U-phase verdict is valid without a green U0.
+- U1 TRANSFORM PREDICTOR: FRAME-F median NET beats FRAME-T median NET
+  by >= +1.50 pct on the quad (per I10). Sub-gates:
+  - U1a: payload reduction >= +3.0 pct (the transform must reduce
+    residual entropy; if payload does not drop, the DCT is not
+    decorrelating).
+  - U1b: NET reduction >= +1.50 pct (tables + maps + padding must not
+    swamp the payload gain; since DCT has zero tables, this is almost
+    automatic if U1a passes).
+  - U1c: no image regresses by more than -0.50 pct (the transform must
+    not hurt smooth images where MED already captures the structure).
+- U2 COMPOSITION (conditional on U1 PASS): per-image winners by real
+  NET bytes x D4c color trials (kCount=7); projection formula 18.5
+  VERBATIM against the committed e1 CSV; threshold UNCHANGED: projected
+  < 9.35 summed AND < 3.117 per-sample => proceed-to-format; else
+  stop-and-report. M2/M3 reported beside, never altered.
+- U3 FRESH DUAL-UNIT GATE: bench_gate.sh against REAL cjxl and WebP
+  references on the full Kodak-24. Byte-exact round-trip 24/24. Fuzz
+  clean. Binding end gates: M2 summed < 9.498 AND per-sample < 3.166;
+  M3 summed < 8.655 AND per-sample < 2.885.
+
+### 21.6 CSV naming
+
+`benchmarks/results/YYYY-MM-DD-sandbox-u{0,1,2,3}.csv`; one file per
+phase so earlier references stay stable. The u0 file carries rails +
+anchor reproductions + DIAGNOSTIC smoke rows on the quad, explicitly
+marked non-gating.
+
+### 21.7 Reserved slots
+
+- Before U2 (only if opened): D4c color trial interaction with the
+  transform confirmed; no new constants expected.
+- Wall-clock: amendment A3 precedent stands - structural multipliers
+  recorded beside every phase; NO gate depends on wall-clock.
+
+### 21.8 Invariants
+
+- I13 (source-domain primacy): if the source transform reduces residual
+  entropy (U1a sub-gate: payload >= +3.0 pct), this is a structural
+  improvement that no entropy-side refinement can replicate. The
+  transform gain is orthogonal to and stacks with any future entropy
+  improvement.
+- I14 (transform-zero-side-info): the block DCT has zero transmitted
+  parameters (block size, basis, padding are fixed); this is the
+  structural reason the table-economics law does not apply to B6.
+
+### 21.9 STATUS
+
+Written 2026-08-26 BEFORE any U-row exists. The V/S/T verdicts (V1 STOP,
+S1/S3/S4 FAIL, T1a/T2a/T3 FAIL, T4 FAIL at 9.5671/3.1890) stand
+recorded permanently under I10's no-post-hoc-bar rule; this addendum
+prices the transform-domain opportunity around those numbers and relaxes
+nothing.
+
+- the Builder

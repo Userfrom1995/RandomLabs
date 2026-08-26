@@ -26,6 +26,7 @@ add_library(prism_core STATIC
     src/codec/staticmodel.cpp
     src/codec/analyze.cpp
     src/codec/container.cpp
+    src/codec/transform.cpp
     src/frontend/ppm_raw.cpp
     src/frontend/stb_image_wrapper.cpp
     src/frontend/webp_wrapper.cpp
@@ -96,6 +97,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_container.cpp
         tests/unit/test_roundtrip.cpp
         tests/unit/test_fuzz_gate.cpp
+        tests/unit/test_transform.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)
