@@ -116,6 +116,10 @@ struct ClusterMap {
     Kind kind = Kind::KEYED;
     KeyingId keying{};
     uint32_t w = 0;
+    // KGROUP keyings only: first group id of THIS map's plane, so planes
+    // never share a stack (addendum 20.2 "no cross-plane grouping"; pin
+    // P-Q1-1). Units: groups, not samples.
+    uint32_t group_base = 0;
     const std::vector<uint32_t>* ctx_leaf = nullptr;  // KTREE: [343]
     const std::vector<uint32_t>* merge = nullptr;     // raw -> final ('SBP1')
     const uint32_t* explicit_map = nullptr;           // EXPLICIT: per sample
