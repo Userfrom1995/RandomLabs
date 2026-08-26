@@ -575,16 +575,73 @@ per-sample projected).
       control, static spine} x D4c color trials only.
       Evidence: benchmarks/results/2026-08-25-sandbox-s3.csv (92 rows).
       Zero container bytes by construction.
-- [ ] S4 composition + projection (proceed-to-format threshold): per-image
-      trial selection over {adaptive control, spine, spine + winners} x D4c
-      color trials, all NET (non-regressing vs e1 by construction);
-      projection via 18.5 formula; PASS hands to a fresh format-program
-      blueprint; FAIL stop-and-report.
+- [x] S4 composition + projection (proceed-to-format threshold): COMPLETE
+      2026-08-25. Pins P-S4-1..P-S4-12 committed BEFORE any measurement
+      (decisions/builder/2026-08-25T23-45-00-s4-composition-pins.md):
+      candidates {ADAPT control, SPINE} x colorrot kCount=7 trials decided
+      per image by real NET bytes; winner argmin with conservative
+      tie-breaks (ties to ADAPT); relpct_composed vs the TRIAL-FREED
+      adaptive control so composed NET is non-regressing vs e1 BY
+      CONSTRUCTION; projection via 18.5 VERBATIM against
+      2026-08-25-prism-e1.csv; portrait-class handling pinned before
+      measurement (quad is all-landscape: portrait inherits the overall
+      quad median behind an explicit INHERITED marker, landscape-only
+      projection reported beside); stretch KIND flag deferred to the format
+      program per its own clause.
+      MEASUREMENT (`bench-sandbox --s4`, quad pins verified pre-run; rails
+      FIRST: VB-anchor-adapt 4/4 bit-for-bit, VB-anchor-ideal frozen walk +
+      counting path bit-for-bit, rank fixtures live BOTH ways, fidelity 28
+      spine rows within +0.50 pct, net-audit clean on all rows incl.
+      candidate schemas, determinism byte-identical re-run; wall-clock
+      26.33x bench-ideal recorded, P-S4-12/A3 precedent): **S4 VERDICT:
+      FAIL - stop-and-report** per the verbatim threshold. SPINE won all
+      four images but with thin margins over the trial-freed control:
+      kodim01 SPINE/rct-rbg +5.4481 pct, kodim05 SPINE/rct-rbg +5.5627,
+      kodim13 SPINE/loco +5.9303, kodim20 SPINE/loco +2.9772; landscape
+      class median +5.5054 pct (I10). Projected corpus: summed 9.5638 >=
+      9.35 AND per-sample 3.1879 >= 3.117 => proceed-to-format threshold
+      NOT met. M2 (<9.498/<3.166) and M3 (<8.655/<2.885) context both
+      projected FAIL - reported only, never altered (owner standing
+      order); final judgment stays bench_gate.sh dual-unit vs real cjxl.
+      Honest readings: the trial-freed control itself gains ~1.5 pct from
+      color trials (B4 helps both sides, narrowing V1's +5.81 to +5.51);
+      kodim20 thins further (+2.98); sandbox controls sit within ~60 B of
+      committed e1 bytes (container overhead), validating the instrument
+      product form. Decision tree row 1 executed: the spine improvement is
+      recorded as available-but-insufficient; S5 trigger clause NOT met
+      (projection nowhere near M3 reach), so the reserve stays closed and
+      the S-program's measurement phases END here with stop-and-report.
+      Evidence: benchmarks/results/2026-08-25-sandbox-s4.csv (104 rows).
+      Zero container bytes by construction across the ENTIRE program.
 - [ ] S5 reserve (ONLY if S4 projects inside M3 reach but short): one-shot
       squeeze-with-parent-properties, >= 2.0 median NET or third-strike
       death (L-C7).
 
 ## Current step
+
+S4 COMPOSITION MEASURED - FAIL, STOP-AND-REPORT (2026-08-25): the
+pre-registered threshold (18.5 verbatim: projected <9.35 summed AND
+<3.117 per-sample) rejected the composed program on the pinned quad.
+Composition of {adaptive control, static spine} x D4c color trials decided
+by real NET bytes put SPINE over ADAPT on all four images (per-image
++5.45/+5.56/+5.93/+2.98 pct vs the trial-freed control; landscape median
++5.51), but the corpus projection lands summed 9.5638 / per-sample 3.1879,
+ABOVE both S4 bars. All six VB rails green first (anchors bit-for-bit 4/4;
+determinism byte-identical); pins P-S4-1..12 landed BEFORE any measurement;
+zero container bytes by construction across the whole V+S program. The
+S-program's measurement phases are COMPLETE: buckets B1/B2/B3 closed with
+numbers, B4 measured inside composition (+~1.5 pct to both sides), B5
+demoted. Per the binding decision tree this is stop-and-report with the
+full ledger; the owner/Mae decide any next program (the standing order
+makes a future pivot autonomous for Mae, and the gates remain invariant).
+
+Next: handoff {"action":"maintainer"} - Mae routes the stop-and-report to
+the owner; no review/test dispatch is warranted on measurement-negative
+closure unless Mae directs otherwise; PR #145 stays OPEN with the full
+S-series evidence (V0 rails, V1 STOP, S1/S3/S4 verdicts) merge-blocked as
+before.
+
+Prior state:
 
 SLICE P3 OPENED (2026-08-25): S4 structural pins P-S4-1..P-S4-12 committed
 BEFORE any measurement
@@ -766,6 +823,35 @@ Previous slice summary (continuation run 3, C2b):
       S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-25 the Builder (S4 composition slice, S-series P3): executed the
+  program's final measurement slice to its threshold readout. (1) Pins
+  P-S4-1..P-S4-12 committed BEFORE any measurement - candidates {ADAPT,
+  SPINE} x colorrot kCount=7, winner argmin by real NET bytes with
+  conservative tie-breaks (ties to ADAPT), control = trial-freed adaptive
+  control (non-regression vs e1 BY CONSTRUCTION), projection 18.5 verbatim,
+  portrait-inheritance handling pinned before measurement (quad is
+  all-landscape; landscape-only projection reported beside), S5 trigger
+  quantified (summed <8.8316 AND per-sample <2.9438 while failing the S4
+  bar), stretch KIND flag deferred per its own clause. (2) Machinery:
+  `bench-sandbox --s4` composition driver (anchors first under plain
+  YCoCgR - trial ycocgr reproduces B-ADAPT bit-for-bit - then ADAPT/SPINE
+  rows for every color trial with all side info NETTED); probe_sandbox --s4
+  rails + composition readout + class-median projection vs the committed
+  e1 CSV + failable `--self-check-s4` proving both verdict directions and
+  six mutation classes. All five self-checks green; 128/128 unit tests.
+  (3) MEASURED VERDICT: S4 FAIL - stop-and-report. SPINE won all four
+  images (+5.45/+5.56/+5.93/+2.98 pct vs trial-freed controls; landscape
+  median +5.51), projected corpus summed 9.5638 / per-sample 3.1879 >=
+  9.35/3.117 thresholds; M2/M3 context projected FAIL (reported only).
+  Honest readings recorded beside the verdict: color trials help both
+  sides ~1.5 pct (B4 measured inside composition), kodim20 thins to
+  +2.98, sandbox controls within ~60 B of committed e1 bytes. Rails green
+  first (anchors 4/4 bit-for-bit, determinism byte-identical); quad pins
+  verified pre-run; wall-clock 26.33x logged per A3 precedent; zero
+  container bytes across the ENTIRE V+S program. Decision tree row 1
+  executed to stop-and-report; S5 trigger NOT met, reserve stays closed.
+  Handoff {"action":"maintainer"}: Mae routes the closure to the owner.
 
 - 2026-08-25 the Builder (S3 property slice, S-series P2): executed slice
   P2 to its gate readout. (1) Pins P-S3-1..P-S3-12 committed BEFORE any

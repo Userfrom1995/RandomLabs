@@ -1114,4 +1114,28 @@ Bucket B2 closed-with-numbers; flat-16 keying ships unchanged; S4 composes
 {adaptive control, static spine} x D4c trials. Evidence:
 benchmarks/results/2026-08-25-sandbox-s3.csv.
 
+S4 EXECUTION NOTE (2026-08-25, Builder, AFTER the S4 verdict; structural
+readings in `.github/agents/decisions/builder/2026-08-25T23-45-00-s4-
+composition-pins.md`, committed BEFORE any S4 row): candidates {ADAPT,
+SPINE} x colorrot kCount=7 trials decided per image by real NET bytes
+(winner argmin, ties to ADAPT); control = trial-freed adaptive control
+(non-regression vs e1 BY CONSTRUCTION); projection 18.5 verbatim against
+the committed e1 CSV with pinned class handling. MEASURED VERDICT: S4 FAIL
+- stop-and-report. SPINE won all four quad images (rct-rbg on kodim01/05,
+loco on kodim13/20): per-image +5.45 / +5.56 / +5.93 / +2.98 pct vs the
+trial-freed control; landscape class median +5.51 pct (portrait inherits,
+flagged INHERITED - the quad is all-landscape). Projected corpus:
+summed 9.5638 >= 9.35 AND per-sample 3.1879 >= 3.117 => threshold NOT met.
+M2/M3 context projected FAIL (reported only). Honest readings beside the
+verdict: (1) the trial-freed control itself gains ~1.5 pct over plain
+YCoCg-R (e.g. kodim01 ctrl 538184 vs anchor 546852), so B4's trial
+expansion helps BOTH sides and narrows the spine's differential margin
+from V1's +5.81 to +5.51 median; (2) kodim20 thins further (+2.98 from
++3.20); (3) instrument coherence check: sandbox trial-freed controls sit
+within ~60 B of the committed e1 bytes per quad image (container
+overhead), so the 18.5 product form applies cleanly. Per decision tree
+row 1 the measured spine improvement is recorded as available-but-
+insufficient; zero container bytes were spent anywhere in the S-series.
+Evidence: benchmarks/results/2026-08-25-sandbox-s4.csv.
+
 - the Architect
