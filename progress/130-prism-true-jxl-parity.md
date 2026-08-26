@@ -748,7 +748,7 @@ format-unwired. U-BASE control = FRAME-T spatial MED prediction (existing
 production path); U-FREQ = FRAME-F DCT-domain MED prediction; zero
 container bytes until U2 PASS.
 
-- [ ] U-pivot Architect phase (2026-08-26): blueprint + addendum 21 +
+- [x] U-pivot Architect phase (2026-08-26): blueprint + addendum 21 +
       tracker/log updates delivered. Handoff {"action":"build"}: Builder
       slice R0 = U0 transform harness extension.
 - [ ] U0 transform harness extension (BLOCKING): BlockDCT module

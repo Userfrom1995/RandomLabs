@@ -143,12 +143,10 @@ Add to the V+S+T sandbox instrument:
 
 **BlockDCT module** (`src/codec/transform.{h,cpp}`):
 - 8x8 forward DCT (AAN algorithm, integer-exact per addendum 21).
-- 8x8 inverse DCT (mirror-exact reconstruction within rounding bound,
-  unit-tested).
+- 8x8 inverse DCT (byte-exact reconstruction, 0 bytes delta, unit-tested; if AAN not byte-exact, rounding residual coded and NET-accounted).
 - Non-overlapping 8x8 blocks across the full image (replicate padding for
   partial edge blocks; padding bits counted in NET).
-- Quantization parameter Q = 0 (lossless; rounding error is the only
-  distortion, bounded and measured).
+- Quantization parameter Q = 0 (lossless; byte-exact). Pinned transform MUST be integer-reversible per addendum 21 slot 3a.
 
 **TransformDomainMED module**:
 - For each 8x8 block: apply forward DCT to the source block; predict each
@@ -164,8 +162,7 @@ Add to the V+S+T sandbox instrument:
 - Both scored on the same backend; NET = payload + tables + maps + trees.
 
 **New VB rails**:
-- VB-transform-roundtrip: forward DCT -> inverse DCT reproduces source
-  within the integer rounding bound (4/4 images).
+- VB-transform-roundtrip: forward DCT -> inverse DCT reproduces source byte-exact (4/4 images, 0 bytes delta) - fails otherwise. Add VB-transform-lossless: FRAME-F decode byte-exact vs source on the pinned quad.
 - VB-transform-fidelity: FRAME-F payload is finite and decodable.
 - VB-transform-net-audit: NET = payload + side-info on every row.
 
@@ -257,7 +254,7 @@ frozen bench-ideal instrument and its committed CSVs remain anchor-only.
 
 | Layer | Gate |
 |---|---|
-| DCT unit (U0) | forward -> inverse reproduces source within +/- 0.5 per coefficient (all test images); block boundary continuity within +1.0 of intra-block error; extreme values (0, 255) round-trip exactly; basis vectors orthogonal to within integer precision |
+| DCT unit (U0) | forward -> inverse reproduces source byte-exact (0 bytes delta) on all test images; if residual-coded, residual round-trips byte-exact; extreme values (0,255) byte-exact; basis vectors orthogonal to within integer precision |
 | TransformDomainMED unit (U0) | MED on DC plane = spatial MED for DC component; adapter produces finite residuals on all test images; FRAME-F rows decode mirror-exact |
 | Sandbox harness | VB rails green on EVERY new row family before any verdict line; --self-check-u0 proves FAIL paths both directions; determinism byte-exact re-run |
 | Corpus | unchanged: sha-pinned Kodak-24 verified BEFORE any measurement; fuzz + byte-exact round-trip on the shipped codec untouched throughout; bench_gate.sh remains the only final judge |
