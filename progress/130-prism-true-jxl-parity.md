@@ -726,6 +726,52 @@ bytes until T4 PASS.
 
 ## Current step
 
+U-series Architect phase IN PROGRESS (2026-08-26): Researcher delivered
+`research-v4-transform-domain.md` on PR #151 (B6 source decorrelation
+bucket; block DCT as the unmeasured transform-domain opportunity; U0-U3
+phases; I13/I14 invariants; addendum 21 skeleton). Architect blueprint
+delivered (`prism/docs/architecture-jxl-parity-useries.md`) + spec
+addendum 21 (algorithmic-spec.md section 21) committed BEFORE any
+measurement. Handoff {"action":"build"}: Builder slice R0 = U0 transform
+harness extension. Binding gates unchanged: M2 summed < 9.498 AND
+per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885.
+
+## Prism v4 U-series checklist (transform-domain program; owner
+## Anti-Surrender directive 2026-08-26T20:05Z)
+
+Program blueprint: `prism/docs/architecture-jxl-parity-useries.md`;
+pre-registration: spec addendum 21 (algorithmic-spec.md section 21),
+committed BEFORE any U-measurement. Research:
+`research-v4-transform-domain.md`. Stacking: the V+S+T sandbox instrument
+is reused and extended; U-work adds BlockDCT + TransformDomainMED modules
+format-unwired. U-BASE control = FRAME-T spatial MED prediction (existing
+production path); U-FREQ = FRAME-F DCT-domain MED prediction; zero
+container bytes until U2 PASS.
+
+- [ ] U-pivot Architect phase (2026-08-26): blueprint + addendum 21 +
+      tracker/log updates delivered. Handoff {"action":"build"}: Builder
+      slice R0 = U0 transform harness extension.
+- [ ] U0 transform harness extension (BLOCKING): BlockDCT module
+      (8x8 forward/inverse DCT, AAN integer-exact, replicate padding,
+      Q=0 lossless); TransformDomainMED adapter (MED stencil over DCT
+      coefficient planes); VB-transform-roundtrip/fidelity/net-audit
+      rails + failable --self-check-u0; DIAGNOSTIC smoke CSV on kodim01
+      only (non-gating). Exit: all VB rails green + dated reference CSV.
+- [ ] U1 block DCT predictor measurement (attacks B6): sweep {FRAME-T,
+      FRAME-F} x {ZFFCTRL, ZZ-HU} x {MED-only} x D4c color trials on
+      pinned quad. Gate: FRAME-F median NET >= +1.50 pct over FRAME-T.
+      Sub-gates: U1a payload >= +3.0 pct; U1b NET >= +1.50 pct; U1c no
+      image worse than -0.50 pct. FAIL => transform domain closed with
+      numbers; recommend honest closure.
+- [ ] U2 hybrid predictor composition (conditional on U1 PASS):
+      {FRAME-T spatial MED, FRAME-F DCT-predicted} x D4c color trials
+      per image by real NET bytes; projection 18.5 VERBATIM vs committed
+      e1 CSV; threshold UNCHANGED < 9.35 summed / < 3.117 per-sample.
+- [ ] U3 final gate check: fresh bench_gate.sh against REAL cjxl/WebP on
+      full Kodak-24; byte-exact round-trip 24/24; fuzz clean.
+
+## Prior state (T-series closure):
+
 #130 HONESTLY CLOSED (2026-08-26, Builder, T5 trigger correction):
 T5 reserve was incorrectly triggered by the prior Builder run - T4
 projected 9.5671 summed which exceeds the T5 trigger threshold of

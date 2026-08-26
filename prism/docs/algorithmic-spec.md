@@ -1356,4 +1356,138 @@ branch priced-and-closed at its gate. Evidence:
 benchmarks/results/2026-08-26-sandbox-t2a.csv. No constant above was
 tuned after measurement; zero container bytes.
 
+## 21. Addendum 21: U-series transform-domain constants
+
+Written 2026-08-26 BEFORE any U-row exists. Pins every constant that can
+be fixed before any U-measurement. The V+S+T verdicts (V1 STOP, S1/S3/S4
+FAIL, T1a/T2a/T3/T4 FAIL) stand recorded permanently under I10's
+no-post-hoc-bar rule; this addendum prices the transform-domain mechanism
+around those numbers and relaxes nothing.
+
+### 21.1 BlockDCT constants
+
+- BLOCK_SIZE: 8x8 (non-overlapping; the image is divided into a raster of
+  8x8 blocks; partial right/bottom edge blocks are filled by replicate
+  padding of the rightmost/bottommost column/row).
+- TRANSFORM: Type-II DCT (the standard JPEG/ITU-T T.81 DCT).
+- ALGORITHM: AAN (Arai-Agui-Nakajima) factorization, integer-exact.
+- INTEGER_SCALING: 12-bit precision (the forward DCT output is scaled by
+  2^12 before rounding to i32; the inverse DCT divides by 2^12 after
+  computation; this matches the entropy backend's frequency normalization
+  and keeps coefficient magnitudes in a comparable range to spatial
+  samples).
+- ROUNDING: round-to-nearest (symmetric; ties round away from zero).
+- PADDING: replicate right/bottom edges to fill partial blocks. Padding
+  bits are included in NET (the coded padding bits are side-info; since
+  the padding policy is fixed and known to the decoder, the decoder
+  discards the padded positions without decoding them, but the encoder
+  must code them to maintain byte-exact round-trip).
+- QUANTIZATION: Q = 0 (lossless; the transform is exact up to integer
+  rounding; rounding error is bounded by +/- 0.5 per coefficient and
+  measured in U0).
+- INPUT RANGE: [0, 2^BD - 1] where BD = 8 (standard Kodak). The forward
+  DCT input is the source block (after color transform, before
+  prediction). The output coefficients are signed i32 in approximately
+  [-2^(BD+5), 2^(BD+5)] (the DC coefficient can be up to 64x the input
+  range due to basis summation; AC coefficients are smaller).
+- OUTPUT RANGE: DC in [-2048, 2047] for BD=8 (64 samples x 255 max /
+  8 basis sum); AC in approximately [-512, 511] for BD=8. The exact
+  ranges are measured in U0 and pinned in the implementation.
+
+### 21.2 TransformDomainMED constants
+
+- PREDICTION_STENCIL: the same four-neighbor MED stencil as spatial
+  prediction (W, N, NW, NE), applied independently to each DCT
+  coefficient position across the block grid.
+- DC PLANE: the DC coefficients of all blocks form a spatial grid;
+  MED predicts each DC coefficient from its four DC neighbors (W, N,
+  NW, NE in the DC-plane raster).
+- AC PLANES: each AC coefficient position (1..63) forms its own spatial
+  grid; MED predicts each AC coefficient from its four neighbors in
+  that coefficient's plane.
+- PREDICTION DOMAIN: frequency coefficients (the DCT output). The
+  residual is computed as: residual = coefficient - MED(W_coeff,
+  N_coeff, NW_coeff, NE_coeff) for each coefficient position.
+- PADDING HANDLING: padded edge blocks have their coefficients predicted
+  identically to interior blocks; the replicate padding ensures the
+  neighbor values are valid.
+
+### 21.3 Pipeline order
+
+The transform is applied AFTER the color transform (D4c) and BEFORE
+prediction, matching the production pipeline order:
+
+1. Color transform (D4c): R,G,B -> Y,Co,Cg (or identity).
+2. **Block DCT (NEW):** each color plane divided into 8x8 blocks;
+   forward DCT applied to each block.
+3. Prediction (MED): each DCT coefficient predicted from its four
+   spatial neighbors in the coefficient plane.
+4. Residual coding (v2 binarization + class16 + ZFF/ZZ-HU): the
+   prediction residual is coded by the existing entropy backend.
+
+The decoder reverses: entropy decode -> MED prediction (reconstruct
+coefficients) -> inverse DCT -> inverse color transform.
+
+### 21.4 U-gates (pinned now, verbatim from the research; I10 medians primary throughout)
+
+- U0 HARNESS: all VB rails green + dated reference CSV committed; no
+  U-phase verdict is valid without a green U0.
+- U1 BLOCK DCT PREDICTOR: FRAME-F median NET beats FRAME-T median NET
+  by >= +1.50 pct RELPCT on the quad (per I10).
+  - U1a: payload reduction >= +3.0 pct (transform must reduce residual
+    entropy).
+  - U1b: NET reduction >= +1.50 pct (side-info must not swamp gain;
+    almost automatic since DCT has zero tables).
+  - U1c: no image regresses by more than -0.50 pct.
+- U2 COMPOSITION: candidates {FRAME-T spatial MED, FRAME-F DCT-predicted}
+  x D4c color trials per image by real NET bytes (L-C1, ties
+  conservative); projection formula 18.5 VERBATIM against committed e1
+  CSV; threshold UNCHANGED: projected < 9.35 summed AND < 3.117
+  per-sample => proceed-to-format; M2/M3 reported beside, NEVER altered.
+- U3 FINAL GATE: fresh bench_gate.sh against REAL cjxl/WebP on full
+  Kodak-24; byte-exact round-trip 24/24; fuzz clean.
+- STOP-rule discipline verbatim: any gate failure records the negative
+  in the tracker the same day and moves budget; discarded bring-up runs
+  are discarded wholesale with no surviving numbers; wall-clock logged
+  per the A3 precedent (no verdict depends on it); fuzz + byte-exact
+  round-trip always; final judgment ONLY by bench_gate.sh in both units
+  on a fresh corpus measurement against REAL cjxl and WebP references.
+
+### 21.5 CSV naming
+
+`benchmarks/results/YYYY-MM-DD-sandbox-u{0,1,2,3}.csv`; one file per
+phase so earlier references stay stable. The u0 file carries rails +
+anchor reproductions + DIAGNOSTIC smoke rows on kodim01 ONLY, explicitly
+marked non-gating.
+
+### 21.6 Reserved slots (must land as numbered amendments BEFORE the named phase's first CSV)
+
+- Before U1: none expected (DCT parameters pinned above); any structural
+  reading discovered during implementation lands as builder pins first.
+- Before U3 (only if opened): none expected; composition inherits the
+  V+S+T trial-selection discipline unchanged.
+- Wall-clock: amendment A3 precedent stands - structural multipliers
+  recorded beside every phase; NO gate depends on wall-clock.
+
+### 21.7 Invariants added
+
+- I13 (source-domain primacy): if the source transform reduces residual
+  entropy (U1a sub-gate: payload >= +3.0 pct), this is a structural
+  improvement that no entropy-side refinement can replicate. The
+  transform gain is orthogonal to and stacks with any future entropy
+  improvement.
+- I14 (transform-zero-side-info): the block DCT has zero transmitted
+  parameters (block size, basis, padding are fixed); this is the
+  structural reason the table-economics law does not apply to B6.
+
+### 21.8 STATUS
+
+Written 2026-08-26 BEFORE any U-row exists. The V+S+T verdicts stand
+recorded permanently; this addendum prices the transform-domain
+mechanism and relaxes nothing. The U-series is the highest-expected-value
+measurement remaining: arithmetic is overwhelmingly favorable (even
+conservative 15% residual reduction clears both M2 and M3); the question
+is purely mechanical (does the DCT actually reduce residual entropy under
+MED prediction on photographic content?).
+
 - the Architect
