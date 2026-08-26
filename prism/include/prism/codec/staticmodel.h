@@ -20,7 +20,9 @@ enum class KeyingId : uint8_t {
     KFLAT343 = 2,
     KGRID128 = 3,
     KTREE = 4,
-    KPROP = 5
+    KPROP = 5,
+    KGROUP64 = 6,
+    KGROUP128 = 7
 };
 
 int keying_cluster_count(KeyingId k);   // nominal count (grid/tree: see below)
@@ -38,6 +40,25 @@ constexpr uint32_t RANS_NS = 4;
 
 // KGRID128 tile edge (pin V-P1): tiles are 128 x 128 pixels.
 constexpr uint32_t GRID_TILE = 128;
+
+// ----- T-series group machinery (spec addendum 20; builder pins
+// 2026-08-26T08-05-00 BEFORE any measurement). FORMAT-UNWIRED: nothing
+// here touches any container or production path. -----
+
+// Pinned group tile edges (addendum 20.2 GROUP GEOMETRY).
+constexpr uint32_t GROUP_PX64 = 64;
+constexpr uint32_t GROUP_PX128 = 128;
+
+// Deterministic Lloyd loop cap (addendum 20.2).
+constexpr int LLOYD_ITER_CAP = 16;
+
+// The K set is measured WHOLE whenever T1b runs; never re-selected.
+inline constexpr int CODEBOOK_K_SET[4] = {4, 8, 16, 24};
+
+// Joint (group tile, class16) keyings: raw cluster id = g * 16 +
+// ac_v2_prior_class(cx), g plane-major raster (pins P-T0-1/P-T0-6).
+bool keying_is_group(KeyingId k);
+uint32_t keying_group_px(KeyingId k);
 
 // ----- S3 extended causal properties (addendum 19.4; pins P-S3-1..P-S3-12
 // in decisions/builder/2026-08-25T23-00-00 BEFORE any measurement) -----
@@ -148,6 +169,20 @@ void count_plane(SandboxModel& m, TokProfile p, const ClusterMap& cm,
                  const std::vector<int32_t>& res,
                  std::vector<TaggedEvent>* events_out);
 
+// Integer Lloyd clustering over per-group stacks carried by a SandboxModel
+// whose cluster axis indexes joint (g, c) cells (clusters = G * 16, row id
+// g * 16 + c). Returns the transmitted fit AFTER the one-shot empty-
+// prototype drop: survivors renumbered ascending, every group reassigned to
+// its nearest surviving prototype by the pinned metric, centroids NOT
+// recomputed after the drop.
+struct CodebookFit {
+    int k_transmitted = 0;                 // survivor count
+    std::vector<uint32_t> proto_of_group;  // [G] final prototype ids
+    SandboxModel centroids;                // clusters = k * 16 joint rows
+    int iterations = 0;                    // iterations actually run
+};
+CodebookFit lloyd_cluster(const SandboxModel& groups_joint, int k_want);
+
 // Budget enforcement as a visible step (V1): merges under-filled clusters
 // IN PLACE and returns the raw -> final mapping ('SBP1' payload; empty
 // result = identity, nothing merged). Anchor configs call with enforce=false
@@ -244,6 +279,64 @@ std::vector<uint8_t> serialize_merge_map(uint32_t raw_clusters,
 // Returns raw_clusters entries (identity when the blob encodes none).
 std::vector<uint32_t> deserialize_merge_map(const std::vector<uint8_t>& blob,
                                             uint32_t raw_clusters);
+
+// 'SBP2' wide merge map (pin P-T0-7): joint raw ids exceed 'SBP1's u8
+// entries. Magic, u16 raw-cluster count, u16 entry per raw cluster
+// (final id, range-checked), trailing u32 CRC32 over everything before it.
+std::vector<uint8_t> serialize_merge_map16(uint32_t raw_clusters,
+                                           const std::vector<uint32_t>& merge,
+                                           size_t* audit_counted);
+std::vector<uint32_t> deserialize_merge_map16(const std::vector<uint8_t>& blob,
+                                              uint32_t raw_clusters);
+
+// ----- T-series codebook ('SBC1') + assignment words -----
+
+// Serializes the transmitted prototype tables (clusters = K * 16 joint
+// rows; prior tables ride raw) plus the 4096-normalized assignment context,
+// then the words themselves as a symbol-rANS stream under that context.
+// Words are one per group in plane-major raster order (pin P-T0-4).
+// Layout pinned in decisions/builder/2026-08-26T08-05-00 P-T0-5.
+std::vector<uint8_t> serialize_codebook(const SmoothedTables& protos,
+                                        const std::vector<uint32_t>& words,
+                                        size_t* audit_counted);
+
+struct DecodedCodebook {
+    SmoothedTables tabs;                // clusters = K * 16 joint rows
+    std::vector<uint16_t> assign_ctx;   // [K] u12 histogram
+    std::vector<uint32_t> words;        // decoded, raster group order
+};
+
+// Throws on truncation/CRC/bad shape. When expect_tabs / expect_words are
+// non-null the decoded content must match exactly or a mismatch exception
+// fires (content-tamper surface identical to deserialize_tables).
+DecodedCodebook deserialize_codebook(const std::vector<uint8_t>& blob,
+                                     const SmoothedTables* expect_tabs,
+                                     const std::vector<uint32_t>* expect_words);
+
+// ----- T-series shrinkage estimator + 'SBD1' (addendum 20.3) -----
+
+struct ShrunkTables {
+    TokProfile profile{};
+    std::vector<uint16_t> class16;      // [16 * stride] pooled parent rows
+    std::vector<int16_t> child_delta;   // [343 * stride] child - parent s16
+    std::vector<uint16_t> p;            // [343 * stride] rebuilt on decode
+
+    size_t stride() const;
+};
+
+// Children = the flat343 model's per-context rows (cluster == context id,
+// planes pooled); parents = the SHIPPED class16 reduction's pooled u12
+// rows from `class16_tabs` (a KFLAT16-built SmoothedTables). Shrinkage runs
+// the pinned normalize_counts_4096 arithmetic verbatim per binary cell:
+// cp_i = n_i * 4096 + a_c * parent_u12(i) (pins P-T0-8).
+ShrunkTables shrink_child_tables(TokProfile p, const SandboxModel& flat343,
+                                 const SmoothedTables& class16_tabs, int a_c);
+
+std::vector<uint8_t> serialize_shrunk(const ShrunkTables& t,
+                                      size_t* audit_counted);
+// Throws on truncation/CRC. expect-match tamper surface as P-T0-5.
+ShrunkTables deserialize_shrunk(const std::vector<uint8_t>& blob,
+                                const ShrunkTables* expect);
 
 // ----- Oracle-map pass (V1a; pin V-P4) -----
 //
