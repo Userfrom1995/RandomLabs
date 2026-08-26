@@ -2509,8 +2509,9 @@ void run_t0_image(const std::filesystem::path& img) {
             SmoothedTables rnd_protos;
             build_tables_enforced(rnd_cent, rnd_protos);
             size_t rnd_audit = 0;
+            size_t rnd_tail = 0;
             auto rnd_blob = serialize_codebook(rnd_protos, rnd_words,
-                                               &rnd_audit);
+                                               &rnd_audit, &rnd_tail);
             std::vector<uint32_t> rnd_merge((size_t)joint.clusters);
             for (uint32_t graw = 0; graw < (uint32_t)joint.clusters; ++graw)
                 rnd_merge[(size_t)graw] =
@@ -2545,8 +2546,9 @@ void run_t0_image(const std::filesystem::path& img) {
                 if (dec != med_ress[pi]) rnd_rt = false;
             }
             push_cost(rcand, gs_name, "B-RANS", rnd_payload,
-                      rnd_blob.size(), 0, 0, rnd_audit == rnd_blob.size(),
-                      rnd_rt, rnd_bits, n_rnd_proto);
+                      rnd_blob.size() - rnd_tail, 0, rnd_tail,
+                      rnd_audit == rnd_blob.size(), rnd_rt, rnd_bits,
+                      n_rnd_proto);
         }
     }
 
