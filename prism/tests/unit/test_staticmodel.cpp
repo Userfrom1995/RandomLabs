@@ -1218,3 +1218,52 @@ TEST(ShrinkageSbd1, Sbd1HardDetectSurfaceBitesEverywhere) {
     wrong.child_delta[7 * stride + 3] ^= 0x10;
     EXPECT_THROW(deserialize_shrunk(blob, &wrong), std::runtime_error);
 }
+
+TEST(T2aCodingTables, TransmittedSbd1RebuildDrivesIdenticalPayload) {
+    // Pin P-Q2-3 end to end: the encoder-side wrap of ShrunkTables::p and
+    // the decoder-side rebuild from the transmitted 'SBD1' blob are step-
+    // equal, and a payload coded against the wrap decodes byte-exact under
+    // the rebuild through the causal KFLAT343 mirror (zero maps/trees/
+    // assignment bytes anywhere - the T2a schema).
+    const uint32_t w = 160, h = 120;
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(77);
+    std::uniform_int_distribution<int32_t> d(-2000, 2000);
+    for (auto& v : res) v = d(rng);
+    SandboxModel flat;
+    flat.init(TokProfile::ZFFCTRL, KeyingId::KFLAT343);
+    count_plane(flat, TokProfile::ZFFCTRL, KeyingId::KFLAT343, res, w,
+                nullptr);
+    SandboxModel m16;
+    m16.init(TokProfile::ZFFCTRL, KeyingId::KFLAT16);
+    count_plane(m16, TokProfile::ZFFCTRL, KeyingId::KFLAT16, res, w, nullptr);
+    SmoothedTables parent;
+    build_tables(m16, false, parent);
+
+    ShrunkTables shr =
+        shrink_child_tables(TokProfile::ZFFCTRL, flat, parent, 32);
+    size_t audit = 0;
+    auto blob = serialize_shrunk(shr, &audit);
+    ASSERT_EQ(audit, blob.size());
+    ShrunkTables back = deserialize_shrunk(blob, &shr);   // expect-match
+
+    auto wrap = [](const std::vector<uint16_t>& p) {
+        SmoothedTables t;
+        t.profile = TokProfile::ZFFCTRL;
+        t.clusters = AC_V2_RESDIFF_CONTEXTS;
+        t.p = p;
+        return t;
+    };
+    const SmoothedTables enc_tabs = wrap(shr.p);
+    const SmoothedTables dec_tabs = wrap(back.p);
+    ASSERT_EQ(enc_tabs.p, dec_tabs.p);   // transmitted == encoder view
+
+    std::vector<TaggedEvent> evts;
+    SandboxModel rec;
+    rec.init(TokProfile::ZFFCTRL, AC_V2_RESDIFF_CONTEXTS);
+    count_plane(rec, TokProfile::ZFFCTRL, KeyingId::KFLAT343, res, w, &evts);
+    auto payload = rans_encode_events(TokProfile::ZFFCTRL, evts, enc_tabs);
+    auto dec = rans_decode_events(TokProfile::ZFFCTRL, KeyingId::KFLAT343,
+                                  w, res.size(), payload, dec_tabs);
+    EXPECT_EQ(dec, res);
+}
