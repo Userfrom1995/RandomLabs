@@ -6,12 +6,13 @@
 
 using namespace prism::codec;
 
-// ----- BlockDCT unit tests (spec addendum 21) -----
+// ----- BlockDCT unit tests (spec addendum 21, amendment 22) -----
 //
-// The integer DCT uses 12-bit fixed-point cosine constants (C_SCALE=4096).
-// For BD8 inputs [0,255], |fwd(inv(x)) - x| <= 1 (spec 21.2 bound).
-// For BD16 inputs [0,65535], the 12-bit cosine precision limits
-// reconstruction to <= 28; the sandbox operates on BD8 only.
+// The integer DCT uses 12-bit fixed-point cosine constants (C_SCALE=4096)
+// with symmetric round-to-nearest. For BD8 inputs [0,255]:
+//   - Block-level round-trip: |fwd(inv(x)) - x| <= 1 (spec 21.2 bound)
+//   - Plane-level round-trip: <= 2 (replicate padding compounds error)
+//   - BD16 inputs: <= 28 (12-bit cosine precision limit, not sandbox scope)
 
 // Test 1: Round-trip identity for a constant block
 TEST(BlockDCT, ConstantBlockRoundTrip) {
