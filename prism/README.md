@@ -202,8 +202,26 @@ initialize their centroids before the first assignment. Honest smoke
 reading: under the pinned symmetric chi-square metric kodim01's groups
 collapse to K=1 at every K (CB1 payload == SPINE exactly - the instruments
 agree), and CEILING payload-gain is negative vs fresh T-BASE with tables
-248/62 KB NETTED (`benchmarks/results/2026-08-26-sandbox-t0.csv`;
-failability: `--self-check-t0`). Quad verdict numbers start at T1a.
+728/183 KB NETTED under the repaired per-plane geometry
+(`benchmarks/results/2026-08-26-sandbox-t0.csv`; failability:
+`--self-check-t0`). Quad verdict numbers start at T1a.
+
+`--t1a` is the T-series ceiling kill test (spec addendum 20.5; pins
+P-Q1-1..P-Q1-9 committed before any measurement). Slice Q1 also repaired
+group identity to the pinned PER-PLANE form BEFORE measuring (ClusterMap
+group_base; planes never share a stack - the Q0 smoke's pooled rows are
+voided, t0 CSV regenerated). Per image it re-runs the fresh-in-run T-BASE
+control, then sweeps per-group EXACT static stacks over BOTH group sizes x
+ALL seven D4c color trials with 'SBM1' tables fully NETTED and assignment
+bits impossible by construction; TSUM decomposition rows make the
+fail-clause arithmetic mechanically auditable (the evaluator re-derives
+every figure from raw rows as a rail). Measured quad verdict
+(`benchmarks/results/2026-08-26-sandbox-t1a.csv`; failability:
+`--self-check-t1`): GS128 won everywhere but its 182-213 KB per-group
+tables swamp a +2.13 pct median payload gain => RELPCT median -32.76 pct
+vs bar >= +2.00, FAIL; payload-gain median under the +4.00 opener and
+sole-tables-loss false on all four images, so conditional T1b never opens.
+Bucket C1 is closed-with-numbers; zero container bytes spent.
 
 Since C2 the MA-tree is always-on at effort >= 3: `analyze()` builds it on
 spatial residual features with raised caps (depth 10, up to 256 leaves,

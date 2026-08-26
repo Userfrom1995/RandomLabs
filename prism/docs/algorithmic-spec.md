@@ -1328,4 +1328,16 @@ S3/S4 FAIL) stand recorded permanently under I10's no-post-hoc-bar rule;
 this addendum prices the surviving mechanisms around those numbers and
 relaxes nothing.
 
+Execution note (T1a, 2026-08-26): slice Q1 repaired group identity to this
+addendum's per-plane clause BEFORE measuring (builder pin P-Q1-1; ClusterMap
+group_base; Q0 smoke rows voided as pooled-geometry evidence, t0 CSV
+regenerated - anchors/T-BASE unchanged bit-for-bit), then measured the
+ceiling kill test under pins P-Q1-2..9 (decisions/builder/
+2026-08-26T11-20-00). Quad verdict per 20.5 verbatim: GS128 won every
+image; RELPCT median -32.7552 pct vs bar >= +2.00 => FAIL; payload-gain
+median +2.1306 pct < +4.00 and sole-tables-loss false on all four images
+=> conditional T1b NEVER opened. Bucket C1 closed-with-numbers. Evidence:
+benchmarks/results/2026-08-26-sandbox-t1a.csv. No constant above was
+tuned after measurement; zero container bytes.
+
 - the Architect
