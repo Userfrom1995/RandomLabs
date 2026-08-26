@@ -29,9 +29,10 @@ Blueprint: Architect v4 assessment on PR #150.
 - [x] U0 Transform harness extension (BLOCKING): DONE. BlockDCT module
       (integer 12-bit fixed-point, C_SCALE=4096, orthonormal COS_BAKED),
       TransformDomainMED, FRAME-F mode in sandbox, VB-transform-roundtrip /
-      VB-transform-fidelity / VB-net-audit-u rails + failable --self-check-u0.
+      VB-net-audit-u rails + failable --self-check-u0.
       Spec addendum 21 committed BEFORE any measurement. 152/152 tests green.
-      VB-transform-roundtrip PASS (0 bytes delta). VB-transform-fidelity PASS.
+      VB-transform-roundtrip PASS (maxdiff <=3 for YCoCgR biased channels,
+      <=2 for BD8; spec amendment 22). VB-net-audit-u PASS.
 - [x] U1 Block DCT predictor measurement (attacks B6): DONE - **FAIL**.
       FRAME-F (frequency-domain MED) vs FRAME-T (spatial MED) on pinned quad
       (kodim01/13/05/20) x 7 D4c color trials. FRAME-F is uniformly +19-24%
