@@ -7,9 +7,11 @@ namespace prism::codec {
 
 // ----- BlockDCT: reversible integer 8x8 block DCT (spec addendum 21) -----
 //
-// Non-overlapping 8x8 Type-II DCT. Integer-exact per the pinned spec:
-// 12-bit fixed-point cosine constants (C_SCALE = 4096), round-to-nearest,
-// |fwd(inv(x)) - x| <= 1 for all inputs in [0, 2^BD - 1].
+// Non-overlapping 8x8 Type-II DCT. 12-bit fixed-point cosine constants
+// (C_SCALE = 4096), symmetric round-to-nearest (ties away from zero).
+// For BD8 inputs [0, 255]: |fwd(inv(x)) - x| <= 1 (bounded error, not
+// byte-exact; see spec amendment 22). Plane-level with replicate padding
+// may compound to <= 2 at block boundaries.
 //
 // FORMAT-UNWIRED: this module touches no container, no production path,
 // and no entropy coding. It is a pure source-domain preprocessing step
@@ -26,7 +28,7 @@ void block_dct_forward_8x8(const int32_t* src, int32_t* dst);
 // Inverse 8x8 block DCT: src[64] -> dst[64].
 // Input: DCT coefficients as int32 (12-bit fixed-point domain).
 // Output: reconstructed pixel samples as int32 (rounded).
-// |fwd(inv(x)) - x| <= 1 for all inputs in [0, 2^BD - 1].
+// |fwd(inv(x)) - x| <= 1 for BD8 inputs [0, 255] (spec amendment 22).
 void block_dct_inverse_8x8(const int32_t* src, int32_t* dst);
 
 // Apply forward 8x8 block DCT to an entire plane.
@@ -59,8 +61,9 @@ std::vector<uint16_t> block_dct_inverse_plane(const int32_t* coeffs,
 // ----- TransformDomainMED: MED prediction on DCT coefficients -----
 //
 // For each 8x8 block, the DCT coefficients at position (u,v) are predicted
-// from their four spatial neighbors in the coefficient plane (adjacent
-// blocks). The residual is coded by the existing entropy backend.
+// from their four neighbors in the coefficient plane (W, N, NW, NE in the
+// block grid). The residual is coded by the existing entropy backend.
+// 4-neighbor MED per spec 21.2 TransformDomainMED constants.
 
 // Compute residuals in the transform domain: for each coefficient position
 // (u,v), predict from W/N/NW neighbors in the block grid, compute
