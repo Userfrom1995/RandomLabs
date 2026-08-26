@@ -30,5 +30,10 @@ glyphforge/build/
 kestrel/data/
 kestrel/model.json
 
+# Lab agent runtime state (never commit agent decision files)
+.agent/
+tmp_random_lab_*
+/tmp/random-lab-*
+
 # Specstory
 .specstory/
