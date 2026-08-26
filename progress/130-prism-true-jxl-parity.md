@@ -692,6 +692,15 @@ bytes until T4 PASS.
       self-error interaction + per-plane b reset pinned; 'SBB2' bias-blob
       shape named). Engine + evaluator land next; quad sweep after rails
       are green.
+      DONE 2026-08-26: evaluator rails in probe_sandbox.sh (T3/T3B/T3BS/
+      T3CELL parsing, net-audit-t(T3) identity/schema, fidelity-t3,
+      T3CELL decomposition cross-check, bar(i) gate readout, failable
+      --self-check-t3). All VB rails GREEN on committed CSV (336 T3 rows,
+      168 families, 24 T3CELL). Formal bar(i) verdict: W best non-MED at
+      ZFFCTRL quad median -2.11 pct vs bar >= +1.50 => FAIL. GAP and W
+      take third and final strike; B3/B5 close permanently. T3b canary
+      does NOT ride (bar(i) not met). T4 composition proceeds with
+      {MED only} x D4c color trials.
 - [ ] T4 composition + projection: per-image winners by real NET bytes x
       color trials; projection 18.5 VERBATIM vs committed e1 CSV; threshold
       UNCHANGED < 9.35 summed / < 3.117 per-sample; M2/M3 reported beside,
@@ -701,6 +710,16 @@ bytes until T4 PASS.
       third-strike death (L-C7).
 
 ## Current step
+
+SLICE Q3 COMPLETE (2026-08-26, Builder): T3 factorial evaluator rails
+landed in probe_sandbox.sh; all VB rails GREEN on committed CSV (336 T3
+rows, 168 families, 24 T3CELL). Formal bar(i) verdict: FAIL (W best
+non-MED at ZFFCTRL quad median -2.11 pct vs bar >= +1.50). GAP and W
+take third and final strike; B3/B5 close permanently. T3b canary does NOT
+ride (bar(i) not met). T4 composition proceeds with {MED only} x D4c
+color trials. Zero container bytes until a future T4 PASS.
+
+Prior state:
 
 SLICE Q3 IN PROGRESS (2026-08-26, Builder): pins P-Q3-1..P-Q3-12
 committed BEFORE any T3/T3b measurement
@@ -948,11 +967,14 @@ Previous slice summary (continuation run 3, C2b):
    opened.
 3. ~~Slice Q2: T2a shrunk contexting~~ DONE (2026-08-26) - FAIL, best arm
    median -13.09 vs +0.50; conditional T2b never opened.
-4. **Slice Q3 (Builder, next):** T3 factorial {MED,GAP,W} x {ZFFCTRL,
-   ZZ-HU} + T3b canary once on the winner; pins BEFORE measurement;
-   dated CSV + verdicts same slice.
-5. Slice Q4: T4 composition + projection vs the committed e1 CSV
-   (< 9.35 summed / < 3.117 per-sample); T5 reserve only per trigger.
+4. ~~Slice Q3~~ DONE (2026-08-26) - T3 factorial evaluator rails + formal
+   bar(i) verdict: FAIL (W best non-MED quad median -2.11 pct vs
+   +1.50). B3/B5 close permanently; T3b canary never rides. {MED only}
+   x D4c color trials for T4.
+5. **Slice Q4 (Builder, next):** T4 composition + projection vs the
+   committed e1 CSV (< 9.35 summed / < 3.117 per-sample); T5 reserve
+   only per trigger. Per-image winners by real NET bytes x color trials;
+   projection 18.5 VERBATIM; M2/M3 reported beside, never altered.
 
 Legacy branch-update policy from the v1 era (superseded in practice by the
 stacking note above but kept as hard-won context):
@@ -1060,6 +1082,22 @@ stacking note above but kept as hard-won context):
   B3/B5 close permanently. If bar (i) PASS: T3b canary rides on the
   winner. (4) T4 composition if anything survives. Zero container bytes
   throughout.
+
+- 2026-08-26 the Builder (T-series slice Q3, FORMAL VERDICT COMPLETE):
+  T3 evaluator rails landed in probe_sandbox.sh (T3/T3B/T3BS/T3CELL
+  parsing, net-audit-t(T3) identity/schema, fidelity-t3, T3CELL
+  decomposition cross-check, bar(i) gate readout, failable --self-check-t3,
+  --t3 mode dispatch). All VB rails GREEN on committed CSV (336 T3 rows,
+  168 families, 24 T3CELL). Formal bar(i) verdict: W best non-MED at
+  ZFFCTRL quad median -2.11 pct (min -6.59 / max -1.55) vs bar >= +1.50
+  => FAIL. GAP and W take third and final strike; B3/B5 close permanently.
+  T3b canary does NOT ride (bar(i) not met). T4 composition proceeds with
+  {MED only} x D4c color trials. All seven self-checks green; 144/144
+  unit tests. Decision record:
+  .github/agents/decisions/builder/2026-08-26T15-00-00-t3-formal-verdict.md.
+  Next: slice Q4 = T4 composition + projection vs committed e1 CSV
+  (< 9.35 summed / < 3.117 per-sample; M2/M3 reported beside, never
+  altered). Zero container bytes throughout.
 
 - 2026-08-26 the Builder (T-series slice Q2, COMPLETE): T2a measured,
   FAIL per the pre-registered gate. Two concurrent sessions reconciled
