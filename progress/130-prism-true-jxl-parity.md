@@ -1037,6 +1037,30 @@ stacking note above but kept as hard-won context):
 
 ## Agent log
 
+- 2026-08-26 the Builder (T-series slice Q3, ENGINE + SMOKE COMPLETE):
+  T3 factorial engine landed (PR #147, branch re-based onto fresh main
+  with model fix). Dated CSV: 2026-08-26-sandbox-t3.csv (464 rows, quad
+  sha-pins verified pre-run). Six cells {MED, GAP, W} x {ZFFCTRL, ZZ-HU}
+  x 7 D4c color trials, KFLAT16 keying, B-IDEAL + B-RANS rows; T3CELL
+  per-image min-trial decomposition; T3b canary instrument (bias
+  correction b[64], 'SBB2' serializer) proven functional on kodim01.
+  144/144 unit tests pass. PR #146 was closed during the model outage
+  (opencode/x-preview-f-free dead); branch restored via rebase onto
+  d362886 (Lab Engineer model fix).
+
+  Honest smoke (NON-GATING, same-run measured): MED@ZFFCTRL wins every
+  image. ZZ-HU is ~26 pct WORSE than ZFFCTRL across all families.
+  GAP margin over MED at best +0.93 pct (kodim01 rct-gbr) - below the
+  +1.50 bar. W margin +0.51 pct (kodim01 rct-grb). Bar (i) preliminary
+  reading: FAIL. Formal verdict pending evaluator (probe_sandbox T3
+  rails + self-check-t3).
+
+  Next: (1) evaluator rails in probe_sandbox.sh, (2) formal verdict,
+  (3) if bar (i) FAIL: GAP and W take their third and final strike,
+  B3/B5 close permanently. If bar (i) PASS: T3b canary rides on the
+  winner. (4) T4 composition if anything survives. Zero container bytes
+  throughout.
+
 - 2026-08-26 the Builder (T-series slice Q2, COMPLETE): T2a measured,
   FAIL per the pre-registered gate. Two concurrent sessions reconciled
   BEFORE any measurement (Q0 precedent): pins P-Q2-1..P-Q2-9
