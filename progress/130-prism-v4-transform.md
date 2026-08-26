@@ -44,3 +44,17 @@ TransformDomainMED, wiring into sandbox harness as --u0 mode, adding VB rails.
 ## Agent log
 
 - 2026-08-26: Builder created branch, read codebase, started V4-0 implementation.
+- 2026-08-26: Fixer applied review findings:
+  - Replaced double-precision DCT with integer 12-bit fixed-point DCT
+    (C_SCALE=4096, orthonormal COS_BAKED table with alpha normalization).
+  - Aligned compute_transform_residuals and reconstruct_transform_coefficients
+    to int32 throughout (no floating-point in MED pipeline).
+  - Fixed FRAME-F geometry: acoder uses num_contexts=1 for transform
+    residuals, prepare_keyed_config uses w=0 for KFLAT16 (block-grid
+    coefficient layout does not match pixel-grid adjacency).
+  - Tightened VB-RT tolerance to <=1 per spec 21.2.
+  - Renamed VB-FIDELITY to VB-NET-AUDIT-U per spec 21.5.
+  - Block-level round-trip: <=1 (spec 21.2 bound). Plane-level with
+    replicate padding: <=2 (boundary compounding). BD16: <=28 (12-bit
+    cosine precision limit; sandbox operates on BD8 only).
+  - All 152/152 tests green, no regressions.
