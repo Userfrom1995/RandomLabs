@@ -52,7 +52,9 @@ static void print_usage() {
               << "  prism bench-sandbox --t0-synth homo|skew  (T0 synthetic fixtures, no anchors)\n"
   << "  prism bench-sandbox --t1a <image>...  (T-series ceiling kill test)\n"
   << "  prism bench-sandbox --t1b <image>...  (T-series content-defined codebooks)\n"
-  << "  prism bench-sandbox --t2a <image>...  (T-series shrunk fine contexting)\n";
+  << "  prism bench-sandbox --t2a <image>...  (T-series shrunk fine contexting)\n"
+  << "  prism bench-sandbox --t3 <image>...   (T-series predictor-tokenization factorial)\n"
+  << "  prism bench-sandbox --t3b FAM@TOK <image>...  (T-series canary-on-winner)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -941,6 +943,8 @@ static int run_t0_synth(const std::string& kind);
 static void run_t1a_image(const std::filesystem::path& img);
 static void run_t1b_image(const std::filesystem::path& img);
 static void run_t2a_image(const std::filesystem::path& img);
+static void run_t3_image(const std::filesystem::path& img);
+static void run_t3b_image(const std::filesystem::path& img, const std::string& target);
 }
 
 static int run_bench_sandbox(int argc, char** argv) {
@@ -1065,6 +1069,42 @@ static int run_bench_sandbox(int argc, char** argv) {
                 return 2;
             }
             for (const auto& img : imgs) sandboxrun::run_t2a_image(img);
+            return 0;
+        }
+        if (a == "--t3") {
+            // T-series slice Q3 factorial (spec addendum 20.4/20.5;
+            // pins P-Q3-1..P-Q3-12 BEFORE any measurement).
+            for (int j = i + 1; j < argc; ++j)
+                imgs.push_back(argv[j]);
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --t3: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs) sandboxrun::run_t3_image(img);
+            return 0;
+        }
+        if (a == "--t3b") {
+            // T-series slice Q3b canary-on-winner (spec addendum 20.4;
+            // pins P-Q3-5..P-Q3-7; takes FAM@TOK target).
+            std::string target;
+            for (int j = i + 1; j < argc; ++j) {
+                std::string arg = argv[j];
+                if (arg[0] != '/' && arg.find('@') != std::string::npos) {
+                    target = arg;
+                } else {
+                    imgs.push_back(argv[j]);
+                }
+            }
+            if (target.empty()) {
+                std::cerr << "bench-sandbox --t3b: need FAM@TOK target\n";
+                return 2;
+            }
+            if (imgs.empty()) {
+                std::cerr << "bench-sandbox --t3b: no images given\n";
+                return 2;
+            }
+            for (const auto& img : imgs)
+                sandboxrun::run_t3b_image(img, target);
             return 0;
         }
         if (a == "--profile" && i + 1 < argc) {
@@ -3663,6 +3703,467 @@ void run_t2a_image(const std::filesystem::path& img) {
         for (const T2Row& q : arm_rows) rows.push_back(q);
     }
     emit_rows(img_name, rows);
+}
+
+// ----- bench-sandbox --t3 (T-series slice Q3; spec addendum 20.4/20.5 +
+// pins P-Q3-1..P-Q3-12 in decisions/builder/2026-08-26T13-13-00) -----
+//
+// Joint predictor-tokenization factorial: {MED, GAP, W} x {ZFFCTRL, ZZ-HU}
+// scored NET on the quad. ZZ-HU is TokProfile::HYB_C verbatim (P-Q3-1).
+// Stack per cell: KFLAT16 keying x B-RANS for verdict rows; B-IDEAL rows
+// are fidelity-rail diagnostics. Tables + 'SBP1' fully NETTED; zero
+// maps/trees/assign by schema (flat keying).
+
+namespace t3run {
+
+struct T3Row {
+    std::string cand, tok, trial, be;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, assign = 0;
+    bool audit_ok = true, rt = true;
+    double tbl_bits = 0;
+    uint64_t net() const {
+        return payload + tables + maps + trees + assign;
+    }
+};
+
+struct T3Cell {
+    std::string fam, tok;
+    int best_trial = -1;
+    uint64_t best_net = UINT64_MAX;
+    uint64_t payload = 0, tables = 0;
+    bool found = false;
+};
+
+struct T3bRow {
+    std::string arm, trial, be;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, bias = 0,
+              assign = 0;
+    bool audit_ok = true, rt = true;
+    double tbl_bits = 0;
+    uint64_t net() const {
+        return payload + tables + maps + trees + bias + assign;
+    }
+};
+
+struct T3BaseWin {
+    bool have = false;
+    uint64_t payload = 0, tables = 0, maps = 0, trees = 0, assign = 0,
+             net = 0;
+};
+
+static T3BaseWin pick_t3_base(const std::vector<t1run::T1Row>& rows) {
+    T3BaseWin w;
+    bool best_is_adapt = false;
+    for (const t1run::T1Row& r : rows) {
+        if (r.cand != "ADAPT" && r.cand != "SPINE") continue;
+        if (r.be != "B-ADAPT" && r.be != "B-RANS") continue;
+        const bool adapt = (r.cand == "ADAPT");
+        if (!w.have || r.net() < w.net ||
+            (r.net() == w.net && adapt && !best_is_adapt)) {
+            w.have = true;
+            w.payload = r.payload;
+            w.tables = r.tables;
+            w.maps = r.maps;
+            w.trees = r.trees;
+            w.assign = r.assign;
+            w.net = r.net();
+            best_is_adapt = adapt;
+        }
+    }
+    return w;
+}
+
+static void emit_t3_rows(const std::string& img_name,
+                          const std::vector<T3Row>& rows) {
+    char rowbuf[512];
+    for (const T3Row& r : rows) {
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "T3,%s,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%d,%d,"
+                      "%.3f\n",
+                      img_name.c_str(), r.cand.c_str(), r.tok.c_str(),
+                      r.trial.c_str(), r.be.c_str(), (size_t)r.payload,
+                      (size_t)r.tables, (size_t)r.maps, (size_t)r.trees,
+                      (size_t)r.assign, (size_t)r.net(),
+                      r.audit_ok ? 1 : 0, r.rt ? 1 : 0, r.tbl_bits);
+        std::cout << rowbuf;
+    }
+}
+
+static void emit_t3cell_rows(const std::string& img_name,
+                              const std::vector<T3Cell>& cells) {
+    char rowbuf[512];
+    for (const T3Cell& c : cells) {
+        if (!c.found) continue;
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "T3CELL,%s,%s,%s,%d,%zu,%zu,%zu\n",
+                      img_name.c_str(), c.fam.c_str(), c.tok.c_str(),
+                      c.best_trial, (size_t)c.payload, (size_t)c.tables,
+                      (size_t)c.best_net);
+        std::cout << rowbuf;
+    }
+}
+
+static void emit_t3b_rows(const std::string& img_name,
+                           const std::vector<T3bRow>& rows) {
+    char rowbuf[512];
+    for (const T3bRow& r : rows) {
+        std::snprintf(rowbuf, sizeof(rowbuf),
+                      "T3B,%s,%s,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%d,%d,"
+                      "%.3f\n",
+                      img_name.c_str(), r.arm.c_str(), r.trial.c_str(),
+                      r.be.c_str(), (size_t)r.payload, (size_t)r.tables,
+                      (size_t)r.maps, (size_t)r.trees, (size_t)r.bias,
+                      (size_t)r.assign, (size_t)r.net(),
+                      r.audit_ok ? 1 : 0, r.rt ? 1 : 0, r.tbl_bits);
+        std::cout << rowbuf;
+    }
+}
+
+static void emit_t3bs_rows(const std::string& img_name,
+                            const std::string& arm,
+                            const T3Row& base, const T3bRow& canary) {
+    char rowbuf[512];
+    const double relpct =
+        (base.net() > 0)
+            ? 100.0 * ((double)base.net() - (double)canary.net()) /
+                  (double)base.net()
+            : 0.0;
+    std::snprintf(rowbuf, sizeof(rowbuf),
+                  "T3BS,%s,%s,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%.4f\n",
+                  img_name.c_str(), arm.c_str(),
+                  (size_t)base.payload, (size_t)base.tables,
+                  (size_t)base.maps, (size_t)base.trees,
+                  (size_t)base.assign, (size_t)base.net(),
+                  (size_t)canary.net(), relpct);
+    std::cout << rowbuf;
+}
+
+// Measure one (family, tok) cell across all seven D4c color trials.
+static void measure_t3_cell(const Raster& r, const std::string& img_name,
+                             PredFamily fam, TokProfile tok,
+                             std::vector<T3Row>& out) {
+    const char* fn = pred_family_name(fam);
+    const char* tn_prf = profile_name(tok);
+    for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+        const char* tn = prism::codec::colorrot::name(id);
+        Raster tt = prism::codec::colorrot::apply(r, id);
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            ress.push_back(
+                compute_residuals_family(plane, tt.w, tt.h, fam, 8));
+        PreparedConfig cfg;
+        prepare_keyed_config(tok, KeyingId::KFLAT16, tt.w, ress, cfg);
+        cfg.plane_residuals = ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(tok, cfg.evts[pi], cfg.tabs);
+        {
+            T3Row row;
+            row.cand = fn; row.tok = tn_prf; row.trial = tn;
+            row.be = "B-IDEAL";
+            row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.audit_ok = cfg.art.audits_ok;
+            row.tbl_bits = tbl_bits;
+            out.push_back(row);
+        }
+        uint64_t payload = 0;
+        bool rt = true;
+        for (size_t pi = 0; pi < ress.size(); ++pi) {
+            auto bytes = rans_encode_events(tok, cfg.evts[pi], cfg.tabs);
+            payload += bytes.size();
+            auto dec =
+                rans_decode_events(tok, cfg.cms[pi], ress[pi].size(), bytes,
+                                   cfg.tabs);
+            if (dec != ress[pi]) rt = false;
+        }
+        T3Row row;
+        row.cand = fn; row.tok = tn_prf; row.trial = tn;
+        row.be = "B-RANS"; row.payload = payload;
+        row.tables = cfg.art.table_blob.size();
+        row.maps = cfg.art.map_blob.size();
+        row.audit_ok = cfg.art.audits_ok; row.rt = rt;
+        row.tbl_bits = tbl_bits;
+        out.push_back(row);
+    }
+}
+
+} // namespace t3run
+
+void run_t3_image(const std::filesystem::path& img) {
+    using namespace t3run;
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    // Anchors + fresh-in-run T-BASE control sweep.
+    std::vector<t1run::T1Row> base_rows;
+    t1run::measure_base(r, img_name, base_rows);
+    t1run::emit_rows(img_name, base_rows, t1run::pick_base(base_rows));
+
+    // Six cells: {MED, GAP, W} x {ZFFCTRL, HYB_C}.
+    struct CellDef { PredFamily fam; TokProfile tok; const char* fam_s; const char* tok_s; };
+    constexpr CellDef CELLS[6] = {
+        {PredFamily::MED,  TokProfile::ZFFCTRL, "MED",  "ZFFCTRL"},
+        {PredFamily::MED,  TokProfile::HYB_C,   "MED",  "ZZHU"},
+        {PredFamily::GAP,  TokProfile::ZFFCTRL, "GAP",  "ZFFCTRL"},
+        {PredFamily::GAP,  TokProfile::HYB_C,   "GAP",  "ZZHU"},
+        {PredFamily::WENS, TokProfile::ZFFCTRL, "W",    "ZFFCTRL"},
+        {PredFamily::WENS, TokProfile::HYB_C,   "W",    "ZZHU"},
+    };
+
+    std::vector<T3Row> all_rows;
+    std::vector<T3Cell> cells(6);
+
+    for (int ci = 0; ci < 6; ++ci) {
+        cells[ci].fam = CELLS[ci].fam_s;
+        cells[ci].tok = CELLS[ci].tok_s;
+        std::vector<T3Row> cell_rows;
+        measure_t3_cell(r, img_name, CELLS[ci].fam, CELLS[ci].tok,
+                        cell_rows);
+        // Find best B-RANS row for this cell (first strict minimum).
+        for (const T3Row& row : cell_rows) {
+            if (row.be == "B-RANS" &&
+                (!cells[ci].found || row.net() < cells[ci].best_net)) {
+                cells[ci].best_net = row.net();
+                cells[ci].payload = row.payload;
+                cells[ci].tables = row.tables;
+                cells[ci].best_trial =
+                    prism::codec::colorrot::id_of(row.trial);
+                cells[ci].found = true;
+            }
+        }
+        for (const T3Row& row : cell_rows) all_rows.push_back(row);
+    }
+
+    emit_t3_rows(img_name, all_rows);
+    emit_t3cell_rows(img_name, cells);
+}
+
+// ----- bench-sandbox --t3b (T-series slice Q3b canary-on-winner;
+// spec addendum 20.4; pins P-Q3-5..P-Q3-7) -----
+//
+// The canary applies bias correction b[ctx] to the winning cell's
+// prediction. ctx = 8 * bucket(gN) + bucket(gW) where gN/gW are
+// gradients from DECODED pixels under the shared border rule (P-Q3-6).
+// The 'SBB2' bias table is transmitted, not recomputed (P-Q3-7).
+
+namespace t3brun {
+
+static int bias_bucket(int32_t g, int bd_shift) {
+    int32_t absg = g < 0 ? -g : g;
+    int thr[7] = {0, 1, 2, 4, 8, 16, 32};
+    for (int i = 0; i < 7; ++i)
+        thr[i] <<= bd_shift;
+    for (int i = 0; i < 7; ++i)
+        if (absg <= thr[i]) return i;
+    return 7;
+}
+
+static constexpr int BIAS_N = 64;
+static constexpr int BIAS_SHIFT = 6;
+static constexpr int BMAX = 32;   // 2^(bd-3) for bd=8
+
+struct BiasTable {
+    int16_t b[BIAS_N] = {};
+};
+
+// Apply bias correction: pred' = pred + b[ctx]; err' = actual - pred'.
+// Returns corrected residual and updates bias table.
+static int32_t apply_bias(int32_t pred, int32_t actual, int32_t gN,
+                           int32_t gW, int bd_shift, BiasTable& bt) {
+    int ctx = 8 * bias_bucket(gN, bd_shift) + bias_bucket(gW, bd_shift);
+    if (ctx < 0) ctx = 0;
+    if (ctx >= BIAS_N) ctx = BIAS_N - 1;
+    int32_t corrected_pred = pred + bt.b[ctx];
+    int32_t err = actual - corrected_pred;
+    // Update bias table post-decode (P-Q3-6).
+    int32_t delta = err >> BIAS_SHIFT;
+    bt.b[ctx] = (int16_t)std::clamp((int)bt.b[ctx] + delta, -BMAX, BMAX);
+    return err;
+}
+
+// Compute bias-corrected residuals for one plane under a predictor family.
+static std::vector<int32_t> compute_bias_corrected_residuals(
+    const std::vector<uint16_t>& plane, uint32_t w, uint32_t h,
+    PredFamily fam, int bd, BiasTable& bt) {
+    std::vector<int32_t> res(plane.size());
+    const int bd_shift = bd - 8;
+    WEnsemble ens;
+    ens.reset();
+    const int64_t maxval = 65535;
+    std::vector<uint16_t> decoded(plane.size());
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            const size_t idx = (size_t)y * w + x;
+            // Neighbors from DECODED pixels (P-Q3-6).
+            uint16_t L = (x > 0) ? decoded[idx - 1] : 0;
+            uint16_t T = (y > 0) ? decoded[idx - w] : 0;
+            uint16_t TL = (x > 0 && y > 0) ? decoded[idx - w - 1] : 0;
+            uint16_t TR = (x + 1 < w && y > 0) ? decoded[idx - w + 1] : 0;
+            uint16_t WW = (x > 1) ? decoded[idx - 2] : 0;
+            uint16_t NN = (y > 1) ? decoded[idx - 2 * w] : 0;
+            uint16_t NNE = (y > 1 && x + 1 < w)
+                               ? decoded[idx - 2 * w + 1]
+                               : 0;
+            // Compute base prediction.
+            int64_t pred;
+            int32_t wp[4] = {0, 0, 0, 0};
+            switch (fam) {
+                case PredFamily::MED:
+                    pred = med_predictor(L, T, TL);
+                    break;
+                case PredFamily::GAP:
+                    pred = gap_reduced_predict(L, WW, T, TL, TR, NN, bd);
+                    break;
+                default:
+                    pred = ens.weighted_mean(L, T, TL, maxval, wp);
+                    break;
+            }
+            int32_t actual = (int32_t)plane[idx];
+            // Gradients from decoded neighbors (shared border rule).
+            int32_t gN = (y > 0) ? (int32_t)T - (int32_t)pred : 0;
+            int32_t gW = (x > 0) ? (int32_t)L - (int32_t)pred : 0;
+            int32_t err = apply_bias((int32_t)pred, actual, gN, gW,
+                                     bd_shift, bt);
+            res[idx] = err;
+            // Reconstruct decoded pixel for causal walk.
+            decoded[idx] = (uint16_t)(pred + err);
+            if (fam == PredFamily::WENS)
+                ens.update(wp, pred, (int64_t)err);
+        }
+    }
+    return res;
+}
+
+// Serialize bias table as 'SBB2' + u32 n + n s16 LE + CRC32.
+// Then compress the whole blob once through plane-rANS (P-Q3-7).
+static std::vector<uint8_t> serialize_bias_table(const BiasTable& bt) {
+    std::vector<uint8_t> raw;
+    raw.resize(4 + BIAS_N * 2);  // magic(4) + n(4) + values
+    raw[0] = 'S'; raw[1] = 'B'; raw[2] = 'B'; raw[3] = '2';
+    uint32_t n = BIAS_N;
+    std::memcpy(&raw[4], &n, 4);
+    for (int i = 0; i < BIAS_N; ++i) {
+        uint16_t v = (uint16_t)(uint16_t)bt.b[i];
+        raw[8 + i * 2 + 0] = (uint8_t)(v & 0xFF);
+        raw[8 + i * 2 + 1] = (uint8_t)(v >> 8);
+    }
+    return raw;
+}
+
+} // namespace t3brun
+
+void run_t3b_image(const std::filesystem::path& img,
+                   const std::string& target) {
+    using namespace t3brun;
+    using namespace t3run;
+    Raster r = frontend::decode_to_raster(img);
+    const std::string img_name = img.filename().string();
+
+    // Parse FAM@TOK target.
+    size_t at = target.find('@');
+    if (at == std::string::npos)
+        throw std::runtime_error("--t3b: invalid target (need FAM@TOK)");
+    std::string fam_s = target.substr(0, at);
+    std::string tok_s = target.substr(at + 1);
+    PredFamily fam;
+    if (fam_s == "MED") fam = PredFamily::MED;
+    else if (fam_s == "GAP") fam = PredFamily::GAP;
+    else if (fam_s == "W") fam = PredFamily::WENS;
+    else throw std::runtime_error("--t3b: unknown family " + fam_s);
+    TokProfile tok;
+    if (tok_s == "ZFFCTRL") tok = TokProfile::ZFFCTRL;
+    else if (tok_s == "ZZHU") tok = TokProfile::HYB_C;
+    else throw std::runtime_error("--t3b: unknown tok " + tok_s);
+
+    // Fresh-in-run T-BASE (same as --t3).
+    std::vector<t1run::T1Row> base_rows;
+    t1run::measure_base(r, img_name, base_rows);
+    t1run::emit_rows(img_name, base_rows, t1run::pick_base(base_rows));
+
+    // Base cell: same family/tokenization, no bias correction.
+    std::vector<T3Row> base_cell_rows;
+    measure_t3_cell(r, img_name, fam, tok, base_cell_rows);
+    const T3Row* base_rans = nullptr;
+    for (const T3Row& row : base_cell_rows) {
+        if (row.be == "B-RANS" &&
+            (!base_rans || row.net() < base_rans->net()))
+            base_rans = &row;
+    }
+    if (!base_rans)
+        throw std::runtime_error("--t3b: no base B-RANS row");
+
+    // Canary: bias-corrected residuals for each D4c trial.
+    std::vector<T3bRow> canary_rows;
+    for (int id = 0; id < prism::codec::colorrot::kCount; ++id) {
+        const char* tn = prism::codec::colorrot::name(id);
+        Raster tt = prism::codec::colorrot::apply(r, id);
+        BiasTable bt = {};   // fresh per trial (bias state resets per plane,
+                             // shared across planes by P-Q3-6 precedent).
+        std::vector<std::vector<int32_t>> ress;
+        ress.reserve(tt.planes.size());
+        for (auto& plane : tt.planes)
+            ress.push_back(compute_bias_corrected_residuals(
+                plane, tt.w, tt.h, fam, 8, bt));
+
+        // B-IDEAL row.
+        PreparedConfig cfg;
+        prepare_keyed_config(tok, KeyingId::KFLAT16, tt.w, ress, cfg);
+        cfg.plane_residuals = ress;
+        double tbl_bits = 0;
+        for (size_t pi = 0; pi < ress.size(); ++pi)
+            tbl_bits += table_ideal_bits(tok, cfg.evts[pi], cfg.tabs);
+        // Bias table bytes (NETTED).
+        auto bias_raw = serialize_bias_table(bt);
+        uint64_t bias_bytes = bias_raw.size();
+        {
+            T3bRow row;
+            row.arm = fam_s + std::string("@") + tok_s;
+            row.trial = tn; row.be = "B-IDEAL";
+            row.payload = (uint64_t)std::ceil(tbl_bits / 8.0);
+            row.tables = cfg.art.table_blob.size();
+            row.maps = cfg.art.map_blob.size();
+            row.bias = bias_bytes;
+            row.audit_ok = cfg.art.audits_ok;
+            row.tbl_bits = tbl_bits;
+            canary_rows.push_back(row);
+        }
+        // B-RANS row.
+        uint64_t payload = 0;
+        bool rt = true;
+        for (size_t pi = 0; pi < ress.size(); ++pi) {
+            auto bytes = rans_encode_events(tok, cfg.evts[pi], cfg.tabs);
+            payload += bytes.size();
+            auto dec = rans_decode_events(tok, cfg.cms[pi], ress[pi].size(),
+                                          bytes, cfg.tabs);
+            if (dec != ress[pi]) rt = false;
+        }
+        T3bRow row;
+        row.arm = fam_s + std::string("@") + tok_s;
+        row.trial = tn; row.be = "B-RANS";
+        row.payload = payload;
+        row.tables = cfg.art.table_blob.size();
+        row.maps = cfg.art.map_blob.size();
+        row.bias = bias_bytes;
+        row.audit_ok = cfg.art.audits_ok; row.rt = rt;
+        row.tbl_bits = tbl_bits;
+        canary_rows.push_back(row);
+    }
+
+    emit_t3b_rows(img_name, canary_rows);
+
+    // T3BS: canary vs base decomposition per image.
+    const T3bRow* canary_rans = nullptr;
+    for (const T3bRow& row : canary_rows) {
+        if (row.be == "B-RANS" &&
+            (!canary_rans || row.net() < canary_rans->net()))
+            canary_rans = &row;
+    }
+    if (canary_rans && base_rans)
+        emit_t3bs_rows(img_name, fam_s + "@" + tok_s, *base_rans,
+                       *canary_rans);
 }
 
 } // namespace sandboxrun
