@@ -1343,8 +1343,7 @@ namespace {
 constexpr char MERGE16_MAGIC[4] = {'S', 'B', 'P', '2'};
 constexpr char CODEBOOK_MAGIC[4] = {'S', 'B', 'C', '1'};
 constexpr char SHRUNK_MAGIC[4] = {'S', 'B', 'D', '1'};
-constexpr int GROUP_CLASS_AXIS = 16;   // class16 reduction width per stack
-
+// GROUP_CLASS_AXIS comes from the shared header (pins P-T0-1).
 // Symmetric chi-square distance (pin P-T0-2): bins flatten to the
 // interleaved (n0, n1) outcome counts of every (class, kind off + key)
 // cell in ascending cell order; term = floor(((X'-P')^2 << 16)/(X'+P'))
@@ -1449,6 +1448,9 @@ CodebookFit lloyd_cluster(const SandboxModel& gj, int k_want) {
             for (size_t i = 0; i < stride; ++i) {
                 centroids.n0[d + i] = gj.n0[s + i];
                 centroids.n1[d + i] = gj.n1[s + i];
+            }
+        }
+    }
             }
         }
     }
@@ -1854,8 +1856,10 @@ size_t ShrunkTables::stride() const {
 ShrunkTables shrink_child_tables(TokProfile p, const SandboxModel& flat343,
                                  const SmoothedTables& class16_tabs, int a_c) {
     if (flat343.clusters != AC_V2_RESDIFF_CONTEXTS ||
-        flat343.profile != TokProfile::ZFFCTRL || a_c <= 0)
+        flat343.profile != TokProfile::ZFFCTRL || a_c < 0)
         throw std::runtime_error("shrink_child_tables: bad inputs");
+    // a_c = 0 is legal (pin P-T0-8 limit: reproduces child ML
+    // normalization); only negative pseudo-counts are malformed.
     if (class16_tabs.profile != TokProfile::ZFFCTRL ||
         class16_tabs.clusters != GROUP_CLASS_AXIS ||
         class16_tabs.p.size() != (size_t)GROUP_CLASS_AXIS * class16_tabs.stride())
@@ -2024,7 +2028,8 @@ ShrunkTables deserialize_shrunk(const std::vector<uint8_t>& blob,
         }
     }
     if (expect &&
-        (expect->p != out.p || expect->class16 != out.class16))
+        (expect->p != out.p || expect->class16 != out.class16 ||
+         expect->child_delta != out.child_delta))
         throw std::runtime_error("staticmodel: deserialized shrunk mismatch");
     return out;
 }

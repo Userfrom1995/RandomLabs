@@ -669,6 +669,29 @@ bytes until T4 PASS.
 
 ## Current step
 
+SLICE Q0 IN PROGRESS (2026-08-26, Builder): T0 core landed and
+BRING-UP-REPAIRED under the A2/A4b precedent - four defects found by the
+new T0 unit suite BEFORE any measurement, each fixed with its regression
+test: (1) crc32_combine dropped the running CRC state, so every multi-part
+blob ('SBM1'/'SBC1'/'SBD1') carried a CRC over only its final section -
+now true incremental chaining; (2) Lloyd's first assignment ran against
+UNFILLED zero centroids, letting symmetric ties collapse every K to one
+survivor - seed stacks now initialize their prototype slots; (3) the
+'SBC1' serializer asserted an impossible prior shape and wrote a stride
+field disagreeing with its own pinned layout (P-T0-5: per-proto block =
+16 x profile stride, per-row replicated priors) - serializer rebuilt to
+the pinned shape; (4) the 'SBD1' decoder mirror indexed parents by a flat
+modulo instead of the transmitted parent map (children 16+ silently paired
+wrong), and its expect-compare ignored child_delta - both fixed. a_c = 0
+is legal per P-T0-8. 137/137 unit tests green (9 new T0 tests: group
+geometry hand-checked, collapse/separation/determinism, 'SBP2'/'SBC1'/
+'SBD1' round-trips + hard-detect, decode-mirror payload round-trip).
+Remaining for Q0: --t0 smoke mode + --t0-synth fixtures in main.cpp,
+probe rails VB-proto-roundtrip / VB-assign-mirror / net-audit-t +
+failable --self-check-t0, dated diagnostic CSV on kodim01, ledger sweep.
+
+Prior state:
+
 SLICE Q0 OPENED (2026-08-26, Builder): T0 instrument extension in progress.
 TWO Builder sessions opened this slice concurrently; pins reconciled BEFORE
 any measurement in decisions/builder/2026-08-26T08-05-00-t0-instrument-
@@ -679,8 +702,6 @@ KGROUP64/KGROUP128 keyings, 'SBP2' wide merge map; ADOPTS that record's
 seeding/drop details, single-state symbol rANS, shrinkage test-limit
 reading, 'SBD1'/row-schema/non-gating pins wholesale). Machinery next:
 staticmodel T0 core, --t0 smoke mode, tests, probe rails + self-check-t0.
-
-Prior state:
 
 T-SERIES PROGRAM OPENED (2026-08-26): the v3 research located the unmeasured
 mechanism - content-defined conditional clustering layered ON TOP OF class16

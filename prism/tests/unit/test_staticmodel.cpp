@@ -12,6 +12,8 @@
 
 using namespace prism::codec::sandbox;
 using prism::codec::AC_V2_RESDIFF_CONTEXTS;
+using prism::codec::ac_v2_prior_class;
+using prism::codec::residual_diff_context;
 
 namespace {
 
@@ -961,4 +963,181 @@ TEST(TSeriesShrinkage, ParentMapIsNotPositionalAndDecodeMirrors) {
     auto bad = blob;
     bad[blob.size() - 8] ^= 0x02;
     EXPECT_THROW(deserialize_shrunk(bad, nullptr), std::runtime_error);
+}
+
+// ----- Reconciled-session additions (the 0a36ec6 bring-up suite, kept
+// where it binds contracts the A-T0-1 suite does not): hand-checked group
+// geometry, byte-exact Lloyd determinism, the word-driven decode-mirror
+// payload flow, the a_c = 0 ML limit, and the 'SBD1' hard-detect surface. -----
+
+TEST(GroupKeying, JointIdsArePlaneMajorRasterTimesClassAxis) {
+    // Hand-checked geometry on an awkward shape: partial right/bottom edge
+    // groups count in full; raw id = g * 16 + ac_v2_prior_class(cx).
+    const uint32_t w = 130, h = 70;
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(5);
+    std::uniform_int_distribution<int32_t> d(-500, 500);
+    for (auto& v : res) v = d(rng);
+    ClusterMap cm = cluster_map_keyed(KeyingId::KGROUP64);
+    cm.w = w;
+    struct Probe { uint32_t x, y, g; };
+    const Probe probes[] = {{0, 0, 0}, {64, 0, 1}, {128, 0, 2},
+                            {0, 64, 3}, {65, 65, 4}, {129, 69, 5}};
+    for (const Probe& p : probes) {
+        const size_t idx = (size_t)p.y * w + p.x;
+        const int32_t dL = (p.x > 0) ? res[idx - 1] : 0;
+        const int32_t dU = (p.y > 0) ? res[idx - w] : 0;
+        const int32_t dUL = (p.x > 0 && p.y > 0) ? res[idx - w - 1] : 0;
+        const int cx = residual_diff_context(dL, dU, dUL);
+        const uint32_t want =
+            p.g * 16u + ac_v2_prior_class((uint32_t)cx % 343u);
+        EXPECT_EQ(cm.raw_at(idx, res), want)
+            << "probe " << p.x << "," << p.y;
+    }
+    ClusterMap cm128 = cluster_map_keyed(KeyingId::KGROUP128);
+    cm128.w = w;
+    {
+        const size_t idx = (size_t)69 * w + 129;
+        const int32_t dL = res[idx - 1];
+        const int32_t dU = res[idx - w];
+        const int32_t dUL = res[idx - w - 1];
+        const uint32_t g128 =
+            (69u / 128u) * ((w + 127u) / 128u) + 129u / 128u;
+        EXPECT_EQ(cm128.raw_at(idx, res),
+                  g128 * 16u +
+                      ac_v2_prior_class(
+                          (uint32_t)residual_diff_context(dL, dU, dUL) %
+                          343u));
+    }
+}
+
+TEST(LloydCluster, SeparatedStacksStaySplitDeterministically) {
+    // Byte-for-byte reproducibility (no RNG anywhere) plus the K > G clamp.
+    const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+    SandboxModel m;
+    m.init(TokProfile::ZFFCTRL, 2 * GROUP_CLASS_AXIS);
+    for (int c = 0; c < GROUP_CLASS_AXIS; ++c) {
+        m.n0[(size_t)c * stride] = 100;                        // g0: zeros
+        m.n1[(size_t)(GROUP_CLASS_AXIS + c) * stride] = 100;   // g1: ones
+    }
+    CodebookFit a = lloyd_cluster(m, 2);
+    CodebookFit b = lloyd_cluster(m, 2);
+    EXPECT_EQ(a.proto_of_group, b.proto_of_group);
+    EXPECT_EQ(a.centroids.n0, b.centroids.n0);
+    EXPECT_EQ(a.centroids.n1, b.centroids.n1);
+    EXPECT_EQ(a.iterations, b.iterations);
+}
+
+TEST(CodebookSbc1, WordDrivenDecodeMirrorPayload) {
+    // The binding T0 payload flow under the reconciled single-prior layout:
+    // events retag through word*16 + class and the decoder rebuilds the
+    // identical final ids from its own causal state.
+    const uint32_t w = 192, h = 192;
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(21);
+    std::uniform_int_distribution<int32_t> d(-3000, 3000);
+    for (auto& v : res) v = d(rng);
+    SandboxModel joint;
+    joint.init(TokProfile::ZFFCTRL,
+               (int)((w + 63) / 64) * (int)((h + 63) / 64) *
+                   GROUP_CLASS_AXIS);
+    ClusterMap cm = cluster_map_keyed(KeyingId::KGROUP64);
+    cm.w = w;
+    count_plane(joint, TokProfile::ZFFCTRL, cm, res, nullptr);
+
+    CodebookFit fit = lloyd_cluster(joint, 4);
+    SmoothedTables protos;
+    build_tables_enforced(fit.centroids, protos);
+    size_t audit = 0;
+    auto blob = serialize_codebook(protos, fit.proto_of_group, &audit);
+    EXPECT_EQ(audit, blob.size());
+    deserialize_codebook(blob, &protos, &fit.proto_of_group);   // mirror
+
+    std::vector<uint32_t> merge((size_t)joint.clusters);
+    for (uint32_t raw = 0; raw < (uint32_t)joint.clusters; ++raw)
+        merge[(size_t)raw] =
+            fit.proto_of_group[(size_t)(raw / GROUP_CLASS_AXIS)] *
+                GROUP_CLASS_AXIS +
+            (raw % GROUP_CLASS_AXIS);
+    ClusterMap cb_cm = cluster_map_keyed(KeyingId::KGROUP64);
+    cb_cm.w = w;
+    cb_cm.merge = &merge;
+    SandboxModel recount;
+    recount.init(TokProfile::ZFFCTRL, fit.centroids.clusters);
+    std::vector<std::vector<TaggedEvent>> evts(1);
+    count_plane(recount, TokProfile::ZFFCTRL, cb_cm, res, &evts[0]);
+    SmoothedTables eff_tabs;
+    build_tables_enforced(recount, eff_tabs);
+    EXPECT_EQ(eff_tabs.p, protos.p);   // recounted == transmitted centroids
+    auto payload = rans_encode_events(TokProfile::ZFFCTRL, evts[0],
+                                      eff_tabs);
+    auto dec = rans_decode_events(TokProfile::ZFFCTRL, cb_cm, res.size(),
+                                  payload, eff_tabs);
+    EXPECT_EQ(dec, res);
+}
+
+TEST(ShrinkageSbd1, AcZeroReproducesChildMlLimit) {
+    // Pin P-T0-8's unit limit: with a_c = 0 a busy cell equals the ML
+    // normalization of its raw counts through the standard pass.
+    const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+    SandboxModel flat;
+    flat.init(TokProfile::ZFFCTRL, AC_V2_RESDIFF_CONTEXTS);
+    flat.n0[(size_t)5 * stride] = 10;
+    SandboxModel m16;
+    m16.init(TokProfile::ZFFCTRL, KeyingId::KFLAT16);
+    for (int c = 0; c < AC_V2_RESDIFF_CONTEXTS; ++c) {
+        const uint32_t cls =
+            keying_cluster(KeyingId::KFLAT16, c % AC_V2_RESDIFF_CONTEXTS);
+        if (c == 5) {
+            m16.n0[(size_t)cls * stride] += 10;
+        } else {
+            m16.n0[(size_t)cls * stride] += 3;
+            m16.n1[(size_t)cls * stride] += 1;
+        }
+    }
+    SmoothedTables t16;
+    build_tables_enforced(m16, t16);
+    ShrunkTables sh = shrink_child_tables(TokProfile::ZFFCTRL, flat, t16, 0);
+    std::vector<uint64_t> cp{10ull * 4096ull, 0ull};
+    std::vector<uint16_t> norm;
+    smoothing_normalize_to_4096(cp, norm);
+    EXPECT_EQ(sh.p[5 * (ptrdiff_t)stride], norm[0]);
+}
+
+TEST(ShrinkageSbd1, Sbd1HardDetectSurfaceBitesEverywhere) {
+    // Truncation, CRC break and child_delta tamper must all throw loudly
+    // (P-T0-9's expect surface = P-T0-5's content + words surface).
+    const uint32_t w = 192, h = 48;
+    std::vector<int32_t> res((size_t)w * h);
+    std::mt19937 rng(45);
+    std::uniform_int_distribution<int32_t> d(-2500, 2500);
+    for (auto& v : res) v = d(rng);
+    SandboxModel flat;
+    flat.init(TokProfile::ZFFCTRL, KeyingId::KFLAT343);
+    count_plane(flat, TokProfile::ZFFCTRL, KeyingId::KFLAT343, res, w,
+                nullptr);
+    SandboxModel m16;
+    m16.init(TokProfile::ZFFCTRL, KeyingId::KFLAT16);
+    count_plane(m16, TokProfile::ZFFCTRL, KeyingId::KFLAT16, res, w, nullptr);
+    SmoothedTables t16;
+    build_tables_enforced(m16, t16);
+    ShrunkTables shr = shrink_child_tables(TokProfile::ZFFCTRL, flat, t16, 32);
+    size_t audit = 0;
+    auto blob = serialize_shrunk(shr, &audit);
+    EXPECT_EQ(audit, blob.size());
+
+    auto trunc = blob;
+    trunc.resize(blob.size() - 40);
+    EXPECT_THROW(deserialize_shrunk(trunc, nullptr), std::runtime_error);
+    auto bad_crc = blob;
+    bad_crc[20] ^= 0x01;                     // inside the parent map
+    bool threw = false;
+    try {
+        deserialize_shrunk(bad_crc, nullptr);
+    } catch (const std::exception&) { threw = true; }
+    EXPECT_TRUE(threw);
+    ShrunkTables wrong = shr;
+    const size_t stride = SandboxModel::init_stride(TokProfile::ZFFCTRL);
+    wrong.child_delta[7 * stride + 3] ^= 0x10;
+    EXPECT_THROW(deserialize_shrunk(blob, &wrong), std::runtime_error);
 }
