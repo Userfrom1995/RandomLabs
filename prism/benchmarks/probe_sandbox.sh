@@ -1579,9 +1579,9 @@ T0,kodim01.ppm,SPINE,NONE,B-RANS,511589,3007,26,0,0,514622,1,1,4091700.921,16,-1
 T0,kodim01.ppm,CEIL,GS64,B-IDEAL,507751,248430,0,0,0,756181,1,1,4062006.866,96,-0.3818
 T0,kodim01.ppm,CEIL,GS64,B-RANS,507882,248430,0,0,0,756312,1,1,4062006.866,96,-0.4077
 T0,kodim01.ppm,CEIL,GS128,B-RANS,509653,62777,0,0,0,572430,1,1,4076194.857,24,-0.7578
-T0,kodim01.ppm,CB1,GS64,B-IDEAL,511463,7238,0,0,12,518713,1,1,4091700.921,1,-1.1156
-T0,kodim01.ppm,CB1,GS64,B-RANS,511589,7238,0,0,12,518839,1,1,4091700.921,1,-1.1405
-T0,kodim01.ppm,CBRAND4,GS64,B-RANS,511464,28685,0,0,35,540184,1,1,4090699.029,4,-1.1158
+T0,kodim01.ppm,CB1,GS64,B-IDEAL,511463,3008,0,0,12,514483,1,1,4091700.921,1,-1.1156
+T0,kodim01.ppm,CB1,GS64,B-RANS,511589,3008,0,0,12,514609,1,1,4091700.921,1,-1.1405
+T0,kodim01.ppm,CBRAND4,GS64,B-RANS,511464,28719,0,0,35,540218,1,1,4090699.029,4,-1.1158
 TPROTO,kodim01.ppm,SBP2,1,1,1,1,1
 TPROTO,kodim01.ppm,SBC1,1,1,1,1,1
 TPROTO,kodim01.ppm,SBD1,1,1,1,1,1
@@ -1609,7 +1609,7 @@ EOF
 
   # 2. NET identity break (incl. the assign column) must fail.
   mk_good_t0
-  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,7238,0,0,12,518839,/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,7238,0,0,12,999999,/' "$SBX"
+  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,3008,0,0,12,514609,/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,3008,0,0,12,999999,/' "$SBX"
   if evaluate "$SBX" "$REF" "" "" > "$TMP/a.out" 2>&1; then
     echo "SELF-CHECK-T0 FAIL: net-audit-t accepted a broken identity"; ok=0
   fi
@@ -1642,7 +1642,7 @@ EOF
   # 6. Coder-fidelity violation on a CB row (+1.6 pct) must fail.
   mk_good_t0
   sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,511589,/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,/' "$SBX"
-  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,7238,0,0,12,518839,/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,7238,0,0,12,527250,/' "$SBX"
+  sed -i 's/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,3008,0,0,12,514609,/T0,kodim01.ppm,CB1,GS64,B-RANS,520000,3008,0,0,12,523020,/' "$SBX"
   if evaluate "$SBX" "$REF" "" "" > "$TMP/e.out" 2>&1; then
     echo "SELF-CHECK-T0 FAIL: fidelity accepted a +1.6 pct coder"; ok=0
   fi

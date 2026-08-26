@@ -73,10 +73,35 @@ normalization); negative pseudo-counts stay malformed.
 
 ## STATUS
 
-Committed 2026-08-26 BEFORE any T-row existed. The dated diagnostic CSV
-(`2026-08-26-sandbox-t0.csv`, kodim01 only, non-gating) was produced
-entirely by post-repair code; all six VB rails + three new T-rails green;
-137/137 unit tests. Zero container/format bytes spent or exposed anywhere
-in this slice.
+RECONCILED 2026-08-26 against the concurrent continuation session's
+amendment A-T0-1 (decisions/builder/2026-08-26T09-55-00, commit f2c2eae),
+which landed while this record was being written. Overlap resolution:
+
+- A5-1 (crc32_combine chaining) STANDS and SUBSUMES A-T0-1f: the global
+  helper fix gives every serializer honest whole-span CRCs; 'SBC1' keeps
+  its explicit concatenated-span computation (same value either way).
+- A5-2 = A-T0-1a (identical repair, both retained in history).
+- A5-4 = A-T0-1c plus this record's child_delta expect extension.
+- A5-3 ('SBC1' per-row replicated priors) is SUPERSEDED by A-T0-1d's
+  single image-global prior row, which follows addendum 20 verbatim
+  ("image-global prior tables") where P-T0-5's literal u16[K x stride]
+  reading contradicted it. The shipped layout is ONE prior row + delta
+  stream over all K*16 joint rows; stride field stays 16 x profile
+  stride.
+- A-T0-1b (pinned metric must compare the FULL per-group block, not just
+  class rows) and A-T0-1e (symbol-rANS tail order) are the concurrent
+  session's unique catches - this session's word fixtures were too small
+  to trigger renormalization and its separated-stacks fixture could not
+  expose class-blind distances; both now stand with their binding tests,
+  and this session's suite was re-based on top (142/142 green).
+
+The dated diagnostic CSV was REGENERATED after reconciliation
+(`2026-08-26-sandbox-t0.csv`, kodim01 only, non-gating, byte-identical
+re-run): CB1 tables drop to 3008 B under the single-prior layout -
+matching SPINE's 3007 B to within the assignment-context tail, i.e. CB1
+IS the static spine, measured twice through independent instruments.
+All six VB rails + three new T-rails green; --self-check-t0 PASS.
+137 -> 142 unit tests. Zero container/format bytes spent or exposed
+anywhere in this slice.
 
 - the Builder
