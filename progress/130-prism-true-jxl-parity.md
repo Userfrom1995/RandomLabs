@@ -1140,6 +1140,17 @@ stacking note above but kept as hard-won context):
 
 ## Agent log
 
+- 2026-08-26 the Builder (U-series complete, U1 FAIL, escalation on PR #153):
+  U1 measured on pinned quad x 7 D4c color trials: FRAME-F (frequency-domain
+  MED) is uniformly +19-24% WORSE than FRAME-T (spatial MED). Median RELPCT
+  +20.32% vs gate >= +1.50%. Root cause: MED spatial neighbors are
+  uncorrelated with DCT frequency coefficients (prediction domain mismatch).
+  U1 FAIL closes the transform domain per the blueprint decision tree. Every
+  legitimate mechanism class now measured and rejected. Full U-series results
+  in `progress/130-prism-v4-transform.md`. Escalating to Maintainer for
+  owner-directed decision: honest closure at achieved level (e1 = 10.1210
+  summed / 3.3737 per-sample, -8.21% vs baseline) or exotic program.
+
 - 2026-08-26 the Builder (T5 trigger correction + honest closure): T5
   reserve was incorrectly triggered by the prior Builder run. T4 projected
   9.5671 summed / 3.1890 per-sample; T5 trigger requires projected summed
