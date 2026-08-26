@@ -1340,4 +1340,20 @@ median +2.1306 pct < +4.00 and sole-tables-loss false on all four images
 benchmarks/results/2026-08-26-sandbox-t1a.csv. No constant above was
 tuned after measurement; zero container bytes.
 
+Execution note (T2a, 2026-08-26): slice Q2 measured the shrinkage phase
+under pins P-Q2-1..9 (decisions/builder/2026-08-26T12-30-00, committed
+BEFORE any row; two concurrent builder sessions reconciled onto one
+evaluator contract pre-measurement, Q0 precedent). 20.3's formula, arms,
+'SBD1' shape and parent-map semantics were used VERBATIM: parents = the
+same-run transmitted class16 tables; children pooled with no budget
+enforcement (shrinkage replaces floors); coding only against the
+deserialized rebuild; NET = payload + 'SBD1' bytes per I12 extended.
+Quad verdict per 20.5 verbatim: winner SHRUNK@TW-A quad median -13.0935
+pct vs bar >= +0.50 => FAIL (kodim01 -14.03 / kodim05 -12.16 / kodim13
+-11.20 / kodim20 -18.35; TW-B within 0.03 pct of TW-A on every image);
+the conditional T2b NEVER opened. Flat-16 ships unchanged; C2's static
+branch priced-and-closed at its gate. Evidence:
+benchmarks/results/2026-08-26-sandbox-t2a.csv. No constant above was
+tuned after measurement; zero container bytes.
+
 - the Architect

@@ -662,9 +662,20 @@ bytes until T4 PASS.
       pct median NET beyond the same T-BASE. NEVER OPENED - the T1a fail
       clause was not met (measured 2026-08-26); the --t1b instrument exists
       and is self-checked but stays unused on the quad by pre-registration.
-- [ ] T2a shrunk fine contexting: class16 -> class343 shrinkage, arms
+- [x] T2a shrunk fine contexting: class16 -> class343 shrinkage, arms
       TW-A/TW-B; PASS >= +0.50 pct median NET vs same-stack class16
       baseline fresh in-run.
+      DONE 2026-08-26 (reconciled two-session slice): pins P-Q2-1..9 +
+      engine + evaluator landed BEFORE any measurement ('SBD1' one-blob
+      side info, coding only against the transmitted rebuild, zero
+      maps/trees/assign by schema). MEASURED FAIL: winner SHRUNK@TW-A
+      quad median -13.09 pct (min -18.35 / max -11.20) vs bar >= +0.50;
+      every arm regresses on every image (~80 KB 'SBD1' per image swamps
+      the refinement; TW-B within 0.03 of TW-A). Conditional T2b never
+      opens; flat-16 ships unchanged; C2's static branch priced-and-
+      closed at its gate. Rails green first (anchors 4/4 bit-for-bit,
+      fidelity 56 families <= +0.50 pct, net-audit clean, determinism
+      byte-exact); wall-clock 49.25x bench-ideal per A3 precedent.
 - [ ] T2b extended-property static reopening (conditional on T2a): E0 M-C
       poolings ii/iii under static two-pass scoring; PASS >= +1.50 pct
       median NET; second failure closes B2's static branch permanently.
@@ -694,6 +705,28 @@ composition + projection vs the committed e1 CSV (< 9.35 / < 3.117
 unchanged; M2/M3 reported beside, never altered). Zero container bytes
 until a future T4 PASS.
 
+SLICE Q2 COMPLETE (2026-08-26, Builder): T2a shrunk fine contexting
+MEASURED FAIL per the pre-registered gate - winner SHRUNK@TW-A quad
+median -13.09 pct (min -18.35 / max -11.20) vs bar >= +0.50; every arm
+regresses on every image (~80 KB 'SBD1' per image swamps the refinement;
+TW-B within 0.03 pct of TW-A). Conditional T2b never opened (its opener
+requires a T2a PASS); flat-16 ships unchanged; C2's static branch is
+priced-and-closed at its gate. Rails green first: anchors bit-for-bit
+4/4, fidelity 56 families within +0.50 pct, net-audit clean on 112 T2 +
+8 T2SUM rows, determinism byte-identical re-run; wall-clock 49.25x
+bench-ideal per A3 precedent. Evidence:
+`benchmarks/results/2026-08-26-sandbox-t2a.csv` (224 lines). NEXT: slice
+Q3 = T3 joint predictor x tokenization factorial ({MED,GAP,W} x
+{ZFFCTRL,ZZ-HU}; bars verbatim addendum 20.5) + T3b canary on the winner,
+then slice Q4 = T4 composition + projection vs the committed e1 CSV
+(< 9.35 / < 3.117 unchanged). Honest reading so far: every conditioning
+refinement measured under payable side info (V1 spatial keyings, S3
+causal properties, T1a group stacks, T2a shrunk class343) has lost to its
+own table economics; surviving composition candidates remain {adaptive
+control, static spine +5.5} x color trials pending T3.
+
+Prior state:
+
 SLICE Q2 IN PROGRESS (2026-08-26, Builder, reconciled continuation): two
 sessions landed concurrently and both survived - the pins record
 (2026-08-26T12-30-00-t2a-shrunk-contexting-pins.md, P-Q2-1..P-Q2-9: arms
@@ -707,18 +740,9 @@ This session added the evaluator half of P-Q2-7/P-Q2-8: T2/T2SUM parsing,
 net-audit-t(T2) identity/schema rails, fidelity-t2, TSUM-style mechanical
 cross-check against raw rows, NON-GATING T2A gate readout, --t2a runner,
 and failable --self-check-t2a (all mutations proven to bite, both verdict
-directions reachable). Remaining: quad measurement + dated CSV + ledger
-sweep; T2b opens ONLY on a >= +0.50 median PASS.
-
-Prior state:
-
-SLICE Q1 COMPLETE (2026-08-26, Builder): T1a ceiling kill test MEASURED
-FAIL per the pre-registered gate - bucket C1 closed-with-numbers,
-conditional T1b never opened (opener arithmetic not met). Honest reading
-so far: every locality/conditioning mechanism measured under payable side
-info (V1, S3, now T1a) loses to its own table economics on this instrument;
-the surviving composition candidates remain {adaptive control, static
-spine +5.5} x color trials pending T2a/T3.
+directions reachable); the engine session then reconciled its row
+emission to the adopted evaluator contract (control rows under the T1
+schema) and measured the quad.
 
 Prior state:
 
@@ -900,15 +924,14 @@ Previous slice summary (continuation run 3, C2b):
    builder pins land BEFORE each slice's first sweep; dated CSVs one per
    phase; T-BASE re-measured fresh in-run for every comparison; zero
    container bytes until T4 PASS; M2/M3 dual-unit gates invariant.
-1. **Slice Q0 (Builder, next):** T0 instrument extension per blueprint
-   section 1 - GroupPartition tiling, per-group counting, integer Lloyd,
-   'SBC1' + assignment words, CEILING mode with decomposition columns,
-   shrinkage + 'SBD1', ZZ-HU identity alias, new rails + failable
-   --self-check-t0, DIAGNOSTIC smoke CSV on kodim01 only. Handoff
-   continue.
-2. Slice Q1: T1a ceiling kill test (+ conditional T1b codebook).
-3. Slice Q2: T2a shrunk contexting (+ conditional T2b static reopening).
-4. Slice Q3: T3 factorial (+ T3b canary on winner).
+1. ~~Slice Q0~~ DONE (T0 instrument + rails + smoke CSV).
+2. ~~Slice Q1: T1a ceiling kill test~~ DONE - FAIL, C1 closed; T1b never
+   opened.
+3. ~~Slice Q2: T2a shrunk contexting~~ DONE (2026-08-26) - FAIL, best arm
+   median -13.09 vs +0.50; conditional T2b never opened.
+4. **Slice Q3 (Builder, next):** T3 factorial {MED,GAP,W} x {ZFFCTRL,
+   ZZ-HU} + T3b canary once on the winner; pins BEFORE measurement;
+   dated CSV + verdicts same slice.
 5. Slice Q4: T4 composition + projection vs the committed e1 CSV
    (< 9.35 summed / < 3.117 per-sample); T5 reserve only per trigger.
 
@@ -994,6 +1017,29 @@ stacking note above but kept as hard-won context):
       S4 threshold PASS.
 
 ## Agent log
+
+- 2026-08-26 the Builder (T-series slice Q2, COMPLETE): T2a measured,
+  FAIL per the pre-registered gate. Two concurrent sessions reconciled
+  BEFORE any measurement (Q0 precedent): pins P-Q2-1..P-Q2-9
+  (decisions/builder/2026-08-26T12-30-00) + the --t2a engine with
+  coding-tables==transmitted-'SBD1' binding test from one session; the
+  evaluator half (T2/T2SUM parsing, net-audit-t(T2) identity/schema,
+  fidelity-t2, TSUM mechanical cross-check, NON-GATING readout, runner,
+  failable --self-check-t2a) from the other; the engine then adopted the
+  evaluator's row contract (control rows under the T1 schema) and both
+  self-checks re-proven green. MEASUREMENT (all rails green first:
+  anchors bit-for-bit 4/4, VB-net-audit OK, rank live both ways, fidelity
+  56 shrunk families within +0.50 pct of their own B-IDEAL rows,
+  determinism byte-identical): winner SHRUNK@TW-A quad median -13.09 pct
+  (min -18.35 kodim20 / max -11.20 kodim13) vs bar >= +0.50 => FAIL;
+  TW-B within 0.03 pct of TW-A everywhere; ~80 KB 'SBD1' per image vs
+  refinement gains an order smaller - the table-economics law now
+  confirmed for one-delta-layer-over-parents refinements. Conditional
+  T2b NEVER OPENS; flat-16 ships unchanged. Ledger sweep: tracker
+  checklist + current step + next steps, README sandbox section,
+  ideas/2026-08-26-prism-t2a-shrunk-contexting.md, dated CSV committed.
+  Wall-clock 49.25x bench-ideal recorded (A3 precedent). Handoff
+  {"action":"continue"} - slice Q3 = T3 factorial.
 
 - 2026-08-26 the Builder (T-series slice Q1, COMPLETE): T1a measured,
   FAIL per the pre-registered gate. (1) Per-plane repair FIRST (pin
