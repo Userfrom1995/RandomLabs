@@ -1500,11 +1500,13 @@ For the U-series sandbox instrument only:
   at |fwd(inv(x)) - x| <= 1 for BD8 inputs [0, 255] in the 12-bit
   domain, measured across all BlockDCT unit tests.
 - Plane-level round-trip with replicate padding may compound to <= 2
-  due to boundary interaction; this is a known property of non-lifting
-  fixed-point DCT and does not affect the U1 measurement (which operates
-  on residuals, not raw reconstruction). VB-transform-roundtrip uses
-  the <= 2 threshold (two 12-bit fixed-point passes accumulate at most
-  2 error for BD8 inputs).
+  for BD8 [0,255] inputs due to boundary interaction; this is a known
+  property of non-lifting fixed-point DCT and does not affect the U1
+  measurement (which operates on residuals, not raw reconstruction).
+  YCoCgR Co/Cg channels carry a +512 bias (range up to 767), so the
+  12-bit domain rounding compounds to <= 3 at plane level for these
+  channels. VB-transform-roundtrip uses the <= 3 threshold to cover
+  both BD8 and YCoCgR biased ranges.
 - The 4-neighbor MED stencil (W, N, NW, NE) is implemented per spec
   21.2 TransformDomainMED constants.
 - No rounding-residual side channel is transmitted because the transform
