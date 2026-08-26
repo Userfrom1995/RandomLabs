@@ -75,6 +75,8 @@ MODE_T1A=0
 MODE_T1B=0
 SELF_CHECK_T2A=0
 MODE_T2A=0
+SELF_CHECK_T3=0
+MODE_T3=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -96,6 +98,8 @@ while [[ $# -gt 0 ]]; do
     --t1b) MODE_T1B=1; shift;;
     --self-check-t2a) SELF_CHECK_T2A=1; shift;;
     --t2a) MODE_T2A=1; shift;;
+    --self-check-t3) SELF_CHECK_T3=1; shift;;
+    --t3) MODE_T3=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -148,6 +152,7 @@ sand, bracket, corrupt, v1rows, s1rows, s3rows, s4rows = [], [], [], [], \
 t0rows, tproto, tamirror, tzzhu = [], [], [], []
 t1rows, tsumrows = [], []
 t2rows, t2sumrows = [], []
+t3rows, t3brows, t3bsrows, t3cellrows = [], [], [], []
 for line in open(sys.argv[1]):
     f = line.rstrip("\n").split(",")
     if f[0] == "SANDBOX":
@@ -231,6 +236,29 @@ for line in open(sys.argv[1]):
                           "t": int(f[10]), "m": int(f[11]),
                           "tr": int(f[12]), "a": int(f[13]),
                           "net": int(f[14]), "relpct": float(f[15])})
+    elif f[0] == "T3" and len(f) >= 15:
+        t3rows.append({"img": f[1], "fam": f[2], "tok": f[3],
+                       "cs": f[4], "be": f[5], "payload": int(f[6]),
+                       "tables": int(f[7]), "maps": int(f[8]),
+                       "trees": int(f[9]), "assign": int(f[10]),
+                       "net": int(f[11]), "audit": f[12], "rt": f[13]})
+    elif f[0] == "T3B" and len(f) >= 15:
+        t3brows.append({"img": f[1], "arm": f[2], "trial": f[3],
+                        "be": f[4], "payload": int(f[5]),
+                        "tables": int(f[6]), "maps": int(f[7]),
+                        "trees": int(f[8]), "bias": int(f[9]),
+                        "assign": int(f[10]), "net": int(f[11]),
+                        "audit": f[12], "rt": f[13]})
+    elif f[0] == "T3BS" and len(f) >= 11:
+        t3bsrows.append({"img": f[1], "arm": f[2],
+                         "bp": int(f[3]), "bt": int(f[4]),
+                         "bm": int(f[5]), "btr": int(f[6]),
+                         "ba": int(f[7]), "bnet": int(f[8]),
+                         "cnet": int(f[9]), "relpct": float(f[10])})
+    elif f[0] == "T3CELL" and len(f) >= 8:
+        t3cellrows.append({"img": f[1], "fam": f[2], "tok": f[3],
+                           "trial": int(f[4]), "payload": int(f[5]),
+                           "tables": int(f[6]), "net": int(f[7])})
 imgs = sorted({r["img"] for r in sand} | {r["img"] for r in bracket})
 if not imgs:
     fail("no sandbox rows"); sys.exit(1)
@@ -1403,6 +1431,165 @@ if t2sumrows:
             print("T2A VERDICT: FAIL - flat-16 ships unchanged; the T2b "
                   "conditional stays CLOSED")
 
+# ----- T3 rows (slice Q3; pins P-Q3-1..P-Q3-12): rail integrity flips
+# the exit code; bar(i) verdict is a measured outcome that never does. -----
+if t3rows:
+    # VB-net-audit-t on T3 rows: NET identity + round-trip + schema.
+    bad_audit = bad_net = bad_rt = 0
+    for r in t3rows:
+        if r["audit"] != "1":
+            bad_audit += 1
+        if r["net"] != (r["payload"] + r["tables"] + r["maps"] +
+                        r["trees"] + r["assign"]):
+            bad_net += 1
+        if r["be"] == "B-RANS" and r["rt"] != "1":
+            bad_rt += 1
+    if bad_audit or bad_net or bad_rt:
+        fail(f"net-audit-t(T3): {bad_audit} audit disagreements, "
+             f"{bad_net} NET identity violations, {bad_rt} round-trip "
+             f"failures")
+    else:
+        print(f"VB-net-audit-t OK ({len(t3rows)} T3 rows: audits agree, "
+              f"NET identity holds, round-trips clean)")
+
+    # Coder fidelity on T3 rows: B-RANS within +0.50 pct of its own
+    # B-IDEAL row per (img, fam, tok, cs).
+    cfgs = {}
+    for r in t3rows:
+        if r["be"] not in ("B-IDEAL", "B-RANS"):
+            continue
+        cfgs.setdefault((r["img"], r["fam"], r["tok"], r["cs"]),
+                        {})[r["be"]] = r
+    n_fid = 0
+    for k, bes in sorted(cfgs.items()):
+        ideal = bes.get("B-IDEAL")
+        rr = bes.get("B-RANS")
+        if ideal is None or rr is None:
+            continue
+        n_fid += 1
+        limit = (FID_NUM * ideal["payload"]) // FID_DEN + 1
+        if rr["payload"] > limit:
+            pct = 100.0 * (rr["payload"] - ideal["payload"]) / \
+                max(1, ideal["payload"])
+            fail(f"fidelity-t3 {k}: B-RANS payload {rr['payload']} exceeds "
+                 f"{limit} (+{pct:.3f} pct > bound)")
+    if n_fid:
+        print(f"VB-coder-fidelity-t OK ({n_fid} T3 families within "
+              f"+0.50 pct of their own B-IDEAL rows)")
+
+    # Anchor coverage: every T3 image must have a SANDBOX anchor row.
+    t3_imgs = {r["img"] for r in t3rows}
+    san_imgs = {r["img"] for r in sand}
+    for img in sorted(t3_imgs - san_imgs):
+        fail(f"t3 anchor coverage: {img} has no SANDBOX anchor row")
+
+    # T3CELL decomposition cross-check (pin P-Q3-8): each T3CELL row's
+    # (payload, tables, net) must match the B-RANS row of the same
+    # (img, fam, tok, trial_index) from the T3 rows.
+    t3_by_key = {}
+    for r in t3rows:
+        if r["be"] == "B-RANS":
+            # Find the matching T3 row index for this trial.
+            # T3 rows are ordered: for each (fam, tok) all 7 color trials
+            # x 2 backends; the trial index is implicit.
+            key = (r["img"], r["fam"], r["tok"])
+            t3_by_key.setdefault(key, []).append(r)
+    # Build a lookup from (img, fam, tok, trial_idx) -> T3 B-RANS row
+    # Note: T3CELL uses "ZZHU" but T3 rows use "HYB-C" for the same
+    # profile; normalize to T3 row names for matching.
+    _tok_norm = {"ZZHU": "HYB-C"}
+    t3_trial_lookup = {}
+    for key, rows in t3_by_key.items():
+        for idx, r in enumerate(rows):
+            t3_trial_lookup[(key[0], key[1], key[2], idx)] = r
+    bad_cell = 0
+    for c in t3cellrows:
+        tok_norm = _tok_norm.get(c["tok"], c["tok"])
+        lookup_key = (c["img"], c["fam"], tok_norm, c["trial"])
+        found = t3_trial_lookup.get(lookup_key)
+        if found is None:
+            bad_cell += 1
+            continue
+        if (c["payload"] != found["payload"] or c["tables"] != found["tables"]
+                or c["net"] != found["net"]):
+            bad_cell += 1
+    if bad_cell:
+        fail(f"VB-t3cell-decompose: {bad_cell} T3CELL rows don't match "
+             f"their source T3 B-RANS rows")
+    else:
+        print(f"VB-net-audit-t OK ({len(t3cellrows)} T3CELL rows re-derived "
+              f"exactly from source T3 rows)")
+
+# ---- T3 bar(i) gate readout (addendum 20.5 T3; NON-GATING verdict) ----
+if t3cellrows:
+    print("== T3 FACTORIAL READOUT (addendum 20.5 T3; pins P-Q3-1..P-Q3-12) ==")
+    # Per (img, fam, tok) min-trial NET from T3CELL rows.
+    cell_net = {}
+    for c in t3cellrows:
+        cell_net[(c["img"], c["fam"], c["tok"])] = c["net"]
+
+    imgs_t3 = sorted({c["img"] for c in t3cellrows})
+    toks = sorted({c["tok"] for c in t3cellrows})
+    fams = sorted({c["fam"] for c in t3cellrows})
+
+    # Print per-image min-trial NET table.
+    for tok in toks:
+        print(f"\n-- tokenization: {tok} --")
+        header = f"{'image':<16}" + "".join(f"{f:>12}" for f in fams)
+        print(header)
+        for img in imgs_t3:
+            vals = [cell_net.get((img, f, tok), 0) for f in fams]
+            print(f"{img:<16}" + "".join(f"{v:>12}" for v in vals))
+
+    # Bar(i): best non-MED family at winning tokenization vs MED.
+    # Winning tokenization = ZFFCTRL (it dominates everywhere per the
+    # program history). Best non-MED = max(GAP, W) at ZFFCTRL.
+    win_tok = "ZFFCTRL"
+    print(f"\n-- bar(i) verdict (tokenization = {win_tok}) --")
+    margins = {}
+    for img in imgs_t3:
+        med_net = cell_net.get((img, "MED", win_tok), 0)
+        if med_net == 0:
+            continue
+        best_nonmed = 0
+        best_fam = ""
+        for f in fams:
+            if f == "MED":
+                continue
+            n = cell_net.get((img, f, win_tok), 0)
+            if n > 0 and (best_nonmed == 0 or n < best_nonmed):
+                best_nonmed = n
+                best_fam = f
+        if best_nonmed == 0:
+            continue
+        # RELPCT: gain of best-non-MED over MED, as percentage of MED.
+        relpct = 100.0 * (med_net - best_nonmed) / med_net
+        margins[img] = (relpct, best_fam)
+        print(f"{img}: {best_fam}@{win_tok} NET {best_nonmed} vs MED "
+              f"NET {med_net} -> margin {relpct:+.4f} pct")
+
+    if margins:
+        xs = [v[0] for v in margins.values()]
+        med_margin = median(xs)
+        print(f"\nT3 bar(i) quad median margin: {med_margin:+.4f} pct "
+              f"(min {min(xs):+.4f} / max {max(xs):+.4f}) vs "
+              f"bar >= +1.50")
+        if med_margin >= 1.5:
+            print("T3 bar(i) VERDICT: PASS - best non-MED family clears "
+                  "the +1.50 bar; T3b canary rides on the winner")
+        else:
+            print("T3 bar(i) VERDICT: FAIL - GAP and W take their third "
+                  "and final strike; B3/B5 close permanently")
+    else:
+        print("T3 bar(i) VERDICT: FAIL (no valid margins computed)")
+
+# ---- T3B canary decomposition (NON-GATING) ----
+if t3bsrows:
+    print("\n== T3B CANARY DECOMPOSITION (addendum 20.5 T3b) ==")
+    for s in t3bsrows:
+        print(f"{s['img']}: {s['arm']} base NET {s['bnet']} -> "
+              f"canary NET {s['cnet']} -> relpct {s['relpct']:+.4f} pct")
+
 sys.exit(0 if ok else 1)
 PY
 }
@@ -2341,12 +2528,109 @@ EOF
   exit 0
 fi
 
+if [[ "$SELF_CHECK_T3" == "1" ]]; then
+  # T3 failability (pins P-Q3-1..P-Q3-12): a fabricated consistent frame
+  # must pass the rails and render an honest losing bar(i) verdict; the
+  # +1.50 bar must be reachable in BOTH directions; NET identity,
+  # round-trip, and T3CELL decomposition mutations must each flip their
+  # named rail.
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "$TMP"' EXIT
+  ok=1
+  BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
+  if [[ ! -x "$BIN" ]]; then echo "prism binary not found at $BIN"; exit 1; fi
+
+  REF="$TMP/ref.csv"
+  cat > "$REF" <<'EOF'
+IDEAL,image,predictor,v0_bytes,v2_bytes,coarse_shared,coarse_class16,coarse_ctx343,fine_shared,fine_class16,fine_ctx343,val_shared,val_class16,val_ctx343
+IDEAL,kodim01.ppm,med,584218,546852,4722327.862,4398985.675,4382483.959,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+EOF
+
+  mk_good_t3() {
+    cat > "$TMP/sbx.csv" <<'EOF'
+SANDBOX,kodim01.ppm,ZFFCTRL,B-ADAPT,KPROD,546852,0,0,0,546852,1,1,0.000,0.000,0.0000,-6.4042
+BRACKET,kodim01.ppm,584218,546852,4622834.334,4091650.433,4049089.745,4621241.314,4089773.496,4025422.583
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT16,511463,3007,0,0,514470,1,1,4091700.921,4091650.433,5.922,-11.9387
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KSHARED,577855,390,0,0,578245,1,1,4622837.474,4622834.334,-5.741,-1.0224
+SANDBOX,kodim01.ppm,ZFFCTRL,B-IDEAL,KFLAT343,506136,51609,0,0,557745,1,1,4049089.745,4049089.745,-4.5561,0.0000
+T1,kodim01.ppm,ADAPT,ycocgr,NONE,B-ADAPT,546852,0,0,0,0,546852,1,1,0.000,0,-6.8898
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-IDEAL,511456,2814,0,0,0,514270,1,1,4091650.433,16,0.0281
+T1,kodim01.ppm,SPINE,ycocgr,NONE,B-RANS,511600,2814,0,0,0,514414,1,1,4091650.433,16,0.0000
+T3,kodim01.ppm,MED,ZFFCTRL,ycocgr,B-IDEAL,511463,3007,26,0,0,514496,1,1,4091700.921
+T3,kodim01.ppm,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514622,1,1,4091700.921
+T3,kodim01.ppm,GAP,ZFFCTRL,ycocgr,B-IDEAL,550580,2955,26,0,0,553561,1,1,4422744.768
+T3,kodim01.ppm,GAP,ZFFCTRL,ycocgr,B-RANS,550708,2955,26,0,0,553689,1,1,4422744.768
+T3,kodim01.ppm,W,ZFFCTRL,ycocgr,B-IDEAL,539198,3176,26,0,0,542400,1,1,4339200.000
+T3,kodim01.ppm,W,ZFFCTRL,ycocgr,B-RANS,539326,3176,26,0,0,542528,1,1,4339200.000
+T3CELL,kodim01.ppm,MED,ZFFCTRL,0,511589,3007,514622
+T3CELL,kodim01.ppm,GAP,ZFFCTRL,0,550708,2955,553689
+T3CELL,kodim01.ppm,W,ZFFCTRL,0,539326,3176,542528
+EOF
+  }
+
+  # 1. The consistent losing frame passes every rail and renders the
+  #    honest FAIL verdict (GAP margin -0.7151 pct vs bar >= +1.50).
+  mk_good_t3
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/good.out" 2>&1; then
+    echo "SELF-CHECK-T3 FAIL: evaluator rejected a consistent frame"; ok=0
+  fi
+  grep -q "T3 bar(i) VERDICT: FAIL" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T3 FAIL: losing frame must render T3 bar(i) FAIL"; ok=0; }
+  grep -q "third.*final strike" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T3 FAIL: FAIL verdict must close B3/B5"; ok=0; }
+  grep -q "VB-net-audit-t OK" "$TMP/good.out" || \
+    { echo "SELF-CHECK-T3 FAIL: no net-audit-t OK verdict"; ok=0; }
+
+  # 2. PASS direction reachable: lift GAP above the bar with
+  #    component-consistent numbers (+1.8849 pct median).
+  mk_good_t3
+  sed -i 's/,GAP,ZFFCTRL,ycocgr,B-IDEAL,550580,2955,26,0,0,553561,/,GAP,ZFFCTRL,ycocgr,B-IDEAL,501000,2955,26,0,0,503981,/' "$TMP/sbx.csv"
+  sed -i 's/,GAP,ZFFCTRL,ycocgr,B-RANS,550708,2955,26,0,0,553689,1,1,4422744.768/,GAP,ZFFCTRL,ycocgr,B-RANS,501128,2955,26,0,0,504109,1,1,4422744.768/' "$TMP/sbx.csv"
+  sed -i 's/^T3CELL,kodim01.ppm,GAP,ZFFCTRL,0,550708,2955,553689/T3CELL,kodim01.ppm,GAP,ZFFCTRL,0,501128,2955,504109/' "$TMP/sbx.csv"
+  if ! evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/pass.out" 2>&1; then
+    echo "SELF-CHECK-T3 FAIL: evaluator rejected the fabricated winner frame"; ok=0
+  fi
+  grep -q "T3 bar(i) VERDICT: PASS" "$TMP/pass.out" || \
+    { echo "SELF-CHECK-T3 FAIL: +1.8849 pct must render T3 bar(i) PASS"; ok=0; }
+
+  # 3. A broken T3 NET identity must fail.
+  mk_good_t3
+  sed -i 's/,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514622,/,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514623,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/a.out" 2>&1; then
+    echo "SELF-CHECK-T3 FAIL: net-audit accepted a broken T3 identity"; ok=0
+  fi
+  grep -q "net-audit-t(T3)" "$TMP/a.out" || \
+    { echo "SELF-CHECK-T3 FAIL: no T3 net-audit FAIL verdict"; ok=0; }
+
+  # 4. A silent round-trip failure must fail.
+  mk_good_t3
+  sed -i 's/,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514622,1,1,/,MED,ZFFCTRL,ycocgr,B-RANS,511589,3007,26,0,0,514622,1,0,/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/b.out" 2>&1; then
+    echo "SELF-CHECK-T3 FAIL: net-audit accepted a failed T3 decode"; ok=0
+  fi
+  grep -q "net-audit-t(T3)" "$TMP/b.out" || \
+    { echo "SELF-CHECK-T3 FAIL: no T3 round-trip FAIL verdict"; ok=0; }
+
+  # 5. A T3CELL lie must fail the decomposition rail.
+  mk_good_t3
+  sed -i 's/^T3CELL,kodim01.ppm,GAP,ZFFCTRL,0,550708,2955,553689/T3CELL,kodim01.ppm,GAP,ZFFCTRL,0,550708,2955,999999/' "$TMP/sbx.csv"
+  if evaluate "$TMP/sbx.csv" "$REF" "" "" > "$TMP/d.out" 2>&1; then
+    echo "SELF-CHECK-T3 FAIL: T3CELL accepted a decomposition lie"; ok=0
+  fi
+  grep -q "T3CELL.*don't match" "$TMP/d.out" || \
+    { echo "SELF-CHECK-T3 FAIL: no T3CELL decomposition FAIL verdict"; ok=0; }
+
+  [[ "$ok" == "1" ]] && echo "SANDBOX SELF-CHECK-T3 PASS: consistent frame green with honest losing verdict, bar(i) reachable both directions, identity/round-trip/decomposition mutations all demonstrably fail"
+  [[ "$ok" == "1" ]] || exit 1
+  exit 0
+fi
+
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
 if [[ ! -x "$BIN" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
 fi
 
-if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" ]]; then
+if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" ]]; then
   echo "no --image given"; exit 2
 fi
 
@@ -2798,6 +3082,60 @@ if [[ "$MODE_T2A" == "1" ]]; then
     exit 1
   fi
   echo "SANDBOX GATE PASS (all VB rails green; T2a verdict above is a measured outcome, not a rail failure)"
+  exit 0
+fi
+
+if [[ "$MODE_T3" == "1" ]]; then
+  # T-series slice Q3 (spec addendum 20.4/20.5; pins P-Q3-1..P-Q3-12):
+  # joint predictor x tokenization factorial on sha-pinned images; dated
+  # one-file CSV; determinism re-run; rank fixtures stay LIVE; anchors
+  # re-emitted inside the CSV; verdicts computed ONLY from same-run rows.
+  STAMP=$(date +%Y-%m-%d)
+  OUT_CSV="${ROOT}/benchmarks/results/${STAMP}-sandbox-t3.csv"
+  RAW1="$(mktemp)"; RAW2="$(mktemp)"
+  RANK_SKEW="$(mktemp)"; RANK_HOMO="$(mktemp)"
+  trap 'rm -f "$RAW1" "$RAW2" "$RANK_SKEW" "$RANK_HOMO" \
+        "$RANK_SKEW.img" "$RANK_HOMO.img"' EXIT
+  make_fixture "${RANK_SKEW}.img" skew
+  make_fixture "${RANK_HOMO}.img" homo
+  "$BIN" bench-sandbox "${RANK_SKEW}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_SKEW"
+  "$BIN" bench-sandbox "${RANK_HOMO}.img" --profile ZFFCTRL \
+    --backend B-IDEAL --keying KSHARED,KFLAT16 > "$RANK_HOMO"
+
+  T0=$(date +%s)
+  "$BIN" bench-sandbox --t3 "${IMAGES[@]}" > "$RAW1"
+  T1=$(date +%s)
+  "$BIN" bench-sandbox --t3 "${IMAGES[@]}" > "$RAW2"
+  T2=$(date +%s)
+  if ! cmp -s "$RAW1" "$RAW2"; then
+    echo "VB-determinism FAIL: t3 re-run diverged"; diff "$RAW1" "$RAW2" | head; exit 1
+  fi
+  echo "VB-determinism OK (byte-identical re-run)"
+
+  grep -E '^(SANDBOX|BRACKET|T1|T3|T3CELL),' "$RAW1" > "$OUT_CSV"
+
+  T3=$(date +%s)
+  "$BIN" bench-ideal "${IMAGES[@]}" > /dev/null
+  T4=$(date +%s)
+  SB=$((T2 - T0)); ID=$((T4 - T3))
+  echo "== timing: sandbox-t3 quad ${SB}s (incl. determinism re-run), bench-ideal ${ID}s =="
+  if [[ "$ID" -gt 0 ]]; then
+    python3 -c "print(f'wall-clock guard: sandbox-t3/re-run = {$SB/$ID:.2f}x bench-ideal (A3 precedent: structural deviation recorded, no measurement depends on it)')"
+  fi
+
+  echo "== sandbox T3 results (${OUT_CSV}) =="
+  cat "$OUT_CSV"
+
+  REF_CSV="${ROOT}/benchmarks/results/2026-08-25-ideal-probe-e0-eval.csv"
+  if [[ ! -f "$REF_CSV" ]]; then
+    echo "VB-anchor FAIL: committed reference ${REF_CSV} missing"; exit 1
+  fi
+  if ! evaluate "$OUT_CSV" "$REF_CSV" "$RANK_SKEW" "$RANK_HOMO"; then
+    echo "SANDBOX GATE FAIL (rail integrity)"
+    exit 1
+  fi
+  echo "SANDBOX GATE PASS (all VB rails green; T3 bar(i) verdict above is a measured outcome, not a rail failure)"
   exit 0
 fi
 
