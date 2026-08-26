@@ -1370,21 +1370,15 @@ around those numbers and relaxes nothing.
   8x8 blocks; partial right/bottom edge blocks are filled by replicate
   padding of the rightmost/bottommost column/row).
 - TRANSFORM: Type-II DCT (the standard JPEG/ITU-T T.81 DCT).
-- ALGORITHM: AAN (Arai-Agui-Nakajima) factorization, integer-exact.
+- ALGORITHM: AAN (Arai-Agui-Nakajima) factorization, integer-exact, integer-reversible (if AAN cannot be made byte-exact, replace with lifting integer DCT or add explicit rounding-residual side channel).
 - INTEGER_SCALING: 12-bit precision (the forward DCT output is scaled by
   2^12 before rounding to i32; the inverse DCT divides by 2^12 after
   computation; this matches the entropy backend's frequency normalization
   and keeps coefficient magnitudes in a comparable range to spatial
   samples).
-- ROUNDING: round-to-nearest (symmetric; ties round away from zero).
-- PADDING: replicate right/bottom edges to fill partial blocks. Padding
-  bits are included in NET (the coded padding bits are side-info; since
-  the padding policy is fixed and known to the decoder, the decoder
-  discards the padded positions without decoding them, but the encoder
-  must code them to maintain byte-exact round-trip).
-- QUANTIZATION: Q = 0 (lossless; the transform is exact up to integer
-  rounding; rounding error is bounded by +/- 0.5 per coefficient and
-  measured in U0).
+- ROUNDING: round-to-nearest (symmetric; ties round away from zero) plus byte-exact round-trip proof required per skeleton slot 3a.
+- PADDING: replicate right/bottom edges to fill partial blocks. Padding pixels are INCLUDED in coded payload and counted in NET per I12; padding method pinned and decoder-verified.
+- QUANTIZATION: Q = 0 (lossless; byte-exact). The pinned transform MUST be integer-reversible (e.g., RCT-style lifting integer DCT or 8x8 integer DCT with explicit rounding residual coded) - forward DCT -> inverse DCT reproduces the source byte-exact (4/4 images), not within a bound. If a non-reversible AAN DCT is retained, the rounding residual must be transmitted as side channel and counted in NET.
 - INPUT RANGE: [0, 2^BD - 1] where BD = 8 (standard Kodak). The forward
   DCT input is the source block (after color transform, before
   prediction). The output coefficients are signed i32 in approximately
@@ -1462,6 +1456,7 @@ marked non-gating.
 
 ### 21.6 Reserved slots (must land as numbered amendments BEFORE the named phase's first CSV)
 
+- Reversibility: byte-exact round-trip proof required; no bounded-error acceptance (slot 3a).
 - Before U1: none expected (DCT parameters pinned above); any structural
   reading discovered during implementation lands as builder pins first.
 - Before U3 (only if opened): none expected; composition inherits the
