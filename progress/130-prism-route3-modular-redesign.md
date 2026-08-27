@@ -35,7 +35,7 @@
 - [x] 14. VB-NET-AUDIT: NET = payload + model overhead on every row
 - [x] 15. VB-SELF-CHECK: full byte-exact round-trip with escape tokens, sign bits, MA-tree cluster IDs
 - [x] 16. Wire `MultiPassEncoder` into `prism.cpp` encode/decode path
-- [x] 17. Add `--r0` through `--r5` commands to `main.cpp`
+- [x] 17. Add `enc --r3` flag, `probe-r3` and `self-check-r3` commands to `main.cpp`
 - [x] 18. Update `probe_sandbox.sh` with R-series phases
 - [x] 19. Run self-check on pinned quad
 - [x] 20. Commit spec addendum 22 (ALL pinned constants)
@@ -150,7 +150,7 @@
 - Added use_r3 flag to EncodeOpts
 - Wired MultiPassEncoder into prism.cpp encode() path: when use_r3=true, computes residuals for all planes, runs analyze()+code(), stores single combined payload + r3_model blob in container
 - Wired MultiPassEncoder into prism.cpp decode() path: detects MULTIPASS_FLAG, reads single payload + r3_model blob, decodes via MultiPassEncoder::decode(), reconstructs planes
-- Added --r3 flag to `enc` CLI command
+- Added `enc --r3` flag to CLI command
 - Added `probe-r3` CLI command: compare multi-pass vs single-pass NET per image
 - Added `self-check-r3` CLI command: byte-exact round-trip verification
 - Added 3 new end-to-end roundtrip tests (MultipassSmall, MultipassSingleChannel, MultipassLargeRandom)
