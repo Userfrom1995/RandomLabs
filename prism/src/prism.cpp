@@ -11,6 +11,7 @@
 #include "prism/codec/squeeze.h"
 #include "prism/codec/cm.h"
 #include "prism/codec/lzp.h"
+#include "prism/codec/multipass.h"
 #include <fstream>
 #include <stdexcept>
 #include <algorithm>
@@ -430,6 +431,63 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     Raster transformed = raster;
     ColorTransform ct = static_cast<ColorTransform>(ar.color_transform_id);
     transformed = apply_color(raster, ct, ar.cfl_scales);
+    PredId pred = static_cast<PredId>(ar.global_pred_id);
+    if ((uint8_t)pred > 8) pred = PredId::MED;
+
+    // Route 3: multi-pass ANS coding path.
+    // Operates on flat residuals per plane (no squeeze), using the
+    // MultiPassEncoder for analysis + ANS coding with transmitted histograms.
+    if (opts.use_r3) {
+        Container c;
+        c.hdr.width = raster.w;
+        c.hdr.height = raster.h;
+        c.hdr.bit_depth = bd;
+        c.hdr.num_channels = nc;
+        c.hdr.color_transform_id = ar.color_transform_id;
+        uint8_t flags = MULTIPASS_FLAG;
+        if (opts.effort >= 1) flags |= ACODER_FLAG | ACODER_V2_FLAG;
+        c.hdr.flags = flags;
+        c.hdr.effort = opts.effort;
+        c.hdr.cfl_scales = ar.cfl_scales;
+        c.hdr.squeeze_levels.assign(nc, 0); // no squeeze for R3
+        c.trees = ar.trees;
+        c.predictor_mode = ar.predictor_mode;
+        c.global_pred_id = ar.global_pred_id;
+        c.per_leaf_pred = ar.per_leaf_pred;
+
+        codec::r3::MultiPassEncoder mpe;
+        mpe.effort = opts.effort;
+
+        // Encode each plane via multi-pass.
+        // Combine all plane residuals into a single stream for MA-tree
+        // clustering (cross-plane context sharing).
+        std::vector<int32_t> all_residuals;
+        std::vector<uint32_t> plane_offsets; // start offset of each plane
+        std::vector<uint32_t> plane_sizes;
+        for (size_t pi = 0; pi < transformed.planes.size(); ++pi) {
+            const auto& plane = transformed.planes[pi];
+            auto res = compute_residuals(plane, transformed.w, transformed.h, pred);
+            plane_offsets.push_back((uint32_t)all_residuals.size());
+            plane_sizes.push_back((uint32_t)res.size());
+            all_residuals.insert(all_residuals.end(), res.begin(), res.end());
+        }
+
+        // Pass 1: analyze all residuals together.
+        auto analysis = mpe.analyze(all_residuals, transformed.w, transformed.h * nc);
+
+        // Pass 2: code all residuals together.
+        auto coded = mpe.code(all_residuals, analysis);
+
+        // Store payload (all planes coded as one blob).
+        c.band_payloads.push_back(std::move(coded.payload));
+
+        // Store model blob in container header.
+        c.hdr.r3_model_len = coded.model_len;
+        c.hdr.r3_model_blob = std::move(coded.model_blob);
+
+        return container_encode(transformed, c);
+    }
+
     Container c;
     c.hdr.width = raster.w;
     c.hdr.height = raster.h;
@@ -474,8 +532,6 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     c.global_pred_id = ar.global_pred_id;
     c.per_leaf_pred = ar.per_leaf_pred;
     c.band_payloads.clear();
-    PredId pred = static_cast<PredId>(c.global_pred_id);
-    if ((uint8_t)pred > 8) pred = PredId::MED;
     (void)bd; // bd used via squeeze bd param and bd_max in decode only
     bool hasSqueeze = false;
     for (auto v: c.hdr.squeeze_levels) if (v>0) hasSqueeze=true;
@@ -643,9 +699,54 @@ Raster decode(const uint8_t* data, size_t len) {
     size_t header_end=0;
     Container c = container_decode_header(data, len - 4, header_end);
     size_t pos = header_end;
+
+    uint32_t w = c.hdr.width, h = c.hdr.height;
+    uint8_t bd = c.hdr.bit_depth;
+    uint8_t nc = c.hdr.num_channels;
+    ColorTransform ct_pre = static_cast<ColorTransform>(c.hdr.color_transform_id);
+    if ((uint8_t)ct_pre > (uint8_t)ColorTransform::ROT_RBG)
+        throw DecodeError("unknown color_transform_id");
+    PredId pred = static_cast<PredId>(c.global_pred_id);
+    if ((uint8_t)pred > 8) pred = PredId::MED;
+
+    // Route 3: multi-pass ANS decoding path.
+    // Multipass stores a single combined payload for all planes.
+    if (c.hdr.flags & MULTIPASS_FLAG) {
+        if (c.hdr.r3_model_len == 0 || c.hdr.r3_model_blob.empty())
+            throw DecodeError("multipass: missing r3 model blob");
+        // Read single payload.
+        if (pos + 4 > len - 4) throw DecodeError("multipass: payload truncated");
+        uint32_t blen = read_u32_le_bytes(data + pos); pos += 4;
+        if (pos + blen > len - 4) throw DecodeError("multipass: payload bytes truncated");
+        std::vector<uint8_t> payload(data + pos, data + pos + blen);
+        pos += blen;
+        if (pos != len - 4) throw DecodeError("multipass: extra bytes after payload");
+
+        codec::r3::MultiPassEncoder mpe;
+        size_t num_samples = (size_t)w * h * nc;
+        auto residuals = mpe.decode(
+            payload.data(), payload.size(),
+            c.hdr.r3_model_blob.data(), c.hdr.r3_model_blob.size(),
+            num_samples);
+        if (residuals.size() != num_samples)
+            throw DecodeError("multipass: residual count mismatch");
+
+        Raster out(w, h, static_cast<Channels>(nc), bd == 16 ? BitDepth::BD16 : BitDepth::BD8);
+        size_t pix_per_plane = (size_t)w * h;
+        for (size_t pi = 0; pi < (size_t)nc; ++pi) {
+            uint16_t plane_max = plane_bd_max(bd, ct_pre, pi);
+            std::vector<int32_t> plane_res(residuals.begin() + pi * pix_per_plane,
+                                           residuals.begin() + (pi + 1) * pix_per_plane);
+            out.planes[pi] = reconstruct_plane(plane_res, w, h, pred, plane_max);
+        }
+        out = invert_color(out, ct_pre, c.hdr.cfl_scales);
+        return out;
+    }
+
+    // Standard decode path (non-multipass).
     size_t expected = 0;
     for (uint8_t sl : c.hdr.squeeze_levels) expected += 1 + 3u * sl;
-    if (expected==0) expected = c.hdr.num_channels;
+    if (expected==0) expected = nc;
     std::vector<std::vector<uint8_t>> payloads;
     for (size_t i=0;i<expected;++i){
         if (pos + 4 > len - 4) throw DecodeError("payload truncated (band_len)");
@@ -656,21 +757,12 @@ Raster decode(const uint8_t* data, size_t len) {
         pos+=blen;
     }
     if (pos != len - 4) throw DecodeError("extra bytes after payload");
-    uint32_t w = c.hdr.width, h = c.hdr.height;
-    uint8_t bd = c.hdr.bit_depth;
-    ColorTransform ct_pre = static_cast<ColorTransform>(c.hdr.color_transform_id);
-    // D4c: unknown color transform ids are a hard error (invariant I2
-    // discipline, same as unknown flag bits) - never a silent identity.
-    if ((uint8_t)ct_pre > (uint8_t)ColorTransform::ROT_RBG)
-        throw DecodeError("unknown color_transform_id");
-    PredId pred = static_cast<PredId>(c.global_pred_id);
-    if ((uint8_t)pred > 8) pred = PredId::MED;
-    Raster out(w,h, static_cast<Channels>(c.hdr.num_channels), bd==16?BitDepth::BD16:BitDepth::BD8);
+    Raster out(w,h, static_cast<Channels>(nc), bd==16?BitDepth::BD16:BitDepth::BD8);
     if (payloads.size() != expected) throw DecodeError("band count mismatch");
     // Corruption gate: unknown flag bits are a hard error (invariant I2), and
     // invalid combos are rejected: v2 without the adaptive coder, or the C2
     // tree-on-flat bit without the adaptive coder (leaf coding is adaptive).
-    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG | SQUEEZE_LIFT_FLAG | XBAND_FLAG))
+    if (c.hdr.flags & ~(uint8_t)(ACODER_FLAG | ACODER_V2_FLAG | CM_FLAG | LZP_FLAG | MATREE_FLAT_FLAG | SQUEEZE_LIFT_FLAG | XBAND_FLAG | MULTIPASS_FLAG))
         throw DecodeError("unknown container flag bits");
     if ((c.hdr.flags & ACODER_V2_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: v2 without adaptive coder");
@@ -702,6 +794,7 @@ Raster decode(const uint8_t* data, size_t len) {
     };
     bool hasSqueeze=false;
     for(auto v:c.hdr.squeeze_levels) if(v>0) hasSqueeze=true;
+
     // C2: bit4 says level-0 planes carry MA-tree leaf contexts (spatial).
     const bool treeOnFlat = (c.hdr.flags & MATREE_FLAT_FLAG) != 0 && num_leaves > 1;
     // C4: bit5 says squeezed planes were transformed with true CDC lifting;
