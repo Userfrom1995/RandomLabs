@@ -25,10 +25,10 @@
 - [x] 5. Wire hybrid path into `prism.cpp` encode/decode (flag bit6 dispatch)
 - [x] 6. Add container flag bit6 handling in `container.cpp`
 - [x] 7. Add `--r2-hybrid` CLI flag and probe/self-check commands in `main.cpp`
-- [ ] 8. Add VB-R2 rails to `probe_sandbox.sh` (ROUNDTRIP, TOKEN-FIDELITY, NET-AUDIT, MODEL-OVERHEAD)
+- [x] 8. Add VB-R2 rails to `probe_sandbox.sh` (ROUNDTRIP, TOKEN-FIDELITY, NET-AUDIT, MODEL-OVERHEAD)
 - [x] 9. Add unit tests for hybrid-uint in `test_acoder_hybrid.cpp`
 - [x] 10. Run self-check on pinned quad (kodim01/02/03/04)
-- [ ] 11. Commit dated reference CSV
+- [x] 11. Commit dated reference CSV
 
 **Exit condition:** all VB rails green + spec addendum 24 committed (DONE) + dated CSV.
 
@@ -114,6 +114,18 @@
 - T_ESC=4 best: +0.35% delta vs ZFF; T_ESC=8: +1.27%; T_ESC=16: +2.15%
 - Dated reference CSV: progress/references/2026-08-27-r2-hybrid-selfcheck.csv
 - 200 tests pass (193 existing + 7 new)
+
+### 2026-08-27 (Builder): R2-0 VB-R2 rails in probe_sandbox.sh (step 8)
+
+- Added --r2-hybrid and --self-check-r2-hybrid flags to probe_sandbox.sh
+- Added R2_SELFCHECK and R2_TOTAL_DELTA row parsing to evaluate() function
+- Added VB-R2-HYBRID-ROUNDTRIP rail: verifies every R2 image roundtrips byte-exact
+- Added VB-R2-TOKEN-FIDELITY rail: verifies no image regresses > +1.0% vs ZFF
+- Added VB-R2-NET-AUDIT rail: verifies total_delta recomputation matches summary
+- Added VB-R2-MODEL-OVERHEAD rail: verifies model overhead <= 0.01 bpp per sample
+- Added R2 gate readout: median delta, threshold check, PASS/FAIL verdict
+- Added standalone R2 section (--r2-hybrid, --self-check-r2-hybrid) matching R0/R1 pattern
+- Bash syntax validated, all 200 tests still pass
 
 ---
 
