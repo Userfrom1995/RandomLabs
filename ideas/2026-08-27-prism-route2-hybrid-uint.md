@@ -85,11 +85,12 @@ For T_ESC=8 (9 tokens: 0..7,ESC):
 
 ### 2.4 Wire Format Extension
 
-**Container flag:** bit6 (0x40) - reserved in v1's XBAND_FLAG position. For Route 2, bit6 signals "hybrid-uint mode" (no XBAND weights in this configuration).
+**Container flag:** bit1 (0x02) - aliases LZP_FLAG, mutually exclusive with LZP/CM.
+For Route 2, bit1 signals "hybrid-uint mode" (no LZP/CM weights in this configuration).
 
-**Compatibility:** Old v1 streams (bit6=0) are unaffected. New Route 2 streams set bit6 + bit3 (ACODER_V2_FLAG) + bit2 (ACODER_FLAG).
+**Compatibility:** Old v1 streams without ACODER_V2 are unaffected. New Route 2 streams set bit1 + bit3 (ACODER_V2_FLAG) + bit2 (ACODER_FLAG).
 
-**Decoder dispatch:** In `prism.cpp` decode path, check `flags & 0x40` to route to `decode_residual_hybrid` instead of `decode_residual_v2`.
+**Decoder dispatch:** In `prism.cpp` decode path, check `flags & 0x02` combined with ACODER_V2_FLAG to route to `decode_residual_hybrid` instead of `decode_residual_v2`.
 
 ### 2.5 Files to Modify/Create
 
@@ -97,9 +98,9 @@ For T_ESC=8 (9 tokens: 0..7,ESC):
 |---|---|
 | `include/prism/codec/acoder.h` | Add `ACModelsHybrid`, `encode_residual_hybrid`, `decode_residual_hybrid` declarations |
 | `src/codec/acoder.cpp` | Implement hybrid model, encode/decode functions, plane helpers |
-| `include/prism/codec/container.h` | No change (bit6 already reserved as XBAND; reinterpret for hybrid) |
-| `src/codec/container.cpp` | Decode: check bit6 to select hybrid decode path |
-| `src/prism.cpp` | Encode/decode: check bit6 flag to select hybrid path |
+| `include/prism/codec/container.h` | R2_HYBRID_FLAG (0x02, alias LZP bit1, exclusive with LZP/CM) |
+| `src/codec/container.cpp` | Decode: check bit1 + ACODER_V2 to select hybrid decode path |
+| `src/prism.cpp` | Encode/decode: check bit1 flag + ACODER_V2 to select hybrid path |
 | `src/cli/main.cpp` | Add `--r2-hybrid`, `probe-r2-hybrid`, `self-check-r2-hybrid` commands |
 | `benchmarks/probe_sandbox.sh` | Add R2-hybrid measurement phases |
 | `tests/unit/test_acoder.cpp` | Add hybrid-uint round-trip tests |
@@ -196,19 +197,19 @@ Same context computation as v2 (residual-diff 343).
 **Step 5: Wire into prism.cpp**
 
 In `prism.cpp` encode path:
-- If `flags & 0x40`: use `acoder_encode_plane_hybrid` instead of `acoder_encode_plane_v2`
+- If `flags & R2_HYBRID_FLAG` and ACODER_V2: use `acoder_encode_plane_hybrid` instead of `acoder_encode_plane_v2`
 - Pass T_ESC from a new encode option (default 8)
 
 In `prism.cpp` decode path:
-- If `flags & 0x40`: use `acoder_decode_plane_hybrid` instead of `acoder_decode_plane_v2`
+- If `flags & R2_HYBRID_FLAG` and ACODER_V2: use `acoder_decode_plane_hybrid` instead of `acoder_decode_plane_v2`
 
 **Step 6: Container flag**
 
 In container encode:
-- If hybrid mode: set `flags |= 0x40`
+- If hybrid mode: set `flags |= R2_HYBRID_FLAG` (0x02, alias LZP bit1)
 
 In container decode:
-- After parsing flags, check `flags & 0x40` to select decode path
+- After parsing flags, check `flags & R2_HYBRID_FLAG` + ACODER_V2 to select decode path
 
 **Step 7: CLI integration**
 
@@ -341,7 +342,7 @@ Route 2 IS:
 2. Implement token tree helpers in `acoder.cpp`
 3. Implement `encode_residual_hybrid` / `decode_residual_hybrid` in `acoder.cpp`
 4. Implement `acoder_encode_plane_hybrid` / `acoder_decode_plane_hybrid` in `acoder.cpp`
-5. Wire hybrid path into `prism.cpp` (flag bit6 dispatch)
+5. Wire hybrid path into `prism.cpp` (flag bit1 alias LZP dispatch)
 6. Add container flag handling in `container.cpp`
 7. Add `--r2-hybrid` CLI flag and probe/self-check commands in `main.cpp`
 8. Add VB-R2 rails to `probe_sandbox.sh`

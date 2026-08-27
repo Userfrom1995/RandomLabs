@@ -489,7 +489,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     }
 
     // Route 2 hybrid-uint: single-pass hybrid-uint tokenization under ACoderV2.
-    // Container carries R2_HYBRID_FLAG (bit6) + ACODER_FLAG + ACODER_V2_FLAG.
+    // Container carries R2_HYBRID_FLAG (bit1, alias LZP) + ACODER_FLAG + ACODER_V2_FLAG.
     // Pure tokenization swap: same 343 contexts, same dual-rate adaptation.
     if (opts.use_r2_hybrid) {
         Container c;
@@ -874,6 +874,12 @@ Raster decode(const uint8_t* data, size_t len) {
     size_t numSqueezePlanes = 0;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) ++numSqueezePlanes;
     bool useHybrid = (c.hdr.flags & R2_HYBRID_FLAG) != 0;
+    if (useHybrid) {
+        if (!(c.hdr.flags & ACODER_FLAG) || !(c.hdr.flags & ACODER_V2_FLAG))
+            throw DecodeError("r2-hybrid requires ACODER+V2");
+        if (c.hdr.flags & (MATREE_FLAT_FLAG | XBAND_FLAG | MULTIPASS_FLAG | CM_FLAG))
+            throw DecodeError("r2-hybrid exclusive with MATREE/XBAND/MULTIPASS/CM");
+    }
     if (useHybrid && anySqueezeHdr)
         throw DecodeError("invalid flag combination: r2-hybrid with squeeze");
     if (c.hdr.flags & XBAND_FLAG) {
@@ -886,8 +892,9 @@ Raster decode(const uint8_t* data, size_t len) {
     }
     bool use_acoder = (c.hdr.flags & ACODER_FLAG) != 0;
     bool useV2 = (c.hdr.flags & ACODER_V2_FLAG) != 0;
-    bool useCM = (c.hdr.flags & CM_FLAG) != 0;
-    bool useLZP = (c.hdr.flags & LZP_FLAG) != 0;
+    // Hybrid reuses bit1 (LZP_FLAG) - suppress LZP/CM interpretation when active.
+    bool useCM = !useHybrid && (c.hdr.flags & CM_FLAG) != 0;
+    bool useLZP = !useHybrid && (c.hdr.flags & LZP_FLAG) != 0;
     MATree tree = c.trees.empty()? MATree::single_leaf() : c.trees[0].tree;
     int num_leaves = tree.num_leaves>0? tree.num_leaves:1;
     // C5: same weight lookup rule the encoder used (invariant I2).
