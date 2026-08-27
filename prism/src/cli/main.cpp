@@ -63,7 +63,9 @@ static void print_usage() {
   << "  prism probe-r1 --image FILE [--k K] [--effort N]  (R1 multi-pass sweep)\n"
   << "  prism self-check-r1 --image FILE --k K --effort N (R1 self-check + model overhead)\n"
   << "  prism probe-r1-adaptive --image FILE [--k K] [--effort N]  (R1 adaptive sweep)\n"
-  << "  prism self-check-r1-adaptive --image FILE --k K --effort N (R1 adaptive self-check)\n";
+              << "  prism self-check-r1-adaptive --image FILE --k K --effort N (R1 adaptive self-check)\n"
+              << "  prism probe-r2-hybrid --image FILE [--t-esc N] [--effort N]  (R2 hybrid vs ZFF sweep)\n"
+              << "  prism self-check-r2-hybrid --image FILE [--t-esc N] --effort N (R2 hybrid self-check)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -4499,6 +4501,8 @@ int main(int argc, char* argv[]) {
             uint8_t effort = 0;
             bool use_r3 = false;
             bool use_r1_adaptive = false;
+            bool use_r2_hybrid = false;
+            int r2_t_esc = 8;
             uint16_t num_clusters = 32;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
             for (int i=4;i<argc;++i){
@@ -4506,6 +4510,8 @@ int main(int argc, char* argv[]) {
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--r3") use_r3 = true;
                 else if (a=="--r1-adaptive") use_r1_adaptive = true;
+                else if (a=="--r2-hybrid") use_r2_hybrid = true;
+                else if (a=="--r2-t-esc" && i+1<argc) r2_t_esc=std::stoi(argv[++i]);
                 else if (a=="--num-clusters" && i+1<argc) num_clusters=(uint16_t)std::stoi(argv[++i]);
                 else if (a=="--w" && i+1<argc) w=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--h" && i+1<argc) h=(uint32_t)std::stoul(argv[++i]);
@@ -4515,11 +4521,12 @@ int main(int argc, char* argv[]) {
             Raster r = load_raster(in,w,h,bd,ch);
             EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3; opts.r3_num_clusters=num_clusters;
             opts.use_r1_adaptive=use_r1_adaptive; opts.r1_num_clusters=num_clusters;
+            opts.use_r2_hybrid=use_r2_hybrid; opts.r2_t_esc=r2_t_esc;
             auto bytes = encode(r, opts);
             write_file(out, bytes);
             std::cout << "encoded " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
                       << " bd=" << (int)bd << " effort=" << (int)effort
-                      << (use_r1_adaptive ? " r1-adaptive" : (use_r3 ? " r3" : ""))
+                      << (use_r2_hybrid ? " r2-hybrid" : (use_r1_adaptive ? " r1-adaptive" : (use_r3 ? " r3" : "")))
                       << " -> " << bytes.size() << " bytes ("
                       << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
         } else if (cmd == "dec") {
@@ -5906,6 +5913,158 @@ int main(int argc, char* argv[]) {
                       << ",total_r1a," << (size_t)total_r1a
                       << ",delta_pct," << total_delta << "\n";
             std::cout << "self-check-r1-adaptive: " << imgs.size() << "/" << imgs.size() << " PASS\n";
+        } else if (cmd == "probe-r2-hybrid") {
+            // Route 2 R2-0 measurement: hybrid-uint vs ZFF baseline on pinned quad.
+            // Usage: probe-r2-hybrid --image FILE [--image FILE ...] [--t-esc N] [--effort N]
+            // Defaults: T_ESC={4,8,16}, effort={3,5,7} (full sweep).
+            // Output: CSV with per-image NET breakdown + gate verdicts.
+            std::vector<std::filesystem::path> imgs;
+            std::vector<int> t_esc_values = {4, 8, 16};
+            std::vector<uint8_t> effort_values = {3, 5, 7};
+            bool explicit_tesc = false, explicit_effort = false;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else if (a == "--t-esc" && i + 1 < argc) {
+                    t_esc_values = {std::stoi(argv[++i])};
+                    explicit_tesc = true;
+                }
+                else if (a == "--effort" && i + 1 < argc) {
+                    effort_values = {(uint8_t)std::stoi(argv[++i])};
+                    explicit_effort = true;
+                }
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "probe-r2-hybrid: no images given\n"; return 2; }
+
+            std::cout << "R2_SWEEP,T_ESC,effort,image,zff_bytes,hyb_bytes,delta_pct,"
+                         "zff_bpp,hyb_bpp\n";
+            struct R2Result { int T_ESC; uint8_t effort; double median_delta; double total_delta; };
+            std::vector<R2Result> all_results;
+            double best_median_delta = -1e9;
+            int best_T_ESC = 8;
+            uint8_t best_effort = 5;
+
+            for (int tesc : t_esc_values) {
+                for (uint8_t eff : effort_values) {
+                    std::vector<double> deltas;
+                    double sum_zff = 0, sum_hyb = 0;
+                    for (const auto& img : imgs) {
+                        Raster r = frontend::decode_to_raster(img);
+                        double samples = (double)r.w * r.h * r.num_channels();
+                        // FRAME-ZFF: standard v2 encode (zero-flag-first).
+                        EncodeOpts opts_zff; opts_zff.effort = eff;
+                        auto enc_zff = encode(r, opts_zff);
+                        Raster dec_zff = decode(enc_zff);
+                        if (dec_zff != r) {
+                            std::cerr << "probe-r2-hybrid: ZFF roundtrip FAIL on " << img << "\n";
+                            return 1;
+                        }
+                        // FRAME-HYB: hybrid-uint encode.
+                        EncodeOpts opts_hyb; opts_hyb.effort = eff;
+                        opts_hyb.use_r2_hybrid = true; opts_hyb.r2_t_esc = tesc;
+                        auto enc_hyb = encode(r, opts_hyb);
+                        Raster dec_hyb = decode(enc_hyb);
+                        if (dec_hyb != r) {
+                            std::cerr << "probe-r2-hybrid: HYB roundtrip FAIL on " << img << "\n";
+                            return 1;
+                        }
+                        double zff_bpp = 8.0 * enc_zff.size() / samples;
+                        double hyb_bpp = 8.0 * enc_hyb.size() / samples;
+                        // Negative delta = hybrid is smaller (better).
+                        double delta = 100.0 * ((double)enc_hyb.size() - (double)enc_zff.size()) / (double)enc_zff.size();
+                        deltas.push_back(delta);
+                        sum_zff += enc_zff.size();
+                        sum_hyb += enc_hyb.size();
+                        std::cout << "R2_SWEEP," << tesc << "," << (int)eff
+                                  << "," << img.filename().string()
+                                  << "," << enc_zff.size() << "," << enc_hyb.size()
+                                  << "," << delta
+                                  << "," << zff_bpp << "," << hyb_bpp << "\n";
+                    }
+                    std::sort(deltas.begin(), deltas.end());
+                    double median_delta = deltas[deltas.size() / 2];
+                    double total_delta = 100.0 * (sum_hyb - sum_zff) / sum_zff;
+                    all_results.push_back({tesc, eff, median_delta, total_delta});
+                    std::cout << "R2_SUMMARY," << tesc << "," << (int)eff
+                              << ",median_delta," << median_delta
+                              << ",total_delta," << total_delta << "\n";
+                    // Best = most negative delta (biggest improvement).
+                    if (median_delta < best_median_delta) {
+                        best_median_delta = median_delta;
+                        best_T_ESC = tesc;
+                        best_effort = eff;
+                    }
+                }
+            }
+
+            // Primary gate: FRAME-HYB median NET >= +0.5% over FRAME-ZFF.
+            // Negative delta = hybrid smaller. Gate: median_delta <= -0.5.
+            double gate_threshold = -0.5;
+            bool primary_pass = (best_median_delta <= gate_threshold);
+            std::cout << "\nR2_GATE,primary," << best_T_ESC << "," << (int)best_effort
+                      << ",median_delta," << best_median_delta
+                      << ",threshold," << gate_threshold
+                      << "," << (primary_pass ? "PASS" : "FAIL") << "\n";
+            std::cout << "R2_VERDICT," << (primary_pass ? "PASS" : "FAIL")
+                      << ",best_T_ESC," << best_T_ESC << ",best_effort," << (int)best_effort
+                      << ",best_median_delta," << best_median_delta << "\n";
+        } else if (cmd == "self-check-r2-hybrid") {
+            // Route 2 R2-0 self-check: byte-exact round-trip + token fidelity + model overhead.
+            // Usage: self-check-r2-hybrid --image FILE [--image FILE ...] [--t-esc N] --effort N
+            std::vector<std::filesystem::path> imgs;
+            int T_ESC = 8;
+            uint8_t effort = 5;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else if (a == "--t-esc" && i + 1 < argc) T_ESC = std::stoi(argv[++i]);
+                else if (a == "--effort" && i + 1 < argc) effort = (uint8_t)std::stoi(argv[++i]);
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "self-check-r2-hybrid: no images given\n"; return 2; }
+
+            std::cout << "R2_SELFCHECK,image,T_ESC,zff_bytes,hyb_bytes,delta_pct,roundtrip\n";
+            double total_zff = 0, total_hyb = 0;
+            int fails = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                // ZFF baseline.
+                EncodeOpts opts_zff; opts_zff.effort = effort;
+                auto enc_zff = encode(r, opts_zff);
+                Raster dec_zff = decode(enc_zff);
+                if (dec_zff != r) {
+                    std::cerr << "self-check-r2-hybrid: ZFF FAIL " << img.filename().string() << "\n";
+                    fails++; continue;
+                }
+                // Hybrid encode.
+                EncodeOpts opts_hyb; opts_hyb.effort = effort;
+                opts_hyb.use_r2_hybrid = true; opts_hyb.r2_t_esc = T_ESC;
+                auto enc_hyb = encode(r, opts_hyb);
+                Raster dec_hyb = decode(enc_hyb);
+                bool roundtrip_ok = (dec_hyb == r);
+                if (!roundtrip_ok) {
+                    std::cerr << "self-check-r2-hybrid: HYB FAIL " << img.filename().string() << "\n";
+                    fails++; continue;
+                }
+                double delta = 100.0 * ((double)enc_hyb.size() - (double)enc_zff.size()) / (double)enc_zff.size();
+                total_zff += enc_zff.size();
+                total_hyb += enc_hyb.size();
+                std::cout << "R2_SELFCHECK," << img.filename().string()
+                          << "," << T_ESC
+                          << "," << enc_zff.size() << "," << enc_hyb.size()
+                          << "," << delta
+                          << ",PASS\n";
+            }
+            if (fails > 0) {
+                std::cerr << "self-check-r2-hybrid: " << fails << "/" << imgs.size() << " FAIL\n";
+                return 1;
+            }
+            double total_delta = 100.0 * (total_hyb - total_zff) / total_zff;
+            std::cout << "\nR2_TOTAL_DELTA,total_zff," << (size_t)total_zff
+                      << ",total_hyb," << (size_t)total_hyb
+                      << ",delta_pct," << total_delta << "\n";
+            std::cout << "self-check-r2-hybrid: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "bench-sandbox") {
             return run_bench_sandbox(argc, argv);
         } else {

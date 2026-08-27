@@ -653,9 +653,9 @@ ACModelsHybrid::ACModelsHybrid(int n, int t_esc, bool uniform_priors) {
 void ACModelsHybrid::init(int n, int t_esc, bool uniform_priors) {
     if (n < 1) n = 1;
     T_ESC = t_esc;
-    // Token tree: T_ESC internal nodes, each a binary decision.
-    // Use uniform priors (nodes make different kinds of decisions at each level).
-    v2_init_kind(token, AC_V2_PRIOR_ZERO, n, true);
+    // Token tree: n * T_ESC context slots (T_ESC nodes per residual-DIFF context).
+    // Each tree node gets its own adapted probability per context.
+    v2_init_kind(token, AC_V2_PRIOR_ZERO, n * T_ESC, true);
     // Sign: same as v2 (coded only for nonzero).
     v2_init_kind(sign, AC_V2_PRIOR_SIGN, n, uniform_priors);
     // Escape quotient: same as v2's q.
@@ -663,15 +663,18 @@ void ACModelsHybrid::init(int n, int t_esc, bool uniform_priors) {
 }
 
 void ACModelsHybrid::ensure(int n) {
+    int old_ctx = (int)token.ctx.p_fast.size() / T_ESC;
+    if (old_ctx >= n) return;
     int old = (int)token.ctx.p_fast.size();
-    if (old >= n) return;
-    token.ctx.p_fast.resize(n); token.ctx.p_slow.resize(n);
+    int new_size = n * T_ESC;
+    token.ctx.p_fast.resize(new_size); token.ctx.p_slow.resize(new_size);
     sign.ctx.p_fast.resize(n); sign.ctx.p_slow.resize(n);
     escq.ctx.p_fast.resize(n); escq.ctx.p_slow.resize(n);
-    for (int i = old; i < n; ++i) {
-        // Token tree nodes use uniform priors.
+    for (int i = old; i < new_size; ++i) {
         token.ctx.p_fast[i] = 32768;
         token.ctx.p_slow[i] = 32768;
+    }
+    for (int i = old_ctx; i < n; ++i) {
         v2_init_slot(sign.ctx, AC_V2_PRIOR_SIGN, i);
         v2_init_slot(escq.ctx, AC_V2_PRIOR_Q, i);
     }
@@ -693,52 +696,81 @@ inline uint32_t decode_raw_bits(ADecoder& dec, int nbits) {
     return val;
 }
 
+// Token tree put/get: uses expanded context (cx * T_ESC + tree_node) for per-node
+// state, but residual-DIFF context (cx) for class computation.
+inline void token_tree_put(AEncoder& enc, KindModelsV2& token, int cx, int t_esc,
+                            int tree_node, bool bit) {
+    int model_cx = cx * t_esc + tree_node;
+    int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+    uint16_t p = ac_v2_mix2(ac_v2_mix(token.ctx.p_fast[model_cx], token.ctx.p_slow[model_cx]),
+                            ac_v2_mix(token.cls.p_fast[cls], token.cls.p_slow[cls]));
+    enc.put_bin_raw(p, bit);
+    ac_v2_adapt(token.ctx.p_fast[model_cx], token.ctx.p_slow[model_cx], bit);
+    ac_v2_adapt(token.cls.p_fast[cls], token.cls.p_slow[cls], bit);
+}
+
+inline bool token_tree_get(ADecoder& dec, KindModelsV2& token, int cx, int t_esc,
+                            int tree_node) {
+    int model_cx = cx * t_esc + tree_node;
+    int cls = ac_v2_prior_class(cx % AC_V2_RESDIFF_CONTEXTS);
+    uint16_t p = ac_v2_mix2(ac_v2_mix(token.ctx.p_fast[model_cx], token.ctx.p_slow[model_cx]),
+                            ac_v2_mix(token.cls.p_fast[cls], token.cls.p_slow[cls]));
+    bool bit = dec.get_bin_raw(p);
+    ac_v2_adapt(token.ctx.p_fast[model_cx], token.ctx.p_slow[model_cx], bit);
+    ac_v2_adapt(token.cls.p_fast[cls], token.cls.p_slow[cls], bit);
+    return bit;
+}
+
 // Encode token via balanced binary tree (T_ESC+1 symbols via T_ESC binary decisions).
 // Tree structure: level 0 = zero vs nonzero; subsequent levels halve the range.
 // For T_ESC=8: 8 internal nodes, max depth 4 (0: zero/nonzero, 1-3: token identification).
 inline void encode_token_tree(AEncoder& enc, KindModelsV2& token, int cx,
                                int tok, int T_ESC) {
-    // Level 0: zero (tok==0) vs nonzero (tok>0).
-    v2_put(enc, token, cx, tok == 0);
+    // Level 0: zero (tok==0) vs nonzero (tok>0) - uses tree node 0.
+    token_tree_put(enc, token, cx, T_ESC, 0, tok == 0);
     if (tok == 0) return;
     // Levels 1..: identify nonzero token via halving tree.
-    // Map nonzero token to ordinal: 1..T_ESC (1=first direct, T_ESC=escape).
     int ord = tok;  // tok is already 1..T_ESC for nonzero
     int depth = 0;
     { int v = T_ESC; while (v > 1) { v >>= 1; ++depth; } }
+    // Binary search: always emit exactly depth bits.
+    int lo = 1, hi = T_ESC;
     for (int level = 0; level < depth; ++level) {
-        int half = T_ESC >> (level + 1);
-        bool bit = (ord > half);
-        v2_put(enc, token, cx, bit);
-        if (!bit) break;
-        ord -= half;
+        int mid = lo + (hi - lo) / 2;
+        bool bit = (ord > mid);
+        token_tree_put(enc, token, cx, T_ESC, 1 + level, bit);
+        if (bit) lo = mid + 1;
+        else     hi = mid;
     }
 }
 
 // Decode token via binary tree. Mirror of encode_token_tree (I2).
 inline int decode_token_tree(ADecoder& dec, KindModelsV2& token, int cx,
                               int T_ESC) {
-    bool is_zero = v2_get(dec, token, cx);
+    bool is_zero = token_tree_get(dec, token, cx, T_ESC, 0);
     if (is_zero) return 0;
     int depth = 0;
     { int v = T_ESC; while (v > 1) { v >>= 1; ++depth; } }
-    int ord = 1;
+    // Binary search: always read exactly depth bits.
+    int lo = 1, hi = T_ESC;
     for (int level = 0; level < depth; ++level) {
-        int half = T_ESC >> (level + 1);
-        bool bit = v2_get(dec, token, cx);
-        if (!bit) break;
-        ord += half;
+        int mid = lo + (hi - lo) / 2;
+        bool bit = token_tree_get(dec, token, cx, T_ESC, 1 + level);
+        if (bit) lo = mid + 1;
+        else     hi = mid;
     }
-    return ord;
+    return lo;  // lo == hi == leaf token
 }
 
 } // namespace
 
 void encode_residual_hybrid(AEncoder& enc, ACModelsHybrid& m, int cx, int32_t e) {
     if (cx < 0) cx = 0;
-    if (cx >= (int)m.token.ctx.p_fast.size()) m.ensure(cx + 1);
-    // Zigzag fold to unsigned (pin D13): 0->0, -1->1, 1->2, -2->3, 2->4, ...
-    uint32_t u = ((uint32_t)e << 1) ^ ((uint32_t)(e >> 31));
+    int num_ctx = (int)m.token.ctx.p_fast.size() / m.T_ESC;
+    if (cx >= num_ctx) m.ensure(cx + 1);
+    // Absolute value for the unsigned token ladder; the sample's sign rides
+    // the dedicated SIGN bin right after each nonzero token (L-C5 rule).
+    uint32_t u = (uint32_t)(e < 0 ? -e : e);
     // Map to token: direct if < T_ESC, escape otherwise.
     int token = (u < (uint32_t)m.T_ESC) ? (int)u : m.T_ESC;
     // Code token via binary tree.
@@ -761,7 +793,8 @@ void encode_residual_hybrid(AEncoder& enc, ACModelsHybrid& m, int cx, int32_t e)
 
 int32_t decode_residual_hybrid(ADecoder& dec, ACModelsHybrid& m, int cx) {
     if (cx < 0) cx = 0;
-    if (cx >= (int)m.token.ctx.p_fast.size()) m.ensure(cx + 1);
+    int num_ctx = (int)m.token.ctx.p_fast.size() / m.T_ESC;
+    if (cx >= num_ctx) m.ensure(cx + 1);
     int token = decode_token_tree(dec, m.token, cx, m.T_ESC);
     if (token == 0) return 0;
     bool neg = v2_get(dec, m.sign, cx);

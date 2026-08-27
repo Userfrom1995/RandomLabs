@@ -27,6 +27,10 @@ std::vector<uint8_t> container_encode(const Raster& /*raster*/, const Container&
         for (int8_t wq : c.hdr.xband_weights)
             out.push_back((uint8_t)wq);
     }
+    // Route 2: T_ESC value stored iff R2_HYBRID_FLAG set.
+    if (c.hdr.flags & R2_HYBRID_FLAG) {
+        out.push_back(c.hdr.r2_t_esc);
+    }
     // model_len placeholder
     size_t model_len_pos = out.size();
     write_u32_le_vec(out, 0);
@@ -123,6 +127,14 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
         if (pos + need > len) throw DecodeError("header truncated (xband weights)");
         for (size_t i = 0; i < need; ++i) xw.push_back((int8_t)data[pos++]);
     }
+    // Route 2: T_ESC value stored iff R2_HYBRID_FLAG set.
+    uint8_t r2_t_esc = 8;
+    if (flags & R2_HYBRID_FLAG) {
+        if (pos + 1 > len) throw DecodeError("header truncated (r2_t_esc)");
+        r2_t_esc = data[pos++];
+        if (r2_t_esc != 4 && r2_t_esc != 8 && r2_t_esc != 16)
+            throw DecodeError("bad r2_t_esc value");
+    }
     uint32_t model_len = read_u32_le_bytes(data+pos); pos+=4;
     if (pos + model_len > len) throw DecodeError("model truncated");
     // Model blob
@@ -161,6 +173,7 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
     c.hdr.color_transform_id = ct; c.hdr.flags = flags; c.hdr.effort = effort;
     c.hdr.cfl_scales = cfl_scales; c.hdr.squeeze_levels = sq; c.hdr.model_len = model_len;
     c.hdr.xband_weights = xw;
+    c.hdr.r2_t_esc = r2_t_esc;
     c.trees = trees;
     c.predictor_mode = predictor_mode;
     c.global_pred_id = global_pred;
