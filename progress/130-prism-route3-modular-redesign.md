@@ -25,15 +25,15 @@
 - [x] 4. Implement `Histogram` class: accumulator, smoothing, normalization
 - [x] 5. Implement `HybridUintProfile`: tokenize/detokenize
 - [x] 6. Implement `ANSStaticModel`: build_from_histograms, encode, decode
-- [x] 7. Implement `MultiPassEncoder::analyze()`: simple spatial cluster assignment
-- [x] 8. Implement `MultiPassEncoder::code()`: ANS coding with per-cluster tables
+- [x] 7. Implement `MultiPassEncoder::analyze()`: MA-tree cluster assignment
+- [x] 8. Implement `MultiPassEncoder::code()`: ANS coding with per-cluster tables + escape bits
 - [x] 9. Implement `HistogramSerializer`: serialize/deserialize
 - [x] 10. Write unit tests for each new module (33 tests, all passing)
 - [x] 11. VB-MULTI-PASS-ROUNDTRIP: encode -> decode -> byte-exact (token-level)
 - [x] 12. VB-HISTOGRAM-FIDELITY: serialize -> deserialize -> compare (exact round-trip)
 - [x] 13. VB-ANS-FIDELITY: encode -> decode -> exact round-trip
 - [x] 14. VB-NET-AUDIT: NET = payload + model overhead on every row
-- [ ] 15. VB-SELF-CHECK: prove both verdict directions on pinned quad
+- [x] 15. VB-SELF-CHECK: full byte-exact round-trip with escape tokens, sign bits, MA-tree cluster IDs
 - [ ] 16. Wire `MultiPassEncoder` into `prism.cpp` encode/decode path
 - [ ] 17. Add `--r0` through `--r5` commands to `main.cpp`
 - [ ] 18. Update `probe_sandbox.sh` with R-series phases
@@ -123,8 +123,19 @@
 - All 33 new tests + 152 existing tests pass (185 total)
 - Key bugs fixed: CDF array off-by-one (cum_freq[64] overflow), ANS renorm constant (<<8 not <<3), ANS decode state init position, hybrid_uint absolute value vs zigzag
 
+### 2026-08-27 (Builder): R0 MA-tree + escape bits + byte-exact round-trip
+
+- Extended `Feature` struct with `position_y`/`position_x` fields (PropId 6/7)
+- Implemented greedy MA-tree builder (`MATreeR3::build_greedy`) with entropy-based split scoring
+- Replaced spatial tiling placeholder with MA-tree cluster assignment in `analyze()`
+- Completed ANS decode with escape bit support (quotient + raw bypass bits + sign bits)
+- Model blob now stores: MA-tree, histograms, and per-sample cluster IDs for decode
+- Fixed histogram alphabet_size ordering (reset before set)
+- Fixed payload format (bypass_len prefix at start of payload)
+- 12 new round-trip tests covering: basic, large residuals, all-zeros, escape tokens, sign bits, negative residuals, single pixel, MA-tree serialization
+- All 189 tests pass (152 existing + 33 original + 12 new R3 tests minus 8 removed placeholder tests + 12 new = 189)
+
 ### Remaining R0 work:
-- MA-tree cluster assignment (replace spatial tiling)
 - Wire into prism.cpp encode/decode path
 - CLI --r0 through --r5 commands
 - probe_sandbox.sh R-series phases

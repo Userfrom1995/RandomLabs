@@ -13,7 +13,9 @@ enum class PropId : uint8_t {
     LlcClass = 2,
     ResDiff = 3,
     SiblingClass = 4,
-    Activity = 5
+    Activity = 5,
+    PositionY = 6,
+    PositionX = 7
 };
 
 struct MANode {
