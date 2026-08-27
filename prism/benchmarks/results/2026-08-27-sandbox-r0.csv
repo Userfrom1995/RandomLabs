@@ -1,0 +1,2 @@
+image,single_bytes,multi_bytes,delta_pct,single_bpp,multi_bpp,self_check
+test_r3.ppm,169,1504,789.941,7.04167,62.6667,PASS
