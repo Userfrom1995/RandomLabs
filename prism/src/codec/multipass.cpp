@@ -1,10 +1,10 @@
 // Route 1 multi-pass encoder implementation.
-// Cascade from Route 3 R1 FAIL: full v1 features + per-plane ANS encoding.
+// Cascade from Route 3 R1 FAIL: per-plane ANS encoding with MA-tree clustering.
 //
-// Pass 1 (analysis): builds MA-tree with full v1 features (QG, band_class,
-//   activity, position), per-cluster histograms per plane.
+// Pass 1 (analysis): builds MA-tree using position-only features (props 3/4)
+//   until causal QG/activity decode is implemented; per-cluster histograms per plane.
 // Pass 2 (coding): per-plane ANS coding with per-cluster static tables.
-// Decode: recomputes features from decoded pixels during ANS decode.
+// Decode: recomputes cluster IDs from position-only features (same as encoder).
 
 #include "prism/codec/multipass.h"
 #include "prism/codec/matree_builder.h"
@@ -267,7 +267,10 @@ MATreeR3 MATreeR3::build_greedy(
             if (nodes[ni].depth >= max_depth) continue;
             if (nodes[ni].idxs.size() < 4) continue;
 
-            for (uint8_t prop : {0u, 2u, 3u, 4u}) {
+            // Route 1 temporary: position-only props until causal QG/activity
+            // decode is implemented. Encoder build_features() computes QG/activity
+            // but the decoder cannot recompute them without decoded pixels.
+            for (uint8_t prop : {3u, 4u}) {
                 std::vector<uint32_t> values;
                 values.reserve(nodes[ni].idxs.size());
                 for (size_t idx : nodes[ni].idxs)
@@ -510,9 +513,10 @@ MultiPassEncoder::AnalysisResult MultiPassEncoder::analyze(
     result.planes.resize(num_channels);
 
     for (size_t pi = 0; pi < num_channels; ++pi) {
+        // Route 1: plane index as band_class so Y/Cb/Cr get distinct clustering.
         result.planes[pi] = analyze_plane(
             plane_pixels[pi], plane_residuals[pi],
-            w, h, 0, bit_depth,
+            w, h, (uint8_t)pi, bit_depth,
             num_clusters, max_depth, T_ESC);
     }
 
