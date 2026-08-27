@@ -643,6 +643,192 @@ std::vector<int32_t> acoder_decode_plane_leaves_v2(const std::vector<uint8_t>& b
     return out;
 }
 
+// --- Route 2 hybrid-uint binarization (issue #130 Route 2) ---
+
+ACModelsHybrid::ACModelsHybrid(int n, int t_esc, bool uniform_priors) {
+    T_ESC = t_esc;
+    init(n, t_esc, uniform_priors);
+}
+
+void ACModelsHybrid::init(int n, int t_esc, bool uniform_priors) {
+    if (n < 1) n = 1;
+    T_ESC = t_esc;
+    // Token tree: T_ESC internal nodes, each a binary decision.
+    // Use uniform priors (nodes make different kinds of decisions at each level).
+    v2_init_kind(token, AC_V2_PRIOR_ZERO, n, true);
+    // Sign: same as v2 (coded only for nonzero).
+    v2_init_kind(sign, AC_V2_PRIOR_SIGN, n, uniform_priors);
+    // Escape quotient: same as v2's q.
+    v2_init_kind(escq, AC_V2_PRIOR_Q, n, uniform_priors);
+}
+
+void ACModelsHybrid::ensure(int n) {
+    int old = (int)token.ctx.p_fast.size();
+    if (old >= n) return;
+    token.ctx.p_fast.resize(n); token.ctx.p_slow.resize(n);
+    sign.ctx.p_fast.resize(n); sign.ctx.p_slow.resize(n);
+    escq.ctx.p_fast.resize(n); escq.ctx.p_slow.resize(n);
+    for (int i = old; i < n; ++i) {
+        // Token tree nodes use uniform priors.
+        token.ctx.p_fast[i] = 32768;
+        token.ctx.p_slow[i] = 32768;
+        v2_init_slot(sign.ctx, AC_V2_PRIOR_SIGN, i);
+        v2_init_slot(escq.ctx, AC_V2_PRIOR_Q, i);
+    }
+}
+
+namespace {
+
+// Encode/decode raw bypass bits through the range coder at fixed P(0)=0.5.
+// These bits are not adaptively coded (pin D3).
+inline void encode_raw_bits(AEncoder& enc, uint32_t val, int nbits) {
+    for (int k = nbits - 1; k >= 0; --k)
+        enc.put_bin_raw(32768, (val >> k) & 1u);
+}
+
+inline uint32_t decode_raw_bits(ADecoder& dec, int nbits) {
+    uint32_t val = 0;
+    for (int k = 0; k < nbits; ++k)
+        val = (val << 1) | (dec.get_bin_raw(32768) ? 1u : 0u);
+    return val;
+}
+
+// Encode token via balanced binary tree (T_ESC+1 symbols via T_ESC binary decisions).
+// Tree structure: level 0 = zero vs nonzero; subsequent levels halve the range.
+// For T_ESC=8: 8 internal nodes, max depth 4 (0: zero/nonzero, 1-3: token identification).
+inline void encode_token_tree(AEncoder& enc, KindModelsV2& token, int cx,
+                               int tok, int T_ESC) {
+    // Level 0: zero (tok==0) vs nonzero (tok>0).
+    v2_put(enc, token, cx, tok == 0);
+    if (tok == 0) return;
+    // Levels 1..: identify nonzero token via halving tree.
+    // Map nonzero token to ordinal: 1..T_ESC (1=first direct, T_ESC=escape).
+    int ord = tok;  // tok is already 1..T_ESC for nonzero
+    int depth = 0;
+    { int v = T_ESC; while (v > 1) { v >>= 1; ++depth; } }
+    for (int level = 0; level < depth; ++level) {
+        int half = T_ESC >> (level + 1);
+        bool bit = (ord > half);
+        v2_put(enc, token, cx, bit);
+        if (!bit) break;
+        ord -= half;
+    }
+}
+
+// Decode token via binary tree. Mirror of encode_token_tree (I2).
+inline int decode_token_tree(ADecoder& dec, KindModelsV2& token, int cx,
+                              int T_ESC) {
+    bool is_zero = v2_get(dec, token, cx);
+    if (is_zero) return 0;
+    int depth = 0;
+    { int v = T_ESC; while (v > 1) { v >>= 1; ++depth; } }
+    int ord = 1;
+    for (int level = 0; level < depth; ++level) {
+        int half = T_ESC >> (level + 1);
+        bool bit = v2_get(dec, token, cx);
+        if (!bit) break;
+        ord += half;
+    }
+    return ord;
+}
+
+} // namespace
+
+void encode_residual_hybrid(AEncoder& enc, ACModelsHybrid& m, int cx, int32_t e) {
+    if (cx < 0) cx = 0;
+    if (cx >= (int)m.token.ctx.p_fast.size()) m.ensure(cx + 1);
+    // Zigzag fold to unsigned (pin D13): 0->0, -1->1, 1->2, -2->3, 2->4, ...
+    uint32_t u = ((uint32_t)e << 1) ^ ((uint32_t)(e >> 31));
+    // Map to token: direct if < T_ESC, escape otherwise.
+    int token = (u < (uint32_t)m.T_ESC) ? (int)u : m.T_ESC;
+    // Code token via binary tree.
+    encode_token_tree(enc, m.token, cx, token, m.T_ESC);
+    if (token == 0) return;
+    // Sign for nonzero (L-C5).
+    v2_put(enc, m.sign, cx, e < 0);
+    // Escape path: adaptive quotient + raw bypass bits.
+    if (token == m.T_ESC) {
+        uint32_t m_val = u - (uint32_t)m.T_ESC + 1;
+        int q = 31 - __builtin_clz(m_val);
+        // Unary quotient (adaptive, same structure as v2).
+        for (int k = 0; k < q; ++k) v2_put(enc, m.escq, cx, false);
+        v2_put(enc, m.escq, cx, true);
+        // Raw bypass bits (literal, not adaptive - pin D3).
+        uint32_t raw = m_val & ((q >= 32) ? ~0u : ((1u << q) - 1u));
+        encode_raw_bits(enc, raw, q);
+    }
+}
+
+int32_t decode_residual_hybrid(ADecoder& dec, ACModelsHybrid& m, int cx) {
+    if (cx < 0) cx = 0;
+    if (cx >= (int)m.token.ctx.p_fast.size()) m.ensure(cx + 1);
+    int token = decode_token_tree(dec, m.token, cx, m.T_ESC);
+    if (token == 0) return 0;
+    bool neg = v2_get(dec, m.sign, cx);
+    if (token < m.T_ESC) {
+        // Direct token: u = token.
+        int32_t u = token;
+        return neg ? -u : u;
+    }
+    // Escape path: adaptive quotient + raw bypass bits.
+    int q = 0;
+    while (!v2_get(dec, m.escq, cx)) ++q;
+    uint32_t raw = decode_raw_bits(dec, q);
+    uint32_t m_val = (1u << q) | raw;
+    uint32_t u = (uint32_t)m.T_ESC - 1u + m_val;
+    return neg ? -(int32_t)u : (int32_t)u;
+}
+
+std::vector<uint8_t> acoder_encode_plane_hybrid(const std::vector<int32_t>& residuals,
+                                                uint32_t w, uint32_t h,
+                                                int T_ESC) {
+    if (residuals.empty()) {
+        AEncoder enc;
+        return enc.flush_and_emit();
+    }
+    ACModelsHybrid models(343, T_ESC);
+    AEncoder enc;
+    (void)h;
+    for (size_t i = 0; i < residuals.size(); ++i) {
+        int cx = 0;
+        uint32_t x = (w == 0) ? 0 : (uint32_t)(i % w);
+        uint32_t y = (w == 0) ? 0 : (uint32_t)(i / w);
+        int32_t dL = 0, dU = 0, dUL = 0;
+        if (x > 0) dL = residuals[i - 1];
+        if (y > 0) dU = residuals[i - w];
+        if (x > 0 && y > 0) dUL = residuals[i - w - 1];
+        cx = residual_diff_context(dL, dU, dUL);
+        encode_residual_hybrid(enc, models, cx, residuals[i]);
+    }
+    return enc.flush_and_emit();
+}
+
+std::vector<int32_t> acoder_decode_plane_hybrid(const std::vector<uint8_t>& bytes,
+                                                size_t num_residuals,
+                                                uint32_t w, uint32_t h,
+                                                int T_ESC) {
+    if (num_residuals == 0) return {};
+    if (bytes.empty()) throw std::runtime_error("acoder_decode_plane_hybrid: empty bytes");
+    ACModelsHybrid models(343, T_ESC);
+    ADecoder dec;
+    dec.init(bytes);
+    (void)h;
+    std::vector<int32_t> out;
+    out.reserve(num_residuals);
+    for (size_t i = 0; i < num_residuals; ++i) {
+        int cx = 0;
+        uint32_t x = (w == 0) ? 0 : (uint32_t)(i % w);
+        uint32_t y = (w == 0) ? 0 : (uint32_t)(i / w);
+        int32_t dL = 0, dU = 0, dUL = 0;
+        if (x > 0) dL = out[i - 1];
+        if (y > 0) dU = out[i - w];
+        if (x > 0 && y > 0) dUL = out[i - w - 1];
+        cx = residual_diff_context(dL, dU, dUL);
+        out.push_back(decode_residual_hybrid(dec, models, cx));
+    }
+    return out;
+}
+
 std::vector<uint8_t> acoder_encode_bits_adaptive(const std::vector<uint8_t>& bits) {
     // Adaptive version: single context prob adapts from 0.5.
     AEncoder enc;

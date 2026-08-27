@@ -142,6 +142,26 @@ struct ACModelsV2 {
 void encode_residual_v2(AEncoder& enc, ACModelsV2& m, int cx, int32_t e);
 int32_t decode_residual_v2(ADecoder& dec, ACModelsV2& m, int cx);
 
+// ----- Route 2 hybrid-uint binarization (issue #130 Route 2) -----
+// Replaces ZFF (zero-flag-first) binarization with hybrid-uint tokenization
+// under the same ACoderV2 adaptive backend. Token alphabet T_ESC+1 coded via
+// a balanced binary tree of binary decisions; each node has its own adapted
+// probability per context. Zero priced by its actual probability (not 1-bin
+// ZFF cost), removing the structural pathology that closed B3.
+struct ACModelsHybrid {
+    KindModelsV2 token;  // T_ESC+1 token via binary tree (replaces zero + q)
+    KindModelsV2 sign;   // binary (nonzero only, same as v1)
+    KindModelsV2 escq;   // escape quotient continuation (same as v1's q)
+    int T_ESC = 8;
+    explicit ACModelsHybrid(int n = 1, int t_esc = 8, bool uniform_priors = false);
+    void init(int n, int t_esc, bool uniform_priors);
+    void ensure(int n);
+};
+
+// Route 2 hybrid-uint encode/decode per-sample.
+void encode_residual_hybrid(AEncoder& enc, ACModelsHybrid& m, int cx, int32_t e);
+int32_t decode_residual_hybrid(ADecoder& dec, ACModelsHybrid& m, int cx);
+
 class AEncoder {
 public:
     AEncoder();
@@ -203,6 +223,16 @@ std::vector<int32_t> acoder_decode_plane_v2(const std::vector<uint8_t>& bytes,
                                             size_t num_residuals,
                                             uint32_t w, uint32_t h,
                                             int num_contexts = 0);
+
+// Route 2 hybrid-uint plane helpers (flag bit6 streams). Same context
+// computation as v2 (residual-DIFF 343); binarization swaps ZFF for hybrid-uint.
+std::vector<uint8_t> acoder_encode_plane_hybrid(const std::vector<int32_t>& residuals,
+                                                uint32_t w, uint32_t h,
+                                                int T_ESC = 8);
+std::vector<int32_t> acoder_decode_plane_hybrid(const std::vector<uint8_t>& bytes,
+                                                size_t num_residuals,
+                                                uint32_t w, uint32_t h,
+                                                int T_ESC = 8);
 
 // Leaf-context helpers for B7 Squeeze+MA-tree (mandatory llc_class/sibling_class)
 std::vector<uint8_t> acoder_encode_plane_leaves(const std::vector<int32_t>& residuals,
