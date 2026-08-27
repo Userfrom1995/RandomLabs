@@ -56,6 +56,8 @@ struct Feature {
     u16 res_diff = 0;
     u8  sibling_class = 0;
     u8  activity = 0;
+    u8  position_y = 0;  // normalized 0..255 (PropId 6)
+    u8  position_x = 0;  // normalized 0..255 (PropId 7)
 };
 
 struct DecodeError : std::runtime_error {
