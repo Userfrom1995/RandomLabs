@@ -3,7 +3,7 @@
 - **Issue:** #130 (Owner directive 2026-08-27: Route 3 first, cascade to Route 1
   then Route 2)
 - **Branch:** opencode/issue130-route3-modular-redesign
-- **Status:** in-progress (R0 harness extension)
+- **Status:** in-progress (R1 measurement harness ready, awaiting Kodak corpus for gate check)
 - **Blueprint:** `ideas/2026-08-27-prism-route3-modular-redesign.md`
 - **Research spec:** `prism/docs/research-route3-modular-redesign.md` (Dr. Mob)
 - **Binding gates (both units, real corpus, byte-exact):**
@@ -47,9 +47,9 @@
 
 ### R1: Multi-pass vs Single-pass Baseline (attacks B1)
 
-- [ ] 1. Implement FRAME-SINGLE and FRAME-MULTI test frames
-- [ ] 2. Sweep K in {16, 32, 64, 128} and effort {3, 5, 7}
-- [ ] 3. Measure NET on pinned quad
+- [x] 1. Implement FRAME-SINGLE and FRAME-MULTI test frames
+- [x] 2. Sweep K in {16, 32, 64, 128} and effort {3, 5, 7}
+- [ ] 3. Measure NET on pinned quad (Kodak images required)
 - [ ] 4. Check primary gate: FRAME-MULTI median NET >= +5.0% over FRAME-SINGLE
 - [ ] 5. Check sub-gate R1a: payload reduction >= +3.0%
 - [ ] 6. Check sub-gate R1b: model overhead <= 0.02 bpp per sample
@@ -58,6 +58,7 @@
 - [ ] 9. Run failable self-check
 
 **Gate:** >= +5.0% NET improvement. **Fail:** cascade to Route 1.
+**Status:** R1 measurement harness implemented (probe-r1, self-check-r1 CLI commands + probe_sandbox.sh --r1/--self-check-r1 modes). Requires Kodak corpus for actual gate check.
 
 ### R2: MA-Tree Parameter Optimization
 
@@ -166,6 +167,22 @@
 - Created dated reference CSV (prism/benchmarks/results/2026-08-27-sandbox-r0.csv)
 - Self-check PASS on test image (1504 bytes, 62.67 bpp synthetic; real Kodak pending)
 - **R0 EXIT CONDITION MET: all VB rails green + spec addendum 22 committed + dated CSV**
+
+### 2026-08-27 (Builder): R1 measurement harness implementation
+
+- Added `r3_num_clusters` field to `EncodeOpts` (prism.h:41) wired through prism.cpp to MultiPassEncoder
+- Added `--num-clusters` flag to `enc` CLI command
+- Created `probe-r1` CLI command: sweeps K={16,32,64,128} x effort={3,5,7} on given images
+  - Outputs R1_SWEEP CSV rows per (K,effort,image) with single/multi bytes and delta%
+  - Outputs R1_SUMMARY per (K,effort) with median and total delta
+  - Outputs R1_GATE verdicts for primary (>=+5.0%), R1a (>=+3.0%), R1b (model overhead <= 0.02 bpp), R1c (worst regression <= 1.0%)
+  - Outputs R1_VERDICT with best K,effort and median delta
+- Created `self-check-r1` CLI command: byte-exact round-trip + model overhead measurement
+  - Parses container to extract r3_model_len, computes model_bpp per sample
+  - Reports R1_MODEL_OVERHEAD gate (PASS if model_bpp <= 0.02)
+  - Reports R1_TOTAL_DELTA for cross-reference
+- Added `--r1` and `--self-check-r1` modes to probe_sandbox.sh (after SHA256 pin check)
+- All 192 tests pass; synthetic test image verification: sweep works, gates report FAIL (expected on tiny image)
 
 ---
 

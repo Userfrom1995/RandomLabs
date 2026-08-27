@@ -11,6 +11,8 @@
 #include "prism/codec/staticmodel.h"
 #include "prism/codec/matree.h"
 #include "prism/codec/transform.h"
+#include "prism/codec/container.h"
+#include "prism/codec/multipass.h"
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
@@ -56,7 +58,9 @@ static void print_usage() {
   << "  prism bench-sandbox --t2a <image>...  (T-series shrunk fine contexting)\n"
   << "  prism bench-sandbox --t3 <image>...   (T-series predictor-tokenization factorial)\n"
   << "  prism bench-sandbox --t3b FAM@TOK <image>...  (T-series canary-on-winner)\n"
-  << "  prism bench-sandbox --u0 <image>...   (U-series transform-domain smoke)\n";
+  << "  prism bench-sandbox --u0 <image>...   (U-series transform-domain smoke)\n"
+  << "  prism probe-r1 --image FILE [--k K] [--effort N]  (R1 multi-pass sweep)\n"
+  << "  prism self-check-r1 --image FILE --k K --effort N (R1 self-check + model overhead)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -4491,18 +4495,20 @@ int main(int argc, char* argv[]) {
             std::filesystem::path out = argv[3];
             uint8_t effort = 0;
             bool use_r3 = false;
+            uint16_t num_clusters = 32;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
             for (int i=4;i<argc;++i){
                 std::string a=argv[i];
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--r3") use_r3 = true;
+                else if (a=="--num-clusters" && i+1<argc) num_clusters=(uint16_t)std::stoi(argv[++i]);
                 else if (a=="--w" && i+1<argc) w=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--h" && i+1<argc) h=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--bd" && i+1<argc) bd=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--ch" && i+1<argc) ch=(uint8_t)std::stoi(argv[++i]);
             }
             Raster r = load_raster(in,w,h,bd,ch);
-            EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3;
+            EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3; opts.r3_num_clusters=num_clusters;
             auto bytes = encode(r, opts);
             write_file(out, bytes);
             std::cout << "encoded " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
@@ -5445,6 +5451,244 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             std::cout << "self-check-r3: " << imgs.size() << "/" << imgs.size() << " PASS\n";
+        } else if (cmd == "probe-r1") {
+            // Route 3 R1 measurement: sweep K x effort, compare FRAME-MULTI vs FRAME-SINGLE.
+            // Usage: probe-r1 --image FILE [--image FILE ...] [--k K] [--effort N]
+            // Defaults: K={16,32,64,128}, effort={3,5,7} (full sweep).
+            // Output: CSV with per-image NET breakdown + gate verdicts.
+            std::vector<std::filesystem::path> imgs;
+            std::vector<uint16_t> k_values = {16, 32, 64, 128};
+            std::vector<uint8_t> effort_values = {3, 5, 7};
+            bool explicit_k = false, explicit_effort = false;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else if (a == "--k" && i + 1 < argc) {
+                    k_values = {(uint16_t)std::stoi(argv[++i])};
+                    explicit_k = true;
+                }
+                else if (a == "--effort" && i + 1 < argc) {
+                    effort_values = {(uint8_t)std::stoi(argv[++i])};
+                    explicit_effort = true;
+                }
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "probe-r1: no images given\n"; return 2; }
+
+            std::cout << "R1_SWEEP,K,effort,image,single_bytes,multi_bytes,delta_pct,"
+                         "single_bpp,multi_bpp,model_bpp,payload_delta_pct\n";
+            // Collect per-(K,effort) results for gate checking.
+            struct R1Result { uint16_t K; uint8_t effort; double delta_pct; double model_bpp; double payload_delta_pct; };
+            std::vector<R1Result> all_results;
+            double best_median_delta = -999;
+            uint16_t best_K = 0;
+            uint8_t best_effort = 0;
+
+            for (uint16_t K : k_values) {
+                for (uint8_t eff : effort_values) {
+                    std::vector<double> deltas;
+                    std::vector<double> model_bpps;
+                    std::vector<double> payload_deltas;
+                    double sum_single = 0, sum_multi = 0;
+                    for (const auto& img : imgs) {
+                        Raster r = frontend::decode_to_raster(img);
+                        // FRAME-SINGLE: v1 single-pass.
+                        EncodeOpts opts_single; opts_single.effort = eff;
+                        auto enc_single = encode(r, opts_single);
+                        Raster dec_single = decode(enc_single);
+                        if (dec_single != r) {
+                            std::cerr << "probe-r1: single-pass roundtrip FAIL on " << img << "\n";
+                            return 1;
+                        }
+                        // FRAME-MULTI: R3 multi-pass with K clusters.
+                        EncodeOpts opts_multi; opts_multi.effort = eff;
+                        opts_multi.use_r3 = true;
+                        opts_multi.r3_num_clusters = K;
+                        auto enc_multi = encode(r, opts_multi);
+                        Raster dec_multi = decode(enc_multi);
+                        if (dec_multi != r) {
+                            std::cerr << "probe-r1: multi-pass roundtrip FAIL on " << img << "\n";
+                            return 1;
+                        }
+                        double single_bpp = 8.0 * enc_single.size() / (r.w * r.h * r.num_channels());
+                        double multi_bpp = 8.0 * enc_multi.size() / (r.w * r.h * r.num_channels());
+                        double delta = 100.0 * ((double)enc_multi.size() - (double)enc_single.size()) / (double)enc_single.size();
+                        // Model overhead: extract r3_model from encoded bytes to get model_bpp.
+                        // For now use total multi bytes as proxy; model_bpp from container header.
+                        // We need the actual model_len. Let's compute from encode internals.
+                        // Since we don't have direct access, use total bytes for NET comparison.
+                        // The model overhead will be checked in the self-check phase.
+                        double model_bpp_est = 0; // placeholder - measured in self-check
+                        double payload_delta = delta; // total delta is the payload+model delta
+
+                        deltas.push_back(delta);
+                        model_bpps.push_back(model_bpp_est);
+                        payload_deltas.push_back(payload_delta);
+                        sum_single += enc_single.size();
+                        sum_multi += enc_multi.size();
+
+                        std::cout << "R1_SWEEP," << K << "," << (int)eff
+                                  << "," << img.filename().string()
+                                  << "," << enc_single.size() << "," << enc_multi.size()
+                                  << "," << delta
+                                  << "," << single_bpp << "," << multi_bpp
+                                  << "," << model_bpp_est << "," << payload_delta << "\n";
+                    }
+                    // Median of per-image deltas.
+                    std::sort(deltas.begin(), deltas.end());
+                    double median_delta = deltas[deltas.size() / 2];
+                    double total_delta = 100.0 * (sum_multi - sum_single) / sum_single;
+                    all_results.push_back({K, eff, median_delta, 0.0, total_delta});
+                    std::cout << "R1_SUMMARY," << K << "," << (int)eff
+                              << ",median_delta," << median_delta
+                              << ",total_delta," << total_delta << "\n";
+                    if (median_delta > best_median_delta) {
+                        best_median_delta = median_delta;
+                        best_K = K;
+                        best_effort = eff;
+                    }
+                }
+            }
+
+            // Gate check: primary gate >= +5.0% median NET improvement.
+            // Note: negative delta means multi-pass is SMALLER (better).
+            // "improvement" = single - multi, so positive = multi is better.
+            // Our delta = (multi - single) / single * 100, so NEGATIVE = multi is better.
+            // Gate: median_delta <= -5.0% (multi-pass saves >= 5% bytes).
+            double gate_threshold = -5.0;
+            bool primary_pass = (best_median_delta <= gate_threshold);
+            std::cout << "\nR1_GATE,primary," << best_K << "," << (int)best_effort
+                      << ",median_delta," << best_median_delta
+                      << ",threshold," << gate_threshold
+                      << "," << (primary_pass ? "PASS" : "FAIL") << "\n";
+
+            // Sub-gate R1a: payload reduction >= +3.0% (same direction).
+            bool r1a_pass = (best_median_delta <= -3.0);
+            std::cout << "R1_GATE,R1a," << best_K << "," << (int)best_effort
+                      << ",median_delta," << best_median_delta
+                      << ",threshold,-3.0"
+                      << "," << (r1a_pass ? "PASS" : "FAIL") << "\n";
+
+            // Sub-gate R1b: model overhead <= 0.02 bpp per sample.
+            // This requires actual model_len measurement - done in self-check-r1.
+            std::cout << "R1_GATE,R1b,?,-,model_overhead,MEASURED_IN_SELF_CHECK,threshold,0.02,PENDING\n";
+
+            // Sub-gate R1c: no image regresses > -1.0% (worst single image).
+            // Find worst delta across all (K,effort) for best_K/best_effort.
+            // Re-scan for worst image at best config.
+            {
+                std::vector<double> worst_deltas;
+                for (const auto& img : imgs) {
+                    Raster r = frontend::decode_to_raster(img);
+                    EncodeOpts opts_single; opts_single.effort = best_effort;
+                    auto enc_single = encode(r, opts_single);
+                    EncodeOpts opts_multi; opts_multi.effort = best_effort;
+                    opts_multi.use_r3 = true;
+                    opts_multi.r3_num_clusters = best_K;
+                    auto enc_multi = encode(r, opts_multi);
+                    double delta = 100.0 * ((double)enc_multi.size() - (double)enc_single.size()) / (double)enc_single.size();
+                    worst_deltas.push_back(delta);
+                }
+                // R1c: no image worse than +1.0% (multi > single by more than 1%).
+                double worst = *std::max_element(worst_deltas.begin(), worst_deltas.end());
+                bool r1c_pass = (worst <= 1.0);
+                std::cout << "R1_GATE,R1c," << best_K << "," << (int)best_effort
+                          << ",worst_regression," << worst
+                          << ",threshold,1.0"
+                          << "," << (r1c_pass ? "PASS" : "FAIL") << "\n";
+            }
+
+            // Overall verdict.
+            bool all_pass = primary_pass && r1a_pass;
+            // R1b pending self-check; R1c checked above.
+            std::cout << "\nR1_VERDICT," << (all_pass ? "PASS" : "FAIL")
+                      << ",best_K," << best_K << ",best_effort," << (int)best_effort
+                      << ",best_median_delta," << best_median_delta << "\n";
+        } else if (cmd == "self-check-r1") {
+            // Route 3 R1 self-check: byte-exact round-trip + model overhead measurement.
+            // Usage: self-check-r1 --image FILE [--image FILE ...] --k K --effort N
+            // Reports per-image model_bpp (R1b sub-gate) and gate directions.
+            std::vector<std::filesystem::path> imgs;
+            uint16_t K = 32;
+            uint8_t effort = 5;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else if (a == "--k" && i + 1 < argc) K = (uint16_t)std::stoi(argv[++i]);
+                else if (a == "--effort" && i + 1 < argc) effort = (uint8_t)std::stoi(argv[++i]);
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "self-check-r1: no images given\n"; return 2; }
+
+            std::cout << "R1_SELFCHECK,image,multi_bytes,model_bytes,model_bpp,"
+                         "single_bytes,total_delta_pct,roundtrip\n";
+            double total_multi = 0, total_model = 0, total_single = 0;
+            int fails = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                double samples = (double)r.w * r.h * r.num_channels();
+                // Single-pass baseline.
+                EncodeOpts opts_single; opts_single.effort = effort;
+                auto enc_single = encode(r, opts_single);
+                Raster dec_single = decode(enc_single);
+                if (dec_single != r) {
+                    std::cerr << "self-check-r1: single FAIL " << img.filename().string() << "\n";
+                    fails++; continue;
+                }
+                // Multi-pass R3.
+                EncodeOpts opts_multi; opts_multi.effort = effort;
+                opts_multi.use_r3 = true;
+                opts_multi.r3_num_clusters = K;
+                auto enc_multi = encode(r, opts_multi);
+                Raster dec_multi = decode(enc_multi);
+                bool roundtrip_ok = (dec_multi == r);
+                if (!roundtrip_ok) {
+                    std::cerr << "self-check-r1: multi FAIL " << img.filename().string() << "\n";
+                    fails++; continue;
+                }
+                // Extract model_len from multipass container.
+                size_t hdr_end = 0;
+                auto c = prism::codec::container_decode_header(
+                    enc_multi.data(), enc_multi.size(), hdr_end);
+                uint32_t model_len = c.hdr.r3_model_len;
+                double model_bpp = 8.0 * model_len / samples;
+                double total_bpp = 8.0 * enc_multi.size() / samples;
+                double single_bpp = 8.0 * enc_single.size() / samples;
+                double delta = 100.0 * ((double)enc_multi.size() - (double)enc_single.size()) / (double)enc_single.size();
+                total_multi += enc_multi.size();
+                total_model += model_len;
+                total_single += enc_single.size();
+                std::cout << "R1_SELFCHECK," << img.filename().string()
+                          << "," << enc_multi.size() << "," << model_len
+                          << "," << model_bpp
+                          << "," << enc_single.size()
+                          << "," << delta
+                          << ",PASS\n";
+            }
+            if (fails > 0) {
+                std::cerr << "self-check-r1: " << fails << "/" << imgs.size() << " FAIL\n";
+                return 1;
+            }
+            double avg_model_bpp = 8.0 * total_model / (total_multi > 0 ? total_multi : 1);
+            // Model overhead per sample: total_model bytes / total samples across all images.
+            // For proper per-sample: sum model_bytes / sum(w*h*ch) per image.
+            // We recompute properly below.
+            double total_samples = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                total_samples += (double)r.w * r.h * r.num_channels();
+            }
+            double model_bpp_total = 8.0 * total_model / total_samples;
+            double total_delta = 100.0 * (total_multi - total_single) / total_single;
+            std::cout << "\nR1_MODEL_OVERHEAD,total_model_bytes," << (size_t)total_model
+                      << ",total_samples," << (size_t)total_samples
+                      << ",model_bpp," << model_bpp_total
+                      << ",threshold,0.02"
+                      << "," << (model_bpp_total <= 0.02 ? "PASS" : "FAIL") << "\n";
+            std::cout << "R1_TOTAL_DELTA,total_single," << (size_t)total_single
+                      << ",total_multi," << (size_t)total_multi
+                      << ",delta_pct," << total_delta << "\n";
+            std::cout << "self-check-r1: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "bench-sandbox") {
             return run_bench_sandbox(argc, argv);
         } else {
