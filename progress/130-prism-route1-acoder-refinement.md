@@ -17,28 +17,28 @@
 
 ### R1-0: Harness Extension (BLOCKING)
 
-- [ ] 1. Create new header file: `r1_encoder.h`
-- [ ] 2. Create new source file: `r1_encoder.cpp`
-- [ ] 3. Add file to `CMakeLists.txt` under `prism_core`
-- [ ] 4. Implement `R1Encoder::analyze()`: full v1 features + entropy-based MA-tree
-- [ ] 5. Implement `R1Encoder::code()`: adaptive coding using ACoderV2
-- [ ] 6. Implement `R1Encoder::decode()`: recomputes leaf IDs from MA-tree
-- [ ] 7. Write unit tests for R1 encoder
-- [ ] 8. VB-R1-ADAPTIVE-ROUNDTRIP: encode -> decode reproduces source byte-exact
-- [ ] 9. VB-R1-MA-TREE-FIDELITY: transmitted MA-tree decodes correctly
-- [ ] 10. VB-R1-NET-AUDIT: NET = payload + model overhead on every row
-- [ ] 11. VB-R1-SELF-CHECK: proves both verdict directions on pinned quad
-- [ ] 12. Wire `R1Encoder` into `prism.cpp` encode/decode path
-- [ ] 13. Add `--r1-adaptive` flag to CLI command
-- [ ] 14. Add `probe-r1-adaptive` and `self-check-r1-adaptive` commands
+- [x] 1. Create new header file: `r1_encoder.h`
+- [x] 2. Create new source file: `r1_encoder.cpp`
+- [x] 3. Add file to `CMakeLists.txt` under `prism_core`
+- [x] 4. Implement `R1Encoder::analyze()`: full v1 features + entropy-based MA-tree
+- [x] 5. Implement `R1Encoder::code()`: adaptive coding using ACoderV2
+- [x] 6. Implement `R1Encoder::decode()`: recomputes leaf IDs from MA-tree
+- [x] 7. Write unit tests for R1 encoder
+- [x] 8. VB-R1-ADAPTIVE-ROUNDTRIP: encode -> decode reproduces source byte-exact
+- [x] 9. VB-R1-MA-TREE-FIDELITY: transmitted MA-tree decodes correctly
+- [x] 10. VB-R1-NET-AUDIT: NET = payload + model overhead on every row
+- [x] 11. VB-R1-SELF-CHECK: proves both verdict directions on pinned quad
+- [x] 12. Wire `R1Encoder` into `prism.cpp` encode/decode path
+- [x] 13. Add `--r1-adaptive` flag to CLI command
+- [x] 14. Add `probe-r1-adaptive` and `self-check-r1-adaptive` commands
 - [ ] 15. Update `probe_sandbox.sh` with R1-adaptive phases
-- [ ] 16. Run self-check on pinned quad
+- [x] 16. Run self-check on pinned quad (24/24 PASS)
 - [ ] 17. Commit spec addendum 23 (ALL pinned constants)
 - [ ] 18. Commit dated reference CSV
 
 **Exit condition:** all VB rails green + spec addendum 23 committed + dated CSV.
 
-**R1-0 STATUS: PENDING** (2026-08-27)
+**R1-0 STATUS: IN-PROGRESS** (2026-08-27 - roundtrip fix: MED predictor + bd_max clamping)
 
 ### R1-1: Adaptive vs Adaptive Baseline (measures multi-pass benefit)
 
