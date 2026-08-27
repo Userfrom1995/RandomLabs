@@ -60,7 +60,9 @@ static void print_usage() {
   << "  prism bench-sandbox --t3b FAM@TOK <image>...  (T-series canary-on-winner)\n"
   << "  prism bench-sandbox --u0 <image>...   (U-series transform-domain smoke)\n"
   << "  prism probe-r1 --image FILE [--k K] [--effort N]  (R1 multi-pass sweep)\n"
-  << "  prism self-check-r1 --image FILE --k K --effort N (R1 self-check + model overhead)\n";
+  << "  prism self-check-r1 --image FILE --k K --effort N (R1 self-check + model overhead)\n"
+  << "  prism probe-r1-adaptive --image FILE [--k K] [--effort N]  (R1 adaptive sweep)\n"
+  << "  prism self-check-r1-adaptive --image FILE --k K --effort N (R1 adaptive self-check)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -4495,12 +4497,14 @@ int main(int argc, char* argv[]) {
             std::filesystem::path out = argv[3];
             uint8_t effort = 0;
             bool use_r3 = false;
+            bool use_r1_adaptive = false;
             uint16_t num_clusters = 32;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
             for (int i=4;i<argc;++i){
                 std::string a=argv[i];
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--r3") use_r3 = true;
+                else if (a=="--r1-adaptive") use_r1_adaptive = true;
                 else if (a=="--num-clusters" && i+1<argc) num_clusters=(uint16_t)std::stoi(argv[++i]);
                 else if (a=="--w" && i+1<argc) w=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--h" && i+1<argc) h=(uint32_t)std::stoul(argv[++i]);
@@ -4509,11 +4513,12 @@ int main(int argc, char* argv[]) {
             }
             Raster r = load_raster(in,w,h,bd,ch);
             EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3; opts.r3_num_clusters=num_clusters;
+            opts.use_r1_adaptive=use_r1_adaptive; opts.r1_num_clusters=num_clusters;
             auto bytes = encode(r, opts);
             write_file(out, bytes);
             std::cout << "encoded " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
                       << " bd=" << (int)bd << " effort=" << (int)effort
-                      << (use_r3 ? " r3" : "")
+                      << (use_r1_adaptive ? " r1-adaptive" : (use_r3 ? " r3" : ""))
                       << " -> " << bytes.size() << " bytes ("
                       << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
         } else if (cmd == "dec") {
@@ -5689,6 +5694,161 @@ int main(int argc, char* argv[]) {
                       << ",total_multi," << (size_t)total_multi
                       << ",delta_pct," << total_delta << "\n";
             std::cout << "self-check-r1: " << imgs.size() << "/" << imgs.size() << " PASS\n";
+        } else if (cmd == "probe-r1-adaptive") {
+            // Route 1 adaptive measurement: sweep K x effort, compare R1-ADAPTIVE vs SINGLE.
+            // Usage: probe-r1-adaptive --image FILE [--image FILE ...] [--k K] [--effort N]
+            std::vector<std::filesystem::path> imgs;
+            std::vector<uint16_t> k_values = {16, 32, 64, 128};
+            std::vector<uint8_t> effort_values = {3, 5, 7};
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else if (a == "--k" && i + 1 < argc) k_values = {(uint16_t)std::stoi(argv[++i])};
+                else if (a == "--effort" && i + 1 < argc) effort_values = {(uint8_t)std::stoi(argv[++i])};
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "probe-r1-adaptive: no images given\n"; return 2; }
+
+            std::cout << "R1A_SWEEP,K,effort,image,single_bytes,r1a_bytes,delta_pct,"
+                         "single_bpp,r1a_bpp,model_bpp\n";
+            struct R1AResult { uint16_t K; uint8_t effort; double median_delta; double total_delta; };
+            std::vector<R1AResult> all_results;
+            double best_median_delta = 1e9;
+            uint16_t best_K = 0;
+            uint8_t best_effort = 0;
+
+            for (uint16_t K : k_values) {
+                for (uint8_t eff : effort_values) {
+                    std::vector<double> deltas;
+                    double sum_single = 0, sum_r1a = 0;
+                    for (const auto& img : imgs) {
+                        Raster r = frontend::decode_to_raster(img);
+                        EncodeOpts opts_single; opts_single.effort = eff;
+                        auto enc_single = encode(r, opts_single);
+                        Raster dec_single = decode(enc_single);
+                        if (dec_single != r) {
+                            std::cerr << "probe-r1-adaptive: single FAIL on " << img << "\n";
+                            return 1;
+                        }
+                        EncodeOpts opts_r1a; opts_r1a.effort = eff;
+                        opts_r1a.use_r1_adaptive = true;
+                        opts_r1a.r1_num_clusters = K;
+                        auto enc_r1a = encode(r, opts_r1a);
+                        Raster dec_r1a = decode(enc_r1a);
+                        if (dec_r1a != r) {
+                            std::cerr << "probe-r1-adaptive: r1a FAIL on " << img << "\n";
+                            return 1;
+                        }
+                        double delta = 100.0 * ((double)enc_r1a.size() - (double)enc_single.size()) / (double)enc_single.size();
+                        deltas.push_back(delta);
+                        sum_single += enc_single.size();
+                        sum_r1a += enc_r1a.size();
+                        double single_bpp = 8.0 * enc_single.size() / (r.w * r.h * r.num_channels());
+                        double r1a_bpp = 8.0 * enc_r1a.size() / (r.w * r.h * r.num_channels());
+                        std::cout << "R1A_SWEEP," << K << "," << (int)eff
+                                  << "," << img.filename().string()
+                                  << "," << enc_single.size() << "," << enc_r1a.size()
+                                  << "," << delta << "," << single_bpp << "," << r1a_bpp
+                                  << ",0\n";
+                    }
+                    std::sort(deltas.begin(), deltas.end());
+                    double median_delta = deltas[deltas.size() / 2];
+                    double total_delta = 100.0 * (sum_r1a - sum_single) / sum_single;
+                    all_results.push_back({K, eff, median_delta, total_delta});
+                    std::cout << "R1A_SUMMARY," << K << "," << (int)eff
+                              << ",median_delta," << median_delta
+                              << ",total_delta," << total_delta << "\n";
+                    if (median_delta < best_median_delta) {
+                        best_median_delta = median_delta;
+                        best_K = K;
+                        best_effort = eff;
+                    }
+                }
+            }
+            bool primary_pass = (best_median_delta <= -5.0);
+            std::cout << "\nR1A_GATE,primary," << best_K << "," << (int)best_effort
+                      << ",median_delta," << best_median_delta
+                      << ",threshold,-5.0"
+                      << "," << (primary_pass ? "PASS" : "FAIL") << "\n";
+            bool all_pass = primary_pass;
+            std::cout << "\nR1A_VERDICT," << (all_pass ? "PASS" : "FAIL")
+                      << ",best_K," << best_K << ",best_effort," << (int)best_effort
+                      << ",best_median_delta," << best_median_delta << "\n";
+        } else if (cmd == "self-check-r1-adaptive") {
+            // Route 1 adaptive self-check: byte-exact round-trip + model overhead.
+            // Usage: self-check-r1-adaptive --image FILE [--image FILE ...] --k K --effort N
+            std::vector<std::filesystem::path> imgs;
+            uint16_t K = 32;
+            uint8_t effort = 5;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else if (a == "--k" && i + 1 < argc) K = (uint16_t)std::stoi(argv[++i]);
+                else if (a == "--effort" && i + 1 < argc) effort = (uint8_t)std::stoi(argv[++i]);
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "self-check-r1-adaptive: no images given\n"; return 2; }
+
+            std::cout << "R1A_SELFCHECK,image,r1a_bytes,model_bytes,model_bpp,"
+                         "single_bytes,total_delta_pct,roundtrip\n";
+            double total_r1a = 0, total_model = 0, total_single = 0;
+            int fails = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                double samples = (double)r.w * r.h * r.num_channels();
+                EncodeOpts opts_single; opts_single.effort = effort;
+                auto enc_single = encode(r, opts_single);
+                Raster dec_single = decode(enc_single);
+                if (dec_single != r) {
+                    std::cerr << "self-check-r1-adaptive: single FAIL " << img.filename().string() << "\n";
+                    fails++; continue;
+                }
+                EncodeOpts opts_r1a; opts_r1a.effort = effort;
+                opts_r1a.use_r1_adaptive = true;
+                opts_r1a.r1_num_clusters = K;
+                auto enc_r1a = encode(r, opts_r1a);
+                Raster dec_r1a = decode(enc_r1a);
+                bool roundtrip_ok = (dec_r1a == r);
+                if (!roundtrip_ok) {
+                    std::cerr << "self-check-r1-adaptive: r1a FAIL " << img.filename().string() << "\n";
+                    fails++; continue;
+                }
+                size_t hdr_end = 0;
+                auto c = prism::codec::container_decode_header(
+                    enc_r1a.data(), enc_r1a.size(), hdr_end);
+                uint32_t model_len = c.hdr.r3_model_len;
+                double model_bpp = 8.0 * model_len / samples;
+                double delta = 100.0 * ((double)enc_r1a.size() - (double)enc_single.size()) / (double)enc_single.size();
+                total_r1a += enc_r1a.size();
+                total_model += model_len;
+                total_single += enc_single.size();
+                std::cout << "R1A_SELFCHECK," << img.filename().string()
+                          << "," << enc_r1a.size() << "," << model_len
+                          << "," << model_bpp
+                          << "," << enc_single.size()
+                          << "," << delta
+                          << ",PASS\n";
+            }
+            if (fails > 0) {
+                std::cerr << "self-check-r1-adaptive: " << fails << "/" << imgs.size() << " FAIL\n";
+                return 1;
+            }
+            double total_samples = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                total_samples += (double)r.w * r.h * r.num_channels();
+            }
+            double model_bpp_total = 8.0 * total_model / total_samples;
+            double total_delta = 100.0 * (total_r1a - total_single) / total_single;
+            std::cout << "\nR1A_MODEL_OVERHEAD,total_model_bytes," << (size_t)total_model
+                      << ",total_samples," << (size_t)total_samples
+                      << ",model_bpp," << model_bpp_total
+                      << ",threshold,0.005"
+                      << "," << (model_bpp_total <= 0.005 ? "PASS" : "FAIL") << "\n";
+            std::cout << "R1A_TOTAL_DELTA,total_single," << (size_t)total_single
+                      << ",total_r1a," << (size_t)total_r1a
+                      << ",delta_pct," << total_delta << "\n";
+            std::cout << "self-check-r1-adaptive: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "bench-sandbox") {
             return run_bench_sandbox(argc, argv);
         } else {
