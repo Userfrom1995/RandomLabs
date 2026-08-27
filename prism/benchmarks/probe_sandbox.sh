@@ -58,6 +58,8 @@ set -euo pipefail
 #   probe_sandbox.sh --self-check [--build-dir DIR]
 #   probe_sandbox.sh --r0 --image /path/img.ppm [--build-dir DIR]
 #   probe_sandbox.sh --self-check-r0 --image /path/img.ppm [--build-dir DIR]
+#   probe_sandbox.sh --r1-adaptive --image /path/img.ppm [--build-dir DIR]
+#   probe_sandbox.sh --self-check-r1-adaptive --image /path/img.ppm [--build-dir DIR]
 
 IMAGES=()
 BUILD_DIR=""
@@ -85,6 +87,8 @@ SELF_CHECK_R0=0
 MODE_R0=0
 MODE_R1=0
 SELF_CHECK_R1=0
+MODE_R1A=0
+SELF_CHECK_R1A=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -114,6 +118,8 @@ while [[ $# -gt 0 ]]; do
     --r0) MODE_R0=1; shift;;
     --self-check-r1) SELF_CHECK_R1=1; shift;;
     --r1) MODE_R1=1; shift;;
+    --self-check-r1-adaptive) SELF_CHECK_R1A=1; shift;;
+    --r1-adaptive) MODE_R1A=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -2920,6 +2926,45 @@ if [[ "$MODE_R1" == "1" || "$SELF_CHECK_R1" == "1" ]]; then
     echo "== R1 probe (multi-pass vs single-pass sweep: K x effort) =="
     "$R1_BIN" probe-r1 "${IMAGES[@]}" | tee "$R1_CSV"
     echo "R1 results written to $R1_CSV"
+  fi
+  exit 0
+fi
+
+# ----- R-series R1-adaptive: Multi-pass adaptive vs single-pass adaptive (attacks B1) -----
+if [[ "$MODE_R1A" == "1" || "$SELF_CHECK_R1A" == "1" ]]; then
+  R1A_BIN=""
+  for cand in "$ROOT/build/prism" "$ROOT/../build/prism" "$BUILD_DIR/prism" "$(dirname "$0")/../build/prism"; do
+    if [[ -x "$cand" ]]; then R1A_BIN="$cand"; break; fi
+  done
+  if [[ -z "$R1A_BIN" ]]; then
+    echo "R1-adaptive: prism binary not found (build first)"; exit 1
+  fi
+  if [[ ${#IMAGES[@]} -eq 0 ]]; then
+    echo "R1-adaptive: --image required"; exit 1
+  fi
+  R1A_STAMP=$(date +%Y-%m-%d)
+  R1A_CSV="${ROOT}/benchmarks/results/${R1A_STAMP}-sandbox-r1-adaptive.csv"
+  mkdir -p "$(dirname "$R1A_CSV")"
+
+  if [[ "$SELF_CHECK_R1A" == "1" ]]; then
+    echo "== R1-adaptive self-check (byte-exact round-trip + model overhead) =="
+    R1A_CHECK_ARGS=()
+    for img in "${IMAGES[@]}"; do R1A_CHECK_ARGS+=(--image "$img"); done
+    for K_VAL in 16 32 64 128; do
+      for EFF_VAL in 3 5 7; do
+        echo "--- K=$K_VAL effort=$EFF_VAL ---"
+        if ! "$R1A_BIN" self-check-r1-adaptive "${R1A_CHECK_ARGS[@]}" --k "$K_VAL" --effort "$EFF_VAL"; then
+          echo "R1-adaptive self-check FAIL at K=$K_VAL effort=$EFF_VAL"; exit 1
+        fi
+      done
+    done
+    echo "R1-adaptive self-check PASS (all K x effort)"
+  fi
+
+  if [[ "$MODE_R1A" == "1" ]]; then
+    echo "== R1-adaptive probe (multi-pass adaptive vs single-pass adaptive sweep: K x effort) =="
+    "$R1A_BIN" probe-r1-adaptive "${IMAGES[@]}" | tee "$R1A_CSV"
+    echo "R1-adaptive results written to $R1A_CSV"
   fi
   exit 0
 fi
