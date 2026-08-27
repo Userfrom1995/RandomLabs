@@ -224,7 +224,7 @@ std::vector<int32_t> acoder_decode_plane_v2(const std::vector<uint8_t>& bytes,
                                             uint32_t w, uint32_t h,
                                             int num_contexts = 0);
 
-// Route 2 hybrid-uint plane helpers (flag bit6 streams). Same context
+// Route 2 hybrid-uint plane helpers (flag bit1 alias LZP). Same context
 // computation as v2 (residual-DIFF 343); binarization swaps ZFF for hybrid-uint.
 std::vector<uint8_t> acoder_encode_plane_hybrid(const std::vector<int32_t>& residuals,
                                                 uint32_t w, uint32_t h,

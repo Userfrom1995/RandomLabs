@@ -42,7 +42,7 @@ All constants below are pinned for the entire R2-series. No measurement may proc
 |---|---|---|
 | `R2_CONTAINER_VERSION` | 1 | Backward-compatible extension via flag bit |
 | `R2_MAGIC` | 'P','R','S','M' | Unchanged |
-| `R2_HYBRID_FLAG` | 0x40 (bit6) | Container carries Route 2 hybrid-uint data |
+| `R2_HYBRID_FLAG` | 0x02 (bit1, alias LZP, exclusive) | Container carries Route 2 hybrid-uint data |
 | `R2_MODEL_LOCATION` | In-header (same as v1) | No separate model section; contexts are implicit |
 
 ## 5. Binary Tree Token Coding

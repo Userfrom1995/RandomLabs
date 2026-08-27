@@ -260,8 +260,8 @@ Extend the existing production encoder (prism.cpp / acoder.cpp) with:
 2. New `ACoderHybrid` model set: token, sign, escq contexts (separate
    from v1's zero/sign/q/rem model sets)
 3. T_ESC parameterization (compile-time or runtime switch)
-4. Container flag for hybrid-uint mode (bit6 of flags byte, reserved in
-   v1; hybrid streams flagged for decoder selection)
+4. Container flag for hybrid-uint mode (bit1 of flags byte, aliasing LZP_FLAG;
+   mutually exclusive with LZP/CM; hybrid streams flagged for decoder selection)
 5. New VB rails:
    - VB-R2-HYBRID-ROUNDTRIP: encode -> decode reproduces source byte-exact
    - VB-R2-TOKEN-FIDELITY: token distributions match expectations
@@ -521,7 +521,7 @@ flag). The Architect's first deliverables:
    tree structure, raw bits handling, context set definition, container
    flag)
 2. R2-0 harness blueprint with failable self-check list
-3. Wire format v2 addendum (container flag bit6 for hybrid-uint mode)
+3. Wire format v2 addendum (container flag bit1 for hybrid-uint mode, alias LZP)
 
 NO measurement slice may precede addendum 24. The binding end gates
 remain M2 AND M3 in both units on a fresh corpus measurement against real

@@ -27,8 +27,8 @@ std::vector<uint8_t> container_encode(const Raster& /*raster*/, const Container&
         for (int8_t wq : c.hdr.xband_weights)
             out.push_back((uint8_t)wq);
     }
-    // Route 2: T_ESC value stored iff R2_HYBRID_FLAG set.
-    if (c.hdr.flags & R2_HYBRID_FLAG) {
+    // Route 2: T_ESC value stored iff R2_HYBRID_FLAG + ACODER_V2_FLAG.
+    if ((c.hdr.flags & R2_HYBRID_FLAG) && (c.hdr.flags & ACODER_V2_FLAG)) {
         out.push_back(c.hdr.r2_t_esc);
     }
     // model_len placeholder
@@ -127,9 +127,9 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
         if (pos + need > len) throw DecodeError("header truncated (xband weights)");
         for (size_t i = 0; i < need; ++i) xw.push_back((int8_t)data[pos++]);
     }
-    // Route 2: T_ESC value stored iff R2_HYBRID_FLAG set.
+    // Route 2: T_ESC value stored iff R2_HYBRID_FLAG + ACODER_V2_FLAG (disambiguates from legacy LZP).
     uint8_t r2_t_esc = 8;
-    if (flags & R2_HYBRID_FLAG) {
+    if ((flags & R2_HYBRID_FLAG) && (flags & ACODER_V2_FLAG)) {
         if (pos + 1 > len) throw DecodeError("header truncated (r2_t_esc)");
         r2_t_esc = data[pos++];
         if (r2_t_esc != 4 && r2_t_esc != 8 && r2_t_esc != 16)

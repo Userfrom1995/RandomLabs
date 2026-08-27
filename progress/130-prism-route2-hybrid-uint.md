@@ -22,8 +22,8 @@
 - [x] 2. Implement token tree path helpers in `acoder.cpp` (encode_token_tree / decode_token_tree)
 - [x] 3. Implement `encode_residual_hybrid` / `decode_residual_hybrid` in `acoder.cpp`
 - [x] 4. Implement `acoder_encode_plane_hybrid` / `acoder_decode_plane_hybrid` in `acoder.cpp`
-- [x] 5. Wire hybrid path into `prism.cpp` encode/decode (flag bit6 dispatch)
-- [x] 6. Add container flag bit6 handling in `container.cpp`
+- [x] 5. Wire hybrid path into `prism.cpp` encode/decode (flag bit1 alias LZP dispatch)
+- [x] 6. Add container flag bit1 (alias LZP) handling in `container.cpp`
 - [x] 7. Add `--r2-hybrid` CLI flag and probe/self-check commands in `main.cpp`
 - [x] 8. Add VB-R2 rails to `probe_sandbox.sh` (ROUNDTRIP, TOKEN-FIDELITY, NET-AUDIT, MODEL-OVERHEAD)
 - [x] 9. Add unit tests for hybrid-uint in `test_acoder_hybrid.cpp`
@@ -95,11 +95,11 @@
 
 ### 2026-08-27 (Builder): R2-0 prism/container wiring (steps 5-6)
 
-- Added R2_HYBRID_FLAG (0x40) to container.h, mutually exclusive with XBAND via MULTIPASS discriminator
+- Added R2_HYBRID_FLAG (0x02, alias LZP bit1) to container.h, mutually exclusive with LZP/CM
 - Added use_r2_hybrid and r2_t_esc options to EncodeOpts
 - Wired encode path in prism.cpp: hybrid route between R1 adaptive and standard paths
-- Wired decode path in prism.cpp: hybrid dispatch via useHybrid flag (bit6 + no squeeze + MULTIPASS_FLAG)
-- Updated flag validation to handle bit6 shared XBAND/hybrid semantics
+- Wired decode path in prism.cpp: hybrid dispatch via useHybrid flag (bit1 alias + ACODER_V2 guard)
+- Updated flag validation to enforce hybrid requires ACODER+V2, exclusive with MATREE/XBAND/MULTIPASS/CM
 - All 193 existing tests pass
 
 ### 2026-08-27 (Builder): R2-0 CLI, container T_ESC, tests, self-check (steps 7,9,10)
