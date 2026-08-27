@@ -33,6 +33,9 @@ struct ContainerHeader {
     // in channel order of planes with squeeze_levels > 0. Present iff bit6.
     std::vector<int8_t> xband_weights;
     uint32_t model_len = 0;
+    // Route 3: multipass model blob (present iff MULTIPASS_FLAG set)
+    uint32_t r3_model_len = 0;
+    std::vector<uint8_t> r3_model_blob;
 };
 
 // Container flags (issue #130 C1 names bit3, C2 names bit4, C4 names bit5,
@@ -42,6 +45,7 @@ constexpr uint8_t ACODER_V2_FLAG = 0x08;  // backend v2 binarization + models
 constexpr uint8_t MATREE_FLAT_FLAG = 0x10; // MA-tree on level-0 planes
 constexpr uint8_t SQUEEZE_LIFT_FLAG = 0x20; // squeezing uses true CDC lifting
 constexpr uint8_t XBAND_FLAG = 0x40;      // cross-band LL-gradient weights present
+constexpr uint8_t MULTIPASS_FLAG = 0x80;  // Route 3 multi-pass ANS coding (bit7)
 
 struct Container {
     ContainerHeader hdr;

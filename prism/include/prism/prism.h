@@ -34,6 +34,10 @@ struct EncodeOpts {
     // benchmarks/tests; production keeps it clear so trials decide.
     bool force_color = false;
     uint8_t forced_color_id = 0;
+    // Route 3: when true, use multi-pass ANS coding instead of single-pass
+    // adaptive coder. Container carries MULTIPASS_FLAG and a separate
+    // r3_model blob (MA-tree + histograms + cluster IDs).
+    bool use_r3 = false;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.

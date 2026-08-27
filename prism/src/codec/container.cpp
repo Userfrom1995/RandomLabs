@@ -70,6 +70,13 @@ std::vector<uint8_t> container_encode(const Raster& /*raster*/, const Container&
 
     out.insert(out.end(), model_blob.begin(), model_blob.end());
 
+    // Route 3: multipass model blob (MA-tree + histograms + cluster IDs)
+    // stored between standard model and band payloads iff MULTIPASS_FLAG set.
+    if (c.hdr.flags & MULTIPASS_FLAG) {
+        write_u32_le_vec(out, c.hdr.r3_model_len);
+        out.insert(out.end(), c.hdr.r3_model_blob.begin(), c.hdr.r3_model_blob.end());
+    }
+
     // Payload: per plane, per band in post-order (for M0 one band per plane)
     for (auto& bp : c.band_payloads) {
         write_u32_le_vec(out, (uint32_t)bp.size());
@@ -160,6 +167,20 @@ Container container_decode_header(const uint8_t* data, size_t len, size_t& heade
     c.per_leaf_pred = per_leaf;
     // header_end after model blob
     header_end = pos + model_len;
+    pos += model_len;
+
+    // Route 3: multipass model blob stored between standard model and payloads.
+    if (flags & MULTIPASS_FLAG) {
+        if (pos + 4 > len) throw DecodeError("header truncated (r3_model_len)");
+        c.hdr.r3_model_len = read_u32_le_bytes(data + pos);
+        pos += 4;
+        if (pos + c.hdr.r3_model_len > len)
+            throw DecodeError("r3 model truncated");
+        c.hdr.r3_model_blob.assign(data + pos, data + pos + c.hdr.r3_model_len);
+        pos += c.hdr.r3_model_len;
+        header_end = pos;
+    }
+
     // Payload will be parsed by caller
     return c;
 }

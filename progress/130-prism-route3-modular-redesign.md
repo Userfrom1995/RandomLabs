@@ -34,8 +34,8 @@
 - [x] 13. VB-ANS-FIDELITY: encode -> decode -> exact round-trip
 - [x] 14. VB-NET-AUDIT: NET = payload + model overhead on every row
 - [x] 15. VB-SELF-CHECK: full byte-exact round-trip with escape tokens, sign bits, MA-tree cluster IDs
-- [ ] 16. Wire `MultiPassEncoder` into `prism.cpp` encode/decode path
-- [ ] 17. Add `--r0` through `--r5` commands to `main.cpp`
+- [x] 16. Wire `MultiPassEncoder` into `prism.cpp` encode/decode path
+- [x] 17. Add `--r0` through `--r5` commands to `main.cpp`
 - [ ] 18. Update `probe_sandbox.sh` with R-series phases
 - [ ] 19. Run self-check on pinned quad
 - [ ] 20. Commit spec addendum 22 (ALL pinned constants)
@@ -136,12 +136,24 @@
 - All 189 tests pass (152 existing + 33 original + 12 new R3 tests minus 8 removed placeholder tests + 12 new = 189)
 
 ### Remaining R0 work:
-- Wire into prism.cpp encode/decode path
-- CLI --r0 through --r5 commands
 - probe_sandbox.sh R-series phases
 - VB-SELF-CHECK on pinned quad
 - Spec addendum 22 commit
 - Dated reference CSV
+
+### 2026-08-27 (Builder): R0 prism.cpp wiring + CLI commands
+
+- Added MULTIPASS_FLAG (bit7) to container.h
+- Added r3_model_len/r3_model_blob to ContainerHeader
+- Added use_r3 flag to EncodeOpts
+- Wired MultiPassEncoder into prism.cpp encode() path: when use_r3=true, computes residuals for all planes, runs analyze()+code(), stores single combined payload + r3_model blob in container
+- Wired MultiPassEncoder into prism.cpp decode() path: detects MULTIPASS_FLAG, reads single payload + r3_model blob, decodes via MultiPassEncoder::decode(), reconstructs planes
+- Added --r3 flag to `enc` CLI command
+- Added `probe-r3` CLI command: compare multi-pass vs single-pass NET per image
+- Added `self-check-r3` CLI command: byte-exact round-trip verification
+- Added 3 new end-to-end roundtrip tests (MultipassSmall, MultipassSingleChannel, MultipassLargeRandom)
+- All 192 tests pass (189 existing + 3 new roundtrip tests)
+- CLI verified: enc --r3 / dec roundtrip OK, probe-r3 output correct, self-check-r3 PASS
 
 ---
 
