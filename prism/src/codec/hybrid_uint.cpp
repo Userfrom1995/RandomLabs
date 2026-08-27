@@ -27,11 +27,9 @@ uint8_t HybridUintProfile::compute_alphabet(uint8_t T_ESC, int32_t max_residual)
     if (max_residual <= 0) return T_ESC + 1;
     uint32_t u = (uint32_t)(max_residual < 0 ? -(int64_t)max_residual : (int64_t)max_residual);
     if (u < (uint32_t)T_ESC) return T_ESC + 1;
-    uint32_t m = u - (uint32_t)T_ESC + 1;
-    int bits = 32 - __builtin_clz(m);
-    // alphabet = T_ESC + 1 (direct tokens) + bits (escape quotient unary)
-    // Actually the alphabet for the histogram is just T_ESC + 1 for the token symbol.
-    // The escape quotient and raw bits are separate coding events.
+    // R0: fixed alphabet T_ESC+1 (9). The escape quotient and raw bits
+    // are separate bypass coding events, not histogram symbols.
+    // Dynamic alphabet widening deferred to R1 per addendum 22.2.
     return (uint8_t)(T_ESC + 1);
 }
 

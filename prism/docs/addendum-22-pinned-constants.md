@@ -18,9 +18,9 @@ addendum numbered sequentially.
 | `MA_MAX_DEPTH` | 10 | Same as Prism v1; depth > 10 overfits |
 | `MA_MIN_SAMPLES_PER_LEAF` | 4096 | Ensures histograms are statistically reliable for 12-bit normalization |
 | `MA_MAX_LEAVES` | 256 | Upper bound on cluster count |
-| `MA_FEATURE_QG` | enabled | Quantized gradient magnitude |
-| `MA_FEATURE_BAND_CLASS` | enabled | Always 0 (single-resolution) in R-series |
-| `MA_FEATURE_ACTIVITY` | enabled | 4-level local activity |
+| `MA_FEATURE_QG` | disabled (R0 stub) | Will be populated from residuals when predictors integrate (R1+) |
+| `MA_FEATURE_BAND_CLASS` | disabled (R0 stub) | Always 0 (single-resolution) in R-series |
+| `MA_FEATURE_ACTIVITY` | disabled (R0 stub) | Will be populated from residuals when predictors integrate (R1+) |
 | `MA_FEATURE_POSITION` | enabled | Normalized (x,y) coordinates (0..255) |
 | `MA_SPLIT_CRITERION` | variance reduction | Entropy-based greedy splitting |
 
@@ -29,7 +29,7 @@ addendum numbered sequentially.
 | Constant | Value | Rationale |
 |---|---|---|
 | `HIST_ALPHABET_ZFF` | 34 | Zero-flag-first: zero flag, sign, unary quotient, MSB remainder |
-| `HIST_ALPHABET_HYB` | computed | T_ESC + ceil(log2(max_residual)) + 1 (varies per image) |
+| `HIST_ALPHABET_HYB` | T_ESC+1 (9) fixed for R0 | Escape quotient/rawbits are separate bypass channels; dynamic alphabet deferred to R1 |
 | `HIST_SMOOTH_ALPHA` | 1.0 | Pseudo-count weight |
 | `HIST_SMOOTH_R` | 15.0/16.0 | Geometric decay toward pooled prior |
 | `HIST_NORMALIZE_BITS` | 12 | Sum = 4096 for ANS coding |
@@ -39,9 +39,9 @@ addendum numbered sequentially.
 
 | Constant | Value | Rationale |
 |---|---|---|
-| `ANS_NUM_STATES` | 16 | Interleaved rANS (same as Prism v1) |
+| `ANS_NUM_STATES` | 1 | Single-state rANS for R0 harness (interleave deferred to R1) |
 | `ANS_PRECISION` | 12 | Matches histogram normalization |
-| `ANS_LIFO` | yes | Interleaved rANS is LIFO by construction |
+| `ANS_LIFO` | yes | rANS is LIFO by construction |
 | `ANS_STATIC_PROBS` | yes | No epsilon-adaptation in R-series |
 
 ## 4. Hybrid-Uint Parameters
@@ -67,7 +67,7 @@ addendum numbered sequentially.
 | `PRISM_CONTAINER_VERSION` | 1 | Backward-compatible extension via MULTIPASS_FLAG |
 | `PRISM_MAGIC` | 'P','R','S','M' | Unchanged |
 | `MULTIPASS_FLAG` | 0x80 (bit7) | Container carries R3 multi-pass ANS data |
-| `R3_MODEL_LOCATION` | after standard model, before payloads | Length-prefixed blob: MA-tree + histograms + cluster IDs |
+| `R3_MODEL_LOCATION` | after standard model, before payloads | Length-prefixed blob: MA-tree + histograms (cluster IDs reconstructed on decode) |
 
 ## 7. R-Series Gate Thresholds
 
