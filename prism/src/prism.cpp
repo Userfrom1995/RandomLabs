@@ -727,7 +727,7 @@ Raster decode(const uint8_t* data, size_t len) {
         auto residuals = mpe.decode(
             payload.data(), payload.size(),
             c.hdr.r3_model_blob.data(), c.hdr.r3_model_blob.size(),
-            num_samples);
+            num_samples, w, h * nc);
         if (residuals.size() != num_samples)
             throw DecodeError("multipass: residual count mismatch");
 
