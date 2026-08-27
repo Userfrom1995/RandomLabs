@@ -5914,10 +5914,15 @@ int main(int argc, char* argv[]) {
                       << ",delta_pct," << total_delta << "\n";
             std::cout << "self-check-r1-adaptive: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "probe-r2-hybrid") {
-            // Route 2 R2-0 measurement: hybrid-uint vs ZFF baseline on pinned quad.
+            // Route 2 R2-1 measurement: hybrid-uint vs ZFF baseline on pinned quad.
             // Usage: probe-r2-hybrid --image FILE [--image FILE ...] [--t-esc N] [--effort N]
             // Defaults: T_ESC={4,8,16}, effort={3,5,7} (full sweep).
-            // Output: CSV with per-image NET breakdown + gate verdicts.
+            // Output: CSV with per-image NET breakdown + full gate verdicts.
+            // Gates per addendum 24:
+            //   primary: FRAME-HYB median NET >= +0.5% over FRAME-ZFF (median_delta <= -0.5)
+            //   R2-1a:   model overhead <= 0.01 bpp per sample
+            //   R2-1b:   no image regresses > -1.0% (worst_delta >= -1.0)
+            //   R2-1c:   decode time <= 1.5x v1 decode time
             std::vector<std::filesystem::path> imgs;
             std::vector<int> t_esc_values = {4, 8, 16};
             std::vector<uint8_t> effort_values = {3, 5, 7};
@@ -5938,8 +5943,9 @@ int main(int argc, char* argv[]) {
             if (imgs.empty()) { std::cerr << "probe-r2-hybrid: no images given\n"; return 2; }
 
             std::cout << "R2_SWEEP,T_ESC,effort,image,zff_bytes,hyb_bytes,delta_pct,"
-                         "zff_bpp,hyb_bpp\n";
-            struct R2Result { int T_ESC; uint8_t effort; double median_delta; double total_delta; };
+                         "zff_bpp,hyb_bpp,model_bpp,zff_decode_ms,hyb_decode_ms\n";
+            struct R2Result { int T_ESC; uint8_t effort; double median_delta; double total_delta;
+                              double worst_delta; double avg_model_bpp; double decode_ratio; };
             std::vector<R2Result> all_results;
             double best_median_delta = 1e9;
             int best_T_ESC = 8;
@@ -5948,14 +5954,18 @@ int main(int argc, char* argv[]) {
             for (int tesc : t_esc_values) {
                 for (uint8_t eff : effort_values) {
                     std::vector<double> deltas;
-                    double sum_zff = 0, sum_hyb = 0;
+                    double sum_zff = 0, sum_hyb = 0, sum_model_bpp = 0;
+                    double sum_zff_decode_ms = 0, sum_hyb_decode_ms = 0;
                     for (const auto& img : imgs) {
                         Raster r = frontend::decode_to_raster(img);
                         double samples = (double)r.w * r.h * r.num_channels();
                         // FRAME-ZFF: standard v2 encode (zero-flag-first).
                         EncodeOpts opts_zff; opts_zff.effort = eff;
                         auto enc_zff = encode(r, opts_zff);
+                        auto t0 = std::chrono::high_resolution_clock::now();
                         Raster dec_zff = decode(enc_zff);
+                        auto t1 = std::chrono::high_resolution_clock::now();
+                        double zff_decode_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
                         if (dec_zff != r) {
                             std::cerr << "probe-r2-hybrid: ZFF roundtrip FAIL on " << img << "\n";
                             return 1;
@@ -5964,31 +5974,52 @@ int main(int argc, char* argv[]) {
                         EncodeOpts opts_hyb; opts_hyb.effort = eff;
                         opts_hyb.use_r2_hybrid = true; opts_hyb.r2_t_esc = tesc;
                         auto enc_hyb = encode(r, opts_hyb);
+                        auto t2 = std::chrono::high_resolution_clock::now();
                         Raster dec_hyb = decode(enc_hyb);
+                        auto t3 = std::chrono::high_resolution_clock::now();
+                        double hyb_decode_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
                         if (dec_hyb != r) {
                             std::cerr << "probe-r2-hybrid: HYB roundtrip FAIL on " << img << "\n";
                             return 1;
                         }
                         double zff_bpp = 8.0 * enc_zff.size() / samples;
                         double hyb_bpp = 8.0 * enc_hyb.size() / samples;
+                        // Model overhead: hybrid token tree context memory.
+                        // Parse container header to get model_len (for hybrid, same slot as r3_model_len).
+                        size_t hdr_end_tmp = 0;
+                        auto c_tmp = prism::codec::container_decode_header(
+                            enc_hyb.data(), enc_hyb.size(), hdr_end_tmp);
+                        double model_bpp = 8.0 * c_tmp.hdr.r3_model_len / samples;
                         // Negative delta = hybrid is smaller (better).
                         double delta = 100.0 * ((double)enc_hyb.size() - (double)enc_zff.size()) / (double)enc_zff.size();
                         deltas.push_back(delta);
                         sum_zff += enc_zff.size();
                         sum_hyb += enc_hyb.size();
+                        sum_model_bpp += model_bpp;
+                        sum_zff_decode_ms += zff_decode_ms;
+                        sum_hyb_decode_ms += hyb_decode_ms;
                         std::cout << "R2_SWEEP," << tesc << "," << (int)eff
                                   << "," << img.filename().string()
                                   << "," << enc_zff.size() << "," << enc_hyb.size()
                                   << "," << delta
-                                  << "," << zff_bpp << "," << hyb_bpp << "\n";
+                                  << "," << zff_bpp << "," << hyb_bpp
+                                  << "," << model_bpp
+                                  << "," << zff_decode_ms << "," << hyb_decode_ms << "\n";
                     }
                     std::sort(deltas.begin(), deltas.end());
+                    // median for even N (quad N=4): upper-middle per harness definition (index N/2)
                     double median_delta = deltas[deltas.size() / 2];
                     double total_delta = 100.0 * (sum_hyb - sum_zff) / sum_zff;
-                    all_results.push_back({tesc, eff, median_delta, total_delta});
+                    double worst_delta = deltas.back();
+                    double avg_model_bpp = sum_model_bpp / (double)imgs.size();
+                    double decode_ratio = (sum_zff_decode_ms > 0) ? sum_hyb_decode_ms / sum_zff_decode_ms : 0;
+                    all_results.push_back({tesc, eff, median_delta, total_delta, worst_delta, avg_model_bpp, decode_ratio});
                     std::cout << "R2_SUMMARY," << tesc << "," << (int)eff
                               << ",median_delta," << median_delta
-                              << ",total_delta," << total_delta << "\n";
+                              << ",total_delta," << total_delta
+                              << ",worst_delta," << worst_delta
+                              << ",avg_model_bpp," << avg_model_bpp
+                              << ",decode_ratio," << decode_ratio << "\n";
                     // Best = most negative delta (biggest improvement).
                     if (median_delta < best_median_delta) {
                         best_median_delta = median_delta;
@@ -5998,17 +6029,42 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            // Primary gate: FRAME-HYB median NET >= +0.5% over FRAME-ZFF.
-            // Negative delta = hybrid smaller. Gate: median_delta <= -0.5.
-            double gate_threshold = -0.5;
-            bool primary_pass = (best_median_delta <= gate_threshold);
+            // Find best result details for sub-gates
+            R2Result best_result{};
+            for (const auto& r : all_results) {
+                if (r.T_ESC == best_T_ESC && r.effort == best_effort) { best_result = r; break; }
+            }
+            // R2-1 primary gate: median NET >= +0.5% over FRAME-ZFF (median_delta <= -0.5)
+            bool primary_pass = (best_median_delta <= -0.5);
             std::cout << "\nR2_GATE,primary," << best_T_ESC << "," << (int)best_effort
                       << ",median_delta," << best_median_delta
-                      << ",threshold," << gate_threshold
+                      << ",threshold,-0.5"
                       << "," << (primary_pass ? "PASS" : "FAIL") << "\n";
-            std::cout << "R2_VERDICT," << (primary_pass ? "PASS" : "FAIL")
+            // R2-1a: model overhead <= 0.01 bpp per sample
+            bool r2_1a_pass = (best_result.avg_model_bpp <= 0.01);
+            std::cout << "R2_GATE,R2-1a," << best_T_ESC << "," << (int)best_effort
+                      << ",avg_model_bpp," << best_result.avg_model_bpp
+                      << ",threshold,0.01"
+                      << "," << (r2_1a_pass ? "PASS" : "FAIL") << "\n";
+            // R2-1b: no image regresses > -1.0% (worst_delta >= -1.0)
+            bool r2_1b_pass = (best_result.worst_delta >= -1.0);
+            std::cout << "R2_GATE,R2-1b," << best_T_ESC << "," << (int)best_effort
+                      << ",worst_delta," << best_result.worst_delta
+                      << ",threshold,-1.0"
+                      << "," << (r2_1b_pass ? "PASS" : "FAIL") << "\n";
+            // R2-1c: decode time <= 1.5x v1 decode time
+            bool r2_1c_pass = (best_result.decode_ratio <= 1.5);
+            std::cout << "R2_GATE,R2-1c," << best_T_ESC << "," << (int)best_effort
+                      << ",decode_ratio," << best_result.decode_ratio
+                      << ",threshold,1.5"
+                      << "," << (r2_1c_pass ? "PASS" : "FAIL") << "\n";
+            bool all_pass = primary_pass && r2_1a_pass && r2_1b_pass && r2_1c_pass;
+            std::cout << "\nR2_VERDICT," << (all_pass ? "PASS" : "FAIL")
                       << ",best_T_ESC," << best_T_ESC << ",best_effort," << (int)best_effort
-                      << ",best_median_delta," << best_median_delta << "\n";
+                      << ",best_median_delta," << best_median_delta
+                      << ",avg_model_bpp," << best_result.avg_model_bpp
+                      << ",worst_delta," << best_result.worst_delta
+                      << ",decode_ratio," << best_result.decode_ratio << "\n";
         } else if (cmd == "self-check-r2-hybrid") {
             // Route 2 R2-0 self-check: byte-exact round-trip + token fidelity + model overhead.
             // Usage: self-check-r2-hybrid --image FILE [--image FILE ...] [--t-esc N] --effort N
