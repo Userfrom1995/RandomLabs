@@ -36,8 +36,8 @@ The R1-0 phase extends the existing Route 1 harness with adaptive coding backend
 
 | File | Change |
 |---|---|
-| `include/prism/codec/multipass.h` | Add `R1Encoder` class that wraps ACoderV2 |
-| `src/codec/multipass.cpp` | Implement R1 encoder pass 1 (analysis) and pass 2 (adaptive coding) |
+| `include/prism/codec/multipass.h` | No change (R3 stays isolated) |
+| `src/codec/multipass.cpp` | No change |
 | `src/prism.cpp` | Add `--r1-adaptive` flag to enable Route 1 refinement |
 | `src/cli/main.cpp` | Add `probe-r1-adaptive` and `self-check-r1-adaptive` commands |
 | `benchmarks/probe_sandbox.sh` | Add R1-adaptive measurement phases |
@@ -156,18 +156,7 @@ std::vector<uint8_t> payload = acoder_encode_plane_leaves_v2(
 
 #### 2.1.5 Model Blob Format (MA-tree only)
 
-Route 1 model blob contains only the MA-tree (no histograms):
-
-```
-MA-tree blob:
-  [num_internal_nodes]  u16 LE
-  For each internal node (pre-order):
-    [prop_id]           u8  (0=QG, 1=BandClass, 2=Activity, 3=PositionY, 4=PositionX)
-    [threshold]         u16 LE
-  [num_leaves]          u16 LE
-  For each leaf (pre-order):
-    [leaf_id]           u16 LE
-```
+Route 1 model blob contains only the MA-tree (no histograms). R1 reuses MATreeR3::serialize() verbatim (max_depth u8 + num_leaves u16 LE + pre-order nodes: is_leaf u8 + leaf_id u16 LE or prop_id u8 + threshold u16 LE). No new wire format.
 
 **Estimated overhead:** For K=50 clusters: ~250 bytes (50 internal nodes x 3 bytes + 50 leaves x 2 bytes) = 0.00063 bpp per sample. This is SMALLER than Route 3's model blob (which included histograms).
 
