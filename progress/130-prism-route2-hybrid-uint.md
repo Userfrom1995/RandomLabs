@@ -22,8 +22,8 @@
 - [x] 2. Implement token tree path helpers in `acoder.cpp` (encode_token_tree / decode_token_tree)
 - [x] 3. Implement `encode_residual_hybrid` / `decode_residual_hybrid` in `acoder.cpp`
 - [x] 4. Implement `acoder_encode_plane_hybrid` / `acoder_decode_plane_hybrid` in `acoder.cpp`
-- [ ] 5. Wire hybrid path into `prism.cpp` encode/decode (flag bit6 dispatch)
-- [ ] 6. Add container flag bit6 handling in `container.cpp`
+- [x] 5. Wire hybrid path into `prism.cpp` encode/decode (flag bit6 dispatch)
+- [x] 6. Add container flag bit6 handling in `container.cpp`
 - [ ] 7. Add `--r2-hybrid` CLI flag and probe/self-check commands in `main.cpp`
 - [ ] 8. Add VB-R2 rails to `probe_sandbox.sh` (ROUNDTRIP, TOKEN-FIDELITY, NET-AUDIT, MODEL-OVERHEAD)
 - [ ] 9. Add unit tests for hybrid-uint in `test_acoder.cpp`
@@ -92,6 +92,15 @@
 - Implemented encode_residual_hybrid / decode_residual_hybrid: zigzag fold + token tree + sign + escape quotient + raw bypass
 - Implemented acoder_encode_plane_hybrid / acoder_decode_plane_hybrid: residual-DIFF context 343
 - All 193 existing tests pass; library compiles cleanly
+
+### 2026-08-27 (Builder): R2-0 prism/container wiring (steps 5-6)
+
+- Added R2_HYBRID_FLAG (0x40) to container.h, mutually exclusive with XBAND via MULTIPASS discriminator
+- Added use_r2_hybrid and r2_t_esc options to EncodeOpts
+- Wired encode path in prism.cpp: hybrid route between R1 adaptive and standard paths
+- Wired decode path in prism.cpp: hybrid dispatch via useHybrid flag (bit6 + no squeeze + MULTIPASS_FLAG)
+- Updated flag validation to handle bit6 shared XBAND/hybrid semantics
+- All 193 existing tests pass
 
 ---
 

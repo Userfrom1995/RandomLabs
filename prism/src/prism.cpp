@@ -488,6 +488,36 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         return container_encode(transformed, c);
     }
 
+    // Route 2 hybrid-uint: single-pass hybrid-uint tokenization under ACoderV2.
+    // Container carries R2_HYBRID_FLAG (bit6) + ACODER_FLAG + ACODER_V2_FLAG.
+    // Pure tokenization swap: same 343 contexts, same dual-rate adaptation.
+    if (opts.use_r2_hybrid) {
+        Container c;
+        c.hdr.width = raster.w;
+        c.hdr.height = raster.h;
+        c.hdr.bit_depth = bd;
+        c.hdr.num_channels = nc;
+        c.hdr.color_transform_id = ar.color_transform_id;
+        uint8_t flags = ACODER_FLAG | ACODER_V2_FLAG | R2_HYBRID_FLAG;
+        c.hdr.flags = flags;
+        c.hdr.effort = opts.effort;
+        c.hdr.cfl_scales = ar.cfl_scales;
+        c.hdr.squeeze_levels.assign(nc, 0);
+        c.trees = ar.trees;
+        c.predictor_mode = ar.predictor_mode;
+        c.global_pred_id = ar.global_pred_id;
+        c.per_leaf_pred = ar.per_leaf_pred;
+        c.band_payloads.clear();
+        for (size_t pi = 0; pi < transformed.planes.size(); ++pi) {
+            const auto& plane = transformed.planes[pi];
+            auto residuals = compute_residuals(plane, transformed.w, transformed.h, pred);
+            auto bytes = acoder_encode_plane_hybrid(residuals, transformed.w, transformed.h,
+                                                    opts.r2_t_esc);
+            c.band_payloads.push_back(std::move(bytes));
+        }
+        return container_encode(transformed, c);
+    }
+
     // Route 1 adaptive: multi-pass ACoderV2 coding with full v1 features
     // and entropy-based MA-tree. Container carries MULTIPASS_FLAG and a
     // model blob with MA-tree only (no histograms).
@@ -836,13 +866,15 @@ Raster decode(const uint8_t* data, size_t len) {
         throw DecodeError("invalid flag combination: v2 without adaptive coder");
     if ((c.hdr.flags & MATREE_FLAT_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: tree-on-flat without adaptive coder");
-    // C5: cross-band weights need the adaptive coder and at least one
-    // squeezing plane, and exactly three int8 per squeezing plane.
+    // Route 2 hybrid: bit6 (same position as XBAND) with no squeeze = hybrid-uint mode.
+    // Hybrid streams carry MULTIPASS_FLAG; plain XBAND requires squeeze levels > 0.
     bool anySqueezeHdr = false;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) anySqueezeHdr = true;
     size_t numSqueezePlanes = 0;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) ++numSqueezePlanes;
-    if (c.hdr.flags & XBAND_FLAG) {
+    bool useHybrid = (c.hdr.flags & R2_HYBRID_FLAG) && !anySqueezeHdr
+                     && (c.hdr.flags & MULTIPASS_FLAG);
+    if ((c.hdr.flags & XBAND_FLAG) && !useHybrid) {
         if (!(c.hdr.flags & ACODER_FLAG))
             throw DecodeError("invalid flag combination: xband without adaptive coder");
         if (!anySqueezeHdr)
@@ -886,7 +918,8 @@ Raster decode(const uint8_t* data, size_t len) {
             } else {
             size_t n = (size_t)w * h;
             std::vector<int32_t> residuals;
-            if (useV2) residuals = acoder_decode_plane_v2(b, n, w, h, 343);
+            if (useHybrid) residuals = acoder_decode_plane_hybrid(b, n, w, h);
+            else if (useV2) residuals = acoder_decode_plane_v2(b, n, w, h, 343);
             else if (use_acoder) residuals = acoder_decode_plane(b, n, w, h, 343);
             else residuals = rans_decode_plane(b, n, 1);
             if (residuals.size() != n) throw DecodeError("residual count mismatch");

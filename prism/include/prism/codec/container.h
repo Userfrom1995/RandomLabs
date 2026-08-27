@@ -45,6 +45,7 @@ constexpr uint8_t ACODER_V2_FLAG = 0x08;  // backend v2 binarization + models
 constexpr uint8_t MATREE_FLAT_FLAG = 0x10; // MA-tree on level-0 planes
 constexpr uint8_t SQUEEZE_LIFT_FLAG = 0x20; // squeezing uses true CDC lifting
 constexpr uint8_t XBAND_FLAG = 0x40;      // cross-band LL-gradient weights present
+constexpr uint8_t R2_HYBRID_FLAG = 0x40;  // Route 2 hybrid-uint (mutually exclusive with XBAND: squeeze streams use XBAND, multipass hybrid streams use this)
 constexpr uint8_t MULTIPASS_FLAG = 0x80;  // Route 3 multi-pass ANS or Route 1 adaptive ACoderV2 (bit7)
 // R1 adaptive is distinguished by model_blob[0] high bit (nc | 0x80); no second flags byte.
 // ContainerHeader::r3_model_len / r3_model_blob holds the multipass model blob for both routes.
