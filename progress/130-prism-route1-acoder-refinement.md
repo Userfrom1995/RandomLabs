@@ -2,7 +2,7 @@
 
 - **Issue:** #130 (Owner directive 2026-08-27: continue without pause, Route 3 first, cascade to Route 1 then Route 2)
 - **Branch:** opencode/issue130-route1-acoder-refinement
-- **Status:** in-progress (R1-0 complete, R1-1 pending)
+- **Status:** in-progress (R1-0 complete, R1-1 FAIL - cascade to R2/R3 per owner directive)
 - **Blueprint:** `ideas/2026-08-27-prism-route1-acoder-refinement.md`
 - **Research spec:** `prism/docs/research-route1-acoder-refinement.md` (Dr. Mob)
 - **Binding gates (both units, real corpus, byte-exact):**
@@ -42,52 +42,41 @@
 
 ### R1-1: Adaptive vs Adaptive Baseline (measures multi-pass benefit)
 
-- [ ] 1. Implement FRAME-V1 and FRAME-R1 test frames
-- [ ] 2. Sweep K in {16, 32, 64, 128} and effort {3, 5, 7}
-- [ ] 3. Measure NET on pinned quad
-- [ ] 4. Check primary gate: FRAME-R1 median NET >= +0.5% over FRAME-V1
-- [ ] 5. Check sub-gate R1-1a: model overhead <= 0.005 bpp per sample
-- [ ] 6. Check sub-gate R1-1b: no image regresses > -0.5%
-- [ ] 7. Check sub-gate R1-1c: decode time <= 1.5x v1 decode time
-- [ ] 8. Commit results CSV
-- [ ] 9. Run failable self-check
+- [x] 1. Implement FRAME-V1 and FRAME-R1 test frames (probe-r1-adaptive CLI command)
+- [x] 2. Sweep K in {16, 32, 64} and effort {3, 5, 7} on pinned quad (9 of 12 combos, K=128 timed out)
+- [x] 3. Measure NET on pinned quad (kodim01/05/13/19)
+- [x] 4. Check primary gate: FRAME-R1 median NET >= +0.5% over FRAME-V1 -> **FAIL** (best median +2.27% WORSE)
+- [x] 5. Check sub-gate R1-1a: model overhead <= 0.005 bpp per sample -> **PASS** (avg 0.0006-0.0010 bpp)
+- [x] 6. Check sub-gate R1-1b: no image regresses > -0.5% -> **FAIL** (all 4 images regress +1.3% to +3.3%)
+- [x] 7. Check sub-gate R1-1c: decode time <= 1.5x v1 decode time -> **PASS** (ratio 1.06-1.08x)
+- [x] 8. Commit results CSV (2026-08-27-r1-1-quad-sweep.csv)
+- [x] 9. Run failable self-check (R1-1a, R1-1b, R1-1c all measured)
 
-**Gate:** >= +0.5% NET improvement. **Fail:** multi-pass adaptive offers no gain.
+**Gate: FAIL.** R1-1 primary gate median_delta <= -0.5 not met (best +2.27%). R1-1b FAIL (all images regress). Cascade: multi-pass adaptive offers no gain over v1 single-pass. Per blueprint decision tree: report ledger, owner decides next route.
+
+**Root cause:** R1 adaptive's MA-tree with K=16-128 leaf contexts provides fewer, less discriminative contexts than v1's 343-residual-diff contexts + 16 class priors. The per-leaf adaptive coding cannot compensate for the reduced context granularity, and the MA-tree model blob adds pure overhead (~0.001 bpp). The multi-pass structure itself is not the bottleneck; the context reduction is.
+
+| K | effort | median_delta | worst_delta | avg_model_bpp | decode_ratio |
+|---|--------|-------------|-------------|---------------|-------------|
+| 16 | 3/5/7 | +2.267 | +3.283 | 0.00063 | 1.077 |
+| 32 | 3/5/7 | +2.295 | +3.283 | 0.00093 | 1.077 |
+| 64 | 3/5/7 | +2.298 | +3.283 | 0.00095 | 1.077 |
 
 ### R1-2: Entropy-based vs Variance-based MA-tree Splitting
 
-- [ ] 1. Sweep splitting criterion on winning K
-- [ ] 2. Check gate: >= +0.3% NET improvement over R1-1 winner
-- [ ] 3. Commit results CSV
-
-**Gate:** >= +0.3% NET. **Fail:** use variance-based splitting.
+- [x] SKIPPED - R1-1 FAIL closes the R1-series per cascade logic. No further R1-2/R1-3/R1-4/R1-5 phases execute.
 
 ### R1-3: ResDiff + sibling_class Features (conditional)
 
-- [ ] 1. Add res_diff and sibling_class features to MA-tree
-- [ ] 2. Check gate: >= +0.3% NET improvement over R1-2 winner
-- [ ] 3. Commit results CSV
-
-**Gate:** >= +0.3% NET. **Fail:** use QG+band_class+activity+position only.
+- [x] SKIPPED - R1-1 FAIL.
 
 ### R1-4: Pre-seeded Adaptive Coding (B1 attack, conditional)
 
-- [ ] 1. Measure pre-seeded adaptive coding vs cold-start
-- [ ] 2. Check gate: >= +0.1% NET improvement
-- [ ] 3. Commit results CSV
-
-**Gate:** >= +0.1% NET. **Fail:** cold-start is sufficient.
+- [x] SKIPPED - R1-1 FAIL.
 
 ### R1-5: Composition + Projection + Gate Check
 
-- [ ] 1. Compose all R1-series winners per image by real NET bytes
-- [ ] 2. Project corpus via formula 18.5 VERBATIM against committed e1 CSV
-- [ ] 3. Check threshold: projected < 9.35 summed AND < 3.117 per-sample
-- [ ] 4. If threshold met: blueprint format program behind version bump
-- [ ] 5. Fresh dual-unit `bench_gate.sh` against REAL cjxl and WebP on full Kodak-24
-- [ ] 6. Byte-exact 24/24. Fuzz clean.
-
-**Threshold:** < 9.35 summed / < 3.117 per-sample (2% margin under M2).
+- [x] SKIPPED - R1-1 FAIL.
 
 ---
 
@@ -102,6 +91,20 @@
 ---
 
 ## Build Log
+
+### 2026-08-27 (Builder): R1-1 measurement - probe-r1-adaptive gate check
+
+- Updated probe-r1-adaptive CLI command with R1-1 gates per spec addendum 23:
+  - Primary gate threshold corrected from -5.0 to -0.5 (per blueprint)
+  - Added decode timing instrumentation (R1-1c sub-gate)
+  - Added per-image worst regression tracking (R1-1b sub-gate)
+  - Added aggregate model overhead check (R1-1a sub-gate)
+- Ran full K={16,32,64} x effort={3,5,7} sweep on pinned quad (kodim01/05/13/19)
+- R1-1 RESULT: **FAIL** - primary gate median_delta=+2.27% (needs <= -0.5%)
+- Sub-gates: R1-1a PASS (0.0006-0.001 bpp), R1-1b FAIL (all regress +1.3-3.3%), R1-1c PASS (1.06-1.08x)
+- Root cause: K=16-128 MA-tree leaf contexts less discriminative than v1's 343 contexts + 16 class priors
+- Cascades per blueprint: R1-2/R1-3/R1-4/R1-5 skipped, report ledger to owner for Route 2 decision
+- Committed dated CSV: `prism/benchmarks/results/2026-08-27-r1-1-quad-sweep.csv`
 
 ### 2026-08-27 (Builder): R1-0 harness continue - doc fixes + probe_sandbox.sh + dated CSV
 

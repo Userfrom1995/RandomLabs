@@ -25,6 +25,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <cmath>
+#include <chrono>
 #include <map>
 #include <memory>
 
@@ -5696,6 +5697,11 @@ int main(int argc, char* argv[]) {
             std::cout << "self-check-r1: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "probe-r1-adaptive") {
             // Route 1 adaptive measurement: sweep K x effort, compare R1-ADAPTIVE vs SINGLE.
+            // R1-1 gates per spec addendum 23:
+            //   primary: FRAME-R1 median NET >= +0.5% over FRAME-V1 (median_delta <= -0.5)
+            //   R1-1a:   model overhead <= 0.005 bpp per sample (aggregate across quad)
+            //   R1-1b:   no image regresses > -0.5% (worst delta >= -0.5)
+            //   R1-1c:   decode time <= 1.5x v1 decode time
             // Usage: probe-r1-adaptive --image FILE [--image FILE ...] [--k K] [--effort N]
             std::vector<std::filesystem::path> imgs;
             std::vector<uint16_t> k_values = {16, 32, 64, 128};
@@ -5710,8 +5716,9 @@ int main(int argc, char* argv[]) {
             if (imgs.empty()) { std::cerr << "probe-r1-adaptive: no images given\n"; return 2; }
 
             std::cout << "R1A_SWEEP,K,effort,image,single_bytes,r1a_bytes,delta_pct,"
-                         "single_bpp,r1a_bpp,model_bpp\n";
-            struct R1AResult { uint16_t K; uint8_t effort; double median_delta; double total_delta; };
+                         "single_bpp,r1a_bpp,model_bpp,single_decode_ms,r1a_decode_ms\n";
+            struct R1AResult { uint16_t K; uint8_t effort; double median_delta; double total_delta;
+                               double worst_delta; double avg_model_bpp; double decode_ratio; };
             std::vector<R1AResult> all_results;
             double best_median_delta = 1e9;
             uint16_t best_K = 0;
@@ -5720,12 +5727,16 @@ int main(int argc, char* argv[]) {
             for (uint16_t K : k_values) {
                 for (uint8_t eff : effort_values) {
                     std::vector<double> deltas;
-                    double sum_single = 0, sum_r1a = 0;
+                    double sum_single = 0, sum_r1a = 0, sum_model_bpp = 0;
+                    double sum_single_decode_ms = 0, sum_r1a_decode_ms = 0;
                     for (const auto& img : imgs) {
                         Raster r = frontend::decode_to_raster(img);
                         EncodeOpts opts_single; opts_single.effort = eff;
                         auto enc_single = encode(r, opts_single);
+                        auto t0 = std::chrono::high_resolution_clock::now();
                         Raster dec_single = decode(enc_single);
+                        auto t1 = std::chrono::high_resolution_clock::now();
+                        double single_decode_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
                         if (dec_single != r) {
                             std::cerr << "probe-r1-adaptive: single FAIL on " << img << "\n";
                             return 1;
@@ -5734,7 +5745,10 @@ int main(int argc, char* argv[]) {
                         opts_r1a.use_r1_adaptive = true;
                         opts_r1a.r1_num_clusters = K;
                         auto enc_r1a = encode(r, opts_r1a);
+                        auto t2 = std::chrono::high_resolution_clock::now();
                         Raster dec_r1a = decode(enc_r1a);
+                        auto t3 = std::chrono::high_resolution_clock::now();
+                        double r1a_decode_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
                         if (dec_r1a != r) {
                             std::cerr << "probe-r1-adaptive: r1a FAIL on " << img << "\n";
                             return 1;
@@ -5743,25 +5757,36 @@ int main(int argc, char* argv[]) {
                         deltas.push_back(delta);
                         sum_single += enc_single.size();
                         sum_r1a += enc_r1a.size();
-                        double single_bpp = 8.0 * enc_single.size() / (r.w * r.h * r.num_channels());
-                        double r1a_bpp = 8.0 * enc_r1a.size() / (r.w * r.h * r.num_channels());
+                        double samples = (double)r.w * r.h * r.num_channels();
+                        double single_bpp = 8.0 * enc_single.size() / samples;
+                        double r1a_bpp = 8.0 * enc_r1a.size() / samples;
                         size_t hdr_end_tmp = 0;
                         auto c_tmp = prism::codec::container_decode_header(
                             enc_r1a.data(), enc_r1a.size(), hdr_end_tmp);
-                        double model_bpp = 8.0 * c_tmp.hdr.r3_model_len / (r.w * r.h * r.num_channels());
+                        double model_bpp = 8.0 * c_tmp.hdr.r3_model_len / samples;
+                        sum_model_bpp += model_bpp;
+                        sum_single_decode_ms += single_decode_ms;
+                        sum_r1a_decode_ms += r1a_decode_ms;
                         std::cout << "R1A_SWEEP," << K << "," << (int)eff
                                   << "," << img.filename().string()
                                   << "," << enc_single.size() << "," << enc_r1a.size()
                                   << "," << delta << "," << single_bpp << "," << r1a_bpp
-                                  << "," << model_bpp << "\n";
+                                  << "," << model_bpp
+                                  << "," << single_decode_ms << "," << r1a_decode_ms << "\n";
                     }
                     std::sort(deltas.begin(), deltas.end());
                     double median_delta = deltas[deltas.size() / 2];
                     double total_delta = 100.0 * (sum_r1a - sum_single) / sum_single;
-                    all_results.push_back({K, eff, median_delta, total_delta});
+                    double worst_delta = deltas.back();
+                    double avg_model_bpp = sum_model_bpp / (double)imgs.size();
+                    double decode_ratio = (sum_single_decode_ms > 0) ? sum_r1a_decode_ms / sum_single_decode_ms : 0;
+                    all_results.push_back({K, eff, median_delta, total_delta, worst_delta, avg_model_bpp, decode_ratio});
                     std::cout << "R1A_SUMMARY," << K << "," << (int)eff
                               << ",median_delta," << median_delta
-                              << ",total_delta," << total_delta << "\n";
+                              << ",total_delta," << total_delta
+                              << ",worst_delta," << worst_delta
+                              << ",avg_model_bpp," << avg_model_bpp
+                              << ",decode_ratio," << decode_ratio << "\n";
                     if (median_delta < best_median_delta) {
                         best_median_delta = median_delta;
                         best_K = K;
@@ -5769,15 +5794,42 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
-            bool primary_pass = (best_median_delta <= -5.0);
+            // Find best result details for sub-gates
+            R1AResult best_result{};
+            for (const auto& r : all_results) {
+                if (r.K == best_K && r.effort == best_effort) { best_result = r; break; }
+            }
+            // R1-1 primary gate: median NET >= +0.5% over FRAME-V1 (median_delta <= -0.5)
+            bool primary_pass = (best_median_delta <= -0.5);
             std::cout << "\nR1A_GATE,primary," << best_K << "," << (int)best_effort
                       << ",median_delta," << best_median_delta
-                      << ",threshold,-5.0"
+                      << ",threshold,-0.5"
                       << "," << (primary_pass ? "PASS" : "FAIL") << "\n";
-            bool all_pass = primary_pass;
+            // R1-1a: model overhead <= 0.005 bpp per sample
+            bool r1_1a_pass = (best_result.avg_model_bpp <= 0.005);
+            std::cout << "R1A_GATE,R1-1a," << best_K << "," << (int)best_effort
+                      << ",avg_model_bpp," << best_result.avg_model_bpp
+                      << ",threshold,0.005"
+                      << "," << (r1_1a_pass ? "PASS" : "FAIL") << "\n";
+            // R1-1b: no image regresses > -0.5% (worst_delta >= -0.5)
+            bool r1_1b_pass = (best_result.worst_delta >= -0.5);
+            std::cout << "R1A_GATE,R1-1b," << best_K << "," << (int)best_effort
+                      << ",worst_delta," << best_result.worst_delta
+                      << ",threshold,-0.5"
+                      << "," << (r1_1b_pass ? "PASS" : "FAIL") << "\n";
+            // R1-1c: decode time <= 1.5x v1 decode time
+            bool r1_1c_pass = (best_result.decode_ratio <= 1.5);
+            std::cout << "R1A_GATE,R1-1c," << best_K << "," << (int)best_effort
+                      << ",decode_ratio," << best_result.decode_ratio
+                      << ",threshold,1.5"
+                      << "," << (r1_1c_pass ? "PASS" : "FAIL") << "\n";
+            bool all_pass = primary_pass && r1_1a_pass && r1_1b_pass && r1_1c_pass;
             std::cout << "\nR1A_VERDICT," << (all_pass ? "PASS" : "FAIL")
                       << ",best_K," << best_K << ",best_effort," << (int)best_effort
-                      << ",best_median_delta," << best_median_delta << "\n";
+                      << ",best_median_delta," << best_median_delta
+                      << ",avg_model_bpp," << best_result.avg_model_bpp
+                      << ",worst_delta," << best_result.worst_delta
+                      << ",decode_ratio," << best_result.decode_ratio << "\n";
         } else if (cmd == "self-check-r1-adaptive") {
             // Route 1 adaptive self-check: byte-exact round-trip + model overhead.
             // Usage: self-check-r1-adaptive --image FILE [--image FILE ...] --k K --effort N
