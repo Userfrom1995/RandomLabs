@@ -5745,11 +5745,15 @@ int main(int argc, char* argv[]) {
                         sum_r1a += enc_r1a.size();
                         double single_bpp = 8.0 * enc_single.size() / (r.w * r.h * r.num_channels());
                         double r1a_bpp = 8.0 * enc_r1a.size() / (r.w * r.h * r.num_channels());
+                        size_t hdr_end_tmp = 0;
+                        auto c_tmp = prism::codec::container_decode_header(
+                            enc_r1a.data(), enc_r1a.size(), hdr_end_tmp);
+                        double model_bpp = 8.0 * c_tmp.hdr.r3_model_len / (r.w * r.h * r.num_channels());
                         std::cout << "R1A_SWEEP," << K << "," << (int)eff
                                   << "," << img.filename().string()
                                   << "," << enc_single.size() << "," << enc_r1a.size()
                                   << "," << delta << "," << single_bpp << "," << r1a_bpp
-                                  << ",0\n";
+                                  << "," << model_bpp << "\n";
                     }
                     std::sort(deltas.begin(), deltas.end());
                     double median_delta = deltas[deltas.size() / 2];
