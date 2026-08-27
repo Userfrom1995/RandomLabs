@@ -33,6 +33,8 @@ struct ContainerHeader {
     // in channel order of planes with squeeze_levels > 0. Present iff bit6.
     std::vector<int8_t> xband_weights;
     uint32_t model_len = 0;
+    // Route 2: hybrid-uint escape ladder (4, 8, or 16). Stored iff R2_HYBRID_FLAG.
+    uint8_t r2_t_esc = 8;
     // Route 3: multipass model blob (present iff MULTIPASS_FLAG set)
     uint32_t r3_model_len = 0;
     std::vector<uint8_t> r3_model_blob;
@@ -45,8 +47,11 @@ constexpr uint8_t ACODER_V2_FLAG = 0x08;  // backend v2 binarization + models
 constexpr uint8_t MATREE_FLAT_FLAG = 0x10; // MA-tree on level-0 planes
 constexpr uint8_t SQUEEZE_LIFT_FLAG = 0x20; // squeezing uses true CDC lifting
 constexpr uint8_t XBAND_FLAG = 0x40;      // cross-band LL-gradient weights present
-constexpr uint8_t R2_HYBRID_FLAG = 0x40;  // Route 2 hybrid-uint (mutually exclusive with XBAND: squeeze streams use XBAND, multipass hybrid streams use this)
 constexpr uint8_t MULTIPASS_FLAG = 0x80;  // Route 3 multi-pass ANS or Route 1 adaptive ACoderV2 (bit7)
+// Route 2 hybrid-uint flag (bit1, mutually exclusive with all other modes).
+// When set, the stream uses hybrid-uint tokenization instead of ZFF binarization
+// under the same ACoderV2 backend. Requires ACODER_FLAG | ACODER_V2_FLAG.
+constexpr uint8_t R2_HYBRID_FLAG = 0x02;
 // R1 adaptive is distinguished by model_blob[0] high bit (nc | 0x80); no second flags byte.
 // ContainerHeader::r3_model_len / r3_model_blob holds the multipass model blob for both routes.
 
