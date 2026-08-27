@@ -18,10 +18,10 @@
 
 ### R2-0: Harness Extension (BLOCKING)
 
-- [ ] 1. Add `ACModelsHybrid` struct to `acoder.h` (token + sign + escq model sets)
-- [ ] 2. Implement token tree path helpers in `acoder.cpp` (encode_token_tree / decode_token_tree)
-- [ ] 3. Implement `encode_residual_hybrid` / `decode_residual_hybrid` in `acoder.cpp`
-- [ ] 4. Implement `acoder_encode_plane_hybrid` / `acoder_decode_plane_hybrid` in `acoder.cpp`
+- [x] 1. Add `ACModelsHybrid` struct to `acoder.h` (token + sign + escq model sets)
+- [x] 2. Implement token tree path helpers in `acoder.cpp` (encode_token_tree / decode_token_tree)
+- [x] 3. Implement `encode_residual_hybrid` / `decode_residual_hybrid` in `acoder.cpp`
+- [x] 4. Implement `acoder_encode_plane_hybrid` / `acoder_decode_plane_hybrid` in `acoder.cpp`
 - [ ] 5. Wire hybrid path into `prism.cpp` encode/decode (flag bit6 dispatch)
 - [ ] 6. Add container flag bit6 handling in `container.cpp`
 - [ ] 7. Add `--r2-hybrid` CLI flag and probe/self-check commands in `main.cpp`
@@ -84,6 +84,14 @@
 - Created architectural blueprint: `ideas/2026-08-27-prism-route2-hybrid-uint.md`
 - Created progress tracker: `progress/130-prism-route2-hybrid-uint.md`
 - Research spec and addendum 24 already committed by Dr. Mob (PR #161)
+
+### 2026-08-27 (Builder): R2-0 core codec (steps 1-4)
+
+- Added `ACModelsHybrid` struct to `acoder.h`: token (T_ESC+1 binary tree), sign, escq model sets
+- Implemented binary tree token coding: encode_token_tree / decode_token_tree with halving structure
+- Implemented encode_residual_hybrid / decode_residual_hybrid: zigzag fold + token tree + sign + escape quotient + raw bypass
+- Implemented acoder_encode_plane_hybrid / acoder_decode_plane_hybrid: residual-DIFF context 343
+- All 193 existing tests pass; library compiles cleanly
 
 ---
 
