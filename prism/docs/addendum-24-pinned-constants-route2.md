@@ -16,6 +16,7 @@ All constants below are pinned for the entire R2-series. No measurement may proc
 | `R2_T_ESC_CANDIDATES` | {4, 8, 16} | Sweep in R2-1; T_ESC=4 is minimal (5 tokens), T_ESC=16 is generous (17 tokens) |
 | `R2_ZIGZAG_FOLD` | (r << 1) ^ (r >> 31) | Standard zigzag mapping from signed to unsigned (pin D13) |
 | `R2_ZIGZAG_UNFOLD` | (u >> 1) ^ (-(u & 1)) | Inverse zigzag |
+| **Route 2 variant** | u = \|r\|, sign emitted separately (L-C5) | Hybrid-uint uses abs+sign, not zigzag fold; see acoder.cpp encode_token_tree |
 | `R2_ESCAPE_M_OFFSET` | u - T_ESC + 1 | Pin D1: m >= 1 for all escape values |
 | `R2_RAW_BITS_HANDLING` | Literal write/read (pin D3) | Raw bits are not adaptive; written as literal bits after escape quotient |
 
