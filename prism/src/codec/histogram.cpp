@@ -28,9 +28,12 @@ void Histogram::add(uint8_t token) {
 std::array<uint16_t, Histogram::MAX_ALPHABET> Histogram::normalize_12bit() const {
     std::array<uint16_t, MAX_ALPHABET> freq{};
     if (total == 0) {
-        // Uniform: each symbol gets NORMALIZE_SUM / alphabet_size.
-        uint16_t base = (uint16_t)(NORMALIZE_SUM / (alphabet_size > 0 ? alphabet_size : 1));
-        for (size_t i = 0; i < alphabet_size; ++i) freq[i] = base;
+        // Uniform: largest-remainder method to guarantee sum == NORMALIZE_SUM.
+        uint16_t alpha = alphabet_size > 0 ? alphabet_size : 1;
+        uint16_t base = (uint16_t)(NORMALIZE_SUM / alpha);
+        uint16_t rem = NORMALIZE_SUM % alpha;
+        for (size_t i = 0; i < alphabet_size; ++i)
+            freq[i] = base + (i < rem ? 1 : 0);
         return freq;
     }
 
