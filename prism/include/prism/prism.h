@@ -47,6 +47,12 @@ struct EncodeOpts {
     bool use_r1_adaptive = false;
     // Route 1 adaptive: number of MA-tree clusters (K). Only used when use_r1_adaptive=true.
     uint16_t r1_num_clusters = 32;
+    // Route 2 hybrid-uint: when true, use hybrid-uint tokenization instead of
+    // ZFF binarization under ACoderV2. Container carries R2_HYBRID_FLAG (bit6).
+    // This is a pure tokenization swap - same ACoderV2 backend, same 343 contexts.
+    bool use_r2_hybrid = false;
+    // Route 2: escape ladder. Default 8 per addendum 24 pinned constant.
+    int r2_t_esc = 8;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.
