@@ -56,6 +56,8 @@ set -euo pipefail
 # Usage:
 #   probe_sandbox.sh --image /path/kodim01.ppm [--image ...] [--build-dir DIR]
 #   probe_sandbox.sh --self-check [--build-dir DIR]
+#   probe_sandbox.sh --r0 --image /path/img.ppm [--build-dir DIR]
+#   probe_sandbox.sh --self-check-r0 --image /path/img.ppm [--build-dir DIR]
 
 IMAGES=()
 BUILD_DIR=""
@@ -79,6 +81,8 @@ SELF_CHECK_T3=0
 MODE_T3=0
 SELF_CHECK_T4=0
 MODE_T4=0
+SELF_CHECK_R0=0
+MODE_R0=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -104,6 +108,8 @@ while [[ $# -gt 0 ]]; do
     --t3) MODE_T3=1; shift;;
     --self-check-t4) SELF_CHECK_T4=1; shift;;
     --t4) MODE_T4=1; shift;;
+    --self-check-r0) SELF_CHECK_R0=1; shift;;
+    --r0) MODE_R0=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -2818,12 +2824,49 @@ EOF
 fi
 
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
-if [[ ! -x "$BIN" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" ]]; then
+if [[ ! -x "$BIN" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" && "$MODE_R0" != "1" && "$SELF_CHECK_R0" != "1" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
 fi
 
-if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" ]]; then
+if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" && "$MODE_R0" != "1" && "$SELF_CHECK_R0" != "1" ]]; then
   echo "no --image given"; exit 2
+fi
+
+# ----- R-series: Route 3 modular redesign (issue #130).
+# R0 harness extension: byte-exact round-trip + multi-pass vs single-pass probe.
+# Runs before SHA256 pin check (R0 accepts any image).
+# -----
+if [[ "$MODE_R0" == "1" || "$SELF_CHECK_R0" == "1" ]]; then
+  R0_BIN=""
+  for cand in "$ROOT/build/prism" "$ROOT/../build/prism" "$BUILD_DIR/prism" "$(dirname "$0")/../build/prism"; do
+    if [[ -x "$cand" ]]; then R0_BIN="$cand"; break; fi
+  done
+  if [[ -z "$R0_BIN" ]]; then
+    echo "R0: prism binary not found (build first)"; exit 1
+  fi
+  if [[ ${#IMAGES[@]} -eq 0 ]]; then
+    echo "R0: --image required"; exit 1
+  fi
+  R0_STAMP=$(date +%Y-%m-%d)
+  R0_CSV="${ROOT}/benchmarks/results/${R0_STAMP}-sandbox-r0.csv"
+  mkdir -p "$(dirname "$R0_CSV")"
+
+  if [[ "$SELF_CHECK_R0" == "1" ]]; then
+    echo "== R0 self-check (VB-SELF-CHECK: byte-exact multipass round-trip) =="
+    R0_CHECK_ARGS=()
+    for img in "${IMAGES[@]}"; do R0_CHECK_ARGS+=(--image "$img"); done
+    if ! "$R0_BIN" self-check-r3 "${R0_CHECK_ARGS[@]}" --effort 5; then
+      echo "R0 VB-SELF-CHECK FAIL"; exit 1
+    fi
+    echo "R0 VB-SELF-CHECK PASS"
+  fi
+
+  if [[ "$MODE_R0" == "1" ]]; then
+    echo "== R0 probe (multi-pass vs single-pass NET) =="
+    "$R0_BIN" probe-r3 "${IMAGES[@]}" --effort 5 | tee "$R0_CSV"
+    echo "R0 results written to $R0_CSV"
+  fi
+  exit 0
 fi
 
 PIN_FILE="${ROOT}/benchmarks/data/kodak.sha256"

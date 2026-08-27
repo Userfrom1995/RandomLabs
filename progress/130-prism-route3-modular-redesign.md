@@ -36,7 +36,7 @@
 - [x] 15. VB-SELF-CHECK: full byte-exact round-trip with escape tokens, sign bits, MA-tree cluster IDs
 - [x] 16. Wire `MultiPassEncoder` into `prism.cpp` encode/decode path
 - [x] 17. Add `--r0` through `--r5` commands to `main.cpp`
-- [ ] 18. Update `probe_sandbox.sh` with R-series phases
+- [x] 18. Update `probe_sandbox.sh` with R-series phases
 - [ ] 19. Run self-check on pinned quad
 - [ ] 20. Commit spec addendum 22 (ALL pinned constants)
 - [ ] 21. Commit dated reference CSV
