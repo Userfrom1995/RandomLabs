@@ -12,6 +12,7 @@
 #include "prism/codec/cm.h"
 #include "prism/codec/lzp.h"
 #include "prism/codec/multipass.h"
+#include "prism/codec/r1_encoder.h"
 #include <fstream>
 #include <stdexcept>
 #include <algorithm>
@@ -487,6 +488,58 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         return container_encode(transformed, c);
     }
 
+    // Route 1 adaptive: multi-pass ACoderV2 coding with full v1 features
+    // and entropy-based MA-tree. Container carries MULTIPASS_FLAG and a
+    // model blob with MA-tree only (no histograms).
+    if (opts.use_r1_adaptive) {
+        Container c;
+        c.hdr.width = raster.w;
+        c.hdr.height = raster.h;
+        c.hdr.bit_depth = bd;
+        c.hdr.num_channels = nc;
+        c.hdr.color_transform_id = ar.color_transform_id;
+        uint8_t flags = MULTIPASS_FLAG;
+        if (opts.effort >= 1) flags |= ACODER_FLAG | ACODER_V2_FLAG;
+        c.hdr.flags = flags;
+        c.hdr.effort = opts.effort;
+        c.hdr.cfl_scales = ar.cfl_scales;
+        c.hdr.squeeze_levels.assign(nc, 0);
+        c.trees = ar.trees;
+        c.predictor_mode = ar.predictor_mode;
+        c.global_pred_id = (uint8_t)PredId::MED;
+        c.per_leaf_pred = ar.per_leaf_pred;
+
+        codec::r1::R1Encoder r1e;
+        r1e.effort = opts.effort;
+        r1e.num_clusters = opts.r1_num_clusters;
+
+        // R1 adaptive always uses MED prediction for residuals.
+        PredId r1_pred = PredId::MED;
+
+        // Compute per-plane residuals and collect pixel data.
+        std::vector<std::vector<int32_t>> plane_residuals(nc);
+        std::vector<std::vector<uint16_t>> plane_pixels(nc);
+        for (size_t pi = 0; pi < transformed.planes.size(); ++pi) {
+            plane_residuals[pi] = compute_residuals(
+                transformed.planes[pi], transformed.w, transformed.h, r1_pred);
+            plane_pixels[pi] = transformed.planes[pi];
+        }
+
+        // Pass 1: analyze with full v1 features + entropy-based MA-tree.
+        auto analysis = r1e.analyze(
+            plane_pixels, plane_residuals,
+            transformed.w, transformed.h, (uint8_t)nc, bd);
+
+        // Pass 2: code with ACoderV2 per-leaf adaptive coding.
+        auto coded = r1e.code(plane_residuals, analysis);
+
+        c.band_payloads.push_back(std::move(coded.payload));
+        c.hdr.r3_model_len = coded.model_len;
+        c.hdr.r3_model_blob = std::move(coded.model_blob);
+
+        return container_encode(transformed, c);
+    }
+
     Container c;
     c.hdr.width = raster.w;
     c.hdr.height = raster.h;
@@ -713,7 +766,7 @@ Raster decode(const uint8_t* data, size_t len) {
     if (c.hdr.flags & MULTIPASS_FLAG) {
         if (c.hdr.r3_model_len == 0 || c.hdr.r3_model_blob.empty())
             throw DecodeError("multipass: missing r3 model blob");
-        // Read single payload (per-plane ANS streams concatenated).
+        // Read single payload (per-plane streams concatenated).
         if (pos + 4 > len - 4) throw DecodeError("multipass: payload truncated");
         uint32_t blen = read_u32_le_bytes(data + pos); pos += 4;
         if (pos + blen > len - 4) throw DecodeError("multipass: payload bytes truncated");
@@ -721,12 +774,28 @@ Raster decode(const uint8_t* data, size_t len) {
         pos += blen;
         if (pos != len - 4) throw DecodeError("multipass: extra bytes after payload");
 
-        codec::r3::MultiPassEncoder mpe;
+        // Detect R1 adaptive model blob (first byte has high bit set).
+        bool is_r1_adaptive = !c.hdr.r3_model_blob.empty()
+                              && (c.hdr.r3_model_blob[0] & 0x80) != 0;
 
-        auto all_residuals = mpe.decode(
-            payload.data(), payload.size(),
-            c.hdr.r3_model_blob.data(), c.hdr.r3_model_blob.size(),
-            w, h, nc);
+        std::vector<std::vector<int32_t>> all_residuals;
+        if (is_r1_adaptive) {
+            codec::r1::R1Encoder r1e;
+            // Compute per-plane bd_max for correct clamping during causal decode.
+            std::vector<uint16_t> plane_bd(nc);
+            for (size_t pi = 0; pi < (size_t)nc; ++pi)
+                plane_bd[pi] = plane_bd_max(bd, ct_pre, pi);
+            all_residuals = r1e.decode(
+                payload.data(), payload.size(),
+                c.hdr.r3_model_blob.data(), c.hdr.r3_model_blob.size(),
+                w, h, nc, plane_bd);
+        } else {
+            codec::r3::MultiPassEncoder mpe;
+            all_residuals = mpe.decode(
+                payload.data(), payload.size(),
+                c.hdr.r3_model_blob.data(), c.hdr.r3_model_blob.size(),
+                w, h, nc);
+        }
         if (all_residuals.size() != (size_t)nc)
             throw DecodeError("multipass: channel count mismatch");
 
