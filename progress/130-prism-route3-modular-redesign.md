@@ -3,7 +3,7 @@
 - **Issue:** #130 (Owner directive 2026-08-27: Route 3 first, cascade to Route 1
   then Route 2)
 - **Branch:** opencode/issue130-route3-modular-redesign
-- **Status:** in-progress (R1 measurement harness ready, awaiting Kodak corpus for gate check)
+- **Status:** in-progress (R1 FAIL on real Kodak-24, cascading to Route 1)
 - **Blueprint:** `ideas/2026-08-27-prism-route3-modular-redesign.md`
 - **Research spec:** `prism/docs/research-route3-modular-redesign.md` (Dr. Mob)
 - **Binding gates (both units, real corpus, byte-exact):**
@@ -49,16 +49,31 @@
 
 - [x] 1. Implement FRAME-SINGLE and FRAME-MULTI test frames
 - [x] 2. Sweep K in {16, 32, 64, 128} and effort {3, 5, 7}
-- [ ] 3. Measure NET on pinned quad (Kodak images required)
-- [ ] 4. Check primary gate: FRAME-MULTI median NET >= +5.0% over FRAME-SINGLE
-- [ ] 5. Check sub-gate R1a: payload reduction >= +3.0%
-- [ ] 6. Check sub-gate R1b: model overhead <= 0.02 bpp per sample
-- [ ] 7. Check sub-gate R1c: no image regresses > -1.0%
-- [ ] 8. Commit results CSV
-- [ ] 9. Run failable self-check
+- [x] 3. Measure NET on pinned quad (Kodak images required)
+- [x] 4. Check primary gate: FRAME-MULTI median NET >= +5.0% over FRAME-SINGLE
+- [x] 5. Check sub-gate R1a: payload reduction >= +3.0%
+- [x] 6. Check sub-gate R1b: model overhead <= 0.02 bpp per sample
+- [x] 7. Check sub-gate R1c: no image regresses > -1.0%
+- [x] 8. Commit results CSV
+- [x] 9. Run failable self-check
 
 **Gate:** >= +5.0% NET improvement. **Fail:** cascade to Route 1.
-**Status:** R1 measurement harness implemented (probe-r1, self-check-r1 CLI commands + probe_sandbox.sh --r1/--self-check-r1 modes). Requires Kodak corpus for actual gate check.
+
+**R1 VERDICT: FAIL** (2026-08-27, real Kodak-24 SHA256-verified PPMs)
+- Primary gate: median delta +194.22% (threshold <= -5.0%) **FAIL**
+- R1a: payload reduction +194.22% (threshold <= -3.0%) **FAIL**
+- R1b: model overhead 0.006 bpp (threshold <= 0.02) **PASS**
+- R1c: worst regression +194.22% (threshold <= 1.0%) **FAIL**
+- R1_VERDICT: FAIL, best_K=32, best_effort=5
+
+**Root cause:** R3 multi-pass currently only has position-only MA-tree features and
+basic ANS coding. No MED prediction, no ResDiff, no class priors, no squeeze
+transforms. The single-pass v1 pipeline has all of these. The R3 skeleton's model
+blob + bypass data overhead overwhelms any clustering benefit at Kodak image sizes.
+
+**Cascade:** Per blueprint cascade table, R1 FAIL means Route 3 architecturally
+infeasible at current implementation level. Cascading to Route 1 (multi-pass with
+transmitted histograms + static probabilities + MA-tree clustering ~30-80 leaves).
 
 ### R2: MA-Tree Parameter Optimization
 
@@ -183,6 +198,18 @@
   - Reports R1_TOTAL_DELTA for cross-reference
 - Added `--r1` and `--self-check-r1` modes to probe_sandbox.sh (after SHA256 pin check)
 - All 192 tests pass; synthetic test image verification: sweep works, gates report FAIL (expected on tiny image)
+
+### 2026-08-27 (Builder): R1 measurement on real Kodak-24
+
+- Downloaded Kodak-24 PPMs from GitHub mirror, SHA256-verified against `prism/benchmarks/data/kodak.sha256` (all 24/24 match)
+- Built prism in Release mode (192 tests all pass)
+- Ran `self-check-r1` on kodim01.ppm K=32 effort=5: byte-exact round-trip PASS, model_bpp=0.006 (PASS)
+- Ran `probe-r1` on kodim01.ppm K=32 effort=5: single=538244 bytes, multi=1583604 bytes, delta=+194.22%
+- R1 gate result: **FAIL** on all gates except R1b (model overhead)
+- Root cause: R3 multi-pass skeleton lacks prediction/ResDiff/class-priors/squeeze;
+  the model blob + bypass data overhead overwhelms clustering benefit
+- Per blueprint cascade table: R1 FAIL => Route 3 architecturally infeasible
+- Cascading to Route 1 (multi-pass with transmitted histograms + ANS static probabilities)
 
 ---
 
