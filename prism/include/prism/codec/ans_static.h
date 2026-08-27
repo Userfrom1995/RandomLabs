@@ -7,7 +7,8 @@
 namespace prism::codec::r3 {
 
 // ANS static-probability coder/decoder for Route 3 multi-pass encoding.
-// Interleaved rANS with 16 states, 12-bit precision (sum = 4096).
+// Single-state rANS with 12-bit precision (sum = 4096) for R0 harness.
+// Interleaving (16-way) deferred to R1 per addendum 22.3.
 // Static probabilities derived from transmitted histograms; no
 // epsilon-adaptation in the R-series (addendum 22.3).
 //
@@ -16,7 +17,7 @@ namespace prism::codec::r3 {
 // encoding and forward order during decoding.
 
 struct ANSStaticModel {
-    static constexpr int NUM_STATES = 16;
+    static constexpr int NUM_STATES = 1;  // R0: single-state rANS (interleave deferred to R1)
     static constexpr int PRECISION = 12;       // 12-bit normalization
     static constexpr uint32_t SCALE = 1 << PRECISION;  // 4096
 
