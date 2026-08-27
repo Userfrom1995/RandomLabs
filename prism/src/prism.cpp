@@ -877,8 +877,8 @@ Raster decode(const uint8_t* data, size_t len) {
     if (useHybrid) {
         if (!(c.hdr.flags & ACODER_FLAG) || !(c.hdr.flags & ACODER_V2_FLAG))
             throw DecodeError("r2-hybrid requires ACODER+V2");
-        if (c.hdr.flags & (MATREE_FLAT_FLAG | XBAND_FLAG | MULTIPASS_FLAG | CM_FLAG))
-            throw DecodeError("r2-hybrid exclusive with MATREE/XBAND/MULTIPASS/CM");
+        if (c.hdr.flags & (MATREE_FLAT_FLAG | SQUEEZE_LIFT_FLAG | XBAND_FLAG | MULTIPASS_FLAG | CM_FLAG))
+            throw DecodeError("r2-hybrid exclusive with MATREE/SQUEEZE/XBAND/MULTIPASS/CM");
     }
     if (useHybrid && anySqueezeHdr)
         throw DecodeError("invalid flag combination: r2-hybrid with squeeze");
