@@ -457,6 +457,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
 
         codec::r3::MultiPassEncoder mpe;
         mpe.effort = opts.effort;
+        mpe.num_clusters = opts.r3_num_clusters;
 
         // Encode each plane via multi-pass.
         // Combine all plane residuals into a single stream for MA-tree
