@@ -5700,7 +5700,7 @@ int main(int argc, char* argv[]) {
             // R1-1 gates per spec addendum 23:
             //   primary: FRAME-R1 median NET >= +0.5% over FRAME-V1 (median_delta <= -0.5)
             //   R1-1a:   model overhead <= 0.005 bpp per sample (aggregate across quad)
-            //   R1-1b:   no image regresses > -0.5% (worst delta >= -0.5)
+            //   R1-1b:   no image regresses > -0.5% (worst delta <= -0.5)
             //   R1-1c:   decode time <= 1.5x v1 decode time
             // Usage: probe-r1-adaptive --image FILE [--image FILE ...] [--k K] [--effort N]
             std::vector<std::filesystem::path> imgs;
@@ -5775,6 +5775,7 @@ int main(int argc, char* argv[]) {
                                   << "," << single_decode_ms << "," << r1a_decode_ms << "\n";
                     }
                     std::sort(deltas.begin(), deltas.end());
+                    // median for even N (quad N=4): upper-middle per harness definition (index N/2)
                     double median_delta = deltas[deltas.size() / 2];
                     double total_delta = 100.0 * (sum_r1a - sum_single) / sum_single;
                     double worst_delta = deltas.back();
@@ -5811,8 +5812,8 @@ int main(int argc, char* argv[]) {
                       << ",avg_model_bpp," << best_result.avg_model_bpp
                       << ",threshold,0.005"
                       << "," << (r1_1a_pass ? "PASS" : "FAIL") << "\n";
-            // R1-1b: no image regresses > -0.5% (worst_delta >= -0.5)
-            bool r1_1b_pass = (best_result.worst_delta >= -0.5);
+            // R1-1b: no image regresses > -0.5% (worst_delta <= -0.5)
+            bool r1_1b_pass = (best_result.worst_delta <= -0.5);
             std::cout << "R1A_GATE,R1-1b," << best_K << "," << (int)best_effort
                       << ",worst_delta," << best_result.worst_delta
                       << ",threshold,-0.5"
