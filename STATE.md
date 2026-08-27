@@ -1,10 +1,10 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-27 (~08:28Z, maintainer run 33054136723 - schedule, architect in flight on #130 Route 3)
+ - **Updated:** 2026-08-27 (~08:53Z, maintainer run 33056015594 - event on PR #156, architect success, build cancelled -> re-dispatch)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Hephaestus succeeds Mae. Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt/cancel a gated project. Autonomous multi-path exploration with no-pause: when multiple routes exist, document transparently and autonomously select most promising path, state cascade order, and immediately dispatch squad (/oc research or /oc architect) - never stall waiting for Owner to choose.
-- **PRISM EXOTIC CASCADE (2026-08-27T08:19:10Z directive on #130, /oc maintainer):** Owner orders: "Continue work on #130 without waiting for me. Execute Route 3 (JXL-style Modular redesign) first. If Route 3 fails, cascade immediately to Route 1 (multi-pass with transmitted histograms), and then Route 2 (hybrid-uint binarization). Keep documentation transparent, merge completed milestones into main with `Refs #130`, and do not stop until M2 and M3 pass." - IN FLIGHT. Route 3 research delivered PR #156 at 08:27:57Z, owner dispatched architect at 08:27:59Z, architect run 33054153674 in_progress. Cascade 3->1->2 active.
-- **RETAIN-BRANCHES DIRECTIVE (2026-08-26T18:47Z, issue #148):** PR branches must never be deleted after merging. Verified: `opencode/issue130-v4-transform` retained at `f20709f` and `opencode/issue130-20260826225806` retained at `526b71f` after PR #155 merge, d31f9b0 maintains lineage. New branch `opencode/issue130-route3-modular-redesign` at 9473d72 retained.
+- **PRISM EXOTIC CASCADE (2026-08-27T08:19:10Z directive on #130, /oc maintainer):** Owner orders: "Continue work on #130 without waiting for me. Execute Route 3 (JXL-style Modular redesign) first. If Route 3 fails, cascade immediately to Route 1 (multi-pass with transmitted histograms), and then Route 2 (hybrid-uint binarization). Keep documentation transparent, merge completed milestones into main with `Refs #130`, and do not stop until M2 and M3 pass." - IN FLIGHT. Route 3 research delivered PR #156 at 08:27:57Z, owner dispatched architect at 08:27:59Z, architect run 33054153674 success at 08:53Z. Cascade 3->1->2 active, now in Builder phase.
+- **RETAIN-BRANCHES DIRECTIVE (2026-08-26T18:47Z, issue #148):** PR branches must never be deleted after merging. Verified: `opencode/issue130-v4-transform` retained at `f20709f` and `opencode/issue130-20260826225806` retained at `526b71f` after PR #155 merge, d31f9b0 maintains lineage. New branch `opencode/issue130-route3-modular-redesign` at 0131869 retained (2 commits).
 - **BINDING TARGET (dual-unit, unchanged, re-activated):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl -d0 -e9 on exact Kodak PPMs. No merge until M2 AND M3 pass both units; no success claim without fresh both-units measurement. Milestones merge with `Refs #130` until gates pass. Honest closure e1 10.1210/3.3737 (-8.21% vs 11.026 baseline, ~14.48% to M3) preserved as baseline via `prism/docs/research-complete-negative-ledger.md` (311cd97) + `ideas/2026-08-26-prism-honest-closure.md` (1062117) both ancestors of d31f9b0.
 
 ## MERGE CAPABILITY (verified at d31f9b0)
@@ -15,37 +15,38 @@
 ## CRITICAL INFRASTRUCTURE STATE
 - **Model FIXED on main:** `opencode/mimo-v2.5-free` + `muse-spark-1.2-contributor-free` verified at d31f9b0.
 - **Hephaestus transition LIVE + no-pause codified:** `.github/agents/maintainer.md:1` Hephaestus, Anti-Surrender + No-Pause Mandate (d31f9b0), `maintainer.yml` PAT sweep.
-- **Retain fix LIVE:** branch retention verified on PR #153 (f20709f), PR #155 (526b71f), and new PR #156 branch at 9473d72.
-- **Open PRs:** 1 - PR #156 `opencode/issue130-route3-modular-redesign` at 9473d72 (researcher: Route 3 research spec - JXL-style Modular redesign, Refs #130, 1 file `prism/docs/research-route3-modular-redesign.md`, mergeable).
-- **Open issues:** #130 (Prism, OPEN - exotic cascade ACTIVE, Route 3 architect in_progress), #70 (lab-health), #42 (brainstorm FROZEN).
+- **Retain fix LIVE:** branch retention verified on PR #153 (f20709f), PR #155 (526b71f), and new PR #156 branch at 0131869 (2 commits, retention holds).
+- **Open PRs:** 1 - PR #156 `opencode/issue130-route3-modular-redesign` at 0131869 (researcher: Route 3 research spec - JXL-style Modular redesign, Refs #130, 3 files: ideas blueprint + research spec + progress tracker, MERGEABLE CLEAN).
+- **Open issues:** #130 (Prism, OPEN - exotic cascade ACTIVE, Route 3 architect delivered, Builder re-dispatched), #70 (lab-health), #42 (brainstorm FROZEN).
 - **Auditor:** last report 07:26:11Z run 33049525883 green (R1-R5 pass, 0 failures in 200). No new auditor run since.
 
 ## IN FLIGHT
-- **PR #156 - Route 3 Research Specification DELIVERED** at 2026-08-27T08:27:57Z by Dr. Mob (run 33053686124 success). File `prism/docs/research-route3-modular-redesign.md` (602 lines) documents multi-pass encoder, MA-tree clustering 30-80 clusters, transmitted histograms, ANS static coding, hybrid-uint tokenization, wire format v2, R0-R5 gates, cascade logic. Body `Refs #130` verified. Owner comment `/oc architect` at 08:27:59Z on PR #156 triggered architect workflow.
-- **Architect - IN PROGRESS (run 33054153674):** `opencode` workflow `architect` job in_progress at 08:28:02Z (issue_comment trigger on PR #156, head `d31f9b0`, steps: Set up job success, Checkout success, Clear runtime decision success, Run opencode architect agent in_progress). This run does NOT re-dispatch architect to avoid double-trigger (no duplicate per AGENTS.md spam guard). Next: Architect will produce blueprint + addendum 22 on PR #156 branch.
-- **Cascade 3->1->2 transparent:** Route 3 active per owner directive. If architect+build R1 gate (>=+5.0%) fails, Maintainer will cascade to Route 1 (multi-pass histograms retaining Prism pipeline) via `research` on #130 without pause. If R4 passes M2 but not M3, awaits Owner decision per research spec cascade clause.
+- **PR #156 - Route 3 Research + Architecture DELIVERED** at 2026-08-27T08:53Z: Research `9473d72` (602 lines, MA-tree 30-80 clusters, ANS, hybrid-uint, wire format v2, R0-R5 gates, cascade 3->1->2) + Architect `0131869` (621-line blueprint `ideas/2026-08-27-prism-route3-modular-redesign.md` with module map, data structures MultiPassEncoder/Histogram/ANSStaticModel/HybridUintProfile, wire v2 bytes, addendum 22 pinned constants, R-series gates, test matrix, 8 phases/4 weeks + progress tracker `progress/130-prism-route3-modular-redesign.md`). Body `Refs #130` verified, merge_base d31f9b0 non-orphan.
+- **Architect - SUCCESS (run 33054153674):** issue_comment trigger on PR #156 at 08:27:59Z, head d31f9b0, steps all success (Run opencode architect agent success, Verify architect decided success, Forward architect decision success, Approve held CI runs success). Pushed commit 0131869, pages `33055940419` success + pr-trigger `33055940445` success on new head.
+- **Builder - RE-DISPATCHED (owner /oc build this 08:52:57Z -> run 33056002907 cancelled):** opencode build run 33056002907 cancelled (no push). No builder in_progress after cancellation. This maintainer run re-dispatches `{"action":"build","pr":156}` to scaffold R0 harness per blueprint phases 1-3. Next: Builder implements, then review->test->merge (Refs #130) loop.
+- **Cascade 3->1->2 transparent:** Route 3 active per owner directive. If builder R1 gate (>=+5.0%) fails, Maintainer will cascade to Route 1 via research on #130 without pause. If R4 passes M2 but not M3, awaits Owner decision per research spec cascade clause.
 
 ## PIPELINE POSITION
-Honest closure MERGED at 3d76bdb -> no-pause codified at d31f9b0 -> Owner cascade directive 08:19:10Z -> Research dispatched 08:21:38Z -> Research delivered PR #156 at 08:27:57Z -> Owner architect trigger 08:27:59Z -> Architect in_progress 08:28:02Z (this maintainer schedule run observes in-flight architect, takes no new dispatch). Lab freeze exempts #130 exotic work; brainstorm stays FROZEN. No PRs to review/test until architect completes and pushes. Awaiting architect completion before review->test->merge (Refs #130) loop.
+Honest closure MERGED at 3d76bdb -> no-pause codified at d31f9b0 -> Owner cascade directive 08:19:10Z -> Research dispatched 08:21:38Z -> Research delivered PR #156 at 08:27:57Z (9473d72) -> Owner architect trigger 08:27:59Z -> Architect success 33054153674 -> PR #156 at 0131869 (blueprint lands) -> Owner build trigger 08:52:57Z (run 33056002907 cancelled) -> This maintainer re-dispatches Builder on PR #156 (08:53Z). Lab freeze exempts #130 exotic work; brainstorm stays FROZEN. Awaiting builder R0-R1 measurement before review.
 
 ## NEXT-RUN PLAYBOOK
-1. Verify architect landed: `gh run view 33054153674 --json jobs --jq '.jobs[].steps'` should show architect decision forwarded; `gh pr view 156 --json headRefOid,comments` should show architect commit(s) and ideally `/oc` forward. If run succeeded but no push, check for silent stall (continue-on-error timeout string) before re-dispatch.
-2. If architect succeeds and PR #156 updated: dispatch `review` on PR #156 (`{"action":"review","pr":156,"head":"<new_sha>"}`) when work looks complete and push did not auto-trigger reviewer.
-3. If architect fails/crashes (no decision file, timeout killed): re-dispatch architect on PR #156 (`{"action":"architect","pr":156}`) once, with crash-parity check (count prior auto-retry comments, max 3).
-4. Keep `Refs #130` on PR #156 until M2 AND M3 both pass; never `Closes #130` on milestone. Only Owner halts cascade.
-5. Verify main still at d31f9b0; verify pages deploy on d31f9b0 succeeded (`gh run list --limit 5 --json name,conclusion` for Deploy static site).
-6. No Ideator dispatches (brainstorm freeze until M2/M3 pass). No lab/auditor/recover unless infra anomaly (watch for action_required held runs on PR #156 pages/pr-trigger).
+1. Verify builder landed: `gh run list --json headBranch` for opencode on `opencode/issue130-route3-modular-redesign` should show new run in_progress/success after this dispatch; `gh pr view 156 --json headRefOid` should advance past 0131869. If builder run cancels again or times out with no push (continue-on-error silent stall), check `gh run view <id> --json jobs` for timeout string, count prior auto-retry comments (max 3), then re-dispatch `build` or `continue` on PR #156 once.
+2. If builder succeeds and pushes: dispatch `review` on PR #156 (`{"action":"review","pr":156,"head":"<new_sha>"}`) when work looks complete and push did not auto-trigger reviewer. Merge only after Reviewer approve + Tester approve-test, with `Refs #130` until M2+M3 pass.
+3. If builder R1 gate (< +5.0%) fails: immediately dispatch Research for Route 1 (multi-pass histograms) per cascade, without pause, documenting transparently.
+4. Keep `Refs #130` on PR #156 until M2 AND M3 both pass both units; never `Closes #130` on milestone. Only Owner halts cascade.
+5. Verify main still at d31f9b0; verify pages deploy on d31f9b0 and PR preview on 0131869 both success. Watch for action_required held runs on PR #156 after builder push (PAT sweep approval).
+6. No Ideator dispatches (brainstorm freeze until M2/M3 pass). No lab/auditor/recover unless infra anomaly.
 
 ## ISSUES
-- **#130** - OPEN - Prism exotic cascade ACTIVE (Route 3 Modular redesign: research delivered PR #156 at 9473d72, architect in_progress run 33054153674, gates M2 <9.498/<3.166 M3 <8.655/<2.885 both units vs REAL cjxl)
-- **#156** - OPEN PR - Route 3 research spec (Refs #130, awaiting architect completion, then review/test)
+- **#130** - OPEN - Prism exotic cascade ACTIVE (Route 3 Modular redesign: research+architect delivered PR #156 at 0131869, builder re-dispatched after cancellation, gates M2 <9.498/<3.166 M3 <8.655/<2.885 both units vs REAL cjxl)
+- **#156** - OPEN PR - Route 3 research+architect (Refs #130, 3 files, MERGEABLE CLEAN at 0131869, builder in flight after this run)
 - **#70** - Lab Health & Audit Logs - current, Auditor green at 07:26:11Z (run 33049525883, R1-R5 pass, 0 failures in 200).
 - **#42** - Brainstorm Board FROZEN (awaiting M2/M3 pass per 2026-08-23 directive, exotic Prism work is exempt sole priority).
 
 ## OPEN QUESTIONS
-- Will Architect deliver blueprint + addendum 22 that breaks single-pass table-economics and clears 14.48% gap to M3 on PR #156?
-- Will architect's MA-tree + ANS + hybrid-uint design pass review then builder measurement vs REAL cjxl on Kodak-24?
-- If architect stalls, will re-dispatch succeed without spamming duplicate triggers?
+- Will Builder scaffold R0 harness per blueprint and clear table-economics via multi-pass + ANS + hybrid-uint on PR #156?
+- Will R1 measurement (>=+5.0% gate) project inside M2/M3 reach, or trigger cascade to Route 1?
+- Will review->test->merge (Refs #130) loop pass without blocking on pages hold?
 - Will brainstorm freeze be lifted only after M2+M3 pass per directive?
 
 ## STANDING LESSONS (in force)
