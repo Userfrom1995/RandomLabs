@@ -655,6 +655,10 @@ void ACModelsHybrid::init(int n, int t_esc, bool uniform_priors) {
     T_ESC = t_esc;
     // Token tree: n * T_ESC context slots (T_ESC nodes per residual-DIFF context).
     // Each tree node gets its own adapted probability per context.
+    // NOTE: only 1+log2(T_ESC) nodes per context are actually visited by the
+    // binary tree encoder/decoder (4 for T_ESC=8, 5 for 16); the remaining
+    // slots are unused. We over-allocate for flat-index simplicity; total waste
+    // is ~2x for T_ESC=8 (negligible: ~27 KB for 343 contexts).
     v2_init_kind(token, AC_V2_PRIOR_ZERO, n * T_ESC, true);
     // Sign: same as v2 (coded only for nonzero).
     v2_init_kind(sign, AC_V2_PRIOR_SIGN, n, uniform_priors);

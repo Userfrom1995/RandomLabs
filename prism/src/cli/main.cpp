@@ -5941,7 +5941,7 @@ int main(int argc, char* argv[]) {
                          "zff_bpp,hyb_bpp\n";
             struct R2Result { int T_ESC; uint8_t effort; double median_delta; double total_delta; };
             std::vector<R2Result> all_results;
-            double best_median_delta = -1e9;
+            double best_median_delta = 1e9;
             int best_T_ESC = 8;
             uint8_t best_effort = 5;
 
