@@ -41,6 +41,12 @@ struct EncodeOpts {
     // Route 3: number of MA-tree clusters (K). Only used when use_r3=true.
     // Default 32 matches addendum 22 pinned constant.
     uint16_t r3_num_clusters = 32;
+    // Route 1 adaptive: when true, use multi-pass ACoderV2 coding with
+    // full v1 features + entropy-based MA-tree. Container carries
+    // R1_ADAPTIVE_FLAG and r1_model blob (MA-tree only, no histograms).
+    bool use_r1_adaptive = false;
+    // Route 1 adaptive: number of MA-tree clusters (K). Only used when use_r1_adaptive=true.
+    uint16_t r1_num_clusters = 32;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.

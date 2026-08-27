@@ -46,6 +46,10 @@ constexpr uint8_t MATREE_FLAT_FLAG = 0x10; // MA-tree on level-0 planes
 constexpr uint8_t SQUEEZE_LIFT_FLAG = 0x20; // squeezing uses true CDC lifting
 constexpr uint8_t XBAND_FLAG = 0x40;      // cross-band LL-gradient weights present
 constexpr uint8_t MULTIPASS_FLAG = 0x80;  // Route 3 multi-pass ANS coding (bit7)
+constexpr uint8_t R1_ADAPTIVE_FLAG = 0x01; // Route 1 adaptive ACoderV2 coding (bit0 of second flags byte, unused in v1)
+
+// Container flags v2 (second flags byte, present after MULTIPASS_FLAG)
+// For R1 adaptive: MULTIPASS_FLAG + R1_ADAPTIVE_FLAG in second byte.
 
 struct Container {
     ContainerHeader hdr;
