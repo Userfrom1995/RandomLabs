@@ -434,9 +434,10 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
     PredId pred = static_cast<PredId>(ar.global_pred_id);
     if ((uint8_t)pred > 8) pred = PredId::MED;
 
-    // Route 3: multi-pass ANS coding path.
-    // Operates on flat residuals per plane (no squeeze), using the
-    // MultiPassEncoder for analysis + ANS coding with transmitted histograms.
+    // Route 1: multi-pass ANS coding path with full v1 features.
+    // Per-plane analysis and encoding with MA-tree clustering using
+    // QG, band_class, activity, position features (not position-only).
+    // Retains MED prediction and hybrid-uint tokenization.
     if (opts.use_r3) {
         Container c;
         c.hdr.width = raster.w;
@@ -449,7 +450,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         c.hdr.flags = flags;
         c.hdr.effort = opts.effort;
         c.hdr.cfl_scales = ar.cfl_scales;
-        c.hdr.squeeze_levels.assign(nc, 0); // no squeeze for R3
+        c.hdr.squeeze_levels.assign(nc, 0); // no squeeze for Route 1
         c.trees = ar.trees;
         c.predictor_mode = ar.predictor_mode;
         c.global_pred_id = ar.global_pred_id;
@@ -458,28 +459,26 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         codec::r3::MultiPassEncoder mpe;
         mpe.effort = opts.effort;
         mpe.num_clusters = opts.r3_num_clusters;
+        mpe.use_full_features = true;
 
-        // Encode each plane via multi-pass.
-        // Combine all plane residuals into a single stream for MA-tree
-        // clustering (cross-plane context sharing).
-        std::vector<int32_t> all_residuals;
-        std::vector<uint32_t> plane_offsets; // start offset of each plane
-        std::vector<uint32_t> plane_sizes;
+        // Compute per-plane residuals and collect pixel data for feature computation.
+        std::vector<std::vector<int32_t>> plane_residuals(nc);
+        std::vector<std::vector<uint16_t>> plane_pixels(nc);
         for (size_t pi = 0; pi < transformed.planes.size(); ++pi) {
-            const auto& plane = transformed.planes[pi];
-            auto res = compute_residuals(plane, transformed.w, transformed.h, pred);
-            plane_offsets.push_back((uint32_t)all_residuals.size());
-            plane_sizes.push_back((uint32_t)res.size());
-            all_residuals.insert(all_residuals.end(), res.begin(), res.end());
+            plane_residuals[pi] = compute_residuals(
+                transformed.planes[pi], transformed.w, transformed.h, pred);
+            plane_pixels[pi] = transformed.planes[pi];
         }
 
-        // Pass 1: analyze all residuals together.
-        auto analysis = mpe.analyze(all_residuals, transformed.w, transformed.h * nc);
+        // Pass 1: analyze each plane with full v1 features.
+        auto analysis = mpe.analyze(
+            plane_pixels, plane_residuals,
+            transformed.w, transformed.h, (uint8_t)nc, bd);
 
-        // Pass 2: code all residuals together.
-        auto coded = mpe.code(all_residuals, analysis);
+        // Pass 2: code each plane with per-plane ANS.
+        auto coded = mpe.code(plane_residuals, analysis);
 
-        // Store payload (all planes coded as one blob).
+        // Store payload (per-plane ANS streams concatenated).
         c.band_payloads.push_back(std::move(coded.payload));
 
         // Store model blob in container header.
@@ -710,12 +709,12 @@ Raster decode(const uint8_t* data, size_t len) {
     PredId pred = static_cast<PredId>(c.global_pred_id);
     if ((uint8_t)pred > 8) pred = PredId::MED;
 
-    // Route 3: multi-pass ANS decoding path.
-    // Multipass stores a single combined payload for all planes.
+    // Route 1: multi-pass ANS decoding path.
+    // Per-plane decode with full v1 feature recomputation from decoded pixels.
     if (c.hdr.flags & MULTIPASS_FLAG) {
         if (c.hdr.r3_model_len == 0 || c.hdr.r3_model_blob.empty())
             throw DecodeError("multipass: missing r3 model blob");
-        // Read single payload.
+        // Read single payload (per-plane ANS streams concatenated).
         if (pos + 4 > len - 4) throw DecodeError("multipass: payload truncated");
         uint32_t blen = read_u32_le_bytes(data + pos); pos += 4;
         if (pos + blen > len - 4) throw DecodeError("multipass: payload bytes truncated");
@@ -724,21 +723,22 @@ Raster decode(const uint8_t* data, size_t len) {
         if (pos != len - 4) throw DecodeError("multipass: extra bytes after payload");
 
         codec::r3::MultiPassEncoder mpe;
-        size_t num_samples = (size_t)w * h * nc;
-        auto residuals = mpe.decode(
+        mpe.use_full_features = true;
+
+        auto all_residuals = mpe.decode(
             payload.data(), payload.size(),
             c.hdr.r3_model_blob.data(), c.hdr.r3_model_blob.size(),
-            num_samples, w, h * nc);
-        if (residuals.size() != num_samples)
-            throw DecodeError("multipass: residual count mismatch");
+            w, h, nc);
+        if (all_residuals.size() != (size_t)nc)
+            throw DecodeError("multipass: channel count mismatch");
 
         Raster out(w, h, static_cast<Channels>(nc), bd == 16 ? BitDepth::BD16 : BitDepth::BD8);
         size_t pix_per_plane = (size_t)w * h;
         for (size_t pi = 0; pi < (size_t)nc; ++pi) {
+            if (all_residuals[pi].size() != pix_per_plane)
+                throw DecodeError("multipass: residual count mismatch for plane");
             uint16_t plane_max = plane_bd_max(bd, ct_pre, pi);
-            std::vector<int32_t> plane_res(residuals.begin() + pi * pix_per_plane,
-                                           residuals.begin() + (pi + 1) * pix_per_plane);
-            out.planes[pi] = reconstruct_plane(plane_res, w, h, pred, plane_max);
+            out.planes[pi] = reconstruct_plane(all_residuals[pi], w, h, pred, plane_max);
         }
         out = invert_color(out, ct_pre, c.hdr.cfl_scales);
         return out;

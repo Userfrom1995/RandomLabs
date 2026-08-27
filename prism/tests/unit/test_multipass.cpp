@@ -1,7 +1,6 @@
-// R3 Multi-pass encoder tests.
+// Route 1 multi-pass encoder tests.
 // VB-MULTI-PASS-ROUNDTRIP: encode -> decode -> byte-exact.
 // VB-NET-AUDIT: NET = payload + model overhead on every row.
-// VB-SELF-CHECK: proves both verdict directions.
 
 #include "prism/codec/multipass.h"
 #include <gtest/gtest.h>
@@ -27,8 +26,10 @@ TEST(MultiPass, MaxResidual) {
 }
 
 TEST(MultiPass, BuildFeatures) {
-    auto res = make_test_residuals(64, 64, 42);
-    auto features = MultiPassEncoder::build_features(res, 64, 64);
+    std::vector<uint16_t> pixels(64 * 64);
+    std::mt19937 rng(42);
+    for (auto& p : pixels) p = (uint16_t)(rng() % 256);
+    auto features = MultiPassEncoder::build_features(pixels, 64, 64, 0, 8);
     EXPECT_EQ(features.size(), 64u * 64u);
 
     EXPECT_EQ(features[0].position_y, 0);
@@ -45,14 +46,15 @@ TEST(MultiPass, AnalyzeBasic) {
     auto res = make_test_residuals(64, 64, 42);
     auto analysis = enc.analyze(res, 64, 64);
 
-    EXPECT_EQ(analysis.num_samples, 64u * 64u);
-    EXPECT_EQ(analysis.cluster_ids.size(), 64u * 64u);
-    EXPECT_EQ(analysis.cluster_hists.size(), 4u);
-    EXPECT_GT(analysis.alphabet_size, 0u);
+    EXPECT_EQ(analysis.planes.size(), 1u);
+    EXPECT_EQ(analysis.planes[0].num_samples, 64u * 64u);
+    EXPECT_EQ(analysis.planes[0].cluster_ids.size(), 64u * 64u);
+    EXPECT_EQ(analysis.planes[0].cluster_hists.size(), 4u);
+    EXPECT_GT(analysis.planes[0].alphabet_size, 0u);
 
     uint32_t total = 0;
-    for (auto& h : analysis.cluster_hists) total += h.total;
-    EXPECT_EQ(total, analysis.num_samples);
+    for (auto& h : analysis.planes[0].cluster_hists) total += h.total;
+    EXPECT_EQ(total, analysis.planes[0].num_samples);
 }
 
 TEST(MultiPass, CodeDecodeRoundTrip) {
@@ -67,14 +69,16 @@ TEST(MultiPass, CodeDecodeRoundTrip) {
     EXPECT_GT(coded.payload_len, 0u);
     EXPECT_GT(coded.model_len, 0u);
 
-    auto decoded = enc.decode(
+    // Use per-plane decode.
+    auto decoded_planes = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size(), 32, 32);
+        32, 32, 1);
 
-    ASSERT_EQ(decoded.size(), res.size());
+    ASSERT_EQ(decoded_planes.size(), 1u);
+    ASSERT_EQ(decoded_planes[0].size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
-        EXPECT_EQ(decoded[i], res[i]) << "mismatch at i=" << i;
+        EXPECT_EQ(decoded_planes[0][i], res[i]) << "mismatch at i=" << i;
     }
 }
 
@@ -90,14 +94,15 @@ TEST(MultiPass, RoundTripLargeResiduals) {
     auto analysis = enc.analyze(res, 32, 32);
     auto coded = enc.code(res, analysis);
 
-    auto decoded = enc.decode(
+    auto decoded_planes = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size(), 32, 32);
+        32, 32, 1);
 
-    ASSERT_EQ(decoded.size(), res.size());
+    ASSERT_EQ(decoded_planes.size(), 1u);
+    ASSERT_EQ(decoded_planes[0].size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
-        EXPECT_EQ(decoded[i], res[i]) << "mismatch at i=" << i;
+        EXPECT_EQ(decoded_planes[0][i], res[i]) << "mismatch at i=" << i;
     }
 }
 
@@ -110,14 +115,15 @@ TEST(MultiPass, RoundTripAllZeros) {
     auto analysis = enc.analyze(res, 32, 32);
     auto coded = enc.code(res, analysis);
 
-    auto decoded = enc.decode(
+    auto decoded_planes = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size(), 32, 32);
+        32, 32, 1);
 
-    ASSERT_EQ(decoded.size(), res.size());
+    ASSERT_EQ(decoded_planes.size(), 1u);
+    ASSERT_EQ(decoded_planes[0].size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
-        EXPECT_EQ(decoded[i], 0) << "mismatch at i=" << i;
+        EXPECT_EQ(decoded_planes[0][i], 0) << "mismatch at i=" << i;
     }
 }
 
@@ -133,14 +139,15 @@ TEST(MultiPass, RoundTripEscapeTokens) {
     auto analysis = enc.analyze(res, 32, 32);
     auto coded = enc.code(res, analysis);
 
-    auto decoded = enc.decode(
+    auto decoded_planes = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size(), 32, 32);
+        32, 32, 1);
 
-    ASSERT_EQ(decoded.size(), res.size());
+    ASSERT_EQ(decoded_planes.size(), 1u);
+    ASSERT_EQ(decoded_planes[0].size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
-        EXPECT_EQ(decoded[i], res[i]) << "mismatch at i=" << i;
+        EXPECT_EQ(decoded_planes[0][i], res[i]) << "mismatch at i=" << i;
     }
 }
 
@@ -203,13 +210,14 @@ TEST(MultiPass, SinglePixel) {
     auto analysis = enc.analyze(res, 1, 1);
     auto coded = enc.code(res, analysis);
 
-    auto decoded = enc.decode(
+    auto decoded_planes = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
         1, 1, 1);
 
-    ASSERT_EQ(decoded.size(), 1u);
-    EXPECT_EQ(decoded[0], 42);
+    ASSERT_EQ(decoded_planes.size(), 1u);
+    ASSERT_EQ(decoded_planes[0].size(), 1u);
+    EXPECT_EQ(decoded_planes[0][0], 42);
 }
 
 TEST(MultiPass, NegativeResiduals) {
@@ -221,13 +229,47 @@ TEST(MultiPass, NegativeResiduals) {
     auto analysis = enc.analyze(res, 10, 1);
     auto coded = enc.code(res, analysis);
 
-    auto decoded = enc.decode(
+    auto decoded_planes = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size(), 10, 1);
+        10, 1, 1);
 
-    ASSERT_EQ(decoded.size(), res.size());
+    ASSERT_EQ(decoded_planes.size(), 1u);
+    ASSERT_EQ(decoded_planes[0].size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
-        EXPECT_EQ(decoded[i], res[i]) << "mismatch at i=" << i;
+        EXPECT_EQ(decoded_planes[0][i], res[i]) << "mismatch at i=" << i;
+    }
+}
+
+TEST(MultiPass, MultiChannelRoundTrip) {
+    MultiPassEncoder enc;
+    enc.num_clusters = 4;
+    enc.T_ESC = 8;
+
+    uint32_t w = 16, h = 16;
+    std::vector<std::vector<int32_t>> plane_residuals(3);
+    for (size_t pi = 0; pi < 3; ++pi) {
+        plane_residuals[pi] = make_test_residuals(w, h, 42 + (int)pi);
+    }
+
+    auto analysis = enc.analyze(plane_residuals, w, h, 3);
+    auto coded = enc.code(plane_residuals, analysis);
+
+    EXPECT_GT(coded.payload_len, 0u);
+    EXPECT_GT(coded.model_len, 0u);
+    EXPECT_EQ(analysis.planes.size(), 3u);
+
+    auto decoded_planes = enc.decode(
+        coded.payload.data(), coded.payload_len,
+        coded.model_blob.data(), coded.model_len,
+        w, h, 3);
+
+    ASSERT_EQ(decoded_planes.size(), 3u);
+    for (size_t pi = 0; pi < 3; ++pi) {
+        ASSERT_EQ(decoded_planes[pi].size(), plane_residuals[pi].size());
+        for (size_t i = 0; i < plane_residuals[pi].size(); ++i) {
+            EXPECT_EQ(decoded_planes[pi][i], plane_residuals[pi][i])
+                << "plane=" << pi << " i=" << i;
+        }
     }
 }
