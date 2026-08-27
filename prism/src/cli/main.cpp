@@ -5480,7 +5480,7 @@ int main(int argc, char* argv[]) {
             // Collect per-(K,effort) results for gate checking.
             struct R1Result { uint16_t K; uint8_t effort; double delta_pct; double model_bpp; double payload_delta_pct; };
             std::vector<R1Result> all_results;
-            double best_median_delta = -999;
+            double best_median_delta = 1e9;
             uint16_t best_K = 0;
             uint8_t best_effort = 0;
 
@@ -5542,7 +5542,7 @@ int main(int argc, char* argv[]) {
                     std::cout << "R1_SUMMARY," << K << "," << (int)eff
                               << ",median_delta," << median_delta
                               << ",total_delta," << total_delta << "\n";
-                    if (median_delta > best_median_delta) {
+                    if (median_delta < best_median_delta) {
                         best_median_delta = median_delta;
                         best_K = K;
                         best_effort = eff;
