@@ -83,6 +83,8 @@ SELF_CHECK_T4=0
 MODE_T4=0
 SELF_CHECK_R0=0
 MODE_R0=0
+MODE_R1=0
+SELF_CHECK_R1=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -110,6 +112,8 @@ while [[ $# -gt 0 ]]; do
     --t4) MODE_T4=1; shift;;
     --self-check-r0) SELF_CHECK_R0=1; shift;;
     --r0) MODE_R0=1; shift;;
+    --self-check-r1) SELF_CHECK_R1=1; shift;;
+    --r1) MODE_R1=1; shift;;
     *) echo "unknown arg $1"; exit 2;;
   esac
 done
@@ -2824,11 +2828,11 @@ EOF
 fi
 
 BIN="${BUILD_DIR:-${ROOT}/../build}/prism"
-if [[ ! -x "$BIN" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" && "$MODE_R0" != "1" && "$SELF_CHECK_R0" != "1" ]]; then
+if [[ ! -x "$BIN" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" && "$MODE_R0" != "1" && "$SELF_CHECK_R0" != "1" && "$MODE_R1" != "1" && "$SELF_CHECK_R1" != "1" ]]; then
   echo "prism binary not found at $BIN (pass --build-dir or build first)"; exit 1
 fi
 
-if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" && "$MODE_R0" != "1" && "$SELF_CHECK_R0" != "1" ]]; then
+if [[ ${#IMAGES[@]} -eq 0 && "$SELF_CHECK_T0" != "1" && "$SELF_CHECK_T3" != "1" && "$MODE_T4" != "1" && "$SELF_CHECK_T4" != "1" && "$MODE_R0" != "1" && "$SELF_CHECK_R0" != "1" && "$MODE_R1" != "1" && "$SELF_CHECK_R1" != "1" ]]; then
   echo "no --image given"; exit 2
 fi
 
@@ -2880,6 +2884,45 @@ for IMG in "${IMAGES[@]}"; do
   fi
   echo "${NAME}: sha256 pin verified"
 done
+
+# ----- R-series R1: Multi-pass vs single-pass baseline (attacks B1) -----
+if [[ "$MODE_R1" == "1" || "$SELF_CHECK_R1" == "1" ]]; then
+  R1_BIN=""
+  for cand in "$ROOT/build/prism" "$ROOT/../build/prism" "$BUILD_DIR/prism" "$(dirname "$0")/../build/prism"; do
+    if [[ -x "$cand" ]]; then R1_BIN="$cand"; break; fi
+  done
+  if [[ -z "$R1_BIN" ]]; then
+    echo "R1: prism binary not found (build first)"; exit 1
+  fi
+  if [[ ${#IMAGES[@]} -eq 0 ]]; then
+    echo "R1: --image required"; exit 1
+  fi
+  R1_STAMP=$(date +%Y-%m-%d)
+  R1_CSV="${ROOT}/benchmarks/results/${R1_STAMP}-sandbox-r1.csv"
+  mkdir -p "$(dirname "$R1_CSV")"
+
+  if [[ "$SELF_CHECK_R1" == "1" ]]; then
+    echo "== R1 self-check (byte-exact round-trip + model overhead) =="
+    R1_CHECK_ARGS=()
+    for img in "${IMAGES[@]}"; do R1_CHECK_ARGS+=(--image "$img"); done
+    for K_VAL in 16 32 64 128; do
+      for EFF_VAL in 3 5 7; do
+        echo "--- K=$K_VAL effort=$EFF_VAL ---"
+        if ! "$R1_BIN" self-check-r1 "${R1_CHECK_ARGS[@]}" --k "$K_VAL" --effort "$EFF_VAL"; then
+          echo "R1 self-check FAIL at K=$K_VAL effort=$EFF_VAL"; exit 1
+        fi
+      done
+    done
+    echo "R1 self-check PASS (all K x effort)"
+  fi
+
+  if [[ "$MODE_R1" == "1" ]]; then
+    echo "== R1 probe (multi-pass vs single-pass sweep: K x effort) =="
+    "$R1_BIN" probe-r1 "${IMAGES[@]}" | tee "$R1_CSV"
+    echo "R1 results written to $R1_CSV"
+  fi
+  exit 0
+fi
 
 # ----- T-series slice Q0: the T0 instrument smoke (pins P-T0-10/P-T0-11) -----
 if [[ "$MODE_T0" == "1" ]]; then

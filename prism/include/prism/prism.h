@@ -38,6 +38,9 @@ struct EncodeOpts {
     // adaptive coder. Container carries MULTIPASS_FLAG and a separate
     // r3_model blob (MA-tree + histograms + cluster IDs).
     bool use_r3 = false;
+    // Route 3: number of MA-tree clusters (K). Only used when use_r3=true.
+    // Default 32 matches addendum 22 pinned constant.
+    uint16_t r3_num_clusters = 32;
 };
 
 // Encode a Raster to Prism container bytes. Throws EncodeError.
