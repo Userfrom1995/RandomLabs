@@ -63,7 +63,6 @@ struct MultiPassEncoder {
     uint8_t T_ESC = 8;
     uint16_t num_clusters = 32;
     uint8_t max_depth = 10;
-    bool use_full_features = true;
 
     struct AnalysisResult {
         std::vector<PlaneAnalysis> planes;

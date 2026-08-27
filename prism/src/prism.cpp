@@ -459,7 +459,6 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         codec::r3::MultiPassEncoder mpe;
         mpe.effort = opts.effort;
         mpe.num_clusters = opts.r3_num_clusters;
-        mpe.use_full_features = true;
 
         // Compute per-plane residuals and collect pixel data for feature computation.
         std::vector<std::vector<int32_t>> plane_residuals(nc);
@@ -723,7 +722,6 @@ Raster decode(const uint8_t* data, size_t len) {
         if (pos != len - 4) throw DecodeError("multipass: extra bytes after payload");
 
         codec::r3::MultiPassEncoder mpe;
-        mpe.use_full_features = true;
 
         auto all_residuals = mpe.decode(
             payload.data(), payload.size(),
