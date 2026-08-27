@@ -501,6 +501,7 @@ std::vector<uint8_t> encode(const Raster& raster, const EncodeOpts& opts) {
         uint8_t flags = ACODER_FLAG | ACODER_V2_FLAG | R2_HYBRID_FLAG;
         c.hdr.flags = flags;
         c.hdr.effort = opts.effort;
+        c.hdr.r2_t_esc = opts.r2_t_esc;
         c.hdr.cfl_scales = ar.cfl_scales;
         c.hdr.squeeze_levels.assign(nc, 0);
         c.trees = ar.trees;
@@ -866,15 +867,16 @@ Raster decode(const uint8_t* data, size_t len) {
         throw DecodeError("invalid flag combination: v2 without adaptive coder");
     if ((c.hdr.flags & MATREE_FLAT_FLAG) && !(c.hdr.flags & ACODER_FLAG))
         throw DecodeError("invalid flag combination: tree-on-flat without adaptive coder");
-    // Route 2 hybrid: bit6 (same position as XBAND) with no squeeze = hybrid-uint mode.
-    // Hybrid streams carry MULTIPASS_FLAG; plain XBAND requires squeeze levels > 0.
+    // Route 2 hybrid: bit1 (R2_HYBRID_FLAG) indicates hybrid-uint mode.
+    // Requires ACODER_FLAG | ACODER_V2_FLAG; mutually exclusive with squeeze/XBAND.
     bool anySqueezeHdr = false;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) anySqueezeHdr = true;
     size_t numSqueezePlanes = 0;
     for (auto v : c.hdr.squeeze_levels) if (v > 0) ++numSqueezePlanes;
-    bool useHybrid = (c.hdr.flags & R2_HYBRID_FLAG) && !anySqueezeHdr
-                     && (c.hdr.flags & MULTIPASS_FLAG);
-    if ((c.hdr.flags & XBAND_FLAG) && !useHybrid) {
+    bool useHybrid = (c.hdr.flags & R2_HYBRID_FLAG) != 0;
+    if (useHybrid && anySqueezeHdr)
+        throw DecodeError("invalid flag combination: r2-hybrid with squeeze");
+    if (c.hdr.flags & XBAND_FLAG) {
         if (!(c.hdr.flags & ACODER_FLAG))
             throw DecodeError("invalid flag combination: xband without adaptive coder");
         if (!anySqueezeHdr)
@@ -918,7 +920,7 @@ Raster decode(const uint8_t* data, size_t len) {
             } else {
             size_t n = (size_t)w * h;
             std::vector<int32_t> residuals;
-            if (useHybrid) residuals = acoder_decode_plane_hybrid(b, n, w, h);
+            if (useHybrid) residuals = acoder_decode_plane_hybrid(b, n, w, h, c.hdr.r2_t_esc);
             else if (useV2) residuals = acoder_decode_plane_v2(b, n, w, h, 343);
             else if (use_acoder) residuals = acoder_decode_plane(b, n, w, h, 343);
             else residuals = rans_decode_plane(b, n, 1);
