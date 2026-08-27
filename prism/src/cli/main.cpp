@@ -4490,21 +4490,24 @@ int main(int argc, char* argv[]) {
             std::filesystem::path in = argv[2];
             std::filesystem::path out = argv[3];
             uint8_t effort = 0;
+            bool use_r3 = false;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
             for (int i=4;i<argc;++i){
                 std::string a=argv[i];
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
+                else if (a=="--r3") use_r3 = true;
                 else if (a=="--w" && i+1<argc) w=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--h" && i+1<argc) h=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--bd" && i+1<argc) bd=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--ch" && i+1<argc) ch=(uint8_t)std::stoi(argv[++i]);
             }
             Raster r = load_raster(in,w,h,bd,ch);
-            EncodeOpts opts; opts.effort=effort;
+            EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3;
             auto bytes = encode(r, opts);
             write_file(out, bytes);
             std::cout << "encoded " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
                       << " bd=" << (int)bd << " effort=" << (int)effort
+                      << (use_r3 ? " r3" : "")
                       << " -> " << bytes.size() << " bytes ("
                       << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
         } else if (cmd == "dec") {
@@ -5359,6 +5362,89 @@ int main(int argc, char* argv[]) {
                     std::cout << rowbuf;
                 }
             }
+        } else if (cmd == "probe-r3") {
+            // Route 3 R0 measurement: compare multi-pass vs single-pass NET
+            // on one or more images. Outputs CSV rows for R-series evaluation.
+            if (argc < 3) { print_usage(); return 2; }
+            std::vector<std::filesystem::path> imgs;
+            uint8_t effort = 5;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--effort" && i + 1 < argc) effort = (uint8_t)std::stoi(argv[++i]);
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "probe-r3: no images given\n"; return 2; }
+            std::cout << "PROBE_R3,image,single_bytes,multi_bytes,delta_pct,"
+                         "single_bpp,multi_bpp\n";
+            double sum_single = 0, sum_multi = 0;
+            size_t total_imgs = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                // Single-pass baseline (effort 5, v2).
+                EncodeOpts opts_single; opts_single.effort = effort;
+                auto enc_single = encode(r, opts_single);
+                Raster dec_single = decode(enc_single);
+                if (dec_single != r) {
+                    std::cerr << "probe-r3: single-pass roundtrip FAIL on " << img << "\n";
+                    return 1;
+                }
+                // Multi-pass (R3).
+                EncodeOpts opts_r3; opts_r3.effort = effort; opts_r3.use_r3 = true;
+                auto enc_r3 = encode(r, opts_r3);
+                Raster dec_r3 = decode(enc_r3);
+                if (dec_r3 != r) {
+                    std::cerr << "probe-r3: multi-pass roundtrip FAIL on " << img << "\n";
+                    return 1;
+                }
+                double single_bpp = 8.0 * enc_single.size() / (r.w * r.h * r.num_channels());
+                double multi_bpp = 8.0 * enc_r3.size() / (r.w * r.h * r.num_channels());
+                double delta = 100.0 * ((double)enc_r3.size() - (double)enc_single.size()) / (double)enc_single.size();
+                std::cout << "PROBE_R3," << img.filename().string()
+                          << "," << enc_single.size() << "," << enc_r3.size()
+                          << "," << delta
+                          << "," << single_bpp << "," << multi_bpp << "\n";
+                sum_single += enc_single.size();
+                sum_multi += enc_r3.size();
+                total_imgs++;
+            }
+            if (total_imgs > 0) {
+                double total_delta = 100.0 * (sum_multi - sum_single) / sum_single;
+                std::cout << "PROBE_R3_TOTAL,all," << (size_t)sum_single << ","
+                          << (size_t)sum_multi << "," << total_delta << "\n";
+            }
+        } else if (cmd == "self-check-r3") {
+            // Route 3 R0 self-check: byte-exact round-trip verification.
+            // Usage: self-check-r3 --image FILE [--image FILE ...] [--effort N]
+            if (argc < 3) { print_usage(); return 2; }
+            std::vector<std::filesystem::path> imgs;
+            uint8_t effort = 5;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--effort" && i + 1 <argc) effort = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--image" && i + 1 < argc) imgs.push_back(argv[++i]);
+                else imgs.push_back(a);
+            }
+            if (imgs.empty()) { std::cerr << "self-check-r3: no images given\n"; return 2; }
+            int fails = 0;
+            for (const auto& img : imgs) {
+                Raster r = frontend::decode_to_raster(img);
+                EncodeOpts opts; opts.effort = effort; opts.use_r3 = true;
+                auto enc = encode(r, opts);
+                auto dec = decode(enc);
+                if (dec != r) {
+                    std::cerr << "VB-SELF-CHECK FAIL: " << img.filename().string() << "\n";
+                    fails++;
+                } else {
+                    double bpp = 8.0 * enc.size() / (r.w * r.h * r.num_channels());
+                    std::cout << "VB-SELF-CHECK PASS: " << img.filename().string()
+                              << " " << enc.size() << " bytes " << bpp << " bpp\n";
+                }
+            }
+            if (fails > 0) {
+                std::cerr << "self-check-r3: " << fails << "/" << imgs.size() << " FAIL\n";
+                return 1;
+            }
+            std::cout << "self-check-r3: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "bench-sandbox") {
             return run_bench_sandbox(argc, argv);
         } else {
