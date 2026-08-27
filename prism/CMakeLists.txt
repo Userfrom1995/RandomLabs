@@ -107,6 +107,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_hybrid_uint.cpp
         tests/unit/test_ans_static.cpp
         tests/unit/test_multipass.cpp
+        tests/unit/test_acoder_hybrid.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)
