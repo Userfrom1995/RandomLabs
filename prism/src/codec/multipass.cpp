@@ -15,6 +15,11 @@ namespace prism::codec::r3 {
 
 // ---- FeatureR3 construction ----
 
+// R0 harness: only position features (y/x) are populated.
+// QG, band_class, and activity will be computed from decoded residuals
+// when predictors are integrated (R1+). The MA-tree currently clusters
+// on spatial position only, which is sufficient for R0 wire-format
+// validation. See addendum 22.1 (MA_FEATURE_* pins).
 std::vector<FeatureR3> MultiPassEncoder::build_features(
     const std::vector<int32_t>& residuals,
     uint32_t w, uint32_t h) {
@@ -463,11 +468,9 @@ MultiPassEncoder::CodeResult MultiPassEncoder::code(
     result.model_blob.push_back((uint8_t)((hist_len >> 8) & 0xFF));
     result.model_blob.insert(result.model_blob.end(), hist_blob.begin(), hist_blob.end());
 
-    // Cluster IDs.
-    for (uint16_t cl : analysis.cluster_ids) {
-        result.model_blob.push_back((uint8_t)(cl & 0xFF));
-        result.model_blob.push_back((uint8_t)((cl >> 8) & 0xFF));
-    }
+    // Cluster IDs are NOT stored on the wire - the decoder reconstructs
+    // them by re-evaluating the MA-tree on rebuilt feature vectors.
+    // This eliminates 2*N bytes of model overhead (invariant I16).
 
     result.model_len = (uint32_t)result.model_blob.size();
     return result;
@@ -478,7 +481,7 @@ MultiPassEncoder::CodeResult MultiPassEncoder::code(
 std::vector<int32_t> MultiPassEncoder::decode(
     const uint8_t* payload, size_t payload_len,
     const uint8_t* model_blob, size_t model_len,
-    size_t num_samples) const {
+    size_t num_samples, uint32_t w, uint32_t h) const {
     if (model_len < 7)
         throw std::runtime_error("MultiPassEncoder::decode: model too short");
 
@@ -510,13 +513,20 @@ std::vector<int32_t> MultiPassEncoder::decode(
         model_blob + mpos, hist_len, nc, alphabet);
     mpos += hist_len;
 
-    // Cluster IDs.
+    // Cluster IDs are NOT stored on the wire. Reconstruct by rebuilding
+    // feature vectors and re-evaluating the MA-tree on the decode side.
+    // This eliminates 2*N bytes of model overhead (invariant I16).
     std::vector<uint16_t> cluster_ids(ns);
-    for (size_t i = 0; i < ns; ++i) {
-        if (mpos + 2 > model_len)
-            throw std::runtime_error("MultiPassEncoder::decode: truncated cluster ids");
-        cluster_ids[i] = (uint16_t)model_blob[mpos] | ((uint16_t)model_blob[mpos + 1] << 8);
-        mpos += 2;
+    if (ns > 0 && w > 0 && h > 0) {
+        // We need residuals to build features, but we haven't decoded yet.
+        // Use a dummy residual vector for feature construction - only
+        // position features (y/x) are populated in R0, so residual values
+        // don't affect cluster assignment.
+        std::vector<int32_t> dummy_res(ns, 0);
+        auto features = build_features(dummy_res, w, h > 0 ? h : 1);
+        for (size_t i = 0; i < ns; ++i) {
+            cluster_ids[i] = tree.eval(features[i]);
+        }
     }
 
     // Build ANS model from deserialized histograms.
