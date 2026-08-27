@@ -43,7 +43,7 @@ struct EncodeOpts {
     uint16_t r3_num_clusters = 32;
     // Route 1 adaptive: when true, use multi-pass ACoderV2 coding with
     // full v1 features + entropy-based MA-tree. Container carries
-    // R1_ADAPTIVE_FLAG and r1_model blob (MA-tree only, no histograms).
+    // MULTIPASS_FLAG with model_blob[0] high bit distinguishing R1 from R3.
     bool use_r1_adaptive = false;
     // Route 1 adaptive: number of MA-tree clusters (K). Only used when use_r1_adaptive=true.
     uint16_t r1_num_clusters = 32;
