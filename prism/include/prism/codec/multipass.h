@@ -84,7 +84,7 @@ struct MultiPassEncoder {
     // Pass 2 result: coded bitstream.
     struct CodeResult {
         std::vector<uint8_t> payload;          // ANS-coded residuals
-        std::vector<uint8_t> model_blob;       // serialized tree + histograms + cluster_ids
+        std::vector<uint8_t> model_blob;       // serialized tree + histograms (no cluster IDs)
         uint32_t payload_len = 0;
         uint32_t model_len = 0;
     };
@@ -99,10 +99,12 @@ struct MultiPassEncoder {
                     const AnalysisResult& analysis) const;
 
     // Decode: reconstruct residuals from coded payload + model blob.
+    // Cluster IDs are reconstructed by re-evaluating the MA-tree on the
+    // decode side (no cluster IDs on the wire, invariant I16).
     std::vector<int32_t> decode(
         const uint8_t* payload, size_t payload_len,
         const uint8_t* model_blob, size_t model_len,
-        size_t num_samples) const;
+        size_t num_samples, uint32_t w, uint32_t h) const;
 
     // Build feature vectors from residuals and spatial coordinates.
     static std::vector<FeatureR3> build_features(

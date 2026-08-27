@@ -70,7 +70,7 @@ TEST(MultiPass, CodeDecodeRoundTrip) {
     auto decoded = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size());
+        res.size(), 32, 32);
 
     ASSERT_EQ(decoded.size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
@@ -93,7 +93,7 @@ TEST(MultiPass, RoundTripLargeResiduals) {
     auto decoded = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size());
+        res.size(), 32, 32);
 
     ASSERT_EQ(decoded.size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
@@ -113,7 +113,7 @@ TEST(MultiPass, RoundTripAllZeros) {
     auto decoded = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size());
+        res.size(), 32, 32);
 
     ASSERT_EQ(decoded.size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
@@ -136,7 +136,7 @@ TEST(MultiPass, RoundTripEscapeTokens) {
     auto decoded = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size());
+        res.size(), 32, 32);
 
     ASSERT_EQ(decoded.size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
@@ -206,7 +206,7 @@ TEST(MultiPass, SinglePixel) {
     auto decoded = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        1);
+        1, 1, 1);
 
     ASSERT_EQ(decoded.size(), 1u);
     EXPECT_EQ(decoded[0], 42);
@@ -224,7 +224,7 @@ TEST(MultiPass, NegativeResiduals) {
     auto decoded = enc.decode(
         coded.payload.data(), coded.payload_len,
         coded.model_blob.data(), coded.model_len,
-        res.size());
+        res.size(), 10, 1);
 
     ASSERT_EQ(decoded.size(), res.size());
     for (size_t i = 0; i < res.size(); ++i) {
