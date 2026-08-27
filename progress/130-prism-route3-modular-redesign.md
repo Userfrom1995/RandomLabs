@@ -3,7 +3,7 @@
 - **Issue:** #130 (Owner directive 2026-08-27: Route 3 first, cascade to Route 1
   then Route 2)
 - **Branch:** opencode/issue130-route3-modular-redesign
-- **Status:** in-progress (R1 FAIL on real Kodak-24, cascading to Route 1)
+- **Status:** in-progress (R1 FAIL on real Kodak-24, Route 1 multi-pass with full v1 features implemented)
 - **Blueprint:** `ideas/2026-08-27-prism-route3-modular-redesign.md`
 - **Research spec:** `prism/docs/research-route3-modular-redesign.md` (Dr. Mob)
 - **Binding gates (both units, real corpus, byte-exact):**
@@ -210,6 +210,33 @@ transmitted histograms + static probabilities + MA-tree clustering ~30-80 leaves
   the model blob + bypass data overhead overwhelms clustering benefit
 - Per blueprint cascade table: R1 FAIL => Route 3 architecturally infeasible
 - Cascading to Route 1 (multi-pass with transmitted histograms + ANS static probabilities)
+
+### 2026-08-27 (Builder): Route 1 implementation - full v1 features + per-plane ANS
+
+- Cascade from R1 FAIL: Route 1 retains Prism v1's MED prediction and ZFF
+  tokenization but adds multi-pass encoding with transmitted histograms and
+  MA-tree clustering using full v1 features.
+- Key changes vs Route 3 skeleton:
+  - `build_features()`: full v1 features (QG, band_class, activity, position)
+    instead of position-only features. QG computed from spatial neighbors (L,T,TL,TR),
+    activity from gradient magnitude buckets.
+  - Per-plane ANS encoding: each plane gets its own ANS static model with
+    per-cluster histograms, instead of combined single stream. Eliminates
+    per-plane statistics dilution.
+  - Model blob format: num_channels(1) + per-plane payload sizes(4*nc) +
+    per-plane [alphabet_size(1) + num_clusters(2) + num_samples(4) +
+    tree_blob + hist_blob].
+- Files modified:
+  - `prism/include/prism/codec/multipass.h`: New PlaneAnalysis struct,
+    per-plane analyze/code/decode API, full v1 build_features()
+  - `prism/src/codec/multipass.cpp`: Full rewrite of analyze/code/decode
+    with per-plane support and backward-compatible overloads
+  - `prism/src/prism.cpp`: encode() and decode() paths updated to use
+    per-plane analysis with pixel data for full v1 features
+  - `prism/tests/unit/test_multipass.cpp`: Updated tests for per-plane API
+- All 193 tests pass (13 multipass + 180 existing)
+- Byte-exact round-trip verified on synthetic 32x32 RGB test image
+- Next: run probe-r1 on real Kodak-24 to measure Route 1 improvement
 
 ---
 
