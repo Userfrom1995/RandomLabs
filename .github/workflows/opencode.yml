@@ -807,7 +807,7 @@ jobs:
       startsWith(github.event.comment.body, '/oc fix') &&
       github.event.issue.pull_request != null
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -1026,7 +1026,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/mimo-v2.5-free
+          model: opencode/muse-spark-1.2-contributor-free
           use_github_token: true
           prompt: |
             You are the General agent of the Random lab, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
