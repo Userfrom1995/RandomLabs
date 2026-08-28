@@ -5,13 +5,13 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X2 + X3b COMPLETE on REAL pinned Kodak-24. The gate-invalidating dead
-      coder (FIXED_PROB=0.5) is fixed; the wavelet+bitplane path beats the v1 e1 baseline
-      by 3.3% (3.261 vs 3.3737 per-sample) with byte-exact round-trip. Fixed-context
-      augmentation is exhausted (pattern ~0; run-length HURT; neighbour-magnitude HURT).
-      The remaining gap to M2 (3.166) / M3 (2.885) is a LEARNED magnitude/context model
-      (X3a), which the owner's Option-2 directive explicitly names and which needs an
-      owner-authorized training corpus (I29/I30, not fetchable in-sandbox).
+- **Current step:** X3a COMPLETE on REAL pinned Kodak-24 (learned fine-ctx + MLP-seed prior,
+       3.2477 per-sample vs X2 EMA 3.2611, +0.41%). Byte-exact round-trip + X0 gtests PASS.
+       The X3a TECHNIQUE is fully implemented and measured, so it is handed off to the
+       Reviewer (quality audit) as a correct-but-sub-gate stepping stone (Refs #130).
+       The remaining gap to M2 (3.166) / M3 (2.885) needs a stronger prior (deeper/wider
+       net, better features, or value/tokenization change) - a Maintainer-cascade decision
+       (merge stepping stone vs continue to X4/X5), not a data-free change.
 - **Next steps:** Escalate to Maintainer/Owner for X3a authorisation: train a fixed CNN
       context model on an authorized corpus and bake its weights as a constant invoked at
       each coefficient. This is the only remaining lever; data-free changes are tapped.
@@ -143,8 +143,13 @@
 - Verdict: X3a is the correct mechanism (beats predictive + EMA), but the gain is
   small. Reaching M2 needs a stronger prior (deeper/wider net, better features,
   or a value/tokenization change) - out of scope for this single run. GATES NOT
-  MET (M2/M3 PENDING). Yielding to Maintainer for next cascade phase.
+  MET (M2/M3 PENDING). The X3a TECHNIQUE itself is fully implemented and measured
+  on the binding set (real Kodak-24, sha-pinned), so it hands off to the Reviewer
+  for quality audit as a correct-but-sub-gate stepping stone (Refs #130, not Closes).
 - [x] X3a implemented (learned fine-ctx + MLP-seed), measured, byte-exact, CSV+row committed.
+- [x] Build verified: prism_core + prism_tests compile; X0Frame/X0Wavelet/X0Rans/X0Bitplane
+      gtests PASS (byte-exact round-trip + context determinism) on this branch.
+- [ ] Maintainer cascade: decide merge-as-stepping-stone vs stronger-prior continuation (X4/X5).
 
 ### X4: Composition + Binding Gate (M2 and M3, both units)
 - [ ] Compose X-winners per image by real NET bytes (L-C1)
