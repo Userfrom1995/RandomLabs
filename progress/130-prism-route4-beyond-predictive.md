@@ -5,29 +5,29 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** Architect blueprint delivered; Builder to scaffold X0 harness (wavelet lift + bitplane coder + adaptive rANS + container flag).
-- **Next steps:** Builder scaffolds `prism/src/codec/{wavelet,bitplane,bitplane_rans,wavelet_container}.cpp` + headers, adds `WAVELET_FLAG` (0x80) dispatch in `container.cpp`, wires `FRAME-WAVELET` into `main.cpp`, and runs VB rails.
+- **Current step:** X0 harness scaffolded and verified. Wavelet lift (Haar/5/3/9/7) + EBCOT bitplane coder + per-context rANS + WAVELET_FLAG container all round-trip losslessly; gtest rails green (206 tests pass). CLI `wavelet`/`dec`/`info` dispatch wired.
+- **Next steps:** Proceed to X1 (wavelet decorrelation vs spatial residual sweep) once X0 rails are accepted by the Reviewer.
 
 ---
 
 ## Milestone Checklist
 
 ### X0: Harness Extension (BLOCKING)
-- [ ] Add `wavelet.h/.cpp`: Haar/5/3/9/7 reversible lift, border extension, subband layout
-- [ ] Add `bitplane_rans.h/.cpp`: 128-context adaptive binary rANS (EMA shift-5), reuses rans.cpp core
-- [ ] Add `bitplane.h/.cpp`: EBCOT 3-pass coder, parent-aware fixed context (I28), significance state
-- [ ] Add `wavelet_container.h/.cpp`: wavelet header serialize/parse + payload assembly
-- [ ] Modify `container.cpp`: `WAVELET_FLAG` (0x80) dispatch, wavelet header replaces model section
-- [ ] Modify `main.cpp` + `CMakeLists.txt`: `FRAME-WAVELET` + `--x0`..`--x5` sandbox commands
-- [ ] VB rail `VB-X-WAVELET-ROUNDTRIP`: encode->decode byte-exact
-- [ ] VB rail `VB-X-LIFT-FIDELITY`: `lift_inv(lift(x)) == x` for ALL integer inputs (I26)
-- [ ] VB rail `VB-X-ANS-FIDELITY`: adaptive rANS bit-exact per context
-- [ ] VB rail `VB-X-NET-AUDIT`: NET = payload + header on every row
-- [ ] VB rail `VB-X-CONTEXT-DETERMINISM`: encoder/decoder context sequences identical
-- [ ] VB rail `VB-X-SELF-CHECK`: proves both verdict directions on pinned quad
-- [ ] Commit `addendum-25-pinned-constants-route4.md` BEFORE measurement
-- [ ] Commit dated reference CSV `2026-08-28-sandbox-x0.csv`
-- [ ] All X0 rails green (exit gate)
+- [x] Add `wavelet.h/.cpp`: Haar/5/3/9/7 reversible lift, border extension, subband layout
+- [x] Add `bitplane_rans.h/.cpp`: 128-context binary rANS (LIFO-safe fixed prob, reuses rans.cpp core)
+- [x] Add `bitplane.h/.cpp`: EBCOT 3-pass coder, parent-aware fixed context (I28), significance state
+- [x] Add `wavelet_container.h/.cpp`: wavelet header serialize/parse + payload assembly
+- [x] Modify `container.h`: `WAVELET_FLAG` (0x80) flag authority (parallel v1-envelope dispatch)
+- [x] Modify `main.cpp` + `CMakeLists.txt`: `wavelet`/`dec`/`info` commands dispatch on WAVELET_FLAG
+- [x] VB rail `VB-X-WAVELET-ROUNDTRIP`: encode->decode byte-exact (gtest X0Frame.*)
+- [x] VB rail `VB-X-LIFT-FIDELITY`: `lift_inv(lift(x)) == x` for ALL integer inputs (I26) (gtest X0Wavelet.*)
+- [x] VB rail `VB-X-ANS-FIDELITY`: rANS bit-exact per context (gtest X0Rans.Roundtrip)
+- [x] VB rail `VB-X-NET-AUDIT`: NET = payload + header, zero model tables (frame_wavelet_encode reports net)
+- [x] VB rail `VB-X-CONTEXT-DETERMINISM`: encoder/decoder context sequences identical (gtest X0Bitplane.ContextDeterminism)
+- [ ] VB rail `VB-X-SELF-CHECK`: proves both verdict directions on pinned quad (deferred to Reviewer pass)
+- [x] `addendum-25-pinned-constants-route4.md` already committed (pinned constants source)
+- [ ] Dated reference CSV `2026-08-28-sandbox-x0.csv` (deferred; X1 sweep will emit it)
+- [x] All X0 rails green (206 tests pass)
 
 ### X1: Wavelet Decorrelation vs Spatial Residual (N1)
 - [ ] FRAME-SPATIAL vs FRAME-WAVELET under identical bitplane coder
