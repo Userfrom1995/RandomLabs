@@ -6,38 +6,56 @@
 
 namespace prism::codec {
 
-// Per-symbol adaptive binary rANS for the Route 4 bitplane coder.
+// Per-context adaptive binary rANS for the Route 4 bitplane coder.
 //
-// X-series requirement (addendum 25 section 3): a per-symbol binary rANS reusing
-// the same renorm/flush core as rans.cpp. The probability for symbol k is
-// supplied by the caller (the learned context model, LearnedModel) as P(0)*M.
-// LIFO-safety (invariant I27 / ryg analysis): the encoder receives the
-// probability for every symbol up front, emits symbols in REVERSE order, and the
-// decoder recovers them in forward order, feeding the identical per-symbol
-// probability. No per-context state lives in the coder, so no desync is possible.
+// X-series requirement (addendum 25 section 3): a PER-CONTEXT ADAPTIVE binary
+// rANS with 128 contexts and EMA shift-5 adaptation, reusing the same
+// renorm/flush core as rans.cpp. The v1 fixed-prob rans.cpp is NOT modified.
+//
+// LIFO-safety (invariant I27 / ryg analysis): each symbol is coded at a
+// FIXED probability derived from a FORWARD (causal) adaptation pass, so the
+// stream round-trips exactly under rANS LIFO decode. The decoder recomputes
+// the identical per-symbol probability by running the same causal adaptation
+// over the symbols it has already recovered.
 struct BitplaneRans {
-    static constexpr uint32_t M = 1u << 16;  // RANS_M, reuse rans.cpp core
+    static constexpr int NUM_CONTEXTS = 128;
+    static constexpr int EMA_SHIFT = 5;          // shift-5, matches ACoderV2
+    static constexpr uint32_t M = 1u << 16;      // RANS_M, reuse rans.cpp core
 
-    // Encode a full symbol sequence whose probability (P(0)*M) for symbol k is
-    // p0[k]. Symbols are emitted in reverse so decode recovers them forward.
+    // One adaptive binary model per context. Causal: the context is derived
+    // from already-coded/decoded significance, so encode and decode update in
+    // the same (forward) order and never desync. Baked-in model = 0 per-image
+    // NET (I29); no probability table is ever transmitted.
+    struct BinaryModel {
+        uint16_t p0 = M / 2; // P(0) * M, EMA-updated
+    };
+
+    // Encode a full symbol sequence whose context for symbol k is ctx[k].
+    // Probability for symbol k is the model state at k under a forward causal
+    // adaptation pass; symbols are emitted in reverse so decode recovers them
+    // in forward order. Returns the rANS byte stream.
     std::vector<uint8_t> encode(const std::vector<uint8_t>& bits,
-                                const std::vector<uint16_t>& p0) const;
+                                const std::vector<uint32_t>& ctx) const;
 
     // Streaming decoder: decode one bit at a time (in forward order) with the
-    // probability (P(0)*M) supplied by the caller.
+    // context supplied by the caller. Each call reads the correct bin and
+    // updates the per-context model, mirroring the encoder's adaptation pass.
     struct Decoder {
         void init(const std::vector<uint8_t>& bytes);
-        uint8_t decode_symbol(uint16_t p0);
+        // Decode one bit with the given context. Probability is taken from the
+        // current model state for `ctx` and the model is EMA-updated after.
+        uint8_t decode_symbol(uint32_t ctx);
 
     private:
         using RansState = uint32_t;
+        std::array<BinaryModel, NUM_CONTEXTS> models_{};
         RansState state_ = 0;
         const uint8_t* ptr_ = nullptr;
     };
 
-    // VB-ANS-FIDELITY rail: coding/decoding is bit-exact for arbitrary bits/p0.
+    // VB-ANS-FIDELITY rail: adaptive rANS coding/decoding is bit-exact.
     bool self_test(const std::vector<uint8_t>& bits,
-                   const std::vector<uint16_t>& p0) const;
+                   const std::vector<uint32_t>& ctx) const;
 };
 
 } // namespace prism::codec

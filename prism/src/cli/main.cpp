@@ -13,6 +13,9 @@
 #include "prism/codec/transform.h"
 #include "prism/codec/container.h"
 #include "prism/codec/multipass.h"
+#include "prism/codec/wavelet.h"
+#include "prism/codec/wavelet_container.h"
+#include "prism/codec/bitplane.h"
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
@@ -4534,13 +4537,22 @@ int main(int argc, char* argv[]) {
             std::filesystem::path in = argv[2];
             std::filesystem::path out = argv[3];
             auto bytes = read_file(in);
-            Raster r = decode(bytes);
+            // WAVELET_FLAG streams ride the v1 envelope as a parallel format;
+            // route them to the beyond-predictive frame decoder (the v1
+            // production model is left untouched).
+            Raster r;
+            if (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG))
+                r = frame_wavelet_decode(bytes);
+            else
+                r = decode(bytes);
             frontend::write_ppm(out, r);
             std::cout << "decoded " << r.w << "x" << r.h << " -> " << out << "\n";
         } else if (cmd == "info") {
             if (argc < 3) { print_usage(); return 2; }
             auto bytes = read_file(argv[2]);
-            Raster r = decode(bytes);
+            Raster r = (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG))
+                           ? frame_wavelet_decode(bytes)
+                           : decode(bytes);
             std::cout << "PRISM " << r.w << "x" << r.h << " ch=" << r.num_channels()
                       << " bd=" << (r.bd==BitDepth::BD16?16:8) << " bytes=" << bytes.size()
                       << " bpp=" << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << "\n";
@@ -4585,6 +4597,46 @@ int main(int argc, char* argv[]) {
             }
             if (fails==0) std::cout << "fuzz_gate: " << iters << " iters PASS\n";
             else { std::cout << "fuzz_gate: " << fails << " FAILS\n"; return 1; }
+        } else if (cmd == "wavelet") {
+            // X0 harness: reversible wavelet + EBCOT-style bitplane coder with
+            // pinned parent-aware context and per-context rANS. Lossless
+            // round-trip is the gating property.
+            if (argc < 4) { print_usage(); return 2; }
+            std::filesystem::path in = argv[2];
+            std::filesystem::path out = argv[3];
+            uint8_t filter_id = 1; // LeGall53 (X_FILTER_ID_53)
+            int levels = 5;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--w" && i + 1 < argc) { /* raw handled below */ }
+            }
+            uint8_t bd = 8, ch = 3; uint32_t w = 0, h = 0;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--w" && i + 1 < argc) w = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+            }
+            Raster r = load_raster(in, w, h, bd, ch);
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            else filter = WaveletFilter::LeGall53;
+            size_t net = 0;
+            auto bytes = frame_wavelet_encode(r, filter, levels, net);
+            write_file(out, bytes);
+            Raster dec = frame_wavelet_decode(bytes);
+            bool ok = (dec == r);
+            double bpp = (8.0 * bytes.size()) / (r.w * r.h * (size_t)r.num_channels());
+            std::cout << "wavelet: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                      << " bd=" << (int)bd << " filter=" << (int)filter_id
+                      << " levels=" << levels
+                      << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
+                      << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
+            if (!ok) return 1;
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;

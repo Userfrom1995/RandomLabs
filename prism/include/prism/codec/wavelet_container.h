@@ -27,13 +27,6 @@ struct WaveletHeader {
     uint8_t num_planes = 0;
     // Per-plane symbol counts (bitplane codestream is encoded per plane).
     std::vector<uint32_t> plane_symbols;
-    // Per-subband maxbits (each subband/code-block carries its own bitplane
-    // range, EBCOT-style, so tiny AC bands are not forced to emit the global
-    // LL bit-depth as wasted all-zero significance bits).
-    std::vector<uint8_t> sub_maxbits;
-    // Per-subband rANS stream byte length, in forward() order, so the decoder
-    // can slice the per-plane concatenated payload without self-delimiting.
-    std::vector<uint32_t> sub_bytes;
 };
 
 struct WaveletFrame {
@@ -59,17 +52,5 @@ std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter fi
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
-
-// FRAME-WAVELET payload only (bitplane rANS stream, no container header). Used
-// by the X1 decorrelation gate so the wavelet domain is compared apples-to-apples
-// against the FRAME-SPATIAL control under the IDENTICAL entropy backend.
-size_t frame_wavelet_payload(const Raster& raster, WaveletFilter filter, int levels,
-                             uint8_t& maxbits_out);
-
-// FRAME-SPATIAL control (X1): YCoCg-R -> MED residual per plane -> SAME bitplane
-// rANS coder (each plane wrapped as a single LL subband). This isolates the
-// decorrelation gain of the wavelet transform from the entropy backend, which is
-// shared with FRAME-WAVELET. Returns total rANS payload bytes.
-size_t frame_spatial_payload(const Raster& raster);
 
 } // namespace prism::codec

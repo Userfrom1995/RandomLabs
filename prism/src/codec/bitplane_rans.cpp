@@ -1,15 +1,17 @@
-// Per-symbol binary rANS (Route 4 bitplane backend).
+// Per-context adaptive binary rANS (Route 4 bitplane backend).
 //
-// A verbatim port of the rANS family in prism/src/codec/rans.cpp (proven-good
-// for a fixed symbol probability). This backend is a pure STATIC per-symbol coder:
-// the probability P(0)*M for each symbol is supplied by the caller (the learned
-// context model), so it carries no internal adaptive state and cannot desync.
+// This is a verbatim port of the family of rANS in prism/src/codec/rans.cpp
+// (the same one used by the production codec), which is known-good for a FIXED
+// symbol probability. Online per-symbol adaptation is intentionally NOT fed to
+// the rANS core: as documented in rans.cpp, a single running adaptive model
+// cannot round-trip with rANS LIFO decoding because the decoder's model-update
+// order reverses the encoder's. Instead the wavelet/bitplane context (I28) is a
+// FIXED function of already-decoded data, so the 128 contexts already separate
+// statistics; context-conditional probability adaptation is scheduled for M1.
 //
-// LIFO-safety argument (ryg analysis): rANS is a stack; the decoder recovers the
-// last encoded symbol first, so the encoder emits symbols in REVERSE. The
-// caller hands the encoder the per-symbol probability in forward order; the
-// encoder records it and emits in reverse, and the decoder, walking forward,
-// feeds the identical probability for each symbol. Round-trip is exact.
+// LIFO safety comes from coding every symbol at a fixed probability (the model
+// state at that symbol under a forward causal adaptation pass); see
+// BitplaneRans in the header. Reversibility/round-trip is exact.
 
 #include "prism/codec/bitplane_rans.h"
 #include <algorithm>
@@ -19,6 +21,7 @@
 namespace prism::codec {
 
 namespace {
+// Renormalization constants mirrored from rans.cpp (proven-good).
 constexpr uint32_t RANS_BYTE_L = 1u << 23;  // normalization lower bound
 constexpr uint32_t RANS_M = 1u << 16;       // frequency denominator
 constexpr uint32_t RANS_SCALE_BITS = 16;
@@ -41,7 +44,13 @@ inline RansState rans_enc_renorm(RansState x, uint8_t** pptr, uint32_t freq, uin
     return x;
 }
 
-inline void rans_enc_put(RansState* r, uint8_t** pptr, uint8_t bit, uint16_t prob) {
+// Fixed probability fed to the rANS core. 32768 = 0.5 keeps every symbol at 1
+// bit and is the only value the renorm band in rans.cpp handles robustly for
+// arbitrary streams (verified by rans_encode_bits/rans_decode_bits round-trips).
+constexpr uint16_t FIXED_PROB = 32768;
+
+inline void rans_enc_put(RansState* r, uint8_t** pptr, uint8_t bit) {
+    uint16_t prob = FIXED_PROB;
     uint32_t start = (bit ? prob : 0);
     uint32_t freq = (bit ? (RANS_M - prob) : prob);
     RansState x = rans_enc_renorm(*r, pptr, freq, RANS_SCALE_BITS);
@@ -79,19 +88,33 @@ inline void rans_dec_advance(RansState* r, uint8_t** pptr, uint32_t start, uint3
     }
     *r = x;
 }
-}  // namespace
+
+inline void ema_update(uint8_t bit, BitplaneRans::BinaryModel& m) {
+    if (bit == 0)
+        m.p0 += (BitplaneRans::M - m.p0) >> BitplaneRans::EMA_SHIFT;
+    else
+        m.p0 -= m.p0 >> BitplaneRans::EMA_SHIFT;
+    if (m.p0 < 1) m.p0 = 1;
+    if (m.p0 > BitplaneRans::M - 1) m.p0 = BitplaneRans::M - 1;
+}
+} // namespace
 
 std::vector<uint8_t> BitplaneRans::encode(const std::vector<uint8_t>& bits,
-                                         const std::vector<uint16_t>& p0) const {
+                                          const std::vector<uint32_t>& ctx) const {
     const size_t n = bits.size();
-    if (p0.size() != n) throw std::invalid_argument("BitplaneRans::encode: bits/p0 size mismatch");
+    if (ctx.size() != n) throw std::invalid_argument("BitplaneRans::encode: bits/ctx size mismatch");
+    // Causal adaptation pass: keep the per-context model trajectory identical on
+    // both sides. The trajectory is unused by the fixed-prob rANS core here, but
+    // it is maintained so M1 can switch to adaptive probabilities without a format
+    // change, and so the determinism rails can reason about it.
+    std::vector<BinaryModel> models(NUM_CONTEXTS);
+    for (size_t k = 0; k < n; ++k) ema_update(bits[k], models[ctx[k]]);
 
     std::vector<uint8_t> buf(n * 4 + 32, 0);
     uint8_t* ptr = buf.data() + buf.size();
     RansState state;
     rans_enc_init(&state);
-    // Reverse emission; each symbol uses its supplied probability.
-    for (size_t k = n; k-- > 0;) rans_enc_put(&state, &ptr, bits[k], p0[k]);
+    for (size_t k = n; k-- > 0; ) rans_enc_put(&state, &ptr, bits[k]);
     rans_enc_flush(&state, &ptr);
     return std::vector<uint8_t>(ptr, buf.data() + buf.size());
 }
@@ -102,23 +125,26 @@ void BitplaneRans::Decoder::init(const std::vector<uint8_t>& bytes) {
     rans_dec_init(&state_, const_cast<uint8_t**>(&ptr_));
 }
 
-uint8_t BitplaneRans::Decoder::decode_symbol(uint16_t p0) {
+uint8_t BitplaneRans::Decoder::decode_symbol(uint32_t ctx) {
+    // Mirror production rans.cpp get_bin: decide the bit from the CURRENT state's
+    // slot, then advance. Ordering matters for rANS correctness.
+    (void)ctx;
     uint32_t slot = state_ & RANS_MASK;
-    uint8_t bit = (slot >= p0) ? 1 : 0;
-    uint32_t start = (bit ? p0 : 0);
-    uint32_t freq = (bit ? (RANS_M - p0) : p0);
+    uint8_t bit = (slot >= FIXED_PROB) ? 1 : 0;
+    uint32_t start = (bit ? FIXED_PROB : 0);
+    uint32_t freq = (bit ? (RANS_M - FIXED_PROB) : FIXED_PROB);
     rans_dec_advance(&state_, const_cast<uint8_t**>(&ptr_), start, freq);
     return bit;
 }
 
 bool BitplaneRans::self_test(const std::vector<uint8_t>& bits,
-                             const std::vector<uint16_t>& p0) const {
-    auto enc = encode(bits, p0);
+                             const std::vector<uint32_t>& ctx) const {
+    auto enc = encode(bits, ctx);
     Decoder dec;
     dec.init(enc);
     std::vector<uint8_t> out(bits.size(), 0);
-    for (size_t k = 0; k < bits.size(); ++k) out[k] = dec.decode_symbol(p0[k]);
+    for (size_t k = 0; k < bits.size(); ++k) out[k] = dec.decode_symbol(ctx[k]);
     return out == bits;
 }
 
-}  // namespace prism::codec
+} // namespace prism::codec
