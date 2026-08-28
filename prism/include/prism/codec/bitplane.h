@@ -38,7 +38,7 @@ struct BitplaneCoder {
                                 uint32_t total_symbols) const;
 
     // Pinned context function (I28). Used by the VB-CONTEXT-DETERMINISM rail.
-    static uint32_t context_id(Subband::Orient o, bool parent_sig, int sig_neighbor_count);
+    static uint32_t context_id(Subband::Orient o, bool parent_sig, int four_conn, int diag);
 
     // Diagnostic: run the rANS round-trip on this subband set's own symbol
     // stream to confirm the entropy backend is faithful for the data.
