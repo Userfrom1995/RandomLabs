@@ -253,7 +253,11 @@ jobs:
               "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
           fi
           echo "<!-- run: ${{ github.run_id }} -->" >> "logs/$today.md"
-          if [ -f .github/agents/REGISTRY.md ]; then cp .github/agents/REGISTRY.md REGISTRY.md; fi
+          if git cat-file -e "origin/main:.github/agents/REGISTRY.md" 2>/dev/null; then
+            git show "origin/main:.github/agents/REGISTRY.md" > REGISTRY.md
+          elif [ -f .github/agents/REGISTRY.md ]; then
+            cp .github/agents/REGISTRY.md REGISTRY.md
+          fi
           # Stage ONLY the memory files - never the whole repo - then commit and push.
           git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
           if ! git diff --cached --quiet; then
@@ -267,6 +271,8 @@ jobs:
           else
             echo "no memory changes"
           fi
+          # Restore workspace to origin/main so subsequent steps have access to repo scripts
+          git checkout --force origin/main --quiet || git checkout --force main --quiet || true
 
       - name: Post Maintainer comment
         if: always()
@@ -588,6 +594,10 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           set +e
+          # Ensure repository scripts exist even if working tree was on maintainer/logs
+          if [ ! -f ".github/scripts/approve-held-runs.sh" ]; then
+            git checkout --force origin/main --quiet 2>/dev/null || true
+          fi
           pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
           # Shared self-healing logic (issue #137): head-scoped polling when a
           # PR context resolves, then ALWAYS a terminal repo-wide sweep that
