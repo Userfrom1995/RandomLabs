@@ -73,23 +73,24 @@ TEST(X0Wavelet, LiftReversibleOddSizes) {
     }
 }
 
-// VB-X-ANS-FIDELITY: per-context rANS round-trips arbitrary bits.
+// VB-X-ANS-FIDELITY: per-symbol rANS round-trips arbitrary bits/probabilities.
 TEST(X0Rans, Roundtrip) {
     BitplaneRans rans;
     std::mt19937 rng(5);
     for (int t = 0; t < 20; ++t) {
         int n = 1 + (rng() % 4000);
         std::vector<uint8_t> bits(n);
-        std::vector<uint32_t> ctx(n);
+        std::vector<uint16_t> p0(n);
         for (int i = 0; i < n; ++i) {
             bits[i] = (uint8_t)(rng() & 1);
-            ctx[i] = (uint32_t)(rng() % 128);
+            // arbitrary valid probability in (0, M)
+            p0[i] = (uint16_t)(1 + (rng() % (BitplaneRans::M - 2)));
         }
-        auto enc = rans.encode(bits, ctx);
+        auto enc = rans.encode(bits, p0);
         BitplaneRans::Decoder dec;
         dec.init(enc);
         std::vector<uint8_t> out(n);
-        for (int i = 0; i < n; ++i) out[i] = dec.decode_symbol(ctx[i]);
+        for (int i = 0; i < n; ++i) out[i] = dec.decode_symbol(p0[i]);
         EXPECT_EQ(out, bits) << "trial " << t;
     }
 }

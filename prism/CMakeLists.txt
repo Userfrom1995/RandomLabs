@@ -17,6 +17,7 @@ add_library(prism_core STATIC
     src/codec/rans.cpp
     src/codec/bitplane_rans.cpp
     src/codec/bitplane.cpp
+    src/codec/learned_ctx.cpp
     src/codec/wavelet.cpp
     src/codec/wavelet_container.cpp
     src/codec/acoder.cpp
