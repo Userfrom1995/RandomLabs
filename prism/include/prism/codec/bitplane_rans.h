@@ -18,7 +18,7 @@ namespace prism::codec {
 // the identical per-symbol probability by running the same causal adaptation
 // over the symbols it has already recovered.
 struct BitplaneRans {
-    static constexpr int NUM_CONTEXTS = 128;
+    static constexpr int NUM_CONTEXTS = 1024;
     static constexpr int EMA_SHIFT = 5;          // shift-5, matches ACoderV2
     static constexpr uint32_t M = 1u << 16;      // RANS_M, reuse rans.cpp core
 
