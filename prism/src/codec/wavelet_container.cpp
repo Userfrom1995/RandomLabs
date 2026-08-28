@@ -43,9 +43,11 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
     out.push_back((uint8_t)raster.bd);
     out.push_back((uint8_t)raster.num_channels());
     out.push_back(hdr.filter_id);            // color_transform_id slot carries filter id? no:
-    // NOTE: we keep color_transform_id = YCoCgR (data domain), and stash the
-    // wavelet filter id in the wavelet header below.
-    out.back() = (uint8_t)ColorTransform::YCoCgR;
+    // NOTE: we keep color_transform_id = the transform applied to the data
+    // domain (YCoCgR for BD8, None for BD16 because YCoCgR overflows u16), and
+    // stash the wavelet filter id in the wavelet header below.
+    out.back() = (uint8_t)((raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                        : ColorTransform::None);
     out.push_back(WAVELET_FLAG);             // flags
     out.push_back(0);                        // effort
     // Wavelet header.
@@ -125,8 +127,15 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
 }
 
 std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter filter,
-                                          int levels, size_t& net_out) {
-    Raster t = apply_color(raster, ColorTransform::YCoCgR);
+                                           int levels, size_t& net_out) {
+    // YCoCg-R is lossless for BD8 (biased components fit in u16), but for BD16
+    // its components span +-65535 which overflows the u16 plane storage after
+    // the bias/mask step, so the round-trip is irrecoverably lossy. For BD16 we
+    // skip the color transform and lift each channel independently (the lift
+    // works in i32, so the full range is preserved exactly).
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
     WaveletLift lift;
     WaveletParams p{filter, levels};
     BitplaneCoder coder;
@@ -232,18 +241,19 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
             t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
         }
     }
-    // Inverse YCoCg-R, reading the stored wavelet coefficients as signed 16-bit
-    // (they were written via (v & 0xFFFF), i.e. two's-complement). This keeps the
-    // production invert_color untouched and stays exact for the BD8 harness while
-    // faithfully restoring chrominance bias and signed AC coefficients.
-    if (t.num_channels() >= 3) {
+    // Inverse YCoCg-R only when it was actually applied on the encode side (the
+    // stored color_transform byte). For BD16 the encode path skips the color
+    // transform (None) because YCoCg-R overflows u16, so there is nothing to
+    // invert here. The cast is (int) (not int16_t) so BD8 biased components in
+    // 257..767 are widened unsigned rather than sign-extended.
+    if (t.bd == BitDepth::BD8 && t.num_channels() >= 3) {
         int mask = (t.bd == BitDepth::BD8) ? 0xFF : 0xFFFF;
         int bias = (t.bd == BitDepth::BD8) ? 512 : 32768;
         size_t n = t.num_pixels();
         for (size_t i = 0; i < n; ++i) {
-            int Y  = (int16_t)t.planes[0][i];
-            int Cg = (int16_t)t.planes[1][i] - bias;
-            int Co = (int16_t)t.planes[2][i] - bias;
+            int Y  = (int)t.planes[0][i];
+            int Cg = (int)t.planes[1][i] - bias;
+            int Co = (int)t.planes[2][i] - bias;
             int tt = Y - (Cg >> 1);
             int G  = Cg + tt;
             int B  = tt - (Co >> 1);

@@ -30,18 +30,6 @@ Raster make_raster(uint32_t w, uint32_t h, uint8_t ch, uint8_t bd, std::mt19937&
     return r;
 }
 
-std::vector<Subband> lift_all(const Raster& r, WaveletFilter f, int levels) {
-    WaveletLift lift;
-    WaveletParams p{f, levels};
-    std::vector<Subband> all;
-    for (const auto& pl : r.planes) {
-        std::vector<int32_t> plane(pl.begin(), pl.end());
-        auto subs = lift.forward(plane, r.w, r.h, p);
-        all.insert(all.end(), subs.begin(), subs.end());
-    }
-    return all;
-}
-
 } // namespace
 
 // VB-X-LIFT-FIDELITY / VB-X-WAVELET-ROUNDTRIP (I26): reversible for all filters.
@@ -143,7 +131,7 @@ TEST(X0Frame, WaveletRoundtrip) {
 // VB-X-NET-AUDIT: 16-bit single/three channel, larger size.
 TEST(X0Frame, WaveletRoundtripBd16) {
     std::mt19937 rng(7);
-    Raster r = make_raster(48, 48, 1, 16, rng);
+    Raster r = make_raster(48, 48, 3, 16, rng);
     size_t net = 0;
     auto bytes = frame_wavelet_encode(r, WaveletFilter::Reversible97, 4, net);
     Raster dec = frame_wavelet_decode(bytes);
