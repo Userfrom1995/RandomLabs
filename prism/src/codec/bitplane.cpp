@@ -63,13 +63,40 @@ std::vector<int> build_parent_map(const std::vector<Subband>& subs, int ml) {
     return parent;
 }
 
+// Count significant 4-connected (fc) and diagonal (dg) neighbours of (x,y) in
+// the current subband significance map `sig`. Splitting the 8-neighbour
+// significance STATE into the 4-connected vs diagonal pattern is the EBCOT
+// significance-propagation context: the *shape* of the significance field around
+// a coefficient is far more predictive than a single total count (which the
+// original count-bucket context collapsed to). This is the "full parent-aware
+// bitplane context" the X2 gate requires.
+
 } // namespace
 
-uint32_t BitplaneCoder::context_id(Subband::Orient o, bool parent_sig, int sig_neighbor_count) {
-    uint32_t orient = (uint32_t)o;            // 0..3
-    uint32_t ps = parent_sig ? 1u : 0u;       // 1 bit
-    uint32_t bucket = (sig_neighbor_count > 4) ? 4u : (uint32_t)sig_neighbor_count; // 0..4 (3 bits)
-    return orient + ps * 4u + bucket * 8u;     // 0..39 base contexts
+inline void neighbor_counts(const std::vector<uint8_t>& sig, int w, int h, int x, int y,
+                            int& fc, int& dg) {
+    fc = 0;
+    dg = 0;
+    auto at = [&](int nx, int ny) -> bool {
+        return nx >= 0 && nx < w && ny >= 0 && ny < h && sig[(size_t)ny * w + nx];
+    };
+    if (at(x - 1, y)) ++fc;
+    if (at(x + 1, y)) ++fc;
+    if (at(x, y - 1)) ++fc;
+    if (at(x, y + 1)) ++fc;
+    if (at(x - 1, y - 1)) ++dg;
+    if (at(x + 1, y - 1)) ++dg;
+    if (at(x - 1, y + 1)) ++dg;
+    if (at(x + 1, y + 1)) ++dg;
+}
+
+uint32_t BitplaneCoder::context_id(Subband::Orient o, bool parent_sig, int fc, int dg) {
+    uint32_t orient = (uint32_t)o;          // 0..3  (2 bits)
+    uint32_t ps = parent_sig ? 1u : 0u;     // 1 bit
+    uint32_t f = (fc > 4) ? 4u : (uint32_t)fc;  // 0..4 (3 bits)
+    uint32_t d = (dg > 4) ? 4u : (uint32_t)dg;  // 0..4 (3 bits)
+    // base context id in [0, 199]; sign/refine pools are offset (see encode).
+    return orient + ps * 4u + f * 8u + d * 40u;
 }
 
 BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands,
@@ -141,15 +168,9 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
                     if (pcx < pw && pcy < ph)
                         parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
                 }
-                int cnt = 0;
-                for (int dy = -1; dy <= 1; ++dy)
-                    for (int dx = -1; dx <= 1; ++dx) {
-                        if (dx == 0 && dy == 0) continue;
-                        int nx = x + dx, ny = y + dy;
-                        if (nx >= 0 && nx < w && ny >= 0 && ny < h)
-                            if (sig[si][(size_t)ny * w + nx]) ++cnt;
-                    }
-                uint32_t base = context_id(s.orient, parent_sig, cnt);
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[si], w, h, x, y, fc, dg);
+                uint32_t base = context_id(s.orient, parent_sig, fc, dg);
                 if (sig[si][ci] == 0) {
                     bool becomes = (topbit[si][ci] == p);
                     bits[idx] = becomes ? 1 : 0;
@@ -157,13 +178,13 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
                     ++idx;
                     if (becomes) {
                         bits[idx] = sgn[si][ci];
-                        ctx[idx] = base + 40; // SIGN pool
+                        ctx[idx] = base + 200; // SIGN pool
                         ++idx;
                         sig[si][ci] = 1;
                     }
                 } else {
                     bits[idx] = (magv[si][ci] >> p) & 1;
-                    ctx[idx] = base + 80; // REFINEMENT pool
+                    ctx[idx] = base + 400; // REFINEMENT pool
                     ++idx;
                 }
             }
@@ -227,19 +248,15 @@ BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbit
                     int pcx = x >> 1, pcy = y >> 1;
                     if (pcx < pw && pcy < ph) parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
                 }
-                int cnt = 0;
-                for (int dy = -1; dy <= 1; ++dy) for (int dx = -1; dx <= 1; ++dx) {
-                    if (dx == 0 && dy == 0) continue;
-                    int nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < w && ny >= 0 && ny < h) if (sig[si][(size_t)ny * w + nx]) ++cnt;
-                }
-                uint32_t base = context_id(s.orient, parent_sig, cnt);
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[si], w, h, x, y, fc, dg);
+                uint32_t base = context_id(s.orient, parent_sig, fc, dg);
                 if (sig[si][ci] == 0) {
                     bool becomes = (topbit[si][ci] == p);
                     bits[idx] = becomes ? 1 : 0; ctx[idx] = base; ++idx;
-                    if (becomes) { bits[idx] = sgn[si][ci]; ctx[idx] = base + 40; ++idx; sig[si][ci] = 1; }
+                    if (becomes) {                     bits[idx] = sgn[si][ci]; ctx[idx] = base + 200; ++idx; sig[si][ci] = 1; }
                 } else {
-                    bits[idx] = (magv[si][ci] >> p) & 1; ctx[idx] = base + 80; ++idx;
+                    bits[idx] = (magv[si][ci] >> p) & 1; ctx[idx] = base + 400; ++idx;
                 }
             }
         }
@@ -288,27 +305,21 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<uint8_t>& stream,
                     if (pcx < pw && pcy < ph)
                         parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
                 }
-                int cnt = 0;
-                for (int dy = -1; dy <= 1; ++dy)
-                    for (int dx = -1; dx <= 1; ++dx) {
-                        if (dx == 0 && dy == 0) continue;
-                        int nx = x + dx, ny = y + dy;
-                        if (nx >= 0 && nx < w && ny >= 0 && ny < h)
-                            if (sig[si][(size_t)ny * w + nx]) ++cnt;
-                    }
-                uint32_t base = context_id(s.orient, parent_sig, cnt);
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[si], w, h, x, y, fc, dg);
+                uint32_t base = context_id(s.orient, parent_sig, fc, dg);
                 if (sig[si][ci] == 0) {
                     uint8_t bit = dec.decode_symbol(base);
                     ++idx;
                     if (bit) {
-                        uint8_t sg = dec.decode_symbol(base + 40);
+                        uint8_t sg = dec.decode_symbol(base + 200);
                         ++idx;
                         sig[si][ci] = 1;
                         signv[si][ci] = sg ? -1 : 1;
                         value[si][ci] = (int32_t)(1 << p);
                     }
                 } else {
-                    uint8_t rb = dec.decode_symbol(base + 80);
+                    uint8_t rb = dec.decode_symbol(base + 400);
                     ++idx;
                     if (rb) value[si][ci] |= (int32_t)(1 << p);
                 }
@@ -363,30 +374,24 @@ std::vector<uint32_t> BitplaneCoder::decode_trace(const std::vector<uint8_t>& st
                     if (pcx < pw && pcy < ph)
                         parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
                 }
-                int cnt = 0;
-                for (int dy = -1; dy <= 1; ++dy)
-                    for (int dx = -1; dx <= 1; ++dx) {
-                        if (dx == 0 && dy == 0) continue;
-                        int nx = x + dx, ny = y + dy;
-                        if (nx >= 0 && nx < w && ny >= 0 && ny < h)
-                            if (sig[si][(size_t)ny * w + nx]) ++cnt;
-                    }
-                uint32_t base = context_id(s.orient, parent_sig, cnt);
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[si], w, h, x, y, fc, dg);
+                uint32_t base = context_id(s.orient, parent_sig, fc, dg);
                 if (sig[si][ci] == 0) {
                     used.push_back(base);
                     uint8_t bit = dec.decode_symbol(base);
                     if (out_bits) out_bits->push_back(bit);
                     if (bit) {
-                        used.push_back(base + 40);
-                        uint8_t sg = dec.decode_symbol(base + 40);
+                        used.push_back(base + 200);
+                        uint8_t sg = dec.decode_symbol(base + 200);
                         if (out_bits) out_bits->push_back(sg);
                         sig[si][ci] = 1;
                         signv[si][ci] = sg ? -1 : 1;
                         value[si][ci] = (int32_t)(1 << p);
                     }
                 } else {
-                    used.push_back(base + 80);
-                    uint8_t rb = dec.decode_symbol(base + 80);
+                    used.push_back(base + 400);
+                    uint8_t rb = dec.decode_symbol(base + 400);
                     if (out_bits) out_bits->push_back(rb);
                     if (rb) value[si][ci] |= (int32_t)(1 << p);
                 }
@@ -445,19 +450,15 @@ bool BitplaneCoder::probe_rans(const std::vector<Subband>& subbands, int maxbits
                     int pcx = x >> 1, pcy = y >> 1;
                     if (pcx < pw && pcy < ph) parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
                 }
-                int cnt = 0;
-                for (int dy = -1; dy <= 1; ++dy) for (int dx = -1; dx <= 1; ++dx) {
-                    if (dx == 0 && dy == 0) continue;
-                    int nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < w && ny >= 0 && ny < h) if (sig[si][(size_t)ny * w + nx]) ++cnt;
-                }
-                uint32_t base = context_id(s.orient, parent_sig, cnt);
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[si], w, h, x, y, fc, dg);
+                uint32_t base = context_id(s.orient, parent_sig, fc, dg);
                 if (sig[si][ci] == 0) {
                     bool becomes = (topbit[si][ci] == p);
                     bits[idx] = becomes ? 1 : 0; ctx[idx] = base; ++idx;
-                    if (becomes) { bits[idx] = sgn[si][ci]; ctx[idx] = base + 40; ++idx; sig[si][ci] = 1; }
+                    if (becomes) {                     bits[idx] = sgn[si][ci]; ctx[idx] = base + 200; ++idx; sig[si][ci] = 1; }
                 } else {
-                    bits[idx] = (magv[si][ci] >> p) & 1; ctx[idx] = base + 80; ++idx;
+                    bits[idx] = (magv[si][ci] >> p) & 1; ctx[idx] = base + 400; ++idx;
                 }
             }
         }

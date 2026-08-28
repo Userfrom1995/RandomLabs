@@ -95,23 +95,26 @@ TEST(X0Rans, Roundtrip) {
 }
 
 // VB-X-CONTEXT-DETERMINISM: context_id is a fixed function of (orient, parent
-// state, neighbor significance count) only, never of the bit value - so the
-// decoder (which recomputes it from already-recovered data) stays in sync.
+// state, 4-connected count, diagonal count) only, never of the bit value - so
+// the decoder (which recomputes it from already-recovered data) stays in sync.
 TEST(X0Bitplane, ContextDeterminism) {
-    // Same (orient, parent_sig, count) must always map to the same ctx id, and
-    // changing any input must not collide with an unrelated input in the 0..119
-    // range the coder actually uses (40 base, +40 sign, +80 refine).
+    // Same inputs must always map to the same ctx id, and changing any input must
+    // not collide with an unrelated input in the 0..599 range the coder actually
+    // uses (200 base, +200 sign, +400 refine).
     for (int o = 0; o < 4; ++o)
         for (int ps = 0; ps < 2; ++ps)
-            for (int c = 0; c < 8; ++c) {
-                uint32_t a = BitplaneCoder::context_id((Subband::Orient)o, ps != 0, c);
-                uint32_t b = BitplaneCoder::context_id((Subband::Orient)o, ps != 0, c);
-                EXPECT_EQ(a, b);
-                EXPECT_LT(a, 40u);
-                // distinct parent state -> distinct context
-                if (o < 3)
-                    EXPECT_NE(a, BitplaneCoder::context_id((Subband::Orient)o, !ps, c));
-            }
+            for (int fc = 0; fc < 5; ++fc)
+                for (int dg = 0; dg < 5; ++dg) {
+                    uint32_t a = BitplaneCoder::context_id((Subband::Orient)o, ps != 0, fc, dg);
+                    uint32_t b = BitplaneCoder::context_id((Subband::Orient)o, ps != 0, fc, dg);
+                    EXPECT_EQ(a, b);
+                    EXPECT_LT(a, 200u);
+                    // distinct parent state -> distinct context
+                    EXPECT_NE(a, BitplaneCoder::context_id((Subband::Orient)o, !ps, fc, dg));
+                    // distinct 4-connected pattern -> distinct context
+                    if (fc > 0)
+                        EXPECT_NE(a, BitplaneCoder::context_id((Subband::Orient)o, ps != 0, fc - 1, dg));
+                }
 }
 
 // VB-X-NET-AUDIT: full frame pipeline is lossless and CRC-audited end to end.
