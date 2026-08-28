@@ -1,0 +1,6 @@
+-- Effects: readLine consumes scripted stdin (one line per read, then
+-- the empty string), printLine and print drive stdout. Feed input lines
+-- with: printf 'a\nb\n' | halcyon run examples/effects.hly
+let rec loop = fn n => do { line <- readLine;
+  if line == "" then do { printLine n } else do { loop (n + 1) } }
+in loop 0

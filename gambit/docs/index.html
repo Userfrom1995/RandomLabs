@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gambit: a UCI chess engine in C++</title>
+<meta name="description" content="Gambit: a UCI chess engine written from scratch in C++17 - bitboard representation, perft-verified legal move generation, negamax alpha-beta search with iterative deepening and a transposition table, terminal play and UCI protocol." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 22px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Gambit</h1>
+  <p>A UCI chess engine written from scratch in <strong>C++17</strong>:
+  bitboard board representation, perft-verified legal move generation, and a
+  negamax alpha-beta search with iterative deepening and a transposition
+  table. Plays in the terminal or speaks UCI to any chess GUI.</p>
+  <div class="launch"><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/gambit">Open the project →</a></div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>Bitboards</h4>
+      <p>64-bit integers for the board: one per piece type and color plus
+      occupancy. Precomputed knight, king, and pawn attacks; ray-based sliding
+      attacks with blocker detection.</p>
+    </div>
+    <div class="card">
+      <h4>Legal move generation</h4>
+      <p>All pieces, castling, en passant, and promotion, filtered for king
+      safety. Verified against the standard perft suite: start position to
+      depth 5, kiwipete, and positions 3-6.</p>
+    </div>
+    <div class="card">
+      <h4>Search</h4>
+      <p>Negamax alpha-beta with quiescence, LMR, killers, TT move ordering,
+      and PV tracking. Iterative deepening with time management.</p>
+    </div>
+    <div class="card">
+      <h4>UCI + CLI</h4>
+      <p>A standard UCI loop for GUIs and a human-facing terminal mode: a
+      Unicode board, SAN input with hints and takebacks, perft, divide, and
+      analyze.</p>
+    </div>
+  </section>
+
+  <h2>Try it</h2>
+  <pre><code>cd gambit
+make                 # builds ./gambit
+make test            # builds and runs the test suite (ALL PASS)
+
+./gambit play --depth 12        # play white against the engine
+./gambit analyze 12             # analyze the start position to depth 12
+./gambit perft 5                # verify move generation (4,865,609 nodes)
+./gambit divide 3               # per-move perft breakdown
+./gambit                        # UCI protocol mode (for chess GUIs)</code></pre>
+
+  <h2>CLI commands</h2>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>gambit</code> (default)</td><td>Run the UCI protocol loop for chess GUIs.</td></tr>
+    <tr><td><code>gambit play [--black] [--depth N] [--movetime MS]</code></td><td>Play a full game against the engine.</td></tr>
+    <tr><td><code>gambit analyze [depth] [fen]</code></td><td>Search a position and print best move, score, PV.</td></tr>
+    <tr><td><code>gambit perft [depth] [fen]</code></td><td>Count nodes and move categories at a depth.</td></tr>
+    <tr><td><code>gambit divide [depth] [fen]</code></td><td>Perft with a per-move breakdown.</td></tr>
+    <tr><td><code>gambit test</code></td><td>Run the built-in test suite.</td></tr>
+    <tr><td><code>gambit help</code></td><td>Show usage.</td></tr>
+  </table>
+  <p>The default FEN is the standard start position. Requires a C++17
+  compiler; no external dependencies.</p>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Move encoding.</strong> Each move is a 32-bit word: from and
+    to squares, promotion piece, a flag (normal, double push, en passant,
+    castle, promotion), the captured piece type, and the moving piece
+    type.</li>
+    <li><strong>Board model.</strong> Six piece-type bitboards, two color
+    bitboards, and an occupancy bitboard, plus side to move, castling rights,
+    the en-passant square, the halfmove clock, and the fullmove number. Zobrist
+    keys update incrementally on every move.</li>
+    <li><strong>Make/unmake.</strong> <code>make()</code> updates board,
+    occupancy, key, castling rights, and history in one pass;
+    <code>unmake()</code> restores the previous state exactly. A symmetry test
+    walks every legal move of several positions and confirms FEN and key
+    round-trip.</li>
+    <li><strong>Search loop.</strong> Iterative deepening searches depth 1, 2,
+    3, ... until the target depth or the time budget is reached. Each iteration
+    feeds the previous best move into the transposition table for move
+    ordering. Scores are centipawns; mates report as <code>mate N</code>.</li>
+    <li><strong>Draw detection.</strong> Fifty-move rule, threefold repetition
+    via the key history, and insufficient material.</li>
+  </ul>
+
+  <h2>Design choices</h2>
+  <ul>
+    <li><strong>C++17, no dependencies.</strong> Plain standard C++ through a
+    small Makefile; no external libraries.</li>
+    <li><strong>Correctness first.</strong> The standard perft suite is the
+    ground truth for the move generator and re-runs on every
+    <code>make test</code>.</li>
+    <li><strong>UCI-compatible.</strong> The default mode is a real UCI
+    engine, so Gambit plugs into any chess GUI as well as the terminal.</li>
+    <li><strong>Honest search.</strong> No weakening or force-gags; what you
+    see is what the search found.</li>
+  </ul>
+
+  <h2>Source</h2>
+  <p>The project lives in
+  <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/gambit"><code>gambit/</code></a>
+  with a
+  <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/gambit/README.md">README</a>
+  and a full writeup in
+  <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md"><code>ideas/</code></a>.</p>
+</main>
+
+<footer>Gambit · part of the Random repo · MIT License</footer>
+</body>
+</html>

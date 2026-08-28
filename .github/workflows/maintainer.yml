@@ -1,0 +1,607 @@
+name: maintainer
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR to focus on (optional)"
+        required: false
+        type: string
+      issue_number:
+        description: "Issue to focus on (optional)"
+        required: false
+        type: string
+      reason:
+        description: "Why this run was triggered (e.g. approve: PR #N)"
+        required: false
+        type: string
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: maintainer-${{ inputs.pr_number || github.event.pull_request.number || github.event.issue.number || 'global' }}
+  cancel-in-progress: false
+
+jobs:
+  maintainer:
+    if: |
+      github.event_name != 'issue_comment' ||
+      (github.event.comment.user.login != 'github-actions[bot]' &&
+       !startsWith(github.event.comment.body, '/oc') &&
+       !startsWith(github.event.comment.body, '/opencode')) ||
+      startsWith(github.event.comment.body, '/oc maintainer')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "Hephaestus (Maintainer)"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Load Maintainer memory (maintainer/logs)
+        run: |
+          mkdir -p .maintainer/memory/logs
+          git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || echo "no memory branch yet (first run)"
+          for f in STATE.md personality.md REGISTRY.md; do
+            if git cat-file -e "refs/remotes/origin/logs:$f" 2>/dev/null; then
+              git show "refs/remotes/origin/logs:$f" > ".maintainer/memory/$f"
+            fi
+          done
+          for d in 0 1 2 3 4 5 6; do
+            day=$(date -u -d "-$d day" +%Y-%m-%d 2>/dev/null || date -u -v-$d'd' +%Y-%m-%d)
+            if git cat-file -e "refs/remotes/origin/logs:logs/$day.md" 2>/dev/null; then
+              git show "refs/remotes/origin/logs:logs/$day.md" > ".maintainer/memory/logs/$day.md"
+            fi
+          done
+          ls -la .maintainer/memory .maintainer/memory/logs 2>/dev/null
+
+      - name: Build run notification
+        run: |
+          {
+            echo "WORKFLOW: ${{ github.workflow }}"
+            echo "REPO: ${{ github.repository }}"
+            echo "RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "--- event payload (jq) ---"
+            jq -r '
+              "EVENT: \(.action // "" // "unknown")",
+              "ISSUE: \(.issue.number // "" // "")",
+              "PR_NUMBER: \(.pull_request.number // "" // "")",
+              "PR_TITLE: \(.pull_request.title // "" // "")",
+              "PR_HEAD: \(.pull_request.head.sha // "" // "")",
+              "PR_HEAD_REF: \(.pull_request.head.ref // "" // "")",
+              "PR_AUTHOR: \(.pull_request.user.login // .issue.user.login // "" // "")",
+              "PR_BODY: \(.pull_request.body // "" // "")",
+              "COMMENT_AUTHOR: \(.comment.user.login // "" // "")",
+              "ISSUE_TITLE: \(.issue.title // "" // "")",
+              "ISSUE_USER: \(.issue.user.login // "" // "")",
+              "INPUTS: \((.inputs // {}) | tostring)"' "$GITHUB_EVENT_PATH"
+          } > .maintainer/notification.txt
+          echo "--- notification ---"
+          cat .maintainer/notification.txt
+
+      - name: Record main SHA before
+        id: pre_agent
+        run: echo "sha=$(git ls-remote origin main | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Run Maintainer agent
+        id: maintainer_run
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
+
+            READ FIRST: `.github/agents/maintainer.md` - that file IS your complete system prompt; every rule there is binding and outranks this envelope except the safety net below.
+
+            You also have, on disk:
+            - `.maintainer/memory/` - your memory bundle: STATE.md (live checkpoint), personality.md, REGISTRY.md, and logs/*.md (last 7 days). Read it all before deciding.
+            - `.maintainer/notification.txt` - why this run started. It is a heads-up, never a limit: re-survey the whole repo fresh with gh (open PRs/issues, comments, progress/*.md) and act on everything that needs you.
+
+            SAFETY NET (always binding): you NEVER post comments with "/oc" (a hardcoded step posts triggers for you); you never create issues or PRs and never push feature code to main or PR branches; you NEVER run git commit, git push, git checkout -b, or any branch command yourself; and you NEVER edit .github/workflows/**, .github/agents/**, opencode.json, AGENTS.md, or LAB.md as part of routine work - ALL infra, workflow, agent, and model changes route through {"action": "lab"} (the Lab Engineer). The ONLY exception is the emergency revival contract: after a dispatched lab run demonstrably failed (or lab.yml itself cannot execute because its own model is dead/rate-limited) AND production is fully halted, you MAY write .maintainer/emergency.json and leave your .github/workflows/*.yml edits UNCOMMITTED in the tree for the hardcoded PAT step to verify, commit, and push. Without a valid declaration file, any protected-path edits you leave behind are reverted automatically and never pushed. Otherwise you only write the output files below; everything you write is later committed to the maintainer/logs branch by hardcoded steps. Never print or reference any PAT or secret.
+
+            OUTPUT CONTRACT - write exactly these files (hardcoded steps act on them):
+            1. `.maintainer/decision.json` - a JSON array of {action, pr?, issue?, head?, target?, message?} entries, actions: review | continue | architect | research | build | lab | auditor | fix | ideate | recover | ping. One entry max per PR/issue. Empty array [] is fine - do not invent work.
+            2. `.maintainer/comment.md` - your public bot comment for this run's target PR/issue (or leave empty). It must end with the sign-off ` -  Hephaestus, the Maintainer` (a hardcoded step appends it if missing).
+            3. `.maintainer/log-entry.md` - the FULL content of today's logs/YYYY-MM-DD.md (preserve what you found in memory, append today's entry: state snapshot, decisions + rationale, callbacks, run link, open questions). MANDATORY - write it in EVERY run, even a quiet day: this file is how maintainer instances talk to each other across runs.
+            4. `.maintainer/state.md` - the FULL new STATE.md content (current pipeline status per PR/issue, next steps, open questions).
+            5. `.maintainer/personality.md` - updated identity ONLY if it genuinely evolved today; otherwise leave empty.
+            6. `.maintainer/emergency.json` - ONLY under the emergency revival contract above (a failed/broken lab attempt you can link + production halted): exactly {"reason": "...", "lab_run": "<failing lab run URL>", "production_stopped": true}. Omit the file entirely in every other run - its presence unlocks a direct push to main.
+
+            When you finish, print a one-line summary of what you decided (the decision list is the deliverable).
+
+      - name: Remove maintainer stray PRs and branches (the Maintainer never opens PRs)
+        if: always()
+        run: |
+          gh pr list --author app/github-actions --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("opencode/schedule-") or startswith("opencode/dispatch-") or startswith("opencode/issue")) | .number' \
+            | while read num; do
+                gh pr close "$num" --delete-branch --comment "auto-closed by hardcoded cleanup: the Maintainer never opens PRs - its state lives on the maintainer/logs branch." || true
+              done
+          gh api --paginate repos/${{ github.repository }}/branches --jq '.[].name' 2>/dev/null \
+            | grep -E '^opencode/(schedule-|dispatch-|issue)' \
+            | while read br; do
+                enc=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$br")
+                gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$enc" || true
+              done
+          echo "stray cleanup complete"
+
+      - name: Emergency-gated commit and push of workflow model updates to main
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_AUTHOR_NAME: "Hephaestus (Maintainer)"
+          GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
+          GIT_COMMITTER_NAME: "Hephaestus (Maintainer)"
+          GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
+        run: |
+          dirty=$(git status --porcelain -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md 2>/dev/null || true)
+          if [ -z "$dirty" ]; then
+            echo "No protected-path modifications left by the Maintainer; nothing to do."
+            exit 0
+          fi
+
+          # Gate: a direct push to main requires a complete emergency declaration:
+          # {"reason": "...", "lab_run": "<failing lab run URL>", "production_stopped": true}
+          ok=0
+          if [ -f .maintainer/emergency.json ]; then
+            echo "Emergency declaration found:"; cat .maintainer/emergency.json
+            decl=$(python3 - <<'PY'
+          import json
+          try:
+              d = json.load(open('.maintainer/emergency.json'))
+              valid = (
+                  isinstance(d, dict)
+                  and bool(str(d.get('reason', '')).strip())
+                  and bool(str(d.get('lab_run', '')).strip())
+                  and d.get('production_stopped') is True
+              )
+              print('valid' if valid else 'invalid')
+          except Exception:
+              print('invalid')
+          PY
+            )
+            if [ "$decl" = "valid" ]; then
+              ok=1
+              echo "Emergency declaration complete; revival contract unlocked."
+            else
+              echo "::warning::.maintainer/emergency.json exists but is incomplete/unparseable; treating as absent."
+            fi
+          fi
+
+          if [ "$ok" != "1" ]; then
+            echo "::warning::Protected-path modifications found WITHOUT a valid emergency declaration. Reverting them; infra/model/workflow changes must be routed to the Lab Engineer ({\"action\": \"lab\"})."
+            for p in .github/workflows .github/agents opencode.json AGENTS.md LAB.md; do
+              git checkout -- "$p" 2>/dev/null || true
+            done
+            git clean -fd -- .github/workflows .github/agents opencode.json AGENTS.md LAB.md >/dev/null 2>&1 || true
+            echo "EMERGENCY_GATE=reverted" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "Emergency contract satisfied. Staging and committing strictly as Hephaestus (Maintainer)..."
+          # Remove actions/checkout credential injection so the PAT URL actually authenticates:
+          # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
+          # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
+          git add .github/workflows/*.yml
+          [ -f opencode.json ] && git add opencode.json || true
+          git commit --author="Hephaestus (Maintainer) <github-actions[bot]@users.noreply.github.com>" -m "maintainer: emergency revival - update workflow model configuration (see .maintainer/emergency.json declaration in run log)"
+          git fetch origin main --quiet
+          # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
+          # main must stay a strict descendant of origin/main (fast-forwardable). Rebase first if needed;
+          # if the rebase cannot make HEAD a descendant of origin/main, ABORT instead of orphaning main.
+          if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+            echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
+            git rebase origin/main --quiet || {
+              echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
+              exit 1
+            }
+          fi
+          git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main || {
+            echo "Push failed, attempting rebase..."
+            git fetch origin main --quiet
+            git rebase origin/main --quiet
+            git push "https://x-access-token:${{ secrets.OPENCODE_PAT }}@github.com/${{ github.repository }}.git" HEAD:main
+          }
+          echo "EMERGENCY_GATE=pushed" >> "$GITHUB_ENV"
+          echo "Emergency revival pushed to main as Hephaestus (Maintainer)."
+
+      - name: Commit Maintainer memory (maintainer/logs)
+        if: always()
+        run: |
+          git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet || true
+          if git rev-parse --verify refs/remotes/origin/logs >/dev/null 2>&1; then
+            git checkout --force --detach refs/remotes/origin/logs --quiet
+          else
+            git checkout --orphan logs-bootstrap --quiet
+            git rm -rf . --quiet 2>/dev/null || true
+          fi
+          mkdir -p logs
+          if [ -s .maintainer/state.md ]; then cp .maintainer/state.md STATE.md; fi
+          if [ -s .maintainer/personality.md ]; then cp .maintainer/personality.md personality.md; fi
+          today="$(date -u +%Y-%m-%d)"
+          if [ -s ".maintainer/log-entry.md" ]; then
+            cp ".maintainer/log-entry.md" "logs/$today.md"
+          elif [ ! -f "logs/$today.md" ]; then
+            printf '# %s - auto entry (agent produced no log)\n\nRun: https://github.com/%s/actions/runs/%s (%s)\n> [!WARNING]\n> Agent Output Missing\n\nNote: the agent finished without writing a log entry; this stub keeps instances in sync. See the run logs for details.\n' \
+              "$today" "${{ github.repository }}" "${{ github.run_id }}" "${{ github.event_name }}" > "logs/$today.md"
+          fi
+          echo "<!-- run: ${{ github.run_id }} -->" >> "logs/$today.md"
+          if git cat-file -e "origin/main:.github/agents/REGISTRY.md" 2>/dev/null; then
+            git show "origin/main:.github/agents/REGISTRY.md" > REGISTRY.md
+          elif [ -f .github/agents/REGISTRY.md ]; then
+            cp .github/agents/REGISTRY.md REGISTRY.md
+          fi
+          # Stage ONLY the memory files - never the whole repo - then commit and push.
+          git add -- STATE.md personality.md REGISTRY.md logs 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git -c user.name="Hephaestus (Maintainer)" -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -m "maintainer: memory update $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push origin "HEAD:maintainer/logs" --quiet || {
+              git fetch origin maintainer/logs:refs/remotes/origin/logs --quiet
+              git rebase refs/remotes/origin/logs --quiet && git push origin "HEAD:maintainer/logs" --quiet
+            }
+            echo "memory pushed to maintainer/logs"
+          else
+            echo "no memory changes"
+          fi
+          # Restore workspace to origin/main so subsequent steps have access to repo scripts
+          git checkout --force origin/main --quiet || git checkout --force main --quiet || true
+
+      - name: Post Maintainer comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OC_TARGET: ${{ github.event.pull_request.number || github.event.issue.number || inputs.issue_number || inputs.pr_number || '' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          target = os.environ.get("OC_TARGET", "")
+
+          decisions = []
+          if os.path.exists(".maintainer/decision.json"):
+              try:
+                  decisions = json.load(open(".maintainer/decision.json"))
+              except Exception as e:
+                  print(f"decision.json unparseable: {e}")
+
+          posts = []
+          for d in decisions:
+              if d.get("action") == "ping" and d.get("target"):
+                  posts.append((d["target"], d.get("message", ""), False))
+
+          if os.path.isfile(".maintainer/comment.md") and os.path.getsize(".maintainer/comment.md") > 0 and target:
+              posts.append((target, open(".maintainer/comment.md").read(), True))
+
+          # Emergency-gate transparency: keep Hephaestus's public comments consistent with
+          # what the hardcoded steps actually did with any protected-path edits.
+          gate_notice = ""
+          gate = os.environ.get("EMERGENCY_GATE", "")
+          if gate == "reverted":
+              gate_notice = (
+                  "[lab-gate] This run left workflow/config edits WITHOUT the required emergency declaration "
+                  "(.maintainer/emergency.json), so a hardcoded step reverted them before anything was pushed. "
+                  "Infra/model/workflow changes must route to the Lab Engineer ({\"action\": \"lab\"}).\n\n"
+              )
+          elif gate == "pushed":
+              gate_notice = (
+                  "[emergency-revival] This run's workflow changes landed on main under the emergency revival "
+                  "contract (a failed/broken Lab Engineer attempt plus halted production, declared in "
+                  ".maintainer/emergency.json).\n\n"
+              )
+
+          sign = "- Hephaestus, the Maintainer"
+          for t, body, is_main_comment in posts:
+              body = body.strip()
+              if not body:
+                  continue
+              if is_main_comment and gate_notice:
+                  body = gate_notice + body
+              if sign not in body:
+                  body = body + "\n\n" + sign
+              subprocess.run(
+                  ["gh", "api", f"repos/{repo}/issues/{t}/comments", "-f", f"body={body}"],
+                  check=False,
+              )
+              print(f"posted comment on #{t}")
+          PY
+      - name: Run /oc triggers as owner
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          pat = os.environ["GH_TOKEN"]
+          
+          bot_env = os.environ.copy()
+          bot_env["GH_TOKEN"] = os.environ.get("GITHUB_TOKEN", "")
+
+          def api(*args, check=True):
+              r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=check)
+              return r.stdout.strip(), r
+
+          def pr_info(n):
+              out, _ = api(f"repos/{repo}/pulls/{n}", check=False)
+              try:
+                  return json.loads(out)
+              except Exception:
+                  return {}
+
+          decisions = []
+          if os.path.exists(".maintainer/decision.json"):
+              try:
+                  decisions = json.load(open(".maintainer/decision.json"))
+              except Exception as e:
+                  print(f"decision.json unparseable: {e}")
+          if not decisions:
+              print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
+                    "Check the 'Run Maintainer agent' step log: a step timeout or a model/billing error "
+                    "may have killed the agent before it wrote its output files. No /oc triggers were posted.")
+
+          posted = set()
+          for d in decisions:
+              action = d.get("action")
+              pr = d.get("pr")
+              target = d.get("target") or pr or d.get("issue")
+              if action in ("create_issue", "create_pr"):
+                  title = d.get("title", "New Item")
+                  body_text = d.get("body", "")
+                  if action == "create_issue":
+                      subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], check=False, env=bot_env)
+                      print(f"Created new issue: {title}")
+                  else:
+                      head = d.get("head", "")
+                      if head:
+                          subprocess.run(["gh", "pr", "create", "--repo", repo, "--head", head, "--base", "main", "--title", title, "--body", body_text], check=False, env=bot_env)
+                          print(f"Created new PR for branch: {head}")
+                  continue
+
+              if not target:
+                  continue
+              target = int(target)
+              key = (action, target)
+              if key in posted:
+                  print(f"skip {action} #{target} (one trigger per PR per run)")
+                  continue
+
+              body = None
+              if action == "review":
+                  head = d.get("head", "")
+                  body = f"/oc review (head {head})"
+              elif action == "test":
+                  body = "/oc test"
+              elif action == "continue":
+                  body = "/oc continue"
+              elif action == "build":
+                  body = "/oc build this"
+              elif action == "auditor":
+                  body = "/oc auditor"
+              elif action == "architect":
+                  body = "/oc architect"
+              elif action == "research":
+                  body = "/oc research"
+              elif action == "lab":
+                  extra = d.get("instruction") or d.get("mode") or ""
+                  if extra:
+                      body = f"/oc lab {extra}"
+                  else:
+                      body = "/oc lab"
+              elif action == "recover":
+                  # Maintainer's ONLY self-initiated branch/PR action: recover
+                  # in-flight work from a closed/orphaned build PR. Never opens
+                  # a new project; only continues existing work (recover.sh and
+                  # recover.yml enforce this). This is the governance exception
+                  # granted by issue #112.
+                  body = "/oc recover"
+              elif action == "fix":
+                  info = pr_info(target)
+                  author = info.get("user", {}).get("login", "")
+                  head_repo = (info.get("head", {}) or {}).get("repo", {}) or {}
+                  same_repo = head_repo.get("full_name", "") == repo
+                  if author not in ("github-actions[bot]", "app/github-actions") or not same_repo:
+                      print(f"skip fix #{target} (not a same-repo bot PR: author={author} repo={head_repo.get('full_name')})")
+                      continue
+                  body = "/oc fix"
+
+              if body:
+                  subprocess.run(
+                      ["gh", "api", f"repos/{repo}/issues/{target}/comments", "-f", f"body={body}"],
+                      check=False,
+                  )
+                  posted.add(key)
+                  print(f"posted '{body}' on #{target}")
+          PY
+
+      - name: PAT-backed merge for approved workflow-touching PRs
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set -euo pipefail
+          # Remove actions/checkout credential injection so PAT operations authenticate correctly
+          # (checkout v6 stores App-token extraheader in RUNNER_TEMP; plain unset insufficient)
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
+          git fetch origin main --quiet 2>/dev/null || true
+          prs=$(gh pr list --repo "${{ github.repository }}" --state open --json number --jq '.[].number' 2>/dev/null || true)
+          if [ -z "$prs" ]; then
+            echo "No open PRs to consider for PAT merge"
+            exit 0
+          fi
+          for pr in $prs; do
+            echo "--- Evaluating PR #$pr for PAT-backed workflow merge ---"
+            head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || continue)
+            [ -z "$head_ref" ] && continue
+            git fetch origin "$head_ref" --quiet 2>/dev/null || continue
+            if ! git diff --name-only "origin/main...origin/$head_ref" 2>/dev/null | grep -qE '^\.github/workflows/'; then
+              echo "PR #$pr does not touch workflows; skipping PAT merge"
+              continue
+            fi
+            echo "PR #$pr touches workflows; checking approval and mergeability"
+            head_sha=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+            # Orphan guard: PR branch must share history with main
+            if [ -n "$head_sha" ]; then
+              git fetch origin "$head_sha" --quiet 2>/dev/null || true
+              if [ -z "$(git merge-base origin/main "$head_sha" 2>/dev/null)" ]; then
+                echo "PR #$pr has no common ancestor with main (orphan); skipping direct merge, requires re-link"
+                continue
+              fi
+            else
+              if [ -z "$(git merge-base origin/main "origin/$head_ref" 2>/dev/null)" ]; then
+                echo "PR #$pr has no common ancestor with main (orphan); skipping direct merge"
+                continue
+              fi
+            fi
+            comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" --jq '.' 2>/dev/null || echo "[]")
+            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|startswith("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -z "$approve_test_time" ]; then
+              echo "PR #$pr has no /oc approve-test; not merge-ready"
+              continue
+            fi
+            last_fix_time=$(echo "$comments" | jq -r '[.[] | select(.body | startswith("/oc fix"))] | last | .created_at // empty' 2>/dev/null || echo "")
+            if [ -n "$last_fix_time" ] && [ "$last_fix_time" \> "$approve_test_time" ]; then
+              echo "PR #$pr has /oc fix after approve-test ($last_fix_time > $approve_test_time); not merge-ready"
+              continue
+            fi
+            mergeable=$(gh pr view "$pr" --repo "${{ github.repository }}" --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+            echo "PR #$pr mergeable=$mergeable approve-test=$approve_test_time"
+            if [ "$mergeable" != "MERGEABLE" ]; then
+              echo "PR #$pr not MERGEABLE ($mergeable); skipping"
+              continue
+            fi
+            echo "Attempting PAT-backed rebase merge for PR #$pr (workflow-touching, approved)"
+            if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1; then
+              echo "Successfully merged PR #$pr via PAT"
+              git fetch origin main --quiet 2>/dev/null || true
+            else
+              echo "::warning::PAT merge failed for PR #$pr (may need owner click or further checks)"
+            fi
+          done
+          echo "PAT merge sweep complete"
+
+      - name: Trigger pages deployment if main advanced
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          new_sha=$(git ls-remote origin main | awk '{print $1}')
+          if [ "${{ steps.pre_agent.outputs.sha }}" != "$new_sha" ] && [ -n "$new_sha" ]; then
+            echo "Main branch advanced from ${{ steps.pre_agent.outputs.sha }} to $new_sha. Triggering pages.yml."
+            gh workflow run pages.yml --repo "${{ github.repository }}" || true
+          else
+            echo "Main branch did not advance."
+          fi
+
+      - name: Main integrity guard (prevent orphan or divergent main rewrite)
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pre="${{ steps.pre_agent.outputs.sha }}"
+          if [ -z "$pre" ]; then
+            echo "No pre-agent main SHA recorded; skipping integrity guard."
+            exit 0
+          fi
+          # Read the live remote main SHA with ls-remote (does NOT update the local
+          # origin/main tracking ref), so the force-with-lease below pins to exactly the
+          # main we observed. A concurrent push by another workflow (e.g. lab.yml) after
+          # this point makes the lease mismatch and the restore is rejected instead of
+          # clobbering unrelated, legitimate main advances (see reviewer advisory on #92).
+          cur=$(git ls-remote origin main | awk '{print $1}')
+          if [ -z "$cur" ]; then
+            echo "Could not read current main SHA; skipping integrity guard."
+            exit 0
+          fi
+          git fetch origin "$pre" --quiet 2>/dev/null || true
+          git fetch origin "$cur" --quiet 2>/dev/null || true
+          # main must remain a strict descendant of the pre-run main. A rebase merge of a
+          # correctly linked PR keeps main descending from pre. Only a divergent/orphan rewrite
+          # (the recurring lab defect) fails this check, and we auto-restore to the pre-run SHA.
+          if git merge-base --is-ancestor "$pre" "$cur" 2>/dev/null; then
+            echo "Main integrity OK: $cur descends from pre-run main $pre."
+            exit 0
+          fi
+          echo "::error::main was rewritten or orphaned by this run (pre=$pre, now=$cur). Auto-restoring main to pre-run state."
+          if git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$pre:main" --force-with-lease="main:$cur" 2>/dev/null; then
+            echo "Restored main to $pre."
+          else
+            echo "::error::Auto-restore of main failed; manual intervention required (pre=$pre)."
+          fi
+          gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" \
+            --body "ALERT: a merge in this Maintainer run would have orphaned or diverged \`main\` (pre=$pre, now=$cur). The lab integrity guard auto-restored \`main\` to $pre. Investigate the merge path before any further main push." \
+            || true
+
+      - name: Dispatch ideator when asked
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          if not os.path.exists(".maintainer/decision.json"):
+              raise SystemExit(0)
+          try:
+              decisions = json.load(open(".maintainer/decision.json"))
+          except Exception:
+              raise SystemExit(0)
+          if any(d.get("action") == "ideate" for d in decisions):
+              r = subprocess.run(
+                  ["gh", "workflow", "run", "ideate.yml", "--repo", os.environ["GITHUB_REPOSITORY"]],
+                  capture_output=True, text=True,
+              )
+              print("ideator dispatched" if r.returncode == 0 else f"ideator dispatch failed: {r.stderr[:200]}")
+          PY
+
+      - name: Approve held CI runs (PR or repo-wide sweep)
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          # Ensure repository scripts exist even if working tree was on maintainer/logs
+          if [ ! -f ".github/scripts/approve-held-runs.sh" ]; then
+            git checkout --force origin/main --quiet 2>/dev/null || true
+          fi
+          pr="${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number || '' }}"
+          # Shared self-healing logic (issue #137): head-scoped polling when a
+          # PR context resolves, then ALWAYS a terminal repo-wide sweep that
+          # also clears runs held on intermediate head SHAs, which head-scoped
+          # polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh

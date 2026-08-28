@@ -1,0 +1,8 @@
+[package]
+name = "aftershock"
+version = "1.0.0"
+edition = "2021"
+description = "A seismic network simulator: model earthquakes on a fault grid, propagate P and S waves to stations, and render terminal seismograms"
+license = "MIT"
+
+[dependencies]

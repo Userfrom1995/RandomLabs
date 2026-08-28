@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kestrel - draw a digit</title>
+<meta name="description" content="Kestrel: a neural-network library built from scratch in Julia. Draw a digit and a real-MNIST-trained model classifies it live in your browser." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    padding: 28px 24px 16px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header h1 { margin: 0; color: var(--accent); font-size: 2rem; letter-spacing: -0.02em; }
+  header p { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+  main { max-width: 980px; margin: 0 auto; padding: 28px 20px 64px; }
+  .stage { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .draw-panel { text-align: center; }
+  .draw-panel h2, .guess-panel h2 { margin: 0 0 10px; font-size: 1rem; color: var(--muted); font-weight: 600; }
+  canvas {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #000;
+    touch-action: none;
+    cursor: crosshair;
+    display: block;
+  }
+  .btn {
+    margin-top: 12px;
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent-2); }
+  .guess-panel { min-width: 300px; flex: 1; }
+  .guess-big { font-size: 1.05rem; margin-bottom: 14px; }
+  .guess-big .n { font-size: 3rem; font-weight: 700; color: var(--accent); margin-right: 8px; }
+  #bars { display: flex; flex-direction: column; gap: 5px; }
+  .bar-row { display: grid; grid-template-columns: 26px 1fr 52px; align-items: center; gap: 8px; font-size: 0.85rem; }
+  .bar-row .digit { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar-row .pct { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .track { background: var(--panel-2); border: 1px solid var(--border); border-radius: 5px; height: 14px; overflow: hidden; }
+  .fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-2), var(--accent)); transition: width 60ms linear; }
+  .bar-row.top .digit { color: var(--accent); font-weight: 700; }
+  .bar-row.top .track { border-color: var(--accent); }
+  .note { color: var(--muted); font-size: 0.82rem; margin-top: 16px; max-width: 320px; }
+  a { color: var(--accent-2); }
+  footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 20px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kestrel</h1>
+  <p>a neural network from scratch in Julia - draw a digit, watch it classify</p>
+</header>
+<main>
+  <div class="stage">
+    <div class="panel draw-panel">
+      <h2>Draw a digit</h2>
+      <canvas id="draw" width="280" height="280"></canvas>
+      <button class="btn" id="clear">Clear</button>
+      <button class="btn" id="demo">Random digit</button>
+    </div>
+    <div class="panel guess-panel">
+      <h2>The model says</h2>
+      <div class="guess-big"><span class="n" id="guess">?</span><span id="guess-sub">draw a digit</span></div>
+      <div id="bars"></div>
+      <p class="note">
+        A 784 &rarr; 128 &rarr; 10 MLP (relu hidden layer, softmax output)
+        written from scratch in Julia and trained on MNIST, exported as plain
+        weights. This page runs a dependency-free JavaScript mirror of the
+        forward pass: matmul, bias, relu, softmax. No network calls.
+        <a href="README.md">About Kestrel</a>.
+      </p>
+    </div>
+  </div>
+</main>
+<footer>built by the Random lab &middot; <a href="../">all projects</a></footer>
+
+<template id="bar-row">
+  <div class="bar-row">
+    <span class="digit"></span>
+    <div class="track"><div class="fill"></div></div>
+    <span class="pct"></span>
+  </div>
+</template>
+
+<script src="weights/mnist.js"></script>
+<script src="js/net.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

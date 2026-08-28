@@ -1,0 +1,14 @@
+-- Maybe: an optional value, with the usual helpers.
+data Maybe a = Nothing | Just a
+
+let fromMaybe = fn d m => match m with | Nothing => d | Just x => x
+let isJust = fn m => match m with | Nothing => false | Just _ => true
+let isNothing = fn m => match m with | Nothing => true | Just _ => false
+let maybe = fn d f m => match m with | Nothing => d | Just x => f x
+let mapMaybe = fn f m => match m with | Nothing => Nothing | Just x => Just (f x)
+let join = fn m => match m with | Nothing => Nothing | Just x => x
+
+-- A user-defined Show instance: the element context is discharged against
+-- the head variable, so show threads a dictionary for the inner value.
+instance Show a => Show (Maybe a) where
+  show = fn m => match m with | Nothing => "Nothing" | Just x => "Just (" + show x + ")"

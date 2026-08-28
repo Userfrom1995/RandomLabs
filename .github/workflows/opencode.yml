@@ -1,0 +1,1106 @@
+name: opencode
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: opencode-${{ github.event.issue.number || 'global' }}
+  cancel-in-progress: false
+
+# =============================================================================
+# SILENT-STALL HARDENING - BINDING ACCEPTANCE INVARIANTS (issue #122, PR #125)
+# Any change to the concurrency blocks or the no-op / self-heal steps below
+# MUST preserve all four invariants. See ideas/2026-08-23-silent-stall-audit.md.
+#
+#   S1  Per-issue serialization: exactly one opencode.yml run per issue may be
+#       in flight at a time (|R(t)| <= 1). Guaranteed by this top-level
+#       non-cancelling group that wraps every opencode.yml dispatch per issue.
+#   S2  Non-cancellation of in-flight builds: every concurrency group MUST use
+#       `cancel-in-progress: false`. A duplicate /oc continue QUEUES behind the
+#       running build instead of killing it (no cancellation race).
+#   L1  Bounded recovery (no infinite silent stall): the self-heal step may
+#       re-dispatch /oc continue (auto-heal N) at most K = 2 times, then
+#       UNCONDITIONALLY escalates to /oc maintainer. Terminates in <= 3 dispatches.
+#   L2  No double-dispatch: the self-heal step and the verify auto-retry step are
+#       mutually exclusive via the guard `steps.verify.outputs.retry != 'true'`.
+#
+# RULES (do not violate when editing):
+#   - Keep `cancel-in-progress: false` on EVERY concurrency group (S2).
+#   - Keep K = 2 (finite). Changing K must still preserve the L1 termination proof.
+#   - NEVER assume a zero counter on an API/rate-limit failure; escalate to
+#     /oc maintainer instead (prevents the phantom-zero infinite loop).
+# These are statically audited by R1-R5 in auditor.yml (.github/scripts/silent-stall-audit.sh).
+# =============================================================================
+
+jobs:
+  research:
+    if: |
+      startsWith(github.event.comment.body, '/oc research') ||
+      startsWith(github.event.comment.body, '/opencode research')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "Dr. Mob (Researcher)"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run opencode researcher agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/hy3-free
+          use_github_token: true
+          prompt: |
+            You are the Researcher of the Random lab, triggered by "/oc research".
+            
+            READ FIRST: `.github/agents/researcher.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"architect"}`.
+            - Sign your work: every commit subject starts with `researcher:`, every comment ends with ` - Dr. Mob, the Researcher`.
+            - You never post "/oc" comments yourself.
+            - Commit as `github-actions[bot]`, push, and leave the working tree clean.
+
+      - name: Verify research decided, else auto-retry
+        id: verify-phase
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          outcome="${{ steps.opencode.outcome }}"
+
+          # Crash-parity with build/fix/review mode (issue #138): a healthy
+          # researcher ALWAYS writes the decision file as its final act, so
+          # "no decision file + failed agent step" is exactly the mid-stream
+          # crash signature (e.g. 'Provider finish_reason: network_error').
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Decision file present; research phase produced a handoff."
+            exit 0
+          fi
+
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          target="${pr:-$issue}"
+
+          if [ "$outcome" != "success" ]; then
+            echo "::error::Researcher step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            # Robust retry counter: never fall back to 0 on an API/rate-limit
+            # failure; on enumeration failure stop retrying (runaway guard).
+            retries=$(gh api "repos/${{ github.repository }}/issues/$target/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc research (auto-retry")))] | length' 2>/dev/null || true)
+            if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+              echo "::error::Could not enumerate prior auto-retries on #$target (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            if [ "$retries" -lt 3 ]; then
+              n=$((retries + 1))
+              echo "Posting auto-retry $n"
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              gh api "repos/${{ github.repository }}/issues/$target/comments" -f body="/oc research (auto-retry $n)"
+              exit 0
+            fi
+            echo "Researcher dead after 4 attempts (1 initial + 3 auto-retries); notifying Maintainer."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 1
+          fi
+
+          echo "::error::Researcher step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+          exit 1
+
+      - name: Forward researcher decision
+        if: always() && steps.verify-phase.outputs.handled != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+          target="${pr:-$issue}"
+          
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "architect" ]; then
+            echo "Researcher spec complete! Handing over to Architect (/oc architect)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc architect" || true
+          else
+            echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          fi
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          bash .github/scripts/strip-trailers.sh || true
+
+  architect:
+    if: |
+      startsWith(github.event.comment.body, '/oc architect') ||
+      startsWith(github.event.comment.body, '/oc plan') ||
+      startsWith(github.event.comment.body, '/opencode architect') ||
+      startsWith(github.event.comment.body, '/opencode plan')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Architect"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run opencode architect agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/hy3-free
+          use_github_token: true
+          prompt: |
+            You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
+            
+            READ FIRST: `.github/agents/architect.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"build"}`.
+            - Sign your work: every commit subject starts with `architect:`, every comment ends with ` -  the Architect`.
+            - You never post "/oc" comments yourself.
+            - Commit as `github-actions[bot]`, push, and leave the working tree clean.
+
+      - name: Verify architect decided, else auto-retry
+        id: verify-phase
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          outcome="${{ steps.opencode.outcome }}"
+
+          # Crash-parity with build/fix/review mode (issue #138): a healthy
+          # architect ALWAYS writes the decision file as its final act, so
+          # "no decision file + failed agent step" is exactly the mid-stream
+          # crash signature (e.g. 'Provider finish_reason: network_error').
+          # Mandated by Maintainer's 08:46Z escalation after four architect deaths.
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Decision file present; architect phase produced a handoff."
+            exit 0
+          fi
+
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          target="${pr:-$issue}"
+
+          if [ "$outcome" != "success" ]; then
+            echo "::error::Architect step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            # Robust retry counter: never fall back to 0 on an API/rate-limit
+            # failure; on enumeration failure stop retrying (runaway guard).
+            retries=$(gh api "repos/${{ github.repository }}/issues/$target/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc architect (auto-retry")))] | length' 2>/dev/null || true)
+            if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+              echo "::error::Could not enumerate prior auto-retries on #$target (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              exit 1
+            fi
+            if [ "$retries" -lt 3 ]; then
+              n=$((retries + 1))
+              echo "Posting auto-retry $n"
+              echo "handled=true" >> "$GITHUB_OUTPUT"
+              gh api "repos/${{ github.repository }}/issues/$target/comments" -f body="/oc architect (auto-retry $n)"
+              exit 0
+            fi
+            echo "Architect dead after 4 attempts (1 initial + 3 auto-retries); notifying Maintainer."
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 1
+          fi
+
+          echo "::error::Architect step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+          exit 1
+
+      - name: Forward architect decision
+        if: always() && steps.verify-phase.outputs.handled != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+          target="${pr:-$issue}"
+          
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "build" ]; then
+            echo "Architect plan complete! Handing over to Builder (/oc build this)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc build this" || true
+          else
+            echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          fi
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          [ -z "$pr" ] && exit 0
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh
+
+  build:
+    if: |
+      !startsWith(github.event.comment.body, '/oc review') &&
+      !startsWith(github.event.comment.body, '/oc approve') &&
+      !startsWith(github.event.comment.body, '/opencode review') &&
+      (contains(github.event.comment.body, ' /oc build') ||
+       startsWith(github.event.comment.body, '/oc build') ||
+       contains(github.event.comment.body, ' /oc continue') ||
+       startsWith(github.event.comment.body, '/oc continue') ||
+       contains(github.event.comment.body, ' /opencode build') ||
+       startsWith(github.event.comment.body, '/opencode build') ||
+       contains(github.event.comment.body, ' /opencode continue') ||
+       startsWith(github.event.comment.body, '/opencode continue'))
+    # One codec build per issue. Per the lab-wide mandate (AGENTS.md: all
+    # workflows use cancel-in-progress: false for queued, non-corrupting
+    # execution), duplicate /oc continue requests QUEUE behind the in-flight
+    # build instead of cancelling it. Cancelling an in-flight build was the
+    # root cause of the "silent stall": a stray /oc continue could kill the
+    # running build, leaving no build in flight and the loop dead until a
+    # manual re-ping. The top-level opencode-<issue> group already serializes
+    # all opencode.yml runs per issue, so a second agent never touches the
+    # branch while the first is active.
+    concurrency:
+      group: opencode-build-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Builder"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Capture build baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          # Resolve the build's target branch SERVER-SIDE (issue #135). The
+          # agent may fetch/checkout any branch mid-session (resume orientation
+          # does exactly that), so the later verify step must compare the SAME
+          # branch's remote tips against each other instead of trusting mutable
+          # local checkout state. This mirrors the proven FIX-job pattern.
+          is_pr="${{ github.event.issue.pull_request != null }}"
+          pr_branch=""
+          if [ "$is_pr" = "true" ]; then
+            pr_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          else
+            pr_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+          fi
+          head_before=""
+          if [ -n "$pr_branch" ]; then
+            head_before=$(git ls-remote origin "refs/heads/$pr_branch" 2>/dev/null | cut -f1)
+          fi
+          if [ -z "$head_before" ]; then
+            # Fresh build with no remote branch yet: fall back to current HEAD (main).
+            head_before=$(git rev-parse HEAD 2>/dev/null || echo "")
+          fi
+          # ALL known tips among this issue's branch pattern (multiline). The
+          # verify step treats the set as "pre-existing state": any tip NOT in
+          # it is a genuine push. A single-sha snapshot cannot do that - with
+          # several stale branches per issue (the norm after retry rounds) a
+          # sha-sorted pick would differ from whichever stale branch the agent
+          # checked out, and an unpushed session would read as pushed.
+          pattern_tips=$(git ls-remote origin "refs/heads/opencode/issue${issue}-*" 2>/dev/null | cut -f1 | sort -u)
+          {
+            echo "branch=$pr_branch"
+            echo "head_before=$head_before"
+            echo "pattern_tips<<TIPS_EOF"
+            echo "$pattern_tips"
+            echo "TIPS_EOF"
+          } >> "$GITHUB_OUTPUT"
+          tip_count=$(printf '%s' "$pattern_tips" | grep -c . || true)
+          echo "Build baseline: branch='${pr_branch:-<none yet>}' head_before=$head_before pattern_tips=${tip_count:-0}"
+
+      - name: Run opencode build agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 105
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/hy3-free
+          use_github_token: true
+          prompt: |
+            You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
+
+            READ FIRST: `.github/agents/builder.md` - that file IS your complete system prompt; every rule there is binding (identity as the Builder, orientation, build plan, resume mode, ideas entry, docs/site rules, decision files, review-round behavior, sign-off). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
+
+            SAFETY NET (always binding, outranks everything):
+            - Commit your work yourself as `github-actions[bot]` (identity preconfigured). NEVER add any `Co-authored-by:` trailer. Never end the run without pushing (`git status --porcelain` must be empty at the end - the workflow auto-commit is forbidden to fire).
+            - Branch `opencode/<issue-number>-<short-description>`; open your PR with `gh pr create --base main --head <branch> --title ... --body "Closes #N"` (rule: every task gets its OWN new issue; never a "universal" issue).
+            - Rebase onto latest main before pushing with `--force-with-lease`; never leave the PR behind or conflicted. If `git merge-base origin/main HEAD` fails (main history was rewritten, so the branch and main are unrelated), REBUILD the branch instead: `git checkout -B <branch> origin/main`, re-apply only this project's own commits one by one with `git cherry-pick` (drop merge commits and unrelated old-main commits), and push with `--force-with-lease`.
+            - You never post "/oc" comments (hardcoded steps post triggers; your comments are plain text, bot-signed).
+            - Before ending the run, you MUST write `/tmp/random-lab-decision.json` with exactly one action: `{"action":"review"}` when complete, `{"action":"continue"}` when more build phases remain, or `{"action":"maintainer"}` when the run cannot safely decide the next build phase. The hardcoded workflow step reads this file instead of grepping Markdown status text.
+            - Sign your work: every commit subject starts with `builder:`, every comment/PR body ends with your sign-off from builder.md (` -  the Builder`).
+            - No interactive input in anything you build; production quality; docs/ + ideas/ entry required; never touch the root index.html landing, the docs folder's existence, or pages.yml's PR-preview feature.
+            - CONTINUE run ("/oc continue"): fetch the existing branch/PR for this issue, read its progress file, resume - never restart, never redo done work.
+            - Think deeply before coding; use subagents when available. This is a real build: plan, scaffold with progress files, push after every milestone, mark Status: complete only when actually done.
+
+      - name: Preserve local commits if agent was killed before pushing
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+            echo "Not on a feature branch; nothing to preserve"
+            exit 0
+          fi
+          remote_sha=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+          local_sha=$(git rev-parse HEAD 2>/dev/null)
+          if [ -n "$remote_sha" ] && [ "$remote_sha" = "$local_sha" ]; then
+            echo "Remote already matches local; agent pushed (or nothing to do)"
+            exit 0
+          fi
+          if [ -z "$remote_sha" ]; then
+            ahead=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+          else
+            ahead=$(git rev-list --count "$remote_sha"..HEAD 2>/dev/null || echo "0")
+          fi
+          if [ "$ahead" -gt 0 ]; then
+            echo "Agent made $ahead local commit(s) but did not push (likely killed by timeout); force-preserving to $branch"
+            git push --force-with-lease origin "HEAD:refs/heads/$branch" --quiet 2>&1 || echo "force-push failed; next retry will rebuild from last pushed state"
+          else
+            echo "No local commits ahead of remote; nothing to preserve"
+          fi
+          exit 0
+
+      - name: Verify build pushed, else auto-retry
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}
+          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+          PATTERN_TIPS: ${{ steps.baseline.outputs.pattern_tips }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+
+          # Like-for-like push detection on server-resolved state (issue #135).
+          # NEVER trust `git branch --show-current` as the target: the agent is
+          # contractually allowed to checkout branches mid-session, and a
+          # session that dies right after checking out the PR branch must not
+          # read as "pushed" (the false positive that silenced two D3 retries).
+          pushed="no"
+          is_pr="${{ github.event.issue.pull_request != null }}"
+          target_branch=""
+          if [ "$is_pr" = "true" ]; then
+            target_branch=$(gh pr view "$issue" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          else
+            target_branch=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+          fi
+
+          if [ -n "$target_branch" ]; then
+            tip_now=$(git ls-remote origin "refs/heads/$target_branch" 2>/dev/null | cut -f1)
+            if [ -n "$BASELINE_BRANCH" ] && [ "$target_branch" = "$BASELINE_BRANCH" ]; then
+              # Same branch as baseline: a push happened iff its remote tip moved.
+              if [ -n "$tip_now" ] && [ -n "$BASELINE_HEAD" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
+                pushed="yes"
+                echo "Build pushed successfully: $target_branch moved $BASELINE_HEAD -> $tip_now"
+              else
+                echo "No push detected on target branch $target_branch (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
+              fi
+            elif [ -n "$tip_now" ]; then
+              # A DIFFERENT branch now carries this issue's open PR (the agent
+              # created it mid-run): PR existence itself proves real pushes.
+              pushed="yes"
+              echo "Build pushed successfully: new branch $target_branch at $tip_now"
+            else
+              echo "Target branch $target_branch has no remote tip yet; no push detected"
+            fi
+          elif [ -z "$BASELINE_BRANCH" ]; then
+            # Fresh build from a plain issue with no open PR at either end:
+            # success means this issue's own branch pattern gained a new tip.
+            # Branch IDENTITY is taken from the local checkout only when it
+            # matches this issue's own naming pattern; a foreign checkout
+            # (builder resume orientation fetches arbitrary branches) must
+            # read as no-push, so its pre-existing remote tip can never be
+            # mistaken for evidence of a push (issue #135).
+            checked_out=$(git branch --show-current 2>/dev/null || echo "")
+            branch=""
+            case "$checked_out" in
+              opencode/issue${issue}-*) branch="$checked_out" ;;
+            esac
+            if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+              tip_now=$(git ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1)
+              # A push is a tip that is NOT one of the pre-existing tips for
+              # this issue's pattern. Membership (not single-sha compare):
+              # stale retry-round branches all count as pre-existing state, so
+              # checking one of them out and dying still reads as "no push".
+              if [ -n "$tip_now" ] && ! printf '%s\n' "$PATTERN_TIPS" | grep -qxF "$tip_now"; then
+                pushed="yes"
+                echo "Build pushed successfully: new branch $branch at $tip_now"
+              else
+                echo "No push detected: $branch tip matches pre-existing state for issue #$issue"
+              fi
+            fi
+            if [ "$pushed" = "no" ]; then
+              echo "No push detected for issue #$issue (eligible branch: ${branch:-<none matches issue pattern>}, checked out: ${checked_out:-<none>})"
+            fi
+          else
+            echo "Baseline branch $BASELINE_BRANCH lost its open PR mid-run; comparing raw tips."
+            tip_now=$(git ls-remote origin "refs/heads/$BASELINE_BRANCH" 2>/dev/null | cut -f1)
+            if [ -n "$tip_now" ] && [ "$tip_now" != "$BASELINE_HEAD" ]; then
+              pushed="yes"
+              echo "Build pushed successfully: $BASELINE_BRANCH moved $BASELINE_HEAD -> $tip_now"
+            else
+              echo "No push detected on $BASELINE_BRANCH (tip=${tip_now:-<none>}, baseline=$BASELINE_HEAD)"
+            fi
+          fi
+
+          if [ "$pushed" = "yes" ]; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+
+          # Robust retry counter: never fall back to 0 on an API/rate-limit
+          # failure, which would make the cap never trip and loop forever. Only
+          # count retries the API actually returned; on failure, stop retrying.
+          retries=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc build this (auto-retry")))] | length' 2>/dev/null || true)
+          if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+            echo "::error::Could not enumerate prior auto-retries on #$issue (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+            exit 1
+          fi
+          if [ "$retries" -lt 3 ]; then
+            n=$((retries + 1))
+            echo "Posting auto-retry $n"
+            echo "retry=true" >> "$GITHUB_OUTPUT"
+            gh api "repos/${{ github.repository }}/issues/$issue/comments" -f body="/oc build this (auto-retry $n)"
+            exit 0
+          fi
+          echo "::error::Build agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+          exit 1
+
+      - name: Preserve build branch with recover tag
+        if: always() && steps.verify.outputs.retry != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          if [ -z "$branch" ] || [ "$branch" = "main" ]; then
+            echo "Not on a feature branch; nothing to preserve."
+            exit 0
+          fi
+          # Find the build PR (open or closed) for this branch so we can tag it
+          # recover/<pr>. The tag is the restore guarantee: even if GitHub GC's
+          # the PR's recorded head or deletes the branch, the commits are always
+          # restorable from recover/<pr> (see .github/scripts/recover.sh).
+          pr=$(gh pr list --repo "${{ github.repository }}" --state all --json number,headRefName \
+            --jq '[.[] | select(.headRefName == "'"$branch"'")] | .[0].number' 2>/dev/null || echo "")
+          if [ -z "$pr" ]; then
+            echo "No PR found for branch $branch; skipping recover tag."
+            exit 0
+          fi
+          tip=$(git ls-remote origin "refs/heads/$branch" | awk '{print $1}')
+          if [ -z "$tip" ]; then
+            echo "Branch $branch has no remote tip yet; skipping recover tag."
+            exit 0
+          fi
+          git tag -f "recover/$pr" "$tip"
+          if git push --force origin "refs/tags/recover/$pr" --quiet 2>/dev/null; then
+            echo "Tagged recover/$pr -> $tip (commits preserved for recovery)"
+          else
+            echo "recover/$pr tag push failed (non-fatal); recovery still possible if branch survives"
+          fi
+          exit 0
+
+      - name: Diagnose silent build no-op and self-heal
+        if: always() && steps.verify.outputs.retry != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          # Consume the verify step's SERVER-SIDE verdict (issue #135); do not
+          # recompute from local checkout state, which the agent may have moved.
+          advanced="no"
+          if [ "${{ steps.verify.outputs.pushed }}" = "true" ]; then
+            advanced="yes"
+          fi
+          has_decision="no"
+          if [ -f /tmp/random-lab-decision.json ]; then
+            has_decision="yes"
+          fi
+          if [ "$advanced" = "no" ] && [ "$has_decision" = "no" ]; then
+            echo "::warning::Build agent run ${{ github.run_id }} finished with no branch push and no decision file (silent no-op)."
+            # Bounded self-heal: a genuine no-op (e.g. the agent killed by timeout
+            # before it committed) must NOT leave the build branch with nothing in
+            # flight. Re-dispatch /oc continue a small number of times; if it keeps
+            # no-op'ing, hand off to the Maintainer instead of silently stalling
+            # (the old behavior required a manual /oc maintainer ping, which the
+            # loop-breaking "circuit breaker" then wrongly refused to honor).
+            heals=$(gh api "repos/${{ github.repository }}/issues/$issue/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc continue (auto-heal")))] | length' 2>/dev/null || true)
+            if [ -z "$heals" ] || ! [ "$heals" -eq "$heals" ] 2>/dev/null; then
+              echo "Could not enumerate prior auto-heals (API/rate-limit). Handing off to Maintainer."
+              gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc maintainer" 2>/dev/null || true
+              exit 0
+            fi
+            if [ "$heals" -lt 2 ]; then
+              n=$((heals + 1))
+              echo "Self-healing: re-dispatching /oc continue (auto-heal $n)"
+              gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc continue (auto-heal $n)" 2>/dev/null || true
+            else
+              echo "Build no-op'd $heals times; handing off to Maintainer (/oc maintainer)."
+              gh issue comment "$issue" --repo "${{ github.repository }}" \
+                --body "/oc maintainer" 2>/dev/null || true
+            fi
+          fi
+          exit 0
+
+      - name: Forward builder decision
+        if: always() && steps.verify.outputs.retry != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+          target="${pr:-$issue}"
+
+          # Orphan guard: a build branch that no longer shares any history with main
+          # cannot be merged with --rebase and would rewrite main as a single orphan
+          # root. Route to the Maintainer to re-link instead of forwarding for merge.
+          # Resolve the build branch from the PR head ref (not the local checkout, which
+          # may be main or detached) so the check is reliable.
+          build_branch=$(gh pr view "$target" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          if [ -n "$build_branch" ]; then
+            git fetch origin main --quiet 2>/dev/null || true
+            git fetch origin "+refs/heads/$build_branch:refs/buildbranch" --quiet 2>/dev/null || true
+            if [ -z "$(git merge-base origin/main refs/buildbranch 2>/dev/null)" ]; then
+              echo "Branch $build_branch has NO common ancestor with main - cannot be merged safely."
+              echo "Routing to Maintainer (/oc maintainer) to re-link history."
+              gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+              exit 0
+            fi
+          fi
+
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "review" ]; then
+            echo "Build complete! Handing over to Reviewer (/oc review)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc review" || true
+          elif [ "$action" = "continue" ]; then
+            echo "Build in progress. Triggering /oc continue"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc continue" || true
+          elif [ "$action" = "maintainer" ]; then
+            echo "Build finished. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          else
+            echo "Unknown action: $action. Notifying Maintainer (/oc maintainer)"
+            gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+          fi
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          [ -z "$pr" ] && exit 0
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh
+
+  fix:
+    if: |
+      startsWith(github.event.comment.body, '/oc fix') &&
+      github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Fixer"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Guard - target must be an OPEN pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          # Refuse to run FIX mode unless the trigger target is an OPEN pull
+          # request. A closed/merged PR or a bare issue number can never be
+          # "fixed" through this path, and auto-retrying against it produces an
+          # unbounded /oc fix (auto-retry N) cascade that burns CI. Bail cleanly.
+          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$pr_state" != "OPEN" ]; then
+            echo "::error::/oc fix was triggered on #$pr which is not an OPEN pull request (state='${pr_state:-unknown}'). Refusing to run FIX mode to avoid a runaway cascade. Reopen the PR or post on an actual open PR to drive a fix."
+            exit 0
+          fi
+          echo "Target #$pr is OPEN; proceeding with FIX mode."
+
+      - name: Capture baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_before=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+          echo "head_before=$head_before" >> "$GITHUB_OUTPUT"
+
+      - name: Run opencode fix agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/hy3-free
+          use_github_token: true
+          prompt: |
+            You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.
+
+            READ FIRST: `.github/agents/fixer.md` - that file IS your complete system prompt; every rule there is binding (apply the latest "/oc fix: ..." findings, partial-application + plain-text rebuttals for what you skip, rebase before push). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
+
+            SAFETY NET (always binding):
+            - Apply every requested fix you agree with on the PR's branch (fetch/checkout it first if needed).
+            - Disagreements: post a plain-text rebuttal with technical justification (file:line), NEVER starting with "/oc". After two rounds of argument, apply the change.
+            - Commit as `github-actions[bot]`, NEVER any `Co-authored-by:` trailer. Never end without pushing - if you made NO changes, push an empty commit (`git commit --allow-empty -m "chore: reply to reviewer"`). Rebase onto latest main before pushing with `--force-with-lease`.
+            - Scope: only what the findings require - no new issues/branches/PRs, no docs//ideas/ unless the finding requires it, never merge.
+            - Sign your work: commit subjects start with `fixer:`, comments end with ` -  the Fixer`.
+            - Leave `git status --porcelain` empty at the end.
+
+      - name: Verify fix pushed, else auto-retry
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+
+          # Hard stop: a fix can only land on an OPEN pull request. If the PR is
+          # closed/merged or the number is not a PR at all, there is nothing to
+          # fix and auto-retrying would loop forever. Bail without a retry.
+          pr_state=$(gh pr view "$pr" --repo "${{ github.repository }}" --json state --jq '.state' 2>/dev/null || echo "")
+          if [ "$pr_state" != "OPEN" ]; then
+            echo "Target #$pr is not an OPEN pull request (state='${pr_state:-unknown}'); no fix possible. Bailing out without auto-retry."
+            exit 0
+          fi
+
+          # Detect ANY head movement on the PR branch, including an empty commit
+          # the Fixer is contractually required to push when there is nothing to
+          # apply. An empty commit still changes the head OID, so this counts as
+          # a successful push.
+          head_after=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null)
+          if [ -n "$head_after" ] && [ "$head_after" != "$BASELINE_HEAD" ]; then
+            echo "Fix pushed (PR head moved: $BASELINE_HEAD -> $head_after)"
+            exit 0
+          fi
+
+          echo "No push detected"
+          # Robust retry counter: never fall back to 0 on an API/rate-limit
+          # failure, because a phantom 0 would cap never trip and the loop would
+          # run forever. Only count retries the API actually returned; if the
+          # query itself failed, treat it as "at budget" and stop retrying.
+          retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc fix (auto-retry")))] | length' 2>/dev/null || true)
+          if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+            echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+            exit 1
+          fi
+          if [ "$retries" -lt 3 ]; then
+            n=$((retries + 1))
+            echo "Posting auto-retry $n"
+            echo "retry=true" >> "$GITHUB_OUTPUT"
+            gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc fix (auto-retry $n)"
+            exit 0
+          fi
+          echo "::error::Fix agent finished without pushing after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+          exit 1
+
+      - name: Post /oc review to trigger Reviewer
+        if: always() && steps.verify.outputs.retry != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "/oc review" || true
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          pr="${{ github.event.issue.number }}"
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          pr="${{ github.event.issue.number }}"
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh
+
+  general:
+    if: |
+      !startsWith(github.event.comment.body, '/oc review') &&
+      !startsWith(github.event.comment.body, '/oc approve') &&
+      !startsWith(github.event.comment.body, '/opencode review') &&
+      !startsWith(github.event.comment.body, '/oc build') &&
+      !startsWith(github.event.comment.body, '/opencode build') &&
+      !startsWith(github.event.comment.body, '/oc continue') &&
+      !startsWith(github.event.comment.body, '/opencode continue') &&
+      !startsWith(github.event.comment.body, '/oc maintainer') &&
+      !startsWith(github.event.comment.body, '/opencode maintainer') &&
+      !startsWith(github.event.comment.body, '/oc test') &&
+      !startsWith(github.event.comment.body, '/opencode test') &&
+      !startsWith(github.event.comment.body, '/oc architect') &&
+      !startsWith(github.event.comment.body, '/opencode architect') &&
+      !startsWith(github.event.comment.body, '/oc research') &&
+      !startsWith(github.event.comment.body, '/opencode research') &&
+      !startsWith(github.event.comment.body, '/oc plan') &&
+      !startsWith(github.event.comment.body, '/opencode plan') &&
+      !startsWith(github.event.comment.body, '/oc auditor') &&
+      !startsWith(github.event.comment.body, '/opencode auditor') &&
+      !startsWith(github.event.comment.body, '/oc lab') &&
+      !startsWith(github.event.comment.body, '/opencode lab') &&
+      !startsWith(github.event.comment.body, '/oc fix') &&
+      !startsWith(github.event.comment.body, '/opencode fix') &&
+      !startsWith(github.event.comment.body, '/oc recover') &&
+      !startsWith(github.event.comment.body, '/opencode recover') &&
+      (contains(github.event.comment.body, ' /oc') ||
+       startsWith(github.event.comment.body, '/oc') ||
+       contains(github.event.comment.body, ' /opencode') ||
+       startsWith(github.event.comment.body, '/opencode'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "General Agent"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run opencode general agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are the General agent of the Random lab, triggered by a plain "/oc" request (a question, housekeeping, or a small change).
+
+            READ FIRST: `.github/agents/general.md` - that file IS your complete system prompt; every rule there is binding (full capabilities, housekeeping vs code-change judgment, preservation rules, sign-off). If the file is missing from the tree, rely on the safety net below plus AGENTS.md.
+
+            SAFETY NET (always binding):
+            - Answer/housekeeping = a comment or API action is complete; code changes get committed (as `github-actions[bot]`, NEVER a `Co-authored-by:` trailer), pushed, and PR'd when appropriate - nothing forced.
+            - You never post "/oc" comments; comment only as `github-actions[bot]`; never expose secrets; never remove the README first section, the root `index.html`, `docs/`, the pages.yml PR-preview feature, or the lab infrastructure without a clear request.
+            - Sign your work: commit subjects start with `general:`, comments end with ` -  the General agent`.
+
+      - name: Post /oc maintainer to trigger Maintainer
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "/oc maintainer" || true
+
+      - name: Clean working tree (prevent auto-commit leaks)
+        if: always()
+        run: |
+          git checkout -- . >/dev/null 2>&1 || true
+          git clean -fd >/dev/null 2>&1 || true
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then echo "dirty after clean:"; echo "$dirty"; fi
+          exit 0
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          [ -z "$pr" ] && exit 0
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          [ -z "$branch" ] && exit 0
+          git fetch origin "refs/heads/$branch:refs/remotes/origin/prbranch" --quiet 2>/dev/null || exit 0
+          bad=$(git log --format=%B refs/remotes/origin/main..refs/remotes/origin/prbranch 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+          if [ "$bad" -eq 0 ]; then
+            echo "No leaked owner trailers on $branch"
+            exit 0
+          fi
+          echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+          git checkout --detach refs/remotes/origin/prbranch --quiet
+          git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+          git push --force origin "HEAD:refs/heads/$branch" --quiet
+          echo "Trailers stripped and force-pushed to $branch"
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again.
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh
+          exit 0

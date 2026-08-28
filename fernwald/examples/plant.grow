@@ -1,0 +1,7 @@
+# A leafy bush: axiom X, F doubles each iteration.
+# Try: python3 -m fernwald --rules fernwald/examples/plant.grow
+angle 20
+axiom X
+iterations 6
+X: F[+X][-X]FX
+F: FF

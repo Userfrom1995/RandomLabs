@@ -1,0 +1,17 @@
+{
+  "name": "orrery",
+  "version": "1.0.0",
+  "description": "Orrery: an interactive 3D solar system in the browser — WebGL/TypeScript, no external engine.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --format=iife --outfile=app.js --target=es2020",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test \"test-dist/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "esbuild": "^0.25.6",
+    "typescript": "^5.9.3"
+  }
+}

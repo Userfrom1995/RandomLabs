@@ -1,0 +1,12 @@
+-- Self-hosted standard library: the combinators live in halcyon/lib/ as
+-- real importable modules, and this file is a thin import-based demo that
+-- exercises them end-to-end (result stays pinned at 1601).
+import "../lib/list.hly"
+import "../lib/pair.hly"
+import "../lib/maybe.hly"
+import "../lib/compose.hly"
+
+sum (filter (fn x => x > 10) (map (fn x => x * x) (range 1 8)))
+   + myLength [1, 2, 3, 4] * 100
+   + (match head (zip [1, 2, 3] [10, 20, 30]) with | Pair a b => a + b)
+   + (if any (fn x => x == 5) [1, 2, 5] then 1000 else 0)

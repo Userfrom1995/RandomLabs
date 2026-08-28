@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0b0e14" />
+<title>Redline Rush — arcade car racing</title>
+<meta name="description" content="Redline Rush: a top-down arcade car racing game. Dodge traffic, grab fuel, and chase a new best score. Plays in any browser, no install needed." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body data-state="menu">
+<canvas id="redline-canvas"></canvas>
+
+<div id="hud" aria-hidden="true">
+  <div class="hud-row">
+    <div class="hud-item"><span class="hud-label">Score</span><span id="hud-score" class="hud-value">0</span></div>
+    <div class="hud-item"><span class="hud-label">Best</span><span id="hud-best" class="hud-value">0</span></div>
+    <div class="hud-item"><span class="hud-label">km/h</span><span id="hud-speed" class="hud-value">0</span></div>
+    <div class="hud-item" id="hud-fuel">
+      <span class="hud-label">Fuel</span>
+      <div class="fuel-bar"><div id="hud-fuel-fill"></div></div>
+    </div>
+    <div class="hud-item hud-lives" id="hud-lives"></div>
+  </div>
+</div>
+
+<div id="touch-controls" aria-hidden="true">
+  <button id="steer-l" class="touch-btn" type="button">&#9664;</button>
+  <button id="brake" class="touch-btn brake-btn" type="button">BRAKE</button>
+  <button id="steer-r" class="touch-btn" type="button">&#9654;</button>
+</div>
+
+<div id="screen-menu" class="screen">
+  <div class="panel">
+    <h1>Redline&nbsp;Rush</h1>
+    <p class="tagline">Dodge traffic. Grab fuel. Don&rsquo;t stop.</p>
+    <ul class="howto">
+      <li><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>A</kbd> <kbd>D</kbd> &mdash; steer</li>
+      <li><kbd>&darr;</kbd> or <kbd>S</kbd> / BRAKE &mdash; slow down</li>
+      <li><kbd>P</kbd> pause &middot; <kbd>M</kbd> mute &middot; <kbd>Enter</kbd> start</li>
+      <li>On touch: drag the road, or use the buttons.</li>
+    </ul>
+    <p class="best">Best: <span id="menu-best">0</span></p>
+    <div class="btn-row">
+      <button id="btn-start" class="primary" type="button">Start Engine</button>
+      <button id="btn-mute-menu" type="button">Sound: On</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-pause" class="screen" hidden>
+  <div class="panel">
+    <h2>Paused</h2>
+    <div class="btn-row">
+      <button id="btn-resume" class="primary" type="button">Resume</button>
+      <button id="btn-pause-quit" type="button">Quit to Menu</button>
+      <button id="btn-mute-pause" type="button">Sound: On</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-over" class="screen" hidden>
+  <div class="panel">
+    <h2>Wrecked!</h2>
+    <p id="over-reason" class="reason"></p>
+    <p class="big-score">Score: <span id="over-score">0</span></p>
+    <p id="over-new-best" class="new-best" hidden>New best score!</p>
+    <p class="best">Best: <span id="over-best">0</span></p>
+    <div class="btn-row">
+      <button id="btn-over-restart" class="primary" type="button">Race Again</button>
+      <button id="btn-over-quit" type="button">Quit to Menu</button>
+      <button id="btn-mute-over" type="button">Sound: On</button>
+    </div>
+  </div>
+</div>
+
+<script src="logic.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

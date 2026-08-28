@@ -1,0 +1,5 @@
+-- Lists: cons/head/tail and nested list literals.
+--
+-- output: [[1], [2]]
+
+cons (cons 1 []) (cons (cons 2 []) [])

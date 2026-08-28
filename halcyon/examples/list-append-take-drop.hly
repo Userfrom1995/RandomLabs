@@ -1,0 +1,2 @@
+-- append, take, and drop combine into list surgery.
+take 2 (append [1] (drop 1 [2, 3, 4]))

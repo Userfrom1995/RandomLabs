@@ -1,0 +1,7 @@
+# A stochastic garden: each F randomly picks one of four alternatives, so
+# every run grows a slightly different plant. Pair with --seed to reproduce.
+# Try: python3 -m fernwald --rules fernwald/examples/wild.grow --seed 7 --style shade
+angle 22.5
+axiom F
+iterations 6
+F: F[+F][-F]F | F[+F]F[-F] | FF[+F][-F] | F[++F][--F]F

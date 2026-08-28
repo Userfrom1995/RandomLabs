@@ -1,0 +1,10 @@
+-- User-defined operators (infixl/infixr with a dynamic precedence table)
+-- and parse-time type synonyms (type Name = ...).
+infixr 8 <->
+let (<->) = fn a b => a - b
+infixl 5 <+>
+let (<+>) = fn a b => a + b
+type Table k v = [Int]
+record Env = { table : Table Int Int, seed : Int }
+let env = { seed = 10, table = [1, 2, 3] }
+in length env.table + env.seed + (10 <-> 3 <-> 2 <+> 1)

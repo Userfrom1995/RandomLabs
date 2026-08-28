@@ -1,0 +1,159 @@
+name: Deploy static site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          # Root landing page at /, project docs at /docs/
+          if [ -f "index.html" ]; then
+            cp index.html _site/
+            [ -f "styles.css" ] && cp styles.css _site/
+            [ -f "script.js" ] && cp script.js _site/
+            if [ -d "docs" ]; then
+              mkdir -p _site/docs
+              cp -r docs/* _site/docs/
+            fi
+          elif [ -d "docs" ]; then
+            # Non-web project without a landing page: docs are the main page
+            cp -r docs/* _site/
+          fi
+          # Automatically stage web apps OR project documentation
+          for dir in */; do
+            dir=${dir%/}
+            if [ "$dir" != "docs" ] && [ "$dir" != "_site" ] && [ "$dir" != "preview" ] && [ -d "$dir" ]; then
+              if [ -f "$dir/index.html" ]; then
+                cp -r "$dir" "_site/$dir"
+                rm -f "_site/$dir/"*.test.js "_site/$dir/README.md"
+              elif [ -d "$dir/docs" ]; then
+                mkdir -p "_site/$dir"
+                cp -r "$dir/docs" "_site/$dir/"
+              fi
+            fi
+          done
+          # Fallback if nothing was staged
+          if [ -z "$(ls -A _site)" ]; then
+            echo "<h1>No site content yet</h1><p>This repo currently has no deployable web content.</p>" > _site/index.html
+          fi
+
+      - name: Stage PR previews
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prs=$(gh api "repos/${{ github.repository }}/pulls?state=open" --jq '.[].number' || true)
+          for pr in $prs; do
+            if ! git fetch origin "pull/$pr/head:pr-$pr" --quiet; then
+              echo "Skipping PR #$pr (could not fetch)"
+              continue
+            fi
+            echo "Staging preview for PR #$pr"
+            mkdir -p "_site/preview/pr-$pr"
+            # Only archive paths that exist in the PR's tree, so a preview is
+            # still staged when a project ships no root styles.css/script.js
+            # (git archive aborts entirely on a missing pathspec otherwise).
+            paths=""
+            for p in index.html styles.css script.js docs; do
+              if git rev-parse --verify "pr-$pr:$p" >/dev/null 2>&1; then paths="$paths $p"; fi
+            done
+            if [ -z "$paths" ]; then
+              echo "Skipping PR #$pr (no site content)"
+              continue
+            fi
+            if ! git archive pr-$pr $paths 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
+              echo "Skipping PR #$pr (could not archive)"
+              continue
+            fi
+            # Pure-docs PRs: promote docs/ to the preview root so the advertised URL serves a page
+            if [ ! -f "_site/preview/pr-$pr/index.html" ] && [ -f "_site/preview/pr-$pr/docs/index.html" ]; then
+              cp -r "_site/preview/pr-$pr/docs/." "_site/preview/pr-$pr/"
+            fi
+            # Optional: stage web app or docs directory into the preview if the PR has one
+            for dir in $(git ls-tree -d pr-$pr --name-only); do
+              if [ "$dir" != "docs" ] && [ "$dir" != "_site" ] && [ -d "$dir" ] && [[ ! "$dir" == .* ]]; then
+                if git archive pr-$pr "$dir/index.html" 2>/dev/null >/dev/null; then
+                  if git archive pr-$pr "$dir/" 2>/dev/null | tar -x -C "_site/preview/pr-$pr"; then
+                    rm -f "_site/preview/pr-$pr/$dir/"*.test.js "_site/preview/pr-$pr/$dir/README.md"
+                  fi
+                elif git archive pr-$pr "$dir/docs/" 2>/dev/null >/dev/null; then
+                  mkdir -p "_site/preview/pr-$pr/$dir"
+                  git archive pr-$pr "$dir/docs/" 2>/dev/null | tar -x -C "_site/preview/pr-$pr/$dir/"
+                fi
+              fi
+            done
+          done
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  comment:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update preview URL comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.pull_request.number }}"
+          url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/pr-${pr}/"
+          marker="<!-- opencode-preview-${pr} -->"
+          body="### Preview
+
+          ${marker}
+
+          This PR's site is live at **${url}** - deploying now; GitHub Pages can take ~30-60s to start serving it.
+
+          - GitHub Pages only permits the default branch to deploy (the \`github-pages\` environment protection rules), so PRs cannot deploy directly; this job stages the production site plus previews of every open PR into a single artifact and re-deploys it whenever this PR opens or updates.
+          - The preview is served under \`/preview/pr-${pr}/\`, so it never touches the production site."
+          body="$(printf '%s\n' "$body" | sed 's/^[[:space:]]*//')"
+          existing=$(gh api "repos/${{ github.repository }}/issues/${pr}/comments" --jq ".[] | select(.body | contains(\"${marker}\")) | .id" | head -n1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${existing}" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${pr}/comments" -f body="$body" >/dev/null
+          fi
+
+      - name: Trigger preview deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run pages.yml --repo "${{ github.repository }}" 2>&1 | tail -2 || echo "Dispatch failed; preview will appear on the next push to main"

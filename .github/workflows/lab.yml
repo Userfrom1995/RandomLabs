@@ -1,0 +1,253 @@
+name: Lab Engineer
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Target issue or PR number"
+        required: true
+        type: string
+      command:
+        description: "Command string (e.g. /oc lab)"
+        required: false
+        default: "/oc lab"
+        type: string
+
+concurrency:
+  group: lab-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  lab:
+    name: Lab Engineer
+    if: (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc lab')) || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Lab Engineer (CTO)"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run opencode lab engineer agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are the Lab Engineer (CTO) of the Random lab, triggered by "/oc lab".
+
+            READ FIRST: `.github/agents/labengineer.md` - that file IS your complete system prompt; every rule there is binding (infrastructure PRs, workflow repairs, agent creation, fast-track model management).
+
+            SAFETY NET (always binding):
+            - Commit your work yourself as `The Lab Engineer (CTO)` <github-actions[bot]@users.noreply.github.com>. NEVER add any `Co-authored-by:` trailers.
+            - All commit messages must start with `lab:`.
+            - For PRs: if the branch `opencode/lab-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/lab-<issue>-<slug> origin/opencode/lab-<issue>-<slug>` and continue on it. Never create a fresh branch from `main` when the PR branch already exists (that breaks the runner's push lease). Commit locally; do NOT run `gh pr create` (the head branch is not on the remote yet) - instead write the PR title to `/tmp/random-lab-pr-title` and body to `/tmp/random-lab-pr-body`, and the PAT-backed runner step pushes the branch AND opens the PR with your metadata.
+            - NEVER run `git push` yourself. The runner's PAT-backed step pushes the branch. Any push you make uses the App token, which GitHub rejects for workflow-file changes with "refusing to allow a GitHub App ... without workflows permission".
+            - For model switches/upgrades on main: modify `.github/workflows/*.yml` directly on disk and leave modified. The runner PAT step will commit and push to main.
+            - You never post "/oc" comments directly. Write your structured machine decision to `/tmp/random-lab-decision.json`:
+              `{"action": "review"}` when PR is ready, or `{"action": "maintainer"}` when Hephaestus should retry/triage.
+            - NO EM DASHES anywhere in commits, comments, or documentation.
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            bad=$(git log --format=%B refs/remotes/origin/main..HEAD 2>/dev/null | grep -c 'Co-authored-by: Userfrom1995' || true)
+            if [ "$bad" -gt 0 ]; then
+              echo "Stripping $bad leaked Co-authored-by trailer(s) from $branch"
+              git filter-branch -f --msg-filter 'sed "/^Co-authored-by: Userfrom1995.*/d"' refs/remotes/origin/main..HEAD >/dev/null 2>&1
+            else
+              echo "No leaked owner trailers on $branch"
+            fi
+          fi
+
+      - name: Push PR branch or direct model updates (PAT-backed)
+        if: always()
+        id: push_step
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GIT_AUTHOR_NAME: "The Lab Engineer (CTO)"
+          GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
+          GIT_COMMITTER_NAME: "The Lab Engineer (CTO)"
+          GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
+        run: |
+          # Remove actions/checkout credential injection so the PAT URL actually authenticates:
+          # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
+          # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
+          git config --local --unset-all 'http.https://github.com/.extraheader' 2>/dev/null || true
+          for cfg in $(git config --local --name-only --get-regexp '^includeIf\.gitdir:.*\.path$' 2>/dev/null); do
+            git config --local --unset-all "$cfg" 2>/dev/null || true
+          done
+
+          branch=$(git branch --show-current 2>/dev/null || echo "")
+          issue="${{ github.event.issue.number || inputs.issue_number }}"
+
+          if [ -n "$branch" ] && [ "$branch" != "main" ]; then
+            # Fetch the existing PR branch so the lease is fresh and a local
+            # branch that diverged from main can still push without "stale info".
+            git fetch origin "$branch" --quiet 2>/dev/null || true
+            echo "Pushing lab PR branch $branch with PAT..."
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force-with-lease 2>/dev/null \
+              || git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$branch" --force
+            
+            # Ensure a PR exists or create it (as github-actions[bot], never as the PAT owner:
+            # gh uses GH_TOKEN which is the owner's PAT here, so scope the API calls to GITHUB_TOKEN)
+            pr=$(GH_TOKEN=${{ github.token }} gh pr list --repo "${{ github.repository }}" --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -z "$pr" ]; then
+              # Agent-authored metadata wins when provided (same /tmp contract
+              # as the decision file); generic fallback keeps older flows intact.
+              title=""; body=""
+              [ -s /tmp/random-lab-pr-title ] && title=$(cat /tmp/random-lab-pr-title)
+              [ -s /tmp/random-lab-pr-body ] && body=$(cat /tmp/random-lab-pr-body)
+              # The Obsidian umbrella issue (#68 and any Obsidian-titled issue) must stay open
+              # until the codec target is beaten, so an infra PR must reference it without closing.
+              issuetitle=$(GH_TOKEN=${{ github.token }} gh issue view "$issue" --repo "${{ github.repository }}" --json title --jq '.title' 2>/dev/null || echo "")
+              link="Closes"
+              if echo "$issuetitle" | grep -qi "obsidian"; then
+                link="Refs to"
+                [ -z "$body" ] && body="Refs to #$issue"
+              else
+                [ -z "$body" ] && body="Closes #$issue"
+              fi
+              # Linkage guard (review of PR #139): an agent session with stale
+              # context can cite the WRONG issue ('Closes #131' shipped here).
+              # Never let an agent-authored title/body omit the trigger issue.
+              if ! printf '%s' "$body" | grep -qE "#${issue}([^0-9]|$)"; then
+                echo "::warning::Agent-authored PR body omits trigger issue #$issue; appending linkage."
+                body=$(printf '%s\n%s' "$body" "${link} #$issue")
+              fi
+              if [ -n "$title" ] && ! printf '%s' "$title" | grep -qE "#${issue}([^0-9]|$)"; then
+                echo "::warning::Agent-authored PR title omits trigger issue #$issue; appending marker."
+                title="${title} (#$issue)"
+              fi
+              [ -z "$title" ] && title="[Infra] Lab update for #$issue"
+              echo "Opening PR for branch $branch on issue #$issue..."
+              pr=$(GH_TOKEN=${{ github.token }} gh pr create --repo "${{ github.repository }}" --base main --head "$branch" --title "$title" --body "$body" 2>/dev/null || echo "")
+            fi
+            echo "pr_number=$pr" >> "$GITHUB_ENV"
+
+          elif [ "$branch" = "main" ]; then
+            # Stage any uncommitted workflow modifications if left modified
+            if [ -n "$(git status --porcelain .github/workflows 2>/dev/null)" ]; then
+              echo "Staging uncommitted workflow modifications on main..."
+              git add .github/workflows/*.yml
+              git commit --author="The Lab Engineer (CTO) <github-actions[bot]@users.noreply.github.com>" -m "lab: update workflow model configuration" || true
+            fi
+            
+            # Push commits on main if ahead of origin
+            unpushed=$(git rev-list refs/remotes/origin/main..HEAD --count 2>/dev/null || echo "0")
+            if [ "$unpushed" -gt 0 ]; then
+              git fetch origin main --quiet
+              # Orphan guard: never push a history that would rewrite main as a divergent/orphan root.
+              # main must remain a strict descendant of origin/main (fast-forwardable). If it is not,
+              # rebase onto origin/main first; if that still fails, ABORT rather than orphan main.
+              if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+                echo "Local main is NOT a descendant of origin/main; rebasing to preserve full main history..."
+                git rebase origin/main --quiet || {
+                  echo "::error::Rebase onto origin/main failed; aborting main push to avoid orphaning main."
+                  exit 1
+                }
+              fi
+              echo "Pushing $(git rev-list --count refs/remotes/origin/main..HEAD) commit(s) on main with PAT..."
+              git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main || {
+                echo "Push failed, attempting rebase..."
+                git fetch origin main --quiet
+                git rebase origin/main --quiet
+                git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main
+              }
+              echo "Workflow updates pushed to main as The Lab Engineer (CTO)."
+            else
+              echo "Main is up to date with origin/main."
+            fi
+          fi
+
+      - name: Forward lab engineer decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found."
+            exit 0
+          fi
+          
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          echo "Lab engineer decision action: '$action'"
+          
+          issue="${{ github.event.issue.number || inputs.issue_number }}"
+          target="${pr_number:-$issue}"
+          if [ -z "$target" ] || [ "$target" = "null" ]; then
+            echo "No target context available."
+            exit 0
+          fi
+          
+          case "$action" in
+            review)
+              echo "Forwarding to Reviewer (/oc review) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc review"
+              ;;
+            maintainer)
+              echo "Forwarding to Maintainer (/oc maintainer) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc maintainer"
+              ;;
+            lab)
+              echo "Requesting lab continuation (/oc lab continue) on #$target"
+              gh issue comment "$target" --repo "${{ github.repository }}" -b "/oc lab continue"
+              ;;
+            *)
+              echo "No action or unrecognized action: $action"
+              ;;
+          esac
+
+      - name: Approve held CI runs on the PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          issue="${{ github.event.issue.number || inputs.issue_number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            pr="$issue"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/lab-") or startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null)
+          fi
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again. The lab
+          # track edits workflow files, so every push here spawns newly held
+          # runs; leaving this step inline kept the #137 hole alive on the very
+          # PR that introduced the shared script (review of PR #139).
+          APPROVE_PR="$pr" APPROVE_NOTIFY_ISSUE="$pr" APPROVE_SERVER="${{ github.server_url }}" APPROVE_BOT_TOKEN="${{ github.token }}" \
+            bash .github/scripts/approve-held-runs.sh

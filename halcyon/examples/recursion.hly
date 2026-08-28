@@ -1,0 +1,10 @@
+-- Recursion: a tail-recursive accumulator sum over 100000 steps, and a
+-- deep non-tail recursion over 5000 frames.
+--
+--   halcyon run examples/recursion.hly      (interpreter)
+--   halcyon run-vm examples/recursion.hly   (bytecode VM)
+--
+-- output: 5000050000
+
+let rec sumTo = fn acc n => if n < 1 then acc else sumTo (acc + n) (n - 1)
+in sumTo 0 100000

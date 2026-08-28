@@ -1,0 +1,6 @@
+-- Higher-order functions: a hand-rolled map over a list literal.
+--
+-- output: [2, 4, 6, 8, 10]
+
+let rec map = fn f xs => if isNil xs then [] else cons (f (head xs)) (map f (tail xs))
+in map (fn x => x * 2) [1, 2, 3, 4, 5]

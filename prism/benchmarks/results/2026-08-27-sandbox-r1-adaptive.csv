@@ -1,0 +1,10 @@
+R1A_SWEEP,K,effort,image,single_bytes,r1a_bytes,delta_pct,single_bpp,r1a_bpp,model_bpp
+R1A_SWEEP,32,5,kodim01.ppm,538244,545910,1.42426,3.6502,3.70219,0.000250922
+R1A_SWEEP,32,5,kodim05.ppm,586481,599942,2.29522,3.97733,4.06862,0.00177002
+R1A_SWEEP,32,5,kodim13.ppm,641348,650012,1.3509,4.34942,4.40818,0.00143772
+R1A_SWEEP,32,5,kodim19.ppm,509287,526008,3.28322,3.45382,3.56722,0.000250922
+R1A_SUMMARY,32,5,median_delta,2.29522,total_delta,2.04416
+
+R1A_GATE,primary,32,5,median_delta,2.29522,threshold,-5.0,FAIL
+
+R1A_VERDICT,FAIL,best_K,32,best_effort,5,best_median_delta,2.29522

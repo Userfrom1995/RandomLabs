@@ -1,0 +1,60 @@
+# Beambus level 1: "The Drone Swarm"
+# The .beam script format: name, background, player tuning, enemy defs,
+# waves, and bosses. '#' starts a comment. See docs/level-format.md.
+
+name "The Drone Swarm"
+background #0b0e14
+
+# focus_speed 0.5 (the default) slows the ship to half speed while Shift is
+# held, trading speed for precise dodging and a tighter shot pattern.
+player { speed 260 fire_rate 0.16 lives 3 bombs 2 focus_speed 0.5 }
+
+# Small fast swarmers: die in one hit.
+enemy grunt  { hp 1 speed 90  points 100 radius 8  fire_rate 0.5  color #e8594f }
+# Heavier strafers: two hits, faster, worth more, and they fire a two-shot
+# volley so their fire reads as a quick burst.
+enemy dart   { hp 2 speed 160 points 250 radius 9  fire_rate 1.2  shots 2 spread 0.6 color #7aa2f7 }
+# Slow shield tanks: four hits, slow bullets.
+enemy tank   { hp 4 speed 60  points 500 radius 12 fire_rate 0.35 color #c3e88d }
+# Seekers: their shots home in on the ship (homing true), curving toward the
+# player at a capped rate so they pressure without being unavoidable.
+enemy seeker { hp 2 speed 130 points 300 radius 9  fire_rate 0.6  homing true color #c792ea }
+# The queen: a mid-level boss that sweeps in an orbit and fires a three-way
+# fan (shots 3 spread 0.8), so dodging close for grazes pays. Below 40% HP it
+# enrages: double fire rate and a five-way volley, marked by a red aura.
+boss { at 45 kind tank hp 80 speed 40 points 5000 radius 24 fire_rate 0.8 shots 3 spread 0.8 rage_hp 0.4 color #ffd23f }
+
+# Power-up drops: each spread raises the fire level (single -> twin -> triple),
+# each shield grants a one-hit bubble that absorbs a hit instead of a life, a
+# bomb drop refills one smart-bomb stock, and a rapid drop doubles the fire
+# rate for a few seconds.
+# Spread generously so a fresh run can reach triple fire before the queen.
+powerup { at 16 kind spread }
+powerup { at 22 kind shield }
+powerup { at 28 kind rapid }
+powerup { at 30 kind spread }
+powerup { at 37 kind shield }
+powerup { at 42 kind spread }
+powerup { at 46 kind bomb }
+
+# Opening lull: unarmed scouts drift down so the player can warm up.
+wave { at 2  kind grunt count 6  interval 0.4 pattern sine    armed false }
+wave { at 8  kind grunt count 8  interval 0.3 pattern zigzag  armed false }
+
+# First armed wave.
+wave { at 14 kind grunt count 10 interval 0.25 pattern sine    armed true }
+wave { at 18 kind dart  count 6  interval 0.5 pattern swoop    armed true }
+
+# Mixed pressure wave.
+wave { at 24 kind grunt count 6  interval 0.3 pattern spiral   armed true }
+wave { at 26 kind dart  count 6  interval 0.35 pattern chase   armed true }
+
+# Tank line: the meat of the level.
+wave { at 32 kind tank   count 5 interval 0.6  pattern drift     armed true }
+wave { at 36 kind dart   count 8 interval 0.25 pattern sine      armed true }
+
+# Seeker line: a taste of homing fire before the queen.
+wave { at 38 kind seeker count 5 interval 0.45 pattern drift     armed true }
+
+# Final swarm before the queen arrives.
+wave { at 40 kind grunt count 12 interval 0.2 pattern spiral   armed true }

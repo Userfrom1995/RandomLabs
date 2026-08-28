@@ -1,0 +1,216 @@
+name: opencode-review
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-review-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: startsWith(github.event.comment.body, '/oc review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Get PR info
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          is_pr="${{ github.event.issue.pull_request != null }}"
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
+            head_oid=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid')
+            echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+            echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"
+            echo "is_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            issue="${{ github.event.issue.number }}"
+            linked_pr=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+            if [ -n "$linked_pr" ]; then
+              head_ref=$(gh pr view "$linked_pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
+              head_oid=$(gh pr view "$linked_pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid')
+              echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+              echo "head_oid=$head_oid" >> "$GITHUB_OUTPUT"
+              echo "is_pr=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_pr=false" >> "$GITHUB_OUTPUT"
+              echo "No linked PR found for issue #$issue"
+            fi
+          fi
+
+      - name: Skip review for non-PR issue
+        if: steps.pr-info.outputs.is_pr != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "/oc review was requested on this issue, but no linked pull request was found. Review only runs on PR branches. If this issue has an open PR, ensure the branch follows the naming convention \`opencode/issue<N>-<slug>\`." || true
+
+      - name: Checkout repository (PR head)
+        if: steps.pr-info.outputs.is_pr == 'true'
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        if: steps.pr-info.outputs.is_pr == 'true'
+        run: |
+          git config --global user.name "The Reviewer"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        if: steps.pr-info.outputs.is_pr == 'true'
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run opencode reviewer
+        id: review
+        if: steps.pr-info.outputs.is_pr == 'true'
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are the Reviewer of the Random lab, triggered by "/oc review" on the open PR in this checkout.
+
+            READ FIRST: `.github/agents/reviewer.md` - that file IS your complete system prompt; every rule there is binding (checklist, file:line findings with corrected code, human-vs-bot guidance, rebuttal etiquette, decision-file respect, clean-tree-before-commenting).
+
+            SAFETY NET (always binding): you NEVER write code, commit, push, rebase, merge, or create branches/branches/PRs; you are strictly read-only; you may run tests for verification only, and you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"test"}` for approval, `{"action":"fix"}` when project code changes are required, `{"action":"continue"}` when project work is incomplete, `{"action":"lab"}` when infrastructure/workflow changes are required, or `{"action":"maintainer"}` to escalate intractable issues. The hardcoded workflow step reads this file; it never parses your prose comment.
+            You post ONE plain text decision comment per run containing your full review, findings, or approval. End every decision comment with your sign-off: `- the Reviewer`. If reviewer.md is missing from the tree, fall back to the safety net and AGENTS.md rules.
+
+      - name: Verify review decided, else auto-retry
+        id: verify-review
+        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          outcome="${{ steps.review.outcome }}"
+
+          # Crash-parity with build/fix mode (issue #132): a healthy reviewer
+          # ALWAYS writes the decision file as its final act, so "no decision
+          # file + failed agent step" is exactly the mid-stream crash signature
+          # (e.g. 'Provider finish_reason: network_error'). The in-flight job's
+          # log cannot be grepped via API until it completes, so this outcome
+          # pair IS the signature; the hard cap below bounds any other class.
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Review decision file present; gate produced a verdict."
+            exit 0
+          fi
+
+          if [ "$outcome" != "success" ]; then
+            echo "::error::Reviewer step finished with outcome '$outcome' and no decision file (crashed mid-run, e.g. Provider finish_reason: network_error / APIError)."
+            # Robust retry counter: never fall back to 0 on an API/rate-limit
+            # failure, which would make the cap never trip and loop forever.
+            # Only count retries the API actually returned; on enumeration
+            # failure, stop retrying - mirrors opencode.yml build/fix parity.
+            retries=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+              --jq '[.[] | select(.user.login == "${{ github.repository_owner }}" and (.body | startswith("/oc review (auto-retry")))] | length' 2>/dev/null || true)
+            if [ -z "$retries" ] || ! [ "$retries" -eq "$retries" ] 2>/dev/null; then
+              echo "::error::Could not enumerate prior auto-retries on #$pr (API/rate-limit failure). Refusing to auto-retry to avoid a runaway loop."
+              exit 1
+            fi
+            if [ "$retries" -lt 3 ]; then
+              n=$((retries + 1))
+              echo "Posting auto-retry $n"
+              gh api "repos/${{ github.repository }}/issues/$pr/comments" -f body="/oc review (auto-retry $n)"
+              exit 0
+            fi
+            echo "::error::Review gate still dead after 4 attempts (1 initial + 3 auto-retries). Manual intervention required."
+            exit 1
+          fi
+
+          echo "::error::Reviewer step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+          exit 1
+
+      - name: Restore PR head if reviewer dirtied the branch
+        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          expected="${{ steps.pr-info.outputs.head_oid }}"
+          actual=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+          if [ -n "$actual" ] && [ "$actual" != "$expected" ]; then
+            echo "Reviewer run changed PR head ($expected -> $actual); restoring branch head"
+            branch="${{ steps.pr-info.outputs.head_ref }}"
+            git fetch origin "$expected" --quiet
+            git push --force origin "$expected:refs/heads/$branch"
+          fi
+
+      - name: Force lab routing for infrastructure PRs
+        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          decision="/tmp/random-lab-decision.json"
+          if [ ! -f "$decision" ]; then
+            echo "No decision file; nothing to enforce."
+            exit 0
+          fi
+          action=$(jq -r '.action // empty' "$decision" 2>/dev/null || echo "")
+          # Only fix/continue can be a misroute onto infrastructure files.
+          if [ "$action" != "fix" ] && [ "$action" != "continue" ]; then
+            echo "Decision '$action' is not fix/continue; no infra override needed."
+            exit 0
+          fi
+          base=$(gh pr view "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --json baseRefName --jq '.baseRefName' 2>/dev/null || echo "main")
+          git fetch origin "$base" --quiet 2>/dev/null || true
+          touched=$(git diff --name-only "origin/$base"...HEAD 2>/dev/null | grep -E '^\.github/(workflows/|agents/)|(^|/)(AGENTS|LAB)\.md$' || true)
+          if [ -n "$touched" ]; then
+            echo "Infrastructure files touched by this PR; overriding reviewer decision '$action' -> lab:"
+            echo "$touched"
+            echo '{"action":"lab"}' > "$decision"
+          else
+            echo "No infrastructure files touched; leaving decision '$action' as-is."
+          fi
+
+      - name: Forward reviewer decision
+        if: steps.pr-info.outputs.is_pr == 'true' && always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found."
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "test" ]; then
+            echo "Review approved! Posting /oc test to hand over to Tester"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc test"
+          elif [ "$action" = "fix" ]; then
+            echo "Reviewer requested fixes. Posting /oc fix to trigger Fixer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+          elif [ "$action" = "continue" ]; then
+            echo "Reviewer detected incomplete work. Posting /oc continue to hand back to Builder"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc continue"
+          elif [ "$action" = "lab" ]; then
+            echo "Reviewer detected infrastructure issues. Posting /oc lab"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
+          elif [ "$action" = "maintainer" ]; then
+            echo "Reviewer escalating. Posting /oc maintainer to trigger Maintainer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          fi

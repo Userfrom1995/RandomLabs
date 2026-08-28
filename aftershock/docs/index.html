@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Aftershock: a seismic network simulator in Rust</title>
+<meta name="description" content="Aftershock: a seismic network simulator written in Rust - fault-grid earthquake model, Wells & Coppersmith rupture scaling, P/S/surface wave propagation, terminal seismograms and CSV waveform export, zero dependencies." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 22px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Aftershock</h1>
+  <p>A seismic network simulator written in <strong>Rust</strong>: model an
+  earthquake on a fault grid, propagate P-, S-, and surface waves to stations
+  with physically-motivated travel times, and read the P-to-S gap straight off
+  an ASCII seismogram. Standard library only.</p>
+  <div class="launch"><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/aftershock">Open the project →</a></div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>Fault grid</h4>
+      <p>A 64x64 cell grid covering 256 km. The epicenter is a grid cell; the
+      rupture footprint is a length x width rectangle from the Wells &
+      Coppersmith magnitude scaling, rotated by the strike.</p>
+    </div>
+    <div class="card">
+      <h4>Correct propagation</h4>
+      <p>P at 6.0 km/s, S at 3.5 km/s, surface wave at 92% of S. Travel times
+      come from distance divided by velocity, so the P-S gap grows linearly
+      with distance.</p>
+    </div>
+    <div class="card">
+      <h4>Terminal seismograms</h4>
+      <p>ASCII plots with P/S/R arrival markers on the zero axis and a time
+      ruler, plus wide and long CSV waveform export.</p>
+    </div>
+    <div class="card">
+      <h4>Rust, no dependencies</h4>
+      <p>The lab's first Rust project. Pure standard library, a documented
+      seeded PRNG, strict input validation, and 41 tests.</p>
+    </div>
+  </section>
+
+  <h2>Try it</h2>
+  <pre><code>cd aftershock
+cargo build --release
+cargo test                    # 41 tests, all pass
+cargo clippy                  # zero warnings
+
+./target/release/aftershock simulate --stations 4
+./target/release/aftershock export --out waves.csv --format wide
+./target/release/aftershock stations
+./target/release/aftershock check</code></pre>
+
+  <h2>CLI commands</h2>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>aftershock [options] [simulate]</code></td><td>Run the simulation and render terminal seismograms.</td></tr>
+    <tr><td><code>aftershock [options] stations</code></td><td>Print the station table (arrival times, P-S gaps) only.</td></tr>
+    <tr><td><code>aftershock [options] export</code></td><td>Write the waveform CSV file (default <code>aftershock_waveforms.csv</code>).</td></tr>
+    <tr><td><code>aftershock check</code></td><td>Run the 13 built-in self-checks.</td></tr>
+    <tr><td><code>aftershock help</code></td><td>Show usage and all options.</td></tr>
+    <tr><td><code>aftershock version</code></td><td>Print the version.</td></tr>
+  </table>
+  <p>Key options: <code>--magnitude</code>, <code>--depth</code>,
+  <code>--epicenter x y</code>, <code>--grid-cells</code>, <code>--grid-km</code>,
+  <code>--stations</code>, <code>--seed</code>, <code>--vp</code>,
+  <code>--vs</code>, <code>--strike</code>, <code>--station-min</code>,
+  <code>--station-max</code>, <code>--duration</code>, <code>--dt</code>,
+  <code>--noise</code>, <code>--out</code>, <code>--format wide|long</code>,
+  <code>--width</code>, <code>--height</code>. Everything is passed on the
+  command line; there is no interactive input.</p>
+
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>Rupture geometry.</strong> For moment magnitude <code>Mw</code>,
+    the surface rupture length is <code>10^(0.59*Mw - 2.44)</code> km and the
+    downdip width is <code>10^(0.32*Mw - 1.01)</code> km. Every grid cell inside
+    the box centered on the epicenter and rotated by the strike is ruptured;
+    bigger quakes rupture more cells.</li>
+    <li><strong>Arrival times.</strong> A station at epicentral distance
+    <code>d</code> and source depth <code>h</code> has hypocentral distance
+    <code>sqrt(d^2 + h^2)</code>. P arrives at <code>hypo / vp</code>, S at
+    <code>hypo / vs</code>, and the surface wave at <code>d / (0.92 * vs)</code>.
+    The P-S gap is <code>d * (vp - vs) / (vp * vs)</code> seconds, linear in
+    <code>d</code>.</li>
+    <li><strong>Amplitudes.</strong> Ground motion scales with the cube root of
+    seismic moment (Hanks &amp; Kanamori) and decays as 1/distance, so a
+    magnitude 7 event shakes ten times harder than a magnitude 6, and near
+    stations shake harder than far ones.</li>
+    <li><strong>Waveform synthesis.</strong> Each trace is the sum of three
+    Ricker wavelets, the classic zero-phase seismic pulse: a small
+    high-frequency P phase, a large mid-frequency S phase, and a low-frequency
+    surface wave, each centered on its arrival and scaled by its amplitude.
+    Seeded uniform noise fills the background.</li>
+    <li><strong>Rendering.</strong> Amplitude is normalized to the trace peak,
+    mapped to a plot row, and drawn column by column; the zero line becomes the
+    axis row with arrival markers.</li>
+    <li><strong>CLI and validation.</strong> A hand-rolled argv parser rejects
+    unknown options, malformed numbers, and out-of-range values with a clear
+    message and a non-zero exit code.</li>
+  </ul>
+
+  <h2>Design choices</h2>
+  <ul>
+    <li><strong>Rust, first for the lab, and dependency-free.</strong>
+    Wave propagation across a large grid is number-crunching; the whole program
+    is the Rust standard library only.</li>
+    <li><strong>Empirical physics, not toy numbers.</strong> Moment-magnitude
+    relations, the sqrt(3)-ish Vp/Vs ratio, 1/distance spreading, and the 0.92
+    Vs surface wave are the standard seismological values.</li>
+    <li><strong>Deterministic by default.</strong> Same seed, same network,
+    same waveforms; the PRNG is a small documented xorshift64*
+    implementation.</li>
+    <li><strong>Self-verifying.</strong> <code>aftershock check</code> re-runs
+    the core invariants at runtime, and <code>cargo test</code> covers every
+    module.</li>
+  </ul>
+
+  <h2>Source</h2>
+  <p>The project lives in
+  <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/aftershock"><code>aftershock/</code></a>
+  with a
+  <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/aftershock/README.md">README</a>
+  and a full writeup in
+  <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md"><code>ideas/</code></a>.</p>
+</main>
+
+<footer>Aftershock · part of the Random repo · MIT License</footer>
+</body>
+</html>

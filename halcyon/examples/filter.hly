@@ -1,0 +1,8 @@
+-- Higher-order functions: a hand-rolled filter that keeps elements > 2.
+--
+-- output: [3, 4, 5]
+
+let rec keep = fn xs => if isNil xs then []
+  else if head xs > 2 then cons (head xs) (keep (tail xs))
+  else keep (tail xs)
+in keep [1, 2, 3, 4, 5]

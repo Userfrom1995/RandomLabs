@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian - a full-text search engine in Rust</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23007bff'/%3E%3Cpath d='M4 18h24M6 10c4 3 8 3 12 0M6 22c4-3 8-3 12 0' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #161d2e;
+    --panel2: #1c2539;
+    --border: #26314d;
+    --text: #e8edf7;
+    --muted: #8b96ad;
+    --accent: #3d9bff;
+    --accent2: #7c5cff;
+    --mark: #3a5ba0;
+    --good: #37d67a;
+    --warn: #ffb454;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #131a2b, var(--bg));
+  }
+  .logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--accent), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: white;
+    box-shadow: 0 0 24px rgba(61, 155, 255, .45);
+  }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
+  h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .subtitle { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+  .searchwrap { max-width: 880px; margin: 34px auto 8px; padding: 0 20px; }
+  .box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 8px 4px 20px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .box:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(61,155,255,.18);
+  }
+  #q {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    outline: 0;
+    color: var(--text);
+    font-size: 17px;
+    padding: 12px 8px;
+  }
+  #q::placeholder { color: #5c6880; }
+  .go {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    border: 0;
+    border-radius: 999px;
+    padding: 10px 22px;
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform .1s, filter .15s;
+  }
+  .go:hover { filter: brightness(1.12); }
+  .go:active { transform: scale(.97); }
+
+  #suggest {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 20px;
+    right: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    display: none;
+    z-index: 20;
+    box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  }
+  .sg {
+    padding: 9px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sg:hover { background: var(--panel2); }
+  .sg .n { color: var(--muted); font-size: 12px; }
+
+  .toolbar {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 10px 26px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 13px;
+  }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .seg button {
+    background: transparent; border: 0; color: var(--muted);
+    padding: 7px 16px; cursor: pointer; font-size: 13px;
+  }
+  .seg button.active { background: var(--panel2); color: var(--text); }
+  .toggles { display: inline-flex; gap: 6px; align-items: center; }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer;
+    font-size: 12.5px; color: var(--muted); user-select: none;
+  }
+  .toggle input { accent-color: var(--accent); margin: 0; cursor: pointer; }
+  .toggle:hover { color: var(--text); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 12.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .chip:hover { color: var(--accent); border-color: var(--accent); }
+  .meta { color: var(--muted); font-size: 12.5px; }
+  .linky { color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+  main { max-width: 880px; margin: 6px auto 60px; padding: 0 26px; }
+  .status { color: var(--muted); font-size: 13.5px; margin: 14px 0; }
+  .status b { color: var(--text); }
+
+  .result {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color .12s;
+  }
+  .result:hover { border-color: var(--accent); }
+  .r-top { display: flex; align-items: baseline; gap: 10px; }
+  .r-rank {
+    font-size: 13px; color: var(--muted);
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  .r-title { font-size: 17px; font-weight: 600; color: var(--accent); }
+  .r-source { font-size: 12.5px; color: var(--muted); margin-top: 2px; word-break: break-all; }
+  .r-snippet { margin-top: 8px; font-size: 14px; line-height: 1.5; color: #c3cce0; }
+  .r-snippet mark, .docview mark {
+    background: var(--mark); color: #fff; border-radius: 3px; padding: 0 2px;
+  }
+  .r-score { margin-top: 10px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .bar { height: 5px; background: var(--panel2); border-radius: 3px; flex: 1; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .bar-label { font-family: ui-monospace, Menlo, monospace; }
+
+  .empty { color: var(--muted); padding: 30px 0; text-align: center; }
+  .suggest-line { color: var(--muted); font-size: 13.5px; margin: 14px 0 8px; }
+  .sg-click { color: var(--accent); cursor: pointer; text-decoration: underline; margin: 0 2px; }
+  .sg-click:hover { filter: brightness(1.2); }
+  .pager { display: flex; gap: 6px; justify-content: center; margin: 22px 0 6px; }
+  .pg {
+    min-width: 34px; padding: 6px 10px; font-size: 13px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer;
+  }
+  .pg:hover { border-color: var(--accent); color: var(--text); }
+  .pg.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bar-tag {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0 4px; font-size: 10px; color: var(--warn); margin-left: 6px;
+    vertical-align: 1px;
+  }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px; margin: 24px 0 10px;
+  }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .stat .v { font-size: 19px; font-weight: 700; }
+  .stat .k { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .modal {
+    position: fixed; inset: 0; background: rgba(5,8,16,.82);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal.open { display: flex; }
+  .docview {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    width: min(860px, 92vw); max-height: 84vh; overflow: auto; padding: 22px 26px;
+  }
+  .docview h2 { margin: 0 0 4px; font-size: 21px; }
+  .docview .dv-source { color: var(--muted); font-size: 12.5px; margin-bottom: 16px; word-break: break-all; }
+  .docview pre {
+    white-space: pre-wrap; font-family: inherit; font-size: 14px; line-height: 1.6;
+    color: #cdd6ea; margin: 0;
+  }
+  .close {
+    float: right; background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer;
+  }
+  .close:hover { color: var(--text); }
+
+  footer { color: #5c6880; font-size: 12.5px; text-align: center; padding: 18px; border-top: 1px solid var(--border); }
+  .kbd { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: ui-monospace, monospace; }
+
+  @media (max-width: 640px) {
+    .subtitle { display: none; }
+    .r-title { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">M</div>
+  <h1>Meridian<small>a full-text search engine built from scratch in Rust</small></h1>
+  <div class="subtitle">runs entirely in your browser - the Rust engine's mirror</div>
+</header>
+
+<div class="searchwrap">
+  <div class="box">
+    <input id="q" type="text" placeholder="search the Random factory corpus&hellip; try: seismic waves" autocomplete="off" spellcheck="false">
+    <button class="go" id="go">Search</button>
+    <div id="suggest"></div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="seg" id="scorer">
+    <button data-scorer="bm25" class="active">BM25</button>
+    <button data-scorer="tfidf">TF-IDF</button>
+  </div>
+  <div class="toggles">
+    <label class="toggle" title="expand words to their whole morphological family">
+      <input type="checkbox" id="toggle-stem">stem
+    </label>
+    <label class="toggle" title="title boost + proximity ranking signals">
+      <input type="checkbox" id="toggle-signals" checked>signals
+    </label>
+    <label class="toggle" title="drop common function words from ranked queries">
+      <input type="checkbox" id="toggle-stopwords" checked>stopwords
+    </label>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div class="meta" style="margin-left:auto">
+    <span class="linky" id="open-help">query help</span>
+  </div>
+</div>
+
+<main>
+  <div class="stats" id="stats" style="display:none"></div>
+  <div class="status" id="status">loading index&hellip;</div>
+  <div id="results"></div>
+  <div class="pager" id="pager" style="display:none"></div>
+</main>
+
+<footer>
+  Meridian indexes a 112-document corpus of the Random factory's own documentation.
+  Engine, compression, ranking, and this mirror are dependency-free.
+  <a class="linky" href="README.md">README</a> &middot;
+  <a class="linky" href="docs/">docs</a>
+</footer>
+
+<div class="modal" id="modal">
+  <div class="docview">
+    <button class="close" id="modal-close">close</button>
+    <h2 id="dv-title"></h2>
+    <div class="dv-source" id="dv-source"></div>
+    <pre id="dv-body"></pre>
+  </div>
+</div>
+
+<script src="js/meridian.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

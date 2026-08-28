@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kestrel - docs</title>
+<meta name="description" content="Kestrel documentation: a neural-network library built from scratch in Julia." />
+<style>
+  :root {
+    --bg: #0b0e14; --panel: #141822; --border: #263042;
+    --text: #d7dce8; --muted: #8a93a8; --accent: #4fc1a0; --accent-2: #7aa2f7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter","Segoe UI",system-ui,sans-serif; line-height: 1.65; }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 24px 72px; }
+  a { color: var(--accent-2); }
+  code { font-family: "JetBrains Mono", monospace; background: #10141f; border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 0.9em; }
+  h1 { color: var(--accent); }
+  h2 { color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 40px; }
+  pre { background: #10141f; border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; }
+  pre code { background: none; border: none; padding: 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Kestrel</h1>
+<p>A neural-network library built from scratch in Julia. Zero dependencies, standard library only.</p>
+<p><a href="../index.html">Playground</a> · <a href="../README.md">README</a></p>
+
+<h2>Why from scratch</h2>
+<p>ML is usually a black box imported from a framework. Kestrel is backprop you can
+read line by line: a reverse-mode autodiff tape, dense layers, softmax and
+cross-entropy, and a mini-batch SGD training loop, all written by hand on top of
+plain Julia arrays.</p>
+
+<h2>The autodiff tape</h2>
+<p>A <code>Var</code> wraps an array value and an optional gradient, and remembers the
+operation that produced it. Each operation stores a <em>backward closure</em>:
+given the gradient of the output, it computes the gradient of its inputs. After a
+forward pass, <code>backward!</code> walks the tape in reverse, applying the chain rule, and
+each <code>Var</code> ends up holding <code>dL/dx</code>.</p>
+<p>Implemented ops: matmul, add, subtract, negate, broadcast multiply, broadcast
+unary (relu, sigmoid, tanh, exp, log), sum, mean, transpose, permutedims,
+reshape, and fused stable <code>softmax</code> and <code>cross_entropy</code> (max-shifted so the
+exponentials never overflow). The test suite checks every gradient against a
+central finite-difference estimate.</p>
+
+<h2>Data</h2>
+<p><code>Kestrel.synthetic_digits(n)</code> renders a built-in 5x7 bitmap font into 28x28
+images with random shifts, scaling, rotation, blur, and noise, so the whole
+pipeline runs offline and deterministically. <code>Kestrel.load_mnist()</code> reads the
+real MNIST IDX files from <code>data/</code>; <code>scripts/download_mnist.jl</code> fetches them.
+Both return <code>(images, labels)</code> with 784-vectors normalized to [0, 1].</p>
+
+<h2>CLI</h2>
+<pre><code>julia --project=. bin/kestrel.jl train  --epochs 3 --out model.json
+julia --project=. bin/kestrel.jl eval   --model model.json
+julia --project=. bin/kestrel.jl export --model model.json --out weights/mnist.json
+julia --project=. bin/kestrel.jl autograd-check
+julia --project=. bin/kestrel.jl selftest</code></pre>
+
+<h2>Playground</h2>
+<p><code>index.html</code> loads the exported weights and runs a dependency-free JS mirror of
+the network. Draw a digit; the probability bars update live.</p>
+
+<h2>Verification</h2>
+<ul>
+<li>Autodiff gradients vs finite differences (all ops, random shapes).</li>
+<li>XOR convergence: a 2-4-1 net learns XOR under 2k SGD steps.</li>
+<li>Synthetic-digit training reaches high accuracy headlessly.</li>
+<li>Model save/load round-trips weights exactly; export matches load.</li>
+</ul>
+
+<p><em>Built by the lab. See <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-16-kestrel-neural-network-library-julia.md">the writeup</a>.</em></p>
+</main>
+</body>
+</html>

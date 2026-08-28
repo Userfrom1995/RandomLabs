@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Glyphforge: a bitmap font designer and glyph-to-code tool in Kotlin</title>
+<meta name="description" content="Glyphforge: a bitmap font designer and glyph-to-code tool in Kotlin - draw a pixel font in a terminal grid, autotrace it to a compact .gff raster font, export embeddable glyph maps (Kotlin/Java/C/text), render text headlessly, and preview it in an interactive HTML specimen page. Zero dependencies, 135 self-tests." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 760px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 22px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Glyphforge</h1>
+  <p>A bitmap font designer and glyph-to-code tool in <strong>Kotlin</strong>: draw a
+  pixel font in a terminal grid, autotrace it to a compact <code>.gff</code> raster font
+  file, and export embeddable glyph maps for retro projects. Zero dependencies,
+  135 self-tests.</p>
+  <div class="launch"><a href="../sample/export/Micro5x7.html">Try the specimen page</a></div>
+</header>
+
+<main>
+
+<h2>What it is</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>Terminal pixel-font editor</h4>
+    <p>An ANSI TUI with a live grid: place, erase, toggle, cursor movement,
+    undo/redo, copy/paste, mirror, rotate, shift, crop, invert, and jump
+    between glyphs. The editing core is a headless state machine with a
+    scripted command language.</p>
+  </div>
+  <div class="card">
+    <h4>Autotrace to a compact raster</h4>
+    <p>Every glyph grid is traced into sorted run-length rows and stored in a
+    plain-text, diffable, strictly validated <code>.gff</code> font file that
+    round-trips bit-exactly.</p>
+  </div>
+  <div class="card">
+    <h4>Kerning</h4>
+    <p>Fonts carry a per-pair advance-adjustment table. The renderer, the
+    generated Kotlin <code>renderText</code>, and the specimen page all apply
+    it live.</p>
+  </div>
+  <div class="card">
+    <h4>Glyph-to-code export</h4>
+    <p>Deterministic generators emit the font as Kotlin source, a Java class,
+    a C header, a readable text table, and compact run-length forms for Kotlin
+    and C.</p>
+  </div>
+  <div class="card">
+    <h4>Headless renderer</h4>
+    <p><code>glyphforge render</code> draws text in <code>ascii</code>,
+    <code>blocks</code>, or <code>ansi</code> modes at any integer scale,
+    honoring per-glyph advances and kern pairs.</p>
+  </div>
+  <div class="card">
+    <h4>HTML specimen page</h4>
+    <p><code>glyphforge specimen</code> emits a self-contained page that
+    renders any string in the browser with the exact engine semantics - the
+    frontend for the engine.</p>
+  </div>
+</div>
+
+<h2>Using it</h2>
+
+<p>Requires <code>kotlinc</code> (any 1.9+ / 2.x) and a JRE 17+. No external
+libraries.</p>
+
+<pre><code>cd glyphforge
+make                 # builds build/glyphforge.jar
+make test            # builds and runs the full self-test suite (135 tests)
+
+# Proof text with the shipped 5x7 font
+java -jar build/glyphforge.jar render --font sample/fonts/Micro5x7.gff --text "Hello, Glyphforge!" --mode blocks --scale 2
+
+# Inspect a font
+java -jar build/glyphforge.jar info --font sample/fonts/Micro5x7.gff
+java -jar build/glyphforge.jar dump --font sample/fonts/Micro5x7.gff --glyph A
+
+# Export embeddable code, or an interactive HTML specimen page
+java -jar build/glyphforge.jar export --font sample/fonts/Micro5x7.gff --format kotlin --out /tmp/Micro5x7.kt
+java -jar build/glyphforge.jar specimen --font sample/fonts/Micro5x7.gff --out /tmp/Micro5x7.html
+
+# Autotrace ASCII art into a new font, then edit it headlessly
+java -jar build/glyphforge.jar import-art --art sample/art/micro5x7.art --out /tmp/my.gff
+java -jar build/glyphforge.jar edit --font /tmp/my.gff --script sample/scripts/demo.gfs --out /tmp/my-kerned.gff</code></pre>
+
+<h2>Commands</h2>
+
+<table>
+  <tr><th>Command</th><th>Purpose</th></tr>
+  <tr><td><code>new</code></td><td>create a new empty <code>.gff</code> font template</td></tr>
+  <tr><td><code>edit</code></td><td>edit a glyph (interactive ANSI TUI, or headless via <code>--script</code>/stdin)</td></tr>
+  <tr><td><code>import-art</code></td><td>autotrace <code>.</code>/<code>#</code> ASCII-art glyphs into a <code>.gff</code> font</td></tr>
+  <tr><td><code>render</code></td><td>draw text with a font (ascii/blocks/ansi, any scale)</td></tr>
+  <tr><td><code>export</code></td><td>generate Kotlin/Java/C/text code for a font</td></tr>
+  <tr><td><code>specimen</code></td><td>generate an interactive HTML specimen page</td></tr>
+  <tr><td><code>info</code></td><td>font metadata + per-glyph metrics</td></tr>
+  <tr><td><code>list</code></td><td>list all glyphs with code points and run counts</td></tr>
+  <tr><td><code>validate</code></td><td>lint a <code>.gff</code> file, exit non-zero on any problem</td></tr>
+  <tr><td><code>dump</code></td><td>print one glyph as ASCII art</td></tr>
+</table>
+
+<p>Every command is non-interactive: all input comes from args, flags, or
+files, and a missing required value is a clear error with a non-zero exit.</p>
+
+<h2>How it works</h2>
+
+<ol>
+  <li><strong>Glyphs</strong> are bit-packed grids (<code>IntArray</code> rows,
+  1-32 cells wide, any height) with a full editing API: set/clear/toggle,
+  translate, mirror, rotate, crop, invert, bounding box.</li>
+  <li><strong>Autotrace</strong> (<code>Raster</code>) turns a grid into sorted
+  run-length rows - the compact raster - and back, bit-exactly.</li>
+  <li><strong>The <code>.gff</code> format</strong> stores each glyph's runs on
+  one line with code point and advance width, plus optional <code>kern:</code>
+  lines; it is plain text, deterministic, and strictly validated.</li>
+  <li><strong>Kerning</strong> adds per-pair advance adjustments that the
+  renderer and the generated code honor.</li>
+  <li><strong>Exporters</strong> emit deterministic, embeddable code in four
+  flavors plus the RLE variants; the test suite parses the emitted arrays back
+  and compares pixels.</li>
+  <li><strong>The editor</strong> is a headless state machine (grid + cursor +
+  undo/redo + clipboard + glyph selection + kern commands); the ANSI TUI, the
+  script runner, and piped stdin are three front-ends to it.</li>
+  <li><strong>The renderer</strong> composes glyphs into lines with per-glyph
+  advances and kerning; the HTML specimen page runs the same math in
+  JavaScript.</li>
+</ol>
+
+<h2>Documentation</h2>
+
+<ul>
+  <li><a href="format.md">format.md</a> - the <code>.gff</code> font file format</li>
+  <li><a href="codegen.md">codegen.md</a> - the code export formats and the HTML specimen page</li>
+  <li><a href="../README.md">README</a> - quick start and command reference</li>
+  <li><a href="https://github.com/Userfrom1995/Random/blob/main/ideas/2026-08-15-glyphforge-bitmap-font-designer.md">The build writeup</a></li>
+</ul>
+
+</main>
+
+<footer>Glyphforge - a Random factory build.</footer>
+</body>
+</html>

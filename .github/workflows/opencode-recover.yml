@@ -1,0 +1,164 @@
+name: opencode-recover
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+concurrency:
+  group: recover-${{ github.event.issue.number || github.event.pull_request.number || 'detect' }}
+  cancel-in-progress: false
+
+jobs:
+  # Auto-detect closed (non-merged) build PRs whose branch advanced past the
+  # recorded head, and recover them without any human action. Fully scripted:
+  # no LLM, no chance of a runaway loop. The one-PR rule and the
+  # "merged/already-recovered" guards inside recover.sh prevent duplicates.
+  detect:
+    if: |
+      github.event_name != 'issue_comment' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.merged == false)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Recover Agent"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run auto-detect recovery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash .github/scripts/recover.sh --detect
+
+      - name: Approve held CI runs on recovered PRs
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          # Shared self-healing logic (issue #137): head-scoped polling per PR,
+          # then ALWAYS a terminal repo-wide sweep that also clears runs held on
+          # intermediate head SHAs, which head-scoped polling can never match
+          # again (review of PR #139, finding B). No notify ping here: the
+          # detector runs every 20 minutes and will retry on its own.
+          for pr in $(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("opencode/issue") or startswith("opencode/lab"))] | .[].number' 2>/dev/null); do
+            APPROVE_PR="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+              bash .github/scripts/approve-held-runs.sh
+          done
+          exit 0
+
+  # Manual /oc recover on a PR or issue: runs the Recover Agent, which invokes
+  # recover.sh for the actual git/PR surgery and then reports.
+  recover:
+    if: startsWith(github.event.comment.body, '/oc recover') || startsWith(github.event.comment.body, '/opencode recover')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Recover Agent"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve target PR from the trigger
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          issue="${{ github.event.issue.number }}"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
+            echo "pr=$issue" >> "$GITHUB_OUTPUT"
+          else
+            pr=$(gh pr list --repo "${{ github.repository }}" --state all --json number,headRefName,createdAt \
+              --jq '[.[] | select(.headRefName | startswith("opencode/issue'"${issue}"'-"))] | sort_by(.createdAt) | last | .number' 2>/dev/null || echo "")
+            echo "pr=${pr:-$issue}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Resolved recovery target PR: ${pr:-$issue}"
+
+      - name: Run Recover agent
+        id: opencode
+        continue-on-error: true
+        timeout-minutes: 45
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are The Recover Agent of the Random lab, triggered by "/oc recover".
+
+            READ FIRST: `.github/agents/recover.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - Recovery target PR number: ${{ steps.target.outputs.pr }}.
+            - You ONLY run `bash .github/scripts/recover.sh <PR_NUMBER>` and then post a plain-text bot-signed comment describing the outcome. You never push, merge, rewrite main, or post "/oc" comments yourself.
+            - Commit as `github-actions[bot]`, NEVER add any `Co-authored-by:` trailer.
+            - Sign your comment: ` -  the Recover Agent`. NO EM DASHES.
+
+      - name: Fallback direct recovery if the agent produced no result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set +e
+          pr="${{ steps.target.outputs.pr }}"
+          [ -z "$pr" ] && exit 0
+          # If a continuation PR already exists for this target's branch, the agent
+          # (or a prior run) already handled it; otherwise run the engine directly.
+          branch=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          if [ -n "$branch" ]; then
+            exist=$(gh pr list --repo "${{ github.repository }}" --state open --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$exist" ] && [ "$exist" != "$pr" ]; then
+              echo "Continuation PR #$exist already open for $branch; skipping direct run."
+              exit 0
+            fi
+          fi
+          bash .github/scripts/recover.sh "$pr" || true
+
+      - name: Approve held CI runs on the recovered PR
+        continue-on-error: true
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          # Shared self-healing logic (issue #137): head-scoped polling plus a
+          # terminal repo-wide sweep that also clears runs held on intermediate
+          # head SHAs, which head-scoped polling can never match again (review
+          # of PR #139, finding B). No notify ping: the detector loop retries.
+          pr="${{ steps.target.outputs.pr }}"
+          [ -z "$pr" ] && exit 0
+          APPROVE_PR="$pr" APPROVE_SERVER="${{ github.server_url }}" \
+            bash .github/scripts/approve-held-runs.sh
+          exit 0

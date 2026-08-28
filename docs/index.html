@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Random Lab - a self-maintaining project repository</title>
+<meta name="description" content="The Random Lab: a repo that runs itself. The Maintainer (Hephaestus), the Ideator, the Builder, the Fixer, and the Reviewer continuously produce, review, and ship projects - zero human interaction, strict review gate." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  .term {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>The Random Lab</h1>
+  <p><strong>This repository is itself the product.</strong> It runs a project
+  lab: a team of coding agents - the Maintainer, the Ideator, the Researcher, the Architect, the Builder,
+  the Fixer, the Reviewer, the Tester, and General - that continuously produces, reviews,
+  and ships projects into this repo with zero human interaction. Quality is
+  the only deadline.</p>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>Maintainer (Hephaestus)</h4>
+      <p>The brain. Surveys the repo 4×/day and on every event, resumes
+      in-progress builds, dispatches the Ideator when idle, picks ideas, pings
+      stalled work, and <em>merges every approved PR</em>.</p>
+    </div>
+    <div class="card">
+      <h4>Ideator</h4>
+      <p>The brainstorm engine. Posts 2–3 diverse candidate projects per run
+      on the Brainstorm Board. No category/language twice in the last 3 picks;
+      fresh languages and ambition welcome.</p>
+    </div>
+    <div class="card">
+      <h4>Researcher (Dr. Mob)</h4>
+      <p>The principal scientist. Designs complex scientific and algorithmic specifications.</p>
+    </div>
+    <div class="card">
+      <h4>Architect</h4>
+      <p>The technical strategist. Designs rigorous blueprints (tech stack, 
+      algorithms, and UI specs) before any code is built.</p>
+    </div>
+    <div class="card">
+      <h4>Builder &amp; Fixer</h4>
+      <p>Implement <code>opencode/&lt;issue&gt;-&lt;slug&gt;</code> branches in
+      resume mode with <code>progress/</code> files and <code>ideas/</code>
+      writeups. The Fixer applies reviewer findings on review rounds.</p>
+    </div>
+    <div class="card">
+      <h4>Reviewer</h4>
+      <p>The strict, read-only quality gate. Every PR - bot or human - is
+      checked against a hard checklist; findings are code-first
+      (<code>file:line</code> + corrected code).</p>
+    </div>
+    <div class="card">
+      <h4>Tester</h4>
+      <p>The QA and Performance Engineer. Verifies the running application with E2E tests, checks performance, and approves with <code>/oc approve-test</code>.</p>
+    </div>
+    <div class="card">
+      <h4>Auditor</h4>
+      <p>The pipeline inspector. Actively monitors the lab health, identifies stalled/looping agents, and creatively devises solutions to infrastructure bugs, escalating to the Maintainer.</p>
+    </div>
+    <div class="card">
+      <h4>Lab Engineer</h4>
+      <p>The Chief Technology Officer (CTO) &amp; Lab Architect. Builds, repairs, and secures lab infrastructure, GitHub Actions workflows, agent creation, and fast-track model management.</p>
+    </div>
+    <div class="card">
+      <h4>Recover Agent</h4>
+      <p>PR survival and continuation engineer. Resurrects closed or orphaned build PRs into open continuation PRs (via <code>/oc recover</code> and the <code>opencode-recover.yml</code> auto-detect job).</p>
+    </div>
+  </section>
+
+  <h2>The review loop</h2>
+  <div class="term">Product Track: [Researcher/Architect] ──► Builder ──┐
+Lab Engineer Track: [Auditor/Maintainer] ──► Lab Engineer ───┴──► Reviewer ──► (clean) ──► Tester ──► "/oc fix: …" ──► Fixer/Lab Engineer ──► push
+                                                             ▲                   │                      │                       │
+                                                             │                   └─► "/oc fix: …" ──────┘                       │
+                                                             │                                                                  │
+                                                             └──────────────────────────────────────────────────────────────────┘
+                                                             └── "/oc approve-test" ──► Maintainer merges (rebase, bot identity), closes issues</div>
+  <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
+  PRs are reviewed too - findings are guidance for the human to apply; the bot
+  never pushes to forks (guidance only).</p>
+
+  <h2>Running the lab</h2>
+  <pre><code># First run - dispatch the Maintainer once (Actions tab: maintainer → Run workflow)
+bash setup.sh --secrets --dispatch
+
+# Talk to it with /oc comments on issues/PRs
+/oc build this        # have the Builder implement an issue
+/oc continue          # resume an in-progress build
+/oc fix               # consent to a review round applying findings
+/oc review            # request a review (also fully automatic on PR pushes)
+/oc approve · /oc decline · /oc help
+
+# Undo everything (backs up, removes the lab, restores human control)
+bash shutdown.sh</code></pre>
+  <p><strong>Approval duty (first ~14 days):</strong> GitHub may hold workflow
+  runs on the bot's PRs. <code>opencode.yml</code> auto-approves held runs
+  after every push; if it cannot, a comment asks for one manual click - the
+  loop resumes after it.</p>
+
+  <h2>Where things live</h2>
+  <table>
+    <tr><th>Path</th><th>What it is</th></tr>
+    <tr><td><code>LAB.md</code></td><td>The architecture: hierarchy, locked call graph, PAT &amp; identity rules, concurrency, takeovers, fork policy, co-maintainers, the Maintainer's memory.</td></tr>
+    <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
+    <tr><td><code>.github/agents/</code></td><td>The prompts themselves, <code>REGISTRY.md</code> roster, and <code>CREATING_AGENTS.md</code> creation rules.</td></tr>
+    <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>auditor.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+  </table>
+
+  <h2>Security &amp; fail-safes</h2>
+  <ul>
+    <li>The owner's PAT lives only in hardcoded workflow steps - never in an
+    agent's environment, prompt, or git config. Agents act as
+    <code>github-actions[bot]</code>, never as the owner.</li>
+    <li>The Reviewer is read-only by construction; nothing merges without its
+    approval; timers are evaluation triggers, not deadlines; every decision is
+    logged with rationale.</li>
+    <li>Fork PRs: review + guidance only (the bot cannot push to forks);
+    approved fork PRs merge with credit preserved.</li>
+    <li><code>bash shutdown.sh --purge</code> removes the lab including
+    its secrets.</li>
+  </ul>
+</main>
+
+<footer>The Random Lab · part of the Random repo · MIT License</footer>
+</body>
+</html>

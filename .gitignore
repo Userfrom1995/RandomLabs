@@ -1,0 +1,39 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.so
+
+# Test/build artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+*.o
+
+# Generated audio
+*.wav
+
+# Editors & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+.maintainer/
+gambit/gambit
+
+# Glyphforge build output
+glyphforge/build/
+
+# Kestrel runtime artifacts (downloaded MNIST, trained model outputs)
+kestrel/data/
+kestrel/model.json
+
+# Lab agent runtime state (never commit agent decision files)
+.agent/
+tmp_random_lab_*
+/tmp/random-lab-*
+
+# Specstory
+.specstory/

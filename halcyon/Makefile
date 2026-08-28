@@ -1,0 +1,76 @@
+# Halcyon - a small functional language and VM in Haskell.
+#
+#   make            build build/halcyon (GHC, no deps beyond boot libs)
+#   make test       build and run the full self-test suite
+#   make smoke      build and exercise every CLI command end-to-end
+#   make clean      remove build artifacts
+#
+# The binary is a single unit: `build/halcyon` is the CLI
+# (repl/run/run-vm/check/compile/selftest). The self-test suite is embedded
+# in the binary so `halcyon selftest` exercises everything.
+
+GHC   ?= ghc
+BIN   := build/halcyon
+
+SRC := $(shell find src -name '*.hs') app/Main.hs
+TEST_SRC := $(shell find test -name '*.hs')
+
+.PHONY: all test smoke clean run
+
+all: $(BIN)
+
+$(BIN): $(SRC)
+	@mkdir -p build
+	$(GHC) --make -O2 -outputdir build/obj -o $(BIN) $(SRC)
+
+test: $(BIN)
+	$(BIN) selftest
+
+# Exercise every CLI command end-to-end; any failure aborts with non-zero exit.
+smoke: $(BIN)
+	set -e; \
+	$(BIN) corpus; \
+	$(BIN) corpus --opt; \
+	$(BIN) corpus --examples examples; \
+	$(BIN) run examples/fib.hly; \
+	$(BIN) run-vm examples/fib.hly; \
+	$(BIN) run-vm --opt examples/fib.hly; \
+	$(BIN) run-vm --profile examples/fib.hly > /tmp/halcyon-prof.out 2> /tmp/halcyon-prof.err; \
+	grep -q '^profile: .* instructions executed' /tmp/halcyon-prof.err; \
+	[ "$$(cat /tmp/halcyon-prof.out)" = "75025" ]; \
+	$(BIN) run-vm --stats examples/fib.hly > /tmp/halcyon-stats.out 2> /tmp/halcyon-stats.err; \
+	grep -q '^profile: .* instructions, peak stack' /tmp/halcyon-stats.err; \
+	[ "$$(cat /tmp/halcyon-stats.out)" = "75025" ]; \
+	$(BIN) eval '1 + 2 * 3'; \
+	$(BIN) eval 'let xs = [1, 2, 3] in length (append xs (reverse xs))'; \
+	[ "$$($(BIN) eval 'sum (map (fn x => x * x) (range 1 5))')" = "55" ]; \
+	[ "$$($(BIN) eval 'compose (fn x => x + 1) (fn x => x * 2) 21')" = "43" ]; \
+	[ "$$($(BIN) eval 'let sum = fn xs => 99 in sum [1, 2, 3]')" = "99" ]; \
+	[ "$$($(BIN) eval 'when true (printLine "hi")')" = "hi" ]; \
+	$(BIN) check examples/map.hly; \
+	$(BIN) compile examples/promotion.hly > /dev/null; \
+	$(BIN) compile --opt examples/promotion.hly > /dev/null; \
+	$(BIN) compile examples/fib.hly -o /tmp/halcyon-fib.hbc; \
+	$(BIN) compile --opt examples/fib.hly -o /tmp/halcyon-fib-opt.hbc; \
+	[ "$$($(BIN) run /tmp/halcyon-fib.hbc)" = "75025" ]; \
+	[ "$$($(BIN) run-vm /tmp/halcyon-fib.hbc)" = "75025" ]; \
+	[ "$$($(BIN) run-vm --opt /tmp/halcyon-fib.hbc)" = "75025" ]; \
+	[ "$$($(BIN) run-vm /tmp/halcyon-fib-opt.hbc)" = "75025" ]; \
+	$(BIN) check /tmp/halcyon-fib.hbc; \
+	$(BIN) compile /tmp/halcyon-fib.hbc | grep -q 'tail_call'; \
+	$(BIN) bench examples/fib.hly; \
+	$(BIN) bench /tmp/halcyon-fib.hbc; \
+	printf '1 + 2\nlet rec f = fn n => if n < 2 then n else f (n - 1) + f (n - 2) in f 10\n' | $(BIN) repl; \
+	printf ':help\n:type map\n:disasm sum\n:opt sum\n:import "string.hly"\ntoUpperStr "hi"\n:quit\n' | $(BIN) repl | grep -q HI; \
+	printf ':type map\n' | $(BIN) repl | grep -Fq 'forall a b. (b -> a) -> [b] -> [a]'; \
+	$(BIN) --version; \
+	$(BIN) --help > /dev/null; \
+	printf '1 + @\n' > /tmp/halcyon-bad.hly; \
+	if $(BIN) run /tmp/halcyon-bad.hly 2>/dev/null; then exit 1; fi; \
+	if $(BIN) run 2>/dev/null; then exit 1; fi
+
+run: $(BIN)
+	$(BIN) --help
+
+clean:
+	rm -rf build

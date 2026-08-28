@@ -1,0 +1,81 @@
+name: ideate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: write
+
+concurrency:
+  group: ideate
+  cancel-in-progress: true
+
+jobs:
+  ideate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Ideator"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run ideator agent
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are the Ideator of the Random lab, in a dispatch-only run (no schedule, no triggers).
+
+            READ FIRST: `.github/agents/ideator.md` - that file IS your complete system prompt; every rule there is binding (read ideas/ + open issues/PRs first; 2–3 candidates in the exact template on the Brainstorm Board issue labeled `brainstorm`; diversity rules; no repeats unless marked "Improves on:"; bot-authored comments; sign-off). If the file is missing from the tree, rely on this safety net.
+
+            SAFETY NET (always binding):
+            - You NEVER create project issues yourself - candidates are comments on the Brainstorm Board only (create + label + pin the board issue as `github-actions[bot]` with the default token if it does not exist).
+            - You NEVER post "/oc" comments; you never run the implementer. The Maintainer picks from your candidates.
+            - Comment as `github-actions[bot]` only (default GITHUB_TOKEN - never a PAT); never expose secrets; never modify repo files.
+            - Keep candidates ambitious and diverse (§14 of LAB.md): fresh languages welcome, no category/language twice in the last 3 picks.
+
+      - name: Notify the Maintainer (candidates posted)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          board=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=brainstorm" --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$board" ] && [ "$board" != "null" ]; then
+            gh issue comment "$board" --repo "${{ github.repository }}" --body "/oc maintainer" || echo "maintainer notification failed"
+          else
+            echo "no Brainstorm Board issue found to notify"
+          fi
+
+      - name: Verify board comment was posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          board=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=brainstorm" --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -z "$board" ] || [ "$board" = "null" ]; then
+            echo "warning: no Brainstorm Board issue found - the ideator was asked to create it"
+            exit 0
+          fi
+          recent=$(gh api "repos/${{ github.repository }}/issues/$board/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | contains("### Candidate:")))] | last | .created_at' 2>/dev/null || echo "")
+          if [ -z "$recent" ]; then
+            echo "warning: no candidate comment found on the board - the ideator may have failed"
+            exit 0
+          fi
+          echo "board #$board has candidates (latest: $recent)"

@@ -1,0 +1,4 @@
+-- The prelude is auto-imported: sum, map, filter, range, foldl, compose,
+-- fromMaybe, toUpperStr, repeat, and the effectful combinators seq_ and when
+-- are available without an import statement.
+sum (map (fn x => x * x) (range 1 8)) + (if startsWith "HEL" (toUpperStr "hello") then 100 else 0)

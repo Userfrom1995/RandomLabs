@@ -1,0 +1,8 @@
+-- Closures and function composition: makeCounter captures its argument in
+-- the returned fn; compose wires two fns together.
+--
+-- output: 43
+
+let makeCounter = fn n => fn step => n + step
+in let compose = fn f g => fn x => f (g x)
+in compose (fn x => x + 1) (fn x => x * 2) 21

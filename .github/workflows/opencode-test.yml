@@ -1,0 +1,91 @@
+name: opencode-test
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-test-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/oc test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Get PR info
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository (PR head)
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Tester"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run opencode tester
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/mimo-v2.5-free
+          use_github_token: true
+          prompt: |
+            You are the Tester of the Random lab, triggered by "/oc test" on the open PR in this checkout.
+
+            READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"maintainer"}` for approval/escalation or `{"action":"fix"}` when changes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
+            You post ONE plain text decision comment per run containing your findings. End every decision comment with your sign-off: `- the Tester`.
+
+      - name: Forward tester decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file found."
+            exit 0
+          fi
+          
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          
+          if [ "$action" = "maintainer" ]; then
+            echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          elif [ "$action" = "fix" ]; then
+            head_branch="${{ steps.pr-info.outputs.head_ref }}"
+            if echo "$head_branch" | grep -q "opencode/lab"; then
+              echo "Tester requested fixes on lab PR. Posting /oc lab"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
+            else
+              echo "Tester requested fixes. Posting /oc fix to trigger Fixer"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+            fi
+          fi

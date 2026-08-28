@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Granite — a SQL database engine in Go</title>
+<meta name="description" content="Granite: a SQL database engine built from scratch in Go — lexer and recursive-descent parser, query planner and executor, paged B-tree storage engine, terminal CLI." />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #141822;
+    --panel-2: #1a2030;
+    --border: #263042;
+    --text: #d7dce8;
+    --muted: #8a93a8;
+    --accent: #4fc1a0;
+    --accent-2: #7aa2f7;
+    --code-bg: #10141f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    line-height: 1.65;
+  }
+  header.hero {
+    padding: 56px 24px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(79,193,160,0.08), transparent);
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 2.4rem; letter-spacing: -0.02em; color: var(--accent); }
+  header.hero p { margin: 0 auto; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+  header.hero .launch { margin-top: 18px; }
+  header.hero .launch a {
+    display: inline-block;
+    background: var(--accent);
+    color: #06251c;
+    text-decoration: none;
+    font-weight: 700;
+    padding: 10px 22px;
+    border-radius: 999px;
+  }
+  header.hero .launch a:hover { filter: brightness(1.1); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 24px 72px; }
+  h2 { margin-top: 48px; font-size: 1.5rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  h3 { margin-top: 28px; font-size: 1.1rem; color: var(--accent-2); }
+  a { color: var(--accent-2); }
+  code {
+    font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--panel-2); color: var(--accent); }
+  td { background: var(--panel); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card h4 { margin: 0 0 6px; color: var(--accent); font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+  ul { padding-left: 22px; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Granite</h1>
+  <p>A SQL database engine built from scratch in <strong>Go</strong>: a lexer
+  and recursive-descent parser, a query planner and executor, and a paged
+  B-tree storage engine that persists real <code>.db</code> files — all driven
+  from a terminal CLI. Go's standard library only.</p>
+  <div class="launch"><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/granite">Open the project →</a></div>
+</header>
+
+<main>
+  <section class="cards">
+    <div class="card">
+      <h4>SQL front end</h4>
+      <p>A hand-written lexer and recursive-descent parser for CREATE TABLE,
+      CREATE INDEX, DROP TABLE, INSERT, UPDATE, DELETE, and SELECT with joins,
+      WHERE, ORDER BY, LIMIT, DISTINCT, LIKE, and IS NULL.</p>
+    </div>
+    <div class="card">
+      <h4>Query planner</h4>
+      <p>Statements compile into an executable plan tree with EXPLAIN output.
+      WHERE predicates on an indexed column plan an index scan, not a full
+      scan.</p>
+    </div>
+    <div class="card">
+      <h4>Executor</h4>
+      <p>Operator-tree evaluation: scan, index scan, filter, nested-loop join,
+      projection, sort, distinct, limit — plus all DML with row counts.</p>
+    </div>
+    <div class="card">
+      <h4>Storage engine</h4>
+      <p>Paged file I/O with a free list and transactions, a B-tree with
+      split/borrow/merge rebalancing, order-preserving index keys, and a
+      schema catalog — all persisted to a real .db file.</p>
+    </div>
+  </section>
+
+  <h2>Try it</h2>
+  <pre><code>cd granite
+go build ./cmd/granite
+go test ./...                 # 81 unit + end-to-end tests
+./granite demo bookshop.db    # build a demo database and tour every feature
+
+./granite init mydb.db
+./granite exec mydb.db "CREATE TABLE books (id INTEGER, title TEXT, price REAL);"
+./granite exec mydb.db "INSERT INTO books VALUES (1, 'Granite', 19.99);" "SELECT * FROM books;"
+./granite explain mydb.db "SELECT title FROM books WHERE price > 10;"
+./granite info mydb.db</code></pre>
+
+  <h2>CLI commands</h2>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>granite init &lt;path&gt;</code></td><td>Create a new empty database file.</td></tr>
+    <tr><td><code>granite exec &lt;db&gt; &lt;sql...&gt;</code></td><td>Run SQL, printing tabular results.</td></tr>
+    <tr><td><code>granite exec &lt;db&gt; -f &lt;file&gt;</code></td><td>Run SQL from a script file.</td></tr>
+    <tr><td><code>granite exec &lt;db&gt; -</code></td><td>Run SQL from standard input.</td></tr>
+    <tr><td><code>granite explain &lt;db&gt; &lt;sql&gt;</code></td><td>Show the query plan for a statement.</td></tr>
+    <tr><td><code>granite info &lt;db&gt;</code></td><td>Show tables, indexes, row counts, page counts.</td></tr>
+    <tr><td><code>granite demo &lt;path&gt;</code></td><td>Build a demo bookstore database and run a tour.</td></tr>
+  </table>
+  <p>Statements outside an explicit <code>BEGIN ... COMMIT</code> transaction
+  are auto-committed, so each one persists immediately.</p>
+
+  <h2>How it works</h2>
+  <p>The full pipeline runs per statement: <code>sql.Parse</code> tokenizes
+  and parses the source into an AST; <code>planner.Plan</code> resolves
+  tables and columns, selects indexes, and builds an operator tree;
+  <code>executor.Execute</code> evaluates it against a
+  <code>storage.Database</code>. Query results print as column-aligned
+  tables.</p>
+  <ul>
+    <li><strong>Storage layout.</strong> A Granite database is a sequence of
+    4096-byte pages. Page 0 is a magic header (<code>GRANITE1</code>) carrying
+    the catalog root, page count, and free-list head. Tables, secondary
+    indexes, and the schema catalog are each a B-tree over pages, so reopening
+    a file recovers everything.</li>
+    <li><strong>Transactions.</strong> The pager buffers all writes in a page
+    cache. <code>Begin</code> snapshots the cache; <code>Commit</code> flushes
+    dirty pages (data first, header last) and syncs; <code>Rollback</code>
+    restores the exact pre-transaction state. <code>Close</code> persists any
+    unflushed auto-committed writes.</li>
+    <li><strong>The B-tree.</strong> Keys are arbitrary byte slices ordered by
+    <code>bytes.Compare</code>. Leaves and internal nodes split when a page
+    overflows; deletes borrow from siblings before merging, and a root with a
+    single child shrinks.</li>
+    <li><strong>Indexes.</strong> Index keys encode <code>(column value,
+    rowid)</code> with an order-preserving value serialization, so equality
+    and range predicates walk a contiguous key span. Inserts, updates, and
+    deletes maintain every secondary index in the same transaction.</li>
+  </ul>
+
+  <h2>Design choices</h2>
+  <ul>
+    <li><strong>Go, standard library only.</strong> No third-party
+    dependencies; the whole engine is plain Go.</li>
+    <li><strong>Honest file format.</strong> Data lives in a real file you can
+    keep, copy, and reopen — not in memory.</li>
+    <li><strong>Explicit transactions with safe auto-commit.</strong> Outside
+    <code>BEGIN</code>, each statement persists immediately; inside one,
+    nothing reaches disk until <code>COMMIT</code>, and <code>ROLLBACK</code>
+    is exact even when prior auto-committed writes are still unflushed.</li>
+    <li><strong>Order-preserving encodings.</strong> Value byte order matches
+    value order, which is what makes index scans correct.</li>
+  </ul>
+
+  <h2>Source</h2>
+  <p>The project lives in
+  <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/granite"><code>granite/</code></a>
+  with a
+  <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/granite/README.md">README</a>
+  and a full writeup in
+  <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-13-granite-sql-database-engine.md"><code>ideas/</code></a>.</p>
+</main>
+
+<footer>Granite · part of the Random repo · MIT License</footer>
+</body>
+</html>
