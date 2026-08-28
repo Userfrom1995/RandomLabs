@@ -1,23 +1,15 @@
-// Per-context adaptive binary rANS (Route 4 bitplane backend).
+// Per-symbol binary rANS (Route 4 bitplane backend).
 //
-// This is a verbatim port of the family of rANS in prism/src/codec/rans.cpp
-// (the same one used by the production codec), which is known-good for a FIXED
-// symbol probability. This backend makes the per-context EMA model ACTUALLY
-// drive the coding: it is a LIFO-safe CAUSAL-adaptive binary rANS (I27: no
-// transmitted tables, online-adapted, LIFO-safe).
+// A verbatim port of the rANS family in prism/src/codec/rans.cpp (proven-good
+// for a fixed symbol probability). This backend is a pure STATIC per-symbol coder:
+// the probability P(0)*M for each symbol is supplied by the caller (the learned
+// context model), so it carries no internal adaptive state and cannot desync.
 //
-// LIFO-safety argument (ryg analysis): rANS is a stack; the decoder recovers
-// the last encoded symbol first, so the encoder emits symbols in REVERSE. To
-// keep the adaptive model in sync, the encoder performs a FORWARD causal
-// adaptation pass first, recording for every symbol k the model state as it
-// stood AFTER symbols [0, k-1] (the "causal" state for symbol k). The encoder
-// then emits symbols in reverse, feeding that precomputed probability to the
-// rANS core. The decoder runs forward, and after recovering each symbol k its
-// own model state equals exactly the causal state for symbol k+1, so the next
-// decode uses the same probability the encoder used. No desync is possible.
-//
-// The 128 contexts (40 base + 40 sign + 48 refinement, see bitplane.cpp) fully
-// separate statistics, so the per-context EMA needs no per-image side info.
+// LIFO-safety argument (ryg analysis): rANS is a stack; the decoder recovers the
+// last encoded symbol first, so the encoder emits symbols in REVERSE. The
+// caller hands the encoder the per-symbol probability in forward order; the
+// encoder records it and emits in reverse, and the decoder, walking forward,
+// feeds the identical probability for each symbol. Round-trip is exact.
 
 #include "prism/codec/bitplane_rans.h"
 #include <algorithm>
@@ -27,7 +19,6 @@
 namespace prism::codec {
 
 namespace {
-// Renormalization constants mirrored from rans.cpp (proven-good).
 constexpr uint32_t RANS_BYTE_L = 1u << 23;  // normalization lower bound
 constexpr uint32_t RANS_M = 1u << 16;       // frequency denominator
 constexpr uint32_t RANS_SCALE_BITS = 16;
@@ -88,40 +79,19 @@ inline void rans_dec_advance(RansState* r, uint8_t** pptr, uint32_t start, uint3
     }
     *r = x;
 }
-
-// Causal EMA update: p0 carries P(0)*M. A 0 bit raises p0 toward M, a 1 bit
-// lowers it. shift-5 matches ACoderV2 (addendum 25). Clamped into (0, M) so the
-// rANS frequency never degenerates.
-inline void ema_update(uint8_t bit, BitplaneRans::BinaryModel& m) {
-    if (bit == 0)
-        m.p0 += (BitplaneRans::M - m.p0) >> BitplaneRans::EMA_SHIFT;
-    else
-        m.p0 -= m.p0 >> BitplaneRans::EMA_SHIFT;
-    if (m.p0 < 1) m.p0 = 1;
-    if (m.p0 > BitplaneRans::M - 1) m.p0 = BitplaneRans::M - 1;
-}
 }  // namespace
 
 std::vector<uint8_t> BitplaneRans::encode(const std::vector<uint8_t>& bits,
-                                           const std::vector<uint32_t>& ctx) const {
+                                         const std::vector<uint16_t>& p0) const {
     const size_t n = bits.size();
-    if (ctx.size() != n) throw std::invalid_argument("BitplaneRans::encode: bits/ctx size mismatch");
-
-    // Forward causal adaptation pass: record the model state BEFORE each symbol
-    // (i.e. after symbols [0, k-1]) and advance the model with bits[k].
-    std::vector<BinaryModel> models(NUM_CONTEXTS);
-    std::vector<uint16_t> prob0(n);
-    for (size_t k = 0; k < n; ++k) {
-        prob0[k] = models[ctx[k]].p0;
-        ema_update(bits[k], models[ctx[k]]);
-    }
+    if (p0.size() != n) throw std::invalid_argument("BitplaneRans::encode: bits/p0 size mismatch");
 
     std::vector<uint8_t> buf(n * 4 + 32, 0);
     uint8_t* ptr = buf.data() + buf.size();
     RansState state;
     rans_enc_init(&state);
-    // Reverse emission; each symbol uses its precomputed causal probability.
-    for (size_t k = n; k-- > 0;) rans_enc_put(&state, &ptr, bits[k], prob0[k]);
+    // Reverse emission; each symbol uses its supplied probability.
+    for (size_t k = n; k-- > 0;) rans_enc_put(&state, &ptr, bits[k], p0[k]);
     rans_enc_flush(&state, &ptr);
     return std::vector<uint8_t>(ptr, buf.data() + buf.size());
 }
@@ -132,25 +102,22 @@ void BitplaneRans::Decoder::init(const std::vector<uint8_t>& bytes) {
     rans_dec_init(&state_, const_cast<uint8_t**>(&ptr_));
 }
 
-uint8_t BitplaneRans::Decoder::decode_symbol(uint32_t ctx) {
-    BinaryModel& m = models_[ctx];
-    uint16_t prob = m.p0;  // causal state before this symbol, mirrors encoder
+uint8_t BitplaneRans::Decoder::decode_symbol(uint16_t p0) {
     uint32_t slot = state_ & RANS_MASK;
-    uint8_t bit = (slot >= prob) ? 1 : 0;
-    uint32_t start = (bit ? prob : 0);
-    uint32_t freq = (bit ? (RANS_M - prob) : prob);
+    uint8_t bit = (slot >= p0) ? 1 : 0;
+    uint32_t start = (bit ? p0 : 0);
+    uint32_t freq = (bit ? (RANS_M - p0) : p0);
     rans_dec_advance(&state_, const_cast<uint8_t**>(&ptr_), start, freq);
-    ema_update(bit, m);  // advance the model with the recovered symbol
     return bit;
 }
 
 bool BitplaneRans::self_test(const std::vector<uint8_t>& bits,
-                             const std::vector<uint32_t>& ctx) const {
-    auto enc = encode(bits, ctx);
+                             const std::vector<uint16_t>& p0) const {
+    auto enc = encode(bits, p0);
     Decoder dec;
     dec.init(enc);
     std::vector<uint8_t> out(bits.size(), 0);
-    for (size_t k = 0; k < bits.size(); ++k) out[k] = dec.decode_symbol(ctx[k]);
+    for (size_t k = 0; k < bits.size(); ++k) out[k] = dec.decode_symbol(p0[k]);
     return out == bits;
 }
 

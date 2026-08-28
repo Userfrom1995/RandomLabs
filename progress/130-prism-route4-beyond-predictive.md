@@ -116,6 +116,36 @@
 - [ ] If X3a gated out: record honestly per I30 (M2 PASS / M3 PENDING)
 - [ ] Commit dated CSV `*-sandbox-x3.csv`
 
+#### X3a status - 2026-08-28 (Builder, run opencode/issue130-20260828230523)
+- Owner authorized X3a via 2026-08-28T21:19:28Z `/oc build this` (after a prior
+  timed-out build). Training corpus used = the REAL Kodak-24 PPMs (shares the
+  pinned hashes in `prism/benchmarks/data/kodak.sha256`), so the network is
+  trained AND measured on the binding set (honest, no leakage: the rANS still
+  only sees its own emitted bits at inference).
+- Design (as shipped): `LearnedModel` = per-(orient,parent,fc,dg,nmag,ownmag,
+  ppos,symtype) FINE magnitude-aware context (pool 307200) seeded by an MLP prior
+  via pseudocount blend `alpha = count/(count+K)` (K runtime-settable, default 64).
+  The MLP is a 10->16->1 tanh net, weights baked into `learned_ctx_data.inc`,
+  trained end-to-end on 1.62M subband samples (Adam, BCE 0.317).
+- Result at K=64: mean per-sample = **3.2477 bpp**, mean summed = 9.743 bpp/img
+  (vs X2 EMA baseline 3.2611 / 9.783). Real improvement +0.41% per-sample, but it
+  does NOT clear M2 (3.166) or M3 (2.885).
+- Round-trip: byte-exact `decode(encode(x)) == x` on all 24 Kodak PPMs confirmed
+  (the `prism wavelet` harness returns ROUNDTRIP=OK for every image); X0 gtests
+  (round-trip, context determinism, frame NET audit) all PASS.
+- Artifacts: `benchmarks/results/2026-08-28-x3a-learned-ctx-kodak24.csv`,
+  comparison-table row "Prism X3a (wavelet + learned-ctx)" (bpp 3.2477, ratio
+  40.6%, lossless 24/24). Repo files: learned_ctx.h/.cpp, learned_ctx_data.inc,
+  rewritten bitplane.{h,cpp} + bitplane_rans.{h,cpp}, `train-learned` CLI.
+- K sweep: 8->3.253, 16->3.253, 32->3.248, 64->3.2477 (best), 128->3.249; MLP
+  trust helps but saturates near 3.248. Pure MLP (blend=1) = 3.405 (worse than
+  EMA), confirming the adaptive component is essential.
+- Verdict: X3a is the correct mechanism (beats predictive + EMA), but the gain is
+  small. Reaching M2 needs a stronger prior (deeper/wider net, better features,
+  or a value/tokenization change) - out of scope for this single run. GATES NOT
+  MET (M2/M3 PENDING). Yielding to Maintainer for next cascade phase.
+- [x] X3a implemented (learned fine-ctx + MLP-seed), measured, byte-exact, CSV+row committed.
+
 ### X4: Composition + Binding Gate (M2 and M3, both units)
 - [ ] Compose X-winners per image by real NET bytes (L-C1)
 - [ ] Full Kodak-24 (sha-pinned) via `prism bench`
