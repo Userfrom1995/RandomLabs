@@ -27,12 +27,15 @@ struct BitplaneCoder {
     Result encode(const std::vector<Subband>& subbands, int maxbits_override = 0) const;
 
     // Decode a stream into subbands. `layout` carries the subband table
-    // (orient/level/w/h, in forward() order) with empty coeffs; `maxbits` and
-    // `total_symbols` come from the transmitted header. Returns subbands with
-    // coeffs filled, in the same order as `layout` (consumable by inverse()).
+    // (orient/level/w/h, in forward() order) with empty coeffs; `sub_maxbits`
+    // carries the per-subband bitplane range (EBCOT-style, one entry per layout
+    // subband) and `total_symbols` comes from the transmitted header (0 to skip
+    // the strict count check). Returns subbands with coeffs filled, in the same
+    // order as `layout` (consumable by inverse()).
     std::vector<Subband> decode(const std::vector<uint8_t>& stream,
                                 const std::vector<Subband>& layout,
-                                uint8_t maxbits, uint32_t total_symbols) const;
+                                const std::vector<uint8_t>& sub_maxbits,
+                                uint32_t total_symbols) const;
 
     // Pinned context function (I28). Used by the VB-CONTEXT-DETERMINISM rail.
     static uint32_t context_id(Subband::Orient o, bool parent_sig, int sig_neighbor_count);

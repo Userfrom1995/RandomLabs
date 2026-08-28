@@ -24,6 +24,8 @@ int floor_log2(uint32_t v) {
 }
 
 // Build the coding order: LL(level 0) first, then level 1..maxlevel HL,LH,HH.
+// Only subbands actually present in `subs` are emitted (so a single-subband
+// decode layout does not produce invalid -1 entries).
 std::vector<int> coding_order(const std::vector<Subband>& subs, int& maxlevel) {
     int ml = 0;
     for (const auto& s : subs) if (s.level > ml) ml = s.level;
@@ -36,14 +38,12 @@ std::vector<int> coding_order(const std::vector<Subband>& subs, int& maxlevel) {
     }
     std::vector<int> order;
     order.reserve(subs.size());
-    order.push_back(map[0 * (ml + 1) + 0]); // LL
+    if (map[0 * (ml + 1) + 0] >= 0) order.push_back(map[0 * (ml + 1) + 0]); // LL
     for (int L = 1; L <= ml; ++L) {
-        int hl = map[1 * (ml + 1) + L];
-        int lh = map[2 * (ml + 1) + L];
-        int hh = map[3 * (ml + 1) + L];
-        order.push_back(hl);
-        order.push_back(lh);
-        order.push_back(hh);
+        for (int o = 1; o <= 3; ++o) {
+            int idx = map[o * (ml + 1) + L];
+            if (idx >= 0) order.push_back(idx);
+        }
     }
     return order;
 }
@@ -248,12 +248,12 @@ BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbit
 }
 
 std::vector<Subband> BitplaneCoder::decode(const std::vector<uint8_t>& stream,
-                                           const std::vector<Subband>& layout,
-                                           uint8_t maxbits, uint32_t total_symbols) const {
+                                            const std::vector<Subband>& layout,
+                                            const std::vector<uint8_t>& sub_maxbits,
+                                            uint32_t total_symbols) const {
     int ml = 0;
     auto order = coding_order(layout, ml);
     auto parent = build_parent_map(layout, ml);
-    int B = maxbits;
 
     std::vector<Subband> out = layout; // copy orientation/level/w/h
     for (auto& s : out) s.coeffs.assign(s.w * s.h, 0);
@@ -277,6 +277,7 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<uint8_t>& stream,
         const Subband& s = layout[oi];
         int w = s.w, h = s.h;
         int pidx = parent[oi];
+        int B = (int)sub_maxbits[si];
         for (int p = B - 1; p >= 0; --p) {
             for (int ci = 0; ci < (int)s.coeffs.size(); ++ci) {
                 int x = ci % w, y = ci / w;
