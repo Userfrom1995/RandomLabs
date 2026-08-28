@@ -1,5 +1,6 @@
 #pragma once
 #include "prism/codec/wavelet.h"
+#include "prism/codec/learned_ctx.h"
 #include <vector>
 #include <cstdint>
 
@@ -44,9 +45,17 @@ struct BitplaneCoder {
     // stream to confirm the entropy backend is faithful for the data.
     static bool probe_rans(const std::vector<Subband>& subbands, int maxbits_override = 0);
 
-    // Diagnostic: build the exact (bits, ctx) the encoder emits.
-    static std::pair<std::vector<uint8_t>, std::vector<uint32_t>>
+    // Diagnostic: build the exact (bits, p0) the encoder emits.
+    static std::pair<std::vector<uint8_t>, std::vector<uint16_t>>
     generate_symbols(const std::vector<Subband>& subbands, int maxbits_override = 0);
+
+    // Training support (X3a): walk the exact EBCOT coding order and emit one
+    // LSample per symbol with its learned features, true bit, and coarse context.
+    // This walk is byte-for-byte feature-identical to the encoder/decoder walk so
+    // the trained model is symmetric at encode and decode time.
+    static void collect_samples(const std::vector<Subband>& subbands,
+                                std::vector<LSample>& out,
+                                int maxbits_override = 0);
 
     // Diagnostic: return the exact ctx sequence the decoder walks (rANS symbols
     // drawn in that order). Mirrors decode() but records the context ids. If

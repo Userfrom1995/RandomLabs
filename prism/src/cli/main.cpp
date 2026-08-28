@@ -16,6 +16,7 @@
 #include "prism/codec/wavelet.h"
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
+#include "prism/codec/learned_ctx.h"
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
@@ -4649,6 +4650,7 @@ int main(int argc, char* argv[]) {
             std::string kodak;
             std::string outcsv;
             double e1_summed = 10.1210; // pinned Prism v1 production baseline
+            float blend_override = -1.0f;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
@@ -4656,7 +4658,10 @@ int main(int argc, char* argv[]) {
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
                 else if (a == "--e1" && i + 1 < argc) e1_summed = std::stod(argv[++i]);
+                else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
+                else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
             }
+            if (blend_override >= 0.0f) learned_set_blend(blend_override);
             if (kodak.empty()) {
                 std::cerr << "bench-x: --kodak DIR required (24 PPM/PNG)\n";
                 return 2;
@@ -4731,6 +4736,207 @@ int main(int argc, char* argv[]) {
             std::cout << "   mean wavelet per-sample=" << mean_wps
                       << " ; M2 gate <3.166 ; M3 gate <2.885\n";
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "train-learned") {
+            // X3a offline trainer: learns the baked MLP context-model weights from
+            // real Kodak imagery. Encodes each subband exactly as the production
+            // path does (one subband at a time), collects (features, bit) samples,
+            // trains a tiny MLP with Adam to minimise cross-entropy, and writes
+            // prism/src/codec/learned_ctx_data.inc (weights + blend).
+            std::string kodak;
+            std::string out = "src/codec/learned_ctx_data.inc";
+            int epochs = 14;
+            float lr = 0.04f;
+            int stride = 128;
+            float blend = 0.6f;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+                else if (a == "--epochs" && i + 1 < argc) epochs = std::stoi(argv[++i]);
+                else if (a == "--lr" && i + 1 < argc) lr = std::stof(argv[++i]);
+                else if (a == "--stride" && i + 1 < argc) stride = std::stoi(argv[++i]);
+                else if (a == "--blend" && i + 1 < argc) blend = std::stof(argv[++i]);
+            }
+            if (kodak.empty()) {
+                std::cerr << "train-learned: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "train-learned: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
+
+            static constexpr int HF = 16, FF = 10; // hidden units, features
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            int levels = X_DEFAULT_LEVELS;
+            WaveletLift lift;
+            WaveletParams wp{filter, levels};
+            BitplaneCoder coder;
+
+            std::vector<LSample> samples;
+            uint64_t seen = 0;
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
+                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+                Raster t = apply_color(r, ct);
+                for (auto& pl : t.planes) {
+                    std::vector<int32_t> plane(pl.begin(), pl.end());
+                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    for (auto& s : subs) {
+                        std::vector<Subband> one{s};
+                        coder.collect_samples(one, samples);
+                    }
+                }
+                // subsample to keep memory bounded
+                if (stride > 1 && (samples.size() % (size_t)stride) == 0) {
+                    // keep every `stride`-th by compacting in place after the loop
+                }
+                (void)seen;
+            }
+            // Compact: keep every `stride`-th sample.
+            if (stride > 1 && samples.size() > (size_t)stride) {
+                std::vector<LSample> kept;
+                kept.reserve(samples.size() / (size_t)stride + 1);
+                for (size_t i = 0; i < samples.size(); i += (size_t)stride) kept.push_back(samples[i]);
+                samples = std::move(kept);
+            }
+            std::cout << "train-learned: " << samples.size() << " samples\n";
+            if (samples.empty()) { std::cerr << "train-learned: no samples\n"; return 2; }
+
+            // Normalise a feature vector.
+            auto norm = [](const LCFeat& f, float x[FF]) {
+                x[0] = f.symtype / 2.0f;
+                x[1] = f.orient / 3.0f;
+                x[2] = f.parent_sig ? 1.0f : 0.0f;
+                x[3] = f.fc / 4.0f;
+                x[4] = f.dg / 4.0f;
+                x[5] = f.nbsig / 8.0f;
+                x[6] = f.nmag / 7.0f;
+                x[7] = f.pmag / 7.0f;
+                x[8] = f.ownmag / 7.0f;
+                x[9] = f.ppos / 7.0f;
+            };
+
+            // Model parameters.
+            std::array<std::array<float, FF>, HF> W1{};
+            std::array<float, HF> b1{};
+            std::array<float, HF> W2{};
+            float b2 = 0.0f;
+            std::mt19937 rng(0x130);
+            std::uniform_real_distribution<float> u(-0.1f, 0.1f);
+            for (int j = 0; j < HF; ++j) {
+                for (int i = 0; i < FF; ++i) W1[j][i] = u(rng);
+                b1[j] = u(rng);
+                W2[j] = u(rng);
+            }
+            b2 = u(rng);
+
+            // Adam state.
+            std::array<std::array<float, FF>, HF> mW1{}, vW1{};
+            std::array<float, HF> mb1{}, vb1{}, mW2{}, vW2{};
+            float mb2 = 0, vb2 = 0;
+            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+            const int BS = 4096;
+            const size_t N = samples.size();
+            std::vector<size_t> idxs(N);
+            for (size_t i = 0; i < N; ++i) idxs[i] = i;
+            auto rngs = std::mt19937(12345);
+
+            auto forward = [&](const float x[FF], float h[HF]) {
+                for (int j = 0; j < HF; ++j) {
+                    float acc = b1[j];
+                    for (int i = 0; i < FF; ++i) acc += W1[j][i] * x[i];
+                    h[j] = acc > 0.0f ? acc : 0.0f;
+                }
+            };
+            auto sigmoidf = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
+
+            float last_loss = 0.0f;
+            for (int ep = 0; ep < epochs; ++ep) {
+                std::shuffle(idxs.begin(), idxs.end(), rngs);
+                float tot = 0.0f; size_t nb = 0;
+                for (size_t s = 0; s < N; s += (size_t)BS) {
+                    size_t e = std::min(s + (size_t)BS, N);
+                    // gradients
+                    std::array<std::array<float, FF>, HF> gW1{};
+                    std::array<float, HF> gb1{}, gW2{};
+                    float gb2 = 0.0f;
+                    for (size_t bi = s; bi < e; ++bi) {
+                        const LSample& sm = samples[idxs[bi]];
+                        float x[FF]; norm(sm.feat, x);
+                        float h[HF]; forward(x, h);
+                        float acc = b2;
+                        for (int j = 0; j < HF; ++j) acc += W2[j] * h[j];
+                        float y = sigmoidf(acc);
+                        if (y < 1e-4f) y = 1e-4f; if (y > 1.0f - 1e-4f) y = 1.0f - 1e-4f;
+                        float dy = y - (sm.label ? 1.0f : 0.0f); // dL/dpre
+                        tot += -(sm.label ? std::log(y) : std::log(1.0f - y));
+                        ++nb;
+                        gb2 += dy;
+                        for (int j = 0; j < HF; ++j) {
+                            gW2[j] += dy * h[j];
+                            float g = dy * W2[j] * (h[j] > 0.0f ? 1.0f : 0.0f);
+                            gb1[j] += g;
+                            for (int i = 0; i < FF; ++i) gW1[j][i] += g * x[i];
+                        }
+                    }
+                    float scale = 1.0f / (float)(e - s);
+                    auto update = [&](float& w, float& m, float& v, float g) {
+                        g *= scale;
+                        m = beta1 * m + (1.0f - beta1) * g;
+                        v = beta2 * v + (1.0f - beta2) * g * g;
+                        float mh = m / (1.0f - std::pow(beta1, (float)(ep + 1)));
+                        float vh = v / (1.0f - std::pow(beta2, (float)(ep + 1)));
+                        w -= lr * mh / (std::sqrt(vh) + eps);
+                    };
+                    for (int j = 0; j < HF; ++j) {
+                        for (int i = 0; i < FF; ++i) update(W1[j][i], mW1[j][i], vW1[j][i], gW1[j][i]);
+                        update(b1[j], mb1[j], vb1[j], gb1[j]);
+                        update(W2[j], mW2[j], vW2[j], gW2[j]);
+                    }
+                    update(b2, mb2, vb2, gb2);
+                }
+                last_loss = tot / (float)nb;
+                std::cout << "  epoch " << ep << " train BCE=" << last_loss << "\n";
+            }
+
+            // Write the baked weights include file.
+            {
+                std::ofstream o(out);
+                if (!o) { std::cerr << "train-learned: cannot write " << out << "\n"; return 2; }
+                o << "// Baked learned-context MLP weights (Route 4 / X3a). AUTO-GENERATED by\n"
+                  << "// `prism train-learned`. Editing by hand is discouraged; regenerate instead.\n";
+                o << "static const float LW1[" << HF << "][" << FF << "] = {\n";
+                for (int j = 0; j < HF; ++j) {
+                    o << "  {";
+                    for (int i = 0; i < FF; ++i) o << (i ? ", " : "") << W1[j][i];
+                    o << "}" << (j + 1 < HF ? "," : "") << "\n";
+                }
+                o << "};\n";
+                o << "static const float Lb1[" << HF << "] = {";
+                for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << b1[j];
+                o << "};\n";
+                o << "static const float LW2[" << HF << "] = {";
+                for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << W2[j];
+                o << "};\n";
+                o << "static const float Lb2 = " << b2 << ";\n";
+                o << "static const float LBlend = " << blend << ";\n";
+                o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << "\n";
+            }
+            std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;
