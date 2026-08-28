@@ -109,7 +109,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.2-contributor-free
+          model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
             You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
@@ -292,15 +292,9 @@ jobs:
                   decisions = json.load(open(".maintainer/decision.json"))
               except Exception as e:
                   print(f"decision.json unparseable: {e}")
-          if isinstance(decisions, dict):
-              decisions = [decisions]
-          elif not isinstance(decisions, list):
-              decisions = []
 
           posts = []
           for d in decisions:
-              if not isinstance(d, dict):
-                  continue
               if d.get("action") == "ping" and d.get("target"):
                   posts.append((d["target"], d.get("message", ""), False))
 
@@ -343,20 +337,17 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
-          BOT_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           import json, os, subprocess
 
           repo = os.environ["GITHUB_REPOSITORY"]
           owner = os.environ["GITHUB_REPOSITORY_OWNER"]
+          pat = os.environ["GH_TOKEN"]
           
-          # Strip GITHUB_TOKEN from env so gh CLI authenticates exclusively via GH_TOKEN (OPENCODE_PAT as owner)
-          os.environ.pop("GITHUB_TOKEN", None)
-
           bot_env = os.environ.copy()
-          bot_env["GH_TOKEN"] = os.environ.get("BOT_TOKEN", "")
-          bot_env.pop("GITHUB_TOKEN", None)
+          bot_env["GH_TOKEN"] = os.environ.get("GITHUB_TOKEN", "")
 
           def api(*args, check=True):
               r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, check=check)
@@ -375,11 +366,6 @@ jobs:
                   decisions = json.load(open(".maintainer/decision.json"))
               except Exception as e:
                   print(f"decision.json unparseable: {e}")
-          if isinstance(decisions, dict):
-              decisions = [decisions]
-          elif not isinstance(decisions, list):
-              decisions = []
-
           if not decisions:
               print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
                     "Check the 'Run Maintainer agent' step log: a step timeout or a model/billing error "
@@ -387,8 +373,6 @@ jobs:
 
           posted = set()
           for d in decisions:
-              if not isinstance(d, dict):
-                  continue
               action = d.get("action")
               pr = d.get("pr")
               target = d.get("target") or pr or d.get("issue")
@@ -396,28 +380,18 @@ jobs:
                   title = d.get("title", "New Item")
                   body_text = d.get("body", "")
                   if action == "create_issue":
-                      r = subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
-                      if r.returncode == 0:
-                          print(f"Created new issue: {title}")
-                      else:
-                          print(f"::error::Failed to create issue '{title}': {r.stderr.strip()}")
+                      subprocess.run(["gh", "issue", "create", "--repo", repo, "--title", title, "--body", body_text], check=False, env=bot_env)
+                      print(f"Created new issue: {title}")
                   else:
                       head = d.get("head", "")
                       if head:
-                          r = subprocess.run(["gh", "pr", "create", "--repo", repo, "--head", head, "--base", "main", "--title", title, "--body", body_text], capture_output=True, text=True, check=False, env=bot_env)
-                          if r.returncode == 0:
-                              print(f"Created new PR for branch: {head}")
-                          else:
-                              print(f"::error::Failed to create PR for '{head}': {r.stderr.strip()}")
+                          subprocess.run(["gh", "pr", "create", "--repo", repo, "--head", head, "--base", "main", "--title", title, "--body", body_text], check=False, env=bot_env)
+                          print(f"Created new PR for branch: {head}")
                   continue
 
               if not target:
                   continue
-              try:
-                  target = int(target)
-              except (ValueError, TypeError):
-                  print(f"::warning::Skipping malformed target '{target}' for action '{action}'")
-                  continue
+              target = int(target)
               key = (action, target)
               if key in posted:
                   print(f"skip {action} #{target} (one trigger per PR per run)")
@@ -463,17 +437,12 @@ jobs:
                   body = "/oc fix"
 
               if body:
-                  r = subprocess.run(
+                  subprocess.run(
                       ["gh", "api", f"repos/{repo}/issues/{target}/comments", "-f", f"body={body}"],
-                      capture_output=True,
-                      text=True,
                       check=False,
                   )
-                  if r.returncode == 0:
-                      posted.add(key)
-                      print(f"posted '{body}' on #{target}")
-                  else:
-                      print(f"::error::Failed to post '{body}' on #{target}: {r.stderr.strip()}")
+                  posted.add(key)
+                  print(f"posted '{body}' on #{target}")
           PY
 
       - name: PAT-backed merge for approved workflow-touching PRs
@@ -610,11 +579,7 @@ jobs:
               decisions = json.load(open(".maintainer/decision.json"))
           except Exception:
               raise SystemExit(0)
-          if isinstance(decisions, dict):
-              decisions = [decisions]
-          elif not isinstance(decisions, list):
-              decisions = []
-          if any(isinstance(d, dict) and d.get("action") == "ideate" for d in decisions):
+          if any(d.get("action") == "ideate" for d in decisions):
               r = subprocess.run(
                   ["gh", "workflow", "run", "ideate.yml", "--repo", os.environ["GITHUB_REPOSITORY"]],
                   capture_output=True, text=True,

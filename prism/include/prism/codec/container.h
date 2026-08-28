@@ -64,10 +64,6 @@ constexpr uint8_t MULTIPASS_FLAG = 0x80;  // Route 3 multi-pass ANS or Route 1 a
 // Decoder disambiguates via useHybrid guard suppressing LZP/CM interpretation.
 // Spec addendum 24 must match this value (0x02, not 0x40).
 constexpr uint8_t R2_HYBRID_FLAG = 0x02; // alias LZP_FLAG bit1, exclusive with LZP/CM
-// Route 4 beyond-predictive frame: bit7 (0x80). When set, the v1 model section
-// is replaced by a compact wavelet header + bitplane rANS payload (see
-// wavelet_container.h). The v1 production path is otherwise untouched (I26).
-constexpr uint8_t WAVELET_FLAG = 0x80;
 // R1 adaptive is distinguished by model_blob[0] high bit (nc | 0x80); no second flags byte.
 // ContainerHeader::r3_model_len / r3_model_blob holds the multipass model blob for both routes.
 

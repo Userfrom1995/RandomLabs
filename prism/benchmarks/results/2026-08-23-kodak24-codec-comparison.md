@@ -14,7 +14,6 @@ Machine: local Linux box, release builds of both lab codecs.
 | WebP lossless m6 | 10,940 | 456 | 3.166 | 39.6% | 6589 | 1 | 24/24 |
 | Obsidian e7 | 10,968 | 457 | 3.174 | 39.7% | 682 | 96 | 24/24 |
 | **Prism e7** | 12,702 | 529 | 3.675 | 45.9% | 1565 | 87 | 24/24 |
-| Prism X3a (wavelet + learned-ctx) | 11,224 | 468 | 3.2477 | 40.6% | n/a | n/a | 24/24 |
 | JPEG-LS (ffmpeg) | 15,016 | 626 | 4.345 | 54.3% | 190 | 188 | 24/24 |
 | PNG optimize | 15,439 | 643 | 4.467 | 55.8% | 103 | 0 | 24/24 |
 | JPEG2000 lossless | 15,500 | 646 | 4.485 | 56.1% | 154 | 0 | 24/24 |
