@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-27 (~23:56Z, maintainer run 33127956192 - PR #162 MERGED at dd559f4)
+ - **Updated:** 2026-08-28T05:00Z, maintainer run 33143471228 (schedule, cascade 3->1->2 fully merged at dd559f4, quiet watch)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Hephaestus succeeds Mae. Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt/cancel a gated project. Autonomous multi-path exploration with no-pause: when multiple routes exist, document transparently and autonomously select most promising path, state cascade order, and immediately dispatch squad (/oc research or /oc architect) - never stall waiting for Owner to choose.
@@ -8,45 +8,46 @@
 - **BINDING TARGET (dual-unit, unchanged):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl -d0 -e9 on exact Kodak PPMs. No merge until M2 AND M3 pass both units; no success claim without fresh both-units measurement. Milestones merge with `Refs #130` until gates pass. Honest closure e1 10.1210/3.3737 preserved, all exotic FAIL ledgers (R1 +194.22%, R1-1 +2.27%, R2-1 +1.80%) preserved on main.
 
 ## MERGE CAPABILITY (verified at dd559f4)
-- `main` = `dd559f42b60d8e3971139574f0598a77be5d0f20` LIVE (`git ls-remote origin main` = dd559f4, `gh api .../git/refs/heads/main` = dd559f4, parent f43e646, `gh api .../contents/opencode.json?ref=main` = `mimo-v2.5-free` + `muse-spark-1.2-contributor-free` two-knob verified, Pages deploy pending verification on new main). `git merge-base origin/main 4fa026c` = f43e646 non-orphan, branch retained.
+- `main` = `dd559f42b60d8e3971139574f0598a77be5d0f20` LIVE (`git ls-remote origin main` = dd559f4, `gh api .../git/refs/heads/main` = dd559f4, parent f43e646, `gh api .../contents/opencode.json?ref=main` = `mimo-v2.5-free` + `muse-spark-1.2-contributor-free` two-knob verified, Pages deploy success 23:57:38Z run 33128094560 on dd559f4). `git merge-base origin/main 4fa026c` = f43e646 non-orphan, branch retained.
 - PR #162 MERGED at dd559f4 via rebase (head 4fa026c retained, prior 28e0a88 rebased), PR #161 MERGED at f43e646 via rebase (head b10a493 retained), PR #160 at 86606d3, PR #158 at 7b07f7f, PR #157 at 26d51c4.
 - Merge for workflow-touching PRs via PAT sweep; non-workflow merges via GITHUB_TOKEN rebase verified (PR #162 had no workflow files, direct rebase succeeded, retain-branch honored).
 
 ## CRITICAL INFRASTRUCTURE STATE
 - **Model FIXED on main:** `opencode/mimo-v2.5-free` + `muse-spark-1.2-contributor-free` verified at dd559f4.
 - **Hephaestus transition LIVE + no-pause codified:** `.github/agents/maintainer.md:1` Hephaestus, Anti-Surrender + No-Pause at d31f9b0, `maintainer.yml` PAT sweep with approve-held-runs.sh (issue #137 repo-wide sweep).
-- **Open PRs:** 0 - PR #162 now MERGED at dd559f4 (CLOSED), no other open PRs (`gh pr list --state open` = []).
+- **Open PRs:** 0 - PR #162 now MERGED at dd559f4 (CLOSED), no other open PRs (`gh pr list --state open` = [] at 05:00Z).
 - **Open issues:** #130 (Prism, OPEN - cascade 3->1->2 FULLY FAILED and MERGED, all ledgers on main, awaiting owner halt or exotic beyond-single-pipeline), #70 (lab-health, green 07:26:11Z), #42 (brainstorm FROZEN until M2/M3 pass).
-- **Auditor:** last green 07:26:11Z run 33049525883 (R1-R5 pass, 0 failures in 200), next 00:00Z 2026-08-28. No held action_required on main.
-- **Lab nominal:** No orphan, no CreditsError, no workflow-blocking. Branch retention verified (`git ls-remote origin opencode/issue130-route2-hybrid-uint` = 4fa026c retained post-merge).
+- **Auditor:** last green 07:26:11Z run 33049525883 (R1-R5 pass, 0 failures in 200), next scheduled 00:00Z 2026-08-28 not yet observed at 05:00Z - health sweep pending next run. No held action_required on main. Recover sweep 02:25Z success.
+- **Lab nominal:** No orphan, no CreditsError, no workflow-blocking. Branch retention verified (`git ls-remote origin opencode/issue130-route2-hybrid-uint` = 4fa026c retained post-merge). Pages deploy green at 23:57Z on dd559f4.
 
 ## IN FLIGHT
 - **PR #162 - MERGED at dd559f4** (branch `opencode/issue130-route2-hybrid-uint` retained at 4fa026c, Refs #130). Re-review at 23:53Z: 14/14 PASS (prior CONFLICTING resolved via Lab rebase f43e646), Tester at 23:55Z: 200/200 PASS (7 AcoderHybrid suite, roundtrip byte-exact, probe-r2-hybrid wiring), best median_delta +1.80% at T_ESC=16 (all 9 combos WORSE vs -0.5% gate), sub-gates R2-1a/b/c PASS. Root cause binary tree prefix 1.5-2.5% overhead vs ZFF. ZFF pathology rejected, single-pipeline exhausted. Merged via `gh pr merge 162 --rebase` (no --delete-branch).
 - **Route 3 R1 VERDICT: FAIL** (+194.22% median NET R1 FAIL) ledger MERGED at 26d51c4.
 - **Route 1 R1-1 VERDICT: FAIL** (+2.27% median regression) MERGED at 86606d3 - Route 1 CLOSED.
 - **Route 2:** R2-0 11/11 COMPLETE MERGED at f43e646. R2-1 FAIL MERGED at dd559f4 closes cascade 3->1->2.
-- **No in-progress builds:** Pipeline idle awaiting owner-directed next program after merged ledger.
+- **No in-progress builds:** Pipeline idle awaiting owner-directed next program after merged ledger. All progress files on main remain `in_progress` textually but PRs merged - no `opencode` continuation needed (refs: 130-prism-route2-hybrid-uint.md R2-1 FAIL escalation, 130-prism-route1-acoder-refinement.md R1-1 FAIL, 130-prism-route3-modular-redesign.md R1 FAIL).
 
 ## PIPELINE POSITION
 Honest closure 3d76bdb -> no-pause d31f9b0 -> cascade directive 08:19:10Z -> Route 3 R0/R1 -> PR #156/#157 MERGED (R1 FAIL +194.22%) -> Route 1 Research PR #158 at 7b07f7f -> PR #159/#160 MERGED (R1-1 FAIL +2.27%) -> Route 2 Research+Architect+Build+Fix PR #161 MERGED at f43e646 (R2-0 11/11) -> R2-1 PR #162 MERGED at dd559f4 (FAIL +1.80% best, 14/14 review PASS, 200/200 test PASS, Refs #130). Cascade 3->1->2 now fully measured, failed and merged; single-pipeline design space exhausted (7 programs/28 phases + 3 routes). All ledgers preserved on main (e1 10.1210/3.3737, R1 FAIL, R1-1 FAIL, R2-1 FAIL). Next: owner-directed honest closure (close #130 at e1) vs exotic beyond-single-pipeline (transform/ML context/external dict, wire-format v2, new Research->Architect->Build).
 
 ## NEXT-RUN PLAYBOOK
-1. Verify merge: `git ls-remote origin main` = dd559f4, `gh pr view 162 --json state` = MERGED, `git ls-remote origin opencode/issue130-route2-hybrid-uint` = 4fa026c retained, `gh api contents progress/130-prism-route2-hybrid-uint.md?ref=main` + `prism/src/cli/main.cpp:5916` present on main.
-2. Verify pages deploy on new main: `gh run list --event push --limit 5` for Deploy static site on dd559f4; if missing, `gh workflow run pages.yml`.
-3. Poll owner directive on #130: `gh issue view 130 --json state,comments` - await close at e1 vs exotic authorization. If exotic authorized, immediately dispatch `research` on #130 (beyond-single-pipeline requires fresh mathematics, wire-format v2, both-units gates vs REAL cjxl).
-4. No Ideator until M2/M3 pass (frozen); no lab/auditor/recover unless infra anomaly. Both-units gates M2/M3 remain binding.
-5. Branch retention: `git ls-remote origin opencode/issue130-route2-hybrid-uint` = 4fa026c verified retained post-merge. No further fix/continue on #162.
+1. Verify merge: `git ls-remote origin main` = dd559f4, `gh pr view 162 --json state` = MERGED, `git ls-remote origin opencode/issue130-route2-hybrid-uint` = 4fa026c retained, `gh api contents progress/130-prism-route2-hybrid-uint.md?ref=main` + `prism/src/cli/main.cpp:probe-r2-hybrid` present on main.
+2. Verify pages deploy on dd559f4 success run 33128094560 at 23:57:38Z; if next main advance, `gh workflow run pages.yml` if not auto-triggered.
+3. Poll owner directive on #130: `gh issue view 130 --json state,comments` - await close at e1 vs exotic authorization. If exotic beyond-single-pipeline authorized, immediately dispatch `research` on #130 (requires fresh mathematics, wire-format v2, both-units gates vs REAL cjxl).
+4. Auditor health refresh: last green 07:26:11Z (>21h ago), 00:00Z schedule not observed at 05:00Z. Consider dispatching `auditor` next run if idle persists to refresh #70.
+5. No Ideator until M2/M3 pass (frozen); no lab/recover unless infra anomaly. Both-units gates M2/M3 remain binding.
+6. Branch retention: `git ls-remote origin opencode/issue130-route2-hybrid-uint` = 4fa026c verified retained. No fix/continue on #162.
 
 ## ISSUES
 - **#130** - OPEN - Prism exotic cascade FULLY FAILED and MERGED (Route 3 FAIL, Route 1 FAIL/CLOSED, Route 2 R2-1 FAIL at dd559f4 merged; e1 10.1210/3.3737 preserved, awaiting owner halt or exotic beyond-single-pipeline)
-- **#70** - Lab Health & Audit Logs - green 07:26:11Z
+- **#70** - Lab Health & Audit Logs - green 07:26:11Z, next sweep pending 00:00Z 2026-08-28
 - **#42** - Brainstorm Board FROZEN (awaiting M2/M3 pass; exotic is owner-directed, not Ideator).
 
 ## OPEN QUESTIONS
 - Will owner direct honest closure at e1 10.1210/3.3737 (close #130) vs authorize exotic beyond-single-pipeline (transform/ML context/external dictionary, wire-format v2)?
-- Will pages/preview stay green after merge of PR #162 to dd559f4?
 - Will single-pipeline negative ledger (all Routes FAIL on main) become the durable foundation for exotic Research?
-- Will Auditor next sweep 00:00Z 2026-08-28 confirm infra green with 0 failures in 200 and free two-knob models at dd559f4?
+- Will Auditor next sweep confirm infra green with 0 failures and free two-knob models at dd559f4?
+- Will pages/preview stay green after merge of PR #162 to dd559f4? (verified success 23:57Z)
 
 ## STANDING LESSONS (in force)
 - Verdicts post as ISSUE COMMENTS while pulls/reviews API can stay empty - paginate FULL comment timeline.
