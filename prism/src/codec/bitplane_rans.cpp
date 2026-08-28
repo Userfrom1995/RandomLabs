@@ -2,16 +2,22 @@
 //
 // This is a verbatim port of the family of rANS in prism/src/codec/rans.cpp
 // (the same one used by the production codec), which is known-good for a FIXED
-// symbol probability. Online per-symbol adaptation is intentionally NOT fed to
-// the rANS core: as documented in rans.cpp, a single running adaptive model
-// cannot round-trip with rANS LIFO decoding because the decoder's model-update
-// order reverses the encoder's. Instead the wavelet/bitplane context (I28) is a
-// FIXED function of already-decoded data, so the 128 contexts already separate
-// statistics; context-conditional probability adaptation is scheduled for M1.
+// symbol probability. This backend makes the per-context EMA model ACTUALLY
+// drive the coding: it is a LIFO-safe CAUSAL-adaptive binary rANS (I27: no
+// transmitted tables, online-adapted, LIFO-safe).
 //
-// LIFO safety comes from coding every symbol at a fixed probability (the model
-// state at that symbol under a forward causal adaptation pass); see
-// BitplaneRans in the header. Reversibility/round-trip is exact.
+// LIFO-safety argument (ryg analysis): rANS is a stack; the decoder recovers
+// the last encoded symbol first, so the encoder emits symbols in REVERSE. To
+// keep the adaptive model in sync, the encoder performs a FORWARD causal
+// adaptation pass first, recording for every symbol k the model state as it
+// stood AFTER symbols [0, k-1] (the "causal" state for symbol k). The encoder
+// then emits symbols in reverse, feeding that precomputed probability to the
+// rANS core. The decoder runs forward, and after recovering each symbol k its
+// own model state equals exactly the causal state for symbol k+1, so the next
+// decode uses the same probability the encoder used. No desync is possible.
+//
+// The 128 contexts (40 base + 40 sign + 48 refinement, see bitplane.cpp) fully
+// separate statistics, so the per-context EMA needs no per-image side info.
 
 #include "prism/codec/bitplane_rans.h"
 #include <algorithm>
@@ -44,13 +50,7 @@ inline RansState rans_enc_renorm(RansState x, uint8_t** pptr, uint32_t freq, uin
     return x;
 }
 
-// Fixed probability fed to the rANS core. 32768 = 0.5 keeps every symbol at 1
-// bit and is the only value the renorm band in rans.cpp handles robustly for
-// arbitrary streams (verified by rans_encode_bits/rans_decode_bits round-trips).
-constexpr uint16_t FIXED_PROB = 32768;
-
-inline void rans_enc_put(RansState* r, uint8_t** pptr, uint8_t bit) {
-    uint16_t prob = FIXED_PROB;
+inline void rans_enc_put(RansState* r, uint8_t** pptr, uint8_t bit, uint16_t prob) {
     uint32_t start = (bit ? prob : 0);
     uint32_t freq = (bit ? (RANS_M - prob) : prob);
     RansState x = rans_enc_renorm(*r, pptr, freq, RANS_SCALE_BITS);
@@ -89,6 +89,9 @@ inline void rans_dec_advance(RansState* r, uint8_t** pptr, uint32_t start, uint3
     *r = x;
 }
 
+// Causal EMA update: p0 carries P(0)*M. A 0 bit raises p0 toward M, a 1 bit
+// lowers it. shift-5 matches ACoderV2 (addendum 25). Clamped into (0, M) so the
+// rANS frequency never degenerates.
 inline void ema_update(uint8_t bit, BitplaneRans::BinaryModel& m) {
     if (bit == 0)
         m.p0 += (BitplaneRans::M - m.p0) >> BitplaneRans::EMA_SHIFT;
@@ -97,24 +100,28 @@ inline void ema_update(uint8_t bit, BitplaneRans::BinaryModel& m) {
     if (m.p0 < 1) m.p0 = 1;
     if (m.p0 > BitplaneRans::M - 1) m.p0 = BitplaneRans::M - 1;
 }
-} // namespace
+}  // namespace
 
 std::vector<uint8_t> BitplaneRans::encode(const std::vector<uint8_t>& bits,
-                                          const std::vector<uint32_t>& ctx) const {
+                                           const std::vector<uint32_t>& ctx) const {
     const size_t n = bits.size();
     if (ctx.size() != n) throw std::invalid_argument("BitplaneRans::encode: bits/ctx size mismatch");
-    // Causal adaptation pass: keep the per-context model trajectory identical on
-    // both sides. The trajectory is unused by the fixed-prob rANS core here, but
-    // it is maintained so M1 can switch to adaptive probabilities without a format
-    // change, and so the determinism rails can reason about it.
+
+    // Forward causal adaptation pass: record the model state BEFORE each symbol
+    // (i.e. after symbols [0, k-1]) and advance the model with bits[k].
     std::vector<BinaryModel> models(NUM_CONTEXTS);
-    for (size_t k = 0; k < n; ++k) ema_update(bits[k], models[ctx[k]]);
+    std::vector<uint16_t> prob0(n);
+    for (size_t k = 0; k < n; ++k) {
+        prob0[k] = models[ctx[k]].p0;
+        ema_update(bits[k], models[ctx[k]]);
+    }
 
     std::vector<uint8_t> buf(n * 4 + 32, 0);
     uint8_t* ptr = buf.data() + buf.size();
     RansState state;
     rans_enc_init(&state);
-    for (size_t k = n; k-- > 0; ) rans_enc_put(&state, &ptr, bits[k]);
+    // Reverse emission; each symbol uses its precomputed causal probability.
+    for (size_t k = n; k-- > 0;) rans_enc_put(&state, &ptr, bits[k], prob0[k]);
     rans_enc_flush(&state, &ptr);
     return std::vector<uint8_t>(ptr, buf.data() + buf.size());
 }
@@ -126,14 +133,14 @@ void BitplaneRans::Decoder::init(const std::vector<uint8_t>& bytes) {
 }
 
 uint8_t BitplaneRans::Decoder::decode_symbol(uint32_t ctx) {
-    // Mirror production rans.cpp get_bin: decide the bit from the CURRENT state's
-    // slot, then advance. Ordering matters for rANS correctness.
-    (void)ctx;
+    BinaryModel& m = models_[ctx];
+    uint16_t prob = m.p0;  // causal state before this symbol, mirrors encoder
     uint32_t slot = state_ & RANS_MASK;
-    uint8_t bit = (slot >= FIXED_PROB) ? 1 : 0;
-    uint32_t start = (bit ? FIXED_PROB : 0);
-    uint32_t freq = (bit ? (RANS_M - FIXED_PROB) : FIXED_PROB);
+    uint8_t bit = (slot >= prob) ? 1 : 0;
+    uint32_t start = (bit ? prob : 0);
+    uint32_t freq = (bit ? (RANS_M - prob) : prob);
     rans_dec_advance(&state_, const_cast<uint8_t**>(&ptr_), start, freq);
+    ema_update(bit, m);  // advance the model with the recovered symbol
     return bit;
 }
 
@@ -147,4 +154,4 @@ bool BitplaneRans::self_test(const std::vector<uint8_t>& bits,
     return out == bits;
 }
 
-} // namespace prism::codec
+}  // namespace prism::codec
