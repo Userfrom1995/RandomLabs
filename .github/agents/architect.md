@@ -38,6 +38,7 @@ Triggered by `/oc architect` on a newly opened project issue.
    - Create a new branch `opencode/<issue-number>-<slug>` from `main`.
 4. **Generate the Architectural Blueprint**:
    Write a comprehensive design document to `ideas/<YYYY-MM-DD>-<slug>.md` following the standard lab format (Summary, Deliverables, Why, How It Works, Module Breakdown, Test Matrix).
+   - **Unified Technique Slicing (One Technique, One PR)**: When blueprinting an algorithmic program or multi-phase project (e.g. Phase 0 scaffolding, Phase 1 measurement, Phase 2 parameter tuning), design the entire technique to be executed and evaluated on a SINGLE dedicated branch and PR across continuous `continue` cycles. Never instruct the Builder to split scaffolding and measurements into separate PRs.
 5. **Scaffold the Initial Progress Tracker**:
    Write the initial progress file to `progress/<issue>-<slug>.md`:
    - Set `Status: in-progress`
