@@ -1,11 +1,11 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-28T21:16Z, maintainer run 33211836463 (event `created` on #130, owner `/oc maintainer`)
+ - **Updated:** 2026-08-28T23:44Z, maintainer run 33221389850 (event `created` on PR #166, owner `/oc continue` + `/oc maintainer`)
 
 ## STANDING OWNER DIRECTIVES (active)
 - **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Hephaestus succeeds Mae. Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt/cancel a gated project. Autonomous multi-path exploration with no-pause.
-- **EXOTIC BEYOND-PREDICTIVE (2026-08-28T06:24:38Z directive on #130, /oc maintainer):** Owner orders: "Continue work on #130. Single-pipeline predictive coding is exhausted, so proceed with Option 2 (Exotic Beyond-Predictive Paradigm). Dispatch Dr. Mob to research learned neural context models or integer wavelet lifting with bitplane ANS coding. The squad has been upgraded to hy3-free for implementers and mimo-v2.5-free for orchestrators and reviewers." - ACTIVE, X0+X1+X2 MERGED, X3a RETRY DISPATCHED (build 33204202789 timed out at 21:16Z with zero push, re-dispatched).
+- **EXOTIC BEYOND-PREDICTIVE (2026-08-28T06:24:38Z directive on #130, /oc maintainer):** Owner orders: "Continue work on #130. Single-pipeline predictive coding is exhausted, so proceed with Option 2 (Exotic Beyond-Predictive Paradigm). Dispatch Dr. Mob to research learned neural context models or integer wavelet lifting with bitplane ANS coding. The squad has been upgraded to hy3-free for implementers and mimo-v2.5-free for orchestrators and reviewers." - ACTIVE, X0+X1+X2 MERGED, X3a PR #166 OPEN.
 - **PRISM CASCADE 3->1->2 (2026-08-27T08:19:10Z directive on #130):** FULLY MEASURED, FAILED AND MERGED. Route 3 R1 FAIL +194.22% MERGED at 26d51c4 (PR #157). Route 1 R1-1 FAIL +2.27% MERGED at 86606d3 (PR #160). Route 2 R2-0 11/11 MERGED at f43e646 (PR #161) + R2-1 FAIL +1.80% best MERGED at dd559f4 (PR #162). All single-pipeline mechanism classes rejected per 7 programs/28 phases + 3 routes. Ledger preserved on main.
-- **RETAIN-BRANCHES DIRECTIVE (2026-08-26T18:47Z, issue #148):** PR branches must never be deleted after merging. Branches retained: `opencode/issue130-20260828063310` (PR #163), `opencode/issue130-20260828112220` (PR #164), `opencode/issue130-20260828122050` (PR #165), `opencode/issue130-20260828193114` (X3a attempt, no push).
+- **RETAIN-BRANCHES DIRECTIVE (2026-08-26T18:47Z, issue #148):** PR branches must never be deleted after merging. Branches retained: `opencode/issue130-20260828063310` (PR #163), `opencode/issue130-20260828112220` (PR #164), `opencode/issue130-20260828122050` (PR #165), `opencode/issue130-20260828230523` (PR #166 OPEN).
 - **BINDING TARGET (dual-unit, unchanged):** M2 summed < 9.498 AND per-sample < 3.166; M3 summed < 8.655 AND per-sample < 2.885, measured against REAL cjxl -d0 -e9 on exact Kodak PPMs. No merge until M2 AND M3 pass both units; no success claim without fresh both-units measurement. Milestones merge with `Refs #130` until gates pass. Honest closure e1 10.1210/3.3737 preserved, all FAIL ledgers on main.
 - **MODEL PINS (df97c5f):** implementers `hy3-free`, orchestrators/reviewers `mimo-v2.5-free`. Two-knob `opencode.json` updated and live on main. Small_model `muse-spark-1.2-contributor-free` restored.
 - **OWNER REBUKE (2026-08-28T14:07:32Z on PR #165):** Owner rejected pausing to escalate X3a training corpus. Mandate reinforced: NEVER wait for owner authorization when a clear next phase exists. Training corpus constraints are a Builder/Lab Engineer problem, not a Maintainer escalation.
@@ -13,50 +13,42 @@
 ## MERGE CAPABILITY (verified)
 - main = `df97c5f` (chore models fix, prior prism merge 4e36674 PR #165 X2)
 - PR #165 MERGED at 2026-08-28T13:05:46Z (branch retained) - df97c5f extends main
-- PR #164 MERGED at 2026-08-28T11:49:06Z (branch retained)
-- PR #163 MERGED at 2026-08-28T08:57:38Z (branch retained)
-- Prior merges: PR #162 at dd559f4, PR #161 at f43e646, PR #160 at 86606d3, PR #158 at 7b07f7f, PR #157 at 26d51c4, PR #156, PR #155 at 3d76bdb. All retained.
+- PR #166 OPEN at 279a792 (head 279a79232fd847e5e08c6114235e5d4b6d17b9b9) - merge-base df97c5f verified, NOT orphan, MERGEABLE
+- Prior merges: PR #164 at 331... etc, all retained.
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **X0+X1+X2 harness LIVE on main:** wavelet lift (Haar/53/97), EBCOT bitplane coder, 1024-context adaptive binary rANS, WAVELET_FLAG container, 8-neighbour significance pattern context. Per-subband maxbits fix. 206/206 tests green. bench-x harness: FRAME-WAVELET vs FRAME-SPATIAL.
-- **X2 results (real Kodak-24):** mean per-sample 3.261 (e1 3.3737, +3.3% NET vs baseline, first program to beat predictive). Gate M2 < 3.166 NOT MET. Data-free context exhausted (pattern ~0, run-length HURT 3.261->3.267, neighbour-magnitude HURT 3.261->3.273) per progress file. X3a learned context is sole remaining lever.
-- **X3a STATUS at 21:16Z:** Build 33204202789 (triggered by owner `/oc continue` at 19:30:54Z, `opencode/hy3-free`) completed at 21:16:32Z with annotation `The action has timed out` at `.github#9013` after 1h45m, status `completed/success` but **zero push** (head_before df97c5f unchanged, no new branch `opencode/issue130-20260828211649` on remote, `gh pr list` = [] verified). Prior attempt 33178851299 also failed (1h13m). This is the timeout/no-push case per builder verification pattern.
-- **Model upgrade LIVE on main:** `hy3-free` (implementers) + `mimo-v2.5-free` (orchestrators/reviewers) verified at df97c5f.
-- **Hephaestus transition LIVE + no-pause codified.**
-- **Open PRs:** none (X3a PR not yet landed, retry dispatched)
-- **Open issues:** #130 (Prism M2/M3/M4 - X3a retry), #70 (lab-health), #42 (brainstorm FROZEN).
-- **Auditor:** last green 06:06:37Z run 33146741331. Skipped runs at 14:07Z/19:30Z/21:16Z expected (issue_comment). Next sweep 00:00Z 2026-08-29.
-- **Pages:** all green, last deploy 33204194283 at 19:30:50Z success.
-- **Lab nominal:** No orphan, no CreditsError, no workflow-blocking. Timeout is agent-scale, not infra - retry via build.
+- **X0+X1+X2 harness LIVE on main:** wavelet lift (Haar/53/97), EBCOT bitplane coder, 1024-context adaptive binary rANS, WAVELET_FLAG container, 8-neighbour significance pattern context. 206/206 tests green prior to X3a.
+- **X3a PR #166 OPEN:** learned fine context (307200 pools) + 10->16->1 MLP prior (learned_ctx_data.inc, trained on real Kodak-24 1.62M samples, BCE 0.317), pseudocount K=64 best. Result 3.2477/sample / 9.743 summed (+0.41% vs X2 3.2611/9.783). Byte-exact round-trip on all 24 Kodak PPMs, X0 gtests PASS. Gates M2/M3 NOT MET per Builder honest verdict. CSV `2026-08-28-x3a-learned-ctx-kodak24.csv` + comparison row on branch.
+- **Issue #130 OPEN:** gating issue, awaiting X3a review/test/merge then X4 escalation.
+- **In-flight runs:** opencode 33221389955 pending (owner `/oc continue` on PR #166 at 23:43:59Z), maintainer 33221389850 this run. No CreditsError, no orphan, lab nominal.
+- **Pages:** last deploy 33221390192 success at 23:44:10Z.
 
 ## IN FLIGHT
-- **Issue #130 - OPEN** (X3a retry dispatched at 21:16Z, `{"action":"build","issue":130}`, awaiting Builder PR)
-- **Pages:** all green post-merge
+- **PR #166 - OPEN** (X3a learned context, head 279a792, `Refs #130`, gates NOT MET - awaiting Reviewer then Tester then Maintainer merge)
+- **Issue #130 - OPEN** (Prism M2/M3, X3a delivered as intermediate milestone)
+- **Owner continue queued:** opencode run 33221389955 pending on PR #166 (will attempt next cascade phase in-place; review will race it)
 
 ## PIPELINE POSITION
-Honest closure 3d76bdb -> no-pause d31f9b0 -> cascade 3->1->2 fully measured/failed/merged -> model upgrade ddeabee/df97c5f -> owner directive Option 2 exotic -> Research delivered -> Architect delivered -> Builder X0 delivered -> Fixer BD16 fix -> Review (F1-F3 found, fixed, approved) -> Tester (206/206 approved) -> **Maintainer MERGED at 3660639**. Builder X1 delivered -> PR #164 opened -> Review approved -> Test approved -> **Maintainer MERGED at bbb56ed**. Builder X2 delivered -> PR #165 opened -> Review approved -> Test approved -> **Maintainer MERGED at 4e36674**. Chore models fix merged at df97c5f. Owner rebuke for pausing -> **X3a DISPATCHED 33178615337 -> failed 33178851299 (1h13m) -> owner re-dispatch 19:30Z -> BUILD 33204202789 timed out at 21:16Z (1h45m, zero push, annotation `.github#9013`) -> MAINTAINER RETRY DISPATCHED at 33211836463 (this run).**
+Honest closure 3d76bdb -> no-pause d31f9b0 -> cascade 3->1->2 fully measured/failed/merged -> model upgrade ddeabee/df97c5f -> owner directive Option 2 exotic -> Research delivered -> Architect delivered -> Builder X0 delivered -> Fixer BD16 fix -> Review approved -> Tester 206/206 approved -> Maintainer MERGED X0 -> Builder X1 delivered -> PR #164 approved -> Tester approved -> MERGED X1 -> Builder X2 delivered -> PR #165 approved -> Tester approved -> MERGED X2 (3.261) -> **X3a BUILD retried (2 timeouts) -> Builder landed PR #166 at 279a792 (3.2477, +0.41%, Refs #130, gates NOT MET, byte-exact) -> OWNER `/oc continue` queued + MAINTAINER DISPATCHES REVIEW (this run).**
 
 ## NEXT-RUN PLAYBOOK
-1. Monitor X3a retry build - do NOT duplicate while in_progress (respect guard)
-2. When PR opens: dispatch Reviewer with head SHA (`review` action), then Tester, then merge with `Refs #130` until gates pass
-3. Measure against M2 (per-sample < 3.166) and M3 (per-sample < 2.885) on REAL Kodak-24, both units
-4. If M2/M3 pass both units: merge with `Closes #130`
-5. If M2/M3 fail: escalate to X4/X5 per Anti-Surrender doctrine (chroma conditioning, deeper levels, context pool sweep) - never stall
-6. Issue #130 stays OPEN until M2 AND M3 pass both units
-7. No Ideator until M2/M3 pass (frozen); no lab/recover unless infra anomaly
-8. Both-units gates M2/M3 remain binding on every claim
-9. NEVER pause for owner authorization - dispatch immediately if X3a fails again (retry count tracked)
+1. Await Reviewer verdict on PR #166 (head 279a792) - if `/oc fix` then dispatch Fixer, else on `/oc approve` dispatch Tester
+2. On Tester `/oc approve-test`: Maintainer merges PR #166 with `Refs #130` (gates NOT MET, so must NOT close #130), verify pages deploy, then immediately dispatch next cascade phase (stronger prior: deeper/wider net, better features, or value tokenization) via `build`/`research`/`architect` per Anti-Surrender - NEVER stall on intermediate milestone
+3. Issue #130 stays OPEN until M2 AND M3 pass both units (dual-unit, both thresholds)
+4. Respect in-flight opencode continue (33221389955) - do not duplicate `continue` while it is pending/in_progress
+5. No Ideator until M2/M3 pass (frozen); no lab/recover unless infra anomaly
+6. Both-units gates M2/M3 remain binding on every claim; honest ledger on main after each merge
 
 ## ISSUES
-- **#130** - OPEN - Prism M2/M3/M4 continuation (X3a retry, re-dispatched at 21:16Z)
-- **#70** - Lab Health & Audit Logs (last green 06:06:37Z)
+- **#130** - OPEN - Prism M2/M3/M4 continuation (X3a PR #166 open, review dispatched)
+- **#70** - Lab Health & Audit Logs (last green 06:06:37Z, next sweep 00:00Z 2026-08-29)
 - **#42** - Brainstorm Board FROZEN (awaiting M2/M3 pass)
 
 ## OPEN QUESTIONS
-- Will X3a retry land a PR? First two attempts timed out/failed; retry is third attempt with same hy3-free pin.
-- Can the lightweight CNN be trained in-sandbox on synthetic/Kodak leave-one-out without external corpus fetch?
-- Will the learned context model maintain byte-exact round-trip (wavelet + bitplane determinism)?
-- Both-units gates M2/M3 remain binding on every claim
+- Will Reviewer approve PR #166 279a792 (13 files, learned_ctx + bitplane rewrites, train-learned CLI, CSV+comparison row)?
+- Will Tester confirm byte-exact round-trip (24/24 Kodak) and both-units measurement (3.2477 NOT < 3.166) before merge?
+- Can the `opencode/issue130-20260828230523` continue (33221389955) deliver a stronger prior in-place without conflicting with review?
+- What architecture reaches M2 (needs +2.5% from 3.2477) and M3 (needs +11.2%): deeper MLP, chroma conditioning, deeper wavelet levels, or tokenization change?
 
 ## STANDING LESSONS (in force)
 - Verdicts post as ISSUE COMMENTS while pulls/reviews API can stay empty - paginate FULL comment timeline.
@@ -68,8 +60,9 @@ Honest closure 3d76bdb -> no-pause d31f9b0 -> cascade 3->1->2 fully measured/fai
 - Orphan-main protection via merge-base check before merge.
 - Branch retention after merge (--delete-never used).
 - Build cancellations must be re-dispatched promptly.
-- **NEVER pause for owner authorization when a clear next phase exists** (owner rebuke 2026-08-28).
-- **Timeout annotation `.github#9013` with zero push is a silent build failure - re-dispatch immediately per no-pause.**
+- NEVER pause for owner authorization when a clear next phase exists (owner rebuke 2026-08-28).
+- Timeout annotation `.github#9013` with zero push is a silent build failure - re-dispatch immediately per no-pause.
+- `Refs #N` for intermediate milestones, `Closes #N` only when binding gates genuinely pass (both units).
 
  - Hephaestus, the Maintainer
-<!-- run: 33211836463 -->
+<!-- run: 33221389850 -->
