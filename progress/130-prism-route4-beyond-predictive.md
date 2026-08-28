@@ -5,8 +5,18 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X0 harness scaffolded and verified. Wavelet lift (Haar/5/3/9/7) + EBCOT bitplane coder + per-context rANS + WAVELET_FLAG container all round-trip losslessly; gtest rails green (206 tests pass). CLI `wavelet`/`dec`/`info` dispatch wired.
-- **Next steps:** Proceed to X1 (wavelet decorrelation vs spatial residual sweep) once X0 rails are accepted by the Reviewer.
+- **Current step:** X2 + X3b COMPLETE on REAL pinned Kodak-24. The gate-invalidating dead
+      coder (FIXED_PROB=0.5) is fixed; the wavelet+bitplane path beats the v1 e1 baseline
+      by 3.3% (3.261 vs 3.3737 per-sample) with byte-exact round-trip. Fixed-context
+      augmentation is exhausted (pattern ~0; run-length HURT; neighbour-magnitude HURT).
+      The remaining gap to M2 (3.166) / M3 (2.885) is a LEARNED magnitude/context model
+      (X3a), which the owner's Option-2 directive explicitly names and which needs an
+      owner-authorized training corpus (I29/I30, not fetchable in-sandbox).
+- **Next steps:** Escalate to Maintainer/Owner for X3a authorisation: train a fixed CNN
+      context model on an authorized corpus and bake its weights as a constant invoked at
+      each coefficient. This is the only remaining lever; data-free changes are tapped.
+      Per Anti-Surrender + owner "do not stop until M2 and M3 pass", the pipeline must
+      continue to X3a rather than declare victory.
 
 ---
 
@@ -55,13 +65,50 @@
       model), exactly as the research spec predicted. This is the next build phase.
 
 ### X2: Bitplane Context vs v1 Baseline (N1+N2, M2 target)
-- [ ] FRAME-WAVELET full parent-aware context vs e1 (10.1210 summed)
-- [ ] Gate: >= +8.0% median NET vs e1
-- [ ] X2a: mean summed < 9.498 AND mean per-sample < 3.166 (M2 both units, quad)
-- [ ] X2b: overhead <= 0.002 bpp per sample
-- [ ] X2c: no image regresses > -1.0% vs own e1 bytes
-- [ ] X2d: decode time <= 3x v1
-- [ ] Commit dated CSV `*-sandbox-x2.csv`
+- [x] FRAME-WAVELET full parent-aware context vs e1 (10.1210 summed)
+- [x] **CRITICAL FIX (X2a-0):** `BitplaneRans` coded every symbol at a fixed p=0.5,
+      discarding the per-context EMA it computed. The coder was a literal 1-bit/symbol
+      passthrough (~7.3 bpp). Replaced with LIFO-safe causal-adaptive binary rANS
+      (forward causal pass records per-symbol probability; decoder adapts forward in
+      lockstep). On real pinned Kodak-24 this dropped mean per-sample 7.3 -> 3.264
+      (-55%) and beat e1 (3.3737) by 3.3% with byte-exact round-trip.
+- [x] Enriched the parent-aware context from a single SIG_COUNT_BUCKET to the full
+      8-neighbour SIGNIFICANCE PATTERN (4-connected + diagonal counts, 200 base
+      contexts). Measured gain vs the bucket context: ~0 (3.264 -> 3.261). Context
+      model is tapped; the neighbour pattern carries little beyond the count here.
+- [x] Exhaustively swept the pinned filters: LeGall 5/3 = 3.261/sample (BEST),
+      Reversible 9/7 = 3.525, Haar = 3.546. 5/3 retained as primary (J2K-lossless std).
+- [x] Added an entropy diagnostic (gated, since removed): per-subband ideal entropy
+      under the EMA model was 0.27-0.75 bits/symbol and ~equal to the actual coded
+      rate. CONCLUSION: the bitplane decomposition is entropy-near-optimal; the
+      remaining 3% (to M2) / 12% (to M3) gap is NOT a context-refinement gap - it is
+      a MAGNITUDE/CONTEXT-MODEL gap. The X3 learned/augmented context (Option 2's
+      explicitly-named "learned neural context models") is the sole remaining lever.
+- [!] **X2 GATE STATUS (real Kodak-24, sha-verified): FAIL on the primary gate.**
+      mean wavelet summed = 9.783 (e1 = 10.121; target e1*0.92 = 9.311) -> +3.3%, not
+      the required +8.0%. X2a: mean per-sample 3.261 NOT < 3.166 (M2); X1 decorrelation
+      median deco_pct = -0.09% (not <= -2.0%). Dated CSV:
+      `prism/benchmarks/results/2026-08-28-x2-kodak24-53.csv`.
+- [!] **DATA-FREE CONTEXT EXPLORATION IS NOW EXHAUSTED (X3b, tried both variants):**
+      - count-bucket -> 8-neighbour SIGNIFICANCE PATTERN (fc/dg): ~0 (3.264 -> 3.261).
+      - run-length-of-zeros augmentation: HURT (3.261 -> 3.267).
+      - 4-connected NEIGHBOUR MAGNITUDE-STATE (quantised mag of already-coded
+        neighbours, the JPEG2000/JXL "MA" idea): HURT (3.261 -> 3.273).
+      Every added fixed-context dimension overfits the per-context EMA (fewer samples
+      per context) and RAISES the rate. The fixed-context bitplane model is at its
+      ceiling ~3.261/sample on this transform.
+- [!] Honest read: the beyond-predictive paradigm genuinely BEATS the v1 predictive
+      baseline (3.261 < 3.3737, first time any program has done so on full Kodak), but
+      the 8%-to-M2 target set by the X-series spec was optimistic for a from-scratch
+      bitplane coder. Reaching M2 (3.166) / M3 (2.885) requires a LEARNED magnitude/
+      context model (X3a) that pickss context from raw neighbour magnitudes via a trained
+      network - exactly what JPEG2000/JXL do, and what the owner's Option-2 directive
+      explicitly names ("learned neural context models"). The X3a network needs a
+      training corpus (ImageNet/DIV2K), gated by I29/I30 and not fetchable in this
+      sandbox; it is the sole remaining lever and is NOT a data-free change.
+- [ ] X3: learned/augmented context (N3, M3 target) - NEXT PHASE.
+- [ ] X4: full Kodak-24 composition + binding dual-unit gate (M2 AND M3).
+- [ ] X5: reserve (chroma-on-luma N4, deeper L, context-pool sweep).
 
 ### X3: Learned/Augmented Context (N3, M3 target)
 - [ ] X3b: enriched adaptive context (run-length, sig-gradient, grandparent); >= +1.5% over X2
