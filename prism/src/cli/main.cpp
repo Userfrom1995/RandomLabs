@@ -4637,6 +4637,100 @@ int main(int argc, char* argv[]) {
                       << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
                       << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
             if (!ok) return 1;
+        } else if (cmd == "bench-x") {
+            // X-series milestone harness (X1 decorrelation + X2 vs e1).
+            //
+            // For every image it encodes FRAME-WAVELET (net bytes + payload) and
+            // FRAME-SPATIAL (MED residual, same bitplane rANS) and reports both
+            // in dual units (summed and per-sample). Apples-to-apples: the entropy
+            // backend is identical; only the decorrelation domain differs.
+            uint8_t filter_id = X_FILTER_ID_53; // LeGall 5/3 primary
+            int levels = X_DEFAULT_LEVELS;
+            std::string kodak;
+            std::string outcsv;
+            double e1_summed = 10.1210; // pinned Prism v1 production baseline
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+                else if (a == "--e1" && i + 1 < argc) e1_summed = std::stod(argv[++i]);
+            }
+            if (kodak.empty()) {
+                std::cerr << "bench-x: --kodak DIR required (24 PPM/PNG)\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-x: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-x: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,wnet,wpayload,spayload,"
+                                       "bpp_wavelet_net_per_sample,bpp_wavelet_summed,"
+                                       "bpp_spatial_per_sample,deco_pct\n";
+            std::vector<double> deco, bpp_w_sum, bpp_w_ps;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                auto wbytes = frame_wavelet_encode(r, filter, levels, net);
+                uint8_t mb = 0;
+                size_t wpayload = frame_wavelet_payload(r, filter, levels, mb);
+                size_t spayload = frame_spatial_payload(r);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_wnet_ps = 8.0 * net / npix;
+                double bpp_wsum = 8.0 * net / (r.w * r.h);
+                double bpp_sps = 8.0 * spayload / npix;
+                double d = (spayload > 0) ? 100.0 * ((double)wpayload - (double)spayload) / (double)spayload : 0.0;
+                if (!outcsv.empty())
+                    cf << img.filename().string() << "," << net << "," << wpayload << ","
+                       << spayload << "," << bpp_wnet_ps << "," << bpp_wsum << ","
+                       << bpp_sps << "," << d << "\n";
+                deco.push_back(d);
+                bpp_w_sum.push_back(bpp_wsum);
+                bpp_w_ps.push_back(bpp_wnet_ps);
+                std::cout << img.filename().string() << " wavelet_net=" << net
+                          << " spatial_payload=" << spayload << " deco_pct=" << d
+                          << " bpp_summed=" << bpp_wsum << "\n";
+            }
+            auto median = [](std::vector<double> v) -> double {
+                if (v.empty()) return 0.0;
+                std::sort(v.begin(), v.end());
+                size_t m = v.size() / 2;
+                return (v.size() % 2) ? v[m] : 0.5 * (v[m - 1] + v[m]);
+            };
+            double md = median(deco);
+            double mean_wsum = 0.0, mean_wps = 0.0;
+            for (double v : bpp_w_sum) mean_wsum += v;
+            for (double v : bpp_w_ps) mean_wps += v;
+            mean_wsum /= std::max<size_t>(1, bpp_w_sum.size());
+            mean_wps /= std::max<size_t>(1, bpp_w_ps.size());
+            std::cout << "X1 decorrelation gate: median deco_pct=" << md
+                      << " %  (PASS if <= -2.0)\n";
+            std::cout << "X2 vs e1: mean wavelet summed=" << mean_wsum
+                      << " bpp/img ; e1=" << e1_summed
+                      << " ; X2 primary target (e1*0.92)=" << (e1_summed * 0.92)
+                      << " (PASS if <= that)\n";
+            std::cout << "   mean wavelet per-sample=" << mean_wps
+                      << " ; M2 gate <3.166 ; M3 gate <2.885\n";
+            if (!outcsv.empty()) cf.close();
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;
