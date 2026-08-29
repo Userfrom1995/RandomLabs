@@ -13,7 +13,7 @@
 namespace prism::codec {
 
 namespace {
-constexpr int LF = 12;  // input features (X5a adds lc_mag + lc_sig cross-component)
+constexpr int LF = 13;  // input features (X5a adds lc_mag + lc_sig; X3b fix adds level)
 constexpr int LH1 = 32; // first hidden layer width (X3b: deeper/wider)
 constexpr int LH2 = 16; // second hidden layer width
 
@@ -50,6 +50,12 @@ void learned_norm(const LCFeat& f, float out[LF]) {
     out[9] = f.ppos / 7.0f;
     out[10] = f.lc_mag / 7.0f;
     out[11] = f.lc_sig ? 1.0f : 0.0f;
+    // X3b fix (F1): the wavelet decomposition level was previously only used by
+    // the online EMA (fine_ctx -> FB_LEVEL). Exposing it to the MLP prior lets the
+    // network specialise its magnitude prior per level (e.g. HL@L1 vs HL@L5 have
+    // very different magnitude distributions) instead of relying solely on the EMA
+    // to separate them. Normalised to 0..1 (level 0..5).
+    out[12] = f.level / 5.0f;
 }
 
 float learned_predict_p1(const LCFeat& f) {

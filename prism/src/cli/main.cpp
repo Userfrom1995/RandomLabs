@@ -4781,7 +4781,7 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
-            static constexpr int HF1 = 32, HF2 = 16, FF = 12; // hidden widths, features (X5a +2)
+            static constexpr int HF1 = 32, HF2 = 16, FF = 13; // hidden widths, features (X5a +2 lc, X3b +1 level)
             WaveletFilter filter = WaveletFilter::LeGall53;
             int levels = X_DEFAULT_LEVELS;
             WaveletLift lift;
