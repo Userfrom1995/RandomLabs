@@ -14,6 +14,7 @@
 #include "prism/codec/bitplane.h"
 #include "prism/codec/bitplane_rans.h"
 #include "prism/codec/learned_ctx.h"
+#include "prism/codec/route6c_tree.h"
 #include <algorithm>
 #include <stdexcept>
 #include <vector>
@@ -86,38 +87,32 @@ struct StaticAdaptiveModel {
     void update(const LCFeat& f, uint8_t bit) { learned.update(f, bit); }
 };
 
-// R6-C cluster model: a transmitted per-cluster static P(0) backbone combined
-// with the learned context model (MLP prior + per-context adaptive EMA). The
-// cluster id is a pure function of the MLP prior (see r6c_cluster), so it is
-// identical at encode and decode and the static table stays a valid prior. The
-// static histogram removes cold-start for rare fine contexts (which the EMA
-// never sees enough symbols to converge) by seeding every cluster at its
-// empirical distribution; the learned model keeps the magnitude-aware prior and
-// refines rich clusters. Both evolve identically at encode and decode (the
-// learned weights are baked constants; the static table is transmitted), so the
-// rANS stream round-trips byte-exact.
-struct StaticClusterModel {
+// R6-C (Route 6 lever C) blend model: a transmitted per-cluster P(0) backbone
+// combined with the learned context model (EMA + MLP, i.e. LearnedModel). The
+// static histogram here is ONE image-global P(0) per fine-context CLUSTER (see
+// route6c_tree.h), not R6-B's per-(subband, class) table. Because the cluster
+// partition keys on the same LCFeat the EMA keys on, the transmitted backbone is
+// finer-or-equal to the cold-starting EMA everywhere: populated clusters carry
+// the whole-image exact P(0); empty clusters carry neutral M/2 and the blend
+// degenerates to pure EMA. Both the (1-W) learned prior and the W static prior
+// evolve identically at encode and decode, so the rANS stream round-trips
+// byte-exact. R6C_W is a global blend weight (0 = pure learned, 1 = pure
+// transmitted histogram).
+struct R6CAdaptiveModel {
     static constexpr uint32_t M = 1u << 16;
-    static constexpr float W_STATIC = 0.75f; // transmitted-histogram weight
-    int NB = 0;
-    std::vector<uint16_t> sp0;   // [NB] transmitted P(0)*M
+    std::vector<uint16_t> sp0;  // [r6c_K()] transmitted P(0)*M per cluster
     LearnedModel learned;
 
-    void init(int nb, const std::vector<std::vector<uint32_t>>& cnt) {
-        NB = nb;
+    void init(size_t K, const std::vector<uint16_t>& s) {
+        sp0.assign(K, (uint16_t)(M / 2));
+        for (size_t i = 0; i < s.size() && i < sp0.size(); ++i) sp0[i] = s[i];
         learned = LearnedModel();
-        sp0.assign(nb, (uint16_t)(M / 2));
-        for (int i = 0; i < nb; ++i) {
-            uint32_t c0 = cnt[i][0], c1 = cnt[i][1];
-            uint32_t tot = c0 + c1;
-            sp0[i] = (tot == 0) ? (uint16_t)(M / 2)
-                                : (uint16_t)((uint32_t)((uint64_t)c0 * M / tot) & 0xFFFF);
-        }
     }
-    uint16_t predict(const LCFeat& f, int cluster, uint16_t mlp_p0) const {
-        uint16_t lp = learned.predict_with(f, mlp_p0);
-        uint16_t sp = (cluster >= 0 && cluster < NB) ? sp0[cluster] : (uint16_t)(M / 2);
-        float w = W_STATIC;
+    uint16_t predict(const LCFeat& f) const {
+        uint32_t C = r6c_cluster_id(f);
+        uint16_t sp = sp0[C];
+        uint16_t lp = learned.predict(f);
+        float w = r6c_w();
         int b = (int)(w * (float)sp + (1.0f - w) * (float)lp);
         if (b < 1) b = 1;
         if (b > (int)M - 1) b = (int)M - 1;
@@ -125,17 +120,6 @@ struct StaticClusterModel {
     }
     void update(const LCFeat& f, uint8_t bit) { learned.update(f, bit); }
 };
-
-// R6-C cluster id: map a symbol to a learned context cluster. The learned MLP
-// P(0) (symmetrically available at both encode and decode) is quantised into
-// KB probability buckets; the symtype separates significance / sign /
-// refinement so they keep disjoint static histograms. All three terms are
-// known before the bit is decided, so the cluster is perfectly symmetric.
-inline int r6c_cluster(uint8_t symtype, uint16_t p0, int kb) {
-    int bucket = (int)((uint64_t)p0 * (uint32_t)kb / StaticClusterModel::M);
-    if (bucket >= kb) bucket = kb - 1;
-    return (int)symtype * kb + bucket;
-}
 
 // Build the coding order: LL(level 0) first, then level 1..maxlevel HL,LH,HH.
 std::vector<int> coding_order(const std::vector<Subband>& subs, int& maxlevel) {
@@ -227,6 +211,16 @@ void learned_features(const std::vector<uint8_t>& sig,
 }
 
 } // namespace
+
+// R6-C blend weight (global, runtime-overridable via --w without rebuild). At
+// prism::codec scope so the CLI (main.cpp) can set it via set_r6c_w().
+float g_r6c_w = 0.6f;
+float r6c_w() { return g_r6c_w; }
+void set_r6c_w(float v) {
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+    g_r6c_w = v;
+}
 
 uint32_t BitplaneCoder::context_id(Subband::Orient o, bool parent_sig, int fc, int dg) {
     uint32_t orient = (uint32_t)o;          // 0..3  (2 bits)
@@ -910,14 +904,115 @@ std::vector<Subband> BitplaneCoder::decode_static(
     return out;
 }
 
-StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
-    const std::vector<Subband>& subbands, int kb, int maxbits_override,
-    const std::vector<std::vector<int32_t>>* luma_mag) const {
+// Per-plane cluster-count pass used to pool an IMAGE-GLOBAL r6c_p0 across all
+// planes (luma + chroma share the same cluster space; pooling makes the single
+// transmitted vector consistent at encode and decode). Only increments cnt, does
+// not store symbols.
+static void r6c_accumulate(const std::vector<Subband>& subbands,
+                           std::vector<std::vector<uint32_t>>& cnt) {
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);
     size_t NS = subbands.size();
-    int NB = 3 * kb;
+
+    std::vector<std::vector<uint8_t>> sig(NS);
+    std::vector<std::vector<int32_t>> magv(NS), curmag(NS);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        size_t n = subbands[oi].coeffs.size();
+        sig[oi].assign(n, 0); magv[oi].resize(n); curmag[oi].assign(n, 0);
+        for (size_t ci = 0; ci < n; ++ci) {
+            int32_t c = subbands[oi].coeffs[ci];
+            uint32_t m = (uint32_t)(c < 0 ? -c : c);
+            magv[oi][ci] = (int32_t)m;
+        }
+    }
+    for (size_t si = 0; si < order.size(); ++si) {
+        size_t oi = order[si];
+        const Subband& s = subbands[oi];
+        int w = s.w, h = s.h;
+        size_t n = subbands[oi].coeffs.size();
+        int pidx = parent[oi];
+        int pw = (pidx >= 0) ? subbands[pidx].w : 0;
+        int ph = (pidx >= 0) ? subbands[pidx].h : 0;
+        int B = 1;
+        for (size_t ci = 0; ci < n; ++ci) {
+            uint32_t m = (uint32_t)magv[oi][ci];
+            int b = (m == 0) ? 0 : floor_log2(m) + 1;
+            if (b > B) B = b;
+        }
+        std::vector<int> topbit(n, -1);
+        for (size_t ci = 0; ci < n; ++ci) {
+            uint32_t m = (uint32_t)magv[oi][ci];
+            topbit[ci] = (m == 0) ? -1 : floor_log2(m);
+        }
+        for (int p = B - 1; p >= 0; --p) {
+            for (size_t ci = 0; ci < n; ++ci) {
+                int x = (int)(ci % w), y = (int)(ci / w);
+                bool parent_sig = false;
+                if (pidx >= 0) {
+                    int pcx = x >> 1, pcy = y >> 1;
+                    if (pcx < pw && pcy < ph)
+                        parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                }
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[oi], w, h, x, y, fc, dg);
+                if (sig[oi][ci] == 0) {
+                    bool becomes = (topbit[ci] == p);
+                    uint8_t bit = becomes ? 1 : 0;
+                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 0, s.level, f);
+                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                    cnt[r6c_cluster_id(f)][bit]++;
+                    if (becomes) {
+                        uint8_t sg = (magv[oi][ci] < 0) ? 1 : 0;
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 1, s.level, fs);
+                        fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
+                        cnt[r6c_cluster_id(fs)][sg]++;
+                        sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
+                    }
+                } else {
+                    uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 2, s.level, f);
+                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                    cnt[r6c_cluster_id(f)][bit]++;
+                    if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
+                }
+            }
+        }
+    }
+}
+
+// Build the pooled IMAGE-GLOBAL r6c_p0 (one vector shared by every plane) from a
+// set of already-computed residual subbands (one entry per plane). Pooling keeps
+// the single transmitted vector consistent between encode and decode while
+// staying finer-or-equal to the cold-starting EMA on every cluster.
+std::vector<uint16_t> BitplaneCoder::r6c_global_sp0(
+    const std::vector<std::vector<Subband>>& plane_residuals) const {
+    uint32_t K = r6c_K();
+    std::vector<std::vector<uint32_t>> cnt(K, std::vector<uint32_t>(2, 0));
+    for (const auto& subs : plane_residuals) r6c_accumulate(subs, cnt);
+    std::vector<uint16_t> sp0(K);
+    for (uint32_t C = 0; C < K; ++C) {
+        uint32_t c0 = cnt[C][0], c1 = cnt[C][1];
+        uint32_t tot = c0 + c1;
+        sp0[C] = (tot == 0) ? (uint16_t)(R6CAdaptiveModel::M / 2)
+                            : (uint16_t)((uint32_t)((uint64_t)c0 * R6CAdaptiveModel::M / tot) & 0xFFFF);
+    }
+    return sp0;
+}
+
+// R6-C (Route 6 lever C): per-fine-context-cluster transmitted P(0) backbone.
+// Two-pass mirror of encode_static, but the static histogram is ONE image-global
+// count over K = r6c_K() clusters (a fixed partition of the learned feature
+// space) instead of R6-B's per-(subband, class) table. See R6CAdaptiveModel.
+BitplaneCoder::R6CResult BitplaneCoder::encode_static_r6c(
+    const std::vector<Subband>& subbands, int maxbits_override,
+    const std::vector<std::vector<int32_t>>* luma_mag,
+    const std::vector<uint16_t>* sp0_ext) const {
+    int ml = 0;
+    auto order = coding_order(subbands, ml);
+    auto parent = build_parent_map(subbands, ml);
+    size_t NS = subbands.size();
+    uint32_t K = r6c_K();
 
     std::vector<uint8_t> sub_maxbits(NS, 0);
     for (size_t oi = 0; oi < NS; ++oi) {
@@ -947,13 +1042,10 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
         }
     }
 
-    // Pass 1: walk and accumulate per-cluster counts. The cluster id is derived
-    // from the learned MLP prior (a baked constant, symmetric at decode). We
-    // only READ the prior here (no EMA update), so pass 2 starts the adaptive
-    // model fresh and evolves it identically to decode.
-    StaticClusterHist hist;
-    hist.kb = kb;
-    hist.cnt.assign(NB, std::vector<uint32_t>(2, 0));
+    // Pass 1: count per-cluster (0/1) symbols AND remember each symbol's bit.
+    // The cluster id is a function of the full LCFeat, so we rebuild f exactly
+    // as in pass 2 / decode and maintain the walk state (sig/curmag) as we go.
+    std::vector<std::vector<uint32_t>> cnt(K, std::vector<uint32_t>(2, 0));
     std::vector<std::vector<uint8_t>> bits_by_sub(NS);
     uint32_t total = 0;
     for (size_t si = 0; si < order.size(); ++si) {
@@ -972,7 +1064,6 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0;
         int ph = (pidx >= 0) ? subbands[pidx].h : 0;
-        const std::vector<int32_t>* lmag = (luma_mag ? &(*luma_mag)[oi] : nullptr);
         for (int p = B - 1; p >= 0; --p) {
             for (size_t ci = 0; ci < n; ++ci) {
                 int x = (int)(ci % w), y = (int)(ci / w);
@@ -984,48 +1075,53 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
-                uint8_t bit;
+                uint8_t bit; uint8_t symtype;
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
-                    bit = becomes ? 1 : 0;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 0, s.level, f);
+                    bit = becomes ? 1 : 0; symtype = 0;
+                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    // MLP prior is computed once per symbol (at the significance
-                    // bit, where the own magnitude is still 0) and reused for the
-                    // sign and every refinement bit so the cluster id stays a
-                    // per-symbol constant. Symmetric at encode/decode.
-                    uint16_t mlp0 = learned_predict_p0(f);
-                    int cluster = r6c_cluster(0, mlp0, kb);
-                    hist.cnt[cluster][bit]++;
+                    cnt[r6c_cluster_id(f)][bit]++;
                     bits_by_sub[oi].push_back(bit);
                     if (becomes) {
-                        uint8_t sg = sgn[oi][ci];
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 1, s.level, fs);
+                        uint8_t sg = sgn[oi][ci]; symtype = 1;
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        int csg = r6c_cluster(1, mlp0, kb);
-                        hist.cnt[csg][sg]++;
+                        cnt[r6c_cluster_id(fs)][sg]++;
                         bits_by_sub[oi].push_back(sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
-                    bit = (uint8_t)((magv[oi][ci] >> p) & 1);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 2, s.level, f);
+                    bit = (uint8_t)((magv[oi][ci] >> p) & 1); symtype = 2;
+                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint16_t mlp0 = learned_predict_p0(f);
-                    int cluster = r6c_cluster(2, mlp0, kb);
-                    hist.cnt[cluster][bit]++;
+                    cnt[r6c_cluster_id(f)][bit]++;
                     bits_by_sub[oi].push_back(bit);
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
                 }
+                (void)symtype;
             }
         }
     }
 
-    // Build the transmitted static P(0)*M per cluster.
-    std::vector<std::vector<uint32_t>> cnt2 = hist.cnt;
+    // Build the transmitted static P(0)*M per cluster. Empty clusters get the
+    // neutral M/2 so the blend degenerates to pure EMA (never worse than it).
+    std::vector<uint16_t> sp0(K);
+    for (uint32_t C = 0; C < K; ++C) {
+        uint32_t c0 = cnt[C][0], c1 = cnt[C][1];
+        uint32_t tot = c0 + c1;
+        sp0[C] = (tot == 0) ? (uint16_t)(R6CAdaptiveModel::M / 2)
+                            : (uint16_t)((uint32_t)((uint64_t)c0 * R6CAdaptiveModel::M / tot) & 0xFFFF);
+    }
+    // When an external (image-global, pooled) backbone is supplied it overrides
+    // the per-plane local counts so every plane codes against the SAME vector
+    // that will be transmitted and decoded.
+    const std::vector<uint16_t>& used_sp0 = (sp0_ext && sp0_ext->size() == (size_t)K)
+                                                ? *sp0_ext : sp0;
 
-    // Pass 2: re-walk, blend the transmitted cluster backbone with the learned
-    // model, rANS-encode. Fresh per-subband walk state (lsig/lcurmag).
+    // Pass 2: blend the transmitted per-cluster backbone with the learned model
+    // and rANS-encode. Fresh per-subband walk state (lsig/lcurmag) so the EMA
+    // starts from scratch for each subband, matching decode.
     std::vector<std::vector<uint8_t>> streams(NS);
     std::vector<std::vector<uint8_t>> lsig(NS);
     std::vector<std::vector<int32_t>> lcurmag(NS);
@@ -1034,15 +1130,11 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
         lsig[oi].assign(n, 0);
         lcurmag[oi].assign(n, 0);
     }
+    R6CAdaptiveModel model; model.init(K, used_sp0);
     for (size_t si = 0; si < order.size(); ++si) {
         size_t oi = order[si];
         const Subband& s = subbands[oi];
         int w = s.w, h = s.h, B = sub_maxbits[oi];
-        // Per-subband model reset so the adaptive EMA evolves IDENTICALLY to
-        // decode (which also resets per subband). The cluster id depends on the
-        // EMA-containing learned prior, so any cross-subband EMA carry-in would
-        // desync the cluster and break byte-exact round-trip.
-        StaticClusterModel model; model.init(NB, cnt2);
         size_t n = subbands[oi].coeffs.size();
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0;
@@ -1062,32 +1154,28 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(lsig[oi], w, h, x, y, fc, dg);
+                const std::vector<int32_t>* parent_cur = (pidx >= 0) ? &lcurmag[pidx] : nullptr;
                 const std::vector<int32_t>* lmag = (luma_mag ? &(*luma_mag)[oi] : nullptr);
                 if (lsig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
                     uint8_t bit = bits[k++];
-                    LCFeat f; learned_features(lsig[oi], lcurmag[oi], (pidx>=0?&lcurmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(lsig[oi], lcurmag[oi], parent_cur, pw, ph, lmag, w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint16_t mlp0 = learned_predict_p0(f);
-                    int cluster = r6c_cluster(0, mlp0, kb);
-                    p0vec.push_back(model.predict(f, cluster, mlp0));
+                    p0vec.push_back(model.predict(f));
                     model.update(f, bit);
                     if (becomes) {
                         uint8_t sg = bits[k++];
-                        LCFeat fs; learned_features(lsig[oi], lcurmag[oi], (pidx>=0?&lcurmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(lsig[oi], lcurmag[oi], parent_cur, pw, ph, lmag, w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        int csg = r6c_cluster(1, mlp0, kb);
-                        p0vec.push_back(model.predict(fs, csg, mlp0));
+                        p0vec.push_back(model.predict(fs));
                         model.update(fs, sg);
                         lsig[oi][ci] = 1; lcurmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = bits[k++];
-                    LCFeat f; learned_features(lsig[oi], lcurmag[oi], (pidx>=0?&lcurmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(lsig[oi], lcurmag[oi], parent_cur, pw, ph, lmag, w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint16_t mlp0 = learned_predict_p0(f);
-                    int cluster = r6c_cluster(2, mlp0, kb);
-                    p0vec.push_back(model.predict(f, cluster, mlp0));
+                    p0vec.push_back(model.predict(f));
                     model.update(f, bit);
                     if (bit) lcurmag[oi][ci] |= (int32_t)(1 << p);
                 }
@@ -1097,27 +1185,33 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
         streams[oi] = rans.encode(bits, p0vec);
     }
 
-    StaticClusterBitplaneResult res;
+    R6CResult res;
     res.streams = std::move(streams);
     res.sub_maxbits = std::move(sub_maxbits);
     res.total_symbols = total;
-    res.hist = std::move(hist);
+    res.sp0 = used_sp0;
     return res;
 }
 
-std::vector<Subband> BitplaneCoder::decode_static_cluster(
+std::vector<Subband> BitplaneCoder::decode_static_r6c(
     const std::vector<std::vector<uint8_t>>& streams,
     const std::vector<Subband>& layout,
     const std::vector<uint8_t>& sub_maxbits,
     uint32_t total_symbols,
-    const StaticClusterHist& hist,
+    const std::vector<uint16_t>& sp0,
     const std::vector<std::vector<int32_t>>* luma_mag) const {
     int ml = 0;
     auto order = coding_order(layout, ml);
     auto parent = build_parent_map(layout, ml);
     size_t NS = layout.size();
-    int kb = hist.kb;
-    int NB = 3 * kb;
+    uint32_t K = r6c_K();
+    if (sp0.size() != (size_t)K) {
+        // Header/code mismatch guard: fall back to neutral backbone so decode
+        // still terminates (caller must keep sp0 in sync with r6c_K()).
+        std::vector<uint16_t> neutral(K, (uint16_t)(R6CAdaptiveModel::M / 2));
+        for (uint32_t i = 0; i < sp0.size() && i < K; ++i) neutral[i] = sp0[i];
+        return decode_static_r6c(streams, layout, sub_maxbits, total_symbols, neutral, luma_mag);
+    }
 
     std::vector<Subband> out = layout;
     for (auto& s : out) s.coeffs.assign((size_t)s.w * s.h, 0);
@@ -1130,12 +1224,6 @@ std::vector<Subband> BitplaneCoder::decode_static_cluster(
         sig[oi].assign(n, 0); value[oi].resize(n, 0); signv[oi].assign(n, 1);
     }
 
-    // Rebuild the transmitted static P(0)*M per cluster.
-    std::vector<std::vector<uint32_t>> cnt(NB, std::vector<uint32_t>(2, 0));
-    for (int i = 0; i < NB && i < (int)hist.cnt.size(); ++i) {
-        cnt[i][0] = hist.cnt[i][0]; cnt[i][1] = hist.cnt[i][1];
-    }
-
     uint32_t idx = 0;
     for (size_t si = 0; si < order.size(); ++si) {
         size_t oi = order[si];
@@ -1144,7 +1232,9 @@ std::vector<Subband> BitplaneCoder::decode_static_cluster(
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? layout[pidx].w : 0, ph = (pidx >= 0) ? layout[pidx].h : 0;
         int B = sub_maxbits[oi];
-        StaticClusterModel model; model.init(NB, cnt);
+        // Per-subband model reset; orient/level are part of both the cluster id
+        // and the EMA key, so subbands are disjoint and this stays deterministic.
+        R6CAdaptiveModel model; model.init(K, sp0);
         BitplaneRans::Decoder d; d.init(streams[oi]);
         for (int p = B - 1; p >= 0; --p) {
             for (size_t ci = 0; ci < s.coeffs.size(); ++ci) {
@@ -1157,31 +1247,25 @@ std::vector<Subband> BitplaneCoder::decode_static_cluster(
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
-                const std::vector<int32_t>* lmag = (luma_mag ? &(*luma_mag)[oi] : nullptr);
                 if (sig[oi][ci] == 0) {
-                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint16_t mlp0 = learned_predict_p0(f);
-                    int cluster = r6c_cluster(0, mlp0, kb);
-                    uint16_t dp0 = model.predict(f, cluster, mlp0);
+                    uint16_t dp0 = model.predict(f);
                     uint8_t bit = d.decode_symbol(dp0);
                     model.update(f, bit); ++idx;
                     if (bit) {
-                        LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        int csg = r6c_cluster(1, mlp0, kb);
-                        uint16_t dp0s = model.predict(fs, csg, mlp0);
+                        uint16_t dp0s = model.predict(fs);
                         uint8_t sg = d.decode_symbol(dp0s);
                         model.update(fs, sg); ++idx;
                         sig[oi][ci] = 1; signv[oi][ci] = sg ? -1 : 1;
                         value[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
-                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint16_t mlp0 = learned_predict_p0(f);
-                    int cluster = r6c_cluster(2, mlp0, kb);
-                    uint16_t dp0r = model.predict(f, cluster, mlp0);
+                    uint16_t dp0r = model.predict(f);
                     uint8_t rb = d.decode_symbol(dp0r);
                     model.update(f, rb); ++idx;
                     if (rb) value[oi][ci] |= (int32_t)(1 << p);
@@ -1191,7 +1275,7 @@ std::vector<Subband> BitplaneCoder::decode_static_cluster(
     }
 
     if (total_symbols != 0 && idx != total_symbols)
-        throw std::runtime_error("BitplaneCoder::decode_static_cluster: symbol count mismatch");
+        throw std::runtime_error("BitplaneCoder::decode_static_r6c: symbol count mismatch");
 
     for (size_t oi = 0; oi < NS; ++oi) {
         size_t n = out[oi].coeffs.size();

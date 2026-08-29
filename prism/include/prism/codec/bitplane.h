@@ -167,11 +167,48 @@ struct BitplaneCoder {
     // The blend (static x (1-alpha) + adaptive EMA x alpha) evolves identically
     // to encode_static, so the rANS stream round-trips byte-exact.
     std::vector<Subband> decode_static(const std::vector<std::vector<uint8_t>>& streams,
-                                       const std::vector<Subband>& layout,
-                                       const std::vector<uint8_t>& sub_maxbits,
-                                       uint32_t total_symbols,
-                                       const StaticHist& hist,
-                                       const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
+                                        const std::vector<Subband>& layout,
+                                        const std::vector<uint8_t>& sub_maxbits,
+                                        uint32_t total_symbols,
+                                        const StaticHist& hist,
+                                        const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
+
+    // R6-C (Route 6 lever C) two-pass transmitted-histogram coder. Like R6-B but
+    // the static backbone is ONE image-global P(0) per FINE-CONTEXT CLUSTER
+    // (r6c_cluster_id, route6c_tree.h) rather than 12 per-subband classes, so the
+    // transmitted model is finer-or-equal to the cold-starting EMA everywhere.
+    // Pass 1 counts per-cluster (0/1) symbols across the whole image; pass 2
+    // blends `W*sp0[C] + (1-W)*learned.predict(f)` and emits one rANS stream per
+    // subband. `sp0` in the result is the transmitted `r6c_p0` vector (in cluster
+    // order), ready to serialize. Symmetric at decode via decode_static_r6c.
+    struct R6CResult {
+        std::vector<std::vector<uint8_t>> streams;
+        std::vector<uint8_t> sub_maxbits;
+        uint32_t total_symbols = 0;
+        std::vector<uint16_t> sp0; // [r6c_K()] transmitted P(0)*M, cluster order
+    };
+
+    R6CResult encode_static_r6c(const std::vector<Subband>& subbands,
+                                int maxbits_override = 0,
+                                const std::vector<std::vector<int32_t>>* luma_mag = nullptr,
+                                const std::vector<uint16_t>* sp0_ext = nullptr) const;
+
+    // Build the pooled IMAGE-GLOBAL r6c_p0 (one vector shared by every plane)
+    // from already-computed residual subbands (one entry per plane). Pooling
+    // keeps the single transmitted vector consistent between encode and decode.
+    std::vector<uint16_t> r6c_global_sp0(
+        const std::vector<std::vector<Subband>>& plane_residuals) const;
+
+    // Decode per-subband streams produced by encode_static_r6c, using the
+    // transmitted global `sp0` (r6c_p0) as the static backbone. The blend
+    // `W*sp0[C] + (1-W)*learned.predict(f)` evolves identically to
+    // encode_static_r6c, so the rANS stream round-trips byte-exact.
+    std::vector<Subband> decode_static_r6c(const std::vector<std::vector<uint8_t>>& streams,
+                                           const std::vector<Subband>& layout,
+                                           const std::vector<uint8_t>& sub_maxbits,
+                                           uint32_t total_symbols,
+                                           const std::vector<uint16_t>& sp0,
+                                           const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
 
     // Training support (X3a): walk the exact EBCOT coding order and emit one
     // LSample per symbol with its learned features, true bit, and coarse context.
