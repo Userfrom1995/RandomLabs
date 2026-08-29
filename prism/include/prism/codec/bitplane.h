@@ -62,6 +62,54 @@ struct StaticClusterBitplaneResult {
     StaticClusterHist hist;
 };
 
+// Route 6D (issue #130): TRUE JXL-Modular property tree with transmitted
+// per-leaf histograms. A baked binary decision tree `R6D_TREE` (generated once
+// offline by `prism train-r6d-tree`, see route6d_tree.inc) partitions the RAW
+// already-coded neighbour/own/parent/luma magnitude space into K leaves, each
+// finer than the fixed EMA grid exactly where it reduces entropy. A per-leaf,
+// per-symtype P(0) histogram is transmitted in the frame header (computed over
+// the WHOLE image, cold-start-free) and blended with the retained adaptive EMA.
+// The tree routes on already-coded state only (identical at encode/decode), so
+// the rANS stream round-trips byte-exact and no full model is transmitted
+// (invariant I29). This is the genuine JXL-Modular mechanism R6-A/B/C lacked.
+// R6DNode is defined by route6d_tree.inc (included from bitplane.cpp), which is
+// the single source of truth for the baked property tree layout (split/feat/
+// thr/lhs/rhs/leaf). It is intentionally NOT redefined here to avoid divergence.
+
+// Number of baked R6-D property-tree leaves (from route6d_tree.inc). The CLI and
+// tests use this so the transmitted per-leaf histogram size always matches the
+// baked tree (the encode coder also clamps leaf ids defensively to [0, K-1]).
+int r6d_leaf_count();
+
+// RAW (un-quantised) feature snapshot of a symbol, used to route the baked tree.
+// Filled identically at encode and decode from already-coded state.
+struct R6DRaw {
+    uint8_t symtype = 0;  // 0 sig, 1 sign, 2 refine
+    uint8_t orient = 0;
+    uint8_t level = 0;
+    uint8_t parent_sig = 0;
+    int     mW = 0, mN = 0, mE = 0, mS = 0;       // 4-connected raw neighbour magnitudes
+    int     mNW = 0, mNE = 0, mSW = 0, mSE = 0;   // 4 diagonal raw neighbour magnitudes
+    int     mParent = 0;   // parent co-located raw magnitude
+    int     mLuma = 0;     // co-located luma raw magnitude (X5a)
+    int     mOwn = 0;      // own reconstructed magnitude so far
+    int     ppos = 0;      // bitplane index
+};
+
+// Transmitted per-leaf histogram: sp0[leaf*3 + symtype] = P(0)*M (sign forced neutral).
+struct StaticTreeHist {
+    int k = 0;                       // leaves
+    float w = 0.7f;                  // transmitted-histogram blend weight (matches encode)
+    std::vector<uint16_t> sp0;       // [K*3], sign entries neutral (M/2)
+};
+
+struct StaticTreeBitplaneResult {
+    std::vector<std::vector<uint8_t>> streams;
+    std::vector<uint8_t> sub_maxbits;
+    uint32_t total_symbols = 0;
+    StaticTreeHist hist;
+};
+
 // EBCOT-style 3-pass bitplane coder over wavelet subbands, with the pinned
 // fixed parent-aware context (invariant I28). Zero tables are transmitted: the
 // context is a FIXED function of (orientation, parent significance, neighbour
@@ -150,6 +198,44 @@ struct BitplaneCoder {
         uint32_t total_symbols,
         const StaticClusterHist& hist,
         const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
+
+    // Route 6D (issue #130): true JXL-Modular property tree with transmitted
+    // per-leaf histograms. Like encode_static_cluster but the per-symbol context
+    // is a baked property-tree leaf over RAW neighbour magnitudes (r6d_leaf,
+    // route6d_tree.inc) instead of an MLP-prior cluster. Pass 1 counts per-leaf
+    // per-symtype histograms; pass 2 blends the transmitted per-leaf P(0) with the
+    // retained adaptive EMA and emits one rANS stream per subband. `hist` (K*3
+    // P(0)*M values, sign neutral) is the transmitted payload.
+    StaticTreeBitplaneResult encode_static_tree(
+        const std::vector<Subband>& subbands, int k, float W = 0.7f,
+        int maxbits_override = 0,
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
+
+    // Decode streams produced by encode_static_tree using the transmitted
+    // StaticTreeHist as the static backbone. The leaf id is recomputed identically
+    // (it depends only on already-coded RAW magnitudes), so the blend evolves
+    // byte-exact.
+    std::vector<Subband> decode_static_tree(
+        const std::vector<std::vector<uint8_t>>& streams,
+        const std::vector<Subband>& layout,
+        const std::vector<uint8_t>& sub_maxbits,
+        uint32_t total_symbols,
+        const StaticTreeHist& hist,
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
+
+    // Training support (R6D): walk the exact EBCOT coding order used by
+    // encode_static_tree and emit one R6DSample per symbol with its RAW feature
+    // snapshot and true bit. The walk is byte-for-byte feature-identical to the
+    // encoder/decoder walk (parent subbands available), so the trained tree T
+    // partitions the same space both ends use. `luma_mag` mirrors encode.
+    struct R6DSample {
+        R6DRaw raw{};
+        uint8_t bit = 0;
+    };
+    static void collect_r6d_samples(const std::vector<Subband>& subbands,
+                                    std::vector<R6DSample>& out,
+                                    int maxbits_override = 0,
+                                    const std::vector<std::vector<int32_t>>* luma_mag = nullptr);
 
     // R6-B two-pass transmitted-histogram coder (Route 6 lever B). Pass 1 counts
     // per-subband (symtype x bitplane-bucket) histograms; pass 2 blends the

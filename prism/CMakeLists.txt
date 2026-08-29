@@ -119,6 +119,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_predictor.cpp
         tests/unit/test_r6b.cpp
         tests/unit/test_r6c.cpp
+        tests/unit/test_r6d.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)
