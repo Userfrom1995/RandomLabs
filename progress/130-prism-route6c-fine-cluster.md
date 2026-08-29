@@ -250,3 +250,33 @@ beat the adaptive EMA under the frozen blend.
 - C2/C3 (tree-driven prediction, M3) remain gated behind the unmet M2 gate.
 
 - the Builder
+
+---
+
+## Architect supersession (2026-08-29, the Architect)
+
+R6-C on this PR #181 is an HONEST-NEGATIVE result and is archived under `Refs #130` (the
+Builder already corrected the PR body keyword). Two architectural corrections were recorded:
+
+1. **Withdrawn R6-REFINE blueprint** (`ideas/2026-08-29-prism-route6c-jxl-modular-redesign.md`).
+   Its R6-REFINE constraint (splits restricted to `{pmag, lc_mag, lc_sig}`) is mathematically
+   backwards: `fine_ctx` ignores those dims, so a tree on them both (a) splits equal-`fine_ctx`
+   pairs with differing `pmag` and (b) merges pairs differing on `nmag/ownmag/ppos` when the
+   ignored dims agree. The Builder correctly grew a greedy tree over all 10 symmetric `LCFeat`
+   dims instead, which genuinely REFINES `fine_ctx` (leaf equality implies `fine_ctx` equality),
+   but P(0)-only transmission still failed the gate. The withdrawn blueprint now carries a
+   SUPERSEDED banner.
+
+2. **Canonical R6-D Architect blueprint** (`ideas/2026-08-29-prism-route6d-architect-blueprint.md`).
+   The real lever is the FULL per-leaf transmitted histogram where the tree drives BOTH context
+   and prediction (JPEG XL Modular): cold-start removal + RAW-threshold resolution gain. It
+   restores the `W=1.0 >= pure-EMA` no-worse bound that R6-C (coarse P(0)-only) could not make.
+   Build proceeds on PR #182 (`opencode/issue130-20260829194357`) against the Researcher spec
+   `prism/docs/research-route6d-property-tree.md` to avoid a duplicate build. This PR #181 is
+   left as the honest R6-C record; do NOT re-tune `R6C_K=1024` / `R6C_W=0.6`.
+
+Decision for Maintainer: archive PR #181 (`Refs #130`, issue open per Anti-Surrender), and let
+R6-D build/runtime on PR #182 per the cascade (R6-D0 >= 2% vs X6b, else STOP-AND-REPORT Route 7).
+No merge of PR #181 until the honest-floor decision is made by the Owner/Maintainer.
+
+- the Architect

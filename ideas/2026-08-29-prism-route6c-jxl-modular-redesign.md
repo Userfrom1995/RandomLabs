@@ -1,9 +1,29 @@
-# Architect Blueprint: Route 6C v2 - Refinement-Constrained Baked Tree (issue #130)
+> ## SUPERSEDED (2026-08-29, architect correction)
+>
+> This blueprint is **withdrawn**. Its central constraint (R6-REFINE via splits restricted to
+> `{pmag, lc_mag, lc_sig}`) is mathematically backwards and was correctly NOT implemented by the
+> Builder. `fine_ctx` (learned_ctx.h:145) keys on `{symtype, orient, parent_sig, fc, dg, nmag,
+> ownmag, ppos, level}` and IGNORES `{pmag, lc_mag, lc_sig}`. A tree that splits ONLY on the
+> ignored dims (a) maps two features with equal `fine_ctx` but different `pmag` to DIFFERENT
+> leaves, violating `fine_ctx(f1)==fine_ctx(f2) => leaf(f1)==leaf(f2)`, and (b) merges two
+> features that differ on `nmag/ownmag/ppos` whenever their `pmag/lc_mag/lc_sig` agree, i.e. it
+> COARSENS `fine_ctx`. The Builder instead grew a greedy tree over all 10 symmetric `LCFeat`
+> dims (section 4 of this file), which genuinely REFINES `fine_ctx` (leaf equality implies
+> `fine_ctx` equality). That correcting tree still FAILED the gate, proving the deeper point:
+> transmitting only `P(0)` per cluster cannot beat the adaptive EMA (the backbone only seeds the
+> significance bit; it adds no conditioning dimension the EMA lacks, and the frozen `W=0.6`
+> blend dilutes the good EMA). The real lever is the FULL per-leaf histogram where the tree also
+> drives prediction (JPEG XL Modular), specified in `prism/docs/research-route6d-property-tree.md`
+> (Researcher) and the Architect blueprint `ideas/2026-08-29-prism-route6d-architect-blueprint.md`.
+> R6-C on this PR #181 is an honest-negative result to be archived under `Refs #130`; the R6-D
+> build proceeds on PR #182 (`opencode/issue130-20260829194357`) to avoid a duplicate build.
+
+# Architect Blueprint: Route 6C v2 - Refinement-Constrained Baked Tree (issue #130)  [SUPERSEDED]
 
 - **Author:** the Architect
 - **Date:** 2026-08-29
 - **Precedes:** `prism/docs/research-route6c-fine-cluster-histogram.md` (R6-C research), `prism/docs/addendum-27-pinned-constants-route6c.md` (frozen pins), `progress/130-prism-route6c-fine-cluster.md` (R6-C0 build + C5 FAIL record).
-- **Status:** ARCHITECT HANDOFF -> `{"action":"build"}` (resume on existing PR #181 / branch `opencode/issue130-20260829181522`).
+- **Status:** SUPERSEDED. See banner above. The refinement-only-on-ignored-dims constraint is wrong; R6-C (P(0)-only) also failed the binding gate. The live lever is R6-D on PR #182.
 - **Supersedes:** the failed R6-C0 coarse quantization (`r6c_cluster_id`, `route6c_tree.h:36-45`). That first cut violated the very premise it claimed (route6c_tree.h:12-17) and is abandoned. This blueprint implements what R6-C1 should have been, plus the predictor lever (R6-C2) for M3.
 
 ---
