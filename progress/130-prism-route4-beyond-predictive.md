@@ -5,7 +5,16 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X6c (L3 learned hyperprior reserve) IMPLEMENTED + MEASURED on REAL Kodak-24.
+- **Current step:** ROUTE 6 BLUEPRINTED (2026-08-29, the Architect). Two remaining X-family levers
+        spec'd into a Builder-ready plan: R6-A (correct learned context model, target M2 <=3.166)
+        and R6-B (two-pass transmitted-histogram backbone, target M3 <=2.885). Blueprint at
+        `ideas/2026-08-29-prism-route6-learned-histogram-fusion.md`. Handoff decision
+        `{"action":"build"}` (Builder triggered via `/oc build this`). Awaiting Builder to open
+        R6-A0 (training-harness fix) on this branch.
+- **Next steps:** Builder: R6-A0 - extend `LCFeat` to 15 features (F7 sibling-orientation mag, F8
+        bitplane-lag), single-source `make_lcfeat`, deepen MLP to 15->64->32->1, fix `train-learned`
+        to collect over the FULL `subs` vector with K=64 and a held-out rate gate; then R6-A1 full
+        Kodak-24 dual-unit M2 gate.
         X6c adds a per-subband probability-calibration hyperprior: a quantised factor code (8-entry
         codebook around 1.0) transmitted in the wavelet header multiplies the LearnedModel's
         predicted P(0) per subband (invariant I29 preserved: no full model sent, only a scalar
@@ -246,6 +255,29 @@ Spec: `prism/docs/research-route6-learned-histogram-fusion.md`. Cascade: R6-A FA
 - [ ] X7: if both clear -> format-stable v3 PR `Refs #130`; else open reserve / M2-PASS/M3-PENDING ledger.
 
 ---
+
+### R6: Route 6 - Learned Context Model + Transmitted-Histogram Fusion (architect blueprint 2026-08-29)
+- [x] Architect blueprint: `ideas/2026-08-29-prism-route6-learned-histogram-fusion.md` (R6-A + R6-B)
+- [ ] R6-A0: extend `LCFeat` to 15 fields (F7 sib_mag, F8 pplag); single-source `make_lcfeat(15)`
+- [ ] R6-A0: `learned_norm` width 15; trainer inline `norm` deleted in favour of shared `learned_norm`
+- [ ] R6-A0: deepen MLP to 15->64->32->1 (baked `LW1/Lb1/LW2/Lb2/LW3/Lb3`); `K_PSEUDO` frozen 64 in
+        `learned_ctx.h` + `staticmodel.cpp` + `train-learned --pseudo 64`
+- [ ] R6-A0: fix `train-learned` to call `collect_samples(subs, ...)` over FULL `subs` (not `one{s}`);
+        >=40 epochs, input dropout, held-out rate gate (kodim02/07/17/21) BEFORE full run
+- [ ] R6-A0: VB rails `VB-R6-FEATURE-UNITY` + `VB-R6-TRAIN-WALK` green; CSV `2026-08-29-r6a-train-kodak24.csv`
+- [ ] R6-A1: merge R6-A model onto X6b base; full Kodak-24 `bench_gate.sh` dual-unit M2 gate
+        (median <=3.166/sample AND <=9.498 summed); byte-exact 24/24, fuzz clean
+- [ ] R6-A2 (conditional): F7/F8 + deeper-net sweep if A1 short; require >= +0.5% over A1
+- [ ] R6-B0: new `r6_histo.h/.cpp`: `R6HistoCoder` 12-ary static rANS per subband + delta-coded header
+        (`r6_histo_encode/decode_header`, `build_histograms`); `WaveletHeader.r6_flag` + `sub_hist`;
+        two-pass `frame_wavelet_encode` when `r6_flag` set; overhead sub-gate <=0.01 bpp; byte-exact 24/24
+- [ ] R6-B0: VB rail `VB-R6-HISTO-ROUNDTRIP` green; CSV `2026-08-29-r6b-kodak24.csv`
+- [ ] R6-B1: compose R6-A + R6-B (blend `w_s`); full Kodak-24 `bench_gate.sh` dual-unit M3 gate
+        (median <=2.885/sample AND <=8.655 summed); byte-exact 24/24, fuzz clean
+- [ ] R6-C (conditional): if R6-B1 passes both units -> format-stable v3 PR `Refs #130`; freeze lifts
+- [ ] Cascade: R6-A1 FAIL -> escalate (JXL-Modular redesign); R6-A PASS + R6-B1 FAIL -> M2 PASS/M3-PENDING;
+        R6-B1 PASS -> v3
+- [ ] Frontend: R6 histogram inspector panel (read-only specimen)
 
 ## Notes
 - v1 production path untouched except the single `WAVELET_FLAG` bit (I26, X0 requirement).
