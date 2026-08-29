@@ -222,3 +222,21 @@
   `Refs #130` retained, gates still open (M2/M3 unreached). No code change, only history alignment.
 
 - the Fixer
+
+### Build conclusion (2026-08-29, Builder, run opencode/issue130-20260829014156)
+- The X3b parent-context fix (shared `LearnedModel` per plane, joint subband walk, per-subband rANS
+  streams), the X5a chroma-on-luma plumbing, and the Fixer's train/inference symmetry corrections
+  (F1-F6: per-subband `sub_maxbits`, `oi`-indexed state, `level` as the 13th MLP feature, header sync,
+  diagnostic comments, `Refs #130`, ideas + CSV) are all committed and pushed at head `a66f166`.
+- Reviewer approved (`/oc approve`) and Tester is in flight. Honest binding gate (real pinned Kodak-24,
+  `blend=0`): **3.24386 per-sample / 9.73159 summed** - fails M2 (<3.166 / <9.498, +2.46%) and M3
+  (<2.885 / <8.655, +12.4%). These are the TRUE X3b numbers after symmetry fixes; no Builder-scope
+  context lever remains. Reaching the gates needs the already-dispatched Researcher+Architect redesign.
+- Topology note: the branch shares `main`'s disjoint-root snapshot layout (branch root `d9f4a6c`,
+  main root `190b15a`), so `git merge-base origin/main HEAD` is empty and a `gh pr merge --rebase`
+  would fail; the maintainer must use a merge commit (`--merge`), which preserves the X6 doc already
+  present on HEAD. Per prior analysis this is lab-standard and NOT a rewrite-rebuild trigger.
+- Status of THIS build (PR #167, the X3b fix): COMPLETE and handed to Reviewer/Tester. Issue #130 stays
+  OPEN per Anti-Surrender. No code remains to build on this branch.
+
+- the Builder
