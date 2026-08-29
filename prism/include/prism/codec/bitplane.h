@@ -6,6 +6,37 @@
 
 namespace prism::codec {
 
+// R6-B (Route 6, lever B): transmitted-histogram backbone.
+//
+// The adaptive EMA's residual cost is cold-start: a fine context's first few
+// symbols are coded near p=0.5 before the EMA converges. With ~10^4 effective
+// contexts/subband most see few symbols, so warm-up waste dominates. R6-B is a
+// TWO-PASS design (JXL-Modular's actual mechanism): pass 1 counts, per
+// subband, a joint histogram over (symtype x bitplane-bucket) classes; pass 2
+// codes every symbol with a probability BLENDED from the transmitted static
+// class histogram (weight 1-alpha) and the per-context adaptive EMA (weight
+// alpha = n/(n+K)). For rare contexts alpha->0 so the static prior removes
+// cold-start entirely; for rich contexts the EMA still corrects. The histogram
+// is transmitted as a tiny per-subband header (overhead << 0.01 bpp, see spec
+// research-route6-learned-histogram-fusion.md section 3). No full model is
+// transmitted, so the NET stays payload + header (invariant I29); the rANS
+// stream round-trips byte-exact because both passes share the identical walk
+// and the static table is constant at encode and decode.
+static constexpr int R6B_CLASSES = 12; // 3 symtypes x 4 bitplane buckets
+
+// Per-subband, per-class symbol counts (cnt0/cnt1) for the transmitted
+// histogram. cnt[oi] holds R6B_CLASSES*2 uint32: [c0_0,c1_0, c0_1,c1_1, ...].
+struct StaticHist {
+    std::vector<std::vector<uint32_t>> cnt; // [subband][R6B_CLASSES*2]
+};
+
+struct StaticBitplaneResult {
+    std::vector<std::vector<uint8_t>> streams;
+    std::vector<uint8_t> sub_maxbits;
+    uint32_t total_symbols = 0;
+    StaticHist hist;
+};
+
 // EBCOT-style 3-pass bitplane coder over wavelet subbands, with the pinned
 // fixed parent-aware context (invariant I28). Zero tables are transmitted: the
 // context is a FIXED function of (orientation, parent significance, neighbour
@@ -70,6 +101,28 @@ struct BitplaneCoder {
     generate_symbols(const std::vector<Subband>& subbands, int maxbits_override = 0,
                      const std::vector<std::vector<int32_t>>* luma_mag = nullptr,
                      const std::vector<float>* sub_scale = nullptr);
+
+    // R6-B two-pass transmitted-histogram coder (Route 6 lever B). Pass 1 counts
+    // per-subband (symtype x bitplane-bucket) histograms; pass 2 blends the
+    // transmitted static class prior with the per-context adaptive EMA and emits
+    // one rANS stream per subband. `hist` in the result carries the transmitted
+    // counts (already aggregated, ready to serialize). Symmetric at decode time
+    // via decode_static(). `luma_mag` mirrors encode() (X5a cross-component).
+    StaticBitplaneResult encode_static(const std::vector<Subband>& subbands,
+                                       int maxbits_override = 0,
+                                       const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
+
+    // Decode per-subband streams produced by encode_static, using the transmitted
+    // per-subband StaticHist as the static backbone. `layout`, `sub_maxbits`,
+    // `total_symbols` mirror decode(); `hist` is the transmitted histogram.
+    // The blend (static x (1-alpha) + adaptive EMA x alpha) evolves identically
+    // to encode_static, so the rANS stream round-trips byte-exact.
+    std::vector<Subband> decode_static(const std::vector<std::vector<uint8_t>>& streams,
+                                       const std::vector<Subband>& layout,
+                                       const std::vector<uint8_t>& sub_maxbits,
+                                       uint32_t total_symbols,
+                                       const StaticHist& hist,
+                                       const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
 
     // Training support (X3a): walk the exact EBCOT coding order and emit one
     // LSample per symbol with its learned features, true bit, and coarse context.
