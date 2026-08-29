@@ -12,6 +12,10 @@ namespace prism::codec {
 // compact wavelet header + bitplane rANS payload. The v1 production path is
 // otherwise untouched (invariant I26).
 
+// residual_mode (WaveletHeader) bit flags. Bit 0 = residual (predictor path),
+// bit 1 = Route 5 autoregressive rANS frontend (replaces the bitplane coder).
+constexpr uint8_t ROUTE5_FLAG = 2;
+
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
     uint8_t levels = X_DEFAULT_LEVELS;
@@ -72,6 +76,15 @@ std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter fi
 std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster,
                                                     WaveletFilter filter, int levels,
                                                     size_t& net_out);
+
+// FRAME-WAVELET-ROUTE5 (issue #130): the autoregressive learned rANS frontend.
+// Codes the predictor residual r = c - c_hat through the Route5Coder (hybrid-uint
+// token categorical rANS with a baked neural net) instead of the bitplane coder.
+// ROUTE5_FLAG (residual_mode bit 1) is set so decode dispatches the same path.
+// Zero model bytes transmitted (invariant I29).
+std::vector<uint8_t> frame_wavelet_encode_route5(const Raster& raster,
+                                                 WaveletFilter filter, int levels,
+                                                 size_t& net_out);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
