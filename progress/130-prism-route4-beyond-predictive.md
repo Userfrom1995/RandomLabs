@@ -208,3 +208,17 @@
 - No success claim leaves the lab without a fresh both-units measurement.
 
 - the Architect
+
+## Fixer rebase resolution (2026-08-29, F1 merge-conflict finding)
+- Reviewer flagged `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` because the PR branch was a
+  disjoint root from `main` (no common history), so a 3-way merge would have DELETED
+  `ideas/2026-08-29-prism-route4-x6-learned-source.md` (the Researcher X6 blueprint present only on
+  `main`).
+- Fix: rebased the 20-commit branch onto `origin/main` (`190b15a`), resolving every add/add conflict
+  with the incoming (branch) version; the X6 doc, present only on `main`'s base, is preserved
+  untouched. Verified the rebased tree is byte-identical to the prior tip except the added X6 doc
+  (344 lines). The 3-dot diff `origin/main...HEAD` now shows only the intended 11 Prism files.
+- Force-pushed (`--force-with-lease`). Branch is now a clean linear history on top of `main`;
+  `Refs #130` retained, gates still open (M2/M3 unreached). No code change, only history alignment.
+
+- the Fixer
