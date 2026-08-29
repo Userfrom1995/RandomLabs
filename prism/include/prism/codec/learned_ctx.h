@@ -153,7 +153,12 @@ struct LearnedModel {
         id = id * FB_OWN + (uint32_t)(f.ownmag % FB_OWN);
         id = id * FB_PPOS + (uint32_t)(f.ppos % FB_PPOS);
         id = id * FB_LEVEL + (uint32_t)(f.level % FB_LEVEL);
-        return id;
+        // The mixed-radix product above can reach FINE_POOL + (FB_LEVEL - 1) at the
+        // extreme feature combination (every field at its max), so reduce modulo
+        // FINE_POOL. Both encoder and decoder compute the identical id, so this
+        // stays a perfect, symmetric context map while never indexing out of the
+        // ema_/count_ pools (which are sized FINE_POOL).
+        return id % FINE_POOL;
     }
 
     // Probability (P(0)*M) for the next symbol given its learned features. Does
@@ -174,6 +179,23 @@ struct LearnedModel {
         float w_ema = alpha * (1.0f - learned_blend());
         float w_mlp = 1.0f - w_ema;
         int blended = (int)(w_ema * (float)ema + w_mlp * (float)mlp);
+        if (blended < 1) blended = 1;
+        if (blended > (int)M - 1) blended = (int)M - 1;
+        return (uint16_t)blended;
+    }
+
+    // Like predict(), but the (expensive) MLP prior is supplied by the caller so
+    // it can be computed ONCE per symbol instead of once per bit. The online EMA
+    // is still evaluated per bit for causality, so the adaptive behaviour is
+    // preserved exactly.
+    uint16_t predict_with(const LCFeat& f, uint16_t mlp_p0) const {
+        uint32_t c = fine_ctx(f);
+        uint16_t ema = ema_[c];
+        uint32_t n = count_[c];
+        float alpha = (float)n / (float)(n + learned_pseudo());
+        float w_ema = alpha * (1.0f - learned_blend());
+        float w_mlp = 1.0f - w_ema;
+        int blended = (int)(w_ema * (float)ema + w_mlp * (float)mlp_p0);
         if (blended < 1) blended = 1;
         if (blended > (int)M - 1) blended = (int)M - 1;
         return (uint16_t)blended;
