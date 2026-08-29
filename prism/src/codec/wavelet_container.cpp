@@ -49,6 +49,7 @@ uint8_t filter_to_id(WaveletFilter f) {
         case WaveletFilter::Haar: return X_FILTER_ID_HAAR;
         case WaveletFilter::LeGall53: return X_FILTER_ID_53;
         case WaveletFilter::Reversible97: return X_FILTER_ID_97;
+        case WaveletFilter::Learned: return X_FILTER_ID_LEARNED;
     }
     return X_FILTER_ID_53;
 }
@@ -56,6 +57,7 @@ WaveletFilter id_to_filter(uint8_t id) {
     switch (id) {
         case X_FILTER_ID_HAAR: return WaveletFilter::Haar;
         case X_FILTER_ID_97: return WaveletFilter::Reversible97;
+        case X_FILTER_ID_LEARNED: return WaveletFilter::Learned;
         default: return WaveletFilter::LeGall53;
     }
 }
