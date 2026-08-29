@@ -102,6 +102,16 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
     // X6c hyperprior: per-subband probability-calibration code.
     for (uint16_t i = 0; i < nsub; ++i)
         out.push_back(i < hdr.sub_scale_code.size() ? hdr.sub_scale_code[i] : 0);
+    // R6-B transmitted per-subband histogram (only when present).
+    if (!hdr.sub_hist.empty()) {
+        for (uint16_t i = 0; i < nsub; ++i) {
+            size_t base = (size_t)i * R6B_CLASSES * 2;
+            for (int k = 0; k < R6B_CLASSES * 2; ++k) {
+                uint16_t v = (base + k < hdr.sub_hist.size()) ? hdr.sub_hist[base + k] : 0;
+                write_u16_le_vec(out, v);
+            }
+        }
+    }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
     // CRC32 over everything above.
@@ -154,6 +164,17 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
     // X6c hyperprior: per-subband probability-calibration code.
     hdr.sub_scale_code.resize(nsub);
     for (uint16_t i = 0; i < nsub; ++i) hdr.sub_scale_code[i] = bytes[pos++];
+    // R6-B transmitted per-subband histogram (only when the R6B flag is set).
+    if (hdr.residual_mode & R6B_FLAG) {
+        hdr.sub_hist.resize((size_t)nsub * R6B_CLASSES * 2, 0);
+        for (uint16_t i = 0; i < nsub; ++i) {
+            size_t base = (size_t)i * R6B_CLASSES * 2;
+            for (int k = 0; k < R6B_CLASSES * 2; ++k) {
+                hdr.sub_hist[base + k] = read_u16_le_bytes(bytes.data() + pos);
+                pos += 2;
+            }
+        }
+    }
     // Payload until the trailing crc32 (4 bytes).
     if (bytes.size() < pos + 4) throw std::runtime_error("wavelet container: truncated payload");
     size_t payload_len = bytes.size() - pos - 4;
@@ -457,6 +478,100 @@ std::vector<uint8_t> frame_wavelet_encode_route5(const Raster& raster, WaveletFi
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster, WaveletFilter filter,
+                                              int levels, size_t& net_out) {
+    // FRAME-WAVELET-R6B (issue #130, Route 6 lever B): the two-pass
+    // transmitted-histogram backbone. Codes the learned-coefficient residual
+    // r = c - c_hat (X6a L1) through BitplaneCoder::encode_static instead of the
+    // adaptive-only bitplane coder. The per-subband (symtype x bitplane-bucket)
+    // histograms are transmitted in the header (R6B_FLAG set) so the decoder can
+    // rebuild the static backbone; the adaptive EMA still refines rich contexts.
+    // No full model is transmitted (invariant I29).
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    WaveletParams p{filter, levels};
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code; // X6c slot unused by R6B (neutral)
+    std::vector<uint16_t> all_hist;      // flattened R6B per-subband histogram
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+        auto subs = lift.forward(plane, t.w, t.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
+        }
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c = s.coeffs[(size_t)y * s.w + x];
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                }
+        }
+
+        size_t plane_start = payload.size();
+        auto res = coder.encode_static(R);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(0);
+            for (int k = 0; k < R6B_CLASSES * 2; ++k)
+                all_hist.push_back((uint16_t)res.hist.cnt[oi][k]);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = (uint8_t)(1u | R6B_FLAG); // residual + R6B
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+    hdr.sub_hist = std::move(all_hist);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -548,10 +663,24 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
             for (uint16_t k = 0; k < spp; ++k)
                 plane_scale[k] = pred_scale_from_code(hdr.sub_scale_code[ps + k]);
         }
-        auto plane_subs = (hdr.residual_mode & ROUTE5_FLAG)
-            ? route5.decode(plane_streams, plane_layout)
-            : coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag,
-                           plane_scale.empty() ? nullptr : &plane_scale);
+        auto plane_subs = [&]() -> std::vector<Subband> {
+            if (hdr.residual_mode & ROUTE5_FLAG)
+                return route5.decode(plane_streams, plane_layout);
+            if (hdr.residual_mode & R6B_FLAG) {
+                StaticHist hist;
+                hist.cnt.assign(spp, std::vector<uint32_t>(R6B_CLASSES * 2, 0));
+                for (uint16_t k = 0; k < spp; ++k) {
+                    size_t base = (size_t)(sub_idx - spp + k) * R6B_CLASSES * 2;
+                    for (int c = 0; c < R6B_CLASSES * 2; ++c)
+                        hist.cnt[k][c] = (base + c < hdr.sub_hist.size())
+                                            ? hdr.sub_hist[base + c] : 0;
+                }
+                return coder.decode_static(plane_streams, plane_layout, plane_maxbits,
+                                           0, hist);
+            }
+            return coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag,
+                                plane_scale.empty() ? nullptr : &plane_scale);
+        }();
         decoded_all[pi] = plane_subs;
         // X6a (L1) reconstruction post-pass: the decoded subbands are residuals
         // r; rebuild c = c_hat + r using the baked predictor (reads only already
