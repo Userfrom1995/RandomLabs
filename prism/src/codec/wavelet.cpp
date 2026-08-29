@@ -260,7 +260,10 @@ std::vector<Subband> WaveletLift::forward(const std::vector<int32_t>& plane,
     uint32_t cw = w, ch = h;
     for (int step = 1; step <= levels; ++step) {
         int lvl = levels - step + 1;
-        lift_rows_cols(cur, cw, ch, p.filter);
+        WaveletFilter f = p.filter;
+        if (!p.per_level_filter.empty() && lvl < (int)p.per_level_filter.size())
+            f = p.per_level_filter[lvl];
+        lift_rows_cols(cur, cw, ch, f);
         uint32_t lw = (cw + 1) / 2, lh = (ch + 1) / 2;
         uint32_t hw = cw - lw, hh = ch - lh;
         Subband hl, lhsub, hhsub, ll;
@@ -327,7 +330,10 @@ std::vector<int32_t> WaveletLift::inverse(const std::vector<Subband>& subbands,
                     buf[(size_t)(2 * ry + 1) * fw + (2 * rx + 1)] = hhsub.coeffs[(size_t)ry * hw + rx];
             }
         }
-        unlift_rows_cols(buf, fw, fh, p.filter);
+        WaveletFilter invf = p.filter;
+        if (!p.per_level_filter.empty() && L < (int)p.per_level_filter.size())
+            invf = p.per_level_filter[L];
+        unlift_rows_cols(buf, fw, fh, invf);
         cur = std::move(buf);
         cw = fw; ch = fh;
     }

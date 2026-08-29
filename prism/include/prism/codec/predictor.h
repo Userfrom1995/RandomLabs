@@ -94,4 +94,30 @@ private:
     PredMLP mlp_;
 };
 
+// R7-A in-subband value predictor (JXL predictor transform, lifted to each
+// wavelet subband). Predicts a coefficient's VALUE from the four already-visited
+// SAME-subband raster neighbours (W, N, NW, NE), so it can be computed from
+// reconstructed state at both encode and decode with ZERO transmitted side-info
+// (invariant I29) and the round trip stays byte-exact. MED = LOCO-I median edge
+// detector; GRADIENT = JXL-style gradient predictor. Borders mirror (missing
+// neighbours read as 0); identical at encode and decode.
+struct InSubbandPredictor {
+    enum class Kind : uint8_t { MED = 0, GRADIENT = 1 };
+
+    // Predict coefficient (x,y) from raster-earlier same-subband neighbours.
+    static int32_t predict(const std::vector<int32_t>& coeffs, int w, int h,
+                           int x, int y, Kind k);
+
+    // Residual over the whole subband: R[(x,y)] = c[(x,y)] - predict(...).
+    static void residual(const std::vector<int32_t>& c, int w, int h,
+                         Kind k, std::vector<int32_t>& out);
+
+    // Inverse post-pass: c[(x,y)] = predict(reconstructed c neighbours) + R[(x,y)].
+    static void reconstruct(const std::vector<int32_t>& r, int w, int h,
+                            Kind k, std::vector<int32_t>& out);
+
+    // VB rail: reversible_for_all_inputs over the picked Kind.
+    static bool reversible_for_all_inputs(Kind k);
+};
+
 } // namespace prism::codec

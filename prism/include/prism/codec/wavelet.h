@@ -31,6 +31,10 @@ constexpr int X_DEFAULT_LEVELS = 5;
 struct WaveletParams {
     WaveletFilter filter = X_DEFAULT_FILTER;
     int levels = X_DEFAULT_LEVELS;
+    // R7-B: per decomposition level filter selection (index by level 1..levels).
+    // Empty means "use a single `filter` for every level" (legacy behaviour).
+    // When non-empty it must hold `levels` entries (index 0 == LL, unused).
+    std::vector<WaveletFilter> per_level_filter;
 };
 
 // A single subband of integer coefficients.
