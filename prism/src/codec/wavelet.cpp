@@ -14,6 +14,99 @@
 
 namespace prism::codec {
 
+// Route 8 learned nonlinear lifting global state.
+static LearnedLift g_learned_lift;          // baked offsets (default all zero = LeGall53)
+static LearnedLiftStats* g_learn_collect = nullptr; // non-null => accumulate residuals
+
+const LearnedLift& learned_lift() { return g_learned_lift; }
+void set_learned_lift(const LearnedLift& ll) { g_learned_lift = ll; }
+void learned_lift_collect_begin(LearnedLiftStats* sink) { g_learn_collect = sink; }
+void learned_lift_collect_end() { g_learn_collect = nullptr; }
+
+// Forward declaration (defined below) so the learned lifting can use it above.
+inline int32_t div2(int32_t a);
+
+// Quantise a signed local gradient into a predict/update context index (0..kCtx-1).
+// Symmetric (sign-separated) buckets; identical on encode and decode.
+static inline int learned_ctx(int32_t grad, int nctx) {
+    int32_t av = (grad < 0) ? -grad : grad;
+    int q;
+    if (av < 16) q = 0;
+    else if (av < 64) q = 1;
+    else if (av < 256) q = 2;
+    else if (av < 1024) q = 3;
+    else if (av < 4096) q = 4;
+    else q = 5;
+    int idx = (grad >= 0) ? q : (nctx / 2 + q);
+    if (idx >= nctx) idx = nctx - 1;
+    if (idx < 0) idx = 0;
+    return idx;
+}
+
+void forward_learned(const std::vector<int32_t>& even, const std::vector<int32_t>& odd,
+                     std::vector<int32_t>& out_even, std::vector<int32_t>& out_odd) {
+    size_t en = even.size(), on = odd.size();
+    out_even.resize(en);
+    out_odd.resize(on);
+    const LearnedLift& L = g_learned_lift;
+    // Predict on odd (using even), then update on even (using fresh odd).
+    for (size_t k = 0; k < on; ++k) {
+        int32_t lv = even[k];
+        int32_t rv = (k + 1 < en) ? even[k + 1] : even[k];
+        int32_t base = div2(lv + rv);
+        int c = learned_ctx((k + 1 < en ? even[k + 1] : even[k]) - (k > 0 ? even[k - 1] : even[k]),
+                            LearnedLift::kCtx);
+        int32_t pred = base + L.pred_lut[c];
+        out_odd[k] = odd[k] - pred;
+        if (g_learn_collect) {
+            g_learn_collect->pred_err[c] += (int64_t)(odd[k] - base);
+            g_learn_collect->pred_cnt[c] += 1;
+        }
+    }
+    for (size_t k = 0; k < en; ++k) {
+        int32_t lo = (k > 0) ? (on ? out_odd[k - 1] : 0) : (on ? out_odd[0] : 0);
+        int32_t ro = (k < on) ? out_odd[k] : (on ? out_odd[on - 1] : 0);
+        int32_t base = div2(lo + ro);
+        int c = learned_ctx((k < on ? out_odd[k] : (on ? out_odd[on - 1] : 0)) -
+                            (k > 0 ? (on ? out_odd[k - 1] : 0) : (on ? out_odd[0] : 0)),
+                            LearnedLift::kUpdCtx);
+        int32_t upd = base + L.upd_lut[c];
+        out_even[k] = even[k] + upd;
+        if (g_learn_collect) {
+            g_learn_collect->upd_err[c] += (int64_t)(even[k] - base);
+            g_learn_collect->upd_cnt[c] += 1;
+        }
+    }
+}
+
+void inverse_learned(const std::vector<int32_t>& even, const std::vector<int32_t>& odd,
+                     std::vector<int32_t>& out) {
+    size_t en = even.size(), on = odd.size();
+    out.resize(en + on);
+    std::vector<int32_t> e = even;
+    // Undo update on even (uses odd, identical to forward's fresh odd).
+    for (size_t k = 0; k < en; ++k) {
+        int32_t lo = (k > 0) ? (on ? odd[k - 1] : 0) : (on ? odd[0] : 0);
+        int32_t ro = (k < on) ? odd[k] : (on ? odd[on - 1] : 0);
+        int32_t base = div2(lo + ro);
+        int c = learned_ctx((k < on ? odd[k] : (on ? odd[on - 1] : 0)) -
+                            (k > 0 ? (on ? odd[k - 1] : 0) : (on ? odd[0] : 0)),
+                            LearnedLift::kUpdCtx);
+        e[k] = even[k] - (base + g_learned_lift.upd_lut[c]);
+    }
+    // Undo predict on odd (uses recovered e).
+    for (size_t k = 0; k < on; ++k) {
+        int32_t lv = e[k];
+        int32_t rv = (k + 1 < en) ? e[k + 1] : e[k];
+        int32_t base = div2(lv + rv);
+        int c = learned_ctx((k + 1 < en ? e[k + 1] : e[k]) - (k > 0 ? e[k - 1] : e[k]),
+                            LearnedLift::kCtx);
+        out[2 * k + 1] = odd[k] + (base + g_learned_lift.pred_lut[c]);
+        out[2 * k] = e[k];
+    }
+    if (en > on) out[2 * on] = e[on];
+}
+
 // Symmetric (mirror) neighbour helpers for 1D split into even/odd arrays.
 
 // Rounding multiply for 9/7 fixed-point coefficients (scale 2^16).
@@ -190,6 +283,7 @@ void lift1d(const std::vector<int32_t>& src, std::vector<int32_t>& out,
         case WaveletFilter::Haar: forward_haar(even, odd, oe, oo); break;
         case WaveletFilter::LeGall53: forward_53(even, odd, oe, oo); break;
         case WaveletFilter::Reversible97: forward_97(even, odd, oe, oo); break;
+        case WaveletFilter::Learned: forward_learned(even, odd, oe, oo); break;
     }
     // Merge: even slots hold low outputs, odd slots hold high outputs.
     out.resize(oe.size() + oo.size());
@@ -205,6 +299,7 @@ void unlift1d(const std::vector<int32_t>& merged, std::vector<int32_t>& out,
         case WaveletFilter::Haar: inverse_haar(even, odd, out); return;
         case WaveletFilter::LeGall53: inverse_53(even, odd, out); return;
         case WaveletFilter::Reversible97: inverse_97(even, odd, out); return;
+        case WaveletFilter::Learned: inverse_learned(even, odd, out); return;
     }
 }
 
