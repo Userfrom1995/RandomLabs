@@ -173,20 +173,40 @@ std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter fi
     std::vector<uint8_t> all_orient, all_level;
     std::vector<uint16_t> all_w, all_h;
     for (size_t pi = 0; pi < per_plane_subs.size(); ++pi) {
-        size_t plane_start = payload.size();
-        for (const auto& s : per_plane_subs[pi]) {
-            std::vector<Subband> one{s};
-            auto res = coder.encode(one);
-            global_maxbits = std::max(global_maxbits, res.maxbits);
-            all_sub_maxbits.push_back(res.maxbits);
-            all_sub_bytes.push_back((uint32_t)res.stream.size());
-            all_orient.push_back((uint8_t)s.orient);
-            all_level.push_back((uint8_t)s.level);
-            all_w.push_back((uint16_t)s.w);
-            all_h.push_back((uint16_t)s.h);
-            payload.insert(payload.end(), res.stream.begin(), res.stream.end());
+        auto& subs = per_plane_subs[pi];
+        // Encode the whole plane's subbands TOGETHER (one rANS context walk over
+        // the coding order) so child subbands can condition on already-coded
+        // PARENT subband magnitudes. Each subband still keeps its OWN stream for
+        // sliceable decoding (X3b core fix).
+        // X5a: chroma (Co/Cg) subbands are conditioned on the co-located LUMA
+        // (Y) subband magnitude via the learned context (no residual subtraction:
+        // chroma is already far smaller than luma after YCoCg-R, so subtractive
+        // prediction would inflate the residual). Luma itself gets no luma ref.
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+        std::vector<std::vector<int32_t>> lmag_buf;
+        if (pi > 0) {
+            lmag_buf.resize(subs.size());
+            const auto& lum_subs = per_plane_subs[0];
+            for (size_t oi = 0; oi < subs.size(); ++oi) {
+                lmag_buf[oi].resize(subs[oi].coeffs.size());
+                const auto& lum = lum_subs[oi].coeffs;
+                for (size_t ci = 0; ci < subs[oi].coeffs.size(); ++ci)
+                    lmag_buf[oi][ci] = std::abs(lum[ci]);
+            }
+            luma_mag = &lmag_buf;
         }
-        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+        auto res = coder.encode(subs, 0, luma_mag);
+        for (size_t oi = 0; oi < subs.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)subs[oi].orient);
+            all_level.push_back((uint8_t)subs[oi].level);
+            all_w.push_back((uint16_t)subs[oi].w);
+            all_h.push_back((uint16_t)subs[oi].h);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back(res.total_symbols);
     }
 
     WaveletHeader hdr;
@@ -261,17 +281,22 @@ std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster, Wavelet
         }
 
         size_t plane_start = payload.size();
-        for (const auto& s : R) {
-            std::vector<Subband> one{s};
-            auto res = coder.encode(one);
-            global_maxbits = std::max(global_maxbits, res.maxbits);
-            all_sub_maxbits.push_back(res.maxbits);
-            all_sub_bytes.push_back((uint32_t)res.stream.size());
-            all_orient.push_back((uint8_t)s.orient);
-            all_level.push_back((uint8_t)s.level);
-            all_w.push_back((uint16_t)s.w);
-            all_h.push_back((uint16_t)s.h);
-            payload.insert(payload.end(), res.stream.begin(), res.stream.end());
+        // Encode the whole plane's residual subbands TOGETHER with one shared
+        // LearnedModel per plane, so the EMA branch evolves identically to the
+        // joint decode path (frame_wavelet_decode decodes the plane in one shared
+        // model too). Per-subband isolated encode would use a fresh model per
+        // subband and break byte-exact round-trip. No luma reference (X6a predates
+        // X5a), matching the decode-side luma_mag guard for residual frames.
+        auto res = coder.encode(R);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
         }
         plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
     }
@@ -331,28 +356,54 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
 
     size_t off = 0;
     uint32_t sub_idx = 0; // global subband index (forward() order)
+    std::vector<std::vector<Subband>> decoded_all(nplanes); // reconstructed subbands per plane
     for (uint8_t pi = 0; pi < nplanes; ++pi) {
-        uint32_t plane_n = hdr.plane_symbols[pi];
-        std::vector<Subband> plane_subs;
-        plane_subs.reserve(spp);
+        std::vector<Subband> plane_layout;
+        std::vector<std::vector<uint8_t>> plane_streams;
+        std::vector<uint8_t> plane_maxbits;
+        plane_layout.reserve(spp);
+        plane_streams.reserve(spp);
+        plane_maxbits.reserve(spp);
         for (uint16_t k = 0; k < spp; ++k) {
             uint32_t n = hdr.sub_bytes[sub_idx];
             std::vector<uint8_t> slice(frame.payload.begin() + off,
-                                       frame.payload.begin() + off + n);
+                                        frame.payload.begin() + off + n);
             off += n;
-            // Single-subband layout (orient/level/w/h) with empty coeffs.
             Subband layout_one;
             layout_one.orient = (Subband::Orient)hdr.orient[sub_idx];
             layout_one.level = hdr.level[sub_idx];
             layout_one.w = hdr.w[sub_idx];
             layout_one.h = hdr.h[sub_idx];
             layout_one.coeffs.assign((size_t)layout_one.w * layout_one.h, 0);
-            std::vector<Subband> one_layout{layout_one};
-            std::vector<uint8_t> one_maxbits{hdr.sub_maxbits[sub_idx]};
-            auto decoded = coder.decode(slice, one_layout, one_maxbits, 0);
-            plane_subs.push_back(decoded[0]);
+            plane_layout.push_back(layout_one);
+            plane_streams.push_back(std::move(slice));
+            plane_maxbits.push_back(hdr.sub_maxbits[sub_idx]);
             ++sub_idx;
         }
+        // Decode the whole plane together so PARENT subband magnitudes are
+        // available as context (X3b fix). plane_layout order == forward() order.
+        // X5a: pass the reconstructed LUMA subbands as the cross-component
+        // reference for chroma (Co/Cg) planes so the MLP chroma prior matches the
+        // encoder exactly (decoder sees the same already-decoded luma).
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+        std::vector<std::vector<int32_t>> lmag_buf;
+        // X5a cross-component luma reference is only used by frame_wavelet_encode()
+        // (non-residual). The residual pre-pass (X6a) encodes each subband without a
+        // luma reference, so to keep encode/decode context symmetry we disable it
+        // here whenever the frame is a residual frame (otherwise roundtrip breaks).
+        if (!(hdr.residual_mode & 1u) && pi > 0 && !decoded_all.empty()) {
+            const auto& lum_subs = decoded_all[0];
+            lmag_buf.resize(plane_layout.size());
+            for (size_t oi = 0; oi < plane_layout.size(); ++oi) {
+                lmag_buf[oi].resize((size_t)plane_layout[oi].w * plane_layout[oi].h);
+                const auto& lum = lum_subs[oi].coeffs;
+                for (size_t ci = 0; ci < lmag_buf[oi].size(); ++ci)
+                    lmag_buf[oi][ci] = std::abs(lum[ci]);
+            }
+            luma_mag = &lmag_buf;
+        }
+        auto plane_subs = coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag);
+        decoded_all[pi] = plane_subs;
         // X6a (L1) reconstruction post-pass: the decoded subbands are residuals
         // r; rebuild c = c_hat + r using the baked predictor (reads only already
         // reconstructed coefficients, so the result is exactly the encoded c).
@@ -410,6 +461,13 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
 
 size_t frame_wavelet_payload(const Raster& raster, WaveletFilter filter, int levels,
                              uint8_t& maxbits_out) {
+    // Diagnostic only: encodes each subband in ISOLATION (one subband per call),
+    // so the parent-map / level / cross-component features are always zero here.
+    // This is NOT the production packing - frame_wavelet_encode() instead joint-
+    // walks all subbands of a plane with a single shared LearnedModel and emits
+    // one rANS stream per subband (sliceable). The two are kept side by side by
+    // bench-x purely to report the decorrelation delta (deco_pct); the net bytes
+    // it gates on come from frame_wavelet_encode(), not from this helper.
     ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
                                                       : ColorTransform::None;
     Raster t = apply_color(raster, ct);
@@ -424,8 +482,8 @@ size_t frame_wavelet_payload(const Raster& raster, WaveletFilter filter, int lev
         for (const auto& s : subs) {
             std::vector<Subband> one{s};
             auto res = coder.encode(one);
-            maxbits = std::max(maxbits, res.maxbits);
-            payload += res.stream.size();
+            maxbits = std::max(maxbits, res.sub_maxbits[0]);
+            payload += res.streams[0].size();
         }
     }
     maxbits_out = maxbits;
@@ -463,7 +521,7 @@ size_t frame_spatial_payload(const Raster& raster) {
         sb.coeffs = std::move(res);
         std::vector<Subband> one{sb};
         auto r = coder.encode(one);
-        payload += r.stream.size();
+        payload += r.streams[0].size();
     }
     return payload;
 }
