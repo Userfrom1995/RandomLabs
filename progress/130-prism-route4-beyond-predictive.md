@@ -1,6 +1,6 @@
 # Progress: Route 4 - Beyond-Predictive Paradigm (issue #130)
 
-- **Branch:** `opencode/issue130-20260828063310`
+- **Branch:** `opencode/issue130-20260829085909`
 - **Research:** `prism/docs/research-route4-beyond-predictive.md` (Dr. Mob)
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
@@ -35,6 +35,18 @@
         replacing the fixed LearnedModel+bitplane coder), or (c) accept 3.2175 as the Prism best
         and close #130 as "best-effort, gates not met". The Builder does NOT halt a gated target
         (Anti-Surrender); escalation is the only honest remaining path.
+- **Research handoff (2026-08-29, Dr. Mob) - ALTERNATE hyperprior path:** a separate, more
+        sophisticated learned-hyperprior SPEC is delivered at
+        `prism/docs/research-route4-x6c-hyperprior.md` (L3 hyperprior side-stream: HyperAna tile->
+        latent z, HyperSyn z -> per-(orient,symtype) (s,b) logit modulation of the X3b prior,
+        transmitted in a SEPARATE rANS stream, NET-accounted, <= 0.02 bpp). It pre-registers the
+        M3-complete cascade X6d (L4 deeper/autoregressive predictor, push variance explained past
+        0.85) + X5a (activate the already-wired `lc_mag`/`lc_sig` chroma-on-luma context in
+        `learned_ctx.h:47`). Realistic composed landing 2.85-2.95 per-sample (M3 at risk but in
+        reach, matching L3C literature). This spec describes a dual-rANS-stream design DISTINCT from
+        the calibration-hyperprior X6c that was measured (and found to give no gain) on
+        `opencode/issue130-20260829085909`. It is routed to the Architect for a blueprint per the
+        researcher handoff `{"action":"architect"}`.
 
 ---
 
