@@ -35,6 +35,54 @@
 - [ ] R6-C2 (if needed): stack X6c `sub_scale` / R6-A deeper MLP for +0.5% over C1.
 - [ ] R6-C3: summed <= 8.655 AND per-sample <= 2.885 (M3); byte-exact 24/24, fuzz clean -> format-stable v3 PR `Refs #130`.
 
+## C5 result: R6-C0 FAIL (binding gate, escalate per addendum-27 cascade)
+
+Tester stage (`prism bench-r6c --kodak`, `bench_gate.sh` dual-unit) measured on held-out
+Kodak-24, R6C_FLAG=8, r6c_K()=648, header 1.3 KB (< 0.02 bpp OK), round-trip 24/24 byte-exact:
+
+```
+w=0.0 (pure learned)   3.44315 bpp/sample   <- best achievable, still > 3.2442 gate
+w=0.6 (default)        3.80642 bpp/sample   (+10.6% worse than w=0)
+w=1.0 (pure static)    9.71862 bpp/sample   catastrophic
+R6-C0 held-out median  3.38669  vs X6b gate 3.2442  -> FAIL
+```
+
+addendum-27:66 cascade: "R6-C0 FAIL (median >= 3.2442, cannot beat X6b): the
+fine-clustering hypothesis is false (coarsening-into-K still loses to the EMA even at
+fine granularity). ESCALATE to Owner/Maintainer. Do NOT re-tune R6C_K/R6C_W to force a pass."
+
+### Root cause (Fixer analysis)
+1. STRUCTURAL (the lever cannot help): `r6c_cluster_id(f)` is a COARSENING of the full
+   `LCFeat` `f` (route6c_tree.h:36-45 keeps only symtype/orient/parent_sig/fc/dg/level and
+   DROPS nmag/pmag/ownmag/ppos). The adaptive `LearnedModel` keys on the FULL ~1.84M-context
+   `f`, so the transmitted per-cluster P(0) is COARSER than the EMA's context key. The
+   blueprint's premise ("cluster partition at least as fine as the EMA's context key",
+   route6c_tree.h:12-17) is therefore NOT realized by R6-C0. Blending a coarser static model
+   `W*sp0[C]+(1-W)*learned.predict(f)` into a finer adaptive EMA can only bias the many
+   well-conditioned frequent contexts; that is exactly R6-B's +6% failure class. Empty-cluster
+   M/2 fallback does not save it because the HURT comes from populated clusters whose cluster
+   average diverges from the true per-context P(0).
+2. MEASUREMENT CONTAMINANT (separate, not a K/W retune): the R6-C0 residual path drops the
+   X5a cross-component luma reference that the X6b baseline path keeps. `frame_wavelet_encode`
+   (wavelet_container.cpp:272) passes `luma_mag` to the coder; `frame_wavelet_encode_r6c`
+   (wavelet_container.cpp:667) passes `nullptr`, and `encode_static_r6c` passes `nullptr` to
+   `learned_features` at bitplane.cpp:1082/1088/1096. So R6-C0's w=0 floor (3.443) is NOT a
+   clean pure-learned floor: it also omits X5a luma conditioning that X6b (3.2175) includes,
+   and codes the residual r=c-c_hat rather than c. Even after restoring X5a, w=0 can at best
+   tie X6b (~3.2175); the transmitted backbone at any w>0 still regresses. Verdict unchanged:
+   the per-fine-context transmitted P(0) lever does not beat the adaptive EMA.
+
+### Action taken by Fixer
+- Removed the dead `frame_wavelet_encode_r6c(..., int kb, size_t&)` overload
+  (wavelet_container.h:128-137) referencing the removed `encode_static_cluster`; only the
+  `levels`-only overload (wavelet_container.h:139-148) remains. No behavioural change.
+- Did NOT re-tune R6C_K/R6C_W (frozen by addendum-27); did NOT change the blend mechanism
+  (would deviate from the frozen blueprint and still cannot pass the gate).
+- Escalating to Maintainer per addendum-27:66 cascade so the Owner/Maintainer decides the
+  next move (e.g. the full JXL-Modular redesign where the context tree also drives prediction,
+  or accept the honest floor). PR body keyword left as `Closes #130` -> must become `Refs #130`
+  (gates not met); flagged for Maintainer to edit.
+
 ## Implementation notes
 
 - The transmitted model is structurally incapable of being net-worse than the EMA: populated clusters carry the whole-image exact P(0) (better than cold-start EMA for rare contexts); empty clusters get neutral `M/2` so the blend degenerates to pure EMA. This is the exact property R6-B violated (blending a COARSER 12-class model in).
@@ -66,3 +114,19 @@
   corpus present) and is delegated to the Tester stage via `bench_gate.sh`.
 
 - the Builder
+
+## Fixer agent log (2026-08-29)
+
+- Tester gate FAIL (R6-C0 median 3.38669 vs X6b 3.2442; w=0 best 3.44315 > 3.2442; w=0.6
+  +10.6%, w=1.0 catastrophic). Per addendum-27:66 cascade R6-C0 FAIL -> ESCALATE, no K/W
+  retune. Root cause: (1) `r6c_cluster_id` coarsens `f`, so transmitted per-cluster P(0) is
+  COARSER than the EMA context key -> blending only biases frequent contexts (R6-B class
+  failure); the blueprint's "finer-or-equal" premise is not realized. (2) R6-C0 residual path
+  drops X5a luma conditioning (wavelet_container.cpp:667 `nullptr`, bitplane.cpp:1082/1088/1096
+  `nullptr`), so w=0 is not a clean pure-learned floor vs X6b (3.2175).
+- Applied safe agreed nit: removed dead `frame_wavelet_encode_r6c(...,int kb,size_t&)` overload
+  (wavelet_container.h:128-137). Did NOT retune K/W or change the blend (frozen blueprint; cannot
+  pass gate either way). Escalated to Maintainer via decision.json `{"action":"maintainer"}`.
+  Flagged PR body `Closes #130` -> `Refs #130` (gates unmet) for Maintainer edit.
+
+- the Fixer
