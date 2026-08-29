@@ -24,6 +24,49 @@ namespace prism::codec {
 
 namespace {
 
+// R6-C (Route 6 lever C) per-leaf P(0) header: uint32 K followed by K deltas
+// zigzag-coded then written as variable-length (varans-style) integers. The
+// deltas are tiny because neighbouring clusters share similar P(0), so this is
+// ~1.8 KB for K=1024 (well under the 0.02 bpp model sub-gate) while remaining a
+// simple, byte-exact, symmetric (decode==encode) codec. See addendum-27 A/D.
+static inline void r6c_put_vlq(std::vector<uint8_t>& out, uint32_t v) {
+    while (v >= 0x80u) { out.push_back((uint8_t)(v | 0x80u)); v >>= 7; }
+    out.push_back((uint8_t)v);
+}
+static inline uint32_t r6c_get_vlq(const uint8_t* p, size_t& pos, size_t end) {
+    uint32_t v = 0; int shift = 0; uint8_t b;
+    do {
+        if (pos >= end) throw std::runtime_error("r6c p0 varans: truncated stream");
+        b = p[pos++]; v |= (uint32_t)(b & 0x7fu) << shift; shift += 7;
+    } while (b & 0x80u);
+    return v;
+}
+static inline void r6c_write_p0(std::vector<uint8_t>& out, uint32_t K,
+                                const std::vector<uint16_t>& p0) {
+    write_u32_le_vec(out, K);
+    int prev = 0;
+    for (uint32_t i = 0; i < K; ++i) {
+        int v = (i < p0.size()) ? (int)p0[i] : (1 << 15);
+        int d = v - prev; prev = v;
+        uint32_t z = (uint32_t)((int32_t)((d << 1) ^ (d >> 31)));
+        r6c_put_vlq(out, z);
+    }
+}
+static inline std::vector<uint16_t> r6c_read_p0(const uint8_t* p, size_t& pos,
+                                               size_t end, uint32_t K) {
+    std::vector<uint16_t> p0(K, (uint16_t)(1u << 15));
+    int prev = 0;
+    for (uint32_t i = 0; i < K; ++i) {
+        uint32_t z = r6c_get_vlq(p, pos, end);
+        int32_t d = (int32_t)(z >> 1) ^ -(int32_t)(z & 1u);
+        prev += d;
+        int v = prev;
+        if (v < 0) v = 0; if (v > 65535) v = 65535;
+        p0[i] = (uint16_t)v;
+    }
+    return p0;
+}
+
 // X6c hyperprior: per-subband probability-calibration codebook. Code 0 is the
 // neutral factor (1.0, no change); the rest are sharpen (super-1) / flatten
 // (sub-1) factors that recalibrate the learned model's predicted P(0). The
@@ -118,10 +161,7 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
     // whenever the R6C flag is set). One image-global vector of r6c_K() uint16
     // values, preceded by the uint32 cluster count, in cluster-id order.
     if (hdr.residual_mode & R6C_FLAG) {
-        write_u32_le_vec(out, hdr.r6c_K);
-        uint32_t n = hdr.r6c_K;
-        for (uint32_t i = 0; i < n; ++i)
-            write_u16_le_vec(out, (i < hdr.r6c_p0.size()) ? hdr.r6c_p0[i] : (uint16_t)(1u << 15));
+        r6c_write_p0(out, hdr.r6c_K, hdr.r6c_p0);
     }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
@@ -189,11 +229,7 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
     // R6-C transmitted per-cluster P(0) backbone (only when the R6C flag is set).
     if (hdr.residual_mode & R6C_FLAG) {
         hdr.r6c_K = read_u32_le_bytes(bytes.data() + pos); pos += 4;
-        hdr.r6c_p0.assign(hdr.r6c_K, (uint16_t)(1u << 15));
-        for (uint32_t i = 0; i < hdr.r6c_K; ++i) {
-            hdr.r6c_p0[i] = read_u16_le_bytes(bytes.data() + pos);
-            pos += 2;
-        }
+        hdr.r6c_p0 = r6c_read_p0(bytes.data(), pos, bytes.size() - 4, hdr.r6c_K);
     }
     // Payload until the trailing crc32 (4 bytes).
     if (bytes.size() < pos + 4) throw std::runtime_error("wavelet container: truncated payload");

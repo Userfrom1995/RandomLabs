@@ -36,6 +36,7 @@
 #include <chrono>
 #include <map>
 #include <memory>
+#include <functional>
 
 using namespace prism;
 using namespace prism::codec;
@@ -4996,6 +4997,228 @@ int main(int argc, char* argv[]) {
                       << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
             std::cout << "R6-C K=" << r6c_K() << " w=" << r6c_w() << "\n";
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "train-r6c") {
+            // R6-C (Route 6 lever C) offline tree trainer. Grows the baked
+            // per-fine-context clustering decision tree by greedy bitwise
+            // cross-entropy reduction over the LCFeat dimensions that are
+            // symmetric in the R6-C residual walk (symtype, orient, parent_sig,
+            // fc, dg, nmag, ownmag, ppos, level, pmag). lc_mag/lc_sig are
+            // excluded: they are always zero in the R6-C residual frame and would
+            // be degenerate split axes. The grown tree is emitted to
+            // prism/include/prism/codec/route6c_tree.inc (NOT transmitted; only
+            // the per-leaf P(0) vector is sent). See addendum-27 B.
+            std::string kodak, out = "prism/include/prism/codec/route6c_tree.inc";
+            int levels = X_DEFAULT_LEVELS;
+            uint8_t filter_id = X_FILTER_ID_53;
+            int maxLeaves = 1024, maxSamples = 300000;
+            double minGain = 1e-4;
+            int minLeaf = 8;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--max-leaves" && i + 1 < argc) maxLeaves = std::stoi(argv[++i]);
+                else if (a == "--max-samples" && i + 1 < argc) maxSamples = std::stoi(argv[++i]);
+            }
+            if (kodak.empty()) { std::cerr << "train-r6c: --kodak DIR required\n"; return 2; }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "train-r6c: kodak dir not found: " << kodak << "\n"; return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "train-r6c: no images in " << kodak << "\n"; return 2; }
+
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            WaveletLift lift;
+            WaveletParams wp{filter, levels};
+            BitplaneCoder coder;
+            CoefficientPredictor pred;
+
+            std::vector<LSample> samples;
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
+                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+                Raster t = apply_color(r, ct);
+                for (auto& pl : t.planes) {
+                    std::vector<int32_t> plane(pl.begin(), pl.end());
+                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    std::vector<int> order, parent, sib1, sib2;
+                    CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+                    std::vector<std::vector<int32_t>> recon(subs.size());
+                    for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+                    std::vector<Subband> R(subs.size());
+                    for (size_t si = 0; si < subs.size(); ++si) {
+                        R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+                        R[si].w = subs[si].w; R[si].h = subs[si].h;
+                        R[si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
+                        for (int y = 0; y < subs[si].h; ++y)
+                            for (int x = 0; x < subs[si].w; ++x) {
+                                int32_t c = subs[si].coeffs[(size_t)y * subs[si].w + x];
+                                int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2,
+                                                            (int)si, x, y);
+                                R[si].coeffs[(size_t)y * subs[si].w + x] = c - c_hat;
+                            }
+                    }
+                    coder.collect_samples(R, samples);
+                }
+            }
+            if (samples.size() > (size_t)maxSamples) {
+                std::mt19937 g(0x12345u);
+                std::shuffle(samples.begin(), samples.end(), g);
+                samples.resize((size_t)maxSamples);
+            }
+            std::cout << "train-r6c: " << samples.size() << " (feat,label) samples collected\n";
+
+            auto feat_val = [](const LCFeat& f, int dim) -> uint8_t {
+                switch (dim) {
+                    case 0: return f.symtype; case 1: return f.orient; case 2: return f.parent_sig;
+                    case 3: return f.fc; case 4: return f.dg; case 5: return f.nmag;
+                    case 6: return f.ownmag; case 7: return f.ppos; case 8: return f.level;
+                    case 9: return f.pmag; default: return 0;
+                }
+            };
+            auto entropy = [](uint64_t c0, uint64_t c1) -> double {
+                uint64_t n = c0 + c1;
+                if (n == 0) return 0.0;
+                double p = (double)c1 / (double)n;
+                if (p <= 0.0 || p >= 1.0) return 0.0;
+                return -(p * std::log2(p) + (1.0 - p) * std::log2(1.0 - p));
+            };
+
+            struct TNode { int32_t feat = -1, thr = 0, left = -1, right = -1, leaf = -1; };
+            std::vector<TNode> nodes;
+            int leafCount = 0;
+
+            auto best_split = [&](const std::vector<uint32_t>& idx)
+                    -> std::tuple<bool, int, int, double> {
+                uint64_t tot0 = 0, tot1 = 0;
+                for (uint32_t i : idx) { if (samples[i].label) ++tot1; else ++tot0; }
+                uint64_t tot = tot0 + tot1;
+                if (tot == 0) return {false, 0, 0, 0.0};
+                double Hp = entropy(tot0, tot1);
+                int bestDim = -1, bestThr = 0; double bestGain = 0.0; bool ok = false;
+                for (int d = 0; d < 10; ++d) {
+                    uint64_t c0[8] = {0}, c1[8] = {0}; uint8_t vmax = 0;
+                    for (uint32_t i : idx) {
+                        uint8_t v = feat_val(samples[i].feat, d);
+                        if (v > vmax) vmax = v;
+                        if (samples[i].label) ++c1[v]; else ++c0[v];
+                    }
+                    uint64_t l0 = 0, l1 = 0;
+                    for (uint8_t v = 0; v + 1 <= vmax; ++v) {
+                        l0 += c0[v]; l1 += c1[v];
+                        uint64_t r0 = tot0 - l0, r1 = tot1 - l1;
+                        uint64_t ln = l0 + l1, rn = r0 + r1;
+                        if (ln == 0 || rn == 0) continue;
+                        double Hl = entropy(l0, l1), Hr = entropy(r0, r1);
+                        double gain = Hp - (double(ln) / tot) * Hl - (double(rn) / tot) * Hr;
+                        if (gain > bestGain) { bestGain = gain; bestDim = d; bestThr = v; ok = true; }
+                    }
+                }
+                return {ok, bestDim, bestThr, bestGain};
+            };
+
+            std::vector<uint32_t> all(samples.size());
+            for (size_t i = 0; i < samples.size(); ++i) all[i] = (uint32_t)i;
+            nodes.push_back({});
+            // Explicit stack. `open` = number of queued (unresolved) nodes; each
+            // resolves to at least one leaf, so (leafCount + open) is the eventual
+            // leaf count. A split raises that by one (this node yields two children),
+            // so we refuse to split once (leafCount + open + 2) would exceed
+            // maxLeaves. This pins the realized K exactly at maxLeaves (=1024).
+            std::vector<std::pair<std::vector<uint32_t>, int>> stk;
+            stk.push_back({std::move(all), 0});
+            int open = 1;
+            while (!stk.empty()) {
+                auto [idx, id] = std::move(stk.back());
+                stk.pop_back();
+                --open;
+                if (idx.size() < (size_t)minLeaf) { nodes[id].leaf = leafCount++; continue; }
+                auto [ok, dim, thr, gain] = best_split(idx);
+                if (!ok || gain < minGain) { nodes[id].leaf = leafCount++; continue; }
+                if (leafCount + open + 2 > maxLeaves) { nodes[id].leaf = leafCount++; continue; }
+                std::vector<uint32_t> l, r;
+                for (uint32_t i : idx) {
+                    uint8_t v = feat_val(samples[i].feat, dim);
+                    if (v <= (uint8_t)thr) l.push_back(i); else r.push_back(i);
+                }
+                int lc = (int)nodes.size(); nodes.push_back({});
+                int rc = (int)nodes.size(); nodes.push_back({});
+                nodes[id].feat = dim; nodes[id].thr = thr;
+                nodes[id].left = lc; nodes[id].right = rc;
+                stk.push_back({std::move(l), lc});
+                stk.push_back({std::move(r), rc});
+                open += 2;
+            }
+            if (leafCount == 0) { nodes.clear(); nodes.push_back({}); nodes[0].leaf = 0; leafCount = 1; }
+
+            // Emit the baked tree include (same layout as the committed placeholder).
+            int N = (int)nodes.size();
+            std::ostringstream feat_ss, thr_ss, left_ss, right_ss, leaf_ss;
+            for (int i = 0; i < N; ++i) {
+                auto sep = (i + 1 < N) ? ", " : "";
+                feat_ss  << nodes[i].feat  << sep;
+                thr_ss   << nodes[i].thr   << sep;
+                left_ss  << nodes[i].left  << sep;
+                right_ss << nodes[i].right << sep;
+                leaf_ss  << nodes[i].leaf  << sep;
+            }
+            std::ostringstream os;
+            os << "#pragma once\n"
+               << "// AUTO-GENERATED by `prism train-r6c` (Route 6C baked clustering tree).\n"
+               << "// Grown greedily on Kodak by bitwise cross-entropy reduction over the 10\n"
+               << "// symmetric LCFeat dims. NOT transmitted (zero bytes on wire); only the\n"
+               << "// per-leaf P(0) vector is sent. Leaf count == R6C_K.\n"
+               << "#include \"prism/codec/learned_ctx.h\"\n"
+               << "namespace prism::codec { namespace r6c_tree_detail {\n"
+               << "inline constexpr uint32_t kR6CNumLeaves = " << leafCount << "u;\n"
+               << "inline const int32_t kR6CFeat[" << N << "] = { " << feat_ss.str() << " };\n"
+               << "inline const int32_t kR6CThr[" << N << "] = { " << thr_ss.str() << " };\n"
+               << "inline const int32_t kR6CLeft[" << N << "] = { " << left_ss.str() << " };\n"
+               << "inline const int32_t kR6CRight[" << N << "] = { " << right_ss.str() << " };\n"
+               << "inline const int32_t kR6CLeaf[" << N << "] = { " << leaf_ss.str() << " };\n"
+               << "inline uint8_t r6c_feat_val(const LCFeat& f, int idx) {\n"
+               << "    switch (idx) {\n"
+               << "        case 0: return f.symtype; case 1: return f.orient; case 2: return f.parent_sig;\n"
+               << "        case 3: return f.fc; case 4: return f.dg; case 5: return f.nmag;\n"
+               << "        case 6: return f.ownmag; case 7: return f.ppos; case 8: return f.level;\n"
+               << "        case 9: return f.pmag; default: return 0;\n"
+               << "    }\n}\n"
+               << "inline int32_t r6c_lookup(const LCFeat& f) {\n"
+               << "    int32_t n = 0;\n"
+               << "    while (kR6CFeat[n] >= 0) {\n"
+               << "        uint8_t v = r6c_feat_val(f, (int)kR6CFeat[n]);\n"
+               << "        n = (v <= (uint8_t)kR6CThr[n]) ? kR6CLeft[n] : kR6CRight[n];\n"
+               << "    }\n    return kR6CLeaf[n];\n}\n"
+               << "inline uint32_t r6c_K_impl() { return kR6CNumLeaves; }\n"
+               << "inline uint32_t r6c_leaf_impl(const LCFeat& f) { return (uint32_t)r6c_lookup(f); }\n"
+               << "}}\n"
+               << "namespace prism::codec {\n"
+               << "inline uint32_t r6c_K() { return r6c_tree_detail::r6c_K_impl(); }\n"
+               << "inline uint32_t r6c_leaf(const LCFeat& f) { return r6c_tree_detail::r6c_leaf_impl(f); }\n"
+               << "}\n";
+            {
+                std::ofstream fo(out);
+                if (!fo) { std::cerr << "train-r6c: cannot write " << out << "\n"; return 2; }
+                fo << os.str();
+            }
+            std::cout << "train-r6c: wrote " << out << " (" << N << " nodes, "
+                      << leafCount << " leaves)\n";
+            std::cout << "train-r6c: R6C_K = " << leafCount << "\n";
         } else if (cmd == "train-route5") {
             // Route 5 offline trainer: learns the baked token-net weights from
             // real Kodak residuals. Collects (feature, token) samples, trains a

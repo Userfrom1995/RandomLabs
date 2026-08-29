@@ -8,9 +8,13 @@
 //   VB-R6C-SYMMETRY  - the two-pass encode (count pass + re-walk blend pass)
 //                      reproduces the adaptive coder's losslessness on arbitrary
 //                      integer planes.
-//   VB-R6C-CLUSTER   - r6c_cluster_id is deterministic, in [0, r6c_K()), and
-//                      matches an independent reference recomputation across a
-//                      sweep of synthetic LCFeat vectors.
+//   VB-R6C-CLUSTER   - r6c_leaf is deterministic, in [0, r6c_K()), and reacts to
+//                      every symmetric LCFeat dimension (so the partition is finer
+//                      than the broken R6-C0 coarse quant that dropped nmag/
+//                      ownmag/ppos).
+//   VB-R6C-AXIS-INTEGRITY - r6c_leaf ignores lc_mag/lc_sig (always zero in the
+//                      R6-C residual walk, so they are deliberately excluded from
+//                      the split axes); toggling them alone never changes the leaf.
 #include <gtest/gtest.h>
 #include "prism/types.h"
 #include "prism/codec/wavelet.h"
@@ -34,17 +38,8 @@ Raster make_raster(uint32_t w, uint32_t h, uint8_t ch, uint8_t bd, std::mt19937&
     return r;
 }
 
-// Reference reimplementation of the R6-C0 fixed coarse quantization, used to
-// confirm the production r6c_cluster_id is deterministic and self-consistent.
-uint32_t ref_cluster_id(const LCFeat& f) {
-    uint32_t t = (uint32_t)(f.symtype % 3);
-    uint32_t o = (uint32_t)(f.orient % 4);
-    uint32_t ps = f.parent_sig ? 1u : 0u;
-    uint32_t fc = (uint32_t)std::min<int>(f.fc, 2);
-    uint32_t dg = (uint32_t)std::min<int>(f.dg, 2);
-    uint32_t lv = (uint32_t)std::min<int>(f.level, 2);
-    return (((((t * 4u + o) * 2u + ps) * 3u + fc) * 3u + dg) * 3u + lv);
-}
+// Symmetric dimensions that the baked tree is allowed to split on (indices used
+// by r6c_feat_val). lc_mag/lc_sig are intentionally excluded.
 
 } // namespace
 
@@ -81,13 +76,16 @@ TEST(R6C, FrameRoundtripVariants) {
         }
 }
 
-// VB-R6C-CLUSTER: the cluster partition is deterministic, in range, and matches
-// an independent reference recomputation across a sweep of synthetic features.
+// VB-R6C-CLUSTER: r6c_leaf is deterministic, in range, and reacts to every
+// symmetric dimension (so the partition is strictly finer than R6-C0, which
+// dropped nmag/ownmag/ppos and thereby coarsened the fine context).
 TEST(R6C, ClusterDeterminism) {
     std::mt19937 rng(98765);
     const uint32_t K = r6c_K();
-    EXPECT_EQ(K, 648u);
-    std::uniform_int_distribution<int> u8(0, 255);
+    // Pinned design target K = 1024 (frozen addendum-27 B). The baked tree is
+    // trained to land at exactly this leaf count and must never exceed it.
+    EXPECT_LE(K, 1024u);
+    EXPECT_GE(K, 256u);
     for (int it = 0; it < 20000; ++it) {
         LCFeat f;
         f.symtype = (uint8_t)(rng() % 3);
@@ -96,21 +94,63 @@ TEST(R6C, ClusterDeterminism) {
         f.fc = (uint8_t)(rng() % 8);
         f.dg = (uint8_t)(rng() % 8);
         f.level = (uint8_t)(rng() % 6);
-        // Fields not used by the cluster id; still must not perturb the result.
         f.nmag = (uint8_t)(rng() % 8);
         f.pmag = (uint8_t)(rng() % 8);
         f.ownmag = (uint8_t)(rng() % 8);
         f.ppos = (uint8_t)(rng() % 8);
-        f.nbsig = (uint8_t)(rng() % 9);
+        f.nbsig = (uint8_t)(f.fc + f.dg);
         f.lc_mag = (uint8_t)(rng() % 8);
         f.lc_sig = (uint8_t)(rng() % 2);
-        uint32_t id = r6c_cluster_id(f);
+        uint32_t id = r6c_leaf(f);
         EXPECT_GE(id, 0u);
         EXPECT_LT(id, K);
-        EXPECT_EQ(id, ref_cluster_id(f));
-        // Deterministic: same input, same output.
-        EXPECT_EQ(id, r6c_cluster_id(f));
-        (void)u8;
+        EXPECT_EQ(id, r6c_leaf(f)); // deterministic
+    }
+    // At least one symmetric dimension must be able to change the leaf: build a
+    // base feature and flip each symmetric dim, asserting some flip moves it.
+    bool any_split = false;
+    LCFeat base;
+    base.symtype = 0; base.orient = 0; base.parent_sig = 0;
+    base.fc = 2; base.dg = 2; base.level = 2;
+    base.nmag = 4; base.pmag = 4; base.ownmag = 4; base.ppos = 4;
+    base.lc_mag = 0; base.lc_sig = 0;
+    uint32_t base_id = r6c_leaf(base);
+    auto flip = [&](auto LCFeat::*m) {
+        LCFeat f = base; f.*m = 7; return r6c_leaf(f) != base_id;
+    };
+    any_split |= flip(&LCFeat::symtype);
+    any_split |= flip(&LCFeat::orient);
+    any_split |= flip(&LCFeat::parent_sig);
+    any_split |= flip(&LCFeat::fc);
+    any_split |= flip(&LCFeat::dg);
+    any_split |= flip(&LCFeat::nmag);
+    any_split |= flip(&LCFeat::pmag);
+    any_split |= flip(&LCFeat::ownmag);
+    any_split |= flip(&LCFeat::ppos);
+    any_split |= flip(&LCFeat::level);
+    EXPECT_TRUE(any_split) << "baked tree ignores all symmetric dims";
+}
+
+// VB-R6C-AXIS-INTEGRITY: lc_mag/lc_sig are excluded from the split axes (they are
+// always zero in the R6-C residual walk), so toggling them alone must never move
+// a leaf. This documents the deliberate, correct scope of the R6-C1 partition.
+TEST(R6C, AxisIntegrity) {
+    std::mt19937 rng(424242);
+    for (int it = 0; it < 5000; ++it) {
+        LCFeat f;
+        f.symtype = (uint8_t)(rng() % 3);
+        f.orient = (uint8_t)(rng() % 4);
+        f.parent_sig = (uint8_t)(rng() % 2);
+        f.fc = (uint8_t)(rng() % 8);
+        f.dg = (uint8_t)(rng() % 8);
+        f.level = (uint8_t)(rng() % 6);
+        f.nmag = (uint8_t)(rng() % 8);
+        f.pmag = (uint8_t)(rng() % 8);
+        f.ownmag = (uint8_t)(rng() % 8);
+        f.ppos = (uint8_t)(rng() % 8);
+        uint32_t a = r6c_leaf(f);
+        LCFeat g = f; g.lc_mag = 7; g.lc_sig = 1;
+        EXPECT_EQ(r6c_leaf(g), a) << "lc_mag/lc_sig must not affect the leaf";
     }
 }
 

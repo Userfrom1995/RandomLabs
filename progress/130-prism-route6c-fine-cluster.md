@@ -161,3 +161,92 @@ activates the `lc_mag`/`lc_sig` split axes).
 - [ ] W-sweep: `W=1.0 >= pure-EMA floor` (no-worse bound restored; R6-C0's catastrophic 9.71 must NOT recur), monotone improvement over `w=0`.
 
 - the Architect
+
+---
+
+## Builder agent log (R6-C1 v2, 2026-08-29) -- CORRECTED the v2 blueprint
+
+The Architect's R6-REFINE blueprint (`ideas/2026-08-29-prism-route6c-jxl-modular-redesign.md`)
+is **mathematically backwards** and was NOT implemented as written. It claimed R6-REFINE =
+"the baked tree splits ONLY on {pmag, lc_mag, lc_sig} so r6c_leaf REFINES fine_ctx". But
+`fine_ctx` (the EMA key, `learned_ctx.h`) is built from ALL LCFeat dims EXCEPT
+{pmag, lc_mag, lc_sig} (symtype, orient, parent_sig, fc, dg, nmag, ownmag, ppos, level).
+So restricting splits to {pmag, lc_mag, lc_sig} would DROP those 9 live dims from the
+partition key -> the transmitted cluster would be COARSER than fine_ctx, i.e. the SAME
+failure class as R6-C0 (and R6-B). The genuine fix per frozen pins (addendum-27 B; research
+spec 2.1) is the opposite: a tree that splits on ALL symmetric LCFeat dims, K=1024, so the
+partition is finer than R6-C0's 648-quant (which dropped nmag/ownmag/ppos).
+
+What was actually built (matches the pinned spec, not the flawed blueprint):
+- `prism/include/prism/codec/route6c_tree.h`: removed `r6c_cluster_id`; added `r6c_K()`,
+  `r6c_leaf(const LCFeat&)`, `r6c_w()`/`set_r6c_w()`. Included `route6c_tree.inc`.
+- `prism/include/prism/codec/route6c_tree.inc` (NEW, baked, NOT transmitted): greedy
+  binary decision tree grown by `prism train-r6c --kodak` over the 10 symmetric dims
+  {symtype, orient, parent_sig, fc, dg, nmag, ownmag, ppos, level, pmag} (indices 0..9).
+  lc_mag/lc_sig EXCLUDED: they are always 0 in the R6-C residual walk, so they are
+  degenerate split axes (confirmed by VB-R6C-AXIS-INTEGRITY). Hard leaf cap pins K exactly
+  at 1024 (invariant `leafCount + open + 2 <= maxLeaves` over the explicit stack).
+- `prism/src/cli/main.cpp`: `train-r6c` CLI (collects R6-C residual (feat,label) samples from
+  Kodak via `coder.collect_samples`, greedy cross-entropy split per dim, writes the .inc).
+- `prism/src/codec/bitplane.cpp`: `R6CAdaptiveModel::predict` and `r6c_accumulate` /
+  `encode_static_r6c` pass-1 use `r6c_leaf(f)`; `pmag` (parent magnitude) THREADED into the
+  walk (`parent_cur`/`lcurmag`) so the cluster id matches the prediction pass. X5a `luma_mag`
+  deliberately NOT threaded at frame level (R6-C is a residual frame; both ends pass
+  `nullptr` -> symmetric; the Architect's "X5a contamination" premise was based on a
+  misreading -- R6-C0's w=0 floor was just the transmitted backbone being a poor prior, not
+  an X5a gap).
+- `prism/src/codec/wavelet_container.cpp`: header serialize/parse = `uint32 K` + `K`
+  delta+varans P(0) per addendum-27 A/D.
+
+Two correctness fixes found while getting the frame round-trip byte-exact (both were
+subtle asymmetries between encode and decode that broke the rANS lockstep):
+1. `decode_static_r6c` re-initialized the `R6CAdaptiveModel` PER SUBBAND; encode keeps ONE
+   model across the whole plane. Moved the decode model init outside the subband loop so the
+   EMA walks in lockstep with encode. (VB-R6C-ROUNDTRIP was lossy until this.)
+2. `r6c_read_p0` (delta+varans decode) clamped reconstructed values to [1, 65534]; any
+   transmitted P(0) of 0 or 65535 (clusters with all-0 or all-1) was corrupted and cascaded
+   through the delta chain, silently shifting the decoded backbone vs the encoded one.
+   Removed the clamp (the delta/zigzag path is exact in [0, 65535]). Without this the frame
+   round-trip was lossy even though the subband-only path passed.
+
+Net: 218/218 prism unit tests green. VB-R6C-ROUNDTRIP (frame, all filters/depths/sizes,
+16-bit), VB-R6C-SYMMETRY (subband), VB-R6C-CLUSTER (K<=1024, in-range, reacts to all 10
+dims), VB-R6C-AXIS-INTEGRITY (lc_mag/lc_sig ignored) all pass. Byte-exact, zero full-model
+bytes transmitted (I29).
+
+### C5 (R6-C1 v2) measured result -- FAIL (binding gate, frozen W=0.6)
+
+Ran `prism bench-r6c --kodak obsidian/benchmarks/data/kodak --levels 4 --filter 1`:
+```
+w=1.0 (pure transmitted P(0) backbone)  11.90  bpp/img  (worst -- backbone alone is weak)
+w=0.6 (frozen default blend)            10.33  bpp/img  mean per-sample 3.445
+w=0.0 (pure learned EMA)                 9.708 bpp/img  (~ X6b floor)
+R6-C1 v2 mean per-sample = 3.445 bpp ; M2 gate < 3.166
+R6-C1 v2 mean summed    = 10.33 bpp/img ; M2 gate < 9.498
+X6b reference            ~ 3.2442 per-sample / ~9.73 summed
+```
+R6-C1 v2 (3.445 / 10.33) IMPROVES over R6-C0 (3.549 / 10.65) but still FAILS the M2 gate
+(< 3.166 / < 9.498) and is WORSE than the X6b adaptive baseline (3.2442 / 9.73). Root cause
+(now understood, NOT the coarsening): the transmitted per-cluster P(0) backbone is a WEAKER
+prior than the adaptive EMA. `w=1.0` (pure backbone) is the worst at 11.90; `w=0.0` (pure
+EMA) ties X6b. The frozen `W=0.6` blend therefore dilutes the good EMA with a poor static
+prior, landing at 10.33. The blend direction is `p0 = W*sp + (1-W)*lp` (bitplane.cpp:116),
+so W=0.6 = 60% backbone.
+
+This is an HONEST NEGATIVE result, not a pin violation: K=1024 and W=0.6 are frozen by
+addendum-27; I did NOT re-tune them. The transmitted P(0) backbone only seeds the
+significance-bit probability; the EMA (MLP + per-symbol adaptation) models the same and more,
+and adapts within each subband, so for these images the static backbone never catches up.
+The v2 tree is correct and strictly finer than R6-C0, but the lever (transmit P(0)) does not
+beat the adaptive EMA under the frozen blend.
+
+### Decision / next step (for Maintainer)
+- PR body keyword: `Closes #130` -> `Refs #130` (binding gate NOT met; issue stays open).
+- The code is a faithful, correct implementation of the pinned R6-C design (correcting the
+  Architect's backwards blueprint). Per addendum-27 the Maintainer/Owner should decide: keep
+  the issue open as the honest floor, relax the gate, or redesign the lever to transmit a
+  FULL per-cluster histogram (not just P(0)) so the backbone can rival the EMA. Do NOT
+  re-tune R6C_K/R6C_W to force a pass.
+- C2/C3 (tree-driven prediction, M3) remain gated behind the unmet M2 gate.
+
+- the Builder

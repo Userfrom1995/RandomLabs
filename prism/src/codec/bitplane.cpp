@@ -109,7 +109,7 @@ struct R6CAdaptiveModel {
         learned = LearnedModel();
     }
     uint16_t predict(const LCFeat& f) const {
-        uint32_t C = r6c_cluster_id(f);
+        uint32_t C = r6c_leaf(f);
         uint16_t sp = sp0[C];
         uint16_t lp = learned.predict(f);
         float w = r6c_w();
@@ -959,21 +959,21 @@ static void r6c_accumulate(const std::vector<Subband>& subbands,
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[ci] == p);
                     uint8_t bit = becomes ? 1 : 0;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    cnt[r6c_cluster_id(f)][bit]++;
+                    cnt[r6c_leaf(f)][bit]++;
                     if (becomes) {
                         uint8_t sg = (magv[oi][ci] < 0) ? 1 : 0;
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        cnt[r6c_cluster_id(fs)][sg]++;
+                        cnt[r6c_leaf(fs)][sg]++;
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    cnt[r6c_cluster_id(f)][bit]++;
+                    cnt[r6c_leaf(f)][bit]++;
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
                 }
             }
@@ -1079,23 +1079,23 @@ BitplaneCoder::R6CResult BitplaneCoder::encode_static_r6c(
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
                     bit = becomes ? 1 : 0; symtype = 0;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    cnt[r6c_cluster_id(f)][bit]++;
+                    cnt[r6c_leaf(f)][bit]++;
                     bits_by_sub[oi].push_back(bit);
                     if (becomes) {
                         uint8_t sg = sgn[oi][ci]; symtype = 1;
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        cnt[r6c_cluster_id(fs)][sg]++;
+                        cnt[r6c_leaf(fs)][sg]++;
                         bits_by_sub[oi].push_back(sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     bit = (uint8_t)((magv[oi][ci] >> p) & 1); symtype = 2;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], nullptr, 0, 0, nullptr, w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    cnt[r6c_cluster_id(f)][bit]++;
+                    cnt[r6c_leaf(f)][bit]++;
                     bits_by_sub[oi].push_back(bit);
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
                 }
@@ -1225,6 +1225,10 @@ std::vector<Subband> BitplaneCoder::decode_static_r6c(
     }
 
     uint32_t idx = 0;
+    // One shared model across all subbands so the EMA walks in lockstep with
+    // encode (which also keeps a single model for the whole plane). The EMA is
+    // keyed by cluster id (orient/level included), so subbands stay disjoint.
+    R6CAdaptiveModel model; model.init(K, sp0);
     for (size_t si = 0; si < order.size(); ++si) {
         size_t oi = order[si];
         const Subband& s = layout[oi];
@@ -1232,9 +1236,6 @@ std::vector<Subband> BitplaneCoder::decode_static_r6c(
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? layout[pidx].w : 0, ph = (pidx >= 0) ? layout[pidx].h : 0;
         int B = sub_maxbits[oi];
-        // Per-subband model reset; orient/level are part of both the cluster id
-        // and the EMA key, so subbands are disjoint and this stays deterministic.
-        R6CAdaptiveModel model; model.init(K, sp0);
         BitplaneRans::Decoder d; d.init(streams[oi]);
         for (int p = B - 1; p >= 0; --p) {
             for (size_t ci = 0; ci < s.coeffs.size(); ++ci) {
