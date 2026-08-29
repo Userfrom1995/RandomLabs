@@ -8,6 +8,7 @@
 #include "prism/codec/bitplane.h"
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
+#include "prism/codec/predictor.h"
 #include "prism/crc32.h"
 #include "prism/bitstream.h"
 #include <stdexcept>
@@ -55,6 +56,7 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
     out.push_back(hdr.filter_id);
     out.push_back(hdr.levels);
     out.push_back(hdr.maxbits);
+    out.push_back(hdr.residual_mode);
     write_u32_le_vec(out, hdr.total_symbols);
     write_u16_le_vec(out, hdr.subbands_per_plane);
     out.push_back(hdr.num_planes);
@@ -96,6 +98,7 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
     hdr.filter_id = bytes[pos++];
     hdr.levels = bytes[pos++];
     hdr.maxbits = bytes[pos++];
+    hdr.residual_mode = bytes[pos++];
     hdr.total_symbols = read_u32_le_bytes(bytes.data() + pos); pos += 4;
     hdr.subbands_per_plane = read_u16_le_bytes(bytes.data() + pos); pos += 2;
     hdr.num_planes = bytes[pos++];
@@ -206,6 +209,94 @@ std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter fi
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster, WaveletFilter filter,
+                                                   int levels, size_t& net_out) {
+    // FRAME-WAVELET-RESIDUAL (X6a / L1): code r = c - c_hat (the residual of a
+    // baked learned coefficient predictor) through the existing byte-exact
+    // bitplane coder, instead of c. The predictor reads only already-reconstructed
+    // coefficients, so no state is transmitted (I29) and the round trip is exact.
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    WaveletParams p{filter, levels};
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+        auto subs = lift.forward(plane, t.w, t.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        // recon holds the TRUE coefficients (predictor reads true c of earlier
+        // coefficients; identical to what decode reconstructs), so it is never
+        // modified during the pre-pass - neighbours stay at their true value.
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
+        }
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c = s.coeffs[(size_t)y * s.w + x];
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                }
+        }
+
+        size_t plane_start = payload.size();
+        for (const auto& s : R) {
+            std::vector<Subband> one{s};
+            auto res = coder.encode(one);
+            global_maxbits = std::max(global_maxbits, res.maxbits);
+            all_sub_maxbits.push_back(res.maxbits);
+            all_sub_bytes.push_back((uint32_t)res.stream.size());
+            all_orient.push_back((uint8_t)s.orient);
+            all_level.push_back((uint8_t)s.level);
+            all_w.push_back((uint16_t)s.w);
+            all_h.push_back((uint16_t)s.h);
+            payload.insert(payload.end(), res.stream.begin(), res.stream.end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = 1; // RESIDUAL_FLAG set
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -261,6 +352,28 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
             auto decoded = coder.decode(slice, one_layout, one_maxbits, 0);
             plane_subs.push_back(decoded[0]);
             ++sub_idx;
+        }
+        // X6a (L1) reconstruction post-pass: the decoded subbands are residuals
+        // r; rebuild c = c_hat + r using the baked predictor (reads only already
+        // reconstructed coefficients, so the result is exactly the encoded c).
+        if (hdr.residual_mode & 1u) {
+            CoefficientPredictor pred;
+            std::vector<int> order, parent, sib1, sib2;
+            CoefficientPredictor::build_topology(plane_subs, order, parent, sib1, sib2);
+            std::vector<std::vector<int32_t>> recon(plane_subs.size());
+            for (size_t si = 0; si < plane_subs.size(); ++si)
+                recon[si].assign(plane_subs[si].coeffs.size(), 0);
+            for (int si : order) {
+                const Subband& s = plane_subs[si];
+                for (int y = 0; y < s.h; ++y)
+                    for (int x = 0; x < s.w; ++x) {
+                        int32_t c_hat = pred.predict(recon, plane_subs, parent, sib1, sib2, si, x, y);
+                        int32_t r = plane_subs[si].coeffs[(size_t)y * s.w + x];
+                        recon[si][(size_t)y * s.w + x] = c_hat + r;
+                    }
+            }
+            for (size_t si = 0; si < plane_subs.size(); ++si)
+                plane_subs[si].coeffs = recon[si];
         }
         auto plane = lift.inverse(plane_subs, t.w, t.h, p);
         // Store the color-transformed integer coefficients verbatim (biased/
