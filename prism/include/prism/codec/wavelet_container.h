@@ -20,6 +20,15 @@ constexpr uint8_t ROUTE5_FLAG = 2;
 constexpr uint8_t R6B_FLAG = 4;
 constexpr uint8_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted histogram
 constexpr uint8_t R6D_FLAG = 16; // R6-D: true JXL-Modular property tree with per-leaf transmitted histogram
+constexpr uint8_t R7A_FLAG = 32; // R7-A: in-subband MED/gradient value predictor (residual path)
+constexpr uint8_t R7B_FLAG = 64; // R7-B: per-level adaptive wavelet filter selection
+// residual_mode is a uint8_t (8 bits). Bits used so far:
+// 1 (RESIDUAL) | 2 (ROUTE5) | 4 (R6B) | 8 (R6C) | 16 (R6D) | 32 (R7A) | 64 (R7B) = 127.
+// Bit 7 (128) is the last free bit; the NEXT extension requires widening
+// residual_mode to uint16_t. Assert uniqueness so a reused bit fails to compile.
+static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u)) == 0, "R7A_FLAG collides");
+static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u)) == 0, "R7B_FLAG collides");
+static_assert(R7A_FLAG <= 128 && R7B_FLAG <= 128, "residual_mode overflow; widen to uint16_t");
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
@@ -82,6 +91,16 @@ struct WaveletHeader {
     uint16_t r6d_k = 0;
     uint8_t r6d_w = 140; // default W = 0.7
     std::vector<uint16_t> r6d_p0; // [K*3], present iff residual_mode & R6D_FLAG
+    // R7-A (Route 7 lever A): in-subband value predictor kind. 0 = MED (LOCO-I
+    // median edge detector), 1 = GRADIENT (JXL gradient predictor). Present iff
+    // residual_mode & R7A_FLAG. Zero transmitted side-info beyond this tag: the
+    // predictor is recomputed from reconstructed same-subband neighbours at both
+    // ends, so the rANS stream round-trips byte-exact (invariant I29).
+    uint8_t r7a_pred = 0;
+    // R7-B (Route 7 lever B): per-subband filter id (forward() order), present iff
+    // residual_mode & R7B_FLAG. Overhead = nsub * 2 bits (<= 0.001 bpp). When empty
+    // (R7B not set), decode uses the single header filter_id for every level.
+    std::vector<uint8_t> sub_filter;
 };
 
 struct WaveletFrame {
@@ -155,6 +174,20 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster,
 std::vector<uint8_t> frame_wavelet_encode_r6d(const Raster& raster,
                                                 WaveletFilter filter, int levels,
                                                 int k, float W, size_t& net_out);
+
+// FRAME-WAVELET-R7 (issue #130, Route 7): in-subband value prediction + adaptive
+// transform. R7-A codes the residual r = c - InSubbandPredictor(c) (a JXL-style
+// predictor transform over same-subband raster neighbours) through the existing
+// byte-exact bitplane coder instead of c, removing local coefficient mean for
+// free (zero side-info). R7-B optionally selects the wavelet filter per
+// decomposition level by REAL rANS bytes and transmits only the tiny per-level
+// tag. Zero full-model bytes transmitted (invariant I29). use_gradient selects
+// the MED (false) vs GRADIENT (true) predictor; adaptive_filter enables R7-B.
+std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster,
+                                              WaveletFilter filter, int levels,
+                                              size_t& net_out,
+                                              bool use_gradient = false,
+                                              bool adaptive_filter = false);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
