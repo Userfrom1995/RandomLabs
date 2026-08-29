@@ -972,6 +972,7 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0;
         int ph = (pidx >= 0) ? subbands[pidx].h : 0;
+        const std::vector<int32_t>* lmag = (luma_mag ? &(*luma_mag)[oi] : nullptr);
         for (int p = B - 1; p >= 0; --p) {
             for (size_t ci = 0; ci < n; ++ci) {
                 int x = (int)(ci % w), y = (int)(ci / w);
@@ -987,7 +988,7 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
                     bit = becomes ? 1 : 0;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
                     // MLP prior is computed once per symbol (at the significance
                     // bit, where the own magnitude is still 0) and reused for the
@@ -999,8 +1000,8 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
                     bits_by_sub[oi].push_back(bit);
                     if (becomes) {
                         uint8_t sg = sgn[oi][ci];
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 1, s.level, fs);
-                        fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 1, s.level, fs);
+                        fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
                         int csg = r6c_cluster(1, mlp0, kb);
                         hist.cnt[csg][sg]++;
                         bits_by_sub[oi].push_back(sg);
@@ -1008,7 +1009,7 @@ StaticClusterBitplaneResult BitplaneCoder::encode_static_cluster(
                     }
                 } else {
                     bit = (uint8_t)((magv[oi][ci] >> p) & 1);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, nullptr, w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, lmag, w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
                     uint16_t mlp0 = learned_predict_p0(f);
                     int cluster = r6c_cluster(2, mlp0, kb);
