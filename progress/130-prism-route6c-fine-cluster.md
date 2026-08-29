@@ -4,8 +4,8 @@
 - **Blueprint:** `ideas/2026-08-29-prism-route6c-fine-cluster-histogram.md` (Architect handoff for R6-C)
 - **Precedent:** R6-B (`progress/130-prism-route6-r6b-transmitted-histogram.md`, closed +6% loss) and the R6-C research spec (`prism/docs/research-route6c-fine-cluster-histogram.md`, PR #176) + addendum-27 (frozen pins). This build implements R6-C, the M3 lever: transmit ONE histogram PER FINE-CONTEXT CLUSTER (a fixed baked property tree) so the transmitted model is finer than the cold-starting EMA and cannot repeat R6-B's loss.
 - **Status:** in-progress
-- **Current step:** R6-C0 implementation complete (fixed coarse-quant clustering + two-pass coder + CLIs + tests). Full unit suite green (217/217). Round-trip byte-exact.
-- **Next steps:** Run `prism bench-r6c --kodak DIR` (real Kodak-24 PPMs) in CI and the dual-unit `bench_gate.sh` to confirm the R6-C0 gate (median NET <= X6b 3.2442/sample on held-out kodim02/07/17/21; overhead <= 0.02 bpp). The measurement gate is the binding acceptance and is delegated to the Tester stage (Kodak corpus not present in this build session). C1 (baked tree K=1024) and C2/C3 (stacking) are later phases per the cascade.
+- **Current step:** R6-C0 build + C5 FAIL recorded (binding gate 3.38669 vs X6b 3.2442; w=0 3.443 > gate; w=0.6 +10.6%; root cause structural coarsening + X5a contaminant, per progress lines 38-84). Architect blueprint delivered (`ideas/2026-08-29-prism-route6c-jxl-modular-redesign.md`): R6-C v2 refinement-constrained baked tree (R6-REFINE) superseding the broken R6-C0 coarse quant, plus X5a restoration and the R6-C2 predictor lever for M3.
+- **Next steps:** Builder resumes on this branch (`opencode/issue130-20260829181522`) implementing R6-C v2 per the blueprint: (1) `r6c_leaf(f)` replacing `r6c_cluster_id` with `T` split only on `{pmag, lc_mag, lc_sig}` so `r6c_leaf` REFINES `LearnedModel::fine_ctx`; (2) `train-r6c` offline tree (K1=1024) with R6-REFINE guard; (3) restore X5a `luma_mag`/`lmag` threading in `encode_static_r6c`/`frame_wavelet_encode_r6c`; (4) header delta+varans per addendum-27 A/D; (5) `VB-R6C-REFINE` + `VB-R6C-X5A-PARITY` tests. Then `bench-r6c --kodak` + `bench_gate.sh` M2 (per-sample<3.166, summed<9.498). R6-C2 predictor lever gated behind C1 M2 green. PR body `Closes #130` -> `Refs #130` (Maintainer edit, gates unmet).
 
 ## Milestone Checklist
 
@@ -130,3 +130,34 @@ fine granularity). ESCALATE to Owner/Maintainer. Do NOT re-tune R6C_K/R6C_W to f
   Flagged PR body `Closes #130` -> `Refs #130` (gates unmet) for Maintainer edit.
 
 - the Fixer
+
+---
+
+## R6-C v2 redesign (Architect blueprint, post-R6-C0-FAIL)
+
+Blueprint: `ideas/2026-08-29-prism-route6c-jxl-modular-redesign.md`. Resumes PR #181 on
+branch `opencode/issue130-20260829181522`. Supersedes the broken R6-C0 coarse quant.
+Core correction: impose **R6-REFINE** (`fine_ctx(f1)==fine_ctx(f2) => r6c_leaf(f1)==r6c_leaf(f2)`)
+by restricting the baked tree `T` to split ONLY on `{pmag, lc_mag, lc_sig}` (the only
+LCFeat dims `LearnedModel::fine_ctx` ignores). This makes the transmitted backbone
+finer-or-equal to the EMA, so `W=1.0` is the no-worse bound and blending cannot repeat
+R6-B/R6-C0's loss. X5a `luma_mag` threading is restored (fixes the w=0 contamination AND
+activates the `lc_mag`/`lc_sig` split axes).
+
+### C1: Refinement-constrained backbone (target M2)
+- [ ] `prism/include/prism/codec/route6c_tree.h`: `r6c_leaf(const LCFeat&)` replaces `r6c_cluster_id`; `r6c_K()` returns 1024 (R6-C1 pin); `verify_r6c_refinement()`; rewrite false "finer-or-equal" comment to state R6-REFINE.
+- [ ] `prism/src/codec/route6c_tree.inc` (NEW, baked, NOT transmitted): decision tree `T`, splits only on `{pmag, lc_mag, lc_sig}`, <= 1024 leaves, `T.leaf(f)` in `[0,1024)`.
+- [ ] `prism/src/cli/main.cpp`: `train-r6c` greedy growth over Kodak training subset, R6-REFINE hard guard (reject any split separating equal-`fine_ctx` samples), writes `route6c_tree.inc` + prints proof. Keep `wavelet-r6c`/`bench-r6c`.
+- [ ] `prism/src/codec/bitplane.cpp`: `R6CAdaptiveModel::predict` uses `r6c_leaf`; `encode_static_r6c`/`decode_static_r6c` thread `luma_mag`/`lmag`/`lc_mag`/`lc_sig` (remove `nullptr` at R6-C call sites). `R6C_W` default 0.6 frozen, runtime `--w`.
+- [ ] `prism/src/codec/wavelet_container.cpp/h`: `frame_wavelet_encode_r6c` passes `luma_mag` (mirror line 272); header serialize/parse = `uint32 K` + `K` delta-coded varans `P(0)` (addendum-27 A/D), replacing raw `4+2*K`.
+- [ ] `prism/tests/unit/test_r6c.cpp`: add `VB-R6C-REFINE` + `VB-R6C-X5A-PARITY`; keep ROUNDTRIP/SYMMETRY/CLUSTER. Register in `prism/CMakeLists.txt` if new.
+
+### C2: Tree drives prediction (target M3, gated behind C1 M2)
+- [ ] `R6CPredictor[C]` per-leaf linear value-predictor over parent/neighbour/luma reconstructed magnitudes, applied in X6a residual pre-pass when `residual_mode & R6C_FLAG`. Header carries per-leaf coefficients (delta+varans, within 0.02 bpp).
+
+### C5 (re-run gates on v2)
+- [ ] R6-C1: median <= 3.166/sample AND <= 9.498 summed (M2) on Kodak-24; byte-exact 24/24; overhead <= 0.02 bpp.
+- [ ] R6-C2 (if C1 M2 green): summed <= 8.655 AND per-sample <= 2.885 (M3); byte-exact 24/24, fuzz clean -> format-stable v3 PR `Refs #130`.
+- [ ] W-sweep: `W=1.0 >= pure-EMA floor` (no-worse bound restored; R6-C0's catastrophic 9.71 must NOT recur), monotone improvement over `w=0`.
+
+- the Architect
