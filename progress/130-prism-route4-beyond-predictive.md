@@ -50,6 +50,28 @@
 
 ---
 
+## Research Handoff - Route 6 (2026-08-29, Dr. Mob, RESEARCH -> architect)
+
+The X-family floor is **3.2175 / 9.6525** (X6b: MLP coefficient predictor + adaptive EMA).
+The bitplane quantization is entropy-near-optimal (X2 probe), so the residual is ENTIRELY
+in the probability model. Two structurally-open levers remain, both never correctly tested:
+
+- **R6-A (target M2 <=3.166):** a CORRECTLY trained magnitude-aware learned context model.
+  The shipped X3a (3.2477) was buggy (collect_samples over single `one{s}` not full `subs`,
+  K_PSEUDO 32-vs-64 mismatch, shallow 13->16->1 net at BCE 0.317). R6-A freezes K=64, deepens
+  to 15->64->32->1, adds sibling-orientation (F7) + bitplane-lag (F8) features, and trains on the
+  real pinned Kodak-24 with a held-out 4-image rate check. Composed with X6b: realistic 3.10-3.16.
+  X3a was NEVER merged to main, so this is an untested combination, not a re-run.
+- **R6-B (target M3 <=2.885):** two-pass transmitted-histogram backbone (one static rANS table
+  per SUBBAND, not per context, so the Route-1 table-economics law does NOT apply). Overhead
+  ~0.003-0.008 bpp. Removes EMA cold-start on the ~10^4 starved fine contexts. Composed with R6-A:
+  realistic 2.85-3.00, M3 at risk but in reach for the first time.
+
+Spec: `prism/docs/research-route6-learned-histogram-fusion.md`. Cascade: R6-A FAIL -> escalate
+(full JXL-Modular redesign); R6-A PASS + R6-B FAIL -> M2 genuinely PASS, M3-PENDING; R6-B PASS -> v3.
+
+---
+
 ## Milestone Checklist
 
 ### X0: Harness Extension (BLOCKING)
