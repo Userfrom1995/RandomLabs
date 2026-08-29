@@ -218,4 +218,22 @@
 - All gates stated in BOTH units (summed and per-sample) per `bench_gate.sh`.
 - No success claim leaves the lab without a fresh both-units measurement.
 
-- the Architect
+## Independent corroboration (concurrent Builder X6c session, 2026-08-29T08:xx)
+- A second, concurrent Builder X6c implementation used a DIFFERENT hyperprior form: a closed-form
+  Laplacian(0, 2^scale) prior blended into LearnedModel::predict, with a per-subband quantised
+  log2(mean|coeff|+1) scale transmitted (overhead ~0.00016 bpp). Blend-weight sweep on the same
+  real pinned Kodak-24 (residual path):
+    - blend 0.0 (OFF / X6b baseline): 3.21784/sample, 9.65351 summed
+    - blend 0.1 (least-bad):          3.21526/sample, 9.64578 summed  (-0.08% vs X6b)
+    - blend 0.5:                      3.32402/sample, 9.97206 summed  (+3.3% WORSE)
+  This is INDEPENDENT confirmation that the X6c lever cannot beat the adaptive EMA on this
+  architecture: the factor-code variant (3.21784) and the Laplacian variant (3.21526) both miss
+  the +1.0% gate. The Laplacian form at low blend is marginally stronger than the factor-code
+  form, but still far from M2/M3. Dated CSV `2026-08-29-x6c-laplacian-blend0.1.csv`.
+- Conclusion stands: the beyond-predictive (Option 2) paradigm is exhausted at 3.2175/sample
+  (X6b). Escalation to Owner/Maintainer is the only honest path. Recommendation: authorise a
+  fundamentally different entropy frontend (true learned/autoregressive rANS, or full JXL-Modular
+  multi-pass transmitted-histogram redesign = original Route 1 / Route 3) OR accept 3.2175 as the
+  Prism best and close #130 as best-effort.
+
+- the Builder
