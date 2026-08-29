@@ -19,6 +19,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <random>
 
 namespace prism::codec {
 
@@ -186,6 +187,71 @@ void CoefficientPredictor::collect_samples(const std::vector<Subband>& subs,
             }
         }
     }
+}
+
+int32_t InSubbandPredictor::predict(const std::vector<int32_t>& coeffs, int w, int h,
+                                    int x, int y, Kind k) {
+    int32_t W  = (x > 0) ? coeffs[(size_t)y * w + (x - 1)] : 0;
+    int32_t N  = (y > 0) ? coeffs[(size_t)(y - 1) * w + x] : 0;
+    int32_t NW = (x > 0 && y > 0) ? coeffs[(size_t)(y - 1) * w + (x - 1)] : 0;
+    if (k == Kind::MED) {
+        int32_t p = W + N - NW;
+        int32_t mn = std::min(W, N), mx = std::max(W, N);
+        if (p < mn) p = mn;
+        else if (p > mx) p = mx;
+        return p;
+    }
+    // GRADIENT (JXL-style): median of three candidate predictors, clamped.
+    int32_t NE = (y > 0 && x + 1 < w) ? coeffs[(size_t)(y - 1) * w + (x + 1)] : 0;
+    int32_t p1 = W + N - NW;
+    int32_t p2 = N + NE - NW;
+    int32_t p3 = W + NE - NW;
+    // median of {p1, p2, p3}
+    int32_t mx = std::max({p1, p2, p3});
+    int32_t mn = std::min({p1, p2, p3});
+    int32_t med = p1 + p2 + p3 - mx - mn;
+    int32_t lo = std::min({W, N, NE}), hi = std::max({W, N, NE});
+    if (med < lo) med = lo;
+    else if (med > hi) med = hi;
+    return med;
+}
+
+void InSubbandPredictor::residual(const std::vector<int32_t>& c, int w, int h,
+                                  Kind k, std::vector<int32_t>& out) {
+    out.assign((size_t)w * h, 0);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            int32_t c_hat = predict(c, w, h, x, y, k);
+            out[(size_t)y * w + x] = c[(size_t)y * w + x] - c_hat;
+        }
+}
+
+void InSubbandPredictor::reconstruct(const std::vector<int32_t>& r, int w, int h,
+                                     Kind k, std::vector<int32_t>& out) {
+    out.assign((size_t)w * h, 0);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            int32_t c_hat = predict(out, w, h, x, y, k);
+            out[(size_t)y * w + x] = c_hat + r[(size_t)y * w + x];
+        }
+}
+
+bool InSubbandPredictor::reversible_for_all_inputs(Kind k) {
+    std::mt19937 rng(20260829);
+    auto test = [&](int w, int h) -> bool {
+        std::vector<int32_t> c((size_t)w * h);
+        for (auto& v : c) v = (int32_t)(rng() % 200000) - 100000;
+        std::vector<int32_t> r, rec;
+        residual(c, w, h, k, r);
+        reconstruct(r, w, h, k, rec);
+        return rec == c;
+    };
+    for (int w : {1, 2, 3, 4, 5, 7, 8, 16, 32})
+        for (int h : {1, 2, 3, 4, 5, 7, 8, 16})
+            if (!test(w, h)) return false;
+    for (int t = 0; t < 20; ++t)
+        if (!test(64 + (int)(rng() % 128), 64 + (int)(rng() % 128))) return false;
+    return true;
 }
 
 } // namespace prism::codec

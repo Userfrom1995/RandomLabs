@@ -155,6 +155,17 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
         write_u32_le_vec(out, (uint32_t)hdrbuf.size());
         out.insert(out.end(), hdrbuf.begin(), hdrbuf.end());
     }
+    // R7-A in-subband predictor kind tag (present whenever R7A_FLAG set).
+    if (hdr.residual_mode & R7A_FLAG) {
+        out.push_back(hdr.r7a_pred);
+    }
+    // R7-B per-subband filter ids (present whenever R7B_FLAG set). One uint8 per
+    // subband in forward() order; the decoder maps each subband's level to a
+    // filter for the inverse lift (tiny overhead, <= 0.001 bpp).
+    if (hdr.residual_mode & R7B_FLAG) {
+        for (uint16_t i = 0; i < nsub; ++i)
+            out.push_back(i < hdr.sub_filter.size() ? hdr.sub_filter[i] : hdr.filter_id);
+    }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
     // CRC32 over everything above.
@@ -257,6 +268,15 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
             if (v > (int16_t)((1u << 16) - 1)) v = (int16_t)((1u << 16) - 1);
             hdr.r6d_p0[i] = (uint16_t)v;
         }
+    }
+    // R7-A predictor kind tag (only when the R7A flag is set).
+    if (hdr.residual_mode & R7A_FLAG) {
+        hdr.r7a_pred = bytes[pos++];
+    }
+    // R7-B per-subband filter ids (only when the R7B flag is set).
+    if (hdr.residual_mode & R7B_FLAG) {
+        hdr.sub_filter.resize(nsub);
+        for (uint16_t i = 0; i < nsub; ++i) hdr.sub_filter[i] = bytes[pos++];
     }
     // Payload until the trailing crc32 (4 bytes).
     if (bytes.size() < pos + 4) throw std::runtime_error("wavelet container: truncated payload");
@@ -861,6 +881,142 @@ std::vector<uint8_t> frame_wavelet_encode_r6d(const Raster& raster, WaveletFilte
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster, WaveletFilter filter,
+                                              int levels, size_t& net_out,
+                                              bool use_gradient, bool adaptive_filter) {
+    // FRAME-WAVELET-R7 (issue #130, Route 7): in-subband value prediction + adaptive
+    // transform. R7-A codes the residual r = c - InSubbandPredictor(c) (a JXL-style
+    // predictor transform over same-subband raster neighbours: W,N,NW,NE) through the
+    // existing byte-exact bitplane coder instead of c. The predictor is recomputed
+    // from reconstructed neighbours at both ends, so NO predictor state is transmitted
+    // (invariant I29) and the round trip is byte-exact. R7-B optionally selects the
+    // wavelet filter per decomposition level by REAL rANS bytes (C3 trial hook) and
+    // transmits only the tiny per-level tag.
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    BitplaneCoder coder;
+    InSubbandPredictor::Kind kind = use_gradient ? InSubbandPredictor::Kind::GRADIENT
+                                                 : InSubbandPredictor::Kind::MED;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code;
+    std::vector<uint8_t> all_sub_filter;
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+        // R7-B: per-level filter selection by REAL rANS payload bytes (greedy).
+        WaveletParams p{filter, levels};
+        if (adaptive_filter) {
+            std::vector<WaveletFilter> best((size_t)levels + 1, filter);
+            auto trial_bytes = [&](const std::vector<WaveletFilter>& plf) -> size_t {
+                WaveletParams tp{filter, levels};
+                tp.per_level_filter = plf;
+                auto subs = lift.forward(plane, t.w, t.h, tp);
+                std::vector<Subband> R(subs.size());
+                for (size_t si = 0; si < subs.size(); ++si) {
+                    R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+                    R[si].w = subs[si].w; R[si].h = subs[si].h;
+                    InSubbandPredictor::residual(subs[si].coeffs, subs[si].w, subs[si].h,
+                                                 kind, R[si].coeffs);
+                }
+                uint8_t bc = 0; size_t bestb = std::numeric_limits<size_t>::max();
+                for (uint8_t code = 0; code < kX6cScaleN; ++code) {
+                    std::vector<float> sc(R.size(), kX6cScaleTab[code]);
+                    auto rt = coder.encode(R, 0, nullptr, &sc);
+                    size_t nb = 0; for (auto& st : rt.streams) nb += st.size();
+                    if (nb < bestb) { bestb = nb; bc = code; }
+                }
+                (void)bc;
+                return bestb;
+            };
+            for (int L = 1; L <= levels; ++L) {
+                size_t bestb = std::numeric_limits<size_t>::max();
+                WaveletFilter bestf = filter;
+                for (WaveletFilter cand : {WaveletFilter::Haar, WaveletFilter::LeGall53,
+                                           WaveletFilter::Reversible97}) {
+                    std::vector<WaveletFilter> plf = best;
+                    plf[L] = cand;
+                    size_t nb = trial_bytes(plf);
+                    if (nb < bestb) { bestb = nb; bestf = cand; }
+                }
+                best[L] = bestf;
+            }
+            p.per_level_filter = best;
+        }
+        auto subs = lift.forward(plane, t.w, t.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            InSubbandPredictor::residual(subs[si].coeffs, subs[si].w, subs[si].h,
+                                         kind, R[si].coeffs);
+        }
+
+        size_t plane_start = payload.size();
+        uint8_t best_code = 0;
+        {
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            std::vector<float> trial(R.size(), 1.0f);
+            for (uint8_t code = 0; code < kX6cScaleN; ++code) {
+                std::fill(trial.begin(), trial.end(), kX6cScaleTab[code]);
+                auto rt = coder.encode(R, 0, nullptr, &trial);
+                size_t nb = 0; for (auto& st : rt.streams) nb += st.size();
+                if (nb < best_bytes) { best_bytes = nb; best_code = code; }
+            }
+        }
+        std::vector<float> best_scale(R.size(), kX6cScaleTab[best_code]);
+        auto res = coder.encode(R, 0, nullptr, &best_scale);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(best_code);
+            if (adaptive_filter)
+                all_sub_filter.push_back((uint8_t)filter_to_id(
+                    p.per_level_filter.empty() ? filter : p.per_level_filter[R[oi].level]));
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = (uint8_t)(1u | R7A_FLAG | (adaptive_filter ? R7B_FLAG : 0u));
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+    hdr.r7a_pred = use_gradient ? 1 : 0;
+    if (adaptive_filter) hdr.sub_filter = std::move(all_sub_filter);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -1007,25 +1163,58 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         // r; rebuild c = c_hat + r using the baked predictor (reads only already
         // reconstructed coefficients, so the result is exactly the encoded c).
         if (hdr.residual_mode & 1u) {
-            CoefficientPredictor pred;
-            std::vector<int> order, parent, sib1, sib2;
-            CoefficientPredictor::build_topology(plane_subs, order, parent, sib1, sib2);
-            std::vector<std::vector<int32_t>> recon(plane_subs.size());
-            for (size_t si = 0; si < plane_subs.size(); ++si)
-                recon[si].assign(plane_subs[si].coeffs.size(), 0);
-            for (int si : order) {
-                const Subband& s = plane_subs[si];
-                for (int y = 0; y < s.h; ++y)
-                    for (int x = 0; x < s.w; ++x) {
-                        int32_t c_hat = pred.predict(recon, plane_subs, parent, sib1, sib2, si, x, y);
-                        int32_t r = plane_subs[si].coeffs[(size_t)y * s.w + x];
-                        recon[si][(size_t)y * s.w + x] = c_hat + r;
-                    }
+            if (hdr.residual_mode & R7A_FLAG) {
+                // R7-A: rebuild c from the decoded residual r via the same in-subband
+                // MED/GRADIENT predictor (reads only already-reconstructed c neighbours),
+                // so the result is exactly the encoded c. No predictor state transmitted.
+                InSubbandPredictor::Kind kind = (hdr.r7a_pred
+                                                 ? InSubbandPredictor::Kind::GRADIENT
+                                                 : InSubbandPredictor::Kind::MED);
+                std::vector<std::vector<int32_t>> recon(plane_subs.size());
+                for (size_t si = 0; si < plane_subs.size(); ++si)
+                    InSubbandPredictor::reconstruct(plane_subs[si].coeffs,
+                                                    plane_subs[si].w, plane_subs[si].h,
+                                                    kind, recon[si]);
+                for (size_t si = 0; si < plane_subs.size(); ++si)
+                    plane_subs[si].coeffs = recon[si];
+            } else {
+                CoefficientPredictor pred;
+                std::vector<int> order, parent, sib1, sib2;
+                CoefficientPredictor::build_topology(plane_subs, order, parent, sib1, sib2);
+                std::vector<std::vector<int32_t>> recon(plane_subs.size());
+                for (size_t si = 0; si < plane_subs.size(); ++si)
+                    recon[si].assign(plane_subs[si].coeffs.size(), 0);
+                for (int si : order) {
+                    const Subband& s = plane_subs[si];
+                    for (int y = 0; y < s.h; ++y)
+                        for (int x = 0; x < s.w; ++x) {
+                            int32_t c_hat = pred.predict(recon, plane_subs, parent, sib1, sib2, si, x, y);
+                            int32_t r = plane_subs[si].coeffs[(size_t)y * s.w + x];
+                            recon[si][(size_t)y * s.w + x] = c_hat + r;
+                        }
+                }
+                for (size_t si = 0; si < plane_subs.size(); ++si)
+                    plane_subs[si].coeffs = recon[si];
             }
-            for (size_t si = 0; si < plane_subs.size(); ++si)
-                plane_subs[si].coeffs = recon[si];
         }
-        auto plane = lift.inverse(plane_subs, t.w, t.h, p);
+        // R7-B: rebuild the per-level filter map from the transmitted per-subband
+        // tags so the inverse lift uses the exact filter the encoder used.
+        std::vector<int32_t> plane;
+        if (hdr.residual_mode & R7B_FLAG) {
+            WaveletParams pf = p;
+            pf.per_level_filter.assign((size_t)levels + 1, filter);
+            for (uint16_t k = 0; k < spp; ++k) {
+                size_t gi = (size_t)pi * spp + k;
+                int lvl = (gi < hdr.level.size()) ? hdr.level[gi] : 0;
+                uint8_t fid = (gi < hdr.sub_filter.size()) ? hdr.sub_filter[gi] : hdr.filter_id;
+                pf.per_level_filter[lvl] = id_to_filter(fid);
+            }
+            plane = lift.inverse(plane_subs, t.w, t.h, pf);
+        } else {
+            plane = lift.inverse(plane_subs, t.w, t.h, p);
+        }
+        for (size_t i = 0; i < plane.size(); ++i)
+            t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
         // Store the color-transformed integer coefficients verbatim (biased/
         // signed); reinterpreted as signed 16-bit by invert_color, so do NOT
         // clamp here (that would corrupt chroma and signed ACs).
