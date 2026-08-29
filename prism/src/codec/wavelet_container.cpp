@@ -6,6 +6,7 @@
 
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
+#include "prism/codec/route6c_tree.h"
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/predictor.h"
@@ -113,18 +114,14 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
             }
         }
     }
-    // R6-C transmitted GLOBAL cluster histogram (present whenever R6C_FLAG set).
-    // The histogram is written ONCE PER PLANE (all subbands of a plane share one
-    // NB-context cluster space), so the total on the wire is nplanes * NB * 2,
-    // matching what the decoder's nexp (= NB*2*nplanes) reads back.
+    // R6-C transmitted per-cluster P(0) backbone (symmetric with decode: present
+    // whenever the R6C flag is set). One image-global vector of r6c_K() uint16
+    // values, preceded by the uint32 cluster count, in cluster-id order.
     if (hdr.residual_mode & R6C_FLAG) {
-        write_u16_le_vec(out, hdr.r6c_kb);
-        uint32_t nexp = (uint32_t)(3u * (uint32_t)hdr.r6c_kb) * 2u *
-                        (uint32_t)hdr.num_planes;
-        for (uint32_t k = 0; k < nexp; ++k) {
-            uint32_t v = (k < hdr.cluster_hist.size()) ? hdr.cluster_hist[k] : 0;
-            write_u32_le_vec(out, v);
-        }
+        write_u32_le_vec(out, hdr.r6c_K);
+        uint32_t n = hdr.r6c_K;
+        for (uint32_t i = 0; i < n; ++i)
+            write_u16_le_vec(out, (i < hdr.r6c_p0.size()) ? hdr.r6c_p0[i] : (uint16_t)(1u << 15));
     }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
@@ -189,16 +186,13 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
             }
         }
     }
-    // R6-C transmitted GLOBAL cluster histogram (only when the R6C flag is set).
-    // The histogram is written ONCE PER PLANE (all subbands of a plane share one
-    // NB-context cluster space), so the total on the wire is nplanes * NB * 2.
+    // R6-C transmitted per-cluster P(0) backbone (only when the R6C flag is set).
     if (hdr.residual_mode & R6C_FLAG) {
-        hdr.r6c_kb = read_u16_le_bytes(bytes.data() + pos); pos += 2;
-        uint32_t nexp = (uint32_t)(3u * (uint32_t)hdr.r6c_kb) * 2u * (uint32_t)hdr.num_planes;
-        hdr.cluster_hist.assign(nexp, 0);
-        for (uint32_t k = 0; k < nexp; ++k) {
-            hdr.cluster_hist[k] = read_u32_le_bytes(bytes.data() + pos);
-            pos += 4;
+        hdr.r6c_K = read_u32_le_bytes(bytes.data() + pos); pos += 4;
+        hdr.r6c_p0.assign(hdr.r6c_K, (uint16_t)(1u << 15));
+        for (uint32_t i = 0; i < hdr.r6c_K; ++i) {
+            hdr.r6c_p0[i] = read_u16_le_bytes(bytes.data() + pos);
+            pos += 2;
         }
     }
     // Payload until the trailing crc32 (4 bytes).
@@ -602,14 +596,14 @@ std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster, WaveletFilte
 }
 
 std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilter filter,
-                                               int levels, int kb, size_t& net_out) {
+                                              int levels, size_t& net_out) {
     // FRAME-WAVELET-R6C (issue #130, Route 6 lever C): the per-fine-context
-    // CLUSTER transmitted-histogram backbone. Codes the learned-coefficient
-    // residual r = c - c_hat (X6a L1) through BitplaneCoder::encode_static_cluster
-    // instead of the coarse per-subband-class R6-B backbone. The cluster histogram
-    // (NB = 3*kb contexts, keyed on the learned MLP prior) is transmitted in the
-    // header (R6C_FLAG set) so decode can rebuild the static backbone; the adaptive
-    // EMA still refines rich clusters. No full model is transmitted (invariant I29).
+    // transmitted-histogram backbone. Codes the learned-coefficient residual
+    // r = c - c_hat (X6a L1) through BitplaneCoder::encode_static_r6c instead of
+    // the adaptive-only bitplane coder. ONE image-global per-cluster P(0) vector
+    // (r6c_p0, size r6c_K()) is transmitted in the header (R6C_FLAG set) so the
+    // decoder can rebuild the static backbone; the adaptive EMA still refines
+    // rich contexts. No full model is transmitted (invariant I29).
     ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
                                                       : ColorTransform::None;
     Raster t = apply_color(raster, ct);
@@ -626,9 +620,11 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilte
     std::vector<uint32_t> all_sub_bytes;
     std::vector<uint16_t> all_w, all_h;
     std::vector<uint8_t> all_scale_code; // X6c slot unused by R6C (neutral)
-    std::vector<uint32_t> all_chist;     // flattened R6C cluster histogram (uint32 on wire)
-    int NB = 3 * kb;
+    std::vector<uint16_t> all_p0;        // flattened R6-C per-cluster P(0) vector
 
+    // Pass A: compute every plane's learned-coefficient residual R = c - c_hat
+    // (X6a L1). The residual is what the bitplane coder compresses.
+    std::vector<std::vector<Subband>> plane_R(t.planes.size());
     for (size_t pi = 0; pi < t.planes.size(); ++pi) {
         std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
         auto subs = lift.forward(plane, t.w, t.h, p);
@@ -639,11 +635,11 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilte
         std::vector<std::vector<int32_t>> recon(subs.size());
         for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
 
-        std::vector<Subband> R(subs.size());
+        plane_R[pi].resize(subs.size());
         for (size_t si = 0; si < subs.size(); ++si) {
-            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
-            R[si].w = subs[si].w; R[si].h = subs[si].h;
-            R[si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
+            plane_R[pi][si].orient = subs[si].orient; plane_R[pi][si].level = subs[si].level;
+            plane_R[pi][si].w = subs[si].w; plane_R[pi][si].h = subs[si].h;
+            plane_R[pi][si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
         }
         for (int si : order) {
             const Subband& s = subs[si];
@@ -651,30 +647,34 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilte
                 for (int x = 0; x < s.w; ++x) {
                     int32_t c = s.coeffs[(size_t)y * s.w + x];
                     int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
-                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                    plane_R[pi][si].coeffs[(size_t)y * s.w + x] = c - c_hat;
                 }
         }
+    }
 
+    // Pass B: pool the per-cluster (0/1) counts across ALL planes into one
+    // image-global r6c_p0 vector (the cluster space is shared; pooling keeps the
+    // single transmitted backbone identical at encode and decode). This is the
+    // R6-C0 fixed-coarse-quant partition (r6c_K() = 648 clusters).
+    std::vector<uint16_t> global_sp0 = coder.r6c_global_sp0(plane_R);
+    if (global_sp0.size() != (size_t)r6c_K())
+        global_sp0.assign(r6c_K(), (uint16_t)(1u << 15));
+    all_p0 = global_sp0;
+
+    // Pass C: code every plane against the shared global backbone.
+    for (size_t pi = 0; pi < plane_R.size(); ++pi) {
         size_t plane_start = payload.size();
-        auto res = coder.encode_static_cluster(R, kb);
-        for (size_t oi = 0; oi < R.size(); ++oi) {
+        auto res = coder.encode_static_r6c(plane_R[pi], 0, nullptr, &global_sp0);
+        for (size_t oi = 0; oi < plane_R[pi].size(); ++oi) {
             global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
             all_sub_maxbits.push_back(res.sub_maxbits[oi]);
             all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
-            all_orient.push_back((uint8_t)R[oi].orient);
-            all_level.push_back((uint8_t)R[oi].level);
-            all_w.push_back((uint16_t)R[oi].w);
-            all_h.push_back((uint16_t)R[oi].h);
+            all_orient.push_back((uint8_t)plane_R[pi][oi].orient);
+            all_level.push_back((uint8_t)plane_R[pi][oi].level);
+            all_w.push_back((uint16_t)plane_R[pi][oi].w);
+            all_h.push_back((uint16_t)plane_R[pi][oi].h);
             all_scale_code.push_back(0);
             payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
-        }
-        // The cluster histogram is GLOBAL across the whole plane (all subbands
-        // share one cluster space keyed on the learned prior), so it is appended
-        // ONCE per plane, not per subband.
-        for (int c = 0; c < NB * 2; ++c) {
-            uint32_t cnt = (c < (int)res.hist.cnt.size() * 2)
-                               ? res.hist.cnt[c / 2][c % 2] : 0;
-            all_chist.push_back(cnt);
         }
         plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
     }
@@ -695,8 +695,8 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilte
     hdr.sub_maxbits = std::move(all_sub_maxbits);
     hdr.sub_bytes = std::move(all_sub_bytes);
     hdr.sub_scale_code = std::move(all_scale_code);
-    hdr.r6c_kb = (uint16_t)kb;
-    hdr.cluster_hist = std::move(all_chist);
+    hdr.r6c_K = r6c_K();
+    hdr.r6c_p0 = std::move(all_p0);
 
     auto out = wavelet_container_encode(t, hdr, payload);
     net_out = out.size();
@@ -824,6 +824,16 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
                 }
                 return coder.decode_static(plane_streams, plane_layout, plane_maxbits,
                                            0, hist);
+            }
+            if (hdr.residual_mode & R6C_FLAG) {
+                std::vector<uint16_t> sp0 = hdr.r6c_p0;
+                if (sp0.size() != (size_t)hdr.r6c_K) {
+                    sp0.assign(hdr.r6c_K, (uint16_t)(1u << 15));
+                    for (uint32_t i = 0; i < hdr.r6c_p0.size() && i < hdr.r6c_K; ++i)
+                        sp0[i] = hdr.r6c_p0[i];
+                }
+                return coder.decode_static_r6c(plane_streams, plane_layout, plane_maxbits,
+                                               0, sp0);
             }
             return coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag,
                                 plane_scale.empty() ? nullptr : &plane_scale);
