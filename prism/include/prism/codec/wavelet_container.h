@@ -19,6 +19,7 @@ namespace prism::codec {
 constexpr uint8_t ROUTE5_FLAG = 2;
 constexpr uint8_t R6B_FLAG = 4;
 constexpr uint8_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted histogram
+constexpr uint8_t R6D_FLAG = 16; // R6-D: true JXL-Modular property tree with per-leaf transmitted histogram
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
@@ -72,6 +73,15 @@ struct WaveletHeader {
     // (invariant I29 holds).
     uint16_t r6c_kb = 0;
     std::vector<uint32_t> cluster_hist;
+    // R6-D (Route 6 lever D): true JXL-Modular property tree. r6d_k leaves; r6d_p0
+    // holds K*3 transmitted P(0)*M values (sign entries neutral), delta-coded then
+    // varans-coded in the header. The tree itself is baked (route6d_tree.inc),
+    // zero bytes. r6d_w is the transmitted-histogram blend weight (W*200, W in
+    // [0,1]) so decode reproduces encode's exact blended probabilities. Overhead
+    // = K*3*2 bytes/image (K=2048 -> ~12KB, ~0.01 bpp), so invariant I29 holds.
+    uint16_t r6d_k = 0;
+    uint8_t r6d_w = 140; // default W = 0.7
+    std::vector<uint16_t> r6d_p0; // [K*3], present iff residual_mode & R6D_FLAG
 };
 
 struct WaveletFrame {
@@ -131,8 +141,20 @@ std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster,
 // decode parses the transmitted cluster histogram. Zero full-model bytes
 // transmitted (invariant I29); only the tiny cluster histogram header is sent.
 std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster,
-                                               WaveletFilter filter, int levels,
-                                               int kb, size_t& net_out);
+                                                WaveletFilter filter, int levels,
+                                                int kb, size_t& net_out);
+
+// FRAME-WAVELET-R6D (issue #130, Route 6 lever D): the TRUE JXL-Modular property
+// tree with transmitted per-leaf histograms. Codes the learned-coefficient
+// residual r = c - c_hat through BitplaneCoder::encode_static_tree (a baked
+// property-tree leaf over RAW neighbour magnitudes keyed to a transmitted per-leaf
+// P(0), blended with the adaptive EMA) instead of the MLP-cluster R6-C backbone.
+// R6D_FLAG set so decode parses the transmitted per-leaf histogram. Zero full-model
+// bytes transmitted (invariant I29); only the tiny per-leaf histogram header is
+// sent. W is the transmitted-histogram blend weight (default 0.7, may be swept).
+std::vector<uint8_t> frame_wavelet_encode_r6d(const Raster& raster,
+                                                WaveletFilter filter, int levels,
+                                                int k, float W, size_t& net_out);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);

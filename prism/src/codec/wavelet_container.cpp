@@ -126,6 +126,35 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
             write_u32_le_vec(out, v);
         }
     }
+    // R6-D transmitted per-leaf histogram (present whenever R6D_FLAG set). The
+    // K*3 P(0)*M values are delta-coded across (leaf*3+symtype) then written as
+    // varints. r6d_k (uint16) and r6d_w (uint8, W*200) accompany them. The tree
+    // itself is a baked constant (route6d_tree.inc) and is NOT transmitted.
+    if (hdr.residual_mode & R6D_FLAG) {
+        write_u16_le_vec(out, hdr.r6d_k);
+        out.push_back(hdr.r6d_w);
+        int K3 = 3 * (int)hdr.r6d_k;
+        // The per-leaf histogram is GLOBAL per plane: all planes' P(0) vectors are
+        // concatenated in hdr.r6d_p0 ([plane0..planeN-1], each K3 entries), so the
+        // total on the wire is K3 * num_planes. Delta/varint across the whole run.
+        int N = (int)hdr.r6d_p0.size();
+        (void)K3;
+        int16_t prev = 0;
+        std::vector<uint8_t> hdrbuf;
+        for (int i = 0; i < N; ++i) {
+            int16_t v = (i < N) ? (int16_t)hdr.r6d_p0[i] : (int16_t)(1u << 15);
+            int16_t d = (int16_t)(v - prev); prev = v;
+            uint16_t ud = (uint16_t)(d + 0x8000); // zig-zag to unsigned
+            // varint (7 bits/byte), little-endian groups
+            do {
+                uint8_t byte = (uint8_t)(ud & 0x7F); ud >>= 7;
+                if (ud) byte |= 0x80;
+                hdrbuf.push_back(byte);
+            } while (ud);
+        }
+        write_u32_le_vec(out, (uint32_t)hdrbuf.size());
+        out.insert(out.end(), hdrbuf.begin(), hdrbuf.end());
+    }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
     // CRC32 over everything above.
@@ -199,6 +228,34 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
         for (uint32_t k = 0; k < nexp; ++k) {
             hdr.cluster_hist[k] = read_u32_le_bytes(bytes.data() + pos);
             pos += 4;
+        }
+    }
+    // R6-D transmitted per-leaf histogram (only when the R6D flag is set). Mirrors
+    // the write side: r6d_k, r6d_w, then K*3 delta/varint P(0) values.
+    if (hdr.residual_mode & R6D_FLAG) {
+        hdr.r6d_k = read_u16_le_bytes(bytes.data() + pos); pos += 2;
+        hdr.r6d_w = bytes[pos++];
+        uint32_t buflen = read_u32_le_bytes(bytes.data() + pos); pos += 4;
+        std::vector<uint8_t> hdrbuf(bytes.begin() + pos, bytes.begin() + pos + buflen);
+        pos += buflen;
+        int K3 = 3 * (int)hdr.r6d_k;
+        int N = K3 * (int)hdr.num_planes;
+        hdr.r6d_p0.assign((size_t)N, (uint16_t)(1u << 15));
+        int16_t prev = 0;
+        size_t bi = 0;
+        for (int i = 0; i < N && bi < hdrbuf.size(); ++i) {
+            uint16_t ud = 0; uint32_t shift = 0;
+            while (bi < hdrbuf.size()) {
+                uint8_t byte = hdrbuf[bi++];
+                ud |= (uint16_t)(byte & 0x7F) << shift;
+                shift += 7;
+                if (!(byte & 0x80)) break;
+            }
+            int16_t d = (int16_t)ud - 0x8000; // zig-zag decode
+            int16_t v = (int16_t)(prev + d); prev = v;
+            if (v < 1) v = 1;
+            if (v > (int16_t)((1u << 16) - 1)) v = (int16_t)((1u << 16) - 1);
+            hdr.r6d_p0[i] = (uint16_t)v;
         }
     }
     // Payload until the trailing crc32 (4 bytes).
@@ -703,6 +760,107 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilte
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_r6d(const Raster& raster, WaveletFilter filter,
+                                               int levels, int k, float W, size_t& net_out) {
+    // FRAME-WAVELET-R6D (issue #130, Route 6 lever D): the true JXL-Modular
+    // property tree with transmitted per-leaf histograms. Codes the
+    // learned-coefficient residual r = c - c_hat through
+    // BitplaneCoder::encode_static_tree (a baked property-tree leaf over RAW
+    // neighbour magnitudes keyed to a transmitted per-leaf P(0), blended with the
+    // adaptive EMA) instead of the MLP-cluster R6-C backbone. R6D_FLAG set so
+    // decode parses the transmitted per-leaf histogram. Zero full-model bytes
+    // transmitted (invariant I29); only the tiny per-leaf histogram header is sent.
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    WaveletParams p{filter, levels};
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code; // X6c slot unused by R6D (neutral)
+    std::vector<uint16_t> all_p0;        // flattened R6D per-leaf histogram (K*3, uint16)
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+        auto subs = lift.forward(plane, t.w, t.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
+        }
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c = s.coeffs[(size_t)y * s.w + x];
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                }
+        }
+
+        size_t plane_start = payload.size();
+        auto res = coder.encode_static_tree(R, k, W);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(0);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        // The per-leaf histogram is GLOBAL across the whole plane (all subbands
+        // share one property-tree leaf space), so it is appended ONCE per plane.
+        for (size_t c = 0; c < res.hist.sp0.size(); ++c)
+            all_p0.push_back(res.hist.sp0[c]);
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = (uint8_t)(1u | R6D_FLAG); // residual + R6D
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+    hdr.r6d_k = (uint16_t)k;
+    int wr = (int)std::lround(W * 200.0f);
+    if (wr < 0) wr = 0; if (wr > 255) wr = 255;
+    hdr.r6d_w = (uint8_t)wr;
+    hdr.r6d_p0 = std::move(all_p0);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -812,6 +970,22 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
                 }
                 return coder.decode_static_cluster(plane_streams, plane_layout,
                                                    plane_maxbits, 0, chist);
+            }
+            if (hdr.residual_mode & R6D_FLAG) {
+                // The per-leaf histogram is GLOBAL per plane (all subbands of a
+                // plane share one property-tree leaf space), so slice plane pi.
+                StaticTreeHist thist;
+                thist.k = (int)hdr.r6d_k;
+                thist.w = (float)hdr.r6d_w / 200.0f;
+                int K3 = 3 * (int)hdr.r6d_k;
+                thist.sp0.assign((size_t)K3, (uint16_t)(1u << 15));
+                size_t base = (size_t)pi * (size_t)K3;
+                for (int c = 0; c < K3; ++c) {
+                    size_t idx = base + (size_t)c;
+                    thist.sp0[c] = (idx < hdr.r6d_p0.size()) ? hdr.r6d_p0[idx] : (uint16_t)(1u << 15);
+                }
+                return coder.decode_static_tree(plane_streams, plane_layout,
+                                                plane_maxbits, 0, thist);
             }
             if (hdr.residual_mode & R6B_FLAG) {
                 StaticHist hist;
