@@ -4734,7 +4734,7 @@ int main(int argc, char* argv[]) {
                             for (int y = 0; y < s.h; ++y)
                                 for (int x = 0; x < s.w; ++x) {
                                     int32_t c = s.coeffs[(size_t)y * s.w + x];
-                                int32_t c_hat = pred_solved.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                                int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
                                     int32_t rv = c - c_hat;
                                     int cb = (c == 0) ? 0 : (31 - __builtin_clz((uint32_t)(c < 0 ? -c : c))) + 1;
                                     int rb = (rv == 0) ? 0 : (31 - __builtin_clz((uint32_t)(rv < 0 ? -rv : rv))) + 1;
@@ -5134,13 +5134,12 @@ int main(int argc, char* argv[]) {
                     CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
                     std::vector<std::vector<int32_t>> recon(subs.size());
                     for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
-                    for (int si : order) {
-                        const Subband& s = subs[si];
-                        int o = (int)s.orient;
-                        for (int y = 0; y < s.h; ++y)
-                            for (int x = 0; x < s.w; ++x) {
-                                int32_t c = s.coeffs[(size_t)y * s.w + x];
-                                int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                        for (int si : order) {
+                            const Subband& s = subs[si];
+                            for (int y = 0; y < s.h; ++y)
+                                for (int x = 0; x < s.w; ++x) {
+                                    int32_t c = s.coeffs[(size_t)y * s.w + x];
+                                    int32_t c_hat = pred_solved.predict(recon, subs, parent, sib1, sib2, si, x, y);
                                 double e = (double)c - (double)c_hat;
                                 mse += e * e; ++n2;
                             }
