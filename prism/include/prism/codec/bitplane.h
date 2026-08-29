@@ -37,31 +37,6 @@ struct StaticBitplaneResult {
     StaticHist hist;
 };
 
-// Per-fine-context CLUSTER transmitted histogram (R6-C, Route 6 lever C).
-//
-// R6-B keys the transmitted histogram on a COARSE 12-way class (symtype x
-// bitplane-bucket) per subband, which cannot beat the 1.84M fine EMA contexts
-// (every context in a coarse class shares one static P(0)). R6-C instead keys
-// the transmitted histogram on a CLUSTER of fine contexts derived from the
-// learned MLP prior: cluster = symtype * KB + bucket(learned P(0)), so all
-// fine contexts whose data-driven prior falls in the same probability bucket
-// share one static P(0). This is the JXL-Modular "transmitted histogram per
-// learned context cluster" idea and is the fine-granularity lever R6-B lacked.
-// The cluster id is a pure function of already-coded state (the MLP prior is a
-// baked constant), so encode/decode agree and the rANS stream is byte-exact.
-// KB is the number of probability buckets per symtype (tunable; NB = 3*KB).
-struct StaticClusterHist {
-    int kb = 0;                       // probability buckets per symtype
-    std::vector<std::vector<uint32_t>> cnt; // [NB][2] c0/c1 raw counts
-};
-
-struct StaticClusterBitplaneResult {
-    std::vector<std::vector<uint8_t>> streams;
-    std::vector<uint8_t> sub_maxbits;
-    uint32_t total_symbols = 0;
-    StaticClusterHist hist;
-};
-
 // EBCOT-style 3-pass bitplane coder over wavelet subbands, with the pinned
 // fixed parent-aware context (invariant I28). Zero tables are transmitted: the
 // context is a FIXED function of (orientation, parent significance, neighbour
@@ -126,30 +101,6 @@ struct BitplaneCoder {
     generate_symbols(const std::vector<Subband>& subbands, int maxbits_override = 0,
                      const std::vector<std::vector<int32_t>>* luma_mag = nullptr,
                      const std::vector<float>* sub_scale = nullptr);
-
-    // R6-C (Route 6 lever C): per-fine-context CLUSTER transmitted histogram.
-    // Like encode_static but keys the transmitted static P(0) on a cluster id
-    // derived from the learned MLP prior (cluster = symtype*KB + bucket(P0)),
-    // giving NB = 3*KB fine-grained static contexts instead of R6-B's 12 coarse
-    // per-subband classes. Pass 1 counts per-cluster; pass 2 blends the
-    // transmitted cluster histogram with the adaptive EMA and emits one rANS
-    // stream per subband. `hist` (NB*2 counts) is the transmitted payload.
-    StaticClusterBitplaneResult encode_static_cluster(
-        const std::vector<Subband>& subbands, int kb,
-        int maxbits_override = 0,
-        const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
-
-    // Decode streams produced by encode_static_cluster using the transmitted
-    // StaticClusterHist as the static backbone. The cluster id is recomputed
-    // identically (it depends only on the MLP prior + symtype, both available
-    // from already-coded state), so the blend evolves byte-exact.
-    std::vector<Subband> decode_static_cluster(
-        const std::vector<std::vector<uint8_t>>& streams,
-        const std::vector<Subband>& layout,
-        const std::vector<uint8_t>& sub_maxbits,
-        uint32_t total_symbols,
-        const StaticClusterHist& hist,
-        const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
 
     // R6-B two-pass transmitted-histogram coder (Route 6 lever B). Pass 1 counts
     // per-subband (symtype x bitplane-bucket) histograms; pass 2 blends the
