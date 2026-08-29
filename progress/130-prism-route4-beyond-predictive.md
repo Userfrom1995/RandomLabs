@@ -1,25 +1,24 @@
 # Progress: Route 4 - Beyond-Predictive Paradigm (issue #130)
 
-- **Branch:** `opencode/issue130-20260828063310`
+- **Branch:** `opencode/issue130-20260829014156` (PR #167)
 - **Research:** `prism/docs/research-route4-beyond-predictive.md` (Dr. Mob)
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X2 + X3a + X3b + X5a COMPLETE on REAL pinned Kodak-24 (sha-verified).
-       The wavelet+bitplane path beats the v1 e1 baseline by 3.3% (3.247 vs 3.3737
-       per-sample) with byte-exact round-trip. EVERY data-free context lever is now
-       exhausted: fixed-context augmentation (pattern ~0; run-length HURT; neighbour-
-       magnitude HURT), deeper/wider MLP (X3b, 3.247), online EMA blend (HURT), and the
-       X5a cross-component (chroma-on-luma) MLP feature (NEUTRAL 3.2474). The remaining
-       gap to M2 (3.166) / M3 (2.885) is a FUNDAMENTALLY STRONGER context model that
-       requires a research/architect redesign (not a Builder tweak), per the X3b run's
-       own conclusion.
-- **Next steps:** Escalate to Maintainer (Hephaestus) to route a Researcher+Architect
-       sprint on a fundamentally stronger context model (e.g. a convolutional/AR prior,
-       or a value/tokenization change in the bitplane decomposition). Data-free Builder
-       changes are tapped; this is the only remaining lever. Per Anti-Surrender + owner
-       "do not stop until M2 and M3 pass", the pipeline must continue via R+A rather than
-       declare victory.
+- **Current step:** X2 + X3a + X3b + X5a COMPLETE on REAL pinned Kodak-24 (sha-verified),
+        then FIXED for train/inference symmetry by the Fixer (PR #167). The wavelet+bitplane
+        path beats the v1 e1 baseline by 3.3% with byte-exact round-trip. EVERY data-free
+        context lever is now exhausted. After the Fixer's symmetry corrections (per-subband
+        bitplane range in training + `level` wired into the MLP prior) the honest rate is
+        **3.24386 per-sample / 9.73159 summed** (was 3.2474 / 9.7424). The remaining gap to
+        M2 (3.166) / M3 (2.885) is a FUNDAMENTALLY STRONGER context model that requires a
+        research/architect redesign (not a Builder tweak).
+ - **Next steps:** Escalate to Maintainer (Hephaestus) to route a Researcher+Architect
+        sprint on a fundamentally stronger context model (e.g. a convolutional/AR prior,
+        or a value/tokenization change in the bitplane decomposition). Data-free Builder
+        changes are tapped; this is the only remaining lever. Per Anti-Surrender + owner
+        "do not stop until M2 and M3 pass", the pipeline must continue via R+A rather than
+        declare victory.
 
 ---
 
@@ -114,8 +113,11 @@
 - [ ] X5: reserve (chroma-on-luma N4, deeper L, context-pool sweep).
 
 ### X3: Learned/Augmented Context (N3, M3 target)
-- [ ] X3b: enriched adaptive context (run-length, sig-gradient, grandparent); >= +1.5% over X2
-- [ ] X3a: neural fixed CNN context IF owner authorizes training corpus; >= +1.5% over X3b
+- [x] X3b: enriched adaptive context - parent map activated at inference (shared `LearnedModel`
+      per plane, joint subband walk). Fixer pass then corrected the offline trainer's sample
+      collection (per-subband bitplane range + `oi`-indexed state) and wired `level` into the
+      MLP prior (13 features). See Fixer re-measurement note below.
+- [x] X3a: neural fixed CNN context (real Kodak-24 training corpus authorized by owner).
 - [ ] If X3a gated out: record honestly per I30 (M2 PASS / M3 PENDING)
 - [ ] Commit dated CSV `*-sandbox-x3.csv`
 
@@ -179,7 +181,24 @@
        + `wavelet_container.cpp` + `main.cpp` (train-learned).
 - [ ] X5b: L up to 6 depth sweep; >= +1.0% median NET
 - [ ] X5c: context pool 64/128/256 fixed; >= +1.0% median NET
-- [ ] Third strike dies forever
+- [!] **Fixer re-measurement (2026-08-29, PR #167):** the Reviewer's `/oc fix` (F1-F6) found the
+      offline trainer was asymmetric with the production walk. Applied: (F2) `collect_samples`/
+      `generate_symbols` now compute a per-subband `sub_maxbits[oi]` exactly like `encode`/`decode`
+      (previously a single global `B` forced tiny AC bands to emit wasted all-zero significance
+      planes); (F2b) their shared state is now indexed by original subband `oi`, not coding-order
+      `si` (the `sig[pidx]` parent lookup was reading the wrong subband); (F1) `level` is now the
+      13th MLP input feature (`out[12] = f.level/5.0f`) - previously only the EMA used it; (F3)
+      synced the stale `learned_norm(..., float out[10])` header to `float out[13]`; (F3-diag)
+      commented the intentionally-isolated `frame_wavelet_payload`/`_spatial_payload` helpers.
+      Retrained (`prism train-learned --kodak` on the canonical 24 PPMs) and re-measured with
+      `bench-x` at `blend=0`: mean per-sample = **3.24386 bpp**, mean summed = **9.73159 bpp/img**
+      (train BCE 0.312058 after the harder honest distribution). Marginally better than the prior
+      3.2474 / 9.7424; the symmetry fixes made training match inference without inventing a win.
+      Gates STILL OPEN (M2 per-sample <3.166 AND summed <9.498; M3 <2.885 AND <8.655). 206
+      `prism_tests` pass (roundtrip + context determinism intact). Durable CSV:
+      `benchmarks/results/2026-08-29-fixer-x3b-kodak24.csv`. PR body set to `Refs #130` (not
+      `Closes`) per Anti-Surrender. Ideas writeup:
+      `ideas/2026-08-29-prism-x3b-parent-context-fix.md`.
 
 ---
 
