@@ -4620,6 +4620,8 @@ int main(int argc, char* argv[]) {
                 else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
                 else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
                 else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--blend" && i + 1 < argc) learned_set_blend(std::stof(argv[++i]));
+                else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
             }
             Raster r = load_raster(in, w, h, bd, ch);
             WaveletFilter filter = WaveletFilter::LeGall53;
@@ -4747,7 +4749,7 @@ int main(int argc, char* argv[]) {
             int epochs = 14;
             float lr = 0.04f;
             int stride = 128;
-            float blend = 0.6f;
+            float blend = 0.0f; // baked default; --blend overrides at runtime (global MLP-trust lever)
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
@@ -4779,7 +4781,7 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
-            static constexpr int HF = 16, FF = 10; // hidden units, features
+            static constexpr int HF1 = 32, HF2 = 16, FF = 10; // hidden widths, features
             WaveletFilter filter = WaveletFilter::LeGall53;
             int levels = X_DEFAULT_LEVELS;
             WaveletLift lift;
@@ -4787,7 +4789,6 @@ int main(int argc, char* argv[]) {
             BitplaneCoder coder;
 
             std::vector<LSample> samples;
-            uint64_t seen = 0;
             for (auto& img : imgs) {
                 Raster r = prism::frontend::decode_ppm(img);
                 ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
@@ -4795,16 +4796,14 @@ int main(int argc, char* argv[]) {
                 for (auto& pl : t.planes) {
                     std::vector<int32_t> plane(pl.begin(), pl.end());
                     auto subs = lift.forward(plane, t.w, t.h, wp);
-                    for (auto& s : subs) {
-                        std::vector<Subband> one{s};
-                        coder.collect_samples(one, samples);
-                    }
+                    // X3b fix: collect over the FULL subband set so the parent
+                    // map matches the production encode/decode walk. During X3a
+                    // training each subband was collected in isolation, so the
+                    // parent-magnitude / parent-significance features were always
+                    // zero and the MLP never learned them. Now the MLP sees the
+                    // same parent context at train time as at inference time.
+                    coder.collect_samples(subs, samples);
                 }
-                // subsample to keep memory bounded
-                if (stride > 1 && (samples.size() % (size_t)stride) == 0) {
-                    // keep every `stride`-th by compacting in place after the loop
-                }
-                (void)seen;
             }
             // Compact: keep every `stride`-th sample.
             if (stride > 1 && samples.size() > (size_t)stride) {
@@ -4816,38 +4815,38 @@ int main(int argc, char* argv[]) {
             std::cout << "train-learned: " << samples.size() << " samples\n";
             if (samples.empty()) { std::cerr << "train-learned: no samples\n"; return 2; }
 
-            // Normalise a feature vector.
-            auto norm = [](const LCFeat& f, float x[FF]) {
-                x[0] = f.symtype / 2.0f;
-                x[1] = f.orient / 3.0f;
-                x[2] = f.parent_sig ? 1.0f : 0.0f;
-                x[3] = f.fc / 4.0f;
-                x[4] = f.dg / 4.0f;
-                x[5] = f.nbsig / 8.0f;
-                x[6] = f.nmag / 7.0f;
-                x[7] = f.pmag / 7.0f;
-                x[8] = f.ownmag / 7.0f;
-                x[9] = f.ppos / 7.0f;
-            };
+            // Normalise a feature vector. Uses the SHARED normaliser so the
+            // trainer and the baked inference can never drift (X3b hardening).
+            auto norm = [](const LCFeat& f, float x[FF]) { learned_norm(f, x); };
 
-            // Model parameters.
-            std::array<std::array<float, FF>, HF> W1{};
-            std::array<float, HF> b1{};
-            std::array<float, HF> W2{};
-            float b2 = 0.0f;
+            // Two-hidden-layer MLP: x -> ReLU(W1.x+b1) -> ReLU(W2.h1+b2)
+            // -> sigmoid(W3.h2+b3). Deeper/wider than X3a (10->32->16->1) so the
+            // network can exploit the now-real parent features.
+            std::array<std::array<float, FF>, HF1> W1{};
+            std::array<float, HF1> b1{};
+            std::array<std::array<float, HF1>, HF2> W2{};
+            std::array<float, HF2> b2{};
+            std::array<float, HF2> W3{};
+            float b3 = 0.0f;
             std::mt19937 rng(0x130);
             std::uniform_real_distribution<float> u(-0.1f, 0.1f);
-            for (int j = 0; j < HF; ++j) {
+            for (int j = 0; j < HF1; ++j) {
                 for (int i = 0; i < FF; ++i) W1[j][i] = u(rng);
                 b1[j] = u(rng);
-                W2[j] = u(rng);
             }
-            b2 = u(rng);
+            for (int j = 0; j < HF2; ++j) {
+                for (int i = 0; i < HF1; ++i) W2[j][i] = u(rng);
+                b2[j] = u(rng);
+                W3[j] = u(rng);
+            }
+            b3 = u(rng);
 
             // Adam state.
-            std::array<std::array<float, FF>, HF> mW1{}, vW1{};
-            std::array<float, HF> mb1{}, vb1{}, mW2{}, vW2{};
-            float mb2 = 0, vb2 = 0;
+            std::array<std::array<float, FF>, HF1> mW1{}, vW1{};
+            std::array<float, HF1> mb1{}, vb1{};
+            std::array<std::array<float, HF1>, HF2> mW2{}, vW2{};
+            std::array<float, HF2> mb2{}, vb2{}, mW3{}, vW3{};
+            float mb3 = 0, vb3 = 0;
             const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
             const int BS = 4096;
             const size_t N = samples.size();
@@ -4855,11 +4854,16 @@ int main(int argc, char* argv[]) {
             for (size_t i = 0; i < N; ++i) idxs[i] = i;
             auto rngs = std::mt19937(12345);
 
-            auto forward = [&](const float x[FF], float h[HF]) {
-                for (int j = 0; j < HF; ++j) {
+            auto forward = [&](const float x[FF], float h1[HF1], float h2[HF2]) {
+                for (int j = 0; j < HF1; ++j) {
                     float acc = b1[j];
                     for (int i = 0; i < FF; ++i) acc += W1[j][i] * x[i];
-                    h[j] = acc > 0.0f ? acc : 0.0f;
+                    h1[j] = acc > 0.0f ? acc : 0.0f;
+                }
+                for (int j = 0; j < HF2; ++j) {
+                    float acc = b2[j];
+                    for (int i = 0; i < HF1; ++i) acc += W2[j][i] * h1[i];
+                    h2[j] = acc > 0.0f ? acc : 0.0f;
                 }
             };
             auto sigmoidf = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
@@ -4871,26 +4875,39 @@ int main(int argc, char* argv[]) {
                 for (size_t s = 0; s < N; s += (size_t)BS) {
                     size_t e = std::min(s + (size_t)BS, N);
                     // gradients
-                    std::array<std::array<float, FF>, HF> gW1{};
-                    std::array<float, HF> gb1{}, gW2{};
-                    float gb2 = 0.0f;
+                    std::array<std::array<float, FF>, HF1> gW1{};
+                    std::array<float, HF1> gb1{}, gW2[HF2]{};
+                    std::array<float, HF2> gb2{}, gW3{};
+                    float gb3 = 0.0f;
                     for (size_t bi = s; bi < e; ++bi) {
                         const LSample& sm = samples[idxs[bi]];
                         float x[FF]; norm(sm.feat, x);
-                        float h[HF]; forward(x, h);
-                        float acc = b2;
-                        for (int j = 0; j < HF; ++j) acc += W2[j] * h[j];
+                        float h1[HF1], h2[HF2]; forward(x, h1, h2);
+                        float acc = b3;
+                        for (int j = 0; j < HF2; ++j) acc += W3[j] * h2[j];
                         float y = sigmoidf(acc);
                         if (y < 1e-4f) y = 1e-4f; if (y > 1.0f - 1e-4f) y = 1.0f - 1e-4f;
                         float dy = y - (sm.label ? 1.0f : 0.0f); // dL/dpre
                         tot += -(sm.label ? std::log(y) : std::log(1.0f - y));
                         ++nb;
-                        gb2 += dy;
-                        for (int j = 0; j < HF; ++j) {
-                            gW2[j] += dy * h[j];
-                            float g = dy * W2[j] * (h[j] > 0.0f ? 1.0f : 0.0f);
-                            gb1[j] += g;
-                            for (int i = 0; i < FF; ++i) gW1[j][i] += g * x[i];
+                        gb3 += dy;
+                        // Backprop: gh2[j] = dL/d(pre-h2[j]) ; gh1[i] = dL/d(pre-h1[i])
+                        float gh2[HF2];
+                        for (int j = 0; j < HF2; ++j) {
+                            gh2[j] = dy * W3[j] * (h2[j] > 0.0f ? 1.0f : 0.0f);
+                            gW3[j] += dy * h2[j];
+                            gb2[j] += gh2[j];
+                        }
+                        float gh1[HF1] = {0};
+                        for (int j = 0; j < HF2; ++j)
+                            for (int i = 0; i < HF1; ++i) {
+                                gW2[j][i] += gh2[j] * h1[i];
+                                gh1[i] += gh2[j] * W2[j][i];
+                            }
+                        for (int i = 0; i < HF1; ++i) {
+                            gh1[i] *= (h1[i] > 0.0f ? 1.0f : 0.0f);
+                            gb1[i] += gh1[i];
+                            for (int k = 0; k < FF; ++k) gW1[i][k] += gh1[i] * x[k];
                         }
                     }
                     float scale = 1.0f / (float)(e - s);
@@ -4902,12 +4919,16 @@ int main(int argc, char* argv[]) {
                         float vh = v / (1.0f - std::pow(beta2, (float)(ep + 1)));
                         w -= lr * mh / (std::sqrt(vh) + eps);
                     };
-                    for (int j = 0; j < HF; ++j) {
+                    for (int j = 0; j < HF1; ++j) {
                         for (int i = 0; i < FF; ++i) update(W1[j][i], mW1[j][i], vW1[j][i], gW1[j][i]);
                         update(b1[j], mb1[j], vb1[j], gb1[j]);
-                        update(W2[j], mW2[j], vW2[j], gW2[j]);
                     }
-                    update(b2, mb2, vb2, gb2);
+                    for (int j = 0; j < HF2; ++j) {
+                        for (int i = 0; i < HF1; ++i) update(W2[j][i], mW2[j][i], vW2[j][i], gW2[j][i]);
+                        update(b2[j], mb2[j], vb2[j], gb2[j]);
+                        update(W3[j], mW3[j], vW3[j], gW3[j]);
+                    }
+                    update(b3, mb3, vb3, gb3);
                 }
                 last_loss = tot / (float)nb;
                 std::cout << "  epoch " << ep << " train BCE=" << last_loss << "\n";
@@ -4917,22 +4938,32 @@ int main(int argc, char* argv[]) {
             {
                 std::ofstream o(out);
                 if (!o) { std::cerr << "train-learned: cannot write " << out << "\n"; return 2; }
-                o << "// Baked learned-context MLP weights (Route 4 / X3a). AUTO-GENERATED by\n"
+                o << "// Baked learned-context MLP weights (Route 4 / X3b). AUTO-GENERATED by\n"
                   << "// `prism train-learned`. Editing by hand is discouraged; regenerate instead.\n";
-                o << "static const float LW1[" << HF << "][" << FF << "] = {\n";
-                for (int j = 0; j < HF; ++j) {
+                o << "static const float LW1[" << HF1 << "][" << FF << "] = {\n";
+                for (int j = 0; j < HF1; ++j) {
                     o << "  {";
                     for (int i = 0; i < FF; ++i) o << (i ? ", " : "") << W1[j][i];
-                    o << "}" << (j + 1 < HF ? "," : "") << "\n";
+                    o << "}" << (j + 1 < HF1 ? "," : "") << "\n";
                 }
                 o << "};\n";
-                o << "static const float Lb1[" << HF << "] = {";
-                for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << b1[j];
+                o << "static const float Lb1[" << HF1 << "] = {";
+                for (int j = 0; j < HF1; ++j) o << (j ? ", " : "") << b1[j];
                 o << "};\n";
-                o << "static const float LW2[" << HF << "] = {";
-                for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << W2[j];
+                o << "static const float LW2[" << HF2 << "][" << HF1 << "] = {\n";
+                for (int j = 0; j < HF2; ++j) {
+                    o << "  {";
+                    for (int i = 0; i < HF1; ++i) o << (i ? ", " : "") << W2[j][i];
+                    o << "}" << (j + 1 < HF2 ? "," : "") << "\n";
+                }
                 o << "};\n";
-                o << "static const float Lb2 = " << b2 << ";\n";
+                o << "static const float Lb2[" << HF2 << "] = {";
+                for (int j = 0; j < HF2; ++j) o << (j ? ", " : "") << b2[j];
+                o << "};\n";
+                o << "static const float LW3[" << HF2 << "] = {";
+                for (int j = 0; j < HF2; ++j) o << (j ? ", " : "") << W3[j];
+                o << "};\n";
+                o << "static const float Lb3 = " << b3 << ";\n";
                 o << "static const float LBlend = " << blend << ";\n";
                 o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << "\n";
             }

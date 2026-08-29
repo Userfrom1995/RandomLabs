@@ -170,20 +170,23 @@ std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter fi
     std::vector<uint8_t> all_orient, all_level;
     std::vector<uint16_t> all_w, all_h;
     for (size_t pi = 0; pi < per_plane_subs.size(); ++pi) {
-        size_t plane_start = payload.size();
-        for (const auto& s : per_plane_subs[pi]) {
-            std::vector<Subband> one{s};
-            auto res = coder.encode(one);
-            global_maxbits = std::max(global_maxbits, res.maxbits);
-            all_sub_maxbits.push_back(res.maxbits);
-            all_sub_bytes.push_back((uint32_t)res.stream.size());
-            all_orient.push_back((uint8_t)s.orient);
-            all_level.push_back((uint8_t)s.level);
-            all_w.push_back((uint16_t)s.w);
-            all_h.push_back((uint16_t)s.h);
-            payload.insert(payload.end(), res.stream.begin(), res.stream.end());
+        auto& subs = per_plane_subs[pi];
+        // Encode the whole plane's subbands TOGETHER (one rANS context walk over
+        // the coding order) so child subbands can condition on already-coded
+        // PARENT subband magnitudes. Each subband still keeps its OWN stream for
+        // sliceable decoding (X3b core fix).
+        auto res = coder.encode(subs);
+        for (size_t oi = 0; oi < subs.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)subs[oi].orient);
+            all_level.push_back((uint8_t)subs[oi].level);
+            all_w.push_back((uint16_t)subs[oi].w);
+            all_h.push_back((uint16_t)subs[oi].h);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
         }
-        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+        plane_symbols.push_back(res.total_symbols);
     }
 
     WaveletHeader hdr;
@@ -241,27 +244,31 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     size_t off = 0;
     uint32_t sub_idx = 0; // global subband index (forward() order)
     for (uint8_t pi = 0; pi < nplanes; ++pi) {
-        uint32_t plane_n = hdr.plane_symbols[pi];
-        std::vector<Subband> plane_subs;
-        plane_subs.reserve(spp);
+        std::vector<Subband> plane_layout;
+        std::vector<std::vector<uint8_t>> plane_streams;
+        std::vector<uint8_t> plane_maxbits;
+        plane_layout.reserve(spp);
+        plane_streams.reserve(spp);
+        plane_maxbits.reserve(spp);
         for (uint16_t k = 0; k < spp; ++k) {
             uint32_t n = hdr.sub_bytes[sub_idx];
             std::vector<uint8_t> slice(frame.payload.begin() + off,
                                        frame.payload.begin() + off + n);
             off += n;
-            // Single-subband layout (orient/level/w/h) with empty coeffs.
             Subband layout_one;
             layout_one.orient = (Subband::Orient)hdr.orient[sub_idx];
             layout_one.level = hdr.level[sub_idx];
             layout_one.w = hdr.w[sub_idx];
             layout_one.h = hdr.h[sub_idx];
             layout_one.coeffs.assign((size_t)layout_one.w * layout_one.h, 0);
-            std::vector<Subband> one_layout{layout_one};
-            std::vector<uint8_t> one_maxbits{hdr.sub_maxbits[sub_idx]};
-            auto decoded = coder.decode(slice, one_layout, one_maxbits, 0);
-            plane_subs.push_back(decoded[0]);
+            plane_layout.push_back(layout_one);
+            plane_streams.push_back(std::move(slice));
+            plane_maxbits.push_back(hdr.sub_maxbits[sub_idx]);
             ++sub_idx;
         }
+        // Decode the whole plane together so PARENT subband magnitudes are
+        // available as context (X3b fix). plane_layout order == forward() order.
+        auto plane_subs = coder.decode(plane_streams, plane_layout, plane_maxbits, 0);
         auto plane = lift.inverse(plane_subs, t.w, t.h, p);
         // Store the color-transformed integer coefficients verbatim (biased/
         // signed); reinterpreted as signed 16-bit by invert_color, so do NOT
@@ -311,8 +318,8 @@ size_t frame_wavelet_payload(const Raster& raster, WaveletFilter filter, int lev
         for (const auto& s : subs) {
             std::vector<Subband> one{s};
             auto res = coder.encode(one);
-            maxbits = std::max(maxbits, res.maxbits);
-            payload += res.stream.size();
+            maxbits = std::max(maxbits, res.sub_maxbits[0]);
+            payload += res.streams[0].size();
         }
     }
     maxbits_out = maxbits;
@@ -350,7 +357,7 @@ size_t frame_spatial_payload(const Raster& raster) {
         sb.coeffs = std::move(res);
         std::vector<Subband> one{sb};
         auto r = coder.encode(one);
-        payload += r.stream.size();
+        payload += r.streams[0].size();
     }
     return payload;
 }
