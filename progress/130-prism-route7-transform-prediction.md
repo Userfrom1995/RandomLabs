@@ -1,38 +1,33 @@
 # Progress: Route 7 - In-Subband Value Prediction and Adaptive Transform (issue #130)
 
-- **Branch:** `opencode/issue130-20260829211143`
-- **PR:** #185 `Refs #130`
-- **Blueprint:** `ideas/2026-08-29-prism-route7-transform-prediction.md` (the Architect)
+- **Branch:** `opencode/issue130-route7-transform-prediction`
+- **PR:** (to be opened) `Refs #130`
+- **Blueprint:** `ideas/2026-08-29-prism-route7-transform-prediction.md`
 - **Research spec:** `prism/docs/research-route7-transform-prediction.md` (Dr. Mob, the Researcher)
 - **Precedent:** R6-A (3.2459), R6-B (3.4363), R6-C (5.08 untrained), and the R6-D
   property tree (on main, blueprint delivered, unmeasured). X6b floor: 3.2175 per-sample
   / 9.6525 summed on real Kodak-24. R6-D removes cold-start waste (Axis A); Route 7
   removes value-decorrelation waste via a free in-subband predictor + adaptive filter (Axis B).
-- **Status:** in-progress (blueprint delivered; ready for initial Builder pass)
+- **Status:** Research delivered. Ready for Architect (`/oc architect`).
 
 ## Milestone Checklist
 
-### D0: Scaffold + in-subband predictor (R7-A)
-- [ ] `R7A_FLAG = 32` / `R7B_FLAG = 64` residual_mode bits + `static_assert` overflow guard in `wavelet_container.h`
-- [ ] `WaveletHeader::r7a_pred` (uint8_t) + `WaveletHeader::sub_filter` (per-subband filter id) fields
-- [ ] `InSubbandPredictor` (MED + GRADIENT) in `predictor.h/.cpp`: `predict` / `residual` / `reconstruct` / `reversible_for_all_inputs` (raster 4-neighbour W,N,NW,NE, mirror borders)
-- [ ] `frame_wavelet_encode_r7`: R7-A residual pre-pass (reuse `frame_wavelet_encode_residual` framing, swap `CoefficientPredictor` -> `InSubbandPredictor`)
-- [ ] `frame_wavelet_decode`: R7A_FLAG dispatch (decode R via standard bitplane decoder, then `InSubbandPredictor::reconstruct` post-pass)
-- [ ] `wavelet_container_encode`/`decode`: serialize `sub_filter` when R7B_FLAG set
-- [ ] byte-exact self-check (T1/T2): decode(encode(x)) 24/24
+### D0: Scaffold + in-subband predictor
+- [ ] `R7A_FLAG` (bit 32) dispatch in wavelet frame coder + `WaveletHeader` tag
+- [ ] MED/gradient prediction of coefficient VALUE from reconstructed W/N/NW/NE in `BitplaneCoder` loop
+- [ ] symmetry (raster-order 4-neighbourhood, mirror borders); byte-exact self-check
 
-### D1: Adaptive filter selection (R7-B)
-- [ ] `WaveletParams::per_level_filter` (vector<WaveletFilter>); `WaveletLift::forward`/`inverse` lift level L with per-level filter; `reversible_for_all_inputs` covers combos
-- [ ] C3 trial hook: per-level Haar/53/97 by REAL rANS bytes (not L1 proxy); record `sub_filter`
-- [ ] decode maps subband `level` -> filter id via `sub_filter`
+### D1: Adaptive filter selection
+- [ ] per-subband filter trial-encode (Haar/LeGall53/Reversible97) by real bytes (C3)
+- [ ] 2-bit filter tag per subband in header
 
 ### D2: CLIs
-- [ ] `prism wavelet-r7` (mirror `wavelet-r6b`): `--filter --levels --gradient --adaptive-filter`, ROUNDTRIP=OK/FAIL
-- [ ] `prism bench-r7` (mirror `bench-r6b`): dual-unit CSV + M2/M3 gate print, `--gradient --adaptive-filter`
+- [ ] `prism wavelet-r7`, `prism bench-r7` (dual-unit CSV + byte-exact + fuzz)
+- [ ] predictor (MED/GRADIENT) selection hook
 
 ### D3: Tests
-- [ ] `tests/unit/test_r7.cpp` (T1-T9: reversible, full-frame MED/GRADIENT, R7-B roundtrip, CLI smoke, no-worse, determinism, fuzz, R7-1 held-out gate)
-- [ ] registered in `prism/CMakeLists.txt` (after `test_r6c.cpp`)
+- [ ] `tests/unit/test_r7.cpp` (full-frame, subband, variants, no-worse, determinism, fuzz)
+- [ ] registered in `prism/CMakeLists.txt`
 
 ### D4: Measurement + gates
 - [ ] R7-1 held-out 4-image (kodim02/07/17/21) median NET <= -1.5% vs X6b (3.2175) BEFORE full run
@@ -52,4 +47,4 @@
   attempt R7-C stacking + R6-D composition, then escalate for Route 8.
 - R7-4 PASS: both gates in both units -> format-stable v3 PR `Refs #130`.
 
-- the Architect
+- Dr. Mob, the Researcher
