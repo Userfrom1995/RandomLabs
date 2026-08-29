@@ -35,6 +35,7 @@
 #include <chrono>
 #include <map>
 #include <memory>
+#include <queue>
 
 using namespace prism;
 using namespace prism::codec;
@@ -4993,6 +4994,129 @@ int main(int argc, char* argv[]) {
             std::cout << "R6-C mean summed   =" << mean_sum
                       << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "wavelet-r6d") {
+            // R6-D harness: the true JXL-Modular property tree with transmitted
+            // per-leaf histograms. Codes the learned-coefficient residual through
+            // the static-tree bitplane coder. Lossless round-trip is gating.
+            if (argc < 4) { print_usage(); return 2; }
+            std::filesystem::path in = argv[2];
+            std::filesystem::path out = argv[3];
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            int k = r6d_leaf_count();
+            float W = 0.7f;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--k" && i + 1 < argc) k = std::stoi(argv[++i]);
+                else if (a == "--w" && i + 1 < argc) W = std::stof(argv[++i]);
+            }
+            uint8_t bd = 8, ch = 3; uint32_t w = 0, h = 0;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--w" && i + 1 < argc) w = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+            }
+            Raster r = load_raster(in, w, h, bd, ch);
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            size_t net = 0;
+            auto bytes = frame_wavelet_encode_r6d(r, filter, levels, k, W, net);
+            write_file(out, bytes);
+            Raster dec = frame_wavelet_decode(bytes);
+            bool ok = (dec == r);
+            double bpp = (8.0 * bytes.size()) / (r.w * r.h * (size_t)r.num_channels());
+            std::cout << "wavelet-r6d: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                      << " bd=" << (int)bd << " filter=" << (int)filter_id
+                      << " levels=" << levels << " k=" << k << " w=" << W
+                      << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
+                      << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
+            if (!ok) return 1;
+        } else if (cmd == "bench-r6d") {
+            // R6-D dual-unit benchmark on the real Kodak-24 corpus (binding gate).
+            // Encodes each image with frame_wavelet_encode_r6d (true JXL-Modular
+            // property tree + transmitted per-leaf histogram) and reports
+            // per-sample + summed bpp (both units) plus decode round-trip. The
+            // emitted CSV feeds prism/benchmarks/bench_gate.sh for the unit-
+            // consistent gate.
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            int k = r6d_leaf_count();
+            float W = 0.7f;
+            std::string kodak, outcsv;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--k" && i + 1 < argc) k = std::stoi(argv[++i]);
+                else if (a == "--w" && i + 1 < argc) W = std::stof(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+            }
+            if (kodak.empty()) {
+                std::cerr << "bench-r6d: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-r6d: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-r6d: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,roundtrip\n";
+            std::vector<double> ps, sum;
+            size_t total_net = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                auto bytes = frame_wavelet_encode_r6d(r, filter, levels, k, W, net);
+                Raster dec = frame_wavelet_decode(bytes);
+                bool ok = (dec == r);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_ps = 8.0 * net / npix;
+                double bpp_sum = 8.0 * net / (r.w * r.h);
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << net << "," << bpp_ps << ","
+                       << bpp_sum << "," << (ok ? 1 : 0) << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp_ps); sum.push_back(bpp_sum);
+                total_net += net; total_pix += npix;
+                std::cout << img.filename().string() << " net=" << net
+                          << " per_sample=" << bpp_ps << " summed=" << bpp_sum
+                          << (ok ? " OK" : " FAIL") << "\n";
+                if (!ok) { std::cerr << "bench-r6d: roundtrip FAIL on " << img.filename().string() << "\n"; return 1; }
+            }
+            double mean_ps = 0, mean_sum = 0;
+            for (double v : ps) mean_ps += v;
+            for (double v : sum) mean_sum += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            mean_sum /= std::max<size_t>(1, sum.size());
+            std::cout << "R6-D mean per-sample=" << mean_ps
+                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885 (k=" << k << " w=" << W << ")\n";
+            std::cout << "R6-D mean summed   =" << mean_sum
+                      << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+            if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-route5") {
             // Route 5 offline trainer: learns the baked token-net weights from
             // real Kodak residuals. Collects (feature, token) samples, trains a
@@ -5571,6 +5695,228 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
 
+} else if (cmd == "train-r6d-tree") {
+    // R6-D (issue #130, Route 6 lever D) offline tree trainer. Greedily grows a
+    // binary property tree over RAW already-coded neighbour/own/parent/luma
+    // magnitudes that minimises the binary entropy of the predicted bit within
+    // each leaf (JXL-Modular style). The tree is baked into route6d_tree.inc;
+    // only the per-leaf P(0) histogram is transmitted at encode time (invariant
+    // I29). Per-leaf histograms are then produced by `prism bench-r6d`/encode.
+    std::string kodak;
+    std::string out = "src/codec/route6d_tree.inc";
+    int K = 1024;       // target leaf count
+    int stride = 256;   // sample subsampling for speed
+
+    for (int i = 2; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+        else if (a == "--out" && i + 1 < argc) out = argv[++i];
+        else if (a == "--k" && i + 1 < argc) K = std::stoi(argv[++i]);
+        else if (a == "--stride" && i + 1 < argc) stride = std::stoi(argv[++i]);
+    }
+    if (kodak.empty()) { std::cerr << "train-r6d-tree: --kodak DIR required\n"; return 2; }
+    namespace fs = std::filesystem;
+    fs::path kodakDir = kodak;
+    if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+        std::cerr << "train-r6d-tree: kodak dir not found: " << kodak << "\n"; return 2;
+    }
+    std::vector<fs::path> imgs;
+    for (auto& e : fs::directory_iterator(kodakDir)) {
+        if (!e.is_regular_file()) continue;
+        auto ext = e.path().extension().string();
+        for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+        if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+            ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+            imgs.push_back(e.path());
+    }
+    std::sort(imgs.begin(), imgs.end());
+    if (imgs.empty()) { std::cerr << "train-r6d-tree: no images\n"; return 2; }
+
+    // Feature ids must match BitplaneCoder::r6d_raw_feat / route6d_tree.inc.
+    constexpr int F_W=0,F_N=1,F_E=2,F_S=3,F_NW=4,F_NE=5,F_SW=6,F_SE=7,
+                  F_PARENT=8,F_LUMA=9,F_OWN=10,F_PPOS=11,F_SYMTYPE=12,
+                  F_ORIENT=13,F_LEVEL=14,F_PARENT_SIG=15;
+
+    WaveletFilter filter = WaveletFilter::LeGall53;
+    int levels = X_DEFAULT_LEVELS;
+    WaveletLift lift;
+    WaveletParams wp{filter, levels};
+    BitplaneCoder coder;
+
+    std::vector<BitplaneCoder::R6DSample> samples;
+    uint64_t seen = 0;
+    for (auto& img : imgs) {
+        Raster r = prism::frontend::decode_ppm(img);
+        ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+        Raster t = apply_color(r, ct);
+        for (auto& pl : t.planes) {
+            std::vector<int32_t> plane(pl.begin(), pl.end());
+            auto subs = lift.forward(plane, t.w, t.h, wp);
+            // Collect the WHOLE plane's subbands together (parent context
+            // crosses subbands). luma_mag is nullptr to match the production
+            // encode path (frame_wavelet_encode_r6d passes no luma reference).
+            coder.collect_r6d_samples(subs, samples, 0, nullptr);
+        }
+        (void)seen;
+    }
+    // Subsample to bound memory/time.
+    if (stride > 1 && samples.size() > (size_t)stride) {
+        std::vector<BitplaneCoder::R6DSample> kept;
+        kept.reserve(samples.size() / (size_t)stride + 1);
+        for (size_t i = 0; i < samples.size(); i += (size_t)stride) kept.push_back(samples[i]);
+        samples = std::move(kept);
+    }
+    std::cout << "train-r6d-tree: " << samples.size() << " samples\n";
+    if (samples.empty()) { std::cerr << "train-r6d-tree: no samples\n"; return 2; }
+
+    // Precompute per-sample feature vectors (mirror of r6d_raw_feat).
+    auto feat_of = [](const R6DRaw& r, int f) -> uint32_t {
+        switch (f) {
+            case F_W: return (uint32_t)r.mW;
+            case F_N: return (uint32_t)r.mN;
+            case F_E: return (uint32_t)r.mE;
+            case F_S: return (uint32_t)r.mS;
+            case F_NW: return (uint32_t)r.mNW;
+            case F_NE: return (uint32_t)r.mNE;
+            case F_SW: return (uint32_t)r.mSW;
+            case F_SE: return (uint32_t)r.mSE;
+            case F_PARENT: return (uint32_t)r.mParent;
+            case F_LUMA: return (uint32_t)r.mLuma;
+            case F_OWN: return (uint32_t)r.mOwn;
+            case F_PPOS: return (uint32_t)r.ppos;
+            case F_SYMTYPE: return (uint32_t)r.symtype;
+            case F_ORIENT: return (uint32_t)r.orient;
+            case F_LEVEL: return (uint32_t)r.level;
+            case F_PARENT_SIG: return (uint32_t)r.parent_sig;
+            default: return 0;
+        }
+    };
+    std::vector<std::array<uint32_t,16>> fv(samples.size());
+    for (size_t i = 0; i < samples.size(); ++i) {
+        const R6DRaw& r = samples[i].raw;
+        for (int f = 0; f < 16; ++f) fv[i][f] = feat_of(r, f);
+    }
+
+    // Candidate splits.
+    struct TCand { int feat; int thr; bool cat; };
+    std::vector<TCand> cands;
+    const int mag_thr[] = {1,2,3,4,6,8,12,16,24,32,48,64,96,128,192,256,384,512,768,1024,1536,2048,3072,4096};
+    for (int f = 0; f <= F_OWN; ++f) for (int t : mag_thr) cands.push_back({f, t, false});
+    for (int t = 1; t <= 7; ++t) cands.push_back({F_PPOS, t, false});
+    for (int t = 0; t <= 2; ++t) cands.push_back({F_SYMTYPE, t, true});
+    for (int t = 1; t <= 3; ++t) cands.push_back({F_ORIENT, t, false});
+    for (int t = 1; t <= 5; ++t) cands.push_back({F_LEVEL, t, false});
+    cands.push_back({F_PARENT_SIG, 1, false});
+
+    auto binent = [](int c0, int c1) -> double {
+        int n = c0 + c1;
+        if (n <= 0) return 0.0;
+        double p = (double)c0 / (double)n;
+        if (p <= 0.0 || p >= 1.0) return 0.0;
+        return -(p * std::log2(p) + (1.0 - p) * std::log2(1.0 - p));
+    };
+
+    struct TNode { int split = 0, feat = 0, thr = 0, lhs = -1, rhs = -1, leaf = -1; int lo = 0, hi = 0; };
+    std::vector<TNode> nodes(1);
+    nodes[0].lo = 0; nodes[0].hi = (int)samples.size();
+    std::vector<int> idx(samples.size());
+    for (size_t i = 0; i < idx.size(); ++i) idx[i] = (int)i;
+
+    auto best_split = [&](int nd) -> std::pair<double,int> {
+        int lo = nodes[nd].lo, hi = nodes[nd].hi;
+        int c0 = 0, c1 = 0;
+        for (int i = lo; i < hi; ++i) { if (samples[idx[i]].bit) c1++; else c0++; }
+        int N = hi - lo;
+        double base = (double)N * binent(c0, c1);
+        double best_gain = -1.0; int best_c = -1;
+        for (size_t ci = 0; ci < cands.size(); ++ci) {
+            int l0 = 0, l1 = 0, r0 = 0, r1 = 0;
+            int feat = cands[ci].feat, thr = cands[ci].thr;
+            bool cat = cands[ci].cat;
+            for (int i = lo; i < hi; ++i) {
+                int s = idx[i];
+                bool right = cat ? (fv[s][feat] == (uint32_t)thr) : (fv[s][feat] >= (uint32_t)thr);
+                if (samples[s].bit) { if (right) r1++; else l1++; }
+                else { if (right) r0++; else l0++; }
+            }
+            int Nl = l0 + l1, Nr = r0 + r1;
+            if (Nl == 0 || Nr == 0) continue;
+            double g = base - (double)Nl * binent(l0, l1) - (double)Nr * binent(r0, r1);
+            if (g > best_gain) { best_gain = g; best_c = (int)ci; }
+        }
+        return {best_gain, best_c};
+    };
+
+    int leaf_count = 1; // root is a leaf until split
+    std::priority_queue<std::pair<double,int>> pq;
+    {
+        auto [g, c] = best_split(0); (void)c; pq.push({g, 0});
+    }
+    while (!pq.empty() && leaf_count < K) {
+        auto top = pq.top(); pq.pop();
+        int nd = top.second;
+        if (nodes[nd].split != 0) continue;
+        auto [g, ci] = best_split(nd);
+        if (ci < 0 || g <= 1e-6) continue; // unimprovable leaf
+        int lo = nodes[nd].lo, hi = nodes[nd].hi;
+        bool cat = cands[ci].cat; int feat = cands[ci].feat, thr = cands[ci].thr;
+        int mid = (int)(std::partition(idx.begin() + lo, idx.begin() + hi,
+            [&](int s) {
+                return cat ? (fv[s][feat] != (uint32_t)thr) : (fv[s][feat] < (uint32_t)thr);
+            }) - idx.begin());
+        nodes[nd].split = cat ? 2 : 1;
+        nodes[nd].feat = feat; nodes[nd].thr = thr; nodes[nd].leaf = -1;
+        nodes[nd].lhs = (int)nodes.size();
+        nodes[nd].rhs = (int)nodes.size() + 1;
+        nodes.push_back(TNode{}); nodes.push_back(TNode{});
+        nodes[nodes[nd].lhs].lo = lo; nodes[nodes[nd].lhs].hi = mid;
+        nodes[nodes[nd].rhs].lo = mid; nodes[nodes[nd].rhs].hi = hi;
+        leaf_count += 1; // removed one leaf, added two
+        auto [gl, _1] = best_split(nodes[nd].lhs); (void)_1; pq.push({gl, nodes[nd].lhs});
+        auto [gr, _2] = best_split(nodes[nd].rhs); (void)_2; pq.push({gr, nodes[nd].rhs});
+    }
+    int lid = 0;
+    for (auto& nd : nodes) if (nd.split == 0) nd.leaf = lid++;
+    int Kreal = lid;
+
+    std::ofstream o(out);
+    if (!o) { std::cerr << "train-r6d-tree: cannot write " << out << "\n"; return 2; }
+    o << "// Baked R6-D property tree (issue #130). AUTO-GENERATED by `prism train-r6d-tree`.\n";
+    o << "// Greedy binary-entropy-minimising tree over RAW already-coded magnitudes.\n";
+    o << "constexpr int R6D_FEAT_W = 0;\n";
+    o << "constexpr int R6D_FEAT_N = 1;\n";
+    o << "constexpr int R6D_FEAT_E = 2;\n";
+    o << "constexpr int R6D_FEAT_S = 3;\n";
+    o << "constexpr int R6D_FEAT_NW = 4;\n";
+    o << "constexpr int R6D_FEAT_NE = 5;\n";
+    o << "constexpr int R6D_FEAT_SW = 6;\n";
+    o << "constexpr int R6D_FEAT_SE = 7;\n";
+    o << "constexpr int R6D_FEAT_PARENT = 8;\n";
+    o << "constexpr int R6D_FEAT_LUMA = 9;\n";
+    o << "constexpr int R6D_FEAT_OWN = 10;\n";
+    o << "constexpr int R6D_FEAT_PPOS = 11;\n";
+    o << "constexpr int R6D_FEAT_SYMTYPE = 12;\n";
+    o << "constexpr int R6D_FEAT_ORIENT = 13;\n";
+    o << "constexpr int R6D_FEAT_LEVEL = 14;\n";
+    o << "constexpr int R6D_FEAT_PARENT_SIG = 15;\n";
+    o << "constexpr int R6D_K = " << Kreal << ";\n";
+    o << "constexpr int R6D_NODES = " << nodes.size() << ";\n";
+    o << "struct R6DNode {\n";
+    o << "    uint8_t  split;\n";
+    o << "    uint8_t  feat;\n";
+    o << "    uint16_t thr;\n";
+    o << "    int32_t  lhs, rhs;\n";
+    o << "    int32_t  leaf;\n";
+    o << "};\n";
+    o << "constexpr R6DNode R6D_TREE[R6D_NODES] = {\n";
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        o << "    {" << nodes[i].split << ", " << nodes[i].feat << ", " << nodes[i].thr
+          << ", " << nodes[i].lhs << ", " << nodes[i].rhs << ", " << nodes[i].leaf << "}";
+        o << (i + 1 < nodes.size() ? ",\n" : "\n");
+    }
+    o << "};\n";
+    std::cout << "train-r6d-tree: wrote " << out << " leaves=" << Kreal
+              << " nodes=" << nodes.size() << "\n";
 } else if (cmd == "train-predictor") {
     // X6b (L2) offline trainer: learns the baked per-orientation MLP coefficient
     // predictor weights from real Kodak imagery. The residual r = c - c_hat is
