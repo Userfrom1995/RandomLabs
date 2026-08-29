@@ -4993,6 +4993,123 @@ int main(int argc, char* argv[]) {
             std::cout << "R6-C mean summed   =" << mean_sum
                       << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "wavelet-r7") {
+            // R7 (Route 7) harness: in-subband MED/gradient value-predictor
+            // residual (R7-A) plus optional per-level adaptive filter (R7-B).
+            // Lossless round-trip is the gating property.
+            if (argc < 4) { print_usage(); return 2; }
+            std::filesystem::path in = argv[2];
+            std::filesystem::path out = argv[3];
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            bool use_r7b = false;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--r7b") use_r7b = true;
+            }
+            uint8_t bd = 8, ch = 3; uint32_t w = 0, h = 0;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--w" && i + 1 < argc) w = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+            }
+            Raster r = load_raster(in, w, h, bd, ch);
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            size_t net = 0;
+            auto bytes = frame_wavelet_encode_r7(r, filter, levels, net, use_r7b);
+            write_file(out, bytes);
+            Raster dec = frame_wavelet_decode(bytes);
+            bool ok = (dec == r);
+            double bpp = (8.0 * bytes.size()) / (r.w * r.h * (size_t)r.num_channels());
+            std::cout << "wavelet-r7: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                      << " bd=" << (int)bd << " filter=" << (int)filter_id
+                      << " levels=" << levels << (use_r7b ? " r7b=on" : " r7b=off")
+                      << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
+                      << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
+            if (!ok) return 1;
+        } else if (cmd == "bench-r7") {
+            // R7 (Route 7) dual-unit benchmark on the real Kodak corpus (binding
+            // gate). Encodes each image with frame_wavelet_encode_r7 (in-subband
+            // value predictor) and reports per-sample + summed bpp (both units)
+            // plus decode round-trip. --r7b also composes the per-level adaptive
+            // filter. The emitted CSV feeds prism/benchmarks/bench_gate.sh.
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            bool use_r7b = false;
+            std::string kodak, outcsv;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--r7b") use_r7b = true;
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+            }
+            if (kodak.empty()) {
+                std::cerr << "bench-r7: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-r7: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-r7: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,roundtrip\n";
+            std::vector<double> ps, sum;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                auto bytes = frame_wavelet_encode_r7(r, filter, levels, net, use_r7b);
+                Raster dec = frame_wavelet_decode(bytes);
+                bool ok = (dec == r);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_ps = 8.0 * net / npix;
+                double bpp_sum = 8.0 * net / (r.w * r.h);
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << net << "," << bpp_ps << ","
+                       << bpp_sum << "," << (ok ? 1 : 0) << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp_ps); sum.push_back(bpp_sum);
+                std::cout << img.filename().string() << " net=" << net
+                          << " per_sample=" << bpp_ps << " summed=" << bpp_sum
+                          << (ok ? " OK" : " FAIL") << "\n";
+                if (!ok) { std::cerr << "bench-r7: roundtrip FAIL on " << img.filename().string() << "\n"; return 1; }
+            }
+            double mean_ps = 0, mean_sum = 0;
+            for (double v : ps) mean_ps += v;
+            for (double v : sum) mean_sum += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            mean_sum /= std::max<size_t>(1, sum.size());
+            std::cout << "R7 mean per-sample=" << mean_ps
+                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885"
+                      << (use_r7b ? " (R7-B on)" : " (R7-A)") << "\n";
+            std::cout << "R7 mean summed   =" << mean_sum
+                      << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+            if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-route5") {
             // Route 5 offline trainer: learns the baked token-net weights from
             // real Kodak residuals. Collects (feature, token) samples, trains a

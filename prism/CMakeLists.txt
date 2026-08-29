@@ -21,8 +21,9 @@ add_library(prism_core STATIC
     src/codec/wavelet.cpp
     src/codec/wavelet_container.cpp
     src/codec/route5.cpp
-    src/codec/predictor.cpp
-    src/codec/acoder.cpp
+     src/codec/predictor.cpp
+     src/codec/r7_predictor.cpp
+     src/codec/acoder.cpp
     src/codec/mixer.cpp
     src/codec/matree.cpp
     src/codec/matree_builder.cpp
@@ -119,6 +120,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_predictor.cpp
         tests/unit/test_r6b.cpp
         tests/unit/test_r6c.cpp
+        tests/unit/test_r7.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)
