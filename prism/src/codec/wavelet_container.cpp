@@ -175,7 +175,24 @@ std::vector<uint8_t> frame_wavelet_encode(const Raster& raster, WaveletFilter fi
         // the coding order) so child subbands can condition on already-coded
         // PARENT subband magnitudes. Each subband still keeps its OWN stream for
         // sliceable decoding (X3b core fix).
-        auto res = coder.encode(subs);
+        // X5a: chroma (Co/Cg) subbands are conditioned on the co-located LUMA
+        // (Y) subband magnitude via the learned context (no residual subtraction:
+        // chroma is already far smaller than luma after YCoCg-R, so subtractive
+        // prediction would inflate the residual). Luma itself gets no luma ref.
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+        std::vector<std::vector<int32_t>> lmag_buf;
+        if (pi > 0) {
+            lmag_buf.resize(subs.size());
+            const auto& lum_subs = per_plane_subs[0];
+            for (size_t oi = 0; oi < subs.size(); ++oi) {
+                lmag_buf[oi].resize(subs[oi].coeffs.size());
+                const auto& lum = lum_subs[oi].coeffs;
+                for (size_t ci = 0; ci < subs[oi].coeffs.size(); ++ci)
+                    lmag_buf[oi][ci] = std::abs(lum[ci]);
+            }
+            luma_mag = &lmag_buf;
+        }
+        auto res = coder.encode(subs, 0, luma_mag);
         for (size_t oi = 0; oi < subs.size(); ++oi) {
             global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
             all_sub_maxbits.push_back(res.sub_maxbits[oi]);
@@ -243,6 +260,7 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
 
     size_t off = 0;
     uint32_t sub_idx = 0; // global subband index (forward() order)
+    std::vector<std::vector<Subband>> decoded_all(nplanes); // reconstructed subbands per plane
     for (uint8_t pi = 0; pi < nplanes; ++pi) {
         std::vector<Subband> plane_layout;
         std::vector<std::vector<uint8_t>> plane_streams;
@@ -253,7 +271,7 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         for (uint16_t k = 0; k < spp; ++k) {
             uint32_t n = hdr.sub_bytes[sub_idx];
             std::vector<uint8_t> slice(frame.payload.begin() + off,
-                                       frame.payload.begin() + off + n);
+                                        frame.payload.begin() + off + n);
             off += n;
             Subband layout_one;
             layout_one.orient = (Subband::Orient)hdr.orient[sub_idx];
@@ -268,7 +286,24 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         }
         // Decode the whole plane together so PARENT subband magnitudes are
         // available as context (X3b fix). plane_layout order == forward() order.
-        auto plane_subs = coder.decode(plane_streams, plane_layout, plane_maxbits, 0);
+        // X5a: pass the reconstructed LUMA subbands as the cross-component
+        // reference for chroma (Co/Cg) planes so the MLP chroma prior matches the
+        // encoder exactly (decoder sees the same already-decoded luma).
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+        std::vector<std::vector<int32_t>> lmag_buf;
+        if (pi > 0 && !decoded_all.empty()) {
+            const auto& lum_subs = decoded_all[0];
+            lmag_buf.resize(plane_layout.size());
+            for (size_t oi = 0; oi < plane_layout.size(); ++oi) {
+                lmag_buf[oi].resize((size_t)plane_layout[oi].w * plane_layout[oi].h);
+                const auto& lum = lum_subs[oi].coeffs;
+                for (size_t ci = 0; ci < lmag_buf[oi].size(); ++ci)
+                    lmag_buf[oi][ci] = std::abs(lum[ci]);
+            }
+            luma_mag = &lmag_buf;
+        }
+        auto plane_subs = coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag);
+        decoded_all[pi] = plane_subs;
         auto plane = lift.inverse(plane_subs, t.w, t.h, p);
         // Store the color-transformed integer coefficients verbatim (biased/
         // signed); reinterpreted as signed 16-bit by invert_color, so do NOT

@@ -13,7 +13,7 @@
 namespace prism::codec {
 
 namespace {
-constexpr int LF = 10;  // input features (matches LCFeat normalisation)
+constexpr int LF = 12;  // input features (X5a adds lc_mag + lc_sig cross-component)
 constexpr int LH1 = 32; // first hidden layer width (X3b: deeper/wider)
 constexpr int LH2 = 16; // second hidden layer width
 
@@ -48,6 +48,8 @@ void learned_norm(const LCFeat& f, float out[LF]) {
     out[7] = f.pmag / 7.0f;
     out[8] = f.ownmag / 7.0f;
     out[9] = f.ppos / 7.0f;
+    out[10] = f.lc_mag / 7.0f;
+    out[11] = f.lc_sig ? 1.0f : 0.0f;
 }
 
 float learned_predict_p1(const LCFeat& f) {

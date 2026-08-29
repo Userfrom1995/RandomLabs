@@ -37,6 +37,15 @@ struct LCFeat {
                              //   (0 while still insignificant; for sign it is the msb position)
     uint8_t ppos = 0;        // current bitplane index, clamped 0..7
     uint8_t level = 0;       // wavelet decomposition level (0 = LL, 1..maxlevel); see X3b context fix
+    // X5a cross-component context: the co-located LUMA subband coefficient at the
+    // same (orient, level, x, y). Chroma (Co/Cg) subbands are highly correlated
+    // with luma (Y) at the same location; feeding the luma magnitude/significance
+    // as a CONTEXT FEATURE (NOT a residual to subtract - chroma is already much
+    // smaller than luma after YCoCg-R, so subtractive prediction would inflate the
+    // residual) lets the MLP seed the chroma bitplane prior from luma structure
+    // without fragmenting the per-context EMA. Luma subbands set both to 0.
+    uint8_t lc_mag = 0;      // |luma coeff| at co-located position, log2-quantised 0..7
+    uint8_t lc_sig = 0;      // luma coefficient already significant (0/1)
 };
 
 // Build the feature vector from the scalar walk state. This is the single source
@@ -44,7 +53,8 @@ struct LCFeat {
 // trainer, and sample collection so encode/decode stay perfectly symmetric.
 inline LCFeat make_lcfeat(uint8_t symtype, uint8_t orient, uint8_t parent_sig,
                            uint8_t fc, uint8_t dg, uint8_t nmag, uint8_t pmag,
-                           uint8_t ownmag, uint8_t ppos, uint8_t level) {
+                           uint8_t ownmag, uint8_t ppos, uint8_t level,
+                           uint8_t lc_mag = 0, uint8_t lc_sig = 0) {
     LCFeat f;
     f.symtype = symtype;
     f.orient = orient;
@@ -57,6 +67,8 @@ inline LCFeat make_lcfeat(uint8_t symtype, uint8_t orient, uint8_t parent_sig,
     f.ownmag = ownmag;
     f.ppos = ppos;
     f.level = level;
+    f.lc_mag = lc_mag;
+    f.lc_sig = lc_sig;
     return f;
 }
 

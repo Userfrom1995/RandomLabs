@@ -5,18 +5,21 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X2 + X3b COMPLETE on REAL pinned Kodak-24. The gate-invalidating dead
-      coder (FIXED_PROB=0.5) is fixed; the wavelet+bitplane path beats the v1 e1 baseline
-      by 3.3% (3.261 vs 3.3737 per-sample) with byte-exact round-trip. Fixed-context
-      augmentation is exhausted (pattern ~0; run-length HURT; neighbour-magnitude HURT).
-      The remaining gap to M2 (3.166) / M3 (2.885) is a LEARNED magnitude/context model
-      (X3a), which the owner's Option-2 directive explicitly names and which needs an
-      owner-authorized training corpus (I29/I30, not fetchable in-sandbox).
-- **Next steps:** Escalate to Maintainer/Owner for X3a authorisation: train a fixed CNN
-      context model on an authorized corpus and bake its weights as a constant invoked at
-      each coefficient. This is the only remaining lever; data-free changes are tapped.
-      Per Anti-Surrender + owner "do not stop until M2 and M3 pass", the pipeline must
-      continue to X3a rather than declare victory.
+- **Current step:** X2 + X3a + X3b + X5a COMPLETE on REAL pinned Kodak-24 (sha-verified).
+       The wavelet+bitplane path beats the v1 e1 baseline by 3.3% (3.247 vs 3.3737
+       per-sample) with byte-exact round-trip. EVERY data-free context lever is now
+       exhausted: fixed-context augmentation (pattern ~0; run-length HURT; neighbour-
+       magnitude HURT), deeper/wider MLP (X3b, 3.247), online EMA blend (HURT), and the
+       X5a cross-component (chroma-on-luma) MLP feature (NEUTRAL 3.2474). The remaining
+       gap to M2 (3.166) / M3 (2.885) is a FUNDAMENTALLY STRONGER context model that
+       requires a research/architect redesign (not a Builder tweak), per the X3b run's
+       own conclusion.
+- **Next steps:** Escalate to Maintainer (Hephaestus) to route a Researcher+Architect
+       sprint on a fundamentally stronger context model (e.g. a convolutional/AR prior,
+       or a value/tokenization change in the bitplane decomposition). Data-free Builder
+       changes are tapped; this is the only remaining lever. Per Anti-Surrender + owner
+       "do not stop until M2 and M3 pass", the pipeline must continue via R+A rather than
+       declare victory.
 
 ---
 
@@ -153,7 +156,27 @@
 - [ ] If both clear: format-stable PR (v3 container); else open X5
 
 ### X5: Reserve (conditional)
-- [ ] X5a: chroma-subband conditioned on luma-subband (N4); >= +1.0% median NET
+- [x] **X5a: chroma-subband conditioned on luma-subband (N4) - IMPLEMENTED + MEASURED, NEUTRAL.**
+       Design (as shipped): added two MLP input features `lc_mag` / `lc_sig` (the co-located
+       LUMA subband |magnitude| / significance at the same orient/level/x/y) to the learned
+       context (LCFeat 10 -> 12 features; MLP widened 10->32->16->1 to 12->32->16->1). The
+       luma reference is threaded through `BitplaneCoder::encode/decode/collect_samples` (no
+       EMA fine-context change, so no per-context fragmentation). N.B. this is CONDITIONING
+       (context feature), NOT residual subtraction: after YCoCg-R the chroma subbands are
+       already far smaller than luma, so subtractive prediction would INFLATE the residual
+       (verified conceptually; subtractive was not implemented for that reason).
+       Result on REAL pinned Kodak-24 (sha-verified, LeGall53, levels=5, blend=0):
+       mean per-sample = **3.2474 bpp**, mean summed = 9.742 bpp/img. This is NEUTRAL vs the
+       X3b baseline 3.24775 (well inside training noise; the naive lr/epoch/stide sweep that
+       first produced 3.2587 was a TRAINING artifact, not the feature). X5a does not move the
+       needle: the chroma-on-luma relationship is too weak/noisy to help the MLP seed, exactly
+       as the X3b run predicted for added context dimensions. Byte-exact round-trip preserved
+       (X0Frame.* + `prism wavelet` ROUNDTRIP=OK on kodim01/13/21; prism_tests green).
+       Verdict: X5a is correctly implemented infrastructure (left in place for a future stronger
+       model to exploit) but it does NOT close M2/M3. Artifacts:
+       `benchmarks/results/2026-08-29-x5a-crosscomponent-kodak24.csv`, regenerated
+       `learned_ctx_data.inc` (12-feature weights), diffed `bitplane.{h,cpp}` + `learned_ctx.{h,cpp}`
+       + `wavelet_container.cpp` + `main.cpp` (train-learned).
 - [ ] X5b: L up to 6 depth sweep; >= +1.0% median NET
 - [ ] X5c: context pool 64/128/256 fixed; >= +1.0% median NET
 - [ ] Third strike dies forever

@@ -29,7 +29,13 @@ struct BitplaneCoder {
     // coded and its running magnitude is available as a feature. Each subband
     // still gets its OWN rANS stream + its OWN bitplane range (see Result).
     // If maxbits_override > 0, force that bitplane count for every subband.
-    Result encode(const std::vector<Subband>& subbands, int maxbits_override = 0) const;
+    // `luma_mag` (optional) is the co-located LUMA subband magnitudes indexed by
+    // the SAME subband index `oi` as `subbands`; when non-null it supplies the
+    // X5a cross-component context feature for chroma subbands (luma subbands
+    // themselves are passed nullptr). Symmetric at encode/decode, so the rANS
+    // stream round-trips exactly.
+    Result encode(const std::vector<Subband>& subbands, int maxbits_override = 0,
+                  const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
 
     // Decode per-subband streams into subbands. `layout` carries the subband
     // table (orient/level/w/h, in forward() order) with empty coeffs;
@@ -40,7 +46,8 @@ struct BitplaneCoder {
     std::vector<Subband> decode(const std::vector<std::vector<uint8_t>>& streams,
                                 const std::vector<Subband>& layout,
                                 const std::vector<uint8_t>& sub_maxbits,
-                                uint32_t total_symbols) const;
+                                uint32_t total_symbols,
+                                const std::vector<std::vector<int32_t>>* luma_mag = nullptr) const;
 
     // Pinned context function (I28). Used by the VB-CONTEXT-DETERMINISM rail.
     static uint32_t context_id(Subband::Orient o, bool parent_sig, int four_conn, int diag);
@@ -51,15 +58,18 @@ struct BitplaneCoder {
 
     // Diagnostic: build the exact (bits, p0) the encoder emits.
     static std::pair<std::vector<uint8_t>, std::vector<uint16_t>>
-    generate_symbols(const std::vector<Subband>& subbands, int maxbits_override = 0);
+    generate_symbols(const std::vector<Subband>& subbands, int maxbits_override = 0,
+                     const std::vector<std::vector<int32_t>>* luma_mag = nullptr);
 
     // Training support (X3a): walk the exact EBCOT coding order and emit one
     // LSample per symbol with its learned features, true bit, and coarse context.
     // This walk is byte-for-byte feature-identical to the encoder/decoder walk so
-    // the trained model is symmetric at encode and decode time.
+    // the trained model is symmetric at encode and decode time. `luma_mag` (optional)
+    // supplies the X5a cross-component feature (see encode).
     static void collect_samples(const std::vector<Subband>& subbands,
                                 std::vector<LSample>& out,
-                                int maxbits_override = 0);
+                                int maxbits_override = 0,
+                                const std::vector<std::vector<int32_t>>* luma_mag = nullptr);
 };
 
 } // namespace prism::codec

@@ -4781,7 +4781,7 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
-            static constexpr int HF1 = 32, HF2 = 16, FF = 10; // hidden widths, features
+            static constexpr int HF1 = 32, HF2 = 16, FF = 12; // hidden widths, features (X5a +2)
             WaveletFilter filter = WaveletFilter::LeGall53;
             int levels = X_DEFAULT_LEVELS;
             WaveletLift lift;
@@ -4793,16 +4793,36 @@ int main(int argc, char* argv[]) {
                 Raster r = prism::frontend::decode_ppm(img);
                 ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
                 Raster t = apply_color(r, ct);
+                // Lift all planes first so the chroma planes can be collected with
+                // the co-located LUMA subband as the X5a cross-component reference.
+                std::vector<std::vector<Subband>> per_plane_subs;
+                per_plane_subs.reserve(t.planes.size());
                 for (auto& pl : t.planes) {
                     std::vector<int32_t> plane(pl.begin(), pl.end());
-                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    per_plane_subs.push_back(lift.forward(plane, t.w, t.h, wp));
+                }
+                for (size_t pi = 0; pi < per_plane_subs.size(); ++pi) {
+                    const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+                    std::vector<std::vector<int32_t>> lmag_buf;
+                    if (pi > 0) {
+                        lmag_buf.resize(per_plane_subs[pi].size());
+                        const auto& lum_subs = per_plane_subs[0];
+                        for (size_t oi = 0; oi < per_plane_subs[pi].size(); ++oi) {
+                            lmag_buf[oi].resize(per_plane_subs[pi][oi].coeffs.size());
+                            const auto& lum = lum_subs[oi].coeffs;
+                            for (size_t ci = 0; ci < lmag_buf[oi].size(); ++ci)
+                                lmag_buf[oi][ci] = std::abs(lum[ci]);
+                        }
+                        luma_mag = &lmag_buf;
+                    }
                     // X3b fix: collect over the FULL subband set so the parent
                     // map matches the production encode/decode walk. During X3a
                     // training each subband was collected in isolation, so the
                     // parent-magnitude / parent-significance features were always
                     // zero and the MLP never learned them. Now the MLP sees the
                     // same parent context at train time as at inference time.
-                    coder.collect_samples(subs, samples);
+                    // X5a: chroma planes also see the co-located luma magnitude.
+                    coder.collect_samples(per_plane_subs[pi], samples, 0, luma_mag);
                 }
             }
             // Compact: keep every `stride`-th sample.
