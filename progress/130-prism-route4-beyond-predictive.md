@@ -193,8 +193,11 @@
        mean per-sample 3.2200 (vs X6a 3.25548 = -1.09%, meets X6b gate; vs X3a 3.2477 = -0.85%,
        new Prism best). Variance explained 0.745 (need >0.85 for residual entropy to beat source;
        M2/M3 still open). Byte-exact 24/24. Dated CSV `2026-08-29-x6b-kodak24.csv`.
+- [x] X6b (L2) technique COMPLETE + MEASURED + committed + pushed on branch
+        `opencode/issue130-20260829045404` (PR #171). Handing off to Reviewer
+        (`{"action":"review"}`). X6c is a SEPARATE technique/PR in the cascade.
 - [ ] X6c (L3, reserve): learned hyperprior side-stream (quantised latent z per tile/subband)
-       conditioning p0; overhead <= 0.02 bpp (sub-gate L3b, counted in NET).
+        conditioning p0; overhead <= 0.02 bpp (sub-gate L3b, counted in NET).
 - [ ] X6c gate: additional >= +1.0% over X6b AND combined <= 2.95 per-sample. Dated CSV `2026-08-29-x6c-kodak24.csv`.
 - [ ] X7: compose X6a/X6b/X6c per image by real NET bytes; full Kodak-24 `bench_gate.sh` dual-unit
        vs REAL cjxl (M3 < 8.655/< 2.885) and WebP (M2 < 9.498/< 3.166).
