@@ -18,6 +18,7 @@ namespace prism::codec {
 // per-subband histogram blended with the adaptive EMA; see bitplane.h).
 constexpr uint8_t ROUTE5_FLAG = 2;
 constexpr uint8_t R6B_FLAG = 4;
+constexpr uint8_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted histogram
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
@@ -59,6 +60,18 @@ struct WaveletHeader {
     // extremely large images with a single subband exceeding 65535 accumulated
     // symbols are saturated rather than truncated, so no count silently wraps.
     std::vector<uint16_t> sub_hist;
+    // R6-C (Route 6 lever C): per-fine-context CLUSTER transmitted histogram.
+    // kb is the number of probability buckets per symtype (NB = 3*kb clusters);
+    // cluster_hist holds NB*2 uint32 counts [c0_0, c1_0, c0_1, c1_1, ...] for a
+    // GLOBAL (all-subband) set of clusters. Only present when residual_mode
+    // carries R6C_FLAG. Counts are transmitted as uint32 so the decoder rebuilds
+    // the EXACT same static backbone the encoder used (a 16-bit on-wire form
+    // would clamp counts > 65535 and desync the rANS stream on large planes where
+    // a single cluster sees millions of symbols). Overhead = NB*2*4 bytes/image
+    // (e.g. kb=256 -> 6KB, << 0.01 bpp), so no full model is transmitted
+    // (invariant I29 holds).
+    uint16_t r6c_kb = 0;
+    std::vector<uint32_t> cluster_hist;
 };
 
 struct WaveletFrame {
@@ -107,8 +120,19 @@ std::vector<uint8_t> frame_wavelet_encode_route5(const Raster& raster,
 // parses the transmitted per-subband histogram. Zero full-model bytes transmitted
 // (invariant I29); only the tiny histogram header is sent.
 std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster,
-                                              WaveletFilter filter, int levels,
-                                              size_t& net_out);
+                                               WaveletFilter filter, int levels,
+                                               size_t& net_out);
+
+// FRAME-WAVELET-R6C (issue #130, Route 6 lever C): the per-fine-context CLUSTER
+// transmitted-histogram backbone. Codes the learned-coefficient residual
+// r = c - c_hat through BitplaneCoder::encode_static_cluster (a transmitted
+// static P(0) per learned context CLUSTER, NB = 3*kb, blended with the adaptive
+// EMA) instead of the coarse per-subband-class R6-B backbone. R6C_FLAG set so
+// decode parses the transmitted cluster histogram. Zero full-model bytes
+// transmitted (invariant I29); only the tiny cluster histogram header is sent.
+std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster,
+                                               WaveletFilter filter, int levels,
+                                               int kb, size_t& net_out);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);

@@ -113,6 +113,19 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
             }
         }
     }
+    // R6-C transmitted GLOBAL cluster histogram (present whenever R6C_FLAG set).
+    // The histogram is written ONCE PER PLANE (all subbands of a plane share one
+    // NB-context cluster space), so the total on the wire is nplanes * NB * 2,
+    // matching what the decoder's nexp (= NB*2*nplanes) reads back.
+    if (hdr.residual_mode & R6C_FLAG) {
+        write_u16_le_vec(out, hdr.r6c_kb);
+        uint32_t nexp = (uint32_t)(3u * (uint32_t)hdr.r6c_kb) * 2u *
+                        (uint32_t)hdr.num_planes;
+        for (uint32_t k = 0; k < nexp; ++k) {
+            uint32_t v = (k < hdr.cluster_hist.size()) ? hdr.cluster_hist[k] : 0;
+            write_u32_le_vec(out, v);
+        }
+    }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
     // CRC32 over everything above.
@@ -174,6 +187,18 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
                 hdr.sub_hist[base + k] = read_u16_le_bytes(bytes.data() + pos);
                 pos += 2;
             }
+        }
+    }
+    // R6-C transmitted GLOBAL cluster histogram (only when the R6C flag is set).
+    // The histogram is written ONCE PER PLANE (all subbands of a plane share one
+    // NB-context cluster space), so the total on the wire is nplanes * NB * 2.
+    if (hdr.residual_mode & R6C_FLAG) {
+        hdr.r6c_kb = read_u16_le_bytes(bytes.data() + pos); pos += 2;
+        uint32_t nexp = (uint32_t)(3u * (uint32_t)hdr.r6c_kb) * 2u * (uint32_t)hdr.num_planes;
+        hdr.cluster_hist.assign(nexp, 0);
+        for (uint32_t k = 0; k < nexp; ++k) {
+            hdr.cluster_hist[k] = read_u32_le_bytes(bytes.data() + pos);
+            pos += 4;
         }
     }
     // Payload until the trailing crc32 (4 bytes).
@@ -576,6 +601,108 @@ std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster, WaveletFilte
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilter filter,
+                                               int levels, int kb, size_t& net_out) {
+    // FRAME-WAVELET-R6C (issue #130, Route 6 lever C): the per-fine-context
+    // CLUSTER transmitted-histogram backbone. Codes the learned-coefficient
+    // residual r = c - c_hat (X6a L1) through BitplaneCoder::encode_static_cluster
+    // instead of the coarse per-subband-class R6-B backbone. The cluster histogram
+    // (NB = 3*kb contexts, keyed on the learned MLP prior) is transmitted in the
+    // header (R6C_FLAG set) so decode can rebuild the static backbone; the adaptive
+    // EMA still refines rich clusters. No full model is transmitted (invariant I29).
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    WaveletParams p{filter, levels};
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code; // X6c slot unused by R6C (neutral)
+    std::vector<uint32_t> all_chist;     // flattened R6C cluster histogram (uint32 on wire)
+    int NB = 3 * kb;
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+        auto subs = lift.forward(plane, t.w, t.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.assign((size_t)subs[si].w * subs[si].h, 0);
+        }
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c = s.coeffs[(size_t)y * s.w + x];
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                }
+        }
+
+        size_t plane_start = payload.size();
+        auto res = coder.encode_static_cluster(R, kb);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(0);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        // The cluster histogram is GLOBAL across the whole plane (all subbands
+        // share one cluster space keyed on the learned prior), so it is appended
+        // ONCE per plane, not per subband.
+        for (int c = 0; c < NB * 2; ++c) {
+            uint32_t cnt = (c < (int)res.hist.cnt.size() * 2)
+                               ? res.hist.cnt[c / 2][c % 2] : 0;
+            all_chist.push_back(cnt);
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = (uint8_t)(1u | R6C_FLAG); // residual + R6C
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+    hdr.r6c_kb = (uint16_t)kb;
+    hdr.cluster_hist = std::move(all_chist);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -670,6 +797,22 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         auto plane_subs = [&]() -> std::vector<Subband> {
             if (hdr.residual_mode & ROUTE5_FLAG)
                 return route5.decode(plane_streams, plane_layout);
+            if (hdr.residual_mode & R6C_FLAG) {
+                // The cluster histogram is GLOBAL per plane (all subbands of a
+                // plane share one NB-context cluster space), so slice plane pi.
+                StaticClusterHist chist;
+                chist.kb = hdr.r6c_kb;
+                int NB = 3 * (int)hdr.r6c_kb;
+                chist.cnt.assign(NB, std::vector<uint32_t>(2, 0));
+                size_t base = (size_t)pi * (size_t)(NB * 2);
+                for (int c = 0; c < NB * 2; ++c) {
+                    size_t idx = base + (size_t)c;
+                    uint32_t v = (idx < hdr.cluster_hist.size()) ? hdr.cluster_hist[idx] : 0;
+                    chist.cnt[c / 2][c % 2] = v;
+                }
+                return coder.decode_static_cluster(plane_streams, plane_layout,
+                                                   plane_maxbits, 0, chist);
+            }
             if (hdr.residual_mode & R6B_FLAG) {
                 StaticHist hist;
                 hist.cnt.assign(spp, std::vector<uint32_t>(R6B_CLASSES * 2, 0));
