@@ -662,6 +662,17 @@ StaticBitplaneResult BitplaneCoder::encode_static(
         }
     }
 
+    // Clamp per-(subband,class) counts to the 16-bit on-wire width BEFORE
+    // building the static probabilities, so the encoder's P(0) matches exactly
+    // what the decoder reconstructs from the transmitted (clamped) histogram.
+    // Without this, large real images overflow 0xFFFF and the transmit/receive
+    // static P(0) diverge -> roundtrip FAIL (R6-B bug on Kodak-24; synthetic
+    // images never overflow so the defect stayed hidden). I29 (zero full-model
+    // bytes) is unchanged: only the counted header is clamped.
+    for (size_t oi = 0; oi < NS; ++oi)
+        for (uint32_t k = 0; k < (uint32_t)hist.cnt[oi].size(); ++k)
+            if (hist.cnt[oi][k] > 0xFFFFu) hist.cnt[oi][k] = 0xFFFFu;
+
     // Build the transmitted static P(0)*M per (subband, class).
     std::vector<std::vector<uint16_t>> sp0(NS);
     for (size_t oi = 0; oi < NS; ++oi) {
