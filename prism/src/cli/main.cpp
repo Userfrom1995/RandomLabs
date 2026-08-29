@@ -17,6 +17,8 @@
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
 #include "prism/codec/learned_ctx.h"
+#include "prism/codec/route5.h"
+#include "prism/codec/predictor.h"
 
 #include "prism/codec/predictor.h"
 
@@ -4645,6 +4647,309 @@ int main(int argc, char* argv[]) {
                       << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
                       << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
             if (!ok) return 1;
+        } else if (cmd == "wavelet5") {
+            // Route 5 harness: the autoregressive learned rANS frontend. Codes the
+            // predictor residual through the Route5Coder (hybrid-uint token
+            // categorical rANS). Lossless round-trip is the gating property.
+            if (argc < 4) { print_usage(); return 2; }
+            std::filesystem::path in = argv[2];
+            std::filesystem::path out = argv[3];
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--blend" && i + 1 < argc) Route5Model::set_blend(std::stof(argv[++i]));
+            }
+            uint8_t bd = 8, ch = 3; uint32_t w = 0, h = 0;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--w" && i + 1 < argc) w = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+            }
+            Raster r = load_raster(in, w, h, bd, ch);
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            size_t net = 0;
+            auto bytes = frame_wavelet_encode_route5(r, filter, levels, net);
+            write_file(out, bytes);
+            Raster dec = frame_wavelet_decode(bytes);
+            bool ok = (dec == r);
+            double bpp = (8.0 * bytes.size()) / (r.w * r.h * (size_t)r.num_channels());
+            std::cout << "wavelet5: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                      << " bd=" << (int)bd << " filter=" << (int)filter_id
+                      << " levels=" << levels
+                      << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
+                      << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
+            if (!ok) return 1;
+        } else if (cmd == "bench-route5") {
+            // Route 5 dual-unit benchmark on the real Kodak-24 corpus (binding
+            // gate). Encodes each image with frame_wavelet_encode_route5 and
+            // reports per-sample + summed bpp (both units) plus decode round-trip.
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            std::string kodak, outcsv;
+            float blend = -1.0f;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+                else if (a == "--blend" && i + 1 < argc) blend = std::stof(argv[++i]);
+            }
+            if (blend >= 0.0f) Route5Model::set_blend(blend);
+            if (kodak.empty()) {
+                std::cerr << "bench-route5: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-route5: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-route5: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,roundtrip\n";
+            std::vector<double> ps, sum;
+            size_t total_net = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                auto bytes = frame_wavelet_encode_route5(r, filter, levels, net);
+                Raster dec = frame_wavelet_decode(bytes);
+                bool ok = (dec == r);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_ps = 8.0 * net / npix;
+                double bpp_sum = 8.0 * net / (r.w * r.h);
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << net << "," << bpp_ps << ","
+                       << bpp_sum << "," << (ok ? 1 : 0) << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp_ps); sum.push_back(bpp_sum);
+                total_net += net; total_pix += npix;
+                std::cout << img.filename().string() << " net=" << net
+                          << " per_sample=" << bpp_ps << " summed=" << bpp_sum
+                          << (ok ? " OK" : " FAIL") << "\n";
+                if (!ok) { std::cerr << "bench-route5: roundtrip FAIL on " << img.filename().string() << "\n"; return 1; }
+            }
+            double mean_ps = 0, mean_sum = 0;
+            for (double v : ps) mean_ps += v;
+            for (double v : sum) mean_sum += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            mean_sum /= std::max<size_t>(1, sum.size());
+            std::cout << "Route5 mean per-sample=" << mean_ps
+                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885\n";
+            std::cout << "Route5 mean summed   =" << mean_sum
+                      << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+            if (!outcsv.empty()) cf.close();
+        } else if (cmd == "train-route5") {
+            // Route 5 offline trainer: learns the baked token-net weights from
+            // real Kodak residuals. Collects (feature, token) samples, trains a
+            // 13->32->16->9 MLP with Adam (softmax cross-entropy), writes
+            // prism/src/codec/route5_data.inc.
+            std::string kodak, out = "src/codec/route5_data.inc";
+            int epochs = 18; float lr = 0.05f; int stride = 64;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+                else if (a == "--epochs" && i + 1 < argc) epochs = std::stoi(argv[++i]);
+                else if (a == "--lr" && i + 1 < argc) lr = std::stof(argv[++i]);
+                else if (a == "--stride" && i + 1 < argc) stride = std::stoi(argv[++i]);
+            }
+            if (kodak.empty()) { std::cerr << "train-route5: --kodak DIR required\n"; return 2; }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "train-route5: kodak dir not found: " << kodak << "\n"; return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "train-route5: no images\n"; return 2; }
+
+            constexpr int HF1 = 32, HF2 = 16, FIN = 13, ALPHA = R5_ALPHA;
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            int levels = X_DEFAULT_LEVELS;
+            WaveletLift lift; WaveletParams wp{filter, levels};
+            CoefficientPredictor pred;
+            Route5Coder coder;
+            std::vector<Route5Coder::Sample> samples;
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
+                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+                Raster t = apply_color(r, ct);
+                for (auto& pl : t.planes) {
+                    std::vector<int32_t> plane(pl.begin(), pl.end());
+                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    std::vector<int> order, parent, sib1, sib2;
+                    CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+                    std::vector<std::vector<int32_t>> recon(subs.size());
+                    for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+                    std::vector<std::vector<int32_t>> R(subs.size());
+                    for (size_t si = 0; si < subs.size(); ++si)
+                        R[si].assign((size_t)subs[si].w * subs[si].h, 0);
+                    for (int si : order) {
+                        const Subband& s = subs[si];
+                        for (int yy = 0; yy < s.h; ++yy)
+                            for (int x = 0; x < s.w; ++x) {
+                                int32_t c = s.coeffs[(size_t)yy * s.w + x];
+                                int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, yy);
+                                R[si][(size_t)yy * s.w + x] = c - c_hat;
+                            }
+                    }
+                    coder.collect_samples(subs, R, samples);
+                }
+            }
+            if (stride > 1 && samples.size() > (size_t)stride) {
+                std::vector<Route5Coder::Sample> kept;
+                kept.reserve(samples.size() / (size_t)stride + 1);
+                for (size_t i = 0; i < samples.size(); i += (size_t)stride) kept.push_back(samples[i]);
+                samples = std::move(kept);
+            }
+            std::cout << "train-route5: " << samples.size() << " samples\n";
+            if (samples.empty()) { std::cerr << "train-route5: no samples\n"; return 2; }
+
+            auto r5norm = [](const R5Feat& f, float x[FIN]) {
+                x[0] = 0.0f; x[1] = f.orient / 3.0f; x[2] = f.parent_sig ? 1.0f : 0.0f;
+                x[3] = f.fc / 4.0f; x[4] = f.dg / 4.0f; x[5] = f.nbsig / 8.0f;
+                x[6] = f.nmag / 7.0f; x[7] = f.pmag / 7.0f; x[8] = f.ownmag / 7.0f;
+                x[9] = 0.0f; x[10] = f.lc_mag / 7.0f; x[11] = f.lc_sig ? 1.0f : 0.0f;
+                x[12] = f.level / 5.0f;
+            };
+
+            float W1[HF1][FIN]{}; float b1[HF1]{};
+            float W2[HF2][HF1]{}; float b2[HF2]{};
+            float W3[ALPHA][HF2]{}; float b3 = 0.0f;
+            std::mt19937 rng(0x135);
+            std::uniform_real_distribution<float> u(-0.1f, 0.1f);
+            for (int j = 0; j < HF1; ++j) { for (int i = 0; i < FIN; ++i) W1[j][i] = u(rng); b1[j] = u(rng); }
+            for (int j = 0; j < HF2; ++j) { for (int i = 0; i < HF1; ++i) W2[j][i] = u(rng); b2[j] = u(rng); }
+            for (int i = 0; i < ALPHA; ++i) for (int k = 0; k < HF2; ++k) W3[i][k] = u(rng);
+
+            float mW1[HF1][FIN]{}, vW1[HF1][FIN]{}, mb1[HF1]{}, vb1[HF1]{};
+            float mW2[HF2][HF1]{}, vW2[HF2][HF1]{}, mb2[HF2]{}, vb2[HF2]{};
+            float mW3[ALPHA][HF2]{}, vW3[ALPHA][HF2]{}, mb3 = 0, vb3 = 0;
+            const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+            const int BS = 4096;
+            size_t N = samples.size();
+            std::vector<size_t> idxs(N);
+            for (size_t i = 0; i < N; ++i) idxs[i] = i;
+            std::mt19937 rngs(12345);
+            float last_loss = 0;
+            for (int ep = 0; ep < epochs; ++ep) {
+                std::shuffle(idxs.begin(), idxs.end(), rngs);
+                float tot = 0; size_t nb = 0;
+                for (size_t s = 0; s < N; s += (size_t)BS) {
+                    size_t e = std::min(s + (size_t)BS, N);
+                    float gW1[HF1][FIN]{}, gb1[HF1]{};
+                    float gW2[HF2][HF1]{}, gb2[HF2]{};
+                    float gW3[ALPHA][HF2]{}, gb3 = 0;
+                    for (size_t bi = s; bi < e; ++bi) {
+                        const auto& sm = samples[idxs[bi]];
+                        float x[FIN]; r5norm(sm.feat, x);
+                        float h1[HF1], h2[HF2];
+                        for (int j = 0; j < HF1; ++j) { float a = b1[j]; for (int i = 0; i < FIN; ++i) a += W1[j][i]*x[i]; h1[j] = a>0?a:0; }
+                        for (int j = 0; j < HF2; ++j) { float a = b2[j]; for (int i = 0; i < HF1; ++i) a += W2[j][i]*h1[i]; h2[j] = a>0?a:0; }
+                        float logits[ALPHA];
+                        float mx = -1e30f;
+                        for (int k = 0; k < ALPHA; ++k) {
+                            float a = b3;
+                            for (int j = 0; j < HF2; ++j) a += W3[k][j]*h2[j];
+                            logits[k] = a; if (logits[k]>mx) mx = logits[k];
+                        }
+                        float ex[ALPHA], sume = 0;
+                        for (int k = 0; k < ALPHA; ++k) { ex[k] = std::exp(logits[k]-mx); sume += ex[k]; }
+                        for (int k = 0; k < ALPHA; ++k) ex[k] /= sume;
+                        float tgt[ALPHA]{}; tgt[sm.token] = 1.0f;
+                        tot += -std::log(ex[sm.token] + 1e-9f); ++nb;
+                        float dout[ALPHA];
+                        for (int k = 0; k < ALPHA; ++k) dout[k] = ex[k] - tgt[k];
+                        // b3 scalar added to all logits; sum dout over classes
+                        for (int k = 0; k < ALPHA; ++k) gb3 += dout[k];
+                        for (int k = 0; k < ALPHA; ++k)
+                            for (int j = 0; j < HF2; ++j) gW3[k][j] += dout[k]*h2[j];
+                        // backprop into h2
+                        float dh2[HF2]{};
+                        for (int j = 0; j < HF2; ++j) {
+                            float g = 0;
+                            for (int k = 0; k < ALPHA; ++k) g += dout[k]*W3[k][j];
+                            dh2[j] = g * (h2[j] > 0 ? 1.0f : 0.0f);
+                            gb2[j] += dh2[j];
+                            for (int i = 0; i < HF1; ++i) gW2[j][i] += dh2[j]*h1[i];
+                        }
+                        float dh1[HF1]{};
+                        for (int j = 0; j < HF1; ++j) {
+                            float g = 0;
+                            for (int i2 = 0; i2 < HF2; ++i2) g += dh2[i2]*W2[i2][j];
+                            dh1[j] = g * (h1[j] > 0 ? 1.0f : 0.0f);
+                            gb1[j] += dh1[j];
+                            for (int i = 0; i < FIN; ++i) gW1[j][i] += dh1[j]*x[i];
+                        }
+                    }
+                    float scale = 1.0f / (float)(e - s);
+                    auto upd = [&](float& w, float& m, float& v, float g) {
+                        g *= scale; m = beta1*m + (1-beta1)*g; v = beta2*v + (1-beta2)*g*g;
+                        float mh = m / (1.0f - std::pow(beta1, (float)(ep+1)));
+                        float vh = v / (1.0f - std::pow(beta2, (float)(ep+1)));
+                        w -= lr * mh / (std::sqrt(vh) + eps);
+                    };
+                    for (int j = 0; j < HF1; ++j) { for (int i = 0; i < FIN; ++i) upd(W1[j][i], mW1[j][i], vW1[j][i], gW1[j][i]); upd(b1[j], mb1[j], vb1[j], gb1[j]); }
+                    for (int j = 0; j < HF2; ++j) { for (int i = 0; i < HF1; ++i) upd(W2[j][i], mW2[j][i], vW2[j][i], gW2[j][i]); upd(b2[j], mb2[j], vb2[j], gb2[j]); }
+                    for (int k = 0; k < ALPHA; ++k) for (int j = 0; j < HF2; ++j) upd(W3[k][j], mW3[k][j], vW3[k][j], gW3[k][j]);
+                    upd(b3, mb3, vb3, gb3);
+                }
+                last_loss = tot / (float)nb;
+                std::cout << "  epoch " << ep << " train CE=" << last_loss << "\n";
+            }
+            {
+                std::ofstream o(out);
+                if (!o) { std::cerr << "train-route5: cannot write " << out << "\n"; return 2; }
+                o << "// Baked Route 5 token-net weights (issue #130). AUTO-GENERATED by\n"
+                     "// `prism train-route5`. Architecture 13->32->16->9 softmax. Do not edit by hand.\n";
+                o << "const float R5TOK_LW1[32][13] = {\n";
+                for (int j = 0; j < HF1; ++j) { o << "  {"; for (int i = 0; i < FIN; ++i) o << (i?", ":"") << W1[j][i]; o << "}" << (j+1<HF1?",":"") << "\n"; }
+                o << "};\n";
+                o << "const float R5TOK_Lb1[32] = {"; for (int j = 0; j < HF1; ++j) o << (j?", ":"") << b1[j]; o << "};\n";
+                o << "const float R5TOK_LW2[16][32] = {\n";
+                for (int j = 0; j < HF2; ++j) { o << "  {"; for (int i = 0; i < HF1; ++i) o << (i?", ":"") << W2[j][i]; o << "}" << (j+1<HF2?",":"") << "\n"; }
+                o << "};\n";
+                o << "const float R5TOK_Lb2[16] = {"; for (int j = 0; j < HF2; ++j) o << (j?", ":"") << b2[j]; o << "};\n";
+                o << "const float R5TOK_LW3[16][16] = {\n";
+                for (int k = 0; k < ALPHA; ++k) { o << "  {"; for (int j = 0; j < HF2; ++j) o << (j?", ":"") << W3[k][j]; o << "}" << (k+1<ALPHA?",":"") << "\n"; }
+                o << "};\n";
+                o << "const float R5TOK_Lb3 = " << b3 << ";\n";
+                o << "// train CE=" << last_loss << " samples=" << samples.size() << "\n";
+            }
+            std::cout << "train-route5: wrote " << out << "\n";
         } else if (cmd == "bench-x") {
             // X-series milestone harness (X1 decorrelation + X2 vs e1).
             //
