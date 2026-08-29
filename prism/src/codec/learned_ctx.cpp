@@ -14,8 +14,8 @@ namespace prism::codec {
 
 namespace {
 constexpr int LF = 13;  // input features (X5a adds lc_mag + lc_sig; X3b fix adds level)
-constexpr int LH1 = 32; // first hidden layer width (X3b: deeper/wider)
-constexpr int LH2 = 16; // second hidden layer width
+constexpr int LH1 = 64; // first hidden layer width (R6-A: deeper for sharper rare-context prior)
+constexpr int LH2 = 32; // second hidden layer width (R6-A)
 
 // Baked by `prism train-learned`. Default (pre-training) values are neutral.
 #include "learned_ctx_data.inc"

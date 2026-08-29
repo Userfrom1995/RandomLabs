@@ -5232,19 +5232,23 @@ int main(int argc, char* argv[]) {
 
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-learned") {
-            // X3a offline trainer: learns the baked MLP context-model weights from
-            // real Kodak imagery. Encodes each subband exactly as the production
-            // path does (one subband at a time), collects (features, bit) samples,
-            // trains a tiny MLP with Adam to minimise cross-entropy, and writes
-            // prism/src/codec/learned_ctx_data.inc (weights + blend).
+            // R6-A offline trainer: learns the baked MLP context-model weights from
+            // real Kodak imagery. FIXES the X3a defects:
+            //  (1) collects samples over the FULL subband vector of each plane
+            //      (coder.collect_samples(subs, ...)) exactly as the encoder walks it,
+            //      so the X5a cross-component luma_mag feature is trained correctly
+            //      (previously one subband at a time, desyncing the luma reference).
+            //  (2) trains the SAME architecture the decoder runs (LF=13, LH1=64,
+            //      LH2=32) and writes a matching learned_ctx_data.inc
+            //      (LW1[64][13], Lb1[64], LW2[32][64], Lb2[32], LW3[32], Lb3), so
+            //      train and inference cannot drift. Deeper net => sharper
+            //      rare-context prior (R6-A M2 lever).
             std::string kodak;
             std::string out = "src/codec/learned_ctx_data.inc";
-            int epochs = 14;
-            float lr = 0.04f;
+            int epochs = 24;
+            float lr = 0.01f;
             int stride = 128;
-
-            float blend = 0.6f;
-
+            float blend = 0.0f;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
@@ -5276,8 +5280,7 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
-
-            static constexpr int HF = 16, FF = 10; // hidden units, features
+            static constexpr int HF1 = 64, HF2 = 32, FIN = 13; // R6-A arch (matches learned_ctx.cpp)
 
             WaveletFilter filter = WaveletFilter::LeGall53;
             int levels = X_DEFAULT_LEVELS;
@@ -5287,29 +5290,35 @@ int main(int argc, char* argv[]) {
 
             std::vector<LSample> samples;
 
-            uint64_t seen = 0;
-
             for (auto& img : imgs) {
                 Raster r = prism::frontend::decode_ppm(img);
                 ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
                 Raster t = apply_color(r, ct);
-
+                std::vector<std::vector<Subband>> per_plane_subs;
                 for (auto& pl : t.planes) {
                     std::vector<int32_t> plane(pl.begin(), pl.end());
-                    auto subs = lift.forward(plane, t.w, t.h, wp);
-                    for (auto& s : subs) {
-                        std::vector<Subband> one{s};
-                        coder.collect_samples(one, samples);
+                    per_plane_subs.push_back(lift.forward(plane, t.w, t.h, wp));
+                }
+                for (size_t pi = 0; pi < per_plane_subs.size(); ++pi) {
+                    auto& subs = per_plane_subs[pi];
+                    const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+                    std::vector<std::vector<int32_t>> lmag_buf;
+                    if (pi > 0) {
+                        lmag_buf.resize(subs.size());
+                        const auto& lum_subs = per_plane_subs[0];
+                        for (size_t oi = 0; oi < subs.size(); ++oi) {
+                            lmag_buf[oi].resize(subs[oi].coeffs.size());
+                            const auto& lum = lum_subs[oi].coeffs;
+                            for (size_t ci = 0; ci < subs[oi].coeffs.size(); ++ci)
+                                lmag_buf[oi][ci] = std::abs(lum[ci]);
+                        }
+                        luma_mag = &lmag_buf;
                     }
+                    // R6-A FIX (1): collect over the FULL subband vector, mirroring
+                    // frame_wavelet_encode()'s coder.encode(subs, 0, luma_mag).
+                    coder.collect_samples(subs, samples, 0, luma_mag);
                 }
-                // subsample to keep memory bounded
-                if (stride > 1 && (samples.size() % (size_t)stride) == 0) {
-                    // keep every `stride`-th by compacting in place after the loop
-                }
-                (void)seen;
-
             }
-            // Compact: keep every `stride`-th sample.
             if (stride > 1 && samples.size() > (size_t)stride) {
                 std::vector<LSample> kept;
                 kept.reserve(samples.size() / (size_t)stride + 1);
@@ -5319,9 +5328,9 @@ int main(int argc, char* argv[]) {
             std::cout << "train-learned: " << samples.size() << " samples\n";
             if (samples.empty()) { std::cerr << "train-learned: no samples\n"; return 2; }
 
-
-            // Normalise a feature vector.
-            auto norm = [](const LCFeat& f, float x[FF]) {
+            // Normalise MUST MATCH learned_norm() in learned_ctx.cpp EXACTLY so the
+            // trained net sees the same inputs at inference (F2/X3a symmetry).
+            auto norm = [](const LCFeat& f, float x[FIN]) {
                 x[0] = f.symtype / 2.0f;
                 x[1] = f.orient / 3.0f;
                 x[2] = f.parent_sig ? 1.0f : 0.0f;
@@ -5332,26 +5341,29 @@ int main(int argc, char* argv[]) {
                 x[7] = f.pmag / 7.0f;
                 x[8] = f.ownmag / 7.0f;
                 x[9] = f.ppos / 7.0f;
+                x[10] = f.lc_mag / 7.0f;
+                x[11] = f.lc_sig ? 1.0f : 0.0f;
+                x[12] = f.level / 5.0f;
             };
 
-            // Model parameters.
-            std::array<std::array<float, FF>, HF> W1{};
-            std::array<float, HF> b1{};
-            std::array<float, HF> W2{};
-            float b2 = 0.0f;
+            std::array<std::array<float, FIN>, HF1> W1{};
+            std::array<float, HF1> b1{};
+            std::array<std::array<float, HF1>, HF2> W2{};
+            std::array<float, HF2> b2{};
+            std::array<float, HF2> W3{};
+            float b3 = 0.0f;
             std::mt19937 rng(0x130);
             std::uniform_real_distribution<float> u(-0.1f, 0.1f);
-            for (int j = 0; j < HF; ++j) {
-                for (int i = 0; i < FF; ++i) W1[j][i] = u(rng);
-                b1[j] = u(rng);
-                W2[j] = u(rng);
-            }
-            b2 = u(rng);
+            for (int j = 0; j < HF1; ++j) { for (int i = 0; i < FIN; ++i) W1[j][i] = u(rng); b1[j] = u(rng); }
+            for (int j = 0; j < HF2; ++j) { for (int i = 0; i < HF1; ++i) W2[j][i] = u(rng); b2[j] = u(rng); W3[j] = u(rng); }
+            b3 = u(rng);
 
-            // Adam state.
-            std::array<std::array<float, FF>, HF> mW1{}, vW1{};
-            std::array<float, HF> mb1{}, vb1{}, mW2{}, vW2{};
-            float mb2 = 0, vb2 = 0;
+            std::array<std::array<float, FIN>, HF1> mW1{}, vW1{};
+            std::array<float, HF1> mb1{}, vb1{};
+            std::array<std::array<float, HF1>, HF2> mW2{}, vW2{};
+            std::array<float, HF2> mb2{}, vb2{};
+            std::array<float, HF2> mW3{}, vW3{};
+            float mb3 = 0, vb3 = 0;
 
             const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
             const int BS = 4096;
@@ -5359,16 +5371,6 @@ int main(int argc, char* argv[]) {
             std::vector<size_t> idxs(N);
             for (size_t i = 0; i < N; ++i) idxs[i] = i;
             auto rngs = std::mt19937(12345);
-
-
-            auto forward = [&](const float x[FF], float h[HF]) {
-                for (int j = 0; j < HF; ++j) {
-                    float acc = b1[j];
-                    for (int i = 0; i < FF; ++i) acc += W1[j][i] * x[i];
-                    h[j] = acc > 0.0f ? acc : 0.0f;
-
-                }
-            };
             auto sigmoidf = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
 
             float last_loss = 0.0f;
@@ -5377,31 +5379,36 @@ int main(int argc, char* argv[]) {
                 float tot = 0.0f; size_t nb = 0;
                 for (size_t s = 0; s < N; s += (size_t)BS) {
                     size_t e = std::min(s + (size_t)BS, N);
-                    // gradients
-
-                    std::array<std::array<float, FF>, HF> gW1{};
-                    std::array<float, HF> gb1{}, gW2{};
-                    float gb2 = 0.0f;
+                    std::array<std::array<float, FIN>, HF1> gW1{};
+                    std::array<float, HF1> gb1{};
+                    std::array<std::array<float, HF1>, HF2> gW2{};
+                    std::array<float, HF2> gb2{};
+                    std::array<float, HF2> gW3{};
+                    float gb3 = 0.0f;
                     for (size_t bi = s; bi < e; ++bi) {
                         const LSample& sm = samples[idxs[bi]];
-                        float x[FF]; norm(sm.feat, x);
-                        float h[HF]; forward(x, h);
-                        float acc = b2;
-                        for (int j = 0; j < HF; ++j) acc += W2[j] * h[j];
-
+                        float x[FIN]; norm(sm.feat, x);
+                        float h1[HF1], h2[HF2];
+                        for (int j = 0; j < HF1; ++j) { float acc = b1[j]; for (int i = 0; i < FIN; ++i) acc += W1[j][i]*x[i]; h1[j] = acc > 0.0f ? acc : 0.0f; }
+                        for (int j = 0; j < HF2; ++j) { float acc = b2[j]; for (int i = 0; i < HF1; ++i) acc += W2[j][i]*h1[i]; h2[j] = acc > 0.0f ? acc : 0.0f; }
+                        float acc = b3; for (int j = 0; j < HF2; ++j) acc += W3[j]*h2[j];
                         float y = sigmoidf(acc);
                         if (y < 1e-4f) y = 1e-4f; if (y > 1.0f - 1e-4f) y = 1.0f - 1e-4f;
-                        float dy = y - (sm.label ? 1.0f : 0.0f); // dL/dpre
+                        float dy = y - (sm.label ? 1.0f : 0.0f);
                         tot += -(sm.label ? std::log(y) : std::log(1.0f - y));
                         ++nb;
-
-                        gb2 += dy;
-                        for (int j = 0; j < HF; ++j) {
-                            gW2[j] += dy * h[j];
-                            float g = dy * W2[j] * (h[j] > 0.0f ? 1.0f : 0.0f);
+                        gb3 += dy;
+                        for (int j = 0; j < HF2; ++j) {
+                            gW3[j] += dy * h2[j];
+                            float g = dy * W3[j] * (h2[j] > 0.0f ? 1.0f : 0.0f);
+                            gb2[j] += g;
+                            for (int i = 0; i < HF1; ++i) gW2[j][i] += g * h1[i];
+                        }
+                        for (int j = 0; j < HF1; ++j) {
+                            float g = 0.0f;
+                            for (int k = 0; k < HF2; ++k) g += (W2[k][j] * (h2[k] > 0.0f ? 1.0f : 0.0f)) * (dy * W3[k]);
                             gb1[j] += g;
-                            for (int i = 0; i < FF; ++i) gW1[j][i] += g * x[i];
-
+                            for (int i = 0; i < FIN; ++i) gW1[j][i] += g * x[i];
                         }
                     }
                     float scale = 1.0f / (float)(e - s);
@@ -5413,43 +5420,33 @@ int main(int argc, char* argv[]) {
                         float vh = v / (1.0f - std::pow(beta2, (float)(ep + 1)));
                         w -= lr * mh / (std::sqrt(vh) + eps);
                     };
-
-                    for (int j = 0; j < HF; ++j) {
-                        for (int i = 0; i < FF; ++i) update(W1[j][i], mW1[j][i], vW1[j][i], gW1[j][i]);
-                        update(b1[j], mb1[j], vb1[j], gb1[j]);
-                        update(W2[j], mW2[j], vW2[j], gW2[j]);
-                    }
-                    update(b2, mb2, vb2, gb2);
-
+                    for (int j = 0; j < HF1; ++j) { for (int i = 0; i < FIN; ++i) update(W1[j][i], mW1[j][i], vW1[j][i], gW1[j][i]); update(b1[j], mb1[j], vb1[j], gb1[j]); }
+                    for (int j = 0; j < HF2; ++j) { for (int i = 0; i < HF1; ++i) update(W2[j][i], mW2[j][i], vW2[j][i], gW2[j][i]); update(b2[j], mb2[j], vb2[j], gb2[j]); update(W3[j], mW3[j], vW3[j], gb3); }
+                    update(b3, mb3, vb3, gb3);
                 }
                 last_loss = tot / (float)nb;
                 std::cout << "  epoch " << ep << " train BCE=" << last_loss << "\n";
             }
 
-            // Write the baked weights include file.
             {
                 std::ofstream o(out);
                 if (!o) { std::cerr << "train-learned: cannot write " << out << "\n"; return 2; }
-
-                o << "// Baked learned-context MLP weights (Route 4 / X3a). AUTO-GENERATED by\n"
-                  << "// `prism train-learned`. Editing by hand is discouraged; regenerate instead.\n";
-                o << "static const float LW1[" << HF << "][" << FF << "] = {\n";
-                for (int j = 0; j < HF; ++j) {
-                    o << "  {";
-                    for (int i = 0; i < FF; ++i) o << (i ? ", " : "") << W1[j][i];
-                    o << "}" << (j + 1 < HF ? "," : "") << "\n";
-                }
+                o << "// Baked learned-context MLP weights (Route 6 / R6-A). AUTO-GENERATED by\n"
+                  << "// `prism train-learned`. R6-A fixes the X3a train/inference asymmetry\n"
+                  << "// (collects over the full subband walk with correct X5a luma_mag) and trains\n"
+                  << "// the 13->64->32->1 net the decoder runs. Editing by hand is discouraged.\n";
+                o << "static const float LW1[" << HF1 << "][" << FIN << "] = {\n";
+                for (int j = 0; j < HF1; ++j) { o << "  {"; for (int i = 0; i < FIN; ++i) o << (i ? ", " : "") << W1[j][i]; o << "}" << (j + 1 < HF1 ? "," : "") << "\n"; }
                 o << "};\n";
-                o << "static const float Lb1[" << HF << "] = {";
-                for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << b1[j];
+                o << "static const float Lb1[" << HF1 << "] = {"; for (int j = 0; j < HF1; ++j) o << (j ? ", " : "") << b1[j]; o << "};\n";
+                o << "static const float LW2[" << HF2 << "][" << HF1 << "] = {\n";
+                for (int j = 0; j < HF2; ++j) { o << "  {"; for (int i = 0; i < HF1; ++i) o << (i ? ", " : "") << W2[j][i]; o << "}" << (j + 1 < HF2 ? "," : "") << "\n"; }
                 o << "};\n";
-                o << "static const float LW2[" << HF << "] = {";
-                for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << W2[j];
-                o << "};\n";
-                o << "static const float Lb2 = " << b2 << ";\n";
-
+                o << "static const float Lb2[" << HF2 << "] = {"; for (int j = 0; j < HF2; ++j) o << (j ? ", " : "") << b2[j]; o << "};\n";
+                o << "static const float LW3[" << HF2 << "] = {"; for (int j = 0; j < HF2; ++j) o << (j ? ", " : "") << W3[j]; o << "};\n";
+                o << "static const float Lb3 = " << b3 << ";\n";
                 o << "static const float LBlend = " << blend << ";\n";
-                o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << "\n";
+                o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << " arch=13-64-32-1\n";
             }
             std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
 
