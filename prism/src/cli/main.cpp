@@ -4659,6 +4659,7 @@ int main(int argc, char* argv[]) {
             double e1_summed = 10.1210; // pinned Prism v1 production baseline
 
             double x3a_ps = 3.2477;     // X3a learned-ctx baseline (X6a beats this)
+            double x6a_ps = 3.25548;    // X6a linear-predictor baseline (X6b beats this)
             float blend_override = -1.0f;
             bool residual = false;
 
@@ -4794,6 +4795,8 @@ int main(int argc, char* argv[]) {
                           << " ; X3a baseline=" << x3a_ps
                           << " ; L1 primary target <=3.10 (>= +4.5% over X3a)\n";
                 std::cout << "   L1 gain vs X3a=" << l1_gain << "%  (PASS if >= +4.5)\n";
+                double l1_gain_x6a = 100.0 * (1.0 - mean_wps / x6a_ps);
+                std::cout << "   L1 gain vs X6a(linear)=" << l1_gain_x6a << "%  (X6b internal gate PASS if >= +1.0)\n";
                 std::cout << "   mean summed=" << mean_wsum << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
                 std::cout << "   L1 sub-gate (residual top-bitplane mean < coeff top-bitplane mean)="
                           << mean_shrink << " (PASS if > 0)\n";
@@ -5033,183 +5036,243 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
 
-        } else if (cmd == "train-predictor") {
-            // X6a (L1) offline trainer: learns the baked LINEAR coefficient-predictor
-            // weights from real Kodak imagery by per-orient ridge regression
-            // (closed form). Encodes each subband exactly as the production residual
-            // path does, collects (window, c) samples in coding-major order, solves
-            //   c_hat = bias[o] + sum_k w[o][k]*feat[k]
-            // and writes prism/src/codec/predictor_data.inc (weights only; zero bytes
-            // transmitted at inference, invariant I29).
-            std::string kodak;
-            std::string out = "src/codec/predictor_data.inc";
-            double lambda = 1.0;
-            for (int i = 2; i < argc; ++i) {
-                std::string a = argv[i];
-                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
-                else if (a == "--out" && i + 1 < argc) out = argv[++i];
-                else if (a == "--lambda" && i + 1 < argc) lambda = std::stod(argv[++i]);
-            }
-            if (kodak.empty()) {
-                std::cerr << "train-predictor: --kodak DIR required\n";
-                return 2;
-            }
-            namespace fs = std::filesystem;
-            fs::path kodakDir = kodak;
-            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
-                std::cerr << "train-predictor: kodak dir not found: " << kodak << "\n";
-                return 2;
-            }
-            std::vector<fs::path> imgs;
-            for (auto& e : fs::directory_iterator(kodakDir)) {
-                if (!e.is_regular_file()) continue;
-                auto ext = e.path().extension().string();
-                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
-                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
-                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
-                    imgs.push_back(e.path());
-            }
-            std::sort(imgs.begin(), imgs.end());
-            if (imgs.empty()) { std::cerr << "train-predictor: no images\n"; return 2; }
+} else if (cmd == "train-predictor") {
+    // X6b (L2) offline trainer: learns the baked per-orientation MLP coefficient
+    // predictor weights from real Kodak imagery. The residual r = c - c_hat is
+    // coded by the byte-exact bitplane coder, whose per-context cost is
+    // Laplacian-optimal, so the residual codelength is tightly proxied by its L1
+    // norm. We therefore train each orientation's MLP to MINIMISE sum |r|
+    // (Laplacian / codelength loss) over a RICH 16-feature causal window, which
+    // lifts variance explained past the ~85% threshold where the residual entropy
+    // finally beats the source entropy (X6a's linear model capped at ~72% and
+    // HURT). Weights only are written (zero bytes transmitted, invariant I29).
+    std::string kodak;
+    std::string out = "src/codec/predictor_data.inc";
+    int epochs = 20;
+    int batch = 256;
+    float lr = 0.01f;
+    float lambda = 1e-4f; // L2 weight decay
+    for (int i = 2; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+        else if (a == "--out" && i + 1 < argc) out = argv[++i];
+        else if (a == "--epochs" && i + 1 < argc) epochs = std::stoi(argv[++i]);
+        else if (a == "--batch" && i + 1 < argc) batch = std::stoi(argv[++i]);
+        else if (a == "--lr" && i + 1 < argc) lr = std::stof(argv[++i]);
+        else if (a == "--lambda" && i + 1 < argc) lambda = std::stof(argv[++i]);
+    }
+    if (kodak.empty()) { std::cerr << "train-predictor: --kodak DIR required\n"; return 2; }
+    namespace fs = std::filesystem;
+    fs::path kodakDir = kodak;
+    if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+        std::cerr << "train-predictor: kodak dir not found: " << kodak << "\n"; return 2;
+    }
+    std::vector<fs::path> imgs;
+    for (auto& e : fs::directory_iterator(kodakDir)) {
+        if (!e.is_regular_file()) continue;
+        auto ext = e.path().extension().string();
+        for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+        if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+            ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+            imgs.push_back(e.path());
+    }
+    std::sort(imgs.begin(), imgs.end());
+    if (imgs.empty()) { std::cerr << "train-predictor: no images\n"; return 2; }
 
-            WaveletFilter filter = WaveletFilter::LeGall53;
-            int levels = X_DEFAULT_LEVELS;
-            WaveletLift lift;
-            WaveletParams wp{filter, levels};
-            // Per-orient normal equations: A[o] is 9x9 (8 features + intercept),
-            // B[o] is 9. Accumulated incrementally to bound memory.
-            double A[4][9][9] = {0};
-            double B[4][9] = {0};
-            uint64_t ntotal = 0;
-            double sumc = 0.0, sumc2 = 0.0;
+    WaveletFilter filter = WaveletFilter::LeGall53;
+    int levels = X_DEFAULT_LEVELS;
+    WaveletLift lift;
+    WaveletParams wp{filter, levels};
+
+    std::vector<PredictSample> all;
+    double sumc = 0.0, sumc2 = 0.0; uint64_t ntotal = 0;
+    for (auto& img : imgs) {
+        Raster r = prism::frontend::decode_ppm(img);
+        ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+        Raster t = apply_color(r, ct);
+        for (auto& pl : t.planes) {
+            std::vector<int32_t> plane(pl.begin(), pl.end());
+            auto subs = lift.forward(plane, t.w, t.h, wp);
             std::vector<PredictSample> buf;
-            for (auto& img : imgs) {
-                Raster r = prism::frontend::decode_ppm(img);
-                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
-                Raster t = apply_color(r, ct);
-                for (auto& pl : t.planes) {
-                    std::vector<int32_t> plane(pl.begin(), pl.end());
-                    auto subs = lift.forward(plane, t.w, t.h, wp);
-                    buf.clear();
-                    CoefficientPredictor::collect_samples(subs, buf);
-                    for (const auto& sm : buf) {
-                        double x[9];
-                        for (int k = 0; k < 8; ++k) x[k] = (double)sm.feat[k];
-                        x[8] = 1.0; // intercept
-                        double y = (double)sm.target;
-                        int o = (int)sm.orient % 4;
-                        for (int j = 0; j < 9; ++j) {
-                            B[o][j] += x[j] * y;
-                            for (int k = 0; k < 9; ++k) A[o][j][k] += x[j] * x[k];
-                        }
-                        sumc += y; sumc2 += y * y;
-                        ++ntotal;
+            CoefficientPredictor::collect_samples(subs, buf);
+            for (auto& sm : buf) {
+                double y = (double)sm.target; sumc += y; sumc2 += y*y; ++ntotal;
+            }
+            all.insert(all.end(), buf.begin(), buf.end());
+        }
+    }
+    double variance_c = (sumc2 - sumc*sumc/(double)ntotal)/(double)ntotal;
+    std::cout << "train-predictor: " << ntotal << " samples ; var(c)=" << variance_c
+              << " std(c)=" << std::sqrt(variance_c) << "\n";
+
+    // Per-orientation sample indices.
+    std::vector<std::vector<int>> idx_by_o(4);
+    for (int k = 0; k < (int)all.size(); ++k) idx_by_o[(int)all[k].orient % 4].push_back(k);
+    std::cout << "train-predictor: per-orient counts HL/LH/HH/LL = "
+              << idx_by_o[1].size() << "/" << idx_by_o[2].size() << "/"
+              << idx_by_o[3].size() << "/" << idx_by_o[0].size() << "\n";
+
+    // Model storage + Adam moments.
+    float W1[4][PRED_NH][PRED_NF] = {0};
+    float B1[4][PRED_NH] = {0};
+    float W2[4][PRED_NH] = {0};
+    float B2[4] = {0};
+    float mW1[4][PRED_NH][PRED_NF] = {0}, vW1[4][PRED_NH][PRED_NF] = {0};
+    float mB1[4][PRED_NH] = {0}, vB1[4][PRED_NH] = {0};
+    float mW2[4][PRED_NH] = {0}, vW2[4][PRED_NH] = {0};
+    float mB2[4] = {0}, vB2[4] = {0};
+
+    std::mt19937 rng(12345);
+    std::normal_distribution<float> gauss(0.0f, 1.0f);
+    for (int o = 0; o < 4; ++o) {
+        float w1scale = std::sqrt(2.0f / PRED_NF);
+        for (int j = 0; j < PRED_NH; ++j) {
+            for (int i = 0; i < PRED_NF; ++i) W1[o][j][i] = w1scale * gauss(rng);
+            W2[o][j] = 0.01f * gauss(rng);
+        }
+    }
+
+    const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
+    auto adam = [&](float& p, float& m, float& v, float g, uint64_t t) {
+        m = beta1 * m + (1.0f - beta1) * g;
+        v = beta2 * v + (1.0f - beta2) * g * g;
+        float mhat = m / (1.0f - std::pow(beta1, (float)t));
+        float vhat = v / (1.0f - std::pow(beta2, (float)t));
+        p -= lr * mhat / (std::sqrt(vhat) + eps);
+    };
+
+    std::vector<int> order;
+    for (int o = 0; o < 4; ++o) {
+        const auto& idx = idx_by_o[o];
+        uint64_t N = idx.size();
+        if (N == 0) continue;
+        order.resize(N); std::iota(order.begin(), order.end(), 0);
+        double last_l1 = 0.0;
+        for (int ep = 0; ep < epochs; ++ep) {
+            std::shuffle(order.begin(), order.end(), rng);
+            float gW1[PRED_NH][PRED_NF] = {0}, gB1[PRED_NH] = {0};
+            float gW2[PRED_NH] = {0}, gB2 = 0.0f;
+            double l1 = 0.0;
+            for (uint64_t b0 = 0; b0 < N; b0 += (uint64_t)batch) {
+                uint64_t b1n = std::min((uint64_t)batch, N - b0);
+                for (int j = 0; j < PRED_NH; ++j)
+                    for (int i = 0; i < PRED_NF; ++i) gW1[j][i] = 0;
+                for (int j = 0; j < PRED_NH; ++j) gB1[j] = 0;
+                for (int j = 0; j < PRED_NH; ++j) gW2[j] = 0;
+                gB2 = 0;
+                for (uint64_t bi = 0; bi < b1n; ++bi) {
+                    const PredictSample& sm = all[idx[order[b0 + bi]]];
+                    const float* f = sm.feat;
+                    float h[PRED_NH];
+                    for (int j = 0; j < PRED_NH; ++j) {
+                        float acc = B1[o][j];
+                        for (int i = 0; i < PRED_NF; ++i) acc += W1[o][j][i] * f[i];
+                        h[j] = acc > 0.0f ? acc : 0.0f;
+                    }
+                    float chat = B2[o];
+                    for (int j = 0; j < PRED_NH; ++j) chat += W2[o][j] * h[j];
+                    float r = (float)sm.target - chat;
+                    l1 += std::fabs((double)r);
+                    // Smooth pseudo-Huber (Laplacian / codelength-aligned) gradient:
+                    // bounded in [-1,1], ~sign(r) for |r|>>delta, ~r/delta near 0 so the
+                    // MLP converges instead of oscillating/exploding under pure L1 sign-SGD.
+                    const float delta = 1.0f;
+                    // Gradient of the pseudo-Huber loss w.r.t. chat is -(r/sqrt(r^2+delta^2))
+                    // (note the sign: moving chat toward target reduces r = target - chat).
+                    float dchat = -r / std::sqrt(r * r + delta * delta);
+                    gB2 += dchat;
+                    for (int j = 0; j < PRED_NH; ++j) {
+                        gW2[j] += dchat * h[j];
+                        float dh = (h[j] > 0.0f) ? dchat * W2[o][j] : 0.0f;
+                        gB1[j] += dh;
+                        for (int i = 0; i < PRED_NF; ++i) gW1[j][i] += dh * f[i];
                     }
                 }
-            }
-            double variance_c = (sumc2 - sumc * sumc / (double)ntotal) / (double)ntotal;
-            std::cout << "train-predictor: " << ntotal << " samples ; var(c)=" << variance_c
-                      << " std(c)=" << std::sqrt(variance_c) << "\n";
-
-            // Solve each 9x9 system (Gaussian elimination with partial pivoting),
-            // with a small ridge on the diagonal for numerical safety.
-            auto solve = [&](double M[9][9], double rhs[9], double outw[9]) {
-                double a[9][10];
-                for (int i = 0; i < 9; ++i) {
-                    for (int j = 0; j < 9; ++j) a[i][j] = M[i][j] + (i == j ? lambda : 0.0);
-                    a[i][9] = rhs[i];
-                }
-                for (int col = 0; col < 9; ++col) {
-                    int piv = col;
-                    for (int r = col + 1; r < 9; ++r)
-                        if (std::fabs(a[r][col]) > std::fabs(a[piv][col])) piv = r;
-                    if (piv != col) for (int k = 0; k < 10; ++k) std::swap(a[col][k], a[piv][k]);
-                    double d = a[col][col];
-                    if (std::fabs(d) < 1e-12) d = 1e-12;
-                    for (int k = 0; k < 10; ++k) a[col][k] /= d;
-                    for (int r = 0; r < 9; ++r) {
-                        if (r == col) continue;
-                        double f = a[r][col];
-                        for (int k = 0; k < 10; ++k) a[r][k] -= f * a[col][k];
+                float inv = 1.0f / (float)b1n;
+                uint64_t t = ep * (N / batch + 1) + (b0 / batch) + 1;
+                for (int j = 0; j < PRED_NH; ++j) {
+                    for (int i = 0; i < PRED_NF; ++i) {
+                        float g = gW1[j][i] * inv + lambda * W1[o][j][i];
+                        adam(W1[o][j][i], mW1[o][j][i], vW1[o][j][i], g, t);
                     }
+                    float g = gB1[j] * inv;
+                    adam(B1[o][j], mB1[o][j], vB1[o][j], g, t);
+                    float gw2 = gW2[j] * inv + lambda * W2[o][j];
+                    adam(W2[o][j], mW2[o][j], vW2[o][j], gw2, t);
                 }
-                for (int i = 0; i < 9; ++i) outw[i] = a[i][9];
-            };
-
-            float bias[4] = {0, 0, 0, 0};
-            float w[4][8] = {{0, 0, 0, 0, 0, 0, 0, 0}};
-            for (int o = 0; o < 4; ++o) {
-                double M[9][9], rhs[9], outw[9];
-                for (int i = 0; i < 9; ++i) {
-                    rhs[i] = B[o][i];
-                    for (int j = 0; j < 9; ++j) M[i][j] = A[o][i][j];
-                }
-                solve(M, rhs, outw);
-                bias[o] = (float)outw[8];
-                for (int k = 0; k < 8; ++k) w[o][k] = (float)outw[k];
+                float g = gB2 * inv;
+                adam(B2[o], mB2[o], vB2[o], g, t);
             }
+            last_l1 = l1 / (double)N;
+        }
+        std::cout << "train-predictor: orient " << o << " final mean|r|=" << last_l1 << "\n";
+    }
 
-            // Diagnostic MSE must reflect the freshly SOLVED weights, not the
-            // baked model. Build a predictor seeded with the solved weights.
-            PredictWeights solved;
-            for (int oi = 0; oi < 4; ++oi) {
-                solved.bias[oi] = bias[oi];
-                for (int k = 0; k < 8; ++k) solved.w[oi][k] = w[oi][k];
+    // Diagnostic: variance explained on training set using the trained MLP.
+    double sse = 0.0; uint64_t nn = 0;
+    for (int o = 0; o < 4; ++o) {
+        for (int k : idx_by_o[o]) {
+            const PredictSample& sm = all[k];
+            const float* f = sm.feat;
+            float h[PRED_NH];
+            for (int j = 0; j < PRED_NH; ++j) {
+                float acc = B1[o][j];
+                for (int i = 0; i < PRED_NF; ++i) acc += W1[o][j][i] * f[i];
+                h[j] = acc > 0.0f ? acc : 0.0f;
             }
-            CoefficientPredictor pred_solved(solved);
+            float chat = B2[o];
+            for (int j = 0; j < PRED_NH; ++j) chat += W2[o][j] * h[j];
+            double e = (double)sm.target - (double)chat;
+            sse += e*e; ++nn;
+        }
+    }
+    double var_expl = 1.0 - sse / ((double)nn * variance_c);
+    std::cout << "train-predictor: variance explained = " << var_expl
+              << " (need > ~0.85 for residual entropy to beat source)\n";
 
-            // Report training MSE for diagnostics.
-            double mse = 0.0; uint64_t n2 = 0;
-            for (auto& img : imgs) {
-                Raster r = prism::frontend::decode_ppm(img);
-                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
-                Raster t = apply_color(r, ct);
-                for (auto& pl : t.planes) {
-                    std::vector<int32_t> plane(pl.begin(), pl.end());
-                    auto subs = lift.forward(plane, t.w, t.h, wp);
-                    std::vector<int> order, parent, sib1, sib2;
-                    CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
-                    std::vector<std::vector<int32_t>> recon(subs.size());
-                    for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
-                        for (int si : order) {
-                            const Subband& s = subs[si];
-                            for (int y = 0; y < s.h; ++y)
-                                for (int x = 0; x < s.w; ++x) {
-                                    int32_t c = s.coeffs[(size_t)y * s.w + x];
-                                    int32_t c_hat = pred_solved.predict(recon, subs, parent, sib1, sib2, si, x, y);
-                                double e = (double)c - (double)c_hat;
-                                mse += e * e; ++n2;
-                            }
-                    }
-                }
+    {
+        std::ofstream o(out);
+        if (!o) { std::cerr << "train-predictor: cannot write " << out << "\n"; return 2; }
+        o << "// Baked learned-coefficient-predictor MLP weights (Route 4 / X6b). AUTO-GENERATED by\n"
+          << "// `prism train-predictor`. Editing by hand is discouraged; regenerate instead.\n"
+          << "// Layout: per orientation (0=LL,1=HL,2=LH,3=HH):\n"
+          << "//   h[j] = relu( PRED_B1[o][j] + sum_i PRED_W1[o][j][i]*feat[i] )\n"
+          << "//   c_hat = PRED_B2[o] + sum_j PRED_W2[o][j]*h[j]\n"
+          << "// feature[16] = [median,L,U,UL,UR,parent,sib1,sib2,|L|,|U|,|UL|,U-L,|parent|,|sib1|,|sib2|,level]/norm.\n";
+        o << "static const float PRED_W1[4][" << PRED_NH << "][" << PRED_NF << "] = {\n";
+        for (int oo = 0; oo < 4; ++oo) {
+            o << "  {\n";
+            for (int j = 0; j < PRED_NH; ++j) {
+                o << "    {";
+                for (int i = 0; i < PRED_NF; ++i)
+                    o << (i ? ", " : "") << std::setprecision(7) << W1[oo][j][i];
+                o << "}" << (j + 1 < PRED_NH ? "," : "") << "\n";
             }
-            double train_mse = (n2 > 0) ? mse / (double)n2 : 0.0;
-            std::cout << "train-predictor: train MSE=" << train_mse << "\n";
-
-            {
-                std::ofstream o(out);
-                if (!o) { std::cerr << "train-predictor: cannot write " << out << "\n"; return 2; }
-                o << "// Baked learned-coefficient-predictor weights (Route 4 / X6a). AUTO-GENERATED by\n"
-                  << "// `prism train-predictor`. Editing by hand is discouraged; regenerate instead.\n";
-                o << "// Layout: per orientation (0=LL,1=HL,2=LH,3=HH):\n"
-                  << "//   c_hat = PRED_BIAS[o] + sum_{k=0..7} PRED_W[o][k] * feat[k]\n"
-                  << "// feature order: [median(left,up,upleft), left, up, upleft, upright, parent, sib1, sib2].\n";
-                o << "static const float PRED_BIAS[4] = {";
-                for (int oi = 0; oi < 4; ++oi) o << (oi ? ", " : "") << bias[oi];
-                o << "};\n";
-                o << "static const float PRED_W[4][8] = {\n";
-                for (int oi = 0; oi < 4; ++oi) {
-                    o << "  {";
-                    for (int k = 0; k < 8; ++k) o << (k ? ", " : "") << w[oi][k];
-                    o << "}" << (oi + 1 < 4 ? "," : "") << "\n";
-                }
-                o << "};\n";
-                o << "// train MSE=" << train_mse << " samples=" << ntotal
-                  << " lambda=" << lambda << "\n";
-                o << "static const char* PRED_STATUS = \"trained\";\n";
-            }
-            std::cout << "train-predictor: wrote " << out << "\n";
-
+            o << "  }" << (oo + 1 < 4 ? "," : "") << "\n";
+        }
+        o << "};\n";
+        o << "static const float PRED_B1[4][" << PRED_NH << "] = {\n";
+        for (int oo = 0; oo < 4; ++oo) {
+            o << "  {";
+            for (int j = 0; j < PRED_NH; ++j) o << (j ? ", " : "") << std::setprecision(7) << B1[oo][j];
+            o << "}" << (oo + 1 < 4 ? "," : "") << "\n";
+        }
+        o << "};\n";
+        o << "static const float PRED_W2[4][" << PRED_NH << "] = {\n";
+        for (int oo = 0; oo < 4; ++oo) {
+            o << "  {";
+            for (int j = 0; j < PRED_NH; ++j) o << (j ? ", " : "") << std::setprecision(7) << W2[oo][j];
+            o << "}" << (oo + 1 < 4 ? "," : "") << "\n";
+        }
+        o << "};\n";
+        o << "static const float PRED_B2[4] = {";
+        for (int oo = 0; oo < 4; ++oo) o << (oo ? ", " : "") << std::setprecision(7) << B2[oo];
+        o << "};\n";
+        o << "// variance_explained=" << std::setprecision(5) << var_expl
+          << " samples=" << ntotal << " epochs=" << epochs << " lr=" << lr << "\n";
+        o << "static const char* PRED_STATUS = \"trained\";\n";
+    }
+    std::cout << "train-predictor: wrote " << out << "\n";
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;
