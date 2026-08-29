@@ -20,6 +20,7 @@ add_library(prism_core STATIC
     src/codec/learned_ctx.cpp
     src/codec/wavelet.cpp
     src/codec/wavelet_container.cpp
+    src/codec/predictor.cpp
     src/codec/acoder.cpp
     src/codec/mixer.cpp
     src/codec/matree.cpp
@@ -114,6 +115,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_multipass.cpp
         tests/unit/test_acoder_hybrid.cpp
         tests/unit/test_x0_wavelet.cpp
+        tests/unit/test_predictor.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)

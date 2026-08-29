@@ -17,6 +17,7 @@
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
 #include "prism/codec/learned_ctx.h"
+#include "prism/codec/predictor.h"
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
@@ -4650,7 +4651,9 @@ int main(int argc, char* argv[]) {
             std::string kodak;
             std::string outcsv;
             double e1_summed = 10.1210; // pinned Prism v1 production baseline
+            double x3a_ps = 3.2477;     // X3a learned-ctx baseline (X6a beats this)
             float blend_override = -1.0f;
+            bool residual = false;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
@@ -4658,8 +4661,10 @@ int main(int argc, char* argv[]) {
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
                 else if (a == "--e1" && i + 1 < argc) e1_summed = std::stod(argv[++i]);
+                else if (a == "--x3a" && i + 1 < argc) x3a_ps = std::stod(argv[++i]);
                 else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
                 else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
+                else if (a == "--residual") residual = true;
             }
             if (blend_override >= 0.0f) learned_set_blend(blend_override);
             if (kodak.empty()) {
@@ -4690,30 +4695,67 @@ int main(int argc, char* argv[]) {
             std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
             if (!outcsv.empty()) cf << "image,wnet,wpayload,spayload,"
                                        "bpp_wavelet_net_per_sample,bpp_wavelet_summed,"
-                                       "bpp_spatial_per_sample,deco_pct\n";
-            std::vector<double> deco, bpp_w_sum, bpp_w_ps;
+                                       "bpp_spatial_per_sample,deco_pct,l1_shrink\n";
+            std::vector<double> deco, bpp_w_sum, bpp_w_ps, l1_shrink;
             for (auto& img : imgs) {
                 Raster r = load_raster(img, 0, 0, 8, 3);
                 size_t net = 0;
-                auto wbytes = frame_wavelet_encode(r, filter, levels, net);
+                size_t wpayload = 0;
                 uint8_t mb = 0;
-                size_t wpayload = frame_wavelet_payload(r, filter, levels, mb);
+                if (residual) {
+                    auto wbytes = frame_wavelet_encode_residual(r, filter, levels, net);
+                    wpayload = wbytes.size();
+                } else {
+                    auto wbytes = frame_wavelet_encode(r, filter, levels, net);
+                    wpayload = frame_wavelet_payload(r, filter, levels, mb);
+                }
                 size_t spayload = frame_spatial_payload(r);
                 uint32_t npix = r.w * r.h * r.num_channels();
                 double bpp_wnet_ps = 8.0 * net / npix;
                 double bpp_wsum = 8.0 * net / (r.w * r.h);
                 double bpp_sps = 8.0 * spayload / npix;
                 double d = (spayload > 0) ? 100.0 * ((double)wpayload - (double)spayload) / (double)spayload : 0.0;
+                // X6a L1 sub-gate: residual top-bitplane mean < coefficient top-bitplane mean.
+                double shrink = 0.0;
+                if (residual) {
+                    Raster t = apply_color(r, ColorTransform::YCoCgR);
+                    WaveletLift lift; WaveletParams wp{filter, levels};
+                    CoefficientPredictor pred;
+                    double cc = 0, rr = 0, cnt = 0;
+                    for (auto& pl : t.planes) {
+                        std::vector<int32_t> plane(pl.begin(), pl.end());
+                        auto subs = lift.forward(plane, t.w, t.h, wp);
+                        std::vector<int> order, parent, sib1, sib2;
+                        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+                        std::vector<std::vector<int32_t>> recon(subs.size());
+                        for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+                        for (int si : order) {
+                            const Subband& s = subs[si];
+                            for (int y = 0; y < s.h; ++y)
+                                for (int x = 0; x < s.w; ++x) {
+                                    int32_t c = s.coeffs[(size_t)y * s.w + x];
+                                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                                    int32_t rv = c - c_hat;
+                                    int cb = (c == 0) ? 0 : (31 - __builtin_clz((uint32_t)(c < 0 ? -c : c))) + 1;
+                                    int rb = (rv == 0) ? 0 : (31 - __builtin_clz((uint32_t)(rv < 0 ? -rv : rv))) + 1;
+                                    cc += cb; rr += rb; cnt += 1.0;
+                                }
+                        }
+                    }
+                    if (cnt > 0) shrink = (cc / cnt) - (rr / cnt); // >0 means residual shrinks magnitude
+                }
                 if (!outcsv.empty())
                     cf << img.filename().string() << "," << net << "," << wpayload << ","
                        << spayload << "," << bpp_wnet_ps << "," << bpp_wsum << ","
-                       << bpp_sps << "," << d << "\n";
+                       << bpp_sps << "," << d << "," << shrink << "\n";
                 deco.push_back(d);
                 bpp_w_sum.push_back(bpp_wsum);
                 bpp_w_ps.push_back(bpp_wnet_ps);
+                l1_shrink.push_back(shrink);
                 std::cout << img.filename().string() << " wavelet_net=" << net
                           << " spatial_payload=" << spayload << " deco_pct=" << d
-                          << " bpp_summed=" << bpp_wsum << "\n";
+                          << " bpp_summed=" << bpp_wsum
+                          << (residual ? " L1_shrink=" : "") << (residual ? shrink : 0.0) << "\n";
             }
             auto median = [](std::vector<double> v) -> double {
                 if (v.empty()) return 0.0;
@@ -4727,14 +4769,31 @@ int main(int argc, char* argv[]) {
             for (double v : bpp_w_ps) mean_wps += v;
             mean_wsum /= std::max<size_t>(1, bpp_w_sum.size());
             mean_wps /= std::max<size_t>(1, bpp_w_ps.size());
-            std::cout << "X1 decorrelation gate: median deco_pct=" << md
-                      << " %  (PASS if <= -2.0)\n";
-            std::cout << "X2 vs e1: mean wavelet summed=" << mean_wsum
-                      << " bpp/img ; e1=" << e1_summed
-                      << " ; X2 primary target (e1*0.92)=" << (e1_summed * 0.92)
-                      << " (PASS if <= that)\n";
-            std::cout << "   mean wavelet per-sample=" << mean_wps
-                      << " ; M2 gate <3.166 ; M3 gate <2.885\n";
+            if (residual) {
+                double mean_shrink = 0.0;
+                for (double v : l1_shrink) mean_shrink += v;
+                mean_shrink /= std::max<size_t>(1, l1_shrink.size());
+                double l1_gain = 100.0 * (1.0 - mean_wps / x3a_ps);
+                std::cout << "X6a L1 (residual) gate:\n";
+                std::cout << "   mean per-sample=" << mean_wps
+                          << " ; X3a baseline=" << x3a_ps
+                          << " ; L1 primary target <=3.10 (>= +4.5% over X3a)\n";
+                std::cout << "   L1 gain vs X3a=" << l1_gain << "%  (PASS if >= +4.5)\n";
+                std::cout << "   mean summed=" << mean_wsum << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+                std::cout << "   L1 sub-gate (residual top-bitplane mean < coeff top-bitplane mean)="
+                          << mean_shrink << " (PASS if > 0)\n";
+                std::cout << (mean_wps <= 3.10 && mean_shrink > 0.0
+                                  ? "   X6a L1 PRIMARY GATE: PASS\n" : "   X6a L1 PRIMARY GATE: FAIL\n");
+            } else {
+                std::cout << "X1 decorrelation gate: median deco_pct=" << md
+                          << " %  (PASS if <= -2.0)\n";
+                std::cout << "X2 vs e1: mean wavelet summed=" << mean_wsum
+                          << " bpp/img ; e1=" << e1_summed
+                          << " ; X2 primary target (e1*0.92)=" << (e1_summed * 0.92)
+                          << " (PASS if <= that)\n";
+                std::cout << "   mean wavelet per-sample=" << mean_wps
+                          << " ; M2 gate <3.166 ; M3 gate <2.885\n";
+            }
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-learned") {
             // X3a offline trainer: learns the baked MLP context-model weights from
@@ -4937,6 +4996,175 @@ int main(int argc, char* argv[]) {
                 o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << "\n";
             }
             std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
+        } else if (cmd == "train-predictor") {
+            // X6a (L1) offline trainer: learns the baked LINEAR coefficient-predictor
+            // weights from real Kodak imagery by per-orient ridge regression
+            // (closed form). Encodes each subband exactly as the production residual
+            // path does, collects (window, c) samples in coding-major order, solves
+            //   c_hat = bias[o] + sum_k w[o][k]*feat[k]
+            // and writes prism/src/codec/predictor_data.inc (weights only; zero bytes
+            // transmitted at inference, invariant I29).
+            std::string kodak;
+            std::string out = "src/codec/predictor_data.inc";
+            double lambda = 1.0;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+                else if (a == "--lambda" && i + 1 < argc) lambda = std::stod(argv[++i]);
+            }
+            if (kodak.empty()) {
+                std::cerr << "train-predictor: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "train-predictor: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "train-predictor: no images\n"; return 2; }
+
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            int levels = X_DEFAULT_LEVELS;
+            WaveletLift lift;
+            WaveletParams wp{filter, levels};
+            CoefficientPredictor pred;
+            // Per-orient normal equations: A[o] is 9x9 (8 features + intercept),
+            // B[o] is 9. Accumulated incrementally to bound memory.
+            double A[4][9][9] = {0};
+            double B[4][9] = {0};
+            uint64_t ntotal = 0;
+            double sumc = 0.0, sumc2 = 0.0;
+            std::vector<PredictSample> buf;
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
+                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+                Raster t = apply_color(r, ct);
+                for (auto& pl : t.planes) {
+                    std::vector<int32_t> plane(pl.begin(), pl.end());
+                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    buf.clear();
+                    CoefficientPredictor::collect_samples(subs, buf);
+                    for (const auto& sm : buf) {
+                        double x[9];
+                        for (int k = 0; k < 8; ++k) x[k] = (double)sm.feat[k];
+                        x[8] = 1.0; // intercept
+                        double y = (double)sm.target;
+                        int o = (int)sm.orient % 4;
+                        for (int j = 0; j < 9; ++j) {
+                            B[o][j] += x[j] * y;
+                            for (int k = 0; k < 9; ++k) A[o][j][k] += x[j] * x[k];
+                        }
+                        sumc += y; sumc2 += y * y;
+                        ++ntotal;
+                    }
+                }
+            }
+            double variance_c = (sumc2 - sumc * sumc / (double)ntotal) / (double)ntotal;
+            std::cout << "train-predictor: " << ntotal << " samples ; var(c)=" << variance_c
+                      << " std(c)=" << std::sqrt(variance_c) << "\n";
+
+            // Solve each 9x9 system (Gaussian elimination with partial pivoting),
+            // with a small ridge on the diagonal for numerical safety.
+            auto solve = [&](double M[9][9], double rhs[9], double outw[9]) {
+                double a[9][10];
+                for (int i = 0; i < 9; ++i) {
+                    for (int j = 0; j < 9; ++j) a[i][j] = M[i][j] + (i == j ? lambda : 0.0);
+                    a[i][9] = rhs[i];
+                }
+                for (int col = 0; col < 9; ++col) {
+                    int piv = col;
+                    for (int r = col + 1; r < 9; ++r)
+                        if (std::fabs(a[r][col]) > std::fabs(a[piv][col])) piv = r;
+                    if (piv != col) for (int k = 0; k < 10; ++k) std::swap(a[col][k], a[piv][k]);
+                    double d = a[col][col];
+                    if (std::fabs(d) < 1e-12) d = 1e-12;
+                    for (int k = 0; k < 10; ++k) a[col][k] /= d;
+                    for (int r = 0; r < 9; ++r) {
+                        if (r == col) continue;
+                        double f = a[r][col];
+                        for (int k = 0; k < 10; ++k) a[r][k] -= f * a[col][k];
+                    }
+                }
+                for (int i = 0; i < 9; ++i) outw[i] = a[i][9];
+            };
+
+            float bias[4] = {0, 0, 0, 0};
+            float w[4][8] = {{0, 0, 0, 0, 0, 0, 0, 0}};
+            for (int o = 0; o < 4; ++o) {
+                double M[9][9], rhs[9], outw[9];
+                for (int i = 0; i < 9; ++i) {
+                    rhs[i] = B[o][i];
+                    for (int j = 0; j < 9; ++j) M[i][j] = A[o][i][j];
+                }
+                solve(M, rhs, outw);
+                bias[o] = (float)outw[8];
+                for (int k = 0; k < 8; ++k) w[o][k] = (float)outw[k];
+            }
+
+            // Report training MSE for diagnostics.
+            double mse = 0.0; uint64_t n2 = 0;
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
+                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+                Raster t = apply_color(r, ct);
+                for (auto& pl : t.planes) {
+                    std::vector<int32_t> plane(pl.begin(), pl.end());
+                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    std::vector<int> order, parent, sib1, sib2;
+                    CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+                    std::vector<std::vector<int32_t>> recon(subs.size());
+                    for (size_t si = 0; si < subs.size(); ++si) recon[si] = subs[si].coeffs;
+                    for (int si : order) {
+                        const Subband& s = subs[si];
+                        int o = (int)s.orient;
+                        for (int y = 0; y < s.h; ++y)
+                            for (int x = 0; x < s.w; ++x) {
+                                int32_t c = s.coeffs[(size_t)y * s.w + x];
+                                int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                                double e = (double)c - (double)c_hat;
+                                mse += e * e; ++n2;
+                            }
+                    }
+                }
+            }
+            double train_mse = (n2 > 0) ? mse / (double)n2 : 0.0;
+            std::cout << "train-predictor: train MSE=" << train_mse << "\n";
+
+            {
+                std::ofstream o(out);
+                if (!o) { std::cerr << "train-predictor: cannot write " << out << "\n"; return 2; }
+                o << "// Baked learned-coefficient-predictor weights (Route 4 / X6a). AUTO-GENERATED by\n"
+                  << "// `prism train-predictor`. Editing by hand is discouraged; regenerate instead.\n";
+                o << "// Layout: per orientation (0=LL,1=HL,2=LH,3=HH):\n"
+                  << "//   c_hat = PRED_BIAS[o] + sum_{k=0..7} PRED_W[o][k] * feat[k]\n"
+                  << "// feature order: [median(left,up,upleft), left, up, upleft, upright, parent, sib1, sib2].\n";
+                o << "static const float PRED_BIAS[4] = {";
+                for (int oi = 0; oi < 4; ++oi) o << (oi ? ", " : "") << bias[oi];
+                o << "};\n";
+                o << "static const float PRED_W[4][8] = {\n";
+                for (int oi = 0; oi < 4; ++oi) {
+                    o << "  {";
+                    for (int k = 0; k < 8; ++k) o << (k ? ", " : "") << w[oi][k];
+                    o << "}" << (oi + 1 < 4 ? "," : "") << "\n";
+                }
+                o << "};\n";
+                o << "// train MSE=" << train_mse << " samples=" << ntotal
+                  << " lambda=" << lambda << "\n";
+                o << "static const char* PRED_STATUS = \"trained\";\n";
+            }
+            std::cout << "train-predictor: wrote " << out << "\n";
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;
