@@ -102,8 +102,9 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
     // X6c hyperprior: per-subband probability-calibration code.
     for (uint16_t i = 0; i < nsub; ++i)
         out.push_back(i < hdr.sub_scale_code.size() ? hdr.sub_scale_code[i] : 0);
-    // R6-B transmitted per-subband histogram (only when present).
-    if (!hdr.sub_hist.empty()) {
+    // R6-B transmitted per-subband histogram (symmetric with decode: present
+    // whenever the R6B flag is set, not merely when the vector is non-empty).
+    if (hdr.residual_mode & R6B_FLAG) {
         for (uint16_t i = 0; i < nsub; ++i) {
             size_t base = (size_t)i * R6B_CLASSES * 2;
             for (int k = 0; k < R6B_CLASSES * 2; ++k) {
@@ -542,8 +543,11 @@ std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster, WaveletFilte
             all_w.push_back((uint16_t)R[oi].w);
             all_h.push_back((uint16_t)R[oi].h);
             all_scale_code.push_back(0);
-            for (int k = 0; k < R6B_CLASSES * 2; ++k)
-                all_hist.push_back((uint16_t)res.hist.cnt[oi][k]);
+            for (int k = 0; k < R6B_CLASSES * 2; ++k) {
+                uint32_t cnt = res.hist.cnt[oi][k];
+                if (cnt > 0xFFFF) cnt = 0xFFFF; // clamp: 16-bit on-wire format (see wavelet_container.h)
+                all_hist.push_back((uint16_t)cnt);
+            }
             payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
         }
         plane_symbols.push_back((uint32_t)(payload.size() - plane_start));

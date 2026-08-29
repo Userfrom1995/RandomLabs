@@ -54,6 +54,10 @@ struct WaveletHeader {
     // uint16 counts [cnt0_0, cnt1_0, cnt0_1, cnt1_1, ...]. Only present when
     // residual_mode carries R6B_FLAG. Overhead is a few KB/image (<< 0.01 bpp,
     // spec R6-B sub-gate L3b), so no full model is transmitted (I29 holds).
+    //
+    // NOTE: counts are clamped to the 16-bit range [0, 0xFFFF] on serialization;
+    // extremely large images with a single subband exceeding 65535 accumulated
+    // symbols are saturated rather than truncated, so no count silently wraps.
     std::vector<uint16_t> sub_hist;
 };
 
