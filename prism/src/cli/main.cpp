@@ -17,7 +17,9 @@
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
 #include "prism/codec/learned_ctx.h"
+
 #include "prism/codec/predictor.h"
+
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
@@ -4621,6 +4623,10 @@ int main(int argc, char* argv[]) {
                 else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
                 else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
                 else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+
+                else if (a == "--blend" && i + 1 < argc) learned_set_blend(std::stof(argv[++i]));
+                else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
+
             }
             Raster r = load_raster(in, w, h, bd, ch);
             WaveletFilter filter = WaveletFilter::LeGall53;
@@ -4651,9 +4657,11 @@ int main(int argc, char* argv[]) {
             std::string kodak;
             std::string outcsv;
             double e1_summed = 10.1210; // pinned Prism v1 production baseline
+
             double x3a_ps = 3.2477;     // X3a learned-ctx baseline (X6a beats this)
             float blend_override = -1.0f;
             bool residual = false;
+
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
@@ -4661,10 +4669,12 @@ int main(int argc, char* argv[]) {
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
                 else if (a == "--e1" && i + 1 < argc) e1_summed = std::stod(argv[++i]);
+
                 else if (a == "--x3a" && i + 1 < argc) x3a_ps = std::stod(argv[++i]);
                 else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
                 else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
                 else if (a == "--residual") residual = true;
+
             }
             if (blend_override >= 0.0f) learned_set_blend(blend_override);
             if (kodak.empty()) {
@@ -4695,6 +4705,7 @@ int main(int argc, char* argv[]) {
             std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
             if (!outcsv.empty()) cf << "image,wnet,wpayload,spayload,"
                                        "bpp_wavelet_net_per_sample,bpp_wavelet_summed,"
+
                                        "bpp_spatial_per_sample,deco_pct,l1_shrink\n";
             std::vector<double> deco, bpp_w_sum, bpp_w_ps, l1_shrink;
             for (auto& img : imgs) {
@@ -4709,12 +4720,14 @@ int main(int argc, char* argv[]) {
                     auto wbytes = frame_wavelet_encode(r, filter, levels, net);
                     wpayload = frame_wavelet_payload(r, filter, levels, mb);
                 }
+
                 size_t spayload = frame_spatial_payload(r);
                 uint32_t npix = r.w * r.h * r.num_channels();
                 double bpp_wnet_ps = 8.0 * net / npix;
                 double bpp_wsum = 8.0 * net / (r.w * r.h);
                 double bpp_sps = 8.0 * spayload / npix;
                 double d = (spayload > 0) ? 100.0 * ((double)wpayload - (double)spayload) / (double)spayload : 0.0;
+
                 // X6a L1 sub-gate: residual top-bitplane mean < coefficient top-bitplane mean.
                 double shrink = 0.0;
                 if (residual) {
@@ -4756,6 +4769,7 @@ int main(int argc, char* argv[]) {
                           << " spatial_payload=" << spayload << " deco_pct=" << d
                           << " bpp_summed=" << bpp_wsum
                           << (residual ? " L1_shrink=" : "") << (residual ? shrink : 0.0) << "\n";
+
             }
             auto median = [](std::vector<double> v) -> double {
                 if (v.empty()) return 0.0;
@@ -4769,6 +4783,7 @@ int main(int argc, char* argv[]) {
             for (double v : bpp_w_ps) mean_wps += v;
             mean_wsum /= std::max<size_t>(1, bpp_w_sum.size());
             mean_wps /= std::max<size_t>(1, bpp_w_ps.size());
+
             if (residual) {
                 double mean_shrink = 0.0;
                 for (double v : l1_shrink) mean_shrink += v;
@@ -4794,6 +4809,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "   mean wavelet per-sample=" << mean_wps
                           << " ; M2 gate <3.166 ; M3 gate <2.885\n";
             }
+
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-learned") {
             // X3a offline trainer: learns the baked MLP context-model weights from
@@ -4806,7 +4822,9 @@ int main(int argc, char* argv[]) {
             int epochs = 14;
             float lr = 0.04f;
             int stride = 128;
+
             float blend = 0.6f;
+
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
@@ -4838,7 +4856,9 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
+
             static constexpr int HF = 16, FF = 10; // hidden units, features
+
             WaveletFilter filter = WaveletFilter::LeGall53;
             int levels = X_DEFAULT_LEVELS;
             WaveletLift lift;
@@ -4846,11 +4866,14 @@ int main(int argc, char* argv[]) {
             BitplaneCoder coder;
 
             std::vector<LSample> samples;
+
             uint64_t seen = 0;
+
             for (auto& img : imgs) {
                 Raster r = prism::frontend::decode_ppm(img);
                 ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
                 Raster t = apply_color(r, ct);
+
                 for (auto& pl : t.planes) {
                     std::vector<int32_t> plane(pl.begin(), pl.end());
                     auto subs = lift.forward(plane, t.w, t.h, wp);
@@ -4864,6 +4887,7 @@ int main(int argc, char* argv[]) {
                     // keep every `stride`-th by compacting in place after the loop
                 }
                 (void)seen;
+
             }
             // Compact: keep every `stride`-th sample.
             if (stride > 1 && samples.size() > (size_t)stride) {
@@ -4874,6 +4898,7 @@ int main(int argc, char* argv[]) {
             }
             std::cout << "train-learned: " << samples.size() << " samples\n";
             if (samples.empty()) { std::cerr << "train-learned: no samples\n"; return 2; }
+
 
             // Normalise a feature vector.
             auto norm = [](const LCFeat& f, float x[FF]) {
@@ -4907,6 +4932,7 @@ int main(int argc, char* argv[]) {
             std::array<std::array<float, FF>, HF> mW1{}, vW1{};
             std::array<float, HF> mb1{}, vb1{}, mW2{}, vW2{};
             float mb2 = 0, vb2 = 0;
+
             const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
             const int BS = 4096;
             const size_t N = samples.size();
@@ -4914,11 +4940,13 @@ int main(int argc, char* argv[]) {
             for (size_t i = 0; i < N; ++i) idxs[i] = i;
             auto rngs = std::mt19937(12345);
 
+
             auto forward = [&](const float x[FF], float h[HF]) {
                 for (int j = 0; j < HF; ++j) {
                     float acc = b1[j];
                     for (int i = 0; i < FF; ++i) acc += W1[j][i] * x[i];
                     h[j] = acc > 0.0f ? acc : 0.0f;
+
                 }
             };
             auto sigmoidf = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
@@ -4930,6 +4958,7 @@ int main(int argc, char* argv[]) {
                 for (size_t s = 0; s < N; s += (size_t)BS) {
                     size_t e = std::min(s + (size_t)BS, N);
                     // gradients
+
                     std::array<std::array<float, FF>, HF> gW1{};
                     std::array<float, HF> gb1{}, gW2{};
                     float gb2 = 0.0f;
@@ -4939,17 +4968,20 @@ int main(int argc, char* argv[]) {
                         float h[HF]; forward(x, h);
                         float acc = b2;
                         for (int j = 0; j < HF; ++j) acc += W2[j] * h[j];
+
                         float y = sigmoidf(acc);
                         if (y < 1e-4f) y = 1e-4f; if (y > 1.0f - 1e-4f) y = 1.0f - 1e-4f;
                         float dy = y - (sm.label ? 1.0f : 0.0f); // dL/dpre
                         tot += -(sm.label ? std::log(y) : std::log(1.0f - y));
                         ++nb;
+
                         gb2 += dy;
                         for (int j = 0; j < HF; ++j) {
                             gW2[j] += dy * h[j];
                             float g = dy * W2[j] * (h[j] > 0.0f ? 1.0f : 0.0f);
                             gb1[j] += g;
                             for (int i = 0; i < FF; ++i) gW1[j][i] += g * x[i];
+
                         }
                     }
                     float scale = 1.0f / (float)(e - s);
@@ -4961,12 +4993,14 @@ int main(int argc, char* argv[]) {
                         float vh = v / (1.0f - std::pow(beta2, (float)(ep + 1)));
                         w -= lr * mh / (std::sqrt(vh) + eps);
                     };
+
                     for (int j = 0; j < HF; ++j) {
                         for (int i = 0; i < FF; ++i) update(W1[j][i], mW1[j][i], vW1[j][i], gW1[j][i]);
                         update(b1[j], mb1[j], vb1[j], gb1[j]);
                         update(W2[j], mW2[j], vW2[j], gW2[j]);
                     }
                     update(b2, mb2, vb2, gb2);
+
                 }
                 last_loss = tot / (float)nb;
                 std::cout << "  epoch " << ep << " train BCE=" << last_loss << "\n";
@@ -4976,6 +5010,7 @@ int main(int argc, char* argv[]) {
             {
                 std::ofstream o(out);
                 if (!o) { std::cerr << "train-learned: cannot write " << out << "\n"; return 2; }
+
                 o << "// Baked learned-context MLP weights (Route 4 / X3a). AUTO-GENERATED by\n"
                   << "// `prism train-learned`. Editing by hand is discouraged; regenerate instead.\n";
                 o << "static const float LW1[" << HF << "][" << FF << "] = {\n";
@@ -4992,10 +5027,12 @@ int main(int argc, char* argv[]) {
                 for (int j = 0; j < HF; ++j) o << (j ? ", " : "") << W2[j];
                 o << "};\n";
                 o << "static const float Lb2 = " << b2 << ";\n";
+
                 o << "static const float LBlend = " << blend << ";\n";
                 o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << "\n";
             }
             std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
+
         } else if (cmd == "train-predictor") {
             // X6a (L1) offline trainer: learns the baked LINEAR coefficient-predictor
             // weights from real Kodak imagery by per-orient ridge regression
@@ -5172,6 +5209,7 @@ int main(int argc, char* argv[]) {
                 o << "static const char* PRED_STATUS = \"trained\";\n";
             }
             std::cout << "train-predictor: wrote " << out << "\n";
+
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;
