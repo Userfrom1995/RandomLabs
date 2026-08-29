@@ -800,6 +800,11 @@ std::vector<Subband> BitplaneCoder::decode_static(
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? layout[pidx].w : 0, ph = (pidx >= 0) ? layout[pidx].h : 0;
         int B = sub_maxbits[oi];
+        // Per-subband model reset. This is intentional: the learned feature
+        // carried into model.predict/update already includes orient + level
+        // (see LearnedModel::fine_ctx), so subband contexts are disjoint; the
+        // shared vs per-subband reset choice is benign but kept per-subband for
+        // a fully deterministic, symmetric encode/decode accumulator.
         StaticAdaptiveModel model; model.init(NS, sp0);
         BitplaneRans::Decoder d; d.init(streams[oi]);
         for (int p = B - 1; p >= 0; --p) {
@@ -815,16 +820,14 @@ std::vector<Subband> BitplaneCoder::decode_static(
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
                 if (sig[oi][ci] == 0) {
                     LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
-                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint32_t c = LearnedModel::fine_ctx(f);
-                    int cls = r6b_class(0, p);
+                f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                int cls = r6b_class(0, p);
                     uint16_t dp0 = model.predict(f, (uint8_t)oi, (uint8_t)cls);
                     uint8_t bit = d.decode_symbol(dp0);
                     model.update(f, bit); ++idx;
                     if (bit) {
                         LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        uint32_t cs = LearnedModel::fine_ctx(fs);
                         int cls = r6b_class(1, p);
                         uint16_t dp0s = model.predict(fs, (uint8_t)oi, (uint8_t)cls);
                         uint8_t sg = d.decode_symbol(dp0s);
@@ -834,9 +837,8 @@ std::vector<Subband> BitplaneCoder::decode_static(
                     }
                 } else {
                     LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
-                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint32_t c = LearnedModel::fine_ctx(f);
-                    int cls = r6b_class(2, p);
+                f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                int cls = r6b_class(2, p);
                     uint16_t dp0r = model.predict(f, (uint8_t)oi, (uint8_t)cls);
                     uint8_t rb = d.decode_symbol(dp0r);
                     model.update(f, rb); ++idx;
