@@ -339,6 +339,13 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
 
 size_t frame_wavelet_payload(const Raster& raster, WaveletFilter filter, int levels,
                              uint8_t& maxbits_out) {
+    // Diagnostic only: encodes each subband in ISOLATION (one subband per call),
+    // so the parent-map / level / cross-component features are always zero here.
+    // This is NOT the production packing - frame_wavelet_encode() instead joint-
+    // walks all subbands of a plane with a single shared LearnedModel and emits
+    // one rANS stream per subband (sliceable). The two are kept side by side by
+    // bench-x purely to report the decorrelation delta (deco_pct); the net bytes
+    // it gates on come from frame_wavelet_encode(), not from this helper.
     ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
                                                       : ColorTransform::None;
     Raster t = apply_color(raster, ct);
