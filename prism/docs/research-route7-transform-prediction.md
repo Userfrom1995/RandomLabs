@@ -66,8 +66,9 @@ sources of entropy. This is the honest M3 path once R6-D lands.
 ### 2.1 Placement in the pipeline
 The wavelet already produces `std::vector<Subband>` (wavelet.cpp:254), each with
 `coeffs` (a 2D `int32` buffer in raster order), `orient`, `level`, `w`, `h`. Today
-`BitplaneCoder` codes `coeffs` bitplane-by-bitplane. R7-A inserts, per coefficient at
-raster position `(x,y)` and at each bitplane position `p`, a scalar prediction
+`BitplaneCoder` codes `coeffs` bitplane-by-bitplane. R7-A computes, per coefficient at
+raster `(x,y)` from fully reconstructed neighbours of the SAME subband, a scalar
+prediction
 
 ```
 c_hat = MED( W, N, NW, NE )
@@ -75,9 +76,11 @@ c_hat = MED( W, N, NW, NE )
 
 where `W,N,NW,NE` are the **fully reconstructed** neighbour coefficients of the SAME
 subband (spatial 4-neighbourhood, mirror/symmetry at borders, identical to the MED
-used throughout v1). The coder then encodes the residual bit `r_p = c_p - c_hat_p`
-instead of the raw coefficient bit `c_p`. On decode the identical prediction is formed
-from already-reconstructed neighbours, so `c = c_hat + r` reconstructs byte-exact.
+used throughout v1). The coder forms the value-domain residual `r = c - c_hat` and
+bitplane-codes `r` (not `c`); i.e., significance/sign/refinement bits are derived from
+`r`. On decode the identical `c_hat` is formed from already-reconstructed neighbours,
+so `c = c_hat + r` reconstructs byte-exact. At bitplane `p` the coded symbol is the
+`p`-th bit of `r`, not `c_p - c_hat_p`.
 
 Critical decode-order property: `BitplaneCoder` already walks coefficients in raster
 order and processes bitplanes high-to-low. When coding bit position `p` of `(x,y)`,
@@ -164,10 +167,11 @@ table-economics overhead).
   symmetry argument as the existing bitplane coder.
 - **R7-B filter selection**: per-subband trial encode by bytes, winner transmitted as
   a 2-bit tag per subband (or per level) -> negligible header (< 0.001 bpp).
-- **Evaluation gate (pre-registered):** R7-1 must lower the FULL coded rate (not just an
-  MSE or BCE) by >= 1.5% vs X6b (3.2175) on a held-out 4-image subset
-  (kodim02/07/17/21) BEFORE the full 24-image binding measurement, to catch any
-  predictor/decode drift early.
+- **Evaluation gate (pre-registered):** R7-1 must lower the FULL coded rate (not just
+  MSE or BCE) by >= 1.5% vs X6b (3.2175) on held-out kodim02/07/17/21 (median over the
+  4) BEFORE the full 24-image binding measurement, to catch any predictor/decode drift
+  early. kodim01/05/13/19 may be used for debug/tuning only and must not set the
+  pass/fail.
 
 ---
 
@@ -202,7 +206,7 @@ header is new. Invariant I29 preserved.
 | Phase | Deliverable | Primary gate | Sub-gates |
 |---|---|---|---|
 | R7-0 | Wire R7-A MED predictor into `BitplaneCoder` coefficient loop (flag + symmetry + byte-exact self-check) | decode(encode(x)) byte-exact 24/24 | zero container bytes |
-| R7-1 | R7-A alone vs X6b on pinned quad (kodim01/05/13/19) | median NET <= -1.5% vs X6b (3.2175) on held-out kodim02/07/17/21 | same |
+| R7-1 | R7-A alone vs X6b (tune/debug on kodim01/05/13/19 if needed) | median NET <= -1.5% vs X6b (3.2175) on held-out kodim02/07/17/21 (binding) | same |
 | R7-2 | R7-B per-subband filter selection by bytes | additional >= -0.5% over R7-1 | overhead <= 0.001 bpp |
 | R7-3 | Compose R7-A+R7-B (+R7-C if short); full Kodak-24 dual-unit | summed <= 9.498 AND per-sample <= 3.166 (M2) | byte-exact 24/24, fuzz clean |
 | R7-4 | Stack with R6-D (context clustering) for M3 | summed <= 8.655 AND per-sample <= 2.885 (M3) | byte-exact 24/24, fuzz clean |
