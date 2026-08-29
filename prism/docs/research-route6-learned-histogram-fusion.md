@@ -31,7 +31,7 @@ The earlier Route 1 / Route 3 failure (R1 +2.27% WORSE, R1-1 +2.27% WORSE) teste
 |---|---|---|
 | Train/inference asymmetry | `collect_samples` iterated a single `one{s}` subband instead of the full `subs` vector the decoder walks, so the MLP never saw the true (orient,level) distribution mix | Sample collection MUST replay the exact decoder walk over all subbands of all planes (mirror symmetry is what makes byte-exact round-trip hold) |
 | Pseudocount mismatch | Header `K_PSEUDO=64` but X3a text says default 32; the net was trained under the 32 assumption | Freeze `K_PSEUDO = 64` in BOTH the trainer and `LearnedModel::K_PSEUDO`; no runtime divergence |
-| Shallow/weak net | 13->16->1 tanh, BCE 0.317 (near base rate) | Deeper 13->64->32->1, longer Adam schedule, feature dropout, richer features (section 2.2) |
+| Shallow/weak net | 13->16->1 tanh, BCE 0.317 (near base rate) | Deeper 15->64->32->1, longer Adam schedule, feature dropout, richer features (section 2.2) |
 | Pool/channel cleanup | `cc`, `decode_trace`, `X_CONTEXT_POOL_SIZE`, stride inconsistencies | Single source of truth `make_lcfeat` (learned_ctx.h:54) used by trainer, encoder, decoder |
 
 ### 2.2 Feature set (all computable from already-coded information, I29 invariant: 0 model bytes transmitted)
