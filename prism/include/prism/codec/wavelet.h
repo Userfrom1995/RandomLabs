@@ -31,6 +31,20 @@ constexpr int X_DEFAULT_LEVELS = 5;
 struct WaveletParams {
     WaveletFilter filter = X_DEFAULT_FILTER;
     int levels = X_DEFAULT_LEVELS;
+    // Route 7 lever B (issue #130): when non-empty, `per_level_filter[lvl-1]`
+    // overrides `filter` for decomposition level `lvl` (1..levels). An empty
+    // vector keeps the single `filter` for every level, so the change is
+    // format- and behaviour-compatible with all existing frames. The lift is
+    // exactly reversible either way (invariant I26).
+    std::vector<WaveletFilter> per_level_filter;
+    // Returns the filter to use for decomposition level `lvl` (1..levels):
+    // per_level_filter[lvl-1] when present, else `filter`.
+    WaveletFilter filter_for_level(int lvl) const {
+        if (!per_level_filter.empty() && lvl >= 1 &&
+            lvl <= (int)per_level_filter.size())
+            return per_level_filter[(size_t)(lvl - 1)];
+        return filter;
+    }
 };
 
 // A single subband of integer coefficients.
