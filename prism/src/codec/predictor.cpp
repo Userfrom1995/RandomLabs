@@ -33,9 +33,10 @@ PredictWeights baked_weights() {
     }
     return w;
 }
-const PredictWeights kPred = baked_weights();
 
 } // namespace
+
+CoefficientPredictor::CoefficientPredictor() : weights_(baked_weights()) {}
 
 void CoefficientPredictor::build_topology(const std::vector<Subband>& subs,
                                            std::vector<int>& order,
@@ -97,11 +98,9 @@ int32_t CoefficientPredictor::predict(const std::vector<std::vector<int32_t>>& r
     int32_t U = (y - 1 >= 0) ? rc(recon, subs, si, x, y - 1) : 0;          // up
     int32_t UL = (x - 1 >= 0 && y - 1 >= 0) ? rc(recon, subs, si, x - 1, y - 1) : 0; // up-left
     // JPEG-LS-style median edge predictor (dominant nonlinear term).
-    int32_t med = (L + U) - UL;
     int32_t a = L, b = U, c = UL;
     int32_t lo = std::min({a, b, c}), hi = std::max({a, b, c});
     int32_t medv = (a + b + c) - lo - hi;
-    (void)med;
     f[0] = medv;
     f[1] = L;
     f[2] = U;
@@ -118,7 +117,7 @@ int32_t CoefficientPredictor::predict(const std::vector<std::vector<int32_t>>& r
     int s2 = sib2[si];
     if (s2 >= 0) f[7] = rc(recon, subs, s2, x, y);
 
-    const PredictWeights& w = kPred;
+    const PredictWeights& w = weights_;
     int o = (int)s.orient;
     float acc = w.bias[o];
     for (int k = 0; k < 8; ++k) acc += w.w[o][k] * (float)f[k];
