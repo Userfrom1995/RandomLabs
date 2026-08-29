@@ -16,6 +16,7 @@
 #include "prism/codec/wavelet.h"
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
+#include "prism/codec/route6c_tree.h"
 #include "prism/codec/learned_ctx.h"
 #include "prism/codec/route5.h"
 #include "prism/codec/predictor.h"
@@ -4723,42 +4724,42 @@ int main(int argc, char* argv[]) {
                       << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
             if (!ok) return 1;
         } else if (cmd == "wavelet-r6c") {
-            // R6-C harness: the per-fine-context CLUSTER transmitted-histogram
-            // backbone. Codes the learned-coefficient residual through the static
-            // cluster bitplane coder. Lossless round-trip is the gating property.
+            // R6-C harness: the per-fine-context transmitted-histogram backbone
+            // (Route 6 lever C). Codes the learned-coefficient residual through
+            // the static-r6c bitplane coder. Lossless round-trip is the gating
+            // property; --w overrides the transmitted/learned blend weight.
             if (argc < 4) { print_usage(); return 2; }
             std::filesystem::path in = argv[2];
             std::filesystem::path out = argv[3];
             uint8_t filter_id = X_FILTER_ID_53;
             int levels = X_DEFAULT_LEVELS;
-            int kb = 256;
+            float w = -1.0f;
+            uint8_t bd = 8, ch = 3; uint32_t width = 0, height = 0;
             for (int i = 4; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
                 else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
-                else if (a == "--kb" && i + 1 < argc) kb = std::stoi(argv[++i]);
-            }
-            uint8_t bd = 8, ch = 3; uint32_t w = 0, h = 0;
-            for (int i = 4; i < argc; ++i) {
-                std::string a = argv[i];
-                if (a == "--w" && i + 1 < argc) w = (uint32_t)std::stoul(argv[++i]);
-                else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--w" && i + 1 < argc) w = std::stof(argv[++i]);
+                else if (a == "--h" && i + 1 < argc) height = (uint32_t)std::stoul(argv[++i]);
                 else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
                 else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
             }
-            Raster r = load_raster(in, w, h, bd, ch);
+            if (w >= 0.0f) set_r6c_w(w);
+            Raster r = load_raster(in, width, height, bd, ch);
             WaveletFilter filter = WaveletFilter::LeGall53;
             if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
             else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
             size_t net = 0;
-            auto bytes = frame_wavelet_encode_r6c(r, filter, levels, kb, net);
+            auto bytes = frame_wavelet_encode_r6c(r, filter, levels, net);
             write_file(out, bytes);
             Raster dec = frame_wavelet_decode(bytes);
             bool ok = (dec == r);
             double bpp = (8.0 * bytes.size()) / (r.w * r.h * (size_t)r.num_channels());
             std::cout << "wavelet-r6c: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
                       << " bd=" << (int)bd << " filter=" << (int)filter_id
-                      << " levels=" << levels << " kb=" << kb
+                      << " levels=" << levels
+                      << " w=" << r6c_w()
+                      << " K=" << r6c_K()
                       << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
                       << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
             if (!ok) return 1;
@@ -4917,22 +4918,23 @@ int main(int argc, char* argv[]) {
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "bench-r6c") {
             // R6-C dual-unit benchmark on the real Kodak-24 corpus (binding gate).
-            // Encodes each image with frame_wavelet_encode_r6c (per-fine-context
-            // CLUSTER transmitted histogram) and reports per-sample + summed bpp
-            // (both units) plus decode round-trip. The emitted CSV feeds
-            // prism/benchmarks/bench_gate.sh for the unit-consistent gate.
+            // Encodes each image with frame_wavelet_encode_r6c and reports
+            // per-sample + summed bpp (both units) plus decode round-trip. The
+            // emitted CSV feeds prism/benchmarks/bench_gate.sh for the
+            // unit-consistent gate. --w overrides the transmitted/learned blend.
             uint8_t filter_id = X_FILTER_ID_53;
             int levels = X_DEFAULT_LEVELS;
-            int kb = 256;
             std::string kodak, outcsv;
+            float w = -1.0f;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
                 else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
-                else if (a == "--kb" && i + 1 < argc) kb = std::stoi(argv[++i]);
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+                else if (a == "--w" && i + 1 < argc) w = std::stof(argv[++i]);
             }
+            if (w >= 0.0f) set_r6c_w(w);
             if (kodak.empty()) {
                 std::cerr << "bench-r6c: --kodak DIR required\n";
                 return 2;
@@ -4965,7 +4967,7 @@ int main(int argc, char* argv[]) {
             for (auto& img : imgs) {
                 Raster r = load_raster(img, 0, 0, 8, 3);
                 size_t net = 0;
-                auto bytes = frame_wavelet_encode_r6c(r, filter, levels, kb, net);
+                auto bytes = frame_wavelet_encode_r6c(r, filter, levels, net);
                 Raster dec = frame_wavelet_decode(bytes);
                 bool ok = (dec == r);
                 uint32_t npix = r.w * r.h * r.num_channels();
@@ -4989,9 +4991,10 @@ int main(int argc, char* argv[]) {
             mean_ps /= std::max<size_t>(1, ps.size());
             mean_sum /= std::max<size_t>(1, sum.size());
             std::cout << "R6-C mean per-sample=" << mean_ps
-                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885 (kb=" << kb << ")\n";
+                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885\n";
             std::cout << "R6-C mean summed   =" << mean_sum
                       << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+            std::cout << "R6-C K=" << r6c_K() << " w=" << r6c_w() << "\n";
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-route5") {
             // Route 5 offline trainer: learns the baked token-net weights from
