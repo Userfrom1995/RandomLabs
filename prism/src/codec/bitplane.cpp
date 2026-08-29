@@ -45,6 +45,47 @@ int mag_bucket(int32_t v) {
     return (int)std::min(7, floor_log2((uint32_t)v));
 }
 
+// R6-B class: (symtype x bitplane-bucket). Both terms are known at BOTH encode
+// and decode time BEFORE the bit is decided (symtype is the walk state; p is the
+// current bitplane index), so the class is perfectly symmetric and the
+// transmitted per-class histogram stays a valid static prior. 3 symtypes x 4
+// bitplane buckets = 12 classes (research-route6 section 3).
+inline int r6b_class(uint8_t symtype, int p) {
+    int pb = (p < 3) ? 0 : (p < 6) ? 1 : (p < 9) ? 2 : 3;
+    return (int)symtype * 4 + pb;
+}
+
+// R6-B blend model: a transmitted per-(subband, class) static P(0) backbone
+// combined with the learned context model (MLP prior + per-context adaptive
+// EMA, i.e. LearnedModel). The static histogram is the JXL-Modular "transmitted
+// tree" that removes the per-subband systematic bias and seeds every context at
+// its class empirical distribution instead of p=0.5; the learned model keeps the
+// magnitude-aware prior and refines rich contexts. Both evolve identically at
+// encode and decode (the learned weights are baked constants, the static table
+// is transmitted), so the rANS stream round-trips byte-exact. R6B_W_STATIC is a
+// global blend weight (0 = pure learned, 1 = pure transmitted histogram).
+struct StaticAdaptiveModel {
+    static constexpr uint32_t M = 1u << 16;
+    static constexpr float W_STATIC = 0.35f; // transmitted-histogram weight
+    std::vector<std::vector<uint16_t>> sp0;  // [NS][R6B_CLASSES]
+    LearnedModel learned;
+
+    void init(size_t NS, const std::vector<std::vector<uint16_t>>& s) {
+        sp0 = s;
+        learned = LearnedModel();
+    }
+    uint16_t predict(const LCFeat& f, uint8_t oi, uint8_t cls) const {
+        uint16_t lp = learned.predict(f);
+        uint16_t sp = sp0[oi][cls];
+        float w = W_STATIC;
+        int b = (int)(w * (float)sp + (1.0f - w) * (float)lp);
+        if (b < 1) b = 1;
+        if (b > (int)M - 1) b = (int)M - 1;
+        return (uint16_t)b;
+    }
+    void update(const LCFeat& f, uint8_t bit) { learned.update(f, bit); }
+};
+
 // Build the coding order: LL(level 0) first, then level 1..maxlevel HL,LH,HH.
 std::vector<int> coding_order(const std::vector<Subband>& subs, int& maxlevel) {
     int ml = 0;
@@ -522,6 +563,298 @@ void BitplaneCoder::collect_samples(const std::vector<Subband>& subbands,
             }
         }
     }
+}
+
+StaticBitplaneResult BitplaneCoder::encode_static(
+    const std::vector<Subband>& subbands, int maxbits_override,
+    const std::vector<std::vector<int32_t>>* luma_mag) const {
+    int ml = 0;
+    auto order = coding_order(subbands, ml);
+    auto parent = build_parent_map(subbands, ml);
+    size_t NS = subbands.size();
+
+    std::vector<uint8_t> sub_maxbits(NS, 0);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        int B = 1;
+        for (int32_t c : subbands[oi].coeffs) {
+            uint32_t m = (uint32_t)(c < 0 ? -c : c);
+            int b = (m == 0) ? 0 : floor_log2(m) + 1;
+            if (b > B) B = b;
+        }
+        if (maxbits_override > 0) B = maxbits_override;
+        sub_maxbits[oi] = (uint8_t)B;
+    }
+
+    std::vector<std::vector<uint8_t>> sig(NS);
+    std::vector<std::vector<int32_t>> magv(NS), curmag(NS);
+    std::vector<std::vector<uint8_t>> sgn(NS);
+    std::vector<std::vector<int>> topbit(NS);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        size_t n = subbands[oi].coeffs.size();
+        sig[oi].assign(n, 0); magv[oi].resize(n); curmag[oi].assign(n, 0);
+        sgn[oi].resize(n); topbit[oi].assign(n, -1);
+        for (size_t ci = 0; ci < n; ++ci) {
+            int32_t c = subbands[oi].coeffs[ci];
+            uint32_t m = (uint32_t)(c < 0 ? -c : c);
+            magv[oi][ci] = (int32_t)m; sgn[oi][ci] = (c < 0) ? 1 : 0;
+            topbit[oi][ci] = (m == 0) ? -1 : floor_log2(m);
+        }
+    }
+
+    // Histogram + symbol stores (pass 1). We accumulate per-(subband, class)
+    // counts and remember each symbol's bit so pass 2 can blend the transmitted
+    // static backbone with the learned model (re-walking for the LCFeat) and
+    // rANS-encode.
+    StaticHist hist;
+    hist.cnt.assign(NS, std::vector<uint32_t>(R6B_CLASSES * 2, 0));
+    std::vector<std::vector<uint8_t>> bits_by_sub(NS);
+    uint32_t total = 0;
+    for (size_t si = 0; si < order.size(); ++si) {
+        size_t oi = order[si];
+        int B = sub_maxbits[oi];
+        size_t n = subbands[oi].coeffs.size();
+        total += (uint32_t)(n * (size_t)B);
+        for (size_t ci = 0; ci < n; ++ci)
+            if (magv[oi][ci] > 0) ++total;
+    }
+    for (size_t si = 0; si < order.size(); ++si) {
+        size_t oi = order[si];
+        const Subband& s = subbands[oi];
+        int w = s.w, h = s.h, B = sub_maxbits[oi];
+        size_t n = subbands[oi].coeffs.size();
+        int pidx = parent[oi];
+        int pw = (pidx >= 0) ? subbands[pidx].w : 0;
+        int ph = (pidx >= 0) ? subbands[pidx].h : 0;
+        for (int p = B - 1; p >= 0; --p) {
+            for (size_t ci = 0; ci < n; ++ci) {
+                int x = (int)(ci % w), y = (int)(ci / w);
+                bool parent_sig = false;
+                if (pidx >= 0) {
+                    int pcx = x >> 1, pcy = y >> 1;
+                    if (pcx < pw && pcy < ph)
+                        parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                }
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[oi], w, h, x, y, fc, dg);
+                uint8_t bit; uint8_t symtype;
+                if (sig[oi][ci] == 0) {
+                    bool becomes = (topbit[oi][ci] == p);
+                    bit = becomes ? 1 : 0; symtype = 0;
+                    int cls = r6b_class(0, p);
+                    hist.cnt[oi][cls * 2 + bit]++;
+                    bits_by_sub[oi].push_back(bit);
+                    if (becomes) {
+                        uint8_t sg = sgn[oi][ci]; symtype = 1;
+                        int cls = r6b_class(1, p);
+                        hist.cnt[oi][cls * 2 + sg]++;
+                        bits_by_sub[oi].push_back(sg);
+                        sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
+                    }
+                } else {
+                    bit = (uint8_t)((magv[oi][ci] >> p) & 1); symtype = 2;
+                    int cls = r6b_class(2, p);
+                    hist.cnt[oi][cls * 2 + bit]++;
+                    bits_by_sub[oi].push_back(bit);
+                    if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
+                }
+                (void)symtype;
+            }
+        }
+    }
+
+    // Build the transmitted static P(0)*M per (subband, class).
+    std::vector<std::vector<uint16_t>> sp0(NS);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        sp0[oi].resize(R6B_CLASSES);
+        for (int cls = 0; cls < R6B_CLASSES; ++cls) {
+            uint32_t c0 = hist.cnt[oi][cls * 2 + 0];
+            uint32_t c1 = hist.cnt[oi][cls * 2 + 1];
+            uint32_t tot = c0 + c1;
+            sp0[oi][cls] = (tot == 0) ? (uint16_t)(StaticAdaptiveModel::M / 2)
+                                      : (uint16_t)((uint32_t)((uint64_t)c0 * StaticAdaptiveModel::M / tot) & 0xFFFF);
+        }
+    }
+
+    // Pass 2: blend the transmitted static backbone with the learned model and
+    // rANS-encode. We re-walk the coefficients (deterministic) so each symbol's
+    // LCFeat + class is recomputed exactly as in pass 1 / decode, and the stored
+    // bits (from pass 1) drive the rANS stream. The learned model's EMA evolves
+    // identically to decode, so round-trip is byte-exact. Fresh per-subband walk
+    // state (lsig/lcurmag) is used so the walk starts from scratch.
+    std::vector<std::vector<uint8_t>> streams(NS);
+    // Fresh per-subband walk state for the re-walk (must track parent subbands).
+    std::vector<std::vector<uint8_t>> lsig(NS);
+    std::vector<std::vector<int32_t>> lcurmag(NS);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        size_t n = subbands[oi].coeffs.size();
+        lsig[oi].assign(n, 0);
+        lcurmag[oi].assign(n, 0);
+    }
+    StaticAdaptiveModel model; model.init(NS, sp0);
+    for (size_t si = 0; si < order.size(); ++si) {
+        size_t oi = order[si];
+        const Subband& s = subbands[oi];
+        int w = s.w, h = s.h, B = sub_maxbits[oi];
+        size_t n = subbands[oi].coeffs.size();
+        int pidx = parent[oi];
+        int pw = (pidx >= 0) ? subbands[pidx].w : 0;
+        int ph = (pidx >= 0) ? subbands[pidx].h : 0;
+        const auto& bits = bits_by_sub[oi];
+        size_t k = 0;
+        std::vector<uint16_t> p0vec;
+        p0vec.reserve(bits.size());
+        for (int p = B - 1; p >= 0; --p) {
+            for (size_t ci = 0; ci < n; ++ci) {
+                int x = (int)(ci % w), y = (int)(ci / w);
+                bool parent_sig = false;
+                if (pidx >= 0) {
+                    int pcx = x >> 1, pcy = y >> 1;
+                    if (pcx < pw && pcy < ph)
+                        parent_sig = lsig[pidx][(size_t)pcy * pw + pcx] != 0;
+                }
+                int fc = 0, dg = 0;
+                neighbor_counts(lsig[oi], w, h, x, y, fc, dg);
+                const std::vector<int32_t>* parent_cur = (pidx >= 0) ? &lcurmag[pidx] : nullptr;
+                const std::vector<int32_t>* lmag = (luma_mag ? &(*luma_mag)[oi] : nullptr);
+                if (lsig[oi][ci] == 0) {
+                    bool becomes = (topbit[oi][ci] == p);
+                    uint8_t bit = bits[k++];
+                    LCFeat f; learned_features(lsig[oi], lcurmag[oi], parent_cur, pw, ph, lmag, w, h, x, y, p, 0, s.level, f);
+                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                    int cls = r6b_class(0, p);
+                    p0vec.push_back(model.predict(f, (uint8_t)oi, (uint8_t)cls));
+                    model.update(f, bit);
+                    if (becomes) {
+                        uint8_t sg = bits[k++];
+                        LCFeat fs; learned_features(lsig[oi], lcurmag[oi], parent_cur, pw, ph, lmag, w, h, x, y, p, 1, s.level, fs);
+                        fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
+                        int cls = r6b_class(1, p);
+                        p0vec.push_back(model.predict(fs, (uint8_t)oi, (uint8_t)cls));
+                        model.update(fs, sg);
+                        lsig[oi][ci] = 1; lcurmag[oi][ci] = (int32_t)(1 << p);
+                    }
+                } else {
+                    uint8_t bit = bits[k++];
+                    LCFeat f; learned_features(lsig[oi], lcurmag[oi], parent_cur, pw, ph, lmag, w, h, x, y, p, 2, s.level, f);
+                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                    int cls = r6b_class(2, p);
+                    p0vec.push_back(model.predict(f, (uint8_t)oi, (uint8_t)cls));
+                    model.update(f, bit);
+                    if (bit) lcurmag[oi][ci] |= (int32_t)(1 << p);
+                }
+            }
+        }
+        BitplaneRans rans;
+        streams[oi] = rans.encode(bits, p0vec);
+    }
+
+    StaticBitplaneResult res;
+    res.streams = std::move(streams);
+    res.sub_maxbits = std::move(sub_maxbits);
+    res.total_symbols = total;
+    res.hist = std::move(hist);
+    return res;
+}
+
+std::vector<Subband> BitplaneCoder::decode_static(
+    const std::vector<std::vector<uint8_t>>& streams,
+    const std::vector<Subband>& layout,
+    const std::vector<uint8_t>& sub_maxbits,
+    uint32_t total_symbols,
+    const StaticHist& hist,
+    const std::vector<std::vector<int32_t>>* luma_mag) const {
+    int ml = 0;
+    auto order = coding_order(layout, ml);
+    auto parent = build_parent_map(layout, ml);
+    size_t NS = layout.size();
+
+    std::vector<Subband> out = layout;
+    for (auto& s : out) s.coeffs.assign((size_t)s.w * s.h, 0);
+
+    std::vector<std::vector<uint8_t>> sig(NS);
+    std::vector<std::vector<int32_t>> value(NS);
+    std::vector<std::vector<int8_t>> signv(NS);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        size_t n = out[oi].coeffs.size();
+        sig[oi].assign(n, 0); value[oi].resize(n, 0); signv[oi].assign(n, 1);
+    }
+
+    // Rebuild the transmitted static P(0)*M per (subband, class).
+    std::vector<std::vector<uint16_t>> sp0(NS);
+    for (size_t oi = 0; oi < NS; ++oi) {
+        sp0[oi].resize(R6B_CLASSES);
+        for (int cls = 0; cls < R6B_CLASSES; ++cls) {
+            uint32_t c0 = hist.cnt[oi][cls * 2 + 0];
+            uint32_t c1 = hist.cnt[oi][cls * 2 + 1];
+            uint32_t tot = c0 + c1;
+            sp0[oi][cls] = (tot == 0) ? (uint16_t)(StaticAdaptiveModel::M / 2)
+                                      : (uint16_t)((uint32_t)((uint64_t)c0 * StaticAdaptiveModel::M / tot) & 0xFFFF);
+        }
+    }
+
+    uint32_t idx = 0;
+    for (size_t si = 0; si < order.size(); ++si) {
+        size_t oi = order[si];
+        const Subband& s = layout[oi];
+        int w = s.w, h = s.h;
+        int pidx = parent[oi];
+        int pw = (pidx >= 0) ? layout[pidx].w : 0, ph = (pidx >= 0) ? layout[pidx].h : 0;
+        int B = sub_maxbits[oi];
+        StaticAdaptiveModel model; model.init(NS, sp0);
+        BitplaneRans::Decoder d; d.init(streams[oi]);
+        for (int p = B - 1; p >= 0; --p) {
+            for (size_t ci = 0; ci < s.coeffs.size(); ++ci) {
+                int x = (int)(ci % w), y = (int)(ci / w);
+                bool parent_sig = false;
+                if (pidx >= 0) {
+                    int pcx = x >> 1, pcy = y >> 1;
+                    if (pcx < pw && pcy < ph)
+                        parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                }
+                int fc = 0, dg = 0;
+                neighbor_counts(sig[oi], w, h, x, y, fc, dg);
+                if (sig[oi][ci] == 0) {
+                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
+                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                    uint32_t c = LearnedModel::fine_ctx(f);
+                    int cls = r6b_class(0, p);
+                    uint16_t dp0 = model.predict(f, (uint8_t)oi, (uint8_t)cls);
+                    uint8_t bit = d.decode_symbol(dp0);
+                    model.update(f, bit); ++idx;
+                    if (bit) {
+                        LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
+                        fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
+                        uint32_t cs = LearnedModel::fine_ctx(fs);
+                        int cls = r6b_class(1, p);
+                        uint16_t dp0s = model.predict(fs, (uint8_t)oi, (uint8_t)cls);
+                        uint8_t sg = d.decode_symbol(dp0s);
+                        model.update(fs, sg); ++idx;
+                        sig[oi][ci] = 1; signv[oi][ci] = sg ? -1 : 1;
+                        value[oi][ci] = (int32_t)(1 << p);
+                    }
+                } else {
+                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
+                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                    uint32_t c = LearnedModel::fine_ctx(f);
+                    int cls = r6b_class(2, p);
+                    uint16_t dp0r = model.predict(f, (uint8_t)oi, (uint8_t)cls);
+                    uint8_t rb = d.decode_symbol(dp0r);
+                    model.update(f, rb); ++idx;
+                    if (rb) value[oi][ci] |= (int32_t)(1 << p);
+                }
+            }
+        }
+    }
+
+    if (total_symbols != 0 && idx != total_symbols)
+        throw std::runtime_error("BitplaneCoder::decode_static: symbol count mismatch");
+
+    for (size_t oi = 0; oi < NS; ++oi) {
+        size_t n = out[oi].coeffs.size();
+        for (size_t ci = 0; ci < n; ++ci)
+            out[oi].coeffs[ci] = (int32_t)value[oi][ci] * signv[oi][ci];
+    }
+    return out;
 }
 
 } // namespace prism::codec
