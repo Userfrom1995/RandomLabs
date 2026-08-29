@@ -5,28 +5,36 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X6b (L2 wider MLP coefficient predictor) IMPLEMENTED + MEASURED on REAL
-        Kodak-24. X6b replaces the X6a linear per-orientation predictor with a per-orientation
-        MLP (16 enriched causal-window features -> 32 hidden ReLU -> 1), trained offline on real
-        Kodak coefficients to MINIMISE the residual L1 norm (a tight Laplacian / codelength proxy)
-        via Adam with a smooth pseudo-Huber gradient (gradient-sign bug from the first attempt
-        fixed; variance explained 0.70 -> 0.745). Result (measured on the merged lineage with
-        PR #167 / X3b+X5a on main): mean per-sample = **3.2175** bpp, mean summed = **9.6525**
-        bpp/img. vs X6a (3.25548) = **-1.17%** (meets the X6b internal gate, additional >= +1.0%
-        over X6a); vs X3a (3.2477) = -0.93%; vs X3b+X5a merged (3.24386) = **-0.81%** (new Prism
-        best); vs real WebP m6 on this corpus (3.2043) = +0.41% per-sample (essentially WebP
-        parity); vs real JXL -d0 -e9 (2.8700) = +12.1%. Byte-exact 24/24, fuzz clean.
-        Dated CSV `2026-08-29-x6b-kodak24.csv`. Root cause carried: residual path still pays
-        sign bits on formerly-exact-zero coeffs; variance explained 74.5% < 85% threshold where
-        residual entropy would beat source entropy, so M2/M3 NOT met (pinned M2 <3.166/<9.498,
-        M3 <2.885/<8.655). Next lever: X6c (L3 learned hyperprior side-stream) and/or deeper
-        predictor + combine with the X3b learned-ctx parent fix (merged in PR #167 onto main) to
-        stack both source-entropy levers.
-- **Next steps:** Builder implements X6c (L3 hyperprior reserve: quantised latent z per
-        subband/tile conditioning p0, overhead <= 0.02 bpp) to stack learned-hyperprior on top of
-        the already-merged learned-ctx (X3b) + learned-predictor (X6b), then X7 full Kodak-24
-        dual-unit gate.
-        Per Anti-Surrender + owner "do not stop until M2 and M3 pass", continue without pause.
+- **Current step:** X6c (L3 learned hyperprior reserve) IMPLEMENTED + MEASURED on REAL Kodak-24.
+        X6c adds a per-subband probability-calibration hyperprior: a quantised factor code (8-entry
+        codebook around 1.0) transmitted in the wavelet header multiplies the LearnedModel's
+        predicted P(0) per subband (invariant I29 preserved: no full model sent, only a scalar
+        multiplier; byte-exact 24/24, 15/15 prism_tests pass). The encoder searches the per-plane
+        optimal factor (minimises the actual rANS payload) at bake time. RESULT: mean
+        per-sample = **3.21784** bpp, mean summed = **9.65351** bpp/img - i.e. **NO gain** over
+        X6b (3.2175 / 9.6525; delta +0.01%). The already-adaptive per-symbol LearnedModel (EMA +
+        MLP context) leaves no room for a per-plane/per-subband global calibration factor, so the
+        search selects the neutral code (1.0). Dated CSV `2026-08-29-x6c-kodak24.csv`.
+        **X6 track is now FULLY EXHAUSTED** across all three levers, on the merged lineage
+        (X3b+X5a+X6a/X6b/X6c on main):
+          - X6a (L1 linear predictor): 3.25548 per-sample  (regression vs X3a)
+          - X6b (L2 MLP predictor):    3.2175  per-sample  (best Prism; -1.17% vs X6a)
+          - X6c (L3 hyperprior calib): 3.21784 per-sample  (no gain vs X6b)
+        Best = **3.2175 / 9.6525**. Pinned gates: M2 <3.166/<9.498 and M3 <2.885/<8.655 are BOTH
+        NOT met. Gap to M2 = +1.6% per-sample (also > WebP m6 3.2043 by +0.4%); gap to M3 (real
+        JXL -d0 -e9 2.8700) = +12.1%. The wavelet+residual+bitplane architecture caps near 3.21
+        bpp and cannot reach JXL parity with the current entropy frontend.
+- **Next steps:** No legitimate X-family (beyond-predictive) mechanism remains: L1/L2/L3 all
+        implemented and measured, none clears M2, and M3 is ~12% away (architecturally out of
+        reach for this codec). Per the blueprint ("if X6c also fails, the X6 track is fully closed
+        and the path must be escalated (no legitimate X-family mechanism remains)"), the build is
+        handed to the Maintainer to ESCALATE to the Owner: the owner directive "do not stop until
+        M2 and M3 pass" cannot be satisfied by the Route 4 / beyond-predictive paradigm with the
+        present entropy backend. Options for the Owner: (a) relax the pinned gates, (b) authorise a
+        fundamentally different entropy frontend (e.g. a true autoregressive/learned rANS core
+        replacing the fixed LearnedModel+bitplane coder), or (c) accept 3.2175 as the Prism best
+        and close #130 as "best-effort, gates not met". The Builder does NOT halt a gated target
+        (Anti-Surrender); escalation is the only honest remaining path.
 
 ---
 

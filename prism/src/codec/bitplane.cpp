@@ -17,10 +17,23 @@
 #include <algorithm>
 #include <stdexcept>
 #include <vector>
+#include <cmath>
 
 namespace prism::codec {
 
 namespace {
+
+// X6c hyperprior: apply a per-subband probability-calibration factor `s` to a
+// predicted P(0)*M probability. p0 in [1, 65534] keeps rANS valid (P(0),P(1) both
+// strictly inside (0, M)). Sub-1 factors sharpen the predicted peak (assume the
+// model over-spreads the mass); super-1 factors flatten it. Symmetric encode/decode.
+static inline uint16_t scale_p0(uint16_t p, float s) {
+    if (s == 1.0f) return p;
+    float v = (float)p * s;
+    if (v < 1.0f) v = 1.0f;
+    if (v > 65534.0f) v = 65534.0f;
+    return (uint16_t)std::lround(v);
+}
 
 int floor_log2(uint32_t v) {
     if (v == 0) return -1;
@@ -137,7 +150,8 @@ static inline uint32_t coarse_ctx(uint32_t base, int symtype) {
 
 BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands,
                                             int maxbits_override,
-                                            const std::vector<std::vector<int32_t>>* luma_mag) const {
+                                            const std::vector<std::vector<int32_t>>* luma_mag,
+                                            const std::vector<float>* sub_scale) const {
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);
@@ -201,6 +215,7 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
     for (size_t si = 0; si < order.size(); ++si) {
         size_t oi = order[si];
         const Subband& s = subbands[oi];
+        float sc = (sub_scale && oi < sub_scale->size()) ? (*sub_scale)[oi] : 1.0f;
         int w = s.w, h = s.h, B = sub_maxbits[oi];
         size_t n = subbands[oi].coeffs.size();
         int pidx = parent[oi];
@@ -226,19 +241,19 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
                     uint8_t bit = becomes ? 1 : 0;
                     LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    p0.push_back(model.predict(f)); bits.push_back(bit); model.update(f, bit);
+                    p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
                     if (becomes) {
                         uint8_t sg = sgn[oi][ci];
                         LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        p0.push_back(model.predict(fs)); bits.push_back(sg); model.update(fs, sg);
+                        p0.push_back(scale_p0(model.predict(fs), sc)); bits.push_back(sg); model.update(fs, sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
                     LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    p0.push_back(model.predict(f)); bits.push_back(bit); model.update(f, bit);
+                    p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
                 }
             }
@@ -259,7 +274,8 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
                                             const std::vector<Subband>& layout,
                                             const std::vector<uint8_t>& sub_maxbits,
                                             uint32_t total_symbols,
-                                            const std::vector<std::vector<int32_t>>* luma_mag) const {
+                                            const std::vector<std::vector<int32_t>>* luma_mag,
+                                            const std::vector<float>* sub_scale) const {
     int ml = 0;
     auto order = coding_order(layout, ml);
     auto parent = build_parent_map(layout, ml);
@@ -282,6 +298,7 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
     for (size_t si = 0; si < order.size(); ++si) {
         size_t oi = order[si];
         const Subband& s = layout[oi];
+        float sc = (sub_scale && oi < sub_scale->size()) ? (*sub_scale)[oi] : 1.0f;
         int w = s.w, h = s.h;
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? layout[pidx].w : 0, ph = (pidx >= 0) ? layout[pidx].h : 0;
@@ -301,18 +318,18 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
                 if (sig[oi][ci] == 0) {
                     LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint8_t bit = d.decode_symbol(model.predict(f)); model.update(f, bit); ++idx;
+                    uint8_t bit = d.decode_symbol(scale_p0(model.predict(f), sc)); model.update(f, bit); ++idx;
                     if (bit) {
                         LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        uint8_t sg = d.decode_symbol(model.predict(fs)); model.update(fs, sg); ++idx;
+                        uint8_t sg = d.decode_symbol(scale_p0(model.predict(fs), sc)); model.update(fs, sg); ++idx;
                         sig[oi][ci] = 1; signv[oi][ci] = sg ? -1 : 1;
                         value[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint8_t rb = d.decode_symbol(model.predict(f)); model.update(f, rb); ++idx;
+                    uint8_t rb = d.decode_symbol(scale_p0(model.predict(f), sc)); model.update(f, rb); ++idx;
                     if (rb) value[oi][ci] |= (int32_t)(1 << p);
                 }
             }
@@ -332,7 +349,8 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
 
 std::pair<std::vector<uint8_t>, std::vector<uint16_t>>
 BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbits_override,
-                                 const std::vector<std::vector<int32_t>>* luma_mag) {
+                                const std::vector<std::vector<int32_t>>* luma_mag,
+                                const std::vector<float>* sub_scale) {
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);
@@ -373,6 +391,7 @@ BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbit
     LearnedModel model;
     for (size_t si = 0; si < order.size(); ++si) {
         int oi = order[si]; const Subband& s = subbands[oi];
+        float sc = (sub_scale && oi < sub_scale->size()) ? (*sub_scale)[oi] : 1.0f;
         int w = s.w, h = s.h; int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0, ph = (pidx >= 0) ? subbands[pidx].h : 0;
         int B = sub_maxbits[oi];
@@ -391,19 +410,19 @@ BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbit
                     uint8_t bit = becomes ? 1 : 0;
                     LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc=(uint8_t)fc; f.dg=(uint8_t)dg;
-                    p0.push_back(model.predict(f)); bits.push_back(bit); model.update(f, bit);
+                    p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
                     if (becomes) {
                         uint8_t sg = sgn[oi][ci];
                         LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc=(uint8_t)fc; fs.dg=(uint8_t)dg;
-                        p0.push_back(model.predict(fs)); bits.push_back(sg); model.update(fs, sg);
+                        p0.push_back(scale_p0(model.predict(fs), sc)); bits.push_back(sg); model.update(fs, sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
                     LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc=(uint8_t)fc; f.dg=(uint8_t)dg;
-                    p0.push_back(model.predict(f)); bits.push_back(bit); model.update(f, bit);
+                    p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
                 }
             }
@@ -424,7 +443,8 @@ bool BitplaneCoder::probe_rans(const std::vector<Subband>& subbands, int maxbits
 
 void BitplaneCoder::collect_samples(const std::vector<Subband>& subbands,
                                     std::vector<LSample>& out, int maxbits_override,
-                                    const std::vector<std::vector<int32_t>>* luma_mag) {
+                                    const std::vector<std::vector<int32_t>>* luma_mag,
+                                    const std::vector<float>* sub_scale) {
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);

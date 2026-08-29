@@ -9,14 +9,40 @@
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/predictor.h"
+#include "prism/codec/bitplane_rans.h"
 #include "prism/crc32.h"
 #include "prism/bitstream.h"
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace prism::codec {
 
 namespace {
+
+// X6c hyperprior: per-subband probability-calibration codebook. Code 0 is the
+// neutral factor (1.0, no change); the rest are sharpen (super-1) / flatten
+// (sub-1) factors that recalibrate the learned model's predicted P(0). The
+// factor is transmitted as a tiny side code per subband (invariant I29: no full
+// model is sent, only a scalar multiplier), so it costs a handful of bytes.
+static const float kX6cScaleTab[] = {1.0f, 1.25f, 1.6f, 2.0f, 0.8f, 0.625f, 0.5f, 0.4f};
+static const uint8_t kX6cScaleN = (uint8_t)(sizeof(kX6cScaleTab) / sizeof(float));
+
+static inline float pred_scale_from_code(uint8_t c) {
+    if (c >= kX6cScaleN) return 1.0f;
+    return kX6cScaleTab[c];
+}
+static inline uint8_t pred_scale_to_code(float s) {
+    uint8_t best = 0; float bd = 1e9f;
+    for (uint8_t c = 0; c < kX6cScaleN; ++c) {
+        float d = std::fabs(kX6cScaleTab[c] - s);
+        if (d < bd) { bd = d; best = c; }
+    }
+    return best;
+}
+
 uint8_t filter_to_id(WaveletFilter f) {
     switch (f) {
         case WaveletFilter::Haar: return X_FILTER_ID_HAAR;
@@ -72,6 +98,9 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
         out.push_back(hdr.sub_maxbits[i]);
         write_u32_le_vec(out, hdr.sub_bytes[i]);
     }
+    // X6c hyperprior: per-subband probability-calibration code.
+    for (uint16_t i = 0; i < nsub; ++i)
+        out.push_back(i < hdr.sub_scale_code.size() ? hdr.sub_scale_code[i] : 0);
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
     // CRC32 over everything above.
@@ -121,6 +150,9 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
         hdr.sub_maxbits[i] = bytes[pos++];
         hdr.sub_bytes[i] = read_u32_le_bytes(bytes.data() + pos); pos += 4;
     }
+    // X6c hyperprior: per-subband probability-calibration code.
+    hdr.sub_scale_code.resize(nsub);
+    for (uint16_t i = 0; i < nsub; ++i) hdr.sub_scale_code[i] = bytes[pos++];
     // Payload until the trailing crc32 (4 bytes).
     if (bytes.size() < pos + 4) throw std::runtime_error("wavelet container: truncated payload");
     size_t payload_len = bytes.size() - pos - 4;
@@ -247,9 +279,10 @@ std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster, Wavelet
     uint16_t subbands_per_plane = 0;
     std::vector<uint8_t> payload;
     uint8_t global_maxbits = 0;
-    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
-    std::vector<uint32_t> all_sub_bytes;
-    std::vector<uint16_t> all_w, all_h;
+        std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+        std::vector<uint32_t> all_sub_bytes;
+        std::vector<uint16_t> all_w, all_h;
+        std::vector<uint8_t> all_scale_code; // X6c hyperprior per-subband code
 
     for (size_t pi = 0; pi < t.planes.size(); ++pi) {
         std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
@@ -281,13 +314,24 @@ std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster, Wavelet
         }
 
         size_t plane_start = payload.size();
-        // Encode the whole plane's residual subbands TOGETHER with one shared
-        // LearnedModel per plane, so the EMA branch evolves identically to the
-        // joint decode path (frame_wavelet_decode decodes the plane in one shared
-        // model too). Per-subband isolated encode would use a fresh model per
-        // subband and break byte-exact round-trip. No luma reference (X6a predates
-        // X5a), matching the decode-side luma_mag guard for residual frames.
-        auto res = coder.encode(R);
+        // X6c hyperprior: pick a per-plane probability-calibration code that
+        // minimises the actual rANS payload for this plane's residual subbands,
+        // then encode with it. The code is stored in the header and re-applied at
+        // decode (symmetric), so the round trip stays byte-exact. No full model is
+        // transmitted (invariant I29): only a scalar multiplier per subband.
+        uint8_t best_code = 0;
+        {
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            std::vector<float> trial(R.size(), 1.0f);
+            for (uint8_t code = 0; code < kX6cScaleN; ++code) {
+                std::fill(trial.begin(), trial.end(), kX6cScaleTab[code]);
+                auto rt = coder.encode(R, 0, nullptr, &trial);
+                size_t nb = 0; for (auto& st : rt.streams) nb += st.size();
+                if (nb < best_bytes) { best_bytes = nb; best_code = code; }
+            }
+        }
+        std::vector<float> best_scale(R.size(), kX6cScaleTab[best_code]);
+        auto res = coder.encode(R, 0, nullptr, &best_scale);
         for (size_t oi = 0; oi < R.size(); ++oi) {
             global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
             all_sub_maxbits.push_back(res.sub_maxbits[oi]);
@@ -296,6 +340,7 @@ std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster, Wavelet
             all_level.push_back((uint8_t)R[oi].level);
             all_w.push_back((uint16_t)R[oi].w);
             all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(best_code);
             payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
         }
         plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
@@ -316,6 +361,7 @@ std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster, Wavelet
     hdr.h = std::move(all_h);
     hdr.sub_maxbits = std::move(all_sub_maxbits);
     hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
 
     auto out = wavelet_container_encode(t, hdr, payload);
     net_out = out.size();
@@ -402,7 +448,18 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
             }
             luma_mag = &lmag_buf;
         }
-        auto plane_subs = coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag);
+        // X6c hyperprior: rebuild the per-subband calibration factors for this
+        // plane from the transmitted codes and feed them to the decoder so the
+        // rANS probabilities match the encoder exactly (byte-exact round trip).
+        std::vector<float> plane_scale;
+        if (!hdr.sub_scale_code.empty()) {
+            uint32_t ps = sub_idx - spp;
+            plane_scale.resize(spp);
+            for (uint16_t k = 0; k < spp; ++k)
+                plane_scale[k] = pred_scale_from_code(hdr.sub_scale_code[ps + k]);
+        }
+        auto plane_subs = coder.decode(plane_streams, plane_layout, plane_maxbits, 0, luma_mag,
+                                       plane_scale.empty() ? nullptr : &plane_scale);
         decoded_all[pi] = plane_subs;
         // X6a (L1) reconstruction post-pass: the decoded subbands are residuals
         // r; rebuild c = c_hat + r using the baked predictor (reads only already
