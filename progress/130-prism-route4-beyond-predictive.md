@@ -5,18 +5,20 @@
 - **Blueprint:** `ideas/2026-08-28-prism-route4-beyond-predictive.md`
 - **Pinned constants:** `prism/docs/addendum-25-pinned-constants-route4.md`
 - **Status:** in-progress
-- **Current step:** X2 + X3b COMPLETE on REAL pinned Kodak-24. The gate-invalidating dead
-      coder (FIXED_PROB=0.5) is fixed; the wavelet+bitplane path beats the v1 e1 baseline
-      by 3.3% (3.261 vs 3.3737 per-sample) with byte-exact round-trip. Fixed-context
-      augmentation is exhausted (pattern ~0; run-length HURT; neighbour-magnitude HURT).
-      The remaining gap to M2 (3.166) / M3 (2.885) is a LEARNED magnitude/context model
-      (X3a), which the owner's Option-2 directive explicitly names and which needs an
-      owner-authorized training corpus (I29/I30, not fetchable in-sandbox).
-- **Next steps:** Escalate to Maintainer/Owner for X3a authorisation: train a fixed CNN
-      context model on an authorized corpus and bake its weights as a constant invoked at
-      each coefficient. This is the only remaining lever; data-free changes are tapped.
-      Per Anti-Surrender + owner "do not stop until M2 and M3 pass", the pipeline must
-      continue to X3a rather than declare victory.
+- **Current step:** X3a (learned context MLP) MERGED at 3.2477/9.743 per-sample/summed
+       (PR #168 X6 research; beats v1 e1 3.3737 by 3.3%, byte-exact). Research X6
+       (PR #168, `prism/docs/research-route4-x6-learned-source.md`) established the gap
+       is SOURCE-entropy, not context-granularity: X3a's MLP re-weights bits but cannot
+       remove a magnitude bit. Architect blueprint X6 (`ideas/2026-08-29-prism-route4-x6-
+       learned-source.md`) specifies three stacked levers - L1 learned coefficient
+       predictor (code r = c - c_hat), L2 richer residual-context MLP, L3 learned
+       hyperprior side-stream - via a residual pre-pass that reuses the existing byte-exact
+       bitplane coder (no restructuring). M2 plausible from L1; M3 at risk from L1+L2+L3.
+- **Next steps:** Builder implements X6a (L1 predictor + residual pre/post-pass, gates
+       L1 >= +4.5% over X3a, byte-exact, residual top-bitplane < coefficient top-bitplane),
+       then X6b (L2 wider MLP on residual coder), then X6c (L3 hyperprior reserve), then X7
+       full Kodak-24 dual-unit gate. Per Anti-Surrender + owner "do not stop until M2 and
+       M3 pass", continue without pause.
 
 ---
 
@@ -157,6 +159,28 @@
 - [ ] X5b: L up to 6 depth sweep; >= +1.0% median NET
 - [ ] X5c: context pool 64/128/256 fixed; >= +1.0% median NET
 - [ ] Third strike dies forever
+
+### X6: Learned Source-Entropy Attack (N3 + Option-2 neural; L1/L2/L3) - BLUEPRINT 2026-08-29
+- [ ] X6a (L1): `predictor.h/.cpp` + `predictor_data.inc` - causal coefficient predictor
+      (3x3 same-subband + parent + sibling orientations), weights baked (I29, 0 bytes).
+- [ ] X6a: `WaveletHeader.residual_mode` (RESIDUAL_FLAG) + container serialize/parse.
+- [ ] X6a: `frame_wavelet_encode_residual` / `_decode_residual` (residual pre-pass codes R
+      via existing BitplaneCoder::encode; decode post-pass reconstructs c = c_hat + r).
+- [ ] X6a: `train-predictor` CLI (MSE proxy then codelength fine-tune; LOO primary).
+- [ ] X6a: VB rails `VB-X-RESIDUAL-ROUNDTRIP` + `VB-X-PREDICTOR-DETERMINISM` + `VB-X-NET-AUDIT-RESIDUAL` green.
+- [ ] X6a L1 primary gate on REAL Kodak-24: mean per-sample <= 3.10 (>= +4.5% over X3a 3.2477),
+      byte-exact 24/24, fuzz clean.
+- [ ] X6a L1 sub-gate: residual top-bitplane mean < coefficient top-bitplane mean (proves shrink).
+- [ ] X6a L1 sub-gate: no image regresses > -1.0% vs own X3a bytes. Dated CSV `2026-08-29-x6a-kodak24.csv`.
+- [ ] X6b (L2): widen `LearnedModel` 10->16->1 to 24->64->32->1; enrich `LCFeat` (L1/L2 neighbour
+      mag aggregates, cross-orientation sibling mags, local subband variance); regen `learned_ctx_data.inc`.
+- [ ] X6b gate: additional >= +1.0% over X6a on residual coder. Dated CSV `2026-08-29-x6b-kodak24.csv`.
+- [ ] X6c (L3, reserve): learned hyperprior side-stream (quantised latent z per tile/subband)
+      conditioning p0; overhead <= 0.02 bpp (sub-gate L3b, counted in NET).
+- [ ] X6c gate: additional >= +1.0% over X6b AND combined <= 2.95 per-sample. Dated CSV `2026-08-29-x6c-kodak24.csv`.
+- [ ] X7: compose X6a/X6b/X6c per image by real NET bytes; full Kodak-24 `bench_gate.sh` dual-unit
+      vs REAL cjxl (M3 < 8.655/< 2.885) and WebP (M2 < 9.498/< 3.166).
+- [ ] X7: if both clear -> format-stable v3 PR `Refs #130`; else open reserve / M2-PASS/M3-PENDING ledger.
 
 ---
 
