@@ -35,6 +35,13 @@ struct WaveletHeader {
     // Per-subband rANS stream byte length, in forward() order, so the decoder
     // can slice the per-plane concatenated payload without self-delimiting.
     std::vector<uint32_t> sub_bytes;
+    // X6c hyperprior: per-subband probability-calibration code (quantised factor
+    // into a small codebook, see pred_scale_from_code). One entry per subband in
+    // forward() order. Empty means "all neutral (factor 1.0)". The factor
+    // multiplies the learned model's predicted P(0) so a per-subband (or
+    // per-plane) calibration gain is transmitted as a tiny side stream; no full
+    // model is sent (invariant I29 holds).
+    std::vector<uint8_t> sub_scale_code;
 };
 
 struct WaveletFrame {
