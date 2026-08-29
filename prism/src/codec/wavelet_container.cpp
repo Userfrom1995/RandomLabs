@@ -9,6 +9,7 @@
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/predictor.h"
+#include "prism/codec/r7_predictor.h"
 #include "prism/codec/bitplane_rans.h"
 #include "prism/codec/route5.h"
 #include "prism/crc32.h"
@@ -126,6 +127,20 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
             write_u32_le_vec(out, v);
         }
     }
+    // R7-A (Route 7 lever A): per-subband predictor mode (0=MED,1=GRADIENT),
+    // present whenever R7A_FLAG is set.
+    if (hdr.residual_mode & R7A_FLAG) {
+        uint16_t nsub = (uint16_t)hdr.orient.size();
+        for (uint16_t i = 0; i < nsub; ++i) {
+            uint8_t v = (i < hdr.sub_r7a_pred.size()) ? hdr.sub_r7a_pred[i] : 0;
+            out.push_back(v);
+        }
+    }
+    // R7-B (Route 7 lever B): per-level filter id, present whenever R7B_FLAG set.
+    if (hdr.residual_mode & R7B_FLAG) {
+        out.push_back((uint8_t)hdr.level_filter.size());
+        for (uint8_t v : hdr.level_filter) out.push_back(v);
+    }
     // Payload.
     out.insert(out.end(), payload.begin(), payload.end());
     // CRC32 over everything above.
@@ -200,6 +215,18 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
             hdr.cluster_hist[k] = read_u32_le_bytes(bytes.data() + pos);
             pos += 4;
         }
+    }
+    // R7-A per-subband predictor mode (only when the R7A flag is set).
+    if (hdr.residual_mode & R7A_FLAG) {
+        uint16_t nsub = (uint16_t)hdr.orient.size();
+        hdr.sub_r7a_pred.resize(nsub, 0);
+        for (uint16_t i = 0; i < nsub; ++i) hdr.sub_r7a_pred[i] = bytes[pos++];
+    }
+    // R7-B per-level filter id (only when the R7B flag is set).
+    if (hdr.residual_mode & R7B_FLAG) {
+        uint8_t nlf = bytes[pos++];
+        hdr.level_filter.resize(nlf, (uint8_t)X_FILTER_ID_53);
+        for (uint8_t i = 0; i < nlf; ++i) hdr.level_filter[i] = bytes[pos++];
     }
     // Payload until the trailing crc32 (4 bytes).
     if (bytes.size() < pos + 4) throw std::runtime_error("wavelet container: truncated payload");
@@ -703,6 +730,180 @@ std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster, WaveletFilte
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster, WaveletFilter filter,
+                                             int levels, size_t& net_out, bool use_r7b) {
+    // FRAME-WAVELET-R7 (issue #130, Route 7 lever A + B). Codes the in-subband
+    // value residual r = c - c_hat (R7-A MED/gradient predictor over the SAME
+    // subband's already-reconstructed raster neighbours) through the existing
+    // byte-exact bitplane coder. The predictor reads only already-reconstructed
+    // coefficients, so no state is transmitted (I29) and the round trip is exact.
+    // The per-subband predictor mode (MED vs GRADIENT) is chosen per subband by
+    // REAL coded bytes (C3, independent per-subband since the streams are
+    // sliceable). R7-B (when use_r7b) picks a per-level filter assignment by a
+    // greedy C3 trial on real rANS bytes. Zero full-model bytes transmitted.
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                      : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    BitplaneCoder coder;
+
+    // ---- R7-B: greedy per-level filter selection (C3, real bytes) ----
+    std::vector<WaveletFilter> per_level;
+    if (use_r7b) {
+        per_level.assign((size_t)levels, filter);
+        for (int lvl = 1; lvl <= levels; ++lvl) {
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            WaveletFilter best = per_level[(size_t)(lvl - 1)];
+            for (int fi = 0; fi < 3; ++fi) {
+                WaveletFilter cand = (fi == 0) ? WaveletFilter::Haar
+                               : (fi == 1) ? WaveletFilter::LeGall53
+                                           : WaveletFilter::Reversible97;
+                std::vector<WaveletFilter> trial = per_level;
+                trial[(size_t)(lvl - 1)] = cand;
+                WaveletParams pp{filter, levels, trial};
+                size_t nb = 0;
+                for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+                    std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+                    auto subs = lift.forward(plane, t.w, t.h, pp);
+                    std::vector<Subband> R(subs.size());
+                    for (size_t si = 0; si < subs.size(); ++si) {
+                        R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+                        R[si].w = subs[si].w; R[si].h = subs[si].h;
+                        R[si].coeffs.resize((size_t)subs[si].w * subs[si].h);
+                        const auto& c = subs[si].coeffs;
+                        for (int y = 0; y < subs[si].h; ++y)
+                            for (int x = 0; x < subs[si].w; ++x) {
+                                int32_t cc = c[(size_t)y * subs[si].w + x];
+                                int32_t ch_ = InSubbandPredictor::predict(
+                                    c, subs[si].w, subs[si].h, x, y,
+                                    R7PredictorMode::MED);
+                                R[si].coeffs[(size_t)y * subs[si].w + x] = cc - ch_;
+                            }
+                    }
+                    auto rt = coder.encode(R);
+                    for (auto& st : rt.streams) nb += st.size();
+                }
+                if (nb < best_bytes) { best_bytes = nb; best = cand; }
+            }
+            per_level[(size_t)(lvl - 1)] = best;
+        }
+    }
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code;
+    std::vector<uint8_t> all_r7a_pred;
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        std::vector<int32_t> plane(t.planes[pi].begin(), t.planes[pi].end());
+        WaveletParams pp{filter, levels, per_level};
+        auto subs = lift.forward(plane, t.w, t.h, pp);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        // Per-subband predictor mode (MED vs GRADIENT) + X6c scale code, each
+        // chosen by REAL coded bytes for that subband's residual alone.
+        std::vector<R7PredictorMode> mode(subs.size(), R7PredictorMode::MED);
+        std::vector<uint8_t> code(subs.size(), 0);
+        for (size_t oi = 0; oi < subs.size(); ++oi) {
+            const Subband& s = subs[oi];
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            R7PredictorMode best_mode = R7PredictorMode::MED;
+            uint8_t best_code = 0;
+            for (int mi = 0; mi < 2; ++mi) {
+                R7PredictorMode m = (mi == 0) ? R7PredictorMode::MED
+                                              : R7PredictorMode::GRADIENT;
+                std::vector<int32_t> res((size_t)s.w * s.h);
+                for (int y = 0; y < s.h; ++y)
+                    for (int x = 0; x < s.w; ++x) {
+                        int32_t cc = s.coeffs[(size_t)y * s.w + x];
+                        int32_t ch_ = InSubbandPredictor::predict(
+                            s.coeffs, s.w, s.h, x, y, m);
+                        res[(size_t)y * s.w + x] = cc - ch_;
+                    }
+                Subband rsub; rsub.orient = s.orient; rsub.level = s.level;
+                rsub.w = s.w; rsub.h = s.h; rsub.coeffs = std::move(res);
+                std::vector<Subband> one{rsub};
+                for (uint8_t c = 0; c < kX6cScaleN; ++c) {
+                    std::vector<float> sc(1, kX6cScaleTab[c]);
+                    auto rt = coder.encode(one, 0, nullptr, &sc);
+                    size_t nb = rt.streams[0].size();
+                    if (mi == 0 || nb < best_bytes) {
+                        if (nb < best_bytes) { best_bytes = nb; best_mode = m; best_code = c; }
+                    }
+                }
+            }
+            mode[oi] = best_mode;
+            code[oi] = best_code;
+        }
+
+        // Build the full residual set with the chosen per-subband modes.
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.resize((size_t)subs[si].w * subs[si].h);
+            const auto& c = subs[si].coeffs;
+            for (int y = 0; y < subs[si].h; ++y)
+                for (int x = 0; x < subs[si].w; ++x) {
+                    int32_t cc = c[(size_t)y * subs[si].w + x];
+                    int32_t ch_ = InSubbandPredictor::predict(
+                        c, subs[si].w, subs[si].h, x, y, mode[si]);
+                    R[si].coeffs[(size_t)y * subs[si].w + x] = cc - ch_;
+                }
+        }
+
+        size_t plane_start = payload.size();
+        std::vector<float> scale(R.size());
+        for (size_t oi = 0; oi < R.size(); ++oi) scale[oi] = kX6cScaleTab[code[oi]];
+        auto res = coder.encode(R, 0, nullptr, &scale);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(code[oi]);
+            all_r7a_pred.push_back((uint8_t)mode[oi]);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = (uint8_t)(R7A_FLAG | (use_r7b ? R7B_FLAG : 0));
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+    hdr.sub_r7a_pred = std::move(all_r7a_pred);
+    if (use_r7b) {
+        hdr.level_filter.resize(per_level.size());
+        for (size_t i = 0; i < per_level.size(); ++i)
+            hdr.level_filter[i] = filter_to_id(per_level[i]);
+    }
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -735,6 +936,13 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     Route5Coder route5;
     WaveletLift lift;
     WaveletParams p{filter, levels};
+    // R7-B: restore the per-level filter assignment so the inverse lift uses the
+    // exact filter the encoder used at each decomposition level (byte-exact).
+    if (hdr.residual_mode & R7B_FLAG) {
+        p.per_level_filter.resize(hdr.level_filter.size());
+        for (size_t i = 0; i < hdr.level_filter.size(); ++i)
+            p.per_level_filter[i] = id_to_filter(hdr.level_filter[i]);
+    }
 
     size_t off = 0;
     uint32_t sub_idx = 0; // global subband index (forward() order)
@@ -773,7 +981,9 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         // (non-residual). The residual pre-pass (X6a) encodes each subband without a
         // luma reference, so to keep encode/decode context symmetry we disable it
         // here whenever the frame is a residual frame (otherwise roundtrip breaks).
-        if (!(hdr.residual_mode & 1u) && pi > 0 && !decoded_all.empty()) {
+        // R7-A is also a residual frame (in-subband predictor, no luma context), so
+        // the luma reference is gated off under R7A_FLAG too.
+        if (!(hdr.residual_mode & (1u | R7A_FLAG)) && pi > 0 && !decoded_all.empty()) {
             const auto& lum_subs = decoded_all[0];
             lmag_buf.resize(plane_layout.size());
             for (size_t oi = 0; oi < plane_layout.size(); ++oi) {
@@ -844,6 +1054,34 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
                 for (int y = 0; y < s.h; ++y)
                     for (int x = 0; x < s.w; ++x) {
                         int32_t c_hat = pred.predict(recon, plane_subs, parent, sib1, sib2, si, x, y);
+                        int32_t r = plane_subs[si].coeffs[(size_t)y * s.w + x];
+                        recon[si][(size_t)y * s.w + x] = c_hat + r;
+                    }
+            }
+            for (size_t si = 0; si < plane_subs.size(); ++si)
+                plane_subs[si].coeffs = recon[si];
+        }
+        // R7-A (Route 7 lever A) reconstruction post-pass: the decoded subbands are
+        // the in-subband residuals r; rebuild c = c_hat + r using InSubbandPredictor
+        // over the SAME subband's already-reconstructed raster neighbours (W/N/NW/NE).
+        // The predictor is a pure function of decoded history, so the decoder forms
+        // the identical c_hat the encoder used -> byte-exact round trip (I26/I29).
+        if (hdr.residual_mode & R7A_FLAG) {
+            std::vector<std::vector<int32_t>> recon(plane_subs.size());
+            for (size_t si = 0; si < plane_subs.size(); ++si)
+                recon[si].assign(plane_subs[si].coeffs.size(), 0);
+            for (size_t si = 0; si < plane_subs.size(); ++si) {
+                const Subband& s = plane_subs[si];
+                // sub_r7a_pred is keyed by GLOBAL subband index (forward order
+                // across all planes), so map the local per-plane index si to its
+                // global counterpart before reading the predictor mode.
+                size_t gsi = (size_t)pi * spp + si;
+                R7PredictorMode m = (gsi < hdr.sub_r7a_pred.size() && hdr.sub_r7a_pred[gsi])
+                                        ? R7PredictorMode::GRADIENT
+                                        : R7PredictorMode::MED;
+                for (int y = 0; y < s.h; ++y)
+                    for (int x = 0; x < s.w; ++x) {
+                        int32_t c_hat = InSubbandPredictor::predict(recon[si], s.w, s.h, x, y, m);
                         int32_t r = plane_subs[si].coeffs[(size_t)y * s.w + x];
                         recon[si][(size_t)y * s.w + x] = c_hat + r;
                     }

@@ -19,6 +19,13 @@ namespace prism::codec {
 constexpr uint8_t ROUTE5_FLAG = 2;
 constexpr uint8_t R6B_FLAG = 4;
 constexpr uint8_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted histogram
+// Route 7 (issue #130) residual_mode bit flags.
+constexpr uint8_t R7A_FLAG = 32; // R7-A: in-subband MED/gradient value predictor residual
+constexpr uint8_t R7B_FLAG = 64; // R7-B: per-level adaptive filter selection
+// residual_mode is uint8_t; bit 7 is RESERVED. The next extension must widen the
+// type (or reuse bit 7 only after R7B moves) - guard against silent overflow.
+static_assert(R7A_FLAG <= (1 << 6), "R7A_FLAG must not exceed bit 6 of residual_mode");
+static_assert(R7B_FLAG <= (1 << 7), "R7B_FLAG must not exceed bit 7 of residual_mode");
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
@@ -72,6 +79,17 @@ struct WaveletHeader {
     // (invariant I29 holds).
     uint16_t r6c_kb = 0;
     std::vector<uint32_t> cluster_hist;
+    // R7-A (Route 7 lever A): per-subband predictor mode (R7PredictorMode),
+    // indexed by forward() subband order. 0 = MED, 1 = GRADIENT. Present only
+    // when residual_mode carries R7A_FLAG. Chosen per subband by real coded
+    // bytes (C3); 1 byte/subband overhead is far inside I29 / 0.02 bpp.
+    std::vector<uint8_t> sub_r7a_pred;
+    // R7-B (Route 7 lever B): per-level filter selection. One entry per
+    // decomposition level (1..levels); entry value is a filter id
+    // (X_FILTER_ID_*). Present only when residual_mode carries R7B_FLAG. 2-bit/
+    // level on the wire conceptually (gated as 1 byte for simplicity); overhead
+    // a few bytes/image, far inside I29 / 0.02 bpp.
+    std::vector<uint8_t> level_filter;
 };
 
 struct WaveletFrame {
@@ -131,8 +149,23 @@ std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster,
 // decode parses the transmitted cluster histogram. Zero full-model bytes
 // transmitted (invariant I29); only the tiny cluster histogram header is sent.
 std::vector<uint8_t> frame_wavelet_encode_r6c(const Raster& raster,
-                                               WaveletFilter filter, int levels,
-                                               int kb, size_t& net_out);
+                                                WaveletFilter filter, int levels,
+                                                int kb, size_t& net_out);
+
+// FRAME-WAVELET-R7 (issue #130, Route 7 lever A + B): the in-subband value
+// predictor path. Codes the in-subband residual r = c - c_hat (R7-A, a MED/
+// GRADIENT predictor over the SAME subband's already-reconstructed raster
+// neighbours) through the existing byte-exact bitplane coder instead of c. The
+// predictor reads only already-reconstructed coefficients, so no state is
+// transmitted (I29) and the round trip is exact. The per-subband predictor mode
+// (MED vs GRADIENT) is chosen per subband by REAL coded bytes (C3), and the
+// optional R7-B per-level filter assignment (Haar/5/3/9/7) is chosen by a greedy
+// C3 trial on real rANS bytes. R7A_FLAG (and R7B_FLAG when used) is set so the
+// decoder dispatches the same path and parses the tiny header. Zero full-model
+// bytes transmitted (invariant I29).
+std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster, WaveletFilter filter,
+                                             int levels, size_t& net_out,
+                                             bool use_r7b = false);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
