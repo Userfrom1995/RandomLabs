@@ -4734,7 +4734,7 @@ int main(int argc, char* argv[]) {
                             for (int y = 0; y < s.h; ++y)
                                 for (int x = 0; x < s.w; ++x) {
                                     int32_t c = s.coeffs[(size_t)y * s.w + x];
-                                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                                int32_t c_hat = pred_solved.predict(recon, subs, parent, sib1, sib2, si, x, y);
                                     int32_t rv = c - c_hat;
                                     int cb = (c == 0) ? 0 : (31 - __builtin_clz((uint32_t)(c < 0 ? -c : c))) + 1;
                                     int rb = (rv == 0) ? 0 : (31 - __builtin_clz((uint32_t)(rv < 0 ? -rv : rv))) + 1;
@@ -5039,7 +5039,6 @@ int main(int argc, char* argv[]) {
             int levels = X_DEFAULT_LEVELS;
             WaveletLift lift;
             WaveletParams wp{filter, levels};
-            CoefficientPredictor pred;
             // Per-orient normal equations: A[o] is 9x9 (8 features + intercept),
             // B[o] is 9. Accumulated incrementally to bound memory.
             double A[4][9][9] = {0};
@@ -5112,6 +5111,15 @@ int main(int argc, char* argv[]) {
                 bias[o] = (float)outw[8];
                 for (int k = 0; k < 8; ++k) w[o][k] = (float)outw[k];
             }
+
+            // Diagnostic MSE must reflect the freshly SOLVED weights, not the
+            // baked model. Build a predictor seeded with the solved weights.
+            PredictWeights solved;
+            for (int oi = 0; oi < 4; ++oi) {
+                solved.bias[oi] = bias[oi];
+                for (int k = 0; k < 8; ++k) solved.w[oi][k] = w[oi][k];
+            }
+            CoefficientPredictor pred_solved(solved);
 
             // Report training MSE for diagnostics.
             double mse = 0.0; uint64_t n2 = 0;
