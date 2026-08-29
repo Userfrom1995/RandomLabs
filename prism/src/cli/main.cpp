@@ -20,8 +20,6 @@
 #include "prism/codec/route5.h"
 #include "prism/codec/predictor.h"
 
-#include "prism/codec/predictor.h"
-
 #include "prism/bitstream.h"
 #include <iostream>
 #include <array>
