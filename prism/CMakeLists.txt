@@ -20,6 +20,7 @@ add_library(prism_core STATIC
     src/codec/learned_ctx.cpp
     src/codec/wavelet.cpp
     src/codec/wavelet_container.cpp
+    src/codec/route5.cpp
     src/codec/predictor.cpp
     src/codec/acoder.cpp
     src/codec/mixer.cpp
