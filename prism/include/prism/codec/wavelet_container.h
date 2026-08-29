@@ -13,8 +13,11 @@ namespace prism::codec {
 // otherwise untouched (invariant I26).
 
 // residual_mode (WaveletHeader) bit flags. Bit 0 = residual (predictor path),
-// bit 1 = Route 5 autoregressive rANS frontend (replaces the bitplane coder).
+// bit 1 = Route 5 autoregressive rANS frontend (replaces the bitplane coder),
+// bit 2 = R6-B transmitted-histogram backbone (bitplane coder, two-pass static
+// per-subband histogram blended with the adaptive EMA; see bitplane.h).
 constexpr uint8_t ROUTE5_FLAG = 2;
+constexpr uint8_t R6B_FLAG = 4;
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
@@ -46,6 +49,12 @@ struct WaveletHeader {
     // per-plane) calibration gain is transmitted as a tiny side stream; no full
     // model is sent (invariant I29 holds).
     std::vector<uint8_t> sub_scale_code;
+    // R6-B (Route 6 lever B): transmitted per-subband histogram for the static
+    // backbone. Layout: for each subband (forward() order) R6B_CLASSES * 2
+    // uint16 counts [cnt0_0, cnt1_0, cnt0_1, cnt1_1, ...]. Only present when
+    // residual_mode carries R6B_FLAG. Overhead is a few KB/image (<< 0.01 bpp,
+    // spec R6-B sub-gate L3b), so no full model is transmitted (I29 holds).
+    std::vector<uint16_t> sub_hist;
 };
 
 struct WaveletFrame {
@@ -85,6 +94,17 @@ std::vector<uint8_t> frame_wavelet_encode_residual(const Raster& raster,
 std::vector<uint8_t> frame_wavelet_encode_route5(const Raster& raster,
                                                  WaveletFilter filter, int levels,
                                                  size_t& net_out);
+
+// FRAME-WAVELET-R6B (issue #130, Route 6 lever B): the two-pass
+// transmitted-histogram backbone. Codes the learned-coefficient residual
+// r = c - c_hat through the BitplaneCoder::encode_static (R6-B static histogram
+// blended with the adaptive EMA) instead of the adaptive-only bitplane coder.
+// R6B_FLAG (residual_mode bit 2) is set so decode dispatches the same path and
+// parses the transmitted per-subband histogram. Zero full-model bytes transmitted
+// (invariant I29); only the tiny histogram header is sent.
+std::vector<uint8_t> frame_wavelet_encode_r6b(const Raster& raster,
+                                              WaveletFilter filter, int levels,
+                                              size_t& net_out);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
