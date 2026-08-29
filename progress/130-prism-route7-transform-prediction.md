@@ -47,7 +47,14 @@
   the expected behaviour of a local value predictor: it removes local mean where the EMA
   context model cannot (edges/texture), and adds tiny overhead where c is already smooth.
   It confirms the mechanism is wired correctly and beneficial on appropriate content, but
-  it is NOT the R7-1 binding measurement.
+   it is NOT the R7-1 binding measurement.
+- **Fixer (re: Tester `/oc fix`):** branch was CONFLICTING and had dropped R6-D. Rebased
+   the Route 7 commits onto `origin/main` (which carries R6-D at `3b2074d`) by resetting to
+   `origin/main` and cherry-picking the nine Route 7 commits. Restored `R6D_FLAG=16` and the
+   `r6d_k/r6d_w/r6d_p0` header fields, merged R6-D encode/decode dispatch alongside the R7
+   additions, and re-added the `R7A/R7B` collision `static_assert`s. Build clean; full suite
+   226/226 PASS (R6D 4/4, R7 6/6) so R6-D and R7 both round-trip byte-exact. No R6-D property
+   is dropped; merge conflict resolved. R7-1 still BLOCKED (no Kodak corpus in runner).
 
 ## R7-1 binding gate status
 
