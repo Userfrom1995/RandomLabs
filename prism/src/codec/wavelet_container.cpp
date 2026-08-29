@@ -797,22 +797,6 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         auto plane_subs = [&]() -> std::vector<Subband> {
             if (hdr.residual_mode & ROUTE5_FLAG)
                 return route5.decode(plane_streams, plane_layout);
-            if (hdr.residual_mode & R6C_FLAG) {
-                // The cluster histogram is GLOBAL per plane (all subbands of a
-                // plane share one NB-context cluster space), so slice plane pi.
-                StaticClusterHist chist;
-                chist.kb = hdr.r6c_kb;
-                int NB = 3 * (int)hdr.r6c_kb;
-                chist.cnt.assign(NB, std::vector<uint32_t>(2, 0));
-                size_t base = (size_t)pi * (size_t)(NB * 2);
-                for (int c = 0; c < NB * 2; ++c) {
-                    size_t idx = base + (size_t)c;
-                    uint32_t v = (idx < hdr.cluster_hist.size()) ? hdr.cluster_hist[idx] : 0;
-                    chist.cnt[c / 2][c % 2] = v;
-                }
-                return coder.decode_static_cluster(plane_streams, plane_layout,
-                                                   plane_maxbits, 0, chist);
-            }
             if (hdr.residual_mode & R6B_FLAG) {
                 StaticHist hist;
                 hist.cnt.assign(spp, std::vector<uint32_t>(R6B_CLASSES * 2, 0));
