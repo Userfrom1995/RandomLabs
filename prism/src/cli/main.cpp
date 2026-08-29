@@ -14,6 +14,7 @@
 #include "prism/codec/container.h"
 #include "prism/codec/multipass.h"
 #include "prism/codec/wavelet.h"
+#include "../codec/wavelet_lift_data.inc"
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/bitplane.h"
 #include "prism/codec/learned_ctx.h"
@@ -4501,6 +4502,8 @@ void run_u0_image(const std::filesystem::path& img) {
 int main(int argc, char* argv[]) {
     if (argc < 2) { print_usage(); return 2; }
     std::string cmd = argv[1];
+    // Route 8: load the baked learned-lifting offsets (all-zero = LeGall fallback).
+    set_learned_lift(prism::codec::baked_learned_lift());
     try {
         if (cmd == "enc") {
             if (argc < 4) { print_usage(); return 2; }
@@ -4633,6 +4636,7 @@ int main(int argc, char* argv[]) {
             WaveletFilter filter = WaveletFilter::LeGall53;
             if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
             else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            else if (filter_id == X_FILTER_ID_LEARNED) filter = WaveletFilter::Learned;
             else filter = WaveletFilter::LeGall53;
             size_t net = 0;
             auto bytes = frame_wavelet_encode(r, filter, levels, net);
@@ -5487,6 +5491,7 @@ int main(int argc, char* argv[]) {
             WaveletFilter filter = WaveletFilter::LeGall53;
             if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
             else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            else if (filter_id == X_FILTER_ID_LEARNED) filter = WaveletFilter::Learned;
             std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
             if (!outcsv.empty()) cf << "image,wnet,wpayload,spayload,"
                                        "bpp_wavelet_net_per_sample,bpp_wavelet_summed,"
@@ -6278,7 +6283,92 @@ int main(int argc, char* argv[]) {
           << " samples=" << ntotal << " epochs=" << epochs << " lr=" << lr << "\n";
         o << "static const char* PRED_STATUS = \"trained\";\n";
     }
-    std::cout << "train-predictor: wrote " << out << "\n";
+        std::cout << "train-predictor: wrote " << out << "\n";
+        } else if (cmd == "train-lift") {
+            // Route 8 offline trainer: fits the learned nonlinear lifting LUT
+            // offsets by least squares (per-context mean prediction residual) on
+            // real Kodak imagery, then bakes src/codec/wavelet_lift_data.inc.
+            std::string kodak;
+            std::string out = "src/codec/wavelet_lift_data.inc";
+            int levels = X_DEFAULT_LEVELS;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+            }
+            if (kodak.empty()) { std::cerr << "train-lift: --kodak DIR required\n"; return 2; }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "train-lift: kodak dir not found: " << kodak << "\n"; return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "train-lift: no images\n"; return 2; }
+
+            WaveletLift lift;
+            LearnedLiftStats st{};
+            learned_lift_collect_begin(&st);
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
+                ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
+                Raster t = apply_color(r, ct);
+                for (auto& pl : t.planes) {
+                    std::vector<int32_t> plane(pl.begin(), pl.end());
+                    lift.forward(plane, t.w, t.h, WaveletParams{WaveletFilter::Learned, levels});
+                }
+            }
+            learned_lift_collect_end();
+
+            LearnedLift L{};
+            // The PREDICT step codes a true residual (odd - predict), so a
+            // per-context mean correction centres it and reduces entropy. The
+            // UPDATE step produces the low-pass band (not a residual); offsetting
+            // it scrambles the LL and explodes entropy, so it stays at zero.
+            // Regularise: only trust contexts with many samples, and clamp the
+            // correction so rare-context noise cannot dominate.
+            const int64_t kMinCount = 2000;
+            const int kMaxOff = 4;
+            for (int c = 0; c < LearnedLift::kCtx; ++c) {
+                if (st.pred_cnt[c] >= kMinCount) {
+                    int64_t m = std::llround((double)st.pred_err[c] / (double)st.pred_cnt[c]);
+                    if (m > kMaxOff) m = kMaxOff;
+                    if (m < -kMaxOff) m = -kMaxOff;
+                    L.pred_lut[c] = (int16_t)m;
+                }
+            }
+            for (int c = 0; c < LearnedLift::kUpdCtx; ++c) L.upd_lut[c] = 0;
+
+            std::ofstream o(out);
+            o << "// AUTO-GENERATED by `prism train-lift` (Route 8 learned nonlinear lifting).\n"
+                 "// Editable ONLY by the trainer. All-zero offsets are the LeGall 5/3 fallback.\n"
+                 "#ifndef PRISM_WAVELET_LIFT_DATA_INC\n"
+                 "#define PRISM_WAVELET_LIFT_DATA_INC\n"
+                 "#include \"prism/codec/wavelet.h\"\n"
+                 "namespace prism::codec {\n"
+                 "inline LearnedLift baked_learned_lift() {\n"
+                 "    LearnedLift L{};\n"
+                 "    static const int16_t pred_lut[" << LearnedLift::kCtx << "] = {";
+            for (int c = 0; c < LearnedLift::kCtx; ++c) o << (c ? ", " : "") << L.pred_lut[c];
+            o << "};\n    static const int16_t upd_lut[" << LearnedLift::kUpdCtx << "] = {";
+            for (int c = 0; c < LearnedLift::kUpdCtx; ++c) o << (c ? ", " : "") << L.upd_lut[c];
+            o << "};\n    for (int i=0;i<" << LearnedLift::kCtx << ";++i) L.pred_lut[i]=pred_lut[i];\n"
+                 "    for (int i=0;i<" << LearnedLift::kUpdCtx << ";++i) L.upd_lut[i]=upd_lut[i];\n"
+                 "    return L;\n}\n}\n#endif\n";
+            std::cout << "train-lift: wrote " << out << " (pred nonzero="
+                      << std::count_if(L.pred_lut, L.pred_lut + LearnedLift::kCtx, [](int16_t v){return v!=0;})
+                      << " upd nonzero="
+                      << std::count_if(L.upd_lut, L.upd_lut + LearnedLift::kUpdCtx, [](int16_t v){return v!=0;})
+                      << ")\n";
         } else if (cmd == "bench") {
             uint8_t effort=0;
             std::string kodak;
