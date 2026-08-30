@@ -10,7 +10,7 @@ namespace prism::codec {
 enum class SpatialPredType : uint8_t {
     NONE = 0,    // No spatial predictor (legacy X6b path)
     P1 = 1,      // JXL-style adaptive bank (median + gradient + slope)
-    P2 = 2,      // 17->64->32->1 learned MLP on raw RGB causal neighbours
+    P2 = 2,      // 17->16->8->1 learned MLP on raw RGB causal neighbours (~408 MACs)
 };
 
 // P2 MLP spatial predictor constants.
