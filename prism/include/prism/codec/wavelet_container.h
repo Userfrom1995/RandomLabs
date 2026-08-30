@@ -26,7 +26,8 @@ constexpr uint16_t R7_FREE_BIT = 128; // bit 7: last free v1 bit
 // Next-Gen flags (high byte, v2 only)
 constexpr uint16_t SPATIAL_P1_FLAG = 0x100; // bit 8: P1 adaptive spatial predictor active
 constexpr uint16_t SPATIAL_RGB_FLAG = 0x200; // bit 9: Route 10 - spatial predictor on raw RGB BEFORE color transform
-constexpr uint16_t SPATIAL_TYPE_MASK = 0x300; // bits 8-9: spatial predictor type mask
+constexpr uint16_t SPATIAL_P2_FLAG = 0x400; // bit 10: Route 10 D2 R10-3 - P2 MLP spatial predictor on raw RGB
+constexpr uint16_t SPATIAL_TYPE_MASK = 0x700; // bits 8-10: spatial predictor type mask
 // Assert uniqueness so a reused bit fails to compile.
 static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u)) == 0, "R7A_FLAG collides");
 static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u)) == 0, "R7B_FLAG collides");
