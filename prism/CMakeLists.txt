@@ -41,6 +41,7 @@ add_library(prism_core STATIC
     src/codec/ans_static.cpp
     src/codec/multipass.cpp
     src/codec/r1_encoder.cpp
+    src/codec/option_c.cpp
     src/frontend/ppm_raw.cpp
     src/frontend/stb_image_wrapper.cpp
     src/frontend/webp_wrapper.cpp
@@ -123,6 +124,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_r6c.cpp
         tests/unit/test_r6d.cpp
         tests/unit/test_r7.cpp
+        tests/unit/test_option_c.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)
