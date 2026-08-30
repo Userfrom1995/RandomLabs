@@ -361,9 +361,10 @@ void learned_features(const std::vector<uint8_t>& sig,
     // R6-A F7: sibling-orientation magnitude (HL<->LH correlation).
     uint8_t sib_m = 0;
     if (sib_mag) {
-        int sx = x, sy = y;
-        if (sx >= 0 && sx < w && sy >= 0 && sy < h && sig[(size_t)sy * w + sx])
-            sib_m = (uint8_t)mag_bucket((*sib_mag)[(size_t)sy * w + sx]);
+        if (x >= 0 && x < w && y >= 0 && y < h) {
+            int32_t sm = (*sib_mag)[(size_t)y * w + x];
+            if (sm != 0) sib_m = (uint8_t)mag_bucket(sm);
+        }
     }
     // R6-A F8: parent-child bitplane lag (autocorrelation).
     uint8_t pplag = 0;
