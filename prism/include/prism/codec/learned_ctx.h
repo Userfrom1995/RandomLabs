@@ -132,6 +132,11 @@ struct LearnedModel {
     static constexpr int FB_PPOS = 8;
     static constexpr int FB_LEVEL = 6; // 0..5 (X_DEFAULT_LEVELS=5)
     static constexpr uint32_t FINE_POOL = 3u * 4 * 2 * 5 * 5 * 8 * 8 * 8 * 6; // 1843200
+    // R9: when g_r9_tree_ema=true the model only touches R6D_K*3 = 3072 entries
+    // (1024 leaves * 3 symtypes); the remaining ~1.84M fine-context entries are
+    // never referenced on that path. The full pool is still allocated for a
+    // single shared LearnedModel layout (no conditional sizing), so this is an
+    // intentional ~1800x over-allocation on the R9 experiment path only.
     static constexpr int EMA_SHIFT = 5;
     static constexpr uint32_t M = 1u << 16;
     // Default MLP-prior pseudocount (runtime-overridable via --pseudo). Kept in
@@ -227,6 +232,21 @@ struct LearnedModel {
     // stream stays byte-exact. The tree is a baked constant (route6d_tree.inc),
     // so the NET stays equal to payload + header (invariant I29).
     // Defined in learned_ctx.cpp (references internal R6D-tree helpers).
+    //
+    // INTENTIONAL DESIGN NOTE (reviewer finding #2): the R9 overload returns a
+    // PURE EMA (no MLP prior). This is deliberate: R9 isolates the *granularity*
+    // effect (coarse 1024-leaf cluster vs fine 1.84M context) so the comparison
+    // is pure-EMA-coarse vs MLP-blended-fine, NOT blended-vs-blended. The honest
+    // diagnosis is therefore "coarse clustering is less discriminative than the
+    // fine adaptive EMA even when the fine context is starved", which is the
+    // lever R9 set out to test. A blended-coarse follow-up is an orthogonal
+    // experiment and is NOT claimed in this measurement. If MLP-blended coarse is
+    // later desired, replace the body with:
+    //   uint16_t mlp = learned_predict_p0(f);
+    //   float alpha = (float)count_[c] / (float)(count_[c] + learned_pseudo());
+    //   float w_ema = alpha * (1.0f - learned_blend());
+    //   float w_mlp = 1.0f - w_ema;
+    //   int blended = (int)(w_ema * (float)(ema_[c]) + w_mlp * (float)mlp);
     uint16_t predict(const LCFeat& f, const R6DRaw& r) const;
     void update(const LCFeat& f, const R6DRaw& r, uint8_t bit);
 
