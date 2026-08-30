@@ -1058,11 +1058,10 @@ std::vector<uint8_t> frame_wavelet_encode_nextgen(const Raster& raster,
     BitplaneCoder coder;
     CoefficientPredictor pred;
 
-    // bd_max must cover the full range of color-transformed planes.
-    // After YCoCg-R on BD8, chroma planes reach ~1023 (bias 512 + range).
-    // Use uint16 max to be safe; the spatial predictor's weighted blend
-    // still converges to the correct prediction.
-    uint16_t bd_max = 65535;
+    // bd_max: upper bound for spatial predictor clamping. After YCoCg-R on BD8,
+    // Y is 0..1023 and Co/Cg are biased to ~0..1023. For BD16 (no color
+    // transform), the full u16 range applies.
+    uint16_t bd_max = (raster.bd == BitDepth::BD8) ? 1023 : 65535;
 
     std::vector<uint32_t> plane_symbols;
     uint16_t subbands_per_plane = 0;
@@ -1359,13 +1358,11 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         // have R_spatial (the spatial residuals). Rebuild the color-transformed
         // pixels via the same P1 adaptive bank that was used on the encode side.
         if (hdr.residual_mode & SPATIAL_P1_FLAG) {
-            uint16_t bd_max = 65535; // full uint16 range for color-transformed planes
+            uint16_t bd_max = (t.bd == BitDepth::BD8) ? 1023 : 65535;
             auto reconstructed = reconstruct_spatial(plane, t.w, t.h, bd_max);
             for (size_t i = 0; i < plane.size(); ++i)
                 plane[i] = (int32_t)reconstructed[i];
         }
-        for (size_t i = 0; i < plane.size(); ++i)
-            t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
         // Store the color-transformed integer coefficients verbatim (biased/
         // signed); reinterpreted as signed 16-bit by invert_color, so do NOT
         // clamp here (that would corrupt chroma and signed ACs).
