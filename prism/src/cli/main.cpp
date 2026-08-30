@@ -5374,6 +5374,100 @@ int main(int argc, char* argv[]) {
             std::cout << "NG mean summed   =" << mean_sum
                       << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "wavelet-r10") {
+            // Route 10 D2: spatial predictor on raw RGB before colour transform.
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            std::string infile, outfile;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--out" && i + 1 < argc) outfile = argv[++i];
+                else if (infile.empty()) infile = a;
+            }
+            if (infile.empty()) { std::cerr << "wavelet-r10: INPUT REQUIRED\n"; return 2; }
+            Raster r = load_raster(infile, 0, 0, 8, 3);
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            size_t net = 0;
+            auto bytes = frame_wavelet_encode_route10(r, filter, levels, net);
+            Raster dec = frame_wavelet_decode(bytes);
+            bool ok = (dec == r);
+            std::cout << "wavelet-r10: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                      << " net=" << net << " per_sample=" << (8.0 * net / (r.w * r.h * r.num_channels()))
+                      << " summed=" << (8.0 * net / (r.w * r.h))
+                      << (ok ? " ROUNDTRIP OK" : " ROUNDTRIP FAIL") << "\n";
+            if (!outfile.empty()) write_file(outfile, bytes);
+            if (!ok) { std::cerr << "wavelet-r10: ROUNDTRIP FAIL\n"; return 1; }
+        } else if (cmd == "bench-r10") {
+            // Route 10 D2 benchmark on Kodak-24.
+            uint8_t filter_id = X_FILTER_ID_53;
+            int levels = X_DEFAULT_LEVELS;
+            std::string kodak, outcsv;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+            }
+            if (kodak.empty()) { std::cerr << "bench-r10: --kodak DIR required\n"; return 2; }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-r10: kodak dir not found: " << kodak << "\n"; return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" || ext == ".jpg" ||
+                    ext == ".jpeg" || ext == ".webp" || ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-r10: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,roundtrip\n";
+            std::vector<double> ps, sum;
+            size_t total_net = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                auto bytes = frame_wavelet_encode_route10(r, filter, levels, net);
+                Raster dec = frame_wavelet_decode(bytes);
+                bool ok = (dec == r);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_ps = 8.0 * net / npix;
+                double bpp_sum = 8.0 * net / (r.w * r.h);
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << net << "," << bpp_ps << ","
+                       << bpp_sum << "," << (ok ? 1 : 0) << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp_ps); sum.push_back(bpp_sum);
+                total_net += net; total_pix += npix;
+                std::cout << img.filename().string() << " net=" << net
+                          << " per_sample=" << bpp_ps << " summed=" << bpp_sum
+                          << (ok ? " OK" : " FAIL") << "\n";
+                if (!ok) { std::cerr << "bench-r10: roundtrip FAIL on " << img.filename().string() << "\n"; return 1; }
+            }
+            double mean_ps = 0, mean_sum = 0;
+            for (double v : ps) mean_ps += v;
+            for (double v : sum) mean_sum += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            mean_sum /= std::max<size_t>(1, sum.size());
+            std::cout << "R10 mean per-sample=" << mean_ps
+                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885\n";
+            std::cout << "R10 mean summed   =" << mean_sum
+                      << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+            if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-route5") {
             // Route 5 offline trainer: learns the baked token-net weights from
             // real Kodak residuals. Collects (feature, token) samples, trains a
