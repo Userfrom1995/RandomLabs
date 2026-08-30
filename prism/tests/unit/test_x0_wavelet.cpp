@@ -180,3 +180,19 @@ TEST(X0Frame, WaveletRoundtripBd16) {
     Raster dec = frame_wavelet_decode(bytes);
     EXPECT_EQ(dec, r);
 }
+
+// Odd/non-power-of-2 dimensions for Route 10 D2 (issue #198). Sibling subbands
+// at the same wavelet level can have different sizes (e.g. HL 3x5 vs LH 4x4),
+// which caused out-of-bounds sibling-magnitude reads in the bitplane coder.
+TEST(X0Route10, FrameRoundtripOddDimensions) {
+    std::mt19937 rng(112358);
+    for (auto [w, h] : std::vector<std::pair<uint32_t, uint32_t>>{
+             {7, 9}, {15, 55}, {33, 5}, {47, 6}, {36, 32},
+             {1, 7}, {7, 1}, {3, 3}, {101, 103}, {1, 99}}) {
+        Raster r = make_raster(w, h, 3, 8, rng);
+        size_t net = 0;
+        auto bytes = frame_wavelet_encode_route10(r, WaveletFilter::LeGall53, 5, net);
+        Raster dec = frame_wavelet_decode(bytes);
+        EXPECT_EQ(dec, r) << "Route10 roundtrip failed for " << w << "x" << h;
+    }
+}
