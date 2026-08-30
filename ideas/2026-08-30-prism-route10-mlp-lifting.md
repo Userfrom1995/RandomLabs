@@ -30,4 +30,8 @@ an integer-sim mirror of the C++ arithmetic before baking.
 - `prism/src/codec/route10_mlp_data.inc` - baked weights.
 - `prism/src/codec/wavelet.cpp` - `WaveletFilter::LearnedMLP` dispatch.
 
-**Status:** in-progress (training + C++ integration + Kodak measurement pending).
+**Status:** complete (implemented + measured on full Kodak-24; NEGATIVE result).
+The learned nonlinear MLP predict reduces raw predict-error energy by 22.39% yet
+the end-to-end lossless residual is within noise of (marginally worse than) X6b
+(3.22352 vs 3.21751 per-sample). M2/M3 gates FAIL (9.6706 >= 9.498/8.655). This
+exhausts the last untested single-pipeline lever for #130; `Refs #130` retained.
