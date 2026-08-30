@@ -5831,18 +5831,17 @@ int main(int argc, char* argv[]) {
             std::array<float, LH2> W3{};
             float b3 = 0.0f;
             std::mt19937 rng(0x130);
-            std::uniform_real_distribution<float> u(-0.1f, 0.1f);
-            float scale1 = std::sqrt(2.0f / FF);
-            float scale2 = std::sqrt(2.0f / LH1);
-            float scale3 = std::sqrt(2.0f / LH2);
+            std::uniform_real_distribution<float> u1(-std::sqrt(6.0f / FF), std::sqrt(6.0f / FF));
+            std::uniform_real_distribution<float> u2(-std::sqrt(6.0f / LH1), std::sqrt(6.0f / LH1));
+            std::uniform_real_distribution<float> u3(-std::sqrt(6.0f / LH2), std::sqrt(6.0f / LH2));
             for (int j = 0; j < LH1; ++j) {
-                for (int i = 0; i < FF; ++i) W1[j][i] = u(rng) * scale1;
+                for (int i = 0; i < FF; ++i) W1[j][i] = u1(rng);
                 b1[j] = 0.0f;
             }
             for (int j = 0; j < LH2; ++j) {
-                for (int i = 0; i < LH1; ++i) W2[j][i] = u(rng) * scale2;
+                for (int i = 0; i < LH1; ++i) W2[j][i] = u2(rng);
                 b2[j] = 0.0f;
-                W3[j] = u(rng) * scale3;
+                W3[j] = u3(rng);
             }
             b3 = 0.0f;
 
@@ -5863,10 +5862,12 @@ int main(int argc, char* argv[]) {
             auto sigmoidf = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
 
             float last_loss = 0.0f;
+            long step = 0;
             for (int ep = 0; ep < epochs; ++ep) {
                 std::shuffle(idxs.begin(), idxs.end(), rngs);
                 float tot = 0.0f; size_t nb = 0;
                 for (size_t s = 0; s < N; s += (size_t)BS) {
+                    ++step;
                     size_t e = std::min(s + (size_t)BS, N);
                     std::array<std::array<float, FF>, LH1> gW1{};
                     std::array<float, LH1> gb1{};
@@ -5897,17 +5898,19 @@ int main(int argc, char* argv[]) {
                         tot += -(sm.label ? std::log(y) : std::log(1.0f - y));
                         ++nb;
                         gb3 += dy;
+                        float g2[LH2];
                         for (int j = 0; j < LH2; ++j) {
                             gW3[j] += dy * h2[j];
-                            float g2 = dy * W3[j] * (h2[j] > 0.0f ? 1.0f : 0.0f);
-                            gb2[j] += g2;
-                            for (int i = 0; i < LH1; ++i) gW2[j][i] += g2 * h1[i];
-                            float g1 = 0.0f;
-                            for (int k = 0; k < LH2; ++k) {
-                                if (h2[k] > 0.0f) g1 += dy * W3[k] * W2[k][j];
-                            }
-                            gb1[j] += g1;
-                            for (int i = 0; i < FF; ++i) gW1[j][i] += g1 * x[i];
+                            g2[j] = dy * W3[j] * (h2[j] > 0.0f ? 1.0f : 0.0f);
+                            gb2[j] += g2[j];
+                            for (int i = 0; i < LH1; ++i) gW2[j][i] += g2[j] * h1[i];
+                        }
+                        for (int i = 0; i < LH1; ++i) {
+                            float dh1 = 0.0f;
+                            for (int j = 0; j < LH2; ++j) dh1 += g2[j] * W2[j][i];
+                            float g1 = dh1 * (h1[i] > 0.0f ? 1.0f : 0.0f);
+                            gb1[i] += g1;
+                            for (int k = 0; k < FF; ++k) gW1[i][k] += g1 * x[k];
                         }
                     }
                     float scale = 1.0f / (float)(e - s);
@@ -5915,8 +5918,8 @@ int main(int argc, char* argv[]) {
                         g *= scale;
                         m = beta1 * m + (1.0f - beta1) * g;
                         v = beta2 * v + (1.0f - beta2) * g * g;
-                        float mh = m / (1.0f - std::pow(beta1, (float)(ep + 1)));
-                        float vh = v / (1.0f - std::pow(beta2, (float)(ep + 1)));
+                        float mh = m / (1.0f - std::pow(beta1, (float)step));
+                        float vh = v / (1.0f - std::pow(beta2, (float)step));
                         w -= lr * mh / (std::sqrt(vh) + eps);
                     };
                     for (int j = 0; j < LH1; ++j) {
