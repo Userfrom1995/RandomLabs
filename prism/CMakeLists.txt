@@ -23,6 +23,7 @@ add_library(prism_core STATIC
     src/codec/wavelet_container.cpp
     src/codec/route5.cpp
     src/codec/predictor.cpp
+    src/codec/spatial_predictor.cpp
     src/codec/acoder.cpp
     src/codec/mixer.cpp
     src/codec/matree.cpp

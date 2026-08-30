@@ -1,72 +1,69 @@
-# Progress: Next-Gen Predictor/Transform (issue #199) - Architectural Phase
+# Progress: Next-Gen Predictor/Transform (issue #199) - NG-1 Phase
 
 - **Branch:** `opencode/issue199-20260830035440`
 - **Issue:** #199 (successor to #130)
-- **Status:** in-progress (D1 research complete, architectural blueprint produced)
+- **Status:** in-progress (NG-1 spatial predictor harness complete, measurement pending)
 - **Date:** 2026-08-30
 
-## D1 Research Complete
+## NG-1: Spatial Predictor Harness (P1) - COMPLETE
 
-Dr. Mob delivered the mathematical specification for the Next-Gen predictor/transform
-candidates. Key findings:
+Builder implemented the P1 JXL-style adaptive spatial predictor bank and wired it
+into the prism encode/decode pipeline per the Architect's Option A blueprint.
 
-1. **Where JXL's gap lives:** The 10.32% gap to M3 decomposes into predictor quality
-   (~0.20-0.25 bpp) and context model architecture (~0.10-0.15 bpp). The predictor
-   is the PRIMARY lever.
+### Files created/modified
 
-2. **Architectural insight:** The spatial predictor must operate BEFORE the wavelet
-   transform (on raw pixels where neighbour correlation is ~0.95+), not after (R7
-   failed because wavelet coefficients lack spatial locality).
+- **Created:** `include/prism/codec/spatial_predictor.h` - P1 API, SpatialPredType, P1Config, SpatialState
+- **Created:** `src/codec/spatial_predictor.cpp` - P1 implementation (4 sub-predictors: median, gradient, NE slope, WE slope, adaptive blending)
+- **Modified:** `include/prism/codec/wavelet_container.h` - widened residual_mode to uint16_t, added SPATIAL_P1_FLAG (bit 8), frame_wavelet_encode_nextgen() declaration
+- **Modified:** `src/codec/wavelet_container.cpp` - added frame_wavelet_encode_nextgen(), v2 container serialization, spatial predictor decode path
+- **Modified:** `src/cli/main.cpp` - added wavelet-ng and bench-ng subcommands
+- **Modified:** `CMakeLists.txt` - added spatial_predictor.cpp to prism_core
 
-3. **Four predictor candidates specified:**
-   - P1: JXL-style adaptive spatial predictor bank (median + gradient + slope)
-   - P2: Learned nonlinear MLP spatial predictor (17->64->32->1, 3,425 params baked)
-   - P3: Wavelet-domain cross-band predictor (parent + sibling, 13->32->1)
-   - P4: Attention-gated adaptive predictor (blends P1-P3 by content)
+### Pipeline
 
-4. **Recommended architecture:** Option A (spatial predictor -> wavelet -> coefficient
-   predictor -> bitplane coder). Preserves existing infrastructure, minimally invasive.
+```
+Raw pixels
+  -> Color transform (YCoCg-R)           [color.cpp] UNCHANGED
+  -> Spatial predictor P1                [spatial_predictor.cpp] NEW
+     -> R_spatial = pixel - spatial_hat
+  -> Wavelet lift (LeGall 5/3, 5 levels) [wavelet.cpp] UNCHANGED
+  -> Coefficient predictor (X6b)         [predictor.cpp] UNCHANGED
+     -> R_final = wavelet_coeff - coeff_hat
+  -> Bitplane rANS coder                 [bitplane.cpp] UNCHANGED
+  -> Container (PRSM v2)                 [container.cpp] EXTENDED
+```
 
-5. **Projections (honest ranges):**
-   - M2 (< 3.166 / < 9.498): expected to PASS with P1 or P2 alone (conservative
-     3.00-3.05 per-sample)
-   - M3 (< 2.885 / < 8.655): achievable with P2+P3 stacked or P4 alone
-     (~2.82-2.95 per-sample), ~50-60% probability
+### Container format changes
 
-6. **Pre-registered gates:** G1-G5 defined with held-out validation protocol,
-   unit discipline, byte-exact + fuzz requirements.
+- Version bumped from 1 to 2 when residual_mode uses high-byte flags
+- residual_mode widened from uint8_t to uint16_t on wire (v2 only)
+- New flag: SPATIAL_P1_FLAG = 0x100 (bit 8) - P1 adaptive spatial predictor active
+- v1 streams fully backward-compatible (version 1, uint8_t residual_mode)
 
-7. **Implementation program:** 8-9 days estimated (NG-1 through NG-8 phases).
+### Round-trip verification
 
-## Architectural Blueprint Complete
+- `prism wavelet-ng`: byte-exact roundtrip OK on kodim01/02/03 (768x512, BD8)
+- Existing test suite: 17/17 PASS (Container, R7, Predictor tests all green)
+- No regressions to existing v1/v1-wavelet paths
 
-The Architect produced the comprehensive blueprint for Option A covering:
+### Key implementation decisions
 
-1. **Module boundaries:** New `spatial_predictor.h/cpp` module with P1/P2/P4
-   implementations, extending existing `predictor.h/cpp` for P3 cross-band.
+1. **Border handling:** 0 for out-of-bounds neighbours (matches predict.h convention, NOT clamped replication)
+2. **bd_max = 65535** for color-transformed planes (YCoCg-R chroma can reach ~1023)
+3. **Combined predict+update** in single pass to avoid redundant neighbor fetches
+4. **SpatialState evolves causally** identically at encode and decode (invariant I29)
 
-2. **Wavelet integration point:** Between `apply_color()` and `wavelet.forward()`.
-   New `frame_wavelet_encode_nextgen()` function in `wavelet_container.cpp`.
+### Performance
 
-3. **Coefficient predictor stacking:** P3 (13->32->1 cross-band) alongside X6b,
-   with weighted blend via baked alpha constant.
-
-4. **Container format:** Version bump to v2, `residual_mode` widened to uint16_t
-   with new bits for spatial predictor type and cross-band flag.
-
-5. **Training pipeline:** Offline Python trainer for P2 (MSE + L2, Adam, 50 epochs),
-   baked weights exported to `.inc` files.
-
-6. **Benchmarking:** `--spatial-pred` CLI flag, bench_gate.sh extensions for G1-G5.
-
-7. **Test matrix:** Round-trip, bijection, invariant, fuzz, overhead, legacy tests.
-
-8. **Phased gates:** NG-1 through NG-8 with clear deliverables and acceptance criteria.
+- ~62s per 768x512 Kodak image (NG-1, unoptimised)
+- ~2.6s per 128x128 image
+- Dominated by X6b coefficient predictor MLP on wavelet coefficients of spatial residuals
 
 ## Next steps
 
-- Builder to scaffold NG-1: create `spatial_predictor.h/cpp`, wire P1 into pipeline
 - Phase NG-2: measure P1 on held-out images (gate G1: median <= 3.10)
+  - `prism bench-ng --kodak DIR --out results.csv`
+  - Benchmark performance on full Kodak-24 corpus
 - Phase NG-3: train P2 MLP, replace P1 if better
 - Phase NG-4: implement P3 cross-band, stack with best of P1/P2
 - Phase NG-5: full M2 measurement (gate G3)
@@ -82,4 +79,4 @@ The Architect produced the comprehensive blueprint for Option A covering:
 - X6b floor: `prism/benchmarks/results/2026-08-29-x6b-kodak24.csv`
 - Issue #199, Refs #130
 
-- the Architect
+- the Builder

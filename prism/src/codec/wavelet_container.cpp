@@ -9,6 +9,7 @@
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
 #include "prism/codec/predictor.h"
+#include "prism/codec/spatial_predictor.h"
 #include "prism/codec/bitplane_rans.h"
 #include "prism/codec/route5.h"
 #include "prism/codec/route10_mlp.h"
@@ -67,11 +68,13 @@ WaveletFilter id_to_filter(uint8_t id) {
 } // namespace
 
 std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
-                                              const WaveletHeader& hdr,
-                                              const std::vector<uint8_t>& payload) {
+                                               const WaveletHeader& hdr,
+                                               const std::vector<uint8_t>& payload) {
     std::vector<uint8_t> out;
     out.push_back('P'); out.push_back('R'); out.push_back('S'); out.push_back('M');
-    out.push_back(1); // version
+    // Version: v2 when residual_mode uses high-byte flags (Next-Gen spatial predictor)
+    uint8_t version = (hdr.residual_mode > 255) ? 2 : 1;
+    out.push_back(version);
     write_u32_le_vec(out, raster.w);
     write_u32_le_vec(out, raster.h);
     out.push_back((uint8_t)raster.bd);
@@ -88,7 +91,12 @@ std::vector<uint8_t> wavelet_container_encode(const Raster& raster,
     out.push_back(hdr.filter_id);
     out.push_back(hdr.levels);
     out.push_back(hdr.maxbits);
-    out.push_back(hdr.residual_mode);
+    // residual_mode: uint16_t for v2 (Next-Gen), uint8_t for v1 (legacy)
+    if (version >= 2) {
+        write_u16_le_vec(out, hdr.residual_mode);
+    } else {
+        out.push_back((uint8_t)hdr.residual_mode);
+    }
     write_u32_le_vec(out, hdr.total_symbols);
     write_u16_le_vec(out, hdr.subbands_per_plane);
     out.push_back(hdr.num_planes);
@@ -183,7 +191,9 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
     if (bytes.size() < 18) throw std::runtime_error("wavelet container: too short");
     if (bytes[0] != 'P' || bytes[1] != 'R' || bytes[2] != 'S' || bytes[3] != 'M')
         throw std::runtime_error("wavelet container: bad magic");
-    if (bytes[4] != 1) throw std::runtime_error("wavelet container: unsupported version");
+    uint8_t version = bytes[4];
+    if (version != 1 && version != 2)
+        throw std::runtime_error("wavelet container: unsupported version");
     size_t pos = 5;
     uint32_t w = read_u32_le_bytes(bytes.data() + pos); pos += 4;
     uint32_t h = read_u32_le_bytes(bytes.data() + pos); pos += 4;
@@ -197,7 +207,12 @@ WaveletFrame wavelet_container_decode(const std::vector<uint8_t>& bytes) {
     hdr.filter_id = bytes[pos++];
     hdr.levels = bytes[pos++];
     hdr.maxbits = bytes[pos++];
-    hdr.residual_mode = bytes[pos++];
+    // residual_mode: uint16_t for v2 (Next-Gen), uint8_t for v1 (legacy)
+    if (version >= 2) {
+        hdr.residual_mode = read_u16_le_bytes(bytes.data() + pos); pos += 2;
+    } else {
+        hdr.residual_mode = bytes[pos++];
+    }
     hdr.total_symbols = read_u32_le_bytes(bytes.data() + pos); pos += 4;
     hdr.subbands_per_plane = read_u16_le_bytes(bytes.data() + pos); pos += 2;
     hdr.num_planes = bytes[pos++];
@@ -1022,6 +1037,128 @@ std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster, WaveletFilter
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_nextgen(const Raster& raster,
+                                                   WaveletFilter filter,
+                                                   int levels, size_t& net_out) {
+    // FRAME-WAVELET-NEXTGEN (issue #199, Option A): spatial predictor (P1) ->
+    // wavelet -> coefficient predictor (X6b) -> bitplane coder.
+    //
+    // Pipeline:
+    // 1. Color transform (YCoCg-R for BD8)
+    // 2. Spatial predictor P1 on each color plane -> residual R_spatial
+    // 3. Wavelet lift on R_spatial -> subbands
+    // 4. Coefficient predictor (X6b) on subbands -> R_final
+    // 5. Bitplane coder on R_final -> payload
+    // 6. Container v2 with SPATIAL_P1_FLAG
+
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                       : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    // bd_max must cover the full range of color-transformed planes.
+    // After YCoCg-R on BD8, chroma planes reach ~1023 (bias 512 + range).
+    // Use uint16 max to be safe; the spatial predictor's weighted blend
+    // still converges to the correct prediction.
+    uint16_t bd_max = 65535;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code;
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        // Step 2: Spatial predictor P1 on color-transformed plane.
+        // R_spatial = pixel - spatial_hat (causal, adaptive bank).
+        auto spatial_res = compute_spatial_residuals(t.planes[pi], t.w, t.h, bd_max);
+
+        // Step 3: Forward wavelet lift on spatial residuals.
+        WaveletParams p{filter, levels};
+        auto subs = lift.forward(spatial_res, t.w, t.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        // Step 4: Coefficient predictor residual (X6b).
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.resize(subs[si].coeffs.size());
+        }
+        // Build topology and compute coefficient predictor residuals.
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si)
+            recon[si].assign(subs[si].coeffs.size(), 0);
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    int32_t c = subs[si].coeffs[(size_t)y * s.w + x];
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                    recon[si][(size_t)y * s.w + x] = c;
+                }
+        }
+
+        // Step 5: Bitplane code the residuals.
+        size_t plane_start = payload.size();
+        uint8_t best_code = 0;
+        {
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            std::vector<float> trial(R.size(), 1.0f);
+            for (uint8_t code = 0; code < kX6cScaleN; ++code) {
+                std::fill(trial.begin(), trial.end(), kX6cScaleTab[code]);
+                auto rt = coder.encode(R, 0, nullptr, &trial);
+                size_t nb = 0; for (auto& st : rt.streams) nb += st.size();
+                if (nb < best_bytes) { best_bytes = nb; best_code = code; }
+            }
+        }
+        std::vector<float> best_scale(R.size(), kX6cScaleTab[best_code]);
+        auto res = coder.encode(R, 0, nullptr, &best_scale);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(best_code);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    // v2: residual_mode has SPATIAL_P1_FLAG (bit 8) + RESIDUAL (bit 0)
+    hdr.residual_mode = (uint16_t)(1u | SPATIAL_P1_FLAG);
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -1217,6 +1354,15 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
             plane = lift.inverse(plane_subs, t.w, t.h, pf);
         } else {
             plane = lift.inverse(plane_subs, t.w, t.h, p);
+        }
+        // Next-Gen spatial predictor reconstruction: after inverse wavelet we
+        // have R_spatial (the spatial residuals). Rebuild the color-transformed
+        // pixels via the same P1 adaptive bank that was used on the encode side.
+        if (hdr.residual_mode & SPATIAL_P1_FLAG) {
+            uint16_t bd_max = 65535; // full uint16 range for color-transformed planes
+            auto reconstructed = reconstruct_spatial(plane, t.w, t.h, bd_max);
+            for (size_t i = 0; i < plane.size(); ++i)
+                plane[i] = (int32_t)reconstructed[i];
         }
         for (size_t i = 0; i < plane.size(); ++i)
             t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
