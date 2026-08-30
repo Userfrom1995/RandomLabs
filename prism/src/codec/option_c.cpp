@@ -280,18 +280,18 @@ std::vector<int32_t> option_c_synthesis(const std::vector<OptionCSubband>& subba
     // Process scales in reverse order (coarsest to finest)
     for (int scale = OptionCParams::NUM_SCALES; scale >= 1; --scale) {
         // Find the three detail bands for this scale
-        const OptionCSubband *hl = nullptr, *lh = nullptr, *hh = nullptr;
+        const OptionCSubband *hl = nullptr, *lh = nullptr, *hh_ptr = nullptr;
         for (auto& sb : subbands) {
             if (sb.scale == scale) {
                 switch (sb.orient) {
                     case OptionCSubband::Orient::HL: hl = &sb; break;
                     case OptionCSubband::Orient::LH: lh = &sb; break;
-                    case OptionCSubband::Orient::HH: hh = &sb; break;
+                    case OptionCSubband::Orient::HH: hh_ptr = &sb; break;
                     default: break;
                 }
             }
         }
-        if (!hl || !lh || !hh) throw std::runtime_error("OptionC: missing detail bands");
+        if (!hl || !lh || !hh_ptr) throw std::runtime_error("OptionC: missing detail bands");
 
         // Reconstruct interleaved buffer: LL at (2*ry,2*rx), HL at (2*ry,2*rx+1),
         // LH at (2*ry+1,2*rx), HH at (2*ry+1,2*rx+1)
@@ -311,7 +311,7 @@ std::vector<int32_t> option_c_synthesis(const std::vector<OptionCSubband>& subba
                 if (ry < hh)
                     full[(size_t)(2 * ry + 1) * fw + (2 * rx)] = lh->coeffs[(size_t)ry * lw + rx];
                 if (rx < hw && ry < hh)
-                    full[(size_t)(2 * ry + 1) * fw + (2 * rx + 1)] = hh->coeffs[(size_t)ry * hw + rx];
+                    full[(size_t)(2 * ry + 1) * fw + (2 * rx + 1)] = hh_ptr->coeffs[(size_t)ry * hw + rx];
             }
         }
 

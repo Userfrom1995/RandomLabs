@@ -234,7 +234,7 @@ def train_mlp(tuples, epochs=50, lr=0.001, hidden=16):
     beta1, beta2, eps_adam = 0.9, 0.999, 1e-8
 
     batch_size = 4096
-    n = len(X_n)
+    n = len(X)
     best_loss = float('inf')
 
     for epoch in range(epochs):
@@ -285,9 +285,15 @@ def train_mlp(tuples, epochs=50, lr=0.001, hidden=16):
             vW2_hat = vW2 / (1 - beta2**t_step)
             W2 -= lr * mW2_hat / (np.sqrt(vW2_hat) + eps_adam)
 
+            mb2 = beta1 * mb2 + (1 - beta1) * db2
+            vb2 = beta2 * vb2 + (1 - beta2) * db2**2
+            mb2_hat = mb2 / (1 - beta1**t_step)
+            vb2_hat = vb2 / (1 - beta2**t_step)
+            b2 -= lr * mb2_hat / (np.sqrt(vb2_hat) + eps_adam)
+
         avg_loss = epoch_loss / max(n_batches, 1)
         if epoch % 10 == 0:
-            print(f"  Epoch {epoch}: MAE={avg_loss:.6f} (y_std={y_std:.2f})")
+            print(f"  Epoch {epoch}: MAE={avg_loss:.6f}")
 
         if avg_loss < best_loss:
             best_loss = avg_loss
