@@ -1158,6 +1158,138 @@ std::vector<uint8_t> frame_wavelet_encode_nextgen(const Raster& raster,
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_route10(const Raster& raster,
+                                                   WaveletFilter filter,
+                                                   int levels, size_t& net_out) {
+    // FRAME-WAVELET-ROUTE10 (D2 corrected): spatial predictor P1 on RAW RGB
+    // BEFORE colour transform, then YCoCg-R on spatial residuals, then wavelet
+    // -> coefficient predictor (X6b) -> bitplane coder.
+    //
+    // Pipeline (R10-1 measurement: no colour transform on residuals):
+    // 1. Spatial predictor P1 on each raw RGB plane -> R_spatial (signed int32)
+    // 2. Wavelet lift on R_spatial (as u16 wrap) -> subbands
+    // 3. Coefficient predictor (X6b) -> R_final
+    // 4. Bitplane coder on R_final -> payload
+    // 5. Container v2 with SPATIAL_P1_FLAG | SPATIAL_RAW_RGB_FLAG
+    //
+    // R10-4 (future): add YCoCg-R on residuals for cross-channel decorrelation.
+
+    if (raster.num_channels() < 3) {
+        // Fallback to standard nextgen for mono/alpha-only
+        return frame_wavelet_encode_nextgen(raster, filter, levels, net_out);
+    }
+
+    // bd_max: spatial predictor operates on raw RGB, so bd_max = 255 for BD8.
+    uint16_t bd_max = (raster.bd == BitDepth::BD8) ? 255 : 65535;
+
+    WaveletLift lift;
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code;
+
+    // Step 1: Compute spatial residuals on each raw RGB plane.
+    std::vector<std::vector<int32_t>> spatial_residuals(raster.num_channels());
+    for (size_t c = 0; c < raster.num_channels(); ++c) {
+        spatial_residuals[c] = compute_spatial_residuals(raster.planes[c],
+                                                          raster.w, raster.h,
+                                                          bd_max);
+    }
+
+    // Step 2: No colour transform on residuals for R10-1 measurement.
+    // The signed int32 residuals are reinterpreted as uint16 via two's-complement
+    // wrap for the wavelet lift (lossless: the wrap is reversed on decode).
+    // Future R10-4 may add a signed-aware YCoCg-R on residuals.
+
+    size_t nch = raster.num_channels();
+    for (size_t pi = 0; pi < nch; ++pi) {
+        // Step 3: Forward wavelet lift on spatial residuals (reinterpreted as uint16).
+        WaveletParams p{filter, levels};
+        auto subs = lift.forward(spatial_residuals[pi], raster.w, raster.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        // Step 4: Coefficient predictor residual (X6b).
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.resize(subs[si].coeffs.size());
+        }
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si)
+            recon[si].assign(subs[si].coeffs.size(), 0);
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    int32_t c = subs[si].coeffs[(size_t)y * s.w + x];
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                    recon[si][(size_t)y * s.w + x] = c;
+                }
+        }
+
+        // Step 5: Bitplane code the residuals.
+        size_t plane_start = payload.size();
+        uint8_t best_code = 0;
+        {
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            std::vector<float> trial(R.size(), 1.0f);
+            for (uint8_t code = 0; code < kX6cScaleN; ++code) {
+                std::fill(trial.begin(), trial.end(), kX6cScaleTab[code]);
+                auto rt = coder.encode(R, 0, nullptr, &trial);
+                size_t nb = 0; for (auto& st : rt.streams) nb += st.size();
+                if (nb < best_bytes) { best_bytes = nb; best_code = code; }
+            }
+        }
+        std::vector<float> best_scale(R.size(), kX6cScaleTab[best_code]);
+        auto res = coder.encode(R, 0, nullptr, &best_scale);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(best_code);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    // v2: residual_mode has SPATIAL_P1_FLAG (bit 8) + SPATIAL_RAW_RGB_FLAG (bit 9) + RESIDUAL (bit 0)
+    hdr.residual_mode = (uint16_t)(1u | SPATIAL_P1_FLAG | SPATIAL_RAW_RGB_FLAG);
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)raster.num_channels();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+
+    auto out = wavelet_container_encode(raster, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -1194,6 +1326,11 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     size_t off = 0;
     uint32_t sub_idx = 0; // global subband index (forward() order)
     std::vector<std::vector<Subband>> decoded_all(nplanes); // reconstructed subbands per plane
+    // Route 10 D2: keep raw int32 wavelet inverse output (can be negative) instead
+    // of truncating to uint16_t in t.planes.
+    std::vector<std::vector<int32_t>> raw_residuals;
+    if (hdr.residual_mode & SPATIAL_RAW_RGB_FLAG)
+        raw_residuals.resize(nplanes);
     for (uint8_t pi = 0; pi < nplanes; ++pi) {
         std::vector<Subband> plane_layout;
         std::vector<std::vector<uint8_t>> plane_streams;
@@ -1357,25 +1494,37 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         // Next-Gen spatial predictor reconstruction: after inverse wavelet we
         // have R_spatial (the spatial residuals). Rebuild the color-transformed
         // pixels via the same P1 adaptive bank that was used on the encode side.
-        if (hdr.residual_mode & SPATIAL_P1_FLAG) {
+        if (hdr.residual_mode & SPATIAL_RAW_RGB_FLAG) {
+            // Route 10 D2: store the int32 wavelet inverse output directly
+            // (no truncation to uint16_t) for later spatial reconstruction.
+            raw_residuals[pi] = plane;
+        } else if (hdr.residual_mode & SPATIAL_P1_FLAG) {
             uint16_t bd_max = (t.bd == BitDepth::BD8) ? 1023 : 65535;
             auto reconstructed = reconstruct_spatial(plane, t.w, t.h, bd_max);
-            for (size_t i = 0; i < plane.size(); ++i)
-                plane[i] = (int32_t)reconstructed[i];
-        }
-        // Store the color-transformed integer coefficients verbatim (biased/
-        // signed); reinterpreted as signed 16-bit by invert_color, so do NOT
-        // clamp here (that would corrupt chroma and signed ACs).
-        for (size_t i = 0; i < plane.size(); ++i) {
-            t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
+            for (size_t i = 0; i < plane.size(); ++i) {
+                t.planes[pi][i] = (uint16_t)reconstructed[i];
+            }
+        } else {
+            // Store the color-transformed integer coefficients verbatim (biased/
+            // signed); reinterpreted as signed 16-bit by invert_color, so do NOT
+            // clamp here (that would corrupt chroma and signed ACs).
+            for (size_t i = 0; i < plane.size(); ++i) {
+                t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
+            }
         }
     }
-    // Inverse YCoCg-R only when it was actually applied on the encode side (the
-    // stored color_transform byte). For BD16 the encode path skips the color
-    // transform (None) because YCoCg-R overflows u16, so there is nothing to
-    // invert here. The cast is (int) (not int16_t) so BD8 biased components in
-    // 257..767 are widened unsigned rather than sign-extended.
-    if (t.bd == BitDepth::BD8 && t.num_channels() >= 3) {
+    // Route 10 D2: after all planes decoded, spatial reconstruct each
+    // raw RGB channel independently (no colour transform was applied on residuals).
+    if (hdr.residual_mode & SPATIAL_RAW_RGB_FLAG) {
+        // Spatial reconstruction on each raw RGB channel (bd_max = 255).
+        // The inverse wavelet output IS the spatial residual (no colour transform).
+        uint16_t bd_max = (t.bd == BitDepth::BD8) ? 255 : 65535;
+        for (size_t c = 0; c < t.num_channels(); ++c) {
+            auto reconstructed = reconstruct_spatial(raw_residuals[c], t.w, t.h, bd_max);
+            for (size_t i = 0; i < reconstructed.size(); ++i)
+                t.planes[c][i] = (uint16_t)reconstructed[i];
+        }
+    } else if (t.bd == BitDepth::BD8 && t.num_channels() >= 3 && !(hdr.residual_mode & SPATIAL_P1_FLAG)) {
         int mask = (t.bd == BitDepth::BD8) ? 0xFF : 0xFFFF;
         int bias = (t.bd == BitDepth::BD8) ? 512 : 32768;
         size_t n = t.num_pixels();

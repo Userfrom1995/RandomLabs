@@ -12,6 +12,11 @@ dist/
 *.egg-info/
 *.o
 
+# prism build artifacts - never commit
+prism/build-debug/
+prism/build/
+prism/cmake-build-*/
+
 # Generated audio
 *.wav
 
