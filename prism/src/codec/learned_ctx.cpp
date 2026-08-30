@@ -86,6 +86,12 @@ void learned_set_blend(float v) { g_blend = v; }
 float learned_pseudo() { return g_pseudo; }
 void learned_set_pseudo(float v) { g_pseudo = v; }
 
+// R9 predict overload. INTENTIONAL: returns a PURE EMA with no MLP prior (see
+// the documentation note on LearnedModel::predict(f, r) in learned_ctx.h). R9
+// isolates the context-granularity effect (coarse 1024-leaf tree cluster vs the
+// fine 1.84M-entry MLP-blended EMA), so the overload deliberately drops the MLP
+// blend that the fine-context path uses. The diagnosis below is read against
+// that known design choice, not as blended-vs-blended.
 uint16_t LearnedModel::predict(const LCFeat& f, const R6DRaw& r) const {
     if (g_r9_tree_ema) {
         int leaf = r9_leaf_id(r, (int)R6D_K);
