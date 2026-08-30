@@ -5464,6 +5464,7 @@ int main(int argc, char* argv[]) {
                 else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
                 else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
                 else if (a == "--residual") residual = true;
+                else if (a == "--r10-mlp") filter_id = X_FILTER_ID_LEARNED_MLP;
                 else if (a == "--r9-tree") learned_set_r9_tree_ema(true);
 
             }
@@ -5494,6 +5495,7 @@ int main(int argc, char* argv[]) {
             if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
             else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
             else if (filter_id == X_FILTER_ID_LEARNED) filter = WaveletFilter::Learned;
+            else if (filter_id == X_FILTER_ID_LEARNED_MLP) filter = WaveletFilter::LearnedMLP;
             std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
             if (!outcsv.empty()) cf << "image,wnet,wpayload,spayload,"
                                        "bpp_wavelet_net_per_sample,bpp_wavelet_summed,"

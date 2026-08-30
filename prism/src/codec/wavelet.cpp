@@ -7,6 +7,7 @@
 // this module lives entirely behind the WAVELET_FLAG (bit7) dispatch.
 
 #include "prism/codec/wavelet.h"
+#include "prism/codec/route10_mlp.h"
 #include <algorithm>
 #include <cstdlib>
 #include <random>
@@ -284,6 +285,7 @@ void lift1d(const std::vector<int32_t>& src, std::vector<int32_t>& out,
         case WaveletFilter::LeGall53: forward_53(even, odd, oe, oo); break;
         case WaveletFilter::Reversible97: forward_97(even, odd, oe, oo); break;
         case WaveletFilter::Learned: forward_learned(even, odd, oe, oo); break;
+        case WaveletFilter::LearnedMLP: forward_learned_mlp(even, odd, oe, oo); break;
     }
     // Merge: even slots hold low outputs, odd slots hold high outputs.
     out.resize(oe.size() + oo.size());
@@ -300,6 +302,7 @@ void unlift1d(const std::vector<int32_t>& merged, std::vector<int32_t>& out,
         case WaveletFilter::LeGall53: inverse_53(even, odd, out); return;
         case WaveletFilter::Reversible97: inverse_97(even, odd, out); return;
         case WaveletFilter::Learned: inverse_learned(even, odd, out); return;
+        case WaveletFilter::LearnedMLP: inverse_learned_mlp(even, odd, out); return;
     }
 }
 

@@ -20,13 +20,15 @@ enum class WaveletFilter : uint8_t {
     Haar = 0,        // Baseline control (low compaction)
     LeGall53 = 1,    // PRIMARY: J2K lossless standard, best balance
     Reversible97 = 2, // Sweep candidate (best compaction, higher rounding cost)
-    Learned = 3     // Route 8: learned nonlinear lifting (baked context LUT)
+    Learned = 3,    // Route 8: learned nonlinear lifting (baked context LUT)
+    LearnedMLP = 4  // Route 10: learned nonlinear MLP predict (baked int16 weights)
 };
 
 constexpr int X_FILTER_ID_HAAR = 0;
 constexpr int X_FILTER_ID_53 = 1;
 constexpr int X_FILTER_ID_97 = 2;
 constexpr int X_FILTER_ID_LEARNED = 3;
+constexpr int X_FILTER_ID_LEARNED_MLP = 4;
 constexpr WaveletFilter X_DEFAULT_FILTER = WaveletFilter::LeGall53;
 constexpr int X_DEFAULT_LEVELS = 5;
 
