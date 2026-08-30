@@ -25,7 +25,8 @@ constexpr uint16_t R7B_FLAG = 64; // R7-B: per-level adaptive wavelet filter sel
 constexpr uint16_t R7_FREE_BIT = 128; // bit 7: last free v1 bit
 // Next-Gen flags (high byte, v2 only)
 constexpr uint16_t SPATIAL_P1_FLAG = 0x100; // bit 8: P1 adaptive spatial predictor active
-constexpr uint16_t SPATIAL_TYPE_MASK = 0x100; // bits 8: spatial predictor type (only P1 defined; bit 9 reserved for P2/P4)
+constexpr uint16_t SPATIAL_RGB_FLAG = 0x200; // bit 9: Route 10 - spatial predictor on raw RGB BEFORE color transform
+constexpr uint16_t SPATIAL_TYPE_MASK = 0x300; // bits 8-9: spatial predictor type mask
 // Assert uniqueness so a reused bit fails to compile.
 static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u)) == 0, "R7A_FLAG collides");
 static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u)) == 0, "R7B_FLAG collides");
@@ -201,6 +202,17 @@ std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster,
 // from the wavelet coefficients. Container version bumped to v2; residual_mode
 // widened to uint16_t carrying SPATIAL_P1_FLAG.
 std::vector<uint8_t> frame_wavelet_encode_nextgen(const Raster& raster,
+                                                   WaveletFilter filter,
+                                                   int levels, size_t& net_out);
+
+// FRAME-WAVELET-ROUTE10 (issue #198, Route 10 D2): corrected pipeline reorder.
+// Spatial predictor (P1 adaptive bank) operates on RAW RGB BEFORE color
+// transform, then YCoCg-R decorrelates the spatial residuals (which have
+// lower dynamic range than raw pixels), then wavelet + coefficient predictor +
+// bitplane coder. The key insight: operating spatial prediction on raw RGB
+// (0..255 range, ~0.95+ correlation) produces smaller residuals than on
+// YCoCg-R planes (0..1023 range). SPATIAL_RGB_FLAG (bit 9) set.
+std::vector<uint8_t> frame_wavelet_encode_route10(const Raster& raster,
                                                    WaveletFilter filter,
                                                    int levels, size_t& net_out);
 
