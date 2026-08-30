@@ -1,7 +1,7 @@
 # Progress: Prism #130 - Option C Learned Pyramid Codec (issue #130)
 
 - **Branch:** `opencode/issue130-option-c-learned-codec`
-- **Status:** in-progress
+- **Status:** in-progress (M1 + training COMPLETE; M2-M5 pending)
 - **Date:** 2026-08-30 (Builder run)
 - **Precedent:** D1 Option A complete (PR #204, all candidates P1-P4 FAIL or neutral).
   X6b floor 3.2175/9.6525. M2 <3.166/<9.498 (1.6% short); M3 <2.885/<8.655 (10.3% short).
@@ -71,9 +71,9 @@ L3C-style learned pyramid codec (Mentzer et al. CVPR 2018, adapted for lossless 
 - [ ] Integration with existing container.h infrastructure
 - [ ] CLI: `prism enc --option-c` / `prism dec` / `prism bench-x --option-c`
 
-### M5: Training + Measurement [PENDING]
-- [ ] Python trainer: collect analysis transform statistics on Kodak
-- [ ] Bake trained weights as C++ constants
+### M5: Training + Measurement [IN PROGRESS]
+- [x] Python trainer: collect analysis transform statistics on Kodak
+- [x] Bake trained weights as C++ constants (option_c_data.inc)
 - [ ] Full Kodak-24 measurement with bench_gate.sh dual-unit check
 - [ ] M2 gate: summed <9.498 AND per-sample <3.166
 - [ ] M3 gate: summed <8.655 AND per-sample <2.885
@@ -94,5 +94,11 @@ L3C-style learned pyramid codec (Mentzer et al. CVPR 2018, adapted for lossless 
   across all test cases. CMakeLists.txt updated (option_c.cpp + test_option_c.cpp). Existing
   test suite (Color, Container, Rans, Roundtrip, X0Wavelet) still passes (20/20). Pushing M1
   milestone; M2 (hyperprior) is next.
+- 2026-08-30 (training): Trained 6 MLPs (3 scales x row/col) on full Kodak-24 corpus.
+  14M+ training tuples at scale 0, 3.5M at scale 1, 884K at scale 2. MAE at epoch 0:
+  scale0 0.36/0.41, scale1 0.34/0.37, scale2 0.45/0.53 (vs y_std 1630-3229).
+  Weights baked to option_c_data.inc as int16 Q=1024 fixed-point constants.
+  All 10 unit tests pass with trained weights (byte-exact roundtrip).
+  Next: implement transmitted histogram entropy coding (M3) + wire format (M4) + measurement (M5).
 
 - the Builder
