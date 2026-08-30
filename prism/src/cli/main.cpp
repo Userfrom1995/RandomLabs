@@ -5785,7 +5785,7 @@ int main(int argc, char* argv[]) {
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
 
-            static constexpr int LF_RUNTIME = 13, LH1 = 32, LH2 = 16; // must match learned_ctx.cpp
+            static constexpr int LF_RUNTIME = 15, LH1 = 64, LH2 = 32; // R6-A: 15 features, 64/32 hidden
 
             WaveletFilter filter = WaveletFilter::LeGall53;
             int levels = X_DEFAULT_LEVELS;
@@ -5805,10 +5805,7 @@ int main(int argc, char* argv[]) {
                 for (auto& pl : t.planes) {
                     std::vector<int32_t> plane(pl.begin(), pl.end());
                     auto subs = lift.forward(plane, t.w, t.h, wp);
-                    for (auto& s : subs) {
-                        std::vector<Subband> one{s};
-                        coder.collect_samples(one, samples);
-                    }
+                    coder.collect_samples(subs, samples);
                 }
                 // subsample to keep memory bounded
                 if (stride > 1 && (samples.size() % (size_t)stride) == 0) {
@@ -5828,7 +5825,7 @@ int main(int argc, char* argv[]) {
             if (samples.empty()) { std::cerr << "train-learned: no samples\n"; return 2; }
 
 
-            // Normalise a feature vector (must match learned_ctx.cpp's LF=13).
+            // Normalise a feature vector (must match learned_ctx.cpp's LF=15).
             constexpr int FF = LF_RUNTIME; // alias for backward compat
             auto norm = [](const LCFeat& f, float x[]) {
                 x[0] = f.symtype / 2.0f;
@@ -5844,6 +5841,8 @@ int main(int argc, char* argv[]) {
                 x[10] = f.lc_mag / 7.0f;
                 x[11] = f.lc_sig ? 1.0f : 0.0f;
                 x[12] = f.level / 5.0f;
+                x[13] = f.sib_mag / 7.0f;
+                x[14] = f.pplag / 7.0f;
             };
 
             // 2-hidden-layer MLP: LF_RUNTIME -> LH1 -> LH2 -> 1 (matches learned_ctx.cpp)
