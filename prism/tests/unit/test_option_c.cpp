@@ -200,5 +200,102 @@ TEST(OptionCTransform, ConstantPlaneRoundtrip) {
     }
 }
 
+// Test 11: Full frame encode/decode roundtrip (small GRAY image).
+TEST(OptionCFrame, SmallImageRoundtrip) {
+    Raster raster(16, 16, Channels::GRAY, BitDepth::BD8);
+    uint32_t state = 42;
+    for (size_t i = 0; i < raster.planes[0].size(); ++i) {
+        state = state * 1103515245 + 12345;
+        raster.planes[0][i] = (uint16_t)((state >> 16) & 0xFF);
+    }
+
+    size_t net_out = 0;
+    auto encoded = frame_option_c_encode(raster, net_out);
+    EXPECT_GT(net_out, 0u);
+
+    auto decoded = frame_option_c_decode(encoded);
+    EXPECT_EQ(decoded.w, raster.w);
+    EXPECT_EQ(decoded.h, raster.h);
+    EXPECT_EQ(decoded.planes[0].size(), raster.planes[0].size());
+
+    for (size_t i = 0; i < raster.planes[0].size(); ++i) {
+        EXPECT_EQ(decoded.planes[0][i], raster.planes[0][i])
+            << "mismatch at index " << i;
+    }
+}
+
+// Test 15: Full frame roundtrip with larger random data (128x128).
+TEST(OptionCFrame, LargerRandomRoundtrip) {
+    Raster raster(128, 128, Channels::GRAY, BitDepth::BD8);
+    uint32_t state = 12345;
+    for (size_t i = 0; i < raster.planes[0].size(); ++i) {
+        state = state * 1103515245 + 12345;
+        raster.planes[0][i] = (uint16_t)((state >> 16) & 0xFF);
+    }
+
+    size_t net_out = 0;
+    auto encoded = frame_option_c_encode(raster, net_out);
+    EXPECT_GT(net_out, 0u);
+
+    auto decoded = frame_option_c_decode(encoded);
+    EXPECT_EQ(decoded.w, raster.w);
+    EXPECT_EQ(decoded.h, raster.h);
+
+    for (size_t i = 0; i < raster.planes[0].size(); ++i) {
+        EXPECT_EQ(decoded.planes[0][i], raster.planes[0][i])
+            << "mismatch at index " << i;
+    }
+}
+
+// Test 16: Full frame roundtrip with RGB data (32x32).
+TEST(OptionCFrame, RGBRoundtrip) {
+    Raster raster(32, 32, Channels::RGB, BitDepth::BD8);
+    uint32_t state = 99999;
+    for (size_t c = 0; c < 3; ++c) {
+        for (size_t i = 0; i < raster.planes[c].size(); ++i) {
+            state = state * 1103515245 + 12345;
+            raster.planes[c][i] = (uint16_t)((state >> 16) & 0xFF);
+        }
+    }
+
+    size_t net_out = 0;
+    auto encoded = frame_option_c_encode(raster, net_out);
+    EXPECT_GT(net_out, 0u);
+
+    auto decoded = frame_option_c_decode(encoded);
+    EXPECT_EQ(decoded.w, raster.w);
+    EXPECT_EQ(decoded.h, raster.h);
+
+    for (size_t c = 0; c < 3; ++c) {
+        for (size_t i = 0; i < raster.planes[c].size(); ++i) {
+            EXPECT_EQ(decoded.planes[c][i], raster.planes[c][i])
+                << "channel " << c << " mismatch at index " << i;
+        }
+    }
+}
+
+// Test 17: Full frame roundtrip with Kodak-sized random data (768x512).
+TEST(OptionCFrame, KodakSizeRoundtrip) {
+    Raster raster(768, 512, Channels::GRAY, BitDepth::BD8);
+    uint32_t state = 42;
+    for (size_t i = 0; i < raster.planes[0].size(); ++i) {
+        state = state * 1103515245 + 12345;
+        raster.planes[0][i] = (uint16_t)((state >> 16) & 0xFF);
+    }
+
+    size_t net_out = 0;
+    auto encoded = frame_option_c_encode(raster, net_out);
+    EXPECT_GT(net_out, 0u);
+
+    auto decoded = frame_option_c_decode(encoded);
+    EXPECT_EQ(decoded.w, raster.w);
+    EXPECT_EQ(decoded.h, raster.h);
+
+    for (size_t i = 0; i < raster.planes[0].size(); ++i) {
+        EXPECT_EQ(decoded.planes[0][i], raster.planes[0][i])
+            << "mismatch at index " << i;
+    }
+}
+
 } // namespace
 } // namespace prism::codec

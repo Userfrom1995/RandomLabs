@@ -20,6 +20,7 @@
 #include "prism/codec/learned_ctx.h"
 #include "prism/codec/route5.h"
 #include "prism/codec/predictor.h"
+#include "prism/codec/option_c.h"
 
 #include "prism/bitstream.h"
 #include <iostream>
@@ -4516,6 +4517,7 @@ int main(int argc, char* argv[]) {
             int r2_t_esc = 8;
             uint16_t num_clusters = 32;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
+            bool use_option_c = false;
             for (int i=4;i<argc;++i){
                 std::string a=argv[i];
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
@@ -4528,18 +4530,30 @@ int main(int argc, char* argv[]) {
                 else if (a=="--h" && i+1<argc) h=(uint32_t)std::stoul(argv[++i]);
                 else if (a=="--bd" && i+1<argc) bd=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--ch" && i+1<argc) ch=(uint8_t)std::stoi(argv[++i]);
+                else if (a=="--option-c") use_option_c = true;
             }
             Raster r = load_raster(in,w,h,bd,ch);
-            EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3; opts.r3_num_clusters=num_clusters;
-            opts.use_r1_adaptive=use_r1_adaptive; opts.r1_num_clusters=num_clusters;
-            opts.use_r2_hybrid=use_r2_hybrid; opts.r2_t_esc=r2_t_esc;
-            auto bytes = encode(r, opts);
+            std::vector<uint8_t> bytes;
+            if (use_option_c) {
+                size_t net = 0;
+                bytes = frame_option_c_encode(r, net);
+                std::cout << "encoded (option-c) " << r.w << "x" << r.h
+                          << " ch=" << (int)r.num_channels()
+                          << " bd=" << (int)bd
+                          << " -> " << bytes.size() << " bytes ("
+                          << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
+            } else {
+                EncodeOpts opts; opts.effort=effort; opts.use_r3=use_r3; opts.r3_num_clusters=num_clusters;
+                opts.use_r1_adaptive=use_r1_adaptive; opts.r1_num_clusters=num_clusters;
+                opts.use_r2_hybrid=use_r2_hybrid; opts.r2_t_esc=r2_t_esc;
+                bytes = encode(r, opts);
+                std::cout << "encoded " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                          << " bd=" << (int)bd << " effort=" << (int)effort
+                          << (use_r2_hybrid ? " r2-hybrid" : (use_r1_adaptive ? " r1-adaptive" : (use_r3 ? " r3" : "")))
+                          << " -> " << bytes.size() << " bytes ("
+                          << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
+            }
             write_file(out, bytes);
-            std::cout << "encoded " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
-                      << " bd=" << (int)bd << " effort=" << (int)effort
-                      << (use_r2_hybrid ? " r2-hybrid" : (use_r1_adaptive ? " r1-adaptive" : (use_r3 ? " r3" : "")))
-                      << " -> " << bytes.size() << " bytes ("
-                      << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
         } else if (cmd == "dec") {
             if (argc < 4) { print_usage(); return 2; }
             std::filesystem::path in = argv[2];
@@ -4549,10 +4563,14 @@ int main(int argc, char* argv[]) {
             // route them to the beyond-predictive frame decoder (the v1
             // production model is left untouched).
             Raster r;
-            if (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG))
-                r = frame_wavelet_decode(bytes);
-            else
+            if (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG)) {
+                if (bytes.size() > 18 && bytes[18] == 10)
+                    r = frame_option_c_decode(bytes);
+                else
+                    r = frame_wavelet_decode(bytes);
+            } else {
                 r = decode(bytes);
+            }
             frontend::write_ppm(out, r);
             std::cout << "decoded " << r.w << "x" << r.h << " -> " << out << "\n";
         } else if (cmd == "info") {
@@ -5560,6 +5578,7 @@ int main(int argc, char* argv[]) {
             double x6a_ps = 3.25548;    // X6a linear-predictor baseline (X6b beats this)
             float blend_override = -1.0f;
             bool residual = false;
+            bool option_c = false;
 
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
@@ -5573,6 +5592,7 @@ int main(int argc, char* argv[]) {
                 else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
                 else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
                 else if (a == "--residual") residual = true;
+                else if (a == "--option-c") option_c = true;
                 else if (a == "--r10-mlp") filter_id = X_FILTER_ID_LEARNED_MLP;
                 else if (a == "--r9-tree") learned_set_r9_tree_ema(true);
 
@@ -5616,7 +5636,10 @@ int main(int argc, char* argv[]) {
                 size_t net = 0;
                 size_t wpayload = 0;
                 uint8_t mb = 0;
-                if (residual) {
+                if (option_c) {
+                    auto obytes = frame_option_c_encode(r, net);
+                    wpayload = obytes.size();
+                } else if (residual) {
                     auto wbytes = frame_wavelet_encode_residual(r, filter, levels, net);
                     wpayload = wbytes.size();
                 } else {
