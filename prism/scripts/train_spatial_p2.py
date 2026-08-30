@@ -7,11 +7,10 @@ from its causal neighbours. The 17-feature input vector is:
   [R_W, G_W, B_W, R_N, G_N, B_N, R_NW, G_NW, B_NW, R_NE, G_NE, B_NE,
    R_WW, G_WW, B_WW, x_norm, y_norm]
 
-where W/N/NW/NE/WW are the causal neighbours and x_norm = x/w, y_norm = y/h.
+where W/N/NW/NE/WW are the causal neighbours and x_norm = x*1024/w, y_norm = y*1024/h (Q10 fixed-point).
 
 Architecture: 17 -> 16 -> 8 -> 1, ReLU hidden, linear output.
-The same MLP weights are shared across R, G, B channels (the spatial
-statistics are channel-independent at the neighbourhood level).
+One MLP per channel (shared 17->16->8->1 architecture, separate weights per R/G/B).
 
 Training target: the raw pixel value (0..255). Loss: MSE + L2 regularization.
 
@@ -64,8 +63,8 @@ def extract_features(rgb, w, h, x, y):
       6-8:  R/G/B at NW (x-1, y-1)
       9-11: R/G/B at NE (x+1, y-1)
       12-14: R/G/B at WW (x-2, y)
-      15: x / width  (position normalised)
-      16: y / height (position normalised)
+      15: x * 1024 / width  (Q10 position, matches C++)
+      16: y * 1024 / height (Q10 position, matches C++)
     """
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
     feat = np.zeros(NF, dtype=np.float64)
@@ -89,9 +88,9 @@ def extract_features(rgb, w, h, x, y):
     feat[12] = get_pixel(r, w, h, x-2, y)
     feat[13] = get_pixel(g, w, h, x-2, y)
     feat[14] = get_pixel(b, w, h, x-2, y)
-    # Position
-    feat[15] = x / max(w, 1)
-    feat[16] = y / max(h, 1)
+    # Position (Q10 scale to match C++ p2_extract_features)
+    feat[15] = x * 1024.0 / max(w, 1)
+    feat[16] = y * 1024.0 / max(h, 1)
     return feat
 
 # ---------------------------------------------------------------------------
@@ -139,10 +138,10 @@ def collect_dataset_vectorized(kodak_dir, per_image_cap=10000):
         rWW = np.zeros((H, W), dtype=np.float64); rWW[:, 2:] = r[:, :-2].astype(np.float64)
         gWW = np.zeros((H, W), dtype=np.float64); gWW[:, 2:] = g[:, :-2].astype(np.float64)
         bWW = np.zeros((H, W), dtype=np.float64); bWW[:, 2:] = b[:, :-2].astype(np.float64)
-        # Position
+        # Position (Q10 scale to match C++ p2_extract_features)
         yy, xx = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
-        xnorm = xx.astype(np.float64) / max(W, 1)
-        ynorm = yy.astype(np.float64) / max(H, 1)
+        xnorm = xx.astype(np.float64) * 1024.0 / max(W, 1)
+        ynorm = yy.astype(np.float64) * 1024.0 / max(H, 1)
         # Stack features: (H, W, NF)
         feat = np.stack([rW, gW, bW, rN, gN, bN, rNW, gNW, bNW,
                          rNE, gNE, bNE, rWW, gWW, bWW, xnorm, ynorm], axis=-1)
@@ -244,7 +243,6 @@ def train(X, Y, epochs=40, batch=16384, lr=0.002, l2=1e-4):
                 ga2 = np.outer(grad_out, mlp.W3)
                 ga2[z2 <= 0] = 0.0
                 # dW2, db2
-                gW2 = ga2.T @ xbatch  # Note: wrong shape, need a1 not xbatch
                 gW2 = ga2.T @ a1
                 gb2 = ga2.sum(axis=0)
                 # da1
