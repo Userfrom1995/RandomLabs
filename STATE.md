@@ -1,75 +1,75 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-30T06:07Z, maintainer run 33296110075 (merged PR #201 at dcb1006, chaining NG-3 P2 MLP on #130)
- - **Action this run:** MERGED PR #201 ccdec68 -> dcb1006 via `gh pr merge --rebase` (Reviewer approve 05:43:17Z + Tester approve-test 06:05:24Z, 5/5 fix verified, 24/24 byte-exact, 228/228 fuzz clean, G1 FAIL 3.71 honest, Refs #199/Refs #130 CLEAN NOT orphan); Dispatched `build` on issue 130 for NG-3 P2 MLP incremental
- - **Main:** `dcb100619769abf920a79061df1c125401a4f3e1` verified live `git ls-remote origin/main` == dcb1006 (merge PR #201 at 06:07:23Z, parent c73b97f, 12 files: D1 spec 669 + architect 544 + NG-1/NG-2 + Fixer F1-F5 + CSV, merge-base c73b97f NOT orphan), `gh pr list --state open --json number` == [202,186,181] (3 open, 201 MERGED removed), `gh issue view 130 --json state` == OPEN, `gh issue view 199 --json state` == CLOSED (premature lab Fixes #199 at c73b97f, work now on main dcb1006 + next build on #130), `gh issue view 200 --json state` == OPEN
- - **Branch retention:** opencode/issue199-20260830035440 at ccdec68 MERGED retained at dcb1006 (research+architect+NG-1+NG-2+fix, 12 files, branch still at ccdec68 ancestor of dcb1006), opencode/issue130-20260830050013 at 7f49294 CLEAN but now 4 commits behind dcb1006 (stray P1 bd_max 65535, 3.74 bpp, superseded), opencode/issue130-20260829211143 at 4561ff3 CONFLICTING DIRTY (Route7 retained), opencode/issue130-20260829181522 at a910175 CONFLICTING (R6-C retained) per #148
+ - **Updated:** 2026-08-30T06:35Z, maintainer run 33297253614 (PR #204 D1 Option A complete ledger, Option C escalation)
+ - **Action this run:** Review PR #204 head a5dddd0 + Research dispatch on #130 for Option C (learned pyramid / L3C) per D1 spec section 10 fallback; Anti-Surrender no-pause escalation
+ - **Main:** `dcb100619769abf920a79061df1c125401a4f3e1` verified live `git ls-remote origin/main` == dcb1006 (merge PR #201 at 06:07:23Z, parent c73b97f, 12 files: D1 spec + architect + NG-1/NG-2 + Fixer F1-F5 + CSV, merge-base c73b97f NOT orphan), `gh pr list --state open --json number` == [204,203,202,186,181] (5 open, 201 MERGED, 204 CLEAN new)
+ - **Branch retention:** opencode/issue199-20260830035440 at ccdec68 MERGED retained at dcb1006, opencode/issue130-20260830070000 at a5dddd0 CLEAN NOT orphan (D1 Option A complete ledger), opencode/issue130-20260830053938 at e9a43d3 DIRTY CONFLICTING (P2 3.244 superseded), opencode/issue130-20260830050013 at 7f49294 DIRTY CONFLICTING (P1 3.74 superseded), opencode/issue130-20260829211143 at 4561ff3 CONFLICTING DIRTY (Route7 retained), opencode/issue130-20260829181522 at a910175 CONFLICTING (R6-C retained) per #148
 
 ## STANDING OWNER DIRECTIVES (active)
-- **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Hephaestus succeeds Mae. Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt/cancel a gated project. Autonomous multi-path exploration with no-pause.
+- **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Hephaestus succeeds Mae. Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt/cancel a gated project. Autonomous multi-path exploration with no-pause. **Applied this run: Builder "requires owner authorization" for Option C REJECTED - autonomous research dispatch without pause.**
 - **EXOTIC BEYOND-PREDICTIVE (2026-08-28T06:24:38Z directive on #130):** Owner orders Option 2 - learned neural context models / integer wavelet lifting with bitplane ANS coding. ACTIVE, ledger families now CLOSED via fair-quad a299e99 + filter2/effort closures at 379758e (EMA ceiling proven, context-model and filter families exhausted)
 - **PRISM CASCADE 3->1->2 (2026-08-27):** FAILED AND MERGED. R1 +194% 26d51c4, R2 11/11 f43e646
 - **RETAIN-BRANCHES (#148):** branches retained
-- **BINDING TARGET (dual-unit):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. No merge until M2 AND M3 pass both units. Milestones merge with `Refs #130` / `Refs #199` until gates pass. Honest floor: X6b 3.2175/9.6525 wall confirmed, single-pipeline + filter COMPLETE, Next-Gen via PR 201 D1+Option A+NG-1+NG-2+fix MERGED at dcb1006 (G1 FAIL 3.71/11.14 +15.4% honest, fixed bd_max 1023 vs stray 65535), gates G1-G5 pre-registered (G1 FAIL at 3.57 >3.10 -> now fixed dcb1006 awaiting NG-3), next NG-3 P2 MLP (17->64->32->1, 3425 params) dispatched
+- **BINDING TARGET (dual-unit):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. No merge until M2 AND M3 pass both units. Milestones merge with `Refs #130` / `Refs #199` until gates pass. Honest floor: X6b 3.2175/9.6525 wall confirmed, single-pipeline + filter + Next-Gen Option A COMPLETE (P1 +15.4% FAIL, P2 neutral FAIL, P3 in X6b, P4 neutral), D1 Option A FAILED, Option C learned pyramid is fallback per D1 section 10
 - **MODEL PINS (dcb1006, LIVE):** mimo-v2.5-free / muse-spark-1.2-contributor-free - hy3-free dead 4x failure on #199 FIXED by lab 33291049943 (opencode.json 1: mimo-v2.5-free, opencode.yml 76,217,463,858: mimo-v2.5-free, small_model muse-spark retained), verified via `git ls-remote origin/main` == dcb1006
 
 ## MERGE CAPABILITY (verified this run)
-- main = `dcb1006` (merge PR #201 Next-Gen at 06:07:23Z, parent c73b97f, Refs #199/Refs #130, 12 files, 6 commits rebased) LIVE, `git ls-remote origin/main` == dcb1006, merge-base c73b97f NOT orphan, `git log --oneline origin/main -1` == fixer: remove duplicate wavelet copy loop...
-- PR #201 at ccdec68 MERGED at dcb1006 (research D1 669 + architect 544 + builder NG-1 53c57e6 + NG-2 CSV + fix 24464c1/dcb1006 5 findings, Refs #199/Refs #130, branch retained at ccdec68 ancestor of dcb1006, CLEAN before merge)
-- PR #202 at 7f49294 OPEN UNKNOWN (stray P1 bd_max 65535, 3.74/11.22 FAIL M2, body Closes #130 -> Refs, 4 commits behind dcb1006, superseded duplicate, will be closed after NG-3 review)
+- main = `dcb1006` (merge PR #201 Next-Gen at 06:07:23Z, parent c73b97f, Refs #199/Refs #130, 12 files) LIVE, `git ls-remote origin/main` == dcb1006, merge-base c73b97f NOT orphan
+- PR #204 at a5dddd0 OPEN MERGEABLE CLEAN NOT orphan merge-base dcb1006 (D1 Option A complete ledger, 91 lines progress, Refs #130, docs-only) - REVIEW DISPATCHED this run
+- PR #203 at e9a43d3 OPEN CONFLICTING DIRTY (P2 3.244 FAIL, Closes violation -> Refs, superseded by 204 ledger, retain per #148, no merge)
+- PR #202 at 7f49294 OPEN CONFLICTING DIRTY (P1 3.74 FAIL, Closes violation -> Refs, superseded by 204/dcb1006, retain per #148, no merge)
 - PR #186 at 4561ff3 OPEN CONFLICTING DIRTY superseded duplicate (retained per #148)
 - PR #181 at a910175 OPEN CONFLICTING stale (retained per #148)
-- **INFRA LIVE:** opencode.yml 4x mimo-v2.5-free LIVE, opencode.json mimo-v2.5-free LIVE, small_model muse-spark valid free retained per Two-Knob policy, Fixer 33294926199 + Reviewer 33295247315 + Tester 33295316363 successes confirm model health at dcb1006, no lab needed
+- **INFRA LIVE:** opencode.yml 4x mimo-v2.5-free LIVE, opencode.json mimo-v2.5-free LIVE, small_model muse-spark valid free retained per Two-Knob policy, no lab needed
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **X0..R10 + verified ceiling + ledger + fair-quad + ceiling re-confirms + filter2/effort + lab fix + Next-Gen D1/Option A/NG-1/NG-2+fix MERGED LIVE:** dcb1006 live
-- **3 open PRs:** 202 7f49294 UNKNOWN stray P1 3.74 bpp superseded + 186 4561ff3 DIRTY duplicate (retained) + 181 a910175 stale (retained per #148)
-- **Recently merged:** dcb1006 merge PR #201 (Refs #199/Refs #130, 12 files, 06:07:23Z, Reviewer+Tester approved, honest G1 FAIL preserved) + c73b97f lab fix (Fixes #199 premature)
-- **Issue #130 OPEN:** gating, 2 archival PRs 186/181 + stray 202 superseded, gates PENDING, X6b honest floor 3.2175/9.6525, Next-Gen NG-2 G1 FAIL 3.713/11.139 (+15.4% vs X6b) -> fixed at dcb1006 (bd_max 1023, slope NW), next NG-3 P2 MLP dispatched on #130 (17->64->32->1)
-- **Successor issues:** #199 CLOSED (Prism Next-Gen D1+Option A NG-1/NG-2+fix now MERGED at dcb1006, Refs tracking), #201 MERGED PR (active Next-Gen work now on main dcb1006 + stray 202 superseded), #202 OPEN PR (stray P1 duplicate, body Closes #130 violation, Refs needed, superseded), #198 OPEN duplicate Route10 fallback, #200 OPEN audit duplicate (lab fixed c73b97f, confirm health at dcb1006, can be closed after NG-3)
-- **Infra anomaly:** NONE - mimo-v2.5-free healthy (Builder+Fixer+Reviewer+Tester successes at dcb1006), no emergency needed, Lab Engineer 33294795100 inspected no infra scope
+- **X0..R10 + verified ceiling + ledger + fair-quad + ceiling re-confirms + filter2/effort + lab fix + Next-Gen D1/Option A/NG-1/NG-2+fix + P2 MLP + Option A complete MERGED/PENDING:** dcb1006 live, P1/P2 measured FAIL, ledger complete
+- **5 open PRs:** 204 a5dddd0 CLEAN (ledger, review dispatched) + 203 e9a43d3 DIRTY P2 superseded + 202 7f49294 DIRTY P1 superseded + 186 4561ff3 DIRTY + 181 a910175 stale (all retained per #148)
+- **Recently merged:** dcb1006 merge PR #201 (Refs #199/Refs #130, 12 files, 06:07:23Z, Reviewer+Tester approved, honest G1 FAIL preserved)
+- **Issue #130 OPEN:** gating, 4 archival PRs 186/181 + 202/203 superseded + 204 ledger pending review, gates PENDING (M2 +1.6% M3 +10.3%), single-pipeline ceiling proven 3.2175, Option C research dispatched this run
+- **Successor issues:** #199 CLOSED (D1+Option A now on main), #198 OPEN duplicate Route10 fallback, #200 OPEN audit duplicate (lab fixed, can be closed after Option C research)
+- **Infra anomaly:** NONE - mimo-v2.5-free healthy, no emergency needed
 
 ## IN FLIGHT
-- **PR #201 - MERGED** (Next-Gen D1 predictor/transform, branch opencode/issue199-20260830035440 at ccdec68 -> main dcb1006, 12 files, MERGED at 06:07:23Z, NOT orphan, Refs #199/Refs #130, D1 spec + Option A blueprint + NG-1 P1 harness + NG-2 G1 FAIL CSV + Fixer 5 findings landed, Reviewer approve 05:43:17Z + Tester approve-test 06:05:24Z, honest G1 FAIL preserved, branch retained per #148)
-- **PR #202 - OPEN** (Stray P1, branch opencode/issue130-20260830050013 at 7f49294, UNKNOWN (behind dcb1006 by 4 commits, base c73b97f), Closes #130 -> must be Refs #130, bd_max 65535 vs spec 1023 incorrect, 3.74 bpp FAIL M2/M3, superseded by dcb1006, awaiting triage/close after NG-3)
-- **Issue #130 - OPEN** (Prism M2/M3, X6b ceiling 3.2175/9.6525, Next-Gen NG-2 G1 FAIL +15.4% -> fixed at dcb1006, dispatching NG-3 P2 MLP build on #130)
-- **Issue #199 - CLOSED** (Prism Next-Gen from-scratch, prematurely closed via lab `Fixes #199` at c73b97f, work MERGED at dcb1006, next work via issue 130)
-- **Issue #198 - OPEN** (Prism Route 10 duplicate successor, fallback open tracking, Refs #130)
-- **Issue #200 - OPEN** (Audit duplicate of #199 model dead, lab-health, fix verified dcb1006, can be closed as audit record after NG-3)
-- **Open PRs:** 3 - PR #202 7f49294 UNKNOWN stray superseded + PR #186 4561ff3 DIRTY + PR #181 a910175 stale (both retained per #148)
-- **Research:** COMPLETED on #199/PR #201 via 33291107234 + Dr. Mob spec (predictor BEFORE wavelet, P1-P4 candidates, Option A recommended, honest projections 3.00-3.05 challenged by 3.71 FAIL honest)
-- **Architect:** COMPLETED on #199/PR #201 via 33291574182 at 04:06:54Z (Option A blueprint 544 lines, spatial_predictor.h/cpp NG-1..NG-8, container v2 uint16_t, gates G1-G5) + builder NG-3/P4 plan queued via this build on #130
-- **Builder:** NG-1 COMPLETE via 33291930515 at 53c57e6; NG-2 COMPLETE via 33293133559 at ce712b2 (G1 FAIL 3.713/11.139 +15.4%); Fixer COMPLETE via 33294926199 at dcb1006 (5 fixes, 228/228); stray 202 at 7f49294 3.74 bpp (also FAIL, bd_max 65535 variant, superseded); NEXT NG-3 P2 MLP dispatched via build on #130 this run
-- **Review/Test:** PR #201 review APPROVE at 05:43:17Z 33295247315 (5/5 fix verified) -> Tester PASS at 06:05:24Z 33295316363 (build PASS, 44/44+heavy, fuzz PASS, byte-exact 6 cases, v1/v2 + CRC PASS) -> MERGED at dcb1006; PR #202 review continue (honest incomplete P1, needs NG-3, superseded)
+- **PR #204 - REVIEW DISPATCHED** (D1 Option A complete ledger, branch opencode/issue130-20260830070000 at a5dddd0, 1 file 91 lines progress, MERGEABLE CLEAN NOT orphan merge-base dcb1006, Refs #130, diagnosis spatial predictor neutral, recommendation Option C per D1 section 10, review head a5dddd0 dispatched this run)
+- **PR #203 - OPEN DIRTY** (P2 MLP 3.244 FAIL +0.8% vs X6b, branch opencode/issue130-20260830053938 at e9a43d3, CONFLICTING DIRTY after dcb1006, Closes #130 -> must be Refs #130, superseded by 204 ledger, no merge, retain per #148)
+- **PR #202 - OPEN DIRTY** (P1 3.74 FAIL +15.4%, branch opencode/issue130-20260830050013 at 7f49294, CONFLICTING DIRTY, Closes violation -> Refs, bd_max 65535 vs 1023 superseded by dcb1006 fix, retain per #148, no merge)
+- **Issue #130 - RESEARCH DISPATCHED** (Prism M2/M3, X6b floor 3.2175/9.6525, D1 Option A FAILED P1/P2, negative ledger complete across all single-pipeline mechanism classes, Option C learned pyramid / L3C dispatched via research on #130 this run)
+- **Issue #199 - CLOSED** (D1+Option A work MERGED at dcb1006)
+- **Open PRs:** 5 - PR #204 CLEAN + PR #203/#202 DIRTY superseded + PR #186 DIRTY + PR #181 stale (retained per #148)
+- **Research:** COMPLETED on #199/PR #201 (D1 spec Option A, P1-P4) -> FAILED at 3.74/3.244; NEW Research dispatched on #130 for Option C learned pyramid (neural transform, hyperprior, transmitted histograms, new wire format)
+- **Architect:** COMPLETED on #199/PR #201 (Option A blueprint 544 lines) -> next Architect will blueprint Option C after Researcher spec lands
+- **Builder:** NG-1/NG-2 COMPLETE (G1 FAIL 3.71/3.74), P2 MLP COMPLETE 33295157281 at e9a43d3 (3.244 FAIL), PR #204 ledger COMPLETE via 33297223760 at a5dddd0, opencode build 33297247708 in_progress on #130 at 06:35:34Z (respected guard, no duplicate)
+- **Review/Test:** PR #201 merged (Reviewer+Tester PASS at dcb1006); PR #204 review dispatched at a5dddd0 this run (no Tester until review approve); PR #203/#202 review superseded by ledger
 
 ## PIPELINE POSITION
-Honest closure 3d76bdb -> cascade 3->1->2 failed/merged -> hy3-free -> X0..X6b floor 3.2175/9.6525 -> ledger + fair-quad + ceiling re-confirms + filter2/effort 379758e ceiling proven -> 4x hy3-free Model not found BLOCKED research on #199 (cap hit 03:45:34Z) -> lab dispatch 33290996432 -> lab success 33291049943 + push c73b97f mimo-v2.5-free (Fixes #199 premature) -> research RE-DISPATCHED 33291107234 -> Dr. Mob D1 spec PR #201 at a2b2edb (Refs #199/Refs #130, 669 lines) -> Architect 33291574182 success 04:06:54Z -> blueprint 544 lines Option A at 99514f9 -> NG-1 success 33291930515 at 53c57e6 -> NG-2 33293133559 -> NG-2 G1 FAIL ce712b2 (3.713 +15.4%) -> Reviewer 33294754013 FIX 5 findings -> Fixer 33294926199 ccdec68/dcb1006 (5 fixes) -> Reviewer approve 33295247315 at 05:43:17Z -> Tester PASS 33295316363 at 06:05:24Z -> MERGED at dcb1006 06:07:23Z Refs #199/Refs #130 -> this maintainer chains Builder build on #130 for NG-3 P2 MLP (17->64->32->1).
+Honest closure 3d76bdb -> cascade 3->1->2 failed -> X0..X6b floor 3.2175 -> ledger + fair-quad + filter2/effort proven -> lab fix c73b97f mimo-v2.5-free -> D1 research+architect PR #201 at dcb1006 (Option A, NG-1/NG-2 G1 FAIL 3.71) -> NG-3 P2 MLP via PR #203 3.244 FAIL neutral + PR #204 ledger 91 lines (all 4 D1 candidates measured: P1 FAIL +15%, P2 FAIL neutral, P3 in X6b, P4 neutral, single-pipeline design space exhausted) -> this maintainer review 204 + research Option C (learned pyramid, D1 section 10 fallback, no-pause escalation).
 
 ## NEXT-RUN PLAYBOOK
-1. Await Builder NG-3 P2 MLP (17->64->32->1, 3425 params, baked weights, training pipeline) on #130 - measure G1 median <=3.10 via `prism bench-ng --kodak` both-units, 24/24 byte-exact, fuzz clean, durable CSV. If G1 FAIL again, escalate to NG-4 P3 cross-band (13->32->1 parent+sibling after wavelet, more promising per R7 +14.5% spatial-before-wavelet flaw) or Researcher exotic redesign.
-2. Triage stray PR #202 7f49294 (P1 3.74/11.22, bd_max 65535 incorrect, Closes violation) as superseded duplicate of dcb1006 (bd_max 1023 correct) - close after NG-3 review or reconcile if needed, do NOT merge (gates FAIL, duplicate).
-3. Verify gates G1-G5 honestly post-fix: G1 median <=3.10, held-out 4-way, NET <=0.02 bpp, byte-exact 24/24, fuzz clean, durable CSV. Do NOT merge NG-3 until gate honesty verified and Reviewer+Tester approve.
-4. Close #200 audit as resolved after NG-3 (lab fixed dcb1006 healthy, mimo-v2.5-free verified).
-5. Verify pages deploys for dcb1006 + previews for 202/186/181 remain staged with retention per #148; if pages failed for new main or heads, `gh workflow run pages.yml`.
-6. Stale PRs #181/#186 remain CONFLICTING archival per #148; no takeover until 3-day evaluation. Brainstorm #42 FROZEN until M2/M3 pass, no Ideator. Monitor opencode runs - if Builder hangs >3h evaluate via lab timeout-minutes.
+1. Await Reviewer verdict on PR #204 head a5dddd0 (docs-only ledger, 91 lines) - expect approve (Refs #130 honest, not orphan, no em-dash), then Tester PASS, then merge as Refs #130 (keep #130 OPEN).
+2. Await Researcher spec on #130 for Option C (learned pyramid / L3C): neural analysis/synthesis replacing LeGall 5/3, hyperprior <=0.02bpp budget, transmitted histograms primary, baked weights zero-bytes, byte-exact invertibility, training corpus (Kodak + larger), honest projections 2.80-2.90 to clear M3 vs X6b 3.2175.
+3. After Researcher lands PR, dispatch Architect on #130 to blueprint Option C phased milestones with pre-registered gates (G1..Gn) and VB rails (RESIDUAL-ROUNDTRIP, PREDICTOR-DETERMINISM, NET-AUDIT, byte-exact).
+4. Respect in-progress opencode 33297247708 on #130 (build at 06:35:34Z) - do not duplicate build until it completes or 3-day evaluation triggers; next Builder will implement Option C after Architect blueprint.
+5. Triage PRs #202/#203 as superseded DIRTY duplicates after PR #204 merges - close or retain per #148, never merge (gates FAIL, Closes violation).
+6. Verify pages deploys for dcb1006 + previews for 204/203/202/186/181 remain staged with retention per #148; if pages failed, `gh workflow run pages.yml`.
 
 ## ISSUES
-- **#130** - OPEN - Prism M2/M3 continuation (2 archival PRs 181/186 + stray 202 superseded, Next-Gen NG-2 G1 FAIL -> fixed at dcb1006, NG-3 P2 MLP queued via build on #130)
-- **#199** - CLOSED - Prism Next-Gen from-scratch (prematurely closed via lab Fixes #199 at c73b97f, work MERGED at dcb1006, Refs tracking via #130)
-- **#201** - MERGED - PR #201 Next-Gen D1+blueprint+NG-1+NG-2+fix (head ccdec68 -> dcb1006, branch opencode/issue199-20260830035440, MERGED at 06:07:23Z, Refs #199/Refs #130, 5 fixes)
-- **#202** - OPEN - PR #202 Stray P1 3.74 bpp (head 7f49294, branch opencode/issue130-20260830050013, now behind dcb1006 by 4 commits, body Closes #130 violation -> Refs, bd_max 65535 vs 1023 incorrect, superseded)
-- **#200** - OPEN - Audit duplicate of #199 model dead (lab-health, fix verified dcb1006 mimo-v2.5-free, can be closed after NG-3)
+- **#130** - OPEN - Prism M2/M3 continuation (4 archival PRs 186/181 + 202/203 superseded + 204 ledger review dispatched, D1 Option A FAILED, Option C research dispatched)
+- **#199** - CLOSED - D1+Option A (merged at dcb1006)
+- **#204** - OPEN - PR #204 D1 Option A complete ledger (head a5dddd0 CLEAN NOT orphan, Refs #130, 91 lines, review dispatched at a5dddd0)
+- **#203** - OPEN - PR #203 P2 3.244 FAIL (head e9a43d3 DIRTY CONFLICTING, Refs needed, superseded by 204)
+- **#202** - OPEN - PR #202 P1 3.74 FAIL (head 7f49294 DIRTY CONFLICTING, Refs needed, superseded by dcb1006/204)
 - **#198** - OPEN - Prism Route 10 duplicate successor (fallback open, Refs #130)
-- **dcb1006** - MERGED - merge PR #201 (Refs #199/Refs #130, 12 files, 06:07:23Z, Reviewer+Tester approved, honest G1 FAIL preserved, gates G1-G5 next)
-- **c73b97f** - MERGED - lab: switch dead hy3-free -> mimo-v2.5-free (Fixes #199 premature, 2 files)
+- **#200** - OPEN - Audit duplicate model dead (lab fixed, can be closed after Option C research)
+- **dcb1006** - MERGED - merge PR #201 (Refs #199/Refs #130, 12 files, 06:07:23Z)
+- **c73b97f** - MERGED - lab fix mimo-v2.5-free (Fixes #199 premature, 2 files)
 - **#70** - Lab Health & Audit Logs (associative, audit #200 filed, lab fixed)
 - **#42** - Brainstorm Board FROZEN (await M2/M3 pass, no Ideator dispatches)
 
 ## OPEN QUESTIONS
-- Will Builder NG-3 P2 MLP (17->64->32->1, 3425 baked params) beat G1 <=3.10 (-16.5% needed from 3.71) or also fail proving spatial_before_wavelet flawed, requiring P3 cross-band after wavelet?
-- Will stray PR #202 be closed as superseded after NG-3 lands, or does its bd_max 65535 vs 1023 divergence need separate reconciliation?
-- Will P3 cross-band (13->32->1) + P4 attention-gated blend close 10.32% gap to M3 (2.885/8.655) or will Researcher exotic redesign (neural context / integer wavelet lifting) be required?
-- Will #199 need explicit reopen for visibility, or pipeline via CLOSED #199 + OPEN #130 + merged dcb1006 suffice?
-- Will #200 audit be closed as resolved after NG-3 verifies mimo health at dcb1006?
+- Will Reviewer approve PR #204 a5dddd0 ledger (honest FAIL, Refs correct, no code) and Tester PASS docs-only?
+- Will Researcher spec a viable Option C learned pyramid (neural transform + hyperprior + ANS) that convincingly projects <2.885 to clear M3 within 0.02bpp NET and byte-exact invertibility?
+- Will in-progress build 33297247708 complete before Researcher lands, or need reconciliation with Option C spec?
+- Will Architect blueprint translate Option C into buildable phases with honest pre-registered gates closing +1.6% to M2 and +10.3% to M3?
 
  - Hephaestus, the Maintainer
-<!-- run: 33296110075 -->
+<!-- run: 33297253614 -->
