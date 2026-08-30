@@ -62,9 +62,9 @@ void learned_set_r9_tree_ema(bool v) { g_r9_tree_ema = v; }
 
 
 namespace {
-constexpr int LF = 13;  // input features (X5a adds lc_mag + lc_sig; X3b fix adds level)
-constexpr int LH1 = 32; // first hidden layer width (X3b: deeper/wider)
-constexpr int LH2 = 16; // second hidden layer width
+constexpr int LF = 15;  // R6-A: 13 base + sib_mag (F13) + pplag (F14)
+constexpr int LH1 = 64; // R6-A: wider first hidden layer
+constexpr int LH2 = 32; // R6-A: wider second hidden layer
 
 // Baked by `prism train-learned`. Default (pre-training) values are neutral.
 #include "learned_ctx_data.inc"
@@ -134,12 +134,11 @@ void learned_norm(const LCFeat& f, float out[LF]) {
     out[9] = f.ppos / 7.0f;
     out[10] = f.lc_mag / 7.0f;
     out[11] = f.lc_sig ? 1.0f : 0.0f;
-    // X3b fix (F1): the wavelet decomposition level was previously only used by
-    // the online EMA (fine_ctx -> FB_LEVEL). Exposing it to the MLP prior lets the
-    // network specialise its magnitude prior per level (e.g. HL@L1 vs HL@L5 have
-    // very different magnitude distributions) instead of relying solely on the EMA
-    // to separate them. Normalised to 0..1 (level 0..5).
     out[12] = f.level / 5.0f;
+    // R6-A F7: sibling-orientation magnitude (HL<->LH correlation).
+    out[13] = f.sib_mag / 7.0f;
+    // R6-A F8: parent-child bitplane lag (autocorrelation).
+    out[14] = f.pplag / 7.0f;
 }
 
 float learned_predict_p1(const LCFeat& f) {

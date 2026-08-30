@@ -48,6 +48,15 @@ struct LCFeat {
     // without fragmenting the per-context EMA. Luma subbands set both to 0.
     uint8_t lc_mag = 0;      // |luma coeff| at co-located position, log2-quantised 0..7
     uint8_t lc_sig = 0;      // luma coefficient already significant (0/1)
+    // R6-A: sibling-orientation magnitude (HL<->LH correlation).
+    // For orient 1 (LH): max log2-magnitude of co-positioned HL neighbour at the
+    // same bitplane position. For orient 2 (HL): same but LH. For 0/3: 0.
+    uint8_t sib_mag = 0;
+    // R6-A: parent-child bitplane lag (autocorrelation).
+    // ppos delta from the parent's last-significant bitplane to the current ppos.
+    // 0 = parent just became significant at this bitplane; higher = parent was
+    // significant earlier. Clamped 0..7.
+    uint8_t pplag = 0;
 };
 
 // Build the feature vector from the scalar walk state. This is the single source
@@ -56,7 +65,8 @@ struct LCFeat {
 inline LCFeat make_lcfeat(uint8_t symtype, uint8_t orient, uint8_t parent_sig,
                            uint8_t fc, uint8_t dg, uint8_t nmag, uint8_t pmag,
                            uint8_t ownmag, uint8_t ppos, uint8_t level,
-                           uint8_t lc_mag = 0, uint8_t lc_sig = 0) {
+                           uint8_t lc_mag = 0, uint8_t lc_sig = 0,
+                           uint8_t sib_mag = 0, uint8_t pplag = 0) {
     LCFeat f;
     f.symtype = symtype;
     f.orient = orient;
@@ -71,6 +81,8 @@ inline LCFeat make_lcfeat(uint8_t symtype, uint8_t orient, uint8_t parent_sig,
     f.level = level;
     f.lc_mag = lc_mag;
     f.lc_sig = lc_sig;
+    f.sib_mag = sib_mag;
+    f.pplag = pplag;
     return f;
 }
 
@@ -90,7 +102,7 @@ uint16_t learned_predict_p0(const LCFeat& f);
 // so the offline trainer (main.cpp) and the baked inference (learned_ctx.cpp)
 // can never drift apart and break encode/decode symmetry. The array must hold
 // LF floats (currently 13: X3a base 10 + X5a lc_mag/lc_sig + X3b level).
-void learned_norm(const LCFeat& f, float out[13]);
+void learned_norm(const LCFeat& f, float out[15]);
 
 // Runtime blend weight between the learned prior and the online EMA. 0 = pure
 // EMA (pre-training safe), 1 = pure learned. Initialised from the baked LBlend

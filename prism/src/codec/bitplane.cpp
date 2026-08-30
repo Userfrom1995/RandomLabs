@@ -301,7 +301,26 @@ void neighbor_counts(const std::vector<uint8_t>& sig, int w, int h, int x, int y
     if (at(x + 1, y + 1)) ++dg;
 }
 
-// Compute the X3a learned features for the symbol at (x, y) on bitplane p within
+// R6-A: Build a mapping from subband index to its sibling subband index.
+// Siblings are LH(1)<->HL(2) at the same level. LL(0) and HH(3) have no sibling (-1).
+std::vector<int> build_sibling_map(const std::vector<Subband>& subbands) {
+    size_t NS = subbands.size();
+    std::vector<int> sibling(NS, -1);
+    for (size_t i = 0; i < NS; ++i) {
+        for (size_t j = i + 1; j < NS; ++j) {
+            if (subbands[i].level == subbands[j].level) {
+                int oi = (int)subbands[i].orient, oj = (int)subbands[j].orient;
+                if ((oi == 1 && oj == 2) || (oi == 2 && oj == 1)) {
+                    sibling[i] = (int)j;
+                    sibling[j] = (int)i;
+                }
+            }
+        }
+    }
+    return sibling;
+}
+
+// Compute the learned features for the symbol at (x, y) on bitplane p within
 // subband `si`. `sig`/`mag` are the single-subband significance and RUNNING
 // reconstructed-magnitude maps (already-coded coefficients only). `pmag` (when
 // non-null) is the parent subband's magnitude map. `lmag`/`lsig` (when non-null)
@@ -309,12 +328,17 @@ void neighbor_counts(const std::vector<uint8_t>& sig, int w, int h, int x, int y
 // component context); indexed by the SAME oi as the subband being coded.
 // Identical between encoder and decoder because both maintain `mag`/`sig` from
 // the same already-coded state.
+//
+// R6-A: two new features (sibling-orientation magnitude, parent bitplane lag)
+// appended after the base 13.
 void learned_features(const std::vector<uint8_t>& sig,
                       const std::vector<int32_t>& mag,
                       const std::vector<int32_t>* pmag, int pw, int ph,
                       const std::vector<int32_t>* lmag,
                       int w, int h, int x, int y, int p, int symtype,
-                      int level, LCFeat& f) {
+                      int level, LCFeat& f,
+                      const std::vector<int32_t>* sib_mag = nullptr,
+                      int parent_topbit = -1) {
     int nm = 0;
     auto nmag_at = [&](int nx, int ny) {
         if (nx >= 0 && nx < w && ny >= 0 && ny < h && sig[(size_t)ny * w + nx])
@@ -334,9 +358,21 @@ void learned_features(const std::vector<uint8_t>& sig,
     uint8_t ownmag = 0;
     if (symtype == 1) ownmag = (uint8_t)std::min(7, p);                   // sign: msb == p
     else if (symtype == 2) ownmag = (uint8_t)mag_bucket(mag[(size_t)y * w + x]); // refine
+    // R6-A F7: sibling-orientation magnitude (HL<->LH correlation).
+    uint8_t sib_m = 0;
+    if (sib_mag) {
+        int sx = x, sy = y;
+        if (sx >= 0 && sx < w && sy >= 0 && sy < h && sig[(size_t)sy * w + sx])
+            sib_m = (uint8_t)mag_bucket((*sib_mag)[(size_t)sy * w + sx]);
+    }
+    // R6-A F8: parent-child bitplane lag (autocorrelation).
+    uint8_t pplag = 0;
+    if (parent_topbit >= 0 && parent_topbit > p)
+        pplag = (uint8_t)std::min(7, parent_topbit - p);
+
     f = make_lcfeat((uint8_t)symtype, 0, 0, 0, 0, nmag, pmag_b, ownmag, (uint8_t)std::min(7, p),
                     (uint8_t)std::min(5, level), (uint8_t)mag_bucket(lm),
-                    (uint8_t)(ls ? 1 : 0));
+                    (uint8_t)(ls ? 1 : 0), sib_m, pplag);
 }
 
 } // namespace
@@ -375,6 +411,7 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);
+    auto sibling = build_sibling_map(subbands);
     size_t NS = subbands.size();
 
     // Per-subband bitplane range (EBCOT-style): each subband keeps its own B so
@@ -441,6 +478,8 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0;
         int ph = (pidx >= 0) ? subbands[pidx].h : 0;
+        int sib_idx = sibling[oi];
+        const std::vector<int32_t>* sib_mag_ptr = (sib_idx >= 0) ? &curmag[sib_idx] : nullptr;
         std::vector<uint8_t> bits;
         std::vector<uint16_t> p0;
         bits.reserve(n * (size_t)B + n);
@@ -449,31 +488,34 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
             for (size_t ci = 0; ci < n; ++ci) {
                 int x = (int)(ci % w), y = (int)(ci / w);
                 bool parent_sig = false;
+                int ptb = -1;
                 if (pidx >= 0) {
                     int pcx = x >> 1, pcy = y >> 1;
-                    if (pcx < pw && pcy < ph)
+                    if (pcx < pw && pcy < ph) {
                         parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                        ptb = topbit[pidx][(size_t)pcy * pw + pcx];
+                    }
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
                     uint8_t bit = becomes ? 1 : 0;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f, sib_mag_ptr, ptb);
                      f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
                      R6DRaw _r = make_r6d_raw(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, (int)s.orient, s.level, parent_sig, fc, dg);
                      p0.push_back(scale_p0(model.predict(f, _r), sc)); bits.push_back(bit); model.update(f, _r, bit);
                      if (becomes) {
                         uint8_t sg = sgn[oi][ci];
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs, sib_mag_ptr, ptb);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
                         R6DRaw _r = make_r6d_raw(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, (int)s.orient, s.level, parent_sig, fc, dg);
                         p0.push_back(scale_p0(model.predict(fs, _r), sc)); bits.push_back(sg); model.update(fs, _r, sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
-                    }
+                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f, sib_mag_ptr, ptb);
                      f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
                      R6DRaw _r = make_r6d_raw(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, (int)s.orient, s.level, parent_sig, fc, dg);
                      p0.push_back(scale_p0(model.predict(f, _r), sc)); bits.push_back(bit); model.update(f, _r, bit);
@@ -502,6 +544,7 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
     int ml = 0;
     auto order = coding_order(layout, ml);
     auto parent = build_parent_map(layout, ml);
+    auto sibling = build_sibling_map(layout);
     size_t NS = layout.size();
 
     std::vector<Subband> out = layout;
@@ -525,34 +568,39 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
         int w = s.w, h = s.h;
         int pidx = parent[oi];
         int pw = (pidx >= 0) ? layout[pidx].w : 0, ph = (pidx >= 0) ? layout[pidx].h : 0;
+        int si_idx = sibling[oi];
+        const std::vector<int32_t>* sib_val_ptr = (si_idx >= 0) ? &value[si_idx] : nullptr;
         int B = sub_maxbits[oi];
         BitplaneRans::Decoder d; d.init(streams[oi]);
         for (int p = B - 1; p >= 0; --p) {
             for (size_t ci = 0; ci < s.coeffs.size(); ++ci) {
                 int x = (int)(ci % w), y = (int)(ci / w);
                 bool parent_sig = false;
+                int ptb = -1;
                 if (pidx >= 0) {
                     int pcx = x >> 1, pcy = y >> 1;
-                    if (pcx < pw && pcy < ph)
+                    if (pcx < pw && pcy < ph) {
                         parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                        ptb = (value[pidx][(size_t)pcy * pw + pcx] != 0) ? floor_log2((uint32_t)std::abs(value[pidx][(size_t)pcy * pw + pcx])) : -1;
+                    }
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
                 if (sig[oi][ci] == 0) {
-                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f, sib_val_ptr, ptb);
                      f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
                      R6DRaw _r = make_r6d_raw(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, (int)s.orient, s.level, parent_sig, fc, dg);
                      uint8_t bit = d.decode_symbol(scale_p0(model.predict(f, _r), sc)); model.update(f, _r, bit); ++idx;
                      if (bit) {
-                        LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs, sib_val_ptr, ptb);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
                         R6DRaw _r = make_r6d_raw(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, (int)s.orient, s.level, parent_sig, fc, dg);
                         uint8_t sg = d.decode_symbol(scale_p0(model.predict(fs, _r), sc)); model.update(fs, _r, sg); ++idx;
                         sig[oi][ci] = 1; signv[oi][ci] = sg ? -1 : 1;
                         value[oi][ci] = (int32_t)(1 << p);
-                    }
+                     }
                 } else {
-                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f, sib_val_ptr, ptb);
                      f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
                      R6DRaw _r = make_r6d_raw(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, (int)s.orient, s.level, parent_sig, fc, dg);
                      uint8_t rb = d.decode_symbol(scale_p0(model.predict(f, _r), sc)); model.update(f, _r, rb); ++idx;
@@ -580,6 +628,7 @@ BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbit
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);
+    auto sibling = build_sibling_map(subbands);
     size_t NS = subbands.size();
 
     // Per-subband bitplane range, mirroring encode()/decode() (F2): previously a
@@ -620,33 +669,39 @@ BitplaneCoder::generate_symbols(const std::vector<Subband>& subbands, int maxbit
         float sc = (sub_scale && oi < sub_scale->size()) ? (*sub_scale)[oi] : 1.0f;
         int w = s.w, h = s.h; int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0, ph = (pidx >= 0) ? subbands[pidx].h : 0;
+        int si_idx = sibling[oi];
+        const std::vector<int32_t>* sib_mag_ptr = (si_idx >= 0) ? &curmag[si_idx] : nullptr;
         int B = sub_maxbits[oi];
         for (int p = B - 1; p >= 0; --p) {
             for (size_t ci = 0; ci < s.coeffs.size(); ++ci) {
                 int x = (int)(ci % w), y = (int)(ci / w);
                 bool parent_sig = false;
+                int ptb = -1;
                 if (pidx >= 0) {
                     int pcx = x >> 1, pcy = y >> 1;
-                    if (pcx < pw && pcy < ph) parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                    if (pcx < pw && pcy < ph) {
+                        parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                        ptb = topbit[pidx][(size_t)pcy * pw + pcx];
+                    }
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
                     uint8_t bit = becomes ? 1 : 0;
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f, sib_mag_ptr, ptb);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc=(uint8_t)fc; f.dg=(uint8_t)dg;
                     p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
                     if (becomes) {
                         uint8_t sg = sgn[oi][ci];
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs, sib_mag_ptr, ptb);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc=(uint8_t)fc; fs.dg=(uint8_t)dg;
                         p0.push_back(scale_p0(model.predict(fs), sc)); bits.push_back(sg); model.update(fs, sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f, sib_mag_ptr, ptb);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc=(uint8_t)fc; f.dg=(uint8_t)dg;
                     p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
@@ -674,12 +729,8 @@ void BitplaneCoder::collect_samples(const std::vector<Subband>& subbands,
     int ml = 0;
     auto order = coding_order(subbands, ml);
     auto parent = build_parent_map(subbands, ml);
+    auto sibling = build_sibling_map(subbands);
     size_t NS = subbands.size();
-
-    // Per-subband bitplane range, mirroring encode()/decode() exactly so the
-    // training distribution matches the inference walk (F2: previously a single
-    // global B forced tiny AC bands to emit wasted all-zero significance planes
-    // that encode/decode never produce). Indexed by original subband index oi.
     std::vector<uint8_t> sub_maxbits(NS, 0);
     for (size_t oi = 0; oi < NS; ++oi) {
         int B = 1;
@@ -716,31 +767,37 @@ void BitplaneCoder::collect_samples(const std::vector<Subband>& subbands,
         int w = s.w, h = s.h; int pidx = parent[oi];
         int pw = (pidx >= 0) ? subbands[pidx].w : 0, ph = (pidx >= 0) ? subbands[pidx].h : 0;
         int B = sub_maxbits[oi];
+        int sib_idx = sibling[oi];
+        const std::vector<int32_t>* sib_mag_ptr = (sib_idx >= 0) ? &curmag[sib_idx] : nullptr;
         for (int p = B - 1; p >= 0; --p) {
             for (int ci = 0; ci < (int)s.coeffs.size(); ++ci) {
                 int x = ci % w, y = ci / w;
                 bool parent_sig = false;
+                int ptb = -1;
                 if (pidx >= 0) {
                     int pcx = x >> 1, pcy = y >> 1;
-                    if (pcx < pw && pcy < ph) parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                    if (pcx < pw && pcy < ph) {
+                        parent_sig = sig[pidx][(size_t)pcy * pw + pcx] != 0;
+                        ptb = topbit[pidx][(size_t)pcy * pw + pcx];
+                    }
                 }
                 int fc = 0, dg = 0;
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
                 uint32_t base = context_id(s.orient, parent_sig, fc, dg);
                 if (sig[oi][ci] == 0) {
                     bool becomes = (topbit[oi][ci] == p);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f, sib_mag_ptr, ptb);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc=(uint8_t)fc; f.dg=(uint8_t)dg;
                     out.push_back({f, becomes ? 1 : 0, coarse_ctx(base, 0)});
                     if (becomes) {
-                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
+                        LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs, sib_mag_ptr, ptb);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc=(uint8_t)fc; fs.dg=(uint8_t)dg;
                         out.push_back({fs, sgn[oi][ci], coarse_ctx(base, 1)});
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
-                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
+                    LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f, sib_mag_ptr, ptb);
                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc=(uint8_t)fc; f.dg=(uint8_t)dg;
                     out.push_back({f, bit, coarse_ctx(base, 2)});
                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
