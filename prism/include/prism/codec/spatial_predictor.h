@@ -10,6 +10,7 @@ namespace prism::codec {
 enum class SpatialPredType : uint8_t {
     NONE = 0,    // No spatial predictor (legacy X6b path)
     P1 = 1,      // JXL-style adaptive bank (median + gradient + slope)
+    P2 = 2,      // Learned MLP (17->64->32->1, baked weights)
 };
 
 // Configuration for P1 (JXL-style adaptive bank).
@@ -55,5 +56,23 @@ std::vector<uint16_t> reconstruct_spatial(const std::vector<int32_t>& residuals,
                                           uint32_t w, uint32_t h,
                                           uint16_t bd_max,
                                           const P1Config& cfg = P1Config());
+
+// --- P2: Learned MLP spatial predictor (17->64->32->1, baked weights) ---
+
+// Predict pixel at (x,y) using the P2 MLP. No mutable state needed (pure
+// function of causal neighbours + baked weights). Returns predicted value
+// clamped to [0, bd_max].
+int32_t spatial_predict_p2(const uint16_t* plane, uint32_t w, uint32_t h,
+                           uint32_t x, uint32_t y, uint16_t bd_max);
+
+// Compute full P2 spatial residual plane (raster scan order).
+std::vector<int32_t> compute_spatial_residuals_p2(const std::vector<uint16_t>& plane,
+                                                   uint32_t w, uint32_t h,
+                                                   uint16_t bd_max);
+
+// Reconstruct from P2 spatial residuals (decoder mirror).
+std::vector<uint16_t> reconstruct_spatial_p2(const std::vector<int32_t>& residuals,
+                                              uint32_t w, uint32_t h,
+                                              uint16_t bd_max);
 
 } // namespace prism::codec

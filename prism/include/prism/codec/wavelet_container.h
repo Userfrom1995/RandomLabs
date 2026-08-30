@@ -23,19 +23,16 @@ constexpr uint8_t R6D_FLAG = 16; // R6-D: true JXL-Modular property tree with pe
 constexpr uint8_t R7A_FLAG = 32; // R7-A: in-subband MED/gradient value predictor (residual path)
 constexpr uint8_t R7B_FLAG = 64; // R7-B: per-level adaptive wavelet filter selection
 constexpr uint8_t P1_FLAG = 128; // P1: spatial predictor (JXL-style adaptive bank) BEFORE wavelet
-// residual_mode is a uint8_t (8 bits). All 8 bits now claimed:
-// 1 (RESIDUAL) | 2 (ROUTE5) | 4 (R6B) | 8 (R6C) | 16 (R6D) | 32 (R7A) | 64 (R7B) | 128 (P1) = 255.
-// The NEXT extension requires widening residual_mode to uint16_t. Assert uniqueness.
-static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u|128u)) == 0, "R7A_FLAG collides");
-static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u|128u)) == 0, "R7B_FLAG collides");
-static_assert((P1_FLAG & (1u|2u|4u|8u|16u|32u|64u)) == 0, "P1_FLAG collides");
-static_assert(R7A_FLAG <= 128 && R7B_FLAG <= 128 && P1_FLAG <= 128, "residual_mode overflow");
+constexpr uint16_t P2_FLAG = 256; // P2: learned MLP spatial predictor (17->64->32->1) BEFORE wavelet
+// residual_mode is now uint16_t (16 bits). All 8 original bits claimed:
+// 1 (RESIDUAL) | 2 (ROUTE5) | 4 (R6B) | 8 (R6C) | 16 (R6D) | 32 (R7A) | 64 (R7B) | 128 (P1)
+// Bit 8 = P2_FLAG (256).
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
     uint8_t levels = X_DEFAULT_LEVELS;
     uint8_t maxbits = 0;
-    uint8_t residual_mode = 0;          // X6a (L1): bit0 = residual (code r = c - c_hat)
+    uint16_t residual_mode = 0;          // X6a (L1): bit0 = residual (code r = c - c_hat)
     uint32_t total_symbols = 0;
     // Subband table, in forward() order: one entry per subband.
     std::vector<uint8_t> orient; // Subband::Orient as u8
@@ -199,6 +196,13 @@ std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster,
 // state is NOT transmitted (both sides compute identically from causal neighbours;
 // invariant I29).
 std::vector<uint8_t> frame_wavelet_encode_p1(const Raster& raster,
+                                              WaveletFilter filter, int levels,
+                                              size_t& net_out);
+
+// FRAME-WAVELET-P2 (issue #130, Option A): learned MLP spatial predictor BEFORE wavelet.
+// P2_FLAG (residual_mode bit 8) is set. Baked weights (17->64->32->1, 3425 params),
+// zero transmitted bytes (invariant I29). Byte-exact round-trip.
+std::vector<uint8_t> frame_wavelet_encode_p2(const Raster& raster,
                                               WaveletFilter filter, int levels,
                                               size_t& net_out);
 

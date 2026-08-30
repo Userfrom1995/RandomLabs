@@ -185,4 +185,129 @@ std::vector<uint16_t> reconstruct_spatial(const std::vector<int32_t>& residuals,
     return plane;
 }
 
+// --- P2: Learned MLP spatial predictor ---
+
+} // namespace prism::codec (close before include to avoid double-nesting)
+
+#include "spatial_predictor_p2_data.inc"
+
+namespace prism::codec {
+
+namespace {
+
+inline int32_t p2_px(const uint16_t* plane, uint32_t w, uint32_t h,
+                     int x, int y) {
+    if (x < 0 || (uint32_t)x >= w || y < 0 || (uint32_t)y >= h) return 0;
+    return (int32_t)plane[(size_t)y * w + x];
+}
+
+inline int64_t p2_fdiv(int64_t x, int64_t q) {
+    int64_t r = x / q;
+    if ((x % q) != 0 && x < 0) --r;
+    return r;
+}
+
+} // namespace
+
+int32_t spatial_predict_p2(const uint16_t* plane, uint32_t w, uint32_t h,
+                           uint32_t x, uint32_t y, uint16_t bd_max) {
+
+    int32_t W  = p2_px(plane, w, h, (int)x - 1, (int)y);
+    int32_t N  = p2_px(plane, w, h, (int)x, (int)y - 1);
+    int32_t NW = p2_px(plane, w, h, (int)x - 1, (int)y - 1);
+    int32_t NE = p2_px(plane, w, h, (int)x + 1, (int)y - 1);
+    int32_t WW = p2_px(plane, w, h, (int)x - 2, (int)y);
+    int32_t NN = p2_px(plane, w, h, (int)x, (int)y - 2);
+
+    // 17 features (raw pixel-scale, no normalization)
+    int16_t feat[17];
+    feat[0]  = (int16_t)W;
+    feat[1]  = (int16_t)N;
+    feat[2]  = (int16_t)NW;
+    feat[3]  = (int16_t)NE;
+    feat[4]  = (int16_t)(W - N);
+    feat[5]  = (int16_t)(N - NW);
+    feat[6]  = (int16_t)(W - NW);
+    feat[7]  = (int16_t)(W - WW);
+    feat[8]  = (int16_t)(N - NN);
+    feat[9]  = (int16_t)((W + N) / 2 - NW);
+    feat[10] = (int16_t)((W + N + NW) / 3);
+    feat[11] = (int16_t)(((int)x % 8) << 4);
+    feat[12] = (int16_t)(((int)y % 8) << 4);
+    int32_t vals[4] = {W, N, NW, NE};
+    int32_t mean_v = (W + N + NW + NE + 2) / 4;
+    int32_t var_sum = 0;
+    for (int i = 0; i < 4; ++i) {
+        int32_t d = vals[i] - mean_v;
+        var_sum += d * d;
+    }
+    feat[13] = (int16_t)std::min((int32_t)(std::sqrt((double)var_sum / 4.0) + 0.5), (int32_t)255);
+    feat[14] = (int16_t)std::abs(W - N);
+    int32_t max_diff = 0;
+    for (int i = 0; i < 4; ++i)
+        for (int j = 0; j < 4; ++j)
+            max_diff = std::max(max_diff, std::abs(vals[i] - vals[j]));
+    feat[15] = (int16_t)max_diff;
+    feat[16] = (int16_t)((W + N + NW + NE + 2) / 4);
+
+    // Layer 1: h1 = relu(W1 @ feat + B1) >> P2_SHIFT
+    int16_t h1[64];
+    for (int j = 0; j < 64; ++j) {
+        int64_t acc = p2::B1[j];
+        for (int k = 0; k < 17; ++k)
+            acc += (int64_t)p2::W1[j][k] * feat[k];
+        int64_t v = p2_fdiv(acc, p2::P2_QW * p2::P2_QW);
+        h1[j] = (int16_t)std::max((int64_t)0, std::min((int64_t)32767, v));
+    }
+
+    // Layer 2: h2 = relu(W2 @ h1 + B2) >> P2_SHIFT
+    int16_t h2[32];
+    for (int j = 0; j < 32; ++j) {
+        int64_t acc = p2::B2[j];
+        for (int k = 0; k < 64; ++k)
+            acc += (int64_t)p2::W2[j][k] * h1[k];
+        int64_t v = p2_fdiv(acc, p2::P2_QW * p2::P2_QW);
+        h2[j] = (int16_t)std::max((int64_t)0, std::min((int64_t)32767, v));
+    }
+
+    // Layer 3: out = (W3 @ h2 + B3) >> P2_SHIFT
+    int64_t acc = p2::B3[0];
+    for (int k = 0; k < 32; ++k)
+        acc += (int64_t)p2::W3[0][k] * h2[k];
+    int32_t pred = (int32_t)p2_fdiv(acc, p2::P2_QW * p2::P2_QW);
+
+    return std::max((int32_t)0, std::min((int32_t)bd_max, pred));
+}
+
+std::vector<int32_t> compute_spatial_residuals_p2(const std::vector<uint16_t>& plane,
+                                                   uint32_t w, uint32_t h,
+                                                   uint16_t bd_max) {
+    std::vector<int32_t> residuals((size_t)w * h);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            int32_t p_hat = spatial_predict_p2(plane.data(), w, h, x, y, bd_max);
+            int32_t actual = (int32_t)plane[(size_t)y * w + x];
+            residuals[(size_t)y * w + x] = actual - p_hat;
+        }
+    }
+    return residuals;
+}
+
+std::vector<uint16_t> reconstruct_spatial_p2(const std::vector<int32_t>& residuals,
+                                              uint32_t w, uint32_t h,
+                                              uint16_t bd_max) {
+    std::vector<uint16_t> plane((size_t)w * h, 0);
+    for (uint32_t y = 0; y < h; ++y) {
+        for (uint32_t x = 0; x < w; ++x) {
+            // For reconstruction, the plane is filled in raster order, so
+            // spatial_predict_p2 reads only already-reconstructed neighbours.
+            int32_t p_hat = spatial_predict_p2(plane.data(), w, h, x, y, bd_max);
+            int32_t val = p_hat + residuals[(size_t)y * w + x];
+            plane[(size_t)y * w + x] = (uint16_t)std::max((int32_t)0,
+                                                           std::min((int32_t)bd_max, val));
+        }
+    }
+    return plane;
+}
+
 } // namespace prism::codec
