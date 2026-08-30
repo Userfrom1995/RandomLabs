@@ -137,7 +137,7 @@ compactness for detail savings and loses. Rules out the learned-lifting family.
 The bet: 1.84M fine contexts see only ~5 symbols each (cold-start waste); coarsening to
 1024 leaves lets the EMA converge without transmitted-tree overhead. Measured verdict: the
 fine-context EMA is already near-optimal; its discrimination is worth more than better
-convergence of a coarser clustering. Closes the "fixed clustering" variant (R6 used
+convergence of a coarser clustering. closes the "fixed clustering" variant (R6 used
 TRANSMITTED trees; R9 used a BAKED tree with zero overhead and still loses).
 
 ---
