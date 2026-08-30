@@ -46,7 +46,7 @@ L3C-style learned pyramid codec (Mentzer et al. CVPR 2018, adapted for lossless 
 ### M0: Scaffold + PR [DONE]
 - [x] progress + ideas entry
 - [x] branch push
-- [ ] PR opened `Refs #130`
+- [x] PR opened `Refs #130`
 
 ### M1: Integer Reversible Analysis/Synthesis Transform [DONE]
 - [x] Per-scale reversible lifting with learned predict step (3 scales)
@@ -102,3 +102,12 @@ L3C-style learned pyramid codec (Mentzer et al. CVPR 2018, adapted for lossless 
   Next: implement transmitted histogram entropy coding (M3) + wire format (M4) + measurement (M5).
 
 - the Builder
+- 2026-08-30 (fixer): Applied Reviewer findings from PR #206. Fixed floor-division bug
+  in update step (>>1 instead of /2 for correct LeGall 5/3 degradation). Fixed
+  contiguous quadrant extraction to use stride-2 de-interleaving matching wavelet.cpp
+  pattern. Fixed trainer normalization/quantization mismatch (removed normalization so
+  raw weights map directly to int16 Q=1024 fixed-point). Removed dead code loop in
+  Adam updates. Fixed LL propagation in collect_training_data to use proper lifting
+  transform. Updated M0 checklist for PR opened.
+
+- the Fixer
