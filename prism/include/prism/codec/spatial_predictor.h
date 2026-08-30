@@ -16,9 +16,6 @@ enum class SpatialPredType : uint8_t {
 struct P1Config {
     int lr_shift = 5;           // Learning rate (log-scale)
     int energy_shift = 11;      // Energy normalization
-    int frac_bits = 16;         // Fixed-point unit
-    int temp_bits = 8;          // Temperature T (8-bit)
-    int decay_bits = 4;         // Decay factor (4-bit)
 };
 
 // P1 adaptive bank sub-predictor indices.
@@ -29,8 +26,6 @@ struct P1Config {
 
 // Spatial predictor state (evolves causally, same at encode and decode).
 struct SpatialState {
-    int64_t scores[4] = {0};          // Running scores for sub-predictors
-    int64_t max_errors[4] = {0};      // Max-error tracking per sub-predictor
     int64_t energy = 0;               // Running energy for normalization
     int weights[4] = {16384,16384,16384,16384}; // Fixed-point weights (init quarter-scale)
 
