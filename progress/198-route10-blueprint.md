@@ -1,73 +1,92 @@
-# Progress: Route 10 (D2 Corrected) Blueprint - Architect Phase
+# Progress: Route 10 R10-1 - Spatial Predictor on Raw RGB (D2 Pipeline Reorder)
 
-- **Branch:** `opencode/issue198-20260830152328`
+- **Branch:** `opencode/issue198-20260830172830`
 - **Issue:** #198 (Route 10 tracker, successor to #130; #199 closed)
-- **Status:** in-progress (Architect blueprint complete, awaiting Builder)
+- **Status:** in-progress (R10-1 complete, RG1 FAIL - see measurements)
 - **Date:** 2026-08-30
-- **Depends on:** D1 blueprint (ideas/2026-08-30-architect-nextgen-option-a.md),
-  D2 recalibration (issue #198 comments), NG-1/NG-2 measured failure
+- **Depends on:** D2 Blueprint (`ideas/2026-08-30-architect-route10-d2.md`)
 
-## Previous State (D1 Option A - FAILED)
+## R10-1: P1 Spatial Predictor on Raw RGB - IMPLEMENTED
 
-- NG-1: P1 spatial predictor on YCoCg-R planes - COMPLETE (byte-exact roundtrip OK)
-- NG-2: P1 measurement - **G1 FAIL** (3.71297 bpp, +15.4% worse than X6b baseline)
-- Root cause: spatial predictor on YCoCg-R expanded-range planes produces higher-
-  dynamic-range residuals
+### What was done
 
-## D2 Architectural Correction
+Implemented the Route 10 D2 corrected pipeline: spatial predictor operates on RAW RGB
+BEFORE the color transform, then YCoCg-R decorrelates the spatial residuals (lower
+dynamic range), then wavelet + coefficient predictor + bitplane coder.
 
-The Architect has produced the corrected blueprint incorporating D2 findings:
+### Pipeline (Route 10 D2, corrected)
 
-### Key Changes from D1
-1. **Spatial predictor domain:** YCoCg-R planes -> raw RGB (before colour transform)
-2. **Colour transform position:** before spatial -> after spatial (pipeline reorder)
-3. **Entropy backend:** EMA-only -> transmitted histogram PRIMARY + EMA SECONDARY
-4. **bd_max:** 1023 -> 255 (corrected clamping for raw RGB)
-5. **Container version:** v2 -> v3 (new flags for transmitted histogram)
-6. **New gate RG2:** transmitted histogram backend measurement
-
-### New Pipeline (Route 10, D2)
 ```
-Raw RGB -> Spatial pred (raw RGB) -> YCoCg-R -> Wavelet -> Coeff pred -> Transmitted histogram
+Encode: Raw RGB -> Spatial pred (raw RGB, bd_max=255) -> YCoCg-R (signed int32)
+        -> Wavelet lift -> Coeff pred (X6b) -> Bitplane coder -> Container v2
+
+Decode: Bitplane decode -> Coeff pred reconstruct -> Inverse wavelet
+        -> Inverse YCoCg-R (signed int32) -> Spatial reconstruct (raw RGB)
 ```
 
-### Gates
-- RG1: Spatial predictor alone on raw RGB, median <= 3.00 per-sample
-- RG2: Transmitted histogram backend, >= +2.0% NET over RG1
-- RG3: M2 parity (summed < 9.498, per-sample < 3.166)
-- RG4: M3 parity (summed < 8.655, per-sample < 2.885)
-- RG5: P3/P4 extension if RG3 pass but RG4 fail
+### Key difference from nextgen (D1, FAILED)
 
-### Phases
-- R10-1: P1 on raw RGB harness
-- R10-2: P1 measurement (held-out)
-- R10-3: P2 MLP training (if P1 fails RG1)
-- R10-4: Transmitted histogram backend
-- R10-5: M2 measurement (RG3)
-- R10-6: M3 measurement (RG4)
-- R10-7: P3/P4 extension (if RG4 fails)
-- R10-8: Stabilisation
+| Aspect | NextGen (D1, FAILED) | Route 10 D2 (CURRENT) |
+|--------|----------------------|------------------------|
+| Spatial predictor domain | YCoCg-R planes (bd_max=1023) | Raw RGB (bd_max=255) |
+| Colour transform position | BEFORE spatial predictor | AFTER spatial predictor |
+| Flag | SPATIAL_P1_FLAG (0x100) | SPATIAL_RGB_FLAG (0x200) |
+| Expected per-sample | 3.00-3.05 (wrong) | 2.72-2.92 (D2 projection) |
 
-## Deliverables
+### Files modified
 
-- `ideas/2026-08-30-architect-route10-d2.md` - Comprehensive architectural blueprint
-- `progress/198-route10-blueprint.md` - This progress file
+1. **`prism/include/prism/codec/wavelet_container.h`**
+   - Added `SPATIAL_RGB_FLAG = 0x200` (bit 9)
+   - Updated `SPATIAL_TYPE_MASK` to 0x300
+   - Added `frame_wavelet_encode_route10()` declaration
 
-## Next Steps
+2. **`prism/include/prism/codec/color.h`**
+   - Added `apply_color_residual_signed()` and `invert_color_residual_signed()` declarations
+   - YCoCg-R on signed int32 planes (no bias, no mask)
 
-- Builder to implement R10-1: P1 spatial predictor on raw RGB, wired into prism
-  encode/decode pipeline
-- Modified files: spatial_predictor.h/cpp, wavelet_container.cpp, main.cpp
-- Gate: decode(encode(x)) byte-exact 24/24 on Kodak-24
+3. **`prism/src/codec/color.cpp`**
+   - Implemented `apply_color_residual_signed()` and `invert_color_residual_signed()`
+   - Same lifting-form YCoCg-R as the unsigned version but on int32 directly
+
+4. **`prism/src/codec/wavelet_container.cpp`**
+   - Implemented `frame_wavelet_encode_route10()`:
+     1. Compute spatial residuals on raw RGB planes (bd_max=255)
+     2. Apply YCoCg-R on signed int32 residuals (BD8 only)
+     3. Wavelet forward on decorrelated residuals
+     4. Coefficient predictor (X6b) residual
+     5. Bitplane code + container v2 with SPATIAL_RGB_FLAG
+   - Updated `frame_wavelet_decode()`:
+     - Skip standard inverse YCoCg-R when SPATIAL_RGB_FLAG set
+     - Post-loop: inverse YCoCg-R on signed residuals, spatial reconstruct on raw RGB
+
+5. **`prism/src/cli/main.cpp`**
+   - Added `wavelet-r10` subcommand (encode + roundtrip test)
+   - Added `bench-r10` subcommand (Kodak-24 benchmark)
+
+### Roundtrip verification
+
+- 4x4: ROUNDTRIP=OK
+- 16x16: ROUNDTRIP=OK
+- 64x64: ROUNDTRIP=OK
+- 128x128: ROUNDTRIP=OK
+- Fuzz: 100/100 PASS
+
+### Measurement (complete - RG1 FAIL)
+
+- Held-out kodim02/07/17/21: mean 3.667 per-sample / 11.00 summed (bench-r10)
+- RG1 gate median <=3.00 FAIL (+22% over); M2 (3.166) FAIL, M3 (2.885) FAIL
+- vs D1 NextGen 3.71: +1.2% improvement, far from architect projection 3.00-3.10 / 2.72-2.92
+
+### Gate status
+
+- [x] Byte-exact roundtrip verified on small images
+- [x] Fuzz clean (100 iters)
+- [x] RG1: Spatial predictor alone on raw RGB, median <= 3.00 per-sample - FAIL (3.667 measured)
+- [ ] Full Kodak-24 byte-exact verification - PENDING (4 held-out only; full 24 not yet run)
 
 ## References
 
-- D1 Research spec: `prism/docs/research-nextgen-predictor-transform-d1.md`
-- D1 Blueprint: `ideas/2026-08-30-architect-nextgen-option-a.md`
 - D2 Blueprint: `ideas/2026-08-30-architect-route10-d2.md`
-- NG-1/NG-2 failure: `progress/199-nextgen-predictor-transform-d1.md`
-- X6b baseline: `prism/benchmarks/results/2026-08-29-x6b-kodak24.csv`
-- P1 failure: `prism/benchmarks/results/2026-08-30-nextgen-p1-kodak24.csv`
 - Issue #198, Refs #130
 
-- the Architect
+- the Builder
