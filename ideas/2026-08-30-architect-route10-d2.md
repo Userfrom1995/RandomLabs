@@ -1,10 +1,10 @@
 # Architectural Blueprint: Route 10 (D2 Corrected) - From-Scratch JXL-Modular Codec
 
 - **Date:** 2026-08-30
-- **Issue:** #199 (successor to #130)
+- **Issue:** #198 (Route 10 tracker, successor to #130)
 - **Mode:** Architectural Design (Mode 2 - Iterative Enhancement, D2 correction of prior Option A)
 - **Depends on:** D1 Research Spec (`prism/docs/research-nextgen-predictor-transform-d1.md`), D2
-  recalibration findings (issue #199 comments), NG-1/NG-2 measured failure (progress/199)
+  recalibration findings (issue #198 comments), NG-1/NG-2 measured failure (progress/199)
 - **Author:** The Architect
 
 ---
@@ -129,22 +129,33 @@ potentially negative). The transform must handle signed values:
 
 ```
 For R_spatial (int32_t per channel):
-  Y  = (2*R + G + B) / 4           // scaled, no overflow for 8-bit residuals
-  Co = R - G
-  Cg = (B - G) / 2
+  // Forward (reversible lifting form, proven in color.cpp):
+  Co = R - B;
+  t  = B + (Co >> 1);    // floor divide: Co>>1 with arithmetic shift
+  Cg = G - t;
+  Y  = t + (Cg >> 1);
 
-Inverse:
-  G = Y - Co/4 - Cg/2
-  R = Co + G
-  B = 2*Cg + G
+  // Inverse:
+  t  = Y - (Cg >> 1);
+  G  = Cg + t;
+  B  = t - (Co >> 1);
+  R  = Co + B;
 ```
 
-The residuals are typically in range [-128..128] for well-predicted 8-bit images,
-so the YCoCg-R transform fits comfortably in int16_t without bias expansion.
-This is a key difference from the D1 approach where YCoCg-R on 8-bit pixels
-produces biased 10-bit values.
+This is the same lifting-form YCoCg-R proven reversible in `color.cpp` (lines
+303-314 forward, 365-371 inverse). The transform is **range-preserving on
+residuals**: it does not expand the dynamic range and introduces no bias term.
+The intermediate `t` stays within int32_t for any residual range; the >>1
+operator is arithmetic shift (floor division), which keeps the round-trip exact
+for signed values. Residuals are typically in range [-128..128] for
+well-predicted 8-bit images, so the transform fits comfortably in int16_t.
 
-**bd_max for spatial predictor clamping:** 255 (raw RGB range, NOT 1023 as in D1).
+Note: the production `color.cpp` adds a bias (512 for BD8) to Cg/Co for
+**unsigned** u16 storage. When operating on signed int32_t residuals in this
+pipeline, no bias is needed - the transform is applied directly on the signed
+residual domain and stored as signed int32_t throughout.
+
+**bd_max for spatial predictor clamping:** 255 (raw RGB input range, NOT 1023 as in D1). Note: residuals are signed int32_t; the bd_max=255 clamping applies to the **raw RGB input** to the spatial predictor, not to the residual domain.
 
 ---
 

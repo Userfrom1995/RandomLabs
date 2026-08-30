@@ -1,11 +1,11 @@
 # Progress: Route 10 (D2 Corrected) Blueprint - Architect Phase
 
 - **Branch:** `opencode/issue198-20260830152328`
-- **Issue:** #199 (successor to #130)
+- **Issue:** #198 (Route 10 tracker, successor to #130; #199 closed)
 - **Status:** in-progress (Architect blueprint complete, awaiting Builder)
 - **Date:** 2026-08-30
 - **Depends on:** D1 blueprint (ideas/2026-08-30-architect-nextgen-option-a.md),
-  D2 recalibration (issue #199 comments), NG-1/NG-2 measured failure
+  D2 recalibration (issue #198 comments), NG-1/NG-2 measured failure
 
 ## Previous State (D1 Option A - FAILED)
 
@@ -51,7 +51,7 @@ Raw RGB -> Spatial pred (raw RGB) -> YCoCg-R -> Wavelet -> Coeff pred -> Transmi
 ## Deliverables
 
 - `ideas/2026-08-30-architect-route10-d2.md` - Comprehensive architectural blueprint
-- `progress/199-route10-blueprint.md` - This progress file
+- `progress/198-route10-blueprint.md` - This progress file
 
 ## Next Steps
 
@@ -68,6 +68,6 @@ Raw RGB -> Spatial pred (raw RGB) -> YCoCg-R -> Wavelet -> Coeff pred -> Transmi
 - NG-1/NG-2 failure: `progress/199-nextgen-predictor-transform-d1.md`
 - X6b baseline: `prism/benchmarks/results/2026-08-29-x6b-kodak24.csv`
 - P1 failure: `prism/benchmarks/results/2026-08-30-nextgen-p1-kodak24.csv`
-- Issue #199, Refs #130
+- Issue #198, Refs #130
 
 - the Architect
