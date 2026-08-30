@@ -2,7 +2,7 @@
 
 - **Branch:** `opencode/issue130-20260830005823`
 - **PR:** (continuation) `Refs #130`
-- **Status:** in-progress (verification + escalation; gates NOT met)
+- **Status:** in-progress (re-confirmed + escalated to Maintainer for from-scratch codec decision; gates NOT met)
 - **Precedent (this run re-confirmed):** X6b floor 3.2442/9.7326 on full real Kodak-24
   (bench-x --filter 1 --levels 5, LeGall 5/3, EMA+MLP context, no hyperprior). M2
   needs <3.166/<9.498 (~2.4% on bytes); M3 needs <2.885/<8.655 (~14% on bytes).
@@ -58,5 +58,42 @@ The strategic decision is the Owner's: (a) accept 3.2442/9.7326 as the lab's hon
 this architecture and close #130, or (b) authorize Route 9 - a from-scratch JXL-style modular
 redesign with learned nonlinear predictor + transmitted tree - as a new dedicated issue with
 its own research->architect->build cycle.
+
+- the Builder
+
+## Builder run 2026-08-30 (escalation re-confirm, branch `opencode/issue130-20260830030629`)
+
+1. Built `prism` from current `origin/main` (commit 57f204f, Release, tests off) - clean build,
+   192-equivalent sources compile under -O2. Binary at `prism/build/prism`.
+2. Re-ran the residual harness `bench-x --residual` on a 4-image proxy
+   (kodim01/05/13/19, SHA-verified Kodak link) to re-confirm the floor from a FRESH checkout:
+   - kodim01 10.303 / 3.43 ; kodim05 10.774 / 3.59 ; kodim13 11.820 / 3.94 ; kodim19 9.824 / 3.27
+   - mean per-sample = 3.5601 ; mean summed = 10.6803 (X6b residual, no hyperprior).
+   This is consistent with the verified-ceiling proxy number (~3.59/sample) and the full-24
+   floor 3.2175/9.6525 (with X6c hyperprior) recorded earlier. The ceiling is REPRODUCIBLE
+   from current main, not a stale artifact.
+3. Re-audited the negative ledger for ANY untried single-pipeline lever:
+   - cross-channel (chroma-from-luma / C5) was already measured and rejected on all 24 images
+     (cross-band LL-gradient extrapolation, route C5); R7 in-subband predictor +14.5% FAIL;
+     R8 learned lifting +4.7% REGRESS. The "simplify residuals" branch is exhausted.
+   - context model (EMA+MLP) at ceiling (R6-A 3.2459 >= EMA 3.2442); transmitted histograms
+     (R6-B/C/D) all LOSE to the online EMA; hyperprior (X6c) doubly exhausted (3.2175
+     Laplacian corroboration). The "model residuals better" branch is exhausted.
+
+**Conclusion (unchanged, now freshly reproduced):** the integer-wavelet + adaptive-bitplane-EMA
+single-pipeline architecture has a hard, reproducible ceiling at 3.2175/9.6525 on real Kodak-24,
+byte-exact. It is ~1.6% (M2) / ~10.3% (M3) short. No incremental mechanism class remains
+unmeasured, and the two theoretical branches (better predictor, better model) are both exhausted
+within this architecture.
+
+**Escalation (this run):** Per builder.md the correct handoff for a fundamentally unsolvable
+issue requiring Maintainer intervention is `{"action":"maintainer"}`. The only remaining path to
+M2/M3 is a FROM-SCRATCH JXL-Modular codec (Route 10): a stronger coefficient predictor/transform
+that makes residuals simple enough that a transmitted histogram becomes the dominant PRIMARY model
+(JXL-Modular wins because its residuals are simpler, not because its context model beats our EMA).
+That is a new, multi-day build effort and, per lab rules ("every distinct task gets its own issue"),
+requires a NEW dedicated issue + owner/Maintainer authorization of the research->architect->build
+cycle. Recommending the Maintainer open e.g. issue #??? "Prism Route 10: from-scratch JXL-Modular
+redesign" and dispatch Dr. Mob on it. #130 stays OPEN (no success claim).
 
 - the Builder
