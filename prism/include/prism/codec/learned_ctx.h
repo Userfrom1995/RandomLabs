@@ -101,7 +101,7 @@ uint16_t learned_predict_p0(const LCFeat& f);
 // Normalise a feature vector into the MLP input range. Single shared definition
 // so the offline trainer (main.cpp) and the baked inference (learned_ctx.cpp)
 // can never drift apart and break encode/decode symmetry. The array must hold
-// LF floats (currently 13: X3a base 10 + X5a lc_mag/lc_sig + X3b level).
+// LF floats (currently 15: X3a base 10 + X5a lc_mag/lc_sig + X3b level + F7 sib_mag + F8 pplag).
 void learned_norm(const LCFeat& f, float out[15]);
 
 // Runtime blend weight between the learned prior and the online EMA. 0 = pure
