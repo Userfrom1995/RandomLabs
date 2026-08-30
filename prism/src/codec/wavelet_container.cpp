@@ -1184,7 +1184,7 @@ std::vector<uint8_t> frame_wavelet_encode_route10(const Raster& raster,
     if (nch > 3) nch = 3; // ignore alpha for spatial predictor
 
     // Determine spatial predictor type (P1 adaptive bank or P2 MLP).
-    // For this build: P2 MLP spatial predictor on raw RGB.
+    // R10-3 hardcodes P2 for BD8 3ch; P1 path retained for BD16/decode compat.
     uint16_t residual_mode = (uint16_t)(1u | SPATIAL_RGB_FLAG | SPATIAL_P2_FLAG);
 
     // Step 1: Compute spatial residuals on each raw RGB plane.
