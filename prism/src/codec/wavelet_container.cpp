@@ -8,6 +8,7 @@
 #include "prism/codec/bitplane.h"
 #include "prism/codec/color.h"
 #include "prism/codec/predict.h"
+#include "prism/codec/spatial_predictor.h"
 #include "prism/codec/predictor.h"
 #include "prism/codec/bitplane_rans.h"
 #include "prism/codec/route5.h"
@@ -1022,6 +1023,99 @@ std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster, WaveletFilter
     return out;
 }
 
+// FRAME-WAVELET-P1 (issue #130, Option A): spatial-domain predictor BEFORE wavelet.
+// Pipeline: color transform -> P1 spatial residuals -> wavelet -> bitplane code.
+// The spatial predictor (JXL-style adaptive median+gradient+slope bank) operates
+// on raw color-transformed pixels where neighbour correlation is ~0.95+. The
+// wavelet then compactly represents the spatial residuals, which have lower dynamic
+// range. On decode, inverse wavelet yields spatial residuals, then the same causal
+// predictor reconstructs the original pixels.
+std::vector<uint8_t> frame_wavelet_encode_p1(const Raster& raster, WaveletFilter filter,
+                                              int levels, size_t& net_out) {
+    ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
+                                                       : ColorTransform::None;
+    Raster t = apply_color(raster, ct);
+    WaveletLift lift;
+    WaveletParams p{filter, levels};
+    BitplaneCoder coder;
+    P1Config pcfg;
+
+    std::vector<std::vector<Subband>> per_plane_subs;
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+
+    // Use full u16 range for spatial predictor: after YCoCg-R, chroma planes can
+    // hold values > 255 (up to 767 for BD8 with bias 512). Clamping to 255
+    // destroys these values and breaks the roundtrip.
+    uint16_t bd_max = 65535;
+
+    for (size_t pi = 0; pi < t.planes.size(); ++pi) {
+        const auto& plane_u16 = t.planes[pi];
+        uint32_t w = t.w, h = t.h;
+        // Step 1: compute spatial residuals via P1 adaptive predictor.
+        std::vector<int32_t> spatial_resid = compute_spatial_residuals(plane_u16, w, h, bd_max, pcfg);
+        // Step 2: wavelet-transform the spatial residuals.
+        auto subs = lift.forward(spatial_resid, w, h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+        per_plane_subs.push_back(subs);
+    }
+
+    std::vector<uint8_t> all_sub_maxbits;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint8_t> all_orient, all_level;
+    std::vector<uint16_t> all_w, all_h;
+    for (size_t pi = 0; pi < per_plane_subs.size(); ++pi) {
+        auto& subs = per_plane_subs[pi];
+        const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
+        std::vector<std::vector<int32_t>> lmag_buf;
+        if (pi > 0) {
+            lmag_buf.resize(subs.size());
+            const auto& lum_subs = per_plane_subs[0];
+            for (size_t oi = 0; oi < subs.size(); ++oi) {
+                lmag_buf[oi].resize(subs[oi].coeffs.size());
+                const auto& lum = lum_subs[oi].coeffs;
+                for (size_t ci = 0; ci < subs[oi].coeffs.size(); ++ci)
+                    lmag_buf[oi][ci] = std::abs(lum[ci]);
+            }
+            luma_mag = &lmag_buf;
+        }
+        auto res = coder.encode(subs, 0, luma_mag);
+        for (size_t oi = 0; oi < subs.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)subs[oi].orient);
+            all_level.push_back((uint8_t)subs[oi].level);
+            all_w.push_back((uint16_t)subs[oi].w);
+            all_h.push_back((uint16_t)subs[oi].h);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back(res.total_symbols);
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.total_symbols = 0;
+    hdr.residual_mode = P1_FLAG;  // spatial predictor BEFORE wavelet
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)t.planes.size();
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+
+    auto out = wavelet_container_encode(t, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -1218,13 +1312,20 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
         } else {
             plane = lift.inverse(plane_subs, t.w, t.h, p);
         }
-        for (size_t i = 0; i < plane.size(); ++i)
-            t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
-        // Store the color-transformed integer coefficients verbatim (biased/
-        // signed); reinterpreted as signed 16-bit by invert_color, so do NOT
-        // clamp here (that would corrupt chroma and signed ACs).
-        for (size_t i = 0; i < plane.size(); ++i) {
-            t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
+        // P1 (Option A): the inverse wavelet produced spatial residuals (int32).
+        // Reconstruct the original color-transformed pixels via the same causal
+        // spatial predictor used by the encoder. Both sides compute identical
+        // predictions from already-reconstructed neighbours (invariant I29).
+        if (hdr.residual_mode & P1_FLAG) {
+            // Use full u16 range: after YCoCg-R, chroma values can exceed 255.
+            uint16_t bd_max = 65535;
+            P1Config pcfg;
+            auto recon = reconstruct_spatial(plane, t.w, t.h, bd_max, pcfg);
+            for (size_t i = 0; i < recon.size(); ++i)
+                t.planes[pi][i] = recon[i];
+        } else {
+            for (size_t i = 0; i < plane.size(); ++i)
+                t.planes[pi][i] = (uint16_t)((int32_t)plane[i] & 0xFFFF);
         }
     }
     // Inverse YCoCg-R only when it was actually applied on the encode side (the

@@ -40,6 +40,7 @@ add_library(prism_core STATIC
     src/codec/ans_static.cpp
     src/codec/multipass.cpp
     src/codec/r1_encoder.cpp
+    src/codec/spatial_predictor.cpp
     src/frontend/ppm_raw.cpp
     src/frontend/stb_image_wrapper.cpp
     src/frontend/webp_wrapper.cpp
