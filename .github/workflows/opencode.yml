@@ -73,7 +73,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
             You are the Researcher of the Random lab, triggered by "/oc research".
@@ -214,7 +214,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
             You are the Architect of the Random lab, triggered by "/oc architect" or "/oc plan".
@@ -460,7 +460,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
             You are the Builder of the Random lab, triggered by "/oc build" or "/oc continue" on this issue/PR.
@@ -855,7 +855,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/hy3-free
+          model: opencode/mimo-v2.5-free
           use_github_token: true
           prompt: |
             You are the Fixer of the Random lab, responding to the reviewer's findings on the open PR this comment was posted on.
