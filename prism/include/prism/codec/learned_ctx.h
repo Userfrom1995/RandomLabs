@@ -5,6 +5,8 @@
 
 namespace prism::codec {
 
+struct R6DRaw; // defined in prism/codec/bitplane.h (raw already-coded magnitude snapshot)
+
 // Learned neural context model (Route 4 / X3a, "beyond-predictive" paradigm).
 //
 // The fixed-context EMA (I28) is a strong online model, but it can only use a
@@ -214,9 +216,27 @@ struct LearnedModel {
         if (count_[c] < 0xFFFFu) ++count_[c];
     }
 
+    // R9 (issue #130): fixed tree-quantized EMA. When g_r9_tree_ema is set, the
+    // online EMA is keyed by the baked R6D property-tree leaf (1024 clusters, 0
+    // transmitted bytes) instead of the 1.84M-entry fine context. Each leaf then
+    // aggregates ~1800x more symbols than a fine context, so the EMA converges
+    // far faster and the cold-start waste on starved fine contexts disappears -
+    // without the transmitted-tree overhead that killed R6-A/B/C/D. The raw
+    // already-coded magnitude snapshot `r` is the SAME information the decoder
+    // reconstructs, so encode and decode compute an identical leaf and the rANS
+    // stream stays byte-exact. The tree is a baked constant (route6d_tree.inc),
+    // so the NET stays equal to payload + header (invariant I29).
+    // Defined in learned_ctx.cpp (references internal R6D-tree helpers).
+    uint16_t predict(const LCFeat& f, const R6DRaw& r) const;
+    void update(const LCFeat& f, const R6DRaw& r, uint8_t bit);
+
 private:
     std::vector<uint16_t> ema_;
     std::vector<uint32_t> count_;
 };
+
+// R9 global switch + runtime setter (default OFF so existing paths are unchanged).
+extern bool g_r9_tree_ema;
+void learned_set_r9_tree_ema(bool v);
 
 } // namespace prism::codec
