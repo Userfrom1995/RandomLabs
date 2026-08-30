@@ -54,8 +54,9 @@ void option_c_forward_1d(const int32_t* even, size_t en,
     for (size_t k = 0; k < en; ++k) {
         int32_t lo = (k > 0 && on > 0) ? out_odd[k - 1] : (on > 0 ? out_odd[0] : 0);
         int32_t ro = (k < on) ? out_odd[k] : (on > 0 ? out_odd[on - 1] : 0);
-        int32_t update_val = ((int64_t)lo + (int64_t)ro) * upd.scale_num / upd.scale_den / 2;
-        out_even[k] = even[k] + (int32_t)update_val;
+        int32_t s = (int32_t)(((int64_t)lo + (int64_t)ro) * upd.scale_num / upd.scale_den);
+        int32_t update_val = s >> 1;
+        out_even[k] = even[k] + update_val;
     }
 }
 
@@ -68,8 +69,9 @@ void option_c_inverse_1d(const int32_t* out_even, size_t en,
     for (size_t k = 0; k < en; ++k) {
         int32_t lo = (k > 0 && on > 0) ? out_odd[k - 1] : (on > 0 ? out_odd[0] : 0);
         int32_t ro = (k < on) ? out_odd[k] : (on > 0 ? out_odd[on - 1] : 0);
-        int32_t update_val = ((int64_t)lo + (int64_t)ro) * upd.scale_num / upd.scale_den / 2;
-        e[k] = out_even[k] - (int32_t)update_val;
+        int32_t s = (int32_t)(((int64_t)lo + (int64_t)ro) * upd.scale_num / upd.scale_den);
+        int32_t update_val = s >> 1;
+        e[k] = out_even[k] - update_val;
     }
     // Undo predict: odd[k] = out_odd[k] + (base + mlp(even[k], even[k+1]))
     for (size_t k = 0; k < on; ++k) {
@@ -182,40 +184,63 @@ std::vector<OptionCSubband> option_c_analysis(const std::vector<int32_t>& plane,
         lift_cols(buf, cw, ch, pred_c, upd_c);
 
         // Split into LL (top-left quadrant) and detail bands
-        uint32_t hw = (cw + 1) / 2;
-        uint32_t hh = (ch + 1) / 2;
-        uint32_t dw = cw / 2;
-        uint32_t dh = ch / 2;
+        uint32_t lw = (cw + 1) / 2;
+        uint32_t lh = (ch + 1) / 2;
+        uint32_t hw = cw - lw;
+        uint32_t hh = ch - lh;
 
-        // Extract HL (top-right), LH (bottom-left), HH (bottom-right)
-        auto extract_band = [&](uint32_t x0, uint32_t y0, uint32_t bw, uint32_t bh,
-                                OptionCSubband::Orient orient) {
-            OptionCSubband sb;
-            sb.orient = orient;
-            sb.scale = scale + 1; // scale 1..NUM_SCALES
-            sb.w = bw;
-            sb.h = bh;
-            sb.coeffs.resize(bw * bh);
-            for (uint32_t y = 0; y < bh; ++y)
-                for (uint32_t x = 0; x < bw; ++x)
-                    sb.coeffs[y * bw + x] = buf[(y0 + y) * cw + (x0 + x)];
-            return sb;
-        };
+        // De-interleave: after lift_rows+lift_cols the buffer is interleaved as
+        // LL at (2*ry,2*rx), HL at (2*ry,2*rx+1), LH at (2*ry+1,2*rx), HH at (2*ry+1,2*rx+1)
+        OptionCSubband ll_sb;
+        ll_sb.orient = OptionCSubband::Orient::LL;
+        ll_sb.scale = scale + 1; // intermediate LL
+        ll_sb.w = lw;
+        ll_sb.h = lh;
+        ll_sb.coeffs.resize((size_t)lw * lh);
 
-        if (dw > 0 && dh > 0) {
-            result.push_back(extract_band(hw, 0, dw, hh, OptionCSubband::Orient::HL));
-            result.push_back(extract_band(0, hh, hw, dh, OptionCSubband::Orient::LH));
-            result.push_back(extract_band(hw, hh, dw, dh, OptionCSubband::Orient::HH));
+        OptionCSubband hl_sb;
+        hl_sb.orient = OptionCSubband::Orient::HL;
+        hl_sb.scale = scale + 1;
+        hl_sb.w = hw;
+        hl_sb.h = lh;
+        hl_sb.coeffs.resize((size_t)hw * lh);
+
+        OptionCSubband lh_sb;
+        lh_sb.orient = OptionCSubband::Orient::LH;
+        lh_sb.scale = scale + 1;
+        lh_sb.w = lw;
+        lh_sb.h = hh;
+        lh_sb.coeffs.resize((size_t)lw * hh);
+
+        OptionCSubband hh_sb;
+        hh_sb.orient = OptionCSubband::Orient::HH;
+        hh_sb.scale = scale + 1;
+        hh_sb.w = hw;
+        hh_sb.h = hh;
+        hh_sb.coeffs.resize((size_t)hw * hh);
+
+        for (uint32_t ry = 0; ry < lh; ++ry) {
+            for (uint32_t rx = 0; rx < lw; ++rx) {
+                ll_sb.coeffs[(size_t)ry * lw + rx] = buf[(size_t)(2 * ry) * cw + (2 * rx)];
+                if (rx < hw)
+                    hl_sb.coeffs[(size_t)ry * hw + rx] = buf[(size_t)(2 * ry) * cw + (2 * rx + 1)];
+                if (ry < hh)
+                    lh_sb.coeffs[(size_t)ry * lw + rx] = buf[(size_t)(2 * ry + 1) * cw + (2 * rx)];
+                if (rx < hw && ry < hh)
+                    hh_sb.coeffs[(size_t)ry * hw + rx] = buf[(size_t)(2 * ry + 1) * cw + (2 * rx + 1)];
+            }
         }
 
-        // Update buf to LL quadrant for next scale
-        std::vector<int32_t> ll(hw * hh);
-        for (uint32_t y = 0; y < hh; ++y)
-            for (uint32_t x = 0; x < hw; ++x)
-                ll[y * hw + x] = buf[y * cw + x];
-        buf = std::move(ll);
-        cw = hw;
-        ch = hh;
+        if (hw > 0 && hh > 0) {
+            result.push_back(std::move(hl_sb));
+            result.push_back(std::move(lh_sb));
+            result.push_back(std::move(hh_sb));
+        }
+
+        // Update buf to LL for next scale
+        buf = std::move(ll_sb.coeffs);
+        cw = lw;
+        ch = lh;
     }
 
     // Add the final LL subband (coarsest scale)
@@ -268,31 +293,27 @@ std::vector<int32_t> option_c_synthesis(const std::vector<OptionCSubband>& subba
         }
         if (!hl || !lh || !hh) throw std::runtime_error("OptionC: missing detail bands");
 
-        // Reconstruct full-resolution buffer: LL in top-left, details in other quadrants
-        uint32_t llw = cw;  // LL width
-        uint32_t llh = ch;  // LL height
-        uint32_t dw = hl->w; // detail width
-        uint32_t dh = lh->h; // detail height
-        uint32_t fw = llw + dw; // full width
-        uint32_t fh = llh + dh; // full height
+        // Reconstruct interleaved buffer: LL at (2*ry,2*rx), HL at (2*ry,2*rx+1),
+        // LH at (2*ry+1,2*rx), HH at (2*ry+1,2*rx+1)
+        uint32_t lw = cw;  // LL width
+        uint32_t lhgt = ch;  // LL height
+        uint32_t hw = hl->w; // detail width
+        uint32_t hh = lh->h; // detail height
+        uint32_t fw = lw + hw; // full width
+        uint32_t fh = lhgt + hh; // full height
 
-        std::vector<int32_t> full(fw * fh, 0);
-        // Copy LL to top-left
-        for (uint32_t y = 0; y < llh; ++y)
-            for (uint32_t x = 0; x < llw; ++x)
-                full[y * fw + x] = buf[y * llw + x];
-        // Copy HL to top-right
-        for (uint32_t y = 0; y < llh; ++y)
-            for (uint32_t x = 0; x < dw; ++x)
-                full[y * fw + (llw + x)] = hl->coeffs[y * dw + x];
-        // Copy LH to bottom-left
-        for (uint32_t y = 0; y < dh; ++y)
-            for (uint32_t x = 0; x < llw; ++x)
-                full[(llh + y) * fw + x] = lh->coeffs[y * llw + x];
-        // Copy HH to bottom-right
-        for (uint32_t y = 0; y < dh; ++y)
-            for (uint32_t x = 0; x < dw; ++x)
-                full[(llh + y) * fw + (llw + x)] = hh->coeffs[y * dw + x];
+        std::vector<int32_t> full((size_t)fw * fh);
+        for (uint32_t ry = 0; ry < lhgt; ++ry) {
+            for (uint32_t rx = 0; rx < lw; ++rx) {
+                full[(size_t)(2 * ry) * fw + (2 * rx)] = buf[(size_t)ry * lw + rx];
+                if (rx < hw)
+                    full[(size_t)(2 * ry) * fw + (2 * rx + 1)] = hl->coeffs[(size_t)ry * hw + rx];
+                if (ry < hh)
+                    full[(size_t)(2 * ry + 1) * fw + (2 * rx)] = lh->coeffs[(size_t)ry * lw + rx];
+                if (rx < hw && ry < hh)
+                    full[(size_t)(2 * ry + 1) * fw + (2 * rx + 1)] = hh->coeffs[(size_t)ry * hw + rx];
+            }
+        }
 
         const auto& pred_c = params.col_predict[scale - 1];
         const auto& upd_c = params.col_update[scale - 1];
