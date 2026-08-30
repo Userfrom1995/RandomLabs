@@ -12,29 +12,32 @@ namespace prism::codec {
 // compact wavelet header + bitplane rANS payload. The v1 production path is
 // otherwise untouched (invariant I26).
 
-// residual_mode (WaveletHeader) bit flags. Bit 0 = residual (predictor path),
-// bit 1 = Route 5 autoregressive rANS frontend (replaces the bitplane coder),
-// bit 2 = R6-B transmitted-histogram backbone (bitplane coder, two-pass static
-// per-subband histogram blended with the adaptive EMA; see bitplane.h).
-constexpr uint8_t ROUTE5_FLAG = 2;
-constexpr uint8_t R6B_FLAG = 4;
-constexpr uint8_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted histogram
-constexpr uint8_t R6D_FLAG = 16; // R6-D: true JXL-Modular property tree with per-leaf transmitted histogram
-constexpr uint8_t R7A_FLAG = 32; // R7-A: in-subband MED/gradient value predictor (residual path)
-constexpr uint8_t R7B_FLAG = 64; // R7-B: per-level adaptive wavelet filter selection
-// residual_mode is a uint8_t (8 bits). Bits used so far:
-// 1 (RESIDUAL) | 2 (ROUTE5) | 4 (R6B) | 8 (R6C) | 16 (R6D) | 32 (R7A) | 64 (R7B) = 127.
-// Bit 7 (128) is the last free bit; the NEXT extension requires widening
-// residual_mode to uint16_t. Assert uniqueness so a reused bit fails to compile.
+// residual_mode (WaveletHeader) bit flags. Widened to uint16_t for Next-Gen
+// (v2 container). Low byte (bits 0-7) is legacy v1 territory; high byte
+// (bits 8-15) carries Next-Gen spatial predictor flags. Only present on wire
+// when container version >= 2; v1 streams serialize residual_mode as uint8_t.
+constexpr uint16_t ROUTE5_FLAG = 2;
+constexpr uint16_t R6B_FLAG = 4;
+constexpr uint16_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted histogram
+constexpr uint16_t R6D_FLAG = 16; // R6-D: true JXL-Modular property tree with per-leaf transmitted histogram
+constexpr uint16_t R7A_FLAG = 32; // R7-A: in-subband MED/gradient value predictor (residual path)
+constexpr uint16_t R7B_FLAG = 64; // R7-B: per-level adaptive wavelet filter selection
+constexpr uint16_t R7_FREE_BIT = 128; // bit 7: last free v1 bit
+// Next-Gen flags (high byte, v2 only)
+constexpr uint16_t SPATIAL_P1_FLAG = 0x100; // bit 8: P1 adaptive spatial predictor active
+constexpr uint16_t SPATIAL_TYPE_MASK = 0x300; // bits 8-9: spatial predictor type (0=P1)
+// Assert uniqueness so a reused bit fails to compile.
 static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u)) == 0, "R7A_FLAG collides");
 static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u)) == 0, "R7B_FLAG collides");
-static_assert(R7A_FLAG <= 128 && R7B_FLAG <= 128, "residual_mode overflow; widen to uint16_t");
+static_assert((SPATIAL_P1_FLAG & (1u|2u|4u|8u|16u|32u|64u|128u)) == 0, "SPATIAL_P1_FLAG collides");
+static_assert(R7A_FLAG <= 128 && R7B_FLAG <= 128, "residual_mode low byte overflow");
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
     uint8_t levels = X_DEFAULT_LEVELS;
     uint8_t maxbits = 0;
-    uint8_t residual_mode = 0;          // X6a (L1): bit0 = residual (code r = c - c_hat)
+    uint16_t residual_mode = 0;         // X6a (L1): bit0 = residual (code r = c - c_hat)
+                                        // v2: widened to uint16_t for spatial predictor flags
     uint32_t total_symbols = 0;
     // Subband table, in forward() order: one entry per subband.
     std::vector<uint8_t> orient; // Subband::Orient as u8
@@ -188,6 +191,18 @@ std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster,
                                               size_t& net_out,
                                               bool use_gradient = false,
                                               bool adaptive_filter = false);
+
+// FRAME-WAVELET-NEXTGEN (issue #199, Option A): spatial predictor -> wavelet ->
+// coefficient predictor -> bitplane coder pipeline. The spatial predictor (P1
+// JXL-style adaptive bank) operates on color-transformed planes BEFORE the
+// wavelet, removing spatial redundancy where neighbour correlation is ~0.95+.
+// The wavelet then operates on lower-dynamic-range residuals, and the existing
+// coefficient predictor (X6b) removes inter-scale/inter-orientation redundancy
+// from the wavelet coefficients. Container version bumped to v2; residual_mode
+// widened to uint16_t carrying SPATIAL_P1_FLAG.
+std::vector<uint8_t> frame_wavelet_encode_nextgen(const Raster& raster,
+                                                   WaveletFilter filter,
+                                                   int levels, size_t& net_out);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
