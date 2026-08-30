@@ -140,9 +140,10 @@ def collect_training_data(kodak_dir):
                 # Apply lifting to get the LL for next scale
                 new_h = (h + 1) // 2
                 new_w = (w + 1) // 2
-                new_buf = np.zeros((new_h, new_w), dtype=np.int32)
-                for y in range(new_h):
-                    row = buf[2*y, :]
+
+                # Row lifting
+                for y in range(h):
+                    row = buf[y, :]
                     en = (len(row) + 1) // 2
                     on = len(row) // 2
                     even = row[0::2]
@@ -153,20 +154,22 @@ def collect_training_data(kodak_dir):
                         lv = int(even[k])
                         rv = int(even[k+1]) if k+1 < en else int(even[k])
                         residual[k] = int(odd[k]) - ((lv + rv) >> 1)
-                    # Forward update
+                    # Forward update (floor division)
                     out_even = np.zeros(en, dtype=np.int32)
                     for k in range(en):
                         lo = int(residual[k-1]) if k > 0 else int(residual[0])
                         ro = int(residual[k]) if k < on else (int(residual[on-1]) if on > 0 else 0)
-                        out_even[k] = int(even[k]) + ((lo + ro) >> 1)
-                    # Store LL
-                    for k in range(min(en, new_w)):
-                        new_buf[y, k] = out_even[k]
+                        s = lo + ro
+                        out_even[k] = int(even[k]) + (s >> 1)
+                    # Interleave back
+                    for k in range(en):
+                        buf[y, 2*k] = out_even[k]
+                    for k in range(on):
+                        buf[y, 2*k+1] = residual[k]
 
-                # Column pass on the row-lifted result
-                buf2 = np.zeros_like(new_buf)
-                for x in range(new_w):
-                    col = new_buf[:, x]
+                # Column lifting
+                for x in range(w):
+                    col = buf[:, x]
                     en = (len(col) + 1) // 2
                     on = len(col) // 2
                     even = col[0::2]
@@ -180,12 +183,21 @@ def collect_training_data(kodak_dir):
                     for k in range(en):
                         lo = int(residual[k-1]) if k > 0 else int(residual[0])
                         ro = int(residual[k]) if k < on else (int(residual[on-1]) if on > 0 else 0)
-                        out_even[k] = int(even[k]) + ((lo + ro) >> 1)
-                    for k in range(min(en, new_h)):
-                        buf2[k, x] = out_even[k]
+                        s = lo + ro
+                        out_even[k] = int(even[k]) + (s >> 1)
+                    for k in range(en):
+                        buf[2*k, x] = out_even[k]
+                    for k in range(on):
+                        buf[2*k+1, x] = residual[k]
+
+                # Extract LL at stride-2 positions
+                new_buf = np.zeros((new_h, new_w), dtype=np.int32)
+                for ry in range(new_h):
+                    for rx in range(new_w):
+                        new_buf[ry, rx] = buf[2*ry, 2*rx]
 
                 h, w = new_h, new_w
-                buf = buf2
+                buf = new_buf
 
     for scale in range(3):
         for direction in ('row', 'col'):
@@ -205,13 +217,8 @@ def train_mlp(tuples, epochs=50, lr=0.001, hidden=16):
     X = data[:, :2]  # (lv, rv)
     y = data[:, 2:3]  # target correction
 
-    # Normalize
-    x_mean = X.mean(axis=0)
-    x_std = X.std(axis=0) + 1e-8
-    y_mean = y.mean()
-    y_std = y.std() + 1e-8
-    X_n = (X - x_mean) / x_std
-    y_n = (y - y_mean) / y_std
+    # No normalization - train raw weights directly so baked int16 Q=1024
+    # weights correspond exactly to the trained model (matching option_c.cpp predict).
 
     # He initialization
     W1 = np.random.randn(hidden, 2) * np.sqrt(2.0 / 2)
@@ -236,8 +243,8 @@ def train_mlp(tuples, epochs=50, lr=0.001, hidden=16):
         n_batches = 0
         for i in range(0, n, batch_size):
             idx = perm[i:i+batch_size]
-            xb = X_n[idx]
-            yb = y_n[idx]
+            xb = X[idx]
+            yb = y[idx]
 
             # Forward
             z1 = xb @ W1.T + b1  # (B, H)
@@ -259,11 +266,6 @@ def train_mlp(tuples, epochs=50, lr=0.001, hidden=16):
 
             # Adam update
             t_step = epoch * (n // batch_size + 1) + (i // batch_size) + 1
-            for param, grad, m, v in [
-                ('W1', dW1, mW1, vW1), ('b1', db1, mb1, vb1),
-                ('W2', dW2, mW2, vW2)
-            ]:
-                pass  # handled below
 
             mW1 = beta1 * mW1 + (1 - beta1) * dW1
             vW1 = beta2 * vW1 + (1 - beta2) * dW1**2
@@ -290,12 +292,8 @@ def train_mlp(tuples, epochs=50, lr=0.001, hidden=16):
         if avg_loss < best_loss:
             best_loss = avg_loss
 
-    # Quantise to int16 Q=1024
+    # Quantise to int16 Q=1024 (raw weights, no normalization)
     Q = 1024
-    W1_q = np.clip(np.round(W1 * x_std[np.newaxis, :] * Q / y_std), -32768, 32767).astype(np.int16)
-    b1_q = np.clip(np.round(b1 * Q - W1 @ (x_mean * Q / y_std) * 0), -32768, 32767).astype(np.int16)
-    # Actually we need to bake the full pipeline: W1_q = round(W1 * diag(x_std) * Q / y_std)
-    # But for simplicity, let's just quantize the raw weights and let the runtime handle normalization.
     W1_q = np.clip(np.round(W1 * Q), -32768, 32767).astype(np.int16)
     b1_q = np.clip(np.round(b1 * Q), -32768, 32767).astype(np.int16)
     W2_q = np.clip(np.round(W2 * Q), -32768, 32767).astype(np.int16)
