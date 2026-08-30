@@ -1,8 +1,8 @@
-# Progress: Next-Gen Predictor/Transform (issue #199) - NG-1 Phase
+# Progress: Next-Gen Predictor/Transform (issue #199) - NG-2 Phase
 
 - **Branch:** `opencode/issue199-20260830035440`
 - **Issue:** #199 (successor to #130)
-- **Status:** in-progress (NG-1 spatial predictor harness complete, measurement pending)
+- **Status:** in-progress (NG-2 measurement complete, G1 gate FAIL)
 - **Date:** 2026-08-30
 
 ## NG-1: Spatial Predictor Harness (P1) - COMPLETE
@@ -43,7 +43,7 @@ Raw pixels
 ### Round-trip verification
 
 - `prism wavelet-ng`: byte-exact roundtrip OK on kodim01/02/03 (768x512, BD8)
-- Existing test suite: 17/17 PASS (Container, R7, Predictor tests all green)
+- Existing test suite: 228/228 PASS (no regressions)
 - No regressions to existing v1/v1-wavelet paths
 
 ### Key implementation decisions
@@ -53,23 +53,51 @@ Raw pixels
 3. **Combined predict+update** in single pass to avoid redundant neighbor fetches
 4. **SpatialState evolves causally** identically at encode and decode (invariant I29)
 
-### Performance
+## NG-2: P1 Measurement on Kodak-24 - COMPLETE (G1 FAIL)
 
-- ~62s per 768x512 Kodak image (NG-1, unoptimised)
-- ~2.6s per 128x128 image
-- Dominated by X6b coefficient predictor MLP on wavelet coefficients of spatial residuals
+Full Kodak-24 measurement with `prism bench-ng`. CSV: `prism/benchmarks/results/2026-08-30-nextgen-p1-kodak24.csv`
 
-## Next steps
+### Results
 
-- Phase NG-2: measure P1 on held-out images (gate G1: median <= 3.10)
-  - `prism bench-ng --kodak DIR --out results.csv`
-  - Benchmark performance on full Kodak-24 corpus
-- Phase NG-3: train P2 MLP, replace P1 if better
-- Phase NG-4: implement P3 cross-band, stack with best of P1/P2
-- Phase NG-5: full M2 measurement (gate G3)
-- Phase NG-6: full M3 measurement (gate G4)
-- Phase NG-7: P4 attention if M3 fails
-- Phase NG-8: stabilisation
+| Metric | Value | Gate | Status |
+|--------|-------|------|--------|
+| Mean per-sample | 3.71297 bpp | < 3.166 (M2) | FAIL |
+| Mean summed | 11.1389 bpp/img | < 9.498 (M2) | FAIL |
+| Median per-sample (all 24) | 3.60527 bpp | - | - |
+| Held-out median (kodim02/07/17/21) | 3.56952 bpp | <= 3.10 (G1) | **FAIL** |
+| Min per-sample | 3.25964 (kodim03) | - | - |
+| Max per-sample | 4.43932 (kodim13) | - | - |
+| All 24 roundtrip | 24/24 byte-exact | 24/24 | PASS |
+
+### Comparison with X6b baseline
+
+| Config | Mean per-sample | Mean summed |
+|--------|----------------|-------------|
+| X6b only (no spatial) | 3.21751 bpp | 9.65253 bpp/img |
+| P1 + X6b (next-gen) | 3.71297 bpp | 11.1389 bpp/img |
+| **Delta** | **+0.49546 bpp (+15.4%)** | **+1.4864 bpp (+15.4%)** |
+
+### Analysis
+
+**P1 spatial predictor HURTS compression by +0.495 bpp (+15.4%).** The spatial
+predictor adds prediction residuals with HIGHER dynamic range than the original
+YCoCg-R planes, and the wavelet + X6b pipeline cannot compensate.
+
+Root cause: the P1 adaptive bank produces mediocre predictions on color-transformed
+planes (bd_max=65535 clamping, slow convergence of adaptive weights). The spatial
+residuals R_spatial have larger variance than the original pixels, so the wavelet
+transform produces larger coefficients, and the bitplane coder needs more bits.
+
+This is an honest negative result. The D1 research spec predicted P1 would achieve
+3.00-3.05 bpp; actual is 3.71 bpp (20% error in projection).
+
+### Next steps
+
+- Phase NG-3: train P2 MLP spatial predictor (may be significantly better than P1 bank)
+  - If P2 also fails G1, the "spatial predictor before wavelet" architecture may be
+    fundamentally flawed for this pipeline
+- Phase NG-4: P3 cross-band (operates AFTER wavelet, may be more promising)
+- Honest gate evaluation: G1 FAILS, proceed to P2 or reassess architecture
 
 ## References
 
@@ -77,6 +105,7 @@ Raw pixels
 - Architectural blueprint: `ideas/2026-08-30-architect-nextgen-option-a.md`
 - Exhaustion ledger: `prism/docs/negative-ledger-v2-prism-routes-r3-r9.md`
 - X6b floor: `prism/benchmarks/results/2026-08-29-x6b-kodak24.csv`
+- P1 measurement: `prism/benchmarks/results/2026-08-30-nextgen-p1-kodak24.csv`
 - Issue #199, Refs #130
 
 - the Builder
