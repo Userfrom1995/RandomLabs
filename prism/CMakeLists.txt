@@ -19,6 +19,7 @@ add_library(prism_core STATIC
     src/codec/bitplane.cpp
     src/codec/learned_ctx.cpp
     src/codec/wavelet.cpp
+    src/codec/route10_mlp.cpp
     src/codec/wavelet_container.cpp
     src/codec/route5.cpp
     src/codec/predictor.cpp

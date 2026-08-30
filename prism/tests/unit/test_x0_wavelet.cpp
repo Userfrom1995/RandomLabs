@@ -36,7 +36,7 @@ Raster make_raster(uint32_t w, uint32_t h, uint8_t ch, uint8_t bd, std::mt19937&
 TEST(X0Wavelet, LiftReversible) {
     std::mt19937 rng(20260828);
     WaveletFilter filters[] = {WaveletFilter::Haar, WaveletFilter::LeGall53,
-                               WaveletFilter::Reversible97};
+                               WaveletFilter::Reversible97, WaveletFilter::LearnedMLP};
     for (auto f : filters) {
         for (int levels = 1; levels <= 5; ++levels) {
             Raster r = make_raster(64, 64, 3, 8, rng);
@@ -122,14 +122,53 @@ TEST(X0Bitplane, ContextDeterminism) {
 TEST(X0Frame, WaveletRoundtrip) {
     std::mt19937 rng(424242);
     WaveletFilter filters[] = {WaveletFilter::Haar, WaveletFilter::LeGall53,
-                               WaveletFilter::Reversible97};
-    for (int fi = 0; fi < 3; ++fi) {
+                               WaveletFilter::Reversible97, WaveletFilter::LearnedMLP};
+    for (int fi = 0; fi < 4; ++fi) {
         Raster r = make_raster(64, 64, 3, 8, rng);
         size_t net = 0;
         auto bytes = frame_wavelet_encode(r, filters[fi], 5, net);
         Raster dec = frame_wavelet_decode(bytes);
         EXPECT_EQ(dec, r) << "filter " << fi;
     }
+}
+
+// Route 10 (issue #130): learned nonlinear MLP predict step must be exactly
+// reversible (invariant I26) across sizes, levels and value ranges.
+TEST(X0Route10, MLPLiftReversible) {
+    std::mt19937 rng(20260830);
+    for (int levels = 1; levels <= 5; ++levels) {
+        for (uint32_t w : {1u, 2u, 3u, 5u, 7u, 8u, 16u, 33u, 64u}) {
+            for (uint32_t h : {1u, 2u, 3u, 5u, 7u, 9u, 48u}) {
+                for (int range : {0, 255, 1023, 100000}) {
+                    Raster r = make_raster(w, h, 1, 8, rng);
+                    // widen the value range to exercise deep-level coefficients
+                    for (auto& v : r.planes[0])
+                        v = (int16_t)(((int)v - 128) * (range > 0 ? (1 + range / 256) : 1) + 128);
+                    WaveletLift lift;
+                    WaveletParams p{WaveletFilter::LearnedMLP, levels};
+                    auto subs = lift.forward(
+                        std::vector<int32_t>(r.planes[0].begin(), r.planes[0].end()),
+                        r.w, r.h, p);
+                    auto inv = lift.inverse(subs, r.w, r.h, p);
+                    ASSERT_EQ(inv.size(), r.w * r.h)
+                        << "w" << w << "h" << h << "L" << levels;
+                    for (size_t i = 0; i < inv.size(); ++i)
+                        EXPECT_EQ(inv[i], (int32_t)r.planes[0][i])
+                            << "w" << w << "h" << h << "L" << levels << "i" << i;
+                }
+            }
+        }
+    }
+}
+
+// Route 10 full container round-trip (encode -> decode byte-exact).
+TEST(X0Route10, FrameRoundtrip) {
+    std::mt19937 rng(20260830);
+    Raster r = make_raster(64, 64, 3, 8, rng);
+    size_t net = 0;
+    auto bytes = frame_wavelet_encode(r, WaveletFilter::LearnedMLP, 5, net);
+    Raster dec = frame_wavelet_decode(bytes);
+    EXPECT_EQ(dec, r);
 }
 
 // VB-X-NET-AUDIT: 16-bit single/three channel, larger size.

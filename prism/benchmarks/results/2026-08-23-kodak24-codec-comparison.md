@@ -37,6 +37,7 @@ claimed number in both units and pin the real reference for the M2/M3 gates:
 | JPEG XL (-d0 -e9) | 2.8700 | 8.6100 | 9,921 |
 | WebP lossless m6 | 3.2043 | 9.6130 | 11,076 |
 | Prism X6b (wavelet + MLP predictor, residual) | 3.2175 | 9.6525 | 11,122 |
+| Prism Route 10 (wavelet + learned nonlinear MLP predict, residual) | 3.2235 | 9.6706 | 11,143 |
 
 The table's originally-pinned cjxl/WebP figures (2.885 / 3.166) differ by
 <1.2% (encoder version drift) but are the canonical M2/M3 thresholds from the
