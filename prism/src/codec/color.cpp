@@ -525,4 +525,38 @@ Raster invert(const Raster& r, int id) {
 
 } // namespace colorrot
 
+// Route 10: YCoCg-R on signed int32 RGB residual planes (no bias, no mask).
+// These are the same lifting-form transforms as the unsigned version but
+// operate directly on signed int32 without bias or bd_mask, preserving
+// exact reversibility for the spatial residual domain.
+void apply_color_residual_signed(int32_t* plane0, int32_t* plane1, int32_t* plane2, uint32_t n) {
+    for (uint32_t i = 0; i < n; ++i) {
+        int32_t R = plane0[i];
+        int32_t G = plane1[i];
+        int32_t B = plane2[i];
+        int32_t Co = R - B;
+        int32_t t_ = B + (Co >> 1);
+        int32_t Cg = G - t_;
+        int32_t Y  = t_ + (Cg >> 1);
+        plane0[i] = Y;
+        plane1[i] = Cg;
+        plane2[i] = Co;
+    }
+}
+
+void invert_color_residual_signed(int32_t* plane0, int32_t* plane1, int32_t* plane2, uint32_t n) {
+    for (uint32_t i = 0; i < n; ++i) {
+        int32_t Y  = plane0[i];
+        int32_t Cg = plane1[i];
+        int32_t Co = plane2[i];
+        int32_t t_ = Y - (Cg >> 1);
+        int32_t G  = Cg + t_;
+        int32_t B  = t_ - (Co >> 1);
+        int32_t R  = B + Co;
+        plane0[i] = R;
+        plane1[i] = G;
+        plane2[i] = B;
+    }
+}
+
 } // namespace prism::codec

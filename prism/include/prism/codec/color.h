@@ -38,6 +38,12 @@ inline bool is_color_rotation(ColorTransform t) {
 Raster apply_color(const Raster& r, ColorTransform t, const std::vector<uint8_t>& cfl_scales = {});
 Raster invert_color(const Raster& r, ColorTransform t, const std::vector<uint8_t>& cfl_scales = {});
 
+// Route 10: YCoCg-R on signed int32 RGB residual planes (no bias, no mask).
+// Forward: (R,G,B) -> (Y,Cg,Co); Inverse: (Y,Cg,Co) -> (R,G,B).
+// These operate in-place on n elements per plane.
+void apply_color_residual_signed(int32_t* plane0, int32_t* plane1, int32_t* plane2, uint32_t n);
+void invert_color_residual_signed(int32_t* plane0, int32_t* plane1, int32_t* plane2, uint32_t n);
+
 // 5/3 integer lifting (horizontal + vertical, one level per plane)
 // Exposed for B6 search; also used by container when transform == Lift53.
 // These operate per-plane with full reversibility on both 8- and 16-bit.
