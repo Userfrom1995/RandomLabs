@@ -22,13 +22,14 @@ constexpr uint8_t R6C_FLAG = 8; // R6-C: per-fine-context CLUSTER transmitted hi
 constexpr uint8_t R6D_FLAG = 16; // R6-D: true JXL-Modular property tree with per-leaf transmitted histogram
 constexpr uint8_t R7A_FLAG = 32; // R7-A: in-subband MED/gradient value predictor (residual path)
 constexpr uint8_t R7B_FLAG = 64; // R7-B: per-level adaptive wavelet filter selection
-// residual_mode is a uint8_t (8 bits). Bits used so far:
-// 1 (RESIDUAL) | 2 (ROUTE5) | 4 (R6B) | 8 (R6C) | 16 (R6D) | 32 (R7A) | 64 (R7B) = 127.
-// Bit 7 (128) is the last free bit; the NEXT extension requires widening
-// residual_mode to uint16_t. Assert uniqueness so a reused bit fails to compile.
-static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u)) == 0, "R7A_FLAG collides");
-static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u)) == 0, "R7B_FLAG collides");
-static_assert(R7A_FLAG <= 128 && R7B_FLAG <= 128, "residual_mode overflow; widen to uint16_t");
+constexpr uint8_t P1_FLAG = 128; // P1: spatial predictor (JXL-style adaptive bank) BEFORE wavelet
+// residual_mode is a uint8_t (8 bits). All 8 bits now claimed:
+// 1 (RESIDUAL) | 2 (ROUTE5) | 4 (R6B) | 8 (R6C) | 16 (R6D) | 32 (R7A) | 64 (R7B) | 128 (P1) = 255.
+// The NEXT extension requires widening residual_mode to uint16_t. Assert uniqueness.
+static_assert((R7A_FLAG & (1u|2u|4u|8u|16u|64u|128u)) == 0, "R7A_FLAG collides");
+static_assert((R7B_FLAG & (1u|2u|4u|8u|16u|32u|128u)) == 0, "R7B_FLAG collides");
+static_assert((P1_FLAG & (1u|2u|4u|8u|16u|32u|64u)) == 0, "P1_FLAG collides");
+static_assert(R7A_FLAG <= 128 && R7B_FLAG <= 128 && P1_FLAG <= 128, "residual_mode overflow");
 
 struct WaveletHeader {
     uint8_t filter_id = X_FILTER_ID_53; // 0 Haar, 1 Le Gall 5/3, 2 Reversible 9/7
@@ -188,6 +189,18 @@ std::vector<uint8_t> frame_wavelet_encode_r7(const Raster& raster,
                                               size_t& net_out,
                                               bool use_gradient = false,
                                               bool adaptive_filter = false);
+
+// FRAME-WAVELET-P1 (issue #130, Option A): spatial-domain predictor BEFORE wavelet.
+// Applies the JXL-style adaptive spatial predictor bank (P1: median + gradient +
+// slope) on each color-transformed plane to compute spatial residuals, then
+// wavelet-transforms and bitplane-codes the residuals. On decode, the inverse
+// wavelet yields spatial residuals which are reconstructed to pixels via the same
+// causal predictor. P1_FLAG (residual_mode bit 7) is set. The spatial predictor
+// state is NOT transmitted (both sides compute identically from causal neighbours;
+// invariant I29).
+std::vector<uint8_t> frame_wavelet_encode_p1(const Raster& raster,
+                                              WaveletFilter filter, int levels,
+                                              size_t& net_out);
 
 // bytes -> raster (inverse of the above).
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes);
