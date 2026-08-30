@@ -341,6 +341,21 @@ void learned_features(const std::vector<uint8_t>& sig,
 
 } // namespace
 
+// R9: build the raw already-coded magnitude snapshot `r` for the symbol at
+// (x,y) on bitplane p, used to key the fixed tree-quantized EMA. Mirrors the
+// argument list of learned_features so the two stay in lock-step.
+inline R6DRaw make_r6d_raw(const std::vector<uint8_t>& sig,
+                           const std::vector<int32_t>& curmag,
+                           const std::vector<int32_t>* pmag, int pw, int ph,
+                           const std::vector<int32_t>* lmag,
+                           int w, int h, int x, int y, int p, int symtype,
+                           int orient, int level, int parent_sig, int fc, int dg) {
+    R6DRaw r;
+    r6d_raw_features(sig, curmag, pmag, pw, ph, lmag, w, h, x, y, p, symtype,
+                     orient, level, parent_sig, fc, dg, r);
+    return r;
+}
+
 uint32_t BitplaneCoder::context_id(Subband::Orient o, bool parent_sig, int fc, int dg) {
     uint32_t orient = (uint32_t)o;          // 0..3  (2 bits)
     uint32_t ps = parent_sig ? 1u : 0u;     // 1 bit
@@ -445,21 +460,24 @@ BitplaneCoder::Result BitplaneCoder::encode(const std::vector<Subband>& subbands
                     bool becomes = (topbit[oi][ci] == p);
                     uint8_t bit = becomes ? 1 : 0;
                     LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
-                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
-                    if (becomes) {
+                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                     R6DRaw _r = make_r6d_raw(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, (int)s.orient, s.level, parent_sig, fc, dg);
+                     p0.push_back(scale_p0(model.predict(f, _r), sc)); bits.push_back(bit); model.update(f, _r, bit);
+                     if (becomes) {
                         uint8_t sg = sgn[oi][ci];
                         LCFeat fs; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        p0.push_back(scale_p0(model.predict(fs), sc)); bits.push_back(sg); model.update(fs, sg);
+                        R6DRaw _r = make_r6d_raw(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, (int)s.orient, s.level, parent_sig, fc, dg);
+                        p0.push_back(scale_p0(model.predict(fs, _r), sc)); bits.push_back(sg); model.update(fs, _r, sg);
                         sig[oi][ci] = 1; curmag[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     uint8_t bit = (uint8_t)((magv[oi][ci] >> p) & 1);
                     LCFeat f; learned_features(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
-                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    p0.push_back(scale_p0(model.predict(f), sc)); bits.push_back(bit); model.update(f, bit);
-                    if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
+                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                     R6DRaw _r = make_r6d_raw(sig[oi], curmag[oi], (pidx>=0?&curmag[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, (int)s.orient, s.level, parent_sig, fc, dg);
+                     p0.push_back(scale_p0(model.predict(f, _r), sc)); bits.push_back(bit); model.update(f, _r, bit);
+                     if (bit) curmag[oi][ci] |= (int32_t)(1 << p);
                 }
             }
         }
@@ -522,20 +540,23 @@ std::vector<Subband> BitplaneCoder::decode(const std::vector<std::vector<uint8_t
                 neighbor_counts(sig[oi], w, h, x, y, fc, dg);
                 if (sig[oi][ci] == 0) {
                     LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, s.level, f);
-                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint8_t bit = d.decode_symbol(scale_p0(model.predict(f), sc)); model.update(f, bit); ++idx;
-                    if (bit) {
+                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                     R6DRaw _r = make_r6d_raw(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 0, (int)s.orient, s.level, parent_sig, fc, dg);
+                     uint8_t bit = d.decode_symbol(scale_p0(model.predict(f, _r), sc)); model.update(f, _r, bit); ++idx;
+                     if (bit) {
                         LCFeat fs; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, s.level, fs);
                         fs.orient = (uint8_t)s.orient; fs.parent_sig = parent_sig ? 1 : 0; fs.fc = (uint8_t)fc; fs.dg = (uint8_t)dg;
-                        uint8_t sg = d.decode_symbol(scale_p0(model.predict(fs), sc)); model.update(fs, sg); ++idx;
+                        R6DRaw _r = make_r6d_raw(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 1, (int)s.orient, s.level, parent_sig, fc, dg);
+                        uint8_t sg = d.decode_symbol(scale_p0(model.predict(fs, _r), sc)); model.update(fs, _r, sg); ++idx;
                         sig[oi][ci] = 1; signv[oi][ci] = sg ? -1 : 1;
                         value[oi][ci] = (int32_t)(1 << p);
                     }
                 } else {
                     LCFeat f; learned_features(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, s.level, f);
-                    f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
-                    uint8_t rb = d.decode_symbol(scale_p0(model.predict(f), sc)); model.update(f, rb); ++idx;
-                    if (rb) value[oi][ci] |= (int32_t)(1 << p);
+                     f.orient = (uint8_t)s.orient; f.parent_sig = parent_sig ? 1 : 0; f.fc = (uint8_t)fc; f.dg = (uint8_t)dg;
+                     R6DRaw _r = make_r6d_raw(sig[oi], value[oi], (pidx>=0?&value[pidx]:nullptr), pw, ph, (luma_mag ? &(*luma_mag)[oi] : nullptr), w, h, x, y, p, 2, (int)s.orient, s.level, parent_sig, fc, dg);
+                     uint8_t rb = d.decode_symbol(scale_p0(model.predict(f, _r), sc)); model.update(f, _r, rb); ++idx;
+                     if (rb) value[oi][ci] |= (int32_t)(1 << p);
                 }
             }
         }

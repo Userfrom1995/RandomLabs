@@ -4630,6 +4630,7 @@ int main(int argc, char* argv[]) {
 
                 else if (a == "--blend" && i + 1 < argc) learned_set_blend(std::stof(argv[++i]));
                 else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
+                else if (a == "--r9-tree") learned_set_r9_tree_ema(true);
 
             }
             Raster r = load_raster(in, w, h, bd, ch);
@@ -5463,6 +5464,7 @@ int main(int argc, char* argv[]) {
                 else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
                 else if (a == "--pseudo" && i + 1 < argc) learned_set_pseudo(std::stof(argv[++i]));
                 else if (a == "--residual") residual = true;
+                else if (a == "--r9-tree") learned_set_r9_tree_ema(true);
 
             }
             if (blend_override >= 0.0f) learned_set_blend(blend_override);

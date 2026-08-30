@@ -7,10 +7,59 @@
 // that keeps the codec correct and rate-neutral versus the pre-X3a baseline).
 
 #include "prism/codec/learned_ctx.h"
+#include "prism/codec/bitplane.h"   // R6DRaw full definition (R9 tree mode)
+#include "route6d_tree.inc"          // baked R6D property tree (R9 context quantizer)
 #include <algorithm>
 #include <cmath>
 
 namespace prism::codec {
+
+namespace {
+// R9: local copy of the R6D tree walk operating on R6DRaw, so LearnedModel can
+// key its online EMA by the baked property-tree leaf without exposing the tree
+// in the public header. Mirrors bitplane.cpp's r6d_leaf_id exactly.
+inline int r9_raw_feat(const R6DRaw& r, int feat) {
+    switch (feat) {
+        case R6D_FEAT_W:   return r.mW;
+        case R6D_FEAT_N:   return r.mN;
+        case R6D_FEAT_E:   return r.mE;
+        case R6D_FEAT_S:   return r.mS;
+        case R6D_FEAT_NW:  return r.mNW;
+        case R6D_FEAT_NE:  return r.mNE;
+        case R6D_FEAT_SW:  return r.mSW;
+        case R6D_FEAT_SE:  return r.mSE;
+        case R6D_FEAT_PARENT: return r.mParent;
+        case R6D_FEAT_LUMA:   return r.mLuma;
+        case R6D_FEAT_OWN:    return r.mOwn;
+        case R6D_FEAT_PPOS:   return r.ppos;
+        case R6D_FEAT_SYMTYPE: return (int)r.symtype;
+        case R6D_FEAT_ORIENT:  return (int)r.orient;
+        case R6D_FEAT_LEVEL:   return (int)r.level;
+        case R6D_FEAT_PARENT_SIG: return (int)r.parent_sig;
+        default: return 0;
+    }
+}
+inline int r9_leaf(const R6DRaw& r) {
+    int node = 0;
+    while (R6D_TREE[node].split != 0) {
+        const R6DNode& nd = R6D_TREE[node];
+        bool go_rhs;
+        if (nd.split == 1) go_rhs = (r9_raw_feat(r, nd.feat) >= (int)nd.thr);
+        else go_rhs = ((int)r.symtype == (int)nd.thr);
+        node = go_rhs ? nd.rhs : nd.lhs;
+    }
+    return R6D_TREE[node].leaf;
+}
+inline int r9_leaf_id(const R6DRaw& r, int K) {
+    int l = r9_leaf(r);
+    if (l >= K) l = K - 1;
+    return l;
+}
+} // namespace
+
+bool g_r9_tree_ema = false;
+void learned_set_r9_tree_ema(bool v) { g_r9_tree_ema = v; }
+
 
 namespace {
 constexpr int LF = 13;  // input features (X5a adds lc_mag + lc_sig; X3b fix adds level)
@@ -36,6 +85,35 @@ float learned_blend() { return g_blend; }
 void learned_set_blend(float v) { g_blend = v; }
 float learned_pseudo() { return g_pseudo; }
 void learned_set_pseudo(float v) { g_pseudo = v; }
+
+uint16_t LearnedModel::predict(const LCFeat& f, const R6DRaw& r) const {
+    if (g_r9_tree_ema) {
+        int leaf = r9_leaf_id(r, (int)R6D_K);
+        uint32_t c = (uint32_t)leaf * 3u + (uint32_t)(f.symtype % 3);
+        uint16_t p = ema_[c];
+        if (p < 1) p = 1;
+        if (p > M - 1) p = (uint16_t)(M - 1);
+        return p;
+    }
+    return predict(f);
+}
+
+void LearnedModel::update(const LCFeat& f, const R6DRaw& r, uint8_t bit) {
+    if (g_r9_tree_ema) {
+        int leaf = r9_leaf_id(r, (int)R6D_K);
+        uint32_t c = (uint32_t)leaf * 3u + (uint32_t)(f.symtype % 3);
+        uint16_t& p0 = ema_[c];
+        if (bit == 0)
+            p0 += (uint16_t)((M - p0) >> EMA_SHIFT);
+        else
+            p0 -= (uint16_t)(p0 >> EMA_SHIFT);
+        if (p0 < 1) p0 = 1;
+        if (p0 > M - 1) p0 = (uint16_t)(M - 1);
+        if (count_[c] < 0xFFFFu) ++count_[c];
+        return;
+    }
+    update(f, bit);
+}
 
 void learned_norm(const LCFeat& f, float out[LF]) {
     out[0] = f.symtype / 2.0f;
