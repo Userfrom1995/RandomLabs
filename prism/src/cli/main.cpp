@@ -5119,6 +5119,163 @@ int main(int argc, char* argv[]) {
             std::cout << "R7 mean summed   =" << mean_sum
                       << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "wavelet-r8") {
+            // R8 harness: learned parametric reversible lifting (Route 8 lever).
+            // Codes the coefficient residual through the byte-exact bitplane coder.
+            // Lossless round-trip is the gating property.
+            if (argc < 4) { print_usage(); return 2; }
+            std::filesystem::path in = argv[2];
+            std::filesystem::path out = argv[3];
+            uint8_t filter_id = X_FILTER_ID_LEARNED;
+            int levels = X_DEFAULT_LEVELS;
+            bool residual = true;
+            float ca = -1.586134342f, cb = -0.052980118f, cc = 0.882911076f, cd = 0.443506852f;
+            std::string coeff;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--no-residual") residual = false;
+                else if (a == "--coeff" && i + 1 < argc) coeff = argv[++i];
+            }
+            if (!coeff.empty()) {
+                float v[4] = {0,0,0,0}; int n = 0;
+                size_t pos = 0;
+                while (pos < coeff.size() && n < 4) {
+                    size_t comma = coeff.find(',', pos);
+                    std::string tok = (comma == std::string::npos) ? coeff.substr(pos)
+                                                                   : coeff.substr(pos, comma - pos);
+                    v[n++] = (float)std::stof(tok);
+                    if (comma == std::string::npos) break;
+                    pos = comma + 1;
+                }
+                if (n == 4) set_learned_lift(v[0], v[1], v[2], v[3]);
+            }
+            uint8_t bd = 8, ch = 3; uint32_t w = 0, h = 0;
+            for (int i = 4; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--w" && i + 1 < argc) w = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--h" && i + 1 < argc) h = (uint32_t)std::stoul(argv[++i]);
+                else if (a == "--bd" && i + 1 < argc) bd = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--ch" && i + 1 < argc) ch = (uint8_t)std::stoi(argv[++i]);
+            }
+            Raster r = load_raster(in, w, h, bd, ch);
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            else if (filter_id == X_FILTER_ID_LEARNED) filter = WaveletFilter::Learned;
+            size_t net = 0;
+            std::vector<uint8_t> bytes;
+            if (residual) bytes = frame_wavelet_encode_residual(r, filter, levels, net);
+            else bytes = frame_wavelet_encode(r, filter, levels, net);
+            write_file(out, bytes);
+            Raster dec = frame_wavelet_decode(bytes);
+            bool ok = (dec == r);
+            double bpp = (8.0 * bytes.size()) / (r.w * r.h * (size_t)r.num_channels());
+            std::cout << "wavelet-r8: " << r.w << "x" << r.h << " ch=" << (int)r.num_channels()
+                      << " bd=" << (int)bd << " filter=" << (int)filter_id
+                      << " levels=" << levels
+                      << (residual ? " residual" : " plain")
+                      << " -> " << bytes.size() << " bytes (" << bpp << " bpp) "
+                      << (ok ? "ROUNDTRIP=OK" : "ROUNDTRIP=FAIL") << "\n";
+            if (!ok) return 1;
+        } else if (cmd == "bench-r8") {
+            // R8 dual-unit benchmark on the real Kodak-24 corpus (binding gate).
+            // Encodes each image with the learned lifting (optionally through the
+            // residual predictor) and reports per-sample + summed bpp (both units)
+            // plus decode round-trip. Feeds prism/benchmarks/bench_gate.sh.
+            uint8_t filter_id = X_FILTER_ID_LEARNED;
+            int levels = X_DEFAULT_LEVELS;
+            bool residual = true;
+            std::string kodak, outcsv;
+            float ca = -1.586134342f, cb = -0.052980118f, cc = 0.882911076f, cd = 0.443506852f;
+            std::string coeff;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--no-residual") residual = false;
+                else if (a == "--coeff" && i + 1 < argc) coeff = argv[++i];
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+            }
+            if (!coeff.empty()) {
+                float v[4] = {0,0,0,0}; int n = 0;
+                size_t pos = 0;
+                while (pos < coeff.size() && n < 4) {
+                    size_t comma = coeff.find(',', pos);
+                    std::string tok = (comma == std::string::npos) ? coeff.substr(pos)
+                                                                   : coeff.substr(pos, comma - pos);
+                    v[n++] = (float)std::stof(tok);
+                    if (comma == std::string::npos) break;
+                    pos = comma + 1;
+                }
+                if (n == 4) set_learned_lift(v[0], v[1], v[2], v[3]);
+            }
+            if (kodak.empty()) {
+                std::cerr << "bench-r8: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-r8: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-r8: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            else if (filter_id == X_FILTER_ID_LEARNED) filter = WaveletFilter::Learned;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,roundtrip\n";
+            std::vector<double> ps, sum;
+            size_t total_net = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                std::vector<uint8_t> bytes;
+                if (residual) bytes = frame_wavelet_encode_residual(r, filter, levels, net);
+                else bytes = frame_wavelet_encode(r, filter, levels, net);
+                Raster dec = frame_wavelet_decode(bytes);
+                bool ok = (dec == r);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_ps = 8.0 * net / npix;
+                double bpp_sum = 8.0 * net / (r.w * r.h);
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << net << "," << bpp_ps << ","
+                       << bpp_sum << "," << (ok ? 1 : 0) << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp_ps); sum.push_back(bpp_sum);
+                total_net += net; total_pix += npix;
+                std::cout << img.filename().string() << " net=" << net
+                          << " per_sample=" << bpp_ps << " summed=" << bpp_sum
+                          << (ok ? " OK" : " FAIL") << "\n";
+                if (!ok) { std::cerr << "bench-r8: roundtrip FAIL on " << img.filename().string() << "\n"; return 1; }
+            }
+            double mean_ps = 0, mean_sum = 0;
+            for (double v : ps) mean_ps += v;
+            for (double v : sum) mean_sum += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            mean_sum /= std::max<size_t>(1, sum.size());
+            std::cout << "R8 mean per-sample=" << mean_ps
+                      << " bpp ; M2 gate <3.166 ; M3 gate <2.885"
+                      << (residual ? " residual" : " plain") << "\n";
+            std::cout << "R8 mean summed   =" << mean_sum
+                      << " bpp/img ; M2 gate <9.498 ; M3 gate <8.655\n";
+            if (!outcsv.empty()) cf.close();
         } else if (cmd == "wavelet-r6d") {
             // R6-D harness: the true JXL-Modular property tree with transmitted
             // per-leaf histograms. Codes the learned-coefficient residual through
@@ -5598,6 +5755,76 @@ int main(int argc, char* argv[]) {
             }
 
             if (!outcsv.empty()) cf.close();
+        } else if (cmd == "tune-lifting") {
+            // Route 8 offline optimizer: for the given 4 learned-lift coefficients,
+            // returns the TOTAL net bytes of the real codec (frame_wavelet_encode
+            // or _residual) over the supplied --kodak corpus. Pairs with a shell
+            // side greedy search to minimise the actual gate objective directly.
+            std::string kodak, coeff;
+            int levels = X_DEFAULT_LEVELS;
+            bool residual = true;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--coeff" && i + 1 < argc) coeff = argv[++i];
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--no-residual") residual = false;
+            }
+            if (coeff.empty()) {
+                std::cerr << "tune-lifting: --coeff a,b,c,d required\n";
+                return 2;
+            }
+            if (kodak.empty()) {
+                std::cerr << "tune-lifting: --kodak DIR required\n";
+                return 2;
+            }
+            {
+                float v[4] = {0,0,0,0}; int n = 0;
+                size_t pos = 0;
+                while (pos < coeff.size() && n < 4) {
+                    size_t comma = coeff.find(',', pos);
+                    std::string tok = (comma == std::string::npos) ? coeff.substr(pos)
+                                                                   : coeff.substr(pos, comma - pos);
+                    v[n++] = (float)std::stof(tok);
+                    if (comma == std::string::npos) break;
+                    pos = comma + 1;
+                }
+                if (n != 4) { std::cerr << "tune-lifting: need 4 coeffs\n"; return 2; }
+                set_learned_lift(v[0], v[1], v[2], v[3]);
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "tune-lifting: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "tune-lifting: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::Learned;
+            size_t total_net = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                std::vector<uint8_t> bytes;
+                if (residual) bytes = frame_wavelet_encode_residual(r, filter, levels, net);
+                else bytes = frame_wavelet_encode(r, filter, levels, net);
+                total_net += net; total_pix += (size_t)r.w * r.h * r.num_channels();
+            }
+            double bpp_ps = 8.0 * total_net / total_pix;
+            std::cout << "tune-lifting: " << coeff << (residual ? " residual" : " plain")
+                      << " levels=" << levels
+                      << " total_net=" << total_net
+                      << " per_sample=" << bpp_ps << "\n";
         } else if (cmd == "train-learned") {
             // X3a offline trainer: learns the baked MLP context-model weights from
             // real Kodak imagery. Encodes each subband exactly as the production

@@ -8,11 +8,105 @@
 
 #include "prism/codec/wavelet.h"
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <random>
 #include <cmath>
 
 namespace prism::codec {
+
+// Forward declaration: defined just below, used by the learned lift.
+inline int32_t round_mul(int32_t fp, int32_t s);
+
+// Route 8 learned lifting coefficients (default = standard CDF 9/7 reversible).
+static std::array<float, 4> g_learned_lift{
+    -1.586134342f, -0.052980118f, 0.882911076f, 0.443506852f};
+
+void set_learned_lift(float a, float b, float c, float d) {
+    g_learned_lift = {a, b, c, d};
+}
+
+std::array<float, 4> learned_lift_coeffs() { return g_learned_lift; }
+
+// 4-step learned reversible lifting (9/7-style generalisation). Each step is
+// old + round_mul(coeff, fixed_neighbours); the inverse subtracts the same
+// quantity with identical neighbours and identical rounding, so it is exactly
+// invertible for ANY real coefficients (invariant I26 holds unconditionally).
+void forward_learned(const std::vector<int32_t>& even, const std::vector<int32_t>& odd,
+                     std::vector<int32_t>& out_even, std::vector<int32_t>& out_odd) {
+    size_t en = even.size(), on = odd.size();
+    out_even.resize(en);
+    out_odd.resize(on);
+    std::vector<int32_t> o = odd, e = even;
+    const int32_t fa = (int32_t)std::round(g_learned_lift[0] * 65536.0);
+    const int32_t fb = (int32_t)std::round(g_learned_lift[1] * 65536.0);
+    const int32_t fc = (int32_t)std::round(g_learned_lift[2] * 65536.0);
+    const int32_t fd = (int32_t)std::round(g_learned_lift[3] * 65536.0);
+    // Step 1: predict on odd with a.
+    for (size_t k = 0; k < on; ++k) {
+        int32_t lv = e[k];
+        int32_t rv = (k + 1 < en) ? e[k + 1] : e[k];
+        o[k] = o[k] + round_mul(fa, lv + rv);
+    }
+    // Step 2: update on even with b.
+    for (size_t k = 0; k < en; ++k) {
+        int32_t lo = (k > 0) ? (on ? o[k - 1] : 0) : (on ? o[0] : 0);
+        int32_t ro = (k < on) ? o[k] : (on ? o[on - 1] : 0);
+        e[k] = e[k] + round_mul(fb, lo + ro);
+    }
+    // Step 3: predict on odd with c.
+    for (size_t k = 0; k < on; ++k) {
+        int32_t lv = e[k];
+        int32_t rv = (k + 1 < en) ? e[k + 1] : e[k];
+        o[k] = o[k] + round_mul(fc, lv + rv);
+    }
+    // Step 4: update on even with d.
+    for (size_t k = 0; k < en; ++k) {
+        int32_t lo = (k > 0) ? (on ? o[k - 1] : 0) : (on ? o[0] : 0);
+        int32_t ro = (k < on) ? o[k] : (on ? o[on - 1] : 0);
+        e[k] = e[k] + round_mul(fd, lo + ro);
+    }
+    out_even = e;
+    out_odd = o;
+}
+
+void inverse_learned(const std::vector<int32_t>& even, const std::vector<int32_t>& odd,
+                     std::vector<int32_t>& out) {
+    size_t en = even.size(), on = odd.size();
+    out.resize(en + on);
+    std::vector<int32_t> o = odd, e = even;
+    const int32_t fa = (int32_t)std::round(g_learned_lift[0] * 65536.0);
+    const int32_t fb = (int32_t)std::round(g_learned_lift[1] * 65536.0);
+    const int32_t fc = (int32_t)std::round(g_learned_lift[2] * 65536.0);
+    const int32_t fd = (int32_t)std::round(g_learned_lift[3] * 65536.0);
+    // Undo step 4 on even.
+    for (size_t k = 0; k < en; ++k) {
+        int32_t lo = (k > 0) ? (on ? o[k - 1] : 0) : (on ? o[0] : 0);
+        int32_t ro = (k < on) ? o[k] : (on ? o[on - 1] : 0);
+        e[k] = e[k] - round_mul(fd, lo + ro);
+    }
+    // Undo step 3 on odd.
+    for (size_t k = 0; k < on; ++k) {
+        int32_t lv = e[k];
+        int32_t rv = (k + 1 < en) ? e[k + 1] : e[k];
+        o[k] = o[k] - round_mul(fc, lv + rv);
+    }
+    // Undo step 2 on even.
+    for (size_t k = 0; k < en; ++k) {
+        int32_t lo = (k > 0) ? (on ? o[k - 1] : 0) : (on ? o[0] : 0);
+        int32_t ro = (k < on) ? o[k] : (on ? o[on - 1] : 0);
+        e[k] = e[k] - round_mul(fb, lo + ro);
+    }
+    // Undo step 1 on odd.
+    for (size_t k = 0; k < on; ++k) {
+        int32_t lv = e[k];
+        int32_t rv = (k + 1 < en) ? e[k + 1] : e[k];
+        o[k] = o[k] - round_mul(fa, lv + rv);
+        out[2 * k + 1] = o[k];
+        out[2 * k] = e[k];
+    }
+    if (en > on) out[2 * on] = e[on];
+}
 
 // Symmetric (mirror) neighbour helpers for 1D split into even/odd arrays.
 
@@ -190,6 +284,7 @@ void lift1d(const std::vector<int32_t>& src, std::vector<int32_t>& out,
         case WaveletFilter::Haar: forward_haar(even, odd, oe, oo); break;
         case WaveletFilter::LeGall53: forward_53(even, odd, oe, oo); break;
         case WaveletFilter::Reversible97: forward_97(even, odd, oe, oo); break;
+        case WaveletFilter::Learned: forward_learned(even, odd, oe, oo); break;
     }
     // Merge: even slots hold low outputs, odd slots hold high outputs.
     out.resize(oe.size() + oo.size());
@@ -205,6 +300,7 @@ void unlift1d(const std::vector<int32_t>& merged, std::vector<int32_t>& out,
         case WaveletFilter::Haar: inverse_haar(even, odd, out); return;
         case WaveletFilter::LeGall53: inverse_53(even, odd, out); return;
         case WaveletFilter::Reversible97: inverse_97(even, odd, out); return;
+        case WaveletFilter::Learned: inverse_learned(even, odd, out); return;
     }
 }
 

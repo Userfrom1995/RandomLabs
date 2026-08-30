@@ -19,14 +19,24 @@ namespace prism::codec {
 enum class WaveletFilter : uint8_t {
     Haar = 0,        // Baseline control (low compaction)
     LeGall53 = 1,    // PRIMARY: J2K lossless standard, best balance
-    Reversible97 = 2 // Sweep candidate (best compaction, higher rounding cost)
+    Reversible97 = 2,// Sweep candidate (best compaction, higher rounding cost)
+    Learned = 3      // Route 8: learned parametric lifting (baked coefficients)
 };
 
 constexpr int X_FILTER_ID_HAAR = 0;
 constexpr int X_FILTER_ID_53 = 1;
 constexpr int X_FILTER_ID_97 = 2;
+constexpr int X_FILTER_ID_LEARNED = 3;
 constexpr WaveletFilter X_DEFAULT_FILTER = WaveletFilter::LeGall53;
 constexpr int X_DEFAULT_LEVELS = 5;
+
+// Route 8 learned lifting coefficients (4-step 9/7-style reversible lift).
+// Defaults are the standard CDF 9/7 reversible coefficients; they can be
+// overridden (and baked) by `prism tune-lifting` to minimize real coded bytes.
+// Any 4 real coefficients yield an EXACTLY reversible integer lift (each step
+// is old + round(c * fixed_neighbours), invertible with identical rounding).
+void set_learned_lift(float a, float b, float c, float d);
+std::array<float, 4> learned_lift_coeffs();
 
 struct WaveletParams {
     WaveletFilter filter = X_DEFAULT_FILTER;
