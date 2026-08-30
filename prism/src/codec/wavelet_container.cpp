@@ -1183,11 +1183,26 @@ std::vector<uint8_t> frame_wavelet_encode_route10(const Raster& raster,
     size_t nch = raster.num_channels();
     if (nch > 3) nch = 3; // ignore alpha for spatial predictor
 
+    // Determine spatial predictor type (P1 adaptive bank or P2 MLP).
+    // For this build: P2 MLP spatial predictor on raw RGB.
+    uint16_t residual_mode = (uint16_t)(1u | SPATIAL_RGB_FLAG | SPATIAL_P2_FLAG);
+
     // Step 1: Compute spatial residuals on each raw RGB plane.
+    // P1 (adaptive bank) or P2 (learned MLP) selected by residual_mode flags.
     std::vector<std::vector<int32_t>> spatial_res(nch);
-    for (size_t ci = 0; ci < nch; ++ci) {
-        spatial_res[ci] = compute_spatial_residuals(raster.planes[ci],
-                                                     raster.w, raster.h, bd_max);
+    bool use_p2 = (residual_mode & SPATIAL_P2_FLAG) != 0;
+    if (use_p2 && raster.bd == BitDepth::BD8 && nch >= 3) {
+        // P2: MLP spatial predictor on raw RGB - all 3 channels in one pass.
+        compute_spatial_residuals_p2_all(
+            raster.planes[0].data(), raster.planes[1].data(),
+            raster.planes[2].data(), raster.w, raster.h,
+            spatial_res[0], spatial_res[1], spatial_res[2]);
+    } else {
+        // P1: adaptive bank spatial predictor on each plane independently.
+        for (size_t ci = 0; ci < nch; ++ci) {
+            spatial_res[ci] = compute_spatial_residuals(raster.planes[ci],
+                                                         raster.w, raster.h, bd_max);
+        }
     }
 
     // Step 2: Apply YCoCg-R on signed int32 spatial residuals (if BD8 and >= 3ch).
@@ -1272,7 +1287,7 @@ std::vector<uint8_t> frame_wavelet_encode_route10(const Raster& raster,
     hdr.filter_id = filter_to_id(filter);
     hdr.levels = (uint8_t)levels;
     hdr.maxbits = global_maxbits;
-    hdr.residual_mode = (uint16_t)(1u | SPATIAL_RGB_FLAG);
+    hdr.residual_mode = residual_mode;
     hdr.total_symbols = 0;
     hdr.subbands_per_plane = subbands_per_plane;
     hdr.num_planes = (uint8_t)nch;
@@ -1549,13 +1564,27 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
             // Inverse YCoCg-R on signed residuals.
             invert_color_residual_signed(p0.data(), p1.data(), p2.data(), n);
             // Spatial reconstruction on raw RGB (bd_max=255).
-            auto recon_r = reconstruct_spatial(p0, t.w, t.h, 255);
-            auto recon_g = reconstruct_spatial(p1, t.w, t.h, 255);
-            auto recon_b = reconstruct_spatial(p2, t.w, t.h, 255);
-            for (size_t i = 0; i < n; ++i) {
-                t.planes[0][i] = recon_r[i];
-                t.planes[1][i] = recon_g[i];
-                t.planes[2][i] = recon_b[i];
+            // P2 MLP or P1 adaptive bank selected by residual_mode flags.
+            if (hdr.residual_mode & SPATIAL_P2_FLAG) {
+                // P2 MLP spatial reconstruction - all 3 channels in one pass.
+                std::vector<uint16_t> recon_r, recon_g, recon_b;
+                reconstruct_spatial_p2_all(p0.data(), p1.data(), p2.data(),
+                                            t.w, t.h, recon_r, recon_g, recon_b);
+                for (size_t i = 0; i < n; ++i) {
+                    t.planes[0][i] = recon_r[i];
+                    t.planes[1][i] = recon_g[i];
+                    t.planes[2][i] = recon_b[i];
+                }
+            } else {
+                // P1 adaptive bank spatial reconstruction.
+                auto recon_r = reconstruct_spatial(p0, t.w, t.h, 255);
+                auto recon_g = reconstruct_spatial(p1, t.w, t.h, 255);
+                auto recon_b = reconstruct_spatial(p2, t.w, t.h, 255);
+                for (size_t i = 0; i < n; ++i) {
+                    t.planes[0][i] = recon_r[i];
+                    t.planes[1][i] = recon_g[i];
+                    t.planes[2][i] = recon_b[i];
+                }
             }
         } else {
             // BD16 or grayscale: no color transform, just spatial reconstruction.

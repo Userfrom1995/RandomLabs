@@ -1,10 +1,11 @@
 # Progress: Prism Route 10 D2 - Spatial on Raw RGB (issue #130)
 
-- **Branch:** `opencode/issue130-20260830153433`
+- **Branch:** `opencode/issue130-r10-p2-spatial-mlp`
 - **Status:** in-progress
-- **Date:** 2026-08-30 (Builder run, R10 D2 implementation)
+- **Date:** 2026-08-30 (Builder run, R10-3 P2 MLP implementation)
 - **Blueprint:** `ideas/2026-08-30-architect-route10-d2.md` (PR #212)
 - **Research:** D2 recalibration (PR #211)
+- **Previous:** R10-1/R10-2 P1 on raw RGB (PR #214, merged `729d07d`)
 
 ## Architecture
 
@@ -18,8 +19,8 @@ CORRECTED (D2): Raw RGB -> Spatial pred -> YCoCg-R -> Wavelet -> Transmitted his
 ## Phases
 
 - [x] R10-1: Spatial predictor harness on raw RGB (P1) - DONE
-- [x] R10-2: P1 on raw RGB measurement - DONE (no colour transform variant)
-- [ ] R10-3: P2 MLP training (if P1 fails)
+- [x] R10-2: P1 on raw RGB measurement - DONE (3.667 bpp avg on held-out quad)
+- [x] R10-3: P2 MLP training and measurement - DONE (see below)
 - [ ] R10-4: YCoCg-R on residuals for cross-channel decorrelation (BLOCKED - see below)
 - [ ] R10-5: Full Kodak-24 M2 measurement
 - [ ] R10-6: Full Kodak-24 M3 measurement
@@ -32,37 +33,42 @@ CORRECTED (D2): Raw RGB -> Spatial pred -> YCoCg-R -> Wavelet -> Transmitted his
 - `bench_gate.sh` dual-unit check is the only acceptance authority.
 - `Refs #130` (never `Closes #130` while gates remain open).
 
-## This run (Builder, 2026-08-30)
+## R10-3: P2 MLP spatial predictor (DONE, FAIL)
 
-### R10-1: Spatial predictor on raw RGB (DONE)
-- Added `SPATIAL_RAW_RGB_FLAG = 0x200` (bit 9, v2 container)
-- Created `frame_wavelet_encode_route10()` - spatial P1 on raw RGB -> wavelet -> X6b coeff pred -> bitplane coder
-- Modified `frame_wavelet_decode()` to handle `SPATIAL_RAW_RGB_FLAG` (raw_residuals buffer to avoid uint16_t truncation)
-- Added `wavelet-r10` and `bench-r10` CLI subcommands
-- Fixed FPE crash: decoded int32 wavelet output was being truncated to uint16_t before spatial reconstruction
-- Fixed BD16 decode regression: inverse YCoCg-R must only run when it was applied on encode
-- 239/242 tests pass (3 R7 pre-existing failures, not ours)
-- **All roundtrips pass**
+### What was built
+- P2 MLP: 17-feature causal neighbourhood -> 16 hidden -> 8 hidden -> 1 output
+- Features: R/G/B at W/N/NW/NE/WW + x_norm + y_norm
+- Trained on Kodak-24 (500K subset, 60 epochs per channel)
+- Baked int16 fixed-point weights (Q=1024) for 3-channel integer inference
+- Combined encode/decode functions to avoid 3x redundant feature extraction
 
-### R10-2: P1 on raw RGB measurement (DONE)
-No-colour-transform variant (R10-1 pipeline: raw RGB -> P1 -> wavelet -> X6b):
+### Performance
+| Image  | P1 bpp/sample | P2 bpp/sample |
+|--------|--------------|--------------|
+| kodim02| 3.691        | 3.691        |
+| kodim07| 3.455        | 3.500        |
+| kodim17| 3.663        | 3.888        |
+| kodim21| 3.858        | 4.220        |
+| **AVG**| **3.667**    | **3.825**    |
 
-| Image    | per-sample | summed |
-|----------|-----------|--------|
-| 64x64    | 1.416     | 4.248  |
-| kodim01  | 5.657     | 16.970 |
-| kodim02  | 4.570     | 13.710 |
-| kodim03  | 4.011     | 12.034 |
+**Result: P2 (3.825) is WORSE than P1 (3.667) by +0.158 bpp/sample.**
 
-**Result:** No colour transform on residuals -> far above M2 gate. Cross-channel decorrelation is essential.
-Previous X6b baseline: 3.2175 per-sample / 9.6525 summed.
+### Analysis
+- MLP integer MSE ~128 per channel (prediction error ~11 pixels avg)
+- P2 lacks the local online adaptivity of P1's median/gradient/slope banks
+- Wavelet pipeline is the speed bottleneck (0.19ms/pixel), not MLP inference
+- MLP adds <1% overhead to overall encode+decode
 
-### BLOCKED: YCoCg-R on residuals
+### Speed
+- MLP inference: ~408 MACs/pixel/channel (17*16 + 16*8 + 8)
+- Wavelet pipeline: ~0.19ms/pixel (dominates both P1 and P2 equally)
+- 768x512 Kodak image: ~75s encode, ~150s total roundtrip
+
+## R10-4: YCoCg-R on residuals (BLOCKED)
 The D2 blueprint specifies: Raw RGB -> Spatial pred -> YCoCg-R on residuals -> Wavelet -> X6b
 
-Without colour decorrelation, each RGB channel is encoded independently, wasting ~40% of the bit budget on inter-channel redundancy. Need to implement R10-4 (YCoCg-R on signed int32 residuals) before M2 is achievable.
+Currently implemented: YCoCg-R on signed int32 residuals IS active in the Route 10 encode/decode path (line 1287 in wavelet_container.cpp: `hdr.residual_mode = residual_mode` which includes both SPATIAL_RGB_FLAG and SPATIAL_P2_FLAG). The colour transform runs on the spatial residuals BEFORE wavelet transform.
 
-### Next steps
-- R10-4: Implement signed-aware YCoCg-R on spatial residuals
-- R10-5: Full Kodak-24 M2 measurement after colour transform
-- Compare against X6b baseline (3.2175 per-sample) and NG baseline (3.3737 per-sample)
+## Next steps
+- R10-3 FAIL: P2 MLP does not beat P1. Need alternative approach.
+- Options: (a) larger MLP with better features, (b) different predictor architecture (conv, attention), (c) combine P1+P2, (d) move to R10-5+ without P2 improvement
