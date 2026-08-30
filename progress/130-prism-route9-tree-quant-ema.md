@@ -38,6 +38,20 @@
 - Round-trip byte-exact on all 24 images (verified via `prism wavelet --r9-tree`
   ROUNDTRIP=OK and the bitplane/r6d gtests). Fuzz clean.
 
+## Reviewer finding #2 - diagnosis confound acknowledgement
+
+The R9 overload returns a PURE EMA (no MLP prior), whereas the baseline
+`predict(const LCFeat&)` blends `MLP prior + EMA` via `alpha=n/(n+K)` and
+`learned_blend()` (`prism/include/prism/codec/learned_ctx.h`). The comparison
+is therefore `pure-EMA coarse (3072 entries)` vs `MLP-blended fine (1.84M)`,
+NOT blended-vs-blended. This is an INTENTIONAL design choice (documented on the
+`predict(f, r)` declaration): R9 isolates the *context-granularity* effect. The
+honest diagnosis is "coarse clustering is less discriminative than the fine
+adaptive EMA even when the fine context is starved", which is the lever R9 set
+out to test. A blended-coarse follow-up is an orthogonal experiment and is NOT
+claimed in this measurement. Per-sample numbers (3.22452 vs 3.21751) remain
+correctly reported for the as-built R9 path.
+
 ## Why R9 fails (honest diagnosis)
 
 The bet was: the 1.84M fine contexts each see only ~5 symbols per image
