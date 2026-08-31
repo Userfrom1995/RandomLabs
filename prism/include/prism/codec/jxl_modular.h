@@ -22,11 +22,11 @@ namespace prism::codec {
 //     1. Apply color transform (YCoCg-R)
 //     2. Apply wavelet transform (LeGall 5/3)
 //     3. Compute coefficient predictor residuals
-//     4. Build MA-tree over spatial features (QG, activity, position, level)
+//     4. Build MA-tree over spatial features (production build_matree_greedy, 8 properties)
 //     5. Partition samples into K clusters (K ~ 30-80)
-//     6. Count residuals per cluster (alphabet 64 symbols, res_to_sym bijection)
-//     7. Smooth histograms toward geometric prior
-//     8. Score candidate K by real ANS bytes (trial-encoded)
+//   6. Count residuals per cluster (alphabet 128 symbols, res_to_sym bijection)
+//   7. Estimate ANS entropy per cluster (theoretical, no container/ANS stream)
+//   8. Score candidate K by theoretical bits (ans_bits_for_hist + header overhead)
 //
 //   Pass 2 (coding, O(N)):
 //     1. Re-apply color transform + wavelet + predictor
@@ -53,7 +53,7 @@ struct JXLModularResult {
 };
 
 // Encode a raster image using the true JXL-Modular multi-pass architecture.
-// k_target=0 means auto-sweep {8,16,32,48}; >0 means fixed K.
+// k_target=0 means auto-sweep {8,16,32,48,64,128}; >0 means fixed K.
 JXLModularResult jxl_modular_encode(const Raster& raster, int k_target = 0);
 
 // Decode a JXL-Modular encoded stream back to a raster.
