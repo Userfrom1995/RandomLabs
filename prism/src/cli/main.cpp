@@ -12,6 +12,7 @@
 #include "prism/codec/matree.h"
 #include "prism/codec/transform.h"
 #include "prism/codec/container.h"
+#include "prism/codec/jxl_modular.h"
 #include "prism/codec/multipass.h"
 #include "prism/codec/wavelet.h"
 #include "../codec/wavelet_lift_data.inc"
@@ -8299,6 +8300,69 @@ int main(int argc, char* argv[]) {
             std::cout << "self-check-r2-hybrid: " << imgs.size() << "/" << imgs.size() << " PASS\n";
         } else if (cmd == "bench-sandbox") {
             return run_bench_sandbox(argc, argv);
+        } else if (cmd == "bench-jxl-modular") {
+            // JXL-Modular multi-pass encoder benchmark (issue #130).
+            // Measures the theoretical ANS-coded size with MA-tree clustering.
+            int k_target = 48;
+            std::string kodak, outcsv;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--k" && i + 1 < argc) k_target = std::stoi(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+            }
+            if (kodak.empty()) {
+                std::cerr << "bench-jxl-modular: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-jxl-modular: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-jxl-modular: no images in " << kodak << "\n"; return 2; }
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,K\n";
+            std::vector<double> ps, sum;
+            size_t total_net = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                auto result = codec::jxl_modular_encode(r, k_target);
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp_ps = result.per_sample_bpp;
+                double bpp_sum = result.summed_bpp;
+                size_t net = result.total_bytes;
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << net << "," << bpp_ps << ","
+                       << bpp_sum << "," << result.num_clusters << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp_ps); sum.push_back(bpp_sum);
+                total_net += net; total_pix += npix;
+                std::cout << img.filename().string() << " net=" << net
+                          << " per_sample=" << bpp_ps << " summed=" << bpp_sum
+                          << " K=" << result.num_clusters << "\n";
+            }
+            double mean_ps = 0, mean_sum = 0;
+            for (double v : ps) mean_ps += v;
+            for (double v : sum) mean_sum += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            mean_sum /= std::max<size_t>(1, sum.size());
+            std::cout << "MEAN per_sample=" << mean_ps << " summed=" << mean_sum
+                      << " (" << ps.size() << " images)\n";
+            if (!outcsv.empty()) {
+                cf << "MEAN,," << mean_ps << "," << mean_sum << ",\n";
+            }
         } else {
             print_usage(); return 2;
         }
