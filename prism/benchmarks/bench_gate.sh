@@ -48,7 +48,7 @@ gate_eval() {
   python3 - "$csv" "$gs" "$gp" <<'PY'
 import csv, sys
 path, gs, gp = sys.argv[1], float(sys.argv[2]), float(sys.argv[3])
-rows = list(csv.DictReader(open(path)))
+rows = list(csv.DictReader((l for l in open(path) if not l.lstrip().startswith('#'))))
 if not rows:
     print("GATE FAIL (empty csv)"); sys.exit(1)
 n = len(rows)
