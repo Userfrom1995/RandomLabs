@@ -1,8 +1,8 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-08-31T06:05Z, maintainer run 33362744369 (PR #223 MERGED at 1756284, M2 PASS 3.16064/9.48193, #130 OPEN for M3 9.6% gap, #222 closed as duplicate, chaining Research V2)
- - **Action this run:** `[{"action":"research","issue":130}]` + merge PR #223 via gh pr merge --rebase (Reviewer APPROVE 05:33:56Z fe2c773 + Tester approve-test 06:04:22Z 33360987401), close #222 duplicate, trigger pages 33362814437
- - **Main:** `1756284ee43f9289b68a92e97f61766fc8d77c` verified live `git ls-remote origin/main` = 1756284, `git log origin/main -5` = 1756284 (fixer dead jxl_log2_quant removal Refs #130), ce0927b (builder JXL-Modular M2 gate 3.16064/9.48193), f5aba92 (exhaustive ledger), 2522ac7, 147b1bd, chain f5aba92->ce0927b->1756284 descendant true merge-base f5aba92 NOT orphan, `gh pr list` = [203,202,186,181] (223 merged, 221/220/219/218 merged), `gh api pulls/223` = MERGED at 1756284, #130 stays OPEN, #222 CLOSED
- - **Branch retention:** opencode/issue130-jxl-modular-m2-gate at `fe2c773` MERGED at 1756284 retained, opencode/issue130-20260831030753 at `4907f23` MERGED at f5aba92 retained, opencode/issue130-jxl-modular-redesign at `8b459c8` MERGED at 2522ac7 retained, opencode/issue130-p4-attention-predictor at `783c19d` MERGED at 147b1bd retained, 203/202/186/181 archival CONFLICTING retained per #148
+ - **Updated:** 2026-08-31T08:24Z, maintainer run 33372758149 (schedule quiet watch, build in_progress guard 33365901746, main 1756284 M2 PASS 3.16064/9.48193, #130 OPEN M3 9.6% gap)
+ - **Action this run:** `[]` empty - quiet watch, respect Builder in_progress 33365901746 on #130 (opencode/issue130-jxl-modular-real-codec uncommitted +580 lines, decoder "escape data exhausted" bug, base_subs fix pending compile/test, since 06:51:54Z 1h33m), no duplicate research/architect/build, no PR review/test/merge needed (223 merged, 4 archival CONFLICTING)
+ - **Main:** `1756284ee43f9289b68a92e97f61766fc8d77c` verified live `git ls-remote origin/main` = 1756284, `git log origin/main -5` = 1756284 (fixer dead jxl_log2_quant removal Refs #130), ce0927b (builder JXL-Modular M2 gate 3.16064/9.48193), f5aba92 (exhaustive ledger), 2522ac7, 147b1bd, chain f5aba92->ce0927b->1756284 descendant true merge-base f5aba92 NOT orphan, `gh pr list` = [203,202,186,181] (223 merged, 221/220/219/218 merged), #130 stays OPEN, #222 CLOSED, #200 CLOSED
+ - **Branch retention:** opencode/issue130-jxl-modular-m2-gate at `fe2c773` MERGED at 1756284 retained, opencode/issue130-20260831030753 at `4907f23` MERGED at f5aba92 retained, opencode/issue130-jxl-modular-redesign at `8b459c8` MERGED at 2522ac7 retained, opencode/issue130-p4-attention-predictor at `783c19d` MERGED at 147b1bd retained, opencode/issue130-jxl-modular-real-codec at uncommitted (pending PR, 1h35m build 33365901746), 203/202/186/181 archival CONFLICTING retained per #148
 
 ## STANDING OWNER DIRECTIVES (active)
 - **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt.
@@ -22,10 +22,10 @@
 
 ## CRITICAL INFRASTRUCTURE STATE
 - **1756284 live, PR #223 MERGED:** histogram-aware overhead (nonzero*2+4 per cluster, tree (2K-1)*5 +12 global) at prism/src/codec/jxl_modular.cpp:82-106, byte_exact=false honestly set at :445 and :469, dual-unit CSVs mean 3.16064/9.48193 ratio 3.0 exact (bench_gate.sh both-units PASS), dead code jxl_log2_quant removed (grep 0 hits).
-- **Issue #130 OPEN GATING:** M2 PASS on 223 (3.16064<3.166, 9.48193<9.498), M3 9.6% gap (3.16064 vs 2.885, 9.48193 vs 8.655) - #130 stays OPEN per Owner-only halt, next is M3 V2 per No-Pause.
-- **Issue #222 CLOSED as duplicate:** JXL-Modular M2 gate passes duplicate closed 06:05Z after 223 merge, consolidated into #130.
-- **Research V2 dispatch pending:** opencode research on #130 queued via decision.json for learned predictor + transmitted context tree.
-- **Opencode:** no active build guard after 223 merge, chain respects No-Pause.
+- **Issue #130 OPEN GATING:** M2 PASS on 223 (3.16064<3.166, 9.48193<9.498), M3 9.6% gap (3.16064 vs 2.885, 9.48193 vs 8.655) - #130 stays OPEN per Owner-only halt, next is M3 real-codec PR (build 33365901746 in_progress with decoder bug).
+- **Build in_progress:** opencode 33365901746 since 06:51:54Z on #130 (head main 1756284, Prism continuation, branch opencode/issue130-jxl-modular-real-codec, 3 files modified +580 lines, jxl_modular real encode/decode + main.cpp enc/dec, Known Bug escape data exhausted even with transmitted cluster_ids, base_subs fix pending compile/test per 06:51:39Z bot summary).
+- **Issues #222/#200 CLOSED:** #222 CLOSED 06:05Z as duplicate of 223 (consolidated), #200 CLOSED 04:23Z as stale audit duplicate (mimo stable).
+- **Opencode:** build guard active 33365901746 in_progress 1h35m, respect No-Pause chain already in flight (real-codec for M3). No active Research guard beyond build.
 - **Reviewer/Tester on PR #223:** Reviewer APPROVE 05:33:56Z fe2c773 (14 checks, dead code FIXED) + Tester PASS 06:04:22Z fe2c773 (cmake build PASS, dynamic repro 3.16064/9.48193 byte-identical, prism_tests subset PASS) - both gates passed before merge.
 
 ## IN FLIGHT
@@ -33,23 +33,24 @@
 - **PR #221 - MERGED at f5aba92 (head 4907f23, Refs #130)**
 - **PR #220 - MERGED at 147b1bd (head 783c19d, Refs #130 P4 negative)**
 - **PR #218 - MERGED at 2522ac7 (head 8b459c8, Refs #130 3.184/9.553)**
-- **Issue #130 - OPEN GATING, M2 PASS at 1756284, M3 9.6% gap remains - Research V2 dispatched**
-- **Issue #222 - CLOSED as duplicate of 223 (consolidated)**
+- **Issue #130 - OPEN GATING, M2 PASS at 1756284, M3 9.6% gap remains - Builder 33365901746 in_progress real-codec (decoder bug)**
+- **Issue #222 - CLOSED 2026-08-31T06:05Z - JXL-Modular M2 gate passes duplicate (consolidated into #223/130)**
 - **4 archival PRs retained:** 203/202/186/181 CONFLICTING per #148, never merge
 
 ## PIPELINE POSITION
-Honest closure 3d76bdb -> cascade 3->1->2 -> X0..X6b floor 3.2175 -> D1 architect -> P1/P2 FAIL -> R10 D2 +16.4% -> PR #217 ledger MERGED at 725cc52 -> PR #218 JXL-Modular re-measure 8b459c8 3.184/9.553 MERGED at 2522ac7 -> PR #219 ledger MERGED at fba0274 -> P4 NEGATIVE MERGED at 147b1bd -> PR #221 ledger MERGED at f5aba92 -> PR #223 ce0927b/fe2c773 M2 PASS 3.16064/9.48193 histogram-aware overhead MERGED at 1756284 Refs #130 -> Research V2 chain for M3.
+Honest closure 3d76bdb -> cascade 3->1->2 -> X0..X6b floor 3.2175 -> D1 architect -> P1/P2 FAIL -> R10 D2 +16.4% -> PR #217 ledger MERGED at 725cc52 -> PR #218 JXL-Modular re-measure 8b459c8 3.184/9.553 MERGED at 2522ac7 -> PR #219 ledger MERGED at fba0274 -> P4 NEGATIVE MERGED at 147b1bd -> PR #221 ledger MERGED at f5aba92 -> PR #223 ce0927b/fe2c773 M2 PASS 3.16064/9.48193 histogram-aware overhead MERGED at 1756284 Refs #130 -> Build 33365901746 in_progress real-codec M3 (escape data exhausted bug).
 
 ## NEXT-RUN PLAYBOOK
-1. Await Researcher spec on #130 for M3 V2 (learned predictor + transmitted context tree, 9.6% gap to 2.885, exotic beyond-predictive). Route to Architect after Research.
-2. Monitor pages deploy 33362814437 for 1756284 and pr-223 preview archival.
-3. Verify branch retention per #148 (1756284 + fe2c773 + 4907f23 + 8b459c8 + f5aba92).
-4. Brainstorm #42 remains FROZEN until M3 passes.
-5. No new build until Researcher spec lands - respect guard.
-6. Monitor #130 for Owner halt only - otherwise continuous escalation.
+1. Monitor Builder 33365901746 (since 06:51:54Z): await PR `opencode/issue130-jxl-modular-real-codec` push with decoder fix compiled/tested; if timeout/cancel, respect auto-retry parity before re-dispatch.
+2. Upon new PR push, dispatch Review with head SHA pin, then Tester after Reviewer APPROVE per pipeline (verify real wire format overhead vs theoretical 2 bytes/symbol, byte_exact handling, dual-unit honesty).
+3. Verify pages deploy 33362814437 for 1756284 and pr pending preview after build push.
+4. Verify branch retention per #148 (1756284 + fe2c773 + 4907f23 + 8b459c8 + f5aba92 + pending branch).
+5. Brainstorm #42 remains FROZEN until M3 passes (M2 alone does not unfreeze).
+6. No new build/research until in_progress guard clears - respect guard.
+7. Monitor #130 for Owner halt only - otherwise continuous escalation per Anti-Surrender.
 
 ## ISSUES
-- **#130** - OPEN - Prism M2/M3/M4 continuation (gating, M2 PASS at 1756284 3.16064/9.48193, M3 9.6% gap remains, Research V2 dispatched)
+- **#130** - OPEN - Prism M2/M3/M4 continuation (gating, M2 PASS at 1756284 3.16064/9.48193, M3 9.6% gap remains, Builder 33365901746 in_progress real-codec bug)
 - **#222** - CLOSED 2026-08-31T06:05Z - JXL-Modular M2 gate passes duplicate (consolidated into #223/130)
 - **#199** - CLOSED 2026-08-30T03:48:36Z - Next-Gen from-scratch JXL-Modular closed after lab fix c73b97f
 - **#218** - MERGED at 2522ac7 - JXL-Modular (head 8b459c8, Refs #130, dual APPROVE+Tester PASS)
@@ -57,14 +58,15 @@ Honest closure 3d76bdb -> cascade 3->1->2 -> X0..X6b floor 3.2175 -> D1 architec
 - **#219** - MERGED at fba0274 - exhaustive ledger (head 600a006, Refs #130)
 - **#221 - MERGED at f5aba92** - exhaustive final escalation (head 4907f23, Reviewer + Tester same head, Refs #130)
 - **#223 - MERGED at 1756284** - JXL-Modular M2 gate passes (head fe2c773, Refs #130, M2 PASS, dead-code fix, Reviewer 05:33:56Z + Tester 06:04:22Z)
-- **#200 - CLOSED? check next** [Audit] hy3-free dead-model - FIXED at mimo healthy, closable next run
+- **#200 - CLOSED 2026-08-31T04:23Z** - Next-Gen from-scratch JXL-Modular closed after lab fix c73b97f + duplicate closure post-221
 - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm FROZEN
 
 ## OPEN QUESTIONS
-- Will Researcher produce V2 spec that breaks 9.6% M3 gap (3.16064 vs 2.885) via learned nonlinear predictor + transmitted context tree without regressing M2?
-- Can transmitted context tree overhead stay honest (nonzero*2 model) while gaining predictor discriminativity beyond EMA 1.84M contexts?
-- Will pages 33362814437 succeed for 1756284 and will main remain descendant for next M3 builds?
-- Will mimo-v2.5-free remain stable for Research/Architect/Builder chain (no CreditsError)?
+- Will Builder 33365901746 fix decoder "escape data exhausted" (base_subs + ANS compatibility + histogram roundtrip with transmitted cluster_ids) and push clean PR for review, achieving real byte-exact wire format?
+- Will real wire format overhead keep M2 PASS (thin 0.17% margin) or regress due to cluster_ids transmission not modeled in theoretical header_overhead_bytes?
+- Can M3 9.6% gap be broken via transmitted cluster_ids + learned predictor + beyond-predictive change, or will theoretical 3.16 bpp persist and require exotic wavelet lifting?
+- Will mimo-v2.5-free remain stable for extended build plus pending Reviewer/Tester chain (no CreditsError)?
+- Will pages remain descendant after next M3 PR merge and will main stay NOT orphan?
 
   - Hephaestus, the Maintainer
-<!-- run: 33362744369 -->
+<!-- run: 33372758149 -->
