@@ -14,12 +14,6 @@
 #include "prism/codec/predict.h"
 #include "prism/codec/predictor.h"
 #include "prism/codec/color.h"
-#include "prism/codec/ans_static.h"
-#include "prism/codec/histogram.h"
-#include "prism/codec/matree.h"
-#include "prism/codec/matree_builder.h"
-#include "prism/codec/container.h"
-#include "prism/codec/bitplane.h"
 #include "prism/frontend/frontend.h"
 #include <algorithm>
 #include <numeric>
@@ -84,10 +78,11 @@ static double ans_bits_for_hist(const std::array<uint32_t, 64>& counts, uint32_t
 
 // Estimate ANS header overhead for K clusters
 static size_t header_overhead_bytes(int K) {
+    constexpr int kAlphabet = 64; // matches ans_bits_for_hist iteration range
     // MA-tree: ~5 bytes per node, 2K-1 nodes for K leaves
     size_t tree_bytes = (size_t)(2 * K - 1) * 5;
-    // Per-cluster histogram: 34 symbols * 2 bytes = 68 bytes per cluster
-    size_t hist_bytes = (size_t)K * 34 * 2;
+    // Per-cluster histogram: kAlphabet symbols * 2 bytes = 128 bytes per cluster
+    size_t hist_bytes = (size_t)K * kAlphabet * 2;
     // Global header: 12 bytes
     return 12 + tree_bytes + hist_bytes;
 }
@@ -188,10 +183,29 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
 
                     if (left_count == 0 || right_count == 0) continue;
 
-                    // Quick gain estimate using counts only (avoid full entropy calc)
+                    // True information gain: compute child entropies via partition
+                    std::vector<size_t> left_idxs, right_idxs;
+                    left_idxs.reserve(left_count);
+                    right_idxs.reserve(right_count);
+                    for (size_t i : nd.idxs) {
+                        const auto& fi = features[i];
+                        bool go_left = false;
+                        switch (pt.prop) {
+                            case 0: go_left = fi.qg < thr; break;
+                            case 1: go_left = fi.activity < thr; break;
+                            case 2: go_left = fi.level < thr; break;
+                            case 3: go_left = fi.orient < thr; break;
+                            case 4: go_left = fi.position_y < thr; break;
+                            case 5: go_left = fi.position_x < thr; break;
+                        }
+                        if (go_left) left_idxs.push_back(i);
+                        else right_idxs.push_back(i);
+                    }
                     double pL = (double)left_count / (double)nd.idxs.size();
                     double pR = (double)right_count / (double)nd.idxs.size();
-                    double gain = parent_ent - (pL * parent_ent * 0.7 + pR * parent_ent * 0.7);
+                    double left_ent = node_entropy(left_idxs);
+                    double right_ent = node_entropy(right_idxs);
+                    double gain = parent_ent - (pL * left_ent + pR * right_ent);
 
                     if (gain > best_gain) {
                         best_gain = gain;
@@ -205,18 +219,12 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
 
         if (best_node < 0 || best_gain < 0.001) break;
 
-        auto& nd = nodes[best_node];
-        nd.is_leaf = false;
-        nd.prop = best_prop;
-        nd.thresh = best_thresh;
-        leaf_count--;
-
         BuildNode left_child;
-        left_child.depth = nd.depth + 1;
+        left_child.depth = nodes[best_node].depth + 1;
         BuildNode right_child;
-        right_child.depth = nd.depth + 1;
+        right_child.depth = nodes[best_node].depth + 1;
 
-        for (size_t i : nd.idxs) {
+        for (size_t i : nodes[best_node].idxs) {
             const auto& f = features[i];
             bool go_left = false;
             switch (best_prop) {
@@ -231,13 +239,18 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
             else right_child.idxs.push_back(i);
         }
 
-        int left_idx = next_id++;
-        nd.left = left_idx;
+        nodes[best_node].is_leaf = false;
+        nodes[best_node].prop = best_prop;
+        nodes[best_node].thresh = best_thresh;
+        leaf_count--;
+
+        int left_idx = (int)nodes.size();
+        nodes[best_node].left = left_idx;
         nodes.push_back(std::move(left_child));
         leaf_count++;
 
-        int right_idx = next_id++;
-        nd.right = right_idx;
+        int right_idx = (int)nodes.size();
+        nodes[best_node].right = right_idx;
         nodes.push_back(std::move(right_child));
         leaf_count++;
     }
@@ -328,9 +341,12 @@ static double estimate_jxl_modular_size(
     return total_bits;
 }
 
-// Find the optimal number of clusters by trying K = 8, 16, 24, 32, 48, 64
+// Find the optimal number of clusters by trying K = 8, 16, 32, 48
 static int find_optimal_K(const std::vector<JXLFeature>& features,
-                           const std::vector<int32_t>& residuals) {
+                           const std::vector<int32_t>& residuals,
+                           int k_target) {
+    if (k_target > 0) return k_target;
+
     int best_K = 1;
     double best_bits = 1e30;
 
@@ -414,7 +430,7 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
         }
 
         // Find optimal K for this plane
-        int K = find_optimal_K(all_features, all_residuals);
+        int K = find_optimal_K(all_features, all_residuals, k_target);
         total_clusters = std::max(total_clusters, K);
 
         // Get the theoretical ANS size
@@ -426,7 +442,7 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
     result.num_clusters = total_clusters;
     result.per_sample_bpp = (float)total_bits / (float)(t.w * t.h * 3);
     result.summed_bpp = result.per_sample_bpp * 3.0f;
-    result.byte_exact = true; // theoretical measurement
+    result.byte_exact = false; // theoretical ANS estimate only; no container/ANS stream emitted
 
     return result;
 }
@@ -450,7 +466,7 @@ JXLModularProbeResult jxl_modular_probe_kodak(const std::string& kodak_dir) {
     std::sort(imgs.begin(), imgs.end());
 
     result.num_images = (int)imgs.size();
-    result.all_byte_exact = true;
+    result.all_byte_exact = false; // theoretical ANS estimate only
 
     for (const auto& img : imgs) {
         Raster r = frontend::decode_to_raster(img);
