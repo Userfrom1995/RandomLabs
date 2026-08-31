@@ -24,9 +24,9 @@ namespace prism::codec {
 //     3. Compute coefficient predictor residuals
 //     4. Build MA-tree over spatial features (production build_matree_greedy, 8 properties)
 //     5. Partition samples into K clusters (K ~ 30-80)
-//   6. Count residuals per cluster (alphabet 128 symbols, res_to_sym bijection)
-//   7. Estimate ANS entropy per cluster (theoretical, no container/ANS stream)
-//   8. Score candidate K by theoretical bits (ans_bits_for_hist + header overhead)
+//     6. Count residuals per cluster (alphabet 512 symbols, res_to_sym bijection)
+//     7. Estimate ANS entropy per cluster (theoretical, no container/ANS stream)
+//     8. Score candidate K by theoretical bits (ans_bits_for_hist + header overhead)
 //
 //   Pass 2 (coding, O(N)):
 //     1. Re-apply color transform + wavelet + predictor
