@@ -11,7 +11,7 @@
 2. Implemented true JXL-Modular multi-pass encoder in `prism/src/codec/jxl_modular.cpp`:
    - Per-image MA-tree built from spatial features (qg, activity, level,
      orient, position_y, position_x) - NOT baked/fixed like R6-D.
-   - Per-cluster transmitted histograms (34-symbol alphabet).
+   - Per-cluster transmitted histograms (64-symbol alphabet, res_to_sym bijection).
    - Theoretical ANS-coded size estimation (entropy + header overhead).
    - K parameter sweep (8, 16, 32, 48) per image.
 3. Added `bench-jxl-modular` CLI command.

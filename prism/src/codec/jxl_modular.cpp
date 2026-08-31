@@ -57,8 +57,8 @@ static inline uint32_t res_to_sym(int32_t e) {
     return (uint32_t)((e > 0) ? (2 * e - 1) : (-2 * e));
 }
 
-// Inverse symbol -> residual
-static inline int32_t sym_to_res(uint32_t s) {
+// Inverse symbol -> residual (for future decode path)
+[[maybe_unused]] static inline int32_t sym_to_res(uint32_t s) {
     if (s == 0) return 0;
     if (s & 1) return (int32_t)((s + 1) >> 1);
     return -(int32_t)(s >> 1);
@@ -144,7 +144,6 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
     nodes.push_back(std::move(root));
 
     int leaf_count = 1;
-    int next_id = 1;
 
     while (leaf_count < max_leaves) {
         int best_node = -1;

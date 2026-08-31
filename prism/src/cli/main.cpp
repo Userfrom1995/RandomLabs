@@ -8303,7 +8303,7 @@ int main(int argc, char* argv[]) {
         } else if (cmd == "bench-jxl-modular") {
             // JXL-Modular multi-pass encoder benchmark (issue #130).
             // Measures the theoretical ANS-coded size with MA-tree clustering.
-            int k_target = 48;
+            int k_target = 0; // 0 = auto sweep {8,16,32,48}; --k N to fix
             std::string kodak, outcsv;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
