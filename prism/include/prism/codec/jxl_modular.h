@@ -24,7 +24,7 @@ namespace prism::codec {
 //     3. Compute coefficient predictor residuals
 //     4. Build MA-tree over spatial features (QG, activity, position, level)
 //     5. Partition samples into K clusters (K ~ 30-80)
-//     6. Count residuals per cluster (alphabet ~34 tokens)
+//     6. Count residuals per cluster (alphabet 64 symbols, res_to_sym bijection)
 //     7. Smooth histograms toward geometric prior
 //     8. Score candidate K by real ANS bytes (trial-encoded)
 //
@@ -53,8 +53,8 @@ struct JXLModularResult {
 };
 
 // Encode a raster image using the true JXL-Modular multi-pass architecture.
-// k_target is the target number of clusters (default 48, tuned per image).
-JXLModularResult jxl_modular_encode(const Raster& raster, int k_target = 48);
+// k_target=0 means auto-sweep {8,16,32,48}; >0 means fixed K.
+JXLModularResult jxl_modular_encode(const Raster& raster, int k_target = 0);
 
 // Decode a JXL-Modular encoded stream back to a raster.
 Raster jxl_modular_decode(const uint8_t* data, size_t len);
