@@ -1305,6 +1305,148 @@ std::vector<uint8_t> frame_wavelet_encode_route10(const Raster& raster,
     return out;
 }
 
+std::vector<uint8_t> frame_wavelet_encode_p4(const Raster& raster,
+                                              WaveletFilter filter,
+                                              int levels, size_t& net_out) {
+    // FRAME-WAVELET-P4 (issue #130, P4 attention-gated spatial predictor):
+    // 1. P4 attention-gated blend of MED + gradient + MLP on RAW RGB
+    // 2. YCoCg-R on P4 spatial residuals (signed int32)
+    // 3. Wavelet lift on decorrelated residuals -> subbands
+    // 4. Coefficient predictor (X6b) on subbands -> R_final
+    // 5. Bitplane coder on R_final -> payload
+    // 6. Container v2 with SPATIAL_P4_FLAG | SPATIAL_RGB_FLAG
+
+    WaveletLift lift;
+    BitplaneCoder coder;
+    CoefficientPredictor pred;
+
+    size_t nch = raster.num_channels();
+    if (nch > 3) nch = 3;
+
+    uint16_t residual_mode = (uint16_t)(1u | SPATIAL_RGB_FLAG | SPATIAL_P4_FLAG);
+
+    // Step 1: Compute P4 spatial residuals on each raw RGB plane.
+    std::vector<std::vector<int32_t>> spatial_res(nch);
+    if (raster.bd == BitDepth::BD8 && nch >= 3) {
+        compute_spatial_residuals_p4_all(
+            raster.planes[0].data(), raster.planes[1].data(),
+            raster.planes[2].data(), raster.w, raster.h,
+            spatial_res[0], spatial_res[1], spatial_res[2]);
+    } else {
+        // Fallback: P4 on single plane (no MLP, MED+gradient only)
+        for (size_t ci = 0; ci < nch; ++ci) {
+            size_t n = (size_t)raster.w * raster.h;
+            spatial_res[ci].resize(n);
+            for (uint32_t y = 0; y < raster.h; ++y) {
+                for (uint32_t x = 0; x < raster.w; ++x) {
+                    size_t idx = (size_t)y * raster.w + x;
+                    P4Features feat = p4_extract_features(raster.planes[ci].data(),
+                                                          raster.w, raster.h, x, y);
+                    int32_t pred = p4_predict(raster.planes[ci].data(),
+                                              raster.w, raster.h, x, y,
+                                              (raster.bd == BitDepth::BD8) ? 255 : 65535,
+                                              feat, -1);
+                    spatial_res[ci][idx] = (int32_t)raster.planes[ci][idx] - pred;
+                }
+            }
+        }
+    }
+
+    // Step 2: Apply YCoCg-R on signed int32 spatial residuals (if BD8 and >= 3ch).
+    if (raster.bd == BitDepth::BD8 && nch >= 3) {
+        uint32_t n = raster.w * raster.h;
+        apply_color_residual_signed(spatial_res[0].data(),
+                                     spatial_res[1].data(),
+                                     spatial_res[2].data(), n);
+    }
+
+    // Steps 3-5: Wavelet + coefficient predictor + bitplane coder per plane.
+    std::vector<uint32_t> plane_symbols;
+    uint16_t subbands_per_plane = 0;
+    std::vector<uint8_t> payload;
+    uint8_t global_maxbits = 0;
+    std::vector<uint8_t> all_sub_maxbits, all_orient, all_level;
+    std::vector<uint32_t> all_sub_bytes;
+    std::vector<uint16_t> all_w, all_h;
+    std::vector<uint8_t> all_scale_code;
+
+    for (size_t pi = 0; pi < nch; ++pi) {
+        WaveletParams p{filter, levels};
+        auto subs = lift.forward(spatial_res[pi], raster.w, raster.h, p);
+        if (pi == 0) subbands_per_plane = (uint16_t)subs.size();
+
+        std::vector<Subband> R(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si) {
+            R[si].orient = subs[si].orient; R[si].level = subs[si].level;
+            R[si].w = subs[si].w; R[si].h = subs[si].h;
+            R[si].coeffs.resize(subs[si].coeffs.size());
+        }
+        std::vector<int> order, parent, sib1, sib2;
+        CoefficientPredictor::build_topology(subs, order, parent, sib1, sib2);
+        std::vector<std::vector<int32_t>> recon(subs.size());
+        for (size_t si = 0; si < subs.size(); ++si)
+            recon[si].assign(subs[si].coeffs.size(), 0);
+        for (int si : order) {
+            const Subband& s = subs[si];
+            for (int y = 0; y < s.h; ++y)
+                for (int x = 0; x < s.w; ++x) {
+                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    int32_t c = subs[si].coeffs[(size_t)y * s.w + x];
+                    R[si].coeffs[(size_t)y * s.w + x] = c - c_hat;
+                    recon[si][(size_t)y * s.w + x] = c;
+                }
+        }
+
+        size_t plane_start = payload.size();
+        uint8_t best_code = 0;
+        {
+            size_t best_bytes = std::numeric_limits<size_t>::max();
+            std::vector<float> trial(R.size(), 1.0f);
+            for (uint8_t code = 0; code < kX6cScaleN; ++code) {
+                std::fill(trial.begin(), trial.end(), kX6cScaleTab[code]);
+                auto rt = coder.encode(R, 0, nullptr, &trial);
+                size_t nb = 0; for (auto& st : rt.streams) nb += st.size();
+                if (nb < best_bytes) { best_bytes = nb; best_code = code; }
+            }
+        }
+        std::vector<float> best_scale(R.size(), kX6cScaleTab[best_code]);
+        auto res = coder.encode(R, 0, nullptr, &best_scale);
+        for (size_t oi = 0; oi < R.size(); ++oi) {
+            global_maxbits = std::max(global_maxbits, res.sub_maxbits[oi]);
+            all_sub_maxbits.push_back(res.sub_maxbits[oi]);
+            all_sub_bytes.push_back((uint32_t)res.streams[oi].size());
+            all_orient.push_back((uint8_t)R[oi].orient);
+            all_level.push_back((uint8_t)R[oi].level);
+            all_w.push_back((uint16_t)R[oi].w);
+            all_h.push_back((uint16_t)R[oi].h);
+            all_scale_code.push_back(best_code);
+            payload.insert(payload.end(), res.streams[oi].begin(), res.streams[oi].end());
+        }
+        plane_symbols.push_back((uint32_t)(payload.size() - plane_start));
+    }
+
+    WaveletHeader hdr;
+    hdr.filter_id = filter_to_id(filter);
+    hdr.levels = (uint8_t)levels;
+    hdr.maxbits = global_maxbits;
+    hdr.residual_mode = residual_mode;
+    hdr.total_symbols = 0;
+    hdr.subbands_per_plane = subbands_per_plane;
+    hdr.num_planes = (uint8_t)nch;
+    hdr.plane_symbols = plane_symbols;
+    hdr.orient = std::move(all_orient);
+    hdr.level = std::move(all_level);
+    hdr.w = std::move(all_w);
+    hdr.h = std::move(all_h);
+    hdr.sub_maxbits = std::move(all_sub_maxbits);
+    hdr.sub_bytes = std::move(all_sub_bytes);
+    hdr.sub_scale_code = std::move(all_scale_code);
+
+    auto out = wavelet_container_encode(raster, hdr, payload);
+    net_out = out.size();
+    return out;
+}
+
 Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
     WaveletFrame frame = wavelet_container_decode(bytes);
     const WaveletHeader& hdr = frame.hdr;
@@ -1569,6 +1711,16 @@ Raster frame_wavelet_decode(const std::vector<uint8_t>& bytes) {
                 // P2 MLP spatial reconstruction - all 3 channels in one pass.
                 std::vector<uint16_t> recon_r, recon_g, recon_b;
                 reconstruct_spatial_p2_all(p0.data(), p1.data(), p2.data(),
+                                            t.w, t.h, recon_r, recon_g, recon_b);
+                for (size_t i = 0; i < n; ++i) {
+                    t.planes[0][i] = recon_r[i];
+                    t.planes[1][i] = recon_g[i];
+                    t.planes[2][i] = recon_b[i];
+                }
+            } else if (hdr.residual_mode & SPATIAL_P4_FLAG) {
+                // P4 attention-gated spatial reconstruction - all 3 channels in one pass.
+                std::vector<uint16_t> recon_r, recon_g, recon_b;
+                reconstruct_spatial_p4_all(p0.data(), p1.data(), p2.data(),
                                             t.w, t.h, recon_r, recon_g, recon_b);
                 for (size_t i = 0; i < n; ++i) {
                     t.planes[0][i] = recon_r[i];

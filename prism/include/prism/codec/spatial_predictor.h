@@ -11,6 +11,7 @@ enum class SpatialPredType : uint8_t {
     NONE = 0,    // No spatial predictor (legacy X6b path)
     P1 = 1,      // JXL-style adaptive bank (median + gradient + slope)
     P2 = 2,      // 17->16->8->1 learned MLP on raw RGB causal neighbours (~408 MACs)
+    P4 = 4,      // Attention-gated blend of MED + gradient + MLP (D1 spec candidate)
 };
 
 // P2 MLP spatial predictor constants.
@@ -18,6 +19,12 @@ constexpr int SP2_NF  = 17;  // input features
 constexpr int SP2_H1  = 16;  // hidden layer 1
 constexpr int SP2_H2  = 8;   // hidden layer 2
 constexpr int SP2_Q   = 1024; // fixed-point scale
+
+// P4 attention-gated spatial predictor constants.
+// Attention network: 5 input features -> 3 logits (MED, gradient, MLP).
+constexpr int P4_NF   = 5;   // attention input features
+constexpr int P4_NP   = 3;   // number of sub-predictors
+constexpr int P4_Q    = 1024; // fixed-point scale for attention weights
 
 // Configuration for P1 (JXL-style adaptive bank).
 struct P1Config {
@@ -103,6 +110,44 @@ void compute_spatial_residuals_p2_all(const uint16_t* plane_r,
 
 // Reconstruct ALL 3 channels from P2 spatial residuals in a single pass.
 void reconstruct_spatial_p2_all(const int32_t* residuals_r,
+                                 const int32_t* residuals_g,
+                                 const int32_t* residuals_b,
+                                 uint32_t w, uint32_t h,
+                                 std::vector<uint16_t>& out_r,
+                                 std::vector<uint16_t>& out_g,
+                                 std::vector<uint16_t>& out_b);
+
+// --- P4: Attention-gated spatial predictor (D1 spec) ---
+
+// P4 attention features extracted at (x,y) from a single plane.
+// Layout: [variance_3x3, gradient_magnitude, edge_direction, texture_energy, level_context]
+// All values normalized to Q10 fixed-point range.
+struct P4Features {
+    int32_t feat[P4_NF];
+};
+
+// Extract P4 attention features at (x,y) from a single plane.
+P4Features p4_extract_features(const uint16_t* plane, uint32_t w, uint32_t h,
+                                uint32_t x, uint32_t y);
+
+// Predict pixel at (x,y) using P4 attention-gated blend of MED + gradient + P2 MLP.
+// Channel parameter selects which P2 MLP weights to use (0=R, 1=G, 2=B).
+// For single-plane mode, pass channel=-1 to use only MED + gradient (2 sub-predictors).
+int32_t p4_predict(const uint16_t* plane, uint32_t w, uint32_t h,
+                    uint32_t x, uint32_t y, uint16_t bd_max,
+                    const P4Features& feat, int channel = -1);
+
+// Compute P4 spatial residuals for all 3 channels on raw RGB.
+void compute_spatial_residuals_p4_all(const uint16_t* plane_r,
+                                       const uint16_t* plane_g,
+                                       const uint16_t* plane_b,
+                                       uint32_t w, uint32_t h,
+                                       std::vector<int32_t>& res_r,
+                                       std::vector<int32_t>& res_g,
+                                       std::vector<int32_t>& res_b);
+
+// Reconstruct all 3 channels from P4 spatial residuals (decoder mirror).
+void reconstruct_spatial_p4_all(const int32_t* residuals_r,
                                  const int32_t* residuals_g,
                                  const int32_t* residuals_b,
                                  uint32_t w, uint32_t h,
