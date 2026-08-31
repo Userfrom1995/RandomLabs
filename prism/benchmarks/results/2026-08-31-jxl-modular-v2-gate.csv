@@ -1,3 +1,5 @@
+# Theoretical ANS entropy estimate (no container/ANS byte stream emitted).
+# bpp = 8*bytes/(w*h*3) per-sample; bytes = ceil(theoretical_bits/8).
 image,bytes,bpp
 kodim01.ppm,131621,0.892611
 kodim02.ppm,117770,0.798673
