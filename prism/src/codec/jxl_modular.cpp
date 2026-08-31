@@ -45,7 +45,7 @@ static inline uint32_t res_to_sym(int32_t e) {
     return -(int32_t)(s >> 1);
 }
 
-static constexpr int kAnsAlphabet = 128;
+static constexpr int kAnsAlphabet = 512;
 
 static double ans_bits_for_hist(const std::array<uint32_t, kAnsAlphabet>& counts, uint32_t total) {
     if (total == 0) return 0;
@@ -133,6 +133,10 @@ static double estimate_jxl_modular_size(
         uint32_t s = res_to_sym(residuals[i]);
         if (s < (uint32_t)kAnsAlphabet) {
             cluster_hists[cid][s]++;
+            cluster_totals[cid]++;
+        } else {
+            // Clipped tail: collapse to escape symbol to avoid silent 0-bit contribution
+            cluster_hists[cid][kAnsAlphabet - 1]++;
             cluster_totals[cid]++;
         }
     }
