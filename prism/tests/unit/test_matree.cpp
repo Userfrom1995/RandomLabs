@@ -84,7 +84,7 @@ TEST(MatreeBuilder, CapsAndMinSamplesRespected) {
     }
     // Internal nodes only use known property ids.
     for (const auto& nd : t.nodes)
-        if (!nd.is_leaf) EXPECT_LE((int)nd.prop, (int)PropId::Activity);
+        if (!nd.is_leaf) EXPECT_LE((int)nd.prop, (int)PropId::PositionX);
 }
 
 TEST(MatreeBuilder, SmallDatasetStaysSingleLeaf) {
