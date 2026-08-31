@@ -51,6 +51,15 @@ static inline uint8_t jxl_activity(int32_t L, int32_t T, int32_t TL, int32_t TR)
     return 3;
 }
 
+// Log2-quantize an absolute value into 8 levels (0..7).
+static inline uint8_t jxl_log2_quant(int32_t v) {
+    uint32_t a = (uint32_t)std::abs(v);
+    if (a == 0) return 0;
+    uint8_t q = 0;
+    while (a > 0) { a >>= 1; q++; }
+    return (uint8_t)std::min(7, (int)q - 1);
+}
+
 // Bijection residual -> symbol: 0->0, +1->1, -1->2, +2->3, -2->4, ...
 static inline uint32_t res_to_sym(int32_t e) {
     if (e == 0) return 0;
@@ -76,19 +85,36 @@ static double ans_bits_for_hist(const std::array<uint32_t, 64>& counts, uint32_t
     return bits;
 }
 
-// Estimate ANS header overhead for K clusters
-static size_t header_overhead_bytes(int K) {
-    constexpr int kAlphabet = 64; // matches ans_bits_for_hist iteration range
-    // MA-tree: ~5 bytes per node, 2K-1 nodes for K leaves
+// Estimate ANS header overhead for K clusters, given actual histograms.
+// This is more accurate than a fixed-per-cluster model: we only count
+// non-zero symbols and use realistic encoding sizes.
+static size_t header_overhead_bytes(
+    int K,
+    const std::vector<std::array<uint32_t, 64>>& cluster_hists,
+    const std::vector<uint32_t>& cluster_totals) {
+
+    // MA-tree: ~3 bits prop + 8 bits threshold + left/right refs ~5 bytes/node
     size_t tree_bytes = (size_t)(2 * K - 1) * 5;
-    // Per-cluster histogram: kAlphabet symbols * 2 bytes = 128 bytes per cluster
-    size_t hist_bytes = (size_t)K * kAlphabet * 2;
-    // Global header: 12 bytes
+
+    // Per-cluster histogram: only non-zero symbols, 2 bytes each (symbol + count)
+    size_t hist_bytes = 0;
+    for (int c = 0; c < K; ++c) {
+        if (cluster_totals[c] == 0) continue;
+        size_t nonzero = 0;
+        for (int s = 0; s < 64; ++s) {
+            if (cluster_hists[c][s] > 0) nonzero++;
+        }
+        // symbol ID (1 byte for alphabet <= 64) + count (varint, ~1-2 bytes)
+        hist_bytes += nonzero * 2;
+        // cluster total (4 bytes)
+        hist_bytes += 4;
+    }
+
+    // Global header: 12 bytes (format version, dimensions, K)
     return 12 + tree_bytes + hist_bytes;
 }
 
 // Build MA-tree for JXL-Modular clustering.
-// Optimized: uses fixed threshold sets per property instead of all unique values.
 static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
                                 const std::vector<int32_t>& residuals,
                                 int max_leaves, int max_depth) {
@@ -120,7 +146,7 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
         return ent;
     };
 
-    // Fixed thresholds per property (much faster than scanning all values)
+    // 6 features: 0=qg, 1=activity, 2=level, 3=orient, 4=pos_y, 5=pos_x
     static const uint16_t thresh_qg[] = {1, 2, 3};
     static const uint16_t thresh_act[] = {1, 2, 3};
     static const uint16_t thresh_level[] = {1, 2, 3, 4};
@@ -135,6 +161,18 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
         {3, thresh_orient, 3},
         {4, thresh_pos, 3},
         {5, thresh_pos, 3},
+    };
+
+    auto feature_val = [&](const JXLFeature& f, int prop) -> uint16_t {
+        switch (prop) {
+            case 0: return f.qg;
+            case 1: return f.activity;
+            case 2: return f.level;
+            case 3: return f.orient;
+            case 4: return f.position_y;
+            case 5: return f.position_x;
+        }
+        return 0;
     };
 
     std::vector<BuildNode> nodes;
@@ -166,39 +204,20 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
 
                     size_t left_count = 0, right_count = 0;
                     for (size_t i : nd.idxs) {
-                        const auto& f = features[i];
-                        bool go_left = false;
-                        switch (pt.prop) {
-                            case 0: go_left = f.qg < thr; break;
-                            case 1: go_left = f.activity < thr; break;
-                            case 2: go_left = f.level < thr; break;
-                            case 3: go_left = f.orient < thr; break;
-                            case 4: go_left = f.position_y < thr; break;
-                            case 5: go_left = f.position_x < thr; break;
-                        }
-                        if (go_left) left_count++;
+                        if (feature_val(features[i], pt.prop) < thr) left_count++;
                         else right_count++;
                     }
 
                     if (left_count == 0 || right_count == 0) continue;
 
-                    // True information gain: compute child entropies via partition
                     std::vector<size_t> left_idxs, right_idxs;
                     left_idxs.reserve(left_count);
                     right_idxs.reserve(right_count);
                     for (size_t i : nd.idxs) {
-                        const auto& fi = features[i];
-                        bool go_left = false;
-                        switch (pt.prop) {
-                            case 0: go_left = fi.qg < thr; break;
-                            case 1: go_left = fi.activity < thr; break;
-                            case 2: go_left = fi.level < thr; break;
-                            case 3: go_left = fi.orient < thr; break;
-                            case 4: go_left = fi.position_y < thr; break;
-                            case 5: go_left = fi.position_x < thr; break;
-                        }
-                        if (go_left) left_idxs.push_back(i);
-                        else right_idxs.push_back(i);
+                        if (feature_val(features[i], pt.prop) < thr)
+                            left_idxs.push_back(i);
+                        else
+                            right_idxs.push_back(i);
                     }
                     double pL = (double)left_count / (double)nd.idxs.size();
                     double pR = (double)right_count / (double)nd.idxs.size();
@@ -224,18 +243,10 @@ static MATree build_jxl_matree(const std::vector<JXLFeature>& features,
         right_child.depth = nodes[best_node].depth + 1;
 
         for (size_t i : nodes[best_node].idxs) {
-            const auto& f = features[i];
-            bool go_left = false;
-            switch (best_prop) {
-                case 0: go_left = f.qg < best_thresh; break;
-                case 1: go_left = f.activity < best_thresh; break;
-                case 2: go_left = f.level < best_thresh; break;
-                case 3: go_left = f.orient < best_thresh; break;
-                case 4: go_left = f.position_y < best_thresh; break;
-                case 5: go_left = f.position_x < best_thresh; break;
-            }
-            if (go_left) left_child.idxs.push_back(i);
-            else right_child.idxs.push_back(i);
+            if (feature_val(features[i], best_prop) < best_thresh)
+                left_child.idxs.push_back(i);
+            else
+                right_child.idxs.push_back(i);
         }
 
         nodes[best_node].is_leaf = false;
@@ -297,17 +308,16 @@ static double estimate_jxl_modular_size(
     if (features.empty()) return 0;
 
     // Build MA-tree
-    MATree tree = build_jxl_matree(features, residuals, K, 6);
+    MATree tree = build_jxl_matree(features, residuals, K, 5);
 
-    // Assign clusters
+    // Assign clusters using the same extended features used for building
+    // (Internal-only: cluster_ids are for theoretical ANS estimation)
     std::vector<uint16_t> cluster_ids(features.size());
     for (size_t i = 0; i < features.size(); ++i) {
         Feature feat;
         feat.qg = features[i].qg;
         feat.band_class = features[i].level;
-        feat.llc_class = 0;
         feat.res_diff = features[i].orient;
-        feat.sibling_class = 0;
         feat.activity = features[i].activity;
         feat.position_y = features[i].position_y;
         feat.position_x = features[i].position_x;
@@ -334,8 +344,8 @@ static double estimate_jxl_modular_size(
         total_bits += ans_bits_for_hist(cluster_hists[c], cluster_totals[c]);
     }
 
-    // Add header overhead
-    total_bits += (double)header_overhead_bytes(num_clusters) * 8.0;
+    // Add header overhead (using actual histogram sparsity for accurate estimation)
+    total_bits += (double)header_overhead_bytes(num_clusters, cluster_hists, cluster_totals) * 8.0;
 
     return total_bits;
 }
