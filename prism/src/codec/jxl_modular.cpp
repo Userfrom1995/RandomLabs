@@ -58,7 +58,8 @@ static double ans_bits_for_hist(const std::array<uint32_t, kAnsAlphabet>& counts
     return bits;
 }
 
-// Estimate ANS header overhead for num_leaves clusters, given actual histograms.
+// Estimate ANS header overhead for num_leaves clusters (lower-bound estimate,
+// not wire-accurate: tree assumes (2K-1)*5 bytes, histogram assumes nonzero*2+4).
 static size_t header_overhead_bytes(
     int num_leaves,
     const std::vector<std::array<uint32_t, kAnsAlphabet>>& cluster_hists,
@@ -130,8 +131,10 @@ static double estimate_jxl_modular_size(
         uint16_t cid = cluster_ids[i];
         if (cid >= (uint16_t)num_clusters) cid = 0;
         uint32_t s = res_to_sym(residuals[i]);
-        if (s < (uint32_t)kAnsAlphabet) cluster_hists[cid][s]++;
-        cluster_totals[cid]++;
+        if (s < (uint32_t)kAnsAlphabet) {
+            cluster_hists[cid][s]++;
+            cluster_totals[cid]++;
+        }
     }
 
     double total_bits = 0;
@@ -243,6 +246,7 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
     return result;
 }
 
+// TODO(#130): wire container+ANS payload for byte-exact gate
 Raster jxl_modular_decode(const uint8_t* data, size_t len) {
     Raster r;
     r.w = 0; r.h = 0;
