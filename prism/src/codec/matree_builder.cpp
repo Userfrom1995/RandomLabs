@@ -64,6 +64,8 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
         case PropId::ResDiff: return f.res_diff < thr;
         case PropId::SiblingClass: return f.sibling_class < (uint8_t)thr;
         case PropId::Activity: return f.activity < (uint8_t)thr;
+        case PropId::PositionY: return f.position_y < (uint8_t)thr;
+        case PropId::PositionX: return f.position_x < (uint8_t)thr;
     }
     return false;
 }
@@ -77,6 +79,8 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
         case PropId::ResDiff: return f.res_diff;
         case PropId::SiblingClass: return f.sibling_class;
         case PropId::Activity: return f.activity;
+        case PropId::PositionY: return f.position_y;
+        case PropId::PositionX: return f.position_x;
     }
     return 0;
 }
@@ -150,6 +154,8 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
             push_quantile_cands(cands, PropId::ResDiff, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::SiblingClass, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::Activity, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::PositionY, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::PositionX, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);
