@@ -51,15 +51,6 @@ static inline uint8_t jxl_activity(int32_t L, int32_t T, int32_t TL, int32_t TR)
     return 3;
 }
 
-// Log2-quantize an absolute value into 8 levels (0..7).
-static inline uint8_t jxl_log2_quant(int32_t v) {
-    uint32_t a = (uint32_t)std::abs(v);
-    if (a == 0) return 0;
-    uint8_t q = 0;
-    while (a > 0) { a >>= 1; q++; }
-    return (uint8_t)std::min(7, (int)q - 1);
-}
-
 // Bijection residual -> symbol: 0->0, +1->1, -1->2, +2->3, -2->4, ...
 static inline uint32_t res_to_sym(int32_t e) {
     if (e == 0) return 0;
