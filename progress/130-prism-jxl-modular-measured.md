@@ -21,13 +21,14 @@
 
 | Metric | JXL-Modular | X6b floor | M2 gate | M3 gate |
 |--------|-------------|-----------|---------|---------|
-| Mean per-sample bpp | **3.272** | 3.2175 | < 3.166 | < 2.885 |
-| Mean summed bpp | **9.816** | 9.6525 | < 9.498 | < 8.655 |
-| vs X6b floor | +1.7% WORSE | baseline | - | - |
-| vs M2 gate | **FAIL** (+3.27%) | - | PASS needed | - |
-| vs M3 gate | **FAIL** (+13.4%) | - | - | PASS needed |
+| Mean per-sample bpp | **3.184** | 3.2175 | < 3.166 | < 2.885 |
+| Mean summed bpp | **9.553** | 9.6525 | < 9.498 | < 8.655 |
+| vs X6b floor | **-1.0% BETTER** | baseline | - | - |
+| vs M2 gate | **FAIL** (+0.56%) | - | PASS needed | - |
+| vs M3 gate | **FAIL** (+10.4%) | - | - | PASS needed |
 
-**JXL-Modular with MA-tree clustering is 1.7% WORSE than the X6b EMA floor.**
+**After true information gain fix + K-sweep: JXL-Modular is 1.0% BETTER than X6b EMA floor
+but still FAILS M2 by 0.56%.**
 
 ## Diagnosis
 
@@ -62,10 +63,10 @@ The JXL-Modular architecture only works when:
 Without improving the predictor (which every mechanism class has failed to
 do), JXL-Modular cannot reach M2/M3.
 
-## Gate status (unchanged)
+## Gate status (updated after fixer round)
 
-- M2 (WebP): need < 3.166 per-sample -> **FAIL** (3.272, +3.27%)
-- M3 (JXL): need < 2.885 per-sample -> **FAIL** (3.272, +13.4%)
+- M2 (WebP): need < 3.166 per-sample -> **FAIL** (3.184, +0.56%)
+- M3 (JXL): need < 2.885 per-sample -> **FAIL** (3.184, +10.4%)
 
 ## Recommendation
 
