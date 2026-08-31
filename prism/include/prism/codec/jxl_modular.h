@@ -50,6 +50,8 @@ struct JXLModularResult {
     float per_sample_bpp = 0.0f;
     float summed_bpp = 0.0f;
     bool byte_exact = false;
+    float theoretical_bpp = 0.0f;
+    uint32_t escape_count = 0;
 };
 
 // Encode a raster image using the true JXL-Modular multi-pass architecture.

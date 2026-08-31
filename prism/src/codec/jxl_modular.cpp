@@ -80,21 +80,22 @@ static double ans_bits_for_hist(const std::array<uint32_t, kAnsAlphabet>& counts
     return bits;
 }
 
-// Estimate header overhead for K clusters.
+// Estimate header overhead for K clusters (matches actual serialization format).
 static size_t header_overhead_bytes(
     int num_leaves,
     const std::vector<std::array<uint32_t, kAnsAlphabet>>& cluster_hists,
     const std::vector<uint32_t>& cluster_totals) {
-    size_t tree_bytes = (size_t)(2 * num_leaves - 1) * 5;
-    size_t hist_bytes = 0;
+    size_t tree_bytes = 4 + (size_t)(2 * num_leaves - 1) * 5; // tree_len prefix + tree data
+    size_t hist_bytes = 2; // nc_wire (u16)
     for (int c = 0; c < num_leaves; ++c) {
         if (cluster_totals[c] == 0) continue;
         size_t nonzero = 0;
         for (int s = 0; s < kAnsAlphabet; ++s)
             if (cluster_hists[c][s] > 0) nonzero++;
-        hist_bytes += nonzero * 2 + 4;
+        // Actual format: total(u32) + nnz(u16) + per-nonzero: sym(u16) + count(u32)
+        hist_bytes += 4 + 2 + nonzero * 6;
     }
-    return 12 + tree_bytes + hist_bytes;
+    return 12 + tree_bytes + hist_bytes; // 12 = magic(4)+version(1)+w(4)+h(4)+planes(1)+ct(1)+filter(1)+levels(1)=17, but we use 12 as approximation
 }
 
 // Estimate theoretical ANS size for K selection.
@@ -122,8 +123,13 @@ static double estimate_jxl_modular_size(
         ch[cid][s]++; ct[cid]++;
     }
     double total_bits = 0;
-    for (int c = 0; c < nc; ++c)
+    uint32_t total_escapes = 0;
+    for (int c = 0; c < nc; ++c) {
         total_bits += ans_bits_for_hist(ch[c], ct[c]);
+        total_escapes += ch[c][kAnsAlphabet - 1];
+    }
+    // Escape sideband: 4-byte count prefix + 2 bytes per escape symbol.
+    total_bits += (double)(4 + total_escapes * 2) * 8.0;
     total_bits += (double)header_overhead_bytes(nc, ch, ct) * 8.0;
     return total_bits;
 }
@@ -134,7 +140,7 @@ static int find_optimal_K(const std::vector<Feature>& features,
     if (k_target > 0) return k_target;
     int best_K = 1;
     double best_bits = 1e30;
-    for (int K : {8, 16, 32, 48, 64, 128}) {
+    for (int K : {4, 8, 16, 32, 48, 64, 128}) {
         double bits = estimate_jxl_modular_size(features, residuals, K);
         if (bits < best_bits) { best_bits = bits; best_K = K; }
     }
@@ -209,6 +215,8 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
 
     int total_clusters = 0;
     size_t total_ans_bytes = 0;
+    double total_theoretical_bits = 0;
+    uint32_t total_escape_count = 0;
 
     // Placeholder for per-plane sizes (filled below)
     std::vector<uint8_t> plane_data_all;
@@ -292,6 +300,20 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
             cluster_totals[cid]++;
         }
 
+        // Compute theoretical bits from actual histograms for diagnostics.
+        {
+            double plane_bits = 0;
+            uint32_t plane_escapes = 0;
+            for (int c = 0; c < nc; ++c) {
+                plane_bits += ans_bits_for_hist(cluster_hists[c], cluster_totals[c]);
+                plane_escapes += cluster_hists[c][kAnsAlphabet - 1];
+            }
+            plane_bits += (double)(4 + plane_escapes * 2) * 8.0;
+            plane_bits += (double)header_overhead_bytes(nc, cluster_hists, cluster_totals) * 8.0;
+            total_escape_count += plane_escapes;
+            total_theoretical_bits += plane_bits;
+        }
+
         // Build ANS tables
         JXLModularANS ans;
         ans.build(cluster_hists, cluster_totals);
@@ -370,6 +392,8 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
     size_t total_samples = (size_t)t.w * t.h * 3;
     result.per_sample_bpp = (float)((double)result.total_bytes * 8.0 / (double)total_samples);
     result.summed_bpp = result.per_sample_bpp * 3.0f;
+    result.theoretical_bpp = (float)(total_theoretical_bits / (double)total_samples);
+    result.escape_count = total_escape_count;
 
     // Verify byte-exact round-trip (compare against original raster, not
     // the color-transformed version t, since jxl_modular_decode inverts color)

@@ -8332,7 +8332,7 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "bench-jxl-modular: no images in " << kodak << "\n"; return 2; }
             std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
-            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,K\n";
+            if (!outcsv.empty()) cf << "image,net_bytes,bpp_net_per_sample,bpp_summed,K,theory_bpp\n";
             std::vector<double> ps, sum;
             size_t total_net = 0, total_pix = 0;
             for (auto& img : imgs) {
@@ -8344,14 +8344,17 @@ int main(int argc, char* argv[]) {
                 size_t net = result.total_bytes;
                 if (!outcsv.empty()) {
                     cf << img.filename().string() << "," << net << "," << bpp_ps << ","
-                       << bpp_sum << "," << result.num_clusters << "\n";
+                       << bpp_sum << "," << result.num_clusters << ","
+                       << result.theoretical_bpp << "\n";
                     cf.flush();
                 }
                 ps.push_back(bpp_ps); sum.push_back(bpp_sum);
                 total_net += net; total_pix += npix;
                 std::cout << img.filename().string() << " net=" << net
                           << " per_sample=" << bpp_ps << " summed=" << bpp_sum
-                          << " K=" << result.num_clusters << "\n";
+                          << " K=" << result.num_clusters
+                          << " theory=" << result.theoretical_bpp
+                          << " esc=" << result.escape_count << "\n";
             }
             double mean_ps = 0, mean_sum = 0;
             for (double v : ps) mean_ps += v;

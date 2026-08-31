@@ -85,24 +85,35 @@ void JXLModularANS::build(
         if (totals[c] == 0) continue;
 
         // Normalize to SCALE (4096) using largest-remainder method.
+        // Only nonzero symbols get freq > 0; zero-count symbols get freq=0
+        // (the encoder remaps them to the escape symbol ALPHABET-1).
         uint32_t sum = 0;
         for (int s = 0; s < ALPHABET; ++s) {
+            if (hists[c][s] == 0) { t.freq[s] = 0; continue; }
             uint32_t raw = (uint32_t)((uint64_t)hists[c][s] * SCALE / totals[c]);
             t.freq[s] = (uint16_t)std::max(1u, raw);
             sum += t.freq[s];
+        }
+        // Ensure escape symbol (ALPHABET-1) always has freq >= 1 so the
+        // encoder can remap zero-count symbols to it.
+        if (t.freq[ALPHABET - 1] == 0) {
+            t.freq[ALPHABET - 1] = 1;
+            sum += 1;
         }
         // Adjust largest frequencies to hit SCALE exactly.
         int32_t diff = (int32_t)SCALE - (int32_t)sum;
         if (diff > 0) {
             for (int s = 0; s < ALPHABET && diff > 0; ++s) {
-                if (hists[c][s] > 0) {
+                if (hists[c][s] > 0 && s != ALPHABET - 1) {
                     uint32_t add = std::min((uint32_t)diff, hists[c][s] / 2 + 1);
                     t.freq[s] += (uint16_t)add;
                     diff -= add;
                 }
             }
+            // If still have diff, distribute to escape symbol
+            if (diff > 0) { t.freq[ALPHABET - 1] += (uint16_t)diff; diff = 0; }
         } else if (diff < 0) {
-            for (int s = ALPHABET - 1; s >= 0 && diff < 0; --s) {
+            for (int s = ALPHABET - 2; s >= 0 && diff < 0; --s) {
                 if (t.freq[s] > 1) {
                     uint32_t sub = std::min((uint32_t)(-diff), (uint32_t)(t.freq[s] - 1));
                     t.freq[s] -= (uint16_t)sub;
