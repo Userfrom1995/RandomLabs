@@ -519,7 +519,7 @@ jobs:
               fi
             fi
             comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" --jq '.' 2>/dev/null || echo "[]")
-            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|startswith("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|contains("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
             if [ -z "$approve_test_time" ]; then
               echo "PR #$pr has no /oc approve-test; not merge-ready"
               continue
