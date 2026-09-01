@@ -91,7 +91,7 @@ static size_t header_overhead_bytes(
 static Feature build_sample_feature_8f(
     int level, int orient,
     int32_t coeff, int32_t L, int32_t T, int32_t TL, int32_t TR,
-    int x, int y, int w, int h) {
+    int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res) {
 
     Feature f;
     f.qg = quant_qg(L, T, TL, TR);
@@ -103,6 +103,9 @@ static Feature build_sample_feature_8f(
     f.position_y = (uint8_t)std::min(7, y * 8 / std::max(1, h));
     f.position_x = (uint8_t)std::min(7, x * 8 / std::max(1, w));
     f.neighbor_mag = quant_neighbor_mag(L, T, TL, TR);
+    f.prev_coeff_mag = quant_prev_coeff_mag(prev_coeff);
+    f.left_mag = (uint16_t)std::min(65535, (int)std::abs(L));
+    f.prev_res_mag = quant_prev_coeff_mag(prev_res);
     return f;
 }
 
@@ -110,18 +113,21 @@ static Feature build_sample_feature_8f(
 static Feature build_sample_feature_7f(
     int level, int orient,
     int32_t predicted, int32_t L, int32_t T, int32_t TL, int32_t TR,
-    int x, int y, int w, int h) {
+    int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res) {
 
     Feature f;
     f.qg = quant_qg(L, T, TL, TR);
     f.band_class = (uint8_t)orient;
     f.llc_class = (uint8_t)std::min(4, level);
-    f.res_diff = (uint16_t)std::min(255, (int)std::abs(predicted));
+    f.res_diff = (uint16_t)std::min(65535, (int)std::abs(predicted));
     f.sibling_class = quant_sibling((int16_t)T);
     f.activity = jxl_activity(L, T, TL, TR);
     f.position_y = (uint8_t)std::min(7, y * 8 / std::max(1, h));
     f.position_x = (uint8_t)std::min(7, x * 8 / std::max(1, w));
     f.neighbor_mag = quant_neighbor_mag(L, T, TL, TR);
+    f.prev_coeff_mag = quant_prev_coeff_mag(prev_coeff);
+    f.left_mag = (uint16_t)std::min(65535, (int)std::abs(L));
+    f.prev_res_mag = quant_prev_coeff_mag(prev_res);
     return f;
 }
 
@@ -135,7 +141,7 @@ static double estimate_jxl_modular_size(
     MatreeBuildParams params;
     params.max_depth = 10;
     params.max_leaves = K;
-    params.min_samples_per_leaf = 32;
+    params.min_samples_per_leaf = 16;
 
     MATree tree = build_matree_greedy(features, residuals, params);
 
@@ -246,10 +252,18 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
                     int32_t TL = (x > 0 && y > 0) ? s.coeffs[(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t TR = (y > 0 && x + 1 < s.w) ? s.coeffs[(size_t)(y - 1) * s.w + x + 1] : 0;
 
+                    int32_t prev_coeff = 0;
+                    if (x > 0) prev_coeff = s.coeffs[(size_t)y * s.w + x - 1];
+                    else if (y > 0) prev_coeff = s.coeffs[(size_t)(y - 1) * s.w + s.w - 1];
+
+                    int32_t prev_res = (x > 0 || y > 0) ? all_residuals[all_residuals.size() - 1] : 0;
+                    // But for first sample of new subband, prev_res should be 0
+                    if (all_residuals.size() == 1) prev_res = 0;
+
                     all_features.push_back(build_sample_feature_8f(
                         s.level, (int)s.orient,
                         s.coeffs[(size_t)y * s.w + x],
-                        L, T, TL, TR, x, y, s.w, s.h));
+                        L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res));
                 }
             }
         }
@@ -520,7 +534,8 @@ static bool deserialize_container_header(
 }
 
 // Serialize per-cluster CDFs as compact histograms.
-// Format: for each cluster: u16 num_nonzero, then (u16 sym, u16 freq) pairs.
+// Format v2: delta-coded symbol indices + u16 frequencies.
+// Per cluster: u16 num_nonzero, u16 first_sym, then (u8/u16 delta, u16 freq) pairs.
 static std::vector<uint8_t> serialize_histograms(
     const std::vector<jxl_ans::ClusterCDF>& cdfs,
     const std::vector<uint32_t>& cluster_totals) {
@@ -531,20 +546,29 @@ static std::vector<uint8_t> serialize_histograms(
 
     for (uint16_t c = 0; c < num_clusters; ++c) {
         if (cluster_totals[c] == 0) {
-            write_u16_le_vec(out, 0); // no nonzero symbols
+            write_u16_le_vec(out, 0);
             continue;
         }
-        // Count nonzero entries
-        uint16_t count = 0;
+        // Collect nonzero symbols
+        std::vector<uint16_t> syms;
         for (int s = 0; s < kAnsAlphabet; ++s) {
-            if (cdfs[c].freq[s] > 0) count++;
+            if (cdfs[c].freq[s] > 0) syms.push_back((uint16_t)s);
         }
-        write_u16_le_vec(out, count);
-        for (int s = 0; s < kAnsAlphabet; ++s) {
-            if (cdfs[c].freq[s] > 0) {
-                write_u16_le_vec(out, (uint16_t)s);
-                write_u16_le_vec(out, (uint16_t)cdfs[c].freq[s]);
+        write_u16_le_vec(out, (uint16_t)syms.size());
+        if (syms.empty()) continue;
+        write_u16_le_vec(out, syms[0]);
+        write_u16_le_vec(out, (uint16_t)cdfs[c].freq[syms[0]]);
+        uint16_t prev = syms[0];
+        for (size_t j = 1; j < syms.size(); ++j) {
+            uint16_t delta = syms[j] - prev;
+            if (delta < 256) {
+                out.push_back((uint8_t)delta);
+            } else {
+                out.push_back(0);
+                write_u16_le_vec(out, delta);
             }
+            write_u16_le_vec(out, (uint16_t)cdfs[c].freq[syms[j]]);
+            prev = syms[j];
         }
     }
     return out;
@@ -565,11 +589,28 @@ static std::vector<jxl_ans::ClusterCDF> deserialize_histograms(
         if (pos + 2 > len) throw std::runtime_error("histogram truncated");
         uint16_t count = read_u16_le_bytes(data + pos); pos += 2;
 
-        for (uint16_t j = 0; j < count; ++j) {
+        if (count > 0) {
             if (pos + 4 > len) throw std::runtime_error("histogram entry truncated");
             uint16_t sym = read_u16_le_bytes(data + pos); pos += 2;
             uint16_t freq = read_u16_le_bytes(data + pos); pos += 2;
             if (sym < kAnsAlphabet) cdf.freq[sym] = freq;
+            uint16_t prev = sym;
+            for (uint16_t j = 1; j < count; ++j) {
+                if (pos + 1 > len) throw std::runtime_error("histogram delta truncated");
+                uint8_t delta8 = data[pos]; pos += 1;
+                uint16_t delta;
+                if (delta8 == 0) {
+                    if (pos + 2 > len) throw std::runtime_error("histogram big-delta truncated");
+                    delta = read_u16_le_bytes(data + pos); pos += 2;
+                } else {
+                    delta = delta8;
+                }
+                if (pos + 2 > len) throw std::runtime_error("histogram freq truncated");
+                freq = read_u16_le_bytes(data + pos); pos += 2;
+                sym = prev + delta;
+                if (sym < kAnsAlphabet) cdf.freq[sym] = freq;
+                prev = sym;
+            }
         }
 
         // Rebuild cumulative frequencies
@@ -621,6 +662,8 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
             recon[si].assign(pd.subs[si].coeffs.size(), 0);
 
         // Single-pass: compute residual, feature, and update recon simultaneously
+        // Track previous residual per subband for prev_res_mag feature
+        std::vector<int32_t> prev_res_per_sub(pd.subs.size(), 0);
         for (int si : pd.order) {
             const auto& s = pd.subs[si];
             for (int y = 0; y < s.h; ++y) {
@@ -636,13 +679,19 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
                     int32_t TL = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t TR = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
 
+                    // Previous coefficient in same subband (already reconstructed)
+                    int32_t prev_coeff = 0;
+                    if (x > 0) prev_coeff = recon[si][(size_t)y * s.w + x - 1];
+                    else if (y > 0) prev_coeff = recon[si][(size_t)(y - 1) * s.w + s.w - 1];
+
                     pd.features.push_back(build_sample_feature_7f(
                         s.level, (int)s.orient,
                         c_hat,
-                        L, T, TL, TR, x, y, s.w, s.h));
+                        L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si]));
 
-                    // Update recon (matches decoder: c_hat + e = c)
+                    // Update recon and track prev residual
                     recon[si][(size_t)y * s.w + x] = c_hat + e;
+                    prev_res_per_sub[si] = e;
                 }
             }
         }
@@ -675,7 +724,7 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
         MatreeBuildParams params;
         params.max_depth = 10;
         params.max_leaves = K;
-        params.min_samples_per_leaf = 32;
+        params.min_samples_per_leaf = 16;
         MATree tree = build_matree_greedy(pd.features, pd.residuals, params);
 
         int num_clusters = tree.num_leaves;
@@ -852,6 +901,7 @@ Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
         // Single-pass decode: for each sample, compute feature, evaluate tree,
         // ANS-decode one symbol, reconstruct coefficient. This mirrors the encoder's
         // progressive recon fill exactly.
+        std::vector<int32_t> prev_res_per_sub(subs.size(), 0);
         for (int si : order) {
             const auto& s = subs[si];
             for (int y = 0; y < s.h; ++y) {
@@ -861,8 +911,14 @@ Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
                     int32_t T = (y > 0) ? recon[si][(size_t)(y - 1) * s.w + x] : 0;
                     int32_t TL = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t TR = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
+
+                    // Previous coefficient in same subband (already reconstructed)
+                    int32_t prev_coeff = 0;
+                    if (x > 0) prev_coeff = recon[si][(size_t)y * s.w + x - 1];
+                    else if (y > 0) prev_coeff = recon[si][(size_t)(y - 1) * s.w + s.w - 1];
+
                     Feature feat = build_sample_feature_7f(
-                        s.level, (int)s.orient, c_hat, L, T, TL, TR, x, y, s.w, s.h);
+                        s.level, (int)s.orient, c_hat, L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si]);
                     uint16_t cid = tree.eval(feat);
                     if (cid >= cdfs.size()) cid = 0;
 
@@ -871,6 +927,7 @@ Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
                     int32_t e = sym_to_res(sym);
 
                     recon[si][(size_t)y * s.w + x] = c_hat + e;
+                    prev_res_per_sub[si] = e;
                 }
             }
         }

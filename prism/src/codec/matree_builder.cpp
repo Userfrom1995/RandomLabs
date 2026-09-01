@@ -36,6 +36,17 @@ uint8_t quant_neighbor_mag(int32_t L, int32_t T, int32_t TL, int32_t TR) {
     if (a < 1024) return 6;
     return 7;
 }
+uint8_t quant_prev_coeff_mag(int32_t val) {
+    int a = std::abs(val);
+    if (a < 4) return 0;
+    if (a < 16) return 1;
+    if (a < 64) return 2;
+    if (a < 128) return 3;
+    if (a < 256) return 4;
+    if (a < 512) return 5;
+    if (a < 1024) return 6;
+    return 7;
+}
 
 namespace {
 struct BuildNode {
@@ -51,18 +62,47 @@ struct BuildNode {
 
 inline double leaf_bits(const std::vector<size_t>& idxs, const std::vector<int32_t>& residuals) {
     if (idxs.empty()) return 0;
-    uint64_t sum = 0;
+    // Compute actual entropy of the zigzag-coded symbol distribution.
+    // Use a small-stack histogram: count nonzero symbols, compute -sum p*log2(p).
+    // For the induction subsample (<=32K), a flat array over the observed range is fast.
+    int32_t lo = INT32_MAX, hi = INT32_MIN;
     for (size_t i : idxs) {
         int32_t e = residuals[i];
-        sum += (uint64_t)(e < 0 ? -e : e);
-        if (e != 0) sum += 1;
+        if (e < lo) lo = e;
+        if (e > hi) hi = e;
     }
-    double mean = (double)sum / (double)idxs.size();
-    double bps;
-    if (mean < 0.5) bps = 0.5;
-    else if (mean < 1.0) bps = 0.8;
-    else bps = std::log2(mean + 1.0) + 1.2;
-    return (double)idxs.size() * bps;
+    // Zigzag range: 0..2*max(|lo|,|hi|)
+    uint32_t max_sym = (uint32_t)std::max(std::abs(lo), std::abs(hi));
+    uint32_t sym_range = 2 * max_sym + 1;
+    if (sym_range > 131072) {
+        // Fallback to mean-based heuristic for very wide distributions
+        uint64_t sum = 0;
+        for (size_t i : idxs) {
+            int32_t e = residuals[i];
+            sum += (uint64_t)(e < 0 ? -e : e);
+            if (e != 0) sum += 1;
+        }
+        double mean = (double)sum / (double)idxs.size();
+        double bps;
+        if (mean < 0.5) bps = 0.5;
+        else if (mean < 1.0) bps = 0.8;
+        else bps = std::log2(mean + 1.0) + 1.2;
+        return (double)idxs.size() * bps;
+    }
+    std::vector<uint32_t> hist(sym_range, 0);
+    for (size_t i : idxs) {
+        int32_t e = residuals[i];
+        uint32_t s = (e == 0) ? 0 : ((e > 0) ? (uint32_t)(2 * e - 1) : (uint32_t)(-2 * e));
+        hist[s]++;
+    }
+    double n = (double)idxs.size();
+    double bits = 0;
+    for (uint32_t s = 0; s < sym_range; ++s) {
+        if (hist[s] == 0) continue;
+        double p = (double)hist[s] / n;
+        bits -= p * std::log2(p);
+    }
+    return n * bits;
 }
 inline uint64_t leaf_cost(const std::vector<size_t>& idxs, const std::vector<int32_t>& residuals) {
     return (uint64_t)leaf_bits(idxs, residuals);
@@ -78,6 +118,9 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
         case PropId::PositionY: return f.position_y < (uint8_t)thr;
         case PropId::PositionX: return f.position_x < (uint8_t)thr;
         case PropId::NeighborMag: return f.neighbor_mag < (uint8_t)thr;
+        case PropId::PrevCoeffMag: return f.prev_coeff_mag < (uint8_t)thr;
+        case PropId::LeftMag: return f.left_mag < (uint16_t)thr;
+        case PropId::PrevResMag: return f.prev_res_mag < (uint8_t)thr;
     }
     return false;
 }
@@ -94,6 +137,9 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
         case PropId::PositionY: return f.position_y;
         case PropId::PositionX: return f.position_x;
         case PropId::NeighborMag: return f.neighbor_mag;
+        case PropId::PrevCoeffMag: return f.prev_coeff_mag;
+        case PropId::LeftMag: return f.left_mag;
+        case PropId::PrevResMag: return f.prev_res_mag;
     }
     return 0;
 }
@@ -170,6 +216,9 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
             push_quantile_cands(cands, PropId::PositionY, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::PositionX, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::NeighborMag, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::PrevCoeffMag, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::LeftMag, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::PrevResMag, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);
