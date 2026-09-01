@@ -2,9 +2,17 @@
 //
 // Full neural codec end-to-end with lossless round-trip guarantee.
 // Uses wavelet_container format for serialization with NEURAL_FILTER_ID.
+//
+// E1-E entropy coding:
+// - Y_q is rANS-coded conditioned on sigma (sigma re-derived from Z_q on decode)
+// - Z_q is rANS-coded with a fixed Laplacian model
+// - Residual R = X - g_s(Y_q) is coded with existing rANS (rans_encode_plane)
+// - sigma is NOT transmitted (saves 2 bytes per latent value)
 
 #include "prism/codec/neural_frame.h"
 #include "prism/codec/neural_codec.h"
+#include "prism/codec/neural_entropy.h"
+#include "prism/codec/rans.h"
 #include "prism/codec/wavelet_container.h"
 #include "prism/codec/color.h"
 #include "prism/codec/bitplane.h"
@@ -56,40 +64,49 @@ std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) 
     const int M = NeuralCodecParams::M;
 
     // Step 1: Run analysis network g_a to get latent Y_q.
-    // Convert planar raster to CHW layout for the neural codec.
     int yh, yw;
     std::vector<uint16_t> chw(static_cast<size_t>(c) * h * w);
     for (int ch = 0; ch < c; ++ch) {
-        std::memcpy(chw.data() + ch * h * w, raster.planes[ch].data(), h * w * sizeof(uint16_t));
+        std::memcpy(chw.data() + ch * h * w, raster.planes[ch].data(),
+                    h * w * sizeof(uint16_t));
     }
     auto result = neural_full_encode(chw.data(), h, w, c);
 
     // Step 2: Synthesis network g_s to get X_hat.
     std::vector<uint16_t> x_hat(c * h * w);
     neural_full_decode(result.yq.data(), result.yh, result.yw, N,
-                        x_hat.data(), h, w, c);
+                       x_hat.data(), h, w, c);
 
     // Step 3: Compute residual R = X - X_hat (per channel).
-    std::vector<int16_t> residual(c * h * w);
+    // Use int32 to avoid overflow (uint16 range can exceed int16 range).
+    std::vector<int32_t> residual(static_cast<size_t>(c) * h * w);
     for (int ch = 0; ch < c; ++ch) {
         for (int i = 0; i < h * w; ++i) {
             int32_t orig = static_cast<int32_t>(raster.planes[ch][i]);
             int32_t recon = static_cast<int32_t>(x_hat[ch * h * w + i]);
-            residual[ch * h * w + i] = static_cast<int16_t>(orig - recon);
+            residual[ch * h * w + i] = orig - recon;
         }
     }
 
-    // Step 4: Serialize into a payload blob.
-    // Layout: [yh u32][yw u32][zh u32][zw u32]
-    //         [Y_q: N*yh*yw int8 bytes]
-    //         [Z_q: M*zh*zw int8 bytes]
-    //         [sigma: N*yh*yw int16 bytes, big-endian]
-    //         [residual: c*h*w int16 bytes, big-endian]
-    std::vector<uint8_t> payload;
-    payload.reserve(16 + result.yq.size() + result.zq.size() +
-                    result.sigma.size() * 2 + c * h * w * 2);
+    // Step 4: Entropy-code Y_q, Z_q, and residual.
+    // Y_q is coded conditioned on sigma (from h_s).
+    auto yq_rans = NeuralEntropyEncoder::encode_yq(
+        result.yq.data(), result.sigma.data(), N, result.yh, result.yw);
+    // Z_q is coded with a fixed Laplacian model.
+    auto zq_rans = NeuralEntropyEncoder::encode_zq(
+        result.zq.data(), M, result.zh, result.zw);
+    // Residual is coded with existing rANS (int32).
+    auto res_rans = rans_encode_plane(residual);
 
-    // Header
+    // Step 5: Serialize entropy-coded payload.
+    // Layout: [yh u32][yw u32][zh u32][zw u32]
+    //         [zq_size u32][yq_size u32][res_size u32]
+    //         [Z_q rANS stream]
+    //         [Y_q rANS stream]
+    //         [Residual rANS stream]
+    std::vector<uint8_t> payload;
+    payload.reserve(28 + zq_rans.size() + yq_rans.size() + res_rans.size());
+
     auto write_u32 = [&](uint32_t v) {
         payload.push_back(static_cast<uint8_t>(v));
         payload.push_back(static_cast<uint8_t>(v >> 8));
@@ -100,26 +117,16 @@ std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) 
     write_u32(static_cast<uint32_t>(result.yw));
     write_u32(static_cast<uint32_t>(result.zh));
     write_u32(static_cast<uint32_t>(result.zw));
+    write_u32(static_cast<uint32_t>(zq_rans.size()));
+    write_u32(static_cast<uint32_t>(yq_rans.size()));
+    write_u32(static_cast<uint32_t>(res_rans.size()));
 
-    // Y_q (int8)
-    payload.insert(payload.end(), result.yq.begin(), result.yq.end());
+    // Append entropy-coded streams.
+    payload.insert(payload.end(), zq_rans.begin(), zq_rans.end());
+    payload.insert(payload.end(), yq_rans.begin(), yq_rans.end());
+    payload.insert(payload.end(), res_rans.begin(), res_rans.end());
 
-    // Z_q (int8)
-    payload.insert(payload.end(), result.zq.begin(), result.zq.end());
-
-    // sigma (int16 big-endian)
-    for (int16_t v : result.sigma) {
-        payload.push_back(static_cast<uint8_t>(static_cast<uint16_t>(v) >> 8));
-        payload.push_back(static_cast<uint8_t>(v));
-    }
-
-    // Residual (int16 big-endian)
-    for (int16_t v : residual) {
-        payload.push_back(static_cast<uint8_t>(static_cast<uint16_t>(v) >> 8));
-        payload.push_back(static_cast<uint8_t>(v));
-    }
-
-    // Step 5: Wrap in wavelet container with NEURAL_FILTER_ID.
+    // Step 6: Wrap in wavelet container with NEURAL_FILTER_ID.
     WaveletHeader hdr;
     hdr.filter_id = NEURAL_FILTER_ID;
     hdr.levels = 0;
@@ -149,8 +156,6 @@ Raster frame_neural_decode(const std::vector<uint8_t>& bytes) {
     }
 
     // Parse raster dimensions from the v1 envelope (bytes 5-14).
-    // The envelope is: PRSM[0-3] version[4] width[5-8] height[9-12]
-    //   bd[13] nc[14] ct[15] flags[16] effort[17] wavelet_header[18...]
     Raster raster;
     raster.w = static_cast<uint32_t>(bytes[5] | (bytes[6] << 8) |
                 (bytes[7] << 16) | (bytes[8] << 24));
@@ -172,14 +177,16 @@ Raster frame_neural_decode(const std::vector<uint8_t>& bytes) {
     const uint8_t* p = frame.payload.data();
     const uint8_t* end = p + frame.payload.size();
 
-    if (end - p < 16) {
+    if (end - p < 28) {
         throw DecodeError("neural decode: payload too short for header");
     }
 
     // Read header
     auto read_u32 = [&]() -> uint32_t {
-        uint32_t v = static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-                     (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+        uint32_t v = static_cast<uint32_t>(p[0]) |
+                     (static_cast<uint32_t>(p[1]) << 8) |
+                     (static_cast<uint32_t>(p[2]) << 16) |
+                     (static_cast<uint32_t>(p[3]) << 24);
         p += 4;
         return v;
     };
@@ -188,38 +195,41 @@ Raster frame_neural_decode(const std::vector<uint8_t>& bytes) {
     int yw = static_cast<int>(read_u32());
     int zh = static_cast<int>(read_u32());
     int zw = static_cast<int>(read_u32());
+    uint32_t zq_size = read_u32();
+    uint32_t yq_size = read_u32();
+    uint32_t res_size = read_u32();
 
-    size_t yq_size = static_cast<size_t>(N) * yh * yw;
-    size_t zq_size = static_cast<size_t>(M) * zh * zw;
-    size_t sigma_size = yq_size; // N*yh*yw int16 values
-    size_t res_size = static_cast<size_t>(c) * h * w;
-
-    size_t needed = yq_size + zq_size + sigma_size * 2 + res_size * 2;
+    // Bounds check for stream sizes.
+    size_t needed = static_cast<size_t>(zq_size) + yq_size + res_size;
     if (static_cast<size_t>(end - p) < needed) {
-        throw DecodeError("neural decode: payload too short for data");
+        throw DecodeError("neural decode: payload too short for entropy streams");
     }
 
-    // Read Y_q
-    std::vector<int8_t> yq(p, p + yq_size);
-    p += yq_size;
-
-    // Read Z_q
-    std::vector<int8_t> zq(p, p + zq_size);
+    // Extract entropy-coded streams.
+    std::vector<uint8_t> zq_stream(p, p + zq_size);
     p += zq_size;
+    std::vector<uint8_t> yq_stream(p, p + yq_size);
+    p += yq_size;
+    std::vector<uint8_t> res_stream(p, p + res_size);
+    p += res_size;
 
-    // Read sigma (int16 big-endian)
-    std::vector<int16_t> sigma(sigma_size);
-    for (size_t i = 0; i < sigma_size; ++i) {
-        sigma[i] = static_cast<int16_t>((static_cast<uint16_t>(p[0]) << 8) | p[1]);
-        p += 2;
-    }
+    // Decode Z_q first (needed to derive sigma).
+    auto zq = NeuralEntropyDecoder::decode_zq(zq_stream, M, zh, zw);
 
-    // Read residual (int16 big-endian)
-    std::vector<int16_t> residual(res_size);
-    for (size_t i = 0; i < res_size; ++i) {
-        residual[i] = static_cast<int16_t>((static_cast<uint16_t>(p[0]) << 8) | p[1]);
-        p += 2;
-    }
+    // Re-derive sigma from Z_q via h_s.
+    std::vector<int16_t> sigma(static_cast<size_t>(N) * yh * yw);
+    std::vector<int16_t> bias(static_cast<size_t>(N) * yh * yw);
+    neural_hyper_synthesis_decode(zq.data(), zh, zw, M,
+                                  sigma.data(), bias.data(),
+                                  yh, yw, N);
+
+    // Decode Y_q conditioned on sigma.
+    auto yq = NeuralEntropyDecoder::decode_yq(yq_stream, sigma.data(),
+                                              N, yh, yw);
+
+    // Decode residual (int32 for lossless round-trip).
+    auto residual = rans_decode_plane(res_stream,
+                                       static_cast<size_t>(c) * h * w);
 
     // Decode: run synthesis network g_s on Y_q.
     std::vector<uint16_t> x_hat(c * h * w);
@@ -230,7 +240,7 @@ Raster frame_neural_decode(const std::vector<uint8_t>& bytes) {
         raster.planes[ch].resize(static_cast<size_t>(h) * w);
         for (int i = 0; i < h * w; ++i) {
             int32_t recon = static_cast<int32_t>(x_hat[ch * h * w + i]);
-            int32_t res = static_cast<int32_t>(residual[ch * h * w + i]);
+            int32_t res = residual[ch * h * w + i];
             int32_t orig = recon + res;
             raster.planes[ch][i] = static_cast<uint16_t>(
                 std::max(0, std::min(65535, orig)));
