@@ -25,38 +25,29 @@ from pathlib import Path
 def perlin_noise_2d(shape, res, seed=None):
     """Generate 2D Perlin noise at given resolution."""
     rng = np.random.RandomState(seed)
-    h, w = shape
-    # Generate gradient grid
+    delta = (res[0] / shape[0], res[1] / shape[1])
+    d = (shape[0] // res[0], shape[1] // res[1])
+    grid = np.mgrid[0:res[0]:delta[0], 0:res[1]:delta[1]].transpose(1, 2, 0) % 1
+    # Gradients
     angles = 2 * np.pi * rng.rand(res[0]+1, res[1]+1)
-    grad_x = np.cos(angles)
-    grad_y = np.sin(angles)
-    # Compute fractional positions
-    yy, xx = np.mgrid[0:h, 0:w]
-    # Scale to grid coordinates
-    fx = xx * res[1] / w
-    fy = yy * res[0] / h
-    # Integer grid cell
-    ix = fx.astype(int)
-    iy = fy.astype(int)
-    # Fractional part within cell
-    tx = fx - ix
-    ty = fy - iy
-    # Quintic interpolation
-    tx5 = 6*tx**5 - 15*tx**4 + 10*tx**3
-    ty5 = 6*ty**5 - 15*ty**4 + 10*ty**3
-    # Clamp indices
-    ix = np.clip(ix, 0, res[0]-1)
-    iy = np.clip(iy, 0, res[1]-1)
-    # Dot products at four corners
-    n00 = (tx * grad_x[iy, ix] + ty * grad_y[iy, ix])
-    n10 = ((tx-1) * grad_x[iy, np.clip(ix+1, 0, res[0])] + ty * grad_y[iy, np.clip(ix+1, 0, res[0])])
-    n01 = (tx * grad_x[np.clip(iy+1, 0, res[1]), ix] + (ty-1) * grad_y[np.clip(iy+1, 0, res[1]), ix])
-    n11 = ((tx-1) * grad_x[np.clip(iy+1, 0, res[1]), np.clip(ix+1, 0, res[0])] +
-           (ty-1) * grad_y[np.clip(iy+1, 0, res[1]), np.clip(ix+1, 0, res[0])])
-    # Bilinear interpolation
-    nx0 = n00 * (1 - tx5) + n10 * tx5
-    nx1 = n01 * (1 - tx5) + n11 * tx5
-    return np.sqrt(2) * (nx0 * (1 - ty5) + nx1 * ty5)
+    gradients = np.dstack((np.cos(angles), np.sin(angles)))
+    g00 = gradients[0:-1, 0:-1].repeat(d[0], 0).repeat(d[1], 1)
+    g10 = gradients[1:, 0:-1].repeat(d[0], 0).repeat(d[1], 1)
+    g01 = gradients[0:-1, 1:].repeat(d[0], 0).repeat(d[1], 1)
+    g11 = gradients[1:, 1:].repeat(d[0], 0).repeat(d[1], 1)
+    # Ramps
+    n00 = np.sum(grid * g00[:shape[0], :shape[1]], 2)
+    n10 = np.sum(np.dstack((grid[:,:,0]-1, grid[:,:,1])) * g10[:shape[0], :shape[1]], 2)
+    n01 = np.sum(np.dstack((grid[:,:,0], grid[:,:,1]-1)) * g01[:shape[0], :shape[1]], 2)
+    n11 = np.sum(np.dstack((grid[:,:,0]-1, grid[:,:,1]-1)) * g11[:shape[0], :shape[1]], 2)
+    # Interpolation
+    t = 6*grid**5 - 15*grid**4 + 10*grid**3
+    n00_t = n00[:shape[0], :shape[1]]
+    n10_t = n10[:shape[0], :shape[1]] * t[:,:,0]
+    n01_t = n01[:shape[0], :shape[1]] * t[:,:,1]
+    n11_t = n11[:shape[0], :shape[1]] * t[:,:,0] * t[:,:,1]
+    return np.sqrt(2) * ((1-t[:,:,0])*(1-t[:,:,1])*n00_t + t[:,:,0]*(1-t[:,:,1])*n10_t +
+                          (1-t[:,:,0])*t[:,:,1]*n01_t + t[:,:,0]*t[:,:,1]*n11_t)
 
 
 def fractal_noise_2d(shape, octaves=6, seed=None):

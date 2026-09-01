@@ -61,12 +61,5 @@ inline uint32_t read_u32_le_bytes(const uint8_t* p) {
 inline uint16_t read_u16_le_bytes(const uint8_t* p) {
     return uint16_t(p[0]) | (uint16_t(p[1]) << 8);
 }
-inline void write_i16_le_vec(std::vector<uint8_t>& out, int16_t v) {
-    out.push_back(uint8_t(uint16_t(v) & 0xFF));
-    out.push_back(uint8_t((uint16_t(v) >> 8) & 0xFF));
-}
-inline int16_t read_i16_le_bytes(const uint8_t* p) {
-    return int16_t(uint16_t(p[0]) | (uint16_t(p[1]) << 8));
-}
 
 } // namespace prism
