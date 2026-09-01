@@ -66,11 +66,11 @@ void neural_conv2d_int16(const int8_t* input, int in_ch, int in_h, int in_w,
                     const int16_t* w_ic = w_oc + ic * kH * kW;
 
                     for (int kh = 0; kh < kH; ++kh) {
-                        int ih = oh * stride + kh;
+                        int ih = oh * stride - (kH - 1) / 2 + kh;
                         if (ih < 0 || ih >= in_h) continue;
 
                         for (int kw = 0; kw < kW; ++kw) {
-                            int iw = ow * stride + kw;
+                            int iw = ow * stride - (kW - 1) / 2 + kw;
                             if (iw < 0 || iw >= in_w) continue;
 
                             int32_t in_val = static_cast<int32_t>(in_ch_data[ih * in_w + iw]);
@@ -98,17 +98,20 @@ void neural_gdn(int8_t* data, int ch, int h, int w, const int16_t* beta) {
         for (int i = 0; i < plane_size; ++i) {
             int32_t x = static_cast<int32_t>(ch_data[i]);
             // GDN: output = x / sqrt(beta + x^2)
-            // All in Q=1024 fixed-point.
-            int32_t x2 = x * x / NeuralCodecParams::Q;
-            int32_t denom = b + x2;
+            // Scale x to Q domain: x_q = x * Q
+            int64_t x_q = static_cast<int64_t>(x) * NeuralCodecParams::Q;
+            // x^2 in Q domain: x_q^2 / Q (use int64 to avoid overflow)
+            int64_t x2 = (x_q * x_q) / NeuralCodecParams::Q;
+            // b is in Q domain, add x^2 (both Q domain)
+            int64_t denom = static_cast<int64_t>(b) + x2;
             if (denom <= 0) denom = 1;
-            // sqrt in fixed-point: use float approximation then convert back.
+            // sqrt in fixed-point: convert to float for accuracy, then back to Q
             float denom_f = static_cast<float>(denom) / NeuralCodecParams::Q;
             float sqrt_val = std::sqrt(denom_f);
             int32_t sqrt_q = static_cast<int32_t>(sqrt_val * NeuralCodecParams::Q);
             if (sqrt_q <= 0) sqrt_q = 1;
-            // x * Q / sqrt_q (all in Q domain)
-            int32_t result = (x * NeuralCodecParams::Q) / sqrt_q;
+            // x_q / sqrt_q (both in Q domain, result is unscaled)
+            int32_t result = static_cast<int32_t>(x_q / sqrt_q);
             ch_data[i] = clamp_i8(result);
         }
     }
@@ -122,13 +125,17 @@ void neural_igdn(int8_t* data, int ch, int h, int w, const int16_t* beta) {
         for (int i = 0; i < plane_size; ++i) {
             int32_t x = static_cast<int32_t>(ch_data[i]);
             // IGDN: output = x * sqrt(beta + x^2)
-            int32_t x2 = x * x / NeuralCodecParams::Q;
-            int32_t denom = b + x2;
+            // Scale x to Q domain: x_q = x * Q
+            int64_t x_q = static_cast<int64_t>(x) * NeuralCodecParams::Q;
+            // x^2 in Q domain: x_q^2 / Q (use int64 to avoid overflow)
+            int64_t x2 = (x_q * x_q) / NeuralCodecParams::Q;
+            int64_t denom = static_cast<int64_t>(b) + x2;
             if (denom <= 0) denom = 1;
             float denom_f = static_cast<float>(denom) / NeuralCodecParams::Q;
             float sqrt_val = std::sqrt(denom_f);
             int32_t sqrt_q = static_cast<int32_t>(sqrt_val * NeuralCodecParams::Q);
-            int32_t result = (x * sqrt_q) / NeuralCodecParams::Q;
+            // x_q * sqrt_q / Q (both in Q domain, result is unscaled)
+            int32_t result = static_cast<int32_t>((x_q * sqrt_q) / NeuralCodecParams::Q);
             ch_data[i] = clamp_i8(result);
         }
     }
@@ -152,10 +159,12 @@ void neural_quantize_to_int8(const int32_t* data, int8_t* out, int len, int righ
 // -----------------------------------------------------------------------
 
 namespace {
-void run_conv_gdn(const int8_t* in, int in_ch, int in_h, int in_w,
-                   int out_ch, int stride,
-                   const int16_t* weight, const int16_t* bias, const int16_t* gdn_beta,
-                   int8_t* out, int& out_h, int& out_w) {
+enum class NormType { NONE, GDN, IGDN };
+
+void run_conv_norm(const int8_t* in, int in_ch, int in_h, int in_w,
+                    int out_ch, int stride,
+                    const int16_t* weight, const int16_t* bias, const int16_t* norm_beta,
+                    NormType norm, int8_t* out, int& out_h, int& out_w) {
     out_h = in_h / stride;
     out_w = in_w / stride;
     std::vector<int32_t> conv_out(static_cast<size_t>(out_ch) * out_h * out_w);
@@ -164,9 +173,11 @@ void run_conv_gdn(const int8_t* in, int in_ch, int in_h, int in_w,
                         conv_out.data(), out_h, out_w);
     // Quantize int32 -> int8 (right shift by log2(Q) = 10)
     neural_quantize_to_int8(conv_out.data(), out, out_ch * out_h * out_w, 10);
-    // GDN
-    if (gdn_beta) {
-        neural_gdn(out, out_ch, out_h, out_w, gdn_beta);
+    // Normalization
+    if (norm == NormType::GDN && norm_beta) {
+        neural_gdn(out, out_ch, out_h, out_w, norm_beta);
+    } else if (norm == NormType::IGDN && norm_beta) {
+        neural_igdn(out, out_ch, out_h, out_w, norm_beta);
     }
 }
 } // namespace
@@ -187,24 +198,24 @@ void neural_analysis_encode(const uint16_t* input, int h, int w, int c,
 
     // Layer 0: Conv2d(c, 128, 3, stride=2) + GDN
     std::vector<int8_t> layer0(128 * (cur_h/2) * (cur_w/2));
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 128, 2,
-                 baked_ga_conv0_w(), baked_ga_conv0_b(), baked_ga_gdn1_beta(),
-                 layer0.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 128, 2,
+                  baked_ga_conv0_w(), baked_ga_conv0_b(), baked_ga_gdn1_beta(),
+                  NormType::GDN, layer0.data(), cur_h, cur_w);
     cur_ch = 128;
     cur_in = layer0.data();
 
     // Layer 1: Conv2d(128, 128, 3, stride=1) + GDN
     std::vector<int8_t> layer1(128 * cur_h * cur_w);
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 128, 1,
-                 baked_ga_conv1_w(), baked_ga_conv1_b(), baked_ga_gdn2_beta(),
-                 layer1.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 128, 1,
+                  baked_ga_conv1_w(), baked_ga_conv1_b(), baked_ga_gdn2_beta(),
+                  NormType::GDN, layer1.data(), cur_h, cur_w);
     cur_in = layer1.data();
 
     // Layer 2: Conv2d(128, 128, 3, stride=2) + GDN
     std::vector<int8_t> layer2(128 * (cur_h/2) * (cur_w/2));
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 128, 2,
-                 baked_ga_conv2_w(), baked_ga_conv2_b(), baked_ga_gdn3_beta(),
-                 layer2.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 128, 2,
+                  baked_ga_conv2_w(), baked_ga_conv2_b(), baked_ga_gdn3_beta(),
+                  NormType::GDN, layer2.data(), cur_h, cur_w);
     cur_in = layer2.data();
 
     // Layer 3: Conv2d(128, N, 3, stride=1) - no GDN on output
@@ -230,17 +241,17 @@ void neural_hyper_analysis_encode(const int8_t* input, int in_h, int in_w, int n
 
     // Layer 0: Conv2d(N, 128, 3, stride=1) + GDN
     std::vector<int8_t> layer0(128 * cur_h * cur_w);
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 128, 1,
-                 baked_ha_conv0_w(), baked_ha_conv0_b(), baked_ha_gdn1_beta(),
-                 layer0.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 128, 1,
+                  baked_ha_conv0_w(), baked_ha_conv0_b(), baked_ha_gdn1_beta(),
+                  NormType::GDN, layer0.data(), cur_h, cur_w);
     cur_ch = 128;
     cur_in = layer0.data();
 
     // Layer 1: Conv2d(128, 128, 3, stride=2) + GDN
     std::vector<int8_t> layer1(128 * (cur_h/2) * (cur_w/2));
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 128, 2,
-                 baked_ha_conv1_w(), baked_ha_conv1_b(), baked_ha_gdn2_beta(),
-                 layer1.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 128, 2,
+                  baked_ha_conv1_w(), baked_ha_conv1_b(), baked_ha_gdn2_beta(),
+                  NormType::GDN, layer1.data(), cur_h, cur_w);
     cur_in = layer1.data();
 
     // Layer 2: Conv2d(128, M, 3, stride=1) - no GDN
@@ -261,15 +272,30 @@ void neural_hyper_analysis_encode(const int8_t* input, int in_h, int in_w, int n
 void neural_hyper_synthesis_decode(const int8_t* input, int in_h, int in_w, int m,
                                     int16_t* sigma, int16_t* bias,
                                     int /*out_h*/, int /*out_w*/, int n) {
-    int cur_h = in_h, cur_w = in_w;
+    // 2x nearest-neighbor upsample to match training (F.interpolate(scale_factor=2))
+    int up_h = in_h * 2;
+    int up_w = in_w * 2;
+    std::vector<int8_t> upsampled(static_cast<size_t>(m) * up_h * up_w);
+    for (int ch = 0; ch < m; ++ch) {
+        for (int oh = 0; oh < up_h; ++oh) {
+            int ih = oh / 2;
+            for (int ow = 0; ow < up_w; ++ow) {
+                int iw = ow / 2;
+                upsampled[ch * up_h * up_w + oh * up_w + ow] =
+                    input[ch * in_h * in_w + ih * in_w + iw];
+            }
+        }
+    }
+
+    int cur_h = up_h, cur_w = up_w;
     int cur_ch = m;
-    const int8_t* cur_in = input;
+    const int8_t* cur_in = upsampled.data();
 
     // Layer 0: Conv2d(M, 32, 3, stride=1) + ReLU
     std::vector<int8_t> layer0(32 * cur_h * cur_w);
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 32, 1,
-                 baked_hs_conv0_w(), baked_hs_conv0_b(), nullptr,
-                 layer0.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 32, 1,
+                  baked_hs_conv0_w(), baked_hs_conv0_b(), nullptr,
+                  NormType::NONE, layer0.data(), cur_h, cur_w);
     neural_relu(layer0.data(), 32 * cur_h * cur_w);
     cur_ch = 32;
     cur_in = layer0.data();
@@ -311,9 +337,9 @@ void neural_synthesis_decode(const int8_t* input, int in_h, int in_w, int n,
 
     // Layer 0: Conv2d(N, 128, 3, stride=1) + IGDN
     std::vector<int8_t> layer0(128 * cur_h * cur_w);
-    run_conv_gdn(cur_in, cur_ch, cur_h, cur_w, 128, 1,
-                 baked_gs_conv0_w(), baked_gs_conv0_b(), baked_gs_igdn1_beta(),
-                 layer0.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, cur_ch, cur_h, cur_w, 128, 1,
+                  baked_gs_conv0_w(), baked_gs_conv0_b(), baked_gs_igdn1_beta(),
+                  NormType::IGDN, layer0.data(), cur_h, cur_w);
     cur_ch = 128;
     cur_in = layer0.data();
 
@@ -335,16 +361,16 @@ void neural_synthesis_decode(const int8_t* input, int in_h, int in_w, int n,
         }
     }
     std::vector<int8_t> layer1(128 * new_h * new_w);
-    run_conv_gdn(upsampled.data(), 128, new_h, new_w, 128, 1,
-                 baked_gs_conv1_w(), baked_gs_conv1_b(), baked_gs_igdn2_beta(),
-                 layer1.data(), cur_h, cur_w);
+    run_conv_norm(upsampled.data(), 128, new_h, new_w, 128, 1,
+                  baked_gs_conv1_w(), baked_gs_conv1_b(), baked_gs_igdn2_beta(),
+                  NormType::IGDN, layer1.data(), cur_h, cur_w);
     cur_in = layer1.data();
 
     // Layer 2: Conv2d(128, 128, 3, stride=1) + IGDN
     std::vector<int8_t> layer2(128 * cur_h * cur_w);
-    run_conv_gdn(cur_in, 128, cur_h, cur_w, 128, 1,
-                 baked_gs_conv2_w(), baked_gs_conv2_b(), baked_gs_igdn3_beta(),
-                 layer2.data(), cur_h, cur_w);
+    run_conv_norm(cur_in, 128, cur_h, cur_w, 128, 1,
+                  baked_gs_conv2_w(), baked_gs_conv2_b(), baked_gs_igdn3_beta(),
+                  NormType::IGDN, layer2.data(), cur_h, cur_w);
     cur_in = layer2.data();
 
     // Layer 3: ConvTranspose2d(128, C, 3, stride=2) - final output
