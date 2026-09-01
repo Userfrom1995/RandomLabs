@@ -350,7 +350,7 @@ void neural_synthesis_decode(const int8_t* input, int in_h, int in_w, int n,
     // Layer 3: ConvTranspose2d(128, C, 3, stride=2) - final output
     new_h = cur_h * 2;
     new_w = cur_w * 2;
-    std::vector<int8_t> upsampled2(c * new_h * new_w);
+    std::vector<int8_t> upsampled2(128 * new_h * new_w);
     for (int ch = 0; ch < 128; ++ch) {
         for (int oh = 0; oh < new_h; ++oh) {
             int ih = oh / 2;
