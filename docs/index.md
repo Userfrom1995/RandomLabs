@@ -15,7 +15,7 @@ lab that maintains the whole repository).
 ## What it is
 
 - **The Maintainer (Hephaestus)** - the brain and orchestrator. It surveys the repo
-  every 2 hours (plus on every push, PR event, and comment), decides what must happen, resumes in-progress
+  4×/day (plus on every event), decides what must happen, resumes in-progress
   builds, pings and takes over stalled ones, dispatches the Ideator when idle,
   picks ideas from the Brainstorm Board, and **merges every approved PR**
   (the Reviewer approves, Hephaestus merges, issues close themselves).

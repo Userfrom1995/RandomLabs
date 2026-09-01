@@ -19,9 +19,7 @@ enum class PropId : uint8_t {
     NeighborMag = 8,
     PrevCoeffMag = 9,
     LeftMag = 10,
-    PrevResMag = 11,
-    NWMag = 12,
-    NEMag = 13
+    PrevResMag = 11
 };
 
 struct MANode {

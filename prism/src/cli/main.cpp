@@ -22,7 +22,6 @@
 #include "prism/codec/route5.h"
 #include "prism/codec/predictor.h"
 #include "prism/codec/option_c.h"
-#include "prism/codec/neural_frame.h"
 
 #include "prism/bitstream.h"
 #include <iostream>
@@ -38,7 +37,6 @@
 #include <cmath>
 #include <chrono>
 #include <map>
-#include <set>
 #include <memory>
 #include <queue>
 
@@ -84,7 +82,7 @@ static void print_usage() {
               << "  prism encode-jxl-modular --in FILE --out FILE [--k K]\n"
               << "  prism decode-jxl-modular --in FILE --out FILE\n"
               << "  prism bench-jxl-modular --kodak DIR [--k K] [--out CSV]\n"
-              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass]\n";
+              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -4527,7 +4525,6 @@ int main(int argc, char* argv[]) {
             uint16_t num_clusters = 32;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
             bool use_option_c = false;
-            bool use_neural = false;
             for (int i=4;i<argc;++i){
                 std::string a=argv[i];
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
@@ -4541,19 +4538,10 @@ int main(int argc, char* argv[]) {
                 else if (a=="--bd" && i+1<argc) bd=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--ch" && i+1<argc) ch=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--option-c") use_option_c = true;
-                else if (a=="--neural") use_neural = true;
             }
             Raster r = load_raster(in,w,h,bd,ch);
             std::vector<uint8_t> bytes;
-            if (use_neural) {
-                size_t net = 0;
-                bytes = frame_neural_encode(r, net);
-                std::cout << "encoded (neural) " << r.w << "x" << r.h
-                          << " ch=" << (int)r.num_channels()
-                          << " bd=" << (int)bd
-                          << " -> " << bytes.size() << " bytes ("
-                          << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
-            } else if (use_option_c) {
+            if (use_option_c) {
                 size_t net = 0;
                 bytes = frame_option_c_encode(r, net);
                 std::cout << "encoded (option-c) " << r.w << "x" << r.h
@@ -4582,10 +4570,8 @@ int main(int argc, char* argv[]) {
             // route them to the beyond-predictive frame decoder (the v1
             // production model is left untouched).
             Raster r;
-            if (bytes.size() > 18 && (bytes[16] & WAVELET_FLAG)) {
-                if (bytes[18] == NEURAL_FILTER_ID)
-                    r = frame_neural_decode(bytes);
-                else if (bytes[18] == 10)
+            if (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG)) {
+                if (bytes.size() > 18 && bytes[18] == 10)
                     r = frame_option_c_decode(bytes);
                 else
                     r = frame_wavelet_decode(bytes);
@@ -5979,21 +5965,18 @@ int main(int argc, char* argv[]) {
 
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-learned") {
-            // R6-A offline trainer: learns the baked MLP context-model weights from
-            // real Kodak imagery. Collects (features, bit) samples from all planes
-            // with luma context for chroma (matching production inference), trains a
-            // 2-hidden-layer MLP with Adam + dropout + held-out early stopping, and
-            // writes prism/src/codec/learned_ctx_data.inc (weights + blend).
+            // X3a offline trainer: learns the baked MLP context-model weights from
+            // real Kodak imagery. Encodes each subband exactly as the production
+            // path does (one subband at a time), collects (features, bit) samples,
+            // trains a tiny MLP with Adam to minimise cross-entropy, and writes
+            // prism/src/codec/learned_ctx_data.inc (weights + blend).
             std::string kodak;
             std::string out = "src/codec/learned_ctx_data.inc";
-            int epochs = 40;
+            int epochs = 14;
             float lr = 0.04f;
-            int stride = 1;
+            int stride = 128;
 
             float blend = 0.6f;
-            float pseudo = 64.0f;
-            float dropout = 0.1f;
-            int patience = 3;
 
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
@@ -6003,9 +5986,6 @@ int main(int argc, char* argv[]) {
                 else if (a == "--lr" && i + 1 < argc) lr = std::stof(argv[++i]);
                 else if (a == "--stride" && i + 1 < argc) stride = std::stoi(argv[++i]);
                 else if (a == "--blend" && i + 1 < argc) blend = std::stof(argv[++i]);
-                else if (a == "--pseudo" && i + 1 < argc) pseudo = std::stof(argv[++i]);
-                else if (a == "--dropout" && i + 1 < argc) dropout = std::stof(argv[++i]);
-                else if (a == "--patience" && i + 1 < argc) patience = std::stoi(argv[++i]);
             }
             if (kodak.empty()) {
                 std::cerr << "train-learned: --kodak DIR required\n";
@@ -6029,8 +6009,6 @@ int main(int argc, char* argv[]) {
             std::sort(imgs.begin(), imgs.end());
             if (imgs.empty()) { std::cerr << "train-learned: no images\n"; return 2; }
 
-            // Held-out images: kodim02=1, kodim07=6, kodim17=16, kodim21=20
-            std::set<size_t> held_out_set = {1, 6, 16, 20};
 
             static constexpr int LF_RUNTIME = 15, LH1 = 64, LH2 = 32; // R6-A: 15 features, 64/32 hidden
 
@@ -6040,62 +6018,36 @@ int main(int argc, char* argv[]) {
             WaveletParams wp{filter, levels};
             BitplaneCoder coder;
 
-            std::vector<LSample> train_samples, held_samples;
+            std::vector<LSample> samples;
 
-            for (size_t img_i = 0; img_i < imgs.size(); ++img_i) {
-                Raster r = prism::frontend::decode_ppm(imgs[img_i]);
+            uint64_t seen = 0;
+
+            for (auto& img : imgs) {
+                Raster r = prism::frontend::decode_ppm(img);
                 ColorTransform ct = (r.bd == BitDepth::BD8) ? ColorTransform::YCoCgR : ColorTransform::None;
                 Raster t = apply_color(r, ct);
 
-                // Compute wavelet subbands for ALL planes first (matching production path)
-                std::vector<std::vector<Subband>> per_plane_subs;
                 for (auto& pl : t.planes) {
                     std::vector<int32_t> plane(pl.begin(), pl.end());
-                    per_plane_subs.push_back(lift.forward(plane, t.w, t.h, wp));
+                    auto subs = lift.forward(plane, t.w, t.h, wp);
+                    coder.collect_samples(subs, samples);
                 }
+                // subsample to keep memory bounded
+                if (stride > 1 && (samples.size() % (size_t)stride) == 0) {
+                    // keep every `stride`-th by compacting in place after the loop
+                }
+                (void)seen;
 
-                // Collect samples with luma context for chroma planes (R6-A fix:
-                // production passes Y subbands as luma_mag for Co/Cg; old trainer
-                // collected per-plane without luma reference, leaving lc_mag/lc_sig
-                // always 0 during training but non-zero at inference).
-                std::vector<LSample> img_samples;
-                for (size_t pi = 0; pi < per_plane_subs.size(); ++pi) {
-                    auto& subs = per_plane_subs[pi];
-                    const std::vector<std::vector<int32_t>>* luma_mag = nullptr;
-                    std::vector<std::vector<int32_t>> lmag_buf;
-                    if (pi > 0) {
-                        lmag_buf.resize(subs.size());
-                        const auto& lum_subs = per_plane_subs[0];
-                        for (size_t oi = 0; oi < subs.size(); ++oi) {
-                            lmag_buf[oi].resize(subs[oi].coeffs.size());
-                            const auto& lum = lum_subs[oi].coeffs;
-                            for (size_t ci = 0; ci < subs[oi].coeffs.size(); ++ci)
-                                lmag_buf[oi][ci] = std::abs(lum[ci]);
-                        }
-                        luma_mag = &lmag_buf;
-                    }
-                    coder.collect_samples(subs, img_samples, 0, luma_mag);
-                }
-
-                // Subsample if requested
-                if (stride > 1 && img_samples.size() > (size_t)stride) {
-                    std::vector<LSample> kept;
-                    for (size_t i = 0; i < img_samples.size(); i += (size_t)stride)
-                        kept.push_back(img_samples[i]);
-                    img_samples = std::move(kept);
-                }
-
-                // Split into training / held-out
-                if (held_out_set.count(img_i)) {
-                    held_samples.insert(held_samples.end(), img_samples.begin(), img_samples.end());
-                } else {
-                    train_samples.insert(train_samples.end(), img_samples.begin(), img_samples.end());
-                }
             }
-
-            std::cout << "train-learned: " << train_samples.size() << " train samples, "
-                      << held_samples.size() << " held-out samples\n";
-            if (train_samples.empty()) { std::cerr << "train-learned: no training samples\n"; return 2; }
+            // Compact: keep every `stride`-th sample.
+            if (stride > 1 && samples.size() > (size_t)stride) {
+                std::vector<LSample> kept;
+                kept.reserve(samples.size() / (size_t)stride + 1);
+                for (size_t i = 0; i < samples.size(); i += (size_t)stride) kept.push_back(samples[i]);
+                samples = std::move(kept);
+            }
+            std::cout << "train-learned: " << samples.size() << " samples\n";
+            if (samples.empty()) { std::cerr << "train-learned: no samples\n"; return 2; }
 
 
             // Normalise a feature vector (must match learned_ctx.cpp's LF=15).
@@ -6149,57 +6101,15 @@ int main(int argc, char* argv[]) {
 
             const float beta1 = 0.9f, beta2 = 0.999f, eps = 1e-8f;
             const int BS = 4096;
-            const size_t N = train_samples.size();
+            const size_t N = samples.size();
             std::vector<size_t> idxs(N);
             for (size_t i = 0; i < N; ++i) idxs[i] = i;
             auto rngs = std::mt19937(12345);
 
             auto sigmoidf = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
 
-            // Forward pass helper (no dropout, for held-out eval)
-            auto forward_mlp = [&](const float x[], float h1[LH1], float h2[LH2]) -> float {
-                for (int j = 0; j < LH1; ++j) {
-                    float acc = b1[j];
-                    for (int i = 0; i < FF; ++i) acc += W1[j][i] * x[i];
-                    h1[j] = acc > 0.0f ? acc : 0.0f;
-                }
-                for (int j = 0; j < LH2; ++j) {
-                    float acc = b2[j];
-                    for (int i = 0; i < LH1; ++i) acc += W2[j][i] * h1[i];
-                    h2[j] = acc > 0.0f ? acc : 0.0f;
-                }
-                float acc = b3;
-                for (int j = 0; j < LH2; ++j) acc += W3[j] * h2[j];
-                return sigmoidf(acc);
-            };
-
-            // Evaluate BCE on a sample set
-            auto eval_bce = [&](const std::vector<LSample>& data) -> float {
-                if (data.empty()) return 0.0f;
-                float tot = 0.0f;
-                for (const auto& sm : data) {
-                    float x[FF]; norm(sm.feat, x);
-                    float h1[LH1]; float h2[LH2];
-                    float y = forward_mlp(x, h1, h2);
-                    if (y < 1e-4f) y = 1e-4f; if (y > 1.0f - 1e-4f) y = 1.0f - 1e-4f;
-                    tot += -(sm.label ? std::log(y) : std::log(1.0f - y));
-                }
-                return tot / (float)data.size();
-            };
-
             float last_loss = 0.0f;
-            float best_held_bce = 1e9f;
-            int no_improve = 0;
-            // Best weight snapshots for early stopping
-            std::array<std::array<float, FF>, LH1> best_W1{};
-            std::array<float, LH1> best_b1{};
-            std::array<std::array<float, LH1>, LH2> best_W2{};
-            std::array<float, LH2> best_b2{};
-            std::array<float, LH2> best_W3{};
-            float best_b3 = 0.0f;
-
             long step = 0;
-            std::uniform_real_distribution<float> drop_dist(0.0f, 1.0f);
             for (int ep = 0; ep < epochs; ++ep) {
                 std::shuffle(idxs.begin(), idxs.end(), rngs);
                 float tot = 0.0f; size_t nb = 0;
@@ -6212,15 +6122,8 @@ int main(int argc, char* argv[]) {
                     std::array<float, LH2> gb2{}, gW3{};
                     float gb3 = 0.0f;
                     for (size_t bi = s; bi < e; ++bi) {
-                        const LSample& sm = train_samples[idxs[bi]];
+                        const LSample& sm = samples[idxs[bi]];
                         float x[FF]; norm(sm.feat, x);
-                        // Input dropout with inverted scaling
-                        if (dropout > 0.0f) {
-                            for (int d = 0; d < FF; ++d) {
-                                if (drop_dist(rngs) < dropout) x[d] = 0.0f;
-                                else x[d] *= (1.0f / (1.0f - dropout));
-                            }
-                        }
                         // Forward pass: 2 hidden layers with ReLU
                         float h1[LH1];
                         for (int j = 0; j < LH1; ++j) {
@@ -6278,64 +6181,7 @@ int main(int argc, char* argv[]) {
                     adam_update(b3, mb3, vb3, gb3);
                 }
                 last_loss = tot / (float)nb;
-
-                // Held-out evaluation + early stopping
-                if (!held_samples.empty()) {
-                    float held_bce = eval_bce(held_samples);
-                    std::cout << "  epoch " << ep << " train BCE=" << last_loss
-                              << " held BCE=" << held_bce << "\n";
-                    if (held_bce < best_held_bce) {
-                        best_held_bce = held_bce;
-                        no_improve = 0;
-                        best_W1 = W1; best_b1 = b1;
-                        best_W2 = W2; best_b2 = b2;
-                        best_W3 = W3; best_b3 = b3;
-                    } else {
-                        ++no_improve;
-                        if (no_improve >= patience) {
-                            std::cout << "  early stopping at epoch " << ep
-                                      << " (best held BCE=" << best_held_bce << ")\n";
-                            W1 = best_W1; b1 = best_b1;
-                            W2 = best_W2; b2 = best_b2;
-                            W3 = best_W3; b3 = best_b3;
-                            break;
-                        }
-                    }
-                } else {
-                    std::cout << "  epoch " << ep << " train BCE=" << last_loss << "\n";
-                    best_W1 = W1; best_b1 = b1;
-                    best_W2 = W2; best_b2 = b2;
-                    best_W3 = W3; best_b3 = b3;
-                }
-            }
-
-            // Blend sweep on held-out data (simulate neutral EMA to find optimal blend)
-            if (!held_samples.empty()) {
-                float best_blend = blend;
-                float best_blend_bce = 1e9f;
-                for (int bi = 0; bi <= 10; ++bi) {
-                    float test_blend = bi / 10.0f;
-                    float tot = 0.0f;
-                    for (const auto& sm : held_samples) {
-                        float x[FF]; norm(sm.feat, x);
-                        float h1[LH1]; float h2[LH2];
-                        float y_p1 = forward_mlp(x, h1, h2);
-                        if (y_p1 < 1e-4f) y_p1 = 1e-4f; if (y_p1 > 1.0f - 1e-4f) y_p1 = 1.0f - 1e-4f;
-                        float p0_mlp = 1.0f - y_p1;
-                        float p0_ema = 0.5f;
-                        float p0 = (1.0f - test_blend) * p0_ema + test_blend * p0_mlp;
-                        if (p0 < 1e-4f) p0 = 1e-4f; if (p0 > 1.0f - 1e-4f) p0 = 1.0f - 1e-4f;
-                        float ce = sm.label ? -std::log(1.0f - p0) : -std::log(p0);
-                        tot += ce;
-                    }
-                    float bce = tot / (float)held_samples.size();
-                    if (bce < best_blend_bce) {
-                        best_blend_bce = bce;
-                        best_blend = test_blend;
-                    }
-                }
-                std::cout << "  blend sweep: best=" << best_blend << " (held BCE=" << best_blend_bce << ")\n";
-                blend = best_blend;
+                std::cout << "  epoch " << ep << " train BCE=" << last_loss << "\n";
             }
 
             // Write the baked weights include file (must match learned_ctx.cpp layout).
@@ -6346,7 +6192,6 @@ int main(int argc, char* argv[]) {
                 o << "// Baked learned-context MLP weights. AUTO-GENERATED by\n"
                   << "// `prism train-learned`. Editing by hand is discouraged; regenerate instead.\n";
                 o << "// Architecture: " << FF << "->" << LH1 << "->" << LH2 << "->1 (2 hidden layers, ReLU)\n";
-                o << "// R6-A: luma context for chroma, held-out early stopping, input dropout\n";
                 o << "static const float LW1[" << LH1 << "][" << FF << "] = {\n";
                 for (int j = 0; j < LH1; ++j) {
                     o << "  {";
@@ -6373,12 +6218,9 @@ int main(int argc, char* argv[]) {
                 o << "static const float Lb3 = " << b3 << ";\n";
 
                 o << "static const float LBlend = " << blend << ";\n";
-                o << "// R6-A train BCE=" << last_loss << " held BCE=" << best_held_bce
-                  << " train=" << train_samples.size() << " held=" << held_samples.size()
-                  << " blend=" << blend << " pseudo=" << pseudo << "\n";
+                o << "// train BCE=" << last_loss << " samples=" << samples.size() << " blend=" << blend << "\n";
             }
-            std::cout << "train-learned: wrote " << out << " (blend=" << blend
-                      << ", pseudo=" << pseudo << ")\n";
+            std::cout << "train-learned: wrote " << out << " (blend=" << blend << ")\n";
 
 } else if (cmd == "train-r6d-tree") {
     // R6-D (issue #130, Route 6 lever D) offline tree trainer. Greedily grows a
@@ -8563,14 +8405,12 @@ int main(int argc, char* argv[]) {
             std::cout << "decoded " << r.w << "x" << r.h << " to " << out << "\n";
         } else if (cmd == "bench-jxl-modular-real") {
             int k_target = 0;
-            bool two_pass = false;
             std::string kodak, outcsv;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--k" && i + 1 < argc) k_target = std::stoi(argv[++i]);
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
-                else if (a == "--two-pass") two_pass = true;
             }
             if (kodak.empty()) {
                 std::cerr << "bench-jxl-modular-real: --kodak DIR required\n";
@@ -8598,8 +8438,7 @@ int main(int argc, char* argv[]) {
             size_t total_bytes = 0, total_pix = 0;
             for (auto& img : imgs) {
                 Raster r = load_raster(img, 0, 0, 8, 3);
-                auto result = two_pass ? codec::jxl_modular_encode_real_two_pass(r, k_target)
-                                       : codec::jxl_modular_encode_real(r, k_target);
+                auto result = codec::jxl_modular_encode_real(r, k_target);
                 // Verify byte-exact round-trip
                 Raster decoded = codec::jxl_modular_decode_real(result.encoded_bytes.data(),
                                                                 result.encoded_bytes.size());

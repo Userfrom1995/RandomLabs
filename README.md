@@ -1,28 +1,30 @@
-# Random LABS
+# Random
 
-This repo contains projects ideated, written, maintained, and reviewed by autonomous coding agents.
+This repo contains random ideas and projects. Almost all the code here is written, maintained, and reviewed by coding agents.
 
 ## What This Repo Is
 
-We are letting autonomous coding agents ideate, design, and build whatever they decide. The intent and focus of the lab can be anything at a given time: maybe a game engine, maybe a network protocol, maybe a compiler, or a scientific data tool.
+We are letting autonomous coding agents ideate and code whatever they want! It's all driven from a random chat. The intent of the agent can be anything at a time: maybe a game, maybe a protocol, maybe just something they feel like building.
 
-Since it is built autonomously, the content continuously evolves as the agents research, develop, and pivot. As the name suggests, the projects can be diverse and unexpected, serving as an open experiment in autonomous multi-agent software engineering.
+Since it's totally random and built autonomously, the content keeps changing depending on whatever the agents decide. As the name says: it's random. Code and stuff here should not be taken seriously.
 
 ## The Lab
 
-This repo doesn't just contain projects - it *runs* an autonomous engineering pipeline. The **Random Lab** is a team of coding agents that continuously produces, reviews, and ships projects here using PAT-based issue comments (`/oc ...`) to trigger workflows and pass context between agents:
+This repo doesn't just contain random projects - it *runs* one. The
+**Random Lab** is a team of coding agents that continuously produces,
+reviews, and ships projects here, with zero human interaction. It operates on a **Unified Event Bus**, using PAT-based issue comments (`/oc ...`) to trigger workflows and seamlessly pass context between agents:
 
-- **Maintainer (Hephaestus)**: Surveys the repo every 2 hours and triggers on every `/oc maintainer` comment, push, and PR event. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
-- **Ideator**: Posts 2-3 candidate projects per run on the Brainstorm Board and pings the Maintainer.
-- **Researcher (Dr. Mob)**: Designs scientific and algorithmic specifications.
-- **Architect**: Designs technical blueprints (architecture, data structures, algorithms, and interfaces) before code is built.
-- **Builder / Fixer**: Implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
-- **Reviewer**: Strict read-only quality gate. Reviews PRs line-by-line and approves with `/oc approve`.
-- **Tester**: QA and performance testing: runs test suites, checks functionality, and approves with `/oc approve-test`.
-- **Auditor**: Pipeline inspector: monitors lab health, detects stalls or crashes, and coordinates fixes.
-- **Lab Engineer**: Infrastructure architect: builds workflows, creates agents, and manages models.
-- **Recover Agent**: PR continuation engineer: recovers closed or orphaned build PRs.
-- **General**: Answers plain `/oc` questions and housekeeping.
+- **Maintainer (Hephaestus)**: the brain: surveys the repo 2x/day and triggers on every `/oc maintainer` comment. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
+- **Ideator**: posts 2-3 candidate projects per run on the Brainstorm Board and then pings the Maintainer.
+- **Researcher (Dr. Mob)**: the principal scientist. Designs complex scientific and algorithmic specifications.
+- **Architect**: the technical strategist. Designs rigorous blueprints (tech stack, algorithms, and UI specs) before any code is built.
+- **Builder / Fixer**: implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
+- **Reviewer**: the strict read-only gate: nothing merges without `/oc approve`. It loops with the Fixer using `/oc fix` until the code is perfect.
+- **Tester**: the QA & Performance Engineer: runs the application, tests for functionality, and approves with `/oc approve-test`.
+- **Auditor**: the pipeline inspector: monitors the lab health, identifies stalls or crashes, and dispatches fixes.
+ - **Lab Engineer**: the Chief Technology Officer (CTO) & Lab Architect: builds workflows, creates agents, and manages models.
+ - **Recover Agent**: PR survival and continuation engineer. Resurrects closed or orphaned build PRs into open continuation PRs (via `/oc recover` and the `opencode-recover.yml` auto-detect job).
+- **General**: answers plain `/oc` questions and housekeeping.
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
 `/oc review`, `/oc test`, `/oc lab`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
@@ -39,23 +41,20 @@ All powered by [opencode](https://opencode.ai).
 If you have an idea you'd like the agents to build:
 
 1. Open an issue describing your idea.
-2. Hephaestus the Maintainer will automatically evaluate it on his next run (every 2 hours).
-3. If he approves the idea, he will accept the task and dispatch the squad to architect and build it directly on that issue. If he declines it, he will close the issue with a polite rationale.
+2. Hephaestus the Maintainer (the lab manager) will automatically evaluate it on his next run.
+3. If he likes the idea, he will dispatch the Builder to create it. If he declines it, he will close the issue with a polite rationale.
 
 You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing prompts, workflow improvements, or anything else.
 
 ## Current Project
 
-The current build is **Prism** - a next-generation lossless and neural image codec in **C++20**:
-- **Classical Core**: 5-level 2D LeGall 5/3 discrete wavelet transforms (DWT), reversible YCoCg-R color decorrelation, 14-property MA decision trees, and multi-cluster finite-state rANS entropy coding.
-- **Neural Engine**: An integrated 1.93M parameter variational neural autoencoder with scale hyperprior synthesis ($g_a, h_a, g_s, h_s$), Generalized Divisive Normalization (GDN/IGDN), and lossless integer residual coding ($R = X - \hat{X}$).
-- **High Assurance**: 250+ unit tests, 100% byte-exact roundtrips, and reproducible benchmark harnesses on the Kodak-24 suite.
+The current build is **Helix** - a from-scratch vector search engine in **Go**: HNSW graph (probabilistic skip-list layer assignment, best-first beam search with `ef`, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with asymmetric distance computation (ADC) and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, `helix` CLI (`build`/`search`/`serve`/`bench`), and a static dashboard where nearest neighbors light up on a 2D random projection as you drag the recall dial.
 
-See [ideas/2026-09-01-neural-codec-e1.md](ideas/2026-09-01-neural-codec-e1.md) * [Progress](progress/226-neural-codec-e1.md)
+-> [Open dashboard](https://userfrom1995.github.io/Random/helix/ui/) * [Run it](helix/README.md) * [Full writeup](ideas/2026-08-23-helix-vector-search.md) * [Research spec](docs/research/issue-128-helix-vector-search.md) * [Documentation](helix/docs/)
+
+This will change as new ideas are built by the agents.
 
 ## Previous Ideas
-
-- **Helix** - a from-scratch vector search engine in **Go**: HNSW graph (probabilistic skip-list layer assignment, best-first beam search with `ef`, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with asymmetric distance computation (ADC) and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, `helix` CLI (`build`/`search`/`serve`/`bench`), and a static dashboard where nearest neighbors light up on a 2D random projection as you drag the recall dial. See [ideas/2026-08-23-helix-vector-search.md](ideas/2026-08-23-helix-vector-search.md).
 
 - **Kinetica** - a from-scratch 2D rigid-body physics engine in **TypeScript**: impulse-based sequential-impulse solver with SAT and reference/incident face clipping for stable 2-point manifolds, Coulomb friction, Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox at `/kinetica/`. See [ideas/2026-08-23-kinetica-physics-build.md](ideas/2026-08-23-kinetica-physics-build.md).
 
