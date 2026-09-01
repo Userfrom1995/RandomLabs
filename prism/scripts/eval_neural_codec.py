@@ -77,9 +77,10 @@ def evaluate_single(model, ppm_path, device):
     residual_entropy = -np.sum(probs * np.log2(probs + 1e-10))
 
     # Total estimated bits
-    n_elements = y_q.numel()
-    latent_bits = entropy * n_elements
-    residual_bits = residual_entropy * n_elements
+    n_latent = y_q.numel()
+    n_residual = residual.numel()
+    latent_bits = entropy * n_latent
+    residual_bits = residual_entropy * n_residual
     total_bits = latent_bits + residual_bits
 
     # Bytes (rounded up)
