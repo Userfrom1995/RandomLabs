@@ -71,4 +71,13 @@ struct JXLModularProbeResult {
 
 JXLModularProbeResult jxl_modular_probe_kodak(const std::string& kodak_dir);
 
+// --- Real JXL-Modular encoder/decoder (byte-exact round-trip) ---
+// Uses 7-feature MA-tree (res_diff = abs(c_hat), available at decode time)
+// and 512-symbol rANS static coding with per-cluster transmitted CDFs.
+// Produces a container: header + MA-tree + histograms + ANS payload.
+
+JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target = 0);
+
+Raster jxl_modular_decode_real(const uint8_t* data, size_t len);
+
 } // namespace prism::codec
