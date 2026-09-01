@@ -41,5 +41,6 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
 uint8_t quant_llc(uint16_t val, uint8_t bit_depth = 8);
 uint8_t quant_sibling(int16_t val);
 uint8_t quant_qg(int32_t L, int32_t T, int32_t TL, int32_t TR);
+uint8_t quant_neighbor_mag(int32_t L, int32_t T, int32_t TL, int32_t TR);
 
 } // namespace prism::codec
