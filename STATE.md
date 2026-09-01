@@ -1,8 +1,8 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-01T02:56Z, maintainer run 33464404977 (PR #227 review + successor #226 research dispatched)
- - **Action this run:** Dispatched `review` on PR #227 head 67ffa29 -> `/oc review (head 67ffa29)` via PAT (real JXL-modular 2048-rANS, 846+/22-, PASS 24/24 5.84/17.53 FAIL Refs #130, NOT orphan 32a8c11), dispatched `research` on successor issue #226 -> `/oc research` (Prism Next-Gen dedicated architecture beyond 3.2175/9.6525 ceiling, cascade 1->2->3)
- - **Main:** `32a8c1183fb668ad0fc8059e90d957fe331222fb` verified live `git ls-remote origin/main` = 32a8c11, parent a428372, NOT orphan (merge-base 32a8c11), branch opencode/issue130-jxl-modular-real-encoder at 67ffa29 OPEN retained per #148
- - **Branch retention:** opencode/issue130-jxl-modular-real-encoder at 67ffa29 OPEN, opencode/issue130-20260831233717 at 4b83ed9 MERGED at 32a8c11 retained, opencode/issue130-m3-closure at 2afbff4 MERGED at a428372 retained, archival 203/202/186/181 CONFLICTING retained per #148
+ - **Updated:** 2026-09-01T03:08Z, maintainer run 33465105840 (PR #228 research spec + PR #229 blueprint, PR #227 fixer follow-up)
+ - **Action this run:** Dispatched `review` on PR #227 head 23183f9 (fixer 6 findings applied, 2nd review), `review` on PR #228 head c520da0 (E1 research spec 523 lines), `review` on PR #229 head 6fcf992 (E1 blueprint ideas/2026-09-01-neural-codec-e1.md + progress/226-neural-codec-e1.md), and `build` on issue #226 (E1 neural codec implementation)
+ - **Main:** `32a8c1183fb668ad0fc8059e90d957fe331222fb` verified live `git ls-remote origin/main` = 32a8c11, parent a428372, NOT orphan (merge-base 32a8c11 for all 3 PRs), branches retained per #148
+ - **Branch retention:** opencode/issue130-jxl-modular-real-encoder at 23183f9 OPEN (fixer push 03:09:21Z), opencode/issue226-20260901030044 at c520da0 OPEN, opencode/issue226-neural-codec-e1 at 6fcf992 OPEN, plus 4b83ed9 MERGED at 32a8c11 retained, archival 203/202/186/181 CONFLICTING retained per #148
 
 ## STANDING OWNER DIRECTIVES (active)
 - **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Never surrender a target. Version-by-version escalation until gates shatter. Only Owner can halt.
@@ -13,45 +13,49 @@
 
 ## MERGE CAPABILITY (verified this run)
 - main = `32a8c1183fb668ad0fc8059e90d957fe331222fb` LIVE (PR #225 MERGED at 32a8c11 Refs #130, NOT orphan, parent a428372, progress/130-prism-continue-exhaustive-ceiling.md 147 lines)
-- PR #227 `67ffa2970a48201a2fecd77343630d6995476d78` OPEN at 67ffa29 MERGEABLE CLEAN base 32a8c11 (git merge-base 32a8c11, NOT orphan, 4 files 846+/22-, Refs #130, Reviewer pending dispatch this run)
-- **INFRA LIVE:** opencode.yml 4x mimo-v2.5-free LIVE, opencode.json both knobs mimo/muse-spark, no workflows permission rejection, branch retention per #148 OK, pages preview infra intact (deploy 33464407343 success for main, pr-227 preview staged via 33464375618 success)
-- **Next pages deploy:** push to main 32a8c11 already deployed success 33464407343
+- PR #227 `23183f927c201136b9a9c96327a02b8adc53dc46` OPEN at 23183f9 MERGEABLE CLEAN base 32a8c11 (git merge-base 32a8c11, NOT orphan, 6 fixer findings applied + rebased, Refs #130, 2nd Reviewer pending this run)
+- PR #228 `c520da0da699a072c6eceeaec1fb6f9f6fc14269` OPEN at c520da0 MERGEABLE CLEAN base 32a8c11 (NOT orphan, 1 file 523+/0-, Refs #226, Researcher spec review pending)
+- PR #229 `6fcf9929b1eb03ba87e58e021aeee28d0bd49df9` OPEN at 6fcf992 MERGEABLE CLEAN base 32a8c11 (NOT orphan, 2 files blueprint + progress, Refs #226, Architect review pending)
+- **INFRA LIVE:** opencode.yml 4x mimo-v2.5-free LIVE, opencode.json both knobs mimo/muse-spark, no workflows permission rejection, branch retention per #148 OK, pages preview infra intact (deploy 33465113821 in_progress for main, pr-227/pr-228/pr-229 previews staged)
 
 ## CRITICAL INFRASTRUCTURE STATE
-- **32a8c11 live, PR #227 review dispatched:** progress/130-prism-jxl-modular-real-encoder.md 62 lines on branch, real encoder 2048-rANS byte-exact PASS 24/24 but 5.84/17.53 FAIL. Review must verify rANS 2048, JXLM container, 7-feature tree, wavelet/YCoCgR round-trip.
-- **Issue #226 successor OPEN + RESEARCH DISPATCHED:** Created 23:59Z as dedicated architecture beyond single-pipeline ceiling, dispatched research for paradigm (1) full neural codec with cascade 1->2->3, Researcher -> Architect -> Builder per No-Pause. No research run yet - dispatched this run.
-- **Issue #130 OPEN GATING:** M2/M3 FAIL at ceiling + PR #227 real FAIL, #130 stays OPEN per Owner-only halt, correctly Refs #130. Successor #226 is active chassis.
-- **Build guards:** opencode 33464396044 in_progress on main (Prism M2/M3 continuation, since 02:56:38Z) - guard respected, no duplicate build on #130 this run. No duplicate research on #226 (first dispatch).
-- **Issues #222/#200 CLOSED:** consolidated, audit stale closed.
+- **32a8c11 live, PR #227 fixer complete at 23183f9:** Fixer 33464900090 in_progress at 03:04:54Z pushed 6 hygiene fixes at 03:09:21Z (kAnsAlphabet 512->2048, CDF flooring ~1.0b overhead removed, dead serialize removed, overflow throw, CLI usage). Review on new head dispatched this run; Tester awaits approval. Still Refs #130, dual-unit 5.84/17.53 FAIL.
+- **PR #228 RESEARCH SPEC at c520da0:** E1 full neural codec spec (prism/docs/research-nextgen-neural-codec-e1.md 523 lines) with structural ceiling proof, 3-network Ballé/L3C architecture, lossless residual, synthetic corpus 100K, 3-phase training, binding gates E1-1..E1-4. Review dispatched this run.
+- **PR #229 BLUEPRINT at 6fcf992:** Architect E1 blueprint (ideas/2026-09-01-neural-codec-e1.md + progress/226-neural-codec-e1.md) with g_a/h_a/g_s+h_s, GDN, int8/int16, container v2, integration. Review dispatched this run. Owner /oc build this at 03:08:08Z on PR #228 queued but superseded by issue-level build on #226 this run.
+- **Issue #226 successor OPEN + BUILD DISPATCHED:** Successor chassis now has Researcher DONE (PR #228) + Architect DONE (PR #229) per cascade paradigm 1; Builder dispatched this run to implement E1 neural codec with baked weights. No pause per No-Pause Doctrine.
+- **Issue #130 OPEN GATING:** Ceiling 3.2175/9.6525 MERGED, PR #227 5.84 FAIL, successor #226 active, correctly Refs #130. Only Owner can close per Anti-Surrender.
+- **Build guards:** Fixer 33464900090 still in_progress (fix job wrapping after push) - no duplicate fix dispatched; no duplicate build on #130; new build on #226 distinct target so no race.
 
 ## IN FLIGHT
-- **PR #227 - OPEN at 67ffa29 (Refs #130, real JXL-modular, review DISPATCHED this run, awaiting Reviewer + Tester)**
-- **Issue #226 - OPEN Prism Next-Gen successor (research DISPATCHED this run, Researcher -> Architect -> Builder, cascade 1->2->3)**
-- **Issue #130 - OPEN GATING, ceiling 3.2175/9.6525 confirmed MERGED, M2/M3 FAIL, PR #227 real FAIL 5.84, successor #226 active**
-- **Build in_progress 33464396044 on main (guard respected)**
+- **PR #227 - OPEN at 23183f9 (Refs #130, fixer 6 findings pushed, 2nd review DISPATCHED this run, awaiting Reviewer + Tester)**
+- **PR #228 - OPEN at c520da0 (Refs #226, E1 research spec, review DISPATCHED this run)**
+- **PR #229 - OPEN at 6fcf992 (Refs #226, E1 blueprint, review DISPATCHED this run)**
+- **Issue #226 - OPEN Prism Next-Gen successor (BUILD DISPATCHED this run, Research+Architect complete, Builder implementing E1)**
+- **Issue #130 - OPEN GATING, ceiling 3.2175/9.6525 MERGED, M2/M3 FAIL, PR #227 fixer 23183f9 + successor #226 E1 build active**
+- **Fixer in_progress 33464900090 on main (wrapping after push 03:09:21Z)**
 - **4 archival PRs retained:** 203/202/186/181 CONFLICTING per #148, never merge
 
 ## PIPELINE POSITION
-Honest closure 3d76bdb -> cascade 3->1->2 -> X6b floor 3.2175 -> D1 -> P1/P2 FAIL -> R10 D2 +16.4% -> PR #217 ledger MERGED 725cc52 -> PR #218 8b459c8 3.184/9.553 MERGED concept -> PR #219 ledger MERGED fba0274 -> P4 MERGED 147b1bd -> PR #221 ledger MERGED f5aba92 -> PR #223 ce0927b/fe2c773 M2 PASS 3.16064/9.48193 MERGED 1756284 -> PR #224 theoretical 0.865 MERGED a428372 Refs #130 -> exhaustive wall reached -> PR #225 escalation 4b83ed9 MERGED at 32a8c11 (44+ phases ledger, ceiling 3.2175 escalated, Refs #130) -> successor #226 CREATED 23:59Z (Next-Gen dedicated architecture) -> PR #227 real JXL-modular 67ffa29 OPEN 5.84/17.53 PASS 24/24 round-trip (paradigm 2 real bytes, review dispatched) + Research dispatched on #226 paradigm 1 neural codec.
+Honest closure 3d76bdb -> cascade 3->1->2 -> X6b floor 3.2175 -> D1 -> P1/P2 FAIL -> R10 D2 +16.4% -> ledger 725cc52 -> 8b459c8 3.184/9.553 -> fba0274 -> P4 147b1bd -> f5aba92 -> ce0927b/fe2c773 M2 PASS 3.16064/9.48193 at 1756284 -> a428372 theoretical 0.865 Refs #130 -> exhaustive wall -> PR #225 4b83ed9 MERGED at 32a8c11 (44+ phases ceiling 3.2175 escalated, Refs #130) -> successor #226 CREATED 23:59Z -> PR #227 real JXL-modular 67ffa29 -> fixer 23183f9 (6 hygiene fixes) + Researcher PR #228 c520da0 (E1 spec) + Architect PR #229 6fcf992 (E1 blueprint) -> Builder on #226 dispatched this run.
 
 ## NEXT-RUN PLAYBOOK
-1. Verify Reviewer verdict on PR #227 67ffa29 (approve vs /oc fix for rANS/container/tree/compression) and Tester approve-test; if approved merge as Refs #130 (never Closes #130) then immediate Fixer/Builder compression optimization (5.84 -> <3.166) or chain to #226 - never stall.
-2. Verify Researcher on #226 produces viable full neural codec spec (paradigm 1, baked weights, synthetic/procedural) then dispatch Architect to blueprint; fallback to paradigm 3 if 1 infeasible per cascade.
-3. Monitor build guard 33464396044 completion; respect 3-day/7-day stalls; if silent-stall (step timeout with no decision.json) dispatch lab to raise timeout-minutes.
-4. Monitor mimo-v2.5-free stability (no CreditsError), branch retention per #148, no orphan main, pages deploys for 32a8c11 + pr-227 preview.
-5. If Owner explicitly directs (a) accept ceiling 3.2175 close #130, obey; otherwise keep #130 OPEN and drive successor #226 + PR #227 optimization without pause.
+1. Verify Reviewer verdicts on PR #227 23183f9 (2nd review after hygiene fixes), PR #228 c520da0, PR #229 6fcf992; if approved merge as Refs #130 / Refs #226 respectively (never Closes on gated issues), then immediate Tester on #227.
+2. Monitor Builder on #226 (E1 neural codec) progress: check branch creation, progress/226-neural-codec-e1.md milestones E1-1..E1-4, training infra + int16 baked weights, byte-exact 24/24, dual-unit gates M2 <3.166 / M3 <2.885, fuzz clean.
+3. After merges of 228/229, ensure blueprint + spec land on main before Builder commits depend on them; handle rebase if Builder started before merge.
+4. Monitor fixer 33464900090 completion and pages deploys for pr-227/228/229 previews, mimo-v2.5-free stability, no orphan, branch retention per #148.
+5. If Owner explicitly directs (a) accept ceiling 3.2175 close #130, obey; otherwise keep #130 OPEN and drive E1 + JXL-modular optimization without pause.
 
 ## ISSUES
-- **#130** - OPEN - Prism M2/M3/M4 continuation (gating, ceiling 3.2175/9.6525 MERGED at 32a8c11, real JXL-modular #227 5.84 FAIL, awaiting Reviewer + successor #226)
-- **#226** - OPEN - Prism Next-Gen dedicated architecture beyond single-pipeline ceiling (successor to #130, RESEARCH DISPATCHED this run 67ffa29 review + 226 research)
+- **#130** - OPEN - Prism M2/M3/M4 continuation (gating, ceiling 3.2175/9.6525 MERGED at 32a8c11, real JXL-modular #227 23183f9 FAIL after fixer, awaiting 2nd Review)
+- **#226** - OPEN - Prism Next-Gen dedicated architecture beyond single-pipeline ceiling (successor to #130, RESEARCH+ARCHITECT DONE at c520da0/6fcf992, BUILD DISPATCHED this run)
 - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm FROZEN (until successor proves gates)
 
 ## OPEN QUESTIONS
-- Will Reviewer approve 67ffa29 or request fix for compression overhead (2048 histograms, MA-tree, container) to close 84% gap to M2?
-- Will Researcher spec a viable full neural codec breaking predictor bottleneck (3.2175 vs 2.885 bpp residual) within training-infra clearance?
-- Will Tester confirm byte-exact 24/24 and dual-unit FAIL correctly, and will pages/mimo remain stable for next cycle?
-- Can paradigm 2 optimization (Fixer on #227) or paradigm 1 neural codec on #226 close M2 gap 1.6% at ceiling + 84% at real vs M3 gap 10.3% where 44+ single-pipeline phases failed?
-- Will build 33464396044 complete and will #227 merge as Refs #130 keep #130 OPEN per Owner halt authority?
+- Will Reviewer approve 23183f9 after CDF flooring fix (1.0b overhead removed) or request further compression/overhead fixes for 5.84->3.166 gap?
+- Will Reviewer approve research spec 228 and blueprint 229 (docs-only, no code) cleanly, or request spec clarifications?
+- Will Builder on #226 implement viable E1 neural codec that breaks predictor bottleneck within training-infra clearance (synthetic, baked int16, no external dataset pause)?
+- Can E1 close M2 1.6% gap at ceiling + 84% at real vs M3 10.3% where 44+ single-pipeline phases failed per honest 45-60% probability?
+- Will pages previews for 227/228/229 remain stable and mimo-v2.5-free stay healthy for next cycle?
 
   - Hephaestus, the Maintainer
-<!-- run: 33464404977 -->
+<!-- run: 33465105840 -->
