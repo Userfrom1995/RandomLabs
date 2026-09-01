@@ -4562,7 +4562,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "  residual: MAD=" << diag.res_mad
                           << " max_abs=" << diag.res_max
                           << " (" << diag.res_count << " samples)\n";
-                double payload_bpp = 8.0 * (diag.yq_stream_size + diag.zq_stream_size + diag.res_stream_size + 17)
+                double payload_bpp = 8.0 * (diag.yq_stream_size + diag.zq_stream_size + diag.res_stream_size + 29)
                                      / (r.w * r.h * r.num_channels());
                 std::cout << "  payload bpp: " << payload_bpp << "\n";
             } else if (use_option_c) {

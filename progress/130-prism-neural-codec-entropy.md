@@ -8,7 +8,7 @@
 ## What was built
 
 1. Added `NeuralStreamSizes` diagnostic struct and overload for `frame_neural_encode`.
-2. Added per-stream diagnostic output to `prism enc --neural` CLI path.
+2. Added per-stream diagnostic output to `prism enc --neural` CLI path (4 extra lines: latent dims, stream sizes, residual stats, payload bpp - unconditional; gate scripts parsing `enc` output tolerate these).
 3. Created `bench_neural.sh` script for Kodak-24 measurement.
 
 ## What was measured (kodim01.ppm, 768x512 RGB)
@@ -48,6 +48,13 @@ is a major training effort outside the scope of this build.
 The lab's honest best remains X6b = 3.2175 bpp per-sample / 9.6525 bpp summed:
 - M2 gate (WebP m6): needs < 3.166 per-sample (1.6% gap)
 - M3 gate (JXL -d0 -e9): needs < 2.885 per-sample (10.3% gap)
+
+## Ideas coverage
+
+This build extends the existing `ideas/2026-09-01-neural-codec-e1.md` and
+`ideas/2026-09-01-neural-codec-e1-builder.md` on main. No separate ideas
+entry is needed; this PR is an incremental entropy-measurement ledger for
+the E1 neural codec project.
 
 ## Refs #130
 
