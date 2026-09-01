@@ -102,6 +102,7 @@ static Feature build_sample_feature_8f(
     f.activity = jxl_activity(L, T, TL, TR);
     f.position_y = (uint8_t)std::min(7, y * 8 / std::max(1, h));
     f.position_x = (uint8_t)std::min(7, x * 8 / std::max(1, w));
+    f.neighbor_mag = quant_neighbor_mag(L, T, TL, TR);
     return f;
 }
 
@@ -120,6 +121,7 @@ static Feature build_sample_feature_7f(
     f.activity = jxl_activity(L, T, TL, TR);
     f.position_y = (uint8_t)std::min(7, y * 8 / std::max(1, h));
     f.position_x = (uint8_t)std::min(7, x * 8 / std::max(1, w));
+    f.neighbor_mag = quant_neighbor_mag(L, T, TL, TR);
     return f;
 }
 

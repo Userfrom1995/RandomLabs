@@ -25,6 +25,17 @@ uint8_t quant_qg(int32_t L, int32_t T, int32_t TL, int32_t TR) {
     if (g < 128) return 2;
     return 3;
 }
+uint8_t quant_neighbor_mag(int32_t L, int32_t T, int32_t TL, int32_t TR) {
+    int a = std::max({std::abs(L), std::abs(T), std::abs(TL), std::abs(TR)});
+    if (a < 4) return 0;
+    if (a < 16) return 1;
+    if (a < 64) return 2;
+    if (a < 128) return 3;
+    if (a < 256) return 4;
+    if (a < 512) return 5;
+    if (a < 1024) return 6;
+    return 7;
+}
 
 namespace {
 struct BuildNode {
@@ -66,6 +77,7 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
         case PropId::Activity: return f.activity < (uint8_t)thr;
         case PropId::PositionY: return f.position_y < (uint8_t)thr;
         case PropId::PositionX: return f.position_x < (uint8_t)thr;
+        case PropId::NeighborMag: return f.neighbor_mag < (uint8_t)thr;
     }
     return false;
 }
@@ -81,6 +93,7 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
         case PropId::Activity: return f.activity;
         case PropId::PositionY: return f.position_y;
         case PropId::PositionX: return f.position_x;
+        case PropId::NeighborMag: return f.neighbor_mag;
     }
     return 0;
 }
@@ -156,6 +169,7 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
             push_quantile_cands(cands, PropId::Activity, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::PositionY, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::PositionX, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::NeighborMag, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);
