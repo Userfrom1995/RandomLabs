@@ -37,7 +37,8 @@ for img in "$KODAK"/*.ppm; do
   "$PRISM_BIN" enc "$img" "$out" --neural > /dev/null 2>&1
   bytes=$(wc -c < "$out")
   w=768; h=512
-  read w h < <(head -n 3 "$img" | tail -n 1 | awk '{print $1, $2}')
+  read w h < <(awk 'NR==1 && $1=="P6" {next} /^#/ {next} {print $1, $2; exit}' "$img")
+  if [[ -z "$w" || -z "$h" ]]; then w=768; h=512; fi
   bpp=$(python3 -c "print(8*$bytes/($w*$h*3))")
   echo "$(basename "$img"),$bytes,$bpp" >> "$CSV"
   total_bytes=$((total_bytes + bytes))
