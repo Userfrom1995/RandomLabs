@@ -58,7 +58,10 @@ struct Feature {
     u8  activity = 0;
     u8  position_y = 0;  // normalized 0..255 (PropId 6)
     u8  position_x = 0;  // normalized 0..255 (PropId 7)
-    u8  neighbor_mag = 0; // quantized max(|L|,|T|,|TL|,|TR|) 0..7 (PropId 8)
+    u8  neighbor_mag = 0;  // quantized max(|L|,|T|,|TL|,|TR|) 0..7 (PropId 8)
+    u8  prev_coeff_mag = 0; // quantized |prev coeff in same subband| 0..7 (PropId 9)
+    u16 left_mag = 0;      // abs(L) in full u16 range (PropId 10)
+    u8  prev_res_mag = 0;  // quantized |prev residual in same subband| 0..7 (PropId 11)
 };
 
 struct DecodeError : std::runtime_error {

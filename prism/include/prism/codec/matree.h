@@ -16,7 +16,10 @@ enum class PropId : uint8_t {
     Activity = 5,
     PositionY = 6,
     PositionX = 7,
-    NeighborMag = 8
+    NeighborMag = 8,
+    PrevCoeffMag = 9,
+    LeftMag = 10,
+    PrevResMag = 11
 };
 
 struct MANode {
