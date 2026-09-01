@@ -4581,10 +4581,10 @@ int main(int argc, char* argv[]) {
             // route them to the beyond-predictive frame decoder (the v1
             // production model is left untouched).
             Raster r;
-            if (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG)) {
-                if (bytes.size() > 18 && bytes[18] == NEURAL_FILTER_ID)
+            if (bytes.size() > 18 && (bytes[16] & WAVELET_FLAG)) {
+                if (bytes[18] == NEURAL_FILTER_ID)
                     r = frame_neural_decode(bytes);
-                else if (bytes.size() > 18 && bytes[18] == 10)
+                else if (bytes[18] == 10)
                     r = frame_option_c_decode(bytes);
                 else
                     r = frame_wavelet_decode(bytes);
