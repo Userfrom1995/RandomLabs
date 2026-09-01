@@ -138,13 +138,19 @@ std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) 
 }
 
 Raster frame_neural_decode(const std::vector<uint8_t>& bytes) {
+    if (bytes.size() < 19) {
+        throw DecodeError("neural decode: stream too short for container header");
+    }
+
     auto frame = wavelet_container_decode(bytes);
 
     if (frame.hdr.filter_id != NEURAL_FILTER_ID) {
         throw DecodeError("neural decode: wrong filter_id");
     }
 
-    // Parse raster dimensions from the container header (bytes 5-14).
+    // Parse raster dimensions from the v1 envelope (bytes 5-14).
+    // The envelope is: PRSM[0-3] version[4] width[5-8] height[9-12]
+    //   bd[13] nc[14] ct[15] flags[16] effort[17] wavelet_header[18...]
     Raster raster;
     raster.w = static_cast<uint32_t>(bytes[5] | (bytes[6] << 8) |
                 (bytes[7] << 16) | (bytes[8] << 24));
@@ -152,6 +158,9 @@ Raster frame_neural_decode(const std::vector<uint8_t>& bytes) {
                 (bytes[11] << 16) | (bytes[12] << 24));
     raster.bd = (bytes[13] == 16) ? BitDepth::BD16 : BitDepth::BD8;
     raster.ch = static_cast<Channels>(bytes[14]);
+    if (raster.ch != Channels::RGB) {
+        throw DecodeError("neural decode: only RGB supported");
+    }
     raster.planes.resize(static_cast<size_t>(raster.ch));
 
     const int h = static_cast<int>(raster.h);
