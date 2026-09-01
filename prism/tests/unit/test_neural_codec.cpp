@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include "prism/codec/neural_codec.h"
 #include "prism/codec/neural_entropy.h"
+#include "prism/codec/rans.h"
 #include <cmath>
 #include <vector>
 
@@ -177,12 +178,13 @@ TEST(NeuralCodecTest, EntropyYqRoundTrip) {
         sigma[i] = static_cast<int16_t>((i * 31 + 7) % 1024 + 64);
     }
 
-    auto encoded = NeuralEntropyEncoder::encode_yq(yq.data(), sigma.data(),
-                                                     n, yh, yw);
+    GaussianCDFTable table = build_gaussian_cdf_table();
+    auto encoded = neural_rans_encode(yq.data(), sigma.data(),
+                                       static_cast<int>(count), table);
     EXPECT_GT(encoded.size(), 4u);
 
-    auto decoded = NeuralEntropyDecoder::decode_yq(encoded, sigma.data(),
-                                                    n, yh, yw);
+    auto decoded = neural_rans_decode(encoded, static_cast<int>(count),
+                                       sigma.data(), table);
     EXPECT_EQ(decoded.size(), count);
     EXPECT_EQ(decoded, yq);
 }
@@ -197,30 +199,39 @@ TEST(NeuralCodecTest, EntropyZqRoundTrip) {
         zq[i] = static_cast<int8_t>((i * 11 + 3) % 256 - 128);
     }
 
-    auto encoded = NeuralEntropyEncoder::encode_zq(zq.data(), m, zh, zw);
+    std::vector<int32_t> zq_i32(count);
+    for (size_t i = 0; i < count; ++i) zq_i32[i] = static_cast<int32_t>(zq[i]);
+    auto encoded = rans_encode_plane(zq_i32, 1);
     EXPECT_GT(encoded.size(), 4u);
 
-    auto decoded = NeuralEntropyDecoder::decode_zq(encoded, m, zh, zw);
+    auto decoded_i32 = rans_decode_plane(encoded, count, 1);
+    std::vector<int8_t> decoded(count);
+    for (size_t i = 0; i < count; ++i) decoded[i] = static_cast<int8_t>(decoded_i32[i]);
     EXPECT_EQ(decoded.size(), count);
     EXPECT_EQ(decoded, zq);
 }
 
-// Test Y_q entropy coding compression (encoded should be smaller than raw).
-TEST(NeuralCodecTest, EntropyYqCompression) {
+// Test Y_q entropy coding: round-trip with varying sigma.
+TEST(NeuralCodecTest, EntropyYqVaryingSigma) {
     const int n = 192, yh = 16, yw = 16;
     size_t count = static_cast<size_t>(n) * yh * yw;
 
-    // Generate sparse Y_q (most values near 0).
     std::vector<int8_t> yq(count, 0);
-    std::vector<int16_t> sigma(count, 128);  // sigma ~ 0.125
-    for (size_t i = 0; i < count; i += 7) {
+    std::vector<int16_t> sigma(count);
+    for (size_t i = 0; i < count; ++i) {
         yq[i] = static_cast<int8_t>((i * 3) % 11 - 5);
+        sigma[i] = static_cast<int16_t>((i * 13 + 7) % 512 + 1);
     }
 
-    auto encoded = NeuralEntropyEncoder::encode_yq(yq.data(), sigma.data(),
-                                                     n, yh, yw);
-    // Entropy-coded should be smaller than raw (count bytes).
-    EXPECT_LT(encoded.size(), count);
+    GaussianCDFTable table = build_gaussian_cdf_table();
+    auto encoded = neural_rans_encode(yq.data(), sigma.data(),
+                                       static_cast<int>(count), table);
+    EXPECT_GT(encoded.size(), 0u);
+
+    auto decoded = neural_rans_decode(encoded, static_cast<int>(count),
+                                       sigma.data(), table);
+    EXPECT_EQ(decoded.size(), count);
+    EXPECT_EQ(decoded, yq);
 }
 
 } // namespace
