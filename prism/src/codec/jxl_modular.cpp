@@ -8,7 +8,7 @@
 // histograms are transmitted as part of the format, not as payable side-info.
 //
 // Real encoder/decoder: 7-feature MA-tree (res_diff = abs(c_hat), symmetric
-// at encode/decode) + 512-symbol rANS with per-cluster transmitted CDFs.
+// at encode/decode) + 2048-symbol rANS with per-cluster transmitted CDFs.
 
 #include "prism/codec/jxl_modular.h"
 #include "prism/codec/wavelet.h"
@@ -51,7 +51,7 @@ static inline int32_t sym_to_res(uint32_t s) {
     return -(int32_t)(s >> 1);
 }
 
-    static constexpr int kAnsAlphabet = 2048;
+static constexpr int kAnsAlphabet = 2048;
 
 // ---- Theoretical estimator (existing, unchanged) ----
 
@@ -336,12 +336,10 @@ static ClusterCDF build_cdf(const uint32_t counts[kAnsAlphabet], uint32_t total)
     }
 
     // Largest-remainder method
-    uint32_t remaining = SCALE;
     for (int i = 0; i < kAnsAlphabet; ++i) {
         uint64_t product = (uint64_t)counts[i] * SCALE;
         uint32_t base = (uint32_t)(product / total);
         cdf.freq[i] = base;
-        remaining -= base;
     }
 
     // Distribute remainders by fractional part (descending), then index (ascending)
@@ -359,9 +357,9 @@ static ClusterCDF build_cdf(const uint32_t counts[kAnsAlphabet], uint32_t total)
         return a.idx < b.idx;
     });
 
-    // Floor each to at least 1 when total > 0
+    // Floor each to at least 1 when total > 0 (only for observed symbols)
     for (int i = 0; i < kAnsAlphabet; ++i) {
-        if (cdf.freq[i] < 1) cdf.freq[i] = 1;
+        if (counts[i] > 0 && cdf.freq[i] < 1) cdf.freq[i] = 1;
     }
 
     // Re-check sum after floors
@@ -694,7 +692,9 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
             uint16_t cid = cluster_ids[i];
             if (cid >= (uint16_t)num_clusters) cid = 0;
             uint32_t s = res_to_sym(pd.residuals[i]);
-            if (s >= (uint32_t)kAnsAlphabet) s = kAnsAlphabet - 1;
+            if (s >= (uint32_t)kAnsAlphabet) {
+                throw std::runtime_error("jxl_modular_encode_real: residual " + std::to_string(pd.residuals[i]) + " exceeds alphabet " + std::to_string(kAnsAlphabet));
+            }
             counts[(size_t)cid * kAnsAlphabet + s]++;
             totals[cid]++;
         }
@@ -717,7 +717,9 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
         std::vector<uint32_t> symbols(pd.residuals.size());
         for (size_t i = 0; i < pd.residuals.size(); ++i) {
             uint32_t s = res_to_sym(pd.residuals[i]);
-            if (s >= (uint32_t)kAnsAlphabet) s = kAnsAlphabet - 1;
+            if (s >= (uint32_t)kAnsAlphabet) {
+                throw std::runtime_error("jxl_modular_encode_real: residual " + std::to_string(pd.residuals[i]) + " exceeds alphabet " + std::to_string(kAnsAlphabet));
+            }
             symbols[i] = s;
         }
         auto ans_blob = jxl_ans::encode(symbols.data(), cluster_ids.data(),
@@ -748,11 +750,8 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
     hdr.num_clusters = (uint16_t)max_clusters;
 
     // The container is: header + per-plane sections
-    auto container = serialize_container(hdr, {}, {}, {});
-
-    // Append plane sections after the header's placeholder sections
-    // Rebuild with plane data included
-    container.clear();
+    std::vector<uint8_t> container;
+    container.reserve(32 + all_plane_data.size());
     container.insert(container.end(), JXL_MAGIC, JXL_MAGIC + 4);
     write_u32_le_vec(container, hdr.width);
     write_u32_le_vec(container, hdr.height);
