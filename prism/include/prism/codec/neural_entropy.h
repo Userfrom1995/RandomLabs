@@ -4,41 +4,54 @@
 
 namespace prism::codec {
 
-// Entropy coding for the neural codec (E1-E, issue #226).
+// Gaussian entropy model for the neural codec latent Y_q.
 //
-// Y_q is coded conditioned on sigma (re-derived from Z_q on decode).
-// Z_q is coded with a fixed Laplacian model.
-// Residual is coded with existing rANS (rans_encode_plane).
+// Each latent symbol y_q[i] is modeled as drawn from N(0, sigma[i]^2),
+// where sigma[i] is the scale parameter from the hyper-synthesis network h_s.
+// The probability mass for the integer symbol is computed via the rounded
+// Gaussian CDF: P(y) = Phi((y+0.5)/sigma) - Phi((y-0.5)/sigma).
 //
-// Coding scheme:
-// - Sign bit at P(0) = 0.5
-// - Magnitude as geometric code: k zeros then a 1, each bit P(0) = lambda
-// - lambda depends on sigma for Y_q, fixed for Z_q
-//
-// The payload does NOT contain sigma. On decode, sigma is re-derived from Z_q
-// by running h_s (neural_hyper_synthesis_decode). This saves 2 bytes per
-// latent value (the raw int16 sigma).
+// The coder uses per-symbol non-adaptive CDF tables indexed by quantized sigma.
+// This is LIFO-safe because the CDF is fixed (not accumulated from decoded symbols).
 
-struct NeuralEntropyEncoder {
-    // Encode Y_q conditioned on sigma.
-    // sigma: [N * yh * yw] int16 (Q=1024 scale)
-    // Returns rANS-encoded bitstream.
-    static std::vector<uint8_t> encode_yq(const int8_t* yq, const int16_t* sigma,
-                                           int n, int yh, int yw);
+// Number of quantized sigma bins for the CDF lookup table.
+constexpr int SIGMA_BINS = 256;
+constexpr float SIGMA_SCALE = 16.0f;
 
-    // Encode Z_q with fixed Laplacian model.
-    static std::vector<uint8_t> encode_zq(const int8_t* zq, int m, int zh, int zw);
+// Maximum alphabet size for the latent symbols (int8 range [-128, 127]).
+constexpr int LATENT_ALPHABET = 256;
+
+// CDF table entry: for a given sigma bin, cumulative probability * 65536.
+struct GaussianCDFTable {
+    // cdf[sigma_bin * LATENT_ALPHABET + symbol] = cumulative freq * 65536
+    std::vector<uint32_t> cdf;
+    // freq[sigma_bin * LATENT_ALPHABET + symbol]
+    std::vector<uint32_t> freq;
 };
 
-struct NeuralEntropyDecoder {
-    // Decode Y_q conditioned on sigma.
-    // sigma must be re-derived from Z_q before calling.
-    static std::vector<int8_t> decode_yq(const std::vector<uint8_t>& bytes,
-                                          const int16_t* sigma, int n, int yh, int yw);
+// Build the Gaussian CDF lookup table.
+GaussianCDFTable build_gaussian_cdf_table(int sigma_bins = SIGMA_BINS);
 
-    // Decode Z_q.
-    static std::vector<int8_t> decode_zq(const std::vector<uint8_t>& bytes,
-                                          int m, int zh, int zw);
-};
+// Quantize a sigma value (int16 Q=1024 from neural codec) to a table index.
+inline int quantize_sigma(int16_t sigma_q1024) {
+    float sigma_f = static_cast<float>(sigma_q1024) / 1024.0f;
+    int bin = static_cast<int>(sigma_f * SIGMA_SCALE);
+    if (bin < 0) bin = 0;
+    if (bin >= SIGMA_BINS) bin = SIGMA_BINS - 1;
+    return bin;
+}
+
+// Encode a plane of latent symbols (int8) conditioned on sigma (int16 Q=1024).
+// Uses rANS with per-symbol CDF from the table.
+std::vector<uint8_t> neural_rans_encode(const int8_t* symbols, const int16_t* sigma,
+                                         int count, const GaussianCDFTable& table);
+
+// Decode a plane of latent symbols.
+std::vector<int8_t> neural_rans_decode(const std::vector<uint8_t>& bytes, int count,
+                                        const int16_t* sigma, const GaussianCDFTable& table);
+
+// Entropy estimation: compute the Shannon entropy of a latent plane under the model.
+double neural_entropy_estimate(const int8_t* symbols, const int16_t* sigma,
+                                int count, const GaussianCDFTable& table);
 
 } // namespace prism::codec
