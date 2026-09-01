@@ -30,7 +30,7 @@ std::vector<uint8_t> serialize_tree(const MATree& t) {
 }
 
 // Deterministic synthetic dataset: two horizontal-edge bands with distinct
-// residual magnitudes plus noise, exercising qg/activity/res_diff splits.
+// residual magnitudes plus noise, exercising all 12 property splits.
 void make_dataset(size_t n, uint32_t seed,
                   std::vector<Feature>& feats, std::vector<int32_t>& res) {
     std::mt19937 rng(seed);
@@ -45,6 +45,10 @@ void make_dataset(size_t n, uint32_t seed,
         f.llc_class = (uint8_t)(rng() % 4);
         f.sibling_class = (uint8_t)(rng() % 4);
         f.res_diff = (uint16_t)((band ? 300 : 20) + rng() % 30);
+        f.neighbor_mag = (uint8_t)(rng() % 8);
+        f.prev_coeff_mag = (uint8_t)(rng() % 8);
+        f.left_mag = (uint16_t)(rng() % 1024);
+        f.prev_res_mag = (uint8_t)(rng() % 8);
         int32_t e = band ? (int32_t)(40 + rng() % 40) : (int32_t)(rng() % 3);
         feats.push_back(f); res.push_back(e);
     }
@@ -82,9 +86,9 @@ TEST(MatreeBuilder, CapsAndMinSamplesRespected) {
         for (uint16_t l = 0; l < t.num_leaves; ++l)
             EXPECT_GE(cnt[l], (size_t)p.min_samples_per_leaf) << "leaf " << l;
     }
-    // Internal nodes only use known property ids.
+    // Internal nodes only use known property ids (up to PrevResMag = 11).
     for (const auto& nd : t.nodes)
-        if (!nd.is_leaf) EXPECT_LE((int)nd.prop, (int)PropId::PositionX);
+        if (!nd.is_leaf) EXPECT_LE((int)nd.prop, (int)PropId::PrevResMag);
 }
 
 TEST(MatreeBuilder, SmallDatasetStaysSingleLeaf) {

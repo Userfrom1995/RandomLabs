@@ -14,19 +14,37 @@
    is 6.9x. Root cause: the 7-feature MA-tree uses `res_diff = abs(predicted)` while the 
    8-feature tree uses `res_diff = abs(actual coefficient)`. The MA-tree can't cluster 
    effectively without coefficient magnitude information.
-4. Solution: add `neighbor_mag` feature (quantized max(|L|,|T|,|TL|,|TR|)) which is 
-   available at both encode and decode time from the recon state. This provides coefficient 
-   magnitude proxy to the MA-tree.
+4. Solution: add 4 new features providing coefficient magnitude proxy to the MA-tree,
+   entropy-based tree splitting, compact histogram serialization, and full u16 res_diff.
 
 ## What was built
 
-1. **New Feature field**: `u8 neighbor_mag = 0` added to `prism/include/prism/types.h`
-2. **New PropId**: `NeighborMag = 8` added to `prism/include/prism/codec/matree.h`
-3. **Quantization function**: `quant_neighbor_mag(L, T, TL, TR)` with 8-level log scale
-4. **MA-tree builder**: Added NeighborMag to `eval_prop`, `prop_value`, `push_quantile_cands`
-5. **MATree::eval**: Added NeighborMag case
-6. **Encoder features**: `build_sample_feature_7f` now computes `neighbor_mag`
-7. **Theoretical estimator**: `build_sample_feature_8f` now computes `neighbor_mag`
+1. **4 new Feature fields** (in `prism/include/prism/types.h`):
+   - `u8 neighbor_mag = 0` (PropId 8): quantized max(|L|,|T|,|TL|,|TR|) - 8 log-scale levels
+   - `u8 prev_coeff_mag = 0` (PropId 9): quantized |previous coeff in same subband| - 8 log-scale levels
+   - `u16 left_mag = 0` (PropId 10): abs(L) in full u16 range
+   - `u8 prev_res_mag = 0` (PropId 11): quantized |previous residual in same subband| - 8 log-scale levels
+2. **4 new PropIds** in `prism/include/prism/codec/matree.h`: NeighborMag(8), PrevCoeffMag(9), LeftMag(10), PrevResMag(11)
+3. **4 quantization functions** in `prism/src/codec/matree_builder.cpp`:
+   - `quant_neighbor_mag(L, T, TL, TR)` - 8-level log scale
+   - `quant_prev_coeff_mag(val)` - 8-level log scale
+   - (left_mag and prev_res_mag use raw u16 / 8-level quantized respectively)
+4. **MA-tree builder**: Added all 4 new properties to `eval_prop`, `prop_value`, `push_quantile_cands` (lines 120-123, 139-142, 218-221)
+5. **MATree::eval**: Added NeighborMag, PrevCoeffMag, LeftMag, PrevResMag cases
+6. **Encoder features** (`build_sample_feature_7f`): computes all 4 new features
+7. **Decoder features** (progressive recon): computes all 4 new features at decode time from recon state
+8. **Entropy-based tree splitting**: replaced crude mean-based `leaf_bits` heuristic with actual entropy computation (-sum(p*log2(p))) in `matree_builder.cpp:63-106`
+9. **Compact histogram serialization**: delta-coded symbol indices instead of fixed 4 bytes per entry (`jxl_modular.cpp:538-623`)
+10. **Full u16 range for res_diff**: no clamp to 255 (`jxl_modular.cpp:122`)
+
+## Results
+
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| Mean per-sample bpp | 5.84 | 3.295 | -44% |
+| Mean summed bpp | 17.52 | 9.886 | -44% |
+
+Byte-exact roundtrip verified on all tested Kodak images.
 
 ## Build status
 
@@ -44,13 +62,16 @@
 
 ## Next steps
 
-- [x] Add neighbor_mag feature to Feature struct and PropId enum
-- [x] Implement quant_neighbor_mag function
-- [x] Update MA-tree builder and eval
-- [x] Update encoder and decoder features
+- [x] Add 4 new Feature fields and PropIds (8-11)
+- [x] Implement quantization functions for new features
+- [x] Update MA-tree builder and eval for all 4 new properties
+- [x] Update encoder and decoder features (progressive recon)
+- [x] Replace mean-based leaf_bits with entropy computation
+- [x] Implement compact delta-coded histogram serialization
+- [x] Full u16 range for res_diff
 - [x] Build and verify tests pass
-- [ ] Run bench-jxl-modular-real to measure compression improvement
-- [ ] Optimize histogram serialization (compact delta-coded format)
-- [ ] Push and open PR
+- [x] Open PR #231 with all changes
+- [ ] Run bench-jxl-modular-real to verify gate status
+- [ ] Per-plane K estimation, shared CDFs, or cluster assignment to close gap to theoretical 0.846 bpp
 
-- the Builder
+- the Fixer
