@@ -24,12 +24,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
-[R1-R5 PASS] $name: $desc"
+ [R1-R6 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
-[R1-R5 FAIL] $name: $desc"
+ [R1-R6 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -90,7 +90,7 @@ fi
 # to avoid CreditsError (workspace billing requires payment method for paid models).
 # This catches drift where a workflow or opencode.json points at a paid model.
 model_lines=$(grep -nE 'model:\s*opencode/' "$WF" 2>/dev/null || true)
-non_free_models=$(echo "$model_lines" | grep -vE 'opencode/[^ ]*-free' || true)
+non_free_models=$(echo "$model_lines" | grep -vE 'opencode/[^ ]*-free$' || true)
 json_models=""
 if [ -f "opencode.json" ]; then
   json_model=$(jq -r '.model // empty' opencode.json 2>/dev/null || echo "")
