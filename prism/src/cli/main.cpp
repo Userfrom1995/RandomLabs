@@ -22,6 +22,7 @@
 #include "prism/codec/route5.h"
 #include "prism/codec/predictor.h"
 #include "prism/codec/option_c.h"
+#include "prism/codec/neural_frame.h"
 
 #include "prism/bitstream.h"
 #include <iostream>
@@ -4525,6 +4526,7 @@ int main(int argc, char* argv[]) {
             uint16_t num_clusters = 32;
             uint32_t w=0,h=0; uint8_t bd=8,ch=3;
             bool use_option_c = false;
+            bool use_neural = false;
             for (int i=4;i<argc;++i){
                 std::string a=argv[i];
                 if (a=="--effort" && i+1<argc) effort=(uint8_t)std::stoi(argv[++i]);
@@ -4538,10 +4540,19 @@ int main(int argc, char* argv[]) {
                 else if (a=="--bd" && i+1<argc) bd=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--ch" && i+1<argc) ch=(uint8_t)std::stoi(argv[++i]);
                 else if (a=="--option-c") use_option_c = true;
+                else if (a=="--neural") use_neural = true;
             }
             Raster r = load_raster(in,w,h,bd,ch);
             std::vector<uint8_t> bytes;
-            if (use_option_c) {
+            if (use_neural) {
+                size_t net = 0;
+                bytes = frame_neural_encode(r, net);
+                std::cout << "encoded (neural) " << r.w << "x" << r.h
+                          << " ch=" << (int)r.num_channels()
+                          << " bd=" << (int)bd
+                          << " -> " << bytes.size() << " bytes ("
+                          << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
+            } else if (use_option_c) {
                 size_t net = 0;
                 bytes = frame_option_c_encode(r, net);
                 std::cout << "encoded (option-c) " << r.w << "x" << r.h
@@ -4571,7 +4582,9 @@ int main(int argc, char* argv[]) {
             // production model is left untouched).
             Raster r;
             if (bytes.size() > 16 && (bytes[16] & WAVELET_FLAG)) {
-                if (bytes.size() > 18 && bytes[18] == 10)
+                if (bytes.size() > 18 && bytes[18] == NEURAL_FILTER_ID)
+                    r = frame_neural_decode(bytes);
+                else if (bytes.size() > 18 && bytes[18] == 10)
                     r = frame_option_c_decode(bytes);
                 else
                     r = frame_wavelet_decode(bytes);

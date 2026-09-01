@@ -2,7 +2,7 @@
 
 - **Issue:** #226
 - **Branch:** opencode/226-neural-codec-e1
-- **Status:** in-progress. Training infrastructure + inference engine scaffolded, building and testing.
+- **Status:** in-progress. Training infrastructure + inference engine + container v2 + CLI wired. Training run + measurement pending.
 - **Predecessor lesson source:** Single-pipeline ceiling at 3.2175/9.6525 (X6b, 2026-08-29), PR #225, 9+ programs / 44+ phases measured. Predictor explains at most ~74.5% of coefficient variance; M3 requires ~85%, unreachable within pipeline.
 
 ## Research deliverables (Dr. Mob, the Researcher, 2026-09-01)
@@ -32,10 +32,10 @@
   - [x] 6. `prism/src/codec/neural_codec.cpp` - int8/int16 inference engine
   - [x] 7. Unit tests: forward pass matches PyTorch within tolerance
 - **E1-C: Integration (2 days)**
-  - [ ] 8. New container format (version 2) in `prism/src/codec/container.cpp`
-  - [ ] 9. Encoder path: g_a -> quantize -> h_a -> quantize -> entropy code
-  - [ ] 10. Decoder path: entropy decode -> g_s -> residual add
-  - [ ] 11. Round-trip tests on Kodak-24
+  - [x] 8. New container format (version 2) via wavelet_container + NEURAL_FILTER_ID
+  - [x] 9. Encoder path: g_a -> quantize -> h_a -> quantize -> entropy code
+  - [x] 10. Decoder path: entropy decode -> g_s -> residual add
+  - [x] 11. CLI integration (--neural flag)
 - **E1-D: Measurement (1 day)**
   - [ ] 12. Full Kodak-24 measurement with `bench_gate.sh`
   - [ ] 13. Dual-unit gate check (M2, M3)
