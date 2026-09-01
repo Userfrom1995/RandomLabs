@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # silent-stall-audit.sh - Static regression checks for the issue #122 silent-stall
-# hardening invariants (S1/S2/L1/L2). Wired into auditor.yml as the R1-R5 matrix.
+# hardening invariants (S1/S2/L1/L2) plus R6 model free-tier guard.
+# Wired into auditor.yml as the R1-R6 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -84,11 +85,42 @@ else
   check "R5" "missing decision-file fallback to /oc maintainer not found (violates R5)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R5) on ${WF}: ${pass} passed, ${fail} failed."
+# [R6] Model free-tier compliance: all model pins must be free-tier (issue #130 two-knob guard).
+# Every `model:` in opencode.yml and both knobs in opencode.json must end in `-free`
+# to avoid CreditsError (workspace billing requires payment method for paid models).
+# This catches drift where a workflow or opencode.json points at a paid model.
+model_lines=$(grep -nE 'model:\s*opencode/' "$WF" 2>/dev/null || true)
+non_free_models=$(echo "$model_lines" | grep -vE 'opencode/[^ ]*-free' || true)
+json_models=""
+if [ -f "opencode.json" ]; then
+  json_model=$(jq -r '.model // empty' opencode.json 2>/dev/null || echo "")
+  json_small=$(jq -r '.small_model // empty' opencode.json 2>/dev/null || echo "")
+  json_models="${json_model} ${json_small}"
+fi
+json_non_free=""
+for jm in $json_models; do
+  if [ -n "$jm" ] && ! echo "$jm" | grep -qE -- '-free$'; then
+    json_non_free="${json_non_free} $jm"
+  fi
+done
+if [ -z "$non_free_models" ] && [ -z "$(echo "$json_non_free" | tr -d ' ')" ]; then
+  if [ -n "$model_lines" ]; then
+    check "R6" "all workflow model pins and opencode.json knobs are free-tier (${model_lines%%:*} free)" "ok"
+  else
+    check "R6" "no opencode/ model pins found in $WF (skip)" "ok"
+  fi
+else
+  detail=""
+  [ -n "$non_free_models" ] && detail="workflow: ${non_free_models}"
+  [ -n "$(echo "$json_non_free" | tr -d ' ')" ] && detail="${detail} json:${json_non_free}"
+  check "R6" "non-free model pin found -> ${detail} (violates two-knob free guard)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R6) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R5)
+  body="## Silent-stall regression audit FAILED (R1-R6)
 
 ${summary}
 ${report}
