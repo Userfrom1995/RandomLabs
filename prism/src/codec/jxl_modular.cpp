@@ -53,6 +53,31 @@ static inline int32_t sym_to_res(uint32_t s) {
 
 static constexpr int kAnsAlphabet = 2048;
 
+// In-subband predictor: MED or GAP using only same-subband causal neighbors.
+// Used when JXLPredType != MLP.
+static inline int32_t pred_in_subband(
+    const std::vector<int32_t>& coeffs, int w, int h,
+    int x, int y, JXLPredType ptype) {
+    int32_t W  = (x > 0) ? coeffs[(size_t)y * w + (x - 1)] : 0;
+    int32_t N  = (y > 0) ? coeffs[(size_t)(y - 1) * w + x] : 0;
+    int32_t NW = (x > 0 && y > 0) ? coeffs[(size_t)(y - 1) * w + (x - 1)] : 0;
+    int32_t NE = (y > 0 && x + 1 < w) ? coeffs[(size_t)(y - 1) * w + (x + 1)] : 0;
+    int32_t p1 = W + N - NW;
+    int32_t mn = std::min(W, N), mx = std::max(W, N);
+    if (ptype == JXLPredType::MED) {
+        int32_t p = p1;
+        if (p < mn) p = mn;
+        else if (p > mx) p = mx;
+        return p;
+    }
+    // GAP: gradient-based adaptive predictor
+    int32_t d_h = std::abs(W - NW) + std::abs(N - NW) + std::abs(NE - NW);
+    if (d_h < 8) return W;
+    if (d_h < 32) return (3 * W + N + 2) / 4;
+    if (d_h < 64) return (W + N + 1) / 2;
+    return (W + 2 * N + NE + 2) / 4;
+}
+
 // ---- Theoretical estimator (existing, unchanged) ----
 
 static double ans_bits_for_hist(const std::array<uint32_t, kAnsAlphabet>& counts, uint32_t total) {
@@ -495,6 +520,7 @@ struct JXLContainerHeader {
     uint32_t width = 0, height = 0;
     uint8_t num_planes = 0, bit_depth = 0;
     uint8_t color_xform = 0, wavelet_filter = 1, wavelet_levels = 5;
+    uint8_t pred_type = 0; // 0=MLP, 1=MED, 2=GAP
     uint16_t num_clusters = 0;
 };
 
@@ -513,6 +539,7 @@ static std::vector<uint8_t> serialize_container(
     out.push_back(hdr.color_xform);
     out.push_back(hdr.wavelet_filter);
     out.push_back(hdr.wavelet_levels);
+    out.push_back(hdr.pred_type);
     write_u16_le_vec(out, hdr.num_clusters);
 
     write_u32_le_vec(out, (uint32_t)tree_bytes.size());
@@ -531,7 +558,7 @@ static bool deserialize_container_header(
     const uint8_t* data, size_t len,
     JXLContainerHeader& hdr, size_t& pos) {
 
-    if (len < 20) return false;
+    if (len < 21) return false;
     if (data[0] != 'J' || data[1] != 'X' || data[2] != 'L' || data[3] != 'M') return false;
     pos = 4;
     hdr.width = read_u32_le_bytes(data + pos); pos += 4;
@@ -541,6 +568,7 @@ static bool deserialize_container_header(
     hdr.color_xform = data[pos++];
     hdr.wavelet_filter = data[pos++];
     hdr.wavelet_levels = data[pos++];
+    hdr.pred_type = data[pos++];
     hdr.num_clusters = read_u16_le_bytes(data + pos); pos += 2;
     return true;
 }
@@ -636,7 +664,7 @@ static std::vector<jxl_ans::ClusterCDF> deserialize_histograms(
 
 // ---- Real encoder ----
 
-JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
+JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target, JXLPredType pred_type) {
     JXLModularResult result;
 
     ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
@@ -681,7 +709,9 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
             for (int y = 0; y < s.h; ++y) {
                 for (int x = 0; x < s.w; ++x) {
                     int32_t c = s.coeffs[(size_t)y * s.w + x];
-                    int32_t c_hat = pred.predict(recon, pd.subs, pd.parent, pd.sib1, pd.sib2, si, x, y);
+                    int32_t c_hat = (pred_type == JXLPredType::MLP)
+                        ? pred.predict(recon, pd.subs, pd.parent, pd.sib1, pd.sib2, si, x, y)
+                        : pred_in_subband(recon[si], s.w, s.h, x, y, pred_type);
                     int32_t e = c - c_hat;
                     pd.residuals.push_back(e);
 
@@ -820,11 +850,12 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
     hdr.color_xform = (uint8_t)ct;
     hdr.wavelet_filter = 1; // LeGall53
     hdr.wavelet_levels = 5;
+    hdr.pred_type = (uint8_t)pred_type;
     hdr.num_clusters = (uint16_t)max_clusters;
 
     // The container is: header + per-plane sections
     std::vector<uint8_t> container;
-    container.reserve(32 + all_plane_data.size());
+    container.reserve(33 + all_plane_data.size());
     container.insert(container.end(), JXL_MAGIC, JXL_MAGIC + 4);
     write_u32_le_vec(container, hdr.width);
     write_u32_le_vec(container, hdr.height);
@@ -833,6 +864,7 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
     container.push_back(hdr.color_xform);
     container.push_back(hdr.wavelet_filter);
     container.push_back(hdr.wavelet_levels);
+    container.push_back(hdr.pred_type);
     write_u16_le_vec(container, hdr.num_clusters);
     write_u32_le_vec(container, (uint32_t)t.planes.size()); // num_planes_sections
     container.insert(container.end(), all_plane_data.begin(), all_plane_data.end());
@@ -863,7 +895,7 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
 // AFTER all residuals are known, giving better K choices than the single-pass
 // estimator which must predict K before encoding.
 
-JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_target) {
+JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_target, JXLPredType pred_type) {
     JXLModularResult result;
 
     ColorTransform ct = (raster.bd == BitDepth::BD8) ? ColorTransform::YCoCgR
@@ -901,7 +933,9 @@ JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_ta
             for (int y = 0; y < s.h; ++y) {
                 for (int x = 0; x < s.w; ++x) {
                     int32_t c = s.coeffs[(size_t)y * s.w + x];
-                    int32_t c_hat = pred.predict(recon, pd.subs, pd.parent, pd.sib1, pd.sib2, si, x, y);
+                    int32_t c_hat = (pred_type == JXLPredType::MLP)
+                        ? pred.predict(recon, pd.subs, pd.parent, pd.sib1, pd.sib2, si, x, y)
+                        : pred_in_subband(recon[si], s.w, s.h, x, y, pred_type);
                     int32_t e = c - c_hat;
                     pd.residuals.push_back(e);
 
@@ -1021,10 +1055,11 @@ JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_ta
     hdr.color_xform = (uint8_t)ct;
     hdr.wavelet_filter = 1; // LeGall53
     hdr.wavelet_levels = 5;
+    hdr.pred_type = (uint8_t)pred_type;
     hdr.num_clusters = (uint16_t)max_clusters;
 
     std::vector<uint8_t> container;
-    container.reserve(32 + all_plane_data.size());
+    container.reserve(33 + all_plane_data.size());
     container.insert(container.end(), JXL_MAGIC, JXL_MAGIC + 4);
     write_u32_le_vec(container, hdr.width);
     write_u32_le_vec(container, hdr.height);
@@ -1033,6 +1068,7 @@ JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_ta
     container.push_back(hdr.color_xform);
     container.push_back(hdr.wavelet_filter);
     container.push_back(hdr.wavelet_levels);
+    container.push_back(hdr.pred_type);
     write_u16_le_vec(container, hdr.num_clusters);
     write_u32_le_vec(container, (uint32_t)t.planes.size());
     container.insert(container.end(), all_plane_data.begin(), all_plane_data.end());
@@ -1051,7 +1087,7 @@ JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_ta
 // ---- Real decoder ----
 
 Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
-    if (!data || len < 20) throw std::runtime_error("jxl_modular_decode_real: data too short");
+    if (!data || len < 21) throw std::runtime_error("jxl_modular_decode_real: data too short");
 
     size_t pos = 0;
     JXLContainerHeader hdr;
@@ -1128,7 +1164,9 @@ Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
             const auto& s = subs[si];
             for (int y = 0; y < s.h; ++y) {
                 for (int x = 0; x < s.w; ++x) {
-                    int32_t c_hat = pred.predict(recon, subs, parent, sib1, sib2, si, x, y);
+                    int32_t c_hat = (hdr.pred_type == 0)
+                        ? pred.predict(recon, subs, parent, sib1, sib2, si, x, y)
+                        : pred_in_subband(recon[si], s.w, s.h, x, y, (JXLPredType)hdr.pred_type);
                     int32_t L = (x > 0) ? recon[si][(size_t)y * s.w + x - 1] : 0;
                     int32_t T = (y > 0) ? recon[si][(size_t)(y - 1) * s.w + x] : 0;
                     int32_t TL = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
