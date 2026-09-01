@@ -8363,6 +8363,106 @@ int main(int argc, char* argv[]) {
             if (!outcsv.empty()) {
                 cf << "MEAN,," << mean_ps << "," << mean_sum << ",\n";
             }
+        } else if (cmd == "encode-jxl-modular") {
+            std::string in, out, kodak;
+            int k_target = 0;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--in" && i + 1 < argc) in = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+                else if (a == "--k" && i + 1 < argc) k_target = std::stoi(argv[++i]);
+            }
+            if (in.empty() || out.empty()) {
+                std::cerr << "encode-jxl-modular: --in FILE --out FILE required\n";
+                return 2;
+            }
+            Raster r = load_raster(in, 0, 0, 8, 3);
+            auto result = codec::jxl_modular_encode_real(r, k_target);
+            std::ofstream ofs(out, std::ios::binary);
+            ofs.write((const char*)result.encoded_bytes.data(), result.encoded_bytes.size());
+            std::cout << "encoded " << result.total_bytes << " bytes, "
+                      << result.num_clusters << " clusters, "
+                      << "per_sample=" << result.per_sample_bpp
+                      << " summed=" << result.summed_bpp << "\n";
+        } else if (cmd == "decode-jxl-modular") {
+            std::string in, out;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--in" && i + 1 < argc) in = argv[++i];
+                else if (a == "--out" && i + 1 < argc) out = argv[++i];
+            }
+            if (in.empty() || out.empty()) {
+                std::cerr << "decode-jxl-modular: --in FILE --out FILE required\n";
+                return 2;
+            }
+            auto bytes = read_file(in);
+            Raster r = codec::jxl_modular_decode_real(bytes.data(), bytes.size());
+            frontend::write_ppm(out, r);
+            std::cout << "decoded " << r.w << "x" << r.h << " to " << out << "\n";
+        } else if (cmd == "bench-jxl-modular-real") {
+            int k_target = 0;
+            std::string kodak, outcsv;
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--k" && i + 1 < argc) k_target = std::stoi(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+            }
+            if (kodak.empty()) {
+                std::cerr << "bench-jxl-modular-real: --kodak DIR required\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-jxl-modular-real: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-jxl-modular-real: no images in " << kodak << "\n"; return 2; }
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty()) cf << "image,bytes,bpp\n";
+            std::vector<double> ps;
+            size_t total_bytes = 0, total_pix = 0;
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                auto result = codec::jxl_modular_encode_real(r, k_target);
+                // Verify byte-exact round-trip
+                Raster decoded = codec::jxl_modular_decode_real(result.encoded_bytes.data(),
+                                                                result.encoded_bytes.size());
+                if (decoded != r) {
+                    std::cerr << "ROUND-TRIP FAIL: " << img.filename().string() << "\n";
+                    return 1;
+                }
+                uint32_t npix = r.w * r.h * r.num_channels();
+                double bpp = (double)result.total_bytes * 8.0 / (double)npix;
+                if (!outcsv.empty()) {
+                    cf << img.filename().string() << "," << result.total_bytes << "," << bpp << "\n";
+                    cf.flush();
+                }
+                ps.push_back(bpp);
+                total_bytes += result.total_bytes;
+                total_pix += npix;
+                std::cout << img.filename().string() << " bytes=" << result.total_bytes
+                          << " per_sample=" << bpp << " summed=" << (bpp * 3.0)
+                          << " K=" << result.num_clusters << "\n";
+            }
+            double mean_ps = 0;
+            for (double v : ps) mean_ps += v;
+            mean_ps /= std::max<size_t>(1, ps.size());
+            std::cout << "MEAN per_sample=" << mean_ps << " summed=" << (mean_ps * 3.0)
+                      << " (" << ps.size() << " images)\n";
+            if (!outcsv.empty()) {
+                cf << "MEAN,," << mean_ps << ",\n";
+            }
         } else {
             print_usage(); return 2;
         }
