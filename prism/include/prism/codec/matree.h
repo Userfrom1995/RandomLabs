@@ -15,7 +15,8 @@ enum class PropId : uint8_t {
     SiblingClass = 4,
     Activity = 5,
     PositionY = 6,
-    PositionX = 7
+    PositionX = 7,
+    NeighborMag = 8
 };
 
 struct MANode {

@@ -58,6 +58,7 @@ struct Feature {
     u8  activity = 0;
     u8  position_y = 0;  // normalized 0..255 (PropId 6)
     u8  position_x = 0;  // normalized 0..255 (PropId 7)
+    u8  neighbor_mag = 0; // quantized max(|L|,|T|,|TL|,|TR|) 0..7 (PropId 8)
 };
 
 struct DecodeError : std::runtime_error {
