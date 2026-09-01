@@ -2,7 +2,7 @@
 
 - **Issue:** #226
 - **Branch:** opencode/226-neural-codec-e1
-- **Status:** in-progress. Training + export + build + measurement complete. Entropy coding phase needed.
+- **Status:** in-progress. Correctness fixes (E1-E) applied. Entropy coding still needed.
 - **Predecessor lesson source:** Single-pipeline ceiling at 3.2175/9.6525 (X6b, 2026-08-29), PR #225, 9+ programs / 44+ phases measured. Predictor explains at most ~74.5% of coefficient variance; M3 requires ~85%, unreachable within pipeline.
 
 ## Research deliverables (Dr. Mob, the Researcher, 2026-09-01)
@@ -40,6 +40,15 @@
   - [x] 12. Full Kodak-24 measurement with `bench_gate.sh`
   - [x] 13. Dual-unit gate check (M2, M3)
   - [x] 14. Honest ledger and escalation
+- **E1-E: Correctness fixes (1 day)**
+  - [x] 15. Fix synthesis GDN -> IGDN (run_conv_norm with NormType enum)
+  - [x] 16. Fix conv2d padding: kernel-size-aware `(k-1)/2` instead of hardcoded PAD=1
+  - [x] 17. Fix GDN/IGDN fixed-point: int64 x_q domain, proper Q scaling
+  - [x] 18. Add 2x nearest-neighbor upsample to hyper-synthesis (match PyTorch training)
+  - [x] 19. Fix container decode: bounds checks, filter_id validation
+  - [x] 20. Restore architect blueprint in ideas/2026-09-01-neural-codec-e1.md
+  - [ ] 21. rANS entropy coding of Y_q|sigma and Z_q (root cause of 120 bpp)
+  - [ ] 22. Wire sigma/residual out of raw payload
 
 ## Honest Measurement Ledger (2026-09-01)
 
@@ -86,6 +95,7 @@ The raw payload stores Y_q (N*yh*yw int8), Z_q (M*zh*zw int8), sigma (N*yh*yw in
 
 - 2026-09-01 (run 1): Builder scaffolded branch from origin/main, created training infrastructure (4 Python scripts), integer inference engine (C++ header + source), and unit tests. Training data generator produces procedural textures (Perlin, fractal, Voronoi, diamond-square, random-walk) + synthetic images + augmented real data. Training script implements three-phase protocol. Weight exporter converts PyTorch model to int16 Q=1024 baked constants.
 - 2026-09-01 (run 2): Trained model (20+5+10 epochs on 64x64 patches), exported real baked weights to C++ header (7.7 MB), fixed buffer overrun in synthesis layer3, fixed planar-to-CHW conversion, built C++ binary, verified 7/7 unit tests pass, measured Kodak-24 at 120 bpp (raw payload, no entropy coding). M2/M3 gates FAIL. Honest ledger written.
+- 2026-09-01 (run 3, E1-E): Fixed 7 reviewer findings from strict audit of PR #230. (1) Synthesis GDN->IGDN: added NormType enum to run_conv_norm, all 3 synthesis layers now call neural_igdn. (2) Conv2d padding: changed from hardcoded NeuralCodecParams::PAD to kernel-size-aware `(k-1)/2` formula. (3) Fixed-point scaling: GDN/IGDN now compute x_q = x * Q in int64, x^2 in Q domain properly. (4) Hyper-synthesis: added 2x nearest-neighbor upsample before conv layers to match PyTorch training. (5) Container decode: added bounds checks for stream length, filter_id validation. (6) Restored architect blueprint in ideas/2026-09-01-neural-codec-e1.md (was overwritten by builder summary). (7) Updated builder doc to reflect real baked weights. All 250 tests pass (7/7 neural codec). Raw payload still 120 bpp - rANS entropy coding is the next blocking item.
 
 ---
 
