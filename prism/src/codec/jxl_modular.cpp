@@ -91,7 +91,8 @@ static size_t header_overhead_bytes(
 static Feature build_sample_feature_8f(
     int level, int orient,
     int32_t coeff, int32_t L, int32_t T, int32_t TL, int32_t TR,
-    int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res) {
+    int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res,
+    int32_t NW, int32_t NE) {
 
     Feature f;
     f.qg = quant_qg(L, T, TL, TR);
@@ -106,14 +107,17 @@ static Feature build_sample_feature_8f(
     f.prev_coeff_mag = quant_prev_coeff_mag(prev_coeff);
     f.left_mag = (uint16_t)std::min(65535, (int)std::abs(L));
     f.prev_res_mag = quant_prev_coeff_mag(prev_res);
+    f.nw_mag = (uint16_t)std::min(65535, (int)std::abs(NW));
+    f.ne_mag = (uint16_t)std::min(65535, (int)std::abs(NE));
     return f;
 }
 
-// Build Feature for the7-feature real encoder (res_diff = abs(c_hat), decode-time symmetric).
+// Build Feature for the 7-feature real encoder (res_diff = abs(c_hat), decode-time symmetric).
 static Feature build_sample_feature_7f(
     int level, int orient,
     int32_t predicted, int32_t L, int32_t T, int32_t TL, int32_t TR,
-    int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res) {
+    int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res,
+    int32_t NW, int32_t NE) {
 
     Feature f;
     f.qg = quant_qg(L, T, TL, TR);
@@ -128,6 +132,8 @@ static Feature build_sample_feature_7f(
     f.prev_coeff_mag = quant_prev_coeff_mag(prev_coeff);
     f.left_mag = (uint16_t)std::min(65535, (int)std::abs(L));
     f.prev_res_mag = quant_prev_coeff_mag(prev_res);
+    f.nw_mag = (uint16_t)std::min(65535, (int)std::abs(NW));
+    f.ne_mag = (uint16_t)std::min(65535, (int)std::abs(NE));
     return f;
 }
 
@@ -260,10 +266,15 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
                     // But for first sample of new subband, prev_res should be 0
                     if (all_residuals.size() == 1) prev_res = 0;
 
+                    // Diagonal neighbors NW and NE from residual subband
+                    int32_t NW = (x > 0 && y > 0) ? s.coeffs[(size_t)(y - 1) * s.w + x - 1] : 0;
+                    int32_t NE = (y > 0 && x + 1 < s.w) ? s.coeffs[(size_t)(y - 1) * s.w + x + 1] : 0;
+
                     all_features.push_back(build_sample_feature_8f(
                         s.level, (int)s.orient,
                         s.coeffs[(size_t)y * s.w + x],
-                        L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res));
+                        L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res,
+                        NW, NE));
                 }
             }
         }
@@ -684,10 +695,16 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
                     if (x > 0) prev_coeff = recon[si][(size_t)y * s.w + x - 1];
                     else if (y > 0) prev_coeff = recon[si][(size_t)(y - 1) * s.w + s.w - 1];
 
+                    // Diagonal neighbors NW (top-left of previous row) and NE (top-right)
+                    // Both reconstructible at decode time from the same causal window.
+                    int32_t NW = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
+                    int32_t NE = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
+
                     pd.features.push_back(build_sample_feature_7f(
                         s.level, (int)s.orient,
                         c_hat,
-                        L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si]));
+                        L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si],
+                        NW, NE));
 
                     // Update recon and track prev residual
                     recon[si][(size_t)y * s.w + x] = c_hat + e;
@@ -697,13 +714,17 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
         }
     }
 
-    // Find optimal K across all planes combined
-    // (use first plane for K estimation to avoid combining huge datasets)
-    int K = k_target;
-    if (K <= 0 && !plane_data.empty()) {
-        K = find_optimal_K(plane_data[0].features, plane_data[0].residuals, 0);
+    // Per-plane K estimation: sweep K independently for each color plane.
+    // Luma (Y) has higher entropy and benefits from more clusters; chroma (Co/Cg)
+    // has lower entropy and needs fewer clusters to avoid header overhead waste.
+    std::vector<int> plane_K(plane_data.size(), 32);
+    for (size_t pi = 0; pi < plane_data.size(); ++pi) {
+        if (k_target > 0) {
+            plane_K[pi] = k_target;
+        } else {
+            plane_K[pi] = find_optimal_K(plane_data[pi].features, plane_data[pi].residuals, 0);
+        }
     }
-    if (K <= 0) K = 32;
 
     // Pass 2: build MA-tree, assign clusters, build histograms, ANS-encode
     // We build one tree per plane and encode each plane separately.
@@ -720,10 +741,10 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target) {
     for (size_t pi = 0; pi < plane_data.size(); ++pi) {
         auto& pd = plane_data[pi];
 
-        // Build MA-tree
+        // Build MA-tree with per-plane K
         MatreeBuildParams params;
         params.max_depth = 10;
-        params.max_leaves = K;
+        params.max_leaves = plane_K[pi];
         params.min_samples_per_leaf = 16;
         MATree tree = build_matree_greedy(pd.features, pd.residuals, params);
 
@@ -917,8 +938,13 @@ Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
                     if (x > 0) prev_coeff = recon[si][(size_t)y * s.w + x - 1];
                     else if (y > 0) prev_coeff = recon[si][(size_t)(y - 1) * s.w + s.w - 1];
 
+                    // Diagonal neighbors NW and NE (mirror encoder exactly)
+                    int32_t NW = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
+                    int32_t NE = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
+
                     Feature feat = build_sample_feature_7f(
-                        s.level, (int)s.orient, c_hat, L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si]);
+                        s.level, (int)s.orient, c_hat, L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si],
+                        NW, NE);
                     uint16_t cid = tree.eval(feat);
                     if (cid >= cdfs.size()) cid = 0;
 
