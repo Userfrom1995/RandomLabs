@@ -43,6 +43,12 @@ namespace prism::codec {
 // histograms are transmitted as part of the format, not as payable side-info.
 // The "table cost" is amortized over the entire cluster.
 
+// Predictor type for the JXL-Modular real encoder.
+// MLP = current learned coefficient predictor (X6b, cross-subband)
+// MED = in-subband median edge detector (JXL-style, same-subband only)
+// GAP = in-subband gradient adaptive predictor (JXL-style, same-subband)
+enum class JXLPredType : uint8_t { MLP = 0, MED = 1, GAP = 2 };
+
 struct JXLModularResult {
     std::vector<uint8_t> encoded_bytes;
     size_t total_bytes = 0;
@@ -76,11 +82,13 @@ JXLModularProbeResult jxl_modular_probe_kodak(const std::string& kodak_dir);
 // and 2048-symbol rANS static coding with per-cluster transmitted CDFs.
 // Produces a container: header + MA-tree + histograms + ANS payload.
 
-JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target = 0);
+JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target = 0,
+                                         JXLPredType pred_type = JXLPredType::MLP);
 
 // Two-pass real encoder: builds MA-tree using oracle features (res_diff = abs(actual_coeff)),
 // evaluates with decode-time features (res_diff = abs(predicted)). Decoder unchanged.
-JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_target = 0);
+JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_target = 0,
+                                                  JXLPredType pred_type = JXLPredType::MLP);
 
 Raster jxl_modular_decode_real(const uint8_t* data, size_t len);
 

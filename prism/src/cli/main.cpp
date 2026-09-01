@@ -84,7 +84,7 @@ static void print_usage() {
               << "  prism encode-jxl-modular --in FILE --out FILE [--k K]\n"
               << "  prism decode-jxl-modular --in FILE --out FILE\n"
               << "  prism bench-jxl-modular --kodak DIR [--k K] [--out CSV]\n"
-              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass]\n";
+              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass] [--pred mlp|med|gap]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -8564,6 +8564,7 @@ int main(int argc, char* argv[]) {
         } else if (cmd == "bench-jxl-modular-real") {
             int k_target = 0;
             bool two_pass = false;
+            std::string pred_str = "mlp";
             std::string kodak, outcsv;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
@@ -8571,6 +8572,14 @@ int main(int argc, char* argv[]) {
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
                 else if (a == "--two-pass") two_pass = true;
+                else if (a == "--pred" && i + 1 < argc) pred_str = argv[++i];
+            }
+            codec::JXLPredType pred_type = codec::JXLPredType::MLP;
+            if (pred_str == "med") pred_type = codec::JXLPredType::MED;
+            else if (pred_str == "gap") pred_type = codec::JXLPredType::GAP;
+            else if (pred_str != "mlp") {
+                std::cerr << "bench-jxl-modular-real: unknown --pred " << pred_str << " (use mlp, med, gap)\n";
+                return 2;
             }
             if (kodak.empty()) {
                 std::cerr << "bench-jxl-modular-real: --kodak DIR required\n";
@@ -8598,8 +8607,8 @@ int main(int argc, char* argv[]) {
             size_t total_bytes = 0, total_pix = 0;
             for (auto& img : imgs) {
                 Raster r = load_raster(img, 0, 0, 8, 3);
-                auto result = two_pass ? codec::jxl_modular_encode_real_two_pass(r, k_target)
-                                       : codec::jxl_modular_encode_real(r, k_target);
+                auto result = two_pass ? codec::jxl_modular_encode_real_two_pass(r, k_target, pred_type)
+                                       : codec::jxl_modular_encode_real(r, k_target, pred_type);
                 // Verify byte-exact round-trip
                 Raster decoded = codec::jxl_modular_decode_real(result.encoded_bytes.data(),
                                                                 result.encoded_bytes.size());
