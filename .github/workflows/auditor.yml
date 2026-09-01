@@ -40,7 +40,7 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Silent-stall regression audit (R1-R6)
+      - name: Silent-stall regression audit (R1-R5)
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}

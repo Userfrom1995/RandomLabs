@@ -6,7 +6,6 @@
 namespace prism::codec {
 
 // Neural codec parameters (matching export_weights.py output).
-// N, M are read from the baked data; Q is fixed at 1024.
 struct NeuralCodecParams {
     static constexpr int N = 192;   // latent channels
     static constexpr int M = 192;   // hyper-latent channels

@@ -15,7 +15,6 @@ dist/
 # prism build artifacts - never commit
 prism/build-debug/
 prism/build/
-prism/build-*/
 prism/cmake-build-*/
 
 # Generated audio

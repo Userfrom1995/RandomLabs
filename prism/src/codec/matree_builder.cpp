@@ -118,8 +118,6 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
         case PropId::PrevCoeffMag: return f.prev_coeff_mag < (uint8_t)thr;
         case PropId::LeftMag: return f.left_mag < (uint16_t)thr;
         case PropId::PrevResMag: return f.prev_res_mag < (uint8_t)thr;
-        case PropId::NWMag: return f.nw_mag < (uint16_t)thr;
-        case PropId::NEMag: return f.ne_mag < (uint16_t)thr;
     }
     return false;
 }
@@ -139,21 +137,16 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
         case PropId::PrevCoeffMag: return f.prev_coeff_mag;
         case PropId::LeftMag: return f.left_mag;
         case PropId::PrevResMag: return f.prev_res_mag;
-        case PropId::NWMag: return f.nw_mag;
-        case PropId::NEMag: return f.ne_mag;
     }
     return 0;
 }
 
 struct Cand { PropId prop; uint16_t thr; };
 
-// C2 candidate set: 16-quantile thresholds of the node's own value distribution,
+// C2 candidate set: octile quantiles of the node's own value distribution,
 // deduplicated and ascending. BandClass keeps its four equality candidates.
 // Quantile ranks are computed on a sorted copy with fixed rank formulas, so
 // the resulting threshold list is deterministic for a given node dataset.
-// Using 16 quantiles (vs 8) gives the tree finer-grained split points,
-// especially important for u16 features like left_mag and nw_mag where
-// the distribution can have long tails.
 void push_quantile_cands(std::vector<Cand>& cands, PropId p,
                          const std::vector<Feature>& feats,
                          const std::vector<size_t>& idxs) {
@@ -162,7 +155,7 @@ void push_quantile_cands(std::vector<Cand>& cands, PropId p,
     vals.reserve(idxs.size());
     for (size_t i : idxs) vals.push_back(prop_value(feats[i], p));
     std::sort(vals.begin(), vals.end());
-    constexpr int kQuantiles = 16;
+    constexpr int kQuantiles = 8;
     uint32_t last = UINT32_MAX;
     for (int q = 1; q < kQuantiles; ++q) {
         size_t rank = (size_t)((double)(vals.size() - 1) * q / kQuantiles + 0.5);
@@ -223,8 +216,6 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
             push_quantile_cands(cands, PropId::PrevCoeffMag, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::LeftMag, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::PrevResMag, feats, nodes[ni].idxs);
-            push_quantile_cands(cands, PropId::NWMag, feats, nodes[ni].idxs);
-            push_quantile_cands(cands, PropId::NEMag, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);
