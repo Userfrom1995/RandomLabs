@@ -4546,12 +4546,25 @@ int main(int argc, char* argv[]) {
             std::vector<uint8_t> bytes;
             if (use_neural) {
                 size_t net = 0;
-                bytes = frame_neural_encode(r, net);
+                NeuralStreamSizes diag;
+                bytes = frame_neural_encode(r, net, &diag);
                 std::cout << "encoded (neural) " << r.w << "x" << r.h
                           << " ch=" << (int)r.num_channels()
                           << " bd=" << (int)bd
                           << " -> " << bytes.size() << " bytes ("
                           << (8.0*bytes.size()/(r.w*r.h*r.num_channels())) << " bpp)\n";
+                std::cout << "  latent dims: Y_q=" << diag.yh << "x" << diag.yw
+                          << " (" << diag.yq_count << " syms) Z_q=" << diag.zh << "x" << diag.zw
+                          << " (" << diag.zq_count << " syms)\n";
+                std::cout << "  stream sizes: Y_q=" << diag.yq_stream_size
+                          << " Z_q=" << diag.zq_stream_size
+                          << " residual=" << diag.res_stream_size << "\n";
+                std::cout << "  residual: MAD=" << diag.res_mad
+                          << " max_abs=" << diag.res_max
+                          << " (" << diag.res_count << " samples)\n";
+                double payload_bpp = 8.0 * (diag.yq_stream_size + diag.zq_stream_size + diag.res_stream_size + 17)
+                                     / (r.w * r.h * r.num_channels());
+                std::cout << "  payload bpp: " << payload_bpp << "\n";
             } else if (use_option_c) {
                 size_t net = 0;
                 bytes = frame_option_c_encode(r, net);
