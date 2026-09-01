@@ -56,8 +56,13 @@ std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) 
     const int M = NeuralCodecParams::M;
 
     // Step 1: Run analysis network g_a to get latent Y_q.
+    // Convert planar raster to CHW layout for the neural codec.
     int yh, yw;
-    auto result = neural_full_encode(raster.planes[0].data(), h, w, c);
+    std::vector<uint16_t> chw(static_cast<size_t>(c) * h * w);
+    for (int ch = 0; ch < c; ++ch) {
+        std::memcpy(chw.data() + ch * h * w, raster.planes[ch].data(), h * w * sizeof(uint16_t));
+    }
+    auto result = neural_full_encode(chw.data(), h, w, c);
 
     // Step 2: Synthesis network g_s to get X_hat.
     std::vector<uint16_t> x_hat(c * h * w);

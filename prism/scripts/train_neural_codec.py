@@ -162,6 +162,8 @@ class HyperSynthesisNet(nn.Module):
         )
 
     def forward(self, x):
+        # Upsample 2x from H/8 to H/4 before convolutions
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         return self.net(x)
 
 
