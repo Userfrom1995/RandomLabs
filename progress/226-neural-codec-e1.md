@@ -2,7 +2,7 @@
 
 - **Issue:** #226
 - **Branch:** opencode/226-neural-codec-e1
-- **Status:** in-progress. Training infrastructure + inference engine + container v2 + CLI wired. Training run + measurement pending.
+- **Status:** in-progress. Training + export + build + measurement complete. Entropy coding phase needed.
 - **Predecessor lesson source:** Single-pipeline ceiling at 3.2175/9.6525 (X6b, 2026-08-29), PR #225, 9+ programs / 44+ phases measured. Predictor explains at most ~74.5% of coefficient variance; M3 requires ~85%, unreachable within pipeline.
 
 ## Research deliverables (Dr. Mob, the Researcher, 2026-09-01)
@@ -37,9 +37,43 @@
   - [x] 10. Decoder path: entropy decode -> g_s -> residual add
   - [x] 11. CLI integration (--neural flag)
 - **E1-D: Measurement (1 day)**
-  - [ ] 12. Full Kodak-24 measurement with `bench_gate.sh`
-  - [ ] 13. Dual-unit gate check (M2, M3)
-  - [ ] 14. Honest ledger and escalation
+  - [x] 12. Full Kodak-24 measurement with `bench_gate.sh`
+  - [x] 13. Dual-unit gate check (M2, M3)
+  - [x] 14. Honest ledger and escalation
+
+## Honest Measurement Ledger (2026-09-01)
+
+### Trained weights produced
+- 20 epochs phase 1 + 5 epochs phase 2 + 10 epochs phase 3 on 1000 synthetic 64x64 patches
+- Model: N=192, M=192, ~1.8M parameters
+- Phase 3 best loss: 0.828 (MSE=0.014, rate=0.814)
+- Exported to `neural_codec_data.inc` (7.7 MB, int16 Q=1024)
+
+### C++ binary build
+- Build: SUCCESS (cmake --build, Release mode)
+- Unit tests: 7/7 PASS (Conv2dIdentity, GDN_IGDN_ApproxRoundTrip, ReLU, Quantize, Conv2dStride2, AnalysisEncodeDimensions, FullEncodeDecodeDimensions)
+- Fix applied: buffer overrun in neural_synthesis_decode layer3 (upsampled2 size c->128 channels)
+- Fix applied: planar-to-CHW conversion in neural_frame.cpp encode path
+
+### Kodak-24 measurement
+- **Neural codec (raw payload, no entropy coding):** 120.00 bpp per-sample, 360.00 bpp summed
+- **Standard prism effort=0:** 5.69 bpp per-sample, 17.06 bpp summed
+
+### Gate results (BINDING)
+| Gate | Target (per-sample) | Target (summed) | Neural codec | Standard prism e0 |
+|------|-------------------|-----------------|-------------|-------------------|
+| M2   | < 3.166           | < 9.498         | 120.00 FAIL | 5.69 FAIL         |
+| M3   | < 2.885           | < 8.655         | 360.00 FAIL | 17.06 FAIL        |
+
+### Root cause of failure
+The raw payload stores Y_q (N*yh*yw int8), Z_q (M*zh*zw int8), sigma (N*yh*yw int16), and residual (c*h*w int16) without any entropy coding. For N=192, the latent has 12 values per pixel at int8, sigma adds 24 bytes/pixel, residual adds 6 bytes/pixel = 45 bytes/pixel = 360 bpp.
+
+### What's needed next
+1. **rANS entropy coding** of Y_q conditioned on sigma (the most critical missing piece)
+2. **Context model** for Z_q (hyper-latent entropy)
+3. **Residual coding** with bounded int16 or split into sign/magnitude
+4. **Larger training corpus** (real images, not just synthetic)
+5. **Longer training** (GPU, thousands of epochs)
 
 ## Gate checks (binding, pre-registered)
 
@@ -50,10 +84,11 @@
 
 ## Agent log
 
-- 2026-09-01: Builder scaffolded branch from origin/main, created training infrastructure (4 Python scripts), integer inference engine (C++ header + source), and unit tests. Training data generator produces procedural textures (Perlin, fractal, Voronoi, diamond-square, random-walk) + synthetic images + augmented real data. Training script implements three-phase protocol. Weight exporter converts PyTorch model to int16 Q=1024 baked constants.
+- 2026-09-01 (run 1): Builder scaffolded branch from origin/main, created training infrastructure (4 Python scripts), integer inference engine (C++ header + source), and unit tests. Training data generator produces procedural textures (Perlin, fractal, Voronoi, diamond-square, random-walk) + synthetic images + augmented real data. Training script implements three-phase protocol. Weight exporter converts PyTorch model to int16 Q=1024 baked constants.
+- 2026-09-01 (run 2): Trained model (20+5+10 epochs on 64x64 patches), exported real baked weights to C++ header (7.7 MB), fixed buffer overrun in synthesis layer3, fixed planar-to-CHW conversion, built C++ binary, verified 7/7 unit tests pass, measured Kodak-24 at 120 bpp (raw payload, no entropy coding). M2/M3 gates FAIL. Honest ledger written.
 
 ---
 
-*Builder scaffold for #226. Refs #226.*
+*Builder measurement for #226. Refs #226.*
 
 - the Builder
