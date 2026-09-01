@@ -130,6 +130,7 @@ if(PRISM_BUILD_TESTS)
         tests/unit/test_r7.cpp
         tests/unit/test_option_c.cpp
         tests/unit/test_neural_codec.cpp
+        tests/unit/test_neural_entropy.cpp
     )
     target_link_libraries(prism_tests PRIVATE prism_core GTest::gtest_main)
     target_compile_options(prism_tests PRIVATE -Wall -Wextra -Wpedantic -O2)
