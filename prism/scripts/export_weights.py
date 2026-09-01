@@ -70,12 +70,19 @@ def write_array(f, name, arr, dtype="int16_t"):
     f.write("};\n\n")
 
 
+def write_accessor(f, accessor_name, array_name):
+    """Write accessor function for an array."""
+    f.write(f"const int16_t* {accessor_name}() {{ return {array_name}; }}\n")
+
+
 def write_conv_layer(f, prefix, weight, bias=None):
-    """Write conv layer weights as C++ arrays."""
+    """Write conv layer weights as C++ arrays + accessors."""
     w_int16, b_int16 = conv_to_int16(weight, bias)
     write_array(f, f"{prefix}_w", w_int16)
+    write_accessor(f, f"baked_{prefix}_w", f"{prefix}_w")
     if b_int16 is not None:
         write_array(f, f"{prefix}_b", b_int16)
+        write_accessor(f, f"baked_{prefix}_b", f"{prefix}_b")
 
 
 def export_model(model, output_path):
@@ -103,8 +110,11 @@ def export_model(model, output_path):
 
         # g_a GDN parameters
         write_array(f, "ga_gdn1_beta", gdn_to_int16(model.g_a.net[1]))
+        write_accessor(f, "baked_ga_gdn1_beta", "ga_gdn1_beta")
         write_array(f, "ga_gdn2_beta", gdn_to_int16(model.g_a.net[3]))
+        write_accessor(f, "baked_ga_gdn2_beta", "ga_gdn2_beta")
         write_array(f, "ga_gdn3_beta", gdn_to_int16(model.g_a.net[5]))
+        write_accessor(f, "baked_ga_gdn3_beta", "ga_gdn3_beta")
 
         # h_a: 3 conv layers
         write_conv_layer(f, "ha_conv0", state["h_a.net.0.weight"], state["h_a.net.0.bias"])
@@ -113,7 +123,9 @@ def export_model(model, output_path):
 
         # h_a GDN parameters
         write_array(f, "ha_gdn1_beta", gdn_to_int16(model.h_a.net[1]))
+        write_accessor(f, "baked_ha_gdn1_beta", "ha_gdn1_beta")
         write_array(f, "ha_gdn2_beta", gdn_to_int16(model.h_a.net[3]))
+        write_accessor(f, "baked_ha_gdn2_beta", "ha_gdn2_beta")
 
         # g_s: 4 conv layers (mirror of g_a)
         write_conv_layer(f, "gs_conv0", state["g_s.net.0.weight"], state["g_s.net.0.bias"])
@@ -123,8 +135,11 @@ def export_model(model, output_path):
 
         # g_s IGDN parameters
         write_array(f, "gs_igdn1_beta", gdn_to_int16(model.g_s.net[1]))
+        write_accessor(f, "baked_gs_igdn1_beta", "gs_igdn1_beta")
         write_array(f, "gs_igdn2_beta", gdn_to_int16(model.g_s.net[3]))
+        write_accessor(f, "baked_gs_igdn2_beta", "gs_igdn2_beta")
         write_array(f, "gs_igdn3_beta", gdn_to_int16(model.g_s.net[5]))
+        write_accessor(f, "baked_gs_igdn3_beta", "gs_igdn3_beta")
 
         # h_s: 2 conv layers
         write_conv_layer(f, "hs_conv0", state["h_s.net.0.weight"], state["h_s.net.0.bias"])
@@ -137,17 +152,7 @@ def export_model(model, output_path):
         f.write(f"constexpr int NEURAL_C = 3;\n")
         f.write(f"constexpr int NEURAL_Q = {Q};\n\n")
 
-        # Version info
-        f.write("struct NeuralCodecParams {\n")
-        f.write("    static constexpr int N = NEURAL_N;\n")
-        f.write("    static constexpr int M = NEURAL_M;\n")
-        f.write("    static constexpr int C = NEURAL_C;\n")
-        f.write("    static constexpr int Q = NEURAL_Q;\n")
-        f.write("    static constexpr int G_A_LAYERS = 4;\n")
-        f.write("    static constexpr int H_A_LAYERS = 3;\n")
-        f.write("    static constexpr int G_S_LAYERS = 4;\n")
-        f.write("    static constexpr int H_S_LAYERS = 2;\n")
-        f.write("};\n\n")
+        # NeuralCodecParams is defined in neural_codec.h
 
         f.write("} // namespace prism::codec\n")
 
