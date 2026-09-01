@@ -78,6 +78,10 @@ JXLModularProbeResult jxl_modular_probe_kodak(const std::string& kodak_dir);
 
 JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target = 0);
 
+// Two-pass real encoder: builds MA-tree using oracle features (res_diff = abs(actual_coeff)),
+// evaluates with decode-time features (res_diff = abs(predicted)). Decoder unchanged.
+JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_target = 0);
+
 Raster jxl_modular_decode_real(const uint8_t* data, size_t len);
 
 } // namespace prism::codec

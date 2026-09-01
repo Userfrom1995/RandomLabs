@@ -83,7 +83,7 @@ static void print_usage() {
               << "  prism encode-jxl-modular --in FILE --out FILE [--k K]\n"
               << "  prism decode-jxl-modular --in FILE --out FILE\n"
               << "  prism bench-jxl-modular --kodak DIR [--k K] [--out CSV]\n"
-              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV]\n";
+              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -8418,12 +8418,14 @@ int main(int argc, char* argv[]) {
             std::cout << "decoded " << r.w << "x" << r.h << " to " << out << "\n";
         } else if (cmd == "bench-jxl-modular-real") {
             int k_target = 0;
+            bool two_pass = false;
             std::string kodak, outcsv;
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
                 if (a == "--k" && i + 1 < argc) k_target = std::stoi(argv[++i]);
                 else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
                 else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+                else if (a == "--two-pass") two_pass = true;
             }
             if (kodak.empty()) {
                 std::cerr << "bench-jxl-modular-real: --kodak DIR required\n";
@@ -8451,7 +8453,8 @@ int main(int argc, char* argv[]) {
             size_t total_bytes = 0, total_pix = 0;
             for (auto& img : imgs) {
                 Raster r = load_raster(img, 0, 0, 8, 3);
-                auto result = codec::jxl_modular_encode_real(r, k_target);
+                auto result = two_pass ? codec::jxl_modular_encode_real_two_pass(r, k_target)
+                                       : codec::jxl_modular_encode_real(r, k_target);
                 // Verify byte-exact round-trip
                 Raster decoded = codec::jxl_modular_decode_real(result.encoded_bytes.data(),
                                                                 result.encoded_bytes.size());
