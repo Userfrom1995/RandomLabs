@@ -24,7 +24,7 @@ namespace prism::codec {
 //     3. Compute coefficient predictor residuals
 //     4. Build MA-tree over spatial features (production build_matree_greedy, 8 properties)
 //     5. Partition samples into K clusters (K ~ 30-80)
-//     6. Count residuals per cluster (alphabet 512 symbols, res_to_sym bijection)
+//     6. Count residuals per cluster (alphabet 2048 symbols, res_to_sym bijection)
 //     7. Estimate ANS entropy per cluster (theoretical, no container/ANS stream)
 //     8. Score candidate K by theoretical bits (ans_bits_for_hist + header overhead)
 //
@@ -73,7 +73,7 @@ JXLModularProbeResult jxl_modular_probe_kodak(const std::string& kodak_dir);
 
 // --- Real JXL-Modular encoder/decoder (byte-exact round-trip) ---
 // Uses 7-feature MA-tree (res_diff = abs(c_hat), available at decode time)
-// and 512-symbol rANS static coding with per-cluster transmitted CDFs.
+// and 2048-symbol rANS static coding with per-cluster transmitted CDFs.
 // Produces a container: header + MA-tree + histograms + ANS payload.
 
 JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target = 0);
