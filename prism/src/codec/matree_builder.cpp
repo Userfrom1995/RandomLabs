@@ -147,10 +147,13 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
 
 struct Cand { PropId prop; uint16_t thr; };
 
-// C2 candidate set: octile quantiles of the node's own value distribution,
+// C2 candidate set: 16-quantile thresholds of the node's own value distribution,
 // deduplicated and ascending. BandClass keeps its four equality candidates.
 // Quantile ranks are computed on a sorted copy with fixed rank formulas, so
 // the resulting threshold list is deterministic for a given node dataset.
+// Using 16 quantiles (vs 8) gives the tree finer-grained split points,
+// especially important for u16 features like left_mag and nw_mag where
+// the distribution can have long tails.
 void push_quantile_cands(std::vector<Cand>& cands, PropId p,
                          const std::vector<Feature>& feats,
                          const std::vector<size_t>& idxs) {
@@ -159,7 +162,7 @@ void push_quantile_cands(std::vector<Cand>& cands, PropId p,
     vals.reserve(idxs.size());
     for (size_t i : idxs) vals.push_back(prop_value(feats[i], p));
     std::sort(vals.begin(), vals.end());
-    constexpr int kQuantiles = 8;
+    constexpr int kQuantiles = 16;
     uint32_t last = UINT32_MAX;
     for (int q = 1; q < kQuantiles; ++q) {
         size_t rank = (size_t)((double)(vals.size() - 1) * q / kQuantiles + 0.5);
