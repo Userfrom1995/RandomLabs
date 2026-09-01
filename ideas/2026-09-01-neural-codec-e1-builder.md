@@ -72,10 +72,11 @@ Three-phase protocol on synthetic/procedural corpus (~100K patches):
 
 ## Notes
 
-- The baked weights are currently all zeros (placeholder). Training on synthetic
-  data is required to produce real weights.
+- Baked weights are real (7.6 MB, int16 Q=1024, trained 20+5+10 epochs on synthetic data).
 - The CLI supports `--neural` flag for encode/decode.
 - Container format uses wavelet_container with filter_id=20 (NEURAL_FILTER_ID).
 - The residual coding uses raw int16 storage. For production, this should use
   the existing Prism bitplane coder for better compression.
 - All 7 unit tests pass (conv2d, GDN/IGDN, ReLU, quantization, dimensions).
+- E1-E fixes applied: synthesis IGDN, conv2d padding, fixed-point scaling,
+  hyper-synthesis 2x upsample, container decode bounds checks.
