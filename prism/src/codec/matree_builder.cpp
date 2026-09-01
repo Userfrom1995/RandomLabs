@@ -72,7 +72,7 @@ inline double leaf_bits(const std::vector<size_t>& idxs, const std::vector<int32
         if (e > hi) hi = e;
     }
     // Zigzag range: 0..2*max(|lo|,|hi|)
-    uint32_t max_sym = (uint32_t)std::max(std::abs(lo), std::abs(hi));
+    uint32_t max_sym = (uint32_t)std::max((int64_t)std::llabs(lo), (int64_t)std::llabs(hi));
     uint32_t sym_range = 2 * max_sym + 1;
     if (sym_range > 131072) {
         // Fallback to mean-based heuristic for very wide distributions
@@ -103,9 +103,6 @@ inline double leaf_bits(const std::vector<size_t>& idxs, const std::vector<int32
         bits -= p * std::log2(p);
     }
     return n * bits;
-}
-inline uint64_t leaf_cost(const std::vector<size_t>& idxs, const std::vector<int32_t>& residuals) {
-    return (uint64_t)leaf_bits(idxs, residuals);
 }
 inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
     switch(p) {
