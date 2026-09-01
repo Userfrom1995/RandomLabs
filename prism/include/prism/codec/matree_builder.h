@@ -11,6 +11,9 @@ namespace prism::codec {
 struct MatreeBuildParams {
     int max_depth = 10;
     int max_leaves = 256;
+    // Default floor for the greedy builder's flat/composite paths. The
+    // JXL-modular path (jxl_modular.cpp) overrides this to 16, so any
+    // comment implying 512 is the universal floor is stale.
     int min_samples_per_leaf = 512;
 };
 
