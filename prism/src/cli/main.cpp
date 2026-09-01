@@ -78,7 +78,11 @@ static void print_usage() {
   << "  prism probe-r1-adaptive --image FILE [--k K] [--effort N]  (R1 adaptive sweep)\n"
   << "  prism self-check-r1-adaptive --image FILE --k K --effort N (R1 adaptive self-check)\n"
               << "  prism probe-r2-hybrid --image FILE [--t-esc N] [--effort N]  (R2 hybrid vs ZFF sweep)\n"
-              << "  prism self-check-r2-hybrid --image FILE [--t-esc N] --effort N (R2 hybrid self-check)\n";
+              << "  prism self-check-r2-hybrid --image FILE [--t-esc N] --effort N (R2 hybrid self-check)\n"
+              << "  prism encode-jxl-modular --in FILE --out FILE [--k K]\n"
+              << "  prism decode-jxl-modular --in FILE --out FILE\n"
+              << "  prism bench-jxl-modular --kodak DIR [--k K] [--out CSV]\n"
+              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV]\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
