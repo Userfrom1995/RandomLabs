@@ -43,6 +43,7 @@ add_library(prism_core STATIC
     src/codec/r1_encoder.cpp
     src/codec/option_c.cpp
     src/codec/neural_codec.cpp
+    src/codec/neural_entropy.cpp
     src/codec/neural_frame.cpp
     src/codec/jxl_modular.cpp
     src/frontend/ppm_raw.cpp

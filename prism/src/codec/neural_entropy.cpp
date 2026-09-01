@@ -1,10 +1,18 @@
-// Neural codec Gaussian entropy model and conditional rANS coder (E1-E, issue #226).
+// Neural codec entropy coding (E1-E, issue #226).
+//
+// rANS-based entropy coding for Y_q (conditioned on sigma), Z_q (fixed model),
+// and residual (existing rANS). sigma is NOT transmitted; it is re-derived from
+// Z_q on decode via h_s.
+//
+// Coding scheme per symbol:
+// - Sign bit: P(0) = 0.5 (32768/65536)
+// - Magnitude: geometric code k zeros then a 1, P(0) = lambda
+// - lambda = exp(-1/sigma_actual) for Y_q, fixed 0.5 for Z_q
 
 #include "prism/codec/neural_entropy.h"
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
-#include <cstring>
 
 namespace prism::codec {
 
@@ -13,11 +21,14 @@ constexpr uint32_t RANS_BYTE_L = 1u << 23;
 constexpr uint32_t RANS_M = 1u << 16;
 constexpr uint32_t RANS_SCALE_BITS = 16;
 constexpr uint32_t RANS_MASK = RANS_M - 1;
+constexpr int Q = 1024;
+
 using RansState = uint32_t;
 
-static inline void RansEncInit(RansState* r) { *r = RANS_BYTE_L; }
+// rANS core encoder (same renormalization as rans.cpp / bitplane_rans.cpp).
+inline void rans_enc_init(RansState* r) { *r = RANS_BYTE_L; }
 
-static inline RansState RansEncRenorm(RansState x, uint8_t** pptr, uint32_t freq) {
+inline RansState rans_enc_renorm(RansState x, uint8_t** pptr, uint32_t freq) {
     uint32_t x_max = ((RANS_BYTE_L >> RANS_SCALE_BITS) << 8) * freq;
     if (x >= x_max) {
         uint8_t* ptr = *pptr;
@@ -30,12 +41,14 @@ static inline RansState RansEncRenorm(RansState x, uint8_t** pptr, uint32_t freq
     return x;
 }
 
-static inline void RansEncPut(RansState* r, uint8_t** pptr, uint32_t start, uint32_t freq) {
-    RansState x = RansEncRenorm(*r, pptr, freq);
+inline void rans_enc_put(RansState* r, uint8_t** pptr, uint8_t bit, uint16_t prob) {
+    uint32_t start = (bit ? prob : 0);
+    uint32_t freq = (bit ? (RANS_M - prob) : prob);
+    RansState x = rans_enc_renorm(*r, pptr, freq);
     *r = ((x / freq) << RANS_SCALE_BITS) + (x % freq) + start;
 }
 
-static inline void RansEncFlush(RansState* r, uint8_t** pptr) {
+inline void rans_enc_flush(RansState* r, uint8_t** pptr) {
     uint32_t x = *r;
     uint8_t* ptr = *pptr;
     ptr -= 4;
@@ -46,201 +59,189 @@ static inline void RansEncFlush(RansState* r, uint8_t** pptr) {
     *pptr = ptr;
 }
 
-static inline void RansDecInit(RansState* r, uint8_t** pptr) {
-    uint32_t x;
-    uint8_t* ptr = *pptr;
-    x  = static_cast<uint32_t>(ptr[0]);
-    x |= static_cast<uint32_t>(ptr[1]) << 8;
-    x |= static_cast<uint32_t>(ptr[2]) << 16;
-    x |= static_cast<uint32_t>(ptr[3]) << 24;
-    ptr += 4;
-    *pptr = ptr;
-    *r = x;
+// rANS decoder with bounds checking.
+struct DecoderState {
+    RansState state;
+    const uint8_t* ptr;
+    const uint8_t* end;
+};
+
+inline void rans_dec_init(DecoderState* ds) {
+    if (ds->ptr + 4 > ds->end) {
+        throw std::runtime_error("neural_entropy: stream too short for init");
+    }
+    ds->state = static_cast<uint32_t>(ds->ptr[0]) |
+                (static_cast<uint32_t>(ds->ptr[1]) << 8) |
+                (static_cast<uint32_t>(ds->ptr[2]) << 16) |
+                (static_cast<uint32_t>(ds->ptr[3]) << 24);
+    ds->ptr += 4;
 }
 
-static inline void RansDecAdvance(RansState* r, uint8_t** pptr, uint32_t start, uint32_t freq) {
-    uint32_t x = *r;
-    x = freq * (x >> RANS_SCALE_BITS) + (x & RANS_MASK) - start;
+inline void rans_dec_advance(DecoderState* ds, uint32_t start, uint32_t freq) {
+    uint32_t mask = (1u << RANS_SCALE_BITS) - 1;
+    uint32_t x = ds->state;
+    x = freq * (x >> RANS_SCALE_BITS) + (x & mask) - start;
     if (x < RANS_BYTE_L) {
-        uint8_t* ptr = *pptr;
-        do x = (x << 8) | *ptr++; while (x < RANS_BYTE_L);
-        *pptr = ptr;
+        const uint8_t* ptr = ds->ptr;
+        const uint8_t* end = ds->end;
+        do {
+            if (ptr >= end) {
+                throw std::runtime_error("neural_entropy: stream underflow");
+            }
+            x = (x << 8) | *ptr++;
+        } while (x < RANS_BYTE_L);
+        ds->ptr = ptr;
     }
-    *r = x;
+    ds->state = x;
 }
 
-// Standard normal CDF approximation (Abramowitz and Stegun).
-float standard_normal_cdf(float x) {
-    constexpr float a1 =  0.254829592f;
-    constexpr float a2 = -0.284496736f;
-    constexpr float a3 =  1.421413741f;
-    constexpr float a4 = -1.453152027f;
-    constexpr float a5 =  1.061405429f;
-    constexpr float p  =  0.3275911f;
+inline uint8_t rans_dec_bit(DecoderState* ds, uint16_t prob) {
+    uint32_t slot = ds->state & RANS_MASK;
+    uint8_t bit = (slot >= prob) ? 1 : 0;
+    uint32_t start = (bit ? prob : 0);
+    uint32_t freq = (bit ? (RANS_M - prob) : prob);
+    rans_dec_advance(ds, start, freq);
+    return bit;
+}
 
-    float sign = 1.0f;
-    if (x < 0) {
-        sign = -1.0f;
-        x = -x;
+// Compute geometric coding lambda from sigma (Q=1024).
+uint16_t sigma_to_lambda(int16_t sigma) {
+    if (sigma <= 0) return 32768;  // uniform fallback
+    float sigma_f = static_cast<float>(sigma) / Q;
+    if (sigma_f < 0.01f) sigma_f = 0.01f;
+    float lambda = std::exp(-1.0f / sigma_f);
+    if (lambda < 0.01f) lambda = 0.01f;
+    if (lambda > 0.99f) lambda = 0.99f;
+    return static_cast<uint16_t>(lambda * RANS_M);
+}
+
+// Fixed lambda for Z_q (no hyperprior). lambda=0.5 is a conservative default.
+constexpr uint16_t ZQ_LAMBDA = 32768;
+
+// Maximum magnitude for geometric coding. int8_t range is [-128, 127],
+// so |value| can be up to 128 (for -128).
+constexpr int MAX_MAG = 128;
+
+// Encode a single int8 symbol with geometric coding.
+// rANS is LIFO: decoder pops in reverse of push order.
+// Decoder decodes sign first, then magnitude bits (0,0,...,0,1).
+// So encoder must push: stop bit, then magnitude zeros, then sign.
+void enc_sym(RansState* st, uint8_t** pptr, int8_t value, uint16_t lambda_prob) {
+    int mag = std::abs(static_cast<int>(value));
+
+    // Push stop bit first (decoded last by LIFO).
+    rans_enc_put(st, pptr, 1, lambda_prob);
+    // Push magnitude zeros (decoded in reverse by LIFO).
+    for (int k = 0; k < mag; ++k) {
+        rans_enc_put(st, pptr, 0, lambda_prob);
     }
-    float t = 1.0f / (1.0f + p * x);
-    float y = 1.0f - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * std::exp(-x * x * 0.5f);
-    return 0.5f * (1.0f + sign * y);
+    // Push sign bit last (decoded first by LIFO).
+    uint8_t sign = (value < 0) ? 1 : 0;
+    rans_enc_put(st, pptr, sign, 32768);
 }
 
-float rounded_gaussian_pmf(int k, float sigma) {
-    if (sigma < 1e-6f) sigma = 1e-6f;
-    float upper = (k + 0.5f) / sigma;
-    float lower = (k - 0.5f) / sigma;
-    return standard_normal_cdf(upper) - standard_normal_cdf(lower);
+// Decode a single int8 symbol with geometric coding.
+int8_t dec_sym(DecoderState* ds, uint16_t lambda_prob) {
+    uint8_t sign = rans_dec_bit(ds, 32768);
+    int mag = 0;
+    while (rans_dec_bit(ds, lambda_prob) == 0) {
+        ++mag;
+        if (mag > MAX_MAG) {
+            throw std::runtime_error("neural_entropy: magnitude overflow");
+        }
+    }
+    int result = sign ? -mag : mag;
+    return static_cast<int8_t>(std::max(-128, std::min(127, result)));
 }
 
-constexpr float MIN_SIGMA = 0.01f;
 } // namespace
 
-GaussianCDFTable build_gaussian_cdf_table(int sigma_bins) {
-    GaussianCDFTable table;
-    table.cdf.resize(static_cast<size_t>(sigma_bins) * LATENT_ALPHABET);
-    table.freq.resize(static_cast<size_t>(sigma_bins) * LATENT_ALPHABET);
+// ---------------------------------------------------------------------------
+// Encoder
+// ---------------------------------------------------------------------------
 
-    for (int sb = 0; sb < sigma_bins; ++sb) {
-        float sigma = static_cast<float>(sb) / SIGMA_SCALE;
-        if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
+std::vector<uint8_t> NeuralEntropyEncoder::encode_yq(
+    const int8_t* yq, const int16_t* sigma, int n, int yh, int yw) {
+    size_t count = static_cast<size_t>(n) * yh * yw;
 
-        // Compute PMF for all 256 symbols.
-        double pmf[256];
-        double sum = 0.0;
-        for (int i = 0; i < 256; ++i) {
-            int k = i - 128;
-            pmf[i] = static_cast<double>(rounded_gaussian_pmf(k, sigma));
-            if (pmf[i] < 1e-15) pmf[i] = 1e-15;
-            sum += pmf[i];
-        }
-        for (int i = 0; i < 256; ++i) {
-            pmf[i] /= sum;
-        }
-
-        // Allocate frequencies: assign at least 1 to each symbol, then distribute
-        // the remaining budget proportionally.
-        // Minimum total: 256 (one per symbol). Remaining: 65536 - 256 = 65280.
-        constexpr uint32_t TOTAL = RANS_M;
-        constexpr uint32_t BASE = 1;
-        uint32_t remaining = TOTAL - 256 * BASE;  // 65280
-
-        uint32_t freq_raw[256];
-        uint32_t total_assigned = 0;
-        for (int i = 0; i < 256; ++i) {
-            freq_raw[i] = BASE;
-            total_assigned += BASE;
-        }
-
-        // Distribute remaining budget proportionally.
-        for (int i = 0; i < 256; ++i) {
-            uint32_t extra = static_cast<uint32_t>(pmf[i] * remaining + 0.5);
-            freq_raw[i] += extra;
-            total_assigned += extra;
-        }
-
-        // Fix rounding remainder by adjusting the most probable symbol.
-        if (total_assigned < TOTAL) {
-            // Find the symbol with highest PMF.
-            int best = 0;
-            for (int i = 1; i < 256; ++i) {
-                if (pmf[i] > pmf[best]) best = i;
-            }
-            freq_raw[best] += (TOTAL - total_assigned);
-        } else if (total_assigned > TOTAL) {
-            int best = 0;
-            for (int i = 1; i < 256; ++i) {
-                if (pmf[i] > pmf[best]) best = i;
-            }
-            freq_raw[best] -= (total_assigned - TOTAL);
-        }
-
-        // Build CDF from frequencies.
-        uint32_t running = 0;
-        for (int i = 0; i < 256; ++i) {
-            table.cdf[sb * 256 + i] = running;
-            table.freq[sb * 256 + i] = freq_raw[i];
-            running += freq_raw[i];
-        }
-    }
-
-    return table;
-}
-
-std::vector<uint8_t> neural_rans_encode(const int8_t* symbols, const int16_t* sigma,
-                                         int count, const GaussianCDFTable& table) {
-    std::vector<uint8_t> buf(static_cast<size_t>(count) * 4 + 64, 0);
+    // Worst case: with small sigma (lambda_prob ~7), each bit costs ~2 bytes.
+    // For mag=127: ~258 bytes. Use 256 bytes/symbol for safety.
+    std::vector<uint8_t> buf(count * 256 + 64, 0);
     uint8_t* ptr = buf.data() + buf.size();
-
     RansState state;
-    RansEncInit(&state);
+    rans_enc_init(&state);
 
-    for (int i = count; i-- > 0; ) {
-        int sb = quantize_sigma(sigma[i]);
-        int sym_idx = static_cast<int>(static_cast<uint8_t>(symbols[i]));
-        uint32_t start = table.cdf[sb * 256 + sym_idx];
-        uint32_t freq = table.freq[sb * 256 + sym_idx];
-
-        RansEncPut(&state, &ptr, start, freq);
+    // rANS LIFO: encode in reverse order.
+    for (size_t i = count; i-- > 0; ) {
+        uint16_t lambda = sigma_to_lambda(sigma[i]);
+        enc_sym(&state, &ptr, yq[i], lambda);
     }
+    rans_enc_flush(&state, &ptr);
 
-    RansEncFlush(&state, &ptr);
     return std::vector<uint8_t>(ptr, buf.data() + buf.size());
 }
 
-std::vector<int8_t> neural_rans_decode(const std::vector<uint8_t>& bytes, int count,
-                                        const int16_t* sigma, const GaussianCDFTable& table) {
-    if (bytes.size() < 4) throw std::runtime_error("neural_rans_decode: too short");
+std::vector<uint8_t> NeuralEntropyEncoder::encode_zq(
+    const int8_t* zq, int m, int zh, int zw) {
+    size_t count = static_cast<size_t>(m) * zh * zw;
 
-    uint8_t* d = const_cast<uint8_t*>(bytes.data());
+    std::vector<uint8_t> buf(count * 256 + 64, 0);
+    uint8_t* ptr = buf.data() + buf.size();
     RansState state;
-    RansDecInit(&state, &d);
+    rans_enc_init(&state);
 
-    std::vector<int8_t> out(count);
-
-    for (int i = 0; i < count; ++i) {
-        int sb = quantize_sigma(sigma[i]);
-        uint32_t slot = state & RANS_MASK;
-
-        // Binary search to find the symbol whose CDF range contains slot.
-        // cdf[sym] <= slot < cdf[sym] + freq[sym]
-        const uint32_t* cdf_row = table.cdf.data() + sb * 256;
-        const uint32_t* freq_row = table.freq.data() + sb * 256;
-
-        int lo = 0, hi = 255;
-        while (lo < hi) {
-            int mid = (lo + hi + 1) / 2;
-            if (cdf_row[mid] <= slot) {
-                lo = mid;
-            } else {
-                hi = mid - 1;
-            }
-        }
-
-        uint32_t start = cdf_row[lo];
-        uint32_t freq = freq_row[lo];
-
-        RansDecAdvance(&state, &d, start, freq);
-
-        out[i] = static_cast<int8_t>(static_cast<uint8_t>(lo));
+    for (size_t i = count; i-- > 0; ) {
+        enc_sym(&state, &ptr, zq[i], ZQ_LAMBDA);
     }
+    rans_enc_flush(&state, &ptr);
 
-    return out;
+    return std::vector<uint8_t>(ptr, buf.data() + buf.size());
 }
 
-double neural_entropy_estimate(const int8_t* symbols, const int16_t* sigma,
-                                int count, const GaussianCDFTable& table) {
-    double total_bits = 0.0;
-    for (int i = 0; i < count; ++i) {
-        int sb = quantize_sigma(sigma[i]);
-        int sym_idx = static_cast<int>(static_cast<uint8_t>(symbols[i]));
-        uint32_t freq = table.freq[sb * 256 + sym_idx];
-        double p = static_cast<double>(freq) / RANS_M;
-        total_bits += -std::log2(p);
+// ---------------------------------------------------------------------------
+// Decoder
+// ---------------------------------------------------------------------------
+
+std::vector<int8_t> NeuralEntropyDecoder::decode_yq(
+    const std::vector<uint8_t>& bytes,
+    const int16_t* sigma, int n, int yh, int yw) {
+    size_t count = static_cast<size_t>(n) * yh * yw;
+    if (bytes.size() < 4) {
+        throw std::runtime_error("neural_entropy: Y_q stream too short");
     }
-    return total_bits / count;
+
+    DecoderState ds;
+    ds.ptr = bytes.data();
+    ds.end = bytes.data() + bytes.size();
+    rans_dec_init(&ds);
+
+    std::vector<int8_t> result(count);
+    for (size_t i = 0; i < count; ++i) {
+        uint16_t lambda = sigma_to_lambda(sigma[i]);
+        result[i] = dec_sym(&ds, lambda);
+    }
+
+    return result;
+}
+
+std::vector<int8_t> NeuralEntropyDecoder::decode_zq(
+    const std::vector<uint8_t>& bytes, int m, int zh, int zw) {
+    size_t count = static_cast<size_t>(m) * zh * zw;
+    if (bytes.size() < 4) {
+        throw std::runtime_error("neural_entropy: Z_q stream too short");
+    }
+
+    DecoderState ds;
+    ds.ptr = bytes.data();
+    ds.end = bytes.data() + bytes.size();
+    rans_dec_init(&ds);
+
+    std::vector<int8_t> result(count);
+    for (size_t i = 0; i < count; ++i) {
+        result[i] = dec_sym(&ds, ZQ_LAMBDA);
+    }
+
+    return result;
 }
 
 } // namespace prism::codec
