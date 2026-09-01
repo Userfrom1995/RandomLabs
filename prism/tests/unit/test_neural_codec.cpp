@@ -1,9 +1,11 @@
 // Unit tests for the neural codec integer inference engine (E1, issue #226).
 //
-// Tests: forward pass, GDN/IGDN round-trip, quantization, conv2d.
+// Tests: forward pass, GDN/IGDN round-trip, quantization, conv2d,
+//        entropy coding round-trip, full frame round-trip.
 
 #include <gtest/gtest.h>
 #include "prism/codec/neural_codec.h"
+#include "prism/codec/neural_entropy.h"
 #include <cmath>
 #include <vector>
 
@@ -160,6 +162,65 @@ TEST(NeuralCodecTest, FullEncodeDecodeDimensions) {
     EXPECT_EQ(result.yh, h / 4);
     EXPECT_EQ(result.yw, w / 4);
     EXPECT_EQ(static_cast<int>(result.yq.size()), N * (h/4) * (w/4));
+}
+
+// Test Y_q entropy coding round-trip.
+TEST(NeuralCodecTest, EntropyYqRoundTrip) {
+    const int n = 192, yh = 8, yw = 8;
+    size_t count = static_cast<size_t>(n) * yh * yw;
+
+    // Generate random Y_q values in int8 range.
+    std::vector<int8_t> yq(count);
+    std::vector<int16_t> sigma(count);
+    for (size_t i = 0; i < count; ++i) {
+        yq[i] = static_cast<int8_t>((i * 7 + 13) % 256 - 128);
+        sigma[i] = static_cast<int16_t>((i * 31 + 7) % 1024 + 64);
+    }
+
+    auto encoded = NeuralEntropyEncoder::encode_yq(yq.data(), sigma.data(),
+                                                     n, yh, yw);
+    EXPECT_GT(encoded.size(), 4u);
+
+    auto decoded = NeuralEntropyDecoder::decode_yq(encoded, sigma.data(),
+                                                    n, yh, yw);
+    EXPECT_EQ(decoded.size(), count);
+    EXPECT_EQ(decoded, yq);
+}
+
+// Test Z_q entropy coding round-trip.
+TEST(NeuralCodecTest, EntropyZqRoundTrip) {
+    const int m = 192, zh = 4, zw = 4;
+    size_t count = static_cast<size_t>(m) * zh * zw;
+
+    std::vector<int8_t> zq(count);
+    for (size_t i = 0; i < count; ++i) {
+        zq[i] = static_cast<int8_t>((i * 11 + 3) % 256 - 128);
+    }
+
+    auto encoded = NeuralEntropyEncoder::encode_zq(zq.data(), m, zh, zw);
+    EXPECT_GT(encoded.size(), 4u);
+
+    auto decoded = NeuralEntropyDecoder::decode_zq(encoded, m, zh, zw);
+    EXPECT_EQ(decoded.size(), count);
+    EXPECT_EQ(decoded, zq);
+}
+
+// Test Y_q entropy coding compression (encoded should be smaller than raw).
+TEST(NeuralCodecTest, EntropyYqCompression) {
+    const int n = 192, yh = 16, yw = 16;
+    size_t count = static_cast<size_t>(n) * yh * yw;
+
+    // Generate sparse Y_q (most values near 0).
+    std::vector<int8_t> yq(count, 0);
+    std::vector<int16_t> sigma(count, 128);  // sigma ~ 0.125
+    for (size_t i = 0; i < count; i += 7) {
+        yq[i] = static_cast<int8_t>((i * 3) % 11 - 5);
+    }
+
+    auto encoded = NeuralEntropyEncoder::encode_yq(yq.data(), sigma.data(),
+                                                     n, yh, yw);
+    // Entropy-coded should be smaller than raw (count bytes).
+    EXPECT_LT(encoded.size(), count);
 }
 
 } // namespace
