@@ -66,6 +66,11 @@ std::vector<int8_t> rans_decode_int8_plane(const std::vector<uint8_t>& bytes, in
 } // namespace
 
 std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) {
+    return frame_neural_encode(raster, net_out, nullptr);
+}
+
+std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out,
+                                          NeuralStreamSizes* diag) {
     if (raster.w == 0 || raster.h == 0) {
         throw EncodeError("neural encode: zero dimension");
     }
@@ -96,11 +101,17 @@ std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) 
     // Step 3: Compute residual R = X - X_hat (per channel, int32 to avoid overflow).
     size_t res_count = static_cast<size_t>(c) * h * w;
     std::vector<int32_t> residual(res_count);
+    int64_t res_sum_abs = 0;
+    int32_t res_max_abs = 0;
     for (int ch = 0; ch < c; ++ch) {
         for (int i = 0; i < h * w; ++i) {
             int32_t orig = static_cast<int32_t>(raster.planes[ch][i]);
             int32_t recon = static_cast<int32_t>(x_hat[ch * h * w + i]);
-            residual[ch * h * w + i] = orig - recon;
+            int32_t d = orig - recon;
+            residual[ch * h * w + i] = d;
+            int32_t ad = d < 0 ? -d : d;
+            res_sum_abs += ad;
+            if (ad > res_max_abs) res_max_abs = ad;
         }
     }
 
@@ -118,6 +129,22 @@ std::vector<uint8_t> frame_neural_encode(const Raster& raster, size_t& net_out) 
 
     // Residual: entropy-coded with rANS.
     auto res_stream = rans_encode_plane(residual, 1);
+
+    // Diagnostics.
+    if (diag) {
+        diag->yq_stream_size = yq_stream.size();
+        diag->zq_stream_size = zq_stream.size();
+        diag->res_stream_size = res_stream.size();
+        diag->yq_count = yq_count;
+        diag->zq_count = zq_count;
+        diag->res_count = res_count;
+        diag->yh = result.yh;
+        diag->yw = result.yw;
+        diag->zh = result.zh;
+        diag->zw = result.zw;
+        diag->res_mad = static_cast<double>(res_sum_abs) / static_cast<double>(res_count);
+        diag->res_max = res_max_abs;
+    }
 
     // Step 5: Serialize into payload blob.
     // Layout: [version=1][yh u32 LE][yw u32 LE][zh u32 LE][zw u32 LE]
