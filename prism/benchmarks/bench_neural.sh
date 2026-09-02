@@ -39,11 +39,11 @@ for img in "$KODAK"/*.ppm; do
   w=768; h=512
   read w h < <(awk 'NR==1 && $1=="P6" {next} /^#/ {next} {print $1, $2; exit}' "$img")
   if [[ -z "$w" || -z "$h" ]]; then w=768; h=512; fi
-  bpp=$(python3 -c "print(8*$bytes/($w*$h*3))")
+  bpp=$(BYTES="$bytes" W="$w" H="$h" python3 -c 'import os; b=int(os.environ["BYTES"]); w=int(os.environ["W"]); h=int(os.environ["H"]); print(8*b/(w*h*3))')
   echo "$(basename "$img"),$bytes,$bpp" >> "$CSV"
   total_bytes=$((total_bytes + bytes))
   count=$((count+1))
 done
-mean_bpp=$(python3 -c "import csv; rows=list(csv.DictReader(open('$CSV'))); m=sum(float(r['bpp']) for r in rows)/len(rows) if rows else 0; print(m)")
+mean_bpp=$(PYCSV="$CSV" python3 -c 'import os,csv; f=open(os.environ["PYCSV"]); rows=[r for r in csv.DictReader((l for l in f if not l.startswith("#")))]; m=sum(float(r["bpp"]) for r in rows)/len(rows) if rows else 0; print(m)')
 echo "mean_bpp=$mean_bpp over $count images -> $CSV"
 cat "$CSV"
