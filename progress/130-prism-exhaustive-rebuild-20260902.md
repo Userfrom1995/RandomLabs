@@ -28,6 +28,27 @@
 5. No new mechanism class identified that could close the gap within the
    current architecture or any feasible extension of it.
 
+## R6-C Trained-MLP Reconfirmation (Builder, 2026-09-02T20:00)
+
+Previous R6-C measurement (Aug 29) used UNTRAINED MLP weights (zeros in
+`learned_ctx_data.inc`) and got 5.08 bpp (collapsed to 3 contexts). The current
+main has TRAINED weights (BCE=0.312968, 1.6M samples, 15->64->32->1 MLP).
+
+Fresh measurement on real Kodak-24 (4-image subset, all byte-exact):
+- kodim01: X6b=3.515, R6C=3.568 (+1.5% worse)
+- kodim05: X6b=3.342, R6C=3.384 (+1.3% worse)
+- kodim13: X6b=3.997, R6C=4.082 (+2.1% worse)
+- kodim20: X6b=3.061, R6C=3.173 (+3.7% worse)
+
+R6-C with trained MLP is STILL uniformly worse. The clustering function
+`r6c_cluster(symtype, p0, kb)` groups by MLP P(0) bucket, but per-cluster
+transmitted P(0) is coarser than the per-context EMA. The 75% blend weight
+injects a worse model, raising the rate. This closes the one remaining gap
+in the negative ledger (R6-C with trained weights is now measured, not just
+assumed).
+
+- the Builder
+
 ## Honest assessment
 
 The single-pipeline wavelet+bitplane+EMA architecture has a hard, reproducible
