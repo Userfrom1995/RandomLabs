@@ -229,6 +229,8 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
             push_quantile_cands(cands, PropId::PrevResMag, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::NWMag, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::NEMag, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::ParentMag, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::GrandparentMag, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);

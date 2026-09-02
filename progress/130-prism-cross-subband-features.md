@@ -18,17 +18,17 @@ coding order).
 ## Milestone Checklist
 
 ### C0: Feature struct + PropId extension
-- [ ] Add `parent_mag` (u8) and `grandparent_mag` (u8) to `Feature` struct in `types.h`
-- [ ] Add `PropId::ParentMag = 14` and `PropId::GrandparentMag = 15` to `matree.h`
+- [x] Add `parent_mag` (u8) and `grandparent_mag` (u8) to `Feature` struct in `types.h`
+- [x] Add `PropId::ParentMag = 14` and `PropId::GrandparentMag = 15` to `matree.h`
 
 ### C1: MA-tree evaluator + builder updates
-- [ ] Handle new PropIds in `MATree::eval()` (matree.cpp)
-- [ ] Handle new PropIds in `matree_builder.cpp` tree splitting
-- [ ] Handle new PropIds in `matree_builder.cpp` feature value extraction
+- [x] Handle new PropIds in `MATree::eval()` (matree.cpp)
+- [x] Handle new PropIds in `matree_builder.cpp` tree splitting
+- [x] Handle new PropIds in `matree_builder.cpp` feature value extraction
 
 ### C2: JXL-modular feature computation
-- [ ] Pass parent/grandparent subband coefficients to feature builders
-- [ ] Update `build_sample_feature_8f` and `build_sample_feature_7f` in `jxl_modular.cpp`
+- [x] Pass parent/grandparent subband coefficients to feature builders
+- [x] Update `build_sample_feature_8f` and `build_sample_feature_7f` in `jxl_modular.cpp`
 
 ### C3: Build + test + measure
 - [x] Build and verify all tests pass

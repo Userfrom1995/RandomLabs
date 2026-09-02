@@ -86,9 +86,9 @@ TEST(MatreeBuilder, CapsAndMinSamplesRespected) {
         for (uint16_t l = 0; l < t.num_leaves; ++l)
             EXPECT_GE(cnt[l], (size_t)p.min_samples_per_leaf) << "leaf " << l;
     }
-    // Internal nodes only use known property ids (up to PrevResMag = 11).
+    // Internal nodes only use known property ids (up to GrandparentMag = 15).
     for (const auto& nd : t.nodes)
-        if (!nd.is_leaf) EXPECT_LE((int)nd.prop, (int)PropId::PrevResMag);
+        if (!nd.is_leaf) EXPECT_LE((int)nd.prop, (int)PropId::GrandparentMag);
 }
 
 TEST(MatreeBuilder, SmallDatasetStaysSingleLeaf) {
