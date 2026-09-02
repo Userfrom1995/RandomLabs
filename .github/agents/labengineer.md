@@ -46,7 +46,7 @@ Triggered on an infrastructure issue (e.g. `[Audit] ...`, `[Infra] ...`, or `/oc
    - Inspect the issue, system logs, and workflow run histories.
    - Formulate a clear, elegant architectural design that solves root causes, not just symptoms.
  2. **Branch & Implementation**:
-    - If the branch `opencode/lab-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/lab-<issue>-<slug> origin/opencode/lab-<issue>-<slug>`, then continue on it. Never create a fresh branch from `main` when the PR branch already exists (a fresh-from-main branch breaks the runner's push lease and the update fails with "stale info").
+    - If the branch `opencode/lab-<issue>-<slug>` already exists on the remote, RESUME it: `git fetch origin && git checkout -B opencode/lab-<issue>-<slug> origin/opencode/lab-<issue>-<slug>`, then continue on it. If you need to sync with `main`, ALWAYS use `git rebase origin/main` (never `git merge origin/main`); merge commits on PR branches break automated rebase merges. Never create a fresh branch from `main` when the PR branch already exists (a fresh-from-main branch breaks the runner's push lease and the update fails with "stale info").
     - Otherwise, checkout or create the branch `opencode/lab-<issue>-<slug>` from `main`.
     - Implement your changes in `.github/workflows/`, `.github/agents/`, or repo documentation.
     - Make small, logical, stepwise commits authored strictly as `github-actions[bot] <github-actions[bot]@users.noreply.github.com>`.
