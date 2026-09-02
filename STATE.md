@@ -1,6 +1,6 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-02T18:31Z, maintainer run 33667629295 (main 0f5164d, PR 248 fee0c80 MERGED at de3f5c5, PR 249 aa74cc8 MERGED at 0f5164d, Researcher dispatched on #130)
- - **Action this run:** MERGED PR #248 fee0c80 via `gh pr merge --rebase` to de3f5c5 (Reviewer APPROVE 17:22:40Z 12/12 + Tester approve-test 17:51:55Z, NOT orphan CLEAN, 8 files Refs #130) + MERGED PR #249 aa74cc8 via `gh pr merge --rebase` to 0f5164d (Reviewer /oc approve 18:15:40Z + Tester approve-test 18:30:28Z, NOT orphan CLEAN, 2 files Refs #130, branch retained per #148); dispatched `research` on #130 for new paradigm
+ - **Updated:** 2026-09-02T19:17Z, maintainer run 33672452934 (main 0f5164d, PR 248 fee0c80 MERGED at de3f5c5, PR 249 aa74cc8 MERGED at 0f5164d, Researcher re-dispatched on #130)
+ - **Action this run:** Re-dispatched `research` on #130 for fundamentally new classical architecture (prior 18:31 dispatch cancelled via run 33667874578); respected Builder 33670475213 in_progress on #130
  - **Main:** `0f5164d91819cb0fd18b08537370be8daaf5a0b9` verified live `git ls-remote origin/main` = 0f5164d, parents 0f5164d->de3f5c5->74fcd1d->8461c94->e362854->..., NOT orphan (rebase chain preserves lineage, both PRs Refs #130)
  - **Branch retention:** opencode/issue130-20260902170928 at aa74cc8 MERGED at 0f5164d retained, opencode/issue130-cross-subband-features at fee0c80 MERGED at de3f5c5 retained, opencode/issue130-20260902141518 at 69be8bf MERGED at 74fcd1d retained, opencode/issue130-neural-codec-train at cf8bc90 MERGED at e362854 retained, opencode/issue130-20260902125205 at 96e9c77 MERGED at 8461c94 retained, opencode/issue130-neural-codec-entropy at 0572a15 MERGED at 16f2c5d retained, opencode/issue130-20260901144303 at 44e7146 OPEN (PR 232 DIRTY/CONFLICTING retained per #148), archival 203/202/186/181 CONFLICTING retained per #148, plus 51 opencode/* retained
 
@@ -18,46 +18,43 @@
 - PR #249 `aa74cc881ed8b142016c3bc1c458c35ce9e2473a` MERGED at `0f5164d91819cb0fd18b08537370be8daaf5a0b9` (head aa74cc8 base 74fcd1d, 2 files, Refs #130 exhaustive ledger, Reviewer /oc approve + Tester approve-test, NOT orphan, no workflows touch, GITHUB_TOKEN rebase merge succeeded, branch retained per #148, #130 stays OPEN)
 - PR #232 `44e71465680caf73ea208804c07d71d5eaa47020` OPEN DIRTY/CONFLICTING base 0f5164d (Refs #130 ledger 3.576 FAIL retained per #148, not merging while M2/M3 FAIL)
 - PR #203/202/186/181 CONFLICTING retained per #148, never merge
-- INFRA VERIFIED: `opencode.yml` 4x mimo-v2.5-free LIVE at 0f5164d, `opencode.json` both knobs -free, GITHUB_TOKEN merge allowed (no workflow touch on 248/249), no orphan, pages preview staged under /preview/pr-248/ and /preview/pr-249/ via deploy, main integrity guard OK
+- INFRA VERIFIED: `opencode.yml` 4x mimo-v2.5-free LIVE at 0f5164d, `opencode.json` both knobs -free, GITHUB_TOKEN merge allowed (no workflow touch on archival), no orphan, pages preview staged under /preview/pr-248/ and /preview/pr-249/ via deploy, main integrity guard OK
 
 ## CRITICAL INFRASTRUCTURE STATE
 - **PR #248 FULLY GATED and MERGED at de3f5c5:** Reviewer 17:22:40Z APPROVE 12/12 + Tester 17:51:55Z approve-test (Build PASS, Matree* 7/7, Roundtrip/Fuzz 17/17, dual-unit csv 26 lines MEAN 3.29001/9.8700 FAIL M2/M3, Refs #130 correct), merged via `gh pr merge 248 --rebase` (branch retained per #148, #130 OPEN).
 - **PR #249 FULLY GATED and MERGED at 0f5164d:** Reviewer /oc approve 18:15:40Z 14-point PASS + Tester approve-test 18:30:28Z (cmake configure PASS, build PASS, fuzz 5 iters PASS, docs/site infra intact, dual-unit 3.2175/9.6525 honest, Refs correct, no em-dash), merged via `gh pr merge 249 --rebase` (branch retained per #148, #130 OPEN, escalation (a)(b)(c) left for Owner+Researcher, but No-Pause chains Researcher).
 - **PR #232 DIRTY at 44e7146:** base drift CONFLICTING, body Refs #130 honest negative 3.576 FAIL retained per #148, not merging while M2/M3 FAIL.
 - **Issue #226 HALTED:** No Builder dispatched, halt 10:39:54Z remains; no dispatch per supreme halt beyond archive merges DONE.
-- **Builder auto-retry 33665510091 still in_progress at 18:31Z on #130 (Prism M2/M3/M4 continuation):** Head 74fcd1d, no push yet; main advanced past its base to 0f5164d - if it pushes, will be rebased onto new main; guard respected - no duplicate build/research dispatched beyond research cascade this run.
-- **Researcher dispatched on #130 via decision.json:** `{"action": "research", "issue": 130}` for fundamentally new classical architecture to close 1.63% M2 / 11.53% M3 gap beyond single-pipeline + cross-subband ceiling (document cascade transparently, autonomously select most promising path per No-Pause; options: new transform beyond wavelet, joint entropy coding, learned context beyond MA-tree, or hybrid). Do NOT pause waiting for Owner on escalation (a)(b)(c).
-- **No infra anomaly requiring Lab:** `opencode.yml` 4x mimo-v2.5-free LIVE at 0f5164d, `opencode.json` both knobs, no workflows permission rejection, no CreditsError, branch retention verified.
+- **Builder 33670475213 in_progress at 19:17Z on #130 (Owner auto-retry /oc build this 18:58:16, Prism M2/M3/M4 continuation):** Head main, ~20m, will re-confirm exhaustive ceiling; guard respected - no duplicate build/research on same issue concurrently beyond queued research.
+- **Researcher re-dispatched on #130 via decision.json this run:** `{"action": "research", "issue": 130}` for fundamentally new classical architecture to close 1.63% M2 / 11.53% M3 gap beyond single-pipeline + cross-subband ceiling (prior dispatch cancelled at 33667874578, now queued behind Builder via cancel-in-progress false). Do NOT pause waiting for Owner on escalation (a)(b)(c).
 
 ## IN FLIGHT
 - **PR #248 - MERGED de3f5c5 (cross-subband, Refs #130, 3.290/9.870 FAIL honest negative, branch retained)**
 - **PR #249 - MERGED 0f5164d (exhaustive state confirmation, Refs #130, 2 files docs+progress, branch retained)**
 - **PR #232 - OPEN DIRTY 44e7146 (1 file CSV 3.576 FAIL, Refs #130, CONFLICTING base 0f5164d, retained per #148)**
-- **Issue #130 - OPEN GATING - classical focus, ceiling 3.2175/9.6525 at 0f5164d, Researcher dispatched 33667629295 for new paradigm**
+- **Issue #130 - OPEN GATING - classical focus, ceiling 3.2175/9.6525 at 0f5164d, Builder 33670475213 in_progress + Researcher queued this run for new paradigm**
 - **Issue #226 - OPEN GATING - HALTED neural successor, no Builder, archival DONE**
 - **4 archival PRs retained:** 203/202/186/181 CONFLICTING retained per #148, never merge
 
 ## PIPELINE POSITION
-Halt neural 10:39:54Z -> PR 245 7e73c24 -> PR 241 16f2c5d -> PR 243 e362854 + PR 246 8461c94 archival Refs #130 -> Builder exhaustive at 69be8bf PR 247 (44+ phases floor 3.2175/9.6525) -> Review 14:34:53Z BLOCKED F1 Closes->Refs -> Lab fix 14:36:58Z corrected -> Review 14:43:12Z APPROVE -> Tester 14:52:23Z approve-test -> Maintainer 14:55:40Z rebase-merge 74fcd1d (Refs, branch retained, #130 OPEN) -> Builder cross-subband 147ce73 PR #248 (8 files Parent/Grandparent) -> Review 17:14:40Z FIX -> Fixer 17:16:56Z fee0c80 (4 fixes) -> Review 17:22:40Z APPROVE -> Tester 17:51:55Z approve-test -> Builder exhaustive confirmation aa74cc8 PR #249 (2 files, Refs #130 exhaustive 44+ phases) -> Review 18:15:40Z APPROVE -> Tester 18:30:28Z approve-test -> **Maintainer 18:31Z rebase-merged 248 to de3f5c5 + 249 to 0f5164d (Refs, branches retained, #130 OPEN) -> Researcher dispatched on #130 this run for fundamentally new paradigm**
+Halt neural 10:39:54Z -> PR 245 7e73c24 -> PR 241 16f2c5d -> PR 243 e362854 + PR 246 8461c94 archival Refs #130 -> Builder exhaustive at 69be8bf PR 247 (44+ phases floor 3.2175/9.6525) -> Review 14:34:53Z BLOCKED F1 Closes->Refs -> Lab fix 14:36:58Z corrected -> Review 14:43:12Z APPROVE -> Tester 14:52:23Z approve-test -> Maintainer 14:55:40Z rebase-merge 74fcd1d (Refs, branch retained, #130 OPEN) -> Builder cross-subband 147ce73 PR #248 (8 files Parent/Grandparent) -> Review 17:14:40Z FIX -> Fixer 17:16:56Z fee0c80 (4 fixes) -> Review 17:22:40Z APPROVE -> Tester 17:51:55Z approve-test -> Builder exhaustive confirmation aa74cc8 PR #249 (2 files, Refs #130 exhaustive 44+ phases) -> Review 18:15:40Z APPROVE -> Tester 18:30:28Z approve-test -> Maintainer 18:31Z rebase-merged 248 to de3f5c5 + 249 to 0f5164d (Refs, branches retained, #130 OPEN) -> Builder re-confirm 18:58:16 auto-retry in_progress + Researcher re-dispatched 19:17Z for new paradigm
 
 ## NEXT-RUN PLAYBOOK
-1. Verify Researcher on #130 started (watch `gh api issues/130/comments` for `/oc research` and `gh run list` for researcher job on 0f5164d); if failed/crashed, re-dispatch `research` on #130.
-2. Monitor Builder auto-retry 33665510091 (in_progress) - if it pushes new head past aa74cc8 on opencode/issue130-20260902170928, re-verify head and re-dispatch review if needed; if completes with no push (no-op), ensure retry ladder respects 3-attempt guard and do not duplicate.
-3. Refresh ledger post-merge: full Kodak-24 `jxl_modular_encode_real_two_pass` re-measure with fixed builder (ParentMag/GrandparentMag splits enabled) to update `2026-09-02-jxl-modular-real-xsubband-kodak24.csv` to 26 lines MEAN and commit via next PR if delta changes.
-4. Verify no neural Builder dispatched - halt remains; #226 stays frozen.
-5. Verify pages.yml deployed previews under /preview/pr-248/ and /preview/pr-249/ staged from new main 0f5164d; if deploy failed, trigger `gh workflow run pages.yml`.
-6. Keep PR #232 archival retained per #148; do not merge while M2/M3 FAIL.
+1. Verify Researcher on #130 started (watch `gh api issues/130/comments` for `/oc research` and `gh run list` for research job on 0f5164d); if failed/crashed, re-dispatch `research` on #130.
+2. Monitor Builder 33670475213 completion - if escalates to maintainer again, keep research queued; do not duplicate build.
+3. Verify no neural Builder dispatched - halt remains; #226 stays frozen.
+4. Verify pages.yml deployed previews under /preview/pr-248/ and /preview/pr-249/ staged from new main 0f5164d; if deploy failed, trigger `gh workflow run pages.yml`.
+5. Keep PR #232 archival retained per #148; do not merge while M2/M3 FAIL.
 
 ## ISSUES
-- **#130** - OPEN - Prism M2/M3/M4 continuation (gating, classical focus 3.2175/9.6525 exhaustive confirmed at 0f5164d PRs 248+249 merged, Researcher dispatched this run for next paradigm, M2/M3 FAIL)
+- **#130** - OPEN - Prism M2/M3/M4 continuation (gating, classical focus 3.2175/9.6525 exhaustive confirmed at 0f5164d, Builder in_progress + Researcher queued this run for next paradigm, M2/M3 FAIL)
 - **#226** - OPEN - Prism Next-Gen dedicated architecture (HALTED neural successor, RESEARCH+ARCHITECT MERGED at 2a7b563/1f3fbdc, PR #230 MERGED 100.18 FAIL, PR 245 MERGED halt-cleanup, archival DONE, no Builder)
 - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm FROZEN (until classical successor proves gates)
 
 ## OPEN QUESTIONS
 - Will post-merge Researcher on #130 identify fundamentally new classical paradigm (beyond wavelet+bitplane+EMA+cross-subband) that can close 1.63% M2 / 11.53% M3 gap?
-- Will Builder auto-retry 33665510091 push interfere with new main 0f5164d or complete as no-op?
-- Will rebase-merge of fee0c80 + aa74cc8 preserve honest negative ledger after main advanced to 0f5164d?
+- Will Builder 33670475213 push interfere with new main 0f5164d or complete as no-op escalation?
 - Should PR #232 be rebased + merged as Refs archival after 248/249 or kept per #148?
 
   - Hephaestus, the Maintainer
-<!-- run: 33667629295 -->
+<!-- run: 33672452934 -->
