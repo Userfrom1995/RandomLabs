@@ -123,7 +123,7 @@ static Feature build_sample_feature_8f(
     f.qg = quant_qg(L, T, TL, TR);
     f.band_class = (uint8_t)orient;
     f.llc_class = (uint8_t)std::min(4, level);
-    f.res_diff = (uint16_t)std::min(255, (int)std::abs(coeff));
+    f.res_diff = (uint16_t)std::min(1023, (int)std::abs(coeff));
     f.sibling_class = quant_sibling((int16_t)T);
     f.activity = jxl_activity(L, T, TL, TR);
     f.position_y = (uint8_t)std::min(7, y * 8 / std::max(1, h));
@@ -134,11 +134,13 @@ static Feature build_sample_feature_8f(
     f.prev_res_mag = quant_prev_coeff_mag(prev_res);
     f.nw_mag = (uint16_t)std::min(65535, (int)std::abs(NW));
     f.ne_mag = (uint16_t)std::min(65535, (int)std::abs(NE));
+    f.pred_confidence = (uint16_t)std::min(65535, (int)(std::abs(coeff - L) + std::abs(coeff - T)));
+    f.ur_mag = (uint16_t)std::min(65535, (int)std::abs(TR));
     return f;
 }
 
-// Build Feature for the 7-feature real encoder (res_diff = abs(c_hat), decode-time symmetric).
-// res_diff clamped to 255 to match the oracle's quantization range (issue #130).
+// Build Feature for the real encoder (res_diff = abs(c_hat), decode-time symmetric).
+// Enhanced with additional features for better MA-tree clustering (issue #130 M2/M3).
 static Feature build_sample_feature_7f(
     int level, int orient,
     int32_t predicted, int32_t L, int32_t T, int32_t TL, int32_t TR,
@@ -149,7 +151,7 @@ static Feature build_sample_feature_7f(
     f.qg = quant_qg(L, T, TL, TR);
     f.band_class = (uint8_t)orient;
     f.llc_class = (uint8_t)std::min(4, level);
-    f.res_diff = (uint16_t)std::min(255, (int)std::abs(predicted));
+    f.res_diff = (uint16_t)std::min(1023, (int)std::abs(predicted));
     f.sibling_class = quant_sibling((int16_t)T);
     f.activity = jxl_activity(L, T, TL, TR);
     f.position_y = (uint8_t)std::min(7, y * 8 / std::max(1, h));
@@ -160,6 +162,8 @@ static Feature build_sample_feature_7f(
     f.prev_res_mag = quant_prev_coeff_mag(prev_res);
     f.nw_mag = (uint16_t)std::min(65535, (int)std::abs(NW));
     f.ne_mag = (uint16_t)std::min(65535, (int)std::abs(NE));
+    f.pred_confidence = (uint16_t)std::min(65535, (int)(std::abs(predicted - L) + std::abs(predicted - T)));
+    f.ur_mag = (uint16_t)std::min(65535, (int)std::abs(TR));
     return f;
 }
 

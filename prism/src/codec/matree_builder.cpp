@@ -120,6 +120,8 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
         case PropId::PrevResMag: return f.prev_res_mag < (uint8_t)thr;
         case PropId::NWMag: return f.nw_mag < (uint16_t)thr;
         case PropId::NEMag: return f.ne_mag < (uint16_t)thr;
+        case PropId::PredConfidence: return f.pred_confidence < (uint16_t)thr;
+        case PropId::URMag: return f.ur_mag < (uint16_t)thr;
     }
     return false;
 }
@@ -141,6 +143,8 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
         case PropId::PrevResMag: return f.prev_res_mag;
         case PropId::NWMag: return f.nw_mag;
         case PropId::NEMag: return f.ne_mag;
+        case PropId::PredConfidence: return f.pred_confidence;
+        case PropId::URMag: return f.ur_mag;
     }
     return 0;
 }
@@ -225,6 +229,8 @@ MATree build_matree_greedy(const std::vector<Feature>& feats,
             push_quantile_cands(cands, PropId::PrevResMag, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::NWMag, feats, nodes[ni].idxs);
             push_quantile_cands(cands, PropId::NEMag, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::PredConfidence, feats, nodes[ni].idxs);
+            push_quantile_cands(cands, PropId::URMag, feats, nodes[ni].idxs);
             for (auto cc : cands) {
                 std::vector<size_t> left, right;
                 left.reserve(nodes[ni].idxs.size()/2);

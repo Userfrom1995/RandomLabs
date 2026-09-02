@@ -21,7 +21,9 @@ enum class PropId : uint8_t {
     LeftMag = 10,
     PrevResMag = 11,
     NWMag = 12,
-    NEMag = 13
+    NEMag = 13,
+    PredConfidence = 14,
+    URMag = 15
 };
 
 struct MANode {

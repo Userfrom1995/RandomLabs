@@ -35,6 +35,8 @@ uint16_t MATree::eval(const Feature& f) const {
             case PropId::PrevResMag: go_left = f.prev_res_mag < (uint8_t)nd.threshold; break;
             case PropId::NWMag: go_left = f.nw_mag < nd.threshold; break;
             case PropId::NEMag: go_left = f.ne_mag < nd.threshold; break;
+            case PropId::PredConfidence: go_left = f.pred_confidence < nd.threshold; break;
+            case PropId::URMag: go_left = f.ur_mag < nd.threshold; break;
         }
         // In pre-order with implicit children, left is idx+1, right is left subtree size +1
         // For single-leaf or linear chain, we can compute.

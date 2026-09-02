@@ -64,6 +64,8 @@ struct Feature {
     u8  prev_res_mag = 0;  // quantized |prev residual in same subband| 0..7 (PropId 11)
     u16 nw_mag = 0;        // abs(NW) in full u16 range (PropId 12)
     u16 ne_mag = 0;        // abs(NE) in full u16 range (PropId 13)
+    u16 pred_confidence = 0; // abs(c_hat - L) + abs(c_hat - T), prediction disagreement (PropId 14)
+    u16 ur_mag = 0;        // abs(UR) in full u16 range (PropId 15)
 };
 
 struct DecodeError : std::runtime_error {
