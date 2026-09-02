@@ -519,7 +519,7 @@ jobs:
               fi
             fi
             comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" --jq '.' 2>/dev/null || echo "[]")
-            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|startswith("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
+            approve_test_time=$(echo "$comments" | jq -r '[.[] | select(.user.login=="github-actions[bot]" and (.body|contains("/oc approve-test")))] | last | .created_at // empty' 2>/dev/null || echo "")
             if [ -z "$approve_test_time" ]; then
               echo "PR #$pr has no /oc approve-test; not merge-ready"
               continue
@@ -535,8 +535,9 @@ jobs:
               echo "PR #$pr not MERGEABLE ($mergeable); skipping"
               continue
             fi
-            echo "Attempting PAT-backed rebase merge for PR #$pr (workflow-touching, approved)"
-            if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase --delete-branch 2>&1; then
+            echo "Attempting PAT-backed merge for PR #$pr (workflow-touching, approved)"
+            if gh pr merge "$pr" --repo "${{ github.repository }}" --rebase 2>&1 || \
+               gh pr merge "$pr" --repo "${{ github.repository }}" --merge 2>&1; then
               echo "Successfully merged PR #$pr via PAT"
               git fetch origin main --quiet 2>/dev/null || true
             else
