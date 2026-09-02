@@ -41,27 +41,23 @@ The gap from our 13.47 bpp to the literature 2.8 bpp requires:
 
 This is a multi-day, multi-run project, not completable in a single build session.
 
-## What to do next (continuation plan)
+## Blockers (cannot proceed further in this environment)
 
-### Phase A: Full training infrastructure (1-2 runs)
-1. Extend `fast_neural_train.py` to support:
-   - Multi-image batch loading with padding
-   - Gradient accumulation for larger effective batch size
-   - Checkpoint saving/loading
-   - Learning rate warmup + cosine schedule
-2. Train on a large corpus (DIV2K, Flickr30K, or Kodak augmented with heavy transforms)
-3. Train for 500+ epochs with N=192, M=192 on GPU (if available)
+1. **No GPU**: CPU-only training makes large-model training infeasible within build timeouts
+2. **Only 24 training images**: Literature uses Flickr30K (24,000+ images); we need ~1000x more data
+3. **Model too small**: N=64 (391K params) vs N=192 needed (4.7M params, 12x more compute)
+4. **Training too short**: 150 epochs vs 5000+ needed
 
-### Phase B: Export + C++ integration (1-2 runs)
-1. Export trained float32 weights to int16 Q format
-2. Upgrade `neural_codec.cpp` to use int16 activations (not int8)
-3. Byte-exact round-trip verification
-4. bench_gate.sh dual-unit check
+## Handoff for next run / Owner decision
 
-### Phase C: Measurement + gates (1 run)
-1. Measure on full real Kodak-24
-2. If passes M2/M3: update CSV, open PR, hand off to Reviewer
-3. If fails: diagnose and iterate
+The neural codec IS the correct architecture (literature proves 2.8-3.0 bpp on Kodak lossless).
+But training it requires:
+- GPU machine with CUDA
+- Large training corpus (DIV2K / Flickr30K / LSDIR)
+- 5000+ epochs with N=192, M=192
+- int16 inference engine (not int8)
+
+**Owner decision needed**: Either (a) provide GPU training environment, or (b) accept the honest ceiling and close #130, or (c) authorize a different fundamental approach.
 
 ## Binding gates (restated)
 - M2: summed < 9.498 AND per-sample < 3.166
