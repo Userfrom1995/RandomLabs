@@ -52,9 +52,9 @@ The lab's honest best remains X6b = 3.2175 bpp per-sample / 9.6525 bpp summed:
 ## Ideas coverage
 
 This build extends the existing `ideas/2026-09-01-neural-codec-e1.md` and
-`ideas/2026-09-01-neural-codec-e1-builder.md` on main. No separate ideas
-entry is needed; this PR is an incremental entropy-measurement ledger for
-the E1 neural codec project.
+`ideas/2026-09-01-neural-codec-e1-builder.md` on main. The PR-specific
+entropy measurement ledger is documented in
+`ideas/2026-09-01-neural-codec-entropy-ledger.md`.
 
 ## Refs #130
 

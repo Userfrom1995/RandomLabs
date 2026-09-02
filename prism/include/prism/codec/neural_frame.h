@@ -9,6 +9,9 @@ namespace prism::codec {
 // Neural codec filter ID (distinct from wavelet filter IDs 0-10).
 constexpr uint8_t NEURAL_FILTER_ID = 20;
 
+// Payload overhead: 1 (version) + 4x4 (dims) + 3x4 (stream lengths) = 29 bytes.
+constexpr size_t NEURAL_PAYLOAD_OVERHEAD = 29;
+
 struct NeuralStreamSizes {
     size_t yq_stream_size = 0;
     size_t zq_stream_size = 0;
