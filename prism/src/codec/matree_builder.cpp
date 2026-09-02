@@ -120,6 +120,8 @@ inline bool eval_prop(const Feature& f, PropId p, uint16_t thr) {
         case PropId::PrevResMag: return f.prev_res_mag < (uint8_t)thr;
         case PropId::NWMag: return f.nw_mag < (uint16_t)thr;
         case PropId::NEMag: return f.ne_mag < (uint16_t)thr;
+        case PropId::ParentMag: return f.parent_mag < (uint8_t)thr;
+        case PropId::GrandparentMag: return f.grandparent_mag < (uint8_t)thr;
     }
     return false;
 }
@@ -141,6 +143,8 @@ inline uint32_t prop_value(const Feature& f, PropId p) {
         case PropId::PrevResMag: return f.prev_res_mag;
         case PropId::NWMag: return f.nw_mag;
         case PropId::NEMag: return f.ne_mag;
+        case PropId::ParentMag: return f.parent_mag;
+        case PropId::GrandparentMag: return f.grandparent_mag;
     }
     return 0;
 }

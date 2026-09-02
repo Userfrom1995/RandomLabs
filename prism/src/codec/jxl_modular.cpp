@@ -113,11 +113,13 @@ static size_t header_overhead_bytes(
 }
 
 // Build Feature for the 8-feature theoretical estimator (res_diff = actual residual).
+// Cross-subband features: parent_mag and grandparent_mag from coarser wavelet levels.
 static Feature build_sample_feature_8f(
     int level, int orient,
     int32_t coeff, int32_t L, int32_t T, int32_t TL, int32_t TR,
     int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res,
-    int32_t NW, int32_t NE) {
+    int32_t NW, int32_t NE,
+    uint8_t parent_mag = 0, uint8_t grandparent_mag = 0) {
 
     Feature f;
     f.qg = quant_qg(L, T, TL, TR);
@@ -134,16 +136,20 @@ static Feature build_sample_feature_8f(
     f.prev_res_mag = quant_prev_coeff_mag(prev_res);
     f.nw_mag = (uint16_t)std::min(65535, (int)std::abs(NW));
     f.ne_mag = (uint16_t)std::min(65535, (int)std::abs(NE));
+    f.parent_mag = parent_mag;
+    f.grandparent_mag = grandparent_mag;
     return f;
 }
 
 // Build Feature for the 7-feature real encoder (res_diff = abs(c_hat), decode-time symmetric).
 // res_diff clamped to 255 to match the oracle's quantization range (issue #130).
+// Cross-subband features: parent_mag and grandparent_mag from coarser wavelet levels.
 static Feature build_sample_feature_7f(
     int level, int orient,
     int32_t predicted, int32_t L, int32_t T, int32_t TL, int32_t TR,
     int x, int y, int w, int h, int32_t prev_coeff, int32_t prev_res,
-    int32_t NW, int32_t NE) {
+    int32_t NW, int32_t NE,
+    uint8_t parent_mag = 0, uint8_t grandparent_mag = 0) {
 
     Feature f;
     f.qg = quant_qg(L, T, TL, TR);
@@ -160,6 +166,8 @@ static Feature build_sample_feature_7f(
     f.prev_res_mag = quant_prev_coeff_mag(prev_res);
     f.nw_mag = (uint16_t)std::min(65535, (int)std::abs(NW));
     f.ne_mag = (uint16_t)std::min(65535, (int)std::abs(NE));
+    f.parent_mag = parent_mag;
+    f.grandparent_mag = grandparent_mag;
     return f;
 }
 
@@ -274,6 +282,8 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
 
         for (size_t si = 0; si < R.size(); ++si) {
             const auto& s = R[si];
+            int pidx = parent[si];
+            int gidx = (pidx >= 0) ? parent[pidx] : -1;
             for (int y = 0; y < s.h; ++y) {
                 for (int x = 0; x < s.w; ++x) {
                     int32_t e = s.coeffs[(size_t)y * s.w + x];
@@ -296,11 +306,29 @@ JXLModularResult jxl_modular_encode(const Raster& raster, int k_target) {
                     int32_t NW = (x > 0 && y > 0) ? s.coeffs[(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t NE = (y > 0 && x + 1 < s.w) ? s.coeffs[(size_t)(y - 1) * s.w + x + 1] : 0;
 
+                    // Cross-subband features: parent and grandparent magnitude
+                    uint8_t pmag = 0;
+                    if (pidx >= 0) {
+                        int pcx = x >> 1, pcy = y >> 1;
+                        if (pcx < R[pidx].w && pcy < R[pidx].h) {
+                            int32_t pv = std::abs(R[pidx].coeffs[(size_t)pcy * R[pidx].w + pcx]);
+                            pmag = (uint8_t)std::min(7, (pv == 0) ? 0 : (31 - __builtin_clz((uint32_t)pv)));
+                        }
+                    }
+                    uint8_t gmag = 0;
+                    if (gidx >= 0) {
+                        int gcx = x >> 2, gcy = y >> 2;
+                        if (gcx < R[gidx].w && gcy < R[gidx].h) {
+                            int32_t gv = std::abs(R[gidx].coeffs[(size_t)gcy * R[gidx].w + gcx]);
+                            gmag = (uint8_t)std::min(7, (gv == 0) ? 0 : (31 - __builtin_clz((uint32_t)gv)));
+                        }
+                    }
+
                     all_features.push_back(build_sample_feature_8f(
                         s.level, (int)s.orient,
                         s.coeffs[(size_t)y * s.w + x],
                         L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res,
-                        NW, NE));
+                        NW, NE, pmag, gmag));
                 }
             }
         }
@@ -731,11 +759,31 @@ JXLModularResult jxl_modular_encode_real(const Raster& raster, int k_target, JXL
                     int32_t NW = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t NE = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
 
+                    // Cross-subband: parent and grandparent magnitude (coarse-to-fine)
+                    uint8_t pmag = 0;
+                    int pidx = pd.parent[si];
+                    if (pidx >= 0) {
+                        int pcx = x >> 1, pcy = y >> 1;
+                        if (pcx < pd.subs[pidx].w && pcy < pd.subs[pidx].h) {
+                            int32_t pv = std::abs(recon[pidx][(size_t)pcy * pd.subs[pidx].w + pcx]);
+                            pmag = (uint8_t)std::min(7, (pv == 0) ? 0 : (31 - __builtin_clz((uint32_t)pv)));
+                        }
+                    }
+                    uint8_t gmag = 0;
+                    int gidx = (pidx >= 0) ? pd.parent[pidx] : -1;
+                    if (gidx >= 0) {
+                        int gcx = x >> 2, gcy = y >> 2;
+                        if (gcx < pd.subs[gidx].w && gcy < pd.subs[gidx].h) {
+                            int32_t gv = std::abs(recon[gidx][(size_t)gcy * pd.subs[gidx].w + gcx]);
+                            gmag = (uint8_t)std::min(7, (gv == 0) ? 0 : (31 - __builtin_clz((uint32_t)gv)));
+                        }
+                    }
+
                     pd.features.push_back(build_sample_feature_7f(
                         s.level, (int)s.orient,
                         c_hat,
                         L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si],
-                        NW, NE));
+                        NW, NE, pmag, gmag));
 
                     // Update recon and track prev residual
                     recon[si][(size_t)y * s.w + x] = c_hat + e;
@@ -951,11 +999,31 @@ JXLModularResult jxl_modular_encode_real_two_pass(const Raster& raster, int k_ta
                     int32_t NW = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t NE = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
 
+                    // Cross-subband: parent and grandparent magnitude (coarse-to-fine)
+                    uint8_t pmag2 = 0;
+                    int pidx2 = pd.parent[si];
+                    if (pidx2 >= 0) {
+                        int pcx2 = x >> 1, pcy2 = y >> 1;
+                        if (pcx2 < pd.subs[pidx2].w && pcy2 < pd.subs[pidx2].h) {
+                            int32_t pv2 = std::abs(recon[pidx2][(size_t)pcy2 * pd.subs[pidx2].w + pcx2]);
+                            pmag2 = (uint8_t)std::min(7, (pv2 == 0) ? 0 : (31 - __builtin_clz((uint32_t)pv2)));
+                        }
+                    }
+                    uint8_t gmag2 = 0;
+                    int gidx2 = (pidx2 >= 0) ? pd.parent[pidx2] : -1;
+                    if (gidx2 >= 0) {
+                        int gcx2 = x >> 2, gcy2 = y >> 2;
+                        if (gcx2 < pd.subs[gidx2].w && gcy2 < pd.subs[gidx2].h) {
+                            int32_t gv2 = std::abs(recon[gidx2][(size_t)gcy2 * pd.subs[gidx2].w + gcx2]);
+                            gmag2 = (uint8_t)std::min(7, (gv2 == 0) ? 0 : (31 - __builtin_clz((uint32_t)gv2)));
+                        }
+                    }
+
                     pd.features.push_back(build_sample_feature_7f(
                         s.level, (int)s.orient,
                         c_hat,
                         L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si],
-                        NW, NE));
+                        NW, NE, pmag2, gmag2));
 
                     recon[si][(size_t)y * s.w + x] = c_hat + e;
                     prev_res_per_sub[si] = e;
@@ -1181,9 +1249,29 @@ Raster jxl_modular_decode_real(const uint8_t* data, size_t len) {
                     int32_t NW = (x > 0 && y > 0) ? recon[si][(size_t)(y - 1) * s.w + x - 1] : 0;
                     int32_t NE = (y > 0 && x + 1 < s.w) ? recon[si][(size_t)(y - 1) * s.w + x + 1] : 0;
 
+                    // Cross-subband: parent and grandparent magnitude (decode mirrors encoder)
+                    uint8_t pmag_d = 0;
+                    int pidx_d = parent[si];
+                    if (pidx_d >= 0) {
+                        int pcx_d = x >> 1, pcy_d = y >> 1;
+                        if (pcx_d < subs[pidx_d].w && pcy_d < subs[pidx_d].h) {
+                            int32_t pv_d = std::abs(recon[pidx_d][(size_t)pcy_d * subs[pidx_d].w + pcx_d]);
+                            pmag_d = (uint8_t)std::min(7, (pv_d == 0) ? 0 : (31 - __builtin_clz((uint32_t)pv_d)));
+                        }
+                    }
+                    uint8_t gmag_d = 0;
+                    int gidx_d = (pidx_d >= 0) ? parent[pidx_d] : -1;
+                    if (gidx_d >= 0) {
+                        int gcx_d = x >> 2, gcy_d = y >> 2;
+                        if (gcx_d < subs[gidx_d].w && gcy_d < subs[gidx_d].h) {
+                            int32_t gv_d = std::abs(recon[gidx_d][(size_t)gcy_d * subs[gidx_d].w + gcx_d]);
+                            gmag_d = (uint8_t)std::min(7, (gv_d == 0) ? 0 : (31 - __builtin_clz((uint32_t)gv_d)));
+                        }
+                    }
+
                     Feature feat = build_sample_feature_7f(
                         s.level, (int)s.orient, c_hat, L, T, TL, TR, x, y, s.w, s.h, prev_coeff, prev_res_per_sub[si],
-                        NW, NE);
+                        NW, NE, pmag_d, gmag_d);
                     uint16_t cid = tree.eval(feat);
                     if (cid >= cdfs.size()) cid = 0;
 
