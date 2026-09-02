@@ -1,7 +1,7 @@
 # Progress: Neural Codec Training for Prism #130 (issue #130)
 
 - **Branch:** `opencode/issue130-neural-codec-train`
-- **Status:** in-progress
+- **Status:** MEASURED NEGATIVE - CPU training insufficient for M2/M3; escalate for GPU training infrastructure
 - **Date:** 2026-09-02 (Builder run, `/oc build` trigger)
 - **Precedent:** All single-pipeline mechanism classes exhausted (X6b floor 3.2175/9.6525).
   JXL-modular ceiling 3.291/9.872. Oracle 3.161/9.483. Neural codec architecture built
@@ -12,35 +12,89 @@
 - M2: summed < 9.498 AND per-sample < 3.166 (vs real WebP m6 3.166)
 - M3: summed < 8.655 AND per-sample < 2.885 (vs real cjxl -d0 -e9 2.885)
 
-## This run
+## Training results (this run)
 
-### Step 1: Generate training data
-- [ ] Run gen_training_data.py to produce ~10K 256x256 uint16 PPM patches
-- [ ] Also use Kodak-24 images (leave-one-out training) for photorealistic content
+### Setup
+- Generated 1132 synthetic 256x256 patches (Perlin noise, Voronoi, fractal, gradients)
+- Used 24 Kodak PPMs as additional training images
+- Extracted 300 random 128x128 crops per epoch with augmentation
+- CPU-only training (PyTorch 2.14.0, 4 cores)
 
-### Step 2: Train neural codec
-- [ ] Phase 1: Pre-train g_a + g_s on MSE reconstruction (h_a, h_s frozen)
-- [ ] Phase 2: Train h_a + h_s on entropy model (g_a, g_s frozen)
-- [ ] Phase 3: Joint fine-tune all networks with L = MSE + lambda * H(Y_q)
+### Phase 1: MSE reconstruction (15 epochs, lr=5e-4, 300 crops x batch 4)
+- Started at PSNR 20.2 dB, reached 23.6 dB
+- Loss: 0.0478 -> 0.0091
+- ~31s per epoch
 
-### Step 3: Export weights
-- [ ] Run export_weights.py to produce int16 Q=1024 baked weights
-- [ ] Regenerate neural_codec_data.inc with new weights
+### Phase 3: Joint rate-distortion (15 epochs, lambda=0.5, lr=2e-4)
+- PSNR: 23.9 -> 24.4 dB
+- Entropy: 0.85 -> 0.80 bits/element
+- Loss: 0.484 -> 0.419
 
-### Step 4: Build + test
-- [ ] Build C++ project with cmake
-- [ ] Run unit tests (258 must pass)
-- [ ] Byte-exact roundtrip on all 24 Kodak images
+### Phase 1 continued: MSE (11+ epochs before timeout, lr=1e-3, 500 crops)
+- PSNR plateaued at ~23-24 dB (oscillating, not converging)
 
-### Step 5: Measure
-- [ ] bench_gate.sh on Kodak-24
-- [ ] CSV with both units (summed and per-sample)
-- [ ] Gate check: M2 and M3
+### Eval on Kodak-24 (Python float32 Gaussian entropy model)
+- **Per-sample: 18.27 bpp (FAIL, needs < 3.166 for M2)**
+- Summed: 438.56 bpp (FAIL, needs < 9.498 for M2)
+- Average MSE: 0.003477 (PSNR ~24.6 dB)
+- Latent entropy: ~0.80 bits/element (decent)
+- Residual dominates: ~15.5 bits/element (reconstruction too poor)
+
+## Root cause of failure
+
+Training a 1.8M-parameter neural codec from scratch on CPU with ~500 small crops
+is fundamentally insufficient:
+
+1. **PSNR ceiling at 24 dB**: The synthesis network hasn't learned to reconstruct
+   images well enough. Residual R = X - g_s(Y_q) is huge, dominating total bpp.
+2. **Data starvation**: Real neural codecs (Ballé, Minnen et al.) are trained on
+   DIV2K+Flickr2K (~30K images, millions of 256x256 patches). We have 500 crops.
+3. **Compute starvation**: Real training runs for millions of iterations on GPU.
+   We get ~50 CPU epochs total (~25 minutes of training).
+4. **The 18.27 bpp vs 3.166 target**: 5.8x gap. Even with perfect entropy coding
+   of the latent (0 bpp), the residual alone exceeds M2.
+
+## What's needed for M2/M3
+
+The neural codec paradigm IS the right path (literature achieves 2.8-3.0 bpp on
+Kodak lossless). But it requires:
+1. **GPU training** (CUDA, at minimum RTX 3080-class)
+2. **Large corpus** (DIV2K + Flickr2K, ~30K images, millions of patches)
+3. **Extended training** (500K+ iterations, ~200 epochs on full dataset)
+4. **Lambda tuning** (rate-distortion trade-off for lossless target)
+
+This is a multi-day GPU effort, not a CI runner task.
+
+## Saved artifacts
+- `/tmp/neural_weights/p1_final.pt`: Phase 1 checkpoint (PSNR 23.6 dB, 7.2 MB)
+- `/tmp/neural_weights/p3_final.pt`: Phase 3 checkpoint (PSNR 24.4 dB, 7.2 MB)
+- `/tmp/neural_weights/kodak24_eval.csv`: Kodak-24 evaluation results
 
 ## Honest assessment
-The neural codec is the ONLY remaining paradigm that can close the 1.6% gap to M2
-and 10.3% gap to M3. Literature shows Ballé-style hyperprior achieves 2.8-3.0 bpp
-on Kodak lossless. Training requires significant epochs on CPU but PyTorch is now
-available in this environment.
+
+ALL mechanism classes in the single-pipeline design space are exhausted AND the
+neural codec cannot be trained to parity within CI infrastructure. The honest
+state of the art for this lab is:
+
+| Configuration | Per-sample bpp | Summed bpp | M2 | M3 |
+|---|---|---|---|---|
+| X6b floor (wavelet+bitplane+EMA) | 3.2175 | 9.6525 | FAIL (+1.6%) | FAIL (+10.3%) |
+| JXL-modular real encoder | 3.290 | 9.870 | FAIL (+3.9%) | FAIL (+14.1%) |
+| Neural codec (CPU-trained) | 18.27 | 438.56 | FAIL | FAIL |
+| Oracle (abs(actual_coeff)) | 3.161 | 9.483 | BARELY PASS | FAIL (+9.6%) |
+| M2 gate | < 3.166 | < 9.498 | TARGET | - |
+| M3 gate | < 2.885 | < 8.655 | - | TARGET |
+
+The gap to M2 is structural: the oracle barely passes (3.161 vs 3.166), and the
+only path to close it is a trained neural codec on GPU infrastructure.
+
+## Escalation
+
+Per builder.md: `{"action":"maintainer"}` - the neural codec is the ONLY remaining
+paradigm, but training requires GPU infrastructure that does not exist in CI.
+The lab needs either:
+1. GPU training capability added to CI, OR
+2. External GPU training run (DIV2K+Flickr2K, ~200 epochs) with weight export, OR
+3. Owner-directed closure at achieved level (3.2175/9.6525, -8.21% vs baseline)
 
 - the Builder
