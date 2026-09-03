@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tabula - from-scratch spreadsheet engine</title>
+<meta name="description" content="Tabula: a from-scratch spreadsheet engine in Swift. Formula graph, topological recalc, live grid." />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="stylesheet" href="web/styles.css" />
+</head>
+<body>
+<header>
+  <h1>Tabula</h1>
+  <p>from-scratch spreadsheet engine in Swift - dependency graph you can inspect</p>
+  <span id="core-badge" class="badge" title="WASM core status">stub snapshot - WASM proof pending</span>
+  <a class="back" href="../">Back to Random</a>
+</header>
+<div class="toolbar" role="toolbar" aria-label="Formula bar">
+  <label for="formula">fx</label>
+  <input id="formula" type="text" value="=41+1" readonly
+         title="Editing wires to Core in Phase 4. Phase 0 shell is read-only." />
+  <span id="addr">A1</span>
+</div>
+<main class="layout">
+  <section class="grid-wrap">
+    <canvas id="grid" width="960" height="560" aria-label="Spreadsheet grid"></canvas>
+    <p class="hint">Phase 0 shell: renders one <code>DirtyBatch</code> (seq, ranges, cells) through the
+    documented bridge shape. Live WASM core lands with the toolchain proof (see
+    <a href="docs/architecture.md">architecture</a>).</p>
+  </section>
+  <aside class="panel" aria-label="Inspector">
+    <h3>Inspector</h3>
+    <div id="inspector" class="mono">Select a cell to trace precedents and dependents.
+Phase 4 wires this to the Core graph metadata (topological rank, cycle path).</div>
+    <h3>Batch</h3>
+    <div id="batch" class="mono">waiting for first snapshot...</div>
+  </aside>
+</main>
+<footer>
+  <span id="status">booting...</span>
+  <span>Tabula Phase 0 - issue #282</span>
+</footer>
+<script src="web/app.js"></script>
+</body>
+</html>

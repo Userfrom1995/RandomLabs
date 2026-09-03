@@ -1,0 +1,10 @@
+{
+  "name": "Tabula - from-scratch spreadsheet engine",
+  "short_name": "Tabula",
+  "start_url": "/tabula/",
+  "scope": "/tabula/",
+  "display": "standalone",
+  "background_color": "#0c1222",
+  "theme_color": "#0c1222",
+  "description": "From-scratch spreadsheet engine in Swift: formula graph, topological recalc, live grid."
+}
