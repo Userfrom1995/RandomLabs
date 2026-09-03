@@ -133,8 +133,14 @@ extension Expr {
             let left: String
             let right: String
             if op == .pow {
-                // Right associative: `2^3^2` = `2^(3^2)`.
-                left = l.printed(minPrec: p + 1)
+                // Right associative: `2^3^2` = `2^(3^2)`. A unary base needs
+                // explicit parens: `(-3)^2` differs from `-3^2` (= -(3^2)),
+                // and the minPrec rule alone would print it bare.
+                if case .unary = l {
+                    left = "(" + l.printed(minPrec: 0) + ")"
+                } else {
+                    left = l.printed(minPrec: p + 1)
+                }
                 right = r.printed(minPrec: p)
             } else if p == 1 {
                 // Comparisons fold left; `a<b<c` reprints bare, reparses same.
