@@ -159,6 +159,19 @@ after 12 complete images; all 12 nets bit-identical to the committed
   the wins are thin and cancel against P0's band wins in the sum. No
   buildable subband-mux encoder is opened; `Refs #130` only, never
   `Closes #130`.
-- [ ] Full-24 subband oracle aggregation + dual-unit gate eval
+
+## Independent corroboration (separate Builder run, same day, `opencode/issue130-20260903165911`)
+
+- A second Builder session independently re-measured the ENTIRE full-24 x
+  {P0, P2} program from scratch (own Release build, own shard dirs, same
+  `bench-subband` instrument, blend 0): all 48 encodes SELF-CHECK OK.
+- Byte comparison against this ledger's committed shard CSVs: **2304/2304
+  stream bytes identical** (384 rows x 3 shards x 2 paths, 0 mismatches).
+  Oracle recomputation: mux stream 11333176, wins P0 803/1152 + P2 349/1152,
+  3.20664/9.61993 - exact match on every aggregate.
+- Suite on the corroborating binary: 261/261 PASS (260 fast + R7 pinned
+  rejection, 670 s). `bench_gate.sh --self-check` PASS. Corpus 24/24 SHA OK.
+- The full-24 subband-oracle datum is therefore reproduced by two independent
+  binaries/runs with zero byte-level divergence. Mux closure stands confirmed.
 
 - the Builder
