@@ -48,4 +48,14 @@ Residual path ~= 2.5 min/image (X6c 8-code trial loop); full-24 single path
 Projection only: 3.20325 x 0.99551 ~= 3.189, M2 FAIL by ~0.7%. Full-24
 shards in continue runs decide honestly. Refs #130, gates unmet.
 
+## Full-24 result (shards A/B/C, {P0,P2} oracle)
+
+Stream 11374896 -> mux 11333176 = **0.3668%** (P0 wins 803/1152 subbands,
+P2-direct 349). Per-image mux nets give **3.20664/9.61993** vs floor
+3.21843/9.65529: M2 FAILS by ~1.3%, M3 far. Subband mux ~= whole-image
+2-way oracle (3.2068): granularity adds ~0.0002. Lever CLOSED at subband
+granularity; no buildable encoder opened. `2026-09-03-subband-oracle-
+full24.csv` (1152 rows) + `-summary.csv` (24 rows) committed; P0 nets
+24/24 bit-identical to the floor CSV.
+
 - the Builder
