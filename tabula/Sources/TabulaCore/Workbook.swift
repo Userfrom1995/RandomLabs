@@ -8,7 +8,8 @@
 /// single evaluation pass in emitted order, unemitted residue plus the
 /// DFS-tainted set evaluate to `#CYCLE!` with the recorded path kept for the
 /// inspector (`lastCyclePaths`).
-///
+import Foundation
+
 /// Structural edits (research 8.3) are implemented as one remap primitive:
 /// every stored ref is resolved to its old target, the target is moved by the
 /// edit (nil when deleted), and the authored coordinates are re-derived so
@@ -485,8 +486,11 @@ public struct Workbook: Sendable {
     }
 
     /// Move stored cells at/after `at` along `axis` by `delta`, shifting the
-    /// parse-time base of moved formulas together with their authored
-    /// coordinates so relative resolution is stable across the move.
+    /// parse-time base of moved formulas (and ONLY the base) so relative
+    /// resolution is invariant under the host's own move: with
+    /// `resolve = authored - base + host`, shifting base and host together
+    /// keeps the target fixed. Target tracking is the remap pass's job, which
+    /// shifts authored coordinates only. Dangling refs are frozen.
     mutating func shiftCells(sheet s: Int, axis: StructAxis, at: Int, delta: Int) {
         guard delta != 0 else { return }
         var next: [CellPos: Cell] = [:]
@@ -517,11 +521,21 @@ public struct Workbook: Sendable {
     }
 
     /// Shift the parse-time base of a moved formula's refs (host relocation).
+    /// Authored coordinates are untouched: the remap pass owns them. Range
+    /// endpoints shift their bases too, or resolution drifts after the move.
     func shiftHostCell(_ cell: Cell, axis: StructAxis, by d: Int) -> Cell {
         guard case .formula(let src, .some(let e), _) = cell.content else {
             return cell
         }
-        let mapped = e.mappingRefs { $0.shiftedHost(axis: axis, by: d) }
+        let mapped = e.mappingRefs(
+            ref: { $0.shiftedHost(axis: axis, by: d) },
+            range: {
+                RangeRef(
+                    lo: $0.lo.shiftedHost(axis: axis, by: d),
+                    hi: $0.hi.shiftedHost(axis: axis, by: d)
+                )
+            }
+        )
         if mapped == e { return cell }
         return Cell(content: .formula(source: src, expr: mapped, parsePos: nil))
     }
@@ -535,9 +549,8 @@ public struct Workbook: Sendable {
                 guard case .formula(let src, .some(let e), _) = cell.content
                 else { continue }
                 let host = Addr(sheet: s, col: pos.col, row: pos.row)
-                let mapped = e.mappingRefsWithRange(
-                    host: host, ref: { f($0, host) },
-                    range: { fR($0, host) }
+                let mapped = e.mappingRefs(
+                    ref: { f($0, host) }, range: { fR($0, host) }
                 )
                 if mapped != e {
                     sheets[s].cells[pos] = Cell(content: .formula(
@@ -574,12 +587,23 @@ public struct Workbook: Sendable {
     public static func translatePaste(
         _ e: Expr, dc: Int, dr: Int
     ) -> Expr {
-        e.mappingRefs {
-            var c = $0
-            if !c.colAbs { c.col += dc; c.baseCol += dc }
-            if !c.rowAbs { c.row += dr; c.baseRow += dr }
-            return c
-        }
+        e.mappingRefs(
+            ref: {
+                var c = $0
+                if !c.colAbs { c.col += dc; c.baseCol += dc }
+                if !c.rowAbs { c.row += dr; c.baseRow += dr }
+                return c
+            },
+            range: { rr in
+                func shifted(_ c: CellRef) -> CellRef {
+                    var m = c
+                    if !m.colAbs { m.col += dc; m.baseCol += dc }
+                    if !m.rowAbs { m.row += dr; m.baseRow += dr }
+                    return m
+                }
+                return RangeRef(lo: shifted(rr.lo), hi: shifted(rr.hi))
+            }
+        )
     }
 
     /// Preview a paste without committing: new source strings by destination.
@@ -710,66 +734,48 @@ public struct Workbook: Sendable {
 // MARK: - ref remapping primitives
 
 extension CellRef {
-    /// Host-relocation shift: base and authored move together on relative
-    /// axes so resolution is unchanged by the host's own move.
+    /// Host-relocation shift: ONLY the parse-time base moves on relative
+    /// axes, so `authored - base + host` is invariant under the host's own
+    /// move. Authored coordinates belong to the target-tracking remap pass.
+    /// Dangling refs are frozen (sticky `#REF!`, cleared only by undo).
     func shiftedHost(axis: StructAxis, by d: Int) -> CellRef {
+        if dangling { return self }
         var c = self
-        if axis == .col, !c.colAbs { c.col += d; c.baseCol += d }
-        if axis == .row, !c.rowAbs { c.row += d; c.baseRow += d }
+        if axis == .col, !c.colAbs { c.baseCol += d }
+        if axis == .row, !c.rowAbs { c.baseRow += d }
         return c
     }
 }
 
 extension Expr {
-    /// Map every `CellRef` (both endpoints of ranges) through `f`.
-    func mappingRefs(_ f: (CellRef) -> CellRef) -> Expr {
-        mappingRefsWithRange(host: nil, ref: { f($0) }, range: { $0 })
-    }
-
-    func mappingRefsWithRange(
-        host: Addr? = nil,
+    /// Map every `CellRef` (both endpoints of ranges) through `f`/`fR`.
+    /// Single primitive: callers pass both closures explicitly so overload
+    /// resolution can never self-recurse.
+    func mappingRefs(
         ref f: (CellRef) -> CellRef,
         range fR: (RangeRef) -> RangeRef
     ) -> Expr {
-        mappingRefsWithRange(
-            host: host, ref: { f($0) }, range: { fR($0) }
-        )
-    }
-
-    func mappingRefsWithRange(
-        host: Addr?,
-        ref f: (CellRef, Addr) -> CellRef,
-        range fR: (RangeRef, Addr) -> RangeRef
-    ) -> Expr {
-        let dummy = host ?? Addr(sheet: 0, col: 0, row: 0)
         switch self {
         case .num, .str, .bool, .name, .errLit:
             return self
         case .ref(let r):
-            return .ref(f(r, dummy))
+            return .ref(f(r))
         case .range(let rr):
-            return .range(fR(rr, dummy))
+            return .range(fR(rr))
         case .call(let fn, let args):
             return .call(fn, args.map {
-                $0.mappingRefsWithRange(host: host, ref: f, range: fR)
+                $0.mappingRefs(ref: f, range: fR)
             })
         case .unary(let op, let e):
-            return .unary(op, e.mappingRefsWithRange(
-                host: host, ref: f, range: fR
-            ))
+            return .unary(op, e.mappingRefs(ref: f, range: fR))
         case .binary(let op, let l, let r):
-            return .binary(op, l.mappingRefsWithRange(
-                host: host, ref: f, range: fR
-            ), r.mappingRefsWithRange(host: host, ref: f, range: fR))
+            return .binary(op, l.mappingRefs(ref: f, range: fR),
+                           r.mappingRefs(ref: f, range: fR))
         case .percent(let e):
-            return .percent(e.mappingRefsWithRange(
-                host: host, ref: f, range: fR
-            ))
+            return .percent(e.mappingRefs(ref: f, range: fR))
         case .arrayConst(let rows):
             return .arrayConst(rows.map { row in
-                row.map {
-                    $0.mappingRefsWithRange(host: host, ref: f, range: fR)
-                }
+                row.map { $0.mappingRefs(ref: f, range: fR) }
             })
         }
     }
@@ -849,7 +855,11 @@ extension Workbook {
 
     /// Endpoint remap with clamping: endpoints inside a deleted span land on
     /// the span start instead of tainting, so a range that loses members
-    /// keeps shifted endpoints (research 8.3).
+    /// keeps shifted endpoints (research 8.3). Corner: clamping can pull the
+    /// host cell itself inside its own range (the formula's row moved into
+    /// the span). That is a genuine self-cycle and evaluates to `#CYCLE!`
+    /// with a recorded path, which the inspector surfaces; only `undo()`
+    /// restores the pre-delete sources.
     static func clampRemap(
         _ ref: CellRef, host: Addr, sheet s: Int, axis: StructAxis,
         at: Int, count: Int, delta: Int
@@ -911,12 +921,13 @@ extension Workbook {
     }
 
     /// Rename remap: qualifiers matching the old name follow the rename;
-    /// missing-sheet refs matching the new name resolve again.
+    /// missing-sheet refs matching the new name resolve again. Applies to
+    /// single refs and both range endpoints (cross-sheet ranges).
     static func remapRename(
         _ e: Expr, oldName: String, newName: String, newIndex: Int,
         sheetCount: Int, host: Addr
     ) -> Expr {
-        e.mappingRefs { ref in
+        func renameRef(_ ref: CellRef) -> CellRef {
             guard let q = ref.sheetName else { return ref }
             var c = ref
             if q.uppercased() == oldName.uppercased() {
@@ -929,5 +940,9 @@ extension Workbook {
             _ = (sheetCount, host)
             return c
         }
+        return e.mappingRefs(
+            ref: renameRef,
+            range: { RangeRef(lo: renameRef($0.lo), hi: renameRef($0.hi)) }
+        )
     }
 }

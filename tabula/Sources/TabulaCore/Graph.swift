@@ -129,12 +129,20 @@ public struct DepGraph: Sendable {
     public var dependents: [Addr: Set<Addr>]
     /// Formula cells whose AST calls a volatile function.
     public var volatile: Set<Addr>
+    /// Sorted formula-cell successors per formula cell (precedents that are
+    /// themselves formulas). Precomputed once: intersecting against the live
+    /// key collection per visit would be O(V) per node (issue #282 Phase 3
+    /// proxy caught 6.7s on 10k cells here).
+    var succ: [Addr: [Addr]]
 
     public init(formulas: [Addr: Expr], resolver: StaticResolver = .empty) {
         self.formulas = formulas
         var prec: [Addr: Set<Addr>] = [:]
         var dep: [Addr: Set<Addr>] = [:]
         var vol = Set<Addr>()
+        let fset = Set(formulas.keys)
+        var s: [Addr: [Addr]] = [:]
+        s.reserveCapacity(formulas.count)
         for (cell, expr) in formulas {
             let ps = expr.precedentCells(host: cell, resolver: resolver)
             prec[cell] = ps
@@ -142,10 +150,12 @@ public struct DepGraph: Sendable {
                 dep[p, default: []].insert(cell)
             }
             if expr.isVolatile { vol.insert(cell) }
+            s[cell] = ps.intersection(fset).sorted()
         }
         self.precedents = prec
         self.dependents = dep
         self.volatile = vol
+        self.succ = s
     }
 
     /// Dirty closure over dependent edges from `edits` (BFS following
@@ -187,7 +197,7 @@ public struct DepGraph: Sendable {
             // Explicit stack of (node, sorted-children, next-child-index).
             var stack: [(node: Addr, kids: [Addr], idx: Int)] = []
             color[start] = .gray
-            stack.append((start, formulaSucc(start).sorted(), 0))
+            stack.append((start, succ[start] ?? [], 0))
             while let top = stack.last {
                 let node = top.node
                 if top.idx < top.kids.count {
@@ -196,7 +206,7 @@ public struct DepGraph: Sendable {
                     switch color[kid] ?? .black {
                     case .white:
                         color[kid] = .gray
-                        stack.append((kid, formulaSucc(kid).sorted(), 0))
+                        stack.append((kid, succ[kid] ?? [], 0))
                     case .gray:
                         // Back edge node -> kid: cycle is the stack slice.
                         if let at = stack.firstIndex(where: { $0.node == kid }) {
@@ -230,39 +240,81 @@ public struct DepGraph: Sendable {
     }
 
     /// Kahn topological order restricted to `dirty` formula cells (research
-    /// 5.3). Indegrees count precedents inside the dirty formula subgraph;
-    /// the zero-indegree queue runs in deterministic `Addr` order. Cells never
-    /// emitted are in cycles: the residue must equal the DFS-tainted set
-    /// intersected with dirty (pinned by the Phase 3 invariant test).
+    /// 5.3). Indegrees count precedents inside the dirty formula subgraph via
+    /// one edge walk (no per-node set allocation); the zero-indegree queue is
+    /// a binary heap over the deterministic `Addr` order, so deep chains and
+    /// wide fan-outs stay O((V+E) log V). Cells never emitted are in cycles:
+    /// the residue must equal the DFS-tainted set intersected with dirty
+    /// (pinned by the Phase 3 invariant test).
     public func kahnOrder(dirty: Set<Addr>) -> (order: [Addr], residue: Set<Addr>) {
         let nodes = Set(formulas.keys).intersection(dirty)
         var indegree: [Addr: Int] = [:]
-        for n in nodes {
-            indegree[n] = (precedents[n] ?? []).intersection(nodes).count
+        indegree.reserveCapacity(nodes.count)
+        for cell in nodes { indegree[cell] = 0 }
+        for (cell, pres) in precedents where nodes.contains(cell) {
+            for p in pres where nodes.contains(p) {
+                indegree[cell, default: 0] += 1
+            }
         }
-        var queue = nodes.filter { indegree[$0] == 0 }.sorted()
+        var heap = AddrHeap()
+        for n in nodes where indegree[n] == 0 { heap.push(n) }
         var order: [Addr] = []
         order.reserveCapacity(nodes.count)
-        var head = 0
-        while head < queue.count {
-            let n = queue[head]
-            head += 1
+        while let n = heap.pop() {
             order.append(n)
             for d in dependents[n] ?? [] where nodes.contains(d) {
-                indegree[d, default: 0] -= 1
-                if indegree[d] == 0 {
-                    // Keep the queue sorted for determinism.
-                    let at = queue[head...].firstIndex(where: { $0 > d }) ?? queue.endIndex
-                    queue.insert(d, at: at)
-                }
+                let v = (indegree[d] ?? 1) - 1
+                indegree[d] = v
+                if v == 0 { heap.push(d) }
             }
         }
         return (order, nodes.subtracting(order))
     }
 
-    /// Formula-cell successors for DFS: precedents that are themselves
-    /// formula cells. Literals are sinks and cannot lie on a cycle.
-    private func formulaSucc(_ cell: Addr) -> [Addr] {
-        Array((precedents[cell] ?? []).intersection(formulas.keys))
+    /// Formula-cell successors for DFS: precomputed sorted adjacency
+    /// (`succ`). Literals are sinks and cannot lie on a cycle.
+    func formulaSucc(_ cell: Addr) -> [Addr] {
+        succ[cell] ?? []
+    }
+}
+
+/// Minimal binary min-heap over the deterministic `Addr` order, backing
+/// Kahn's zero-indegree queue (research 5.3). Emission order stays a valid
+/// topological order; determinism comes from the total `Addr` comparison,
+/// not from insertion order.
+struct AddrHeap: Sendable {
+    private var items: [Addr] = []
+
+    var isEmpty: Bool { items.isEmpty }
+
+    mutating func push(_ x: Addr) {
+        items.append(x)
+        var i = items.count - 1
+        while i > 0 {
+            let p = (i - 1) / 2
+            guard items[i] < items[p] else { break }
+            items.swapAt(i, p)
+            i = p
+        }
+    }
+
+    mutating func pop() -> Addr? {
+        guard !items.isEmpty else { return nil }
+        let top = items[0]
+        let last = items.removeLast()
+        if !items.isEmpty {
+            items[0] = last
+            var i = 0
+            while true {
+                let l = 2 * i + 1, r = l + 1
+                var m = i
+                if l < items.count, items[l] < items[m] { m = l }
+                if r < items.count, items[r] < items[m] { m = r }
+                guard m != i else { break }
+                items.swapAt(i, m)
+                i = m
+            }
+        }
+        return top
     }
 }
