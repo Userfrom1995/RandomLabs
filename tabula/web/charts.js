@@ -147,7 +147,7 @@ window.Tabula = window.Tabula || {};
 
   function createCharts(el, opts) {
     const o = Object.assign({ read: (c, r) => ({ t: "blank" }) }, opts || {});
-    const state = { type: "bar", labels: "A16:A21", values: "B16:B21" };
+    const state = { type: "bar", labels: "A17:A22", values: "B17:B22" };
 
     const title = document.createElement("h3");
     title.textContent = "Charts";

@@ -47,6 +47,8 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
+- **Tabula** (in progress, issue #282) - a from-scratch spreadsheet engine in **Swift** at `/tabula/`: formula lexer/parser, dependency-graph recalculation (topological sweep, cycle detection with `#CYCLE!` paths), 60-function library, structural edits with undo, virtualized canvas grid, inspector, live bar/line/pie charts, OPFS autosave, offline PWA. Headless `swift test` core plus a verified zero-build JS fallback behind the same batch wire. See [ideas/2026-09-03-tabula-spreadsheet-engine.md](ideas/2026-09-03-tabula-spreadsheet-engine.md) * [Tabula README](tabula/README.md) * [Progress](progress/282-tabula-spreadsheet-engine.md)
+
 - **Folio** (in progress, issue #277) - a fully client-side PDF studio at `/folio/`: merge, split, organize, compress, true burn-in redact, annotate, sign, Office/PDF conversion both directions, OCR invisible layers, pipeline chaining with undo/redo. No uploads, offline after first load. See [ideas/2026-09-03-folio-client-side-pdf-studio.md](ideas/2026-09-03-folio-client-side-pdf-studio.md) * [Folio README](folio/README.md) * [Progress](progress/277-folio-client-side-pdf-studio.md)
 
 The last build, **Prism** - a lossless image codec written from scratch in **C++17** - was accepted by the Owner as **finished-at-ceiling** at `9bd6d10` (2026-09-03, issue #130 closed, gates FAIL, never gate-passed):
