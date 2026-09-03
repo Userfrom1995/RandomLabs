@@ -10,13 +10,9 @@
 - [x] research: algorithmic specification (formula grammar, coercion table, error precedence, DFS cycles, Kahn minimal recalc, four proofs, per-function semantics, A1/R1C1 and edit laws, storage invariants, test/perf gates) in `docs/research/issue-282-tabula-spreadsheet.md`
 - [x] architect: blueprint and module layout in `ideas/2026-09-03-tabula-spreadsheet-engine.md`
 - [x] builder 0: de-risk (`Package.swift`, TabulaCore skeleton, `swift test` 12/12 green, hello-grid shell through Bridge batch shape, JavaScriptKit pin intent + WASM proof plan recorded; `carton build` proof DEFERRED per blueprint escape clause, upstream swift-wasm-6.3-RELEASE + carton 1.1.3 confirmed present)
-- [ ] builder 1: core domain (Lexer, Parser, AST, Value, Ref, Graph, Eval, Clock)
 - [x] builder 1: core domain (Parser recursive-descent with Excel precedence plus round-trip printer fix, Graph iterative-DFS cycles plus Kahn plus dirty closure plus volatile, Eval strict core plus lazy IF plus short-circuit AND/OR plus IFERROR/IFNA plus IS* plus injectable TODAY, Clock Lotus-bug serials; 30/30 `swift test` green)
-- [ ] builder 2: function library plus 300+ oracle cases green
 - [x] builder 2: function library (Builtins dispatch plus BuiltinMath/Text/Lookup/Date per section 7 semantics; 317-case hand-computed oracle green; 37/37 `swift test` green)
-- [ ] builder 3: workbook plus edit laws plus codecs plus property suites plus 10k-cell proxy number
 - [x] builder 3: workbook (sheets/names/recalc/structural edits/copy-paste/fill/undo/styles) plus Series fill laws plus Format display plus JSON/CSV/TSV codecs plus 24 property/law suites; 10k-cell proxy full=121ms minimal=82ms (debug, budget 250ms); 61/61 `swift test` green in 0.35s
-- [ ] builder 4: bridge plus grid UI (virtualized canvas, editor, inspector, formats, sort/filter views, freeze, resize, copy/paste/fill)
 - [x] builder 4: bridge plus grid UI (BridgeSession batch/inspect/sort-filter in Swift, 77/77 green; web fallback engine with Excel-precedence parser plus 60-function library plus graph plus edit laws, virtualized canvas with freeze/resize, editor plus formula bar, inspector with cycle paths, format panels, sort/filter views, clipboard TSV with injection guard, sample workbook)
 - [x] builder 5: storage (OPFS autosave plus quota flag plus CSV import plus clipboard TSV) plus charts (live bar/line/pie plus skip-not-plot) plus highlight rule plus `tabula/docs/` (proofs plus semantics plus scoreboard) plus landing links plus versioned PWA plus full perf gate (Swift proxy 136/93ms, fallback 760/739ms, parse 77519/s) plus 74/74 oracle parity
 - [ ] reviewer findings addressed
@@ -29,27 +25,6 @@ charts plus OPFS plus CSV import plus highlight plus PWA plus docs live;
 perf gates pass; 74/74 oracle parity (fixed two fallback defects: date
 serials +1, lookup approx flag inverted). Root landing plus README link
 Tabula. Ready for review on the same PR.
-
-## Next steps
-- Builder Phase 5 on this branch: storage plus charts plus sample plus
-  `tabula/docs/` proofs/semantics/scoreboard plus landing link plus PWA
-  plus visual pass plus full perf gate.
-- Then review on the same PR across `continue` cycles.
-
-## Next steps
-- Builder Phase 4 on this branch: bridge plus grid UI (virtualized canvas,
-  editor, inspector, formats, sort/filter views, freeze, resize,
-  copy/paste/fill).
-- Then Phase 5 in order on the same PR across `continue` cycles.
-
-## Next steps
-- Builder Phase 3 on this branch: workbook plus edit laws plus codecs plus
-  property suites plus 10k-cell proxy number.
-- Then Phases 4-5 in order on the same PR across `continue` cycles.
-- WASM proof (carton 1.1.3 + swift-wasm-6.3-RELEASE SDK + JavaScriptKit
-  0.35.x pin) lands before Phase 4 UI depth; plan in
-  `tabula/docs/architecture.md`.
-- Single technique, single PR: never split scaffolding and engine and UI into separate PRs.
 
 ## Agent log
 - 2026-09-03 (Researcher run 1): wrote `docs/research/issue-282-tabula-spreadsheet.md` (grammar, value domain, graph algorithms, proofs, semantics, laws, gates). Decision action: architect.
