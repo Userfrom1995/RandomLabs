@@ -25,24 +25,50 @@ public struct Addr: Hashable, Sendable, Codable {
 }
 
 /// A single-cell reference as authored, with notation flags (research 3.5).
+///
+/// `col`/`row` are the authored absolute grid coordinates (0-based).
+/// Relative axes resolve against the parse-time host base (`baseCol`,
+/// `baseRow`): `resolve(host:)` computes `authored - base + host` per
+/// relative axis, so copy/paste translation (research 8.4) shifts authored
+/// and base together while structural edits (research 8.3) shift them per
+/// the span rules. `sheetName` preserves the authored sheet qualifier for
+/// reprint; `sheet` is the resolved index (nil with non-nil `sheetName`
+/// means the sheet is missing, which evaluates to `#REF!` with sticky
+/// taint per research 8.2). `dangling` marks sticky `#REF!` taint from
+/// structural deletion: once set, only the undo stack clears it, never
+/// auto-resolve.
 public struct CellRef: Hashable, Sendable, Codable {
-    /// Nil means "same sheet as the host cell".
+    /// Resolved sheet index. Nil means "same sheet as the host cell", unless
+    /// `sheetName` is non-nil, which means "sheet not found".
     public var sheet: Int?
+    /// Authored sheet qualifier (unquoted/unescaped), for faithful reprint.
+    public var sheetName: String?
     public var col: Int
     public var row: Int
     public var colAbs: Bool
     public var rowAbs: Bool
     /// True when authored in R1C1 notation (reprint preserves it).
     public var r1c1: Bool
+    /// Parse-time host column (base for relative resolution).
+    public var baseCol: Int
+    /// Parse-time host row (base for relative resolution).
+    public var baseRow: Int
+    /// Sticky `#REF!` taint (research 8.3). Evaluates to `#REF!` always.
+    public var dangling: Bool
 
-    public init(sheet: Int? = nil, col: Int, row: Int,
-                colAbs: Bool = false, rowAbs: Bool = false, r1c1: Bool = false) {
+    public init(sheet: Int? = nil, sheetName: String? = nil, col: Int, row: Int,
+                colAbs: Bool = false, rowAbs: Bool = false, r1c1: Bool = false,
+                baseCol: Int = 0, baseRow: Int = 0, dangling: Bool = false) {
         self.sheet = sheet
+        self.sheetName = sheetName
         self.col = col
         self.row = row
         self.colAbs = colAbs
         self.rowAbs = rowAbs
         self.r1c1 = r1c1
+        self.baseCol = baseCol
+        self.baseRow = baseRow
+        self.dangling = dangling
     }
 }
 
