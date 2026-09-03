@@ -85,7 +85,8 @@ static void print_usage() {
               << "  prism bench-jxl-modular --kodak DIR [--k K] [--out CSV]\n"
               << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass] [--pred mlp|med|gap]\n"
               << "  prism bench-subband --kodak DIR [--out CSV] [--levels L] [--blend B]\n"
-              << "      [--direct] [--r9-tree]  (per-subband stream bytes, issue #130)\n";
+              << "      [--direct] [--r9-tree] [--r6b] [--r6c [--kb N]] [--r7] [--route5]\n"
+              << "      (per-subband stream bytes, issue #130)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -6009,6 +6010,12 @@ int main(int argc, char* argv[]) {
             float blend_override = -1.0f;
             bool direct = false; // --direct: coefficient path (frame_wavelet_encode)
             bool r9tree = false; // --r9-tree: coarse tree-quantized EMA
+            // N-way mux oracle paths (issue #130, 2026-09-03): 0 = P0 residual
+            // (default), 1 = P2 direct (via --direct), 2 = R6B (--r6b),
+            // 3 = R6C (--r6c [--kb N]), 4 = R7 MED (--r7),
+            // 5 = ROUTE5 (--route5). Exactly one path flag allowed per run.
+            int muxpath = 0;
+            int r6c_kb = 256;
             // Default (no flag): residual path (frame_wavelet_encode_residual).
             for (int i = 2; i < argc; ++i) {
                 std::string a = argv[i];
@@ -6019,6 +6026,19 @@ int main(int argc, char* argv[]) {
                 else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
                 else if (a == "--direct") direct = true;
                 else if (a == "--r9-tree") r9tree = true;
+                else if (a == "--r6b") muxpath = 2;
+                else if (a == "--r6c") muxpath = 3;
+                else if (a == "--kb" && i + 1 < argc) r6c_kb = std::stoi(argv[++i]);
+                else if (a == "--r7") muxpath = 4;
+                else if (a == "--route5") muxpath = 5;
+            }
+            if (muxpath >= 2 && direct) {
+                std::cerr << "bench-subband: --direct conflicts with --r6b/--r6c/--r7/--route5\n";
+                return 2;
+            }
+            if (muxpath >= 2 && r9tree) {
+                std::cerr << "bench-subband: --r9-tree conflicts with --r6b/--r6c/--r7/--route5\n";
+                return 2;
             }
             if (blend_override >= 0.0f) learned_set_blend(blend_override);
             if (r9tree) learned_set_r9_tree_ema(true);
@@ -6056,12 +6076,25 @@ int main(int argc, char* argv[]) {
                 Raster r = load_raster(img, 0, 0, 8, 3);
                 size_t net = 0;
                 std::vector<uint8_t> bytes;
-                if (direct) bytes = frame_wavelet_encode(r, filter, levels, net);
+                if (muxpath == 2) bytes = frame_wavelet_encode_r6b(r, filter, levels, net);
+                else if (muxpath == 3) bytes = frame_wavelet_encode_r6c(r, filter, levels, r6c_kb, net);
+                else if (muxpath == 4) bytes = frame_wavelet_encode_r7(r, filter, levels, net, false, false);
+                else if (muxpath == 5) bytes = frame_wavelet_encode_route5(r, filter, levels, net);
+                else if (direct) bytes = frame_wavelet_encode(r, filter, levels, net);
                 else bytes = frame_wavelet_encode_residual(r, filter, levels, net);
                 if (net != bytes.size()) {
                     std::cerr << "bench-subband: SELF-CHECK FAIL on " << img.filename().string()
                               << ": net_out=" << net << " != bytes.size()=" << bytes.size() << "\n";
                     return 1;
+                }
+                // Raster round-trip: decode(encode(x)) must be byte-exact, so
+                // every oracle candidate provably codes the same coefficients.
+                {
+                    Raster dec = frame_wavelet_decode(bytes);
+                    if (!(dec == r)) {
+                        std::cerr << "bench-subband: ROUNDTRIP FAIL on " << img.filename().string() << "\n";
+                        return 1;
+                    }
                 }
                 WaveletFrame fr;
                 try {
