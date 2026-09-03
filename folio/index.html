@@ -182,8 +182,12 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="muted" id="ocrreport"></div>
 </div></section>
 
-<section class="route" id="route-convert"><div class="card"><h3>Convert (V1-V2, V5-V11 core)</h3>
+<section class="route" id="route-convert"><div class="card"><h3>Convert (V1-V4, V5-V11)</h3>
 <div id="office-consent"></div>
+<div class="card"><h3>Office to PDF (V3 pack / V4 basic)</h3>
+<div class="row"><input type="file" id="officepick" accept=".docx,.xlsx,.pptx" /><button id="t-office2pdf">Office to PDF</button></div>
+<div class="muted" id="officebanner"></div>
+<div class="muted" id="officereport"></div></div>
 <div class="row"><button id="t-pdf2text">PDF to text</button><button id="t-pdf2md">PDF to Markdown</button><button id="t-pdf2html">PDF to HTML</button></div>
 <div class="row"><button id="t-pdf2docx">PDF to Word (.docx)</button><button id="t-pdf2xlsx">PDF tables to Excel (.xlsx)</button><button id="t-pdf2pptx">PDF to slides (.pptx)</button><button id="t-pdf2csv">PDF tables to CSV</button></div>
 <div class="row"><input id="mdtitle2" placeholder="Note title" /></div>

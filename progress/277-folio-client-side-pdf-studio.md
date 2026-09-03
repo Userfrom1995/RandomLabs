@@ -13,16 +13,19 @@
 - [x] 2. Phase A core: ingest/OPFS/states/sample (R6,R7), viewer R1, structural P1-P3/P6-P9/P19 + fix-up, pipeline R2
 - [x] 3. Phase B: annotate/edit/images/forms core (E1-E4 + E5/E8/E11/E13-E15 bonuses, E6-E7, E9-E10, E12-E14, E17, I1-I3, I5-I6, F1-F4) + redact acceptance (S5)
 - [x] 4. Phase C: security/compress/OCR/convert-core (S1-S4 envelope-honest,S6-S9 stamps+specs,O1,O6,C1,C3,V1-V2,V5-V11 core) + corpus gates
-- [ ] 5. Phase D: Office pack V3 + fallback V4 + consent manifest wiring (V2 writers)
+- [x] 5. Phase D: Office pack V3 + fallback V4 + consent manifest wiring (V2 writers)
 - [ ] 6. Phase E: Tier 2 then Tier 3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs
 
 ## Current step
-Phase C complete and verified (unit 16/16, envelope roundtrip, mode-3 OCR proof, office ZIPs, 97/97 IDs). Next: Phase D (Office pack V3 + fallback V4 + consent manifest wiring).
+Phase D complete and verified (unit 17/17, pack+fallback Office-to-PDF E2E in both modes, strict-ZIP fix, 100/100 IDs). Next: Phase E (Tier 2/3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs, landing + README links).
 
 ## Next steps
-- Builder continue run: Phase D Office full-fidelity pack (V3 renderer wiring behind the existing consent card, V4 Mammoth/SheetJS-class fallback banner, V2 table CSV already core-live), then Phase E (Tier 2/3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs).
+- Builder continue run: Phase E (Tier 2/3 rows, CSP/PWA hardening, T1-T5 scoreboard on the fixed corpus, Playwright pass, docs).
 - Single branch/PR across `continue` cycles. Cloud AI chat stays excluded per matrix section 8.
 - Landing (`index.html`) + README links go in with the final run.
+
+## Agent log
+- 2026-09-03 (Builder run 4, Phase D): Office V3 pack + V4 fallback behind one consent card. New pure domain: `core/convert/zip-read.js` (EOCD scan, stored sync extract, async inflate injection), `core/convert/office-fallback.js` (DOCX paragraphs+headings, XLSX shared-strings+sheets, PPTX slides, fidelity banner), `core/convert/office-pack.js` (prompt/fallback/pack routing, job spec, fidelity contract, manifest file+size verify), `platform/packs/loader.js` (cache keys, size/progress/sha helpers). Pack engine `packs/office-engine.js` 0.2.0 (8390 B, sha-pinned in manifest): DOCX tables + bold/italic runs, XLSX sheet names + header rows, PPTX title/body split, print-CSS HTML intermediate. Executors: `officeToPdf` both modes with paginated pdf-lib renderer (slides-as-pages, A4 helper). Shell: real consent accept (fetch + size/sha verify + ESM load), fallback banner, Office file picker + Office-to-PDF button. Real bugs fixed: Phase C ZIP writer flag offset (+8 vs +6) truncated EOCD and set method 2048 (now strict-safe method 0); XLSX cell-attr regex dropped `t=` (lazy-match). Verification: unit 17/17, dual-mode E2E green, 100/100 IDs, all modules parse. Decision action: continue.
 
 ## Agent log
 - 2026-09-03 (Builder run 3, Phase C): new pure domain `core/crypto/crypto.js` (AES-GCM envelope descriptor, zeroing, JS inspector, ByteRange, INTEGRITY/TRUST verdict), `core/compress/optimize.js` (corpus planner + searchability gate, resave/grayscale/PDF-A/linearize specs), `core/ocr-client/ocr.js` (300 DPI job spec, 72/dpi affine map, mode-3 spec, pool sizing, C3 progress reducer), `core/convert/office.js` (store-only ZIP + CRC32, minimal valid DOCX/XLSX/PPTX, CSV table spec, URL import spec). New executors: security-ops (envelope encrypt/decrypt/rekey via WebCrypto, JS report, signature stamp, cert-sign placeholder with ByteRange), compress-ops (profile-gated compress, browser PNG rasterize for image pages, deferred-never-silent), ocr-ops (pack fetch with progress/cancel, true Tr=3 invisible layer), convert-ops (docx/xlsx/pptx/csv writers, csvToPdf, URL spec). Shell wired on security/compress/OCR/convert routes (97/97 IDs). Reviewer Phase A findings folded: outlines PDFLib param, vendor-shim dead path removed, dead loop removed, TRUE byte-restore undo/redo (cap 20). Honest scopes kept: envelope is not native PDF V=5 (labeled in UI), CMS/PKCS#12 signing Phase E, Tesseract engine Phase D. Decision action: continue.

@@ -32,6 +32,8 @@ let fileB = null; // second file (merge/insert)
 let packs = {};
 let ocrConsent = "idle";
 let officeConsent = "idle";
+let officeEngine = null; // V3 pack module once consent-loaded
+let officeFile = null; // picked Office file for V3/V4 conversion
 
 function announce(msg) {
   const el = $("live");
@@ -170,6 +172,11 @@ function paintConsent() {
     const m = packs["office-pack"];
     off.innerHTML = consentCardHtml("Office full-fidelity pack", m, officeConsent, "office");
   }
+  const ob = $("officebanner");
+  if (ob && !ob.textContent) {
+    if (officeConsent === "ready") ob.textContent = "Full-fidelity pack ready: headings, tables, and slide structure preserved.";
+    else if (officeConsent === "declined") ob.textContent = ConvertOps.fallbackBanner("", "").note;
+  }
 }
 
 function consentCardHtml(name, manifest, state, which) {
@@ -179,6 +186,22 @@ function consentCardHtml(name, manifest, state, which) {
   else if (state === "declined") action = "<span class='muted'>Using built-in basic version.</span> <button data-pack='" + which + "' data-act='accept'>Download pack</button>";
   else action = "<button data-pack='" + which + "' data-act='accept'>Download (" + formatBytes(manifest.bytes) + ")</button> <button data-pack='" + which + "' data-act='decline'>Use basic version</button>";
   return "<div class='consent'><strong>" + name + "</strong><span class='muted'> v" + manifest.version + " - " + formatBytes(manifest.bytes) + " - downloads once, cached for offline reuse.</span><div class='row'>" + action + "</div></div>";
+}
+
+// V3 pack fetch: same-origin bytes, size check, sha256 check, then ESM load.
+async function loadOfficePack(manifest) {
+  if (!manifest || !manifest.files || !manifest.files.length) throw new Error("office pack manifest has no files");
+  const res = await fetch("packs/" + manifest.files[0]);
+  if (!res.ok) throw new Error("pack fetch failed: HTTP " + res.status);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  if (manifest.bytes > 0 && buf.length !== manifest.bytes) throw new Error("pack size mismatch (manifest " + manifest.bytes + ", got " + buf.length + ")");
+  if (manifest.sha256 && !String(manifest.sha256).startsWith("pending-") && crypto.subtle) {
+    const digest = await crypto.subtle.digest("SHA-256", buf);
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    if (hex !== String(manifest.sha256).toLowerCase()) throw new Error("pack sha256 mismatch");
+  }
+  officeEngine = await import("../../../packs/office-engine.js");
+  return officeEngine;
 }
 
 async function wire() {
@@ -212,6 +235,14 @@ async function wire() {
     if (f) {
       fileB = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
       $("fileBmeta").textContent = f.name;
+    }
+  });
+  const offPick = $("officepick");
+  if (offPick) offPick.addEventListener("change", async () => {
+    const f = offPick.files[0];
+    if (f) {
+      officeFile = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
+      $("officereport").textContent = "Office file: " + f.name + " (" + f.size + " bytes).";
     }
   });
   $("samplebtn").onclick = async () => {
@@ -317,10 +348,23 @@ function wireConsent() {
       await setPref(key, ocrConsent);
     } else {
       if (act === "accept") {
+        try {
+          announce("Downloading Office full-fidelity pack...");
+          await loadOfficePack(packs["office-pack"]);
+          officeConsent = "ready";
+          announce("Office pack ready: headings, tables, and slide structure preserved. Cached for offline reuse.");
+        } catch (err) {
+          officeConsent = "idle";
+          announce("Pack download failed: " + err.message + " - try again or use the basic version.");
+        }
+      } else if (act === "decline") {
         officeConsent = "declined";
-        announce("Office pack ships in Phase D; fallback conversion shown for now.");
-      } else if (act === "decline") officeConsent = "declined";
-      else if (act === "revoke") officeConsent = "idle";
+        officeEngine = null;
+        announce("Using the built-in basic version (pagination approximate, styles simplified).");
+      } else if (act === "revoke") {
+        officeConsent = "idle";
+        officeEngine = null;
+      }
       await setPref(key, officeConsent);
     }
     paintConsent();
@@ -937,6 +981,27 @@ function wireTools() {
   run("t-url2pdf", async () => {
     const spec = ConvertOps.urlImportSpec($("urltext").value);
     $("convertreport").textContent = "URL import: " + spec.href + " (" + (spec.sameOrigin ? "same-origin, fetch + print path" : "cross-origin: needs CORS, then print path") + "). " + spec.note + ".";
+  });
+  // Office to PDF (V3 pack / V4 fallback behind one consent card)
+  run("t-office2pdf", async () => {
+    if (!officeFile) throw new Error("Pick an Office file (.docx/.xlsx/.pptx) first.");
+    const route = ConvertOps.routeOfficeConvert({ consent: officeConsent, packReady: !!officeEngine });
+    if (route === "prompt") throw new Error("Choose Download pack or Use basic version above first.");
+    let inflater = null;
+    if (typeof DecompressionStream !== "undefined") {
+      inflater = async (comp) => {
+        const ds = new DecompressionStream("deflate-raw");
+        const stream = new Blob([comp]).stream().pipeThrough(ds);
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      };
+    }
+    const r = await ConvertOps.officeToPdf(officeFile.bytes, officeFile.name, PDFLib, {
+      engine: route === "pack" ? officeEngine : null,
+      inflater,
+    });
+    $("officebanner").textContent = (r.mode === "pack" ? "Full-fidelity pack: " : "Basic version: ") + r.banner;
+    $("officereport").textContent = "Office to PDF (" + r.mode + "): " + r.pages + " page(s), " + r.bytes.length + " bytes.";
+    await refreshAfterOp("office2pdf", { mode: r.mode }, r.bytes, officeFile.name.replace(/\.(docx|xlsx|pptx)$/i, "") + "-converted.pdf");
   });
   // workflow
   run("t-info", async () => {
