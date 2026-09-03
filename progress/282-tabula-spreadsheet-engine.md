@@ -4,7 +4,7 @@
 - **Branch:** opencode/issue282-20260903222718
 - **PR:** #283
 - **Status:** in-progress
-- **Updated:** 2026-09-03T23:00:00Z
+- **Updated:** 2026-09-03T23:30:00Z
 
 ## Checklist
 - [x] research: algorithmic specification (formula grammar, coercion table, error precedence, DFS cycles, Kahn minimal recalc, four proofs, per-function semantics, A1/R1C1 and edit laws, storage invariants, test/perf gates) in `docs/research/issue-282-tabula-spreadsheet.md`
@@ -21,11 +21,15 @@
 - [ ] tester approval plus maintainer merge
 
 ## Current step
-Phase 2 complete: BuiltinMath/Text/Lookup/Date plus dispatch plus 317-case
-oracle, 37/37 green.
-Next is Phase 3 (Workbook sheets/names/structural edits/copy-paste/fill,
-CSV/JSON codecs, property suites for graph invariants plus minimal-vs-full
-plus edit laws plus round-trips, 10k-cell perf proxy number).
+Phase 3 core sources landed (Workbook sheets/names/recalc/structural
+edits/copy-paste/fill/undo/styles, Series pure fill laws, Format display
+records, Codecs JSON/CSV/TSV); property suites plus 10k-cell proxy pending.
+
+## Next steps
+- Builder Phase 3 tests: property suites (Kahn residue vs DFS taint,
+  minimal-vs-full agreement, edit laws, paste-resolve commutation, CSV
+  idempotence, JSON round-trip) plus 10k-cell perf proxy number.
+- Then Phases 4-5 in order on the same PR across `continue` cycles.
 
 ## Next steps
 - Builder Phase 3 on this branch: workbook plus edit laws plus codecs plus
