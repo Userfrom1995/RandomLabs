@@ -92,6 +92,19 @@ after 12 complete images; all 12 nets bit-identical to the committed
 - PASS opens a buildable subband-mux encoder; FAIL closes mux at subband
   granularity (whole-image mux already closed at 2-way and 8-way).
 
+## Continue run 2026-09-03 (shard A complete)
+
+- Shard A kodim01-08 x {P0, P2} measured clean: P0 8/8 nets bit-identical
+  to committed `2026-09-03-x6b-blend0-full24.csv` (0 mismatches); all rows
+  SELF-CHECK OK (net size, sub_bytes sum, planes x spp).
+- Shard A oracle {P0,P2}: stream total 3816423 -> mux 3800880 = **0.4073%**
+  saving; wins P0 274/384, P2 110/384. Consistent with quad 0.392% {P0,P2}.
+- Committed: `2026-09-03-subband-p0-shardA.csv` (385 lines),
+  `2026-09-03-subband-p2-shardA.csv` (385 lines). Cost: P0 ~17 min,
+  P2-direct ~2 min on this runner.
+- Remaining: shards B (kodim09-16) and C (kodim17-24) x {P0,P2}, then
+  full-24 aggregation + dual-unit gate eval vs M2/M3.
+
 ## Milestone Checklist
 
 - [x] Orient + read ledger (no redo; open PRs #266/#272 triaged, untouched)
@@ -102,7 +115,8 @@ after 12 complete images; all 12 nets bit-identical to the committed
 - [x] Structural byte-mass finding (67% finest detail) recorded
 - [x] 12-image determinism bonus noted (scrap, not committed)
 - [x] ideas/ entry + decision doc; commit + push; decision file (continue)
-- [ ] Shards A/B/C x {P0,P2} full-24 (continue runs)
+- [x] Shard A kodim01-08 x {P0,P2} (0.4073% oracle, P0 8/8 bit-identical)
+- [ ] Shards B/C x {P0,P2} full-24 (continue runs)
 - [ ] Full-24 subband oracle aggregation + dual-unit gate eval
 
 - the Builder
