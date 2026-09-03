@@ -1,0 +1,73 @@
+/* Tabula design tokens and Phase 0 shell layout (blueprint: desktop grid +
+   formula bar + inspector; mobile single column with bottom sheet). */
+:root {
+  --tabula-bg: #0c1222;
+  --tabula-surface: #151d33;
+  --tabula-ink: #e6ebf5;
+  --tabula-accent: #5ad1a5;
+  --tabula-error: #f26d6d;
+  --tabula-border: #2b3654;
+  --tabula-muted: #93a0bb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--tabula-bg); color: var(--tabula-ink);
+  font-family: Inter, system-ui, sans-serif; display: flex;
+  flex-direction: column; min-height: 100vh;
+}
+header {
+  padding: 12px 20px; border-bottom: 1px solid var(--tabula-border);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+header h1 { margin: 0; font-size: 1.35rem; color: var(--tabula-accent); }
+header p { margin: 0; color: var(--tabula-muted); font-size: 0.85rem; }
+.badge {
+  font-size: 0.72rem; border: 1px solid var(--tabula-border); border-radius: 20px;
+  padding: 3px 10px; color: var(--tabula-muted);
+}
+.back {
+  margin-left: auto; color: var(--tabula-muted); text-decoration: none;
+  border: 1px solid var(--tabula-border); padding: 6px 10px; border-radius: 6px;
+}
+.toolbar {
+  display: flex; align-items: center; gap: 10px; padding: 8px 20px;
+  border-bottom: 1px solid var(--tabula-border); background: var(--tabula-surface);
+}
+.toolbar label { font-style: italic; color: var(--tabula-muted); }
+.toolbar input {
+  flex: 1; background: var(--tabula-bg); color: var(--tabula-ink);
+  border: 1px solid var(--tabula-border); border-radius: 4px; padding: 6px 10px;
+  font-family: monospace; font-size: 0.9rem;
+}
+.toolbar #addr { font-family: monospace; color: var(--tabula-accent); }
+.layout { flex: 1; display: flex; min-height: 0; }
+.grid-wrap { flex: 1; padding: 16px; min-width: 0; }
+canvas {
+  width: 100%; background: var(--tabula-surface);
+  border: 1px solid var(--tabula-border); border-radius: 8px; display: block;
+}
+.hint { color: var(--tabula-muted); font-size: 0.8rem; }
+.hint code { color: var(--tabula-ink); }
+.hint a { color: var(--tabula-accent); }
+.panel {
+  width: 320px; border-left: 1px solid var(--tabula-border); padding: 16px;
+  display: flex; flex-direction: column; gap: 10px; background: var(--tabula-surface);
+}
+.panel h3 {
+  margin: 0; font-size: 0.8rem; color: var(--tabula-accent);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.mono {
+  font-family: monospace; font-size: 0.8rem; background: var(--tabula-bg);
+  border: 1px solid var(--tabula-border); border-radius: 6px; padding: 10px;
+  line-height: 1.7; white-space: pre-wrap;
+}
+footer {
+  padding: 8px 20px; border-top: 1px solid var(--tabula-border);
+  display: flex; justify-content: space-between; color: var(--tabula-muted);
+  font-size: 0.78rem;
+}
+@media (max-width: 720px) {
+  .layout { flex-direction: column; }
+  .panel { width: 100%; border-left: none; border-top: 1px solid var(--tabula-border); }
+}
