@@ -42,18 +42,18 @@ export function zipStore(files) {
     const nb = enc.encode(p.name);
     const crc = crc32(p.data);
     central.push({ nb, crc, size: p.data.length, offset: o });
-    u32(0x04034b50, out, o); // local header
+    u32(0x04034b50, out, o); // local header (30 bytes)
     u16(20, out, o + 4);
-    u16(0x0800, out, o + 8); // UTF-8 flag
-    u16(0, out, o + 10); // method store
+    u16(0x0800, out, o + 6); // UTF-8 flag
+    u16(0, out, o + 8); // method store
+    u16(0, out, o + 10);
     u16(0, out, o + 12);
-    u16(0, out, o + 14);
-    u32(crc, out, o + 16);
-    u32(p.data.length, out, o + 20);
-    u32(p.data.length, out, o + 24);
-    u16(nb.length, out, o + 28);
-    u16(0, out, o + 30);
-    o += 32;
+    u32(crc, out, o + 14);
+    u32(p.data.length, out, o + 18);
+    u32(p.data.length, out, o + 22);
+    u16(nb.length, out, o + 26);
+    u16(0, out, o + 28);
+    o += 30;
     out.set(nb, o);
     o += nb.length;
     out.set(p.data, o);

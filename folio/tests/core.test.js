@@ -19,6 +19,10 @@ import { ENVELOPE_MAGIC, validatePassword, zeroBytes, envelopeDescriptor, unlock
 import { planCorpus, corpusGate, resaveSpec, grayscaleSpec, pdfaChecklist, linearizeSpec } from "../src/core/compress/optimize.js";
 import { OCR_DPI, ocrJobSpec, pdfPoint, mode3Spec, poolSize, ocrProgressReducer, HANDWRITING_NOTE } from "../src/core/ocr-client/ocr.js";
 import { crc32, zipStore, escXml, toDocx, toXlsx, toPptx, csvTableSpec, urlImportSpec } from "../src/core/convert/office.js";
+import { unzipList, extractStore, unzipStores } from "../src/core/convert/zip-read.js";
+import { extractDocxParagraphs, extractXlsxTables, extractPptxSlides, extractOfficeFiles, officeToPdfPlan, fallbackBanner, FALLBACK_FIDELITY_NOTE } from "../src/core/convert/office-fallback.js";
+import { routeOfficeConvert, packJobSpec, packFidelitySpec, fallbackVsPackDiff, verifyPackFiles, packCacheKey } from "../src/core/convert/office-pack.js";
+import { cacheKeyFor, verifyTotalBytes, progressFraction, verifyManifestFiles } from "../src/platform/packs/loader.js";
 
 test("structural planners", () => {
   assert.deepEqual(planMerge([3, 2]).total, 5);
@@ -264,4 +268,66 @@ test("office writers: zip roundtrip + docx/xlsx/pptx + csv/url specs", () => {
   assert.equal(urlImportSpec("https://example.com/x").href, "https://example.com/x");
   assert.throws(() => urlImportSpec("ftp://x"));
   assert.throws(() => urlImportSpec("file:///etc/passwd"));
+});
+
+test("phase D: zip-read + office fallback extract + pack routing + loader", () => {
+  // zip-read roundtrips our own store-only writers (docx/xlsx/pptx).
+  const docx = toDocx([{ paragraphs: [{ text: "Report Title", heading: 1 }, { text: "body line one" }] }]);
+  const names = unzipList(docx).map((e) => e.name).sort();
+  assert.deepEqual(names, ["[Content_Types].xml", "_rels/.rels", "word/document.xml"]);
+  const map = unzipStores(docx);
+  assert.ok(map["word/document.xml"].length > 0);
+  // V4 fallback: docx paragraphs incl. heading level.
+  const paras = extractDocxParagraphs(map);
+  assert.equal(paras[0].text, "Page 1");
+  assert.equal(paras[1].heading, 1);
+  assert.equal(paras[1].text, "Report Title");
+  // V4 fallback: xlsx tables (inline strings) incl. second sheet.
+  const xlsx = toXlsx([[["a", "b"], ["c", "d"]], [["e"]]]);
+  const xmap = unzipStores(xlsx);
+  const tables = extractXlsxTables(xmap);
+  assert.equal(tables.length, 2);
+  assert.deepEqual(tables[0][0], ["a", "b"]);
+  assert.deepEqual(tables[1][0], ["e"]);
+  // V4 fallback: pptx slides keep both pages in order.
+  const pptx = toPptx([{ paragraphs: [{ text: "slide one" }] }, { paragraphs: [{ text: "slide two" }] }]);
+  const pmap = unzipStores(pptx);
+  const slides = extractPptxSlides(pmap);
+  assert.equal(slides.length, 2);
+  assert.ok(slides[0].paragraphs.some((p) => p.text.includes("slide one")));
+  // Dispatch + plan + banner.
+  assert.equal(extractOfficeFiles(xmap, "grid.xlsx").kind, "xlsx");
+  assert.throws(() => extractOfficeFiles(xmap, "notes.txt"));
+  const plan = officeToPdfPlan({ kind: "docx", paragraphs: paras });
+  assert.equal(plan.pageCount, 1);
+  assert.throws(() => officeToPdfPlan({}));
+  const banner = fallbackBanner("report.docx", "docx");
+  assert.equal(banner.mode, "fallback");
+  assert.ok(banner.changes.length >= 4 && FALLBACK_FIDELITY_NOTE.includes("Basic version"));
+  // V3 pack boundary routing + specs.
+  assert.equal(routeOfficeConvert({ consent: "idle", packReady: false }), "prompt");
+  assert.equal(routeOfficeConvert({ consent: "declined", packReady: false }), "fallback");
+  assert.equal(routeOfficeConvert({ consent: "idle", packReady: true }), "pack");
+  assert.equal(packJobSpec({ fileName: "a.docx", byteLength: 10 }).kind, "docx");
+  assert.throws(() => packJobSpec({ fileName: "a.txt", byteLength: 10 }));
+  assert.throws(() => packJobSpec({ fileName: "a.docx", byteLength: 0 }));
+  assert.ok(packFidelitySpec().preserves.length >= 3);
+  assert.ok(fallbackVsPackDiff().some((d) => d.aspect === "tables"));
+  const man = { id: "office-pack", version: "0.2.0", bytes: 5, files: ["office-engine.js"], sha256: "s" };
+  assert.deepEqual(verifyPackFiles(man, [{ name: "office-engine.js", bytes: new Uint8Array(5) }]).ok, true);
+  assert.throws(() => verifyPackFiles(man, [{ name: "wrong.js", bytes: new Uint8Array(5) }]));
+  assert.throws(() => verifyPackFiles({ ...man, bytes: 6 }, [{ name: "office-engine.js", bytes: new Uint8Array(5) }]));
+  assert.equal(packCacheKey(man), "folio-pack-office-0.2.0");
+  // Shared loader helpers.
+  assert.equal(cacheKeyFor("office-pack", "0.2.0"), "folio-pack-office-0.2.0");
+  assert.equal(cacheKeyFor("ocr-pack", "1.0.0"), "folio-pack-ocr-1.0.0");
+  assert.throws(() => cacheKeyFor("nope", "1"));
+  assert.deepEqual(verifyTotalBytes({ bytes: 8 }, 8).ok, true);
+  assert.throws(() => verifyTotalBytes({ bytes: 8 }, 9));
+  assert.equal(progressFraction(50, 100), 0.5);
+  assert.equal(progressFraction(200, 100), 1);
+  assert.deepEqual(verifyManifestFiles(man, ["office-engine.js"]).ok, true);
+  assert.throws(() => verifyManifestFiles(man, ["other.js"]));
+  // extractStore refuses deflated entries (honest, needs inflater).
+  assert.throws(() => extractStore(docx, { name: "x", method: 8, localOff: 0 }));
 });
