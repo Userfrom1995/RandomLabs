@@ -9,6 +9,13 @@ import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoo
 import { buildSamplePdf } from "./sample.js";
 import * as Pages from "../tools/pages-ops.js";
 import * as Content from "../tools/content-ops.js";
+import * as Annotate from "../tools/annotate-ops.js";
+import * as EditOps from "../tools/edit-ops.js";
+import * as ImageOps from "../tools/image-ops.js";
+import * as FormOps from "../tools/form-ops.js";
+import * as RedactOps from "../tools/redact-ops.js";
+import { validateLink, simplifyInk } from "../../core/annotate/annotate.js";
+import { scannerSpec } from "../../core/images/images.js";
 import { toText, toMarkdown, toHtml } from "../../core/convert/writers.js";
 import { PROFILES } from "../../core/compress/profiles.js";
 
@@ -391,10 +398,38 @@ function wireTools() {
     const out = await Content.scrubMetadata(a.bytes, PDFLib);
     await refreshAfterOp("scrub", {}, out, outName("scrubbed"));
   });
-  run("t-redact-note", async () => {
-    announce("True burn-in redaction (content-stream filter) ships in Phase B. Overlay-only redaction is deliberately NOT offered.");
+  async function textMapsFor(pages) {
+    const maps = {};
+    const targets = pages || Array.from({ length: pageCount() }, (_, i) => i);
+    for (const pi of targets) {
+      const t = await pageText(pi + 1);
+      maps[pi] = t.lines;
+    }
+    return maps;
+  }
+  function parseRect(str) {
+    const parts = String(str || "").split(",").map((s) => parseFloat(s.trim()));
+    if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) throw new Error("rect must look like x,y,w,h");
+    return { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+  }
+  function parseXY(str) {
+    const parts = String(str || "").split(",").map((s) => parseFloat(s.trim()));
+    if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) throw new Error("coords must look like x,y");
+    return parts;
+  }
+  run("t-redact", async () => {
+    const a = requireFile();
+    const pg = parseInt($("rdpage").value || "1", 10) - 1;
+    const region = { page: pg, x: parseFloat($("rdx").value), y: parseFloat($("rdy").value), w: parseFloat($("rdw").value), h: parseFloat($("rdh").value) };
+    const extra = $("rdextra").value.split(",").map((s) => s.trim()).filter(Boolean);
+    const maps = await textMapsFor([pg]);
+    const r = await RedactOps.burnInRedact(a.bytes, { regions: [region], extraStrings: extra }, maps, PDFLib);
+    $("redactreport").textContent = r.acceptance.pass
+      ? "PASS: extraction over region empty, " + r.strings.length + " string(s) scrubbed from content streams (" + r.strings.map((s) => JSON.stringify(s)).join(", ") + ")."
+      : "FAIL: " + JSON.stringify(r.acceptance) + ". Kept-text damage avoided; adjust the region.";
+    if (!r.acceptance.pass) throw new Error("redact acceptance failed");
+    await refreshAfterOp("redact", { region }, r.bytes, outName("redacted"));
   });
-  // annotate/edit
   run("t-headerfooter", async () => {
     const a = requireFile();
     const out = await Content.addHeaderFooter(a.bytes, { header: $("hfheader").value, footer: $("hffooter").value }, PDFLib);
@@ -414,6 +449,263 @@ function wireTools() {
     const a = requireFile();
     const out = await Content.setMetadata(a.bytes, { title: $("mdtitle").value, author: $("mdauthor").value, subject: "", keywords: "" }, PDFLib);
     await refreshAfterOp("metadata", {}, out, outName("meta"));
+  });
+  // ---- Phase B: annotate (E1-E5, E8, E11, E13-E15) ----
+  run("t-markup", async () => {
+    const a = requireFile();
+    const maps = await textMapsFor();
+    const r = await Annotate.addTextMarkup(a.bytes, { query: $("mkquery").value, subtype: $("mksubtype").value }, maps, PDFLib);
+    $("annotreport").textContent = r.hits + " markup annotation(s) placed.";
+    await refreshAfterOp("markup-" + $("mksubtype").value.toLowerCase(), { q: $("mkquery").value }, r.bytes, outName("marked"));
+  });
+  run("t-bakemarkup", async () => {
+    const a = requireFile();
+    const r = await EditOps.bakeMarkup(a.bytes, PDFLib);
+    $("annotreport").textContent = r.baked + " markup annotation(s) baked into content.";
+    await refreshAfterOp("bake-markup", { baked: r.baked }, r.bytes, outName("baked"));
+  });
+  run("t-note", async () => {
+    const a = requireFile();
+    const [x, y] = parseXY($("notexy").value || "100,650");
+    const out = await Annotate.addStickyNote(a.bytes, { page: currentPage() - 1, x, y, contents: $("notetext").value || "Note" }, PDFLib);
+    await refreshAfterOp("note", { page: currentPage() }, out, outName("noted"));
+  });
+  run("t-shape", async () => {
+    const a = requireFile();
+    const r = parseRect($("shapexy").value || "50,600,200,80");
+    const out = await Annotate.drawShape(a.bytes, { page: currentPage() - 1, kind: $("shapekind").value, ...r }, PDFLib);
+    await refreshAfterOp("shape", { kind: $("shapekind").value }, out, outName("shaped"));
+  });
+  run("t-stamp", async () => {
+    const a = requireFile();
+    const out = await Annotate.addStamp(a.bytes, { page: currentPage() - 1, text: $("stamptext").value || "APPROVED" }, PDFLib);
+    await refreshAfterOp("stamp", {}, out, outName("stamped"));
+  });
+  run("t-link", async () => {
+    const a = requireFile();
+    const rect = parseRect($("linkrect").value || "56,740,200,20");
+    const t = $("linktarget").value.trim();
+    const target = t.startsWith("page:") ? { gotoPage: parseInt(t.slice(5), 10) - 1 } : validateLink({ uri: t });
+    const out = await Annotate.addLink(a.bytes, { page: currentPage() - 1, rect, ...target }, PDFLib);
+    await refreshAfterOp("link", { target: t }, out, outName("linked"));
+  });
+  run("t-bates", async () => {
+    const a = requireFile();
+    const r = await Annotate.addBates(a.bytes, { prefix: $("batespre").value, digits: parseInt($("batesdigits").value || "6", 10), start: parseInt($("batesstart").value || "1", 10) }, PDFLib);
+    $("annotreport").textContent = "Bates: " + r.plan[0] + " ... " + r.plan[r.plan.length - 1];
+    await refreshAfterOp("bates", {}, r.bytes, outName("bates"));
+  });
+  run("t-wmimg", async () => {
+    const a = requireFile();
+    const f = $("wmpick").files[0];
+    if (!f) throw new Error("Pick an image first.");
+    const kind = f.name.toLowerCase().endsWith(".png") ? "png" : "jpg";
+    const out = await Annotate.imageWatermark(a.bytes, { imageBytes: new Uint8Array(await f.arrayBuffer()), kind, opacity: 0.15 }, PDFLib);
+    await refreshAfterOp("image-watermark", {}, out, outName("bgmarked"));
+  });
+  function parseBookmarks() {
+    return $("bmtext").value.split("\n").map((s) => s.trim()).filter(Boolean).map((line) => {
+      const m = line.match(/^(.*)\|\s*(\d+)\s*$/);
+      if (!m) throw new Error("bookmark lines look like: Title | 2");
+      return { title: m[1].trim(), page: parseInt(m[2], 10) };
+    });
+  }
+  run("t-bookmarks", async () => {
+    const a = requireFile();
+    const r = await Annotate.setBookmarks(a.bytes, parseBookmarks(), PDFLib);
+    $("annotreport").textContent = r.count + " bookmark(s) set.";
+    await refreshAfterOp("bookmarks", { count: r.count }, r.bytes, outName("bookmarked"));
+  });
+  run("t-toc", async () => {
+    const a = requireFile();
+    const r = await Annotate.addTocPage(a.bytes, parseBookmarks(), PDFLib);
+    $("annotreport").textContent = r.count + " bookmark(s) + TOC page.";
+    await refreshAfterOp("toc", { count: r.count }, r.bytes, outName("toc"));
+  });
+  run("t-annlist", async () => {
+    const a = requireFile();
+    const doc = await PDFLib.PDFDocument.load(a.bytes);
+    const list = Annotate.listAnnotations(doc, PDFLib);
+    $("annotreport").textContent = list.length ? list.map((x) => "p." + (x.page + 1) + " " + x.subtype).join("; ") : "No annotations.";
+  });
+  run("t-anndel", async () => {
+    const a = requireFile();
+    const r = await Annotate.deleteAnnotations(a.bytes, {}, PDFLib);
+    $("annotreport").textContent = r.removed + " annotation(s) removed.";
+    await refreshAfterOp("annots-cleared", { removed: r.removed }, r.bytes, outName("cleaned"));
+  });
+  // ink pad
+  const inkStrokes = [];
+  let inkCur = null;
+  const pad = $("inkpad");
+  function padPos(e) {
+    const r = pad.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (pad.width / r.width), y: (e.clientY - r.top) * (pad.height / r.height) };
+  }
+  pad.addEventListener("pointerdown", (e) => {
+    pad.setPointerCapture(e.pointerId);
+    inkCur = [padPos(e)];
+    inkStrokes.push(inkCur);
+  });
+  pad.addEventListener("pointermove", (e) => {
+    if (!inkCur) return;
+    inkCur.push(padPos(e));
+    const ctx = pad.getContext("2d");
+    const n = inkCur.length;
+    ctx.beginPath();
+    ctx.moveTo(inkCur[n - 2].x, inkCur[n - 2].y);
+    ctx.lineTo(inkCur[n - 1].x, inkCur[n - 1].y);
+    ctx.stroke();
+  });
+  pad.addEventListener("pointerup", () => {
+    inkCur = null;
+  });
+  $("t-inkclear").onclick = () => {
+    inkStrokes.length = 0;
+    pad.getContext("2d").clearRect(0, 0, pad.width, pad.height);
+  };
+  run("t-ink", async () => {
+    const a = requireFile();
+    if (!inkStrokes.length) throw new Error("Draw on the pad first.");
+    const doc = await PDFLib.PDFDocument.load(a.bytes);
+    const size = doc.getPages()[currentPage() - 1].getSize();
+    const sx = size.width / pad.width;
+    const sy = size.height / pad.height;
+    const strokes = inkStrokes.map((st) => st.map((p) => ({ x: p.x * sx, y: size.height - p.y * sy })));
+    const out = await Annotate.addInk(a.bytes, { page: currentPage() - 1, strokes: strokes.map((s) => simplifyInk(s)) }, PDFLib);
+    await refreshAfterOp("ink", { strokes: strokes.length }, out, outName("inked"));
+  });
+  // ---- Phase B: edit (E6-E7, N-up/booklet/overlay, compare) ----
+  run("t-findreplace", async () => {
+    const a = requireFile();
+    const maps = await textMapsFor();
+    const r = await EditOps.findReplace(a.bytes, { query: $("frquery").value, replacement: $("frrepl").value }, maps, PDFLib);
+    $("editreport").textContent = r.count + " occurrence(s) replaced.";
+    await refreshAfterOp("find-replace", { q: $("frquery").value }, r.bytes, outName("replaced"));
+  });
+  run("t-pedit", async () => {
+    const a = requireFile();
+    const maps = await textMapsFor([currentPage() - 1]);
+    const r = await EditOps.editParagraph(a.bytes, { matchText: $("pematch").value, newText: $("penew").value, page: currentPage() - 1 }, maps, PDFLib);
+    $("editreport").textContent = "Edited on page " + (r.page + 1) + (r.overflow ? " (overflow: text continues past the paragraph box)." : ".");
+    await refreshAfterOp("paragraph-edit", { match: $("pematch").value }, r.bytes, outName("edited"));
+  });
+  run("t-nup", async () => {
+    const a = requireFile();
+    const out = await EditOps.nupPdf(a.bytes, { n: parseInt($("nupn").value, 10) }, PDFLib);
+    await refreshAfterOp("nup-" + $("nupn").value, {}, out, outName("nup" + $("nupn").value));
+  });
+  run("t-booklet", async () => {
+    const a = requireFile();
+    const out = await EditOps.bookletPdf(a.bytes, PDFLib);
+    await refreshAfterOp("booklet", {}, out, outName("booklet"));
+  });
+  run("t-overlay", async () => {
+    const a = requireFile();
+    if (!fileB) throw new Error("Pick a second PDF first.");
+    const out = await EditOps.overlayPdf(a.bytes, fileB.bytes, PDFLib);
+    await refreshAfterOp("overlay", {}, out, outName("overlay"));
+  });
+  run("t-compare", async () => {
+    const a = requireFile();
+    if (!fileB) throw new Error("Pick a second PDF first.");
+    const prev = file;
+    await setFile(fileB.name, fileB.bytes);
+    const textsB = [];
+    for (let p = 1; p <= pageCount(); p++) textsB.push((await pageText(p)).paragraphs.map((x) => x.text).join("\n"));
+    await setFile(prev.name, prev.bytes);
+    const textsA = [];
+    for (let p = 1; p <= pageCount(); p++) textsA.push((await pageText(p)).paragraphs.map((x) => x.text).join("\n"));
+    const r = await EditOps.compareDocs(a.bytes, fileB.bytes, textsA, textsB, PDFLib);
+    $("editreport").textContent = "Diff: " + r.stats.same + " same, " + r.stats.del + " removed, " + r.stats.ins + " added words.";
+    await refreshAfterOp("compare", { stats: r.stats }, r.bytes, outName("compared"));
+  });
+  // ---- Phase B: images (I2-I3, I6) ----
+  run("t-imgcensus", async () => {
+    const a = requireFile();
+    const doc = await PDFLib.PDFDocument.load(a.bytes);
+    const list = ImageOps.censusImages(doc, PDFLib);
+    $("imgreport").textContent = list.length
+      ? list.map((c) => "#" + c.index + " p." + (c.page + 1) + " " + c.width + "x" + c.height + " " + c.filter).join("; ")
+      : "No embedded images.";
+  });
+  run("t-imgextract", async () => {
+    const a = requireFile();
+    const doc = await PDFLib.PDFDocument.load(a.bytes);
+    const list = ImageOps.censusImages(doc, PDFLib);
+    if (!list.length) throw new Error("No embedded images.");
+    list.forEach((entry, i) => {
+      const r = ImageOps.extractImageBytes(doc, entry);
+      const mime = r.ext === "jpg" ? "image/jpeg" : "application/octet-stream";
+      download(r.bytes, "folio-img" + (i + 1) + "." + r.ext, mime);
+    });
+    $("imgreport").textContent = list.length + " image(s) downloaded (JPEG stays original; others are raw samples).";
+  });
+  run("t-imginsert", async () => {
+    const a = requireFile();
+    const f = $("imginsertpick").files[0];
+    if (!f) throw new Error("Pick an image first.");
+    const [x, y] = parseXY($("imgxy").value || "56,400");
+    const kind = f.name.toLowerCase().endsWith(".png") ? "png" : "jpg";
+    const out = await ImageOps.insertImage(a.bytes, { page: currentPage() - 1, imageBytes: new Uint8Array(await f.arrayBuffer()), kind, x, y, maxW: 400, maxH: 400 }, PDFLib);
+    await refreshAfterOp("insert-image", { page: currentPage() }, out, outName("img"));
+  });
+  run("t-scanner", async () => {
+    requireFile();
+    const url = await renderToDataUrl(currentPage(), 150);
+    const res = await fetch(url);
+    const png = new Uint8Array(await res.arrayBuffer());
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    c.getContext("2d").drawImage(img, 0, 0);
+    const filtered = ImageOps.scannerFilter(c, scannerSpec({}));
+    const res2 = await fetch(filtered);
+    const out = await Content.imagesToPdf([new Uint8Array(await res2.arrayBuffer())], ["png"], PDFLib);
+    void png;
+    download(out, outName("scanned"));
+    announce("Scanner-effect page exported.");
+  });
+  // ---- Phase B: forms (F1-F4) ----
+  run("t-formlist", async () => {
+    const a = requireFile();
+    const list = await FormOps.describeForm(a.bytes, PDFLib);
+    $("formreport").textContent = list.length ? list.map((f) => f.name + " (" + f.kind + ")").join("; ") : "No form fields.";
+  });
+  run("t-formflatten", async () => {
+    const a = requireFile();
+    const out = await FormOps.flattenForm(a.bytes, PDFLib);
+    await refreshAfterOp("flatten-form", {}, out, outName("flat"));
+  });
+  run("t-xfa", async () => {
+    const a = requireFile();
+    const msg = FormOps.xfaBanner(a.bytes);
+    $("formreport").textContent = msg || "No XFA detected: standard AcroForm (or no form).";
+  });
+  run("t-formcreate", async () => {
+    const a = requireFile();
+    const rect = parseRect($("fldrect").value || "56,600,200,24");
+    const opts = $("fldopts").value.split(",").map((s) => s.trim()).filter(Boolean);
+    const out = await FormOps.createField(a.bytes, { name: $("fldname").value || "field1", type: $("fldtype").value, page: currentPage(), rect, options: opts }, PDFLib);
+    await refreshAfterOp("create-field", { name: $("fldname").value }, out, outName("formed"));
+  });
+  run("t-formfill", async () => {
+    const a = requireFile();
+    let values = null;
+    try {
+      values = JSON.parse($("filljson").value || "{}");
+    } catch {
+      throw new Error("fill JSON does not parse");
+    }
+    const r = await FormOps.fillForm(a.bytes, values, PDFLib);
+    $("formreport").textContent = r.filled + " field(s) filled.";
+    await refreshAfterOp("fill-form", { filled: r.filled }, r.bytes, outName("filled"));
   });
   // images
   run("t-pdf2img", async () => {

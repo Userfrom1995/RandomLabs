@@ -41,10 +41,14 @@ Pages, Compress, Security, Annotate, Edit, Images, Forms, OCR, Convert,
 Workflow. Phase A ships: viewer + structural backbone + pipeline + convert
 core (text/markdown/html out, text to PDF, images both directions, headers,
 numbers, watermarks, metadata, scrub, lossless optimize, info, repair,
-read-aloud). Phase B adds burn-in redact, paragraph edit, find-replace,
-AcroForm fill/flatten. Phase C adds AES-256 passwords, profiles-gated
-compress, and the OCR pack. Phase D adds the Office pack. Cloud AI chat is
-the only exclusion (matrix section 8).
+read-aloud). Phase B ships: burn-in redact with acceptance gate, text-markup
+annotations (highlight/underline/strikeout with QuadPoints), sticky notes,
+shapes, ink pad, stamps, links, Bates, image watermarks, bookmarks + TOC,
+annotation list/delete, markup bake, paragraph edit, find-replace, N-up,
+booklet, overlay, compare, image census/extract/insert, scanner effect,
+AcroForm describe/fill/create/flatten, XFA detector. Phase C adds AES-256
+passwords, profiles-gated compress, and the OCR pack. Phase D adds the
+Office pack. Cloud AI chat is the only exclusion (matrix section 8).
 
 ## Develop
 
@@ -69,4 +73,4 @@ ESM + worker, copied same-origin so the CSP needs no remote script sources.
 - `src/ui/` shell + viewer + tool executors
 - `packs/` consent manifests (byte sizes generated from real bundles)
 - `docs/` parity matrix + research spec + architecture + scoreboard
-- `tests/` node:test suite (7 groups, zero deps)
+- `tests/` node:test suite (12 groups, zero deps)

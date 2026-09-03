@@ -13,5 +13,21 @@ desktop + 390px mobile. Regressions over 10 percent block merge.
 | T4 packs | per-pack bytes | OCR 0 (placeholder), Office 0 (placeholder) | manifests carry real sizes from Phase C/D |
 | T5 | compress ratio vs quality gate | lossless resave only | text pages stay searchable |
 
+## Phase B verification (2026-09-03, node, vendored pdf-lib 1.17.1)
+
+- Unit: `node --test folio/tests/core.test.js` 12/12 green (structural,
+  text-map boxes, compress gate, redact filter, N-up, tables, markdown,
+  packs/naming/perms/pipeline, quads/Bates/bookmarks/ink/link, edit spans +
+  word diff, stream scrub, image fit, form validation).
+- E2E (real pdf-lib, synthetic 2-page PDF): highlight/sticky/shapes/ink/
+  stamp/URI+goto links/Bates/bookmarks/TOC/image-watermark/ann-list+delete,
+  find-replace/paragraph-edit/N-up/booklet/overlay/compare/bake-markup,
+  image census+extract+insert, form create/describe/fill/flatten/XFA-negative,
+  burn-in redact acceptance PASS - all green.
+- Read-path proof: real vendored pdf.js extracts "TopSecret project Apollo"
+  before, and "Apollo hello world filler" after burn-in redaction of the two
+  overlapping words - redacted bytes gone from decoded streams, kept text in
+  the same Tj run intact.
+
 Note: the pdf.js worker (2.1 MB raw) loads lazily after the first file, so
 it is outside the initial route payload per the splitting map.

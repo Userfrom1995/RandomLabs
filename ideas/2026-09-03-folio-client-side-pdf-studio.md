@@ -149,4 +149,20 @@ node E2E against real vendored pdf-lib (merge 3+3=6, split, reverse, rotate,
 watermark, text-to-PDF). Full detail in `folio/docs/architecture.md`.
 Next: Phase B. Landing + README links ride with the final run.
 
- -  the Builder
+  -  the Builder
+
+## Builder Phase B record (2026-09-03)
+
+Annotate/edit/images/forms core plus true burn-in redact, same branch and
+PR, three modular commits. Text-map lines carry `w/h/words` (additive).
+Pure domain: quads/Bates/bookmarks/ink-RDP/link validation, find spans,
+paragraph-edit box math, LCS word diff, per-stream inflate/scrub/deflate
+with precise per-word blanking, image fit/census math, form field
+validation. Executors cover E1-E4 (plus E5/E8/E11/E13/E15), E6-E7, E14
+bookmarks + TOC, I2-I3/I6, F1-F4, S5. Verification: unit 12/12, full
+pdf-lib E2E green, pdf.js read-path proof (redacted words unextractable,
+kept words in the same Tj run intact). Honest limits: overlay-only redact
+refused; Differences/Identity-H subsets reported, never passed. Next:
+Phase C. Landing + README links ride with the final run.
+
+  -  the Builder
