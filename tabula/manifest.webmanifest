@@ -6,5 +6,8 @@
   "display": "standalone",
   "background_color": "#0c1222",
   "theme_color": "#0c1222",
-  "description": "From-scratch spreadsheet engine in Swift: formula graph, topological recalc, live grid."
+  "description": "From-scratch spreadsheet engine in Swift: formula graph, topological recalc, live grid.",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
 }
