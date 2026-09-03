@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Currently hosting Obsidian, a lossless image codec written from scratch in Rust with a per-context adaptive Golomb-Rice entropy backend." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Most recently Prism, a lossless image codec written from scratch in C++ accepted as finished-at-ceiling (M0 bit-exact; M2/M3 FAIL at X6b 3.2175/9.6525 on Kodak-24)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -121,15 +121,14 @@
   <h2>Current Project</h2>
   <div class="cards">
     <div class="card current">
-      <span class="tag">Live now</span>
-      <h4>Helix</h4>
-      <p>A from-scratch vector search engine in Go: HNSW graph (probabilistic skip-list layers, best-first beam search with ef, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with ADC and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, helix CLI (build/search/serve/bench), and a static dashboard where nearest neighbors light up on a 2D projection as you drag the recall dial.</p>
+      <span class="tag">Finished at ceiling</span>
+      <h4>Prism</h4>
+      <p>A lossless image codec written from scratch in C++20, accepted by the Owner as finished-at-ceiling at <code>9bd6d10</code> (2026-09-03, issue #130 closed, gates FAIL, never gate-passed). M0 done: 5-level LeGall 5/3 DWT, reversible YCoCg-R, MA decision trees, multi-cluster rANS, 100% byte-exact round-trips. Accepted ceiling on Kodak-24: X6b 3.2175/sample / 9.6525 summed (repro 3.21843/9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured; full negative ledger on main; all branches retained.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/Random/helix/ui/">Open dashboard</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/helix/README.md">Run it</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-23-helix-vector-search.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/docs/research/issue-128-helix-vector-search.md">Research spec</a>
-        <a href="https://userfrom1995.github.io/Random/helix/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/issues/130">Issue #130</a>
       </div>
     </div>
   </div>
@@ -137,13 +136,24 @@
   <h2>Previous Projects</h2>
   <ul class="projects">
     <li>
+      <h4>Helix</h4>
+      <p>A from-scratch vector search engine in Go: HNSW graph (probabilistic skip-list layers, best-first beam search with ef, diversity neighbor heuristic, lazy deletion) plus Product Quantization / OPQ with ADC and exact-rerank. Deterministic Build/Search API, REST index/query/projection endpoints, helix CLI (build/search/serve/bench), and a static dashboard where nearest neighbors light up on a 2D projection as you drag the recall dial.</p>
+      <div class="links">
+        <a href="https://userfrom1995.github.io/RandomLabs/helix/ui/">Open dashboard</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/helix/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-23-helix-vector-search.md">Writeup</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/docs/research/issue-128-helix-vector-search.md">Research spec</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/helix/docs/">Documentation</a>
+      </div>
+    </li>
+    <li>
       <h4>Kinetica</h4>
       <p>A from-scratch 2D rigid-body physics engine in TypeScript: impulse-based sequential-impulse solver with SAT + reference/incident face clipping for 2-point manifolds, Coulomb friction, Baumgarte stabilization, revolute/distance/prismatic joints, island sleeping, and a deterministic headless core with seeded checksums. Interactive browser sandbox with boxes, circles, and polygons.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/Random/kinetica/">Open sandbox</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/kinetica/">Open sandbox</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/kinetica/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-23-kinetica-physics-build.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/kinetica/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/kinetica/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -161,18 +171,18 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/meridian/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-16-meridian-fulltext-search-engine-rust.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/meridian/">Search the corpus</a>
-        <a href="https://userfrom1995.github.io/Random/meridian/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/meridian/">Search the corpus</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/meridian/docs/">Documentation</a>
       </div>
     </li>
     <li>
       <h4>Prism</h4>
-      <p>A next-gen lossless image codec written from scratch in C++17, succeeding Obsidian: a format-agnostic front-end, reversible color decorrelation, mandatory Squeeze, a predictor bank, an MA-tree context model, and context-modeled rANS behind a CRC-gated PRSM container. M0 is a bit-exact, fuzz-gated codec; M1-M4 target beating JPEG XL on Kodak. Currently in review (PR #104).</p>
+      <p>A lossless image codec written from scratch in C++20, finished-at-ceiling (issue #130 closed 2026-09-03 at <code>9bd6d10</code>, gates FAIL, never gate-passed): M0 bit-exact round-trips shipped; X6b ceiling 3.2175/sample / 9.6525 summed on Kodak-24 (repro 3.21843/9.65529); M2 FAIL ~1.6%, M3 FAIL ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured across 7+ programs; full negative ledger on main; all branches retained.</p>
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/">Documentation</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/pull/104">PR #104</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/issues/130">Issue #130</a>
       </div>
     </li>
     <li>
@@ -181,8 +191,8 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/kestrel/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-16-kestrel-neural-network-library-julia.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/kestrel/">Playground</a>
-        <a href="https://userfrom1995.github.io/Random/kestrel/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/kestrel/">Playground</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/kestrel/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -191,8 +201,8 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/halcyon/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-15-halcyon-functional-language-vm.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/halcyon/">Playground</a>
-        <a href="https://userfrom1995.github.io/Random/halcyon/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/halcyon/">Playground</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/halcyon/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -201,7 +211,7 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/glyphforge/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-15-glyphforge-bitmap-font-designer.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/glyphforge/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/glyphforge/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -210,7 +220,7 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/beambus/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/beambus/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/beambus/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -219,7 +229,7 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/aftershock/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-aftershock-seismic-network-simulator.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/aftershock/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/aftershock/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -228,7 +238,7 @@
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/gambit/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-gambit-uci-chess-engine.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/Random/gambit/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/gambit/docs/">Documentation</a>
       </div>
     </li>
     <li>
@@ -243,8 +253,8 @@
       <h4>Orrery</h4>
       <p>An interactive 3D solar system in the browser - hand-rolled WebGL + TypeScript, no external engine. Real Keplerian orbital mechanics (true periods, distances, and orbital planes), procedurally textured planets with diffuse/specular lighting, a free-fly camera with pause and time-warp, and click-to-fly to any planet.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/Random/orrery/">Fly to Jupiter</a>
-        <a href="https://userfrom1995.github.io/Random/orrery/docs/">Documentation</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/orrery/">Fly to Jupiter</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/orrery/docs/">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md">Writeup</a>
       </div>
     </li>
@@ -284,7 +294,7 @@
       <h4>Redline Rush</h4>
       <p>A top-down arcade car racing game - steer a four-lane highway at ever-increasing speed, dodge oncoming traffic, and grab fuel cans before the tank runs dry. Canvas 2D + Web Audio, zero assets, works offline.</p>
       <div class="links">
-        <a href="https://userfrom1995.github.io/Random/rush/">Play it</a>
+        <a href="https://userfrom1995.github.io/RandomLabs/rush/">Play it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-08-redline-rush-top-down-arcade-racer.md">Writeup</a>
       </div>
     </li>
