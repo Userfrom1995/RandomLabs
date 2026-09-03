@@ -920,15 +920,11 @@ StaticBitplaneResult BitplaneCoder::encode_static(
         }
     }
 
-    // Wire-representability clamp (issue #130): the container transmits
-    // per-(subband,class) counts as 16-bit values (see
-    // frame_wavelet_encode_r6b) and decode rebuilds the static backbone
-    // from the transmitted counts. Derive the encoder's static model from
-    // the clamped counts so encode/decode agree exactly when a class
-    // accumulates more than 65535 symbols (real Kodak images overflow the
-    // dominant significance class; synthetic unit sizes never do, which is
-    // why this desync stayed green). Zero wire-format change: the wire
-    // already carries the clamped values.
+    // Wire-representability clamp (issue #130, complements the NOTE below):
+    // clamp the stored histogram itself so the returned res.hist is exactly
+    // what the wire carries (16-bit per count). This makes the container-side
+    // clamp a no-op and guarantees any future res.hist consumer sees
+    // wire-exact counts. Small images (no count above 65535) are unaffected.
     for (size_t oi = 0; oi < NS; ++oi)
         for (uint32_t& c : hist.cnt[oi])
             if (c > 0xFFFFu) c = 0xFFFFu;
