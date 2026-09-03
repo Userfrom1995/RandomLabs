@@ -52,7 +52,36 @@ export function itemsToLines(items) {
       prevEnd = r.x + w;
     }
     const xs = L.items.map((r) => r.x);
-    return { text, x: Math.min(...xs), y: L.y, size: median(L.items.map((r) => r.size)), vertical: L.vertical };
+    const x0 = Math.min(...xs);
+    const medSize = median(L.items.map((r) => r.size));
+    // Word boxes: distribute each item's width across its space-separated
+    // tokens. Gives QuadPoints-capable bboxes in PDF user space (baseline y).
+    const words = [];
+    for (const r of L.items) {
+      const wTotal = r.it.width !== undefined ? r.it.width : r.size * 0.5 * Math.max(1, r.it.str.length);
+      const toks = r.it.str.split(/(\s+)/).filter((t) => t.length);
+      let cx = r.x;
+      const perChar = wTotal / Math.max(1, r.it.str.length);
+      for (const t of toks) {
+        const tw = t.length * perChar;
+        if (!/^\s+$/.test(t)) words.push({ text: t, x: cx, y: r.y, w: tw, h: r.size });
+        cx += tw;
+      }
+    }
+    const ends = L.items.map((r) => {
+      const w = r.it.width !== undefined ? r.it.width : r.size * 0.5 * Math.max(1, r.it.str.length);
+      return r.x + w;
+    });
+    return {
+      text,
+      x: x0,
+      y: L.y,
+      w: Math.max(...ends) - x0,
+      h: medSize,
+      size: medSize,
+      vertical: L.vertical,
+      words,
+    };
   });
 }
 

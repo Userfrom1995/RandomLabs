@@ -10,6 +10,11 @@ import { inferMarkdown } from "../src/core/textmap/markdown.js";
 import { parseManifest, consentReducer, formatBytes } from "../src/platform/packs/manifest.js";
 import { applyPattern, sanitizeFileName, encodePerms, decodePerms } from "../src/core/pipeline/naming.js";
 import { createStore, applyOp, makeOp, undo, redo } from "../src/core/pipeline/ops.js";
+import { quadsForQuery, batesPlan, validateBookmarks, simplifyInk, validateLink } from "../src/core/annotate/annotate.js";
+import { findSpans, paragraphEditPlan, wordDiff, diffStats } from "../src/core/content/edit.js";
+import { scrubPdfBytes } from "../src/core/content/burnin.js";
+import { fitImage, scannerSpec } from "../src/core/images/images.js";
+import { validateFieldDef, coerceFillValue, xfaDetect } from "../src/core/forms/forms.js";
 
 test("structural planners", () => {
   assert.deepEqual(planMerge([3, 2]).total, 5);
@@ -105,4 +110,67 @@ test("packs + naming + perms + pipeline", () => {
   applyOp(st, op);
   assert.equal(undo(st).tool, "merge");
   assert.equal(redo(st).tool, "merge");
+});
+
+test("textmap lines carry boxes + words", async () => {
+  const items = [
+    { str: "hello world", transform: [12, 0, 0, 12, 50, 700], width: 60 },
+    { str: "second", transform: [12, 0, 0, 12, 50, 670], width: 36 },
+  ];
+  const { itemsToLines: toLines } = await import("../src/core/textmap/extract.js");
+  const lines = toLines(items);
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].w > 0 && lines[0].h > 0);
+  assert.deepEqual(lines[0].words.map((w) => w.text), ["hello", "world"]);
+  assert.ok(lines[0].words[1].x > lines[0].words[0].x);
+});
+
+test("annotate quads + bates + bookmarks + ink + link", () => {
+  const lines = [{ text: "hello world", x: 50, y: 700, w: 120, h: 12, size: 12, words: [{ text: "hello", x: 50, y: 700, w: 40, h: 12 }, { text: "world", x: 95, y: 700, w: 40, h: 12 }] }];
+  const q = quadsForQuery(lines, "world");
+  assert.equal(q.length, 1);
+  assert.deepEqual(q[0].quads[0].slice(0, 4), [95, 700, 135, 700]);
+  assert.deepEqual(batesPlan(3, { prefix: "B-", digits: 4, start: 7 }), ["B-0007", "B-0008", "B-0009"]);
+  assert.throws(() => validateBookmarks([{ title: "", page: 1 }], 3));
+  assert.throws(() => validateBookmarks([{ title: "a", page: 9 }], 3));
+  assert.equal(validateBookmarks([{ title: "a", page: 2 }], 3).length, 1);
+  const pts = [{ x: 0, y: 0 }, { x: 5, y: 0.1 }, { x: 10, y: 0 }];
+  assert.ok(simplifyInk(pts, 1.5).length <= 3 && simplifyInk(pts, 1.5).length >= 2);
+  assert.deepEqual(validateLink({ uri: "https://example.com" }), { uri: "https://example.com" });
+  assert.throws(() => validateLink({ uri: "ftp://x" }));
+  assert.deepEqual(validateLink({ page: 2 }), { page: 2 });
+});
+
+test("edit spans + paragraph plan + word diff", () => {
+  const lines = [{ text: "the secret file", x: 10, y: 10, w: 200, h: 12, size: 12, words: [{ text: "the", x: 10, y: 10, w: 20, h: 12 }, { text: "secret", x: 32, y: 10, w: 40, h: 12 }, { text: "file", x: 74, y: 10, w: 25, h: 12 }] }];
+  const spans = findSpans(lines, "secret");
+  assert.equal(spans.length, 1);
+  assert.equal(spans[0].x, 31);
+  const plan = paragraphEditPlan({ x: 10, y: 100, w: 400, h: 14, size: 12 }, "alpha beta gamma delta", (t, s) => t.length * s * 0.5);
+  assert.ok(plan.rows.length >= 1 && plan.cover.w === 404);
+  const ops = wordDiff("a b c", "a x c");
+  const st = diffStats(ops);
+  assert.deepEqual([st.same, st.del, st.ins], [2, 1, 1]);
+});
+
+test("burnin scrub blanks literals + hex", () => {
+  const fake = Buffer.from("1 0 obj\n<< /Title (TopSecretDoc) >>\nstream\nBT (TopSecretDoc) Tj ET\nendstream\n<XFEFFER><546F70536563726574446F63>\n", "latin1");
+  const { bytes, perString } = scrubPdfBytes(new Uint8Array(fake), ["TopSecretDoc"]);
+  const out = Buffer.from(bytes).toString("latin1");
+  assert.ok(!out.includes("TopSecretDoc"), "string must be gone: " + out.slice(0, 120));
+  assert.ok(Math.abs(bytes.length - fake.length) < 16, "near length preserving");
+  assert.ok(perString["TopSecretDoc"] >= 1);
+});
+
+test("images fit + scanner spec + forms validation", () => {
+  assert.deepEqual(fitImage(800, 600, 400, 400), { w: 400, h: 300, rot: 0 });
+  assert.deepEqual(fitImage(800, 600, 400, 400, 90), { w: 300, h: 400, rot: 90 });
+  assert.equal(scannerSpec({ contrast: 9 }).contrast, 2);
+  const def = validateFieldDef({ name: "n", type: "dropdown", page: 1, rect: { x: 1, y: 1, w: 10, h: 10 }, options: ["a"] }, 2);
+  assert.equal(def.options.length, 1);
+  assert.throws(() => validateFieldDef({ name: "n", type: "dropdown", page: 1, rect: { x: 1, y: 1, w: 10, h: 10 } }, 2));
+  assert.equal(coerceFillValue("checkbox", "yes"), true);
+  assert.throws(() => coerceFillValue("checkbox", "maybe"));
+  assert.equal(xfaDetect("<< /AcroForm << /XFA [...] >> >>"), true);
+  assert.equal(xfaDetect("plain pdf"), false);
 });
