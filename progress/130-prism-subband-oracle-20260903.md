@@ -1,7 +1,9 @@
 # Progress: Prism #130 - per-subband mux oracle, instrument + quad (issue #130)
 
 - **Branch:** `opencode/issue130-20260903160917`
-- **Status:** in-progress (instrument + quad datum shipped this run; full-24 shards A/B/C remain)
+- **Status:** complete (instrument + quad + full-24 shards A/B/C + oracle
+  aggregation + dual-unit gate eval shipped; mux lever closed at subband
+  granularity)
 - **Date:** 2026-09-03 (Builder run, `/oc build this` trigger, resume mode)
 - **Precedent:** Whole-image mux closed at both widths (2-way 3.2068/9.6204 PR
   #268/#269; real-only 8-way 3.20325/9.60975 M2 FAIL by 1.18%). Blend lever
@@ -128,7 +130,35 @@ after 12 complete images; all 12 nets bit-identical to the committed
 - [x] ideas/ entry + decision doc; commit + push; decision file (continue)
 - [x] Shard A kodim01-08 x {P0,P2} (0.4073% oracle, P0 8/8 bit-identical)
 - [x] Shard B kodim09-16 x {P0,P2} (0.3601% oracle, P0 8/8 bit-identical)
-- [ ] Shard C x {P0,P2} full-24 (continue runs)
+- [x] Shard C kodim17-24 x {P0,P2} (P0 8/8 bit-identical; kodim19
+  P0=483221/P2=487731 reproduce quad floor exactly)
+- [x] Full-24 subband oracle aggregation + dual-unit gate eval (MUX CLOSED)
+
+## Continue run 2026-09-03 (shard C + full-24 gate eval, COMPLETE)
+
+- Shard C kodim17-24 x {P0, P2} measured clean: P0 8/8 nets bit-identical
+  to committed `2026-09-03-x6b-blend0-full24.csv` (`wnet` column, 0
+  mismatches); all rows SELF-CHECK OK. Full-24 P0 determinism re-proof now
+  stands at 24/24 (shards A+B+C) + 12-image bonus + quad: zero mismatches
+  everywhere.
+- Committed: `2026-09-03-subband-p0-shardC.csv`,
+  `2026-09-03-subband-p2-shardC.csv` (385 lines each).
+- Full-24 aggregation (`2026-09-03-subband-oracle-full24.csv`, 1152
+  subband rows + `...-summary.csv`, 24 image rows): stream total 11374896
+  -> mux 11333176 = **0.3668%** saving; wins P0 803/1152, P2-direct
+  349/1152 (~30%). Shard oracles bracket it honestly (A 0.4073%, B
+  0.3601%, quad {P0,P2} 0.392%).
+- Dual-unit gate eval (mux net = P0 net - per-image stream saving, headers
+  untouched; ~12 B/image of selection flags omitted, conservative for FAIL):
+  **per-sample 3.20664, summed 9.61993** vs floor 3.21843/9.65529.
+  M2 (per-sample < 3.166, summed < 9.498) FAILS by 0.0406/sample (~1.3%).
+  M3 (< 2.885 / < 8.655) FAILS by far.
+- VERDICT: per-subband mux lever CLOSED. It lands at 3.20664, essentially
+  identical to the whole-image 2-way oracle (3.2068): subband granularity
+  adds ~0.0002/sample over whole-image mux. P2 wins ~30% of subbands but
+  the wins are thin and cancel against P0's band wins in the sum. No
+  buildable subband-mux encoder is opened; `Refs #130` only, never
+  `Closes #130`.
 - [ ] Full-24 subband oracle aggregation + dual-unit gate eval
 
 - the Builder
