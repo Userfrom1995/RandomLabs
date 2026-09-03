@@ -66,6 +66,61 @@ TEST(R6B, FrameRoundtripVariants) {
         }
 }
 
+// VB-R6B-CLAMP (issue #130): the container transmits per-(subband,class)
+// counts as 16-bit values and decode rebuilds the static backbone from the
+// transmitted counts. A class over real Kodak images accumulates far more
+// than 65535 symbols (e.g. kodim01 bench-r6b roundtrip FAILED on main), so
+// encode_static must derive its static model from the clamped counts.
+// This test forces an overflow at the bitplane level, pins the invariant
+// that the returned histogram is wire-representable, and proves decode
+// from the transmitted (clamped) histogram round-trips exactly.
+TEST(R6B, ClampedHistRoundtrip) {
+    std::mt19937 rng(65536);
+    // One 512x512 detail subband of small random coefficients: the
+    // significance class accumulates w*h*B >> 65535 symbols.
+    Subband sb;
+    sb.orient = Subband::Orient::HH;
+    sb.level = 5;
+    sb.w = 512;
+    sb.h = 512;
+    sb.coeffs.resize((size_t)sb.w * sb.h);
+    for (auto& v : sb.coeffs) v = (int32_t)(rng() % 511) - 255;
+    std::vector<Subband> sbs;
+    sbs.push_back(sb);
+
+    BitplaneCoder coder;
+    auto res = coder.encode_static(sbs);
+    // Invariant: returned counts are wire-representable (16-bit on wire).
+    for (size_t oi = 0; oi < res.hist.cnt.size(); ++oi)
+        for (uint32_t c : res.hist.cnt[oi])
+            EXPECT_LE(c, 0xFFFFu) << "subband " << oi;
+    // Simulate the wire explicitly (must be a no-op given the invariant)
+    // and decode from the transmitted histogram.
+    StaticHist wire = res.hist;
+    for (auto& row : wire.cnt)
+        for (auto& c : row)
+            if (c > 0xFFFFu) c = 0xFFFFu;
+    auto out = coder.decode_static(res.streams, sbs, res.sub_maxbits,
+                                   res.total_symbols, wire, nullptr);
+    ASSERT_EQ(out.size(), sbs.size());
+    ASSERT_EQ(out[0].coeffs.size(), sbs[0].coeffs.size());
+    for (size_t ci = 0; ci < sbs[0].coeffs.size(); ++ci)
+        EXPECT_EQ(out[0].coeffs[ci], sbs[0].coeffs[ci]) << "ci " << ci;
+}
+
+// VB-R6B-CLAMP (issue #130): end-to-end container round-trip on a raster
+// large enough to overflow a 16-bit class count. All pre-existing R6B
+// container tests use tiny rasters (64x48) whose counts never overflow,
+// which is why the kodim01 bench-r6b desync stayed green.
+TEST(R6B, LargeRasterContainerRoundtrip) {
+    std::mt19937 rng(20260903);
+    Raster r(512, 384, Channels::RGB, BitDepth::BD8);
+    for (auto& pl : r.planes)
+        for (auto& v : pl) v = (uint16_t)(rng() % 256);
+    size_t net = 0;
+    auto bytes = frame_wavelet_encode_r6b(r, WaveletFilter::LeGall53, 5, net);
+    EXPECT_EQ(frame_wavelet_decode(bytes), r);
+}
 // VB-R6B-SYMMETRY: the two-pass R6-B subband coder round-trips the coefficient
 // set directly (independent of the wavelet lift), proving encode/decode mirror
 // symmetry even when the transmitted static histogram is blended in.
