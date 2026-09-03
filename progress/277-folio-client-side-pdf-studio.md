@@ -17,7 +17,7 @@
 - [ ] 6. Phase E: Tier 2 then Tier 3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs
 
 ## Current step
-Phase E step 1 complete and verified (unit 18/18, Phase E E2E green against real pdf-lib: extract/split-by-bookmark/blank/resize/orient/crop/burn-crop/flatten/GC/PDF-A/grayscale/attach). Next: Phase E step 2 (shell UI wiring for Tier 2/3 rows), then step 3 (CSP/PWA, scoreboard, docs, landing + README).
+Phase E step 2 complete and verified (117/117 wired IDs resolve, all modules parse, unit 18/18). Next: Phase E step 3 (CSP/PWA hardening, T1-T5 scoreboard, docs, landing + README links).
 
 ## Next steps
 - Builder continue run: Phase E (Tier 2/3 rows, CSP/PWA hardening, T1-T5 scoreboard on the fixed corpus, Playwright pass, docs).
