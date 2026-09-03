@@ -104,9 +104,6 @@ export async function textToPdf(title, bodyText, PDFLib) {
   }
   const paras = String(bodyText || "").split("\n");
   for (const para of paras) {
-    for (const w of para.split(" ")) {
-      void w;
-    }
     let line = "";
     for (const word of para.split(/\s+/)) {
       const trial = line ? line + " " + word : word;

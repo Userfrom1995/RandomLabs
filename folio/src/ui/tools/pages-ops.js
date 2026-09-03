@@ -14,7 +14,7 @@ export async function mergeFiles(listOfBytes, PDFLib) {
     const pages = await out.copyPages(src, idx);
     pages.forEach((p) => out.addPage(p));
   }
-  fixOutlinesBestEffort(out);
+  fixOutlinesBestEffort(out, PDFLib);
   return out.save();
 }
 
@@ -105,7 +105,7 @@ export async function duplicatePage(bytes, pageIdx, PDFLib) {
   return out.save();
 }
 
-function fixOutlinesBestEffort(doc) {
+function fixOutlinesBestEffort(doc, PDFLib) {
   try {
     const catalog = doc.catalog;
     if (catalog && catalog.get && catalog.get(PDFLib.PDFName.of("Outlines"))) catalog.delete(PDFLib.PDFName.of("Outlines"));
