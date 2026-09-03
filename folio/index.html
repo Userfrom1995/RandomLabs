@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Folio - client-side PDF studio</title>
+<meta name="description" content="Folio: merge, split, compress, annotate, convert and chain PDF tools entirely in your browser. No uploads, works offline." />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0b0e14" />
+<style>
+:root{--folio-bg:#0b0e14;--folio-surface:#141822;--folio-panel:#1a2030;--folio-border:#263042;--folio-ink:#d7dce8;--folio-muted:#8a93a8;--folio-accent:#4fc1a0;--folio-accent2:#7aa2f7;--folio-danger:#e05656}
+*{box-sizing:border-box}
+body{margin:0;background:var(--folio-bg);color:var(--folio-ink);font-family:Inter,system-ui,sans-serif;line-height:1.55}
+a{color:var(--folio-accent2)}
+header.top{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--folio-border);flex-wrap:wrap}
+header.top h1{margin:0;font-size:1.25rem;color:var(--folio-accent)}
+header.top p{margin:0;color:var(--folio-muted);font-size:0.82rem}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;min-height:calc(100vh - 120px)}
+aside{background:var(--folio-surface);border-right:1px solid var(--folio-border);padding:14px;overflow:auto}
+.panel-right{background:var(--folio-surface);border-left:1px solid var(--folio-border);padding:14px;overflow:auto}
+main{padding:14px;overflow:auto;min-width:0}
+nav{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+nav a{border:1px solid var(--folio-border);border-radius:6px;padding:5px 10px;font-size:0.8rem;text-decoration:none;color:var(--folio-ink)}
+nav a.active{border-color:var(--folio-accent);color:var(--folio-accent)}
+.route{display:none}
+.route.active{display:block}
+.card{background:var(--folio-panel);border:1px solid var(--folio-border);border-radius:10px;padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 8px;font-size:0.95rem;color:var(--folio-accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+button,.btn{background:#0f172a;color:var(--folio-ink);border:1px solid var(--folio-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:0.85rem}
+button:hover{border-color:var(--folio-accent2)}
+input,select,textarea{background:#0f172a;color:var(--folio-ink);border:1px solid var(--folio-border);border-radius:6px;padding:6px 8px;font-size:0.85rem;max-width:100%}
+textarea{width:100%;min-height:90px}
+#dropzone{border:1.5px dashed var(--folio-border);border-radius:10px;padding:18px;text-align:center;color:var(--folio-muted);margin-bottom:10px}
+#dropzone.over{border-color:var(--folio-accent);color:var(--folio-accent)}
+#pagecanvas{max-width:100%;border:1px solid var(--folio-border);border-radius:8px;background:#fff}
+#pagestrip{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.thumb{min-width:34px}
+.thumb.active{border-color:var(--folio-accent)}
+.op{display:inline-block;background:#0f172a;border:1px solid var(--folio-accent);border-radius:999px;padding:2px 10px;margin:2px;font-size:0.78rem}
+.muted{color:var(--folio-muted);font-size:0.85rem}
+.badge{color:var(--folio-accent);font-size:0.8rem}
+.consent{border:1px solid var(--folio-border);border-radius:8px;padding:10px;margin:8px 0}
+footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:var(--folio-muted);font-size:0.82rem;display:flex;gap:16px;flex-wrap:wrap}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+:focus-visible{outline:2px solid var(--folio-accent);outline-offset:2px}
+@media(max-width:980px){.layout{grid-template-columns:1fr}aside{order:2}.panel-right{order:3;border-left:none;border-top:1px solid var(--folio-border)}}
+</style>
+</head>
+<body>
+<div class="sr" aria-live="polite" id="live"></div>
+<header class="top">
+<h1>Folio</h1>
+<p>Fully client-side PDF studio - bytes never leave this device</p>
+<span style="margin-left:auto" class="muted"><a href="../">Back to Random</a> - <a href="docs/">Docs</a></span>
+</header>
+<div class="layout">
+<aside aria-label="Pipeline">
+<div class="card">
+<h3>Files</h3>
+<div id="dropzone">Drop a PDF here or <label>choose <input type="file" id="filepick" accept="application/pdf,.pdf" hidden /></label></div>
+<div class="row"><button id="samplebtn">Load sample PDF</button></div>
+<div class="muted" id="filemeta">No file loaded.</div>
+<div class="row"><label>Second PDF (merge/insert) <input type="file" id="filepickB" accept="application/pdf,.pdf" /></label></div>
+<div class="muted" id="fileBmeta"></div>
+</div>
+<div class="card">
+<h3>Pipeline (upload once, chain ops)</h3>
+<div id="opchain"></div>
+<div class="row"><button id="undobtn">Undo</button><button id="redobtn">Redo</button><button id="exportbtn">Export</button></div>
+</div>
+<nav aria-label="Tools">
+<a href="#/pages">Pages</a><a href="#/compress">Compress</a><a href="#/security">Security</a><a href="#/annotate">Annotate</a><a href="#/edit">Edit</a><a href="#/images">Images</a><a href="#/forms">Forms</a><a href="#/ocr">OCR</a><a href="#/convert">Convert</a><a href="#/workflow">Workflow</a>
+</nav>
+</aside>
+<main>
+<div class="card">
+<div class="row">
+<button id="prevpage">Prev</button><span id="pageinfo" class="muted">No file</span><button id="nextpage">Next</button>
+<button id="zoomout">-</button><button id="zoomin">+</button>
+<input id="searchbox" placeholder="Search text" aria-label="Search text" style="flex:1;min-width:120px" /><button id="searchbtn">Search</button>
+</div>
+<div class="muted" id="searchhits"></div>
+<canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas>
+<div id="pagestrip" aria-label="Page thumbnails"></div>
+</div>
+
+<section class="route" id="route-pages"><div class="card"><h3>Merge / split / organize (P1-P3, P6-P9, P19)</h3>
+<div class="row"><button id="t-merge">Merge A+B</button><button id="t-reverse">Reverse</button><button id="t-duplicate">Duplicate current page</button></div>
+<div class="row"><input id="splitranges" placeholder="Split ranges e.g. 1-2,3-4" /><button id="t-split">Split download parts</button></div>
+<div class="row"><input id="chunksize" type="number" value="5" style="width:80px" /><button id="t-chunks">Split every N pages</button></div>
+<div class="row"><input id="delpages" placeholder="Delete e.g. 2,4-5" /><button id="t-delete">Delete</button></div>
+<div class="row"><select id="oddevenwhich"><option value="odd">Keep odd</option><option value="even">Keep even</option></select><button id="t-oddeven">Apply</button></div>
+<div class="row"><select id="rotdeg"><option value="90">90</option><option value="180">180</option><option value="270">270</option></select><button id="t-rotate">Rotate all</button></div>
+<div class="row"><input id="insertat" type="number" value="1" style="width:80px" /><button id="t-insert">Insert B at page</button></div>
+</div></section>
+
+<section class="route" id="route-compress"><div class="card"><h3>Compress / optimize (O1, O6)</h3>
+<div class="row"><button id="t-resave">Lossless optimize (object-stream resave)</button></div>
+<div class="muted" id="compressreport">Profiles gate rasterize per page on ink-vs-image coverage (Phase C).</div>
+</div></section>
+
+<section class="route" id="route-security"><div class="card"><h3>Security (S1-S6)</h3>
+<div class="row"><button id="t-scrub">Metadata + JS scrub (real)</button></div>
+<div class="row"><button id="t-redact-note">Redact (burn-in)</button></div>
+<p class="muted">Password encrypt/decrypt (AES-256 V=5) and certificate signing ship in Phase C behind the crypto worker. Redact ships in Phase B as a true content-stream burn-in; overlay-only redaction is never offered.</p>
+</div></section>
+
+<section class="route" id="route-annotate"><div class="card"><h3>Annotate (E9-E10, E12-E14)</h3>
+<div class="row"><input id="hfheader" placeholder="Header text" /><input id="hffooter" placeholder="Footer text" /><button id="t-headerfooter">Apply header/footer</button></div>
+<div class="row"><input id="pntpl" value="Page {n} of {total}" /><button id="t-pagenum">Add page numbers</button></div>
+<div class="row"><input id="wmtext" value="DRAFT" /><button id="t-watermark">Watermark</button></div>
+</div></section>
+
+<section class="route" id="route-edit"><div class="card"><h3>Edit (E6-E7, E17)</h3>
+<div class="row"><input id="mdtitle" placeholder="Title" /><input id="mdauthor" placeholder="Author" /><button id="t-metadata">Set metadata</button></div>
+<p class="muted">Paragraph-aware text edit + find/replace ship in Phase B on the text-map + content-stream filter.</p>
+</div></section>
+
+<section class="route" id="route-images"><div class="card"><h3>Images (I1, I5)</h3>
+<div class="row"><input id="imgdpi" type="number" value="150" style="width:80px" /><button id="t-pdf2img">Current page to PNG</button></div>
+<div class="row"><input type="file" id="imgpick" accept="image/*" multiple /><button id="t-img2pdf">Images to PDF</button></div>
+</div></section>
+
+<section class="route" id="route-forms"><div class="card"><h3>Forms (F1, F3)</h3>
+<p class="muted">AcroForm fill + flatten ship in Phase B on the pdf-lib form API. XFA files show a legacy banner (F4).</p>
+</div></section>
+
+<section class="route" id="route-ocr"><div class="card"><h3>OCR to searchable layer (C1, C3)</h3>
+<div id="ocr-consent"></div>
+<p class="muted">Scanned pages detected via zero text items route here. The Tesseract LSTM engine ships in Phase C as a consent-gated same-origin pack with progress/cancel/per-page retry.</p>
+</div></section>
+
+<section class="route" id="route-convert"><div class="card"><h3>Convert (V1, V5-V9 core)</h3>
+<div id="office-consent"></div>
+<div class="row"><button id="t-pdf2text">PDF to text</button><button id="t-pdf2md">PDF to Markdown</button><button id="t-pdf2html">PDF to HTML</button></div>
+<div class="row"><input id="mdtitle2" placeholder="Note title" /></div>
+<textarea id="mdtext" placeholder="Write text or markdown, then export to PDF"></textarea>
+<div class="row"><button id="t-text2pdf">Text to PDF</button></div>
+</div></section>
+
+<section class="route" id="route-workflow"><div class="card"><h3>Workflow (R2-R3, info, repair, TTS)</h3>
+<div class="row"><button id="t-info">Document info</button><button id="t-repair">Repair (tolerant re-save)</button><button id="t-tts">Read current page aloud</button></div>
+<div class="muted" id="inforeport"></div>
+</div></section>
+</main>
+<aside class="panel-right" aria-label="Params">
+<div class="card"><h3>Session</h3><div class="muted" id="sessionmeta">OPFS workspace per job; history in IndexedDB (summaries only, never bytes or passwords).</div></div>
+<div class="card"><h3>Parity contract</h3><p class="muted">Binding matrix: <a href="docs/feature-matrix.md">feature-matrix.md</a>. Algorithms: <a href="docs/research-spec.md">research-spec.md</a>. Plan: <a href="../ideas/2026-09-03-folio-client-side-pdf-studio.md">blueprint</a>. Cloud AI chat is the only exclusion.</p></div>
+</aside>
+</div>
+<footer class="status"><span id="statusbar">Loading...</span><span style="margin-left:auto">Folio - static, offline-capable, same-origin vendored pdf-lib + pdf.js</span></footer>
+<script src="vendor/pdf-lib.min.js"></script>
+<script type="module" src="src/ui/shell/app.js"></script>
+</body>
+</html>

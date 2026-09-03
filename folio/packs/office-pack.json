@@ -1,0 +1,1 @@
+{"bytes": 0, "files": ["office-engine.wasm"], "id": "office-pack", "minSW": 1, "note": "Phase D placeholder: full-fidelity renderer vendored in Phase D; core fallback live now.", "sha256": "pending-phase-D", "version": "0.1.0"}
