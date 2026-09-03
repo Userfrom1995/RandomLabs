@@ -1,1 +1,1 @@
-{"bytes": 0, "files": ["office-engine.wasm"], "id": "office-pack", "minSW": 1, "note": "Phase D placeholder: full-fidelity renderer vendored in Phase D; core fallback live now.", "sha256": "pending-phase-D", "version": "0.1.0"}
+{"bytes": 8390, "files": ["office-engine.js"], "id": "office-pack", "minSW": 1, "note": "V3 full-fidelity Office renderer (same-origin ESM, consent-gated, cached for offline reuse). Core V4 fallback stays available on decline.", "sha256": "590bfd529ed2f231764a7ed044e30bd726a7feab72ec4b142c018746c6a96bff", "version": "0.2.0"}
