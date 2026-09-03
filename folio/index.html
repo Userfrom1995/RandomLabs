@@ -102,28 +102,62 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 
 <section class="route" id="route-security"><div class="card"><h3>Security (S1-S6)</h3>
 <div class="row"><button id="t-scrub">Metadata + JS scrub (real)</button></div>
-<div class="row"><button id="t-redact-note">Redact (burn-in)</button></div>
-<p class="muted">Password encrypt/decrypt (AES-256 V=5) and certificate signing ship in Phase C behind the crypto worker. Redact ships in Phase B as a true content-stream burn-in; overlay-only redaction is never offered.</p>
+<div class="card"><h3>Burn-in redact (S5, true removal)</h3>
+<p class="muted">Paints an opaque box, then byte-scrubs the text from decoded content streams (WinAnsi literal + hex, precise per-word). Reports the acceptance gate: extraction-over-region empty AND output bytes clean.</p>
+<div class="row"><input id="rdpage" type="number" value="1" style="width:64px" title="Page (1-based)" /><input id="rdx" type="number" value="50" style="width:70px" title="x (pt, from left)" /><input id="rdy" type="number" value="700" style="width:70px" title="y (pt, from bottom)" /><input id="rdw" type="number" value="200" style="width:70px" title="width" /><input id="rdh" type="number" value="30" style="width:70px" title="height" /></div>
+<div class="row"><input id="rdextra" placeholder="Extra strings to scrub (comma separated)" style="flex:1;min-width:140px" /><button id="t-redact">Burn-in redact</button></div>
+<div class="muted" id="redactreport"></div>
+</div>
+<p class="muted">Password encrypt/decrypt (AES-256 V=5) and certificate signing ship in Phase C behind the crypto worker.</p>
 </div></section>
 
-<section class="route" id="route-annotate"><div class="card"><h3>Annotate (E9-E10, E12-E14)</h3>
+<section class="route" id="route-annotate"><div class="card"><h3>Annotate (E1-E5, E8-E15)</h3>
 <div class="row"><input id="hfheader" placeholder="Header text" /><input id="hffooter" placeholder="Footer text" /><button id="t-headerfooter">Apply header/footer</button></div>
 <div class="row"><input id="pntpl" value="Page {n} of {total}" /><button id="t-pagenum">Add page numbers</button></div>
-<div class="row"><input id="wmtext" value="DRAFT" /><button id="t-watermark">Watermark</button></div>
+<div class="row"><input id="wmtext" value="DRAFT" /><button id="t-watermark">Text watermark</button></div>
+<div class="row"><input id="mkquery" placeholder="Word to mark" style="flex:1;min-width:110px" /><select id="mksubtype"><option>Highlight</option><option>Underline</option><option>StrikeOut</option></select><button id="t-markup">Mark up</button><button id="t-bakemarkup">Bake markup into content</button></div>
+<div class="row"><input id="notexy" placeholder="x,y e.g. 100,650" style="width:120px" /><input id="notetext" placeholder="Note text" style="flex:1;min-width:110px" /><button id="t-note">Sticky note on current page</button></div>
+<div class="row"><select id="shapekind"><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option><option value="line">Line</option><option value="arrow">Arrow</option></select><input id="shapexy" placeholder="x,y,w,h e.g. 50,600,200,80" style="width:170px" /><button id="t-shape">Draw shape</button></div>
+<div class="row"><input id="stamptext" placeholder="Stamp text e.g. APPROVED" style="flex:1;min-width:110px" /><button id="t-stamp">Stamp</button></div>
+<div class="row"><input id="linktarget" placeholder="https://... or page:N" style="flex:1;min-width:110px" /><input id="linkrect" placeholder="x,y,w,h e.g. 56,740,200,20" style="width:170px" /><button id="t-link">Add link</button></div>
+<div class="row"><input id="batespre" value="FOLIO-" style="width:90px" /><input id="batesdigits" type="number" value="6" style="width:60px" /><input id="batesstart" type="number" value="1" style="width:70px" /><button id="t-bates">Bates number all pages</button></div>
+<div class="row"><input type="file" id="wmpick" accept="image/*" /><button id="t-wmimg">Image watermark (centered, faint)</button></div>
+<div class="card"><h3>Ink (draw below, applies to current page)</h3>
+<canvas id="inkpad" width="300" height="150" style="border:1px solid var(--folio-border);border-radius:6px;touch-action:none;max-width:100%"></canvas>
+<div class="row"><button id="t-inkclear">Clear pad</button><button id="t-ink">Apply ink to page</button></div>
+</div>
+<div class="card"><h3>Bookmarks + TOC (E14)</h3>
+<textarea id="bmtext" placeholder="One per line: Title | page, e.g.&#10;Intro | 1&#10;Notes | 2"></textarea>
+<div class="row"><button id="t-bookmarks">Set bookmarks</button><button id="t-toc">Set bookmarks + TOC page</button></div>
+</div>
+<div class="row"><button id="t-annlist">List annotations</button><button id="t-anndel">Delete all annotations</button></div>
+<div class="muted" id="annotreport"></div>
 </div></section>
 
-<section class="route" id="route-edit"><div class="card"><h3>Edit (E6-E7, E17)</h3>
+<section class="route" id="route-edit"><div class="card"><h3>Edit (E6-E7, E17, N-up/booklet/overlay, compare)</h3>
 <div class="row"><input id="mdtitle" placeholder="Title" /><input id="mdauthor" placeholder="Author" /><button id="t-metadata">Set metadata</button></div>
-<p class="muted">Paragraph-aware text edit + find/replace ship in Phase B on the text-map + content-stream filter.</p>
+<div class="row"><input id="frquery" placeholder="Find" style="flex:1;min-width:100px" /><input id="frrepl" placeholder="Replace with" style="flex:1;min-width:100px" /><button id="t-findreplace">Find + replace (whole file)</button></div>
+<div class="row"><input id="pematch" placeholder="Line contains..." style="flex:1;min-width:100px" /><input id="penew" placeholder="New text" style="flex:1;min-width:100px" /><button id="t-pedit">Paragraph edit (current page)</button></div>
+<div class="row"><select id="nupn"><option value="2">2-up</option><option value="4">4-up</option><option value="6">6-up</option><option value="8">8-up</option></select><button id="t-nup">N-up imposition</button><button id="t-booklet">Booklet</button><button id="t-overlay">Overlay B onto A</button></div>
+<div class="row"><button id="t-compare">Compare A vs B (word-diff report)</button><span class="muted">B is the second PDF in the sidebar.</span></div>
+<div class="muted" id="editreport"></div>
 </div></section>
 
-<section class="route" id="route-images"><div class="card"><h3>Images (I1, I5)</h3>
+<section class="route" id="route-images"><div class="card"><h3>Images (I1-I3, I5-I6)</h3>
 <div class="row"><input id="imgdpi" type="number" value="150" style="width:80px" /><button id="t-pdf2img">Current page to PNG</button></div>
 <div class="row"><input type="file" id="imgpick" accept="image/*" multiple /><button id="t-img2pdf">Images to PDF</button></div>
+<div class="row"><button id="t-imgcensus">List embedded images</button><button id="t-imgextract">Extract embedded images</button></div>
+<div class="row"><input type="file" id="imginsertpick" accept="image/*" /><input id="imgxy" placeholder="x,y e.g. 56,400" style="width:120px" /><button id="t-imginsert">Insert image on current page</button></div>
+<div class="row"><button id="t-scanner">Scanner effect on current page (new PDF)</button></div>
+<div class="muted" id="imgreport"></div>
 </div></section>
 
-<section class="route" id="route-forms"><div class="card"><h3>Forms (F1, F3)</h3>
-<p class="muted">AcroForm fill + flatten ship in Phase B on the pdf-lib form API. XFA files show a legacy banner (F4).</p>
+<section class="route" id="route-forms"><div class="card"><h3>Forms (F1-F4)</h3>
+<div class="row"><button id="t-formlist">List fields</button><button id="t-formflatten">Flatten form</button><button id="t-xfa">Check for legacy XFA</button></div>
+<div class="row"><input id="fldname" placeholder="Field name" style="width:110px" /><select id="fldtype"><option value="text">Text</option><option value="checkbox">Checkbox</option><option value="dropdown">Dropdown</option><option value="radio">Radio</option><option value="list">List</option></select><input id="fldrect" placeholder="x,y,w,h e.g. 56,600,200,24" style="width:150px" /><input id="fldopts" placeholder="options a,b (choice fields)" style="flex:1;min-width:110px" /><button id="t-formcreate">Create field (current page)</button></div>
+<textarea id="filljson" placeholder='Fill values as JSON, e.g. {"full": "Ada", "agree": true}'></textarea>
+<div class="row"><button id="t-formfill">Fill form</button></div>
+<div class="muted" id="formreport"></div>
 </div></section>
 
 <section class="route" id="route-ocr"><div class="card"><h3>OCR to searchable layer (C1, C3)</h3>
