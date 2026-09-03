@@ -2,7 +2,8 @@
 
 - **Issue:** #282. **Spec (binding):** `docs/research/issue-282-tabula-spreadsheet.md`.
 - **Blueprint:** `ideas/2026-09-03-tabula-spreadsheet-engine.md`.
-- **Status:** Phase 4 complete (bridge session + full grid UI on the fallback engine).
+- **Status:** Phase 5 complete (storage, charts, docs, landing, PWA, perf gate,
+  74/74 oracle parity). Ready for review.
 
 ## Module map
 
@@ -28,15 +29,17 @@ tabula/
     grid.js                      virtualized canvas, freeze, resize, range select
     editor.js                    cell overlay + formula bar (sources kept on error)
     inspector.js                 trace + topo rank + cycle path + jump
-    format.js                    recalc-pure style panels
+    format.js                    recalc-pure style panels + threshold highlight rule
     views.js                     presentation-only sort/filter + freeze + struct ops
-    storage.js                   clipboard TSV + file save/load (OPFS: Phase 5)
+    charts.js                    (Phase 5) live bar/line/pie SVG, skip-not-plot
+    storage.js                   clipboard TSV + file save/load + OPFS + CSV import
     sample.js                    bundled workbook (all families + one cycle)
     app.js                       boot + wiring (batch consumer, view index)
     styles.css                   design tokens + desktop/mobile layout
   index.html                     Pages entry at /tabula/
-  manifest.webmanifest, sw.js    PWA shell (scope /tabula/)
-  docs/                          this file; proofs.md + semantics.md land Phase 5
+  manifest.webmanifest, sw.js    PWA shell (scope /tabula/, versioned cache)
+  assets/icon.svg                PWA icon
+  docs/                          this file; proofs.md + semantics.md + scoreboard.md (Phase 5)
 ```
 
 Dependency rule (binding): UI -> Bridge -> Core. Core never imports Bridge,
@@ -99,16 +102,30 @@ shape. It is NOT a silent substitution: this section records the boundary.
 
 - Parity boundary: R1C1 input and array constants are parse errors in the
   fallback (Swift parses both); the function surface is the v1 set minus the
-  blueprint v2 deferrals; float rendering matches `formatGeneral` for
-  integers and falls back to `String(x)` otherwise (same rule as Swift).
+  blueprint v2 deferrals (FIND/SEARCH/SUBSTITUTE/REPT are `#NAME?` on BOTH
+  engines); float rendering matches `formatGeneral` for integers and falls
+  back to `String(x)` otherwise (same rule as Swift).
 - Evidence: smoke checks pass on the fallback (`-2^2=-4`, `2^3^2=512`,
   `2^-3=0.125`, VLOOKUP exact, `#CYCLE!` with recorded path, insert-row ref
-  following, AND/OR prior-error-wins); `node --check` clean on all 9 web
+  following, AND/OR prior-error-wins); `node --check` clean on all 11 web
   modules; 77/77 Swift suites stay green as the semantic authority.
-- Phase 5 hardening: run the shared oracle cases against BOTH engines and
-  record agreement here; the WASM proof (carton + SDK + JavaScriptKit pin)
-  still replaces the fallback's producer role when it lands, with no UI
-  changes required (renderer consumes DirtyBatch either way).
+- Phase 5 hardening (done): 74 shared oracle cases run against BOTH engines,
+  74/74 agreement (see `docs/scoreboard.md`). The run caught and fixed two
+  genuine fallback defects: date serials +1 for all serials >= 60 (epoch
+  already bakes in the phantom; only Jan/Feb 1900 read one less, mirroring
+  Swift `dateToSerial`) and the VLOOKUP/HLOOKUP approx flag inverted
+  (`approx = m.v`, default exact, mirroring Swift `[approx=false]`).
+- Conditional-format v1 boundary: one threshold rule (gt/lt on numbers),
+  evaluated lazily per visible cell in the app's `getCell` as a style
+  override (never a recalc, never stored). Formula-based rules are a
+  documented v2 item (`docs/semantics.md`).
+- OPFS boundary: debounced JSON autosave after boot; quota/error degrades
+  to memory plus explicit file save with a visible footer flag. CSV import
+  is values-only unless the user confirms formula mode (injection guard,
+  mirrors Swift Codecs).
+- The WASM proof (carton + SDK + JavaScriptKit pin) still replaces the
+  fallback's producer role when it lands, with no UI changes required
+  (the renderer consumes DirtyBatch either way).
 
 ## JavaScriptKit pin (intent, Phase 0)
 
@@ -120,6 +137,10 @@ shape. It is NOT a silent substitution: this section records the boundary.
 
 - 10k-chain+fan-out recalc: WASM < 1 s; native proxy < 250 ms (cold full +
   single-edit minimal reported separately). Gate BLOCKS merge.
+- Measured (Phase 5, see `docs/scoreboard.md` for method): Swift proxy
+  full=136ms minimal=93ms (debug swift test); JS fallback full=760ms
+  minimal=739ms (node, cheap-mixed workload); parse 77519/s (budget 50k/s).
+  PASS on all three.
 - Parse throughput >= 50k formulas/s (native proxy, fuzz-corpus average).
 - 60 fps pan over 100k-row sheet, zero recalc on scroll.
 - Empty 1M-row sheet < 5 MB overhead.

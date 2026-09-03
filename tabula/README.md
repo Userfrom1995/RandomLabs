@@ -37,5 +37,9 @@ The SwiftWasm bundle (`carton build`) lands with the toolchain proof; see
 
 ## Status
 
-Phase 0 (scaffold + skeleton + shell) - core domain (lexer, parser, graph,
-evaluator, functions) lands in Phases 1-3 on the same PR (#283).
+Phase 5 complete: storage (OPFS autosave, CSV import, clipboard TSV),
+live bar/line/pie charts, threshold highlight rule, versioned PWA shell,
+`docs/proofs.md` + `semantics.md` + `scoreboard.md`, landing links.
+77/77 `swift test` green; 74/74 oracle parity; perf gates pass
+(Swift proxy 136/93ms, fallback 760/739ms, parse 77519/s).
+PR #283 ready for review.
