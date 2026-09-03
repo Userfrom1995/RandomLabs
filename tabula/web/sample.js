@@ -28,8 +28,8 @@ window.Tabula = window.Tabula || {};
     set(0, 9, "102"); set(1, 9, "Pear");
     set(0, 10, "103"); set(1, 10, "Plum");
     set(3, 7, "Find"); set(4, 7, "Result");
-    set(3, 8, "102"); set(4, 8, "=VLOOKUP(D8,A8:B10,2,FALSE)");
-    set(4, 9, "=INDEX(B8:B10,MATCH(103,A8:A10,0))");
+    set(3, 8, "102"); set(4, 8, "=VLOOKUP(D9,A9:B11,2,FALSE)");
+    set(4, 9, "=INDEX(B9:B11,MATCH(103,A9:A11,0))");
     // Dates.
     set(0, 12, "Start"); set(1, 12, "End"); set(2, 12, "Days");
     set(0, 13, "=DATE(2024,1,15)"); set(1, 13, "=DATE(2024,3,20)");
@@ -38,13 +38,12 @@ window.Tabula = window.Tabula || {};
     set(5, 12, "=F13"); set(5, 13, "=F12");
     // Chart sources (Phase 5): month labels plus numeric sales, one TEXT
     // cell deliberately mixed in so charts demo the skip-not-plot rule.
-    set(0, 15, "Month"); set(1, 15, "Sales"); set(2, 15, "Target");
+    set(0, 15, "Month"); set(1, 15, "Sales");
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
     const sales = [120, 150, 131, 178, 165, 190];
     months.forEach((m, i) => {
       set(0, 16 + i, m);
       set(1, 16 + i, String(sales[i]));
-      set(2, 16 + i, "=B" + (17 + i) + "-10");
     });
     set(1, 20, "n/a");
     return E.fullSnapshot(wb);

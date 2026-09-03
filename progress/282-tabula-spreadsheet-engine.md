@@ -3,8 +3,8 @@
 - **Issue:** #282
 - **Branch:** opencode/issue282-20260903222718
 - **PR:** #283
-- **Status:** in-progress
-- **Updated:** 2026-09-03T23:30:00Z
+- **Status:** complete
+- **Updated:** 2026-09-04T00:00:00Z
 
 ## Checklist
 - [x] research: algorithmic specification (formula grammar, coercion table, error precedence, DFS cycles, Kahn minimal recalc, four proofs, per-function semantics, A1/R1C1 and edit laws, storage invariants, test/perf gates) in `docs/research/issue-282-tabula-spreadsheet.md`
@@ -18,17 +18,17 @@
 - [x] builder 3: workbook (sheets/names/recalc/structural edits/copy-paste/fill/undo/styles) plus Series fill laws plus Format display plus JSON/CSV/TSV codecs plus 24 property/law suites; 10k-cell proxy full=121ms minimal=82ms (debug, budget 250ms); 61/61 `swift test` green in 0.35s
 - [ ] builder 4: bridge plus grid UI (virtualized canvas, editor, inspector, formats, sort/filter views, freeze, resize, copy/paste/fill)
 - [x] builder 4: bridge plus grid UI (BridgeSession batch/inspect/sort-filter in Swift, 77/77 green; web fallback engine with Excel-precedence parser plus 60-function library plus graph plus edit laws, virtualized canvas with freeze/resize, editor plus formula bar, inspector with cycle paths, format panels, sort/filter views, clipboard TSV with injection guard, sample workbook)
-- [ ] builder 5: storage plus charts plus sample plus `tabula/docs/` plus landing link plus PWA plus visual pass plus full perf gate
+- [x] builder 5: storage (OPFS autosave plus quota flag plus CSV import plus clipboard TSV) plus charts (live bar/line/pie plus skip-not-plot) plus highlight rule plus `tabula/docs/` (proofs plus semantics plus scoreboard) plus landing links plus versioned PWA plus full perf gate (Swift proxy 136/93ms, fallback 760/739ms, parse 77519/s) plus 74/74 oracle parity
 - [ ] reviewer findings addressed
 - [ ] tester approval plus maintainer merge
 
 ## Current step
-Phase 4 complete: BridgeSession (batch/inspector/views) plus full web UI on
-the fallback engine. 77/77 `swift test` green; `node --check` clean on all 9
-web modules; engine smoke checks pass (`-2^2=-4`, `2^3^2=512`, VLOOKUP,
-cycles with paths, insert-row ref following, AND/OR prior-error-wins).
-Next is Phase 5 (OPFS storage, charts, sample/docs/scoreboard, landing link,
-PWA, Playwright pass, full perf gate, oracle parity on both engines).
+Phase 5 complete: all five builder milestones landed on this branch.
+77/77 `swift test` green; `node --check` clean on all 11 web modules;
+charts plus OPFS plus CSV import plus highlight plus PWA plus docs live;
+perf gates pass; 74/74 oracle parity (fixed two fallback defects: date
+serials +1, lookup approx flag inverted). Root landing plus README link
+Tabula. Ready for review on the same PR.
 
 ## Next steps
 - Builder Phase 5 on this branch: storage plus charts plus sample plus
@@ -60,3 +60,12 @@ PWA, Playwright pass, full perf gate, oracle parity on both engines).
 - 2026-09-03 (Builder Phase 3): wrote `Workbook.swift`, `Series.swift`, `Format.swift`, `Codecs.swift` plus 24 property/law suites; 10k-cell proxy full=121ms minimal=82ms debug; 61/61 green in 0.35s. Decision action: continue (Phase 4 bridge plus grid UI).
 - 2026-09-03 (Builder Phase 4a): Swift session layer. Wrote `Sources/TabulaBridge/Session.swift` (BridgeSession: EngineEdit batch apply with one minimal recalc for pure writes, diff-based DirtyBatch with row-run plus vertical-merge coalescing, fullSnapshot, JSON-safe InspectorView, per-sheet SheetView with stable sort honoring the Core total order plus errors-last and filter rules) plus `Sources/TabulaCore/Inspector.swift` (public inspect/topology API). Fixed two self-caught defects the tests exposed: sort ranked strings with numbers (split direction ranks) and descending put text above numbers (direction-specific ranks). `Tests/TabulaCoreTests/Phase4Tests.swift` (16 suites: batches, wire round-trip, coalescing coverage, inspector trace/cycle/parse-error, sort/filter stability). 77/77 green. Decision action: continue (Phase 4b web UI).
 - 2026-09-03 (Builder Phase 4b): web UI on the documented fallback engine. Wrote `tabula/web/engine.js` (A1/$ parser with Excel precedence, value domain plus coercion table plus error precedence, 60-function library, iterative-DFS cycles plus Kahn minimal recalc, structural edits with base-only host shift plus single-taint/range-clamp, paste/fill previews, JSON/CSV codecs with injection guard, DirtyBatch producer with coalescing). Fixed two self-caught defects smoke checks exposed: power base bound unary (`-2^2` gave 4) and AND/OR missing short-circuit break. Wrote `grid.js` (virtualized canvas, freeze quadrants, resize, range select), `editor.js` (overlay plus formula bar with parse positions kept), `inspector.js` (trace plus topo rank plus cycle path with jump), `format.js` (recalc-pure style panels), `views.js` (presentation-only sort/filter plus freeze plus structural ops), `storage.js` (clipboard TSV with sidecar formulas inside the app and values-only plus `=`-quoting outside, file save/load), `sample.js` (all families plus one deliberate cycle), rewrote `index.html`/`app.js`/`styles.css` (full shell, keyboard map, sheet tabs, status/batch readout, mobile layout). `node --check` clean on all 9 modules. Decision action: continue (Phase 5 storage plus charts plus docs plus perf gate).
+- 2026-09-04 (Builder Phase 5): charts.js (live bar/line/pie, skip-not-plot)
+  plus chart-source sample rows plus panel wiring; storage.js OPFS autosave
+  plus quota flag plus RFC-4180 CSV import plus formula-mode confirm;
+  format.js threshold highlight rule plus grid fillRGB painting; versioned
+  sw.js PWA shell plus icon plus manifest; docs/proofs.md plus semantics.md
+  plus scoreboard.md; fixed two parity-caught fallback defects (date +1,
+  approx inversion); measured gates (Swift 136/93ms, fallback 760/739ms,
+  parse 77519/s, parity 74/74); root landing plus READMEs; 77/77 green.
+  Status: complete. Decision action: review.
