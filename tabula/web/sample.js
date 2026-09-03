@@ -1,7 +1,8 @@
-/* Tabula sample.js (Phase 4): bundled sample workbook.
+/* Tabula sample.js (Phase 5): bundled sample workbook.
  *
- * Covers every function family, one displayed #CYCLE!, and a lookup table.
- * Phase 5 extends this with conditional-format demos and chart sources.
+ * Covers every function family, one displayed #CYCLE!, a lookup table,
+ * a conditional-format demo column, and chart sources (labels + numbers
+ * with one text cell mixed in so charts demo the skip rule).
  */
 "use strict";
 window.Tabula = window.Tabula || {};
@@ -35,6 +36,17 @@ window.Tabula = window.Tabula || {};
     set(2, 13, "=DAYS(B14,A14)"); set(3, 13, "=TEXT(A14,\"0\")");
     // Deliberate cycle, surfaced by the inspector.
     set(5, 12, "=F13"); set(5, 13, "=F12");
+    // Chart sources (Phase 5): month labels plus numeric sales, one TEXT
+    // cell deliberately mixed in so charts demo the skip-not-plot rule.
+    set(0, 15, "Month"); set(1, 15, "Sales"); set(2, 15, "Target");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+    const sales = [120, 150, 131, 178, 165, 190];
+    months.forEach((m, i) => {
+      set(0, 16 + i, m);
+      set(1, 16 + i, String(sales[i]));
+      set(2, 16 + i, "=B" + (17 + i) + "-10");
+    });
+    set(1, 20, "n/a");
     return E.fullSnapshot(wb);
   }
 
