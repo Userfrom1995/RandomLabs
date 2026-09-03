@@ -83,7 +83,9 @@ static void print_usage() {
               << "  prism encode-jxl-modular --in FILE --out FILE [--k K]\n"
               << "  prism decode-jxl-modular --in FILE --out FILE\n"
               << "  prism bench-jxl-modular --kodak DIR [--k K] [--out CSV]\n"
-              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass] [--pred mlp|med|gap]\n";
+              << "  prism bench-jxl-modular-real --kodak DIR [--k K] [--out CSV] [--two-pass] [--pred mlp|med|gap]\n"
+              << "  prism bench-subband --kodak DIR [--out CSV] [--levels L] [--blend B]\n"
+              << "      [--direct] [--r9-tree]  (per-subband stream bytes, issue #130)\n";
 }
 
 static prism::Raster load_raster(const std::filesystem::path& p, uint32_t w, uint32_t h, uint8_t bd, uint8_t ch) {
@@ -5989,6 +5991,117 @@ int main(int argc, char* argv[]) {
                           << " ; M2 gate <3.166 ; M3 gate <2.885\n";
             }
 
+            if (!outcsv.empty()) cf.close();
+        } else if (cmd == "bench-subband") {
+            // Subband-level byte accounting instrument (issue #130): for each
+            // image, encode with the selected PRODUCTION wavelet path
+            // (unmodified call, so net bytes are byte-identical to bench-x by
+            // construction) and report the per-(plane, subband) rANS stream
+            // bytes parsed back from the container header
+            // (WaveletHeader.sub_bytes via wavelet_container_decode, which also
+            // verifies magic + crc32). Self-check: sum(sub_bytes) must equal
+            // the container payload size; any mismatch aborts non-zero, so a
+            // corrupt instrument can never emit a silent oracle.
+            uint8_t filter_id = X_FILTER_ID_53; // LeGall 5/3 primary
+            int levels = X_DEFAULT_LEVELS;
+            std::string kodak;
+            std::string outcsv;
+            float blend_override = -1.0f;
+            bool direct = false; // --direct: coefficient path (frame_wavelet_encode)
+            bool r9tree = false; // --r9-tree: coarse tree-quantized EMA
+            // Default (no flag): residual path (frame_wavelet_encode_residual).
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--filter" && i + 1 < argc) filter_id = (uint8_t)std::stoi(argv[++i]);
+                else if (a == "--levels" && i + 1 < argc) levels = std::stoi(argv[++i]);
+                else if (a == "--kodak" && i + 1 < argc) kodak = argv[++i];
+                else if (a == "--out" && i + 1 < argc) outcsv = argv[++i];
+                else if (a == "--blend" && i + 1 < argc) blend_override = std::stof(argv[++i]);
+                else if (a == "--direct") direct = true;
+                else if (a == "--r9-tree") r9tree = true;
+            }
+            if (blend_override >= 0.0f) learned_set_blend(blend_override);
+            if (r9tree) learned_set_r9_tree_ema(true);
+            if (kodak.empty()) {
+                std::cerr << "bench-subband: --kodak DIR required (24 PPM/PNG)\n";
+                return 2;
+            }
+            namespace fs = std::filesystem;
+            fs::path kodakDir = kodak;
+            if (!fs::exists(kodakDir) || !fs::is_directory(kodakDir)) {
+                std::cerr << "bench-subband: kodak dir not found: " << kodak << "\n";
+                return 2;
+            }
+            std::vector<fs::path> imgs;
+            for (auto& e : fs::directory_iterator(kodakDir)) {
+                if (!e.is_regular_file()) continue;
+                auto ext = e.path().extension().string();
+                for (char& c : ext) c = std::tolower((unsigned char)c);
+                if (ext == ".ppm" || ext == ".pgm" || ext == ".png" ||
+                    ext == ".jpg" || ext == ".jpeg" || ext == ".webp" ||
+                    ext == ".tiff" || ext == ".tif")
+                    imgs.push_back(e.path());
+            }
+            std::sort(imgs.begin(), imgs.end());
+            if (imgs.empty()) { std::cerr << "bench-subband: no images in " << kodak << "\n"; return 2; }
+            WaveletFilter filter = WaveletFilter::LeGall53;
+            if (filter_id == X_FILTER_ID_HAAR) filter = WaveletFilter::Haar;
+            else if (filter_id == X_FILTER_ID_97) filter = WaveletFilter::Reversible97;
+            else if (filter_id == X_FILTER_ID_LEARNED) filter = WaveletFilter::Learned;
+            else if (filter_id == X_FILTER_ID_LEARNED_MLP) filter = WaveletFilter::LearnedMLP;
+            std::ofstream cf(outcsv.empty() ? "/dev/null" : outcsv);
+            if (!outcsv.empty())
+                cf << "image,plane,subband,orient,level,w,h,stream_bytes,net,header_bytes\n";
+            for (auto& img : imgs) {
+                Raster r = load_raster(img, 0, 0, 8, 3);
+                size_t net = 0;
+                std::vector<uint8_t> bytes;
+                if (direct) bytes = frame_wavelet_encode(r, filter, levels, net);
+                else bytes = frame_wavelet_encode_residual(r, filter, levels, net);
+                if (net != bytes.size()) {
+                    std::cerr << "bench-subband: SELF-CHECK FAIL on " << img.filename().string()
+                              << ": net_out=" << net << " != bytes.size()=" << bytes.size() << "\n";
+                    return 1;
+                }
+                WaveletFrame fr;
+                try {
+                    fr = wavelet_container_decode(bytes);
+                } catch (const std::exception& ex) {
+                    std::cerr << "bench-subband: container parse FAIL on " << img.filename().string()
+                              << ": " << ex.what() << "\n";
+                    return 1;
+                }
+                size_t subsum = 0;
+                for (uint32_t v : fr.hdr.sub_bytes) subsum += v;
+                if (subsum != fr.payload.size()) {
+                    std::cerr << "bench-subband: SELF-CHECK FAIL on " << img.filename().string()
+                              << ": sum(sub_bytes)=" << subsum
+                              << " != payload.size()=" << fr.payload.size() << "\n";
+                    return 1;
+                }
+                size_t hdrbytes = net - fr.payload.size();
+                uint16_t spp = fr.hdr.subbands_per_plane;
+                uint8_t np = fr.hdr.num_planes;
+                if ((size_t)np * spp != fr.hdr.sub_bytes.size()) {
+                    std::cerr << "bench-subband: SELF-CHECK FAIL on " << img.filename().string()
+                              << ": planes*spp=" << (size_t)np * spp
+                              << " != sub_bytes.size()=" << fr.hdr.sub_bytes.size() << "\n";
+                    return 1;
+                }
+                for (uint8_t pi = 0; pi < np; ++pi) {
+                    for (uint16_t si = 0; si < spp; ++si) {
+                        size_t gi = (size_t)pi * spp + si;
+                        if (!outcsv.empty())
+                            cf << img.filename().string() << "," << (unsigned)pi << "," << si << ","
+                               << (unsigned)fr.hdr.orient[gi] << "," << (unsigned)fr.hdr.level[gi] << ","
+                               << fr.hdr.w[gi] << "," << fr.hdr.h[gi] << ","
+                               << fr.hdr.sub_bytes[gi] << "," << net << "," << hdrbytes << "\n";
+                    }
+                }
+                std::cout << img.filename().string() << " net=" << net
+                          << " payload=" << fr.payload.size() << " hdr=" << hdrbytes
+                          << " subbands=" << fr.hdr.sub_bytes.size() << " SELF-CHECK OK\n";
+            }
             if (!outcsv.empty()) cf.close();
         } else if (cmd == "train-learned") {
             // X3a offline trainer: learns the baked MLP context-model weights from
