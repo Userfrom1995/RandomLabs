@@ -201,3 +201,30 @@ dual-mode E2E green (page counts reloaded), 100/100 wired IDs. Next:
 Phase E. Landing + README links ride with the final run.
 
   -  the Builder
+
+## Builder Phase E record (2026-09-03)
+
+Tier 2 + Tier 3 completion plus hardening plus scoreboard, same
+branch and PR, three modular commits. Pure domain
+`core/tier2/tier2.js`: resize/orient specs, split-by-bookmark,
+order-string parse, blank/flatten/GC/downsample/grayscale/PDF-A
+plans, linearize note, cert scope + validate report, attach
+registry, batch rename, replace-image plan, deskew spec, print
+spec, batch plan + reducer. Executors `ui/tools/phaseE-ops.js`
+proven against real pdf-lib (extract, bookmark split, blank,
+resize to landscape, orient, crop + burn, flatten-all, GC,
+PDF/A, grayscale, attach registry; one real bug fixed:
+blank-page validated against a hardcoded count instead of the
+live document). Shell: Tier 2/3 extras on every route, batch
+queue with per-file retry, booklet-ready print path, CSP
+same-origin meta, print CSS, PWA cache v2. Scoreboard T1-T5
+measured: T1 shell 83 KB, T2 200-page merge 81 ms wall,
+T4 pdf-lib 207 KB gzip + office pack 8390 B sha-pinned,
+T5 lossless 1.000 searchable-kept, T3 deferred honest
+(Tesseract bytes not vendored). Landing card + README links
+live. Verification: unit 18/18, 117/117 wired IDs, all modules
+parse. Honest scopes kept: envelope not native V=5, cert
+appearance-only, image replace is overlay, attachments are
+registry + OPFS sidecar. Next: Tester browser pass.
+
+  -  the Builder
