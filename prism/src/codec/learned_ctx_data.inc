@@ -105,5 +105,14 @@ static const float LW2[32][64] = {
 static const float Lb2[32] = {-2.18897, 0.262886, -0.491932, -1.47312, -1.10972, -0.179268, -0.240203, -0.186274, -2.06658, -0.425708, -0.242457, -0.259295, -1.09708, -0.492894, -0.183324, 0.196369, -0.228504, -0.329741, -0.240418, -0.254982, -0.258642, -0.575085, -1.23837, -0.172005, -1.8267, -0.24692, -0.315223, -0.241127, -0.213459, -1.43095, -0.414023, -1.53248};
 static const float LW3[32] = {0.432483, -0.28941, -0.236639, 0.00505775, -0.11633, 0.126712, -0.1931, 0.139993, 0.797148, 0.00962834, -0.0556423, 0.00296699, -0.0879657, 0.128299, 0.0995258, 0.182839, -0.0235144, -0.110985, -0.128785, -0.216782, 0.00746424, -0.284688, -0.214792, -0.0437813, -0.0158285, 0.0777417, -0.191602, 0.0191027, 0.189358, 0.18142, 0.0108343, -0.102159};
 static const float Lb3 = -0.21917;
-static const float LBlend = 0.6;
+static const float LBlend = 0.0;
 // train BCE=0.312968 samples=1617002 blend=0.6
+// NOTE (issue #130, 2026-09-03): baked default flipped 0.6 -> 0.0. The shipped
+// 15-64-32-1 MLP prior was measured HARMFUL at blend 0.6 on real Kodak-24
+// (bench-x --residual default-blend quad regressed +1.12% mean vs the X6b floor
+// CSV 2026-08-29-x6b-kodak24.csv, MED-residual spayload +35%; blend 0 restores
+// the floor to +0.025% on the pinned quad kodim01/05/13/19). The MLP was trained
+// on wavelet stats only and mismatches the spatial path. blend=0 keeps the
+// pure-pseudocount mix (MLP weight only 1-alpha on cold contexts), which is the
+// measured-best config, so it is now the default. Override anytime with
+// --blend. Refs #130 (gates M2/M3 still FAIL; no success claim).
