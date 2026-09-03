@@ -15,6 +15,10 @@ import { findSpans, paragraphEditPlan, wordDiff, diffStats } from "../src/core/c
 import { scrubPdfBytes } from "../src/core/content/burnin.js";
 import { fitImage, scannerSpec } from "../src/core/images/images.js";
 import { validateFieldDef, coerceFillValue, xfaDetect } from "../src/core/forms/forms.js";
+import { ENVELOPE_MAGIC, validatePassword, zeroBytes, envelopeDescriptor, unlockSession, inspectJs, byterangeSpec, integrityVerdict, signatureAppearanceSpec } from "../src/core/crypto/crypto.js";
+import { planCorpus, corpusGate, resaveSpec, grayscaleSpec, pdfaChecklist, linearizeSpec } from "../src/core/compress/optimize.js";
+import { OCR_DPI, ocrJobSpec, pdfPoint, mode3Spec, poolSize, ocrProgressReducer, HANDWRITING_NOTE } from "../src/core/ocr-client/ocr.js";
+import { crc32, zipStore, escXml, toDocx, toXlsx, toPptx, csvTableSpec, urlImportSpec } from "../src/core/convert/office.js";
 
 test("structural planners", () => {
   assert.deepEqual(planMerge([3, 2]).total, 5);
@@ -173,4 +177,91 @@ test("images fit + scanner spec + forms validation", () => {
   assert.throws(() => coerceFillValue("checkbox", "maybe"));
   assert.equal(xfaDetect("<< /AcroForm << /XFA [...] >> >>"), true);
   assert.equal(xfaDetect("plain pdf"), false);
+});
+
+test("crypto pure: password, zero, descriptor, inspect, byterange, verdict", () => {
+  assert.equal(ENVELOPE_MAGIC, "FOLIO-AES-GCM-v1");
+  const pw = validatePassword("s3cret");
+  assert.ok(pw.length > 0);
+  assert.throws(() => validatePassword(""));
+  assert.throws(() => validatePassword(42));
+  zeroBytes(pw);
+  assert.ok(pw.every((b) => b === 0));
+  const d = envelopeDescriptor({ print: true }, "n");
+  assert.equal(d.cipher, "AES-256-GCM");
+  assert.deepEqual(d.perms, { print: true });
+  const s = unlockSession("j1", "a.pdf", {});
+  assert.equal(s.persisted, false);
+  assert.throws(() => unlockSession("", "a.pdf"));
+  const hits = inspectJs(Buffer.from("1 0 obj << /JS (x) /OpenAction 2 0 R /JS (y) >>", "latin1"));
+  assert.deepEqual(hits[0], { key: "/JS", count: 2 });
+  assert.deepEqual(inspectJs(Buffer.from("plain", "latin1")), []);
+  assert.deepEqual(byterangeSpec(1000, 100, 200).ByteRange, [0, 100, 300, 700]);
+  assert.throws(() => byterangeSpec(100, 90, 20));
+  assert.equal(integrityVerdict({ digestOk: true, chainOk: false }).summary, "INTACT / UNTRUSTED");
+  assert.equal(integrityVerdict({ digestOk: false, chainOk: false }).integrity, "TAMPERED");
+  assert.throws(() => signatureAppearanceSpec({ text: "", page: 0, rect: { x: 1, y: 1, w: 2, h: 2 } }));
+  assert.equal(signatureAppearanceSpec({ text: "Ada", page: 0, rect: { x: 1, y: 1, w: 2, h: 2 } }).kind, "signature-stamp");
+});
+
+test("optimize: corpus plan + gate + specs", () => {
+  const plan = planCorpus([{ textItems: 300, imageArea: 0.05 }, { textItems: 3, imageArea: 0.9 }], "high");
+  assert.deepEqual(plan.routes.map((r) => r.route), ["lossless", "rasterize"]);
+  assert.deepEqual(plan.lossless, [0]);
+  assert.equal(plan.dpi, 80);
+  const g = corpusGate(plan, [true, false], 1000, 900);
+  assert.equal(g.pass, true);
+  assert.equal(g.searchableKept, true);
+  const bad = corpusGate(planCorpus([{ textItems: 5, imageArea: 0.8 }], "low"), [true], 1000, 500);
+  assert.equal(bad.searchableKept, false);
+  assert.equal(bad.pass, false);
+  assert.throws(() => corpusGate(plan, [true, false], 0, 1));
+  assert.equal(resaveSpec().useObjectStreams, true);
+  assert.equal(grayscaleSpec(9).strength, 2);
+  assert.ok(pdfaChecklist().length >= 4);
+  assert.equal(linearizeSpec().status, "stub-phase-E");
+});
+
+test("ocr-client: spec, affine map, pool, progress", () => {
+  assert.equal(OCR_DPI, 300);
+  assert.deepEqual(ocrJobSpec({ page: 0 }), { page: 0, dpi: 300, grayscale: true, deskew: true, orient: true, lang: "eng" });
+  assert.throws(() => ocrJobSpec({ page: -1 }));
+  assert.deepEqual(pdfPoint(300, 600, 300), { x: 72, y: 144 });
+  const spec = mode3Spec([{ text: "hi", xPx: 0, yPx: 0, wPx: 50, hPx: 20 }], 300);
+  assert.equal(spec[0].size, (20 * 72) / 300);
+  assert.throws(() => mode3Spec([{ text: "", xPx: 0, yPx: 0, wPx: 1, hPx: 1 }]));
+  assert.equal(poolSize(9, false), 8);
+  assert.equal(poolSize(1, false), 1);
+  assert.equal(poolSize(9, true), 4);
+  assert.equal(ocrProgressReducer("idle", "queue"), "queued");
+  assert.equal(ocrProgressReducer("recognizing", "emit"), "layer");
+  assert.equal(ocrProgressReducer("failed", "retry"), "queued");
+  assert.equal(ocrProgressReducer("done", "bogus"), "done");
+  assert.ok(HANDWRITING_NOTE.includes("Handwriting"));
+});
+
+test("office writers: zip roundtrip + docx/xlsx/pptx + csv/url specs", () => {
+  assert.equal(crc32(new TextEncoder().encode("123456789")), 0xcbf43926);
+  const z = zipStore([{ name: "a.txt", data: "hello" }, { name: "d/b.bin", data: new Uint8Array([1, 2, 3]) }]);
+  assert.equal(z[0], 0x50);
+  assert.equal(z[1], 0x4b);
+  const s = Buffer.from(z).toString("latin1");
+  assert.ok(s.includes("a.txt") && s.includes("hello") && s.includes("d/b.bin"));
+  assert.ok(s.includes("PK\x05\x06"), "end of central directory present");
+  assert.equal(escXml('a<b>&"'), "a&lt;b&gt;&amp;&quot;");
+  const docx = toDocx([{ paragraphs: [{ text: "Title", heading: 1 }, { text: "body & soul" }] }]);
+  const ds = Buffer.from(docx).toString("latin1");
+  assert.ok(ds.includes("word/document.xml") && ds.includes("Title") && ds.includes("body &amp; soul"));
+  const xlsx = toXlsx([[["a", "b"], ["c", "d"]]]);
+  const xs = Buffer.from(xlsx).toString("latin1");
+  assert.ok(xs.includes("xl/worksheets/sheet1.xml") && xs.includes("<t>a</t>") && xs.includes("<t>d</t>"));
+  const pptx = toPptx([{ paragraphs: [{ text: "slide one" }] }, { paragraphs: [{ text: "slide two" }] }]);
+  const ps = Buffer.from(pptx).toString("latin1");
+  assert.ok(ps.includes("ppt/slides/slide2.xml") && ps.includes("slide one"));
+  const spec = csvTableSpec([["a"], ["b"], ["c"]], { rowsPerPage: 2 });
+  assert.deepEqual([spec.cols, spec.pageCount], [1, 2]);
+  assert.throws(() => csvTableSpec([]));
+  assert.equal(urlImportSpec("https://example.com/x").href, "https://example.com/x");
+  assert.throws(() => urlImportSpec("ftp://x"));
+  assert.throws(() => urlImportSpec("file:///etc/passwd"));
 });

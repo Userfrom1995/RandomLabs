@@ -14,10 +14,13 @@ import * as EditOps from "../tools/edit-ops.js";
 import * as ImageOps from "../tools/image-ops.js";
 import * as FormOps from "../tools/form-ops.js";
 import * as RedactOps from "../tools/redact-ops.js";
+import * as Security from "../tools/security-ops.js";
+import * as Compress from "../tools/compress-ops.js";
+import * as OcrOps from "../tools/ocr-ops.js";
+import * as ConvertOps from "../tools/convert-ops.js";
 import { validateLink, simplifyInk } from "../../core/annotate/annotate.js";
 import { scannerSpec } from "../../core/images/images.js";
 import { toText, toMarkdown, toHtml } from "../../core/convert/writers.js";
-import { PROFILES } from "../../core/compress/profiles.js";
 
 const $ = (id) => document.getElementById(id);
 const store = createStore(100);
@@ -81,8 +84,15 @@ async function renderStrip() {
   }
 }
 
+const undoBytes = []; // true undo: prior file bytes per op (cap 20)
+const redoBytes = [];
 async function refreshAfterOp(tool, params, newBytes, outName) {
-  const op = makeOp(tool, params, { tool, note: "bytes snapshot in OPFS session history" });
+  const op = makeOp(tool, params, { tool, note: "true undo via in-memory byte snapshot" });
+  if (file) {
+    undoBytes.push({ tool, bytes: file.bytes });
+    if (undoBytes.length > 20) undoBytes.shift();
+  }
+  redoBytes.length = 0;
   applyOp(store, op);
   await writeFile(paths.output(outName), newBytes);
   await setFile(outName, newBytes);
@@ -174,11 +184,7 @@ function consentCardHtml(name, manifest, state, which) {
 async function wire() {
   await initStorage();
   PDFLib = window.PDFLib;
-  if (!PDFLib) {
-    const m = await import("../vendor-shim.js").catch(() => null);
-    void m;
-    throw new Error("pdf-lib failed to load");
-  }
+  if (!PDFLib) throw new Error("pdf-lib failed to load (vendor/pdf-lib.min.js missing or blocked)");
   await initViewer("vendor/pdf.worker.mjs");
   await loadPacks();
   renderChain();
@@ -239,15 +245,25 @@ async function wire() {
     announce(hits.length + " search hits.");
   };
 
-  // pipeline undo/redo/export
-  $("undobtn").onclick = () => {
+  // pipeline undo/redo/export (true byte restore)
+  $("undobtn").onclick = async () => {
     const inv = undo(store);
-    announce(inv ? "Undid " + inv.tool + " (record only; re-export from history to restore bytes)." : "Nothing to undo.");
+    const snap = undoBytes.pop();
+    if (snap) {
+      if (file) redoBytes.push({ tool: inv ? inv.tool : "?", bytes: file.bytes });
+      await setFile("folio-undo-" + (snap.tool || "op") + ".pdf", snap.bytes);
+      announce("Undid " + (inv ? inv.tool : "op") + "; prior bytes restored.");
+    } else announce(inv ? "Undid " + inv.tool + " (no byte snapshot)." : "Nothing to undo.");
     renderChain();
   };
-  $("redobtn").onclick = () => {
+  $("redobtn").onclick = async () => {
     const op = redo(store);
-    announce(op ? "Redid " + op.tool + "." : "Nothing to redo.");
+    const snap = redoBytes.pop();
+    if (snap) {
+      if (file) undoBytes.push({ tool: op ? op.tool : "?", bytes: file.bytes });
+      await setFile("folio-redo-" + (snap.tool || "op") + ".pdf", snap.bytes);
+      announce("Redid " + (op ? op.tool : "op") + "; bytes restored.");
+    } else announce(op ? "Redid " + op.tool + " (no byte snapshot)." : "Nothing to redo.");
     renderChain();
   };
   $("exportbtn").onclick = () => {
@@ -293,9 +309,9 @@ function wireConsent() {
     if (which === "ocr") {
       ocrConsent = consentReducer(ocrConsent === "ready" && act === "revoke" ? "ready" : ocrConsent, act === "accept" ? "accept" : act === "decline" ? "decline" : act);
       if (act === "accept") {
-        // Packs are placeholders in Phase A: record consent, stay on fallback.
+        // OCR-PACK engine (Tesseract LSTM) vendors in Phase D; consent recorded, fallback stays.
         ocrConsent = "declined";
-        announce("OCR engine pack ships in Phase C; basic text layer shown for now.");
+        announce("OCR engine pack is not vendored yet; paste recognized words to bake the invisible layer, or use the basic text export.");
       } else if (act === "decline") ocrConsent = "declined";
       else if (act === "revoke") ocrConsent = "idle";
       await setPref(key, ocrConsent);
@@ -390,13 +406,99 @@ function wireTools() {
     const a = requireFile();
     const before = a.bytes.length;
     const out = await Content.losslessResave(a.bytes, PDFLib);
-    $("compressreport").textContent = "Profiles: " + Object.keys(PROFILES).map((k) => k + " " + PROFILES[k].dpi + "dpi/q" + PROFILES[k].q).join(" - ") + ". Lossless resave: " + before + " -> " + out.length + " bytes (" + (100 * out.length / before).toFixed(1) + "%). Rasterize-on-image-pages ships in Phase C.";
+    $("compressreport").textContent = "Lossless resave: " + before + " -> " + out.length + " bytes (" + (100 * out.length / before).toFixed(1) + "%).";
     await refreshAfterOp("compress-lossless", { before, after: out.length }, out, outName("optimized"));
+  });
+  function dataUrlToBytes(url) {
+    const b64 = String(url).split(",")[1] || "";
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  run("t-compress", async () => {
+    const a = requireFile();
+    const profile = $("cprofile").value || "medium";
+    const coverages = [];
+    const textDominant = [];
+    for (let p = 1; p <= pageCount(); p++) {
+      const t = await pageText(p);
+      coverages.push({ textItems: t.count, imageArea: 0 });
+      textDominant.push(t.count >= 40);
+    }
+    const r = await Compress.compressPdf(
+      a.bytes,
+      {
+        profile,
+        coverages,
+        textDominant,
+        rasterizePage: async (pageIdx, dpi) => dataUrlToBytes(await renderToDataUrl(pageIdx + 1, dpi)),
+      },
+      PDFLib
+    );
+    $("compressreport").textContent =
+      "Profile " + profile + ": " + r.before + " -> " + r.after + " bytes (" + (100 * r.gate.ratio).toFixed(1) + "%). " +
+      "Rasterized pages: [" + r.rasterized.join(",") + "]; deferred: [" + r.deferred.join(",") + "]. " +
+      (r.gate.searchableKept ? "Searchability kept." : "DAMAGED text pages: [" + r.gate.damaged.join(",") + "].");
+    await refreshAfterOp("compress-" + profile, { before: r.before, after: r.after }, r.bytes, outName("compressed"));
   });
   run("t-scrub", async () => {
     const a = requireFile();
     const out = await Content.scrubMetadata(a.bytes, PDFLib);
     await refreshAfterOp("scrub", {}, out, outName("scrubbed"));
+  });
+  run("t-jsinspect", async () => {
+    const a = requireFile();
+    const hits = Security.inspectJs(a.bytes);
+    $("jsreport").textContent = hits.length
+      ? "Risky keys: " + hits.map((h) => h.key + " x" + h.count).join(", ") + ". Scrub removes them (metadata + JS scrub)."
+      : "Clean: no /JS, /AA, /OpenAction, /EmbeddedFiles, /Launch, /XFA keys found.";
+  });
+  function readPerms() {
+    return { print: $("pm-print").checked, modify: $("pm-modify").checked, copy: $("pm-copy").checked, annotate: $("pm-annotate").checked };
+  }
+  run("t-encrypt", async () => {
+    const a = requireFile();
+    const pw = $("pw1").value;
+    if (!pw) throw new Error("Enter a password first.");
+    const r = await Security.encryptEnvelope(a.bytes, pw, readPerms());
+    $("pw1").value = "";
+    $("pwreport").textContent = "Encrypted " + a.bytes.length + " -> " + r.bytes.length + " bytes (" + r.descriptor.cipher + "). Opens only in Folio.";
+    download(r.bytes, outName("encrypted") + ".folio-enc");
+    await logJob({ jobId, tool: "encrypt", params: { perms: r.descriptor.perms }, output: "envelope" });
+  });
+  run("t-decrypt", async () => {
+    const a = requireFile();
+    const pw = $("pw1").value;
+    if (!pw) throw new Error("Enter the envelope password first.");
+    if (!Security.isEnvelope(a.bytes)) throw new Error("This file is not a Folio envelope; nothing to unlock.");
+    const r = await Security.decryptEnvelope(a.bytes, pw, jobId);
+    $("pw1").value = "";
+    $("pwreport").textContent = "Unlocked (" + r.bytes.length + " bytes, perms " + JSON.stringify(r.descriptor.perms) + ").";
+    await refreshAfterOp("decrypt", {}, r.bytes, outName("unlocked"));
+  });
+  run("t-rekey", async () => {
+    const a = requireFile();
+    const oldPw = Security.isEnvelope(a.bytes) ? $("pw1").value : null;
+    const nw = $("pwnew").value;
+    if (!nw) throw new Error("Enter a new password first.");
+    const r = await Security.changePassword(a.bytes, oldPw, nw, readPerms());
+    $("pw1").value = "";
+    $("pwnew").value = "";
+    $("pwreport").textContent = "Re-encrypted under a new password (" + r.bytes.length + " bytes).";
+    download(r.bytes, outName("rekeyed") + ".folio-enc");
+  });
+  run("t-sign", async () => {
+    const a = requireFile();
+    const out = await Security.signatureStamp(a.bytes, { page: currentPage() - 1, text: $("signtext").value || "Signed", x: 56, y: 140 }, PDFLib);
+    $("signreport").textContent = "Signature stamp placed on page " + currentPage() + ".";
+    await refreshAfterOp("sign-stamp", {}, out, outName("signed"));
+  });
+  run("t-certsig", async () => {
+    const a = requireFile();
+    const r = await Security.certSignPlaceholder(a.bytes, { page: currentPage() - 1, text: $("signtext").value || "Signed", x: 56, y: 140 }, PDFLib);
+    $("signreport").textContent = r.banner + " ByteRange " + JSON.stringify(r.spec.ByteRange) + ".";
+    await refreshAfterOp("cert-sign-placeholder", {}, r.bytes, outName("sig appearance"));
   });
   async function textMapsFor(pages) {
     const maps = {};
@@ -752,14 +854,97 @@ function wireTools() {
     const out = await Content.textToPdf($("mdtitle2").value || "Folio note", $("mdtext").value || "Hello from Folio.", PDFLib);
     download(out, "folio-note.pdf");
   });
+  // OCR layer (C1, C3)
+  run("t-ocrscan", async () => {
+    requireFile();
+    const empty = [];
+    for (let p = 1; p <= pageCount(); p++) {
+      const t = await pageText(p);
+      if (t.count === 0) empty.push(p);
+    }
+    $("ocrreport").textContent = empty.length
+      ? "Scanned (zero-text) pages: " + empty.join(", ") + ". " + OcrOps.HANDWRITING_NOTE
+      : "No scanned pages: every page already has extractable text.";
+  });
+  run("t-ocrlayer", async () => {
+    const a = requireFile();
+    let spec;
+    try {
+      spec = JSON.parse($("ocrwords").value || "[]");
+    } catch {
+      throw new Error("OCR words JSON does not parse");
+    }
+    const pages = Array.isArray(spec) ? spec : [spec];
+    const norm = pages.map((pw) => ({
+      page: (pw.page || 1) - 1,
+      words: (pw.words || []).map((w) => ({ text: w.text, x: w.x, y: w.y, size: w.size || 12 })),
+    }));
+    const r = await OcrOps.applyOcrLayer(a.bytes, norm, PDFLib);
+    $("ocrreport").textContent = "Baked " + r.placed + " invisible (mode-3) words. Search the viewer to verify.";
+    await refreshAfterOp("ocr-layer", { placed: r.placed }, r.bytes, outName("ocr"));
+  });
+  // convert core writers (V8-V10, V2, V11)
+  async function docTextsFor() {
+    const texts = [];
+    for (let p = 1; p <= pageCount(); p++) texts.push(await pageText(p));
+    return texts;
+  }
+  run("t-pdf2docx", async () => {
+    requireFile();
+    const out = ConvertOps.pdfToDocx(await docTextsFor());
+    download(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), "folio.docx", "application/octet-stream");
+    $("convertreport").textContent = "DOCX written (" + out.length + " bytes, core fallback layout).";
+  });
+  run("t-pdf2xlsx", async () => {
+    requireFile();
+    const { findColumns } = await import("../../core/textmap/tables.js");
+    const tables = [];
+    for (let p = 1; p <= pageCount(); p++) {
+      const t = await pageText(p);
+      const lines = t.lines || [];
+      const cols = findColumns(lines.flatMap((l) => l.words || []), 20);
+      if (cols.length > 1) tables.push([lines.map((l) => l.text.split(/\s{2,}|\t/).slice(0, 8))]);
+    }
+    const out = ConvertOps.pdfToXlsx(tables);
+    download(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "folio.xlsx", "application/octet-stream");
+    $("convertreport").textContent = "XLSX written (" + out.length + " bytes, " + tables.length + " table page(s)).";
+  });
+  run("t-pdf2pptx", async () => {
+    requireFile();
+    const out = ConvertOps.pdfToPptx(await docTextsFor());
+    download(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), "folio.pptx", "application/octet-stream");
+    $("convertreport").textContent = "PPTX written (" + out.length + " bytes, one slide per page).";
+  });
+  run("t-pdf2csv", async () => {
+    requireFile();
+    const { findColumns } = await import("../../core/textmap/tables.js");
+    const tables = [];
+    for (let p = 1; p <= pageCount(); p++) {
+      const t = await pageText(p);
+      const lines = t.lines || [];
+      if (findColumns(lines.flatMap((l) => l.words || []), 20).length > 1) tables.push([lines.map((l) => l.text.split(/\s{2,}|\t/).slice(0, 8))]);
+    }
+    download(new Blob([ConvertOps.pdfToCsv(tables)], { type: "text/csv" }), "folio.csv", "text/csv");
+    $("convertreport").textContent = "CSV written (" + tables.length + " table page(s)).";
+  });
+  run("t-csv2pdf", async () => {
+    const csv = $("csvtext").value;
+    if (!csv.trim()) throw new Error("Paste CSV rows first.");
+    const r = await ConvertOps.csvToPdf(csv, PDFLib);
+    $("convertreport").textContent = "CSV table PDF: " + r.spec.pageCount + " page(s), " + r.spec.cols + " col(s).";
+    download(r.bytes, "folio-table.pdf");
+  });
+  run("t-url2pdf", async () => {
+    const spec = ConvertOps.urlImportSpec($("urltext").value);
+    $("convertreport").textContent = "URL import: " + spec.href + " (" + (spec.sameOrigin ? "same-origin, fetch + print path" : "cross-origin: needs CORS, then print path") + "). " + spec.note + ".";
+  });
   // workflow
   run("t-info", async () => {
     const a = requireFile();
     const texts = [];
     for (let p = 1; p <= pageCount(); p++) texts.push(await pageText(p));
-    const words = texts.reduce((n, t) => n + t.paragraphs.join(" ").length, 0);
-    $("inforeport").textContent = "Pages: " + pageCount() + " - text items: " + texts.reduce((n, t) => n + t.count, 0) + " - bytes: " + a.bytes.length;
-    void words;
+    const words = texts.reduce((n, t) => n + t.paragraphs.join(" ").split(/\s+/).filter(Boolean).length, 0);
+    $("inforeport").textContent = "Pages: " + pageCount() + " - words: " + words + " - text items: " + texts.reduce((n, t) => n + t.count, 0) + " - bytes: " + a.bytes.length;
   });
   run("t-repair", async () => {
     const a = requireFile();
