@@ -1,7 +1,27 @@
-/* Tabula offline shell (Phase 0 minimal; Phase 5 fleshes out versioned
-   cache + bundle + sample). Scope is /tabula/ so previews never leak. */
-const CACHE = "tabula-phase0-v1";
-const SHELL = ["index.html", "web/app.js", "web/styles.css", "manifest.webmanifest"];
+/* Tabula offline shell (Phase 5): versioned cache over the full shell.
+ * Scope is /tabula/ so previews never leak. Version bump on every
+ * shell change; old caches are purged on activate. Network-first for
+ * navigations is deliberately NOT used: the app is fully static, so
+ * cache-first with background refresh keeps it offline-capable while
+ * staying fresh within one reload.
+ */
+const CACHE = "tabula-phase5-v1";
+const SHELL = [
+  "index.html",
+  "manifest.webmanifest",
+  "assets/icon.svg",
+  "web/app.js",
+  "web/charts.js",
+  "web/editor.js",
+  "web/engine.js",
+  "web/format.js",
+  "web/grid.js",
+  "web/inspector.js",
+  "web/sample.js",
+  "web/storage.js",
+  "web/styles.css",
+  "web/views.js",
+];
 
 self.addEventListener("install", (ev) => {
   ev.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
