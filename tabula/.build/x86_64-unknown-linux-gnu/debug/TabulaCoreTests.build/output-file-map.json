@@ -1,0 +1,19 @@
+{
+  "": {
+    "swift-dependencies": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/primary.swiftdeps"
+  },
+  "/home/runner/work/RandomLabs/RandomLabs/tabula/Tests/TabulaCoreTests/Phase1Tests.swift": {
+    "dependencies": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/Phase1Tests.d",
+    "object": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/Phase1Tests.swift.o",
+    "swiftmodule": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/Phase1Tests~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/Phase1Tests.swiftdeps",
+    "diagnostics": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/Phase1Tests.dia"
+  },
+  "/home/runner/work/RandomLabs/RandomLabs/tabula/Tests/TabulaCoreTests/TabulaCoreTests.swift": {
+    "dependencies": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/TabulaCoreTests.d",
+    "object": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/TabulaCoreTests.swift.o",
+    "swiftmodule": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/TabulaCoreTests~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/TabulaCoreTests.swiftdeps",
+    "diagnostics": "/home/runner/work/RandomLabs/RandomLabs/tabula/.build/x86_64-unknown-linux-gnu/debug/TabulaCoreTests.build/TabulaCoreTests.dia"
+  }
+}
