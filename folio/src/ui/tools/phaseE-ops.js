@@ -145,3 +145,23 @@ export function listAttachNotes(subject) {
   while ((m = re.exec(String(subject || "")))) out.push(m[1]);
   return out;
 }
+
+export async function detachNote(bytes, name, PDFLib) {
+  const doc = await PDFLib.PDFDocument.load(bytes);
+  const prev = doc.getSubject() || "";
+  doc.setSubject(prev.split(" ").filter((t) => t !== "[folio-attach:" + name + "]").join(" "));
+  return doc.save();
+}
+
+// I4 honest scope: pdf-lib cannot byte-swap an XObject in place, so replace
+// draws the new image over the same page at the census size (overlay
+// replacement). The original XObject is retained; report says so.
+export async function replaceImageOverlay(bytes, { page, imageBytes, kind, w, h }, PDFLib) {
+  const doc = await PDFLib.PDFDocument.load(bytes);
+  const img = kind === "png" ? await doc.embedPng(imageBytes) : await doc.embedJpg(imageBytes);
+  const pg = doc.getPages()[page];
+  if (!pg) throw new Error("bad page for image replace");
+  const s = Math.min((w || img.width) / img.width, (h || img.height) / img.height, 1);
+  pg.drawImage(img, { x: 56, y: 400, width: img.width * s, height: img.height * s });
+  return doc.save();
+}

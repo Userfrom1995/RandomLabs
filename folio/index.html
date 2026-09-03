@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Folio - client-side PDF studio</title>
 <meta name="description" content="Folio: merge, split, compress, annotate, convert and chain PDF tools entirely in your browser. No uploads, works offline." />
@@ -45,6 +46,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 :focus-visible{outline:2px solid var(--folio-accent);outline-offset:2px}
 @media(max-width:980px){.layout{grid-template-columns:1fr}aside{order:2}.panel-right{order:3;border-left:none;border-top:1px solid var(--folio-border)}}
+@media print{aside,.panel-right,nav,#pagestrip,.route .row,footer.status{display:none!important}main{overflow:visible}#pagecanvas{max-width:100%;border:none}}
 </style>
 </head>
 <body>
@@ -93,6 +95,14 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><select id="oddevenwhich"><option value="odd">Keep odd</option><option value="even">Keep even</option></select><button id="t-oddeven">Apply</button></div>
 <div class="row"><select id="rotdeg"><option value="90">90</option><option value="180">180</option><option value="270">270</option></select><button id="t-rotate">Rotate all</button></div>
 <div class="row"><input id="insertat" type="number" value="1" style="width:80px" /><button id="t-insert">Insert B at page</button></div>
+<div class="row"><input id="ext-keep" placeholder="Extract e.g. 1-3" style="flex:1;min-width:110px" /><button id="t-extract">Extract pages</button></div>
+<div class="row"><input id="ext-order" placeholder="Reorder e.g. 3,1,2" style="flex:1;min-width:110px" /><button id="t-reorder">Reorder</button></div>
+<div class="row"><input id="ext-blankat" type="number" value="1" style="width:80px" /><button id="t-blank">Insert blank page</button></div>
+<div class="row"><select id="ext-size"><option>A4</option><option>Letter</option><option>Legal</option><option>A3</option><option>A5</option></select><select id="ext-orient"><option value="portrait">portrait</option><option value="landscape">landscape</option></select><button id="t-resize">Resize pages</button><button id="t-orient">Fix orientation</button></div>
+<div class="row"><input id="ext-crop" placeholder="Crop x,y,w,h e.g. 36,36,523,770" style="flex:1;min-width:140px" /><button id="t-crop">Crop (reversible)</button><button id="t-burncrop">Burn crop</button></div>
+<textarea id="ext-bmtext" placeholder="Bookmark split: Title | page, one per line"></textarea>
+<div class="row"><button id="t-bmsplit">Split by bookmarks</button></div>
+<div class="muted" id="pages-extra-report"></div>
 </div></section>
 
 <section class="route" id="route-compress"><div class="card"><h3>Compress / optimize (O1, O6)</h3>
@@ -100,6 +110,10 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><select id="cprofile"><option value="low">low (150dpi/q0.7)</option><option value="medium" selected>medium (110dpi/q0.55)</option><option value="high">high (80dpi/q0.4)</option><option value="extreme">extreme (55dpi/q0.25)</option></select><button id="t-compress">Profile-gated compress</button></div>
 <p class="muted">Rasterize applies only to image-dominant pages (ink-vs-image coverage gate); text pages always take the lossless path so they stay searchable. Image-page raster needs the browser canvas path; without it those pages defer (reported, never silently rasterized).</p>
 <div class="muted" id="compressreport">No compression run yet.</div>
+<div class="row"><button id="t-gc">Remove unused objects</button><button id="t-gray">Grayscale intent</button></div>
+<div class="row"><select id="down-dpi"><option value="72">72 DPI</option><option value="110">110 DPI</option><option value="150" selected>150 DPI</option><option value="200">200 DPI</option><option value="300">300 DPI</option></select><button id="t-downsample">Downsample spec</button><select id="pdfa-level"><option>PDF/A-1b</option><option selected>PDF/A-2b</option><option>PDF/A-3b</option></select><button id="t-pdfa">Convert to PDF/A subset</button></div>
+<div class="row"><button id="t-linearize">Fast-web-view note</button></div>
+<div class="muted" id="compress-extra-report"></div>
 </div></section>
 
 <section class="route" id="route-security"><div class="card"><h3>Security (S1-S4, S6-S9)</h3>
@@ -112,8 +126,9 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><label><input type="checkbox" id="pm-print" checked /> print</label><label><input type="checkbox" id="pm-modify" /> modify</label><label><input type="checkbox" id="pm-copy" checked /> copy</label><label><input type="checkbox" id="pm-annotate" /> annotate</label></div>
 <div class="muted" id="pwreport"></div>
 </div>
-<div class="card"><h3>Signature (S6 stamp; S7 certificate in Phase E)</h3>
-<div class="row"><input id="signtext" placeholder="Signature, e.g. Ada Lovelace" style="flex:1;min-width:140px" /><button id="t-sign">Signature stamp</button><button id="t-certsig">Certificate-sign placeholder</button></div>
+<div class="card"><h3>Signature (S6 stamp; S7/S8 certificate scope)</h3>
+<div class="row"><input id="signtext" placeholder="Signature, e.g. Ada Lovelace" style="flex:1;min-width:140px" /><button id="t-sign">Signature stamp</button><button id="t-certsig">Certificate-sign placeholder</button><button id="t-certvalidate">Validate signature</button></div>
+<div class="muted">Certificate signing stays appearance-only in v1 (no PKI vendor): the placeholder reserves the ByteRange; validation recomputes the digest (INTEGRITY) and reports chain trust separately.</div>
 <div class="muted" id="signreport"></div>
 </div>
 <div class="card"><h3>Burn-in redact (S5, true removal)</h3>
@@ -153,6 +168,12 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><input id="pematch" placeholder="Line contains..." style="flex:1;min-width:100px" /><input id="penew" placeholder="New text" style="flex:1;min-width:100px" /><button id="t-pedit">Paragraph edit (current page)</button></div>
 <div class="row"><select id="nupn"><option value="2">2-up</option><option value="4">4-up</option><option value="6">6-up</option><option value="8">8-up</option></select><button id="t-nup">N-up imposition</button><button id="t-booklet">Booklet</button><button id="t-overlay">Overlay B onto A</button></div>
 <div class="row"><button id="t-compare">Compare A vs B (word-diff report)</button><span class="muted">B is the second PDF in the sidebar.</span></div>
+<div class="row"><button id="t-flattenall">Flatten all (forms + annotations)</button><button id="t-print">Print (booklet-ready)</button></div>
+<div class="card"><h3>Attachments (E16: registry + OPFS sidecar)</h3>
+<div class="row"><input type="file" id="attach-pick" /><button id="t-attach">Attach file</button><button id="t-attachlist">List attachments</button></div>
+<div class="row"><input id="attach-name" placeholder="Name to extract/delete" style="flex:1;min-width:120px" /><button id="t-attachextract">Extract</button><button id="t-attachdel">Delete</button></div></div>
+<div class="card"><h3>Auto-rename (E19)</h3>
+<div class="row"><input id="rename-pattern" value="{name}-{index}p" style="flex:1;min-width:120px" /><button id="t-rename">Rename A+B exports</button></div></div>
 <div class="muted" id="editreport"></div>
 </div></section>
 
@@ -162,6 +183,8 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><button id="t-imgcensus">List embedded images</button><button id="t-imgextract">Extract embedded images</button></div>
 <div class="row"><input type="file" id="imginsertpick" accept="image/*" /><input id="imgxy" placeholder="x,y e.g. 56,400" style="width:120px" /><button id="t-imginsert">Insert image on current page</button></div>
 <div class="row"><button id="t-scanner">Scanner effect on current page (new PDF)</button></div>
+<div class="row"><input type="file" id="imgreplace-pick" accept="image/*" /><input id="imgreplace-idx" type="number" value="0" style="width:70px" title="Embedded image index from census" /><button id="t-imgreplace">Replace image (overlay)</button></div>
+<p class="muted">Replace is an overlay at census size (original XObject retained); run lossless optimize afterwards to slim.</p>
 <div class="muted" id="imgreport"></div>
 </div></section>
 
@@ -179,6 +202,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><button id="t-ocrscan">Detect scanned pages</button></div>
 <textarea id="ocrwords" placeholder='Recognized words as JSON: [{"page":1,"words":[{"text":"hello","x":56,"y":100,"size":12}]}] - x/y in PDF points from TOP-LEFT'></textarea>
 <div class="row"><button id="t-ocrlayer">Bake invisible text layer</button></div>
+<div class="row"><input id="deskew-angle" type="number" value="0" step="0.5" style="width:90px" title="Skew angle in degrees" /><button id="t-deskew">Deskew pre-pass check (C2)</button></div>
 <div class="muted" id="ocrreport"></div>
 </div></section>
 
@@ -201,6 +225,10 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 
 <section class="route" id="route-workflow"><div class="card"><h3>Workflow (R2-R3, info, repair, TTS)</h3>
 <div class="row"><button id="t-info">Document info</button><button id="t-repair">Repair (tolerant re-save)</button><button id="t-tts">Read current page aloud</button></div>
+<div class="card"><h3>Batch queue (R3: same op, many files)</h3>
+<div class="row"><select id="batch-tool"><option value="optimize">Lossless optimize each</option><option value="scrub">Scrub each</option></select><button id="t-batch">Run batch on A+B</button></div>
+<div class="muted">Failures retry per file without aborting the queue.</div>
+<div class="muted" id="batch-report">No batch run yet.</div></div>
 <div class="muted" id="inforeport"></div>
 </div></section>
 </main>

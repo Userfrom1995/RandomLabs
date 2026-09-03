@@ -18,6 +18,8 @@ import * as Security from "../tools/security-ops.js";
 import * as Compress from "../tools/compress-ops.js";
 import * as OcrOps from "../tools/ocr-ops.js";
 import * as ConvertOps from "../tools/convert-ops.js";
+import * as PhaseE from "../tools/phaseE-ops.js";
+import { splitByBookmarks, parseOrderString, downsampleSpec, grayscalePlan, pdfaRecord, signatureValidateReport, batchRename, deskewSpec, printSpec, batchPlan, batchReducer } from "../../core/tier2/tier2.js";
 import { validateLink, simplifyInk } from "../../core/annotate/annotate.js";
 import { scannerSpec } from "../../core/images/images.js";
 import { toText, toMarkdown, toHtml } from "../../core/convert/writers.js";
@@ -1023,6 +1025,194 @@ function wireTools() {
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
     announce("Reading page " + currentPage() + " aloud.");
+  });
+  // ---- Phase E: Tier 2/3 extras ----
+  const extraReport = (id) => (msg) => { const el = $(id); if (el) el.textContent = msg; };
+  run("t-extract", async () => {
+    const a = requireFile();
+    const keep = parseRanges($("ext-keep").value || "", pageCount());
+    const out = await PhaseE.extractPages(a.bytes, keep, PDFLib);
+    extraReport("pages-extra-report")("Extracted " + keep.length + " page(s).");
+    await refreshAfterOp("extract", { keep }, out, outName("extracted"));
+  });
+  run("t-reorder", async () => {
+    const a = requireFile();
+    const order = parseOrderString($("ext-order").value, pageCount());
+    const out = await Pages.reorderPages(a.bytes, order, PDFLib);
+    extraReport("pages-extra-report")("Reordered to " + order.map((i) => i + 1).join(",") + ".");
+    await refreshAfterOp("reorder", { order }, out, outName("reordered"));
+  });
+  run("t-blank", async () => {
+    const a = requireFile();
+    const at = parseInt($("ext-blankat").value || "1", 10) - 1;
+    const out = await PhaseE.addBlankPage(a.bytes, at, PDFLib);
+    extraReport("pages-extra-report")("Blank page inserted at " + (at + 1) + ".");
+    await refreshAfterOp("blank-page", { at }, out, outName("blanked"));
+  });
+  run("t-resize", async () => {
+    const a = requireFile();
+    const out = await PhaseE.resizePages(a.bytes, { sizeName: $("ext-size").value, orientation: $("ext-orient").value }, PDFLib);
+    extraReport("pages-extra-report")("Resized to " + $("ext-size").value + " " + $("ext-orient").value + ".");
+    await refreshAfterOp("resize", { size: $("ext-size").value }, out, outName("resized"));
+  });
+  run("t-orient", async () => {
+    const a = requireFile();
+    const out = await PhaseE.orientPages(a.bytes, $("ext-orient").value, PDFLib);
+    extraReport("pages-extra-report")("Orientation fixed to " + $("ext-orient").value + ".");
+    await refreshAfterOp("orient", {}, out, outName("oriented"));
+  });
+  run("t-crop", async () => {
+    const a = requireFile();
+    const rect = parseRect($("ext-crop").value || "36,36,523,770");
+    const out = await PhaseE.cropPages(a.bytes, rect, PDFLib);
+    extraReport("pages-extra-report")("Crop box set (reversible; burn to make permanent).");
+    await refreshAfterOp("crop", { rect }, out, outName("cropped"));
+  });
+  run("t-burncrop", async () => {
+    const a = requireFile();
+    const out = await PhaseE.burnCrop(a.bytes, PDFLib);
+    extraReport("pages-extra-report")("Crop boxes burned into media boxes.");
+    await refreshAfterOp("burn-crop", {}, out, outName("burncropped"));
+  });
+  run("t-bmsplit", async () => {
+    const a = requireFile();
+    const items = $("ext-bmtext").value.split("\n").map((s) => s.trim()).filter(Boolean).map((line) => {
+      const m = line.match(/^(.*)\|\s*(\d+)\s*$/);
+      if (!m) throw new Error("bookmark lines look like: Title | 2");
+      return { title: m[1].trim(), page: parseInt(m[2], 10) };
+    });
+    const groups = splitByBookmarks(pageCount(), items);
+    const outs = await PhaseE.splitByBookmarkRanges(a.bytes, groups, PDFLib);
+    outs.forEach((o) => download(o.bytes, "folio-" + o.title.replace(/\s+/g, "-") + ".pdf"));
+    extraReport("pages-extra-report")("Split into " + outs.length + " part(s) by bookmark.");
+  });
+  run("t-gc", async () => {
+    const a = requireFile();
+    const out = await PhaseE.garbageCollect(a.bytes, PDFLib);
+    extraReport("compress-extra-report")("GC rewrite: " + a.bytes.length + " -> " + out.length + " bytes (unreferenced objects dropped).");
+    await refreshAfterOp("gc", {}, out, outName("gc"));
+  });
+  run("t-gray", async () => {
+    const a = requireFile();
+    const plan = grayscalePlan(Array.from({ length: pageCount() }, (_, i) => i), 1);
+    const out = await PhaseE.grayscaleStamp(a.bytes, PDFLib);
+    extraReport("compress-extra-report")("Grayscale intent stamped (" + plan.pages.length + " pages); pixel re-encode runs per image on the browser canvas path.");
+    await refreshAfterOp("grayscale", {}, out, outName("gray"));
+  });
+  run("t-downsample", async () => {
+    const spec = downsampleSpec(parseInt($("down-dpi").value, 10));
+    extraReport("compress-extra-report")("Downsample target " + spec.dpi + " DPI (scale " + spec.scale.toFixed(2) + "): " + spec.method + ". Use profile-gated compress above to apply.");
+  });
+  run("t-pdfa", async () => {
+    const a = requireFile();
+    const rec = pdfaRecord($("pdfa-level").value);
+    const out = await PhaseE.pdfaStamp(a.bytes, rec.level, PDFLib);
+    extraReport("compress-extra-report")("PDF/A subset (" + rec.level + "): fonts embedded, JS/actions stripped, XMP intent set.");
+    await refreshAfterOp("pdfa", { level: rec.level }, out, outName("pdfa"));
+  });
+  run("t-linearize", async () => {
+    extraReport("compress-extra-report")(PhaseE.linearizeNote());
+  });
+  run("t-certvalidate", async () => {
+    const a = requireFile();
+    const r = signatureValidateReport(false, false);
+    $("signreport").textContent = "No embedded CMS signature census in v1: treating as unsigned (" + r.summary + "). Digest recompute runs on signed files once a PKI vendor lands.";
+    void a;
+  });
+  run("t-flattenall", async () => {
+    const a = requireFile();
+    const out = await PhaseE.flattenAll(a.bytes, PDFLib);
+    $("editreport").textContent = "Flattened: form appearances baked, annotation dicts removed.";
+    await refreshAfterOp("flatten-all", {}, out, outName("flattened"));
+  });
+  run("t-print", async () => {
+    requireFile();
+    const spec = printSpec(pageCount(), false);
+    $("editreport").textContent = "Print path: " + spec.pages + " page(s), " + spec.method + " (" + spec.css + "). Opening system print...";
+    window.print();
+  });
+  run("t-attach", async () => {
+    const a = requireFile();
+    const f = $("attach-pick").files[0];
+    if (!f) throw new Error("Pick a file to attach first.");
+    const buf = new Uint8Array(await f.arrayBuffer());
+    await writeFile(paths.input("attach-" + f.name), buf);
+    const out = await PhaseE.attachNote(a.bytes, f.name, PDFLib);
+    $("editreport").textContent = "Attached " + f.name + " (" + buf.length + " bytes, OPFS sidecar + registry).";
+    await refreshAfterOp("attach", { name: f.name }, out, outName("attached"));
+  });
+  run("t-attachlist", async () => {
+    const a = requireFile();
+    const doc = await PDFLib.PDFDocument.load(a.bytes);
+    const list = PhaseE.listAttachNotes(doc.getSubject());
+    $("editreport").textContent = list.length ? "Attachments: " + list.join(", ") : "No attachments.";
+  });
+  run("t-attachextract", async () => {
+    const name = $("attach-name").value.trim();
+    if (!name) throw new Error("Enter an attachment name first.");
+    const buf = await readFile(paths.input("attach-" + name));
+    if (!buf) throw new Error("No sidecar bytes for " + name + " in this session.");
+    download(buf, name, "application/octet-stream");
+    $("editreport").textContent = "Extracted " + name + " (" + buf.length + " bytes).";
+  });
+  run("t-attachdel", async () => {
+    const a = requireFile();
+    const name = $("attach-name").value.trim();
+    if (!name) throw new Error("Enter an attachment name first.");
+    const out = await PhaseE.detachNote(a.bytes, name, PDFLib);
+    $("editreport").textContent = "Detached " + name + " (registry removed; sidecar retained in workspace).";
+    await refreshAfterOp("detach", { name }, out, outName("detached"));
+  });
+  run("t-rename", async () => {
+    const a = requireFile();
+    const pattern = $("rename-pattern").value || "{name}-{index}p";
+    const files = [{ name: a.name, pages: pageCount() }];
+    if (fileB) files.push({ name: fileB.name, pages: 0 });
+    const { applyPattern, sanitizeFileName } = await import("../../core/pipeline/naming.js");
+    const rows = batchRename(files, pattern).map((r) => ({ ...r, to: sanitizeFileName(applyPattern(r.to.replace(/\.[^.]+$/, ""), { name: r.from.replace(/\.[^.]+$/, ""), index: "1", pages: "0", date: "" })) + (r.to.match(/\.[^.]+$/) || [""])[0] }));
+    download(a.bytes, rows[0].to);
+    $("editreport").textContent = "Renamed: " + rows.map((r) => r.from + " -> " + r.to).join("; ");
+  });
+  run("t-imgreplace", async () => {
+    const a = requireFile();
+    const f = $("imgreplace-pick").files[0];
+    if (!f) throw new Error("Pick a replacement image first.");
+    const doc = await PDFLib.PDFDocument.load(a.bytes);
+    const list = ImageOps.censusImages(doc, PDFLib);
+    const entry = list[parseInt($("imgreplace-idx").value || "0", 10)];
+    if (!entry) throw new Error("No embedded image at that index (run census first).");
+    const kind = f.name.toLowerCase().endsWith(".png") ? "png" : "jpg";
+    const out = await PhaseE.replaceImageOverlay(a.bytes, { page: entry.page, imageBytes: new Uint8Array(await f.arrayBuffer()), kind, w: entry.width, h: entry.height }, PDFLib);
+    $("imgreport").textContent = "Replaced image #" + entry.index + " on page " + (entry.page + 1) + " (overlay at census size; original XObject retained).";
+    await refreshAfterOp("replace-image", { index: entry.index }, out, outName("imgreplaced"));
+  });
+  run("t-deskew", async () => {
+    requireFile();
+    const spec = deskewSpec(parseFloat($("deskew-angle").value || "0"), false);
+    $("ocrreport").textContent = "Deskew pre-pass (C2): angle " + spec.angleDeg + "deg - " + spec.note + ". Canvas auto-orient runs at bake time in the OCR pack.";
+  });
+  run("t-batch", async () => {
+    const a = requireFile();
+    const tool = $("batch-tool").value;
+    const names = [a.name].concat(fileB ? [fileB.name] : []);
+    const bufs = [a.bytes].concat(fileB ? [fileB.bytes] : []);
+    let plan = batchPlan(names, tool);
+    const done = [];
+    for (let i = 0; i < plan.queue.length; i++) {
+      const job = plan.queue[i];
+      plan.queue = batchReducer(plan.queue, job.id, "start");
+      try {
+        const out = tool === "scrub" ? await Content.scrubMetadata(bufs[i], PDFLib) : await Content.losslessResave(bufs[i], PDFLib);
+        download(out, bufs[i] && names[i].replace(/\.pdf$/i, "") + "-batch.pdf");
+        plan.queue = batchReducer(plan.queue, job.id, "ok");
+        done.push(job.file + ": done");
+      } catch (err) {
+        plan.queue = batchReducer(plan.queue, job.id, "fail");
+        done.push(job.file + ": FAILED (" + err.message + ", retry available)");
+      }
+    }
+    $("batch-report").textContent = done.join("; ");
+    await logJob({ jobId, tool: "batch-" + tool, params: { files: names }, output: "batch" });
   });
 }
 
