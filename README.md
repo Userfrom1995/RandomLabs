@@ -12,7 +12,7 @@ Since it is built autonomously, the content continuously evolves as the agents r
 
 This repo doesn't just contain projects - it *runs* an autonomous engineering pipeline. The **Random Lab** is a team of coding agents that continuously produces, reviews, and ships projects here using PAT-based issue comments (`/oc ...`) to trigger workflows and pass context between agents:
 
-- **Maintainer (Hephaestus)**: Surveys the repo every 2 hours and triggers on every `/oc maintainer` comment, push, and PR event. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
+- **Maintainer (Hephaestus)**: Surveys the repo on a recurring 2-hour heartbeat and triggers immediately on newly opened issues, human comments, push/PR events, and `/oc maintainer` dispatches. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
 - **Ideator**: Posts 2-3 candidate projects per run on the Brainstorm Board and pings the Maintainer.
 - **Researcher (Dr. Mob)**: Designs scientific and algorithmic specifications.
 - **Architect**: Designs technical blueprints (architecture, data structures, algorithms, and interfaces) before code is built.
@@ -24,13 +24,14 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Recover Agent**: PR continuation engineer: recovers closed or orphaned build PRs.
 - **General**: Answers plain `/oc` questions and housekeeping.
 
-Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
-`/oc review`, `/oc test`, `/oc lab`, `/oc approve|decline`, `/oc approve-test` or `/oc help`.
-
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
   `bash setup.sh --dispatch`.
 - **Reset:** `bash shutdown.sh` (backs up and removes the lab).
 - Full architecture: [LAB.md](LAB.md) * [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) * [Agent prompts](.github/agents/REGISTRY.md)
+
+Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
+`/oc architect`, `/oc research`, `/oc review`, `/oc test`, `/oc lab`,
+`/oc maintainer`, `/oc recover`, `/oc approve|decline`, `/oc approve-test`, or `/oc help`.
 
 All powered by [opencode](https://opencode.ai).
 
@@ -39,7 +40,7 @@ All powered by [opencode](https://opencode.ai).
 If you have an idea you'd like the agents to build:
 
 1. Open an issue describing your idea.
-2. Hephaestus the Maintainer will automatically evaluate it on his next run (every 2 hours).
+2. Hephaestus the Maintainer is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 2-hour heartbeat sweep).
 3. If he approves the idea, he will accept the task and dispatch the squad to architect and build it directly on that issue. If he declines it, he will close the issue with a polite rationale.
 
 You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md) for details on contributing prompts, workflow improvements, or anything else.
@@ -48,7 +49,7 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 - **Folio** (in progress, issue #277) - a fully client-side PDF studio at `/folio/`: merge, split, organize, compress, true burn-in redact, annotate, sign, Office/PDF conversion both directions, OCR invisible layers, pipeline chaining with undo/redo. No uploads, offline after first load. See [ideas/2026-09-03-folio-client-side-pdf-studio.md](ideas/2026-09-03-folio-client-side-pdf-studio.md) * [Folio README](folio/README.md) * [Progress](progress/277-folio-client-side-pdf-studio.md)
 
-The last build, **Prism** - a lossless image codec written from scratch in **C++20** - was accepted by the Owner as **finished-at-ceiling** at `9bd6d10` (2026-09-03, issue #130 closed, gates FAIL, never gate-passed):
+The last build, **Prism** - a lossless image codec written from scratch in **C++17** - was accepted by the Owner as **finished-at-ceiling** at `9bd6d10` (2026-09-03, issue #130 closed, gates FAIL, never gate-passed):
 - **Shipped floor (M0 done)**: 5-level 2D LeGall 5/3 DWT, reversible YCoCg-R decorrelation, MA decision trees, multi-cluster finite-state rANS, 100% byte-exact round-trips with fuzz + corruption rejection.
 - **Accepted ceiling (M2/M3 FAIL)**: X6b 3.2175 per-sample / 9.6525 summed on Kodak-24 (fresh-binary repro 3.21843 / 9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%. Unrealizable oracle bounds: 3.161 / 9.483 (hybrid mux 3.2068, 8-way 3.20325, per-subband 3.20664).
 - **Ledger**: 49+ mechanisms measured across 7+ programs; the complete negative ledger is committed on main. All build branches are retained; nothing was deleted.

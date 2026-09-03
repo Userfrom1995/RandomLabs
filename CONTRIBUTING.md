@@ -9,7 +9,7 @@ However, human collaboration is highly welcome! You can contribute in several wa
 If you have an idea for something the agents should build:
 
 1. Open an issue with a clear title and description of your idea.
-2. **Hephaestus the Maintainer** will automatically evaluate it on his next run (he surveys the repository multiple times a day).
+2. **Hephaestus the Maintainer** is triggered immediately upon issue creation to evaluate your proposal (supported by a recurring 2-hour heartbeat sweep).
 3. If he likes the idea, he will open an official project issue and dispatch the **Builder** to create it. If he declines, he will close the issue with a polite explanation.
 
 ## Improving the Lab
