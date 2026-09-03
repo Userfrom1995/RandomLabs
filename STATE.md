@@ -1,65 +1,62 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-03T19:10Z, maintainer run 33794444931 (event created on issue #130, owner `/oc maintainer` at 19:08:53Z; PR #275 REVIEW-APPROVED 155d65e 19:01Z tester in_progress 33794031933, PR #276 OPEN 8e25663 review dispatched this run, Builder 33794712813 in_progress)
- - **Action this run:** Dispatched Review on PR #276 head 8e25663250e45480c1a96a686940cf1bbb3fb05b (Fresh-binary verification, Refs #130, 3 files +134, MERGEABLE/CLEAN, NOT orphan). PR #275 monitored: Reviewer APPROVED 33793945704 at 19:01Z (14-checklist, clamped P(0) fix, Refs discipline) + Tester in_progress 33794031933 at 19:02Z (bench-subband 5 paths round-trip, 261/261). No merge until dual-gate. Builder guard respected (33794712813 in_progress on #130, 33793744899 completed success creating PR 275).
+ - **Updated:** 2026-09-03T19:09Z, maintainer run 33794725966 (event created on PR #276, owner `/oc maintainer` at 19:08:58Z; PR #276 OPEN 8e25663, PR #275 OPEN 155d65e, main 9bd6d10)
+ - **Action this run:** Owner ceiling acceptance at 2026-09-03T19:06Z executed: closed #130 + #226 as finished-at-ceiling (M2/M3 FAIL, Refs never Closes-as-pass), closed PRs #266/#232/#203/#202/#186/#181 per directive (2) with branches retained per #148, dispatched Review on PR #276 head 8e25663, pinged brainstorm #42 unfrozen, created docs-refresh tracking issue (Refs #130). PR #275 Tester 33794031933 still in_progress.
  - **Main:** `9bd6d10091f904abd16746e4c9515d67387c3d09` verified live `git ls-remote` = 9bd6d10, parents 9bd6d10->8479d71->77be635->24749ac->38cd973->f233ec0->8d70281->9efe99c->81f6769->e6da97d->59fd549->3a4b076->1966738->4af1e889->f968ef85->5fa290a->7b00e55->ece9588f->7c6b8ba->6e9df79->9e97999->dcb5b8d->f2d5263->3d75e59->215ae50->d8168dde, NOT orphan
- - **Branch retention:** opencode/issue130-20260903185936 at 8e25663 OPEN CLEAN (PR 276), opencode/issue130-20260903181610 at 155d65e OPEN CLEAN (PR 275), opencode/issue130-20260903165911 at 3a03ab2 MERGED at 9bd6d10 retained, opencode/issue130-20260903160917 at 8c0ae66 MERGED at 8479d71 retained, opencode/issue130-20260903152457 at b7463f3 MERGED at 77be635 retained, opencode/issue130-20260903144955 at 438ef2d MERGED at 24749ac retained (PR 271), opencode/issue130-20260903133150 at 8d9576f OPEN CONFLICTING (PR 266), opencode/issue130-20260901144303 at 44e7146 OPEN retained per #148 (PR 232), plus older archival retained per #148
+ - **Branch retention:** opencode/issue130-20260903185936 at 8e25663 OPEN CLEAN (PR 276), opencode/issue130-20260903181610 at 155d65e OPEN CLEAN (PR 275), opencode/issue130-20260903133150 at 8d9576f CLOSED CONFLICTING (PR 266 closed per #130 acceptance), opencode/issue130-20260901144303 at 44e7146 CLOSED (PR 232 closed per #130 acceptance), plus older archival retained per #148
  - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at 9bd6d10 + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy 33794691343 success on 8e25663 + 33793727251 success on 155d65e, no CreditsError, no orphan main
 
 ## STANDING OWNER DIRECTIVES (active)
- - **HALT NEURAL TRACK (2026-09-02T10:39:54Z, supreme, via #130):** Do not pursue neural network path for M2/M3. Halt is immediate: no Builder on neural codec or successor #226. Archive & Consolidate neural research via Refs #130 merges, Lab on #226 strips neural-train.yml DONE.
- - **100% CLASSICAL FOCUS (2026-09-02T10:39:54Z):** Innovative classical algorithm to beat M2 (<3.166/<9.498) and M3 (<2.885/<8.655) only.
- - **ANTI-SURRENDER + NO-PAUSE MANDATE (2026-08-27 01:30 IST via 2bd51b, codified at d31f9b0):** Never surrender target, version-by-version escalation until gates shatter. Only Owner can halt. NEVER pause waiting for Owner direction. Modified 2026-09-02T10:39:54Z: neural halt is owner halt, classical No-Pause remains.
- - **CASCADE DIRECTIVE (2026-08-27T08:19:10Z, single-pipeline exhaustive 49 phases at 59f2244 MERGED):** Route 3 (JXL-Modular) -> Route 1 -> Route 2 HALTED as FAIL -> exhaustive floor 3.2175/9.6525 at d8168dde + verified at 215ae50 + re-verified at f2d5263 + fresh escalation at dcb5b8d + retry-confirmed at 9e97999. Now floor-recovery + validation merged + full-24 blend0 verification merged + parity closed + hybrid oracle mux merged + verification + 8-way mux bound merged + blend sweep PR 271 merged closes prior lever + PR 272 merged closes blend-mux/palette/R7 levers + PR 273 MERGED closes per-SUBBAND mux at 0.3668% landing on whole-image oracle + PR 274 MERGED independent byte-identical corroboration 2304/2304 at 9bd6d10 + PR 275 OPEN N-way oracle 0.7215% stream (realizable 0.3921%) closes mux at every granularity + PR 276 OPEN fresh-binary re-proof verifies floor
- - **BINDING TARGET (dual-unit):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. Ceiling at 9bd6d10: X6b 3.21843/9.65529 (1.63% M2, 11.53% M3), oracle 3.161/9.483 barely M2 pass M3 fail, hybrid oracle 3.2068/9.6204 (-0.36%, 1.27% short), 8-way oracle 3.20325/9.60975 (1.18% short, blend lever 0.000% shut + palette 7x below gap + per-image blend-mux +6.42% shut), floor 3.21843/9.65529 (+0.029% repro), PR 272 confirms kodim19 blend-0 483221 best 6-point monotone + R7 14.9974% pin, PR 273 subband mux -0.3668% {P0,P2} P0 803/1152 P2 349 per-image mux 3.20664/9.61993 lever CLOSED 1.27% short + PR 274 independent corroboration 2304/2304 identical + PR 275 N-way 0.7215% stream but 19KB header => realizable 3.20664 CLOSED + PR 276 fresh-binary 260/260 re-proof 3.21843 stands
+ - **CEILING ACCEPTANCE (2026-09-03T19:06Z, supreme, via #130):** Accepting the ceiling and closing Prism here as finished-at-ceiling, not gate-passed. Corpus truth at 9bd6d10: X6b 3.2175/9.6525 repro 3.21843/9.65529, M2 FAIL ~1.6% M3 FAIL ~11.5%, oracle 3.161/9.483 barely M2, hybrid 3.2068/9.6204/8-way 3.20325/per-subband mux 3.20664 all FAIL, 49+ mechanisms rejected, no success claim. Successor #226 neural stays HALTED per 2026-09-02. Directives 1-4 executed this run.
+ - **DIRECTIVE STEPS (2026-09-03T19:06Z):** (1) Close #130/#226 as finished-at-ceiling (DONE this run), (2) Close PRs #266/#232/#203/#202/#186/#181 unmerged with FAIL links to #271-274 retain branches per #148 (DONE), (3) Refresh README.md Current Project, index.html Current/Previous (Helix-live stale, RandomLabs 404), prism/README milestones, docs/roster keep pages.yml intact (tracking issue created this run, build next), (4) Lift single-priority freeze and unfreeze brainstorm #42 (DONE ping, awaiting owner next-project directive)
+ - **HALT NEURAL TRACK (2026-09-02T10:39:54Z, supreme):** Do not pursue neural path for M2/M3. Remains active.
+ - **ANTI-SURRENDER + NO-PAUSE (modified 2026-09-03T19:06Z):** Ceiling acceptance is owner halt per Anti-Surrender (only Owner can halt). No further classical Research/Architect/Build on Prism; freeze lifted for next project.
+ - **BINDING TARGET (historic, now closed FAIL):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. Ceiling at 9bd6d10: X6b 3.2175/9.6525, oracle 3.161/9.483, N-way realizable 3.20664 1.27% short.
 
 ## MERGE CAPABILITY (verified this run)
- - main = `9bd6d10091f904abd16746e4c9515d67387c3d09` LIVE (NOT orphan, `git ls-remote` = 9bd6d10, parents 9bd6d10->8479d71->77be635, merge-base 9bd6d10 via CLEAN, `git merge-base origin/main 155d65e` = 9bd6d10, `git merge-base origin/main 8e25663` = 9bd6d10)
- - PR #275 `155d65e8fa82be7bafef184507c68ae29ac36a10` OPEN MERGEABLE/CLEAN Refs #130 (10 files +1188/-2, bench-subband N-way + R6B fix, Reviewer APPROVED 33793945704 19:01Z, Tester in_progress 33794031933 19:02Z)
- - PR #276 `8e25663250e45480c1a96a686940cf1bbb3fb05b` OPEN MERGEABLE/CLEAN Refs #130 (3 files +134, verify-only fresh-binary, 260/260, review dispatched this run)
- - PR #274 `3a03ab27b979f69ce637f1d24e7dffd845697ede` MERGED at 9bd6d10 (Refs #130, 1 file +14/-1 corroboration, dual-gated Reviewer 33789940109 + Tester 33790039776)
- - PR #273 `8c0ae669aaa87e69533cb4389dcf7cdd642981be` MERGED at 8479d71 (Refs #130, 16 files +4619/-1, bench-subband additive, 14 CSVs)
- - PR #272 `b7463f32bb735c5f6790527952b416c70c7d31ee` MERGED at 77be635 (Refs #130, 4 files +199, dual-gated)
- - PR #271 `438ef2d7b444914135c03f3ee5f86f438d9b330b` MERGED at 24749ac (Refs #130, 8-way mux 3.20325)
- - PR #266 `8d9576f4f63a3d010eb17af79c36293aca336b9c` OPEN CONFLICTING Refs #130 (1 unique commit)
- - PR #232 44e7146 OPEN retained per #148 (archival, Refs #130)
+ - main = `9bd6d10091f904abd16746e4c9515d67387c3d09` LIVE (NOT orphan, `git ls-remote` = 9bd6d10, merge-base 9bd6d10 via CLEAN, `git merge-base origin/main 8e25663` = 9bd6d10, `git merge-base origin/main 155d65e` = 9bd6d10)
+ - PR #276 `8e25663250e45480c1a96a686940cf1bbb3fb05b` OPEN MERGEABLE/CLEAN Refs #130 verify-only (review dispatched this run)
+ - PR #275 `155d65e8fa82be7bafef184507c68ae29ac36a10` OPEN MERGEABLE/CLEAN Refs #130 N-way oracle + R6B fix, Reviewer APPROVED 33793945704, Tester 33794031933 in_progress
+ - PR #274 `3a03ab27b979f69ce637f1d24e7dffd845697ede` MERGED at 9bd6d10 (Refs #130)
+ - PR #273 `8c0ae669aaa87e69533cb4389dcf7cdd642981be` MERGED at 8479d71 (Refs #130)
+ - PR #272/271 MERGED, remainder closed per acceptance
 
 ## CRITICAL INFRASTRUCTURE STATE
- - **PR #275 OPEN CLEAN 155d65e Refs #130 N-way oracle + R6B desync fix (Reviewer APPROVED, Tester in_progress):** 10 files +1188/-2 (prism/src/cli/main.cpp bench-subband + prism/src/codec/bitplane.cpp clamped P0 fix, 5 CSVs, progress + decisions/ideas). Additive instrument (exact-one-path + raster round-trip per prism/benchmarks) proves identical coefficients, 261/261 green bench_gate PASS. Bugfix zero format change derives P(0) from clamped counts (wire 16-bit). Quad N-way 0.7215% total vs P0 but 19KB header eliminates R6C gain, realizable {P0,P2} 3.20664 M2 FAIL 1.3%. Per-plane 0.0000% P0 wins 72/72. Verdict CLOSED at every granularity. Awaiting Tester approve-test (33794031933, 8m elapsed, bench-subband --r6b/--r6c/--r7/--route5 on kodim01/05/13/19). No merge until dual-gate.
- - **PR #276 OPEN CLEAN 8e25663 Refs #130 Fresh-binary verification (review dispatched this run):** 3 files +134 (ideas + progress + builder decision), verify-only from main 9bd6d10, zero source changes, fresh Release 84/84, bench_gate self-check PASS, 260/260 green (R7 guard excluded), 24/24 SHA OK, kodim01 e7 3.6502 byte-exact, kodim01 X6b 506343 bit-identical to committed floor CSV. Floor 3.21843/9.65529 stands; M2/M3 FAIL unchanged. Awaiting Reviewer 14-checklist + Tester after review.
- - **Issue #130 OPEN GATING:** Classical focus ceiling 3.21843/9.65529 at 9bd6d10 + PR 271/272/273/274 MERGED + PR 275 REVIEW-APPROVED tester pending + PR 276 review dispatched - N-way extends to 6 routes (P0/P2/R7/R5/R6B/R6C) - realizable mux 3.20664 1.27% short + per-plane 0% + header economics shut. Research pending re-chain for new classical framework beyond I12/ZFF/BCE/MA-tree after Builder 33794712813 lands.
- - **Issue #226 HALTED:** No Builder, halt 10:39:54Z remains
+ - **PR #276 OPEN CLEAN 8e25663 Refs #130 verify-only (review dispatched this run):** 3 files +134 zero source changes, fresh Release 84/84 bench_gate PASS 260/260, corpus 24/24 SHA OK kodim01 3.6502, floor 3.21843 stood, R6C/subband-mux rejected with reasons. Awaiting Reviewer 14-checklist then Tester.
+ - **PR #275 OPEN CLEAN 155d65e Refs #130 N-way oracle + R6B fix (Reviewer APPROVED, Tester in_progress 33794031933):** 10 files +1188/-2 bench-subband N-way + clamped P0 fix, 5 CSVs progress/ideas, 0.7215% stream realizable 0.3921% mux 3.20664 M2 FAIL 1.3% per-plane 0% header 19KB 10x. Awaiting Tester approve-test before PAT merge (Refs, issue now closed but merge still archival).
+ - **Issues #130/#226 CLOSED completed at 19:09Z per owner acceptance:** Closed via `gh issue close --reason completed` with acceptance comment linking merged proof PRs #271-274, branches retained, docs refresh tracking issue created.
+ - **PRs #266/#232/#203/#202/#186/#181 CLOSED unmerged at 19:09Z per directive (2):** Closed via `gh pr close` with FAIL link to #271-274, branches retained per #148.
+ - **Brainstorm #42 UNFROZEN:** Ping dispatched lifting FROZEN, awaiting owner next-project directive.
 
 ## IN FLIGHT
- - **Issue #130 - OPEN GATING - classical focus, ceiling 3.21843/9.65529 at 9bd6d10 + PR 275 OPEN Reviewer APPROVED tester in_progress + PR 276 OPEN review dispatched (next: Tester->merge 275, Reviewer->Tester->merge 276, then Research for new paradigm after Builder lands)**
- - **Issue #226 - OPEN GATING - HALTED neural successor, no Builder**
- - **PR #275 - OPEN 155d65e CLEAN (Refs #130 N-way + R6B fix, 10 files +1188/-2, Reviewer APPROVED 33793945704, Tester in_progress 33794031933)**
- - **PR #276 - OPEN 8e25663 CLEAN (Refs #130 fresh-binary verification, 3 files +134, review dispatched 33794444931)**
- - **PR #274 - MERGED at 9bd6d10 CLEAN (Refs #130 corroboration, dual-gated)**
- - **PR #273 - MERGED at 8479d71 CLEAN (Refs #130 full-24, dual-gated)**
- - **Builder 33794712813 - IN_PROGRESS build on #130 (Prism M2/M3 continuation, 19:08:53Z, head 9bd6d10)**
- - **Builder 33793744899 - COMPLETED success at 18:59:23Z on #130 (created PR 275, branch opencode/issue130-20260903181610, 10 files, 2 commits 155d65e)**
- - **Tester 33794031933 - IN_PROGRESS test on PR #275 (19:02:02Z, N-way + R6B, 5-path round-trip)**
+ - **Issue #130 - CLOSED completed 2026-09-03T19:06Z acceptance (finished-at-ceiling, M2/M3 FAIL)**
+ - **Issue #226 - CLOSED completed (HALTED successor, closed with #130)**
+ - **PR #276 - OPEN 8e25663 CLEAN (Refs #130 verify-only, review dispatched this run)**
+ - **PR #275 - OPEN 155d65e CLEAN (Refs #130 N-way, Reviewer APPROVED, Tester 33794031933 in_progress)**
+ - **Docs-refresh tracking issue - to be created via decision.json this run (Refs #130)**
+ - **Brainstorm #42 - OPEN UNFROZEN awaiting owner next-project directive**
+ - **Builder 33794712813 - in_progress opencode on #130 at 19:08:53Z (verify-only that created PR 276, now superseded by acceptance, will complete harmlessly)**
 
 ## PIPELINE POSITION
- Halt neural 10:39:54Z -> exhaustive floor 3.21843/9.65529 -> merged 262-274 (floor-recovery through subband-mux closure + N-way) -> PR 275 OPEN N-way oracle + R6B fix Reviewer APPROVED Tester in_progress -> PR 276 OPEN fresh-binary re-proof review dispatched -> Next: Tester approve-test on 275 then merge, Reviewer->Tester on 276 then merge, then Research on #130 for fundamentally new classical paradigm beyond wavelet+bitplane+EMA after Builder 33794712813 lands
+ Prism exhaustive floor 3.2175/9.6525 at 9bd6d10 proven across 49+ mechanisms / 9 programs, merged PRs 271-274, N-way oracle PR 275 and verify PR 276 as final archival instruments, owner acceptance at 19:06Z closes Prism as finished-at-ceiling (not gate-passed) per Anti-Surrender owner-only halt, PRs closed, docs refresh queued, brainstorm unfrozen -> Next: Reviewer->Tester on #276, Tester completion on #275, then PAT merge of archival Refs PRs, then Builder on docs-refresh issue, then Ideator on next project per owner directive.
 
 ## NEXT-RUN PLAYBOOK
- 1. Monitor Tester 33794031933 on PR 275 155d65e (bench-subband 5 paths round-trip, 261/261, bench_gate); when approve-test with no newer fix, merge via `gh pr merge --rebase` (Refs #130, branch retained per #148, #130 stays OPEN). Verify pages deploy succeeds after merge.
- 2. Monitor Reviewer on PR 276 8e25663 (14-checklist: Refs discipline, no workflows touch, 260/260, dual-unit honesty) and Tester approve-test; when dual-gated, merge via `gh pr merge --rebase` (Refs #130).
- 3. Monitor Builder 33794712813 `in_progress` on #130; when it lands, verify outcome and re-chain Research on #130 via `{"action":"research","issue":130}` for new classical framework escaping I12 table-economics, ZFF, BCE 0.317, MA-tree ceilings - if Builder was research-capable, dispatch Architect immediately after Research spec without stalling per No-Pause.
- 4. Keep PR #266 CONFLICTING untouched; PR #232 retained per #148; verify model pins free (muse-spark-1.3 / muse-spark-1.2-contributor-free), no orphan main, no CreditsError.
- 5. No Ideator dispatch - brainstorm #42 FROZEN until classical successor proves gates; Auditor on schedule.
+ 1. Monitor Tester 33794031933 on PR 275; when approve-test, merge via `gh pr merge --rebase` (Refs #130, issue closed but archival, branch retained) - dual-gate already Reviewer APPROVED.
+ 2. Monitor Reviewer on PR 276 8e25663 (14-checklist) then Tester; when dual-gated merge similarly.
+ 3. When docs-refresh issue created, dispatch Builder via `{"action":"build","issue":<N>}` to refresh README/index/prism/README/docs/roster keeping pages.yml intact.
+ 4. Await owner next-project directive on brainstorm #42 (now unfrozen); dispatch Ideator only after owner posts directive or if lab idle with no directive after docs merge.
+ 5. Verify pages deploy succeeds on 9bd6d10 and previews for 275/276, verify model pins free, no orphan main.
 
 ## ISSUES
- - **#130** - OPEN - Prism M2/M3/M4 continuation (gating, classical focus ceiling 3.21843/9.65529 at 9bd6d10, N-way oracle 0.7215% stream realizable 0.3921% mux 3.20664 1.27% short + per-plane 0% CLOSED at every granularity, PR 275 Reviewer APPROVED Tester pending + PR 276 fresh-binary review dispatched)
- - **#226** - OPEN - Prism Next-Gen dedicated architecture (HALTED neural successor)
- - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm FROZEN
+ - **#130** - CLOSED completed - Prism M2/M3/M4 continuation - finished-at-ceiling (X6b 3.21843/9.65529 M2/M3 FAIL, oracle barely M2, 49+ mechanisms, PRs 271-274 proof)
+ - **#226** - CLOSED completed - Prism Next-Gen successor (HALTED neural, closed with #130)
+ - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm UNFROZEN
+ - **Docs-refresh** - pending creation Refs #130
 
 ## OPEN QUESTIONS
- - Will Tester 33794031933 APPROVE PR 275 (bench-subband 5 paths round-trip identical + R6B clamped fix + 261/261) before PAT rebase-merge?
- - Will Reviewer APPROVE PR 276 (verify-only, Refs discipline, no em-dash, 260/260, 24/24 SHA) and Tester approve-test before merge?
- - Will Builder 33794712813 produce new mechanism or re-confirm ceiling, and will Research->Architect chain proceed without pause after it lands?
- - Will Research (Dr. Mob) deliver classical spec escaping I12/ZFF/BCE/MA-tree to close 1.27% M2 gap where all mux levers now CLOSED including N-way and per-plane?
+ - Will Tester 33794031933 approve-test PR 275 before archival merge (bench-subband round-trip + R6B fix)?
+ - Will Reviewer APPROVE PR 276 verify-only (zero source changes, 260/260, bench_gate PASS, floor stood) and Tester approve-test?
+ - Will docs-refresh Builder correctly update README/index/prism/README/docs without touching pages.yml preview infra?
+ - What next-project will owner directive on unfrozen brainstorm #42 select?
 
    - Hephaestus, the Maintainer
-<!-- run: 33794444931 -->
+<!-- run: 33794725966 -->
