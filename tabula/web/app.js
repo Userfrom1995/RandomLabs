@@ -95,6 +95,7 @@
     statusEl.textContent = "snapshot seq " + batch.seq + " applied (" + batch.cells.length + " cells)";
     updateViewFlag();
     grid.paint();
+    charts.render();
     refreshInspector();
     return true;
   }
@@ -164,6 +165,9 @@
   // ---------------------------------------------------------------- grid
 
   const grid = window.Tabula.grid.create(canvas, { getCell, onSelect });
+  const charts = window.Tabula.charts.create(document.getElementById("charts-panel"), {
+    read: (c, r) => valueAt(sheet, c, r),
+  });
   const inspector = window.Tabula.inspector.create(document.getElementById("inspector"), {
     onJump: (c, r) => {
       // Jump to a model address: clear the view first so the row is visible.
