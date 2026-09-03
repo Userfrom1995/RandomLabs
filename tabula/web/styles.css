@@ -1,4 +1,4 @@
-/* Tabula design tokens and Phase 0 shell layout (blueprint: desktop grid +
+/* Tabula design tokens and Phase 4 layout (blueprint: desktop grid +
    formula bar + inspector; mobile single column with bottom sheet). */
 :root {
   --tabula-bg: #0c1222;
@@ -32,42 +32,96 @@ header p { margin: 0; color: var(--tabula-muted); font-size: 0.85rem; }
 .toolbar {
   display: flex; align-items: center; gap: 10px; padding: 8px 20px;
   border-bottom: 1px solid var(--tabula-border); background: var(--tabula-surface);
+  flex-wrap: wrap;
 }
 .toolbar label { font-style: italic; color: var(--tabula-muted); }
 .toolbar input {
-  flex: 1; background: var(--tabula-bg); color: var(--tabula-ink);
+  flex: 1; min-width: 200px; background: var(--tabula-bg); color: var(--tabula-ink);
   border: 1px solid var(--tabula-border); border-radius: 4px; padding: 6px 10px;
   font-family: monospace; font-size: 0.9rem;
 }
-.toolbar #addr { font-family: monospace; color: var(--tabula-accent); }
+.toolbar #addr { font-family: monospace; color: var(--tabula-accent); min-width: 64px; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.actions button, .panel button, .sheetbar button {
+  background: var(--tabula-bg); color: var(--tabula-ink);
+  border: 1px solid var(--tabula-border); border-radius: 6px;
+  padding: 6px 10px; font-size: 0.8rem; cursor: pointer;
+}
+.actions button:hover, .panel button:hover, .sheetbar button:hover {
+  border-color: var(--tabula-accent);
+}
+.actions button:focus-visible, .panel button:focus-visible {
+  outline: 2px solid var(--tabula-accent); outline-offset: 1px;
+}
 .layout { flex: 1; display: flex; min-height: 0; }
-.grid-wrap { flex: 1; padding: 16px; min-width: 0; }
-canvas {
-  width: 100%; background: var(--tabula-surface);
+.grid-wrap { flex: 1; padding: 16px; min-width: 0; display: flex; flex-direction: column; }
+#grid {
+  width: 100%; height: 560px; background: var(--tabula-surface);
   border: 1px solid var(--tabula-border); border-radius: 8px; display: block;
 }
 .hint { color: var(--tabula-muted); font-size: 0.8rem; }
 .hint code { color: var(--tabula-ink); }
 .hint a { color: var(--tabula-accent); }
+.sheetbar {
+  display: flex; gap: 6px; align-items: center; padding-top: 10px; flex-wrap: wrap;
+}
+.sheetbar .tab { border-color: var(--tabula-accent); }
 .panel {
-  width: 320px; border-left: 1px solid var(--tabula-border); padding: 16px;
-  display: flex; flex-direction: column; gap: 10px; background: var(--tabula-surface);
+  width: 340px; border-left: 1px solid var(--tabula-border); padding: 16px;
+  display: flex; flex-direction: column; gap: 14px; background: var(--tabula-surface);
+  overflow-y: auto; max-height: calc(100vh - 220px);
 }
 .panel h3 {
   margin: 0; font-size: 0.8rem; color: var(--tabula-accent);
   text-transform: uppercase; letter-spacing: 0.06em;
 }
+.panel h4 { margin: 8px 0 4px; font-size: 0.78rem; color: var(--tabula-muted); }
+.panel h4.cycle { color: var(--tabula-error); }
 .mono {
   font-family: monospace; font-size: 0.8rem; background: var(--tabula-bg);
   border: 1px solid var(--tabula-border); border-radius: 6px; padding: 10px;
   line-height: 1.7; white-space: pre-wrap;
 }
+.dim { color: var(--tabula-muted); font-size: 0.8rem; }
+.perr { color: var(--tabula-error); font-size: 0.8rem; }
+.kv { display: flex; flex-direction: column; gap: 4px; }
+.krow { display: flex; gap: 8px; font-size: 0.8rem; }
+.krow .k { color: var(--tabula-muted); min-width: 70px; }
+.krow .v { font-family: monospace; word-break: break-all; }
+.jumps { display: flex; flex-wrap: wrap; gap: 4px; }
+.jump {
+  font-family: monospace; font-size: 0.75rem; padding: 3px 8px;
+}
+.cycle-path { font-size: 0.8rem; line-height: 2; }
+.frow { display: flex; gap: 8px; align-items: center; font-size: 0.8rem; margin-top: 6px; }
+.frow span { min-width: 64px; color: var(--tabula-muted); }
+.frow select, .frow input {
+  flex: 1; background: var(--tabula-bg); color: var(--tabula-ink);
+  border: 1px solid var(--tabula-border); border-radius: 4px; padding: 5px 8px;
+  font-size: 0.8rem;
+}
+.btnrow { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.btnrow button.on, .panel button.on { border-color: var(--tabula-accent); color: var(--tabula-accent); }
+.cell-editor {
+  position: absolute; z-index: 20; min-width: 200px; min-height: 28px;
+  background: #0c1222; color: var(--tabula-ink); border: 2px solid var(--tabula-accent);
+  border-radius: 4px; font: 13px monospace; padding: 4px 6px; resize: both;
+}
 footer {
   padding: 8px 20px; border-top: 1px solid var(--tabula-border);
-  display: flex; justify-content: space-between; color: var(--tabula-muted);
-  font-size: 0.78rem;
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  color: var(--tabula-muted); font-size: 0.78rem;
 }
-@media (max-width: 720px) {
+footer .mono { padding: 2px 8px; line-height: 1.4; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+@media (max-width: 900px) {
   .layout { flex-direction: column; }
-  .panel { width: 100%; border-left: none; border-top: 1px solid var(--tabula-border); }
+  .panel {
+    width: 100%; border-left: none; border-top: 1px solid var(--tabula-border);
+    max-height: none;
+  }
+  #grid { height: 420px; }
 }

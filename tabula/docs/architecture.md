@@ -2,25 +2,38 @@
 
 - **Issue:** #282. **Spec (binding):** `docs/research/issue-282-tabula-spreadsheet.md`.
 - **Blueprint:** `ideas/2026-09-03-tabula-spreadsheet-engine.md`.
-- **Status:** Phase 0 complete (scaffold + headless core skeleton + shell).
+- **Status:** Phase 4 complete (bridge session + full grid UI on the fallback engine).
 
 ## Module map
 
 ```
 tabula/
-  Package.swift                  SwiftPM (tools 6.0), no external deps (Phase 0)
+  Package.swift                  SwiftPM (tools 6.0), no external deps (Phase 4)
   Sources/TabulaCore/            pure Swift, zero JS, zero calendar APIs
     TabulaCore.swift             version + grid caps (research 3.1)
     Addr.swift                   Addr, CellRef, RangeRect, ColumnCodec (3.1, 3.5, 8.1)
     ErrorCode.swift              7 codes + precedence + combine (4.2, 4.4)
-    (Phase 1) Lexer, Parser, AST, Value, Ref, Graph, Eval, Clock
-    (Phase 2) BuiltinMath, BuiltinText, BuiltinLookup, BuiltinDate, BuiltinLogic
-    (Phase 3) Workbook, Series, Format, codecs
+    Lexer, Parser, AST, Value, Ref, Graph, Eval, Clock (Phase 1)
+    BuiltinMath, BuiltinText, BuiltinLookup, BuiltinDate, Builtins (Phase 2)
+    Workbook, Series, Format, Codecs (Phase 3)
+    Inspector.swift              (Phase 4) public inspect/topology API for the bridge
   Sources/TabulaBridge/
     Bridge.swift                 batch wire types (CellView, DirtyRange, DirtyBatch)
+    Session.swift                (Phase 4) BridgeSession: EngineEdit batches,
+                                 InspectorView, SheetView sort/filter
     WasmBridge.swift             `#if canImport(JavaScriptKit)` landing zone + stub
-  Tests/TabulaCoreTests/         swift-testing suites (12 green at Phase 0)
-  web/                           zero-build static UI (app.js, styles.css)
+  Tests/TabulaCoreTests/         swift-testing suites (77 green at Phase 4)
+  web/                           zero-build static UI (no bundler, classic scripts)
+    engine.js                    (Phase 4) fallback formula core behind the wire
+    grid.js                      virtualized canvas, freeze, resize, range select
+    editor.js                    cell overlay + formula bar (sources kept on error)
+    inspector.js                 trace + topo rank + cycle path + jump
+    format.js                    recalc-pure style panels
+    views.js                     presentation-only sort/filter + freeze + struct ops
+    storage.js                   clipboard TSV + file save/load (OPFS: Phase 5)
+    sample.js                    bundled workbook (all families + one cycle)
+    app.js                       boot + wiring (batch consumer, view index)
+    styles.css                   design tokens + desktop/mobile layout
   index.html                     Pages entry at /tabula/
   manifest.webmanifest, sw.js    PWA shell (scope /tabula/)
   docs/                          this file; proofs.md + semantics.md land Phase 5
@@ -66,7 +79,7 @@ timebox risked the whole run for a packaging step while the semantic core
 SwiftPM core is the shippable semantic authority; the web shell renders the
 pinned wire shape through a labeled stub until the proof lands.
 
-WASM proof plan (a later `continue` cycle, before Phase 4 UI depth):
+WASM proof plan (Phase 5 hardening window, alongside the oracle-parity run):
 
 1. Install carton 1.1.3 (prebuilt Linux binary from swiftwasm/carton releases).
 2. Install the `swift-wasm-6.3-RELEASE` SDK (`swift sdk install <artifact>`).
@@ -76,10 +89,26 @@ WASM proof plan (a later `continue` cycle, before Phase 4 UI depth):
    `WasmBridge` (replacing the `#else` stub branch) and renders in
    `tabula/index.html`; record bundle size + load evidence here.
 
-Fallback (only if the proof blocks after a full-cycle attempt): ship the
-headless core + a JS engine implementing the same grammar behind the same
-wire shape, with conformance proved by the shared 300-case oracle running on
-both. No silent fallback: the decision and evidence go here.
+Fallback (taken at Phase 4, per the escape clause above): the interactive
+grid ships on `web/engine.js`, a zero-build JavaScript core implementing the
+same grammar (A1 with `$`, sheet-qualified refs, ranges, names), value
+domain, coercion table, error precedence, graph algorithms (iterative-DFS
+cycles, Kahn minimal recalc, volatile union), structural-edit and
+copy/paste/fill laws, and JSON/CSV codecs behind the exact pinned wire
+shape. It is NOT a silent substitution: this section records the boundary.
+
+- Parity boundary: R1C1 input and array constants are parse errors in the
+  fallback (Swift parses both); the function surface is the v1 set minus the
+  blueprint v2 deferrals; float rendering matches `formatGeneral` for
+  integers and falls back to `String(x)` otherwise (same rule as Swift).
+- Evidence: smoke checks pass on the fallback (`-2^2=-4`, `2^3^2=512`,
+  `2^-3=0.125`, VLOOKUP exact, `#CYCLE!` with recorded path, insert-row ref
+  following, AND/OR prior-error-wins); `node --check` clean on all 9 web
+  modules; 77/77 Swift suites stay green as the semantic authority.
+- Phase 5 hardening: run the shared oracle cases against BOTH engines and
+  record agreement here; the WASM proof (carton + SDK + JavaScriptKit pin)
+  still replaces the fallback's producer role when it lands, with no UI
+  changes required (renderer consumes DirtyBatch either way).
 
 ## JavaScriptKit pin (intent, Phase 0)
 

@@ -4,42 +4,66 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Tabula - from-scratch spreadsheet engine</title>
-<meta name="description" content="Tabula: a from-scratch spreadsheet engine in Swift. Formula graph, topological recalc, live grid." />
+<meta name="description" content="Tabula: a from-scratch spreadsheet engine. Formula graph, topological recalc, live grid." />
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="web/styles.css" />
 </head>
 <body>
 <header>
   <h1>Tabula</h1>
-  <p>from-scratch spreadsheet engine in Swift - dependency graph you can inspect</p>
-  <span id="core-badge" class="badge" title="WASM core status">stub snapshot - WASM proof pending</span>
+  <p>from-scratch spreadsheet engine - every formula a traceable graph edge</p>
+  <span id="core-badge" class="badge" title="Engine status">JS fallback core (WASM proof pending)</span>
   <a class="back" href="../">Back to Random</a>
 </header>
 <div class="toolbar" role="toolbar" aria-label="Formula bar">
+  <span id="addr" class="mono">A1</span>
   <label for="formula">fx</label>
-  <input id="formula" type="text" value="=41+1" readonly
-         title="Editing wires to Core in Phase 4. Phase 0 shell is read-only." />
-  <span id="addr">A1</span>
+  <input id="formula" type="text" value="" aria-label="Formula bar" spellcheck="false" />
+</div>
+<div class="toolbar actions" role="toolbar" aria-label="Cell actions">
+  <button id="btn-copy" title="Copy selection (Ctrl+C)">Copy</button>
+  <button id="btn-cut" title="Cut selection (Ctrl+X)">Cut</button>
+  <button id="btn-paste" title="Paste (Ctrl+V)">Paste</button>
+  <button id="btn-fill" title="Fill down/right from selection">Fill</button>
+  <button id="btn-undo" title="Undo structural edit (Ctrl+Z)">Undo</button>
+  <button id="btn-clear" title="Clear selection (Delete)">Clear</button>
+  <button id="btn-save" title="Save workbook as JSON (Ctrl+S)">Save</button>
+  <button id="btn-load" title="Load workbook JSON">Load</button>
+  <button id="btn-csv" title="Export current sheet as CSV">CSV</button>
+  <input id="file" type="file" accept=".json,application/json" class="sr-only" aria-label="Load workbook file" />
 </div>
 <main class="layout">
   <section class="grid-wrap">
-    <canvas id="grid" width="960" height="560" aria-label="Spreadsheet grid"></canvas>
-    <p class="hint">Phase 0 shell: renders one <code>DirtyBatch</code> (seq, ranges, cells) through the
-    documented bridge shape. Live WASM core lands with the toolchain proof (see
-    <a href="docs/architecture.md">architecture</a>).</p>
+    <canvas id="grid" aria-label="Spreadsheet grid. Arrow keys move, Enter edits, Delete clears."></canvas>
+    <p class="hint">Enter edits, arrows move, Tab/Shift+Tab across, drag headers to resize,
+    drag cells to select a range. Every edit runs the dependency graph
+    (dirty closure, topological sweep) and ships one batch to this canvas.
+    See <a href="docs/architecture.md">architecture</a>.</p>
+    <div class="sheetbar" id="sheets" aria-label="Sheets"></div>
   </section>
-  <aside class="panel" aria-label="Inspector">
-    <h3>Inspector</h3>
-    <div id="inspector" class="mono">Select a cell to trace precedents and dependents.
-Phase 4 wires this to the Core graph metadata (topological rank, cycle path).</div>
-    <h3>Batch</h3>
-    <div id="batch" class="mono">waiting for first snapshot...</div>
+  <aside class="panel" aria-label="Side panels">
+    <section id="inspector" aria-label="Inspector" aria-live="polite"></section>
+    <section id="format-panel" aria-label="Format"></section>
+    <section id="views-panel" aria-label="Views"></section>
+    <section aria-label="Batch">
+      <h3>Batch</h3>
+      <div id="batch" class="mono">waiting for first snapshot...</div>
+    </section>
   </aside>
 </main>
 <footer>
-  <span id="status">booting...</span>
-  <span>Tabula Phase 0 - issue #282</span>
+  <span id="status" role="status">booting...</span>
+  <span id="view-flag"></span>
+  <span>Tabula Phase 4 - issue #282</span>
 </footer>
+<script src="web/engine.js"></script>
+<script src="web/grid.js"></script>
+<script src="web/editor.js"></script>
+<script src="web/inspector.js"></script>
+<script src="web/format.js"></script>
+<script src="web/views.js"></script>
+<script src="web/storage.js"></script>
+<script src="web/sample.js"></script>
 <script src="web/app.js"></script>
 </body>
 </html>
