@@ -250,13 +250,25 @@ encodes - payloads plus serialized model bytes - beat flat v2 coding
 uniform leaf-prior init). On photo corpora the trial currently rejects and
 streams stay flat: measured honestly, never assumed.
 
-## Stages and milestones
+## Stages and milestones (closed finished-at-ceiling, 2026-09-03)
 
-- **M0 (blocker):** bit-exact round-trip at efforts 0/4/7, corruption rejection (current).
-- **M1:** beat PNG (13.05) + WebP (9.61)
-- **M2:** beat JPEG-LS (9.71)
-- **M3 (owner goal):** beat JPEG XL (8.71 harness / 2.9 per sample) - requires Squeeze + MA-tree
-- **M4 (stretch):** CM mode + LZP toward < 8.0
+Issue #130 was accepted by the Owner as **finished-at-ceiling** at `9bd6d10`
+(gates FAIL, never gate-passed). Final ledger on Kodak-24:
+
+- **M0 (blocker): DONE** - bit-exact round-trip at efforts 0/4/7, corruption
+  rejection, fuzz gate clean.
+- **M1:** beat PNG (13.05) + WebP (9.61) - measured in the benchmark harness.
+- **M2: FAIL** - beat JPEG-LS (9.71) / WebP floor: X6b 3.2175 per-sample /
+  9.6525 summed (fresh-binary repro 3.21843 / 9.65529), ~1.6% short.
+- **M3 (owner goal): FAIL** - beat JPEG XL (8.71 harness / 2.9 per sample):
+  ~11.5% short at the accepted ceiling.
+- **Unrealizable oracle bounds** (not shippable, map/table cost excluded):
+  3.161 / 9.483; hybrid mux 3.2068, real-only 8-way 3.20325, per-subband mux
+  3.20664.
+- **M4 (stretch):** not pursued - the single-pass architecture has a hard,
+  reproducible ceiling; no legitimate mechanism class remains unmeasured
+  (49+ mechanisms across 7+ programs, full negative ledger committed on
+  main; all build branches retained, nothing deleted).
 
 See `prism/docs/research.md`, `prism/docs/algorithmic-spec.md`, `prism/docs/architecture.md`, `prism/docs/benchmark-methodology.md`. Issue #130 (true JXL parity) adds `research-gap-analysis.md` (where the ~21 percent gap lives, findings F1-F4) and `architecture-jxl-parity.md` (the C-series build plan).
 

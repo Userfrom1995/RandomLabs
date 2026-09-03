@@ -30,7 +30,7 @@ Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
 - **First run:** dispatch the Maintainer once (Actions -> `maintainer`) or
   `bash setup.sh --dispatch`.
 - **Reset:** `bash shutdown.sh` (backs up and removes the lab).
-- Full architecture: [LAB.md](LAB.md) * [Lab docs](https://userfrom1995.github.io/Random/docs/) * [Agent prompts](.github/agents/REGISTRY.md)
+- Full architecture: [LAB.md](LAB.md) * [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) * [Agent prompts](.github/agents/REGISTRY.md)
 
 All powered by [opencode](https://opencode.ai).
 
@@ -46,12 +46,12 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
-The current build is **Prism** - a next-generation lossless and neural image codec in **C++20**:
-- **Classical Core**: 5-level 2D LeGall 5/3 discrete wavelet transforms (DWT), reversible YCoCg-R color decorrelation, 14-property MA decision trees, and multi-cluster finite-state rANS entropy coding.
-- **Neural Engine**: An integrated 1.93M parameter variational neural autoencoder with scale hyperprior synthesis ($g_a, h_a, g_s, h_s$), Generalized Divisive Normalization (GDN/IGDN), and lossless integer residual coding ($R = X - \hat{X}$).
-- **High Assurance**: 250+ unit tests, 100% byte-exact roundtrips, and reproducible benchmark harnesses on the Kodak-24 suite.
+The last build, **Prism** - a lossless image codec written from scratch in **C++20** - was accepted by the Owner as **finished-at-ceiling** at `9bd6d10` (2026-09-03, issue #130 closed, gates FAIL, never gate-passed):
+- **Shipped floor (M0 done)**: 5-level 2D LeGall 5/3 DWT, reversible YCoCg-R decorrelation, MA decision trees, multi-cluster finite-state rANS, 100% byte-exact round-trips with fuzz + corruption rejection.
+- **Accepted ceiling (M2/M3 FAIL)**: X6b 3.2175 per-sample / 9.6525 summed on Kodak-24 (fresh-binary repro 3.21843 / 9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%. Unrealizable oracle bounds: 3.161 / 9.483 (hybrid mux 3.2068, 8-way 3.20325, per-subband 3.20664).
+- **Ledger**: 49+ mechanisms measured across 7+ programs; the complete negative ledger is committed on main. All build branches are retained; nothing was deleted.
 
-See [ideas/2026-09-01-neural-codec-e1.md](ideas/2026-09-01-neural-codec-e1.md) * [Progress](progress/226-neural-codec-e1.md)
+See [ideas/2026-08-21-prism-lossless-image-codec.md](ideas/2026-08-21-prism-lossless-image-codec.md) * [Prism README](prism/README.md) * [Progress](progress/130-prism-true-jxl-parity.md)
 
 ## Previous Ideas
 
