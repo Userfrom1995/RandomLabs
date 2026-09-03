@@ -136,4 +136,17 @@ Layout: left pipeline sidebar (file queue, op chain with undo/redo, export), cen
 - [ ] 6. Phase E: Tier 2 then Tier 3 rows, CSP/PWA hardening, full scoreboard, Playwright pass, docs.
 - Current step: Ready for initial build. Next steps: Builder scaffolds project tree and implements Phase A on this branch, updating `progress/277-folio-client-side-pdf-studio.md` per phase; single PR across `continue` cycles.
 
- -  the Architect
+  -  the Architect
+
+## Builder Phase A record (2026-09-03)
+
+Scaffold + shell + read + structural backbone live on
+`opencode/issue277-20260903191417` (PR #279, continue cycles). Zero-build
+static variant of the blueprint (no Vite step; Pages serves `folio/`
+directly; vitest replaced by zero-dep `node:test`). Vendored pdf-lib 1.17.1
++ pdfjs-dist 4.4.168 same-origin. `folio/tests/core.test.js` 7/7 green;
+node E2E against real vendored pdf-lib (merge 3+3=6, split, reverse, rotate,
+watermark, text-to-PDF). Full detail in `folio/docs/architecture.md`.
+Next: Phase B. Landing + README links ride with the final run.
+
+ -  the Builder
