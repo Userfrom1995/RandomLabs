@@ -408,16 +408,22 @@ window.Tabula = window.Tabula || {};
       mm += 1;
       if (mm > 12) { mm = 1; yy += 1; }
     }
+    // Mirror of Swift dateToSerial: epoch 1899-12-30 = 0; true day counts
+    // from 1900-03-01 on already equal Excel serials (the epoch bakes in
+    // the phantom), so only Jan/Feb 1900 read one less. Normalization
+    // above rolls the phantom 1900-02-29 into 1900-03-01, matching Swift
+    // DATE (the phantom is reachable only as a raw serial, serialToYMD).
     const base = Date.UTC(1899, 11, 30) / 86400000;
-    let serial = Math.round(Date.UTC(yy, mm - 1, dd) / 86400000 - base);
-    if (serial >= 60) serial += 1; // phantom 1900-02-29: serial 60 never produced
-    return serial;
+    const t = Math.round(Date.UTC(yy, mm - 1, dd) / 86400000 - base);
+    if (t <= 0) return t;
+    if (t < 61) return t - 1;
+    return t;
   }
 
   function serialToYMD(s) {
     if (s === 60) return { y: 1900, m: 2, d: 29 }; // phantom, display only
     const base = Date.UTC(1899, 11, 30) / 86400000;
-    const adj = s > 60 ? s - 1 : s;
+    const adj = (s >= 61 || s <= 0) ? s : s + 1; // mirror of Swift serialToYMD
     const dt = new Date((base + adj) * 86400000);
     return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
   }
@@ -932,11 +938,11 @@ window.Tabula = window.Tabula || {};
           const rc = tbl.rect;
           const span = vertical ? rc.c1 - rc.c0 + 1 : rc.r1 - rc.r0 + 1;
           if (k < 1 || k > span) return VErr("#REF!");
-          let approx = false;
+          let approx = false; // v1: 4th arg is approx directly (mirrors Swift)
           if (args.length === 4) {
             const m = scalarArg(args[3], toBool);
             if (!m.ok) return VErr(m.e);
-            approx = !m.v;
+            approx = m.v;
           }
           return vertical
             ? vlookup(lv, rc, k, approx, ctx)
@@ -1004,7 +1010,10 @@ window.Tabula = window.Tabula || {};
           if (!m.ok) return VErr(m.e);
           if (!d.ok) return VErr(d.e);
           if (Math.trunc(y.v) < 0) return VErr("#NUM!");
-          return VNum(ymdToSerial(Math.trunc(y.v), Math.trunc(m.v), Math.trunc(d.v)));
+          if (Math.trunc(y.v) > 9999) return VErr("#NUM!");
+          const ds = ymdToSerial(Math.trunc(y.v), Math.trunc(m.v), Math.trunc(d.v));
+          if (ds > 2958465) return VErr("#NUM!"); // year 9999-12-31 cap (mirrors Swift)
+          return VNum(ds);
         }
         case "YEAR": case "MONTH": case "DAY": case "WEEKDAY": {
           if (args.length !== 1) return VErr("#VALUE!");
