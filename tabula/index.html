@@ -30,7 +30,7 @@
   <button id="btn-save" title="Save workbook as JSON (Ctrl+S)">Save</button>
   <button id="btn-load" title="Load workbook JSON">Load</button>
   <button id="btn-csv" title="Export current sheet as CSV">CSV</button>
-  <input id="file" type="file" accept=".json,application/json" class="sr-only" aria-label="Load workbook file" />
+  <input id="file" type="file" accept=".json,.csv,application/json,text/csv" class="sr-only" aria-label="Load workbook file" />
 </div>
 <main class="layout">
   <section class="grid-wrap">
@@ -54,8 +54,9 @@
 </main>
 <footer>
   <span id="status" role="status">booting...</span>
+  <span id="store-flag">storage: probing...</span>
   <span id="view-flag"></span>
-  <span>Tabula Phase 4 - issue #282</span>
+  <span>Tabula Phase 5 - issue #282</span>
 </footer>
 <script src="web/engine.js"></script>
 <script src="web/grid.js"></script>
