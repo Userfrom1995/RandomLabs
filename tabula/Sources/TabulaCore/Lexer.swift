@@ -163,8 +163,9 @@ private struct LexState {
             } else if c == 0x0A || c == 0x0D {
                 break
             } else {
-                out.append(Character(UnicodeScalar(c)))
-                i += 1
+                let (ch, n) = decodeUnit(units, i)
+                out.append(ch)
+                i += n
             }
         }
         if closed {
@@ -195,8 +196,9 @@ private struct LexState {
             } else if c == 0x0A || c == 0x0D {
                 break
             } else {
-                name.append(Character(UnicodeScalar(c)))
-                j += 1
+                let (ch, n) = decodeUnit(units, j)
+                name.append(ch)
+                j += n
             }
         }
         if closed && j < units.count && units[j] == 0x21 {
@@ -236,23 +238,37 @@ private struct LexState {
     }
 
     /// Words starting with a letter or `_`: R1C1 attempt, then bare-sheet
-    /// check, then A1-or-name.
+    /// check, then A1-or-name. A ref-shaped run immediately followed by `(`
+    /// is a function call (`LOG10(100)`), never a cell ref: Excel resolves
+    /// the same ambiguity toward calls.
     mutating func lexWord(start: Int) {
         // R1C1 attempt for R/r starts (R2C3 would otherwise mis-lex).
         if units[i] == 0x52 || units[i] == 0x72 {
             if let end = RefValidate.r1c1End(units, from: i) {
                 // Guard: a longer name run continues (e.g. R2C3Q)? R1C1 runs
                 // never contain letters beyond the R...C shape, so any letter
-                // right after means this was a name after all.
-                if end >= units.count || !isLetter(units[end]) {
+                // right after means this was a name after all. A `(` right
+                // after means a function call (same rule as A1 below).
+                let followsLetter = end < units.count && isLetter(units[end])
+                let followsParen = end < units.count && units[end] == 0x28
+                if !followsLetter && !followsParen {
                     i = end
                     tokens.append(Token(kind: .r1c1(str(start, end)), pos: start))
+                    return
+                }
+                if followsParen {
+                    var j = i
+                    while j < units.count && isNameChar(units[j]) { j += 1 }
+                    i = j
+                    tokens.append(Token(kind: .ident(str(start, j)), pos: start))
                     return
                 }
             }
         }
         var j = i
-        while j < units.count && isNameChar(units[j]) { j += 1 }
+        // The run includes `$` so mixed refs (`A$1`) stay one token for the
+        // A1 validator; `$`-led words still enter via `lexDollarWord`.
+        while j < units.count && (isNameChar(units[j]) || units[j] == 0x24) { j += 1 }
         // Bare sheet prefix: NameChar run followed by `!`.
         if j < units.count && units[j] == 0x21 && j > i {
             let raw = str(i, j)
@@ -266,7 +282,7 @@ private struct LexState {
         }
         let raw = str(i, j)
         i = j
-        if RefValidate.isA1Ref(raw) {
+        if RefValidate.isA1Ref(raw) && !(j < units.count && units[j] == 0x28) {
             tokens.append(Token(kind: .cellRef(raw), pos: start))
         } else {
             tokens.append(Token(kind: .ident(raw), pos: start))
@@ -325,6 +341,22 @@ private struct LexState {
             tokens.append(Token(kind: .error("number out of range"), pos: start))
         }
     }
+}
+
+/// Decode one UTF-16 unit at `idx` (combining surrogate pairs into the
+/// astral character), returning the character plus units consumed. Unpaired
+/// surrogates degrade to U+FFFD, never a crash.
+private func decodeUnit(_ units: [UInt16], _ idx: Int) -> (Character, Int) {
+    let c = units[idx]
+    if c >= 0xD800 && c <= 0xDBFF, idx + 1 < units.count {
+        let lo = units[idx + 1]
+        if lo >= 0xDC00 && lo <= 0xDFFF {
+            let v = 0x10000 + (UInt32(c - 0xD800) << 10) + UInt32(lo - 0xDC00)
+            return (Character(UnicodeScalar(v)!), 2)
+        }
+    }
+    if let s = UnicodeScalar(c) { return (Character(s), 1) }
+    return ("�", 1)
 }
 
 /// Pure validation helpers shared by the lexer and `Ref.swift`.

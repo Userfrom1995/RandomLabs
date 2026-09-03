@@ -3,7 +3,7 @@
 /// Display strings are exact: `#DIV/0!`, `#N/A`, `#NAME?`, `#NUM!`, `#REF!`,
 /// `#VALUE!`, `#CYCLE!`. `#CYCLE!` is Tabula-specific (Excel shows 0 with a
 /// warning; Tabula surfaces the error explicitly per issue #282 scope).
-public enum ErrorCode: String, Hashable, Sendable, Codable, CaseIterable {
+public enum ErrorCode: String, Hashable, Sendable, Codable, CaseIterable, Error {
     case div0 = "#DIV/0!"
     case ref = "#REF!"
     case cycle = "#CYCLE!"
