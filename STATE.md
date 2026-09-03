@@ -1,9 +1,9 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-03T22:25Z, maintainer run 33812967902 (schedule, Tabula research dispatch)
- - **Action this run:** Dispatched **Research** on #282 Tabula (Swift spreadsheet engine via SwiftWasm, Pages at /tabula/) for calc-chain correctness proofs; Tabula issue verified OPEN at 2026-09-03T20:40:37Z with full binding scope (lexer, parser, dependency graph, function library, grid UX, charts, CSV/JSON, SwiftWasm). No open PRs.
- - **Main:** `b0461a83bab35ed102bd1fbdabde83c06ffeb10e` verified live `git ls-remote` = b0461a8, parents b0461a8->3e6f5ff->cb521fe->7f5cfb4->e600927->9af877f->aae3a63->6f5ac8d->f7defb2->b591b63..., NOT orphan, `git log --oneline -3` = b0461a8 trim clamp, branch retention per #148 verified
- - **Branch retention:** opencode/issue130-r6b-clamp-desync-fix at a44d27f MERGED at b0461a8 retained, opencode/issue277-20260903191417 at fba96f3 MERGED at e600927 retained, opencode/issue130-20260903185936 at 8e25663 MERGED at f9d0402 retained, opencode/issue278-20260903191653 at 1e0e2eb MERGED at 8cd2e8b retained, plus archival retained per #148
- - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at b0461a8 + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy on b0461a8 success 33801679920, no CreditsError, no orphan main, gh run list shows no active opencode builds
+ - **Updated:** 2026-09-03T22:31Z, maintainer run 33813450400 (issue_comment dispatch on PR #283, Tabula builder re-dispatch)
+ - **Action this run:** Re-dispatched **Build** on #282 Tabula (Swift spreadsheet engine via SwiftWasm, Pages at /tabula/) after owner `/oc build this` run 33813434648 cancelled with zero push; PR #283 holds Research (51e70da) + Architect (30723a8) and progress in-progress ready for Phase 0 de-risk.
+ - **Main:** `b0461a83bab35ed102bd1fbdabde83c06ffeb10e` verified live `git ls-remote` = b0461a8, parents b0461a8->3e6f5ff->cb521fe->7f5cfb4->e600927->9af877f->aae3a63->6f5ac8d->f7defb2->b591b63..., NOT orphan, branch retention per #148 verified
+ - **Branch retention:** opencode/issue282-20260903222718 at 30723a8 OPEN CLEAN (PR 283, 2 commits research+architect), opencode/issue130-r6b-clamp-desync-fix at a44d27f MERGED at b0461a8 retained, opencode/issue277-20260903191417 at fba96f3 MERGED at e600927 retained, plus archival retained per #148
+ - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at b0461a8 + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy on b0461a8 success 33813452292 + pr-283 preview 33813428148 success, no CreditsError, no orphan main, gh run list shows no active opencode builds (cancelled build cleared)
 
 ## STANDING OWNER DIRECTIVES (active)
  - **CEILING ACCEPTANCE (2026-09-03T19:06Z, supreme, via #130):** Accepting the ceiling and closing Prism here as finished-at-ceiling, not gate-passed. Corpus truth at 9bd6d10: X6b 3.2175/9.6525 repro 3.21843/9.65529 M2 FAIL ~1.6% M3 FAIL ~11.5% oracle 3.161/9.483 barely M2 only, hybrid 3.2068/9.6204, 8-way 3.20325/9.60975, per-subband full-24 mux 3.20664/9.61993 - 49+ mechanism classes across 9 programs measured and rejected with committed CSVs, no success claim. No more Research/Build on #130 or #226. Lab closure on #130 done, PRs #266/#232/#203/#202/#186/#181 closed retain branches, docs-refresh #278 closed at 8cd2e8b, brainstorm #42 unfrozen.
@@ -13,14 +13,14 @@
  - **BINDING TARGET (historic, now closed FAIL):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. Ceiling at 9bd6d10: X6b 3.2175/9.6525, oracle 3.161/9.483, N-way realizable 3.20664 1.27% short.
 
 ## MERGE CAPABILITY (verified this run)
- - main = `b0461a83bab35ed102bd1fbdabde83c06ffeb10e` LIVE (NOT orphan, `git ls-remote` = b0461a8, `compare 8cd2e8b...b0461a8` = ahead, `gh issue view 130` = CLOSED, `gh pr view 281` = MERGED, pages 33801679920 success headSha b0461a8, gh pr list empty confirms no orphan PRs)
- - PR #281 `a44d27f7dbdac9c1a5353190d238a15d8414d4ea` MERGED at b0461a8 via rebase (R6B clamp + full-24, Reviewer APPROVED 19:45:29Z + Tester approve-test 20:17:24Z/20:35Z, 5/5 R6B + 263/263 suite, 24/24 round-trip 3.43505/10.30514 FAIL honest). Pages deploy 33801679920 success on b0461a8, folio live at /folio/, branch retained per #148
- - No open PRs remaining (gh pr list = [] post-merge), Tabula issue #282 OPEN created 2026-09-03T20:40:37Z
+ - main = `b0461a83bab35ed102bd1fbdabde83c06ffeb10e` LIVE (NOT orphan, `git ls-remote` = b0461a8, `gh issue view 282` = OPEN, `gh pr view 283` = OPEN MERGEABLE CLEAN 30723a8, pages 33813452292 success headSha b0461a8, preview pr-283 staged via 33813428148 success)
+ - PR #283 `30723a8320acb778d83f2015565b2af42ff0fddf` OPEN at 30723a8 (2 commits: 51e70da researcher + 30723a8 architect), MERGEABLE/CLEAN, NOT orphan (merge-base b0461a8 via `git merge-base`), no workflow touches (docs/research + ideas + progress only), `Closes #282` in body will be treated as Refs until Builder proves Phase 0-5 and perf gates - Trainer remains OPEN until Test+Maintainer merge
+ - No open PRs beyond 283 (gh pr list = [283] only), Tabula issue #282 OPEN created 2026-09-03T20:40:37Z, branch clean rebase onto b0461a8
 
 ## CRITICAL INFRASTRUCTURE STATE
- - **Issue #277 Folio PDF studio SHIPPED & CLOSED at e600927 (MERGED via #279, verified CLOSED):** binding feature-matrix + delivery rule (<1-2MB + packs) proven, Phase E complete merged, folio/index.html live at b0461a8 (pages 33801679920 success).
- - **PR #281 MERGED at b0461a8 R6B clamp + full-24 (Reviewer APPROVED + Tester approve-test, Refs #130):** Hist-level clamp + 2 regression tests + full-24 csv 3.43505/10.30514 M2/M3 FAIL (+8.5%/+19.1%), 263/263 PASS (262/262 + R7 guard), bench_gate PASS, zero wire-format change, Refs #130 correct, CLEAN before merge, branch retained.
- - **Brainstorm #42 OPEN, Tabula picked 20:40Z; Monsoon/Ferrite remain as fresh alternatives plus long parked list**
+ - **Issue #282 Tabula - OPEN, Research+Architect LANDED at 30723a8, Build re-dispatched this run:** Researcher spec `docs/research/issue-282-tabula-spreadsheet.md` 811 lines (grammar, value domain, graph algorithms, 4 proofs, per-function denotational semantics, A1/R1C1 + edit laws, SwiftWasm split, storage invariants, 10k-cell budget) + Architect blueprint `ideas/2026-09-03-tabula-spreadsheet-engine.md` 114 lines (TabulaCore pure + TabulaBridge + zero-build canvas, batch Bridge, virtualization, Phase 0 gate, test matrix). Progress `progress/282-tabula-spreadsheet-engine.md` Status in-progress with checklist research+architect x, builder phases 0-5 pending.
+ - **Build guard cleared:** owner `/oc build this` at 22:31:08Z triggered opencode 33813434648 (issue_comment) but it `cancelled` at 22:31:25Z with zero push and no jobs; no active opencode `in_progress` now, so re-dispatch is safe and does not queue behind active run per `cancel-in-progress: false`
+ - **Pages verified:** production deploy 33813452292 success (post-b0461a8) + PR 283 preview 33813428148 success (pull_request, staged /preview/pr-283/), folio at /folio/ live, no need to trigger pages.yml.
 
 ## IN FLIGHT
  - **Issue #130 - CLOSED completed 2026-09-03T19:11Z acceptance (finished-at-ceiling, M2/M3 FAIL) - archival PR 281 MERGED as Refs**
@@ -28,17 +28,18 @@
  - **PR #281 - MERGED at b0461a8 CLEAN (R6B clamp + full-24, Reviewer APPROVED 19:45:29Z + Tester approve-test 20:17:24Z, Refs #130 archival, rebased onto 7f5cfb4)**
  - **Issue #278 - CLOSED completed 2026-09-03T19:27Z (docs-refresh at 8cd2e8b)**
  - **Issue #277 - CLOSED completed 2026-09-03T20:04Z (Folio at /folio/ SHIPPED at e600927)**
- - **Issue #282 Tabula - OPEN, Research DISPATCHED this run (Swift spreadsheet engine, SwiftWasm, /tabula/, research -> architect -> build chain)**
- - **Brainstorm #42 - OPEN (Tabula consumed, Monsoon/Ferrite remain, long parked list: Ravel, Corundum, Tundra, Aether, Nimbus, Penumbra, Vellum, Cartograph, Lyricon, Quartz, Satyr, Lumen, Cypress, Verdigris)**
- - **Ideator - batch delivered 33803338734 success at 20:37Z, consumed via Tabula pick**
+ - **Issue #282 Tabula - OPEN, Research+Architect COMPLETE at 30723a8, Build RE-DISPATCHED this run (Swift spreadsheet engine, SwiftWasm, /tabula/, builder Phase 0 next on same PR #283 branch opencode/issue282-20260903222718)**
+ - **PR #283 - OPEN MERGEABLE/CLEAN at 30723a8 (research 51e70da + architect 30723a8, Closes #282 body but effectively Refs until builder completes, NOT orphan, preview live)**
+ - **Brainstorm #42 - OPEN (Tabula consumed at 20:40Z; Monsoon/Ferrite remain as fresh alternatives plus long parked list)**
+ - **Ideator - last batch 20:38Z consumed via Tabula pick**
 
 ## PIPELINE POSITION
- Prism ceiling 3.2175/9.6525 proven, Folio shipped at e600927, PR 281 archival merged at b0461a8 as Refs #130; no open PRs; Tabula #282 created 20:40:37Z and Research dispatched this run (33812967902). Next: Architect blueprint upon Research spec landing, then Builder Phase A.
+ Prism ceiling accepted and Folio shipped, docs-refresh merged, no active Prism builds; Tabula #282 Research+Architect landed 22:29-22:31Z as two commits on PR 283 branch (51e70da + 30723a8), progress in-progress ready for build. Owner build trigger 22:31:08Z cancelled with zero push, so this run re-dispatched Build on #282 for Phase 0 de-risk; next: Builder proves toolchain pins + hello-grid via Bridge batch, then Phases 1-5 via continue cycles on same PR.
 
 ## NEXT-RUN PLAYBOOK
- 1. Verify Research run on #282 transitions from pending to in_progress/completed (gh run list, gh api); if failed/timeout, auto-retry research (crash-parity up to 3) or dispatch Lab Engineer if infra fault.
- 2. After Research spec commits `tabula/docs/research.md` with recalc correctness proofs, dispatch Architect for SwiftWasm blueprint (module boundaries, grid virtualization, formula AST, pack-like chunking).
- 3. Verify pages deploy remains success on b0461a8 and folio at /folio/ serves correctly; model pins free (muse-spark-1.3/1.2 -free), no orphan main, branch retention per #148.
+ 1. Verify Build run on #282 transitions from queued/pending to in_progress/completed (gh run list --workflow opencode.yml); if failed/timeout/cancelled again, auto-retry build (crash-parity up to 3) or dispatch Lab Engineer if infra fault (model dead, workflows permission).
+ 2. After Builder lands Phase 0 commit (Package.swift, TabulaCore skeleton, swift test green, carton build hello-grid evidence in tabula/docs/architecture.md), chain `continue` cycles for Phases 1-5 per progress checklist; never split into separate PRs.
+ 3. Verify pages deploy remains success on b0461a8 and pr-283 preview serves correctly; model pins free (muse-spark-1.3/1.2 -free), no orphan main, branch retention per #148.
 
 ## ISSUES
  - **#130** - CLOSED completed - Prism M2/M3/M4 continuation - finished-at-ceiling (X6b 3.21843/9.65529 M2/M3 FAIL, oracle barely M2, 49+ mechanisms, PRs 271-276 + 257-258 + 281 proof)
@@ -46,13 +47,14 @@
  - **#278** - CLOSED completed 2026-09-03T19:27Z - Prism ceiling acceptance: refresh docs/roster (Refs #130) - PR 280 MERGED at 8cd2e8b, docs update at 7f5cfb4
  - **#277** - CLOSED completed 2026-09-03T20:04Z - Folio - fully client-side PDF studio at /folio/ (privacy-first, feature-complete) - SHIPPED at e600927
  - **#281** - MERGED PR R6B clamp + full-24 (a44d27f -> b0461a8, 3 commits, dual-gated, Refs #130)
- - **#282 Tabula** - OPEN - from-scratch spreadsheet engine in Swift (SwiftWasm, Pages-hosted at /tabula/) - Research DISPATCHED this run, awaiting Researcher spec
+ - **#282 Tabula** - OPEN - from-scratch spreadsheet engine in Swift (SwiftWasm, Pages-hosted at /tabula/) - Research+Architect LANDED at 30723a8, Build RE-DISPATCHED this run, awaiting Builder Phase 0
+ - **PR #283** - OPEN - Tabula research done, architect next -> builder next (branch opencode/issue282-20260903222718, 2 commits, MERGEABLE/CLEAN, NOT orphan, preview live)
  - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm (Tabula picked, Monsoon/Ferrite remain)
 
 ## OPEN QUESTIONS
- - Will Tabula Research (Dr. Mob) produce calc-chain spec that closes dependency-graph correctness (topological recalc, cycle DFS, volatile functions, error propagation) and SwiftWasm feasibility before Architect?
- - Will Architect blueprint Tabula grid virtualization and SwiftWasm toolchain without stalling?
- - Will pages deploy on b0461a8 remain success and folio at /folio/ serve correctly after Research dispatch?
+ - Will Builder Phase 0 prove SwiftWasm toolchain (Swift 6.3 + carton + JavaScriptKit pin + wasm32-unknown-wasi target) and hello-grid via batch Bridge on PR 283 branch without hitting SwiftWasm fetch/build timeouts?
+ - Will TabulaCore pure Swift separate cleanly from TabulaBridge JavaScriptKit-only layer to keep core deterministically testable headless per research spec section 12 test matrix?
+ - Will 10k-cell recalc budget (Kahn minimal + topological fixpoint) be proven via swift test perf proxy before UI virtualization land, and will A1/R1C1 + copy-paste fill laws remain invariant across structural edits?
 
    - Hephaestus, the Maintainer
-<!-- run: 33812967902 -->
+<!-- run: 33813450400 -->
