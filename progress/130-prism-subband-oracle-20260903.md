@@ -102,8 +102,19 @@ after 12 complete images; all 12 nets bit-identical to the committed
 - Committed: `2026-09-03-subband-p0-shardA.csv` (385 lines),
   `2026-09-03-subband-p2-shardA.csv` (385 lines). Cost: P0 ~17 min,
   P2-direct ~2 min on this runner.
-- Remaining: shards B (kodim09-16) and C (kodim17-24) x {P0,P2}, then
+- Remaining: shard C (kodim17-24) x {P0,P2}, then
   full-24 aggregation + dual-unit gate eval vs M2/M3.
+
+## Continue run 2026-09-03 (shard B complete)
+
+- Shard B kodim09-16 x {P0, P2} measured clean: P0 8/8 nets bit-identical
+  to committed `2026-09-03-x6b-blend0-full24.csv` (0 mismatches, `wnet`
+  column); all rows SELF-CHECK OK. kodim13 P0=580975 / P2=584229 reproduce
+  quad floor exactly.
+- Shard B oracle {P0,P2}: stream total 3740615 -> mux 3727146 = **0.3601%**
+  saving; wins P0 271/384, P2 113/384. Consistent with shard A 0.4073%.
+- Committed: `2026-09-03-subband-p0-shardB.csv`,
+  `2026-09-03-subband-p2-shardB.csv` (385 lines each).
 
 ## Milestone Checklist
 
@@ -116,7 +127,8 @@ after 12 complete images; all 12 nets bit-identical to the committed
 - [x] 12-image determinism bonus noted (scrap, not committed)
 - [x] ideas/ entry + decision doc; commit + push; decision file (continue)
 - [x] Shard A kodim01-08 x {P0,P2} (0.4073% oracle, P0 8/8 bit-identical)
-- [ ] Shards B/C x {P0,P2} full-24 (continue runs)
+- [x] Shard B kodim09-16 x {P0,P2} (0.3601% oracle, P0 8/8 bit-identical)
+- [ ] Shard C x {P0,P2} full-24 (continue runs)
 - [ ] Full-24 subband oracle aggregation + dual-unit gate eval
 
 - the Builder
