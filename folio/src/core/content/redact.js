@@ -16,7 +16,15 @@ export function filterTextMap(lineBoxes, regions) {
     }
     if (lb.words && lb.words.length) {
       const words = lb.words.filter((w) => !hits.some((R) => bboxIntersects(w, R)));
-      if (words.length) kept.push({ ...lb, words, text: words.map((w) => w.text).join(" ") });
+      if (words.length) {
+        // Recompute the survivor bbox: the kept line must not test positive
+        // over R in the acceptance pass.
+        const x1 = Math.min(...words.map((w) => w.x));
+        const y1 = Math.min(...words.map((w) => w.y));
+        const x2 = Math.max(...words.map((w) => w.x + (w.w || 0)));
+        const y2 = Math.max(...words.map((w) => w.y + (w.h || 0)));
+        kept.push({ ...lb, words, text: words.map((w) => w.text).join(" "), x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+      }
     }
     // without word boxes the whole line intersecting R is dropped (safe side)
   }
