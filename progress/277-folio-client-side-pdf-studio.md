@@ -2,7 +2,7 @@
 
 - **Issue:** #277
 - **Branch:** opencode/issue277-20260903191417
-- **Status:** in-progress
+- **Status:** complete
 - **Updated:** 2026-09-03T00:00:00Z
 
 ## Checklist
@@ -14,15 +14,13 @@
 - [x] 3. Phase B: annotate/edit/images/forms core (E1-E4 + E5/E8/E11/E13-E15 bonuses, E6-E7, E9-E10, E12-E14, E17, I1-I3, I5-I6, F1-F4) + redact acceptance (S5)
 - [x] 4. Phase C: security/compress/OCR/convert-core (S1-S4 envelope-honest,S6-S9 stamps+specs,O1,O6,C1,C3,V1-V2,V5-V11 core) + corpus gates
 - [x] 5. Phase D: Office pack V3 + fallback V4 + consent manifest wiring (V2 writers)
-- [ ] 6. Phase E: Tier 2 then Tier 3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs
+- [x] 6. Phase E: Tier 2 + Tier 3 rows, CSP/PWA hardening, T1-T5 scoreboard, docs, landing + README links
 
 ## Current step
-Phase E step 2 complete and verified (117/117 wired IDs resolve, all modules parse, unit 18/18). Next: Phase E step 3 (CSP/PWA hardening, T1-T5 scoreboard, docs, landing + README links).
+Phase E complete: every matrix row ships except recorded honest scopes (Tesseract pack bytes, true xref linearization, PKI vendor, XObject swap, embedded-files writer). Unit 18/18, Phase E E2E green against real pdf-lib, 117/117 IDs resolve, CSP same-origin locked, PWA cache v2, scoreboard T1/T2/T4/T5 PASS + T3 deferred-honest, landing + README links live. Status: complete. Browser Playwright pass rides with the Tester.
 
 ## Next steps
-- Builder continue run: Phase E (Tier 2/3 rows, CSP/PWA hardening, T1-T5 scoreboard on the fixed corpus, Playwright pass, docs).
-- Single branch/PR across `continue` cycles. Cloud AI chat stays excluded per matrix section 8.
-- Landing (`index.html`) + README links go in with the final run.
+- Done. Cloud AI chat stays excluded per matrix section 8.
 
 ## Agent log
 - 2026-09-03 (Builder run 4, Phase D): Office V3 pack + V4 fallback behind one consent card. New pure domain: `core/convert/zip-read.js` (EOCD scan, stored sync extract, async inflate injection), `core/convert/office-fallback.js` (DOCX paragraphs+headings, XLSX shared-strings+sheets, PPTX slides, fidelity banner), `core/convert/office-pack.js` (prompt/fallback/pack routing, job spec, fidelity contract, manifest file+size verify), `platform/packs/loader.js` (cache keys, size/progress/sha helpers). Pack engine `packs/office-engine.js` 0.2.0 (8390 B, sha-pinned in manifest): DOCX tables + bold/italic runs, XLSX sheet names + header rows, PPTX title/body split, print-CSS HTML intermediate. Executors: `officeToPdf` both modes with paginated pdf-lib renderer (slides-as-pages, A4 helper). Shell: real consent accept (fetch + size/sha verify + ESM load), fallback banner, Office file picker + Office-to-PDF button. Real bugs fixed: Phase C ZIP writer flag offset (+8 vs +6) truncated EOCD and set method 2048 (now strict-safe method 0); XLSX cell-attr regex dropped `t=` (lazy-match). Verification: unit 17/17, dual-mode E2E green, 100/100 IDs, all modules parse. Decision action: continue.

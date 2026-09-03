@@ -57,6 +57,18 @@ directions, URL import spec, and true byte-restore undo/redo.
 Phase D adds the full-fidelity Office pack. Cloud AI chat is the only
 exclusion (matrix section 8).
 
+Phase E completes Tier 2 + Tier 3: extract/reorder/blank/resize/orient/
+crop + burn-crop/split-by-bookmark/flatten-all (pages); GC rewrite,
+downsample spec, grayscale intent, PDF/A subset, fast-web-view note
+(compress); signature validation report, S7/S8 honest scope (security);
+attachments registry + OPFS sidecar, auto-rename batch, booklet-ready
+print path (edit/workflow); image replace overlay at census size (I4);
+deskew pre-pass check (C2); batch queue with per-file retry (R3).
+CSP is same-origin locked, PWA cache is versioned, and the T1-T5
+scoreboard in `docs/scoreboard.md` records measured gates (T3 OCR
+sec/page deferred until the Tesseract pack vendors; true xref
+linearization needs a qpdf-class pass).
+
 ## Develop
 
 Static only, no build step, no npm needed at runtime:
@@ -80,4 +92,4 @@ ESM + worker, copied same-origin so the CSP needs no remote script sources.
 - `src/ui/` shell + viewer + tool executors
 - `packs/` consent manifests (byte sizes generated from real bundles)
 - `docs/` parity matrix + research spec + architecture + scoreboard
-- `tests/` node:test suite (16 groups, zero deps)
+- `tests/` node:test suite (18 groups, zero deps)

@@ -77,3 +77,42 @@ it is outside the initial route payload per the splitting map.
   the fallback with the fidelity banner; revoke clears the engine.
   Real-world deflated Office files inflate via `DecompressionStream`
   when available (store-only fast path otherwise).
+
+## Phase E verification (2026-09-03, node, vendored pdf-lib 1.17.1)
+
+- Unit: `node --test folio/tests/core.test.js` 18/18 green (+1 group:
+  tier2 pure: resize/orient/bookmarks/order/blank/flatten/GC/linearize/
+  deskew/batch/rename/attach/print/deskew/signature-report).
+- E2E (real pdf-lib, synthetic 4-page PDF): extract 2 pages, bookmark
+  split 2+2, blank insert 4->5, resize to A4-landscape (842x595),
+  orient/crop/burn-crop roundtrips, flatten-all, GC resave, PDF/A-2b
+  stamp, grayscale-intent stamp, attach registry add+list - all green.
+  One real bug found and fixed: `addBlankPage` validated against a
+  hardcoded count instead of the live document (now loads first).
+- Shell: 117/117 wired `$("id")` resolve (was 100/100); every
+  `src/**/*.js` plus the pack engine parses under `node --check`.
+- CSP: `Content-Security-Policy` meta, same-origin only
+  (`script-src 'self'`, no remote sources, `object-src 'none'`);
+  PWA cache bumped to `folio-shell-v2`; print CSS hides chrome.
+
+## T1-T5 scoreboard (Phase E, fixed corpus, node + static audit)
+
+| Gate | Metric | Phase E result | Budget | Status |
+|------|--------|----------------|--------|--------|
+| T1 cold | time-to-first-page, cold SW | shell 83 KB raw (index 24 KB + app 58 KB gzip 15 KB); pdf-lib 525 KB raw / 207 KB gzip | under 1-2 MB initial excl. lazy worker | PASS (static); browser timing pending Tester pass |
+| T1 warm | time-to-first-page, warm cache | shell cached (`folio-shell-v2`); same bytes as cold | cached | PASS (static); browser timing pending Tester pass |
+| T2 | 100-page merge wall + peak | 200-page merge 81 ms wall in node; 100-page corpus 27 KB; peak RSS under 60 MB node | < 300 MB desktop / < 150 MB mobile | PASS (node); browser peak pending Tester pass |
+| T3 | OCR sec/page, 300 DPI Latin | engine not vendored (OCR-PACK 0.1.0 placeholder); mode-3 invisible layer proven via pdf.js extraction (Phase C) | record sec/page once engine vendors | DEFERRED, honest |
+| T4 core | initial JS+CSS bytes | pdf-lib 525 KB + pdf.js 607 KB (123 KB gzip) + shell 83 KB; worker 2.1 MB lazy | under 1-2 MB initial excl. lazy worker | PASS |
+| T4 packs | per-pack bytes | office-pack 0.2.0, 8390 B sha-pinned; ocr-pack 0.1.0 placeholder 0 B | manifests carry real sizes | PASS |
+| T5 | compress ratio vs quality gate | lossless resave ratio 1.000 on text corpus, searchableKept; scan pages defer-never-silent | text pages stay searchable | PASS |
+
+Tier coverage at Phase E: every matrix row ships except the two honest
+scopes recorded here - Tesseract LSTM bytes inside OCR-PACK (consent UX
++ mode-3 layer live; engine vendors as pack v2) and true xref
+linearization (object-stream resave + page-windowed streaming instead;
+needs a qpdf-class pass). Cloud AI chat stays excluded per matrix
+section 8. Certificate signing stays appearance-only (no PKI vendor);
+image replace is an overlay at census size (XObject swap not feasible
+in pdf-lib); attachments are a registry + OPFS sidecar (no embedded-
+files tree writer in pdf-lib).

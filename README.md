@@ -46,6 +46,8 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Current Project
 
+- **Folio** (in progress, issue #277) - a fully client-side PDF studio at `/folio/`: merge, split, organize, compress, true burn-in redact, annotate, sign, Office/PDF conversion both directions, OCR invisible layers, pipeline chaining with undo/redo. No uploads, offline after first load. See [ideas/2026-09-03-folio-client-side-pdf-studio.md](ideas/2026-09-03-folio-client-side-pdf-studio.md) * [Folio README](folio/README.md) * [Progress](progress/277-folio-client-side-pdf-studio.md)
+
 The last build, **Prism** - a lossless image codec written from scratch in **C++20** - was accepted by the Owner as **finished-at-ceiling** at `9bd6d10` (2026-09-03, issue #130 closed, gates FAIL, never gate-passed):
 - **Shipped floor (M0 done)**: 5-level 2D LeGall 5/3 DWT, reversible YCoCg-R decorrelation, MA decision trees, multi-cluster finite-state rANS, 100% byte-exact round-trips with fuzz + corruption rejection.
 - **Accepted ceiling (M2/M3 FAIL)**: X6b 3.2175 per-sample / 9.6525 summed on Kodak-24 (fresh-binary repro 3.21843 / 9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%. Unrealizable oracle bounds: 3.161 / 9.483 (hybrid mux 3.2068, 8-way 3.20325, per-subband 3.20664).
