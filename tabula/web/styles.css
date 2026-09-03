@@ -93,6 +93,7 @@ header p { margin: 0; color: var(--tabula-muted); font-size: 0.85rem; }
   font-family: monospace; font-size: 0.75rem; padding: 3px 8px;
 }
 .cycle-path { font-size: 0.8rem; line-height: 2; }
+.chart-box svg { display: block; width: 100%; height: auto; }
 .frow { display: flex; gap: 8px; align-items: center; font-size: 0.8rem; margin-top: 6px; }
 .frow span { min-width: 64px; color: var(--tabula-muted); }
 .frow select, .frow input {
