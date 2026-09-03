@@ -23,6 +23,7 @@ import { unzipList, extractStore, unzipStores } from "../src/core/convert/zip-re
 import { extractDocxParagraphs, extractXlsxTables, extractPptxSlides, extractOfficeFiles, officeToPdfPlan, fallbackBanner, FALLBACK_FIDELITY_NOTE } from "../src/core/convert/office-fallback.js";
 import { routeOfficeConvert, packJobSpec, packFidelitySpec, fallbackVsPackDiff, verifyPackFiles, packCacheKey } from "../src/core/convert/office-pack.js";
 import { cacheKeyFor, verifyTotalBytes, progressFraction, verifyManifestFiles } from "../src/platform/packs/loader.js";
+import { PAGE_SIZES, resizeSpec, orientationPlan, splitByBookmarks, parseOrderString, blankInsertPlan, flattenPlan, linearizeNote, gcSpec, downsampleSpec, grayscalePlan, pdfaRecord, certScope, signatureValidateReport, attachPlan, batchRename, replaceImagePlan, deskewSpec, printSpec, batchPlan, batchReducer } from "../src/core/tier2/tier2.js";
 
 test("structural planners", () => {
   assert.deepEqual(planMerge([3, 2]).total, 5);
@@ -330,4 +331,55 @@ test("phase D: zip-read + office fallback extract + pack routing + loader", () =
   assert.throws(() => verifyManifestFiles(man, ["other.js"]));
   // extractStore refuses deflated entries (honest, needs inflater).
   assert.throws(() => extractStore(docx, { name: "x", method: 8, localOff: 0 }));
+});
+
+test("phase E tier2: resize/orient/bookmarks/order/blank/flatten/gc/linearize/deskew/batch", () => {
+  assert.ok(PAGE_SIZES.A4.w > 590);
+  assert.deepEqual([resizeSpec("A4", "landscape", "fit").w > resizeSpec("A4", "landscape", "fit").h, true], [true, true]);
+  assert.throws(() => resizeSpec("A9", "portrait", "fit"));
+  assert.throws(() => resizeSpec("A4", "diagonal", "fit"));
+  assert.equal(orientationPlan(3, "landscape").pages, 3);
+  assert.throws(() => orientationPlan(3, "diagonal"));
+  const groups = splitByBookmarks(5, [{ title: "A", page: 1 }, { title: "B", page: 3 }]);
+  assert.deepEqual(groups[0].pages, [0, 1]);
+  assert.deepEqual(groups[1].pages, [2, 3, 4]);
+  assert.throws(() => splitByBookmarks(5, []));
+  assert.throws(() => splitByBookmarks(5, [{ title: "x", page: 9 }]));
+  assert.deepEqual(parseOrderString("3,1,2", 3), [2, 0, 1]);
+  assert.throws(() => parseOrderString("1,1,2", 3));
+  assert.throws(() => parseOrderString("1,2", 3));
+  assert.deepEqual(blankInsertPlan(3, 3), { at: 3, sizeName: "A4" });
+  assert.throws(() => blankInsertPlan(3, 9));
+  assert.equal(flattenPlan({ Highlight: 2, Text: 1 }).total, 3);
+  assert.equal(linearizeNote().status, "not-native");
+  assert.ok(gcSpec(1000, 800).reclaimed === 200);
+  assert.throws(() => gcSpec(0, 1));
+  assert.equal(downsampleSpec(150).scale, 150 / 72);
+  assert.throws(() => downsampleSpec(123));
+  assert.equal(grayscalePlan([0, 1], 9).strength, 2);
+  assert.throws(() => grayscalePlan([], 1));
+  assert.equal(pdfaRecord("PDF/A-2b").level, "PDF/A-2b");
+  assert.throws(() => pdfaRecord("PDF/A-9z"));
+  assert.ok(certScope().sign.includes("placeholder"));
+  assert.equal(signatureValidateReport(true, false).summary, "INTACT / UNTRUSTED");
+  assert.equal(signatureValidateReport(false, false).integrity, "TAMPERED");
+  assert.deepEqual(attachPlan([], "add", "a.pdf", 10), { op: "add", name: "a.pdf", byteLength: 10 });
+  assert.throws(() => attachPlan(["a.pdf"], "add", "a.pdf", 10));
+  assert.throws(() => attachPlan([], "extract", "missing.pdf"));
+  const rn = batchRename([{ name: "doc.pdf", pages: 3 }], "{name}-{index}p");
+  assert.equal(rn[0].to, "doc-1p.pdf");
+  assert.throws(() => batchRename([], "{name}"));
+  assert.equal(replaceImagePlan({ index: 0, page: 0 }, 99).index, 0);
+  assert.throws(() => replaceImagePlan({}, 99));
+  assert.equal(deskewSpec(2, true).deskew, true);
+  assert.equal(deskewSpec(9, false).note.includes("manual"), true);
+  assert.throws(() => deskewSpec(90, false));
+  assert.equal(printSpec(4, true).booklet, true);
+  assert.throws(() => printSpec(0, false));
+  const q = batchPlan(["a.pdf", "b.pdf"], "compress");
+  assert.equal(q.queue.length, 2);
+  const q2 = batchReducer(batchReducer(q.queue, "batch-1", "start"), "batch-1", "fail");
+  assert.equal(q2[0].status, "failed");
+  assert.equal(batchReducer(q2, "batch-1", "retry")[0].status, "queued");
+  assert.throws(() => batchReducer(q2, "batch-1", "bogus"));
 });
