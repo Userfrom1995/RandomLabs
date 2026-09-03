@@ -1,68 +1,62 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-03T19:22Z, maintainer run 33795739400 (event created on PR #275, owner `/oc maintainer` at 19:19:19Z; PR #275 MERGED 155d65e->9bf6a14, PR #280 MERGED 1e0e2eb->8cd2e8b, PR #279 OPEN 7bd6222 MERGEABLE, PR #276 OPEN 8e25663 UNKNOWN, main 8cd2e8b)
- - **Action this run:** No new triggers - merges already executed by concurrent maintainer 33795751117/33795784402 during window (PR #275 N-way+ R6B fix dual-gate at 9bf6a14 and PR #280 docs refresh at 8cd2e8b via rebase, branches retained per #148); dispatched Reviewer on Folio Phase A 7bd6222 by concurrent maintainer respected, Tester in_progress on PR #276 respected, Folio Phase B continue queued 33796041345 respected, guard no duplicate.
- - **Main:** `8cd2e8b7da1788f7404d3a0bc69f3e2620bbbead` verified live `git ls-remote` = 8cd2e8b, parents 8cd2e8b->9bf6a14->ccf0fe1->9bd6d10->8479d71->77be635->24749ac->38cd973->f233ec0->8d70281, NOT orphan (`git merge-base origin/main 7bd6222` = 8cd2e8b, `git merge-base origin/main 155d65e` = 9bd6d10)
- - **Branch retention:** opencode/issue277-20260903191417 at 7bd6222 OPEN MERGEABLE (PR 279 Folio Phase A, 4 modular commits), opencode/issue130-20260903185936 at 8e25663 OPEN (PR 276 verify-only), opencode/issue130-20260903181610 at 155d65e MERGED at 9bf6a14 retained, opencode/issue278-20260903191653 at 1e0e2eb MERGED at 8cd2e8b retained, plus archival retained per #148
- - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at 8cd2e8b + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy 33795758477/33795730541 success on 8cd2e8b + previews 275/280 live, no CreditsError, no orphan main, folio vendor same-origin
+ - **Updated:** 2026-09-03T19:27Z, maintainer run 33795972359 (trigger created on PR #280 docs-refresh, main 9bf6a14->8cd2e8b, closed #278, Folio Phase A continue)
+ - **Action this run:** MERGED PR #280 already at 8cd2e8b verified live (`git ls-remote` = 8cd2e8b, parents 8cd2e8b->9bf6a14->9bd6d10->8479d71->77be635->24749ac->38cd973->f233ec0->8d70281->9efe99c->81f6769->e6da97d->59fd549->3a4b076->1966738->4af1e889, NOT orphan, Refs #278/Refs #130) and CLOSED issue #278 as completed (owner ceiling 9bd6d10 X6b 3.2175/9.6525 repro 3.21843/9.65529 M2 FAIL ~1.6% M3 FAIL ~11.5% oracle 3.161/9.483). No new dispatches: PR #279 Builder continue in_progress/pending respected (Reviewer 33796195687 continue, Phases B-E pending), PR #276 Tester in_progress/pending respected. `decision.json: []`.
+ - **Main:** `8cd2e8b7da1788f7404d3a0bc69f3e2620bbbead` verified live `git ls-remote` = 8cd2e8b, parents 8cd2e8b->9bf6a14->9bd6d10->8479d71->77be635->24749ac->38cd973->f233ec0->8d70281->9efe99c->81f6769->e6da97d->59fd549->3a4b076->1966738->4af1e889->f968ef85->5fa290a->7b00e55->ece9588f->7c6b8ba->6e9df79->9e97999->dcb5b8d->f2d5263->3d75e59->215ae50->d8168dde, NOT orphan
+ - **Branch retention:** opencode/issue277-20260903191417 at 7bd6222 OPEN CLEAN (PR 279 Folio Phase A continue, 4+ docs+folio core), opencode/issue130-20260903185936 at 8e25663 OPEN CLEAN (PR 276 verify-only), opencode/issue278-20260903191653 at 1e0e2eb MERGED at 8cd2e8b retained, opencode/issue130-20260903181610 at 155d65e MERGED at 9bf6a14 retained, plus archival retained per #148
+ - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at 8cd2e8b + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy 33796195735 success on 8cd2e8b + 33796357958 in_progress, preview /preview/pr-279/ + /preview/pr-276/ live, no CreditsError, no orphan main
 
 ## STANDING OWNER DIRECTIVES (active)
- - **CEILING ACCEPTANCE (2026-09-03T19:06Z, supreme, via #130):** Accepting the ceiling and closing Prism here as finished-at-ceiling, not gate-passed. Corpus truth at 9bd6d10->8cd2e8b: X6b 3.2175/9.6525 repro 3.21843/9.65529, M2 FAIL ~1.6% M3 FAIL ~11.5%, oracle 3.161/9.483 barely M2, hybrid 3.2068/9.6204/8-way 3.20325/per-subband mux 3.20664 all FAIL, 49+ mechanisms rejected, no success claim, N-way oracle 0.7215% stream realizable 0.3921% mux 3.20664 M2 FAIL 1.3% verified. Successor #226 neural stays HALTED per 2026-09-02. Directives 1-4 executed: #130/#226 closed, PRs #266/#232/#203/#202/#186/#181 closed retain branches, docs-refresh #278 queued then merged at 8cd2e8b, brainstorm #42 unfrozen but Folio active.
- - **FOLIO NEXT PROJECT (2026-09-03T19:06:12Z on #42 + 19:06:07Z on #130, supreme):** Folio — fully client-side PDF studio at /folio/ (privacy-first, feature-complete) is the lab's next priority after Prism (Prism accepted-at-ceiling at 9bd6d10->8cd2e8b). Binding completeness rule: Researcher must survey ALL major PDF tools and commit feature-matrix to `folio/docs/feature-matrix.md`; Builder must implement every cell. Delivery rule: core bundle <1-2 MB instant, heavy converters as on-demand packs from same origin (Cache Storage), consent+progress, never third-party CDN at runtime.
+ - **CEILING ACCEPTANCE (2026-09-03T19:06Z, supreme, via #130):** Accepting the ceiling and closing Prism here as finished-at-ceiling, not gate-passed. Corpus truth at 9bd6d10: X6b 3.2175/9.6525 repro 3.21843/9.65529, M2 FAIL ~1.6% M3 FAIL ~11.5%, oracle 3.161/9.483 barely M2, hybrid 3.2068/9.6204/8-way 3.20325/per-subband mux 3.20664 all FAIL, 49+ mechanisms rejected, no success claim. Successor #226 neural stays HALTED per 2026-09-02. Directives 1-4 executed: #130/#226 closed, PRs #266/#232/#203/#202/#186/#181 closed retain branches, docs-refresh #278 closed at 8cd2e8b, brainstorm #42 unfrozen.
+ - **FOLIO NEXT PROJECT (2026-09-03T19:06:12Z on #42 + 19:06:07Z on #130, supreme):** Folio — fully client-side PDF studio at /folio/ (privacy-first, feature-complete) is the lab's next priority after Prism (Prism accepted-at-ceiling at 9bd6d10). Binding completeness rule: Researcher must survey ALL major PDF tools (Adobe Acrobat, Smallpdf, iLovePDF, Sejda, PDF24 Tools, Foxit, Nitro, PDFgear, Stirling-PDF) and commit feature-matrix to `folio/docs/feature-matrix.md`; Builder must implement every cell. Delivery rule: core bundle <1-2 MB instant, heavy converters as on-demand packs from same origin (Cache Storage), consent+progress, never third-party CDN at runtime.
  - **HALT NEURAL TRACK (2026-09-02T10:39:54Z, supreme):** Do not pursue neural path for M2/M3. Remains active (now moot, #130 closed).
- - **ANTI-SURRENDER + NO-PAUSE (modified 2026-09-03T19:06Z):** Ceiling acceptance is owner halt per Anti-Surrender (only Owner can halt). No further classical Research/Architect/Build on Prism; freeze lifted for Folio. Docs-refresh merged as Refs #130/#278.
- - **BINDING TARGET (historic, now closed FAIL):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. Ceiling at 9bd6d10->8cd2e8b: X6b 3.2175/9.6525, oracle 3.161/9.483, N-way realizable 3.20664 1.27% short.
+ - **ANTI-SURRENDER + NO-PAUSE (modified 2026-09-03T19:06Z):** Ceiling acceptance is owner halt per Anti-Surrender (only Owner can halt). No further classical Research/Architect/Build on Prism; freeze lifted for Folio. Docs-refresh proceeds as Refs #130.
+ - **BINDING TARGET (historic, now closed FAIL):** M2 <9.498/<3.166; M3 <8.655/<2.885 vs REAL cjxl -d0 -e9. Ceiling at 9bd6d10: X6b 3.2175/9.6525, oracle 3.161/9.483, N-way realizable 3.20664 1.27% short.
 
 ## MERGE CAPABILITY (verified this run)
- - main = `8cd2e8b7da1788f7404d3a0bc69f3e2620bbbead` LIVE (NOT orphan, `git ls-remote` = 8cd2e8b, merge-base 8cd2e8b via 7bd6222 CLEAN, `git merge-base origin/main 155d65e` = 9bd6d10, `git merge-base origin/main 8e25663` = 9bd6d10)
- - PR #275 `155d65e8fa82be7bafef184507c68ae29ac36a10` MERGED at 9bf6a148cce7d0c6c5492683cf5dfd3bcc431b18 (2 commits ccf0fe1+9bf6a14) via rebase 19:21:05Z, Refs #130, Reviewer APPROVE 33793945704 + Tester approve-test 33794031933, branch retained
- - PR #280 `1e0e2eb578f8b7a073bea9c4835dc1f3cbf64c40` MERGED at 8cd2e8b7da1788f7404d3a0bc69f3e2620bbbead (Refs #278 Refs #130) via rebase, branch retained, pages deploy success
- - PR #279 `7bd6222e859d49087a4e3aa0c88fb50118ee671b` OPEN MERGEABLE Folio Phase A (Reviewer dispatched head 7bd6222 in_progress 33795784491, owner continue queued 33796041345, `Closes #277` to be corrected to Refs until Tier 1)
- - PR #276 `8e25663250e45480c1a96a686940cf1bbb3fb05b` OPEN verify-only Refs #130 (Reviewer APPROVED x2, Tester in_progress 33795113261 + pending 33795199170, NOT yet approve-test, merge pending)
- - PR #274 `3a03ab27b979f69ce637f1d24e7dffd845697ede` MERGED at 9bd6d10 (Refs #130) predecessor
+ - main = `8cd2e8b7da1788f7404d3a0bc69f3e2620bbbead` LIVE (NOT orphan, `git ls-remote` = 8cd2e8b, merge-base 9bd6d10 via PR 279 CLEAN, `git merge-base origin/main 7bd6222` = 8cd2e8b, `gh pr view 276 --json mergeable` = CLEAN)
+ - PR #279 `7bd6222e859d49087a4e3aa0c88fb50118ee671b` OPEN MERGEABLE/CLEAN Folio Phase A (Reviewer 33796195687 continue, Builder in_progress 33796041345 + pending 33796330003)
+ - PR #276 `8e25663250e45480c1a96a686940cf1bbb3fb05b` OPEN MERGEABLE/CLEAN Refs #130 verify-only (Reviewer APPROVED, Tester in_progress 33795113261 + pending 33795199170)
+ - PR #280 `1e0e2eb578f8b7a073bea9c4835dc1f3cbf64c40` MERGED at 8cd2e8b (Refs #278/Refs #130, Reviewer APPROVE 19:20:36Z + Tester approve-test 19:21:34Z, dual-gated PAT rebase 19:21:56Z, closed #278)
+ - PR #275 `155d65e8fa82be7bafef184507c68ae29ac36a10` MERGED at 9bf6a14 (Refs #130, dual-gated)
 
 ## CRITICAL INFRASTRUCTURE STATE
- - **PR #279 OPEN MERGEABLE 7bd6222 Folio Phase A (Build 33795555820 success 30f4361->7bd6222, Review 33795784491 in_progress):** Vendor pdf-lib 1.17.1 + pdfjs 4.4.168 same-origin, headless domain structural+textmap+compress+redact+N-up+tables+markdown+pack+pipeline 7/7 tests, shell router+OPFS/history+viewer+PWA+sample, 20+ executors, honest stubs password crypto Phase C / burn-in redact Phase B / OCR/Office packs Phase C/D. Next: Reviewer verdict then Tester before Phase B continue on same PR.
- - **PR #276 OPEN 8e25663 Refs #130 verify-only (Reviewer APPROVED, Tester in_progress):** Zero source changes, fresh Release 84/84 bench_gate PASS, 260/260, floor re-proof. Awaiting Tester approve-test before archival handling (issue closed but Refs).
- - **PR #275 MERGED 9bf6a14 Refs #130 N-way oracle + R6B fix (Reviewer APPROVED + Tester approve-test):** 10 files, bench-subband --r6b/--r6c/--r7/--route5 + raster round-trip, 5 CSVs, clamped P0 fix zero format change, 0.7215% stream 0.3921% realizable mux 3.20664 M2 FAIL 1.3% mux closed at every granularity.
- - **Issue #278 OPEN docs-refresh Refs #130 (PR 280 MERGED at 8cd2e8b):** Prism ceiling docs refreshed (README/index/prism/README/docs), pages.yml preview intact, branches retained per #148, issue stays OPEN for final verification.
- - **Issue #277 OPEN Folio at /folio/ (Research 64a66e4 done -> Architect 30f4361 done -> Phase A 7bd6222 done -> Phase B in_progress 33796041345):** Binding feature-matrix + delivery rule (<1-2MB + packs), Phase B continues across same PR 279 via `/oc continue`.
- - **Issue #130 CLOSED completed 2026-09-03T19:06Z acceptance, #226 CLOSED halted:** No further Prism work; archival PRs retained.
- - **Brainstorm #42 UNFROZEN but Folio active:** No Ideator dispatch while Folio builds.
- - **Opencode Folio Phase B in_progress 33796041345 + Review 33795784491 in_progress on 279, Tester on 276 in_progress/pending, pages deploy 33795758477 pending/success**
+ - **PR #280 MERGED at 8cd2e8b archival docs-refresh (Refs #278/Refs #130):** Dual-gated merge completed 19:21:56Z (Reviewer APPROVE 33795784491 + Tester approve-test 33795877249, 6 files +158/-39 docs-only, branch retained, issue #278 closed 19:27:20Z).
+ - **PR #276 OPEN CLEAN 8e25663 verify-only (Reviewer APPROVED, Tester in_progress+pending):** Awaiting Tester approve-test before PAT rebase-merge as Refs to closed #130 (zero source changes, 84/84 260/260 corpus 24/24 SHA OK). Guard respected.
+ - **PR #279 OPEN CLEAN 7bd6222 Folio Phase A + continue (Reviewer continue, Build queued/in_progress):** Phase A landed (vendor pdf-lib/pdfjs same-origin, 7/7 domain + 20 executors, shell+viewer+PWA), Reviewer 33796195687 says continue B-E and fix Closes->Refs before final merge. Builds 33796041345 in_progress + 33796330003 pending on opencode/issue277-20260903191417 (cancel-in-progress false) - guard respected, pending will continue Phases B-E on same PR 279.
+ - **Issue #278 CLOSED completed 2026-09-03T19:27Z (Prism ceiling docs-refresh at 8cd2e8b):** PR #280 Merged, 4 roster surfaces + ideas+progress delivered, Refs #130 correct, no codec work.
+ - **Issue #277 OPEN Folio PDF studio (Phase A done -> continue B-E):** Owner directive next big project, binding feature-matrix + delivery rule (<1-2MB + packs), Phase A done, continue active.
+ - **Brainstorm #42 UNFROZEN, #70 lab-health nominal**
 
 ## IN FLIGHT
- - **Issue #130 - CLOSED completed acceptance (finished-at-ceiling, M2/M3 FAIL, 49+ mechanisms, N-way oracle 0.72% closed)**
- - **Issue #226 - CLOSED completed (HALTED successor)**
- - **PR #279 - OPEN 7bd6222 MERGEABLE (Folio Phase A done, Review in_progress head 7bd6222 -> Tester -> Phase B continue)**
- - **PR #276 - OPEN 8e25663 (verify-only, Reviewer APPROVED, Tester in_progress, Refs #130 archival)**
- - **Issue #278 - OPEN docs-refresh (PR 280 MERGED at 8cd2e8b, verification pending close)**
- - **Issue #277 - OPEN Folio at /folio/ (Phase A 7bd6222 done, Phase B in_progress 33796041345)**
- - **Brainstorm #42 - OPEN UNFROZEN (Folio active, no ideate)**
+ - **Issue #130 - CLOSED completed 2026-09-03T19:06Z acceptance (finished-at-ceiling, M2/M3 FAIL)**
+ - **Issue #226 - CLOSED completed (HALTED successor, closed with #130)**
+ - **PR #276 - OPEN 8e25663 CLEAN (Refs #130 verify-only, Reviewer APPROVED, Tester in_progress 33795113261 + pending 33795199170)**
+ - **PR #279 - OPEN 7bd6222 CLEAN (Folio Phase A, Reviewer continue 33796195687, Builder in_progress 33796041345 + pending 33796330003)**
+ - **Issue #278 - CLOSED completed 2026-09-03T19:27Z (docs-refresh at 8cd2e8b)**
+ - **Issue #277 - OPEN Folio at /folio/ (Phase A done, continue B-E active)**
+ - **Brainstorm #42 - OPEN UNFROZEN (Folio now active)**
 
 ## PIPELINE POSITION
- Prism ceiling accepted at 9bd6d10->8cd2e8b exhaustive floor 3.2175/9.6525 + N-way oracle 0.7215% + R6B clamp fix proof merged (275 at 9bf6a14) + docs refresh merged (280 at 8cd2e8b), both Refs archival retained. Folio #277 Research+Architect delivered and Phase A scaffold landed at 7bd6222 (4 commits) with Reviewer in_progress 33795784491 and Phase B Builder in_progress 33796041345 via continue on same PR 279. PR 276 verify-only awaits Tester approve-test (33795113261/33795199170) as final archival after ceiling acceptance. No Prism Research/Architect/Build per owner halt. Next: Reviewer verdict on 279 7bd6222 then Tester, Folio Phase B landing, Tester on 276 archival.
+ Prism ceiling 3.2175/9.6525 at 9bd6d10 (now 8cd2e8b) proven across 49+ mechanisms / 9 programs, merged PRs 271-275 + 280 (N-way 3.20664 + docs-refresh), verify PR 276 archival awaiting Tester, Folio #277 Phase A done with continue for B-E on same PR 279 -> Next: await Builder continue landing on 279 then review/tester with Refs->Closes correction before final merge only when Tier1 scoreboard passes, Tester on 276 then archival merge, Refs discipline holds
 
 ## NEXT-RUN PLAYBOOK
- 1. Monitor Reviewer 33795784491 on Folio PR 279 head 7bd6222 (14-checklist: vendor same-origin, no bundler, 7/7 domain tests, shell+PWA+20 executors, honest stubs, no em-dash, `Closes->Refs` correction pending, pages.yml intact); when APPROVED dispatch Tester, else Fixer.
- 2. Monitor Builder 33796041345 Phase B on folio same PR 279 (continue chain); when PR advances beyond 7bd6222 dispatch Reviewer on new head.
- 3. Monitor Tester 33795113261/33795199170 on PR 276 verify-only; when approve-test, handle archival Refs (issue #130 closed but branch retained, no Closes).
- 4. Verify pages deploy succeeds on 8cd2e8b and previews for 276/279 (Deploy 33795758477/33795730541 successors), verify model pins free (muse-spark-1.3/1.2 -free), no orphan main via `git merge-base origin/main 7bd6222`.
- 5. Consider closing issue #278 docs-refresh after verification (Refs).
+ 1. Monitor Builder continue 33796041345 (in_progress) + 33796330003 (pending) on Folio PR 279; when PR advances from 7bd6222, dispatch Reviewer on new head then Tester; ensure body corrected Closes->Refs until Tier1 scoreboard passes.
+ 2. Monitor Tester 33795113261 (+ pending 33795199170) on PR 276; when approve-test, merge via PAT rebase as Refs to closed #130 (archival, branch retained).
+ 3. Verify pages deploy succeeds on 8cd2e8b (33796195735 success + 33796357958 in_progress) and previews for 276/279 remain live, verify model pins free (muse-spark-1.3/1.2 -free), no orphan main.
+ 4. No re-dispatch on closed #130/#278; Folio is next priority after Prism acceptance.
 
 ## ISSUES
- - **#130** - CLOSED completed - Prism M2/M3/M4 continuation - finished-at-ceiling (X6b 3.21843/9.65529 M2/M3 FAIL, oracle barely M2, N-way 0.7215% mux 3.20664 FAIL, 49+ mechanisms, PRs 271-275 proof, N-way closed)
- - **#226** - CLOSED completed - Prism Next-Gen successor (HALTED neural)
- - **#278** - OPEN - Prism ceiling acceptance: refresh docs/roster (Refs #130) - PR 280 MERGED at 8cd2e8b
- - **#277** - OPEN - Folio — fully client-side PDF studio at /folio/ (privacy-first, feature-complete) - Research+Architect done -> Phase A 7bd6222 done -> Phase B in_progress 33796041345
- - **#279** - OPEN PR Folio Phase A 7bd6222 (Review in_progress)
- - **#276** - OPEN PR verify-only 8e25663 (Tester in_progress)
+ - **#130** - CLOSED completed - Prism M2/M3/M4 continuation - finished-at-ceiling (X6b 3.21843/9.65529 M2/M3 FAIL, oracle barely M2, 49+ mechanisms, PRs 271-275 proof, N-way 3.20664)
+ - **#226** - CLOSED completed - Prism Next-Gen successor (HALTED neural, closed with #130)
+ - **#278** - CLOSED completed 2026-09-03T19:27Z - Prism ceiling acceptance: refresh docs/roster (Refs #130) - PR 280 MERGED at 8cd2e8b
+ - **#277** - OPEN - Folio — fully client-side PDF studio at /folio/ (privacy-first, feature-complete) - Phase A done -> continue B-E active 7bd6222
+ - **#280** - MERGED PR docs-refresh (1e0e2eb -> 8cd2e8b, 6 files, dual-gated)
  - **#70 - OPEN** lab-health, **#42 - OPEN** brainstorm UNFROZEN
 
 ## OPEN QUESTIONS
- - Will Reviewer APPROVE Folio 279 7bd6222 (core <1-2MB, packs consent same-origin, OPFS/Cache/IDB, pipeline store, viewer, honest stubs Phase B/C/D)?
- - Will Tester approve-test PR 276 verify-only before archival handling (Refs #130 closed)?
- - Will Folio Phase B land cleanly on same PR 279 without branch orphan (`git checkout -B` rebuild if needed)?
- - Should issue #278 be closed as completed after PR 280 merge verification?
+ - Will Builder continue 33796041345/33796330003 land Phase B-E correctly (core <1-2MB, packs consent-gated same-origin, textmap+pipeline, PWA, scoreboard) and fix Closes->Refs before Tier1 passes?
+ - Will Tester on PR 276 approve-test verify-only (260/260, bench_gate PASS, floor stood) before archival merge?
+ - Will pages deploy on new main 8cd2e8b succeed and previews for 276/279 remain live?
 
    - Hephaestus, the Maintainer
-<!-- run: 33795739400 -->
+<!-- run: 33795972359 -->
