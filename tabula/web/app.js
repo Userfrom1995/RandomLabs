@@ -18,6 +18,10 @@
   let view = { sort: null, filter: null };
   let copySidecar = null; // {sheet, c0, r0, c1, r1} in model coords
   let lastInspectorSource = "";
+  let condRule = null; // {col, op: 'gt'|'lt', x} - view-only threshold rule
+  let booted = false;
+  let saveTimer = null;
+  let storeTier = "memory-only";
 
   const canvas = document.getElementById("grid");
   const statusEl = document.getElementById("status");
@@ -76,7 +80,18 @@
   function getCell(c, rd) {
     const mr = rowMap[rd];
     if (mr === undefined) return null;
-    return model.get(mkey(c, mr)) || null;
+    const cell = model.get(mkey(c, mr)) || null;
+    // Conditional highlight: one threshold rule, evaluated lazily for the
+    // visible cell only as a style override (never a recalc, never stored).
+    if (cell && condRule && c === condRule.col) {
+      const v = valueAt(sheet, c, mr);
+      if (v.t === "num" && isFinite(v.v) &&
+          (condRule.op === "gt" ? v.v > condRule.x : v.v < condRule.x)) {
+        return { d: cell.d, err: cell.err,
+          style: Object.assign({}, cell.style, { fillRGB: "#4a3413" }) };
+      }
+    }
+    return cell;
   }
 
   function renderSnapshot(batch) {
@@ -97,6 +112,7 @@
     grid.paint();
     charts.render();
     refreshInspector();
+    scheduleAutosave();
     return true;
   }
 
@@ -108,6 +124,26 @@
     renderSnapshot(batch);
     renderSheets();
     if (reason) statusEl.textContent = reason + " - " + statusEl.textContent;
+  }
+
+  function updateStoreFlag(extra) {
+    const el = document.getElementById("store-flag");
+    if (el) el.textContent = "storage: " + storeTier + (extra ? " (" + extra + ")" : "");
+  }
+
+  function scheduleAutosave() {
+    if (!booted || !window.Tabula.storage.opfsAvailable()) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        await window.Tabula.storage.opfsSave(E.toJSON(wb));
+        storeTier = "opfs";
+        updateStoreFlag("saved " + new Date().toLocaleTimeString());
+      } catch (e) {
+        storeTier = "memory-only";
+        updateStoreFlag("quota/error - use Save");
+      }
+    }, 1500);
   }
 
   function updateViewFlag() {
@@ -186,7 +222,18 @@
     commit: commitDisplay,
     onNavigate: () => onSelect(),
   });
-  window.Tabula.format.create(document.getElementById("format-panel"), {
+  const formatPanel = window.Tabula.format.create(document.getElementById("format-panel"), {
+    rule: {
+      get: () => condRule ? { op: condRule.op, x: condRule.x } : null,
+      set: (r) => {
+        condRule = r ? Object.assign({ col: grid.selection().anchor.c }, r) : null;
+        grid.paint();
+        statusEl.textContent = condRule ?
+          "highlight on " + E.a1(condRule.col, 0).replace(/[0-9]+$/, "") + " " +
+          (condRule.op === "gt" ? ">" : "<") + " " + condRule.x + " (view-only)" :
+          "highlight off";
+      },
+    },
     apply: (style) => {
       const rect = selModelRect();
       for (let r = rect.r0; r <= rect.r1; r++) {
@@ -403,10 +450,33 @@
     if (!f) return;
     try {
       const text = await window.Tabula.storage.readFile(f);
-      E.fromJSON(wb, text);
-      sheet = 0;
-      view = { sort: null, filter: null };
-      fullRefresh("loaded " + f.name);
+      if (/\.csv$/i.test(f.name)) {
+        // CSV import: values only unless the user opts into formula mode
+        // (injection guard, mirrors Swift Codecs).
+        const formulaMode = window.confirm("Treat fields starting with = as formulas? (Cancel = values only)");
+        const rows = window.Tabula.storage.parseCSV(text);
+        const sel = grid.selection();
+        const dst = { c: sel.anchor.c, r: rowMap[sel.anchor.r] };
+        let count = 0;
+        rows.forEach((fields, dr) => {
+          fields.forEach((raw0, dc) => {
+            let raw = raw0;
+            if (!formulaMode && /^[=+@-]/.test(raw)) raw = "'" + raw;
+            E.applyEdit(wb, { op: "set", s: sheet, c: dst.c + dc, r: dst.r + dr, raw });
+            count++;
+          });
+        });
+        view = { sort: null, filter: null };
+        rebuildView();
+        renderSnapshot(E.fullSnapshot(wb));
+        statusEl.textContent = "imported " + count + " cells from " + f.name +
+          (formulaMode ? " (formula mode)" : " (values only)");
+      } else {
+        E.fromJSON(wb, text);
+        sheet = 0;
+        view = { sort: null, filter: null };
+        fullRefresh("loaded " + f.name);
+      }
     } catch (e) {
       statusEl.textContent = "load failed: " + e.message;
     }
@@ -465,10 +535,39 @@
   }
 
   // ------------------------------------------------------------------ boot
+  // OPFS snapshot first (offline persistence), else the bundled sample
+  // with a demo highlight rule, else an empty workbook. Autosave arms
+  // only after boot so the first snapshot never clobbers a stored one.
 
   grid.refit();
-  window.Tabula.sample.load(E, wb);
-  fullRefresh("sample workbook loaded");
-  grid.select(0, 0);
-  badgeEl.textContent = "JS fallback core seq " + lastSeq + " - WASM proof pending";
+  updateStoreFlag("probing");
+  (async () => {
+    let restored = false;
+    if (window.Tabula.storage.opfsAvailable()) {
+      try {
+        const text = await window.Tabula.storage.opfsLoad();
+        if (text) {
+          E.fromJSON(wb, text);
+          restored = true;
+          storeTier = "opfs";
+        }
+      } catch (e) {
+        restored = false; // missing file or bad version: fall to sample
+      }
+    } else {
+      storeTier = "memory-only";
+    }
+    if (!restored) {
+      window.Tabula.sample.load(E, wb);
+      condRule = { col: 2, op: "gt", x: 50 };
+      fullRefresh("sample workbook loaded (highlight: C over 50)");
+      formatPanel.syncRule();
+    } else {
+      fullRefresh("restored OPFS snapshot");
+    }
+    updateStoreFlag();
+    booted = true;
+    grid.select(0, 0);
+  })();
+  badgeEl.textContent = "JS fallback core - WASM proof pending";
 })();

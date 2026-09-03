@@ -1,11 +1,13 @@
-/* Tabula storage.js (Phase 4): clipboard TSV plus file save/load.
+/* Tabula storage.js (Phase 5): clipboard TSV plus file save/load plus
+ * OPFS autosave plus CSV import.
  *
  * Copy/paste moves TSV through the system clipboard with a JSON sidecar for
  * in-app fidelity (formulas survive inside Tabula; plain text lands in other
- * apps). CSV import never creates formulas unless the user confirms formula
- * mode (injection guard, mirrors Swift Codecs). OPFS autosave lands in
- * Phase 5; until then work persists via explicit file save plus an
- * in-memory session.
+ * apps). CSV import parses number-or-text and never creates formulas unless
+ * the user confirms formula mode (injection guard, mirrors Swift Codecs).
+ * OPFS autosaves debounced JSON snapshots; when OPFS is unavailable or the
+ * quota fails, the app degrades to in-memory plus explicit file save with a
+ * visible indicator (the store flag in the footer).
  */
 "use strict";
 window.Tabula = window.Tabula || {};
@@ -56,5 +58,69 @@ window.Tabula = window.Tabula || {};
     });
   }
 
-  T.storage = { cellsToTSV, parseTSV, download, readFile };
+  /** RFC-4180 reader: quotes, doubled quotes, embedded newlines. */
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], field = "", quoted = false, i = 0;
+    const src = String(text);
+    while (i < src.length) {
+      const ch = src[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (src[i + 1] === '"') { field += '"'; i += 2; }
+          else { quoted = false; i++; }
+        } else { field += ch; i++; }
+      } else if (ch === '"') {
+        if (field === "") { quoted = true; i++; }
+        else { field += ch; i++; }
+      } else if (ch === ",") { row.push(field); field = ""; i++; }
+      else if (ch === "\r" || ch === "\n") {
+        row.push(field); field = "";
+        rows.push(row); row = [];
+        i += (ch === "\r" && src[i + 1] === "\n") ? 2 : 1;
+      } else { field += ch; i++; }
+    }
+    row.push(field);
+    rows.push(row);
+    // Drop a single trailing empty row from a final newline.
+    if (rows.length && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") rows.pop();
+    return rows;
+  }
+
+  // ------------------------------------------------------------- OPFS
+  // Origin-private file system autosave. All calls are safe no-ops (null /
+  // false) where OPFS is missing, so the app always boots; the footer flag
+  // tells the user which tier is live.
+
+  function opfsAvailable() {
+    return typeof navigator !== "undefined" &&
+      !!(navigator.storage && navigator.storage.getDirectory);
+  }
+
+  async function opfsSave(text) {
+    const dir = await navigator.storage.getDirectory();
+    const fh = await dir.getFileHandle("tabula-workbook.json", { create: true });
+    const w = await fh.createWritable();
+    await w.write(text);
+    await w.close();
+    return true;
+  }
+
+  async function opfsLoad() {
+    const dir = await navigator.storage.getDirectory();
+    const fh = await dir.getFileHandle("tabula-workbook.json", { create: false });
+    const f = await fh.getFile();
+    return await f.text();
+  }
+
+  async function opfsQuota() {
+    if (navigator.storage && navigator.storage.estimate) {
+      const e = await navigator.storage.estimate();
+      return { quota: e.quota || 0, usage: e.usage || 0 };
+    }
+    return null;
+  }
+
+  T.storage = { cellsToTSV, parseTSV, parseCSV, download, readFile,
+    opfsAvailable, opfsSave, opfsLoad, opfsQuota };
 })(window.Tabula);

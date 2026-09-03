@@ -17,7 +17,7 @@ window.Tabula = window.Tabula || {};
   ];
 
   function createFormat(el, opts) {
-    const o = Object.assign({ apply: (style) => {} }, opts || {});
+    const o = Object.assign({ apply: (style) => {}, rule: null }, opts || {});
     const style = { numberFormat: { k: "general" }, bold: false, italic: false, fillRGB: null, alignment: null };
 
     const title = document.createElement("h3");
@@ -111,7 +111,52 @@ window.Tabula = window.Tabula || {};
       return JSON.parse(JSON.stringify(style));
     }
 
-    return { snapshot };
+    // Conditional highlight (Phase 5 v1): one threshold rule over the
+    // selected column, evaluated lazily for visible cells only inside the
+    // app's getCell (a style override, never a recalc). Formula-based
+    // rules are a documented v2 item (see architecture.md).
+    let syncRule = () => {};
+    if (o.rule) {
+      const hTitle = document.createElement("h4");
+      hTitle.textContent = "Highlight";
+      el.appendChild(hTitle);
+      const hnote = document.createElement("p");
+      hnote.className = "dim";
+      hnote.textContent = "One threshold rule on the selected column. View-only: values never change.";
+      el.appendChild(hnote);
+      const hsel = document.createElement("select");
+      hsel.setAttribute("aria-label", "Highlight rule");
+      [["off", "Off"], ["gt", "Greater than…"], ["lt", "Less than…"]].forEach(([v, label]) => {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = label;
+        hsel.appendChild(opt);
+      });
+      const hnum = document.createElement("input");
+      hnum.type = "number";
+      hnum.value = "50";
+      hnum.setAttribute("aria-label", "Highlight threshold");
+      const cur = o.rule.get();
+      if (cur) {
+        hsel.value = cur.op;
+        hnum.value = String(cur.x);
+      }
+      const applyRule = () => {
+        if (hsel.value === "off") o.rule.set(null);
+        else o.rule.set({ op: hsel.value, x: Number(hnum.value) || 0 });
+      };
+      hsel.addEventListener("change", applyRule);
+      hnum.addEventListener("change", applyRule);
+      el.appendChild(labeled("Rule", hsel));
+      el.appendChild(labeled("Value", hnum));
+      syncRule = () => {
+        const c = o.rule.get();
+        hsel.value = c ? c.op : "off";
+        hnum.value = c ? String(c.x) : hnum.value;
+      };
+    }
+
+    return { snapshot, syncRule };
   }
 
   T.format = { create: createFormat, FORMATS };
