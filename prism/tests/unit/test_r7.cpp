@@ -155,11 +155,19 @@ TEST(R7, HeldOutVsBaseline) {
         std::sort(deltas.begin(), deltas.end());
         double median = deltas[deltas.size() / 2];
         std::cout << "[R7-1] median NET vs X6b = " << median << "% (gate: <= -1.5% to proceed)\n";
-        // Guard against catastrophic regression only; the genuine gate is enforced
-        // by the full `bench-r7 --kodak` + bench_gate.sh measurement, reported in
-        // the progress file.
-        EXPECT_LE(*std::max_element(deltas.begin(), deltas.end()), 5.0)
-            << "R7-A regressed catastrophically vs X6b on held-out set";
+        // PINNED REJECTION (2026-09-03, issue #130): R7-A measured +14.5% median
+        // on this held-out set at Route 7 build time
+        // (progress/130-prism-route7-transform-prediction.md, R7-1 FAIL), and
+        // re-confirmed at +15.0% median on current main (blend default 0.0).
+        // The promotion gate (median <= -1.5%) is closed; this pin asserts the
+        // route STAYS rejected. It fails loudly if R7 behavior ever changes in
+        // either direction - that is intentional: whoever reworks R7 must
+        // update this pin AND the ledger together. Round-trip correctness above
+        // must always hold regardless.
+        EXPECT_GT(median, 5.0)
+            << "R7 rejection pin broken: R7-A no longer regresses vs X6b. "
+               "If R7 was reworked, update this pin and the #130 ledger together "
+               "(progress/130-prism-route7-transform-prediction.md)";
     } else {
         std::cout << "[R7-1] kodak dir not present; skipping held-out measurement\n";
     }
