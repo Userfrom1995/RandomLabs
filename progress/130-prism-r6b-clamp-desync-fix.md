@@ -1,7 +1,7 @@
 # Progress: Prism #130 - R6B 16-bit histogram desync fix (issue #130)
 
 - **Branch:** `opencode/issue130-r6b-clamp-desync-fix`
-- **Status:** in-progress (fix + regression tests green; full-24 honest re-measure running)
+- **Status:** complete (fix + regression tests + full-24 honest re-measure shipped)
 - **Date:** 2026-09-03 (Builder run, resume mode from main at 9bd6d10)
 - **Precedent:** Subband-oracle program complete on main (full-24 {P0,P2} oracle
   3.20664/9.61993, mux CLOSED at every granularity). Open PR #275 reports the
@@ -76,9 +76,21 @@ the old number was not a real measurement. This independently reproduces the
 - [x] Two regression tests, verified FAIL pre-fix / PASS post-fix
 - [x] R6B suite 5/5 PASS post-fix
 - [x] kodim01 post-fix round-trip OK (3.65822/10.9747)
-- [ ] Full-24 bench-r6b honest re-measure (running, ~13 min) + durable CSV
-- [ ] Broader unit suite green
-- [ ] ideas/ entry, commit + push, PR with Refs #130
+- [x] Full-24 bench-r6b honest re-measure + durable CSV
+- [x] Broader unit suite green (262/262, R7 guard excluded red-on-main by design)
+- [x] ideas/ entry, commit + push, PR with Refs #130
+
+## Full-24 honest result (fixed binary, SHA-pinned Kodak-24, 24/24 SHA OK)
+
+- Committed: `prism/benchmarks/results/2026-09-03-r6b-fixed-full24.csv`
+  (25 lines, roundtrip=1 on all 24 rows, `bad_rows=0`).
+- **R6B-fixed full-24: mean per-sample 3.43505, mean summed 10.30514.**
+  M2 (< 3.166 / < 9.498): FAIL (+8.5%). M3 (< 2.885 / < 8.655): FAIL (+19.1%).
+- `bench_gate.sh --self-check`: PASS (gate demonstrably fails and passes).
+- Full unit suite minus by-design-red `R6.HeldOutVsBaseline`: 262/262 PASS.
+- Verdict: R6B path is now CORRECT (byte-exact 24/24) and honestly measured;
+  the measurement is a rejection, consistent with all prior R6B verdicts.
+  `Refs #130` only, never `Closes #130`.
 
 ## Next steps (for continue runs)
 
