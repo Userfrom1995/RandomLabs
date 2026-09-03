@@ -46,9 +46,16 @@ annotations (highlight/underline/strikeout with QuadPoints), sticky notes,
 shapes, ink pad, stamps, links, Bates, image watermarks, bookmarks + TOC,
 annotation list/delete, markup bake, paragraph edit, find-replace, N-up,
 booklet, overlay, compare, image census/extract/insert, scanner effect,
-AcroForm describe/fill/create/flatten, XFA detector. Phase C adds AES-256
-passwords, profiles-gated compress, and the OCR pack. Phase D adds the
-Office pack. Cloud AI chat is the only exclusion (matrix section 8).
+AcroForm describe/fill/create/flatten, XFA detector. Phase C ships: AES-256-GCM
+password envelopes (honest scope: file envelope, not native PDF V=5) with
+rekey + Perms intent flags + session unlock (passwords zeroed, never stored),
+JS/action inspector, signature stamp + certificate-sign ByteRange placeholder,
+profile-gated compress with corpus searchability gate (text pages always
+lossless), mode-3 invisible OCR text layers with scanned-page detector,
+dependency-free DOCX/XLSX/PPTX writers (valid store-only ZIPs), CSV both
+directions, URL import spec, and true byte-restore undo/redo.
+Phase D adds the full-fidelity Office pack. Cloud AI chat is the only
+exclusion (matrix section 8).
 
 ## Develop
 
@@ -73,4 +80,4 @@ ESM + worker, copied same-origin so the CSP needs no remote script sources.
 - `src/ui/` shell + viewer + tool executors
 - `packs/` consent manifests (byte sizes generated from real bundles)
 - `docs/` parity matrix + research spec + architecture + scoreboard
-- `tests/` node:test suite (12 groups, zero deps)
+- `tests/` node:test suite (16 groups, zero deps)

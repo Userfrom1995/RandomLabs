@@ -31,3 +31,25 @@ desktop + 390px mobile. Regressions over 10 percent block merge.
 
 Note: the pdf.js worker (2.1 MB raw) loads lazily after the first file, so
 it is outside the initial route payload per the splitting map.
+
+## Phase C verification (2026-09-03, node, vendored pdf-lib 1.17.1)
+
+- Unit: `node --test folio/tests/core.test.js` 16/16 green (+4 groups:
+  crypto pure, optimize corpus plan/gate, ocr-client, office writers).
+- E2E (real pdf-lib + WebCrypto + pdf.js read path, synthetic PDFs):
+  - S1/S2/S3: envelope encrypt (1078 B PDF -> 1158 B envelope) -> decrypt
+    byte-identical roundtrip; wrong password rejected; rekey under a new
+    password decrypts; `isEnvelope` discriminates; session `persisted:false`.
+  - O1: text-heavy corpus routes all-lossless, ratio 1.000, gate PASS,
+    searchableKept; scan-like page routes rasterize and defers without a
+    rasterizer; forced text-page rasterize flags damaged + gate FAIL.
+  - C1: `applyOcrLayer` bakes `3 Tr` mode-3 words (present in inflated
+    content stream); pdf.js extracts the invisible word alongside visible
+    text (searchable layer proof).
+  - V8-V10: DOCX/XLSX/PPTX are PK ZIPs with correct part names and cell/
+    paragraph text; CSV roundtrip; `csvToPdf` paginates (28 rows/page).
+- Shell: all 97 wired `$("id")` resolve against `index.html`; every
+  `src/**/*.js` parses under `node --check`. Reviewer Phase A findings
+  folded in: outline fix-up takes PDFLib (no swallowed ReferenceError),
+  dead vendor-shim import removed, dead wrap loop removed, undo/redo is now
+  true byte restore (capped 20-snapshot in-memory stack), info word count fixed.

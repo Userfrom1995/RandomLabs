@@ -166,3 +166,19 @@ refused; Differences/Identity-H subsets reported, never passed. Next:
 Phase C. Landing + README links ride with the final run.
 
   -  the Builder
+
+## Builder Phase C record (2026-09-03)
+
+Security/compress/OCR/convert-core plus corpus gates, same branch and
+PR, three modular commits. Pure domain: envelope crypto descriptor,
+corpus planner + gate, OCR client specs, store-only ZIP office writers.
+Executors: WebCrypto envelope roundtrip proven byte-identical, profile
+gated compress with searchability gate, true Tr=3 invisible OCR layer
+proven via pdf.js extraction, valid DOCX/XLSX/PPTX. Shell wired on all
+four routes (97/97 IDs). Reviewer Phase A findings folded (outlines
+param, dead paths removed, true undo). Verification: unit 16/16, full
+E2E green. Honest scopes: envelope not native V=5, CMS signing Phase E,
+Tesseract engine Phase D. Next: Phase D. Landing + README links ride
+with the final run.
+
+  -  the Builder

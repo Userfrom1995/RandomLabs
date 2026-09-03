@@ -12,17 +12,20 @@
 - [x] 1b. Phase A scaffold (zero-build static variant): vendored pdf-lib 1.17.1 + pdfjs-dist 4.4.168 same-origin, shell router, PWA shell, packs manifests, scoreboard stub. Landing links deferred to final run.
 - [x] 2. Phase A core: ingest/OPFS/states/sample (R6,R7), viewer R1, structural P1-P3/P6-P9/P19 + fix-up, pipeline R2
 - [x] 3. Phase B: annotate/edit/images/forms core (E1-E4 + E5/E8/E11/E13-E15 bonuses, E6-E7, E9-E10, E12-E14, E17, I1-I3, I5-I6, F1-F4) + redact acceptance (S5)
-- [ ] 4. Phase C: security/compress/OCR/convert-core (S1-S2,S5-S6,O1,O6,C1,C3,V1,V5-V9) + corpus gates
+- [x] 4. Phase C: security/compress/OCR/convert-core (S1-S4 envelope-honest,S6-S9 stamps+specs,O1,O6,C1,C3,V1-V2,V5-V11 core) + corpus gates
 - [ ] 5. Phase D: Office pack V3 + fallback V4 + consent manifest wiring (V2 writers)
 - [ ] 6. Phase E: Tier 2 then Tier 3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs
 
 ## Current step
-Phase B complete and verified (unit 12/12, pdf-lib E2E, pdf.js read-path proof). Next: Phase C (security/compress/OCR/convert-core + corpus gates).
+Phase C complete and verified (unit 16/16, envelope roundtrip, mode-3 OCR proof, office ZIPs, 97/97 IDs). Next: Phase D (Office pack V3 + fallback V4 + consent manifest wiring).
 
 ## Next steps
-- Builder continue run: Phase C security (AES-256 V=5 encrypt/decrypt + Perms via crypto worker), compress rasterize-per-page profiles on fixed corpus with ratio + searchability gates, OCR pack wiring (consent download, pool, mode-3 layer), convert-core writers (CSV/XLSX tables, DOCX/PPTX assemblers).
+- Builder continue run: Phase D Office full-fidelity pack (V3 renderer wiring behind the existing consent card, V4 Mammoth/SheetJS-class fallback banner, V2 table CSV already core-live), then Phase E (Tier 2/3 rows, CSP/PWA hardening, T1-T5 scoreboard, Playwright pass, docs).
 - Single branch/PR across `continue` cycles. Cloud AI chat stays excluded per matrix section 8.
 - Landing (`index.html`) + README links go in with the final run.
+
+## Agent log
+- 2026-09-03 (Builder run 3, Phase C): new pure domain `core/crypto/crypto.js` (AES-GCM envelope descriptor, zeroing, JS inspector, ByteRange, INTEGRITY/TRUST verdict), `core/compress/optimize.js` (corpus planner + searchability gate, resave/grayscale/PDF-A/linearize specs), `core/ocr-client/ocr.js` (300 DPI job spec, 72/dpi affine map, mode-3 spec, pool sizing, C3 progress reducer), `core/convert/office.js` (store-only ZIP + CRC32, minimal valid DOCX/XLSX/PPTX, CSV table spec, URL import spec). New executors: security-ops (envelope encrypt/decrypt/rekey via WebCrypto, JS report, signature stamp, cert-sign placeholder with ByteRange), compress-ops (profile-gated compress, browser PNG rasterize for image pages, deferred-never-silent), ocr-ops (pack fetch with progress/cancel, true Tr=3 invisible layer), convert-ops (docx/xlsx/pptx/csv writers, csvToPdf, URL spec). Shell wired on security/compress/OCR/convert routes (97/97 IDs). Reviewer Phase A findings folded: outlines PDFLib param, vendor-shim dead path removed, dead loop removed, TRUE byte-restore undo/redo (cap 20). Honest scopes kept: envelope is not native PDF V=5 (labeled in UI), CMS/PKCS#12 signing Phase E, Tesseract engine Phase D. Decision action: continue.
 
 ## Agent log
 - 2026-09-03 (Builder run 2, Phase B): text-map lines now carry w/h/word boxes (additive). New pure domain: `core/annotate/annotate.js` (quads, hit regions, Bates, bookmarks, RDP ink, link validation), `core/content/edit.js` (find spans, paragraph plan, LCS word diff), `core/content/burnin.js` (inflate/scrub/deflate per-stream, precise per-word blanking, decoded verifier), `core/images/images.js` (fit math, scanner spec, census), `core/forms/forms.js` (field validation, fill coercion, XFA sniff). New executors: annotate-ops (markup/sticky/shapes/ink/stamp/links/Bates/bookmarks+TOC/image watermark/ann list+delete), edit-ops (find-replace/paragraph-edit/N-up/booklet/overlay/compare/bake-markup), image-ops (census/extract/insert/scanner filter), form-ops (describe/fill/create/flatten/XFA), redact-ops (opaque bake + stream scrub + metadata scrub + acceptance). Key result: TRUE burn-in for WinAnsi text (precise hex/literal blanking in inflated streams, same-ref rewrite); pdf.js proof shows redacted words gone and kept words in the same Tj run intact. Known limitation kept honest: Differences-encoded subsets and Identity-H glyph IDs cannot byte-scrub (verifier reports leftovers, UI refuses PASS). Full shell UI wired on all four routes (ink pad canvas included); 81/81 wired IDs resolve. Decision action: continue.
