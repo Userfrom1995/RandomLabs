@@ -182,3 +182,22 @@ Tesseract engine Phase D. Next: Phase D. Landing + README links ride
 with the final run.
 
   -  the Builder
+
+## Builder Phase D record (2026-09-03)
+
+Office V3 pack plus V4 fallback behind one consent card, same branch
+and PR, three modular commits. Pure domain: zip reader (EOCD plus
+stored/inflate split), fallback extractors (DOCX/XLSX/PPTX over the
+file map plus fidelity banner), pack boundary (prompt/fallback/pack
+routing plus manifest verify), shared loader helpers. Pack engine
+`packs/office-engine.js` 0.2.0 (8390 B, sha-pinned): DOCX tables and
+bold/italic, XLSX sheet names and header rows, PPTX title/body split.
+Executors: `officeToPdf` in both modes with a paginated pdf-lib
+renderer. Shell: real consent accept (fetch, size/sha verify, ESM
+load), fallback banner, Office picker plus convert button. Real bugs
+fixed along the way: Phase C ZIP writer flag offset (strict-reader
+safety) and the XLSX attribute regex. Verification: unit 17/17,
+dual-mode E2E green (page counts reloaded), 100/100 wired IDs. Next:
+Phase E. Landing + README links ride with the final run.
+
+  -  the Builder

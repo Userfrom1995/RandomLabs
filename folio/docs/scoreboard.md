@@ -53,3 +53,27 @@ it is outside the initial route payload per the splitting map.
   folded in: outline fix-up takes PDFLib (no swallowed ReferenceError),
   dead vendor-shim import removed, dead wrap loop removed, undo/redo is now
   true byte restore (capped 20-snapshot in-memory stack), info word count fixed.
+
+## Phase D verification (2026-09-03, node, vendored pdf-lib 1.17.1)
+
+- Unit: `node --test folio/tests/core.test.js` 17/17 green (+1 group:
+  zip-read roundtrip, office fallback extractors, pack routing, loader).
+- E2E (real pdf-lib, our own writers as fixtures): DOCX/XLSX/PPTX
+  `officeToPdf` in BOTH modes - fallback `fallback/1p/1p/2p` and pack
+  `pack/1p/1p/2p`, every output reloads in pdf-lib with the right page
+  count (slides-as-pages for PPTX). Pack engine on a hand-made
+  bold+table DOCX: sections `para,table`, rows `[["A1","B1"]]`,
+  bold run kept, HTML intermediate carries `<table>` + `<strong>`.
+  Routing `prompt/fallback/pack` verified. Strict-reader fix proven:
+  every ZIP entry is now method 0 (store) with correct local headers
+  (the Phase C writer put the flag at +8 instead of +6 and truncated
+  the EOCD by 2 bytes/file - fixed, EOCD now parses cleanly).
+- Pack manifest carries real build-time bytes: `office-pack 0.2.0`,
+  8390 B, sha256 `590bfd52...6bff`, file `office-engine.js`.
+- Shell: 100/100 wired `$("id")` resolve (new `officepick`,
+  `t-office2pdf`, `officebanner`, `officereport`); every `src/**/*.js`
+  plus the pack engine parses under `node --check`. Consent accept
+  fetches + size/sha-verifies + ESM-loads the pack; decline routes to
+  the fallback with the fidelity banner; revoke clears the engine.
+  Real-world deflated Office files inflate via `DecompressionStream`
+  when available (store-only fast path otherwise).
