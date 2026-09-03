@@ -921,12 +921,20 @@ StaticBitplaneResult BitplaneCoder::encode_static(
     }
 
     // Build the transmitted static P(0)*M per (subband, class).
+    // NOTE (issue #130, 2026-09-03): the container clamps histogram counts to
+    // 16 bits on the wire, so the decoder rebuilds P(0) from CLAMPED counts.
+    // The encoder must derive its backbone from the same clamped counts;
+    // using raw counts desyncs the rANS stream on images where any class count
+    // exceeds 65535 (every real Kodak image) while staying green on small
+    // synthetic unit-test images.
     std::vector<std::vector<uint16_t>> sp0(NS);
     for (size_t oi = 0; oi < NS; ++oi) {
         sp0[oi].resize(R6B_CLASSES);
         for (int cls = 0; cls < R6B_CLASSES; ++cls) {
             uint32_t c0 = hist.cnt[oi][cls * 2 + 0];
             uint32_t c1 = hist.cnt[oi][cls * 2 + 1];
+            if (c0 > 0xFFFF) c0 = 0xFFFF;
+            if (c1 > 0xFFFF) c1 = 0xFFFF;
             uint32_t tot = c0 + c1;
             sp0[oi][cls] = (tot == 0) ? (uint16_t)(StaticAdaptiveModel::M / 2)
                                       : (uint16_t)((uint32_t)((uint64_t)c0 * StaticAdaptiveModel::M / tot) & 0xFFFF);
