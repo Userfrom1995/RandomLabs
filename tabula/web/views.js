@@ -51,17 +51,21 @@ window.Tabula = window.Tabula || {};
       opt.textContent = label;
       fsel.appendChild(opt);
     });
+    const qin = document.createElement("input");
+    qin.setAttribute("aria-label", "Filter value");
+    qin.placeholder = "value…";
+    qin.value = "";
     const fgo = document.createElement("button");
     fgo.textContent = "Apply";
     fgo.addEventListener("click", () => {
       const v = fsel.value;
       if (v === "") { o.filter(null, null); return; }
       if (v === "hideBlank") { o.filter(null, { k: "hideBlank" }); return; }
-      const q = window.prompt(v === "textContains" ? "Text contains:" : "Number:", v === "textContains" ? "" : "0");
-      if (q === null) return;
+      const q = qin.value;
       o.filter(null, v === "textContains" ? { k: "textContains", q } : { k: v, x: Number(q) || 0 });
     });
     frow.appendChild(fsel);
+    frow.appendChild(qin);
     frow.appendChild(fgo);
     el.appendChild(frow);
 
@@ -91,6 +95,7 @@ window.Tabula = window.Tabula || {};
     clear.textContent = "Clear sort/filter";
     clear.addEventListener("click", () => {
       fsel.value = "";
+      qin.value = "";
       o.clear();
     });
     el.appendChild(clear);
