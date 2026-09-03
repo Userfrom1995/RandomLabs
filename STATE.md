@@ -1,9 +1,9 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-03T22:40Z, maintainer run 33814069534 (issue_comment on PR #283, owner /oc maintainer at 22:39:09Z - monitoring pass, Builder Phase 0 landed)
- - **Action this run:** No dispatch - Builder Phase 0 landed at 6c8e380 and Builder Phase 1 already in_progress as 33814060701 on #282 Tabula; PR #283 6c8e380 verified MERGEABLE/CLEAN NOT orphan. Respect in-progress guard.
+ - **Updated:** 2026-09-03T22:42Z, maintainer run 33814076629 (issue_comment on PR #283, owner /oc maintainer at 22:39:15Z - monitoring pass duplicate)
+ - **Action this run:** No dispatch - duplicate monitoring; Builder Phase 1 still in_progress as 33814060701 on #282 Tabula; PR #283 6c8e380 verified MERGEABLE/CLEAN NOT orphan. Respect in-progress guard.
  - **Main:** `b0461a83bab35ed102bd1fbdabde83c06ffeb10e` verified live `git ls-remote` = b0461a8, parents b0461a8->3e6f5ff->cb521fe->7f5cfb4->e600927->9af877f->aae3a63->6f5ac8d->f7defb2->b591b63..., NOT orphan, branch retention per #148 verified
  - **Branch retention:** opencode/issue282-20260903222718 at 6c8e380 OPEN CLEAN (PR 283, 4 commits research+architect+2x builder Phase 0), opencode/issue130-r6b-clamp-desync-fix at a44d27f MERGED at b0461a8 retained, opencode/issue277-20260903191417 at fba96f3 MERGED at e600927 retained, plus archival retained per #148
- - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at b0461a8 + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy on b0461a8 success 33813452292 + pr-283 preview via 33814071842 success, no CreditsError, no orphan main, opencode build 33814060701 in_progress (head main b0461a8, event issue_comment) + 33814076557 pending queued
+ - **Infra:** `opencode.yml` 5x muse-spark-1.3-contributor-free LIVE at b0461a8 + `opencode.json` both knobs muse-spark-1.3/muse-spark-1.2-contributor-free verified, pages deploy on b0461a8 success 33813452292 + pr-283 preview via 33814071842 success, no CreditsError, no orphan main, opencode build 33814060701 in_progress (head main b0461a8, event issue_comment) + 33814076557 pending queued, maintainer 33814076629 in_progress duplicate
 
 ## STANDING OWNER DIRECTIVES (active)
  - **CEILING ACCEPTANCE (2026-09-03T19:06Z, supreme, via #130):** Accepting the ceiling and closing Prism here as finished-at-ceiling, not gate-passed. Corpus truth at 9bd6d10: X6b 3.2175/9.6525 repro 3.21843/9.65529 M2 FAIL ~1.6% M3 FAIL ~11.5% oracle 3.161/9.483 barely M2 only, hybrid 3.2068/9.6204, 8-way 3.20325/9.60975, per-subband full-24 mux 3.20664/9.61993 - 49+ mechanism classes across 9 programs measured and rejected with committed CSVs, no success claim. No more Research/Build on #130 or #226. Lab closure on #130 done, PRs #266/#232/#203/#202/#186/#181 closed retain branches, docs-refresh #278 closed at 8cd2e8b, brainstorm #42 unfrozen.
@@ -20,7 +20,7 @@
 ## CRITICAL INFRASTRUCTURE STATE
  - **Issue #282 Tabula - OPEN, Research+Architect+Builder Phase 0 LANDED at 6c8e380, Build Phase 1 IN_PROGRESS this run:** Researcher spec `docs/research/issue-282-tabula-spreadsheet.md` 811 lines + Architect blueprint `ideas/2026-09-03-tabula-spreadsheet-engine.md` 114 lines. Builder Phase 0: `tabula/Package.swift` tools 6.0 pure TabulaCore+TabulaBridge, `tabula/Sources/TabulaCore/Addr,ErrorCode,TabulaCore`, `tabula/Sources/TabulaBridge/Bridge,WasmBridge` stub, `tabula/Tests/TabulaCoreTests` 12 green on Swift 6.3.3, zero-build shell `tabula/index.html,web/app.js,styles,manifest,sw.js` + `tabula/docs/architecture.md` with batch Bridge wire pinned and WASM proof deferred per escape clause (swift-wasm-6.3-RELEASE+carton 1.1.3 confirmed present). Progress `progress/282-tabula-spreadsheet-engine.md` Status in-progress checklist builder 0 x, builders 1-5 pending.
  - **Build guard active:** opencode 33814060701 `in_progress` at 22:39:01Z (issue_comment, headBranch main b0461a8, Run opencode build agent in_progress, 5 steps completed) - triggered by owner /oc continue 22:38:58Z for Phase 1 core domain; pending 33814076557 queued at 22:39:15Z will be coalesced via cancel-in-progress false. No duplicate dispatch this run.
- - **Pages verified:** production deploy 33813452292 success (post-b0461a8) + PR 283 preview via Deploy static site 33814071842 success (pending run now completed success), folio at /folio/ live, no need to trigger pages.yml.
+ - **Pages verified:** production deploy 33813452292 success (post-b0461a8) + PR 283 preview via Deploy static site 33814071842 success, folio at /folio/ live, no need to trigger pages.yml.
 
 ## IN FLIGHT
  - **Issue #130 - CLOSED completed 2026-09-03T19:11Z acceptance (finished-at-ceiling, M2/M3 FAIL) - archival PR 281 MERGED as Refs**
@@ -34,7 +34,7 @@
  - **Ideator - last batch 20:38Z consumed via Tabula pick**
 
 ## PIPELINE POSITION
- Prism ceiling accepted and Folio shipped, docs-refresh merged, no active Prism builds; Tabula #282 Research+Architect landed 22:29-22:31Z as two commits on PR 283 branch (51e70da + 30723a8), Builder Phase 0 landed 22:39Z as two commits (009aa5c scaffold + 6c8e380 shell) with 12 tests green and progress builder 0 x, Phase 1 core domain now in_progress via 33814060701 triggered by owner /oc continue 22:38:58Z. Previous maintainer 33813450400 re-dispatched Build 22:33:53Z as 33813662215 which completed Phase 0, duplicate maintainer 33813458781 at 22:34Z monitored, now this run 33814069534 is monitoring pass awaiting Builder Phase 1.
+ Prism ceiling accepted and Folio shipped, docs-refresh merged, no active Prism builds; Tabula #282 Research+Architect landed 22:29-22:31Z as two commits on PR 283 branch (51e70da + 30723a8), Builder Phase 0 landed 22:39Z as two commits (009aa5c scaffold + 6c8e380 shell) with 12 tests green and progress builder 0 x, Phase 1 core domain now in_progress via 33814060701 triggered by owner /oc continue 22:38:58Z. Previous maintainer 33813450400 re-dispatched Build 22:33:53Z as 33813662215 which completed Phase 0, maintainer 33814069534 at 22:41Z monitored duplicate, now this run 33814076629 is duplicate monitoring pass awaiting Builder Phase 1.
 
 ## NEXT-RUN PLAYBOOK
  1. Verify Build runs 33814060701 (in_progress) and 33814076557 (pending) transition to completed/success; if either succeeds with new head >6c8e380 verify progress checklist advances to builder 1 (Lexer, Parser, AST, Value, Ref, Graph, Eval, Clock) and swift test still green; if failed/timeout/cancelled, auto-retry build (crash-parity up to 3) or dispatch Lab Engineer if infra fault (model dead, workflows permission). Never split phases into separate PRs.
@@ -57,4 +57,4 @@
  - Will SwiftWasm toolchain proof (carton 1.1.3 + swift-wasm-6.3-RELEASE SDK + JavaScriptKit 0.35.x pin) complete before Phase 4 UI depth without hitting fetch/build timeouts?
 
    - Hephaestus, the Maintainer
-<!-- run: 33814069534 -->
+<!-- run: 33814076629 -->
