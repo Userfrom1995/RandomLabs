@@ -33,7 +33,7 @@ public enum Series {
             switch last {
             case .num(let x): base = x
             case .text(let s):
-                let (_, n) = splitTrailingNumber(s)
+                let (_, n, _) = splitTrailingNumber(s)
                 base = Double(n ?? 0)
             default: base = 0
             }
@@ -50,28 +50,21 @@ public enum Series {
 
     // MARK: - internals
 
-    /// Step of the trailing numeric run, or nil when the tail is not numeric.
-    /// Considers only the last two non-blank atoms; a single numeric atom
-    /// yields step 0 (copy), matching "constant step from last two values".
+    /// Step of the trailing numeric run, or nil when the last two atoms do
+    /// not form a numeric run. A single trailing numeric atom is NOT a run
+    /// (nil): lone numbers copy, lone trailing-number texts increment by one
+    /// (handled in `extend`), per research 8.4.
     static func numericStep(_ values: [FillAtom]) -> Double? {
-        let tail = values.suffix(2).filter { $0 != .blank }
-        guard tail.count == 2 else {
-            // Zero or one numeric tail atom: copy iff the last atom is
-            // numeric-shaped, else no numeric run.
-            if let last = values.last, numericValue(last) != nil { return 0 }
-            return nil
-        }
-        guard let a = numericValue(tail[tail.startIndex]),
-              let b = numericValue(tail[tail.index(after: tail.startIndex)])
+        let tail = Array(values.suffix(2).filter { $0 != .blank })
+        guard tail.count == 2 else { return nil }
+        guard let a = numericValue(tail[0]), let b = numericValue(tail[1])
         else { return nil }
         // Text atoms only join a run when both carry trailing numbers with
-        // the same prefix; otherwise the run is not numeric.
-        if case .text(let s0) = tail[tail.startIndex],
-           case .text(let s1) = tail[tail.index(after: tail.startIndex)] {
-            let (p0, n0) = splitTrailingNumber(s0)
-            let (p1, n1) = splitTrailingNumber(s1)
+        // the same prefix; otherwise the tail is not a numeric run.
+        if case .text(let s0) = tail[0], case .text(let s1) = tail[1] {
+            let (p0, n0, _) = splitTrailingNumber(s0)
+            let (p1, n1, _) = splitTrailingNumber(s1)
             guard n0 != nil, n1 != nil, p0 == p1 else { return nil }
-            _ = (a, b)
             return Double(n1! - n0!)
         }
         return b - a
@@ -103,33 +96,34 @@ public enum Series {
     }
 
     /// Increment the trailing integer of `s` by `delta` (truncated toward
-    /// zero). Preserves zero-padding width when the result fits.
+    /// zero). Preserves the authored zero-padding width when the result fits.
     static func bumpTrailing(_ s: String, by delta: Double) -> FillAtom {
-        let (prefix, number) = splitTrailingNumber(s)
+        let (prefix, number, width) = splitTrailingNumber(s)
         guard let n = number else { return .text(s) }
         let step = Int(delta.rounded(.towardZero))
         let next = n + step
-        let digits = String(abs(n)).count
         let sign = next < 0 ? "-" : ""
         var body = String(abs(next))
-        if body.count < digits {
-            body = String(repeating: "0", count: digits - body.count) + body
+        if body.count < width {
+            body = String(repeating: "0", count: width - body.count) + body
         }
         return .text(prefix + sign + body)
     }
 
-    /// Split `s` into (non-digit prefix, trailing integer). Returns
-    /// (s, nil) when there is no trailing digit run.
-    static func splitTrailingNumber(_ s: String) -> (prefix: String, number: Int?) {
-        var end = s.endIndex
+    /// Split `s` into (non-digit prefix, trailing integer, digit width).
+    /// Returns (s, nil, 0) when there is no trailing digit run. The width is
+    /// the authored digit count (so `A09` pads to width 2, not `Int` width 1).
+    static func splitTrailingNumber(
+        _ s: String
+    ) -> (prefix: String, number: Int?, width: Int) {
+        let end = s.endIndex
         var start = end
         while start > s.startIndex, s[s.index(before: start)].isNumber {
             start = s.index(before: start)
         }
-        guard start < end else { return (s, nil) }
+        guard start < end else { return (s, nil, 0) }
         let digits = String(s[start..<end])
-        _ = end
-        guard let n = Int(digits) else { return (s, nil) }
-        return (String(s[..<start]), n)
+        guard let n = Int(digits) else { return (s, nil, 0) }
+        return (String(s[..<start]), n, digits.count)
     }
 }

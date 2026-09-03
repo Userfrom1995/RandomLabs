@@ -65,6 +65,8 @@ struct JSONWorkbook: Codable {
     var version: Int
     var sheets: [JSONSheet]
     var names: [String: JSONName]
+    /// Opaque style records by `R<row>C<col>@<sheet>` key.
+    var styles: [String: StyleRecord]
 }
 
 public enum Codecs {
@@ -93,6 +95,11 @@ public enum Codecs {
                     case .dangling:
                         (k, JSONName(addrs: nil))
                     }
+                }
+            ),
+            styles: Dictionary(
+                uniqueKeysWithValues: wb.styles.map { (a, st) in
+                    ("R\(a.row + 1)C\(a.col + 1)@\(a.sheet)", st)
                 }
             )
         )
@@ -161,6 +168,11 @@ public enum Codecs {
                     ? .dangling : .cells(parsed.sorted())
             } else {
                 wb.names[k.uppercased()] = .dangling
+            }
+        }
+        for (key, st) in doc.styles {
+            if let a = parseAddrKey(key), a.sheet < wb.sheets.count {
+                wb.styles[a] = st
             }
         }
         wb.recalcAll()
