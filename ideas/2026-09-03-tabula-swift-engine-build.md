@@ -46,4 +46,26 @@ authority.
   carton 1.1.3 confirmed, proof deferred per blueprint escape clause.
 - Single PR (#283) across `continue` cycles; 10k-cell gate blocks merge.
 
+## Phase 1 (core domain, landed)
+
+Lexer, Parser (recursive descent, Excel precedence, round-trip printer),
+AST, Value (normative coercions, General number grammar, total order),
+Ref (A1/R1C1, ranges, cross-sheet, names), Graph (iterative-DFS cycles,
+Kahn dirty-only, volatile closure), Eval (strict core, lazy IF,
+short-circuit AND/OR, IFERROR/IFNA, IS*, injectable TODAY), Clock
+(Lotus-bug serials). 30/30 green.
+
+## Phase 2 (function library, landed)
+
+`Builtins.swift` (context, row-major folding with literal/member split,
+rectangular grids, dispatch), `BuiltinMath.swift` (SUM family with
+literal-coerce/member-skip rule, ROUND half-away with exact negative-n
+scaling, MOD divisor-sign, SUMPRODUCT zero-for-text), `BuiltinText.swift`
+(scalar-indexed LEFT/RIGHT/MID, U+0020 TRIM, TEXTJOIN, VALUE rejecting
+bools, TEXT over four patterns), `BuiltinLookup.swift`
+(case-insensitive exact keys, binary approx/MATCH 1/-1, lazy CHOOSE),
+`BuiltinDate.swift` (DATE overflow normalization, DATEDIF remainders incl.
+MD quirk, EDATE/EOMONTH clamping), `Phase2Tests.swift` (317-case oracle,
+all hand-computed). 37/37 green. Next: Phase 3 workbook/edit laws/codecs.
+
 - the Builder

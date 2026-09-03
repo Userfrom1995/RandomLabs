@@ -21,7 +21,7 @@ public enum Evaluator {
     public static func eval(
         _ expr: Expr,
         host: Addr,
-        lookup: @Sendable (Addr) -> Value,
+        lookup: @escaping @Sendable (Addr) -> Value,
         resolver: StaticResolver = .empty,
         todaySerial: Int = 0
     ) -> Value {
@@ -83,7 +83,7 @@ public enum Evaluator {
 
     private static func evalBinary(
         _ op: BinOp, l: Expr, r: Expr, host: Addr,
-        lookup: @Sendable (Addr) -> Value,
+        lookup: @escaping @Sendable (Addr) -> Value,
         resolver: StaticResolver,
         todaySerial: Int
     ) -> Value {
@@ -171,7 +171,7 @@ public enum Evaluator {
 
     private static func evalCall(
         _ fn: String, args: [Expr], host: Addr,
-        lookup: @Sendable (Addr) -> Value,
+        lookup: @escaping @Sendable (Addr) -> Value,
         resolver: StaticResolver,
         todaySerial: Int
     ) -> Value {
@@ -254,9 +254,15 @@ public enum Evaluator {
             guard args.isEmpty else { return .err(.value) }
             return .num(Double(todaySerial))
         default:
-            // Phase 2 (BuiltinMath/Text/Lookup/Date) wires real dispatch here.
+            // Phase 2 function library (BuiltinMath/Text/Lookup/Date).
             // Unknown functions stay `#NAME?` per research 6.
-            return .err(.name)
+            return Builtins.dispatch(
+                fn, args: args,
+                ctx: BuiltinContext(
+                    host: host, lookup: lookup,
+                    resolver: resolver, todaySerial: todaySerial
+                )
+            )
         }
     }
 
