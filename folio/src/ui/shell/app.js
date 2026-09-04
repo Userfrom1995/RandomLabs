@@ -22,7 +22,7 @@ import * as Compress from "../tools/compress-ops.js";
 import * as ConvertOps from "../tools/convert-ops.js";
 import * as PhaseE from "../tools/phaseE-ops.js";
 import { splitByBookmarks, parseOrderString, batchRename, printSpec, batchPlan, batchReducer } from "../../core/tier2/tier2.js";
-import { validateLink, simplifyInk } from "../../core/annotate/annotate.js";
+import { validateLink } from "../../core/annotate/annotate.js";
 import { scannerSpec } from "../../core/images/images.js";
 import { toText, toMarkdown, toHtml } from "../../core/convert/writers.js";
 
@@ -594,9 +594,12 @@ function wireTools() {
   });
   run("t-bakemarkup", async () => {
     const a = requireFile();
-    const r = await EditOps.bakeMarkup(a.bytes, PDFLib);
-    $("annotreport").textContent = r.baked + " markup annotation(s) baked into content.";
-    await refreshAfterOp("bake-markup", { baked: r.baked }, r.bytes, outName("baked"));
+    const r = await Annotate.bakeAnnotations(a.bytes, PDFLib);
+    const parts = Object.entries(r.bySubtype).map(([k, v]) => v + " " + k);
+    $("annotreport").textContent = r.baked
+      ? "Baked " + parts.join(", ") + " into content" + (r.skipped ? " (" + r.skipped + " unsupported left as annots)." : ".")
+      : "Nothing bakable found" + (r.skipped ? " (" + r.skipped + " unsupported annot(s) kept)." : ".");
+    await refreshAfterOp("bake-annotations", { baked: r.baked }, r.bytes, outName("baked"));
   });
   run("t-note", async () => {
     const a = requireFile();
@@ -607,8 +610,9 @@ function wireTools() {
   run("t-shape", async () => {
     const a = requireFile();
     const r = parseRect($("shapexy").value || "50,600,200,80");
-    const out = await Annotate.drawShape(a.bytes, { page: currentPage() - 1, kind: $("shapekind").value, ...r }, PDFLib);
-    await refreshAfterOp("shape", { kind: $("shapekind").value }, out, outName("shaped"));
+    const placed = await Annotate.addGeomAnnot(a.bytes, { page: currentPage() - 1, kind: $("shapekind").value, rect: r }, PDFLib);
+    $("annotreport").textContent = placed.subtype + " annotation placed on page " + currentPage() + " (bake to burn in).";
+    await refreshAfterOp("shape-" + placed.subtype.toLowerCase(), { kind: $("shapekind").value }, placed.bytes, outName("shaped"));
   });
   run("t-stamp", async () => {
     const a = requireFile();
@@ -664,8 +668,9 @@ function wireTools() {
   });
   run("t-anndel", async () => {
     const a = requireFile();
-    const r = await Annotate.deleteAnnotations(a.bytes, {}, PDFLib);
-    $("annotreport").textContent = r.removed + " annotation(s) removed.";
+    const sub = $("anndelsub").value;
+    const r = await Annotate.deleteAnnotations(a.bytes, sub === "all" ? {} : { subtypes: [sub] }, PDFLib);
+    $("annotreport").textContent = r.removed + " annotation(s) removed" + (sub === "all" ? "." : " (" + sub + ").");
     await refreshAfterOp("annots-cleared", { removed: r.removed }, r.bytes, outName("cleaned"));
   });
   // ink pad
@@ -706,8 +711,9 @@ function wireTools() {
     const sx = size.width / pad.width;
     const sy = size.height / pad.height;
     const strokes = inkStrokes.map((st) => st.map((p) => ({ x: p.x * sx, y: size.height - p.y * sy })));
-    const out = await Annotate.addInk(a.bytes, { page: currentPage() - 1, strokes: strokes.map((s) => simplifyInk(s)) }, PDFLib);
-    await refreshAfterOp("ink", { strokes: strokes.length }, out, outName("inked"));
+    const r = await Annotate.addInkAnnot(a.bytes, { page: currentPage() - 1, strokes }, PDFLib);
+    $("annotreport").textContent = "Ink annotation placed: " + r.strokes + " stroke(s), " + r.points + " points (bake to burn in).";
+    await refreshAfterOp("ink", { strokes: r.strokes }, r.bytes, outName("inked"));
   });
   // ---- Edit: N-up/booklet/overlay, compare ----
   run("t-nup", async () => {
