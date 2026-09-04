@@ -68,12 +68,18 @@ export async function createField(bytes, def, PDFLib) {
   } else if (v.type === "dropdown") {
     const f = form.createDropdown(v.name);
     f.addOptions(v.options);
-    if (v.value !== undefined) f.select(v.value);
+    if (v.value !== undefined) {
+      if (!v.options.includes(v.value)) throw new Error("field: value " + JSON.stringify(v.value) + " not in options for " + JSON.stringify(v.name));
+      f.select(v.value);
+    }
     f.addToPage(page, at);
   } else if (v.type === "list") {
     const f = form.createOptionList(v.name);
     f.addOptions(v.options);
-    if (v.value !== undefined) f.select(v.value);
+    if (v.value !== undefined) {
+      if (!v.options.includes(v.value)) throw new Error("field: value " + JSON.stringify(v.value) + " not in options for " + JSON.stringify(v.name));
+      f.select(v.value);
+    }
     f.addToPage(page, at);
   } else if (v.type === "radio") {
     const f = form.createRadioGroup(v.name);
@@ -82,7 +88,10 @@ export async function createField(bytes, def, PDFLib) {
       const w = Math.min(v.rect.h, v.rect.w / Math.max(1, n));
       f.addOptionToPage(opt, page, { x: v.rect.x + i * (v.rect.w / n), y: v.rect.y, width: w, height: v.rect.h });
     });
-    if (v.value !== undefined) f.select(v.value);
+    if (v.value !== undefined) {
+      if (!v.options.includes(v.value)) throw new Error("field: value " + JSON.stringify(v.value) + " not in options for " + JSON.stringify(v.name));
+      f.select(v.value);
+    }
   }
   form.updateFieldAppearances();
   return doc.save();

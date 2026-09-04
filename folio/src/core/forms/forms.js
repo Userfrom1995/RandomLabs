@@ -23,6 +23,12 @@ export function validateFieldDef(def, pageCount) {
   if ((def.type === "dropdown" || def.type === "radio" || def.type === "list") && !(def.options || []).length) {
     throw new Error("field: " + def.type + " needs options[]");
   }
+  if ((def.type === "dropdown" || def.type === "radio" || def.type === "list") && def.value !== undefined) {
+    const opts = (def.options || []).map((o) => String(o));
+    if (!opts.includes(String(def.value))) {
+      throw new Error("field: value " + JSON.stringify(String(def.value)) + " not in options for " + JSON.stringify(String(def.name)));
+    }
+  }
   return {
     name: String(def.name).slice(0, 120),
     type: def.type,
