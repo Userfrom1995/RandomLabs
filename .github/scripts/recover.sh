@@ -67,6 +67,10 @@ open_continuation() {
     new_pr=$(gh pr create --repo "$REPO" --base main --head "$branch" \
       --title "Recover: $title (PR #$pr)" \
       --body "Refs #$pr" 2>/dev/null || echo "")
+    # gh pr create prints a URL; normalize to a number for downstream callers.
+    if echo "$new_pr" | grep -qE '/pull/[0-9]+'; then
+      new_pr=$(echo "$new_pr" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+')
+    fi
   fi
   if [ -n "$new_pr" ]; then
     gh pr comment "$pr" --repo "$REPO" \
@@ -133,24 +137,37 @@ recover_pr() {
   local pr="$1"
   local pr_json
   pr_json=$(gh pr view "$pr" --repo "$REPO" \
-    --json number,state,title,body,headRefName,headRefOid,mergedAt 2>/dev/null)
+    --json number,state,title,body,headRefName,headRefOid,mergedAt,mergeCommit 2>/dev/null)
   [ -z "$pr_json" ] && { log "PR #$pr not found"; return 2; }
 
-  local state title branch recorded_head merged mergedAt
+  local state title branch recorded_head merged mergedAt merge_oid
   state=$(echo "$pr_json" | jq -r '.state')
   title=$(echo "$pr_json" | jq -r '.title')
   branch=$(echo "$pr_json" | jq -r '.headRefName')
   recorded_head=$(echo "$pr_json" | jq -r '.headRefOid')
   mergedAt=$(echo "$pr_json" | jq -r '.mergedAt')
+  merge_oid=$(echo "$pr_json" | jq -r '.mergeCommit.oid // empty' 2>/dev/null || echo "")
   if [ "$mergedAt" != "null" ] && [ -n "$mergedAt" ]; then merged="true"; else merged="false"; fi
   # state can be MERGED for merged PRs
   if [ "$state" = "MERGED" ]; then merged="true"; fi
 
-  log "PR #$pr state=$state merged=$merged branch=$branch recorded_head=$recorded_head"
+  log "PR #$pr state=$state merged=$merged branch=$branch recorded_head=$recorded_head merge=$merge_oid"
 
   if [ "$merged" = "true" ]; then
-    log "PR #$pr was merged; nothing to recover."
-    return 0
+    # A MERGED flag alone does not prove the work is on main: an integrity
+    # restore can rewind main past the merge (issue #283: PR #283 reported
+    # MERGED at 46b9d9 while origin/main stayed at b0461a8). Verify the
+    # recorded head or the merge commit is actually an ancestor of main.
+    git fetch origin main --quiet 2>/dev/null || true
+    [ -n "$recorded_head" ] && git fetch origin "$recorded_head" --quiet 2>/dev/null || true
+    [ -n "$merge_oid" ] && git fetch origin "$merge_oid" --quiet 2>/dev/null || true
+    if { [ -n "$recorded_head" ] && git merge-base --is-ancestor "$recorded_head" origin/main 2>/dev/null; } \
+      || { [ -n "$merge_oid" ] && git merge-base --is-ancestor "$merge_oid" origin/main 2>/dev/null; }; then
+      log "PR #$pr was merged and its commits are present on main; nothing to recover."
+      return 0
+    fi
+    log "PR #$pr reports MERGED but its commits are missing on main (merged-but-missing); recovering work from branch $branch."
+    # Fall through to branch-based recovery below (reopen/re-link path).
   fi
   if [ "$state" = "OPEN" ]; then
     log "PR #$pr is already open; nothing to recover."
