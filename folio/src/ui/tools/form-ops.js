@@ -19,6 +19,57 @@ export function describeForm(bytes, PDFLib) {
   });
 }
 
+// M4c form overlay: full field geometry for positioned HTML inputs.
+// Returns [{name, kind, page (1-based, null when unresolvable), rect
+// {x,y,w,h} in PDF points (null when the widget carries no Rect),
+// options[], value}]. Never throws per-field: unresolvable geometry
+// yields nulls so the shell can fall back to the generated field list.
+export async function describeFields(bytes, PDFLib) {
+  const doc = await PDFLib.PDFDocument.load(bytes);
+  const form = doc.getForm();
+  const pages = doc.getPages();
+  const q = (n) => Math.round(Number(n) * 10) / 10;
+  return form.getFields().map((f) => {
+    const kind = fieldKind(doc, PDFLib, f);
+    let rect = null;
+    let page = null;
+    try {
+      const widgets = f.acroField.getWidgets() || [];
+      const w = widgets[0];
+      if (w) {
+        try {
+          const r = w.getRectangle();
+          if (r && Number.isFinite(r.x) && Number.isFinite(r.width)) {
+            rect = { x: q(r.x), y: q(r.y), w: q(r.width), h: q(r.height) };
+          }
+        } catch { /* widget without a usable Rect: list fallback */ }
+        try {
+          const pref = w.P ? w.P() : null;
+          if (pref) {
+            const idx = pages.findIndex((pg) => String(pg.ref) === String(pref));
+            if (idx >= 0) page = idx + 1;
+          }
+        } catch { /* page unresolvable: list fallback */ }
+      }
+    } catch { /* no widgets: list fallback */ }
+    let options = [];
+    let value = null;
+    try {
+      if (kind === "text") value = f.getText();
+      else if (kind === "checkbox") value = f.isChecked();
+      else if (kind === "dropdown" || kind === "list" || kind === "radio") {
+        try {
+          options = f.getOptions() || [];
+        } catch { options = []; }
+        try {
+          value = f.getSelected();
+        } catch { value = null; }
+      }
+    } catch { /* unreadable value: input renders empty */ }
+    return { name: f.getName(), kind, page, rect, options, value };
+  });
+}
+
 export async function fillForm(bytes, values, PDFLib) {
   const doc = await PDFLib.PDFDocument.load(bytes);
   const form = doc.getForm();

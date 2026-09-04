@@ -164,3 +164,64 @@ export function rowsToTree(rows) {
   }
   return root;
 }
+
+// Bookmark outline-tree edits (M4c). Paths are index arrays from the root
+// (e.g. [1, 0] is the first child of the second top-level node). All ops
+// mutate the tree in place and return true, or false when the move is
+// illegal (first-child indent, top-level outdent, off-list move).
+export function nodeParent(nodes, path) {
+  let cur = { children: nodes };
+  for (const i of (path || []).slice(0, -1)) {
+    cur = (cur.children || [])[i];
+    if (!cur) return null;
+  }
+  return cur;
+}
+
+export function addBookmarkNode(nodes, entry) {
+  const list = nodes || [];
+  list.push({ title: String((entry && entry.title) || "New bookmark"), page: (entry && entry.page) || 1, children: [] });
+  return list.length - 1;
+}
+
+export function removeNode(nodes, path) {
+  const p = nodeParent(nodes, path);
+  const i = (path || [])[(path || []).length - 1];
+  if (!p || !Number.isInteger(i) || i < 0 || i >= p.children.length) return false;
+  p.children.splice(i, 1);
+  return true;
+}
+
+export function moveNode(nodes, path, dir) {
+  const p = nodeParent(nodes, path);
+  const i = (path || [])[(path || []).length - 1];
+  const j = i + dir;
+  if (!p || !Number.isInteger(i) || j < 0 || j >= p.children.length) return false;
+  const t = p.children[i];
+  p.children[i] = p.children[j];
+  p.children[j] = t;
+  return true;
+}
+
+// Indent: become the last child of the previous sibling.
+export function indentNode(nodes, path) {
+  const p = nodeParent(nodes, path);
+  const i = (path || [])[(path || []).length - 1];
+  if (!p || !Number.isInteger(i) || i <= 0 || i >= p.children.length) return false;
+  const prev = p.children[i - 1];
+  const [n] = p.children.splice(i, 1);
+  prev.children.push(n);
+  return true;
+}
+
+// Outdent: become the next sibling of the parent.
+export function outdentNode(nodes, path) {
+  if (!path || path.length < 2) return false;
+  const gp = nodeParent(nodes, path.slice(0, -1));
+  const p = nodeParent(nodes, path);
+  const i = path[path.length - 1];
+  if (!gp || !p || !Number.isInteger(i) || i < 0 || i >= p.children.length) return false;
+  const [n] = p.children.splice(i, 1);
+  gp.children.splice(path[path.length - 2] + 1, 0, n);
+  return true;
+}
