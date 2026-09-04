@@ -116,3 +116,23 @@ section 8. Certificate signing stays appearance-only (no PKI vendor);
 image replace is an overlay at census size (XObject swap not feasible
 in pdf-lib); attachments are a registry + OPFS sidecar (no embedded-
 files tree writer in pdf-lib).
+
+## M1 scoreboard (Clean Core & Visual Page Grid, 2026-09-04, node + headless chromium)
+
+Purge: 14 files deleted (ocr-ops, ocr-client, redact-ops, redact, burnin,
+office writers x3 + zip-read, office pack engine + 2 manifests, packs
+loader + manifest), 8 facades gone from UI with zero disabled stubs left.
+Unit suite trimmed to honest scope: 14/14 green (`node --test
+folio/tests/core.test.js`).
+
+| Gate | Metric | M1 result | Budget | Status |
+|------|--------|-----------|--------|--------|
+| M1 engine | binary roundtrips, vendored pdf-lib | merge 3+2=5, splits, chunks, delete, odd/even, reverse, rotate, grid reorder, extract, blank, dup, insert, resize/orient/crop/burn-crop, bookmark split, watermark/pagenum/hf, scrub (title lane), resave, GC, csv/text-to-PDF, nup/booklet/overlay, sample, stamp, flatten - all counts verified | all green | PASS |
+| M1 content | external pdf.js text parse of outputs | nup sheets contain all 5 source pages; overlay p1 contains A+B text | exact | PASS |
+| M1 bugs | roundtrip-caught defects | embedPdf-without-indices embeds 1 page (nup/booklet/overlay garbage) - fixed with explicit getPageIndices; viewer pdf.mjs import pointed at src/vendor (app never booted in browser) - fixed | 2 fixed | PASS |
+| M1 grid | headless chromium interaction | 3 live canvas thumbs (6.4 KB dataURLs), click/kb-Ctrl-arrow/drag/touch-button reorder all commit via engine + undo; opchain + filemeta settle; undo restores bytes | all paths | PASS |
+| M1 errors | console + pageerrors, desktop 1280 + mobile 390 | none | zero | PASS |
+| M1 perf | 100+100 merge / 200p resave / 200p reverse, node | 54 ms / 33 ms / 43 ms (44.7 KB fixture) | < 300 MB / instant feel | PASS |
+| M1 bytes | initial load excl. lazy worker | index 20 KB + src 284 KB + pdf-lib 525 KB + pdf.mjs 607 KB; worker 2.1 MB lazy | under 1-2 MB initial | PASS |
+
+OCR sec/page and Office fidelity return as M3 gates with vendored engines.
