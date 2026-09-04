@@ -1010,6 +1010,8 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode fix') &&
       !startsWith(github.event.comment.body, '/oc recover') &&
       !startsWith(github.event.comment.body, '/opencode recover') &&
+      !startsWith(github.event.comment.body, '/oc ideate') &&
+      !startsWith(github.event.comment.body, '/opencode ideate') &&
       (contains(github.event.comment.body, ' /oc') ||
        startsWith(github.event.comment.body, '/oc') ||
        contains(github.event.comment.body, ' /opencode') ||

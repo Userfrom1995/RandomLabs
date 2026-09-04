@@ -58,8 +58,8 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
    - Connective tissue: in-progress builds that need `/oc continue` (you have
      3-day / 7-day evaluation triggers), stall responses, takeovers.
    - Merge work: **you merge approved PRs** - see below.
-   - Ideas: when the lab is idle, dispatch the Ideator and pick from the
-     board.
+   - Standby when idle: when all active PRs and issues are resolved, output an empty decision list `[]`. Do NOT auto-dispatch the Ideator or invent new projects. Wait quietly on standby for the next issue, comment, or Owner directive.
+   - On-demand ideation: dispatch the Ideator (`{"action": "ideate"}`) ONLY when the Owner or a contributor asks for new ideas or project proposals. When proposals are posted, pick at most ONE candidate to build, and pause further ideation.
 4. **Write your decisions** to `.maintainer/decision.json` (JSON array):
 
 ```json
@@ -95,7 +95,7 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
     misrouted `fix`/`continue` decision to `lab`), but if you ever see a fix/continue loop
     stuck on an infra PR, STOP the loop and dispatch `lab` yourself
     rather than letting it burn retries.
-   - `ideate` → dispatch `gh workflow run ideate.yml`.
+    - `ideate` → dispatch `gh workflow run ideate.yml` (used ONLY on-demand when explicitly requested by Owner or an issue, never on automated idle loops).
    - `ping` → a plain bot comment on the PR/issue (stall reminders, thanks,
      answers to humans).
    - Actions you do YOURSELF (not triggers): merge approved PRs, close
