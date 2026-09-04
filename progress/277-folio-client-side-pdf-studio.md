@@ -2,9 +2,9 @@
 
 - **Issue:** #277
 - **Branch (M4):** opencode/issue277-20260904164811
-- **Status:** in-progress
-- **Active Milestone:** M4 (blueprinted, ready for build)
-- **Updated:** 2026-09-04T17:05:00Z
+- **Status:** complete
+- **Active Milestone:** M4 (complete, ready for review)
+- **Updated:** 2026-09-04T17:30:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
 
@@ -46,7 +46,7 @@
     mode click-defaults commit, bookmark tree serialize (node 9/9).
   - [x] M4b canvas overlay (`viewer/overlay.js`): crop bbox + click/drag
     place for notes/shapes/links/stamps/signatures/images via M1/M2 ops.
-  - [ ] M4c form overlays + bookmark outline tree + studio layout
+  - [x] M4c form overlays + bookmark outline tree + studio layout
     (top bar, collapsible sidebar, toasts, progress, shortcuts).
 
 ## M4 blueprint (Architect, 2026-09-04)
@@ -69,13 +69,36 @@
 
 ## Current step
 
-M4 slice 2 landed (M4b placement-mode DOM wiring through M1/M2 ops +
-crop bbox with handles, node 12/12 new M4 tests, existing 29 + 14
-green, headless boot zero console errors + in-browser module probe
-green). Builder continues with M4c (form overlays, bookmark tree,
-studio layout) on this branch. Final milestone PR uses `Closes #277`.
+M4 slice 3 landed (M4c form overlays positioned over AcroForm geometry
++ generated field list, bookmark outline tree in both routes, studio
+shell with collapsible sidebar + shortcut sheet + global keys; node
+15/15 + full 58 green, headless zero console errors, in-browser probe
+with a live create/describe/fill engine roundtrip green). M4 is
+complete. Final milestone PR uses `Closes #277`.
 
 ## Agent log
+
+- 2026-09-04 (Builder, M4 slice 3): M4c - `describeFields` geometry
+  export in `form-ops.js` (page via widget `P()` ref, rect via
+  `getRectangle()`, options/value per kind, null-tolerant for the list
+  fallback); tree-edit pure helpers in `overlay.js` (`addBookmarkNode`,
+  `removeNode`, `moveNode`, `indentNode`, `outdentNode`); `#formlayer`
+  overlay rendering one live HTML input per visible field on the
+  current page via `pdfToCss` (change commits that field through the
+  real `fillForm`), `#formlist` generated list with `Fill from this
+  list`; `bmtext`/`ext-bmtext` textareas removed and replaced by a
+  shared outline-tree editor (`#bmtree` + `#bmtree-pages`: inline
+  rename, page numbers, up/down/indent/outdent/delete buttons, same-
+  level drag reorder) feeding Set/TOC/Split through `treeToRows`;
+  `filljson` survives only as a collapsed a11y fallback (id kept);
+  studio shell (`wireStudio`: collapsible sidebar, `?` shortcut sheet,
+  `v`/`Esc` disarm, `[`/`]` pages, Ctrl+z/y undo/redo, centered
+  viewport). Verified: node folio-m4 15/15 (new: geometry roundtrip,
+  tree edits, M4c anti-rot gate), full repo 58/58 green, headless boot
+  zero console errors (statusbar stall reproduces on main: environment
+  artifact), in-browser probe green (overlay math + tree indent +
+  create/describe/fill roundtrip). Decision action: review (M4 final,
+  Closes #277).
 
 - 2026-09-04 (Builder, M4 slice 2): M4b canvas overlay - `#placetoolbar`
   with 8 armed modes + crosshair + ghost rect + live hint, persistent
