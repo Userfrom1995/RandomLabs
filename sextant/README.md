@@ -30,7 +30,9 @@ dotnet publish src/Sextant.App -c Release
 
 ## Status
 
-Phase 0 complete: solution + Core skeleton (`Geo`, `WebMercator` + `Albers` +
-`Reprojector`, `TileMath`) + 14 xUnit tests green + hello-map Blazor shell
-painting one batch through `ICanvasBridge` + `dotnet publish` verified.
-Phases 1-5 build projections/tiles/index/routing/app-shell in dependency order.
+Phase 2 complete: tile pipeline (`Geometry` clip/simplify/quantize +
+`TileBuilder` deterministic emit + `Packs` manifest/reader +
+`Reprojector.ReprojectTo`) + `Sextant.Pack` synthetic v1 city pack (140
+features, byte-identical across runs) + `docs/tile-pipeline.md` + 42/42 xUnit
+green (incl. pack-to-tile integration). Phases 3-5 build index/routing/app-shell
+in dependency order.
