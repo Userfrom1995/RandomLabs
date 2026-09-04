@@ -1,0 +1,26 @@
+{
+  "files": [
+    "tesseract-core-lstm.wasm.js",
+    "tesseract-core-lstm.wasm",
+    "tesseract.esm.min.js",
+    "worker.min.js",
+    "lang/eng.traineddata.gz"
+  ],
+  "lang": "eng",
+  "licenses": [
+    "tesseract.js Apache-2.0",
+    "tesseract.js-core Apache-2.0",
+    "eng.traineddata Apache-2.0 (tesseract-ocr/tessdata via @tesseract.js-data)"
+  ],
+  "name": "folio-ocr-pack",
+  "oem": "LSTM",
+  "sources": [
+    "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js",
+    "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+    "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/tesseract-core-lstm.wasm.js",
+    "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/tesseract-core-lstm.wasm",
+    "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int/eng.traineddata.gz"
+  ],
+  "totalBytes": 9941472,
+  "vendored": "2026-09-04"
+}
