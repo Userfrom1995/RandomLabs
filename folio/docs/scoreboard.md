@@ -136,3 +136,14 @@ folio/tests/core.test.js`).
 | M1 bytes | initial load excl. lazy worker | index 20 KB + src 284 KB + pdf-lib 525 KB + pdf.mjs 607 KB; worker 2.1 MB lazy | under 1-2 MB initial | PASS |
 
 OCR sec/page and Office fidelity return as M3 gates with vendored engines.
+
+## M2 scoreboard (Native AcroForms & Vector Markup, 2026-09-04, node + headless chromium)
+
+| Gate | Metric | M2 result | Budget | Status |
+|------|--------|-----------|--------|--------|
+| M2 annots | annot roundtrips, vendored pdf-lib | Ink place (RDP 4pts to 3) + InkList stored + listed + baked + removed; Square/Circle/Line place + list + bake + remove; Highlight QuadPoints stored + quad-baked; Text note skipped by bake, subtype delete removes it | 33/33 green | PASS |
+| M2 forms | create/fill/flatten all 5 kinds | text/check/dropdown/radio/list create + describe; fill values read back via pdf-lib getters; invalid dropdown/radio option now throws (was silent no-op); missing field throws; flatten leaves 0 fields | 13/13 green | PASS |
+| M2 content | external pdf.js text parse | flattened "Ada Lovelace" extractable post-flatten; baked highlight keeps "searchable words here" | 3/3 green | PASS |
+| M2 bugs | roundtrip-caught defects | choice fill recorded unknown options silently (reported success, viewers render broken) - fixed with pre-select validation; bake helpers referenced unscoped PDFLib (Square/Circle/Highlight bake silently kept) - fixed with explicit param | 2 fixed | PASS |
+| M2 visual | headless chromium, desktop 1280 + mobile 390 + #/annotate | app boots, zero console messages (fixed 512px manifest icon placeholder that logged a size warning); new controls in DOM (Place ink/shape, Bake annotations, subtype filter) | zero errors | PASS |
+| M2 regress | existing suites | core 14/14, tester-m1 7/7 | all green | PASS |
