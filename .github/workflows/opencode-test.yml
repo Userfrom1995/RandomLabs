@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    if: github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/oc test')
+    if: github.event.issue.pull_request != null && (startsWith(github.event.comment.body, '/oc test') || startsWith(github.event.comment.body, '/opencode test'))
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -59,8 +59,8 @@ jobs:
 
             READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
 
-            SAFETY NET (always binding): you NEVER write code to fix the app yourself, commit, push, rebase, merge, or create branches/PRs; you may write testing scripts or run the app; you MUST clean the working tree (`git checkout -- .`, `git clean -fd`, confirm `git status --porcelain` empty) before posting.
-            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"maintainer"}` for approval/escalation or `{"action":"fix"}` when changes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
+            SAFETY NET (always binding): you NEVER write code to fix the app yourself; you only author test files and test suites in test directories. On standard project PRs, you ARE authorized to commit and push your new test suites using git identity "The Tester" and commit message prefix "tester: ...". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, AGENTS.md, or LAB.md), you are strictly read-only and must NEVER commit or push. If tests fail on standard PRs, commit your failing test case so it is reproducible, push it, and output {"action":"fix"}. On infrastructure PRs, if checks fail, output {"action":"lab"}. If all pass, commit and push your test suites (on standard PRs), and output {"action":"maintainer"}.
+            Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"maintainer"}` for approval/escalation, `{"action":"fix"}` when app fixes are required, or `{"action":"lab"}` when infrastructure fixes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
             You post ONE plain text decision comment per run containing your findings. End every decision comment with your sign-off: `- the Tester`.
 
       - name: Forward tester decision
@@ -79,6 +79,9 @@ jobs:
           if [ "$action" = "maintainer" ]; then
             echo "Tests passed and approved! Posting /oc maintainer to hand over to Maintainer"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          elif [ "$action" = "lab" ]; then
+            echo "Tester requested lab fixes on infrastructure PR. Posting /oc lab"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
           elif [ "$action" = "fix" ]; then
             head_branch="${{ steps.pr-info.outputs.head_ref }}"
             if echo "$head_branch" | grep -q "opencode/lab"; then
