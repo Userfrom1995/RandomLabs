@@ -45,6 +45,9 @@ textarea{width:100%;min-height:90px}
 #overlay .cropbox{position:absolute;border:2px solid var(--folio-accent);background:rgba(79,193,160,0.08)}
 #overlay .handle{position:absolute;width:12px;height:12px;background:var(--folio-accent);border-radius:3px;touch-action:none}
 #overlay.crosshair{cursor:crosshair}
+#placetoolbar button.armed{border-color:var(--folio-accent);color:var(--folio-accent)}
+#croprow[hidden]{display:none}
+#overlayhint{min-height:1.2em}
 #toasts{position:fixed;right:14px;bottom:44px;display:flex;flex-direction:column;gap:8px;z-index:50;max-width:min(360px,90vw)}
 .toast{background:#1a2030;border:1px solid var(--folio-border);border-left:4px solid var(--folio-accent2);border-radius:8px;padding:10px 12px;font-size:0.85rem;box-shadow:0 6px 24px rgba(0,0,0,0.4)}
 .toast.error{border-left-color:var(--folio-danger)}
@@ -111,6 +114,21 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <input id="searchbox" placeholder="Search text" aria-label="Search text" style="flex:1;min-width:120px" /><button id="searchbtn">Search</button>
 </div>
 <div class="muted" id="searchhits"></div>
+<div class="card" aria-label="Place on page">
+<h3>Place on page <span class="muted">click or drag on the preview, commits real bytes</span></h3>
+<div class="row" id="placetoolbar" role="toolbar" aria-label="Placement modes">
+<button data-mode="crop" title="Drag a crop box, then Apply">Crop box</button>
+<button data-mode="note" title="Click to drop a sticky note">Note</button>
+<button data-mode="shape" title="Drag a rectangle for the chosen shape">Shape</button>
+<button data-mode="link" title="Drag the clickable area for the link target">Link</button>
+<button data-mode="stamp" title="Click to stamp the Annotate text">Stamp</button>
+<button data-mode="sign" title="Click to place the signature stamp">Sign</button>
+<button data-mode="image" title="Drag the image frame (pick the image in Images first)">Image</button>
+<button data-mode="field" title="Drag the form-field frame (name/type in Forms first)">Field</button>
+</div>
+<div class="row" id="croprow" hidden><button id="cropcommit">Apply crop (all pages, reversible)</button><button id="cropburn">Burn crop</button><button id="cropclear">Clear box</button></div>
+<div class="muted" id="overlayhint" aria-live="polite">Pick a tool above, then click or drag on the page preview. Esc cancels. Arrow keys nudge the crop box, Enter applies it.</div>
+</div>
 <div id="canvaswrap"><canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas><div id="overlay" aria-hidden="true"></div></div>
 <div id="batchprog" role="progressbar" aria-label="Batch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
 <div class="card" style="margin-top:10px" aria-label="Page organizer">
@@ -136,7 +154,10 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><input id="ext-order" placeholder="Reorder e.g. 3,1,2" style="flex:1;min-width:110px" /><button id="t-reorder">Reorder</button></div>
 <div class="row"><input id="ext-blankat" type="number" value="1" style="width:80px" /><button id="t-blank">Insert blank page</button></div>
 <div class="row"><select id="ext-size"><option>A4</option><option>Letter</option><option>Legal</option><option>A3</option><option>A5</option></select><select id="ext-orient"><option value="portrait">portrait</option><option value="landscape">landscape</option></select><button id="t-resize">Resize pages</button><button id="t-orient">Fix orientation</button></div>
-<div class="row"><input id="ext-crop" placeholder="Crop x,y,w,h e.g. 36,36,523,770" style="flex:1;min-width:140px" /><button id="t-crop">Crop (reversible)</button><button id="t-burncrop">Burn crop</button></div>
+<div class="row"><button id="t-crop">Crop (reversible)</button><button id="t-burncrop">Burn crop</button></div>
+<details class="a11y"><summary>Precise crop rect (keyboard fallback)</summary>
+<div class="row"><label>Crop x,y,w,h <input id="ext-crop" placeholder="x,y,w,h e.g. 36,36,523,770" style="width:190px" /></label></div>
+</details>
 <textarea id="ext-bmtext" placeholder="Bookmark split: Title | page, one per line"></textarea>
 <div class="row"><button id="t-bmsplit">Split by bookmarks</button></div>
 <div class="muted" id="pages-extra-report"></div>
@@ -166,10 +187,10 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><input id="pntpl" value="Page {n} of {total}" /><button id="t-pagenum">Add page numbers</button></div>
 <div class="row"><input id="wmtext" value="DRAFT" /><button id="t-watermark">Text watermark</button></div>
 <div class="row"><input id="mkquery" placeholder="Word to mark" style="flex:1;min-width:110px" /><select id="mksubtype"><option>Highlight</option><option>Underline</option><option>StrikeOut</option></select><button id="t-markup">Mark up</button><button id="t-bakemarkup">Bake annotations into content</button></div>
-<div class="row"><input id="notexy" placeholder="x,y e.g. 100,650" style="width:120px" /><input id="notetext" placeholder="Note text" style="flex:1;min-width:110px" /><button id="t-note">Sticky note on current page</button></div>
-<div class="row"><select id="shapekind"><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option><option value="line">Line</option><option value="arrow">Arrow</option></select><input id="shapexy" placeholder="x,y,w,h e.g. 50,600,200,80" style="width:170px" /><button id="t-shape">Place shape</button></div>
+<div class="row"><input id="notetext" placeholder="Note text" style="flex:1;min-width:110px" /><button id="t-note">Sticky note on current page</button></div>
+<div class="row"><select id="shapekind"><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option><option value="line">Line</option><option value="arrow">Arrow</option></select><button id="t-shape">Place shape</button></div>
 <div class="row"><input id="stamptext" placeholder="Stamp text e.g. APPROVED" style="flex:1;min-width:110px" /><button id="t-stamp">Stamp</button></div>
-<div class="row"><input id="linktarget" placeholder="https://... or page:N" style="flex:1;min-width:110px" /><input id="linkrect" placeholder="x,y,w,h e.g. 56,740,200,20" style="width:170px" /><button id="t-link">Add link</button></div>
+<div class="row"><input id="linktarget" placeholder="https://... or page:N" style="flex:1;min-width:110px" /><button id="t-link">Add link</button></div>
 <div class="row"><input id="batespre" value="FOLIO-" style="width:90px" /><input id="batesdigits" type="number" value="6" style="width:60px" /><input id="batesstart" type="number" value="1" style="width:70px" /><button id="t-bates">Bates number all pages</button></div>
 <div class="row"><input type="file" id="wmpick" accept="image/*" /><button id="t-wmimg">Image watermark (centered, faint)</button></div>
 <div class="card"><h3>Ink (draw below, applies to current page)</h3>
@@ -181,6 +202,12 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><button id="t-bookmarks">Set bookmarks</button><button id="t-toc">Set bookmarks + TOC page</button></div>
 </div>
 <div class="row"><button id="t-annlist">List annotations</button><select id="anndelsub" aria-label="Annotation subtype filter"><option value="all">All subtypes</option><option>Highlight</option><option>Underline</option><option>StrikeOut</option><option>Ink</option><option>Square</option><option>Circle</option><option>Line</option><option>Text</option><option>Link</option></select><button id="t-anndel">Delete annotations</button></div>
+<details class="a11y"><summary>Precise coordinates (screen-reader / keyboard fallback)</summary>
+<p class="muted">Pointer-first: use Place on page above the preview. These fields only feed the buttons when no overlay box was drawn.</p>
+<div class="row"><label>Note x,y <input id="notexy" placeholder="x,y e.g. 100,650" style="width:130px" /></label></div>
+<div class="row"><label>Shape x,y,w,h <input id="shapexy" placeholder="x,y,w,h e.g. 50,600,200,80" style="width:180px" /></label></div>
+<div class="row"><label>Link x,y,w,h <input id="linkrect" placeholder="x,y,w,h e.g. 56,740,200,20" style="width:180px" /></label></div>
+</details>
 <div class="muted" id="annotreport"></div>
 </div></section>
 
@@ -198,16 +225,22 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><input id="imgdpi" type="number" value="150" style="width:80px" /><button id="t-pdf2img">Current page to PNG</button></div>
 <div class="row"><input type="file" id="imgpick" accept="image/*" multiple /><button id="t-img2pdf">Images to PDF</button></div>
 <div class="row"><button id="t-imgcensus">List embedded images</button><button id="t-imgextract">Extract embedded images</button></div>
-<div class="row"><input type="file" id="imginsertpick" accept="image/*" /><input id="imgxy" placeholder="x,y e.g. 56,400" style="width:120px" /><button id="t-imginsert">Insert image on current page</button></div>
+<div class="row"><input type="file" id="imginsertpick" accept="image/*" /><button id="t-imginsert">Insert image on current page</button></div>
 <div class="row"><button id="t-scanner">Scanner effect on current page (new PDF)</button></div>
 <div class="row"><input type="file" id="imgreplace-pick" accept="image/*" /><input id="imgreplace-idx" type="number" value="0" style="width:70px" title="Embedded image index from census" /><button id="t-imgreplace">Replace image (overlay)</button></div>
 <p class="muted">Replace is an overlay at census size (original XObject retained); run lossless optimize afterwards to slim.</p>
+<details class="a11y"><summary>Precise coordinates (keyboard fallback)</summary>
+<div class="row"><label>Insert x,y <input id="imgxy" placeholder="x,y e.g. 56,400" style="width:130px" /></label></div>
+</details>
 <div class="muted" id="imgreport"></div>
 </div></section>
 
 <section class="route" id="route-forms"><div class="card"><h3>Forms (F1-F4)</h3>
 <div class="row"><button id="t-formlist">List fields</button><button id="t-formflatten">Flatten form</button><button id="t-xfa">Check for legacy XFA</button></div>
-<div class="row"><input id="fldname" placeholder="Field name" style="width:110px" /><select id="fldtype"><option value="text">Text</option><option value="checkbox">Checkbox</option><option value="dropdown">Dropdown</option><option value="radio">Radio</option><option value="list">List</option></select><input id="fldrect" placeholder="x,y,w,h e.g. 56,600,200,24" style="width:150px" /><input id="fldopts" placeholder="options a,b (choice fields)" style="flex:1;min-width:110px" /><button id="t-formcreate">Create field (current page)</button></div>
+<div class="row"><input id="fldname" placeholder="Field name" style="width:110px" /><select id="fldtype"><option value="text">Text</option><option value="checkbox">Checkbox</option><option value="dropdown">Dropdown</option><option value="radio">Radio</option><option value="list">List</option></select><input id="fldopts" placeholder="options a,b (choice fields)" style="flex:1;min-width:110px" /><button id="t-formcreate">Create field (current page)</button></div>
+<details class="a11y"><summary>Precise coordinates (keyboard fallback)</summary>
+<div class="row"><label>Field x,y,w,h <input id="fldrect" placeholder="x,y,w,h e.g. 56,600,200,24" style="width:180px" /></label></div>
+</details>
 <textarea id="filljson" placeholder='Fill values as JSON, e.g. {"full": "Ada", "agree": true}'></textarea>
 <div class="row"><button id="t-formfill">Fill form</button></div>
 <div class="muted" id="formreport"></div>
