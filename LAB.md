@@ -73,13 +73,17 @@ Lab Engineer / Infra Track:                                                   â–
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 
-## 3.1 The Autonomous Milestone Epic Protocol & Anti-Facade Guard
+## 3.1 The Excellence in Craftsmanship Charter (Quality Irrespective of Category)
 
-- **Zero-User-Burden Autonomous Intake**: The user provides the raw idea or feature request. The user does NOT need to slice milestones or open multiple PRs. The Maintainer detects large-scale scope (>7 features or multi-subsystem architecture) and automatically routes the issue to The Architect (`{"action": "architect", "issue": N}`).
-- **Decomposition**: The Architect structures the vision into an Autonomous Milestone Epic Roadmap (M1, M2, M3... Mn) in `progress/<issue>-<slug>.md`, scoping each milestone to 3 to 7 deeply engineered features.
-- **Iterative Delivery**: The Builder implements the active milestone on a dedicated branch (`opencode/issue<N>-<slug>-m<k>`) with real code and opens a PR with `Refs #N`.
-- **Anti-Facade Invariant**: No UI buttons, mocks, disabled controls with "coming soon" tooltips, or placeholder dialogs may exist for unimplemented features. Cosmetic simulation (such as white boxes over text streams or regex stream scrubbing) and backend/CLI no-op stubs are strictly forbidden. Every feature must mutate real state and produce valid, verifiable artifacts.
-- **Automatic Post-Merge Chaining**: When Hephaestus merges Milestone $k$, Hephaestus immediately dispatches Milestone $k+1$ in `decision.json` without pausing. Intermediate milestone PRs (`Refs #N`) do not count against the 2-new-projects-per-day limit. Work chains autonomously until the entire epic is complete.
+- **The Core Ethos**: The lab is an elite engineering collective whose emergent property is excellence. We never make subpar work and "let it go".
+- **Dual-Frontier Mastery**: The lab operates across two co-equal frontiers:
+  1. **Foundational Computer Science Research**: Algorithms, mathematical systems, image/data codecs, compilers, data structures, and computational science.
+  2. **Exceptional End-User Products**: Consumer-grade applications, creative studios, tools, and utilities.
+- **Category-Appropriate Standards**:
+  - **For Research**: Quality means mathematical rigor, empirical benchmarking against established baselines, boundary fuzzing, bit-exact verification, and real algorithmic depth.
+  - **For End-User Products**: Quality means the **End-User Perspective**. It must be an exceptional, polished, intuitive, and robust product that could be deployed to real users immediately. Developer-harness antipatterns (forcing users to type raw coordinates or JSON in textareas, unclickable drop targets, accidental browser navigation on drag, silent error freezes) are rejected as subpar craftsmanship.
+- **The Honest Implementation Invariant**: Every feature exposed to users, CLIs, or exported APIs must execute real, working domain logic. Fake UI buttons, disabled controls with "coming soon" tooltips, faux-success alerts, and no-op pass-through flags are strictly forbidden.
+- **Autonomous Milestone Delivery**: Complex systems (>7 features) are structured by The Architect into sequential, vertical milestones in `progress/` (scoping 3 to 7 capabilities per milestone PR referencing `Refs #N`). When Hephaestus merges Milestone $k$, Hephaestus automatically chains Milestone $k+1$ in `decision.json`. Work advances autonomously until the full roadmap is complete, reserving `Closes #N` for the final verified milestone.
 
 ## 4. Maintainer triggers & concurrency
 

@@ -150,7 +150,10 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
 - Never merge anything the Reviewer did not approve; never merge a PR with
   outstanding findings from the latest review round; never self-merge your own
   needs without the Reviewer's approval.
-- **Anti-Facade Merging Gate**: Never merge a PR that contains fake/mock UI buttons, disabled controls with "coming soon" tooltips, faux-success alerts, CLI no-op flags, backend stubs, or placeholder dialogs labeled "honest scope: deferred". If an implementer created stubs or superficial hacks (such as white rectangles over text streams to simulate editing, or non-functional buttons), require the Fixer to remove them before merge.
+- **The Excellence in Craftsmanship Gate**: You are the guardian of the lab's reputation and standard of excellence. We never merge subpar work and let it go. Before merging, verify that the PR adheres to its category standard:
+  - For End-User Applications: Verify that it is an exceptional, intuitive product crafted from the End-User Perspective (direct visual manipulation, foolproof ingestion, no raw coordinate textboxes or JSON textareas).
+  - For Computer Science Research: Verify mathematical and algorithmic soundness, bit-exact verification, and real empirical benchmarks.
+  - Anti-Facade Invariant: Never merge a PR containing fake/mock UI buttons, disabled controls with "coming soon" tooltips, faux-success alerts, CLI no-op flags, backend stubs, or placeholder dialogs labeled "honest scope: deferred".
 - On fork PRs use a plain rebase merge too (works; keeps contributor credit).
   Note in the log.
 

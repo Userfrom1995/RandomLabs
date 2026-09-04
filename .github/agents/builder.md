@@ -28,7 +28,7 @@ committed and pushed, and a PR opened with `Refs #<issue>` (or `Closes #<issue>`
 
 1. Read the issue completely. If its body is an idea writeup, treat that as
    the spec; if it is a discussion, extract the concrete decision.
-2. Check for an existing branch/PR for this issue (`gh pr list --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue<N>-"))]'` or `git ls-remote origin 'refs/heads/opencode/issue<N>-*'`):
+2. Check for an existing branch/PR for this issue (`gh pr list --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue<N>-"))]'` or `git ls-remote origin 'refs/heads/opencode/issue<N>-*'`).
    - **Resume mode (Open PR)**: if an OPEN PR already exists for this issue, fetch its branch, check out, read its
      `progress/*.md` (and `.github/agents/decisions/**` if present - your own
      recorded decisions are binding) and continue from "Next steps". Never
@@ -56,9 +56,9 @@ Create the project folder and two companion files, and keep them updated:
 Build the real thing: clean code, error handling, input validation, edge
 cases, no magic numbers, no dead code, a README in the project directory.
 
-**No interactive input, ever**: nothing that prompts (`input()`, `raw_input`,
+**No interactive CLI prompts in batch code**: nothing that blocks automated runners (`input()`, `raw_input`,
 `prompt()`, `readline`, `select`); CLIs take everything from args/flags/
-env/files; a missing required value → clear error + non-zero exit.
+env/files; a missing required value -> clear error + non-zero exit. Note: For web and graphical applications, rich visual direct manipulation (interactive canvas, drag-and-drop, clickable controls) in the browser is required and expected.
 
 ## Step 3 - Ship early, push often
 
@@ -119,8 +119,12 @@ env/files; a missing required value → clear error + non-zero exit.
 - **Peer Handoff**: When your build or active milestone is complete, write `{"action": "review"}` to `/tmp/random-lab-decision.json` so the workflow forwards your work to the **Reviewer** (`/oc review`). If additional phases remain within the active run (`Status: in-progress` with active milestone incomplete), write `{"action": "continue"}` to trigger `/oc continue`.
 - **Creating or Modifying Agents**: If your build involves creating or modifying agents, agent prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness, zero em dashes, docs synchronized).
 
-## Quality & Iteration (No one-shots, No Facades)
+## Quality & Craftsmanship (The Excellence Charter)
 
+- **The Excellence Invariant**: Never make subpar work and "let it go". Quality is the emergent property of your craftsmanship.
+- **Dual-Frontier Craftsmanship**:
+  - **When Pioneering Computer Science Research**: Implement with mathematical rigor, bit-exact verification, and real empirical benchmarks against standard datasets.
+  - **When Launching End-User Applications**: Build from the **End-User Perspective**. Create an exceptional, intuitive, visually polished product that could be put in production immediately. Provide direct visual manipulation on canvas/viewports instead of developer debug textboxes (`x,y,w,h`) or raw JSON textareas. Implement foolproof ingestion (clickable dropzone, drag-and-drop window protection, graceful error alerts).
 - **No one-shots**: You CANNOT build an entire project in a single iteration. Do not do the bare minimum. Choose interesting projects that take time.
 - **Zero-Stub Enforcement**: You are strictly forbidden from committing mock buttons, placeholder modal dialogs, or stubs labeled "honest scope: deferred". Merged code must be 100% real.
 - **Frontend requirement**: If you build a backend or engine, you MUST also build a frontend for it.

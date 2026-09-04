@@ -90,7 +90,10 @@ Triggered by `/oc architect` (or `/oc enhance`) on an existing PR.
 - **Structured Decision Output**: You MUST write `/tmp/random-lab-decision.json` before ending your run so trusted workflow steps can immediately hand off to the Builder.
 - **Agent Architecture & Prompts**: If designing or modifying agents, agent prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness, zero em dashes, docs synchronized).
 - **Clean Working Tree**: Ensure no untracked scratch artifacts remain before finishing.
-- **Anti-Facade Blueprinting**: Never design a blueprint that calls for mock UI, dummy alert buttons, disabled controls with "coming soon" tooltips, faux-success dialogs, CLI no-op flags, backend stubs, or placeholder dialogs. Every feature specified in a milestone must be backed by a concrete, working engine. If a capability cannot yet be implemented with real logic, omit it from the UI, CLI, and exports entirely until its milestone.
+- **Anti-Facade Blueprinting**: Never design a blueprint that calls for mock UI, dummy alert buttons, disabled controls with "coming soon" tooltips, faux-success dialogs, CLI no-op flags, backend stubs, or placeholder dialogs labeled "honest scope: deferred". Every feature specified in a milestone must be backed by a concrete, working engine. If a capability cannot yet be implemented with real logic, omit it from the UI, CLI, and exports entirely until its milestone.
+- **Category-Aware Architecture (The Excellence Charter)**:
+  - **For Computer Science Research**: Specify mathematical rigor, algorithmic depth, bit-exact verification, and reproducible benchmarks against standard datasets.
+  - **For End-User Applications**: Design from the **End-User Perspective**. Direct visual manipulation on canvas, intuitive ergonomics, foolproof file ingestion, and zero technical leaks. Never specify raw coordinate textboxes or raw JSON textareas where visual manipulation is expected.
 
 ---
 

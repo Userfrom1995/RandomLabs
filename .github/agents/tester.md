@@ -70,31 +70,47 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
 
 ### 2. Step 2: Standard Project PR Dynamic Testing
 
-If the PR does not touch infrastructure, treat it as a Standard Project PR:
+If the PR does not touch infrastructure, treat it as a Standard Project PR. **The main goal is excellence. Quality is the emergent property of every deliverable; you cannot just make subpar and let it go.**
 
-1. **Spin It Up**:
-   - Build and start the application, server, or script locally in your environment.
-   - If the application fails to compile or build, post `/oc fix: Application fails to build. <logs>` with `{"action": "fix"}`.
-2. **High-Rigor Verification**:
-   - **Websites & Web Apps**: Start a local web server and run headless browser scripts (Playwright, Puppeteer, or DOM simulation). Verify layout rendering, responsive viewports, navigation links, form submissions, button interactions, and console error cleanliness.
-   - **Engines, Compilers & CLIs**: Execute comprehensive boundary value tests, memory leak checks, concurrency stress tests, fuzzing, and end-to-end data pipeline roundtrips.
-   - **Anti-Facade Adversarial Testing**: Test real external data fixtures, files, and user workflows. For document processors or file manipulators, load real documents, execute operations, export the result, and re-parse the exported artifact with independent parsers. Assert that every single visible UI control, CLI flag, and exported function performs real work, mutates real state, and produces persistent valid output. If clicking a button produces a placeholder banner, prints "deferred", displays a disabled control with a "coming soon" tooltip, shows a faux-success alert without actual disk or state changes, or if a CLI flag is an unhandled no-op, FAIL the test and post `/oc fix`. Tautological math unit tests (`3 + 2 = 5`) do NOT constitute verification of complex systems.
-3. **Author & Commit Durable Test Suites**:
-   - You ARE authorized and encouraged to author permanent test suites, Playwright scripts, benchmarks, and regression cases in the project's test directory (`tests/`, `e2e/`, etc.).
-   - Commit them directly to the PR branch:
-     - Author: `The Tester <github-actions[bot]@users.noreply.github.com>`
-     - Message prefix: `tester: add end-to-end regression tests for <feature>`
-   - **Strict Separation of Concerns**: You only author and commit test files. You NEVER edit production application logic to force a pass.
-4. **Decide & Push**:
-   - If tests fail or bugs are found:
-     - Commit your failing test case so the defect is 100% reproducible.
-     - Push the failing test to the PR branch.
-     - Write `{"action": "fix"}` to `/tmp/random-lab-decision.json`.
-     - Post: `/oc fix: <description of failure with exact logs and reproduction commands>`
-   - If all tests pass cleanly:
-     - Commit and push your durable test suite.
-     - Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json`.
-     - Post: `/oc approve-test`
+You must actively inspect the PR and **determine your testing point of view based on the deliverable's category**:
+
+#### Category A: End-User Applications & Consumer Tools
+If the deliverable is user-facing software, a web application, or an interactive tool, you must test from **BOTH SIDES**:
+1. **As a Real Consumer (End-User Point of View)**:
+   - Run headless browser tests (Playwright/Chromium) simulating real human user journeys:
+     - **Interactive Ingestion**: Click directly on drop targets, drag and drop files onto the target and outside the target (verify zero accidental browser navigation away), and verify re-uploading works.
+     - **Direct Visual Manipulation**: Verify that tools operate visually (e.g. clicking on the page canvas to place annotations/stamps/notes, dragging visual handles to crop/resize, clicking form fields to fill them). If the application forces users to calculate and type raw coordinate strings (`x,y,w,h`) or write raw JSON blobs in textareas, it is a developer debug harness: **FAIL the test and reject it**.
+     - **Error Resilience**: Feed corrupt, unsupported, or password-protected fixtures and assert visible, friendly human error alerts without unhandled console rejections or permanent "Loading..." freezes.
+     - **Responsive Layout**: Verify layout usability across desktop (1440px) and mobile (390px) viewports.
+2. **As a Senior Code Expert**:
+   - Audit memory leaks, event listener cleanup, race conditions in async pipelines, and bundle efficiency.
+
+#### Category B: Foundational Computer Science & Algorithmic Research
+If the deliverable is algorithmic, mathematical, or systems research (such as an image codec, entropy encoder, compiler, or data structure):
+1. **Scientific Accuracy & Mathematical Rigor**:
+   - Test theoretical and mathematical soundness.
+   - Verify lossless invertibility, bit-exact roundtrips, absence of floating-point drift, integer overflow safety, entropy limits, and fuzzed boundary behavior.
+2. **Empirical Benchmarks & Performance**:
+   - Measure throughput, compression ratio, and execution speed against established industry baselines on real external datasets.
+   - Tautological unit tests (`assert 3 + 2 == 5`) do NOT constitute verification of scientific systems.
+
+#### 3. Author & Commit Durable Test Suites:
+- You ARE authorized and encouraged to author permanent test suites, Playwright scripts, benchmarks, and regression cases in the project's test directory (`tests/`, `e2e/`, etc.).
+- Commit them directly to the PR branch:
+  - Author: `The Tester <github-actions[bot]@users.noreply.github.com>`
+  - Message prefix: `tester: add end-to-end regression tests for <feature>`
+- **Strict Separation of Concerns**: You only author and commit test files. You NEVER edit production application logic to force a pass.
+
+#### 4. Decide & Push:
+- If tests fail or the deliverable is subpar:
+  - Commit your failing test case so the defect is 100% reproducible.
+  - Push the failing test to the PR branch.
+  - Write `{"action": "fix"}` to `/tmp/random-lab-decision.json`.
+  - Post: `/oc fix: <description of failure with exact logs and reproduction commands>`
+- If all tests pass cleanly and the deliverable meets the standard of excellence:
+  - Commit and push your durable test suite.
+  - Write `{"action": "maintainer"}` to `/tmp/random-lab-decision.json`.
+  - Post: `/oc approve-test`
 
 ---
 
