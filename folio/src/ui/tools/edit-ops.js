@@ -1,8 +1,9 @@
-// Folio edit executors (M1 scope): N-up, booklet, overlay, compare
-// (appends a real word-diff report page), markup bake. Write path is
-// pdf-lib. White-box find/replace + paragraph cover-and-retype were purged:
-// painting opaque rectangles over live text leaves the original bytes fully
-// extractable, so they could never be honest edits.
+// Folio edit executors: N-up, booklet, overlay, compare (appends a real
+// word-diff report page). Annotation baking lives in annotate-ops.js
+// (bakeAnnotations). Write path is pdf-lib. White-box find/replace +
+// paragraph cover-and-retype were purged: painting opaque rectangles over
+// live text leaves the original bytes fully extractable, so they could
+// never be honest edits.
 import { wordDiff, diffStats } from "../../core/content/edit.js";
 import { nupLayout, bookletOrder } from "../../core/content/nup.js";
 
@@ -84,45 +85,3 @@ export async function compareDocs(bytesA, bytesB, textsA, textsB, PDFLib) {
   return { bytes: await doc.save(), stats: total };
 }
 
-// Bake highlight/underline/strikeout markup into content, then drop annots.
-export async function bakeMarkup(bytes, PDFLib) {
-  const doc = await PDFLib.PDFDocument.load(bytes);
-  let baked = 0;
-  for (const p of doc.getPages()) {
-    let annots = null;
-    try {
-      annots = p.node.Annots();
-    } catch {
-      continue;
-    }
-    if (!annots) continue;
-    try {
-      for (let i = annots.size() - 1; i >= 0; i--) {
-        const d = doc.context.lookup(annots.get(i));
-        let st = "";
-        try {
-          st = d.get(PDFLib.PDFName.of("Subtype")).toString().slice(1);
-        } catch { /* skip */ }
-        if (!["Highlight", "Underline", "StrikeOut"].includes(st)) continue;
-        try {
-          const r = d.get(PDFLib.PDFName.of("Rect"));
-          const x1 = r.get(0).asNumber();
-          const y1 = r.get(1).asNumber();
-          const x2 = r.get(2).asNumber();
-          const y2 = r.get(3).asNumber();
-          p.drawRectangle({
-            x: x1,
-            y: y1,
-            width: x2 - x1,
-            height: y2 - y1,
-            color: PDFLib.rgb(1, 1, 0),
-            opacity: 0.4,
-          });
-          annots.remove(i);
-          baked++;
-        } catch { /* keep annot */ }
-      }
-    } catch { /* keep going */ }
-  }
-  return { bytes: await doc.save(), baked };
-}
