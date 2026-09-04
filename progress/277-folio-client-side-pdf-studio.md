@@ -4,7 +4,7 @@
 - **Branch (M4):** opencode/issue277-20260904164811
 - **Status:** in-progress
 - **Active Milestone:** M4 (blueprinted, ready for build)
-- **Updated:** 2026-09-04T16:50:00Z
+- **Updated:** 2026-09-04T17:05:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
 
@@ -44,7 +44,7 @@
   - [x] M4 overlay pure core (`viewer/overlay.js`): `pdfToCss`/`cssToPdf`
     roundtrip, drag normalize, 8-handle resize, move clamp,
     mode click-defaults commit, bookmark tree serialize (node 9/9).
-  - [ ] M4b canvas overlay (`viewer/overlay.js`): crop bbox + click/drag
+  - [x] M4b canvas overlay (`viewer/overlay.js`): crop bbox + click/drag
     place for notes/shapes/links/stamps/signatures/images via M1/M2 ops.
   - [ ] M4c form overlays + bookmark outline tree + studio layout
     (top bar, collapsible sidebar, toasts, progress, shortcuts).
@@ -69,11 +69,32 @@
 
 ## Current step
 
-M4 slice 1 landed (M4a ingestion + overlay pure core + toast/progress/
-canvaswrap shell scaffold, node 9/9 new + 43 existing green). Builder
-continues with M4b (placement-mode DOM wiring committing through M1/M2
-ops) then M4c (form overlays, bookmark tree, studio layout) on this
-branch. Final milestone PR uses `Closes #277`.
+M4 slice 2 landed (M4b placement-mode DOM wiring through M1/M2 ops +
+crop bbox with handles, node 12/12 new M4 tests, existing 29 + 14
+green, headless boot zero console errors + in-browser module probe
+green). Builder continues with M4c (form overlays, bookmark tree,
+studio layout) on this branch. Final milestone PR uses `Closes #277`.
+
+## Agent log
+
+- 2026-09-04 (Builder, M4 slice 2): M4b canvas overlay - `#placetoolbar`
+  with 8 armed modes + crosshair + ghost rect + live hint, persistent
+  crop bbox (8 resize handles via `resizeBox`, body-drag via `moveBox`,
+  arrows/Shift nudge, Enter applies, Esc cancels, `#croprow` Apply/Burn/
+  Clear), `commitPlace` dispatching every mode through the real ops
+  (`addStickyNote`, `addGeomAnnot`, `addLink` + `parsePlaceTarget`,
+  `addStamp`, `signatureStamp`, `insertImage` framed by the drag rect,
+  `createField`), overlay cleared on open/page/zoom, toasts on
+  commit/error. Raw-coordinate primaries moved into labeled
+  `<details class="a11y">` fallbacks (ids preserved: notexy, shapexy,
+  linkrect, imgxy, fldrect, ext-crop); filljson/bmtext/ext-bmtext stay
+  until the M4c tree replaces them. Fixed `#croprow[hidden]` losing to
+  `.row{display:flex}`. Verified: node 12/12 new + 29 + 14 green,
+  headless boot zero console errors, in-browser probe
+  (`commitRect`/`parsePlaceTarget`/`initViewer` excuted live) green,
+  screenshots reviewed. Headless statusbar stall reproduces identically
+  on main (environment artifact, not a regression). Decision action:
+  continue (M4c).
 
 ## M3 checklist
 

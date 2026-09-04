@@ -1,10 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import {
   pdfToCss, cssToPdf, normalizeDragBox, resizeBox, moveBox,
-  PLACEMENT_MODES, commitRect, treeToRows, rowsToTree,
+  PLACEMENT_MODES, commitRect, parsePlaceTarget, treeToRows, rowsToTree,
 } from "../src/ui/viewer/overlay.js";
 import { canvasBox, pageBox } from "../src/ui/viewer/viewer.js";
+
+const require = createRequire(import.meta.url);
+const PDFLib = require("../vendor/pdf-lib.min.js");
+const Annotate = await import("../src/ui/tools/annotate-ops.js");
+const FormOps = await import("../src/ui/tools/form-ops.js");
+const PhaseE = await import("../src/ui/tools/phaseE-ops.js");
 
 const LETTER = { width: 612, height: 792 }; // PDF points, portrait
 const CANVAS = { width: 600, height: 777 }; // rendered px (non-uniform scale)
@@ -79,6 +86,56 @@ test("bookmark tree serialize/indent roundtrip", () => {
   assert.equal(t2[0].children.length, 2);
 });
 
+test("parsePlaceTarget: page:N vs URI vs garbage", () => {
+  assert.deepEqual(parsePlaceTarget("page:2", 5), { gotoPage: 1 });
+  assert.deepEqual(parsePlaceTarget("  page:1  ", 5), { gotoPage: 0 });
+  assert.deepEqual(parsePlaceTarget("https://example.com/x", 5), { uri: "https://example.com/x" });
+  assert.throws(() => parsePlaceTarget("page:9", 5), /within 1\.\.5/);
+  assert.throws(() => parsePlaceTarget("page:x", 5));
+  assert.throws(() => parsePlaceTarget("", 5), /need a target/);
+});
+
+async function blankLetter() {
+  const doc = await PDFLib.PDFDocument.create();
+  doc.addPage([612, 792]);
+  return doc.save();
+}
+
+async function subtypesOf(bytes) {
+  const doc = await PDFLib.PDFDocument.load(bytes);
+  return Annotate.listAnnotations(doc, PDFLib).map((a) => a.subtype);
+}
+
+test("overlay commits land through the real M1/M2 ops", async () => {
+  const base = await blankLetter();
+  // Click-to-place note: css click expands via mode defaults, lands as /Text.
+  const noteRect = commitRect("note", { x: 300, y: 300, w: 0, h: 0 }, LETTER, CANVAS);
+  const noted = await Annotate.addStickyNote(base, { page: 0, x: noteRect.x, y: noteRect.y, contents: "canvas note" }, PDFLib);
+  assert.ok(noted.length > base.length);
+  assert.ok((await subtypesOf(noted)).includes("Text"));
+  // Drag-to-place shape: rect commits as a real Square annot object.
+  const shapeRect = commitRect("shape", { x: 100, y: 100, w: 200, h: 80 }, LETTER, CANVAS);
+  const shaped = await Annotate.addGeomAnnot(base, { page: 0, kind: "rect", rect: shapeRect }, PDFLib);
+  assert.ok((await subtypesOf(shaped.bytes)).includes("Square"));
+  // Drag-to-place link: rect + parsed target commits as a Link annot.
+  const linkRect = commitRect("link", { x: 50, y: 60, w: 220, h: 24 }, LETTER, CANVAS);
+  const tgt = parsePlaceTarget("page:1", 1);
+  const linked = await Annotate.addLink(base, { page: 0, rect: linkRect, ...tgt }, PDFLib);
+  assert.ok((await subtypesOf(linked)).includes("Link"));
+  // Drag-to-place field: rect commits through createField, describable back.
+  const fieldRect = commitRect("field", { x: 56, y: 600, w: 200, h: 24 }, LETTER, CANVAS);
+  const formed = await FormOps.createField(base, { name: "canvasField", type: "text", page: 1, rect: fieldRect }, PDFLib);
+  const fields = await FormOps.describeForm(formed, PDFLib);
+  assert.ok(fields.some((f) => f.name === "canvasField" && f.kind === "text"));
+  // Drag-to-place crop: exact cssToPdf rect sets a smaller crop box.
+  const cssCrop = normalizeDragBox(50, 50, 550, 727, CANVAS);
+  const raw = cssToPdf(cssCrop, LETTER, CANVAS);
+  const cropped = await PhaseE.cropPages(base, { x: raw.x, y: raw.y, w: raw.w, h: raw.h }, PDFLib);
+  const doc = await PDFLib.PDFDocument.load(cropped);
+  const cb = doc.getPages()[0].getCropBox();
+  assert.ok(cb.width < 612 && cb.height < 792, "crop box shrinks, got " + cb.width + "x" + cb.height);
+});
+
 test("viewer exposes pageBox/canvasBox helpers for the overlay", () => {
   assert.equal(typeof pageBox, "function");
   assert.deepEqual(canvasBox({ width: 600, height: 800 }), { width: 600, height: 800 });
@@ -105,4 +162,30 @@ test("opfs writeFile falls back to memory on SecurityError", async () => {
     delete globalThis.navigator;
     delete globalThis.__folioNavigator;
   }
+});
+
+test("m4b shell keeps overlay + fallback ids wired", async () => {
+  // Anti-rot gate: the pointer-first toolbar must exist, every placement
+  // mode must have a commit path in app.js, and the moved coordinate
+  // inputs must survive as a11y fallbacks (same ids, inside details.a11y).
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const html = fs.readFileSync(path.join(here, "..", "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(here, "..", "src", "ui", "shell", "app.js"), "utf8");
+  for (const mode of ["crop", "note", "shape", "link", "stamp", "sign", "image", "field"]) {
+    assert.ok(html.includes('data-mode="' + mode + '"'), "toolbar has " + mode);
+  }
+  for (const id of ["placetoolbar", "croprow", "cropcommit", "cropburn", "cropclear", "overlayhint", "overlay", "canvaswrap"]) {
+    assert.ok(html.includes('id="' + id + '"'), "shell has #" + id);
+  }
+  for (const id of ["notexy", "shapexy", "linkrect", "imgxy", "fldrect", "ext-crop"]) {
+    assert.ok(html.includes('id="' + id + '"'), "fallback keeps #" + id);
+  }
+  assert.ok(html.includes("details class=\"a11y\""), "fallbacks live in a11y details");
+  for (const op of ["addStickyNote", "addGeomAnnot", "addLink", "addStamp", "signatureStamp", "insertImage", "createField", "cropPages"]) {
+    assert.ok(app.includes(op), "app.js commits through " + op);
+  }
+  assert.ok(app.includes("wireOverlay"), "app.js wires the overlay");
 });
