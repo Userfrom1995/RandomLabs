@@ -8,7 +8,7 @@
 import { createStore, applyOp, makeOp, undo, redo } from "../../core/pipeline/ops.js";
 import { initStorage, writeFile, jobPaths, backend } from "../../platform/storage/opfs.js";
 import { logJob } from "../../platform/storage/history.js";
-import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderThumbnail, renderToDataUrl } from "../viewer/viewer.js";
+import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderThumbnail, renderToDataUrl, renderPageGray } from "../viewer/viewer.js";
 import { buildSamplePdf } from "./sample.js";
 import * as Pages from "../tools/pages-ops.js";
 import { gridDropOrder } from "../tools/pages-ops.js";
@@ -20,6 +20,8 @@ import * as FormOps from "../tools/form-ops.js";
 import * as Security from "../tools/security-ops.js";
 import * as Compress from "../tools/compress-ops.js";
 import * as ConvertOps from "../tools/convert-ops.js";
+import * as OcrOps from "../tools/ocr-ops.js";
+import * as OfficeOps from "../tools/office-ops.js";
 import * as PhaseE from "../tools/phaseE-ops.js";
 import { splitByBookmarks, parseOrderString, batchRename, printSpec, batchPlan, batchReducer } from "../../core/tier2/tier2.js";
 import { validateLink } from "../../core/annotate/annotate.js";
@@ -325,7 +327,6 @@ async function wire() {
 
 function showRoute() {
   let h = location.hash || "#/pages";
-  if (h === "#/ocr") h = "#/pages"; // M1: OCR route purged, old links land here
   document.querySelectorAll(".route").forEach((r) => r.classList.remove("active"));
   document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("active", a.hash === h));
   const id = "route-" + h.replace("#/", "");
@@ -878,8 +879,8 @@ function wireTools() {
     const out = await Content.textToPdf($("mdtitle2").value || "Folio note", $("mdtext").value || "Hello from Folio.", PDFLib);
     download(out, "folio-note.pdf");
   });
-  // OCR + Office packs were purged in M1 (no vendored engine behind the
-  // buttons). Convert now covers only real in-browser transforms.
+  // M3: OCR + Office returned with real vendored engines behind them
+  // (Tesseract WASM pack, mammoth/SheetJS pack; consent-gated below).
   // convert: CSV table PDF (real renderer)
   run("t-csv2pdf", async () => {
     const csv = $("csvtext").value;
@@ -888,6 +889,8 @@ function wireTools() {
     $("convertreport").textContent = "CSV table PDF: " + r.spec.pageCount + " page(s), " + r.spec.cols + " col(s).";
     download(r.bytes, "folio-table.pdf");
   });
+  wireOcrPack();
+  wireOfficePack();
   // workflow
   run("t-info", async () => {
     const a = requireFile();
@@ -1034,6 +1037,259 @@ function wireTools() {
     $("batch-report").textContent = done.join("; ");
     await logJob({ jobId, tool: "batch-" + tool, params: { files: names }, output: "batch" });
   });
+}
+
+// ---- M3 OCR route: consent-gated Tesseract pack + searchable PDF ----
+let ocrImage = null; // raster source picked in the OCR route (non-PDF)
+let ocrWorkerBox = null; // lazy singleton {worker}
+let ocrAbort = null;
+let ocrResultBytes = null;
+let ocrResultName = "searchable.pdf";
+
+async function refreshOcrConsent() {
+  try {
+    const st = await OcrOps.ocrPackStatus();
+    const mb = OcrOps.formatBytes(st.manifest.totalBytes);
+    $("ocrpackinfo").textContent = st.cached
+      ? "OCR pack " + mb + " cached on this device - works offline."
+      : "OCR pack " + mb + " (Tesseract engine + English model). Downloads once from this site, then cached for offline reuse.";
+    $("ocrpackprog").textContent = st.cached ? "Cached." : "Not downloaded.";
+  } catch (e) {
+    $("ocrpackinfo").textContent = "Pack status unavailable: " + e.message;
+  }
+}
+
+function wireOcrPack() {
+  refreshOcrConsent().catch(() => {});
+  $("ocrpackbtn").onclick = async () => {
+    try {
+      announce("Working...");
+      ocrAbort = new AbortController();
+      $("ocrpackcancel").disabled = false;
+      await OcrOps.ensureOcrPack(
+        (p) => {
+          $("ocrpackprog").textContent = p.file + ": " + ((100 * p.loaded) / p.total).toFixed(0) + "% of " + OcrOps.formatBytes(p.total);
+        },
+        ocrAbort.signal
+      );
+      $("ocrpackcancel").disabled = true;
+      await refreshOcrConsent();
+      announce("OCR pack ready.");
+    } catch (err) {
+      $("ocrpackprog").textContent = "Stopped: " + err.message;
+      announce("Error: " + err.message);
+    }
+  };
+  $("ocrpackcancel").onclick = () => {
+    if (ocrAbort) ocrAbort.abort();
+  };
+  $("ocrfile").addEventListener("change", async () => {
+    const f = $("ocrfile").files[0];
+    if (!f) return;
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    if (/\.pdf$/i.test(f.name)) {
+      ocrImage = null;
+      await setFile(f.name, bytes);
+    } else {
+      ocrImage = { name: f.name, bytes };
+      announce("Image staged for OCR: " + f.name);
+    }
+  });
+  $("ocrrun").onclick = async () => {
+    try {
+      announce("Working...");
+      const dpi = parseInt($("ocrdpi").value, 10) || 300;
+      const st = await OcrOps.ocrPackStatus().catch(() => null);
+      if (!st || !st.cached) {
+        announce("Download the OCR pack first (consent card above).");
+        $("ocrreport").textContent = "The OCR engine needs the on-demand pack. Review its size above, then Download.";
+        return;
+      }
+      if (!ocrWorkerBox) {
+        $("ocrreport").textContent = "Starting OCR engine...";
+        ocrWorkerBox = await OcrOps.bootOcrWorker((m) => {
+          $("ocrreport").textContent = "Engine: " + m.status + " " + Math.round((m.progress || 0) * 100) + "%";
+        });
+      }
+      const t0 = performance.now();
+      if (ocrImage) {
+        const r = await ocrImageToSearchable(ocrImage, ocrWorkerBox.worker);
+        ocrResultBytes = r.bytes;
+        ocrResultName = ocrImage.name.replace(/\.[a-z]+$/i, "") + "-searchable.pdf";
+        $("ocrreport").textContent = "Image OCR: " + r.words + " words, mean confidence " + r.mean.toFixed(0) + "%, " + ((performance.now() - t0) / 1000).toFixed(1) + "s.";
+      } else {
+        const a = requireFile();
+        const perPage = [];
+        let words = 0;
+        let confSum = 0;
+        const canvas = document.createElement("canvas");
+        const n = pageCount();
+        for (let p = 1; p <= n; p++) {
+          $("ocrreport").textContent = "OCR page " + p + "/" + n + "...";
+          await renderPageGray(p, dpi, canvas);
+          const jpeg = await OcrOps.canvasJpeg(canvas);
+          const dataUrl = await new Promise((resolve) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(fr.result);
+            fr.readAsDataURL(jpeg);
+          });
+          const ws = await OcrOps.recognizeImage(ocrWorkerBox.worker, dataUrl, {});
+          perPage.push(ws);
+          words += ws.length;
+          confSum += ws.reduce((s, w) => s + (w.confidence || 0), 0);
+        }
+        const r = await OcrOps.overlayPdfSearchLayer(a.bytes, perPage, dpi, PDFLib);
+        const secs = (performance.now() - t0) / 1000;
+        $("ocrreport").textContent =
+          "Searchable: " + n + " page(s), " + words + " words, mean confidence " + (words ? (confSum / words).toFixed(0) : 0) + "%, " + secs.toFixed(1) + "s (" + (secs / Math.max(1, n)).toFixed(1) + "s/page).";
+        await refreshAfterOp("ocr", { pages: n, words, dpi }, r.bytes, outName("searchable"));
+        ocrResultBytes = r.bytes;
+        ocrResultName = outName("searchable");
+      }
+      $("ocrdl").disabled = !ocrResultBytes;
+      announce("Done.");
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
+  $("ocrdl").onclick = () => {
+    if (ocrResultBytes) download(ocrResultBytes, ocrResultName);
+  };
+}
+
+async function ocrImageToSearchable(img, worker) {
+  const bmp = await createImageBitmap(new Blob([img.bytes]));
+  const canvas = document.createElement("canvas");
+  canvas.width = bmp.width;
+  canvas.height = bmp.height;
+  canvas.getContext("2d").drawImage(bmp, 0, 0);
+  const jpeg = await OcrOps.canvasJpeg(canvas);
+  const dataUrl = await new Promise((resolve) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.readAsDataURL(jpeg);
+  });
+  const words = await OcrOps.recognizeImage(worker, dataUrl, {});
+  const dpi = 200;
+  const r = await OcrOps.assembleSearchablePdf(
+    [{ imgBytes: await OcrOps.blobBytes(jpeg), words, wPx: canvas.width, hPx: canvas.height, dpi }],
+    PDFLib
+  );
+  const mean = words.length ? words.reduce((s, w) => s + (w.confidence || 0), 0) / words.length : 0;
+  return { bytes: r.bytes, words: words.length, mean };
+}
+
+// ---- M3 Office route: consent-gated mammoth/SheetJS pack + converters ----
+let officeAbort = null;
+
+async function refreshOfficeConsent() {
+  try {
+    const st = await OfficeOps.officePackStatus();
+    const mb = OcrOps.formatBytes(st.manifest.totalBytes);
+    $("officepackinfo").textContent = st.cached
+      ? "Office pack " + mb + " cached on this device - works offline."
+      : "Office pack " + mb + " (Word/Excel parsers). Downloads once from this site, then cached for offline reuse.";
+    $("officepackprog").textContent = st.cached ? "Cached." : "Not downloaded.";
+  } catch (e) {
+    $("officepackinfo").textContent = "Pack status unavailable: " + e.message;
+  }
+}
+
+function wireOfficePack() {
+  refreshOfficeConsent().catch(() => {});
+  $("officepackbtn").onclick = async () => {
+    try {
+      announce("Working...");
+      officeAbort = new AbortController();
+      $("officepackcancel").disabled = false;
+      await OfficeOps.ensureOfficePack(
+        (p) => {
+          $("officepackprog").textContent = p.file + ": " + ((100 * p.loaded) / p.total).toFixed(0) + "% of " + OcrOps.formatBytes(p.total);
+        },
+        officeAbort.signal
+      );
+      $("officepackcancel").disabled = true;
+      await refreshOfficeConsent();
+      announce("Office pack ready.");
+    } catch (err) {
+      $("officepackprog").textContent = "Stopped: " + err.message;
+      announce("Error: " + err.message);
+    }
+  };
+  $("officepackcancel").onclick = () => {
+    if (officeAbort) officeAbort.abort();
+  };
+  $("t-office2pdf").onclick = async () => {
+    try {
+      announce("Working...");
+      const f = $("officefile").files[0];
+      if (!f) throw new Error("Pick a .docx or .xlsx file first.");
+      const st = await OfficeOps.officePackStatus().catch(() => null);
+      if (!st || !st.cached) {
+        $("officereport").textContent = "The Office parsers need the on-demand pack. Review its size above, then Download.";
+        announce("Download the Office pack first (consent card above).");
+        return;
+      }
+      await OfficeOps.ensureOfficePack(null, null);
+      const buf = await f.arrayBuffer();
+      let r;
+      if (/\.docx$/i.test(f.name)) {
+        r = await OfficeOps.docxToPdf(buf, PDFLib);
+        $("officereport").textContent = "DOCX to PDF: " + r.paras + " paragraph(s) in " + r.pages + " page(s).";
+        download(r.bytes, f.name.replace(/\.docx$/i, "") + "-folio.pdf");
+      } else if (/\.xlsx$/i.test(f.name)) {
+        r = await OfficeOps.xlsxToPdf(buf, PDFLib);
+        $("officereport").textContent = "XLSX to PDF: " + r.sheets + " sheet(s) in " + r.pages + " page(s).";
+        download(r.bytes, f.name.replace(/\.xlsx$/i, "") + "-folio.pdf");
+      } else throw new Error("Unsupported file (need .docx or .xlsx).");
+      announce("Done.");
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
+  $("t-pdf2docx").onclick = async () => {
+    try {
+      announce("Working...");
+      requireFile();
+      const paras = [];
+      for (let p = 1; p <= pageCount(); p++) {
+        const t = await pageText(p);
+        for (const para of t.paragraphs) paras.push({ text: para.text, heading: 0 });
+      }
+      const r = OfficeOps.pdfParasToDocx(paras);
+      $("officereport").textContent = "PDF to DOCX: " + r.paras + " paragraph(s), valid Word package.";
+      download(new Blob([r.bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), "folio-export.docx");
+      announce("Done.");
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
+  $("t-pdf2xlsx").onclick = async () => {
+    try {
+      announce("Working...");
+      requireFile();
+      const st = await OfficeOps.officePackStatus().catch(() => null);
+      if (!st || !st.cached) {
+        $("officereport").textContent = "XLSX writing needs the on-demand pack. Review its size above, then Download.";
+        announce("Download the Office pack first (consent card above).");
+        return;
+      }
+      await OfficeOps.ensureOfficePack(null, null);
+      const rows = [];
+      for (let p = 1; p <= pageCount(); p++) {
+        const t = await pageText(p);
+        rows.push(["Page " + p]);
+        for (const line of t.lines) rows.push([line.text]);
+        rows.push([]);
+      }
+      const r = OfficeOps.rowsToXlsx(rows);
+      $("officereport").textContent = "PDF lines to XLSX: " + r.rows + " row(s), one row per line.";
+      download(new Blob([r.bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "folio-export.xlsx");
+      announce("Done.");
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
