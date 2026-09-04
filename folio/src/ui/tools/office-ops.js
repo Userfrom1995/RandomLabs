@@ -6,7 +6,7 @@
 import { htmlToBlocks, blocksToPdf, assembleDocx } from "../../core/office/blocks.js";
 import { normGrid, gridToPdf } from "../../core/office/sheets.js";
 
-export const OFFICE_CACHE_NAME = "folio-pack-office-v1";
+export const OFFICE_CACHE_NAME = "folio-pack-office-v2";
 export const OFFICE_PACK_MANIFEST = "packs/office/pack.json";
 
 async function readJson(url) {
@@ -59,7 +59,7 @@ export async function ensureOfficePack(onProgress, signal) {
       }
     }
     const blob = new Blob(chunks, { type: "application/javascript" });
-    await cache.put(url, new Response(blob, { headers: { "x-folio-bytes": String(blob.size), "content-length": String(blob.size) } }));
+    await cache.put(url, new Response(blob, { headers: { "x-folio-bytes": String(blob.size), "content-length": String(blob.size), "content-type": "application/javascript" } }));
     loaded += blob.size;
   }
   if (onProgress) onProgress({ loaded: total, total, file: "done" });
