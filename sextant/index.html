@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sextant: from-scratch GIS mapping engine</title>
+<meta name="description" content="Sextant: a from-scratch GIS mapping engine in C# (Blazor WASM). Projections, tile pipeline, R-tree, A* routing, isochrones, trigram search." />
+<style>
+  :root { --bg: #0f172a; --surface: #1e293b; --ink: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8; }
+  body { background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; margin: 0; }
+  main { max-width: 44rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  h1 { margin-bottom: 0.25rem; }
+  p.sub { color: var(--muted); margin-top: 0; }
+  .card { background: var(--surface); border: 1px solid #334155; border-radius: 10px; padding: 1rem 1.25rem; margin: 1rem 0; }
+  a { color: var(--accent); }
+  code { background: #020617; padding: 0.1rem 0.35rem; border-radius: 5px; }
+  pre { background: #020617; padding: 0.8rem; border-radius: 8px; overflow-x: auto; }
+  ul.links { list-style: none; padding: 0; }
+  ul.links li { margin: 0.35rem 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sextant</h1>
+  <p class="sub">A from-scratch GIS mapping engine in C# (Blazor WASM). Issue #286.</p>
+
+  <div class="card">
+    <h2>Run the interactive map</h2>
+    <p>The map is a Blazor WebAssembly app. The compiled bundle is not
+    committed to the repo, so Pages serves this hub; run the live map locally:</p>
+    <pre>dotnet run --project src/Sextant.App
+# then open the /map page</pre>
+    <p>What you get: canvas city map (pan/zoom, click-to-route), Mercator/Albers
+    switch, trigram search, A* routes with frontier replay, isochrones,
+    GeoJSON import/export, offline PWA shell.</p>
+  </div>
+
+  <div class="card">
+    <h2>Documentation</h2>
+    <ul class="links">
+      <li><a href="docs/architecture.md">architecture.md</a> - modules, Phase 0 WASM de-risk record</li>
+      <li><a href="docs/projections.md">projections.md</a> - Mercator + Albers formulas and goldens</li>
+      <li><a href="docs/tile-pipeline.md">tile-pipeline.md</a> - clip/simplify/quantize pipeline</li>
+      <li><a href="docs/rtree.md">rtree.md</a> - R*-tree invariants and throughput</li>
+      <li><a href="docs/routing.md">routing.md</a> - A* admissibility proofs and histogram</li>
+      <li><a href="docs/geocode.md">geocode.md</a> - trigram index and ranking</li>
+      <li><a href="docs/import-export.md">import-export.md</a> - GeoJSON codec and errors</li>
+      <li><a href="docs/scoreboard.md">scoreboard.md</a> - measured numbers vs budgets</li>
+      <li><a href="docs/ATTRIBUTION.md">ATTRIBUTION.md</a> - synthetic pack, no OSM data</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Sources</h2>
+    <ul class="links">
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/sextant/src/Sextant.Core">Sextant.Core</a> - dependency-free headless engine (111 xUnit tests green)</li>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/sextant/src/Sextant.App">Sextant.App</a> - Blazor shell behind ICanvasBridge</li>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/tree/main/sextant/tools/Sextant.Pack">Sextant.Pack</a> - deterministic synthetic city packer (seed 286)</li>
+      <li><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-04-sextant-gis-engine.md">Architectural blueprint</a></li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>
