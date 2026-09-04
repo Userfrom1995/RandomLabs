@@ -1,8 +1,8 @@
 # STATE - Random factory checkpoint
- - **Updated:** 2026-09-04T17:13Z, maintainer run 33899323973 (event `created` on PR #292, owner `/oc maintainer` at 17:12:30Z - Folio M4 merged)
- - **Action this run:** Merged PR #292 via `gh pr merge 292 --rebase` at 0944bb63 after dual-gate (Reviewer 16-check + Tester dual-lens), closed issue #277, dispatched pages deploy 33899625162.
- - **Main:** `0944bb63a20db02f1c24a7076d543d28d8fc9de8` LIVE (successor to 3d85366d via rebase, `gh api branches/main --jq .commit.sha` = 0944bb63, `git merge-base origin/main 3d85366d` = 3d85366d NOT orphan, `folio/` + `tabula/` + `sextant/` + `folio/packs/ocr/` + `folio/packs/office/` on main, 9 commits over 3d85366d: 4199da17 + 6ef43827 + de6be23a + 1bd121bc + c7af6d87 + 9d632732 + c6ef9e43 + 6639df3c + 0944bb63, pages Deploy queued on 0944bb63)
- - **Branch retention:** `opencode/issue277-20260904164811` at `bf67b253cabac01dadaa2b0322b1eddb1fb08651` MERGED at 0944bb63 retained (Architect 4199da17 + Builder M4a 6ef43827 + Builder M4b de6be23a..9d632732 + Builder M4c c6ef9e43..6639df3c + Tester bf67b253, Closes #277, NOT orphan on 3d85366d, 10 files modified/added, preview /preview/pr-292/ was deploying), `opencode/issue277-folio-m3` at `e00ad03e` MERGED at 2c8f48b retained, `opencode/issue277-folio-m2` at `aabd77cc` MERGED at d5a344a retained, no branch deleted.
+ - **Updated:** 2026-09-04T17:20Z, maintainer run 33899723936 (event `created` on issue #292, PR #292 MERGED verification - standby)
+ - **Action this run:** Verified PR #292 MERGED at 0944bb63 (Folio M4 final, Closes #277) - dual-gate complete, issue #277 CLOSED, main LIVE, pages Deploy success. No dispatch - lab standby.
+ - **Main:** `0944bb63a20db02f1c24a7076d543d28d8fc9de8` LIVE (successor to 3d85366d via rebase, `gh api branches/main --jq .commit.sha` = 0944bb63, `git merge-base origin/main 3d85366d` = 3d85366d NOT orphan, `folio/` + `tabula/` + `sextant/` + `folio/packs/ocr/` + `folio/packs/office/` on main, 9 commits over 3d85366d: 4199da17 + 6ef43827 + de6be23a + 1bd121bc + c7af6d87 + 9d632732 + c6ef9e43 + 6639df3c + 0944bb63, pages Deploy success on 0944bb63 verified)
+ - **Branch retention:** `opencode/issue277-20260904164811` at `bf67b253cabac01dadaa2b0322b1eddb1fb08651` MERGED at 0944bb63 retained (Architect 4199da17 + Builder M4a 6ef43827 + Builder M4b de6be23a..9d632732 + Builder M4c c6ef9e43..6639df3c + Tester bf67b253, Closes #277, NOT orphan on 3d85366d, 10 files modified/added, preview /preview/pr-292/ deployed), `opencode/issue277-folio-m3` at `e00ad03e` MERGED at 2c8f48b retained, `opencode/issue277-folio-m2` at `aabd77cc` MERGED at d5a344a retained, no branch deleted.
 
 ## STANDING OWNER DIRECTIVES (active)
  - **FOLIO M4 AUDIT DIRECTIVE (2026-09-04T16:44Z, supreme, via #277 comment):** 6 ingestion defects + 4 UI mandates — RESOLVED at 0944bb63 (whole dropzone clickable + window drag guard + stale filepick reset + OPFS SecurityError fallback + import.meta.url worker + setFile toast; overlay system pdfToCss/cssToPdf pure math, placement toolbar 8 modes, persistent crop bbox, form overlays, bookmark outline tree, studio layout). Anti-facade gates passed.
@@ -15,9 +15,9 @@
 ## CRITICAL INFRASTRUCTURE STATE
  - **Folio M4 — PR #292 MERGED at 0944bb63 head bf67b253 (Closes #277, branch opencode/issue277-20260904164811):** Architect 4199da17 blueprint + Builder M4a 6ef43827 + Builder M4b de6be23a..9d632732 + Builder M4c c6ef9e43..6639df3c + Tester bf67b253 (placement toolbar 8 modes crosshair+ghost rect, persistent crop bbox with 8 handles via resizeBox/moveBox, commitPlace through M1/M2 ops addStickyNote/addGeomAnnot/addLink+parsePlaceTarget/addStamp/signatureStamp/insertImage/createField/cropPages/burnCrop, describeFields geometry via P()/getRectangle(), #formlayer per-field HTML inputs via pdfToCss committing via fillForm, shared outline tree #bmtree/#bmtree-pages with drag reorder feeding treeToRows, wireStudio sidebar + ? sheet + global keys, a11y <details> fallbacks, #croprow fix, ingestion hardening + overlay.js pure core pdfToCss/cssToPdf + pageBox/canvasBox + toasts/batchprog/canvaswrap/overlay scaffold). Verified folio-m4 15/15 + full 58/58 + tester-m4-regression 6/6 = 64/64 green. Body `Closes #277` executed — issue closed.
  - **Folio M3 — PR #291 MERGED at 2c8f48b head e00ad03e:** 9 commits over d5a344a - packs OCR/Office vendored same-origin, shell v3, 27 files project-only folio/, NOT orphan, MERGEABLE CLEAN before merge, body Closes #277 superseded by M4 Refs then re-closed at 0944bb63.
- - **Main 0944bb63 — Folio M4 SHIPPED:** Verified via `gh api branches/main` = 0944bb63, `git ls-remote origin/main` = 0944bb63, `git merge-base 3d85366d 0944bb63` = 3d85366d NOT orphan, `git log 3d85366d..0944bb63` 9 commits, `git ls-tree origin/main:folio` has packs/ocr+office + overlay.js + viewer + app.js studio shell, `progress/277-folio-client-side-pdf-studio.md` on main Status complete, pages Deploy queued 33899625162 on 0944bb63.
+ - **Main 0944bb63 — Folio M4 SHIPPED:** Verified via `gh api branches/main` = 0944bb63, `git ls-remote origin/main` = 0944bb63, `git merge-base 3d85366d 0944bb63` = 3d85366d NOT orphan, `git log 3d85366d..0944bb63` 9 commits, `git ls-tree origin/main:folio` has packs/ocr+office + overlay.js + viewer + app.js studio shell, `progress/277-folio-client-side-pdf-studio.md` on main Status complete, pages Deploy success on 0944bb63 verified 2026-09-04T17:20Z.
  - **Build guard:** 0 open PRs (`gh pr list --state open` = [] after merge), `gh issue list --state open` = [42 brainstorm, 70 lab-health] (2 open, #277 closed). Next gates none — Folio epic complete.
- - **Pages:** Deploy static site `pages.yml` queued 33899625162 on 0944bb63 (workflow_dispatch due to push race), prior PR deploy failures were PR-trigger only; production /folio/ + /tabula/ + /sextant/ + packs expected 200 after deploy success.
+ - **Pages:** Deploy static site `pages.yml` success on 0944bb63 verified (run success 17:15:47Z on 0944bb63, plus earlier successes). Production /folio/ + /tabula/ + /sextant/ + packs expected 200 after deploy success.
 
 ## IN FLIGHT
  - **Folio #277 M4 — MERGED at 0944bb63 (Closes #277):** Architect dispatched 33896835409 -> blueprint 4199da17 -> Builder via /oc build this (33897129059 architect + 33897266126 M4a at 6ef43827) -> continue 33897510757 -> M4b at 9d632732 (4 commits de6be23a..9d632732, 33897822440) -> continue 33898334312 -> M4c at 6639df3c (2 commits c6ef9e43..6639df3c, 33898592967) -> Tester bf67b253 -> Reviewer double approve 33899061843/33899211121 (16-check pass) + Tester approve-test 33899160359 (64/64) -> Maintainer merged 33899323973 at 0944bb63 via rebase, closed #277, dispatched pages deploy. Pipeline complete.
@@ -32,17 +32,18 @@
  - **PR #290 - MERGED at d5a344a (Folio M2, Refs #277)**
  - **PR #291 - MERGED at 2c8f48b (Folio M3, Refs #277 -> Closes #277, 43/43)**
  - **PR #292 - MERGED at 0944bb63 (Folio M4, Closes #277, 64/64, NOT orphan)**
- - **Brainstorm #42 - OPEN (frozen until Folio M4 completes — now unfrozen, candidates Axiom/Plasmid available for next triage)**
+ - **Brainstorm #42 - OPEN (idle until Owner/Maintainer ideation dispatch)**
  - **Lab Health #70 - OPEN nominal**
  - **Issue #279 - CLOSED (Folio v1, MERGED e600927 auxiliary)**
 
 ## PIPELINE POSITION
- Prism ceiling accepted, Tabula + Sextant shipped, Folio Epic M1 [x] + M2 [x] + M3 [x] + M4 [x] SHIPPED at 0944bb63 via PR #292 Closes #277. Lab enters standby — no open PRs, 2 open issues (brainstorm #42, lab-health #70). Next maintainer to verify pages deploy success on 0944bb63 and confirm /folio/ packs live; triage brainstrm only on Owner/Maintainer ideation dispatch.
+ Prism ceiling accepted, Tabula + Sextant shipped, Folio Epic M1 [x] + M2 [x] + M3 [x] + M4 [x] SHIPPED at 0944bb63 via PR #292 Closes #277. Lab enters standby — no open PRs, 2 open issues (brainstorm #42, lab-health #70). Next maintainer to confirm triage only on Owner/Maintainer ideation dispatch. Pages 0944bb63 verified success.
 ## NEXT-RUN PLAYBOOK
- 1. Verify pages Deploy on 0944bb63: `gh run list --limit 10 --json name,headSha,conclusion` should show Deploy static site success on 0944bb63 (run 33899625162 or push deploy). If failure, re-dispatch `gh workflow run pages.yml --ref main`.
- 2. Verify `git ls-tree origin/main:folio` has overlay.js + packs/ocr + packs/office + docs/scoreboard, `gh issue view 277 --json state` = CLOSED, `gh pr list --state open` = [].
- 3. No auto ideation — standby per lab charter until Owner dispatch.
- 4. If pages green and no new issues, output [] and remain idle.
+ 1. If new issue opened with (>7 features or multi-component): dispatch Architect {"action":"architect","issue":N} per Autonomous Milestone Epic Intake (never direct build).
+ 2. If owner requests ideas: dispatch Ideator {"action":"ideate"}; pick at most ONE candidate per run.
+ 3. If pages deploy shows failure on 0944bb63: `gh workflow run pages.yml --ref main`.
+ 4. If new human PR opened: route to Reviewer {"action":"review","pr":N}.
+ 5. Otherwise standby [] — no auto ideation, wait for Owner directive.
 
 ## ISSUES
  - **#130** - CLOSED (ceiling)
@@ -57,13 +58,12 @@
  - **PR #290 - MERGED at d5a344a (Folio M2, Refs #277, Reviewer 13:12:23Z + Tester 13:15:44Z aabd77cc 29/29, 10 files, NOT orphan)**
  - **PR #291 - MERGED at 2c8f48b (Folio M3, Closes #277, Reviewer 14:59:39Z + Tester 15:03:22Z e00ad03e 43/43, 27 files, NOT orphan merge-base d5a344a)**
  - **PR #292 - MERGED at 0944bb63 (Folio M4, Closes #277, Reviewer 33899061843 approve + 33899211121 re-approve 16-check + Tester 33899160359 approve-test 64/64 bf67b253, 10 files folio/ + tests + ideas + progress, NOT orphan merge-base 3d85366d)**
- - **#42 - OPEN** brainstorm (unfrozen, Axiom/Plasmid candidates)
+ - **#42 - OPEN** brainstorm (idle until dispatched)
  - **#70 - OPEN** lab-health
 
 ## OPEN QUESTIONS
- - Will pages Deploy 33899625162 on 0944bb63 succeed and serve production /folio/ + packs at 200 with no regression on M1-M3?
- - Will brainstrm triage resume on next Owner ideation dispatch?
- - Will next Auditor correctly report 0944bb63 as new main with Folio complete not falsely nominal?
+ - Will pages Deploy on 0944bb63 remain green and serve /folio/ packs live?
+ - Will brainstorm triage resume on next Owner ideation dispatch?
 
    - Hephaestus, the Maintainer
-<!-- run: 33899323973 -->
+<!-- run: 33899723936 -->
