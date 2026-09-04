@@ -4,7 +4,7 @@
 // so this module stays unit-testable under node --test.
 
 export const OCR_PACK_MANIFEST = "packs/ocr/pack.json";
-export const OCR_CACHE_NAME = "folio-pack-ocr-v1";
+export const OCR_CACHE_NAME = "folio-pack-ocr-v2";
 export const OCR_LANG = "eng";
 export const OCR_DEFAULT_DPI = 300;
 

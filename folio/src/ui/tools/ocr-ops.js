@@ -6,6 +6,14 @@ import { OCR_CACHE_NAME, OCR_PACK_MANIFEST, formatBytes, searchablePdfFromImages
 
 export { formatBytes, OCR_CACHE_NAME };
 
+function packMime(name) {
+  if (name.endsWith(".js") || name.endsWith(".mjs")) return "application/javascript";
+  if (name.endsWith(".wasm")) return "application/wasm";
+  if (name.endsWith(".gz")) return "application/gzip";
+  if (name.endsWith(".json")) return "application/json";
+  return "application/octet-stream";
+}
+
 async function readJson(url) {
   const r = await fetch(url, { cache: "no-cache" });
   if (!r.ok) throw new Error("pack manifest missing (" + r.status + ")");
@@ -61,8 +69,8 @@ export async function ensureOcrPack(onProgress, signal) {
         throw new Error("pack download cancelled");
       }
     }
-    const blob = new Blob(chunks);
-    const headers = new Headers({ "x-folio-bytes": String(len || blob.size), "content-length": String(blob.size) });
+    const blob = new Blob(chunks, { type: packMime(f) });
+    const headers = new Headers({ "x-folio-bytes": String(len || blob.size), "content-length": String(blob.size), "content-type": packMime(f) });
     await cache.put(url, new Response(blob, { headers }));
     loaded += len || blob.size;
   }
