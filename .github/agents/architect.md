@@ -35,20 +35,31 @@ Triggered by `/oc architect` on a newly opened project issue.
    - **Visual & UI Specifications**: For web or graphical tools, specify layout hierarchy, responsive viewports, color tokens, interactive controls, and visual asset generation.
    - **Testing Strategy**: Define unit test suites, headless self-checks, and dynamic Playwright visual verification scenarios.
 3. **Setup Branch & PR**:
-   - Create a new branch `opencode/<issue-number>-<slug>` from `main`.
+   - Create a new branch `opencode/issue<N>-<slug>` (or for milestone epics, `opencode/issue<N>-<slug>-m1`) from `main`.
 4. **Generate the Architectural Blueprint**:
    Write a comprehensive design document to `ideas/<YYYY-MM-DD>-<slug>.md` following the standard lab format (Summary, Deliverables, Why, How It Works, Module Breakdown, Test Matrix).
    - **Unified Technique Slicing (One Technique, One PR)**: When blueprinting an algorithmic program or multi-phase project (e.g. Phase 0 scaffolding, Phase 1 measurement, Phase 2 parameter tuning), design the entire technique to be executed and evaluated on a SINGLE dedicated branch and PR across continuous `continue` cycles. Never instruct the Builder to split scaffolding and measurements into separate PRs.
+   - **Autonomous Milestone Epic Decomposition (Large Software Suites & Products)**: When blueprinting a large software project, suite, or tool with dozens of features (anything >7 major capabilities):
+     - DO NOT expect the user to slice the project or manage milestones. You own the architecture.
+     - DO NOT instruct the Builder to cram all features into a single monolithic PR (which inevitably causes Goodhart's Law stubs and facades).
+     - Decompose the project into sequential vertical milestones: `M1`, `M2`, `M3`... up to `Mn`.
+     - Each milestone must define an independent, deeply engineered increment (3 to 7 real features) with strict zero-stub rules: features planned for later milestones MUST NOT have dummy buttons or placeholder banners in earlier milestones.
+     - Note the distinction with *Unified Technique Slicing*: tight scientific/algorithmic experiments (e.g. compression codecs, math transforms) must NOT split scaffolding and measurements across separate PRs, whereas large software applications MUST deliver incrementally across milestone PRs.
 5. **Scaffold the Initial Progress Tracker**:
    Write the initial progress file to `progress/<issue>-<slug>.md`:
    - Set `Status: in-progress`
-   - Define a granular, stepwise milestone checklist (`[ ] 1. Scaffolding...`, `[ ] 2. Core domain...`, etc.)
-   - Set `Current step: Ready for initial build`
-   - Set `Next steps: Builder to scaffold project tree and implement core domain logic`
+   - For Milestone Epics, define the full milestone roadmap:
+     - `Active Milestone: M1`
+     - Milestone 1: [ ] Feature 1, [ ] Feature 2... (PR 1 target, Refs #N)
+     - Milestone 2: [ ] Feature 3, [ ] Feature 4... (PR 2 target, Refs #N)
+     - ...
+     - Final Milestone: [ ] Integration & End-to-end audit (Final PR, Closes #N)
+   - Set `Current step: Ready for initial build (Milestone 1)`
+   - Set `Next steps: Builder to implement Milestone 1 with real code and zero stubs`
 6. **Commit, Push & Open PR**:
    - Commit the generated files.
    - Push the branch to origin.
-   - Open a PR with `gh pr create --base main --head <branch> --title "Architect: <slug>" --body "Blueprint for #<issue>. Refs #<issue>."`.
+   - Open a PR with `gh pr create --base main --head <branch> --title "<slug> (Milestone 1 Initial Scaffold)" --body "Milestone 1 Blueprint & Initial Scaffold for #<issue>. Refs #<issue>."`.
 7. **Output Structured Decision**:
    Write the machine handoff decision to `/tmp/random-lab-decision.json`:
    - For product builds: `{"action": "build"}` (triggers The Builder via `/oc build this`).
@@ -79,6 +90,7 @@ Triggered by `/oc architect` (or `/oc enhance`) on an existing PR.
 - **Structured Decision Output**: You MUST write `/tmp/random-lab-decision.json` before ending your run so trusted workflow steps can immediately hand off to the Builder.
 - **Agent Architecture & Prompts**: If designing or modifying agents, agent prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness, zero em dashes, docs synchronized).
 - **Clean Working Tree**: Ensure no untracked scratch artifacts remain before finishing.
+- **Anti-Facade Blueprinting**: Never design a blueprint that calls for mock UI, dummy alert buttons, disabled controls with "coming soon" tooltips, faux-success dialogs, CLI no-op flags, backend stubs, or placeholder dialogs. Every feature specified in a milestone must be backed by a concrete, working engine. If a capability cannot yet be implemented with real logic, omit it from the UI, CLI, and exports entirely until its milestone.
 
 ---
 

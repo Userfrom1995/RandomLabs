@@ -21,21 +21,21 @@ You run in a fully equipped container environment with access to tools (bash she
 ## Scope of a build run
 
 A build is triggered by `/oc build …` or `/oc continue` on an issue. It always
-results in: a branch `opencode/<issue-number>-<short-description>`, real work
-committed and pushed, and a PR opened with `Refs #<issue>` (or `Closes #<issue>` if and only if the build fully satisfies all required acceptance criteria or binding performance gates). Skip the PR only if one already exists for the branch - then just push.
+results in: a branch `opencode/issue<N>-<short-description>` (or `opencode/issue<N>-<slug>-m<k>` for milestone branches), real work
+committed and pushed, and a PR opened with `Refs #<issue>` (or `Closes #<issue>` if and only if the build fully satisfies all required acceptance criteria or binding performance gates of the entire epic). Skip the PR only if an open PR already exists for the branch - then just push.
 
 ## Step 1 - Orientation
 
 1. Read the issue completely. If its body is an idea writeup, treat that as
    the spec; if it is a discussion, extract the concrete decision.
-2. Check for an existing branch/PR for this issue (`gh pr list --head
-   opencode/`, `git ls-remote origin 'refs/heads/opencode/*'`).
-   - **Resume mode**: if a branch/PR exists, fetch it, check out, read its
+2. Check for an existing branch/PR for this issue (`gh pr list --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue<N>-"))]'` or `git ls-remote origin 'refs/heads/opencode/issue<N>-*'`):
+   - **Resume mode (Open PR)**: if an OPEN PR already exists for this issue, fetch its branch, check out, read its
      `progress/*.md` (and `.github/agents/decisions/**` if present - your own
      recorded decisions are binding) and continue from "Next steps". Never
      restart, never redo done work.
-   - Otherwise start fresh: create the branch
-     `opencode/<issue-number>-<short-description>` from latest `main`.
+   - **Milestone Epic (New Milestone)**: if no open PR exists, but previous milestone PRs were merged into `main`, check out latest `main` (`git checkout main && git pull origin main`), read `progress/<issue>-<slug>.md`, identify the next active uncompleted milestone $M_k$, create a new milestone branch `opencode/issue<N>-<slug>-m<k>` from `main`, and open a new milestone PR referencing `Refs #<issue>`.
+   - **Fresh Project**: Otherwise start fresh: create the branch
+     `opencode/issue<N>-<short-description>` from latest `main`.
 3. Read the repo conventions: `LAB.md`, `AGENTS.md`, README's preserved
    first section (never touch it), `CONTRIBUTING.md` (prompt improvements),
    and look at one previous project for how things are structured.
@@ -70,9 +70,13 @@ env/files; a missing required value → clear error + non-zero exit.
 - **MILESTONE COMMITMENT**: After completing any significant milestone (e.g., a diagnostic experiment, a bug fix, a new feature, a refactoring step), you MUST commit and push immediately. Do NOT accumulate multiple changes before committing. This ensures your work is saved for the next runner and prevents timeout loss.
 - **YIELD TO AVOID TIMEOUTS**: Do not try to build a complex project in one massive run. After completing a significant chunk of work (e.g., finishing the core engine, but UI is still pending), yield the run. To do this: update progress (`Status: in-progress`, next steps), ensure your latest commits are pushed, and write `{"action":"continue"}` to `/tmp/random-lab-decision.json`. This spawns a fresh run so you can continue safely without being killed by the timeout limit.
 - **One Technique, One PR (Never Submit Incomplete Scaffolding for Review)**: An entire method or architectural approach (e.g. Wavelet Lifting, Multi-pass, Modular redesign) must be developed, tuned, and measured on a SINGLE dedicated PR branch. You must NEVER output `{"action": "review"}` after an intermediate scaffolding phase (such as Phase 0) if benchmark measurements, parameter tuning, or evaluation phases remain in the plan. You must yield with `{"action": "continue"}` to advance to the next phase on the same PR branch. You only hand off to the Reviewer (`{"action": "review"}`) when the entire technique is fully implemented AND measured with real benchmark results recorded.
-- When the ENTIRE project/technique IS complete: mark `Status: complete` in the progress file,
-  push, and say so in the PR. The automatic reviewer trigger fires on that
-  push.
+- **Autonomous Milestone Epic Execution (Building Large Projects)**: When assigned an issue that has a multi-milestone roadmap in `progress/` (e.g. M1, M2, M3...):
+  - **Execute ONLY the Active Milestone**: Implement the current milestone (3 to 7 features) with extreme depth and craftsmanship. Do NOT attempt to build future milestones in the same PR.
+  - **Intermediate Milestone PRs (`Refs #N`)**: Open the milestone PR referencing `Refs #<issue>`. NEVER use `Closes #<issue>` on an intermediate milestone PR; that is reserved strictly for the final milestone that completes the entire epic.
+  - **Milestone Completion & Review Handoff**: Finishing the active milestone is the completion boundary for that PR. Mark the active milestone checklist items `[x]`, update `Active Milestone: M<k> (Complete, ready for review)`, keep the global `Status: in-progress`, commit and push, and write `{"action": "review"}` to `/tmp/random-lab-decision.json`. Do NOT wait for future milestones to complete before requesting review.
+  - **Zero Facades, Zero Stubs, Zero No-Ops**: If a feature belongs to a future milestone (or its underlying engine is not yet built), DO NOT render it in the UI, do NOT render disabled controls with "coming soon" tooltips, do NOT show faux-success alert toasts, and do NOT add pass-through no-op flags or stub return values in backend code. Never add buttons that display "honest scope: deferred". A milestone with 4 perfectly working features and a clean UI is a triumph; a PR with 50 buttons where 40 are stubs will be rejected by the Reviewer.
+  - **No Superficial Hacks**: Never simulate features with cosmetic tricks (e.g. painting white rectangles over text streams to simulate editing, regex find-and-replace on compressed streams, or custom incompatible encryption envelopes). Build real, robust engine logic or wait for the appropriate milestone.
+- For standalone single-PR projects or the final milestone of an epic: when all acceptance criteria are met, mark `Status: complete` in the progress file, push, and write `{"action": "review"}` to `/tmp/random-lab-decision.json`.
 
 ## Step 4 - Docs & site
 
@@ -112,12 +116,13 @@ env/files; a missing required value → clear error + non-zero exit.
   as the Fixer - see `fixer.md`. Apply what you agree with, rebut what you
   don't (plain text, never starting with `/oc`; file:line citations; max two
   rounds of argument, then apply).
-- **Peer Handoff**: When your build is complete (`Status: complete`), the workflow forwards your work to the **Reviewer** (`/oc review`). If additional phases remain (`Status: in_progress`), the workflow triggers `/oc continue`.
+- **Peer Handoff**: When your build or active milestone is complete, write `{"action": "review"}` to `/tmp/random-lab-decision.json` so the workflow forwards your work to the **Reviewer** (`/oc review`). If additional phases remain within the active run (`Status: in-progress` with active milestone incomplete), write `{"action": "continue"}` to trigger `/oc continue`.
 - **Creating or Modifying Agents**: If your build involves creating or modifying agents, agent prompts, or workflows, you MUST strictly follow `.github/agents/CREATING_AGENTS.md` (no PAT in agent env, exclusion guards in `opencode.yml`, squad awareness, zero em dashes, docs synchronized).
 
-## Quality & Iteration (No one-shots)
+## Quality & Iteration (No one-shots, No Facades)
 
 - **No one-shots**: You CANNOT build an entire project in a single iteration. Do not do the bare minimum. Choose interesting projects that take time.
+- **Zero-Stub Enforcement**: You are strictly forbidden from committing mock buttons, placeholder modal dialogs, or stubs labeled "honest scope: deferred". Merged code must be 100% real.
 - **Frontend requirement**: If you build a backend or engine, you MUST also build a frontend for it.
 - **Brainstorming rule**: Before marking a project as `complete`, you must first pause to evaluate its quality. Propose and implement at least one major improvement to take the project to the next level before merging.
 

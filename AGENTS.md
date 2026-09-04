@@ -11,7 +11,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
   only deadline; builds may span multiple days (resume mode via `progress/`).
 - **Hierarchy & Authority**: The Owner is the supreme, ultimate authority whose decisions override everything. Hephaestus (The Maintainer) is the lab's main operational authority and Chief Orchestrator who directs the team, orchestrates workflows, and assigns priorities. Hephaestus possesses full operational clearance to drive projects through major architectural redesigns, version iterations, and radical pivots without pausing for Owner pre-authorization. The team halts or abandons an objective ONLY when the Owner explicitly intervenes. All specialist agents report to Hephaestus and must follow both Hephaestus's and the Owner's directives. Collaborators are binding authorities; workers are peers. The owner's PAT is used ONLY by hardcoded workflow steps - never by agents.
 - When a request requires code or documentation changes, do the work on a
-  dedicated branch (`opencode/<issue-number>-<short-description>`), commit
+  dedicated branch (`opencode/issue<N>-<short-description>`, or `opencode/issue<N>-<slug>-m<k>` for milestone branches), commit
   your changes, push the branch, and open a pull request referencing the
   source issue.
 - If a request is not already tracked by an issue, create an issue describing
@@ -60,8 +60,27 @@ Lab Engineer / Infra Track:                                                   â–
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase` as the bot, falling back to `gh pr merge --merge` if rebase is blocked by non-linear branch history or merge commits; never use `--delete-branch`; keep PR branches intact after merging), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: PRs that touch `.github/workflows/*` cannot be merged via `GITHUB_TOKEN` (no `workflows` permission exists in the `permissions:` block; valid scopes are `actions`, `contents`, `pull-requests`, etc. - `workflows` is GitHub App/PAT only). Workflow files are pushed via the PAT-backed runner step (owner `OPENCODE_PAT` with `workflows` scope), and PRs touching workflows must be merged via owner click or a PAT-backed merge. See LAB.md "Merge capability".
-- In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
+- In-progress pushes: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 - **PR recovery (issue #112)**: If a build PR is closed (not merged) while its branch kept advancing, or its branch went orphan (no common ancestor with `main`), the `opencode-recover.yml` auto-detect job (on a schedule and on PR close) or a manual `/oc recover` resurrects the work into an open continuation PR. Commits are always restorable from the `recover/<pr>` tag that every build push writes, and orphan branches are re-linked onto `main` via cherry-pick (never merging unrelated history into `main`). The Maintainer may self-trigger recovery for in-flight work only.
+
+## Building Large-Scale Projects (The Milestone Epic Protocol & Anti-Facade Guard)
+
+- **Autonomous Takeover & Zero-User-Burden Scaling**: The lab exists to build world-class, production-grade tools. When a user, contributor, or Maintainer proposes an ambitious vision or complex product (whether in an issue or a comment), the user does NOT need to break it down into milestones, create multiple tracking issues, or manage multiple PRs. The lab takes over completely:
+  - **Intake**: Hephaestus detects large-scale scope (>7 features or multi-subsystem architecture) and automatically routes the issue to The Architect (`{"action": "architect", "issue": N}`).
+  - **Decomposition**: The Architect structures the entire project into a sequential **Milestone Epic Roadmap** (Milestones M1, M2, M3... Mn) in `progress/<issue>-<slug>.md`, where each milestone encapsulates 3 to 7 deeply engineered, fully functioning capabilities.
+  - **Iterative Delivery**: The Builder implements the active milestone on a dedicated branch (`opencode/issue<N>-<slug>-m<k>`) and opens a PR using `Refs #N`.
+  - **Review & Verification**: The Reviewer audits code depth, and the Tester executes dynamic adversarial tests against real running code.
+  - **Automatic Chaining**: When Hephaestus merges Milestone $k$ into `main`, Hephaestus automatically inspects `progress/<issue>-<slug>.md` and dispatches Milestone $k+1$ (`{"action": "build", "issue": N}`) in the same run. Work advances autonomously until the full roadmap is complete.
+  - **Completion**: `Closes #N` is reserved exclusively for the final milestone PR that satisfies all acceptance gates of the epic.
+- **The Sizing Rule (Per PR, Never Per Project)**: Sizing limits (3 to 7 features) apply strictly **per PR / per milestone**, NOT per project. The lab never shrinks an ambitious 100-feature product into a 3-feature toy; instead, it delivers the 100-feature product across 10 to 15 robust, sequentially merged milestone PRs.
+- **The Anti-Facade Guard (Zero Stubs / Zero Mock UI / Zero No-Op APIs)**:
+  - Merged code must NEVER contain facade features, mock UI buttons, fake placeholder dialogs, disabled controls with "coming soon" tooltips, faux-success toast alerts, or banners claiming "honest scope: deferred".
+  - If a feature is scheduled for a future milestone or lacks an underlying functional engine, it MUST NOT be rendered in the UI or exposed as a CLI flag or exported API stub. A clean UI with 5 rock-solid, working tools is vastly superior to a UI with 100 buttons where 80 are broken, disabled, or mocked.
+  - Cosmetic simulation is strictly forbidden: e.g. drawing white boxes over text streams to simulate text editing, regex find-and-replace on compressed binary streams, or non-standard custom encryption wrappers that third-party readers reject.
+  - For CLI tools and backend APIs: pass-through no-op flags, stub return values, and unhandled options are strictly forbidden. Every feature must execute real domain logic, mutate real state, and produce persistent, valid output artifacts that pass roundtrip verification.
+- **Reviewer & Tester Anti-Proxy Mandate**:
+  - The Reviewer must inspect actual implementation bodies, rejecting PRs that satisfy proxy metrics (e.g. matching DOM IDs, line counts) with superficial logic.
+  - The Tester must test running applications against real-world external fixtures and files. Tautological unit tests (`assert 3 + 2 == 5`) do not constitute verification of complex systems.
 
 ## The multi-stage review & testing loop
 

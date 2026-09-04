@@ -71,7 +71,15 @@ Lab Engineer / Infra Track:                                                   â–
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
-- In-progress continuation: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
+- In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
+
+## 3.1 The Autonomous Milestone Epic Protocol & Anti-Facade Guard
+
+- **Zero-User-Burden Autonomous Intake**: The user provides the raw idea or feature request. The user does NOT need to slice milestones or open multiple PRs. The Maintainer detects large-scale scope (>7 features or multi-subsystem architecture) and automatically routes the issue to The Architect (`{"action": "architect", "issue": N}`).
+- **Decomposition**: The Architect structures the vision into an Autonomous Milestone Epic Roadmap (M1, M2, M3... Mn) in `progress/<issue>-<slug>.md`, scoping each milestone to 3 to 7 deeply engineered features.
+- **Iterative Delivery**: The Builder implements the active milestone on a dedicated branch (`opencode/issue<N>-<slug>-m<k>`) with real code and opens a PR with `Refs #N`.
+- **Anti-Facade Invariant**: No UI buttons, mocks, disabled controls with "coming soon" tooltips, or placeholder dialogs may exist for unimplemented features. Cosmetic simulation (such as white boxes over text streams or regex stream scrubbing) and backend/CLI no-op stubs are strictly forbidden. Every feature must mutate real state and produce valid, verifiable artifacts.
+- **Automatic Post-Merge Chaining**: When Hephaestus merges Milestone $k$, Hephaestus immediately dispatches Milestone $k+1$ in `decision.json` without pausing. Intermediate milestone PRs (`Refs #N`) do not count against the 2-new-projects-per-day limit. Work chains autonomously until the entire epic is complete.
 
 ## 4. Maintainer triggers & concurrency
 
