@@ -99,3 +99,16 @@ export async function renderToDataUrl(n, dpi) {
   await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
   return c.toDataURL("image/png");
 }
+
+// M3: grayscale raster for OCR (300 DPI print pixels, luminance only).
+export async function renderPageGray(n, dpi, canvas) {
+  if (!doc) throw new Error("no document open");
+  const page = await doc.getPage(n);
+  const vp = page.getViewport({ scale: (dpi || 300) / 72 });
+  canvas.width = Math.floor(vp.width);
+  canvas.height = Math.floor(vp.height);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.filter = "grayscale(1)";
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return canvas;
+}

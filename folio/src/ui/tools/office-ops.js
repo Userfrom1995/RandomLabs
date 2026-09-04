@@ -142,5 +142,7 @@ export function rowsToXlsx(rows) {
   const ws = window.XLSX.utils.aoa_to_sheet(rows);
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, ws, "Folio");
-  return { bytes: window.XLSX.write(wb, { type: "array", bookType: "xlsx" }), rows: rows.length };
+  const raw = window.XLSX.write(wb, { type: "array", bookType: "xlsx" });
+  const bytes = raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  return { bytes, rows: rows.length };
 }

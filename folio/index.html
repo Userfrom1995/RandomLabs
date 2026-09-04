@@ -80,7 +80,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><button id="undobtn">Undo</button><button id="redobtn">Redo</button><button id="exportbtn">Export</button></div>
 </div>
 <nav aria-label="Tools">
-<a href="#/pages">Pages</a><a href="#/compress">Compress</a><a href="#/security">Security</a><a href="#/annotate">Annotate</a><a href="#/edit">Edit</a><a href="#/images">Images</a><a href="#/forms">Forms</a><a href="#/convert">Convert</a><a href="#/workflow">Workflow</a>
+<a href="#/pages">Pages</a><a href="#/compress">Compress</a><a href="#/security">Security</a><a href="#/annotate">Annotate</a><a href="#/edit">Edit</a><a href="#/images">Images</a><a href="#/forms">Forms</a><a href="#/ocr">OCR</a><a href="#/convert">Convert</a><a href="#/workflow">Workflow</a>
 </nav>
 </aside>
 <main>
@@ -192,6 +192,18 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="muted" id="formreport"></div>
 </div></section>
 
+<section class="route" id="route-ocr"><div class="card"><h3>OCR: scanned pages to searchable PDF</h3>
+<p class="muted">Runs the vendored Tesseract engine on your device. Nothing uploads. Pick a scanned PDF or a photo of a page.</p>
+<div class="row"><input type="file" id="ocrfile" accept=".pdf,.png,.jpg,.jpeg,.webp" aria-label="Scanned file" /><select id="ocrdpi" aria-label="Scan DPI"><option value="150">150 DPI (fast)</option><option value="300" selected>300 DPI (accurate)</option></select><span class="muted">Language: English (vendored model)</span></div>
+<div class="card" id="ocrconsent"><h3>On-demand OCR pack</h3>
+<p class="muted" id="ocrpackinfo">Checking pack status...</p>
+<div class="row"><button id="ocrpackbtn">Download OCR pack</button><button id="ocrpackcancel" disabled>Cancel</button></div>
+<div class="muted" id="ocrpackprog">Not downloaded.</div>
+</div>
+<div class="row"><button id="ocrrun">Make searchable</button><button id="ocrdl" disabled>Download searchable PDF</button></div>
+<div class="muted" id="ocrreport">No OCR run yet.</div>
+</div></section>
+
 <section class="route" id="route-convert"><div class="card"><h3>Convert (PDF in and out)</h3>
 <div class="row"><button id="t-pdf2text">PDF to text</button><button id="t-pdf2md">PDF to Markdown</button><button id="t-pdf2html">PDF to HTML</button></div>
 <div class="row"><input id="mdtitle2" placeholder="Note title" /></div>
@@ -201,6 +213,14 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <textarea id="csvtext" placeholder="Paste CSV rows, e.g.&#10;name,qty&#10;widget,3"></textarea>
 <div class="row"><button id="t-csv2pdf">CSV to PDF</button></div>
 <div class="muted" id="convertreport"></div>
+</div>
+<div class="card"><h3>Office documents (on-demand pack)</h3>
+<p class="muted" id="officepackinfo">Checking pack status...</p>
+<div class="row"><button id="officepackbtn">Download Office pack</button><button id="officepackcancel" disabled>Cancel</button></div>
+<div class="muted" id="officepackprog">Not downloaded.</div>
+<div class="row"><input type="file" id="officefile" accept=".docx,.xlsx" aria-label="Office file" /><button id="t-office2pdf">Office to PDF</button></div>
+<div class="row"><button id="t-pdf2docx">Current PDF to DOCX</button><button id="t-pdf2xlsx">Current PDF lines to XLSX</button></div>
+<div class="muted" id="officereport">No Office conversion yet.</div>
 </div></section>
 
 <section class="route" id="route-workflow"><div class="card"><h3>Workflow (R2-R3, info, repair, TTS)</h3>
