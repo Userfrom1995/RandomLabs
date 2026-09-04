@@ -236,7 +236,9 @@ public static class CityPack
         return new PackData(layers, seed, "authoring-convert-v1");
     }
 
-    /// <summary>Write ndjson layers + pack.json manifest (UTF-8 no BOM).</summary>
+    /// <summary>
+    /// Write ndjson layers + pack.json manifest + geocode.idx.json (UTF-8 no BOM).
+    /// </summary>
     public static PackManifest WritePack(PackData data, string outDir, RoadGraph? graph = null)
     {
         Directory.CreateDirectory(outDir);
@@ -252,6 +254,8 @@ public static class CityPack
         }
         if (graph is not null)
             WriteGraphAssets(graph, outDir);
+        var geocode = GeocodeAsset.BuildFromLayers(data.Layers);
+        GeocodeAsset.WriteAsset(geocode, outDir);
         var manifest = new PackManifest(
             PackManifest.CurrentVersion, data.Seed, CenterLon, CenterLat, counts, data.Source,
             graph?.NodeCount, graph?.EdgeCount);
