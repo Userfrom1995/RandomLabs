@@ -35,28 +35,8 @@ export function corpusGate(plan, textDominant, beforeBytes, afterBytes) {
   };
 }
 
-// Lossless resave spec: object-stream packing + unreferenced sweep (O3 is
+// Lossless resave spec: object-stream packing + unreferenced sweep (GC is
 // free inside the same pdf-lib rewrite).
 export function resaveSpec() {
   return { useObjectStreams: true, addDefaultPage: false, note: "full rewrite drops unreferenced objects" };
-}
-
-export function grayscaleSpec(strength) {
-  const s = Math.min(2, Math.max(0, strength === undefined ? 1 : strength));
-  return { filter: "luminance-fold", strength: s };
-}
-
-// PDF/A subset checklist (O7): what the executor does per item.
-export function pdfaChecklist() {
-  return [
-    { item: "embed font subsets", status: "handled" },
-    { item: "strip JS/actions/embedded files", status: "handled" },
-    { item: "strip transparency groups (flatten)", status: "manual-review" },
-    { item: "write XMP + OutputIntent", status: "phase-E" },
-  ];
-}
-
-// Linearize (O2, Tier 3): honest stub spec, not implemented in Phase C.
-export function linearizeSpec() {
-  return { status: "stub-phase-E", note: "first-page-first xref ordering not yet implemented" };
 }

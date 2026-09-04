@@ -1,1 +1,0 @@
-{"bytes": 0, "files": ["tesseract-core.wasm", "lstm-eng.traineddata"], "id": "ocr-pack", "languages": ["eng"], "minSW": 1, "note": "Phase C placeholder: engine vendored in Phase C; consent UX live now.", "sha256": "pending-phase-C", "version": "0.1.0"}

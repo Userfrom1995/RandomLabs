@@ -1,7 +1,8 @@
 // Folio content tools executor: annotate / stamp / headers / watermarks /
 // metadata / sanitize / images-to-PDF / text-to-PDF / PDF-to-text family.
 // All write-path ops use pdf-lib; read-path uses the viewer text map.
-import { buildSamplePdf } from "../shell/sample.js";
+// M1 note: the unwired search-report appender was removed (dead code);
+// search stays a read-path viewer feature with hit counts.
 
 export async function addHeaderFooter(bytes, { header, footer, size }, PDFLib) {
   const doc = await PDFLib.PDFDocument.load(bytes);
@@ -133,21 +134,3 @@ export async function textToPdf(title, bodyText, PDFLib) {
   }
   return doc.save();
 }
-
-export async function highlightSearchHits(bytes, hits, PDFLib) {
-  // Best-effort stamp: appends a summary page listing hits (true text-markup
-  // annotations need quad points from the text map; Phase B wires quads).
-  const doc = await PDFLib.PDFDocument.load(bytes);
-  const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
-  const page = doc.addPage([595, 842]);
-  page.drawText("Folio search report (" + hits.length + " hits)", { x: 56, y: 780, size: 16, font });
-  let y = 750;
-  for (const h of hits.slice(0, 60)) {
-    page.drawText("p." + h.page + ": " + h.text.slice(0, 90), { x: 56, y, size: 9, font });
-    y -= 14;
-    if (y < 60) break;
-  }
-  return doc.save();
-}
-
-export { buildSamplePdf };

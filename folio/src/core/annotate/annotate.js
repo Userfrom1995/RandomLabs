@@ -1,6 +1,10 @@
 // Folio annotate core: pure helpers for text-markup quads, ink, stamps,
 // links, Bates plans, and bookmark trees. No DOM, no pdf-lib.
-import { bboxIntersects } from "../content/redact.js";
+// M1 note: bboxIntersects moved here from the purged redact module (the
+// stream-regex redaction UI was removed; box math stays for markup quads).
+export function bboxIntersects(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
 
 // QuadPoints for every word whose text contains the query (case-insensitive).
 // Returns [{page, quads: [[x1,y2,x2,y2,x1,y1,x2,y1]...], snippet}].
@@ -106,5 +110,3 @@ export function validateLink(target) {
   }
   throw new Error("link: need {uri} or {page}");
 }
-
-export { bboxIntersects };

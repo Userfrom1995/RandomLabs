@@ -3,27 +3,20 @@ import assert from "node:assert/strict";
 import { planMerge, planSplitRanges, planChunks, planDelete, planOddEven, planReorder, planReverse, planRotate, planCrop, fixupReferences, oldToNewMap } from "../src/core/pdf-engine/structural.js";
 import { itemsToLines, clusterColumns, linesToParagraphs, readingOrder } from "../src/core/textmap/extract.js";
 import { PROFILES, profileSpec, decidePagePath } from "../src/core/compress/profiles.js";
-import { filterTextMap, redactAcceptance } from "../src/core/content/redact.js";
 import { nupLayout, bookletOrder } from "../src/core/content/nup.js";
-import { toCsv, findColumns } from "../src/core/textmap/tables.js";
+import { toCsv, findColumns, csvTableSpec } from "../src/core/textmap/tables.js";
 import { inferMarkdown } from "../src/core/textmap/markdown.js";
-import { parseManifest, consentReducer, formatBytes } from "../src/platform/packs/manifest.js";
+import { toText, toMarkdown, toHtml } from "../src/core/convert/writers.js";
 import { applyPattern, sanitizeFileName, encodePerms, decodePerms } from "../src/core/pipeline/naming.js";
 import { createStore, applyOp, makeOp, undo, redo } from "../src/core/pipeline/ops.js";
-import { quadsForQuery, batesPlan, validateBookmarks, simplifyInk, validateLink } from "../src/core/annotate/annotate.js";
-import { findSpans, paragraphEditPlan, wordDiff, diffStats } from "../src/core/content/edit.js";
-import { scrubPdfBytes } from "../src/core/content/burnin.js";
+import { quadsForQuery, hitRegions, bboxIntersects, batesPlan, validateBookmarks, simplifyInk, validateLink } from "../src/core/annotate/annotate.js";
+import { wordDiff, diffStats } from "../src/core/content/edit.js";
 import { fitImage, scannerSpec } from "../src/core/images/images.js";
 import { validateFieldDef, coerceFillValue, xfaDetect } from "../src/core/forms/forms.js";
-import { ENVELOPE_MAGIC, validatePassword, zeroBytes, envelopeDescriptor, unlockSession, inspectJs, byterangeSpec, integrityVerdict, signatureAppearanceSpec } from "../src/core/crypto/crypto.js";
-import { planCorpus, corpusGate, resaveSpec, grayscaleSpec, pdfaChecklist, linearizeSpec } from "../src/core/compress/optimize.js";
-import { OCR_DPI, ocrJobSpec, pdfPoint, mode3Spec, poolSize, ocrProgressReducer, HANDWRITING_NOTE } from "../src/core/ocr-client/ocr.js";
-import { crc32, zipStore, escXml, toDocx, toXlsx, toPptx, csvTableSpec, urlImportSpec } from "../src/core/convert/office.js";
-import { unzipList, extractStore, unzipStores } from "../src/core/convert/zip-read.js";
-import { extractDocxParagraphs, extractXlsxTables, extractPptxSlides, extractOfficeFiles, officeToPdfPlan, fallbackBanner, FALLBACK_FIDELITY_NOTE } from "../src/core/convert/office-fallback.js";
-import { routeOfficeConvert, packJobSpec, packFidelitySpec, fallbackVsPackDiff, verifyPackFiles, packCacheKey } from "../src/core/convert/office-pack.js";
-import { cacheKeyFor, verifyTotalBytes, progressFraction, verifyManifestFiles } from "../src/platform/packs/loader.js";
-import { PAGE_SIZES, resizeSpec, orientationPlan, splitByBookmarks, parseOrderString, blankInsertPlan, flattenPlan, linearizeNote, gcSpec, downsampleSpec, grayscalePlan, pdfaRecord, certScope, signatureValidateReport, attachPlan, batchRename, replaceImagePlan, deskewSpec, printSpec, batchPlan, batchReducer } from "../src/core/tier2/tier2.js";
+import { inspectJs, integrityVerdict, signatureAppearanceSpec } from "../src/core/crypto/crypto.js";
+import { planCorpus, corpusGate, resaveSpec } from "../src/core/compress/optimize.js";
+import { gridDropOrder } from "../src/ui/tools/pages-ops.js";
+import { PAGE_SIZES, resizeSpec, orientationPlan, splitByBookmarks, parseOrderString, blankInsertPlan, flattenPlan, gcSpec, batchRename, replaceImagePlan, printSpec, batchPlan, batchReducer } from "../src/core/tier2/tier2.js";
 
 test("structural planners", () => {
   assert.deepEqual(planMerge([3, 2]).total, 5);
@@ -70,20 +63,6 @@ test("compress profiles + coverage gate", () => {
   assert.equal(decidePagePath({ textItems: 500, imageArea: 0.6 }), "lossless");
 });
 
-test("redact filter + acceptance", () => {
-  const lines = [
-    { text: "keep me", x: 10, y: 10, w: 100, h: 12 },
-    { text: "secret", x: 300, y: 300, w: 100, h: 12 },
-  ];
-  const R = [{ x: 250, y: 250, w: 200, h: 100 }];
-  const kept = filterTextMap(lines, R);
-  assert.deepEqual(kept.map((l) => l.text), ["keep me"]);
-  const acc = redactAcceptance(kept, R, new TextEncoder().encode("keep me only"), ["secret"]);
-  assert.equal(acc.pass, true);
-  const bad = redactAcceptance(lines, R, new TextEncoder().encode("secret here"), ["secret"]);
-  assert.equal(bad.pass, false);
-});
-
 test("nup + booklet math", () => {
   const lay = nupLayout(4, 595, 842, 18);
   assert.equal(lay.cells.length, 4);
@@ -94,22 +73,23 @@ test("nup + booklet math", () => {
   assert.deepEqual(bookletOrder(4), [[3, 0], [1, 2]]);
 });
 
-test("tables + markdown", () => {
+test("tables + markdown + writers + csv spec", () => {
   const cols = findColumns([{ x: 0, w: 100 }, { x: 10, w: 5 }, { x: 300, w: 100 }], 20);
   assert.equal(cols.length, 2);
   assert.equal(toCsv([["a", "b,c"], ["d", 'e"f']]), 'a,"b,c"\nd,"e""f"');
+  const spec = csvTableSpec([["a"], ["b"], ["c"]], { rowsPerPage: 2 });
+  assert.deepEqual([spec.cols, spec.pageCount], [1, 2]);
+  assert.throws(() => csvTableSpec([]));
   const paras = [{ text: "Big Title", lines: [{ size: 30 }] }, { text: "body text here", lines: [{ size: 12 }, { size: 12 }] }];
   const md = inferMarkdown(paras);
   assert.ok(md.startsWith("# Big Title"));
+  const docs = [{ paragraphs: [{ text: "hello", lines: [{ size: 12 }] }], lines: [], count: 1 }];
+  assert.ok(toText(docs).includes("hello"));
+  assert.ok(toMarkdown(docs).length > 0);
+  assert.ok(toHtml("T", docs).includes("<html"));
 });
 
-test("packs + naming + perms + pipeline", () => {
-  const m = parseManifest({ id: "x", version: "1", bytes: 10, files: ["a"], sha256: "s" });
-  assert.equal(m.id, "x");
-  assert.throws(() => parseManifest({ id: "x" }));
-  assert.equal(consentReducer("idle", "accept"), "downloading");
-  assert.equal(consentReducer("downloading", "done"), "verifying");
-  assert.equal(formatBytes(1536), "1.5 KB");
+test("naming + perms + pipeline", () => {
   assert.equal(applyPattern("{name}-{pages}p", { name: "doc", pages: 3 }), "doc-3p");
   assert.equal(sanitizeFileName('a/b:c*'), "a_b_c_");
   const v = encodePerms({ print: true });
@@ -134,11 +114,15 @@ test("textmap lines carry boxes + words", async () => {
   assert.ok(lines[0].words[1].x > lines[0].words[0].x);
 });
 
-test("annotate quads + bates + bookmarks + ink + link", () => {
+test("annotate quads + boxes + bates + bookmarks + ink + link", () => {
   const lines = [{ text: "hello world", x: 50, y: 700, w: 120, h: 12, size: 12, words: [{ text: "hello", x: 50, y: 700, w: 40, h: 12 }, { text: "world", x: 95, y: 700, w: 40, h: 12 }] }];
   const q = quadsForQuery(lines, "world");
   assert.equal(q.length, 1);
   assert.deepEqual(q[0].quads[0].slice(0, 4), [95, 700, 135, 700]);
+  const hrs = hitRegions(lines, "world");
+  assert.equal(hrs.length, 1);
+  assert.ok(bboxIntersects(hrs[0], { x: 0, y: 0, w: 1000, h: 1000 }));
+  assert.ok(!bboxIntersects({ x: 0, y: 0, w: 10, h: 10 }, { x: 50, y: 50, w: 10, h: 10 }));
   assert.deepEqual(batesPlan(3, { prefix: "B-", digits: 4, start: 7 }), ["B-0007", "B-0008", "B-0009"]);
   assert.throws(() => validateBookmarks([{ title: "", page: 1 }], 3));
   assert.throws(() => validateBookmarks([{ title: "a", page: 9 }], 3));
@@ -150,25 +134,10 @@ test("annotate quads + bates + bookmarks + ink + link", () => {
   assert.deepEqual(validateLink({ page: 2 }), { page: 2 });
 });
 
-test("edit spans + paragraph plan + word diff", () => {
-  const lines = [{ text: "the secret file", x: 10, y: 10, w: 200, h: 12, size: 12, words: [{ text: "the", x: 10, y: 10, w: 20, h: 12 }, { text: "secret", x: 32, y: 10, w: 40, h: 12 }, { text: "file", x: 74, y: 10, w: 25, h: 12 }] }];
-  const spans = findSpans(lines, "secret");
-  assert.equal(spans.length, 1);
-  assert.equal(spans[0].x, 31);
-  const plan = paragraphEditPlan({ x: 10, y: 100, w: 400, h: 14, size: 12 }, "alpha beta gamma delta", (t, s) => t.length * s * 0.5);
-  assert.ok(plan.rows.length >= 1 && plan.cover.w === 404);
+test("word diff for compare report", () => {
   const ops = wordDiff("a b c", "a x c");
   const st = diffStats(ops);
   assert.deepEqual([st.same, st.del, st.ins], [2, 1, 1]);
-});
-
-test("burnin scrub blanks literals + hex", () => {
-  const fake = Buffer.from("1 0 obj\n<< /Title (TopSecretDoc) >>\nstream\nBT (TopSecretDoc) Tj ET\nendstream\n<XFEFFER><546F70536563726574446F63>\n", "latin1");
-  const { bytes, perString } = scrubPdfBytes(new Uint8Array(fake), ["TopSecretDoc"]);
-  const out = Buffer.from(bytes).toString("latin1");
-  assert.ok(!out.includes("TopSecretDoc"), "string must be gone: " + out.slice(0, 120));
-  assert.ok(Math.abs(bytes.length - fake.length) < 16, "near length preserving");
-  assert.ok(perString["TopSecretDoc"] >= 1);
 });
 
 test("images fit + scanner spec + forms validation", () => {
@@ -184,32 +153,17 @@ test("images fit + scanner spec + forms validation", () => {
   assert.equal(xfaDetect("plain pdf"), false);
 });
 
-test("crypto pure: password, zero, descriptor, inspect, byterange, verdict", () => {
-  assert.equal(ENVELOPE_MAGIC, "FOLIO-AES-GCM-v1");
-  const pw = validatePassword("s3cret");
-  assert.ok(pw.length > 0);
-  assert.throws(() => validatePassword(""));
-  assert.throws(() => validatePassword(42));
-  zeroBytes(pw);
-  assert.ok(pw.every((b) => b === 0));
-  const d = envelopeDescriptor({ print: true }, "n");
-  assert.equal(d.cipher, "AES-256-GCM");
-  assert.deepEqual(d.perms, { print: true });
-  const s = unlockSession("j1", "a.pdf", {});
-  assert.equal(s.persisted, false);
-  assert.throws(() => unlockSession("", "a.pdf"));
-  const hits = inspectJs(Buffer.from("1 0 obj << /JS (x) /OpenAction 2 0 R /JS (y) >>", "latin1"));
+test("crypto: inspect, verdict, appearance (no envelopes, no PKI)", () => {
+  const hits = inspectJs(new TextEncoder().encode("1 0 obj << /JS (x) /OpenAction 2 0 R /JS (y) >>"));
   assert.deepEqual(hits[0], { key: "/JS", count: 2 });
-  assert.deepEqual(inspectJs(Buffer.from("plain", "latin1")), []);
-  assert.deepEqual(byterangeSpec(1000, 100, 200).ByteRange, [0, 100, 300, 700]);
-  assert.throws(() => byterangeSpec(100, 90, 20));
+  assert.deepEqual(inspectJs(new TextEncoder().encode("plain")), []);
   assert.equal(integrityVerdict({ digestOk: true, chainOk: false }).summary, "INTACT / UNTRUSTED");
   assert.equal(integrityVerdict({ digestOk: false, chainOk: false }).integrity, "TAMPERED");
   assert.throws(() => signatureAppearanceSpec({ text: "", page: 0, rect: { x: 1, y: 1, w: 2, h: 2 } }));
   assert.equal(signatureAppearanceSpec({ text: "Ada", page: 0, rect: { x: 1, y: 1, w: 2, h: 2 } }).kind, "signature-stamp");
 });
 
-test("optimize: corpus plan + gate + specs", () => {
+test("optimize: corpus plan + gate + resave", () => {
   const plan = planCorpus([{ textItems: 300, imageArea: 0.05 }, { textItems: 3, imageArea: 0.9 }], "high");
   assert.deepEqual(plan.routes.map((r) => r.route), ["lossless", "rasterize"]);
   assert.deepEqual(plan.lossless, [0]);
@@ -222,118 +176,19 @@ test("optimize: corpus plan + gate + specs", () => {
   assert.equal(bad.pass, false);
   assert.throws(() => corpusGate(plan, [true, false], 0, 1));
   assert.equal(resaveSpec().useObjectStreams, true);
-  assert.equal(grayscaleSpec(9).strength, 2);
-  assert.ok(pdfaChecklist().length >= 4);
-  assert.equal(linearizeSpec().status, "stub-phase-E");
 });
 
-test("ocr-client: spec, affine map, pool, progress", () => {
-  assert.equal(OCR_DPI, 300);
-  assert.deepEqual(ocrJobSpec({ page: 0 }), { page: 0, dpi: 300, grayscale: true, deskew: true, orient: true, lang: "eng" });
-  assert.throws(() => ocrJobSpec({ page: -1 }));
-  assert.deepEqual(pdfPoint(300, 600, 300), { x: 72, y: 144 });
-  const spec = mode3Spec([{ text: "hi", xPx: 0, yPx: 0, wPx: 50, hPx: 20 }], 300);
-  assert.equal(spec[0].size, (20 * 72) / 300);
-  assert.throws(() => mode3Spec([{ text: "", xPx: 0, yPx: 0, wPx: 1, hPx: 1 }]));
-  assert.equal(poolSize(9, false), 8);
-  assert.equal(poolSize(1, false), 1);
-  assert.equal(poolSize(9, true), 4);
-  assert.equal(ocrProgressReducer("idle", "queue"), "queued");
-  assert.equal(ocrProgressReducer("recognizing", "emit"), "layer");
-  assert.equal(ocrProgressReducer("failed", "retry"), "queued");
-  assert.equal(ocrProgressReducer("done", "bogus"), "done");
-  assert.ok(HANDWRITING_NOTE.includes("Handwriting"));
+test("grid drop order is a pure permutation move", () => {
+  assert.deepEqual(gridDropOrder(4, 0, 2), [1, 2, 0, 3]);
+  assert.deepEqual(gridDropOrder(4, 3, 0), [3, 0, 1, 2]);
+  assert.deepEqual(gridDropOrder(1, 0, 0), [0]);
+  assert.deepEqual(gridDropOrder(3, 1, 1), [0, 1, 2]);
+  assert.deepEqual(gridDropOrder(3, 0, 99), [1, 2, 0]);
+  assert.throws(() => gridDropOrder(3, 5, 0));
+  assert.throws(() => gridDropOrder(0, 0, 0));
 });
 
-test("office writers: zip roundtrip + docx/xlsx/pptx + csv/url specs", () => {
-  assert.equal(crc32(new TextEncoder().encode("123456789")), 0xcbf43926);
-  const z = zipStore([{ name: "a.txt", data: "hello" }, { name: "d/b.bin", data: new Uint8Array([1, 2, 3]) }]);
-  assert.equal(z[0], 0x50);
-  assert.equal(z[1], 0x4b);
-  const s = Buffer.from(z).toString("latin1");
-  assert.ok(s.includes("a.txt") && s.includes("hello") && s.includes("d/b.bin"));
-  assert.ok(s.includes("PK\x05\x06"), "end of central directory present");
-  assert.equal(escXml('a<b>&"'), "a&lt;b&gt;&amp;&quot;");
-  const docx = toDocx([{ paragraphs: [{ text: "Title", heading: 1 }, { text: "body & soul" }] }]);
-  const ds = Buffer.from(docx).toString("latin1");
-  assert.ok(ds.includes("word/document.xml") && ds.includes("Title") && ds.includes("body &amp; soul"));
-  const xlsx = toXlsx([[["a", "b"], ["c", "d"]]]);
-  const xs = Buffer.from(xlsx).toString("latin1");
-  assert.ok(xs.includes("xl/worksheets/sheet1.xml") && xs.includes("<t>a</t>") && xs.includes("<t>d</t>"));
-  const pptx = toPptx([{ paragraphs: [{ text: "slide one" }] }, { paragraphs: [{ text: "slide two" }] }]);
-  const ps = Buffer.from(pptx).toString("latin1");
-  assert.ok(ps.includes("ppt/slides/slide2.xml") && ps.includes("slide one"));
-  const spec = csvTableSpec([["a"], ["b"], ["c"]], { rowsPerPage: 2 });
-  assert.deepEqual([spec.cols, spec.pageCount], [1, 2]);
-  assert.throws(() => csvTableSpec([]));
-  assert.equal(urlImportSpec("https://example.com/x").href, "https://example.com/x");
-  assert.throws(() => urlImportSpec("ftp://x"));
-  assert.throws(() => urlImportSpec("file:///etc/passwd"));
-});
-
-test("phase D: zip-read + office fallback extract + pack routing + loader", () => {
-  // zip-read roundtrips our own store-only writers (docx/xlsx/pptx).
-  const docx = toDocx([{ paragraphs: [{ text: "Report Title", heading: 1 }, { text: "body line one" }] }]);
-  const names = unzipList(docx).map((e) => e.name).sort();
-  assert.deepEqual(names, ["[Content_Types].xml", "_rels/.rels", "word/document.xml"]);
-  const map = unzipStores(docx);
-  assert.ok(map["word/document.xml"].length > 0);
-  // V4 fallback: docx paragraphs incl. heading level.
-  const paras = extractDocxParagraphs(map);
-  assert.equal(paras[0].text, "Page 1");
-  assert.equal(paras[1].heading, 1);
-  assert.equal(paras[1].text, "Report Title");
-  // V4 fallback: xlsx tables (inline strings) incl. second sheet.
-  const xlsx = toXlsx([[["a", "b"], ["c", "d"]], [["e"]]]);
-  const xmap = unzipStores(xlsx);
-  const tables = extractXlsxTables(xmap);
-  assert.equal(tables.length, 2);
-  assert.deepEqual(tables[0][0], ["a", "b"]);
-  assert.deepEqual(tables[1][0], ["e"]);
-  // V4 fallback: pptx slides keep both pages in order.
-  const pptx = toPptx([{ paragraphs: [{ text: "slide one" }] }, { paragraphs: [{ text: "slide two" }] }]);
-  const pmap = unzipStores(pptx);
-  const slides = extractPptxSlides(pmap);
-  assert.equal(slides.length, 2);
-  assert.ok(slides[0].paragraphs.some((p) => p.text.includes("slide one")));
-  // Dispatch + plan + banner.
-  assert.equal(extractOfficeFiles(xmap, "grid.xlsx").kind, "xlsx");
-  assert.throws(() => extractOfficeFiles(xmap, "notes.txt"));
-  const plan = officeToPdfPlan({ kind: "docx", paragraphs: paras });
-  assert.equal(plan.pageCount, 1);
-  assert.throws(() => officeToPdfPlan({}));
-  const banner = fallbackBanner("report.docx", "docx");
-  assert.equal(banner.mode, "fallback");
-  assert.ok(banner.changes.length >= 4 && FALLBACK_FIDELITY_NOTE.includes("Basic version"));
-  // V3 pack boundary routing + specs.
-  assert.equal(routeOfficeConvert({ consent: "idle", packReady: false }), "prompt");
-  assert.equal(routeOfficeConvert({ consent: "declined", packReady: false }), "fallback");
-  assert.equal(routeOfficeConvert({ consent: "idle", packReady: true }), "pack");
-  assert.equal(packJobSpec({ fileName: "a.docx", byteLength: 10 }).kind, "docx");
-  assert.throws(() => packJobSpec({ fileName: "a.txt", byteLength: 10 }));
-  assert.throws(() => packJobSpec({ fileName: "a.docx", byteLength: 0 }));
-  assert.ok(packFidelitySpec().preserves.length >= 3);
-  assert.ok(fallbackVsPackDiff().some((d) => d.aspect === "tables"));
-  const man = { id: "office-pack", version: "0.2.0", bytes: 5, files: ["office-engine.js"], sha256: "s" };
-  assert.deepEqual(verifyPackFiles(man, [{ name: "office-engine.js", bytes: new Uint8Array(5) }]).ok, true);
-  assert.throws(() => verifyPackFiles(man, [{ name: "wrong.js", bytes: new Uint8Array(5) }]));
-  assert.throws(() => verifyPackFiles({ ...man, bytes: 6 }, [{ name: "office-engine.js", bytes: new Uint8Array(5) }]));
-  assert.equal(packCacheKey(man), "folio-pack-office-0.2.0");
-  // Shared loader helpers.
-  assert.equal(cacheKeyFor("office-pack", "0.2.0"), "folio-pack-office-0.2.0");
-  assert.equal(cacheKeyFor("ocr-pack", "1.0.0"), "folio-pack-ocr-1.0.0");
-  assert.throws(() => cacheKeyFor("nope", "1"));
-  assert.deepEqual(verifyTotalBytes({ bytes: 8 }, 8).ok, true);
-  assert.throws(() => verifyTotalBytes({ bytes: 8 }, 9));
-  assert.equal(progressFraction(50, 100), 0.5);
-  assert.equal(progressFraction(200, 100), 1);
-  assert.deepEqual(verifyManifestFiles(man, ["office-engine.js"]).ok, true);
-  assert.throws(() => verifyManifestFiles(man, ["other.js"]));
-  // extractStore refuses deflated entries (honest, needs inflater).
-  assert.throws(() => extractStore(docx, { name: "x", method: 8, localOff: 0 }));
-});
-
-test("phase E tier2: resize/orient/bookmarks/order/blank/flatten/gc/linearize/deskew/batch", () => {
+test("tier2: resize/orient/bookmarks/order/blank/flatten/gc/rename/replace/print/batch", () => {
   assert.ok(PAGE_SIZES.A4.w > 590);
   assert.deepEqual([resizeSpec("A4", "landscape", "fit").w > resizeSpec("A4", "landscape", "fit").h, true], [true, true]);
   assert.throws(() => resizeSpec("A9", "portrait", "fit"));
@@ -351,29 +206,13 @@ test("phase E tier2: resize/orient/bookmarks/order/blank/flatten/gc/linearize/de
   assert.deepEqual(blankInsertPlan(3, 3), { at: 3, sizeName: "A4" });
   assert.throws(() => blankInsertPlan(3, 9));
   assert.equal(flattenPlan({ Highlight: 2, Text: 1 }).total, 3);
-  assert.equal(linearizeNote().status, "not-native");
   assert.ok(gcSpec(1000, 800).reclaimed === 200);
   assert.throws(() => gcSpec(0, 1));
-  assert.equal(downsampleSpec(150).scale, 150 / 72);
-  assert.throws(() => downsampleSpec(123));
-  assert.equal(grayscalePlan([0, 1], 9).strength, 2);
-  assert.throws(() => grayscalePlan([], 1));
-  assert.equal(pdfaRecord("PDF/A-2b").level, "PDF/A-2b");
-  assert.throws(() => pdfaRecord("PDF/A-9z"));
-  assert.ok(certScope().sign.includes("placeholder"));
-  assert.equal(signatureValidateReport(true, false).summary, "INTACT / UNTRUSTED");
-  assert.equal(signatureValidateReport(false, false).integrity, "TAMPERED");
-  assert.deepEqual(attachPlan([], "add", "a.pdf", 10), { op: "add", name: "a.pdf", byteLength: 10 });
-  assert.throws(() => attachPlan(["a.pdf"], "add", "a.pdf", 10));
-  assert.throws(() => attachPlan([], "extract", "missing.pdf"));
   const rn = batchRename([{ name: "doc.pdf", pages: 3 }], "{name}-{index}p");
   assert.equal(rn[0].to, "doc-1p.pdf");
   assert.throws(() => batchRename([], "{name}"));
   assert.equal(replaceImagePlan({ index: 0, page: 0 }, 99).index, 0);
   assert.throws(() => replaceImagePlan({}, 99));
-  assert.equal(deskewSpec(2, true).deskew, true);
-  assert.equal(deskewSpec(9, false).note.includes("manual"), true);
-  assert.throws(() => deskewSpec(90, false));
   assert.equal(printSpec(4, true).booklet, true);
   assert.throws(() => printSpec(0, false));
   const q = batchPlan(["a.pdf", "b.pdf"], "compress");

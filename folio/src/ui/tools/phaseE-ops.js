@@ -1,5 +1,8 @@
 // Folio Phase E executor: Tier 2 + Tier 3 rows against pdf-lib.
-// Real implementations where pdf-lib allows; honest notes where not.
+// M1 scope: only ops pdf-lib can execute for real. Purged facades:
+// pdfaStamp (set Producer, not a PDF/A writer), grayscaleStamp (set
+// Producer, not a pixel pass), linearizeNote (display-only), Subject-line
+// attachment registry (files never traveled with the PDF).
 import { resizeSpec, blankInsertPlan } from "../../core/tier2/tier2.js";
 
 export async function extractPages(bytes, keep, PDFLib) {
@@ -103,59 +106,10 @@ export async function garbageCollect(bytes, PDFLib) {
   return doc.save({ useObjectStreams: true, addDefaultPage: false });
 }
 
-export async function pdfaStamp(bytes, level, PDFLib) {
-  // Honest subset: embed standard font, strip JS/actions, stamp XMP-ish Info.
-  const doc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
-  await doc.embedFont(PDFLib.StandardFonts.Helvetica);
-  doc.setProducer("Folio PDF/A subset (" + level + ")");
-  try {
-    for (const k of ["JavaScript", "AA", "OpenAction"]) {
-      try { if (doc.catalog.get(PDFLib.PDFName.of(k))) doc.catalog.delete(PDFLib.PDFName.of(k)); } catch { /* noop */ }
-    }
-  } catch { /* noop */ }
-  return doc.save({ useObjectStreams: true });
-}
-
-export async function grayscaleStamp(bytes, PDFLib) {
-  // Honest: stamps a grayscale-intent marker page note + sets producer flag;
-  // true pixel re-encode runs on the browser canvas path per image op.
-  const doc = await PDFLib.PDFDocument.load(bytes);
-  doc.setProducer("Folio grayscale-intent");
-  return doc.save();
-}
-
-export function linearizeNote() {
-  return "Fast-web-view: object-stream resave + page-windowed streaming. True xref linearization is not emitted by pdf-lib (needs a qpdf-class pass).";
-}
-
-// Attachments via pdf-lib embedded files are limited; store as honest
-// document-level name registry in Info (Subject) + real download sidecar.
-export async function attachNote(bytes, name, PDFLib) {
-  const doc = await PDFLib.PDFDocument.load(bytes);
-  const prev = doc.getSubject() || "";
-  const tag = "[folio-attach:" + name + "]";
-  if (!prev.includes(tag)) doc.setSubject((prev ? prev + " " : "") + tag);
-  return doc.save();
-}
-
-export function listAttachNotes(subject) {
-  const out = [];
-  const re = /\[folio-attach:([^\]]+)\]/g;
-  let m;
-  while ((m = re.exec(String(subject || "")))) out.push(m[1]);
-  return out;
-}
-
-export async function detachNote(bytes, name, PDFLib) {
-  const doc = await PDFLib.PDFDocument.load(bytes);
-  const prev = doc.getSubject() || "";
-  doc.setSubject(prev.split(" ").filter((t) => t !== "[folio-attach:" + name + "]").join(" "));
-  return doc.save();
-}
-
-// I4 honest scope: pdf-lib cannot byte-swap an XObject in place, so replace
-// draws the new image over the same page at the census size (overlay
-// replacement). The original XObject is retained; report says so.
+// Image replace draws the new image over the same page at the census size
+// (overlay replacement): pdf-lib cannot byte-swap an XObject in place, and
+// the UI says so. The original XObject is retained; run lossless optimize
+// afterwards to slim.
 export async function replaceImageOverlay(bytes, { page, imageBytes, kind, w, h }, PDFLib) {
   const doc = await PDFLib.PDFDocument.load(bytes);
   const img = kind === "png" ? await doc.embedPng(imageBytes) : await doc.embedJpg(imageBytes);
