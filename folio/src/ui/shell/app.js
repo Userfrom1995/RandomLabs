@@ -8,7 +8,8 @@
 import { createStore, applyOp, makeOp, undo, redo } from "../../core/pipeline/ops.js";
 import { initStorage, writeFile, jobPaths, backend } from "../../platform/storage/opfs.js";
 import { logJob } from "../../platform/storage/history.js";
-import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderThumbnail, renderToDataUrl, renderPageGray } from "../viewer/viewer.js";
+import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderThumbnail, renderToDataUrl, renderPageGray, pageBox } from "../viewer/viewer.js";
+import { pdfToCss, cssToPdf, normalizeDragBox, resizeBox, moveBox, commitRect, parsePlaceTarget } from "../viewer/overlay.js";
 import { buildSamplePdf } from "./sample.js";
 import * as Pages from "../tools/pages-ops.js";
 import { gridDropOrder } from "../tools/pages-ops.js";
@@ -113,6 +114,7 @@ async function setFile(name, bytes, keepSel) {
     selectedPage = Math.min(selectedPage, info.pages);
     $("pageinfo").textContent = "Page " + selectedPage + " of " + info.pages;
     await renderPage($("pagecanvas"), selectedPage);
+    clearOverlayDom(); // rendered pixels changed: stale overlay boxes lie
     await renderGrid();
     announce("Opened " + name + ", " + info.pages + " pages.");
     await logJob({ jobId, tool: "open", params: { name, pages: info.pages } });
@@ -137,6 +139,7 @@ async function gotoPage(p) {
   if (!n) return;
   selectedPage = Math.min(n, Math.max(1, p));
   await renderPage($("pagecanvas"), selectedPage);
+  clearOverlayDom(); // new pixels: stale overlay boxes lie
   $("pageinfo").textContent = "Page " + selectedPage + " of " + n;
   paintGridSelection();
 }
@@ -349,10 +352,12 @@ async function wire() {
     await renderPage($("pagecanvas"), currentPage());
     setZoom(zoom() + 0.25);
     await renderPage($("pagecanvas"), currentPage());
+    clearOverlayDom();
   };
   $("zoomout").onclick = async () => {
     setZoom(zoom() - 0.25);
     await renderPage($("pagecanvas"), currentPage());
+    clearOverlayDom();
   };
   $("prevpage").onclick = () => {
     gotoPage(currentPage() - 1).then(() => renderGrid()).catch((e) => announce("Error: " + e.message));
@@ -397,6 +402,7 @@ async function wire() {
   showRoute();
   wireTools();
   wireGrid();
+  wireOverlay();
 
   if ("serviceWorker" in navigator) {
     try {
@@ -490,6 +496,323 @@ function wireGrid() {
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       gotoPage(selectedPage).catch((err) => announce("Error: " + err.message));
+    }
+  });
+}
+
+// ---- M4b canvas overlay: placement state machine ----
+// Toolbar buttons arm a mode; click commits a point placement and drag
+// commits a rect placement. Every commit calls the real M1/M2 engine op
+// with the overlay-derived rect (anti-facade: no visual-only placement).
+// Crop mode keeps a persistent draggable/resizable bbox with 8 handles.
+let placeMode = null;
+let dragAnchor = null;
+let ghostEl = null;
+let cropCss = null; // {x,y,w,h} in overlay px, the live crop box
+let cropEl = null;
+
+function overlayBox() {
+  const ov = $("overlay");
+  const r = ov.getBoundingClientRect();
+  return { width: Math.max(1, r.width), height: Math.max(1, r.height) };
+}
+
+function overlayPos(e) {
+  const r = $("overlay").getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function overlayHint(msg) {
+  const el = $("overlayhint");
+  if (el) el.textContent = msg;
+}
+
+function clearOverlayDom() {
+  if (ghostEl) {
+    ghostEl.remove();
+    ghostEl = null;
+  }
+  dragAnchor = null;
+  if (cropEl) {
+    cropEl.remove();
+    cropEl = null;
+  }
+  cropCss = null;
+}
+
+function setMode(mode) {
+  clearOverlayDom();
+  placeMode = mode;
+  document.querySelectorAll("#placetoolbar [data-mode]").forEach((b) => {
+    b.classList.toggle("armed", b.dataset.mode === mode);
+  });
+  const ov = $("overlay");
+  ov.classList.toggle("crosshair", !!mode);
+  ov.setAttribute("aria-hidden", mode ? "false" : "true");
+  $("croprow").hidden = mode !== "crop";
+  if (!mode) overlayHint("Pick a tool above, then click or drag on the page preview. Esc cancels. Arrow keys nudge the crop box, Enter applies it.");
+  else if (mode === "crop") overlayHint("Crop: drag a box on the preview, drag edges to resize, Enter or Apply crop to commit (all pages, reversible). Esc cancels.");
+  else if (mode === "image") overlayHint(mode + ": drag a frame on the preview. Pick the image in Images first; the click/drag point commits through the real insert-image engine. Esc cancels.");
+  else if (mode === "field") overlayHint(mode + ": drag a frame on the preview. Name/type/options come from the Forms card; commits through the real create-field engine. Esc cancels.");
+  else overlayHint(mode + ": click to place, or drag a rect. Commits through the real engine. Esc cancels.");
+  if (mode) ov.focus({ preventScroll: true });
+}
+
+function paintGhost(box) {
+  if (!ghostEl) {
+    ghostEl = document.createElement("div");
+    ghostEl.className = "ghost";
+    $("overlay").appendChild(ghostEl);
+  }
+  ghostEl.style.left = box.x + "px";
+  ghostEl.style.top = box.y + "px";
+  ghostEl.style.width = box.w + "px";
+  ghostEl.style.height = box.h + "px";
+}
+
+const CROP_HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+
+function paintCropEl() {
+  if (!cropCss) return;
+  if (!cropEl) {
+    cropEl = document.createElement("div");
+    cropEl.className = "cropbox";
+    cropEl.setAttribute("role", "application");
+    cropEl.setAttribute("aria-label", "Crop box. Drag to move, drag handles to resize.");
+    for (const h of CROP_HANDLES) {
+      const d = document.createElement("div");
+      d.className = "handle";
+      d.dataset.h = h;
+      d.setAttribute("aria-label", "Resize " + h);
+      cropEl.appendChild(d);
+    }
+    $("overlay").appendChild(cropEl);
+    wireCropEl();
+  }
+  cropEl.style.left = cropCss.x + "px";
+  cropEl.style.top = cropCss.y + "px";
+  cropEl.style.width = cropCss.w + "px";
+  cropEl.style.height = cropCss.h + "px";
+  const off = -6;
+  const pos = {
+    nw: [off, off], n: [cropCss.w / 2 - 6, off], ne: [cropCss.w - 6, off],
+    e: [cropCss.w - 6, cropCss.h / 2 - 6], se: [cropCss.w - 6, cropCss.h - 6],
+    s: [cropCss.w / 2 - 6, cropCss.h - 6], sw: [off, cropCss.h - 6], w: [off, cropCss.h / 2 - 6],
+  };
+  for (const d of cropEl.querySelectorAll(".handle")) {
+    const [hx, hy] = pos[d.dataset.h];
+    d.style.left = hx + "px";
+    d.style.top = hy + "px";
+  }
+}
+
+function wireCropEl() {
+  // Move by dragging the box body; resize by dragging a handle.
+  cropEl.addEventListener("pointerdown", (e) => {
+    if (e.target !== cropEl || e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const start = overlayPos(e);
+    const orig = { ...cropCss };
+    const ob = overlayBox();
+    const move = (ev) => {
+      const p = overlayPos(ev);
+      cropCss = moveBox(orig, p.x - start.x, p.y - start.y, ob);
+      paintCropEl();
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  for (const d of cropEl.querySelectorAll(".handle")) {
+    d.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const h = d.dataset.h;
+      const start = overlayPos(e);
+      const orig = { ...cropCss };
+      const ob = overlayBox();
+      const move = (ev) => {
+        const p = overlayPos(ev);
+        cropCss = resizeBox(orig, h, p.x - start.x, p.y - start.y, ob);
+        paintCropEl();
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+  }
+}
+
+async function cssToPdfRect(cssBox) {
+  // Exact rect without click-expansion (crop keeps drawn boxes verbatim).
+  const pb = await pageBox(currentPage());
+  const raw = cssToPdf(cssBox, pb, overlayBox());
+  const q = (n) => Math.round(n * 10) / 10;
+  return { x: q(raw.x), y: q(raw.y), w: q(raw.w), h: q(raw.h) };
+}
+
+async function setCropBox(cssBox) {
+  cropCss = normalizeDragBox(cssBox.x, cssBox.y, cssBox.x + cssBox.w, cssBox.y + cssBox.h, overlayBox());
+  if (cropCss.w < 4 && cropCss.h < 4) {
+    // Click without a drag: center a default 100x100pt box on the point.
+    const pb = await pageBox(currentPage());
+    const ob = overlayBox();
+    const d = { x: 0, y: 0, w: 100, h: 100 };
+    const css = pdfToCss(d, pb, ob);
+    cropCss = normalizeDragBox(cssBox.x - css.w / 2, cssBox.y - css.h / 2, cssBox.x + css.w / 2, cssBox.y + css.h / 2, ob);
+  }
+  paintCropEl();
+  overlayHint("Crop box set (" + Math.round(cropCss.w) + "x" + Math.round(cropCss.h) + " px). Enter or Apply crop commits; arrows nudge, Esc cancels.");
+}
+
+async function commitPlace(mode, cssBox) {
+  const a = requireFile();
+  const pb = await pageBox(currentPage());
+  const ob = overlayBox();
+  const rect = commitRect(mode, cssBox, pb, ob);
+  const pg = currentPage();
+  if (mode === "note") {
+    const out = await Annotate.addStickyNote(a.bytes, { page: pg - 1, x: rect.x, y: rect.y, contents: $("notetext").value || "Note" }, PDFLib);
+    await refreshAfterOp("note", { page: pg }, out, outName("noted"), true);
+    toast("Note placed on page " + pg + ".", "ok");
+  } else if (mode === "shape") {
+    const placed = await Annotate.addGeomAnnot(a.bytes, { page: pg - 1, kind: $("shapekind").value, rect }, PDFLib);
+    $("annotreport").textContent = placed.subtype + " annotation placed on page " + pg + " via canvas (bake to burn in).";
+    await refreshAfterOp("shape-" + placed.subtype.toLowerCase(), { kind: $("shapekind").value }, placed.bytes, outName("shaped"), true);
+    toast(placed.subtype + " placed on page " + pg + ".", "ok");
+  } else if (mode === "link") {
+    const raw = $("linktarget").value.trim();
+    const tgt = parsePlaceTarget(raw, pageCount());
+    const dest = tgt.gotoPage !== undefined ? { gotoPage: tgt.gotoPage } : validateLink({ uri: tgt.uri });
+    const out = await Annotate.addLink(a.bytes, { page: pg - 1, rect, ...dest }, PDFLib);
+    await refreshAfterOp("link", { target: raw }, out, outName("linked"), true);
+    toast("Link placed on page " + pg + ".", "ok");
+  } else if (mode === "stamp") {
+    const out = await Annotate.addStamp(a.bytes, { page: pg - 1, text: $("stamptext").value || "APPROVED", x: rect.x, y: rect.y }, PDFLib);
+    await refreshAfterOp("stamp", {}, out, outName("stamped"), true);
+    toast("Stamp placed on page " + pg + ".", "ok");
+  } else if (mode === "sign") {
+    const out = await Security.signatureStamp(a.bytes, { page: pg - 1, text: $("signtext").value || "Signed", x: rect.x, y: rect.y }, PDFLib);
+    await refreshAfterOp("sign-stamp", {}, out, outName("signed"), true);
+    toast("Signature placed on page " + pg + ".", "ok");
+  } else if (mode === "image") {
+    const f = $("imginsertpick").files[0];
+    if (!f) throw new Error("Pick an image in Images first, then drag the frame on the preview.");
+    const kind = f.name.toLowerCase().endsWith(".png") ? "png" : "jpg";
+    const out = await ImageOps.insertImage(a.bytes, { page: pg - 1, imageBytes: new Uint8Array(await f.arrayBuffer()), kind, x: rect.x, y: rect.y, maxW: Math.max(8, rect.w), maxH: Math.max(8, rect.h) }, PDFLib);
+    await refreshAfterOp("insert-image", { page: pg }, out, outName("img"), true);
+    toast("Image placed on page " + pg + ".", "ok");
+  } else if (mode === "field") {
+    const opts = $("fldopts").value.split(",").map((s) => s.trim()).filter(Boolean);
+    const out = await FormOps.createField(a.bytes, { name: $("fldname").value || "field1", type: $("fldtype").value, page: pg, rect, options: opts }, PDFLib);
+    await refreshAfterOp("create-field", { name: $("fldname").value }, out, outName("formed"), true);
+    toast("Field placed on page " + pg + ".", "ok");
+  } else {
+    throw new Error("place: unknown mode " + mode);
+  }
+}
+
+async function applyCropRect() {
+  if (!cropCss) throw new Error("Draw a crop box on the preview first (Crop tool).");
+  const a = requireFile();
+  const rect = await cssToPdfRect(cropCss);
+  const out = await PhaseE.cropPages(a.bytes, rect, PDFLib);
+  await refreshAfterOp("crop", { rect }, out, outName("cropped"), true);
+  toast("Crop applied (reversible; burn to make permanent).", "ok");
+}
+
+function wireOverlay() {
+  const ov = $("overlay");
+  ov.tabIndex = -1;
+  document.querySelectorAll("#placetoolbar [data-mode]").forEach((b) => {
+    b.onclick = () => setMode(placeMode === b.dataset.mode ? null : b.dataset.mode);
+  });
+  $("cropcommit").onclick = async () => {
+    try {
+      await applyCropRect();
+    } catch (err) {
+      toast("Error: " + err.message, "error");
+    }
+  };
+  $("cropburn").onclick = async () => {
+    try {
+      const a = requireFile();
+      if (!cropCss) throw new Error("Draw a crop box first (Crop tool).");
+      await applyCropRect();
+      const b = requireFile();
+      const out = await PhaseE.burnCrop(b.bytes, PDFLib);
+      await refreshAfterOp("burn-crop", {}, out, outName("burncropped"), true);
+      toast("Crop burned into media boxes.", "ok");
+    } catch (err) {
+      toast("Error: " + err.message, "error");
+    }
+  };
+  $("cropclear").onclick = () => {
+    clearOverlayDom();
+    overlayHint("Crop box cleared. Drag a new box or pick another tool.");
+  };
+  ov.addEventListener("pointerdown", (e) => {
+    if (!placeMode || e.button !== 0) return;
+    e.preventDefault();
+    if (!file) {
+      toast("Upload a PDF first (or load the sample).", "error");
+      return;
+    }
+    try {
+      ov.setPointerCapture(e.pointerId);
+    } catch { /* mouse already released */ }
+    dragAnchor = overlayPos(e);
+    paintGhost({ ...dragAnchor, w: 0, h: 0 });
+  });
+  ov.addEventListener("pointermove", (e) => {
+    if (!dragAnchor) return;
+    const p = overlayPos(e);
+    paintGhost(normalizeDragBox(dragAnchor.x, dragAnchor.y, p.x, p.y, overlayBox()));
+  });
+  ov.addEventListener("pointerup", async (e) => {
+    if (!dragAnchor) return;
+    const p = overlayPos(e);
+    const box = normalizeDragBox(dragAnchor.x, dragAnchor.y, p.x, p.y, overlayBox());
+    dragAnchor = null;
+    if (ghostEl) {
+      ghostEl.remove();
+      ghostEl = null;
+    }
+    const mode = placeMode;
+    try {
+      if (mode === "crop") await setCropBox(box);
+      else await commitPlace(mode, box);
+    } catch (err) {
+      toast("Error: " + err.message, "error");
+    }
+  });
+  ov.addEventListener("keydown", async (e) => {
+    if (!placeMode) return;
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setMode(null);
+    } else if (placeMode === "crop" && cropCss && (e.key.startsWith("Arrow") || e.key === "Enter")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === "Enter") {
+        try {
+          await applyCropRect();
+        } catch (err) {
+          toast("Error: " + err.message, "error");
+        }
+        return;
+      }
+      const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+      cropCss = moveBox(cropCss, d[0], d[1], overlayBox());
+      paintCropEl();
     }
   });
 }
