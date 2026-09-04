@@ -38,9 +38,27 @@ textarea{width:100%;min-height:90px}
 #dropzone{border:1.5px dashed var(--folio-border);border-radius:10px;padding:18px;text-align:center;color:var(--folio-muted);margin-bottom:10px;cursor:pointer}
 #dropzone:hover,#dropzone:focus-visible{border-color:var(--folio-accent);color:var(--folio-accent)}
 #dropzone.over{border-color:var(--folio-accent);color:var(--folio-accent)}
-#canvaswrap{position:relative;display:inline-block;max-width:100%}
+#canvaswrap{position:relative;display:block;margin:0 auto;width:fit-content;max-width:100%}
 #pagecanvas{max-width:100%;border:1px solid var(--folio-border);border-radius:8px;background:#fff;display:block}
 #overlay{position:absolute;inset:0;touch-action:none}
+#formlayer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#formlayer .ffield{position:absolute;pointer-events:auto;font-size:12px;padding:1px 3px;min-width:0}
+#formlayer input[type=checkbox].ffield{width:16px;height:16px}
+#formlayer .fradio{position:absolute;pointer-events:auto;display:flex;gap:4px;align-items:center;background:rgba(15,23,42,0.85);border:1px solid var(--folio-border);border-radius:4px;padding:1px 4px;font-size:11px}
+#formlist .frow{display:flex;gap:8px;align-items:center;margin:5px 0;flex-wrap:wrap}
+#formlist label{min-width:140px;font-size:0.85rem}
+#bmtree ul,#bmtree-pages ul{list-style:none;margin:4px 0 4px 14px;padding:0;border-left:1px solid var(--folio-border)}
+#bmtree>ul,#bmtree-pages>ul{margin-left:0;border-left:none}
+.bmrow{display:flex;gap:4px;align-items:center;margin:3px 0;flex-wrap:wrap}
+.bmrow input[type=text]{flex:1;min-width:100px}
+.bmrow input[type=number]{width:64px}
+.bmrow button{padding:3px 8px;font-size:0.78rem}
+.bmrow.dragover{outline:2px dashed var(--folio-accent2)}
+body.side-collapsed .layout{grid-template-columns:0 minmax(0,1fr) 320px}
+body.side-collapsed aside.pipeline{display:none}
+#shortcuts{position:relative}
+#shortcuts .sheet{position:absolute;top:100%;right:0;background:var(--folio-panel);border:1px solid var(--folio-border);border-radius:8px;padding:10px 14px;z-index:60;min-width:250px;box-shadow:0 6px 24px rgba(0,0,0,0.4)}
+kbd{background:#0f172a;border:1px solid var(--folio-border);border-radius:4px;padding:0 5px;font-size:0.78rem}
 #overlay .ghost{position:absolute;border:1.5px dashed var(--folio-accent2);background:rgba(122,162,247,0.12);pointer-events:none}
 #overlay .cropbox{position:absolute;border:2px solid var(--folio-accent);background:rgba(79,193,160,0.08)}
 #overlay .handle{position:absolute;width:12px;height:12px;background:var(--folio-accent);border-radius:3px;touch-action:none}
@@ -85,10 +103,20 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <header class="top">
 <h1>Folio</h1>
 <p>Fully client-side PDF studio - bytes never leave this device</p>
+<button id="sidebartoggle" title="Collapse the file sidebar" aria-label="Collapse the file sidebar" aria-expanded="true">Sidebar</button>
+<details id="shortcuts"><summary title="Keyboard shortcuts">? keys</summary>
+<div class="sheet" role="dialog" aria-label="Keyboard shortcuts">
+<p class="muted" style="margin-top:0">Shortcuts (ignored while typing in a field)</p>
+<div><kbd>?</kbd> this sheet &nbsp; <kbd>v</kbd>/<kbd>Esc</kbd> drop the canvas tool</div>
+<div><kbd>[</kbd> / <kbd>]</kbd> previous / next page</div>
+<div><kbd>Enter</kbd> apply crop box &nbsp; <kbd>arrows</kbd> nudge crop (<kbd>Shift</kbd> 10pt)</div>
+<div><kbd>Ctrl</kbd>+<kbd>z</kbd> undo &nbsp; <kbd>Ctrl</kbd>+<kbd>y</kbd> redo</div>
+</div>
+</details>
 <span style="margin-left:auto" class="muted"><a href="../">Back to Random</a> - <a href="docs/">Docs</a></span>
 </header>
 <div class="layout">
-<aside aria-label="Pipeline">
+<aside class="pipeline" aria-label="Pipeline">
 <div class="card">
 <h3>Files</h3>
 <div id="dropzone" role="button" tabindex="0" aria-label="Open a PDF file">Drop a PDF here or <label>choose <input type="file" id="filepick" accept="application/pdf,.pdf" hidden /></label></div>
@@ -129,7 +157,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row" id="croprow" hidden><button id="cropcommit">Apply crop (all pages, reversible)</button><button id="cropburn">Burn crop</button><button id="cropclear">Clear box</button></div>
 <div class="muted" id="overlayhint" aria-live="polite">Pick a tool above, then click or drag on the page preview. Esc cancels. Arrow keys nudge the crop box, Enter applies it.</div>
 </div>
-<div id="canvaswrap"><canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas><div id="overlay" aria-hidden="true"></div></div>
+<div id="canvaswrap"><canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas><div id="overlay" aria-hidden="true"></div><div id="formlayer" aria-label="Form fields on this page"></div></div>
 <div id="batchprog" role="progressbar" aria-label="Batch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
 <div class="card" style="margin-top:10px" aria-label="Page organizer">
 <h3>Page grid <span class="muted" id="gridcount"></span></h3>
@@ -158,9 +186,12 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <details class="a11y"><summary>Precise crop rect (keyboard fallback)</summary>
 <div class="row"><label>Crop x,y,w,h <input id="ext-crop" placeholder="x,y,w,h e.g. 36,36,523,770" style="width:190px" /></label></div>
 </details>
-<textarea id="ext-bmtext" placeholder="Bookmark split: Title | page, one per line"></textarea>
-<div class="row"><button id="t-bmsplit">Split by bookmarks</button></div>
+<div class="card"><h3>Bookmarks + outline split</h3>
+<p class="muted" style="margin:0 0 6px">One outline feeds both jobs: reorder with buttons or drag, then split below or set bookmarks in Annotate.</p>
+<div id="bmtree-pages" aria-label="Bookmark outline editor"></div>
+<div class="row"><button id="bmadd-pages">Add bookmark at current page</button><button id="t-bmsplit">Split by bookmarks</button></div>
 <div class="muted" id="pages-extra-report"></div>
+</div>
 </div></section>
 
 <section class="route" id="route-compress"><div class="card"><h3>Compress / optimize (O1, O6)</h3>
@@ -198,8 +229,9 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><button id="t-inkclear">Clear pad</button><button id="t-ink">Place ink annotation</button></div>
 </div>
 <div class="card"><h3>Bookmarks + TOC (E14)</h3>
-<textarea id="bmtext" placeholder="One per line: Title | page, e.g.&#10;Intro | 1&#10;Notes | 2"></textarea>
-<div class="row"><button id="t-bookmarks">Set bookmarks</button><button id="t-toc">Set bookmarks + TOC page</button></div>
+<p class="muted" style="margin:0 0 6px">Edit the outline below: rename inline, fix page numbers, reorder with the arrow buttons or drag rows.</p>
+<div id="bmtree" aria-label="Bookmark outline editor"></div>
+<div class="row"><button id="bmadd">Add bookmark at current page</button><button id="t-bookmarks">Set bookmarks</button><button id="t-toc">Set bookmarks + TOC page</button></div>
 </div>
 <div class="row"><button id="t-annlist">List annotations</button><select id="anndelsub" aria-label="Annotation subtype filter"><option value="all">All subtypes</option><option>Highlight</option><option>Underline</option><option>StrikeOut</option><option>Ink</option><option>Square</option><option>Circle</option><option>Line</option><option>Text</option><option>Link</option></select><button id="t-anndel">Delete annotations</button></div>
 <details class="a11y"><summary>Precise coordinates (screen-reader / keyboard fallback)</summary>
@@ -241,8 +273,15 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <details class="a11y"><summary>Precise coordinates (keyboard fallback)</summary>
 <div class="row"><label>Field x,y,w,h <input id="fldrect" placeholder="x,y,w,h e.g. 56,600,200,24" style="width:180px" /></label></div>
 </details>
+<div class="card"><h3>Fill this page</h3>
+<p class="muted" style="margin:0 0 6px">Fields on the current page render as inputs right on the preview above; every field is also listed here. Changing any value fills the real form.</p>
+<div id="formlist" aria-label="Form field list"></div>
+<div class="row"><button id="t-formfill-list">Fill from this list</button></div>
+</div>
+<details class="a11y"><summary>Bulk fill as JSON (screen-reader / keyboard fallback)</summary>
 <textarea id="filljson" placeholder='Fill values as JSON, e.g. {"full": "Ada", "agree": true}'></textarea>
 <div class="row"><button id="t-formfill">Fill form</button></div>
+</details>
 <div class="muted" id="formreport"></div>
 </div></section>
 

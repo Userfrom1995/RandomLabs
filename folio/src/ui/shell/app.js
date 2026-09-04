@@ -9,7 +9,7 @@ import { createStore, applyOp, makeOp, undo, redo } from "../../core/pipeline/op
 import { initStorage, writeFile, jobPaths, backend } from "../../platform/storage/opfs.js";
 import { logJob } from "../../platform/storage/history.js";
 import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderThumbnail, renderToDataUrl, renderPageGray, pageBox } from "../viewer/viewer.js";
-import { pdfToCss, cssToPdf, normalizeDragBox, resizeBox, moveBox, commitRect, parsePlaceTarget } from "../viewer/overlay.js";
+import { pdfToCss, cssToPdf, normalizeDragBox, resizeBox, moveBox, commitRect, parsePlaceTarget, treeToRows, addBookmarkNode, removeNode, moveNode, indentNode, outdentNode } from "../viewer/overlay.js";
 import { buildSamplePdf } from "./sample.js";
 import * as Pages from "../tools/pages-ops.js";
 import { gridDropOrder } from "../tools/pages-ops.js";
@@ -116,6 +116,8 @@ async function setFile(name, bytes, keepSel) {
     await renderPage($("pagecanvas"), selectedPage);
     clearOverlayDom(); // rendered pixels changed: stale overlay boxes lie
     await renderGrid();
+    renderBmTrees(); // page-count bounds changed with the new file
+    renderFormOverlay().catch((err) => announce("Error: " + err.message));
     announce("Opened " + name + ", " + info.pages + " pages.");
     await logJob({ jobId, tool: "open", params: { name, pages: info.pages } });
   } catch (err) {
@@ -140,6 +142,8 @@ async function gotoPage(p) {
   selectedPage = Math.min(n, Math.max(1, p));
   await renderPage($("pagecanvas"), selectedPage);
   clearOverlayDom(); // new pixels: stale overlay boxes lie
+  renderFormOverlay().catch((err) => announce("Error: " + err.message));
+  renderBmTrees();
   $("pageinfo").textContent = "Page " + selectedPage + " of " + n;
   paintGridSelection();
 }
@@ -403,6 +407,7 @@ async function wire() {
   wireTools();
   wireGrid();
   wireOverlay();
+  wireStudio();
 
   if ("serviceWorker" in navigator) {
     try {
@@ -410,6 +415,48 @@ async function wire() {
     } catch { /* offline shell optional */ }
   }
   announce("Folio ready. Load the sample or drop a PDF.");
+}
+
+// ---- M4c studio shell: collapsible sidebar, shortcut sheet, global keys ----
+function wireStudio() {
+  const t = $("sidebartoggle");
+  if (t) {
+    t.onclick = () => {
+      const off = document.body.classList.toggle("side-collapsed");
+      t.setAttribute("aria-expanded", String(!off));
+      t.textContent = off ? "Show sidebar" : "Sidebar";
+      announce(off ? "Sidebar collapsed." : "Sidebar expanded.");
+    };
+  }
+  document.addEventListener("keydown", (e) => {
+    const tgt = e.target;
+    if (tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.tagName === "SELECT" || tgt.isContentEditable)) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      e.preventDefault();
+      $("undobtn").click();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+      e.preventDefault();
+      $("redobtn").click();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "?") {
+      e.preventDefault();
+      const s = $("shortcuts");
+      if (s) s.open = !s.open;
+    } else if ((e.key === "v" || e.key === "V" || e.key === "Escape") && placeMode) {
+      e.preventDefault();
+      setMode(null);
+    } else if (e.key === "[") {
+      e.preventDefault();
+      gotoPage(selectedPage - 1).catch((err) => announce("Error: " + err.message));
+    } else if (e.key === "]") {
+      e.preventDefault();
+      gotoPage(selectedPage + 1).catch((err) => announce("Error: " + err.message));
+    }
+  });
 }
 
 function showRoute() {
@@ -729,6 +776,334 @@ async function applyCropRect() {
   toast("Crop applied (reversible; burn to make permanent).", "ok");
 }
 
+// ---- M4c: form overlay + generated field list ----
+// Every visible input commits through the real fillForm engine: overlay
+// inputs commit their own field on change; the list button fills from the
+// whole list. The raw-JSON textarea survives only as a collapsed a11y
+// fallback (same id, still wired).
+async function currentFieldDescs() {
+  if (!file) return [];
+  try {
+    return await FormOps.describeFields(file.bytes, PDFLib);
+  } catch {
+    return [];
+  }
+}
+
+function readInputValue(container, desc) {
+  const sel = '[data-fname="' + desc.name.replace(/"/g, "") + '"]';
+  if (desc.kind === "checkbox") {
+    const el = container.querySelector('input[type=checkbox]' + sel);
+    return el ? el.checked : undefined;
+  }
+  if (desc.kind === "radio") {
+    const el = container.querySelector('input[type=radio]' + sel + ":checked");
+    return el ? el.value : undefined;
+  }
+  const el = container.querySelector(sel);
+  if (!el) return undefined;
+  if (el.tagName === "SELECT" || el.tagName === "INPUT") {
+    return el.value === "" ? undefined : el.value;
+  }
+  return undefined;
+}
+
+async function commitSingleField(desc, value) {
+  const a = requireFile();
+  if (value === undefined) throw new Error("fill: give " + JSON.stringify(desc.name) + " a value first");
+  const r = await FormOps.fillForm(a.bytes, { [desc.name]: value }, PDFLib);
+  $("formreport").textContent = "Filled " + desc.name + " (" + r.filled + " field).";
+  await refreshAfterOp("fill-form", { field: desc.name }, r.bytes, outName("filled"), true);
+  toast("Filled " + desc.name + ".", "ok");
+}
+
+function buildFieldControl(desc, forOverlay) {
+  const wrap = document.createElement(forOverlay ? "div" : "div");
+  if (!forOverlay) {
+    wrap.className = "frow";
+    const lab = document.createElement("label");
+    lab.textContent = desc.name + " (" + desc.kind + (desc.page ? ", p." + desc.page : "") + ")";
+    lab.htmlFor = "fld-" + desc.name;
+    wrap.appendChild(lab);
+  }
+  const val = Array.isArray(desc.value) ? desc.value[0] : desc.value;
+  let control = null;
+  if (desc.kind === "checkbox") {
+    control = document.createElement("input");
+    control.type = "checkbox";
+    control.checked = !!desc.value;
+    control.setAttribute("aria-label", desc.name);
+  } else if (desc.kind === "dropdown" || desc.kind === "list") {
+    control = document.createElement("select");
+    control.setAttribute("aria-label", desc.name);
+    if (desc.kind === "list") control.size = Math.min(4, Math.max(2, desc.options.length));
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = forOverlay ? desc.name : "Choose...";
+    control.appendChild(blank);
+    for (const o of desc.options) {
+      const opt = document.createElement("option");
+      opt.value = o;
+      opt.textContent = o;
+      if (val !== undefined && String(val) === o) opt.selected = true;
+      control.appendChild(opt);
+    }
+  } else if (desc.kind === "radio") {
+    control = document.createElement("div");
+    control.className = forOverlay ? "fradio" : "frow";
+    if (forOverlay) {
+      const tag = document.createElement("span");
+      tag.textContent = desc.name;
+      control.appendChild(tag);
+    }
+    desc.options.forEach((o, i) => {
+      const lab = document.createElement("label");
+      const r = document.createElement("input");
+      r.type = "radio";
+      r.name = "fld-" + desc.name;
+      r.value = o;
+      r.dataset.fname = desc.name;
+      if (val !== undefined && String(val) === o) r.checked = true;
+      lab.appendChild(r);
+      lab.appendChild(document.createTextNode(" " + o));
+      control.appendChild(lab);
+      void i;
+    });
+  } else {
+    control = document.createElement("input");
+    control.type = "text";
+    control.value = val === undefined || val === null ? "" : String(val);
+    control.setAttribute("aria-label", desc.name);
+    control.placeholder = desc.name;
+  }
+  if (desc.kind !== "radio") {
+    control.dataset.fname = desc.name;
+    control.id = (forOverlay ? "ovl-" : "fld-") + desc.name;
+  } else {
+    control.querySelectorAll("input").forEach((r) => {
+      r.id = "";
+    });
+  }
+  if (forOverlay && (desc.kind === "text" || desc.kind === "dropdown" || desc.kind === "list")) {
+    control.classList.add("ffield");
+  }
+  if (forOverlay && desc.kind === "checkbox") control.classList.add("ffield");
+  if (forOverlay && desc.kind === "radio") control.classList.add("fradio");
+  control.addEventListener("change", async () => {
+    try {
+      const v = readInputValue($("formlayer").contains(control) ? $("formlayer") : $("formlist"), desc);
+      await commitSingleField(desc, v);
+    } catch (err) {
+      toast("Error: " + err.message, "error");
+    }
+  });
+  wrap.appendChild(control);
+  return wrap;
+}
+
+async function renderFormOverlay() {
+  const layer = $("formlayer");
+  layer.innerHTML = "";
+  const descs = await currentFieldDescs();
+  renderFormList(descs);
+  if (!descs.length || !file) return;
+  let pb = null;
+  try {
+    pb = await pageBox(selectedPage);
+  } catch {
+    return;
+  }
+  const ob = overlayBox();
+  for (const d of descs) {
+    if (d.page !== selectedPage || !d.rect) continue;
+    const css = pdfToCss(d.rect, pb, ob);
+    const holder = buildFieldControl(d, true);
+    const control = holder.firstChild;
+    layer.appendChild(control);
+    control.style.left = Math.max(0, css.x) + "px";
+    control.style.top = Math.max(0, css.y) + "px";
+    if (d.kind !== "checkbox" && d.kind !== "radio") {
+      control.style.width = Math.max(24, css.w) + "px";
+      control.style.height = Math.max(14, css.h) + "px";
+    }
+    if (d.kind === "radio") {
+      control.style.left = Math.max(0, css.x) + "px";
+      control.style.top = Math.max(0, css.y) + "px";
+    }
+    control.title = d.name + " (" + d.kind + ")";
+  }
+}
+
+function renderFormList(descs) {
+  const list = $("formlist");
+  list.innerHTML = "";
+  if (!file) {
+    list.innerHTML = "<span class='muted'>Open a PDF first.</span>";
+    return;
+  }
+  if (!descs.length) {
+    list.innerHTML = "<span class='muted'>No form fields in this file. Create one with the Field canvas tool.</span>";
+    return;
+  }
+  const missing = descs.filter((d) => !d.rect || !d.page);
+  for (const d of descs) {
+    list.appendChild(buildFieldControl(d, false));
+  }
+  if (missing.length) {
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = missing.length + " field(s) have no page geometry and render in this list only.";
+    list.appendChild(p);
+  }
+}
+
+// ---- M4c: bookmark outline tree ----
+// One shared in-memory outline feeds Set/TOC (annotate route) and Split
+// (pages route). Both textareas are gone; both routes render this editor.
+let bmTree = [];
+
+function bmRows() {
+  const n = pageCount();
+  if (!bmTree.length) throw new Error("bookmark: add at least one row first");
+  return treeToRows(bmTree).map((r) => {
+    const title = String(r.title === undefined ? "" : r.title).trim();
+    if (!title) throw new Error("bookmark: every row needs a title");
+    const p = Number(r.page);
+    if (!Number.isInteger(p) || p < 1 || p > n) {
+      throw new Error("bookmark " + JSON.stringify(title) + ": page must be 1.." + n);
+    }
+    return { title, page: p };
+  });
+}
+
+function bmButton(label, title, fn) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = label;
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.onclick = (e) => {
+    e.stopPropagation();
+    fn();
+  };
+  return b;
+}
+
+function bmRowEl(node, path, pageTotal) {
+  const li = document.createElement("li");
+  const row = document.createElement("div");
+  row.className = "bmrow";
+  row.draggable = true;
+  row.dataset.path = path.join(",");
+  const title = document.createElement("input");
+  title.type = "text";
+  title.value = node.title;
+  title.setAttribute("aria-label", "Bookmark title");
+  title.addEventListener("change", () => {
+    node.title = title.value;
+  });
+  const pg = document.createElement("input");
+  pg.type = "number";
+  pg.min = "1";
+  if (pageTotal) pg.max = String(pageTotal);
+  pg.value = String(node.page);
+  pg.setAttribute("aria-label", "Bookmark page");
+  pg.addEventListener("change", () => {
+    node.page = parseInt(pg.value, 10) || 1;
+  });
+  row.appendChild(title);
+  row.appendChild(pg);
+  row.appendChild(bmButton("^", "Move up", () => {
+    moveNode(bmTree, path, -1);
+    renderBmTrees();
+  }));
+  row.appendChild(bmButton("v", "Move down", () => {
+    moveNode(bmTree, path, 1);
+    renderBmTrees();
+  }));
+  row.appendChild(bmButton(">", "Indent under previous", () => {
+    if (!indentNode(bmTree, path)) toast("Indent needs a previous sibling at this level.", "error");
+    renderBmTrees();
+  }));
+  row.appendChild(bmButton("<", "Outdent to parent level", () => {
+    if (!outdentNode(bmTree, path)) toast("Top-level rows cannot outdent.", "error");
+    renderBmTrees();
+  }));
+  row.appendChild(bmButton("x", "Delete bookmark", () => {
+    removeNode(bmTree, path);
+    renderBmTrees();
+  }));
+  row.addEventListener("dragstart", (e) => {
+    e.dataTransfer.setData("text/folio-bmpath", path.join(","));
+    e.dataTransfer.effectAllowed = "move";
+  });
+  row.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    row.classList.add("dragover");
+  });
+  row.addEventListener("dragleave", () => row.classList.remove("dragover"));
+  row.addEventListener("drop", (e) => {
+    e.preventDefault();
+    row.classList.remove("dragover");
+    const raw = e.dataTransfer.getData("text/folio-bmpath");
+    if (!raw) return;
+    const from = raw.split(",").map((x) => parseInt(x, 10));
+    const sameParent = from.slice(0, -1).join(",") === path.slice(0, -1).join(",");
+    if (!sameParent || from.length !== path.length) {
+      toast("Rows reorder within their level; use the indent buttons to reparent.", "error");
+      return;
+    }
+    const parent = (function parentOf(p) {
+      let cur = { children: bmTree };
+      for (const i of p.slice(0, -1)) cur = cur.children[i];
+      return cur;
+    })(path);
+    const [moved] = parent.children.splice(from[from.length - 1], 1);
+    parent.children.splice(path[path.length - 1], 0, moved);
+    renderBmTrees();
+  });
+  li.appendChild(row);
+  if (node.children.length) {
+    const ul = document.createElement("ul");
+    node.children.forEach((c, i) => ul.appendChild(bmRowEl(c, path.concat(i), pageTotal)));
+    li.appendChild(ul);
+  }
+  return li;
+}
+
+function renderBmTreeInto(container) {
+  container.innerHTML = "";
+  if (!file) {
+    container.innerHTML = "<p class='muted'>Open a PDF first.</p>";
+    return;
+  }
+  if (!bmTree.length) {
+    container.innerHTML = "<p class='muted'>No bookmarks yet. Add the first one at the current page.</p>";
+    return;
+  }
+  const ul = document.createElement("ul");
+  bmTree.forEach((node, i) => ul.appendChild(bmRowEl(node, [i], pageCount())));
+  container.appendChild(ul);
+}
+
+function renderBmTrees() {
+  for (const id of ["bmtree", "bmtree-pages"]) {
+    const c = $(id);
+    if (c) renderBmTreeInto(c);
+  }
+}
+
+function bmAddCurrent() {
+  if (!file) {
+    toast("Upload a PDF first (or load the sample).", "error");
+    return;
+  }
+  addBookmarkNode(bmTree, { title: "Page " + selectedPage, page: selectedPage });
+  renderBmTrees();
+  toast("Bookmark added at page " + selectedPage + ". Rename it inline.", "ok");
+}
+
 function wireOverlay() {
   const ov = $("overlay");
   ov.tabIndex = -1;
@@ -1046,25 +1421,22 @@ function wireTools() {
     const out = await Annotate.imageWatermark(a.bytes, { imageBytes: new Uint8Array(await f.arrayBuffer()), kind, opacity: 0.15 }, PDFLib);
     await refreshAfterOp("image-watermark", {}, out, outName("bgmarked"));
   });
-  function parseBookmarks() {
-    return $("bmtext").value.split("\n").map((s) => s.trim()).filter(Boolean).map((line) => {
-      const m = line.match(/^(.*)\|\s*(\d+)\s*$/);
-      if (!m) throw new Error("bookmark lines look like: Title | 2");
-      return { title: m[1].trim(), page: parseInt(m[2], 10) };
-    });
-  }
+  // M4c: the outline tree (rendered in both routes) is the only source;
+  // the pipe-delimited textareas are gone.
   run("t-bookmarks", async () => {
     const a = requireFile();
-    const r = await Annotate.setBookmarks(a.bytes, parseBookmarks(), PDFLib);
+    const r = await Annotate.setBookmarks(a.bytes, bmRows(), PDFLib);
     $("annotreport").textContent = r.count + " bookmark(s) set.";
     await refreshAfterOp("bookmarks", { count: r.count }, r.bytes, outName("bookmarked"));
   });
   run("t-toc", async () => {
     const a = requireFile();
-    const r = await Annotate.addTocPage(a.bytes, parseBookmarks(), PDFLib);
+    const r = await Annotate.addTocPage(a.bytes, bmRows(), PDFLib);
     $("annotreport").textContent = r.count + " bookmark(s) + TOC page.";
     await refreshAfterOp("toc", { count: r.count }, r.bytes, outName("toc"));
   });
+  $("bmadd").onclick = bmAddCurrent;
+  $("bmadd-pages").onclick = bmAddCurrent;
   run("t-annlist", async () => {
     const a = requireFile();
     const doc = await PDFLib.PDFDocument.load(a.bytes);
@@ -1238,6 +1610,22 @@ function wireTools() {
     $("formreport").textContent = r.filled + " field(s) filled.";
     await refreshAfterOp("fill-form", { filled: r.filled }, r.bytes, outName("filled"));
   });
+  // M4c: fill from the generated field list (primary path; overlay inputs
+  // commit their own field on change).
+  run("t-formfill-list", async () => {
+    const a = requireFile();
+    const descs = await FormOps.describeFields(a.bytes, PDFLib);
+    const list = $("formlist");
+    const values = {};
+    for (const d of descs) {
+      const v = readInputValue(list, d);
+      if (v !== undefined) values[d.name] = v;
+    }
+    if (!Object.keys(values).length) throw new Error("fill: set at least one field value first");
+    const r = await FormOps.fillForm(a.bytes, values, PDFLib);
+    $("formreport").textContent = r.filled + " field(s) filled.";
+    await refreshAfterOp("fill-form", { filled: r.filled }, r.bytes, outName("filled"));
+  });
   // images
   run("t-pdf2img", async () => {
     requireFile();
@@ -1366,11 +1754,7 @@ function wireTools() {
   });
   run("t-bmsplit", async () => {
     const a = requireFile();
-    const items = $("ext-bmtext").value.split("\n").map((s) => s.trim()).filter(Boolean).map((line) => {
-      const m = line.match(/^(.*)\|\s*(\d+)\s*$/);
-      if (!m) throw new Error("bookmark lines look like: Title | 2");
-      return { title: m[1].trim(), page: parseInt(m[2], 10) };
-    });
+    const items = bmRows();
     const groups = splitByBookmarks(pageCount(), items);
     const outs = await PhaseE.splitByBookmarkRanges(a.bytes, groups, PDFLib);
     outs.forEach((o) => download(o.bytes, "folio-" + o.title.replace(/\s+/g, "-") + ".pdf"));
