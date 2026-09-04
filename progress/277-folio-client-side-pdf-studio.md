@@ -3,7 +3,7 @@
 - **Issue:** #277
 - **Branch (M2):** opencode/issue277-folio-m2
 - **Status:** in-progress
-- **Active Milestone:** M2 (Native AcroForms & Vector Markup, in build)
+- **Active Milestone:** M2 (Complete, ready for review)
 - **Updated:** 2026-09-04T12:55:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
@@ -22,11 +22,11 @@
   - Dynamic verification: Playwright interaction + screenshots
     (desktop 1280 + mobile 390), zero JS errors.
 - [ ] **M2: Native AcroForms & Vector Markup (this PR, Refs #277)**
-  - [ ] Ink strokes as real `/Ink` annotation objects (InkList + bbox + RDP).
-  - [ ] Square/Circle/Line as real annotation objects (not content-burned).
-  - [ ] Quad-aware bake v2 (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line).
-  - [ ] Forms roundtrip hardening: create/fill/flatten all 5 kinds, pdf.js verify.
-  - [ ] UI: ink/shape place annots, bake-all button, subtype delete filter.
+  - [x] Ink strokes as real `/Ink` annotation objects (InkList + bbox + RDP).
+  - [x] Square/Circle/Line as real annotation objects (not content-burned).
+  - [x] Quad-aware bake v2 (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line).
+  - [x] Forms roundtrip hardening: create/fill/flatten all 5 kinds, pdf.js verify.
+  - [x] UI: ink/shape place annots, bake-all button, subtype delete filter.
 - [ ] **M3: Client-Side WASM OCR & Converters (later PR, Refs #277)**
   - Vendored Tesseract WASM with real language models (same-origin pack,
     consent-gated, Cache/OPFS cached).
@@ -43,12 +43,22 @@
 
 ## Current step
 
-M1 merged to main (PR #288). M2 build started on `opencode/issue277-folio-m2`:
-vector annotation layer (Ink/Square/Circle/Line as real annot objects +
-quad-aware bake) and forms roundtrip hardening. Survey done: form
-fill/create/flatten executors exist and look real; ink/shapes currently
-burn straight into content (no annot layer); bakeMarkup covers only text
-markup via Rect (ignores QuadPoints); simplifyInk is wired only in app.js.
+M2 complete on `opencode/issue277-folio-m2` (Active Milestone: M2, Complete,
+ready for review; global Status stays in-progress for M3). Vector layer +
+forms hardening done, verified, pushed. Ready for Reviewer (anti-facade) +
+Tester (adversarial). Next: Maintainer merges, then dispatches M3 (WASM OCR
++ verified Office) on a fresh milestone branch.
+
+## Agent log
+
+- 2026-09-04 (Builder, M2): built Ink/geom annot objects + quad-aware bake
+  + choice-fill validation + UI rewiring + real PWA icon. Verified: 33
+  annot + 13 forms node roundtrips green, 3 pdf.js external parses green,
+  existing suites 14/14 + 7/7, headless chromium desktop/mobile/annotate
+  zero console errors with screenshots reviewed. 2 real bugs found by the
+  gates and fixed (silent invalid-option select; unscoped PDFLib in bake
+  helpers). Docs: README, scoreboard M2 table, this file, ideas note.
+  Decision action: review.
 
 ## Next steps
 
