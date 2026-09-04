@@ -71,20 +71,19 @@ export async function ensureOfficePack(onProgress, signal) {
 }
 
 async function injectPackScript(url) {
-  const hit = await caches.open(OFFICE_CACHE_NAME).then((c) => c.match(url));
-  const blob = hit ? await hit.blob() : await (await fetch(url)).blob();
-  const objUrl = URL.createObjectURL(blob);
-  try {
-    await new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = objUrl;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("pack script failed: " + url));
-      document.head.appendChild(s);
-    });
-  } finally {
-    URL.revokeObjectURL(objUrl);
-  }
+  // Plain same-origin script tag (never blob:): the file was just fetched
+  // into Cache Storage with progress above, and the service worker serves
+  // that cached copy, so this also works fully offline. blob: script URLs
+  // would violate the page CSP (script-src 'self', no blob:).
+  if (document.querySelector('script[data-pack="' + url + '"]')) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = url;
+    s.dataset.pack = url;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("pack script failed: " + url));
+    document.head.appendChild(s);
+  });
 }
 
 // Real .docx parse (vendored mammoth) -> block model -> measured PDF.
