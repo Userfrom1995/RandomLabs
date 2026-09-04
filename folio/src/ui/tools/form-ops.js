@@ -35,9 +35,16 @@ export async function fillForm(bytes, values, PDFLib) {
     else if (kind === "checkbox") {
       if (coerceFillValue("checkbox", raw)) field.check();
       else field.uncheck();
-    } else if (kind === "dropdown" || kind === "list") field.select(coerceFillValue(kind, raw));
-    else if (kind === "radio") field.select(coerceFillValue(kind, raw));
-    else throw new Error("fill: unsupported field kind for " + JSON.stringify(name));
+    } else if (kind === "dropdown" || kind === "list" || kind === "radio") {
+      // pdf-lib select() records unknown options silently, which would
+      // report success while viewers render a broken field. Validate first.
+      const want = coerceFillValue(kind, raw);
+      const options = field.getOptions();
+      if (!options.includes(want)) {
+        throw new Error("fill: " + JSON.stringify(name) + " has no option " + JSON.stringify(want) + " (options: " + options.join(", ") + ")");
+      }
+      field.select(want);
+    } else throw new Error("fill: unsupported field kind for " + JSON.stringify(name));
     filled++;
   }
   form.updateFieldAppearances();
