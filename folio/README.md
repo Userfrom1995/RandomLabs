@@ -51,8 +51,10 @@ burn-crop); headers/footers, page numbers, watermarks (text + image),
 metadata set/scrub, JS/action inspect + scrub, signature stamp, lossless
 optimize + profile-gated compress with corpus searchability gate, GC
 rewrite; text-markup annotations (highlight/underline/strikeout with
-QuadPoints), sticky notes, shapes, ink pad, stamps, links, Bates, image
-watermarks, bookmarks + TOC, annotation list/delete, markup bake; N-up,
+QuadPoints), sticky notes, shapes + ink placed as real vector annotation
+objects (Square/Circle/Line/Ink with RDP-simplified InkList), stamps, links, Bates, image
+watermarks, bookmarks + TOC, annotation list/delete by subtype, quad-aware
+annotation bake (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line); N-up,
 booklet, overlay, compare report; image census/extract/insert, scanner
 effect, image replace overlay (labeled); AcroForm describe/fill/create/
 flatten, XFA detector; PDF to text/markdown/HTML, text to PDF, CSV to
