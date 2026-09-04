@@ -41,7 +41,7 @@ single-tool upload sites on workflow.
 
 ## Routes (hash router, each runs its own real engine op)
 
-Pages, Compress, Security, Annotate, Edit, Images, Forms, Convert,
+Pages, Compress, Security, Annotate, Edit, Images, Forms, OCR, Convert,
 Workflow. M1 ships: viewer (pdf.js render + text map + search) with live
 canvas page grid (click/drag/keyboard/touch-button reorder, rotate,
 duplicate, delete, all with true byte-restore undo); structural backbone
@@ -58,7 +58,11 @@ annotation bake (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line); N-up,
 booklet, overlay, compare report; image census/extract/insert, scanner
 effect, image replace overlay (labeled); AcroForm describe/fill/create/
 flatten, XFA detector; PDF to text/markdown/HTML, text to PDF, CSV to
-table PDF; info, repair, read-aloud, flatten-all, auto-rename batch,
+table PDF; M3 adds OCR (vendored Tesseract LSTM pack, consent-gated,
+cached: scanned PDF overlay + photo to searchable PDF) and Office
+(vendored mammoth + SheetJS pack: docx/xlsx to measured PDF, PDF paras
+to valid .docx, PDF lines to valid .xlsx; PPTX omitted as unverified);
+info, repair, read-aloud, flatten-all, auto-rename batch,
 booklet-ready print path, batch queue with per-file retry.
 Cloud AI chat is the only exclusion (matrix section 8).
 

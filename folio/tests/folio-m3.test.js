@@ -181,8 +181,7 @@ test("office: htmlToBlocks handles headings, lists, tables, entities", () => {
   assert.ok(t.rows[0][0][0].bold, "th is bold");
 });
 
-test("office: blocksToPdf renders text + table, content verified", async () => {
-  const bs = blocks.htmlToBlocks("<h1>Report 42</h1><p>Alpha beta gamma</p><table><tr><th>Name</th><th>Qty</th></tr><tr><td>widget</td><td>3</td></tr></table><ol><li>first</li></ol>");
+test("office: blocksToPdf renders text + table, content verified", async () => {  const bs = blocks.htmlToBlocks("<h1>Report 42</h1><p>Alpha beta gamma</p><table><tr><th>Name</th><th>Qty</th></tr><tr><td>widget</td><td>3</td></tr></table><ol><li>first</li></ol>");
   const r = await blocks.blocksToPdf(bs, PDFLib, {});
   assert.ok(r.pages >= 1 && r.paras >= 4);
   const text = contentText(r.bytes);
@@ -234,4 +233,17 @@ test("office: sheets gridToPdf + vendored SheetJS roundtrip", async () => {
   // our own zip reader opens the SheetJS package (stored or deflated)
   const files = await zip.parseZip(out, inflate);
   assert.ok(files.some((f) => f.name === "xl/worksheets/sheet1.xml"));
+});
+
+test("office: mammoth-style cell paragraphs stay inside the table", async () => {
+  // Real mammoth output wraps every cell in <p>; the tokenizer must not
+  // let those paragraphs escape (or close) the table block.
+  const bs = blocks.htmlToBlocks("<table><tr><td><p>Name</p></td><td><p>Qty</p></td></tr><tr><td><p>widget</p></td><td><p>3</p></td></tr></table>");
+  const tables = bs.filter((b) => b.t === "table");
+  assert.equal(tables.length, 1);
+  assert.equal(tables[0].rows.length, 2);
+  assert.equal(tables[0].rows[1][0].map((s) => s.text).join(""), "widget");
+  const r = await blocks.blocksToPdf(bs, PDFLib, {});
+  const text = contentText(r.bytes);
+  assert.ok(text.includes("widget") && text.includes("Qty"), "cell text rendered");
 });

@@ -147,3 +147,29 @@ OCR sec/page and Office fidelity return as M3 gates with vendored engines.
 | M2 bugs | roundtrip-caught defects | choice fill recorded unknown options silently (reported success, viewers render broken) - fixed with pre-select validation; bake helpers referenced unscoped PDFLib (Square/Circle/Highlight bake silently kept) - fixed with explicit param | 2 fixed | PASS |
 | M2 visual | headless chromium, desktop 1280 + mobile 390 + #/annotate | app boots, zero console messages (fixed 512px manifest icon placeholder that logged a size warning); new controls in DOM (Place ink/shape, Bake annotations, subtype filter) | zero errors | PASS |
 | M2 regress | existing suites | core 14/14, tester-m1 7/7 | all green | PASS |
+
+## M3 scoreboard (WASM OCR & Office Converters, 2026-09-04, node + headless chromium)
+
+Vendored same-origin packs: OCR 9,941,472 B (tesseract.js 5.1.1 ESM +
+worker + LSTM core wasm/js + eng best-int model), Office 1,516,461 B
+(mammoth 1.10.0 + SheetJS 0.18.5). Core bundle unchanged (packs lazy,
+consent-gated, Cache Storage `folio-pack-ocr-v2` / `folio-pack-office-v2`).
+
+| Gate | Metric | M3 result | Budget | Status |
+|------|--------|-----------|--------|--------|
+| M3 ocr-engine | real Tesseract LSTM in headless chromium | 15/15 words, conf 95, chromium-rendered Latin fixture | recall >= 80% | PASS |
+| M3 ocr-overlay | scanned PDF -> searchable (invisible layer) | 11/11 words, mean conf 96%, 1.2 s/page @150 DPI; original text intact; bytes extractable | recall 100%, < 30 s/page | PASS |
+| M3 ocr-image | photo/PNG -> searchable PDF | 15/15 words, mean conf 96%, 0.7 s; JPEG page + opacity-0 layer | recall 100% | PASS |
+| M3 docx-pdf | mammoth parse -> measured pdf-lib layout | 10 paras, tables kept (widget/3/gadget/12 cells verified in bytes) | text + tables kept | PASS |
+| M3 xlsx-pdf | SheetJS grid -> ruled-table PDF | 1 sheet, sprocket/Price in bytes | cells kept | PASS |
+| M3 pdf-docx | text-map paras -> valid .docx | 2 paras, zebra/parcel survive unzip + re-extract | valid zip, text kept | PASS |
+| M3 pdf-xlsx | lines -> valid .xlsx | 4 rows, Page-1 header, zebra kept | valid zip, cells kept | PASS |
+| M3 bugs | E2E-caught defects | worker-relative corePath doubled (404) - import.meta absolute; untyped cached Responses broke module MIME - typed pack MIME + v2 caches; CSP script-src blocked wasm - wasm-unsafe-eval; blob: script injection blocked - same-origin script tags; td>p closed table context - tableDepth guard; SW served stale shell - shell v3 | 6 fixed | PASS |
+| M3 visual | headless chromium, #/ocr + #/convert, 1280 + 390 | consent cards show real sizes (9.5 MB / 1.4 MB), cached badges, progress + cancel live, results reported; zero pageerrors | zero errors | PASS |
+| M3 regress | all suites | core + m1 + m2 + m3: 38/38 green (M1/M2 purge asserts amended for the M3 restoration with real-engine proof) | all green | PASS |
+
+PPTX stays out of the UI (unverified, per M3 plan: omitted entirely, no
+stub). Extra languages stay out (eng model only, no selector theater).
+One transient headless frame rendered the main canvas upside-down once;
+non-reproducible across 10+ screenshots, viewer code untouched by M3,
+isolated pdf.js + reload renders verified correct.

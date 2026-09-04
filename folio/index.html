@@ -31,6 +31,8 @@ nav a.active{border-color:var(--folio-accent);color:var(--folio-accent)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
 button,.btn{background:#0f172a;color:var(--folio-ink);border:1px solid var(--folio-border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:0.85rem}
 button:hover{border-color:var(--folio-accent2)}
+button:disabled{opacity:0.45;cursor:not-allowed}
+button:disabled:hover{border-color:var(--folio-border)}
 input,select,textarea{background:#0f172a;color:var(--folio-ink);border:1px solid var(--folio-border);border-radius:6px;padding:6px 8px;font-size:0.85rem;max-width:100%}
 textarea{width:100%;min-height:90px}
 #dropzone{border:1.5px dashed var(--folio-border);border-radius:10px;padding:18px;text-align:center;color:var(--folio-muted);margin-bottom:10px}

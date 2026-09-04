@@ -26,6 +26,8 @@ export function htmlToBlocks(html) {
   const stack = [];
   let listMode = null; // 'ul' | 'ol'
   let inCell = false;
+  let tableDepth = 0; // >0 while inside <table>: mammoth wraps cell text
+  // in <p>, which must stay inside the cell, never open real blocks.
 
   function pushSpan(text) {
     text = decodeEntities(text);
@@ -39,6 +41,7 @@ export function htmlToBlocks(html) {
     }
   }
   function openBlock(b) {
+    if (tableDepth > 0 && b.t !== "table") return; // cell content stays in the cell
     closeBlock();
     cur = b;
   }
@@ -79,16 +82,22 @@ export function htmlToBlocks(html) {
       continue;
     }
     if (/^h[1-6]$/.test(tag)) {
-      if (!closing) openBlock({ t: "h", level: +tag[1], spans: [] });
+      if (tableDepth > 0) {
+        if (closing) pushSpan("\n");
+      } else if (!closing) openBlock({ t: "h", level: +tag[1], spans: [] });
       else closeBlock();
       continue;
     }
     if (tag === "p" || tag === "div") {
-      if (!closing) openBlock({ t: "p", spans: [] });
+      if (tableDepth > 0) {
+        // separate stacked paragraphs inside one cell with a newline
+        if (closing && inCell && cur && cur.cell && cur.cell.some((s) => s.text.trim())) pushSpan("\n");
+      } else if (!closing) openBlock({ t: "p", spans: [] });
       else closeBlock();
       continue;
     }
     if (tag === "ul" || tag === "ol") {
+      if (tableDepth > 0) continue; // cell lists degrade to plain cell text
       if (!closing) listMode = tag;
       else {
         closeBlock();
@@ -97,13 +106,23 @@ export function htmlToBlocks(html) {
       continue;
     }
     if (tag === "li") {
+      if (tableDepth > 0) {
+        if (!closing) pushSpan("- ");
+        continue;
+      }
       if (!closing) openBlock({ t: "li", ordered: listMode === "ol", spans: [] });
       else closeBlock();
       continue;
     }
     if (tag === "table") {
-      if (!closing) openBlock({ t: "table", rows: [] });
-      else closeBlock();
+      if (!closing) {
+        tableDepth++;
+        openBlock({ t: "table", rows: [] });
+      } else {
+        inCell = false;
+        tableDepth = Math.max(0, tableDepth - 1);
+        closeBlock();
+      }
       continue;
     }
     if (tag === "tr") {
@@ -118,6 +137,12 @@ export function htmlToBlocks(html) {
         if (tag === "th") stack.push({ ...fmt }), (fmt = { ...fmt, bold: true });
       } else if (closing) {
         inCell = false;
+        // drop the paragraph separator left by a trailing </p> in the cell
+        if (cur && cur.cell && cur.cell.length) {
+          const last = cur.cell[cur.cell.length - 1];
+          last.text = last.text.replace(/\n+$/, "");
+          if (!last.text && cur.cell.length > 1) cur.cell.pop();
+        }
         if (tag === "th" && stack.length) fmt = stack.pop();
       }
       continue;
