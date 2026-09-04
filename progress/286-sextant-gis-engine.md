@@ -3,8 +3,8 @@
 - **Issue:** #286
 - **Branch:** opencode/issue286-20260904084331
 - **PR:** #287
-- **Status:** complete
-- **Updated:** 2026-09-04T11:00:00Z
+- **Status:** in_review
+- **Updated:** 2026-09-04T12:00:00Z
 
 ## Checklist
 
@@ -13,7 +13,6 @@
 - [x] builder 0: de-risk (`Sextant.sln`, Core skeleton, one xUnit suite green, hello-map publish through ICanvasBridge; pin TFM + xUnit + wasm-tools; record fallback decision if needed)
 - [x] builder 1: projections + tile math (Geo, Mercator + Albers + reprojector, TileMath, control-point goldens, roundtrip fuzz, area preservation)
 - [x] builder 2: tile pipeline + packer (clip/simplify/quantize, TileBuilder, Sextant.Pack city pack, determinism goldens)
-- [ ] builder 3: spatial index (R*-tree + reinsert + STR + condense + Pack, I1..I7 suite, fuzz vs oracle, throughput numbers)
 - [x] builder 3: spatial index (R*-tree + reinsert + STR + condense + Pack, I1..I7 suite, fuzz vs oracle, throughput numbers)
 - [x] builder 4: routing + isochrones (CSR graph, A*/Dijkstra, turn table, contouring, 1000-pair oracle, histogram)
 - [x] builder 5: app shell + geocode + IO + docs (Blazor map/search/route/overlays/import, canvas batching, geocode index, PWA, GeoJSON IO, sextant/docs/ proofs + scoreboard + attribution, landing link, App build + publish green, full headless perf gate; Playwright/fps/TTFT Tester-owned, no browsers in build container)
@@ -23,17 +22,13 @@
 
 ## Current step
 
-Phase 5b complete, Status complete. Entire technique implemented and measured
+Phase 5b complete, Status in_review. Entire technique implemented and measured
 headless; handing to Reviewer. Browser-owned rows (Playwright pass, fps,
 time-to-first-tile) are Tester-owned: no browsers in the build container.
-
-## Agent log
 
 ## Next steps
 
 Builder Phase 5a (this run) on this branch: `Geocode` trigram index + `GeoJson` IO + `PackLoader`-ready `geocode.idx.json` asset + `sextant/docs/geocode.md` + `sextant/docs/import-export.md`. Then Phase 5b on the same PR via `continue`: Blazor map/search/route/overlay/import UI + PWA shell + `sextant/docs/scoreboard.md` + `ATTRIBUTION.md` + landing link + Playwright pass. Then review handoff (Status complete only when the whole technique is done).
-
-## Next steps
 
 Builder Phase 3 on this branch: `Graph` CSR + `Router` A*/Dijkstra + turn table + `Isochrone` contouring + 1000-pair oracle + histogram in `sextant/docs/routing.md`. Then Phase 5 on the same PR via `continue`.
 
