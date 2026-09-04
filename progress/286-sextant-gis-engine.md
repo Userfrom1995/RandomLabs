@@ -4,7 +4,7 @@
 - **Branch:** opencode/issue286-20260904084331
 - **PR:** #287
 - **Status:** in-progress
-- **Updated:** 2026-09-04T09:15:00Z
+- **Updated:** 2026-09-04T09:30:00Z
 
 ## Checklist
 
@@ -14,6 +14,7 @@
 - [x] builder 1: projections + tile math (Geo, Mercator + Albers + reprojector, TileMath, control-point goldens, roundtrip fuzz, area preservation)
 - [x] builder 2: tile pipeline + packer (clip/simplify/quantize, TileBuilder, Sextant.Pack city pack, determinism goldens)
 - [ ] builder 3: spatial index (R*-tree + reinsert + STR + condense + Pack, I1..I7 suite, fuzz vs oracle, throughput numbers)
++ - [x] builder 3: spatial index (R*-tree + reinsert + STR + condense + Pack, I1..I7 suite, fuzz vs oracle, throughput numbers)
 - [ ] builder 4: routing + isochrones (CSR graph, A*/Dijkstra, turn table, contouring, 1000-pair oracle, histogram)
 - [ ] builder 5: app shell + geocode + IO + docs (Blazor map/search/route/overlays/import, canvas batching, geocode index, PWA, GeoJSON IO, sextant/docs/ proofs + scoreboard + attribution, landing link, Playwright pass, full perf gate)
 - [ ] reviewer findings addressed
@@ -21,11 +22,11 @@
 
 ## Current step
 
-Phase 2 complete (42/42 tests green). Next: Phase 3 (spatial index: RTree R* split + reinsert + STR + condense + Pack, I1..I7 suite, fuzz vs oracle, throughput numbers).
+Phase 2 complete (42/42 tests green). Next: Phase 4 (routing + isochrones: CSR graph, A*/Dijkstra, turn table, contouring, 1000-pair oracle, histogram).
 
 ## Next steps
 
-Builder Phase 3 on this branch: `RTree` (R* split + reinsert + STR + condense + Pack) + I1..I7 suite + fuzz-vs-oracle + throughput numbers in `sextant/docs/rtree.md`. Then Phases 4-5 in order on the same PR across `continue` cycles.
+Builder Phase 3 on this branch: `Graph` CSR + `Router` A*/Dijkstra + turn table + `Isochrone` contouring + 1000-pair oracle + histogram in `sextant/docs/routing.md`. Then Phase 5 on the same PR via `continue`.
 
 ## Agent log
 
@@ -34,3 +35,4 @@ Builder Phase 3 on this branch: `RTree` (R* split + reinsert + STR + condense + 
 - 2026-09-04 (Builder run 1, Phase 0): scaffolded `sextant/` (`Sextant.sln` classic format, `global.json` pins SDK 8.0.424, Core/App/Tests/Pack projects all net8.0, xUnit 2.5.3). Core: `Geo` (WGS84 + haversine + spherical area), `Projections` (WebMercator + Albers CONUS + Reprojector), `TileMath` (slippy + bounds + overzoom). Tests: 14/14 green (one precision note: tan(PI/4) one ulp off, origin-Y asserted at precision 6). App: hello-map page painting one projected downtown-Portland batch through `ICanvasBridge` (`JsCanvasBridge` + `canvasInterop.js` + `NullCanvasBridge` + `MapState`). `dotnet publish -c Release` SUCCEEDED stock, no wasm-tools needed; AOT deferred as optional (recorded in `sextant/docs/architecture.md`). Pack CLI skeleton (help text + Phase 2 stub). Added dotnet ignores to `.gitignore`. Decision action: continue (Phases 1-5 remain).
 - 2026-09-04 (Builder run 2, Phase 1): froze PROJ-equivalent control goldens in `tests/Sextant.Core.Tests/ProjectionControlPoints.cs` (NYC/Berlin pinned at 1.0 m, world edges at 0.01 m; spherical equations agree with PROJ EPSG:3857 to sub-mm, re-verify offline via cs2cs/pyproj). Added Albers on-parallel scale test (analytic k = n*rho/cos(phi) = 1 to 1e-12 plus numeric easting-rate check to 1e-9), Albers equal-area cell test (5 CONUS 1x1 cells, planar shoelace vs spherical within 0.5 percent, measured ~2e-5), slippy control tiles (Portland z14, NYC z10) + bounds inversion test. Wrote `sextant/docs/projections.md` (formulas, properties, golden provenance, precision notes). `dotnet test -c Release`: 21/21 green. Decision action: continue (Phases 2-5 remain).
 - 2026-09-04 (Builder run 3, Phase 2): built the S2 tile pipeline in Core (`Geometry.cs`: TileInput hierarchy, Sutherland-Hodgman ring clip, Liang-Barsky polyline clip with stitching, radial + Douglas-Peucker simplifier with per-zoom extent schedule 8/4/1.5, MVT-convention 4096 quantizer; `TileBuilder.cs`: per-tile clip/simplify/quantize/degenerate-drop with sorted deterministic emit + `TileCanonical`; `Packs.cs`: `sextant-pack/1` manifest + ndjson GeoJSON reader with line-numbered FormatException; `Reprojector.ReprojectTo` QGeom overload for the Phase 5 Albers view). Implemented `Sextant.Pack` synthetic v1 city pack (140 features around downtown Portland, seed 286) plus authoring-dir converter; generated `src/Sextant.App/wwwroot/packs/v1/` and verified byte-identical across runs via `diff -r`. Wrote `sextant/docs/tile-pipeline.md`. `dotnet test -c Release`: 42/42 green (incl. pack-to-tile integration through test-linked content). Decision action: continue (Phases 3-5 remain).
++- 2026-09-04 (Builder run 4, Phase 3): built the S3 R*-tree in Core (`RTree.cs`: `Rect` planar value type with exact comparisons, `RTree<T>` M=32/m=13/p=30% single-reinsert-per-level, `ISplitStrategy` seam with `RStarSplit` default + `QuadraticSplit` fallback, STR bulk load with even-split grouping, Guttman condense on exact-(rect,value) delete + `Pack()` STR rebuild, DFS window + Hjaltason-Samet best-first k-NN, version-stamp guard on visitor queries, `CheckInvariants()` I1..I5 + balance + count walker). Found and fixed two real bugs via the gates: R* split distribution bound off by one (produced a 12-fill node) and `Nearest` validating inputs after the empty-tree early return. Hardened the k-NN oracle to compare distance multisets (exact ties at MinDist 0 are common under overlap) instead of id order. Tests (`RTreeTests.cs` + `RTreeBenchmarks.cs`): I1..I5 after every op, I6 100-query + I7 k in {1,5,20} oracles, STR-vs-incremental equivalence (200 windows + 50 k-NN on 5k), 1k-op seeded fuzz vs oracle, NaN/degenerate/delete+Pack/version guards, pack-backed downtown window vs brute force. `dotnet test -c Release`: 55/55 green. Throughput frozen in `sextant/docs/rtree.md` (100k STR 122 ms, window p95 0.016 ms, 1-NN p95 0.036 ms). Decision action: continue (Phases 4-5 remain).
