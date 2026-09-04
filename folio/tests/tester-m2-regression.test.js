@@ -155,5 +155,12 @@ test("M2 anti-facade: no stubs, no silent select, bake keeps unknown subtypes", 
   const bakeSrc = fs.readFileSync(path.join(srcDir, "ui/tools/annotate-ops.js"), "utf8");
   assert.ok(bakeSrc.includes("skipped"), "bake must count skipped unsupported subtypes, never drop them");
   const html = fs.readFileSync(path.join(folio, "index.html"), "utf8");
-  assert.equal(/<button[^>]*\bdisabled\b/.test(html), false, "no disabled stub buttons");
+  // M3 amendment (mirrors the M1 honesty gate): statically-disabled buttons
+  // are allowed only as transient state gates with a runtime enabler.
+  const appSrc = fs.readFileSync(path.join(srcDir, "ui/shell/app.js"), "utf8");
+  for (const m of html.matchAll(/<button[^>]*\bid="([^"]+)"[^>]*\bdisabled\b|<button[^>]*\bdisabled\b[^>]*\bid="([^"]+)"/g)) {
+    const id = m[1] || m[2];
+    assert.ok(id, "disabled button without id is a stub");
+    assert.ok(appSrc.includes('("' + id + '")') && appSrc.includes(".disabled"), id + " has no runtime enabler in app.js");
+  }
 });

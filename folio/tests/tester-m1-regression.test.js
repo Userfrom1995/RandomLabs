@@ -22,9 +22,12 @@ function readAllJs(dir) {
 }
 
 test("M1 anti-facade: purged modules are gone from disk and from imports", () => {
+  // M3 amendment (issue #277, epic roadmap): ocr-ops.js was restored with
+  // a REAL vendored Tesseract engine (packs/ocr + searchable-PDF builder,
+  // proven by folio-m3 gates), so it leaves this purge list. Everything
+  // else stays deleted.
   const gone = [
     "src/ui/tools/redact-ops.js",
-    "src/ui/tools/ocr-ops.js",
     "src/core/content/burnin.js",
     "src/core/content/redact.js",
     "src/core/convert/office.js",
@@ -38,9 +41,12 @@ test("M1 anti-facade: purged modules are gone from disk and from imports", () =>
   for (const rel of gone) assert.equal(fs.existsSync(path.join(folio, rel)), false, rel + " must stay deleted");
   const jsFiles = readAllJs(srcDir);
   const blob = jsFiles.map((f) => fs.readFileSync(f, "utf8")).join("\n");
-  for (const mod of ["redact-ops", "ocr-ops", "office-fallback", "office-pack", "zip-read", "packs/loader", "packs/manifest", "content/burnin", "content/redact", "ocr-client", "convert/office"]) {
+  for (const mod of ["redact-ops", "office-fallback", "office-pack", "zip-read", "packs/loader", "packs/manifest", "content/burnin", "content/redact", "ocr-client", "convert/office"]) {
     assert.equal(blob.includes(mod), false, "stale import of " + mod);
   }
+  // ocr-ops exists again: assert it is the real engine, not the theater.
+  assert.ok(fs.existsSync(path.join(folio, "packs/ocr/tesseract-core-lstm.wasm")), "M3 OCR pack engine present");
+  assert.ok(blob.includes("overlayPdfSearchLayer") || blob.includes("overlaySearchLayer"), "OCR writes real search layers");
 });
 
 test("M1 honesty: no modal dialogs, no coming-soon stubs in shipped code", () => {
@@ -52,7 +58,15 @@ test("M1 honesty: no modal dialogs, no coming-soon stubs in shipped code", () =>
   assert.equal(blob.toLowerCase().includes("coming soon"), false, "no coming-soon stubs");
   const html = fs.readFileSync(path.join(folio, "index.html"), "utf8");
   assert.equal(html.toLowerCase().includes("coming soon"), false, "no coming-soon stubs in HTML");
-  assert.equal(/<button[^>]*\bdisabled\b/.test(html), false, "no disabled stub buttons in HTML");
+  // M3 amendment: transient state gates (cancel-while-idle, download with
+  // no result yet) are real UX, not stubs. Every statically-disabled button
+  // must have a provable enabler in app.js that flips it at runtime.
+  const appSrc = fs.readFileSync(path.join(srcDir, "ui/shell/app.js"), "utf8");
+  for (const m of html.matchAll(/<button[^>]*\bid="([^"]+)"[^>]*\bdisabled\b|<button[^>]*\bdisabled\b[^>]*\bid="([^"]+)"/g)) {
+    const id = m[1] || m[2];
+    assert.ok(id, "disabled button without id is a stub");
+    assert.ok(appSrc.includes('("' + id + '")') && appSrc.includes(".disabled"), id + " has no runtime enabler in app.js");
+  }
 });
 
 test("M1 boot path: viewer imports vendored pdf.mjs at a path that exists", () => {

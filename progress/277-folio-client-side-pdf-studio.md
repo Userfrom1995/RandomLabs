@@ -1,10 +1,10 @@
 # Progress: Folio (fully client-side PDF studio) - Milestone Epic
 
 - **Issue:** #277
-- **Branch (M2):** opencode/issue277-folio-m2
+- **Branch (M3):** opencode/issue277-folio-m3
 - **Status:** in-progress
-- **Active Milestone:** M2 (Complete, ready for review)
-- **Updated:** 2026-09-04T12:55:00Z
+- **Active Milestone:** M3 (Complete, ready for review)
+- **Updated:** 2026-09-04T15:00:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
 
@@ -27,10 +27,15 @@
   - [x] Quad-aware bake v2 (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line).
   - [x] Forms roundtrip hardening: create/fill/flatten all 5 kinds, pdf.js verify.
   - [x] UI: ink/shape place annots, bake-all button, subtype delete filter.
-- [ ] **M3: Client-Side WASM OCR & Converters (later PR, Refs #277)**
-  - Vendored Tesseract WASM with real language models (same-origin pack,
-    consent-gated, Cache/OPFS cached).
-  - Real client-side docx parsing only when verified.
+- [ ] **M3: Client-Side WASM OCR & Converters (this PR, Refs #277)**
+  - [x] Vendored Tesseract WASM (5.1.1 ESM + worker + LSTM core + eng
+    best-int, 9,941,472 B under `folio/packs/ocr/`, consent-gated,
+    Cache/OPFS cached, progress + cancel).
+  - [x] Searchable PDF both directions: scanned-PDF overlay (11/11 words,
+    96% conf, 1.2 s/page) + photo-to-PDF (15/15, 96%, 0.7 s).
+  - [x] Office pack (mammoth 1.10.0 + SheetJS 0.18.5, 1,516,461 B):
+    docx/xlsx to measured PDF, PDF paras to valid .docx, PDF lines to
+    valid .xlsx. PPTX omitted (unverified, no stub).
 
 ## M1 checklist
 
@@ -43,11 +48,40 @@
 
 ## Current step
 
-M2 complete on `opencode/issue277-folio-m2` (Active Milestone: M2, Complete,
-ready for review; global Status stays in-progress for M3). Vector layer +
-forms hardening done, verified, pushed. Ready for Reviewer (anti-facade) +
-Tester (adversarial). Next: Maintainer merges, then dispatches M3 (WASM OCR
-+ verified Office) on a fresh milestone branch.
+M3 complete on `opencode/issue277-folio-m3` (Active Milestone: M3,
+Complete, ready for review; global Status stays in-progress until the
+Maintainer merges the final milestone and closes #277). Vendored packs
++ OCR route + Office converters built, verified, pushed. Ready for
+Reviewer (anti-facade) + Tester (adversarial). Note: this is the FINAL
+epic milestone, so the milestone PR uses `Closes #277`.
+
+## M3 checklist
+
+- [x] packs vendored same-origin with manifests (ocr 9,941,472 B, office
+  1,516,461 B) + packs/ dir + licenses recorded in pack.json
+- [x] OCR engine proven live in headless chromium (15/15 words, conf 95)
+  before any UI was wired
+- [x] overlay + image searchable paths E2E green with byte verification
+  (13/13 download checks), 6 real bugs found by the gates and fixed
+- [x] all six Office directions byte-verified (docx/xlsx to PDF, PDF to
+  docx/xlsx); td>p table-escape bug found and fixed + regression test
+- [x] M1/M2 purge asserts amended for the M3 restoration (real-engine
+  proof required, disabled buttons need runtime enablers)
+- [x] headless visual loop: #/ocr + #/convert desktop + 390px reviewed,
+  zero pageerrors, :disabled styling added
+- [x] unit 38/38, README + scoreboard M3 table + ideas entry updated
+
+## Agent log
+
+- 2026-09-04 (Builder, M3): vendored OCR/Office packs, pure core
+  (ocr.js, zip.js, blocks.js, sheets.js), browser executors
+  (ocr-ops.js, office-ops.js), #/ocr route + Convert Office card,
+  CSP wasm-unsafe-eval, shell v3, typed pack caches v2. Verified: node
+  38/38, live Tesseract 100% recall both paths, all Office directions
+  byte-green, 13/13 download checks, screenshots reviewed (one
+  transient headless flip frame logged, non-reproducible). 6 real bugs
+  fixed. Docs: README, scoreboard M3 table, this file, ideas note.
+  Decision action: review (final milestone: Closes #277).
 
 ## Agent log
 
