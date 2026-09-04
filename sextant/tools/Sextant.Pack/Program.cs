@@ -40,10 +40,12 @@ try
     if (positionals.Count == 1)
     {
         var data = CityPack.Generate(seed);
-        var manifest = CityPack.WritePack(data, positionals[0]);
+        var graph = RoadGraph.BuildCityGrid(seed: seed);
+        var manifest = CityPack.WritePack(data, positionals[0], graph);
         Console.WriteLine($"Sextant.Pack: synthetic pack v1 ({manifest.Source}, seed {seed}) -> {positionals[0]}");
         foreach (var layer in PackLayers.All)
             Console.WriteLine($"  {layer}.ndjson: {manifest.FeatureCounts[layer]} features");
+        Console.WriteLine($"  graph.bin: {manifest.GraphNodes} nodes, {manifest.GraphEdges} directed edges");
         return 0;
     }
     if (positionals.Count == 2)

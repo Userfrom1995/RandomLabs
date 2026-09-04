@@ -237,7 +237,7 @@ public static class CityPack
     }
 
     /// <summary>Write ndjson layers + pack.json manifest (UTF-8 no BOM).</summary>
-    public static PackManifest WritePack(PackData data, string outDir)
+    public static PackManifest WritePack(PackData data, string outDir, RoadGraph? graph = null)
     {
         Directory.CreateDirectory(outDir);
         var counts = new Dictionary<string, int>();
@@ -250,10 +250,28 @@ public static class CityPack
                 sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             counts[layer] = data.Layers[layer].Count;
         }
+        if (graph is not null)
+            WriteGraphAssets(graph, outDir);
         var manifest = new PackManifest(
-            PackManifest.CurrentVersion, data.Seed, CenterLon, CenterLat, counts, data.Source);
+            PackManifest.CurrentVersion, data.Seed, CenterLon, CenterLat, counts, data.Source,
+            graph?.NodeCount, graph?.EdgeCount);
         File.WriteAllText(Path.Combine(outDir, "pack.json"),
             manifest.ToJson(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         return manifest;
+    }
+
+    /// <summary>
+    /// Write the routable graph assets: graph.bin (compact CSR, the App's
+    /// runtime asset) plus graph.geojson (arterials-only debug overlay).
+    /// Deterministic: CSR edges sorted by (from, to), F7 rounding, no
+    /// timestamps.
+    /// </summary>
+    public static void WriteGraphAssets(RoadGraph graph, string outDir)
+    {
+        ArgumentNullException.ThrowIfNull(graph);
+        Directory.CreateDirectory(outDir);
+        File.WriteAllBytes(Path.Combine(outDir, "graph.bin"), graph.ToGraphBin());
+        File.WriteAllText(Path.Combine(outDir, "graph.geojson"), graph.ToArterialGeoJson(),
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 }
