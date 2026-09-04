@@ -1,9 +1,9 @@
 // Folio Phase E pure domain: Tier 2 + Tier 3 rows (headless, no DOM).
-// Covers: P4 split-by-bookmark, P8 reorder validation, P10 blank page,
-// P11 resize, P12 orientation, P13 crop burn, P18 flatten-all, O2 linearize
-// note, O3 GC spec, O4 downsample spec, O5 grayscale, O7 PDF/A, S7/S8 cert
-// scope, E16 attachments, E19 auto-rename batch, I4 replace-image, C2 deskew,
-// V12 print spec, R3 batch queue.
+// M1 scope: split-by-bookmark, reorder validation, blank page, resize,
+// orientation, crop burn, flatten-all, GC spec, batch rename, replace-image
+// plan, print spec, batch queue. Purged facades: linearize note, downsample
+// spec, grayscale plan, PDF/A record, cert scope/validate, Subject
+// attachments, deskew spec (each promised engine work that never ran).
 export const PAGE_SIZES = {
   A4: { w: 595.28, h: 841.89 },
   Letter: { w: 612, h: 792 },
@@ -66,67 +66,10 @@ export function flattenPlan(annotCounts) {
   return { kinds: Object.keys(annotCounts || {}), total, baked: total, note: "appearances baked into content; annot dicts removed" };
 }
 
-// O2 linearize: honest stub - pdf-lib has no linearizer; record intent.
-export function linearizeNote() {
-  return { status: "not-native", path: "fast-web-view via object-stream resave + IDB/page-windowed streaming; true xref linearization needs a server qpdf pass", writer: "resave" };
-}
-
 // O3: GC = full rewrite drops unreferenced objects.
 export function gcSpec(beforeBytes, afterBytes) {
   if (!(beforeBytes > 0) || !(afterBytes > 0)) throw new Error("bad byte counts");
   return { before: beforeBytes, after: afterBytes, ratio: afterBytes / beforeBytes, reclaimed: beforeBytes - afterBytes, method: "full rewrite via save (drops unreferenced)" };
-}
-
-// O4: downsample target DPI -> scale factor.
-export function downsampleSpec(targetDpi) {
-  const allowed = [72, 110, 150, 200, 300];
-  if (!allowed.includes(targetDpi)) throw new Error("target DPI must be one of " + allowed.join(","));
-  return { dpi: targetDpi, scale: targetDpi / 72, method: "pdf.js render at scale + embedJpg re-embed" };
-}
-
-// O5: grayscale strength clamp (shared with grayscaleSpec; Phase E alias with page scope).
-export function grayscalePlan(pages, strength) {
-  const s = Math.max(0, Math.min(2, Number(strength)));
-  if (!Number.isFinite(s)) throw new Error("bad strength");
-  if (!Array.isArray(pages) || !pages.length) throw new Error("no pages");
-  return { pages: [...pages], strength: s, method: "canvas luminance re-encode" };
-}
-
-// O7: PDF/A checklist is in optimize.js (pdfaChecklist); Phase E adds conformance record.
-export function pdfaRecord(level) {
-  if (!["PDF/A-1b", "PDF/A-2b", "PDF/A-3b"].includes(level)) throw new Error("unsupported PDF/A level");
-  return { level, embedsFonts: true, stripsTransparency: true, stripsJs: true, writesXmp: true, note: "subset: fonts embedded, JS/actions stripped" };
-}
-
-// S7/S8: certificate scope - honest: no PKI vendored; stamp + ByteRange placeholder only.
-export function certScope() {
-  return {
-    sign: "appearance-only placeholder (ByteRange reserved, CMS/PKCS#12 needs Phase E+ PKI vendor)",
-    validate: "digest recompute only; chain trust needs vendored certs (out of scope v1)",
-  };
-}
-
-export function signatureValidateReport(digestOk, chainKnown) {
-  if (typeof digestOk !== "boolean") throw new Error("digestOk must be boolean");
-  return digestOk
-    ? { integrity: "INTACT", trust: chainKnown ? "TRUSTED" : "UNTRUSTED", summary: chainKnown ? "INTACT / TRUSTED" : "INTACT / UNTRUSTED" }
-    : { integrity: "TAMPERED", trust: "UNTRUSTED", summary: "TAMPERED / UNTRUSTED" };
-}
-
-// E16: attachments registry (name -> bytes length), pure add/extract/delete plans.
-export function attachPlan(existing, op, name, byteLength) {
-  const names = new Set(existing || []);
-  if (op === "add") {
-    if (!name || /[/\\]/.test(name)) throw new Error("bad attachment name");
-    if (!(byteLength > 0)) throw new Error("empty attachment");
-    if (names.has(name)) throw new Error("attachment exists: " + name);
-    return { op, name, byteLength };
-  }
-  if (op === "delete" || op === "extract") {
-    if (!names.has(name)) throw new Error("attachment missing: " + name);
-    return { op, name };
-  }
-  throw new Error("unknown attach op");
 }
 
 // E19: batch auto-rename over files.
@@ -150,13 +93,6 @@ export function replaceImagePlan(entry, newBytesLen) {
   if (!entry || !Number.isInteger(entry.index)) throw new Error("bad image entry");
   if (!(newBytesLen > 0)) throw new Error("empty replacement");
   return { index: entry.index, page: entry.page, newBytesLen, note: "XObject swap; dimensions kept from census" };
-}
-
-// C2: deskew/orient pre-pass spec (pure; canvas pass runs in browser).
-export function deskewSpec(angleDeg, orientApplied) {
-  const a = Number(angleDeg);
-  if (!Number.isFinite(a) || Math.abs(a) > 45) throw new Error("deskew angle out of range (-45..45)");
-  return { angleDeg: a, correct: Math.abs(a) > 0.5, deskew: Math.abs(a) < 5, orientApplied: !!orientApplied, note: Math.abs(a) >= 5 ? "angle over 5deg: flag for manual review" : "auto-deskew under 5deg" };
 }
 
 // V12: print spec (system print, booklet-ready).

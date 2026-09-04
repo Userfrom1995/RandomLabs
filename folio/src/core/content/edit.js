@@ -1,40 +1,7 @@
-// Folio edit core: pure find/replace spans, paragraph-edit box math,
-// word diff (LCS), and overlay cover plans. No DOM, no pdf-lib.
-import { hitRegions } from "../annotate/annotate.js";
-
-// Find spans: [{line, word, text, x, y, w, h}] for each word hit.
-export function findSpans(lines, query) {
-  return hitRegions(lines, query).map((r, i) => ({ ...r, i }));
-}
-
-// Paragraph edit plan: cover the old line bbox, re-typeset newText inside
-// the paragraph box (max width = line width, may wrap). Returns
-// {cover, rows: [{text, y}], overflow: bool}. Caller draws with
-// widthOfTextAtSize using the real embedded font.
-export function paragraphEditPlan(line, newText, measure) {
-  const boxW = line.w || 400;
-  const size = line.size || 12;
-  const words = String(newText || "").split(/\s+/).filter(Boolean);
-  const rows = [];
-  let cur = "";
-  for (const w of words) {
-    const trial = cur ? cur + " " + w : w;
-    if (measure(trial, size) > boxW && cur) {
-      rows.push(cur);
-      cur = w;
-    } else cur = trial;
-  }
-  if (cur) rows.push(cur);
-  if (!rows.length) rows.push("");
-  const leading = size * 1.35;
-  const maxRows = Math.max(1, Math.floor(((line.paraH || leading) + leading / 2) / leading));
-  return {
-    cover: { x: line.x - 2, y: line.y - 2, w: boxW + 4, h: (line.paraH || size + 4) + 4 },
-    rows: rows.map((text, i) => ({ text, y: line.y + ((rows.length - 1 - i) * leading) })),
-    overflow: rows.length > maxRows,
-    extraRows: rows.slice(maxRows),
-  };
-}
+// Folio edit core: word diff (LCS) for the compare report. No DOM, no pdf-lib.
+// M1 note: white-box find/replace + paragraph cover-and-retype were purged:
+// painting opaque rectangles over live text leaves the old bytes extractable,
+// so they could never be honest edits. Compare appends a real report page.
 
 // Word-level diff via LCS on token arrays. Returns ops:
 // [{op: "same"|"del"|"ins", text}].
