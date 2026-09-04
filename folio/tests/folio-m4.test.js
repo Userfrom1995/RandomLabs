@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import {
   pdfToCss, cssToPdf, normalizeDragBox, resizeBox, moveBox,
   PLACEMENT_MODES, commitRect, parsePlaceTarget, treeToRows, rowsToTree,
+  addBookmarkNode, removeNode, moveNode, indentNode, outdentNode,
 } from "../src/ui/viewer/overlay.js";
 import { canvasBox, pageBox } from "../src/ui/viewer/viewer.js";
 
@@ -161,6 +162,75 @@ test("opfs writeFile falls back to memory on SecurityError", async () => {
   } finally {
     delete globalThis.navigator;
     delete globalThis.__folioNavigator;
+  }
+});
+
+test("describeFields reports page + rect + options + value", async () => {
+  const doc = await PDFLib.PDFDocument.create();
+  doc.addPage([612, 792]);
+  doc.addPage([612, 792]);
+  let bytes = await doc.save();
+  bytes = await FormOps.createField(bytes, { name: "full", type: "text", page: 1, rect: { x: 56, y: 600, w: 200, h: 24 } }, PDFLib);
+  bytes = await FormOps.createField(bytes, { name: "agree", type: "checkbox", page: 2, rect: { x: 56, y: 500, w: 20, h: 20 } }, PDFLib);
+  bytes = await FormOps.createField(bytes, { name: "choice", type: "dropdown", page: 2, rect: { x: 56, y: 450, w: 200, h: 24 }, options: ["a", "b"], value: "b" }, PDFLib);
+  const descs = await FormOps.describeFields(bytes, PDFLib);
+  assert.equal(descs.length, 3);
+  const byName = Object.fromEntries(descs.map((d) => [d.name, d]));
+  assert.equal(byName.full.page, 1);
+  assert.ok(byName.full.rect && Math.abs(byName.full.rect.x - 56) < 2, "text rect near creation rect: " + JSON.stringify(byName.full.rect));
+  assert.ok(Math.abs(byName.full.rect.w - 200) < 2);
+  assert.equal(byName.agree.page, 2);
+  assert.equal(byName.agree.kind, "checkbox");
+  assert.deepEqual(byName.choice.options, ["a", "b"]);
+  assert.ok([["b"], "b"].some((v) => JSON.stringify(v) === JSON.stringify(byName.choice.value)), "dropdown value reads back");
+  // Overlay roundtrip: the reported rect positions an input that maps back.
+  const css = pdfToCss(byName.full.rect, LETTER, CANVAS);
+  const back = cssToPdf({ x: css.x, y: css.y, w: css.w, h: css.h }, LETTER, CANVAS);
+  assert.ok(Math.abs(back.x - byName.full.rect.x) < 0.5, "overlay-positioned field maps back");
+});
+
+test("bookmark tree edits: add/indent/outdent/move/remove", () => {
+  const tree = [];
+  assert.equal(addBookmarkNode(tree, { title: "A", page: 1 }), 0);
+  assert.equal(addBookmarkNode(tree, { title: "B", page: 2 }), 1);
+  assert.equal(addBookmarkNode(tree, { title: "C", page: 3 }), 2);
+  assert.equal(indentNode(tree, [0]), false); // first child cannot indent
+  assert.equal(indentNode(tree, [2]), true); // C under B
+  assert.deepEqual(treeToRows(tree).map((r) => [r.title, r.depth]), [["A", 0], ["B", 0], ["C", 1]]);
+  assert.equal(outdentNode(tree, [0]), false); // top level cannot outdent
+  assert.equal(outdentNode(tree, [1, 0]), true); // C back to top
+  assert.equal(tree.length, 3);
+  assert.equal(moveNode(tree, [0], -1), false); // off-list move refused
+  assert.equal(moveNode(tree, [0], 1), true);
+  assert.deepEqual(tree.map((n) => n.title), ["B", "A", "C"]);
+  assert.equal(removeNode(tree, [5]), false);
+  assert.equal(removeNode(tree, [1]), true);
+  assert.deepEqual(tree.map((n) => n.title), ["B", "C"]);
+  // Edited tree still serializes for the real bookmark engine.
+  const rows = treeToRows(tree);
+  assert.deepEqual(rows.map((r) => r.title), ["B", "C"]);
+});
+
+test("m4c shell: form overlay + outline trees + studio ids wired", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const html = fs.readFileSync(path.join(here, "..", "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(here, "..", "src", "ui", "shell", "app.js"), "utf8");
+  for (const id of ["formlayer", "formlist", "t-formfill-list", "bmtree", "bmtree-pages", "bmadd", "bmadd-pages", "sidebartoggle", "shortcuts"]) {
+    assert.ok(html.includes('id="' + id + '"'), "shell has #" + id);
+  }
+  // Pipe-delimited primaries are gone; JSON bulk fill survives as fallback.
+  assert.ok(!html.includes('id="bmtext"'), "bmtext textarea removed");
+  assert.ok(!html.includes('id="ext-bmtext"'), "ext-bmtext textarea removed");
+  assert.ok(html.includes('id="filljson"'), "filljson fallback kept");
+  assert.ok(!app.includes('$("bmtext")') && !app.includes('$("ext-bmtext")'), "app.js no longer reads removed textareas");
+  for (const op of ["describeFields", "renderFormOverlay", "renderFormList", "renderBmTrees", "bmAddCurrent", "wireStudio", "fillForm", "setBookmarks"]) {
+    assert.ok(app.includes(op), "app.js wires " + op);
+  }
+  for (const op of ["addBookmarkNode", "removeNode", "moveNode", "indentNode", "outdentNode", "treeToRows"]) {
+    assert.ok(app.includes(op), "app.js commits tree edits through " + op);
   }
 });
 
