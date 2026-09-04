@@ -144,22 +144,22 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><input id="hfheader" placeholder="Header text" /><input id="hffooter" placeholder="Footer text" /><button id="t-headerfooter">Apply header/footer</button></div>
 <div class="row"><input id="pntpl" value="Page {n} of {total}" /><button id="t-pagenum">Add page numbers</button></div>
 <div class="row"><input id="wmtext" value="DRAFT" /><button id="t-watermark">Text watermark</button></div>
-<div class="row"><input id="mkquery" placeholder="Word to mark" style="flex:1;min-width:110px" /><select id="mksubtype"><option>Highlight</option><option>Underline</option><option>StrikeOut</option></select><button id="t-markup">Mark up</button><button id="t-bakemarkup">Bake markup into content</button></div>
+<div class="row"><input id="mkquery" placeholder="Word to mark" style="flex:1;min-width:110px" /><select id="mksubtype"><option>Highlight</option><option>Underline</option><option>StrikeOut</option></select><button id="t-markup">Mark up</button><button id="t-bakemarkup">Bake annotations into content</button></div>
 <div class="row"><input id="notexy" placeholder="x,y e.g. 100,650" style="width:120px" /><input id="notetext" placeholder="Note text" style="flex:1;min-width:110px" /><button id="t-note">Sticky note on current page</button></div>
-<div class="row"><select id="shapekind"><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option><option value="line">Line</option><option value="arrow">Arrow</option></select><input id="shapexy" placeholder="x,y,w,h e.g. 50,600,200,80" style="width:170px" /><button id="t-shape">Draw shape</button></div>
+<div class="row"><select id="shapekind"><option value="rect">Rectangle</option><option value="ellipse">Ellipse</option><option value="line">Line</option><option value="arrow">Arrow</option></select><input id="shapexy" placeholder="x,y,w,h e.g. 50,600,200,80" style="width:170px" /><button id="t-shape">Place shape</button></div>
 <div class="row"><input id="stamptext" placeholder="Stamp text e.g. APPROVED" style="flex:1;min-width:110px" /><button id="t-stamp">Stamp</button></div>
 <div class="row"><input id="linktarget" placeholder="https://... or page:N" style="flex:1;min-width:110px" /><input id="linkrect" placeholder="x,y,w,h e.g. 56,740,200,20" style="width:170px" /><button id="t-link">Add link</button></div>
 <div class="row"><input id="batespre" value="FOLIO-" style="width:90px" /><input id="batesdigits" type="number" value="6" style="width:60px" /><input id="batesstart" type="number" value="1" style="width:70px" /><button id="t-bates">Bates number all pages</button></div>
 <div class="row"><input type="file" id="wmpick" accept="image/*" /><button id="t-wmimg">Image watermark (centered, faint)</button></div>
 <div class="card"><h3>Ink (draw below, applies to current page)</h3>
 <canvas id="inkpad" width="300" height="150" style="border:1px solid var(--folio-border);border-radius:6px;touch-action:none;max-width:100%"></canvas>
-<div class="row"><button id="t-inkclear">Clear pad</button><button id="t-ink">Apply ink to page</button></div>
+<div class="row"><button id="t-inkclear">Clear pad</button><button id="t-ink">Place ink annotation</button></div>
 </div>
 <div class="card"><h3>Bookmarks + TOC (E14)</h3>
 <textarea id="bmtext" placeholder="One per line: Title | page, e.g.&#10;Intro | 1&#10;Notes | 2"></textarea>
 <div class="row"><button id="t-bookmarks">Set bookmarks</button><button id="t-toc">Set bookmarks + TOC page</button></div>
 </div>
-<div class="row"><button id="t-annlist">List annotations</button><button id="t-anndel">Delete all annotations</button></div>
+<div class="row"><button id="t-annlist">List annotations</button><select id="anndelsub" aria-label="Annotation subtype filter"><option value="all">All subtypes</option><option>Highlight</option><option>Underline</option><option>StrikeOut</option><option>Ink</option><option>Square</option><option>Circle</option><option>Line</option><option>Text</option><option>Link</option></select><button id="t-anndel">Delete annotations</button></div>
 <div class="muted" id="annotreport"></div>
 </div></section>
 
