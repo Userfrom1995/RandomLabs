@@ -31,43 +31,34 @@ single-tool upload sites on workflow.
   reference fix-up pass (`src/core/pdf-engine/structural.js`).
 - Write path: vendored pdf-lib (`vendor/pdf-lib.min.js`, same origin, no CDN).
 - Pipeline: typed op envelopes with undo/redo (`src/core/pipeline/ops.js`).
-- Packs: OCR-PACK and OFFICE-PACK are consent-gated same-origin packs
-  (`packs/*.json` manifests with real byte sizes); declining routes to the
-  core fallback which stays fully usable.
+- Milestone delivery: after the Phase A-E build, issue #277 was reopened
+  under the Autonomous Milestone Epic Protocol. Milestone 1 (this branch)
+  purged every facade (OCR theater, white-box text edit, stream-regex
+  redact, AES envelope, PDF/A + grayscale stamps, Subject attachments,
+  Office dumpers, spec-only buttons) and shipped the visual drag-and-drop
+  page grid over the polished page engine. OCR and Office return in M3
+  with real vendored engines; until then their buttons do not exist.
 
-## Routes (hash router, each lazy-runs its own chunk)
+## Routes (hash router, each runs its own real engine op)
 
-Pages, Compress, Security, Annotate, Edit, Images, Forms, OCR, Convert,
-Workflow. Phase A ships: viewer + structural backbone + pipeline + convert
-core (text/markdown/html out, text to PDF, images both directions, headers,
-numbers, watermarks, metadata, scrub, lossless optimize, info, repair,
-read-aloud). Phase B ships: burn-in redact with acceptance gate, text-markup
-annotations (highlight/underline/strikeout with QuadPoints), sticky notes,
-shapes, ink pad, stamps, links, Bates, image watermarks, bookmarks + TOC,
-annotation list/delete, markup bake, paragraph edit, find-replace, N-up,
-booklet, overlay, compare, image census/extract/insert, scanner effect,
-AcroForm describe/fill/create/flatten, XFA detector. Phase C ships: AES-256-GCM
-password envelopes (honest scope: file envelope, not native PDF V=5) with
-rekey + Perms intent flags + session unlock (passwords zeroed, never stored),
-JS/action inspector, signature stamp + certificate-sign ByteRange placeholder,
-profile-gated compress with corpus searchability gate (text pages always
-lossless), mode-3 invisible OCR text layers with scanned-page detector,
-dependency-free DOCX/XLSX/PPTX writers (valid store-only ZIPs), CSV both
-directions, URL import spec, and true byte-restore undo/redo.
-Phase D adds the full-fidelity Office pack. Cloud AI chat is the only
-exclusion (matrix section 8).
-
-Phase E completes Tier 2 + Tier 3: extract/reorder/blank/resize/orient/
-crop + burn-crop/split-by-bookmark/flatten-all (pages); GC rewrite,
-downsample spec, grayscale intent, PDF/A subset, fast-web-view note
-(compress); signature validation report, S7/S8 honest scope (security);
-attachments registry + OPFS sidecar, auto-rename batch, booklet-ready
-print path (edit/workflow); image replace overlay at census size (I4);
-deskew pre-pass check (C2); batch queue with per-file retry (R3).
-CSP is same-origin locked, PWA cache is versioned, and the T1-T5
-scoreboard in `docs/scoreboard.md` records measured gates (T3 OCR
-sec/page deferred until the Tesseract pack vendors; true xref
-linearization needs a qpdf-class pass).
+Pages, Compress, Security, Annotate, Edit, Images, Forms, Convert,
+Workflow. M1 ships: viewer (pdf.js render + text map + search) with live
+canvas page grid (click/drag/keyboard/touch-button reorder, rotate,
+duplicate, delete, all with true byte-restore undo); structural backbone
+(merge, split ranges/chunks/bookmarks, reverse, delete, odd/even, rotate,
+insert, duplicate, extract, reorder, blank, resize, orient, crop +
+burn-crop); headers/footers, page numbers, watermarks (text + image),
+metadata set/scrub, JS/action inspect + scrub, signature stamp, lossless
+optimize + profile-gated compress with corpus searchability gate, GC
+rewrite; text-markup annotations (highlight/underline/strikeout with
+QuadPoints), sticky notes, shapes, ink pad, stamps, links, Bates, image
+watermarks, bookmarks + TOC, annotation list/delete, markup bake; N-up,
+booklet, overlay, compare report; image census/extract/insert, scanner
+effect, image replace overlay (labeled); AcroForm describe/fill/create/
+flatten, XFA detector; PDF to text/markdown/HTML, text to PDF, CSV to
+table PDF; info, repair, read-aloud, flatten-all, auto-rename batch,
+booklet-ready print path, batch queue with per-file retry.
+Cloud AI chat is the only exclusion (matrix section 8).
 
 ## Develop
 
