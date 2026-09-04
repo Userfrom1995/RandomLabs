@@ -48,6 +48,10 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          # Full history is mandatory: the integrity guard and the PAT merge
+          # sweep use merge-base ancestry checks, which fail closed on shallow
+          # clones and misread legitimate merges as orphans (issue #283).
+          fetch-depth: 0
 
       - name: Configure git identity
         run: |
@@ -579,8 +583,24 @@ jobs:
             echo "Could not read current main SHA; skipping integrity guard."
             exit 0
           fi
+          # Ancestry checks require full history. A shallow clone cannot prove
+          # divergence: merge-base fails closed and a legitimate rebase merge
+          # reads as an orphan, so the guard below would rewind a good main
+          # (issue #283: merge 46b9d9 was reverted, stranding the build).
+          if [ "$(git rev-parse --is-shallow-repository 2>/dev/null)" = "true" ]; then
+            git fetch origin main --unshallow --quiet 2>/dev/null \
+              || git fetch origin main --quiet 2>/dev/null || true
+          else
+            git fetch origin main --quiet 2>/dev/null || true
+          fi
           git fetch origin "$pre" --quiet 2>/dev/null || true
           git fetch origin "$cur" --quiet 2>/dev/null || true
+          # Fail-open: if either SHA cannot be resolved locally, ancestry is
+          # unprovable, so skip the guard instead of restoring main.
+          if ! git cat-file -e "$pre" 2>/dev/null || ! git cat-file -e "$cur" 2>/dev/null; then
+            echo "Cannot resolve both main SHAs locally (pre=$pre, now=$cur); skipping integrity guard without restore."
+            exit 0
+          fi
           # main must remain a strict descendant of the pre-run main. A rebase merge of a
           # correctly linked PR keeps main descending from pre. Only a divergent/orphan rewrite
           # (the recurring lab defect) fails this check, and we auto-restore to the pre-run SHA.

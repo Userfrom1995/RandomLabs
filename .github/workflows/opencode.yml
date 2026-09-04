@@ -54,6 +54,9 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          # Full history: orphan-guard merge-base checks fail closed on
+          # shallow clones and misroute healthy branches (issue #283).
+          fetch-depth: 0
 
       - name: Configure git identity
         run: |
@@ -195,6 +198,9 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          # Full history: orphan-guard merge-base checks fail closed on
+          # shallow clones and misroute healthy branches (issue #283).
+          fetch-depth: 0
 
       - name: Configure git identity
         run: |
@@ -397,6 +403,9 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          # Full history: orphan-guard merge-base checks fail closed on
+          # shallow clones and misroute healthy branches (issue #283).
+          fetch-depth: 0
 
       - name: Configure git identity
         run: |
@@ -814,6 +823,9 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          # Full history: orphan-guard merge-base checks fail closed on
+          # shallow clones and misroute healthy branches (issue #283).
+          fetch-depth: 0
 
       - name: Configure git identity
         run: |
@@ -1010,6 +1022,9 @@ jobs:
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          # Full history: orphan-guard merge-base checks fail closed on
+          # shallow clones and misroute healthy branches (issue #283).
+          fetch-depth: 0
 
       - name: Configure git identity
         run: |
