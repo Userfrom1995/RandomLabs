@@ -123,6 +123,22 @@ export function commitRect(mode, cssBox, pageBox, canvasBox, clickThresholdCss) 
   return { x: q(r.x), y: q(r.y), w: q(r.w), h: q(r.h) };
 }
 
+// Parse a link target string from the UI: "page:N" (1-based, user-facing)
+// becomes a zero-based gotoPage; anything else must be a valid URI
+// (validated by the caller's validateLink). Pure, unit-testable.
+export function parsePlaceTarget(raw, pageCount) {
+  const t = String(raw || "").trim();
+  if (!t) throw new Error("link: need a target (https://... or page:N)");
+  if (t.toLowerCase().startsWith("page:")) {
+    const n = parseInt(t.slice(5).trim(), 10);
+    if (!Number.isInteger(n) || n < 1 || n > (pageCount || 0)) {
+      throw new Error("link: page:N must be within 1.." + (pageCount || 0));
+    }
+    return { gotoPage: n - 1 };
+  }
+  return { uri: t };
+}
+
 // Serialize a bookmark outline tree to the flat [{title, page}] rows the
 // bookmark core (setBookmarks/splitByBookmarks) consumes, and back.
 // Tree nodes: {title, page, children[]}. Depth-first order.
