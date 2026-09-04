@@ -1,0 +1,57 @@
+﻿@page "/"
+@using Sextant.App.Services
+@using Sextant.Core
+@inject ICanvasBridge Bridge
+@inject MapState Map
+
+<PageTitle>Sextant: hello map</PageTitle>
+
+<h1>Sextant: hello map (Phase 0)</h1>
+<p>
+  Center @Map.CenterLon.ToString("F4"), @Map.CenterLat.ToString("F4")
+  at zoom @Map.ZoomFloat.ToString("F1") through @Map.ProjectionId.
+  One batch painted through <code>ICanvasBridge</code>; full tile pipeline lands in Phase 2.
+</p>
+<canvas id="sextant-map" width="640" height="360"></canvas>
+
+@code {
+    private readonly WebMercatorProjection _merc = new();
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        // Hello-map: project a small downtown-Portland box and paint it as one batch.
+        double[] corners =
+        {
+            -122.6900, 45.5100, -122.6600, 45.5100,
+            -122.6600, 45.5200, -122.6900, 45.5200, -122.6900, 45.5100,
+        };
+        var fwd = new System.Collections.Generic.List<float>();
+        var center = _merc.Forward(Map.CenterLon, Map.CenterLat);
+        const double spanM = 4000.0; // 4 km window mapped onto the canvas
+        foreach (var chunk in Chunk(corners, 2))
+        {
+            var p = _merc.Forward(chunk[0], chunk[1]);
+            if (!p.Valid) continue;
+            float px = (float)((p.X - center.X) / spanM * 640.0 + 320.0);
+            float py = (float)(180.0 - (p.Y - center.Y) / spanM * 360.0);
+            fwd.Add(px);
+            fwd.Add(py);
+        }
+        Bridge.Clear();
+        Bridge.DrawBatches(new[]
+        {
+            new LayerBatch("hello-block", fwd.ToArray(), "stroke", "#f8fafc", "#0f172a", 2f),
+        });
+    }
+
+    private static System.Collections.Generic.IEnumerable<double[]> Chunk(double[] xs, int n)
+    {
+        for (int i = 0; i + n <= xs.Length; i += n)
+        {
+            var c = new double[n];
+            System.Array.Copy(xs, i, c, 0, n);
+            yield return c;
+        }
+    }
+}
