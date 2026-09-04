@@ -1,0 +1,12 @@
+{"type":"Feature","properties":{"name":"Central Station","class":"station"},"geometry":{"type":"Point","coordinates":[-122.6735000,45.5172000]}}
+{"type":"Feature","properties":{"name":"City Hall","class":"civic"},"geometry":{"type":"Point","coordinates":[-122.6770000,45.5170000]}}
+{"type":"Feature","properties":{"name":"Elm Clinic","class":"health"},"geometry":{"type":"Point","coordinates":[-122.6807000,45.5144000]}}
+{"type":"Feature","properties":{"name":"Ferry Dock","class":"station"},"geometry":{"type":"Point","coordinates":[-122.6737000,45.5117000]}}
+{"type":"Feature","properties":{"name":"Grand Hotel","class":"hotel"},"geometry":{"type":"Point","coordinates":[-122.6723000,45.5154000]}}
+{"type":"Feature","properties":{"name":"Library","class":"civic"},"geometry":{"type":"Point","coordinates":[-122.6775000,45.5122000]}}
+{"type":"Feature","properties":{"name":"Museum of Maps","class":"museum"},"geometry":{"type":"Point","coordinates":[-122.6793000,45.5130000]}}
+{"type":"Feature","properties":{"name":"North Park Kiosk","class":"kiosk"},"geometry":{"type":"Point","coordinates":[-122.6800000,45.5184000]}}
+{"type":"Feature","properties":{"name":"Pioneer Square","class":"square"},"geometry":{"type":"Point","coordinates":[-122.6760000,45.5147000]}}
+{"type":"Feature","properties":{"name":"Powell Books","class":"shop"},"geometry":{"type":"Point","coordinates":[-122.6780000,45.5160000]}}
+{"type":"Feature","properties":{"name":"Riverside Cafe","class":"cafe"},"geometry":{"type":"Point","coordinates":[-122.6743000,45.5140000]}}
+{"type":"Feature","properties":{"name":"Union Bakery","class":"shop"},"geometry":{"type":"Point","coordinates":[-122.6753000,45.5180000]}}

@@ -1,0 +1,14 @@
+{
+  "Version": "sextant-pack/1",
+  "Seed": 286,
+  "CenterLon": -122.6765,
+  "CenterLat": 45.5152,
+  "FeatureCounts": {
+    "roads": 23,
+    "buildings": 102,
+    "water": 1,
+    "landuse": 2,
+    "pois": 12
+  },
+  "Source": "synthetic-v1"
+}

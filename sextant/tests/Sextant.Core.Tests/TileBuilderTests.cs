@@ -375,4 +375,34 @@ public sealed class TileBuilderTests
         Assert.Equal(0.0, projected.Point.Lon, precision: 6);
         Assert.Equal(0.0, projected.Point.Lat, precision: 6);
     }
+
+    // -- pack -> tile integration -------------------------------------------------
+
+    [Fact]
+    public void PackIntegration_RealPackBuildsPortlandTile()
+    {
+        // The checked-in v1 city pack (written by Sextant.Pack, linked as
+        // test content) parses through the Core reader and builds a
+        // non-empty deterministic downtown-Portland tile.
+        string dir = Path.Combine(AppContext.BaseDirectory, "packs");
+        var inputs = new List<TileInput>();
+        int parsed = 0;
+        foreach (var layer in PackLayers.All)
+        {
+            string ndjson = File.ReadAllText(Path.Combine(dir, layer + ".ndjson"));
+            var layerInputs = NdjsonReader.ParseLayer(layer, ndjson);
+            Assert.True(layerInputs.Count > 0, $"pack layer '{layer}' is empty");
+            inputs.AddRange(layerInputs);
+            parsed += layerInputs.Count;
+        }
+        Assert.Equal(140, parsed);
+        var tile = TileBuilder.BuildTile(14, 2608, 5860, inputs);
+        Assert.True(tile.Features.Count > 10, $"expected a full tile, got {tile.Features.Count} features");
+        Assert.Contains(tile.Features, f => f.Layer == PackLayers.Roads);
+        Assert.Contains(tile.Features, f => f.Layer == PackLayers.Buildings);
+        Assert.Contains(tile.Features, f => f.Layer == PackLayers.Pois);
+        string a = TileCanonical.Serialize(tile);
+        string b = TileCanonical.Serialize(TileBuilder.BuildTile(14, 2608, 5860, inputs));
+        Assert.Equal(a, b);
+    }
 }

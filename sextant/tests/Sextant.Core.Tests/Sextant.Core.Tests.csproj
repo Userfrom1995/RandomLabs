@@ -24,4 +24,12 @@
     <ProjectReference Include="..\..\src\Sextant.Core\Sextant.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Phase-2 pack integration gate: the checked-in v1 city pack rides
+         with the tests so pack -> parse -> tile is proven end to end. -->
+    <Content Include="..\..\src\Sextant.App\wwwroot\packs\v1\*.ndjson"
+             Link="packs\%(FileName)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
