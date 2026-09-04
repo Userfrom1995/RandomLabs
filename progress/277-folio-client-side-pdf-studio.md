@@ -1,14 +1,14 @@
 # Progress: Folio (fully client-side PDF studio) - Milestone Epic
 
 - **Issue:** #277
-- **Branch (M1):** opencode/issue277-20260904120709
+- **Branch:** opencode/issue277-20260904122522
 - **Status:** in-progress
-- **Active Milestone:** M1 (Complete, ready for review)
+- **Active Milestone:** M1 (Complete, merged as 2ae1675d; next M2)
 - **Updated:** 2026-09-04T00:00:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
 
-- [x] **M1: Clean Core & Visual Page Grid (this PR, Refs #277)**
+- [x] **M1: Clean Core & Visual Page Grid (Refs #277, merged as 2ae1675d)**
   - Purge all 8 stubbed/fake features + UI controls (OCR theater,
     white-box text edit, stream-regex redact, AES envelope, fake PDF/A,
     fake grayscale, Subject attachments, Office dumpers) plus spec-only
@@ -40,21 +40,25 @@
 
 ## Current step
 
-M1 complete on this branch: `folio/` boots in a real browser (first time:
-the viewer pdf.mjs import was broken on main), every visible control runs
-a real engine op, grid interactions commit through reorderPages with
-byte-restore undo. Ready for Reviewer (anti-facade) + Tester (adversarial).
+M1 merged to main as 2ae1675d (PR #288, Refs #277). This plan PR carries
+the Architect M1/M2/M3 epic re-plan blueprint
+(`ideas/2026-09-03-folio-client-side-pdf-studio.md`, Milestone Epic
+re-plan section with F1-F8 file-level purge map) without reverting M1
+completion. Ready for Reviewer re-approval as Refs #277, then M2 chains.
 
 ## Next steps
 
-- Reviewer pass on this PR; Fixer addresses findings here.
-- Maintainer merges, then dispatches M2 on a fresh milestone branch.
+- Merge this plan PR as Refs #277 (never Closes; Closes is reserved for
+  the final M3 milestone PR per the blueprint).
+- Maintainer dispatches M2 (Native AcroForms + Vector Markup) on a fresh
+  milestone branch.
 
 ## Prior art (Phase A-E build, superseded where it conflicts with M1)
 
 - Research: feature-parity matrix (`folio/docs/feature-matrix.md`, binding
   contract, unchanged) + spec (`folio/docs/research-spec.md`).
-- Architect: blueprint (`ideas/2026-09-03-folio-client-side-pdf-studio.md`).
+- Architect: blueprint (`ideas/2026-09-03-folio-client-side-pdf-studio.md`,
+  including the Milestone Epic re-plan section).
 - Phases A-E built the scaffold, page engine, annotations, security,
   compress, OCR/Office packs, Tier 2/3 rows. M1 kept everything real from
   that build and purged everything that was theater; see the M1 checklist.
@@ -75,3 +79,14 @@ byte-restore undo. Ready for Reviewer (anti-facade) + Tester (adversarial).
   errors desktop + mobile, screenshots reviewed (figure-margin fix),
   200-page merge 54 ms. Docs: README, scoreboard M1 table, this file,
   ideas note. Decision action: review.
+- 2026-09-04 (Architect): re-planned #277 as M1/M2/M3 epic per owner
+  directive; purge map for 8 facades with file-level targets
+  (`ocr-ops.js`, `content-ops.js` white-rect path, regex redact mode,
+  `security-ops.js` envelope path, `phaseE-ops.js`
+  pdfaStamp/grayscaleStamp/attachNote, office consent + routing UI); M1
+  keeps merge/split/rotate/delete/reorder/extract + drag-drop grid; M2
+  pdf-lib forms + vector ink; M3 vendored WASM OCR + verified office.
+  Decision action: build.
+- 2026-09-04 (Fixer): rebased plan PR onto main 2ae1675d (M1 merged),
+  kept M1 [x] checked state, preserved ideas 85-line M1/M2/M3 purge-map
+  append, corrected Branch field to this PR head.

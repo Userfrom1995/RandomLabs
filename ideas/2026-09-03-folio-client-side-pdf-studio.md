@@ -228,3 +228,88 @@ appearance-only, image replace is overlay, attachments are
 registry + OPFS sidecar. Next: Tester browser pass.
 
   -  the Builder
+
+## Milestone Epic re-plan (2026-09-04, Architect, owner directive on #277)
+
+Owner reopened #277 under the Autonomous Milestone Epic Protocol: no
+100-feature monolith, sequential production-grade milestones with `Refs
+#277`, zero stubs per the Anti-Facade Guard. The feature-matrix remains
+the binding contract; delivery order is now M1, M2, M3 below. `Closes
+#277` is reserved for the final milestone PR.
+
+### M1: Clean Core and Visual Page Grid (Refs #277, active)
+
+Purge map (remove feature PLUS its UI control, route card, and tests;
+no "coming soon" placeholders left behind):
+- F1 OCR stub: remove OCR route card, consent card wiring for ocr-pack,
+  `ocr-ops.js` executor imports, sample-table OCR row; keep pure
+  `core/ocr-client/ocr.js` specs only if unreferenced by UI (else delete).
+- F2 white-box text edit: remove paragraph-edit control from edit route
+  (`content-ops.js` white-rect overlay path); keep find-replace ONLY if
+  it byte-scrubs via the burn-in filter, else remove its control too.
+- F3 regex redaction: remove regex-mode control; keep per-word burn-in
+  redact (proven: pdf.js extraction-empty plus decoded-stream scan).
+- F4 AES envelope: remove encrypt/decrypt/rekey controls
+  (`security-ops.js` envelope path) and `core/crypto/crypto.js` envelope
+  UI wiring; keep signature STAMP (real drawImage) and JS inspector if
+  it enumerates real objects.
+- F5 fake PDF/A (`phaseE-ops.js` pdfaStamp producer-only): remove
+  control and `optimize.js` pdfaChecklist UI wiring.
+- F6 fake grayscale (`phaseE-ops.js` grayscaleStamp marker-only):
+  remove control and `tier2.js` grayscalePlan UI wiring.
+- F7 Subject attachments (`attachNote` Info-Subject registry): remove
+  controls and registry UI; real embedded-files writer is M3-or-later.
+- F8 office dumper (low-fidelity office writers): remove Office
+  picker/convert controls, V3/V4 consent card, `office-pack.js`
+  fallback routing UI; keep pure zip/office modules only as unreferenced
+  domain (or delete if dead).
+Polish the kept engine: merge, split (ranges + chunks + odd/even if
+real), rotate, delete (blank-detect only if coverage-gated and proven),
+reorder, extract, insert, resize/crop ONLY if MediaBox/CropBox
+mutations roundtrip through pdf-lib plus pdf.js render proof.
+New: interactive visual drag-and-drop thumbnail grid (page-strip):
+pdf.js renders each page at thumbnail scale (~150px) into canvas
+elements; HTML5 drag-drop plus keyboard move (arrows + Enter to grab /
+drop); live preview updates order state; pipeline undo/redo preserved.
+Responsive: desktop 3-column kept; 390px single column with bottom
+sheet; contrast-checked tokens retained. Perf: T1 shell bytes, T2
+100-page merge wall + peak recorded to scoreboard.
+Gates: `node --test folio/tests/core.test.js` green on kept modules;
+node E2E binary roundtrips (merge/split/reorder/rotate/delete/extract)
+reloaded in pdf-lib AND pdf.js-extracted; Playwright interaction test
+(drag thumb 1 to position 3, assert order + export bytes) plus desktop
+1280x800 and 390x844 screenshots per route.
+
+### M2: Native AcroForms and Vector Markup (Refs #277, queued)
+
+Pure pdf-lib Form APIs only, no pack: fill text/checkbox/radio/dropdown
+via getTextField/getCheckBox/getRadioGroup/getDropdown, create fields
+via form.createTextField/createCheckBox, flatten via
+updateFieldAppearances + form.flatten. Vector annotation layer: ink
+(pointer-events polyline with RDP simplify to Ink annotation),
+highlight/underline (TextMarkup from text-map quads), square/circle
+annotations. Bake/delete paths via appearance bake plus annotation
+enumerator. Gates: fill/flatten roundtrip asserted by re-reading field
+values plus pdf.js text extraction; ink stroke count and quad coverage
+unit-tested; Playwright draw-on-canvas test.
+
+### M3: Client-Side WASM OCR and Converters (Refs #277, final, Closes #277)
+
+Vendored same-origin only: Tesseract WASM core + eng.traineddata under
+`folio/packs/`, consent card with real byte size, progress, cancel,
+Cache Storage/OPFS caching; 300 DPI grayscale render, mode-3 invisible
+text layer positioned by pdfPoint = bbox_px * 72/dpi. Office parsing
+(Mammoth-class DOCX, SheetJS-grid XLSX, slide-shape PPTX) ships ONLY
+with verified roundtrip fixtures; anything unverified is omitted from
+UI entirely. Gates: OCR sec/page (T3) on Latin scan fixture with word
+recall threshold; office roundtrip page-count + text-recall assertions
+in both pack and fallback modes; pack size/progress/cancel Playwright
+test with offline-reuse proof.
+
+Shared constraints all milestones: core bundle stays under 1-2 MB
+initial (lazy worker/pack chunks excluded); CSP same-origin locked; PWA
+offline after first load; drag-drop ingest with OPFS session files;
+empty/loading/error/onboarding states per route; scoreboard T1-T5
+updated per milestone; 10 percent perf regression blocks merge.
+
+  -  the Architect
