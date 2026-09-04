@@ -6,7 +6,7 @@ export async function buildSamplePdf(PDFLib) {
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const pages = [
-    { title: "Folio sample report", body: "Folio is a fully client-side PDF studio. All bytes stay on this device. This first page exercises the text map: headings, paragraphs, and a small table of tools.", table: [["Tool", "Pack", "Tier"], ["Merge", "CORE", "1"], ["OCR", "OCR-PACK", "1"], ["Office", "OFFICE-PACK", "1"]] },
+    { title: "Folio sample report", body: "Folio is a fully client-side PDF studio. All bytes stay on this device. This first page exercises the text map: headings, paragraphs, and a small table of tools.", table: [["Tool", "Area", "Tier"], ["Merge", "Pages", "1"], ["Grid", "Pages", "1"], ["Convert", "Text", "1"]] },
     { title: "Second page: columns and lists", body: "Left column talks about compression profiles low medium high extreme. Right column lists annotation shapes rectangle ellipse line arrow polygon.", table: [["Profile", "DPI", "Quality"], ["low", "150", "0.7"], ["medium", "110", "0.55"], ["high", "80", "0.4"]] },
     { title: "Third page: pipeline", body: "Upload once, chain operations, undo and redo. Batch queue fans one operation across many files. Export writes to OPFS output plus a download link.", table: [["Step", "Store", "Undo"], ["merge", "op-pipeline", "yes"], ["redact", "content filter", "yes"]] },
   ];

@@ -2,6 +2,20 @@
 // All ops are lossless object-graph copies (copyPages) + O(1) mutations.
 import { planChunks, planDelete, planOddEven, planReorder, planReverse, planSplitRanges } from "../../core/pdf-engine/structural.js";
 
+// Pure drag-drop helper for the visual page grid: move the element at
+// fromIdx to toIdx (both 0-based) and return the new full order array.
+// The grid commits the result through reorderPages, so every move is a
+// real engine op with undo, never a DOM-only shuffle.
+export function gridDropOrder(pageCount, fromIdx, toIdx) {
+  if (!Number.isInteger(pageCount) || pageCount < 1) throw new Error("bad pageCount");
+  if (!Number.isInteger(fromIdx) || fromIdx < 0 || fromIdx >= pageCount) throw new Error("drag source out of range");
+  const to = Math.min(pageCount - 1, Math.max(0, toIdx));
+  const order = Array.from({ length: pageCount }, (_, i) => i);
+  const [moved] = order.splice(fromIdx, 1);
+  order.splice(to, 0, moved);
+  return order;
+}
+
 async function load(bytes, PDFLib) {
   return PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
 }

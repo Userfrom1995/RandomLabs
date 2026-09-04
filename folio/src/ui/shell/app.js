@@ -1,25 +1,27 @@
 // Folio shell: router, ingest, pipeline bar, viewer wiring, tool dispatch.
 // Hash routes: #/pages #/compress #/security #/annotate #/edit #/images
-// #/forms #/ocr #/convert #/workflow. Each route lazy-runs its chunk on demand.
+// #/forms #/convert #/workflow. Each route runs its chunk on demand.
+// M1 scope: every visible control executes a real engine op. Purged UI
+// (OCR pack theater, white-box text edit, stream-regex redact, AES
+// envelope, PDF/A + grayscale stamps, Subject attachments, Office
+// dumpers, spec-only buttons) returns only with a real engine behind it.
 import { createStore, applyOp, makeOp, undo, redo } from "../../core/pipeline/ops.js";
-import { initStorage, writeFile, readFile, jobPaths, backend } from "../../platform/storage/opfs.js";
-import { logJob, getPref, setPref } from "../../platform/storage/history.js";
-import { parseManifest, formatBytes, consentReducer } from "../../platform/packs/manifest.js";
-import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderToDataUrl } from "../viewer/viewer.js";
+import { initStorage, writeFile, jobPaths, backend } from "../../platform/storage/opfs.js";
+import { logJob } from "../../platform/storage/history.js";
+import { initViewer, openDocument, renderPage, pageText, searchAll, setZoom, zoom, pageCount, currentPage, renderThumbnail, renderToDataUrl } from "../viewer/viewer.js";
 import { buildSamplePdf } from "./sample.js";
 import * as Pages from "../tools/pages-ops.js";
+import { gridDropOrder } from "../tools/pages-ops.js";
 import * as Content from "../tools/content-ops.js";
 import * as Annotate from "../tools/annotate-ops.js";
 import * as EditOps from "../tools/edit-ops.js";
 import * as ImageOps from "../tools/image-ops.js";
 import * as FormOps from "../tools/form-ops.js";
-import * as RedactOps from "../tools/redact-ops.js";
 import * as Security from "../tools/security-ops.js";
 import * as Compress from "../tools/compress-ops.js";
-import * as OcrOps from "../tools/ocr-ops.js";
 import * as ConvertOps from "../tools/convert-ops.js";
 import * as PhaseE from "../tools/phaseE-ops.js";
-import { splitByBookmarks, parseOrderString, downsampleSpec, grayscalePlan, pdfaRecord, signatureValidateReport, batchRename, deskewSpec, printSpec, batchPlan, batchReducer } from "../../core/tier2/tier2.js";
+import { splitByBookmarks, parseOrderString, batchRename, printSpec, batchPlan, batchReducer } from "../../core/tier2/tier2.js";
 import { validateLink, simplifyInk } from "../../core/annotate/annotate.js";
 import { scannerSpec } from "../../core/images/images.js";
 import { toText, toMarkdown, toHtml } from "../../core/convert/writers.js";
@@ -31,11 +33,7 @@ const paths = jobPaths(jobId);
 let PDFLib = null;
 let file = null; // {name, bytes}
 let fileB = null; // second file (merge/insert)
-let packs = {};
-let ocrConsent = "idle";
-let officeConsent = "idle";
-let officeEngine = null; // V3 pack module once consent-loaded
-let officeFile = null; // picked Office file for V3/V4 conversion
+let selectedPage = 1; // grid selection, 1-based
 
 function announce(msg) {
   const el = $("live");
@@ -57,40 +55,117 @@ function download(bytes, name, mime) {
   }, 500);
 }
 
-async function setFile(name, bytes) {
+async function setFile(name, bytes, keepSel) {
   file = { name, bytes: bytes.slice ? bytes.slice(0) : bytes };
   await writeFile(paths.input(name), file.bytes);
   const info = await openDocument(file.bytes);
   await writeFile(paths.session(), file.bytes);
   $("filemeta").textContent = name + " - " + info.pages + " pages - " + (file.bytes.length / 1024).toFixed(1) + " KB (" + backend() + ")";
-  $("pageinfo").textContent = "Page 1 of " + info.pages;
-  await renderPage($("pagecanvas"), 1);
-  await renderStrip();
+  if (!keepSel) selectedPage = 1;
+  selectedPage = Math.min(selectedPage, info.pages);
+  $("pageinfo").textContent = "Page " + selectedPage + " of " + info.pages;
+  await renderPage($("pagecanvas"), selectedPage);
+  await renderGrid();
   announce("Opened " + name + ", " + info.pages + " pages.");
   await logJob({ jobId, tool: "open", params: { name, pages: info.pages } });
 }
 
-async function renderStrip() {
+// Visual page grid: live pdf.js canvas previews, click to preview, drag to
+// reorder (committed through the real reorder engine with undo), toolbar +
+// keyboard paths for touch and a11y. Renders the first 60 pages eagerly so
+// time-to-first-page stays instant; the note covers the rest.
+const GRID_CAP = 60;
+async function gotoPage(p) {
   const n = pageCount();
-  const strip = $("pagestrip");
-  strip.innerHTML = "";
-  for (let p = 1; p <= Math.min(n, 60); p++) {
-    const b = document.createElement("button");
-    b.className = "thumb" + (p === currentPage() ? " active" : "");
-    b.textContent = String(p);
-    b.setAttribute("aria-label", "Go to page " + p);
-    b.onclick = async () => {
-      await renderPage($("pagecanvas"), p);
-      $("pageinfo").textContent = "Page " + p + " of " + n;
-      renderStrip();
-    };
-    strip.appendChild(b);
+  if (!n) return;
+  selectedPage = Math.min(n, Math.max(1, p));
+  await renderPage($("pagecanvas"), selectedPage);
+  $("pageinfo").textContent = "Page " + selectedPage + " of " + n;
+  paintGridSelection();
+}
+
+function paintGridSelection() {
+  document.querySelectorAll("#pagegrid .pcard").forEach((el) => {
+    const p = parseInt(el.dataset.page, 10);
+    const on = p === selectedPage;
+    el.classList.toggle("selected", on);
+    el.setAttribute("aria-selected", on ? "true" : "false");
+  });
+}
+
+async function renderGrid() {
+  const n = pageCount();
+  const grid = $("pagegrid");
+  grid.innerHTML = "";
+  $("gridcount").textContent = n ? "(" + n + " pages)" : "";
+  $("gridnote").textContent = n > GRID_CAP ? "Showing first " + GRID_CAP + " of " + n + " pages; use Reorder below for full-range moves." : "";
+  if (!n) return;
+  const cap = Math.min(n, GRID_CAP);
+  const frag = document.createDocumentFragment();
+  for (let p = 1; p <= cap; p++) {
+    const fig = document.createElement("figure");
+    fig.className = "pcard" + (p === selectedPage ? " selected" : "");
+    fig.dataset.page = String(p);
+    fig.setAttribute("role", "option");
+    fig.setAttribute("tabindex", "-1");
+    fig.setAttribute("aria-selected", p === selectedPage ? "true" : "false");
+    fig.setAttribute("aria-label", "Page " + p + (p === selectedPage ? ", selected" : ""));
+    fig.draggable = true;
+    const img = document.createElement("img");
+    img.alt = "";
+    img.loading = "lazy";
+    const cap2 = document.createElement("figcaption");
+    cap2.textContent = "p." + p;
+    fig.appendChild(img);
+    fig.appendChild(cap2);
+    fig.addEventListener("click", () => {
+      gotoPage(p).catch((e) => announce("Error: " + e.message));
+    });
+    fig.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/folio-page", String(p));
+      e.dataTransfer.effectAllowed = "move";
+      fig.classList.add("dragging");
+    });
+    fig.addEventListener("dragend", () => {
+      fig.classList.remove("dragging");
+      grid.querySelectorAll(".dragover").forEach((x) => x.classList.remove("dragover"));
+    });
+    fig.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      fig.classList.add("dragover");
+    });
+    fig.addEventListener("dragleave", () => fig.classList.remove("dragover"));
+    fig.addEventListener("drop", (e) => {
+      e.preventDefault();
+      fig.classList.remove("dragover");
+      const raw = e.dataTransfer.getData("text/folio-page");
+      const from = parseInt(raw, 10);
+      if (!Number.isInteger(from)) return;
+      gridDropCommit(from, p).catch((err) => announce("Error: " + err.message));
+    });
+    frag.appendChild(fig);
+    try {
+      img.src = await renderThumbnail(p);
+    } catch {
+      img.alt = "preview failed";
+    }
   }
+  grid.appendChild(frag);
+}
+
+async function gridDropCommit(fromPage, toPage) {
+  const a = requireFile();
+  const order = gridDropOrder(pageCount(), fromPage - 1, toPage - 1);
+  const out = await Pages.reorderPages(a.bytes, order, PDFLib);
+  selectedPage = order.indexOf(fromPage - 1) + 1;
+  $("pages-extra-report").textContent = "Moved page " + fromPage + " to position " + selectedPage + ".";
+  await refreshAfterOp("reorder", { order }, out, outName("reordered"), true);
 }
 
 const undoBytes = []; // true undo: prior file bytes per op (cap 20)
 const redoBytes = [];
-async function refreshAfterOp(tool, params, newBytes, outName) {
+async function refreshAfterOp(tool, params, newBytes, outName, keepSel) {
   const op = makeOp(tool, params, { tool, note: "true undo via in-memory byte snapshot" });
   if (file) {
     undoBytes.push({ tool, bytes: file.bytes });
@@ -99,7 +174,7 @@ async function refreshAfterOp(tool, params, newBytes, outName) {
   redoBytes.length = 0;
   applyOp(store, op);
   await writeFile(paths.output(outName), newBytes);
-  await setFile(outName, newBytes);
+  await setFile(outName, newBytes, keepSel);
   renderChain();
   await logJob({ jobId, tool, params: summarize(params), output: outName });
 }
@@ -149,69 +224,11 @@ function parseRanges(str, max) {
   return [...new Set(out)].sort((x, y) => x - y);
 }
 
-async function loadPacks() {
-  for (const id of ["ocr-pack", "office-pack"]) {
-    try {
-      const r = await fetch("packs/" + id + ".json");
-      packs[id] = parseManifest(await r.json());
-    } catch {
-      packs[id] = null;
-    }
-  }
-  ocrConsent = (await getPref("pack-ocr", "idle")) || "idle";
-  officeConsent = (await getPref("pack-office", "idle")) || "idle";
-  paintConsent();
-}
-
-function paintConsent() {
-  const ocr = $("ocr-consent");
-  if (ocr) {
-    const m = packs["ocr-pack"];
-    ocr.innerHTML = consentCardHtml("OCR pack", m, ocrConsent, "ocr");
-  }
-  const off = $("office-consent");
-  if (off) {
-    const m = packs["office-pack"];
-    off.innerHTML = consentCardHtml("Office full-fidelity pack", m, officeConsent, "office");
-  }
-  const ob = $("officebanner");
-  if (ob && !ob.textContent) {
-    if (officeConsent === "ready") ob.textContent = "Full-fidelity pack ready: headings, tables, and slide structure preserved.";
-    else if (officeConsent === "declined") ob.textContent = ConvertOps.fallbackBanner("", "").note;
-  }
-}
-
-function consentCardHtml(name, manifest, state, which) {
-  if (!manifest) return "<p class='muted'>Pack manifest unavailable.</p>";
-  let action = "";
-  if (state === "ready") action = "<span class='badge'>cached for offline reuse</span> <button data-pack='" + which + "' data-act='revoke'>Remove</button>";
-  else if (state === "declined") action = "<span class='muted'>Using built-in basic version.</span> <button data-pack='" + which + "' data-act='accept'>Download pack</button>";
-  else action = "<button data-pack='" + which + "' data-act='accept'>Download (" + formatBytes(manifest.bytes) + ")</button> <button data-pack='" + which + "' data-act='decline'>Use basic version</button>";
-  return "<div class='consent'><strong>" + name + "</strong><span class='muted'> v" + manifest.version + " - " + formatBytes(manifest.bytes) + " - downloads once, cached for offline reuse.</span><div class='row'>" + action + "</div></div>";
-}
-
-// V3 pack fetch: same-origin bytes, size check, sha256 check, then ESM load.
-async function loadOfficePack(manifest) {
-  if (!manifest || !manifest.files || !manifest.files.length) throw new Error("office pack manifest has no files");
-  const res = await fetch("packs/" + manifest.files[0]);
-  if (!res.ok) throw new Error("pack fetch failed: HTTP " + res.status);
-  const buf = new Uint8Array(await res.arrayBuffer());
-  if (manifest.bytes > 0 && buf.length !== manifest.bytes) throw new Error("pack size mismatch (manifest " + manifest.bytes + ", got " + buf.length + ")");
-  if (manifest.sha256 && !String(manifest.sha256).startsWith("pending-") && crypto.subtle) {
-    const digest = await crypto.subtle.digest("SHA-256", buf);
-    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-    if (hex !== String(manifest.sha256).toLowerCase()) throw new Error("pack sha256 mismatch");
-  }
-  officeEngine = await import("../../../packs/office-engine.js");
-  return officeEngine;
-}
-
 async function wire() {
   await initStorage();
   PDFLib = window.PDFLib;
   if (!PDFLib) throw new Error("pdf-lib failed to load (vendor/pdf-lib.min.js missing or blocked)");
   await initViewer("vendor/pdf.worker.mjs");
-  await loadPacks();
   renderChain();
 
   const dz = $("dropzone");
@@ -239,14 +256,6 @@ async function wire() {
       $("fileBmeta").textContent = f.name;
     }
   });
-  const offPick = $("officepick");
-  if (offPick) offPick.addEventListener("change", async () => {
-    const f = offPick.files[0];
-    if (f) {
-      officeFile = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
-      $("officereport").textContent = "Office file: " + f.name + " (" + f.size + " bytes).";
-    }
-  });
   $("samplebtn").onclick = async () => {
     const bytes = await buildSamplePdf(PDFLib);
     await setFile("folio-sample.pdf", bytes);
@@ -262,15 +271,11 @@ async function wire() {
     setZoom(zoom() - 0.25);
     await renderPage($("pagecanvas"), currentPage());
   };
-  $("prevpage").onclick = async () => {
-    await renderPage($("pagecanvas"), currentPage() - 1);
-    $("pageinfo").textContent = "Page " + currentPage() + " of " + pageCount();
-    renderStrip();
+  $("prevpage").onclick = () => {
+    gotoPage(currentPage() - 1).then(() => renderGrid()).catch((e) => announce("Error: " + e.message));
   };
-  $("nextpage").onclick = async () => {
-    await renderPage($("pagecanvas"), currentPage() + 1);
-    $("pageinfo").textContent = "Page " + currentPage() + " of " + pageCount();
-    renderStrip();
+  $("nextpage").onclick = () => {
+    gotoPage(currentPage() + 1).then(() => renderGrid()).catch((e) => announce("Error: " + e.message));
   };
   $("searchbtn").onclick = async () => {
     const hits = await searchAll($("searchbox").value);
@@ -308,7 +313,7 @@ async function wire() {
   window.addEventListener("hashchange", showRoute);
   showRoute();
   wireTools();
-  wireConsent();
+  wireGrid();
 
   if ("serviceWorker" in navigator) {
     try {
@@ -319,7 +324,8 @@ async function wire() {
 }
 
 function showRoute() {
-  const h = location.hash || "#/pages";
+  let h = location.hash || "#/pages";
+  if (h === "#/ocr") h = "#/pages"; // M1: OCR route purged, old links land here
   document.querySelectorAll(".route").forEach((r) => r.classList.remove("active"));
   document.querySelectorAll("nav a").forEach((a) => a.classList.toggle("active", a.hash === h));
   const id = "route-" + h.replace("#/", "");
@@ -332,44 +338,77 @@ function outName(suffix) {
   return base + "-" + suffix + ".pdf";
 }
 
-function wireConsent() {
-  document.addEventListener("click", async (e) => {
-    const b = e.target.closest("[data-pack]");
-    if (!b) return;
-    const which = b.getAttribute("data-pack");
-    const act = b.getAttribute("data-act");
-    const key = which === "ocr" ? "pack-ocr" : "pack-office";
-    if (which === "ocr") {
-      ocrConsent = consentReducer(ocrConsent === "ready" && act === "revoke" ? "ready" : ocrConsent, act === "accept" ? "accept" : act === "decline" ? "decline" : act);
-      if (act === "accept") {
-        // OCR-PACK engine (Tesseract LSTM) vendors in Phase D; consent recorded, fallback stays.
-        ocrConsent = "declined";
-        announce("OCR engine pack is not vendored yet; paste recognized words to bake the invisible layer, or use the basic text export.");
-      } else if (act === "decline") ocrConsent = "declined";
-      else if (act === "revoke") ocrConsent = "idle";
-      await setPref(key, ocrConsent);
-    } else {
-      if (act === "accept") {
-        try {
-          announce("Downloading Office full-fidelity pack...");
-          await loadOfficePack(packs["office-pack"]);
-          officeConsent = "ready";
-          announce("Office pack ready: headings, tables, and slide structure preserved. Cached for offline reuse.");
-        } catch (err) {
-          officeConsent = "idle";
-          announce("Pack download failed: " + err.message + " - try again or use the basic version.");
-        }
-      } else if (act === "decline") {
-        officeConsent = "declined";
-        officeEngine = null;
-        announce("Using the built-in basic version (pagination approximate, styles simplified).");
-      } else if (act === "revoke") {
-        officeConsent = "idle";
-        officeEngine = null;
-      }
-      await setPref(key, officeConsent);
+// Grid toolbar + keyboard paths (touch / a11y fallback for drag-drop).
+function wireGrid() {
+  $("g-rot").onclick = async () => {
+    try {
+      const a = requireFile();
+      const doc = await PDFLib.PDFDocument.load(a.bytes);
+      const p = doc.getPage(selectedPage - 1);
+      p.setRotation(PDFLib.degrees((p.getRotation().angle + 90) % 360));
+      await refreshAfterOp("rotate", { page: selectedPage, deg: 90 }, await doc.save(), outName("rot90"), true);
+      $("pages-extra-report").textContent = "Rotated page " + selectedPage + " by 90deg.";
+    } catch (err) {
+      announce("Error: " + err.message);
     }
-    paintConsent();
+  };
+  $("g-dup").onclick = async () => {
+    try {
+      const a = requireFile();
+      const out = await Pages.duplicatePage(a.bytes, selectedPage - 1, PDFLib);
+      await refreshAfterOp("duplicate", { page: selectedPage }, out, outName("dup"), true);
+      $("pages-extra-report").textContent = "Duplicated page " + selectedPage + ".";
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
+  const moveSel = async (delta) => {
+    const n = pageCount();
+    if (!n) {
+      announce("Upload a PDF first (or load the sample).");
+      return;
+    }
+    const from = selectedPage;
+    const to = Math.min(n, Math.max(1, from + delta));
+    if (from === to) return;
+    try {
+      const a = requireFile();
+      const order = gridDropOrder(n, from - 1, to - 1);
+      const out = await Pages.reorderPages(a.bytes, order, PDFLib);
+      selectedPage = to;
+      $("pages-extra-report").textContent = "Moved page " + from + " to position " + to + ".";
+      await refreshAfterOp("reorder", { order }, out, outName("reordered"), true);
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
+  $("g-left").onclick = () => moveSel(-1);
+  $("g-right").onclick = () => moveSel(1);
+  $("g-del").onclick = async () => {
+    try {
+      const a = requireFile();
+      const out = await Pages.deletePages(a.bytes, [selectedPage - 1], PDFLib);
+      const gone = selectedPage;
+      selectedPage = Math.max(1, Math.min(selectedPage, pageCount() - 1));
+      await refreshAfterOp("delete", { rm: [gone - 1] }, out, outName("deleted"), true);
+      $("pages-extra-report").textContent = "Deleted page " + gone + ".";
+    } catch (err) {
+      announce("Error: " + err.message);
+    }
+  };
+  $("pagegrid").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      const d = e.key === "ArrowLeft" ? -1 : 1;
+      if (e.ctrlKey || e.metaKey) moveSel(d);
+      else gotoPage(selectedPage + d).catch((err) => announce("Error: " + err.message));
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      $("g-del").click();
+    } else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      gotoPage(selectedPage).catch((err) => announce("Error: " + err.message));
+    }
   });
 }
 
@@ -500,51 +539,11 @@ function wireTools() {
       ? "Risky keys: " + hits.map((h) => h.key + " x" + h.count).join(", ") + ". Scrub removes them (metadata + JS scrub)."
       : "Clean: no /JS, /AA, /OpenAction, /EmbeddedFiles, /Launch, /XFA keys found.";
   });
-  function readPerms() {
-    return { print: $("pm-print").checked, modify: $("pm-modify").checked, copy: $("pm-copy").checked, annotate: $("pm-annotate").checked };
-  }
-  run("t-encrypt", async () => {
-    const a = requireFile();
-    const pw = $("pw1").value;
-    if (!pw) throw new Error("Enter a password first.");
-    const r = await Security.encryptEnvelope(a.bytes, pw, readPerms());
-    $("pw1").value = "";
-    $("pwreport").textContent = "Encrypted " + a.bytes.length + " -> " + r.bytes.length + " bytes (" + r.descriptor.cipher + "). Opens only in Folio.";
-    download(r.bytes, outName("encrypted") + ".folio-enc");
-    await logJob({ jobId, tool: "encrypt", params: { perms: r.descriptor.perms }, output: "envelope" });
-  });
-  run("t-decrypt", async () => {
-    const a = requireFile();
-    const pw = $("pw1").value;
-    if (!pw) throw new Error("Enter the envelope password first.");
-    if (!Security.isEnvelope(a.bytes)) throw new Error("This file is not a Folio envelope; nothing to unlock.");
-    const r = await Security.decryptEnvelope(a.bytes, pw, jobId);
-    $("pw1").value = "";
-    $("pwreport").textContent = "Unlocked (" + r.bytes.length + " bytes, perms " + JSON.stringify(r.descriptor.perms) + ").";
-    await refreshAfterOp("decrypt", {}, r.bytes, outName("unlocked"));
-  });
-  run("t-rekey", async () => {
-    const a = requireFile();
-    const oldPw = Security.isEnvelope(a.bytes) ? $("pw1").value : null;
-    const nw = $("pwnew").value;
-    if (!nw) throw new Error("Enter a new password first.");
-    const r = await Security.changePassword(a.bytes, oldPw, nw, readPerms());
-    $("pw1").value = "";
-    $("pwnew").value = "";
-    $("pwreport").textContent = "Re-encrypted under a new password (" + r.bytes.length + " bytes).";
-    download(r.bytes, outName("rekeyed") + ".folio-enc");
-  });
   run("t-sign", async () => {
     const a = requireFile();
     const out = await Security.signatureStamp(a.bytes, { page: currentPage() - 1, text: $("signtext").value || "Signed", x: 56, y: 140 }, PDFLib);
     $("signreport").textContent = "Signature stamp placed on page " + currentPage() + ".";
     await refreshAfterOp("sign-stamp", {}, out, outName("signed"));
-  });
-  run("t-certsig", async () => {
-    const a = requireFile();
-    const r = await Security.certSignPlaceholder(a.bytes, { page: currentPage() - 1, text: $("signtext").value || "Signed", x: 56, y: 140 }, PDFLib);
-    $("signreport").textContent = r.banner + " ByteRange " + JSON.stringify(r.spec.ByteRange) + ".";
-    await refreshAfterOp("cert-sign-placeholder", {}, r.bytes, outName("sig appearance"));
   });
   async function textMapsFor(pages) {
     const maps = {};
@@ -565,19 +564,6 @@ function wireTools() {
     if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n))) throw new Error("coords must look like x,y");
     return parts;
   }
-  run("t-redact", async () => {
-    const a = requireFile();
-    const pg = parseInt($("rdpage").value || "1", 10) - 1;
-    const region = { page: pg, x: parseFloat($("rdx").value), y: parseFloat($("rdy").value), w: parseFloat($("rdw").value), h: parseFloat($("rdh").value) };
-    const extra = $("rdextra").value.split(",").map((s) => s.trim()).filter(Boolean);
-    const maps = await textMapsFor([pg]);
-    const r = await RedactOps.burnInRedact(a.bytes, { regions: [region], extraStrings: extra }, maps, PDFLib);
-    $("redactreport").textContent = r.acceptance.pass
-      ? "PASS: extraction over region empty, " + r.strings.length + " string(s) scrubbed from content streams (" + r.strings.map((s) => JSON.stringify(s)).join(", ") + ")."
-      : "FAIL: " + JSON.stringify(r.acceptance) + ". Kept-text damage avoided; adjust the region.";
-    if (!r.acceptance.pass) throw new Error("redact acceptance failed");
-    await refreshAfterOp("redact", { region }, r.bytes, outName("redacted"));
-  });
   run("t-headerfooter", async () => {
     const a = requireFile();
     const out = await Content.addHeaderFooter(a.bytes, { header: $("hfheader").value, footer: $("hffooter").value }, PDFLib);
@@ -723,21 +709,7 @@ function wireTools() {
     const out = await Annotate.addInk(a.bytes, { page: currentPage() - 1, strokes: strokes.map((s) => simplifyInk(s)) }, PDFLib);
     await refreshAfterOp("ink", { strokes: strokes.length }, out, outName("inked"));
   });
-  // ---- Phase B: edit (E6-E7, N-up/booklet/overlay, compare) ----
-  run("t-findreplace", async () => {
-    const a = requireFile();
-    const maps = await textMapsFor();
-    const r = await EditOps.findReplace(a.bytes, { query: $("frquery").value, replacement: $("frrepl").value }, maps, PDFLib);
-    $("editreport").textContent = r.count + " occurrence(s) replaced.";
-    await refreshAfterOp("find-replace", { q: $("frquery").value }, r.bytes, outName("replaced"));
-  });
-  run("t-pedit", async () => {
-    const a = requireFile();
-    const maps = await textMapsFor([currentPage() - 1]);
-    const r = await EditOps.editParagraph(a.bytes, { matchText: $("pematch").value, newText: $("penew").value, page: currentPage() - 1 }, maps, PDFLib);
-    $("editreport").textContent = "Edited on page " + (r.page + 1) + (r.overflow ? " (overflow: text continues past the paragraph box)." : ".");
-    await refreshAfterOp("paragraph-edit", { match: $("pematch").value }, r.bytes, outName("edited"));
-  });
+  // ---- Edit: N-up/booklet/overlay, compare ----
   run("t-nup", async () => {
     const a = requireFile();
     const out = await EditOps.nupPdf(a.bytes, { n: parseInt($("nupn").value, 10) }, PDFLib);
@@ -900,110 +872,15 @@ function wireTools() {
     const out = await Content.textToPdf($("mdtitle2").value || "Folio note", $("mdtext").value || "Hello from Folio.", PDFLib);
     download(out, "folio-note.pdf");
   });
-  // OCR layer (C1, C3)
-  run("t-ocrscan", async () => {
-    requireFile();
-    const empty = [];
-    for (let p = 1; p <= pageCount(); p++) {
-      const t = await pageText(p);
-      if (t.count === 0) empty.push(p);
-    }
-    $("ocrreport").textContent = empty.length
-      ? "Scanned (zero-text) pages: " + empty.join(", ") + ". " + OcrOps.HANDWRITING_NOTE
-      : "No scanned pages: every page already has extractable text.";
-  });
-  run("t-ocrlayer", async () => {
-    const a = requireFile();
-    let spec;
-    try {
-      spec = JSON.parse($("ocrwords").value || "[]");
-    } catch {
-      throw new Error("OCR words JSON does not parse");
-    }
-    const pages = Array.isArray(spec) ? spec : [spec];
-    const norm = pages.map((pw) => ({
-      page: (pw.page || 1) - 1,
-      words: (pw.words || []).map((w) => ({ text: w.text, x: w.x, y: w.y, size: w.size || 12 })),
-    }));
-    const r = await OcrOps.applyOcrLayer(a.bytes, norm, PDFLib);
-    $("ocrreport").textContent = "Baked " + r.placed + " invisible (mode-3) words. Search the viewer to verify.";
-    await refreshAfterOp("ocr-layer", { placed: r.placed }, r.bytes, outName("ocr"));
-  });
-  // convert core writers (V8-V10, V2, V11)
-  async function docTextsFor() {
-    const texts = [];
-    for (let p = 1; p <= pageCount(); p++) texts.push(await pageText(p));
-    return texts;
-  }
-  run("t-pdf2docx", async () => {
-    requireFile();
-    const out = ConvertOps.pdfToDocx(await docTextsFor());
-    download(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), "folio.docx", "application/octet-stream");
-    $("convertreport").textContent = "DOCX written (" + out.length + " bytes, core fallback layout).";
-  });
-  run("t-pdf2xlsx", async () => {
-    requireFile();
-    const { findColumns } = await import("../../core/textmap/tables.js");
-    const tables = [];
-    for (let p = 1; p <= pageCount(); p++) {
-      const t = await pageText(p);
-      const lines = t.lines || [];
-      const cols = findColumns(lines.flatMap((l) => l.words || []), 20);
-      if (cols.length > 1) tables.push([lines.map((l) => l.text.split(/\s{2,}|\t/).slice(0, 8))]);
-    }
-    const out = ConvertOps.pdfToXlsx(tables);
-    download(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "folio.xlsx", "application/octet-stream");
-    $("convertreport").textContent = "XLSX written (" + out.length + " bytes, " + tables.length + " table page(s)).";
-  });
-  run("t-pdf2pptx", async () => {
-    requireFile();
-    const out = ConvertOps.pdfToPptx(await docTextsFor());
-    download(new Blob([out], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), "folio.pptx", "application/octet-stream");
-    $("convertreport").textContent = "PPTX written (" + out.length + " bytes, one slide per page).";
-  });
-  run("t-pdf2csv", async () => {
-    requireFile();
-    const { findColumns } = await import("../../core/textmap/tables.js");
-    const tables = [];
-    for (let p = 1; p <= pageCount(); p++) {
-      const t = await pageText(p);
-      const lines = t.lines || [];
-      if (findColumns(lines.flatMap((l) => l.words || []), 20).length > 1) tables.push([lines.map((l) => l.text.split(/\s{2,}|\t/).slice(0, 8))]);
-    }
-    download(new Blob([ConvertOps.pdfToCsv(tables)], { type: "text/csv" }), "folio.csv", "text/csv");
-    $("convertreport").textContent = "CSV written (" + tables.length + " table page(s)).";
-  });
+  // OCR + Office packs were purged in M1 (no vendored engine behind the
+  // buttons). Convert now covers only real in-browser transforms.
+  // convert: CSV table PDF (real renderer)
   run("t-csv2pdf", async () => {
     const csv = $("csvtext").value;
     if (!csv.trim()) throw new Error("Paste CSV rows first.");
     const r = await ConvertOps.csvToPdf(csv, PDFLib);
     $("convertreport").textContent = "CSV table PDF: " + r.spec.pageCount + " page(s), " + r.spec.cols + " col(s).";
     download(r.bytes, "folio-table.pdf");
-  });
-  run("t-url2pdf", async () => {
-    const spec = ConvertOps.urlImportSpec($("urltext").value);
-    $("convertreport").textContent = "URL import: " + spec.href + " (" + (spec.sameOrigin ? "same-origin, fetch + print path" : "cross-origin: needs CORS, then print path") + "). " + spec.note + ".";
-  });
-  // Office to PDF (V3 pack / V4 fallback behind one consent card)
-  run("t-office2pdf", async () => {
-    if (!officeFile) throw new Error("Pick an Office file (.docx/.xlsx/.pptx) first.");
-    const route = ConvertOps.routeOfficeConvert({ consent: officeConsent, packReady: !!officeEngine });
-    if (route === "prompt") throw new Error("Choose Download pack or Use basic version above first.");
-    let inflater = null;
-    if (typeof DecompressionStream !== "undefined") {
-      inflater = async (comp) => {
-        const ds = new DecompressionStream("deflate-raw");
-        const stream = new Blob([comp]).stream().pipeThrough(ds);
-        return new Uint8Array(await new Response(stream).arrayBuffer());
-      };
-    }
-    const r = await ConvertOps.officeToPdf(officeFile.bytes, officeFile.name, PDFLib, {
-      engine: route === "pack" ? officeEngine : null,
-      inflater,
-    });
-    $("officebanner").textContent = (r.mode === "pack" ? "Full-fidelity pack: " : "Basic version: ") + r.banner;
-    $("officereport").textContent = "Office to PDF (" + r.mode + "): " + r.pages + " page(s), " + r.bytes.length + " bytes.";
-    await refreshAfterOp("office2pdf", { mode: r.mode }, r.bytes, officeFile.name.replace(/\.(docx|xlsx|pptx)$/i, "") + "-converted.pdf");
   });
   // workflow
   run("t-info", async () => {
@@ -1092,33 +969,7 @@ function wireTools() {
     extraReport("compress-extra-report")("GC rewrite: " + a.bytes.length + " -> " + out.length + " bytes (unreferenced objects dropped).");
     await refreshAfterOp("gc", {}, out, outName("gc"));
   });
-  run("t-gray", async () => {
-    const a = requireFile();
-    const plan = grayscalePlan(Array.from({ length: pageCount() }, (_, i) => i), 1);
-    const out = await PhaseE.grayscaleStamp(a.bytes, PDFLib);
-    extraReport("compress-extra-report")("Grayscale intent stamped (" + plan.pages.length + " pages); pixel re-encode runs per image on the browser canvas path.");
-    await refreshAfterOp("grayscale", {}, out, outName("gray"));
-  });
-  run("t-downsample", async () => {
-    const spec = downsampleSpec(parseInt($("down-dpi").value, 10));
-    extraReport("compress-extra-report")("Downsample target " + spec.dpi + " DPI (scale " + spec.scale.toFixed(2) + "): " + spec.method + ". Use profile-gated compress above to apply.");
-  });
-  run("t-pdfa", async () => {
-    const a = requireFile();
-    const rec = pdfaRecord($("pdfa-level").value);
-    const out = await PhaseE.pdfaStamp(a.bytes, rec.level, PDFLib);
-    extraReport("compress-extra-report")("PDF/A subset (" + rec.level + "): fonts embedded, JS/actions stripped, XMP intent set.");
-    await refreshAfterOp("pdfa", { level: rec.level }, out, outName("pdfa"));
-  });
-  run("t-linearize", async () => {
-    extraReport("compress-extra-report")(PhaseE.linearizeNote());
-  });
-  run("t-certvalidate", async () => {
-    const a = requireFile();
-    const r = signatureValidateReport(false, false);
-    $("signreport").textContent = "No embedded CMS signature census in v1: treating as unsigned (" + r.summary + "). Digest recompute runs on signed files once a PKI vendor lands.";
-    void a;
-  });
+  // ---- Tier 2 page ops (all real pdf-lib executors) ----
   run("t-flattenall", async () => {
     const a = requireFile();
     const out = await PhaseE.flattenAll(a.bytes, PDFLib);
@@ -1130,38 +981,6 @@ function wireTools() {
     const spec = printSpec(pageCount(), false);
     $("editreport").textContent = "Print path: " + spec.pages + " page(s), " + spec.method + " (" + spec.css + "). Opening system print...";
     window.print();
-  });
-  run("t-attach", async () => {
-    const a = requireFile();
-    const f = $("attach-pick").files[0];
-    if (!f) throw new Error("Pick a file to attach first.");
-    const buf = new Uint8Array(await f.arrayBuffer());
-    await writeFile(paths.input("attach-" + f.name), buf);
-    const out = await PhaseE.attachNote(a.bytes, f.name, PDFLib);
-    $("editreport").textContent = "Attached " + f.name + " (" + buf.length + " bytes, OPFS sidecar + registry).";
-    await refreshAfterOp("attach", { name: f.name }, out, outName("attached"));
-  });
-  run("t-attachlist", async () => {
-    const a = requireFile();
-    const doc = await PDFLib.PDFDocument.load(a.bytes);
-    const list = PhaseE.listAttachNotes(doc.getSubject());
-    $("editreport").textContent = list.length ? "Attachments: " + list.join(", ") : "No attachments.";
-  });
-  run("t-attachextract", async () => {
-    const name = $("attach-name").value.trim();
-    if (!name) throw new Error("Enter an attachment name first.");
-    const buf = await readFile(paths.input("attach-" + name));
-    if (!buf) throw new Error("No sidecar bytes for " + name + " in this session.");
-    download(buf, name, "application/octet-stream");
-    $("editreport").textContent = "Extracted " + name + " (" + buf.length + " bytes).";
-  });
-  run("t-attachdel", async () => {
-    const a = requireFile();
-    const name = $("attach-name").value.trim();
-    if (!name) throw new Error("Enter an attachment name first.");
-    const out = await PhaseE.detachNote(a.bytes, name, PDFLib);
-    $("editreport").textContent = "Detached " + name + " (registry removed; sidecar retained in workspace).";
-    await refreshAfterOp("detach", { name }, out, outName("detached"));
   });
   run("t-rename", async () => {
     const a = requireFile();
@@ -1185,11 +1004,6 @@ function wireTools() {
     const out = await PhaseE.replaceImageOverlay(a.bytes, { page: entry.page, imageBytes: new Uint8Array(await f.arrayBuffer()), kind, w: entry.width, h: entry.height }, PDFLib);
     $("imgreport").textContent = "Replaced image #" + entry.index + " on page " + (entry.page + 1) + " (overlay at census size; original XObject retained).";
     await refreshAfterOp("replace-image", { index: entry.index }, out, outName("imgreplaced"));
-  });
-  run("t-deskew", async () => {
-    requireFile();
-    const spec = deskewSpec(parseFloat($("deskew-angle").value || "0"), false);
-    $("ocrreport").textContent = "Deskew pre-pass (C2): angle " + spec.angleDeg + "deg - " + spec.note + ". Canvas auto-orient runs at bake time in the OCR pack.";
   });
   run("t-batch", async () => {
     const a = requireFile();
