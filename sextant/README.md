@@ -30,9 +30,19 @@ dotnet publish src/Sextant.App -c Release
 
 ## Status
 
-Phase 2 complete: tile pipeline (`Geometry` clip/simplify/quantize +
-`TileBuilder` deterministic emit + `Packs` manifest/reader +
-`Reprojector.ReprojectTo`) + `Sextant.Pack` synthetic v1 city pack (140
-features, byte-identical across runs) + `docs/tile-pipeline.md` + 42/42 xUnit
-green (incl. pack-to-tile integration). Phases 3-5 build index/routing/app-shell
-in dependency order.
+Phase 5b complete: full App shell (`Pages/Map.razor` at `/map`: canvas map
+with pan/zoom buttons, click-to-route picking, layer toggles, Mercator/Albers
+switch, scale bar + viewport true-area readout, trigram search box, A* route
+panel with time/distance + turn-penalty toggles + frontier replay, 5/10/15-min
+isochrones, GeoJSON import overlay + route/isochrone export downloads) on the
+headless `MapRenderer` scene builder (Mercator tile pipeline with R-tree window
+select + overzoom, Albers direct re-projection) behind `ICanvasBridge`
+(NaN-separated subpaths); `PackLoader` fetches the versioned v1 pack
+(manifest + ndjson + `geocode.idx.json` + `graph.bin`) with byte counter and
+offline-ready flag; PWA shell (`manifest.webmanifest` + Cache-First `sw.js`
+for `_framework/` and `packs/`); `docs/scoreboard.md` (111/111 green, 2.6 MB
+Brotli vs 3 MB budget, 539 KB pack vs 2 MB budget, browser rows Tester-owned)
++ `docs/ATTRIBUTION.md` (synthetic v1 pack, no OSM data). Playwright pass and
+fps/time-to-first-tile numbers are Tester-owned (no browsers in the build
+container); known v2 deferrals (labels, Tissot, tile LRU, graph overlay)
+listed in the scoreboard.
