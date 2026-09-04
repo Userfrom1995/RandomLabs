@@ -38,9 +38,12 @@
     valid .xlsx. PPTX omitted (unverified, no stub).
 
 - [ ] **M4: Modern UX & Direct Canvas Manipulation (this PR, Refs #277, final Closes #277)**
-  - [ ] M4a ingestion hardening: clickable dropzone (`index.html:73`),
+  - [x] M4a ingestion hardening: clickable dropzone (`index.html:73`),
     window drag guard, stale input reset, OPFS fallback (`opfs.js:37`),
     worker URL via `import.meta.url`, toast error boundaries.
+  - [x] M4 overlay pure core (`viewer/overlay.js`): `pdfToCss`/`cssToPdf`
+    roundtrip, drag normalize, 8-handle resize, move clamp,
+    mode click-defaults commit, bookmark tree serialize (node 9/9).
   - [ ] M4b canvas overlay (`viewer/overlay.js`): crop bbox + click/drag
     place for notes/shapes/links/stamps/signatures/images via M1/M2 ops.
   - [ ] M4c form overlays + bookmark outline tree + studio layout
@@ -66,12 +69,11 @@
 
 ## Current step
 
-M4 blueprinted on `opencode/issue277-20260904164811` (Active Milestone:
-M4, ready for build; global Status stays in-progress until the
-Maintainer merges the final milestone and closes #277). Builder lands
-vertical slices M4a (ingestion), M4b (canvas overlay), M4c (forms,
-bookmarks, layout) with zero facades. Ready for Builder.
-Final milestone PR uses `Closes #277`.
+M4 slice 1 landed (M4a ingestion + overlay pure core + toast/progress/
+canvaswrap shell scaffold, node 9/9 new + 43 existing green). Builder
+continues with M4b (placement-mode DOM wiring committing through M1/M2
+ops) then M4c (form overlays, bookmark tree, studio layout) on this
+branch. Final milestone PR uses `Closes #277`.
 
 ## M3 checklist
 
@@ -91,6 +93,14 @@ Final milestone PR uses `Closes #277`.
 
 ## Agent log
 
+- 2026-09-04 (Builder, M4 slice 1): M4a ingestion hardening (whole
+  dropzone clickable + keyboard, window dragover/drop guard with
+  anywhere-drop-to-open, pick/pickB stale reset, worker URL via
+  import.meta.url, setFile try/catch with dismissible toast + encrypted
+  hint, OPFS SecurityError fallback to memory, determinate batch
+  progress) + overlay pure core + #toasts/#batchprog/#canvaswrap/#overlay
+  shell scaffold. Verified: node 9/9 new M4 tests, existing 29 + 14
+  green, app/viewer/opfs syntax OK. Decision action: continue (M4b/M4c).
 - 2026-09-04 (Builder, M3): vendored OCR/Office packs, pure core
   (ocr.js, zip.js, blocks.js, sheets.js), browser executors
   (ocr-ops.js, office-ops.js), #/ocr route + Convert Office card,

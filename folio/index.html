@@ -35,9 +35,26 @@ button:disabled{opacity:0.45;cursor:not-allowed}
 button:disabled:hover{border-color:var(--folio-border)}
 input,select,textarea{background:#0f172a;color:var(--folio-ink);border:1px solid var(--folio-border);border-radius:6px;padding:6px 8px;font-size:0.85rem;max-width:100%}
 textarea{width:100%;min-height:90px}
-#dropzone{border:1.5px dashed var(--folio-border);border-radius:10px;padding:18px;text-align:center;color:var(--folio-muted);margin-bottom:10px}
+#dropzone{border:1.5px dashed var(--folio-border);border-radius:10px;padding:18px;text-align:center;color:var(--folio-muted);margin-bottom:10px;cursor:pointer}
+#dropzone:hover,#dropzone:focus-visible{border-color:var(--folio-accent);color:var(--folio-accent)}
 #dropzone.over{border-color:var(--folio-accent);color:var(--folio-accent)}
-#pagecanvas{max-width:100%;border:1px solid var(--folio-border);border-radius:8px;background:#fff}
+#canvaswrap{position:relative;display:inline-block;max-width:100%}
+#pagecanvas{max-width:100%;border:1px solid var(--folio-border);border-radius:8px;background:#fff;display:block}
+#overlay{position:absolute;inset:0;touch-action:none}
+#overlay .ghost{position:absolute;border:1.5px dashed var(--folio-accent2);background:rgba(122,162,247,0.12);pointer-events:none}
+#overlay .cropbox{position:absolute;border:2px solid var(--folio-accent);background:rgba(79,193,160,0.08)}
+#overlay .handle{position:absolute;width:12px;height:12px;background:var(--folio-accent);border-radius:3px;touch-action:none}
+#overlay.crosshair{cursor:crosshair}
+#toasts{position:fixed;right:14px;bottom:44px;display:flex;flex-direction:column;gap:8px;z-index:50;max-width:min(360px,90vw)}
+.toast{background:#1a2030;border:1px solid var(--folio-border);border-left:4px solid var(--folio-accent2);border-radius:8px;padding:10px 12px;font-size:0.85rem;box-shadow:0 6px 24px rgba(0,0,0,0.4)}
+.toast.error{border-left-color:var(--folio-danger)}
+.toast.ok{border-left-color:var(--folio-accent)}
+.toast button{float:right;margin-left:8px;padding:2px 8px}
+#batchprog{width:100%;height:8px;border-radius:4px;background:#0f172a;border:1px solid var(--folio-border);display:none}
+#batchprog.on{display:block}
+#batchprog>div{height:100%;width:0%;background:var(--folio-accent);border-radius:4px;transition:width 0.15s}
+details.a11y{margin-top:8px}
+details.a11y summary{cursor:pointer;color:var(--folio-muted);font-size:0.82rem}
 #pagegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:10px}
 .pcard{background:#0f172a;border:2px solid var(--folio-border);border-radius:8px;padding:6px;margin:0;text-align:center;cursor:pointer;user-select:none}
 .pcard img{width:100%;height:auto;display:block;border-radius:4px;background:#fff;pointer-events:none}
@@ -61,6 +78,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 </head>
 <body>
 <div class="sr" aria-live="polite" id="live"></div>
+<div id="toasts" aria-live="assertive"></div>
 <header class="top">
 <h1>Folio</h1>
 <p>Fully client-side PDF studio - bytes never leave this device</p>
@@ -70,7 +88,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <aside aria-label="Pipeline">
 <div class="card">
 <h3>Files</h3>
-<div id="dropzone">Drop a PDF here or <label>choose <input type="file" id="filepick" accept="application/pdf,.pdf" hidden /></label></div>
+<div id="dropzone" role="button" tabindex="0" aria-label="Open a PDF file">Drop a PDF here or <label>choose <input type="file" id="filepick" accept="application/pdf,.pdf" hidden /></label></div>
 <div class="row"><button id="samplebtn">Load sample PDF</button></div>
 <div class="muted" id="filemeta">No file loaded.</div>
 <div class="row"><label>Second PDF (merge/insert) <input type="file" id="filepickB" accept="application/pdf,.pdf" /></label></div>
@@ -93,7 +111,8 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <input id="searchbox" placeholder="Search text" aria-label="Search text" style="flex:1;min-width:120px" /><button id="searchbtn">Search</button>
 </div>
 <div class="muted" id="searchhits"></div>
-<canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas>
+<div id="canvaswrap"><canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas><div id="overlay" aria-hidden="true"></div></div>
+<div id="batchprog" role="progressbar" aria-label="Batch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div></div></div>
 <div class="card" style="margin-top:10px" aria-label="Page organizer">
 <h3>Page grid <span class="muted" id="gridcount"></span></h3>
 <p class="muted" style="margin:0 0 6px">Drag a thumbnail to reorder pages. Click to preview. Keyboard: arrows move, Ctrl+arrows reorder, Delete removes.</p>
