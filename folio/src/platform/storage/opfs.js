@@ -31,13 +31,24 @@ export async function writeFile(path, bytes) {
     mem.set(path, bytes.slice ? bytes.slice(0) : bytes);
     return { path, backend: "memory", bytes: bytes.length };
   }
-  const i = path.lastIndexOf("/");
-  const d = await dir(path.slice(0, i), true);
-  const fh = await d.getFileHandle(path.slice(i + 1), { create: true });
-  const w = await fh.createWritable();
-  await w.write(bytes);
-  await w.close();
-  return { path, backend: "opfs", bytes: bytes.length };
+  // M4a: private-mode / permission-denied OPFS must degrade to memory
+  // instead of crashing ingest before openDocument.
+  try {
+    const i = path.lastIndexOf("/");
+    const d = await dir(path.slice(0, i), true);
+    const fh = await d.getFileHandle(path.slice(i + 1), { create: true });
+    const w = await fh.createWritable();
+    await w.write(bytes);
+    await w.close();
+    return { path, backend: "opfs", bytes: bytes.length };
+  } catch (err) {
+    if (err && (err.name === "SecurityError" || err.name === "NoModificationAllowedError" || err.name === "NotAllowedError" || err.name === "QuotaExceededError")) {
+      useOpfs = false;
+      mem.set(path, bytes.slice ? bytes.slice(0) : bytes);
+      return { path, backend: "memory", bytes: bytes.length, fellBack: String((err && err.name) || err) };
+    }
+    throw err;
+  }
 }
 
 export async function readFile(path) {

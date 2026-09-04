@@ -44,6 +44,49 @@ function announce(msg) {
   if (st) st.textContent = msg;
 }
 
+// M4a toast error boundaries: dismissible, role=alert for errors, plus an
+// "ok" tone for confirmed commits. announce() stays the statusbar path.
+function toast(msg, kind) {
+  const stack = $("toasts");
+  if (!stack) {
+    announce(msg);
+    return;
+  }
+  const t = document.createElement("div");
+  t.className = "toast" + (kind === "error" ? " error" : kind === "ok" ? " ok" : "");
+  if (kind === "error") t.setAttribute("role", "alert");
+  const span = document.createElement("span");
+  span.textContent = msg;
+  const x = document.createElement("button");
+  x.textContent = "Dismiss";
+  x.setAttribute("aria-label", "Dismiss notification");
+  x.onclick = () => t.remove();
+  t.appendChild(span);
+  t.appendChild(x);
+  stack.appendChild(t);
+  while (stack.children.length > 5) stack.firstChild.remove();
+  announce(msg);
+  return t;
+}
+
+// M4a determinate progress (OCR/pack/batch share one bar; null hides it).
+function setProgress(frac) {
+  const bar = $("batchprog");
+  if (!bar) return;
+  if (frac === null || frac === undefined) {
+    bar.classList.remove("on");
+    bar.setAttribute("aria-valuenow", "0");
+    const fill = bar.firstElementChild;
+    if (fill) fill.style.width = "0%";
+    return;
+  }
+  const pct = Math.min(100, Math.max(0, Math.round(frac * 100)));
+  bar.classList.add("on");
+  bar.setAttribute("aria-valuenow", String(pct));
+  const fill = bar.firstElementChild;
+  if (fill) fill.style.width = pct + "%";
+}
+
 function download(bytes, name, mime) {
   const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type: mime || "application/pdf" });
   const a = document.createElement("a");
@@ -58,18 +101,30 @@ function download(bytes, name, mime) {
 }
 
 async function setFile(name, bytes, keepSel) {
-  file = { name, bytes: bytes.slice ? bytes.slice(0) : bytes };
-  await writeFile(paths.input(name), file.bytes);
-  const info = await openDocument(file.bytes);
-  await writeFile(paths.session(), file.bytes);
-  $("filemeta").textContent = name + " - " + info.pages + " pages - " + (file.bytes.length / 1024).toFixed(1) + " KB (" + backend() + ")";
-  if (!keepSel) selectedPage = 1;
-  selectedPage = Math.min(selectedPage, info.pages);
-  $("pageinfo").textContent = "Page " + selectedPage + " of " + info.pages;
-  await renderPage($("pagecanvas"), selectedPage);
-  await renderGrid();
-  announce("Opened " + name + ", " + info.pages + " pages.");
-  await logJob({ jobId, tool: "open", params: { name, pages: info.pages } });
+  // M4a: corrupt/encrypted/unsupported bytes must surface a dismissible
+  // toast and leave the shell usable, never stuck on "Loading...".
+  try {
+    file = { name, bytes: bytes.slice ? bytes.slice(0) : bytes };
+    await writeFile(paths.input(name), file.bytes);
+    const info = await openDocument(file.bytes);
+    await writeFile(paths.session(), file.bytes);
+    $("filemeta").textContent = name + " - " + info.pages + " pages - " + (file.bytes.length / 1024).toFixed(1) + " KB (" + backend() + ")";
+    if (!keepSel) selectedPage = 1;
+    selectedPage = Math.min(selectedPage, info.pages);
+    $("pageinfo").textContent = "Page " + selectedPage + " of " + info.pages;
+    await renderPage($("pagecanvas"), selectedPage);
+    await renderGrid();
+    announce("Opened " + name + ", " + info.pages + " pages.");
+    await logJob({ jobId, tool: "open", params: { name, pages: info.pages } });
+  } catch (err) {
+    file = null;
+    const hint = /encrypt/i.test(err.message)
+      ? "This PDF is encrypted. Decrypt it elsewhere first; Folio never asks for passwords."
+      : /password/i.test(err.message)
+        ? "This PDF needs a password, which Folio never collects."
+        : "That file did not parse as a PDF (" + err.message + ").";
+    toast("Could not open " + name + ". " + hint, "error");
+  }
 }
 
 // Visual page grid: live pdf.js canvas previews, click to preview, drag to
@@ -230,12 +285,35 @@ async function wire() {
   await initStorage();
   PDFLib = window.PDFLib;
   if (!PDFLib) throw new Error("pdf-lib failed to load (vendor/pdf-lib.min.js missing or blocked)");
-  await initViewer("vendor/pdf.worker.mjs");
+  // M4a: resolve the pdf.js worker against this module's URL so the shell
+  // boots from any base path (viewer keeps its relative default).
+  await initViewer(new URL("../../../vendor/pdf.worker.mjs", import.meta.url).href);
   renderChain();
 
   const dz = $("dropzone");
   const pick = $("filepick");
   const pickB = $("filepickB");
+  // M4a: drops outside the zone must never navigate the window away and
+  // destroy the session; files dropped anywhere open like a zone drop.
+  window.addEventListener("dragover", (e) => e.preventDefault());
+  window.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    dz.classList.remove("over");
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) await setFile(f.name, new Uint8Array(await f.arrayBuffer()));
+  });
+  // M4a: the whole zone is clickable (the word "choose" is not the only
+  // target); clicks on the inner label already forward natively.
+  dz.addEventListener("click", (e) => {
+    if (e.target.closest("label")) return;
+    pick.click();
+  });
+  dz.addEventListener("keydown", (e) => {
+    if ((e.key === "Enter" || e.key === " ") && e.target === dz) {
+      e.preventDefault();
+      pick.click();
+    }
+  });
   dz.addEventListener("dragover", (e) => {
     e.preventDefault();
     dz.classList.add("over");
@@ -249,10 +327,13 @@ async function wire() {
   });
   pick.addEventListener("change", async () => {
     const f = pick.files[0];
+    // M4a: reset the input so re-picking the same file fires change again.
+    pick.value = "";
     if (f) await setFile(f.name, new Uint8Array(await f.arrayBuffer()));
   });
   pickB.addEventListener("change", async () => {
     const f = pickB.files[0];
+    pickB.value = "";
     if (f) {
       fileB = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
       $("fileBmeta").textContent = f.name;
@@ -1021,6 +1102,7 @@ function wireTools() {
     const bufs = [a.bytes].concat(fileB ? [fileB.bytes] : []);
     let plan = batchPlan(names, tool);
     const done = [];
+    setProgress(0);
     for (let i = 0; i < plan.queue.length; i++) {
       const job = plan.queue[i];
       plan.queue = batchReducer(plan.queue, job.id, "start");
@@ -1033,7 +1115,9 @@ function wireTools() {
         plan.queue = batchReducer(plan.queue, job.id, "fail");
         done.push(job.file + ": FAILED (" + err.message + ", retry available)");
       }
+      setProgress((i + 1) / plan.queue.length);
     }
+    setProgress(null);
     $("batch-report").textContent = done.join("; ");
     await logJob({ jobId, tool: "batch-" + tool, params: { files: names }, output: "batch" });
   });

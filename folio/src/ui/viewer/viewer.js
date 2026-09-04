@@ -100,6 +100,19 @@ export async function renderToDataUrl(n, dpi) {
   return c.toDataURL("image/png");
 }
 
+// M4b: page viewport dims for the overlay coordinate math (pdfToCss).
+// Returns PDF-point page size plus the last rendered canvas box.
+export async function pageBox(n) {
+  if (!doc) throw new Error("no document open");
+  const page = await doc.getPage(Math.min(doc.numPages, Math.max(1, n || pageNum)));
+  const vp = page.getViewport({ scale: 1 });
+  return { width: vp.width, height: vp.height, rotation: vp.rotation };
+}
+
+export function canvasBox(canvas) {
+  return { width: canvas.width, height: canvas.height };
+}
+
 // M3: grayscale raster for OCR (300 DPI print pixels, luminance only).
 export async function renderPageGray(n, dpi, canvas) {
   if (!doc) throw new Error("no document open");
