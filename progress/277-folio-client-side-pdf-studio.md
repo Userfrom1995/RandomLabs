@@ -59,6 +59,13 @@ Tester (adversarial). Next: Maintainer merges, then dispatches M3 (WASM OCR
   gates and fixed (silent invalid-option select; unscoped PDFLib in bake
   helpers). Docs: README, scoreboard M2 table, this file, ideas note.
   Decision action: review.
+- 2026-09-04 (Builder, rebase): PR #290 was CONFLICTING after plan PR #289
+  merged to main (3caf426a). Reb clocked only one conflict (this file's
+  header/current-step); resolved for M2, replayed 5 commits cleanly onto
+  3caf426a. Re-verified: unit suites 21/21 green, fresh pdf-lib smoke
+  (text+checkbox+dropdown create/fill/flatten roundtrip, 0 fields after
+  flatten), choice-fill option guard confirmed in form-ops.js:42-44.
+  Decision action: review.
 
 ## Next steps
 
