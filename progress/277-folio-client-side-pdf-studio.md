@@ -1,10 +1,10 @@
 # Progress: Folio (fully client-side PDF studio) - Milestone Epic
 
 - **Issue:** #277
-- **Branch (M3):** opencode/issue277-folio-m3
+- **Branch (M4):** opencode/issue277-20260904164811
 - **Status:** in-progress
-- **Active Milestone:** M3 (Complete, ready for review)
-- **Updated:** 2026-09-04T15:00:00Z
+- **Active Milestone:** M4 (blueprinted, ready for build)
+- **Updated:** 2026-09-04T16:50:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
 
@@ -37,6 +37,24 @@
     docx/xlsx to measured PDF, PDF paras to valid .docx, PDF lines to
     valid .xlsx. PPTX omitted (unverified, no stub).
 
+- [ ] **M4: Modern UX & Direct Canvas Manipulation (this PR, Refs #277, final Closes #277)**
+  - [ ] M4a ingestion hardening: clickable dropzone (`index.html:73`),
+    window drag guard, stale input reset, OPFS fallback (`opfs.js:37`),
+    worker URL via `import.meta.url`, toast error boundaries.
+  - [ ] M4b canvas overlay (`viewer/overlay.js`): crop bbox + click/drag
+    place for notes/shapes/links/stamps/signatures/images via M1/M2 ops.
+  - [ ] M4c form overlays + bookmark outline tree + studio layout
+    (top bar, collapsible sidebar, toasts, progress, shortcuts).
+
+## M4 blueprint (Architect, 2026-09-04)
+
+- Blueprint: `ideas/2026-09-04-folio-m4-modern-ux-canvas.md` (overlay
+  system, placement state machine, form/bookmark visual layers, studio
+  layout, 6 ingestion targets, node + Playwright gates). Raw-coordinate
+  primaries removed; numeric fields survive only as labeled a11y
+  fallbacks in `<details>`. Single M4 PR, vertical slices M4a-M4c.
+  Decision action: build.
+
 ## M1 checklist
 
 - [x] purge: 14 files deleted, 8 facades + 9 spec-only controls removed, no disabled stubs remain
@@ -48,12 +66,12 @@
 
 ## Current step
 
-M3 complete on `opencode/issue277-folio-m3` (Active Milestone: M3,
-Complete, ready for review; global Status stays in-progress until the
-Maintainer merges the final milestone and closes #277). Vendored packs
-+ OCR route + Office converters built, verified, pushed. Ready for
-Reviewer (anti-facade) + Tester (adversarial). Note: this is the FINAL
-epic milestone, so the milestone PR uses `Closes #277`.
+M4 blueprinted on `opencode/issue277-20260904164811` (Active Milestone:
+M4, ready for build; global Status stays in-progress until the
+Maintainer merges the final milestone and closes #277). Builder lands
+vertical slices M4a (ingestion), M4b (canvas overlay), M4c (forms,
+bookmarks, layout) with zero facades. Ready for Builder.
+Final milestone PR uses `Closes #277`.
 
 ## M3 checklist
 
