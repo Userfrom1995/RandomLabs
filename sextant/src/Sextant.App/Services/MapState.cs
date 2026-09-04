@@ -13,4 +13,9 @@ public sealed class MapState
     public bool RoadsVisible { get; set; } = true;
     public bool BuildingsVisible { get; set; } = true;
     public bool WaterVisible { get; set; } = true;
+    public bool LanduseVisible { get; set; } = true;
+    public bool PoisVisible { get; set; } = true;
+    public bool ShowFrontier { get; set; } = true;
+    public bool PenalizeTurns { get; set; } = true;
+    public string CostModeId { get; set; } = "time";
 }

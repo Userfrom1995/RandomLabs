@@ -13,22 +13,36 @@ window.sextantCanvas = (() => {
     return !!ctx;
   }
 
+  function isPenUp(x, y) {
+    return Number.isNaN(x) || Number.isNaN(y);
+  }
+
   function strokePath(vertices) {
     ctx.beginPath();
+    let penDown = false;
     for (let i = 0; i + 1 < vertices.length; i += 2) {
-      if (i === 0) ctx.moveTo(vertices[i], vertices[i + 1]);
-      else ctx.lineTo(vertices[i], vertices[i + 1]);
+      const x = vertices[i], y = vertices[i + 1];
+      if (isPenUp(x, y)) { penDown = false; continue; }
+      if (!penDown) { ctx.moveTo(x, y); penDown = true; }
+      else ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
 
   function fillPath(vertices) {
     ctx.beginPath();
+    let penDown = false;
     for (let i = 0; i + 1 < vertices.length; i += 2) {
-      if (i === 0) ctx.moveTo(vertices[i], vertices[i + 1]);
-      else ctx.lineTo(vertices[i], vertices[i + 1]);
+      const x = vertices[i], y = vertices[i + 1];
+      if (isPenUp(x, y)) {
+        if (penDown) ctx.closePath();
+        penDown = false;
+        continue;
+      }
+      if (!penDown) { ctx.moveTo(x, y); penDown = true; }
+      else ctx.lineTo(x, y);
     }
-    ctx.closePath();
+    if (penDown) ctx.closePath();
     ctx.fill();
   }
 
