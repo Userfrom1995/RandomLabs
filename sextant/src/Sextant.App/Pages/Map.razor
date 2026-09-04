@@ -1,0 +1,384 @@
+@page "/map"
+@using Sextant.Core
+@using Sextant.App.Services
+@inject PackLoader Loader
+@inject ICanvasBridge Bridge
+@inject MapState View
+@inject IJSRuntime JS
+
+<PageTitle>Sextant: Portland city map</PageTitle>
+
+<div class="sex-shell">
+  <aside class="sex-side" aria-label="Map controls">
+    <h1>Sextant</h1>
+    <p class="sex-sub">From-scratch GIS engine, downtown Portland pack.</p>
+
+    @if (_loadError is not null)
+    {
+      <div class="sex-alert" role="alert">Pack failed to load: @_loadError</div>
+    }
+    else if (_pack is null)
+    {
+      <p aria-live="polite">Loading city pack…</p>
+    }
+    else
+    {
+      <section aria-label="Search">
+        <h2>Search</h2>
+        <input class="sex-input" placeholder="Try Ross Island, Burnside, park…"
+               value="@_query" @oninput="OnSearchInput" aria-label="Search places" />
+        @if (_results.Count > 0)
+        {
+          <ul class="sex-results">
+            @foreach (var r in _results)
+            {
+              <li><button class="sex-link" @onclick="() => FlyTo(r.Entry)">@r.Entry.Name (@r.Score.ToString("F2"))</button></li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section aria-label="Layers">
+        <h2>Layers</h2>
+        <label><input type="checkbox" @bind="View.RoadsVisible" @bind:after="Repaint" /> Roads</label>
+        <label><input type="checkbox" @bind="View.BuildingsVisible" @bind:after="Repaint" /> Buildings</label>
+        <label><input type="checkbox" @bind="View.WaterVisible" @bind:after="Repaint" /> Water</label>
+        <label><input type="checkbox" @bind="View.LanduseVisible" @bind:after="Repaint" /> Landuse</label>
+        <label><input type="checkbox" @bind="View.PoisVisible" @bind:after="Repaint" /> POIs</label>
+      </section>
+
+      <section aria-label="Projection">
+        <h2>Projection</h2>
+        <label><input type="radio" name="proj" checked="@(View.ProjectionId == "mercator")" @onchange="@(() => SetProjection("mercator"))" /> Web Mercator</label>
+        <label><input type="radio" name="proj" checked="@(View.ProjectionId == "albers")" @onchange="@(() => SetProjection("albers"))" /> Albers CONUS</label>
+        <p class="sex-hint">Albers re-projects the same WGS84 source; tiles stay Mercator-addressed (v1).</p>
+      </section>
+
+      <section aria-label="Route">
+        <h2>Route</h2>
+        <div class="sex-row">
+          <button @onclick="@(() => _pickMode = _pickMode == "origin" ? null : "origin")">Pick origin</button>
+          <button @onclick="@(() => _pickMode = _pickMode == "dest" ? null : "dest")">Pick destination</button>
+        </div>
+        <p class="sex-hint">
+          @if (_pickMode is not null) { <span>Click the map to set @_pickMode…</span> }
+          else if (_originNode >= 0 && _destNode >= 0) { <span>Nodes @_originNode → @_destNode</span> }
+          else { <span>Pick two points on the map.</span> }
+        </p>
+        <label>Mode
+          <select value="@View.CostModeId" @onchange="OnModeChanged">
+            <option value="time">Fastest (time)</option>
+            <option value="distance">Shortest (distance)</option>
+          </select>
+        </label>
+        <label><input type="checkbox" @bind="View.PenalizeTurns" @bind:after="RunRoute" /> Turn penalties</label>
+        <label><input type="checkbox" @bind="View.ShowFrontier" @bind:after="Repaint" /> A* frontier replay</label>
+        <button @onclick="RunRoute" disabled="@(_originNode < 0 || _destNode < 0)">Route</button>
+        @if (_route is not null)
+        {
+          <p class="sex-hint" aria-live="polite">
+            @(_route.Found
+              ? $"Path {_route.Path.Length} nodes, cost {FormatCost(_route.Cost)}, expanded {_route.Expanded}."
+              : "No path between those nodes.")
+          </p>
+        }
+      </section>
+
+      <section aria-label="Isochrone">
+        <h2>Isochrone</h2>
+        <label>Minutes from origin
+          <select @bind="_isoMinutes">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="15">15</option>
+          </select>
+        </label>
+        <button @onclick="RunIsochrone" disabled="@(_originNode < 0)">Draw isochrone</button>
+        <button @onclick="ClearOverlays">Clear</button>
+      </section>
+
+      <section aria-label="Import and export">
+        <h2>Import / export</h2>
+        <InputFile OnChange="OnImport" accept=".geojson,.json" aria-label="Import GeoJSON" />
+        <p class="sex-hint">@_importNote</p>
+        <button @onclick="ExportRoute" disabled="@(_route is null || !_route.Found)">Download route GeoJSON</button>
+        <button @onclick="ExportIsochrone" disabled="@(_isoPolys.Count == 0)">Download isochrone GeoJSON</button>
+      </section>
+
+      <section aria-label="Pack">
+        <h2>Pack</h2>
+        <p class="sex-hint">
+          @_pack.Manifest.Version, seed @_pack.Manifest.Seed, @_pack.Manifest.Source.
+          @Loader.BytesLoaded bytes loaded.
+          @(Loader.OfflineReady ? "Offline-ready (service worker caches shell + pack)." : "")
+        </p>
+      </section>
+    }
+  </aside>
+
+  <main class="sex-mapwrap">
+    <div class="sex-toolbar" role="toolbar" aria-label="Pan and zoom">
+      <button @onclick="@(() => Pan(0, 128))" aria-label="Pan north">↑</button>
+      <button @onclick="@(() => Pan(-128, 0))" aria-label="Pan west">←</button>
+      <button @onclick="@(() => Zoom(1))" aria-label="Zoom in">+</button>
+      <button @onclick="@(() => Zoom(-1))" aria-label="Zoom out">−</button>
+      <button @onclick="@(() => Pan(128, 0))" aria-label="Pan east">→</button>
+      <button @onclick="@(() => Pan(0, -128))" aria-label="Pan south">↓</button>
+      <span class="sex-zoom">z @View.ZoomFloat.ToString("F1")</span>
+    </div>
+    <canvas id="sextant-map" width="960" height="600" @onclick="OnMapClick"
+            aria-label="City map canvas. Activate pick origin or destination, then click to place."></canvas>
+    <div class="sex-statusbar">
+      <span>@ScaleBarText()</span>
+      <span>@TrueAreaText()</span>
+      <span class="sex-chip">Synthetic demo pack, no OSM data (see Attribution)</span>
+    </div>
+  </main>
+</div>
+
+@code {
+    private LoadedPack? _pack;
+    private string? _loadError;
+    private string _query = string.Empty;
+    private List<(GeocodeEntry Entry, double Score)> _results = new();
+    private string? _pickMode;
+    private int _originNode = -1;
+    private int _destNode = -1;
+    private RouteResult? _route;
+    private List<IsoPolygon> _isoPolys = new();
+    private string _importNote = "Drop a .geojson file: Point/LineString/Polygon features render as an overlay.";
+    private int _isoMinutes = 10;
+
+    private const int MapW = 960;
+    private const int MapH = 600;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _pack = await Loader.LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && _pack is not null) Repaint();
+    }
+
+    private void Repaint()
+    {
+        if (_pack is null) return;
+        Bridge.Clear();
+        Bridge.DrawBatches(MapRenderer.BuildLayerBatches(_pack, View, MapW, MapH));
+        PaintOverlays();
+    }
+
+    private void PaintOverlays()
+    {
+        if (_pack?.Graph is null) return;
+        if (_route is not null && _route.Found)
+        {
+            var ov = MapRenderer.BuildRouteOverlay(_pack.Graph, _route with
+            {
+                Frontier = View.ShowFrontier ? _route.Frontier : Array.Empty<int>()
+            }, View, MapW, MapH);
+            Bridge.DrawOverlays(ov);
+        }
+        if (_isoPolys.Count > 0)
+            Bridge.DrawOverlays(MapRenderer.BuildIsochroneOverlay(_isoPolys, View, MapW, MapH));
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? string.Empty;
+        _results = _pack is null || _query.Length < 2
+            ? new()
+            : _pack.Geocode.Query(_query).ToList();
+    }
+
+    private void FlyTo(GeocodeEntry entry)
+    {
+        View.CenterLon = entry.Lon;
+        View.CenterLat = entry.Lat;
+        View.ZoomFloat = Math.Max(View.ZoomFloat, 14.0);
+        _results.Clear();
+        Repaint();
+    }
+
+    private void SetProjection(string id)
+    {
+        View.ProjectionId = id;
+        Repaint();
+    }
+
+    private void Pan(double dxPx, double dyPx)
+    {
+        var proj = MapRenderer.ResolveProjection(View.ProjectionId);
+        var center = proj.Forward(View.CenterLon, View.CenterLat);
+        double scale = MapRenderer.ScaleForZoom(View.ZoomFloat);
+        var ll = MapRenderer.FromScreen(proj, center, scale, MapW, MapH, MapW / 2.0 + dxPx, MapH / 2.0 + dyPx);
+        if (ll.Valid) { View.CenterLon = ll.Lon; View.CenterLat = ll.Lat; }
+        Repaint();
+    }
+
+    private void Zoom(int dir)
+    {
+        View.ZoomFloat = Math.Clamp(View.ZoomFloat + dir, 2.0, 16.0);
+        Repaint();
+    }
+
+    private void OnMapClick(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        if (_pack?.Graph is null || _pickMode is null) return;
+        var proj = MapRenderer.ResolveProjection(View.ProjectionId);
+        var center = proj.Forward(View.CenterLon, View.CenterLat);
+        double scale = MapRenderer.ScaleForZoom(View.ZoomFloat);
+        var ll = MapRenderer.FromScreen(proj, center, scale, MapW, MapH, e.OffsetX, e.OffsetY);
+        if (!ll.Valid) return;
+        int node = MapRenderer.NearestNode(_pack.Graph, ll.Lon, ll.Lat);
+        if (_pickMode == "origin") _originNode = node; else _destNode = node;
+        _pickMode = null;
+        RunRoute();
+    }
+
+    private void OnModeChanged(ChangeEventArgs e)
+    {
+        View.CostModeId = e.Value?.ToString() == "distance" ? "distance" : "time";
+        RunRoute();
+    }
+
+    private CostMode ActiveMode => View.CostModeId == "distance" ? CostMode.Distance : CostMode.Time;
+
+    private void RunRoute()
+    {
+        if (_pack?.Graph is null || _originNode < 0 || _destNode < 0) return;
+        _route = Sextant.Core.Router.AStar(_pack.Graph, _originNode, _destNode, ActiveMode, View.PenalizeTurns);
+        Repaint();
+    }
+
+    private void RunIsochrone()
+    {
+        if (_pack?.Graph is null || _originNode < 0) return;
+        _isoPolys = Isochrone.ComputePolygons(
+            _pack.Graph, _originNode, _isoMinutes * 60.0, CostMode.Time, View.PenalizeTurns);
+        Repaint();
+    }
+
+    private void ClearOverlays()
+    {
+        _route = null;
+        _isoPolys.Clear();
+        Repaint();
+    }
+
+    private string FormatCost(double cost) =>
+        ActiveMode == CostMode.Time ? $"{cost / 60.0:F1} min" : $"{cost / 1000.0:F2} km";
+
+    private async Task OnImport(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024);
+            using var reader = new System.IO.StreamReader(stream);
+            string json = await reader.ReadToEndAsync();
+            var features = GeoJson.Parse(json);
+            if (_pack is null || features.Count == 0) { _importNote = "No features found."; return; }
+            var proj = MapRenderer.ResolveProjection(View.ProjectionId);
+            var center = proj.Forward(View.CenterLon, View.CenterLat);
+            double scale = MapRenderer.ScaleForZoom(View.ZoomFloat);
+            var buf = new List<float>();
+            foreach (var f in features)
+            {
+                switch (f.Geometry)
+                {
+                    case PolygonInput pg:
+                        foreach (var ring in pg.Rings)
+                        {
+                            buf.Add(float.NaN); buf.Add(float.NaN);
+                            foreach (var p in ring)
+                            {
+                                var rs = MapRenderer.ToScreen(proj, center, scale, MapW, MapH, p.Lon, p.Lat);
+                                buf.Add(rs.X); buf.Add(rs.Y);
+                            }
+                        }
+                        break;
+                    case PolylineInput pl:
+                        buf.Add(float.NaN); buf.Add(float.NaN);
+                        foreach (var p in pl.Points)
+                        {
+                            var ls = MapRenderer.ToScreen(proj, center, scale, MapW, MapH, p.Lon, p.Lat);
+                            buf.Add(ls.X); buf.Add(ls.Y);
+                        }
+                        break;
+                    case PointInput pt:
+                        var s = MapRenderer.ToScreen(proj, center, scale, MapW, MapH, pt.Point.Lon, pt.Point.Lat);
+                        buf.Add(s.X - 4); buf.Add(s.Y); buf.Add(s.X); buf.Add(s.Y - 4);
+                        buf.Add(s.X + 4); buf.Add(s.Y); buf.Add(s.X); buf.Add(s.Y + 4);
+                        buf.Add(s.X - 4); buf.Add(s.Y);
+                        break;
+                }
+            }
+            Bridge.DrawOverlays(new OverlayBatch(null, null, buf.ToArray()));
+            _importNote = $"Imported {features.Count} feature(s) as an overlay.";
+        }
+        catch (Exception ex)
+        {
+            _importNote = $"Import rejected: {ex.Message}";
+        }
+    }
+
+    private async Task DownloadAsync(string name, string content)
+    {
+        await JS.InvokeVoidAsync("sextantDownload.save", name, content);
+    }
+
+    private async Task ExportRoute()
+    {
+        if (_pack?.Graph is null || _route is null || !_route.Found) return;
+        var pts = _route.Path.Select(n => new GeoPoint(_pack.Graph.Lon[n], _pack.Graph.Lat[n])).ToList();
+        var features = new List<GeoJsonFeature>
+        {
+            new("sextant-route", "route", new PolylineInput(PackLayers.Roads, pts)),
+        };
+        await DownloadAsync($"sextant-route-{DateTime.UtcNow:yyyyMMddHHmmss}.geojson",
+            GeoJson.EmitFeatureCollection(features));
+    }
+
+    private async Task ExportIsochrone()
+    {
+        if (_isoPolys.Count == 0) return;
+        await DownloadAsync($"sextant-isochrone-{DateTime.UtcNow:yyyyMMddHHmmss}.geojson",
+            Isochrone.ToGeoJson(_isoPolys));
+    }
+
+    private string ScaleBarText()
+    {
+        double mPerPx = 1.0 / MapRenderer.ScaleForZoom(View.ZoomFloat);
+        double target = mPerPx * 100.0;
+        double nice = Math.Pow(10, Math.Floor(Math.Log10(target)));
+        if (target / nice >= 5) nice *= 5; else if (target / nice >= 2) nice *= 2;
+        double px = nice / mPerPx;
+        return $"Scale: {nice:F0} m ≈ {px:F0} px";
+    }
+
+    private string TrueAreaText()
+    {
+        // Spherical area of the current viewport box vs its planar Mercator area.
+        var proj = MapRenderer.ResolveProjection(View.ProjectionId);
+        var center = proj.Forward(View.CenterLon, View.CenterLat);
+        double scale = MapRenderer.ScaleForZoom(View.ZoomFloat);
+        var sw = MapRenderer.FromScreen(proj, center, scale, MapW, MapH, 0, MapH);
+        var ne = MapRenderer.FromScreen(proj, center, scale, MapW, MapH, MapW, 0);
+        if (!sw.Valid || !ne.Valid) return "Area: n/a";
+        var ring = new List<GeoPoint>
+        {
+            new(sw.Lon, sw.Lat), new(ne.Lon, sw.Lat), new(ne.Lon, ne.Lat), new(sw.Lon, ne.Lat),
+        };
+        double m2 = Geo.SphericalAreaM2(ring);
+        return $"Viewport true area ≈ {(m2 / 1e6):F2} km²";
+    }
+}

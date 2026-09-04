@@ -61,14 +61,14 @@ public sealed class PackLoader
         var geocode = GeocodeIndex.FromJson(geocodeJson);
 
         RoadGraph? graph = null;
-        if (manifest.GraphNodes is { } nodes && manifest.GraphEdges is { })
+        if (manifest.GraphNodes is { } nodes && manifest.GraphEdges is { } graphEdges)
         {
             var bytes = await _http.GetByteArrayAsync(PackBase + "graph.bin", ct);
             BytesLoaded += bytes.LongLength;
             graph = RoadGraph.LoadGraphBin(bytes);
-            if (graph.NodeCount != nodes || graph.EdgeCount != edges)
+            if (graph.NodeCount != nodes || graph.EdgeCount != graphEdges)
                 throw new FormatException(
-                    $"graph.bin holds {graph.NodeCount}n/{graph.EdgeCount}e but pack.json declares {nodes}n/{edges}e.");
+                    $"graph.bin holds {graph.NodeCount}n/{graph.EdgeCount}e but pack.json declares {nodes}n/{graphEdges}e.");
         }
 
         OfflineReady = true;

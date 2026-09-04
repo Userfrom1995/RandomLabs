@@ -8,7 +8,11 @@
     <base href="/" />
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/sextant.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Sextant: from-scratch GIS mapping engine in C#. Offline-first Portland city map." />
     <link href="Sextant.App.styles.css" rel="stylesheet" />
 </head>
 
@@ -27,7 +31,15 @@
         <a class="dismiss">🗙</a>
     </div>
     <script src="js/canvasInterop.js"></script>
+    <script src="js/download.js"></script>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("sw.js").catch(() => {});
+        });
+      }
+    </script>
 </body>
 
 </html>

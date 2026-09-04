@@ -1,0 +1,13 @@
+{
+  "name": "Sextant: from-scratch GIS engine",
+  "short_name": "Sextant",
+  "description": "Offline-first city map built from scratch in C#: projections, tile pipeline, R-tree, A* routing, isochrones.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}

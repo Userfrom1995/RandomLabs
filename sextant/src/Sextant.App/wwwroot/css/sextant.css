@@ -1,0 +1,94 @@
+/* Sextant design tokens + map layout. Desktop: sidebar plus map.
+   Mobile (<=720px): single column with the controls above the map. */
+
+:root {
+  --sex-bg: #0f172a;
+  --sex-surface: #1e293b;
+  --sex-ink: #f1f5f9;
+  --sex-muted: #94a3b8;
+  --sex-accent: #38bdf8;
+  --sex-water: #1d4ed8;
+  --sex-error: #f87171;
+}
+
+.sex-shell {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 0;
+  min-height: calc(100vh - 3.5rem);
+  background: var(--sex-bg);
+  color: var(--sex-ink);
+}
+
+.sex-side {
+  background: var(--sex-surface);
+  padding: 1rem 1.25rem 2rem;
+  overflow-y: auto;
+  border-right: 1px solid #334155;
+}
+
+.sex-side h1 { font-size: 1.5rem; margin: 0; }
+.sex-side h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sex-muted); margin: 1.25rem 0 0.5rem; }
+.sex-sub { color: var(--sex-muted); font-size: 0.9rem; margin: 0.25rem 0 0; }
+.sex-hint { color: var(--sex-muted); font-size: 0.82rem; }
+.sex-side section label { display: block; margin: 0.2rem 0; font-size: 0.9rem; }
+.sex-side button, .sex-side select { margin: 0.25rem 0.25rem 0.25rem 0; }
+.sex-side button {
+  background: var(--sex-accent); border: none; color: #082f49;
+  border-radius: 6px; padding: 0.35rem 0.7rem; font-weight: 600; cursor: pointer;
+}
+.sex-side button:disabled { opacity: 0.45; cursor: default; }
+.sex-side button:focus-visible, .sex-side input:focus-visible, .sex-side select:focus-visible,
+.sex-toolbar button:focus-visible { outline: 2px solid var(--sex-accent); outline-offset: 2px; }
+
+.sex-input {
+  width: 100%; padding: 0.4rem 0.6rem; border-radius: 6px;
+  border: 1px solid #475569; background: var(--sex-bg); color: var(--sex-ink);
+}
+
+.sex-results { list-style: none; padding: 0; margin: 0.5rem 0; }
+.sex-results li { margin: 0.15rem 0; }
+.sex-link {
+  background: none !important; color: var(--sex-accent) !important;
+  padding: 0 !important; font-weight: 400 !important; text-align: left;
+  text-decoration: underline; cursor: pointer;
+}
+
+.sex-alert {
+  background: #450a0a; color: var(--sex-error);
+  border: 1px solid var(--sex-error); border-radius: 6px; padding: 0.6rem;
+  margin-top: 1rem;
+}
+
+.sex-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+.sex-mapwrap { position: relative; display: flex; flex-direction: column; }
+.sex-mapwrap canvas {
+  width: 100%; height: auto; background: var(--sex-bg);
+  touch-action: none; cursor: crosshair;
+}
+
+.sex-toolbar {
+  position: absolute; top: 0.6rem; right: 0.6rem; display: flex; gap: 0.3rem;
+  background: rgba(15, 23, 42, 0.85); border-radius: 8px; padding: 0.35rem 0.5rem;
+  align-items: center;
+}
+.sex-toolbar button {
+  background: var(--sex-surface); color: var(--sex-ink);
+  border: 1px solid #475569; border-radius: 6px; width: 2rem; height: 2rem; cursor: pointer;
+}
+.sex-zoom { color: var(--sex-muted); font-size: 0.8rem; margin-left: 0.3rem; }
+
+.sex-statusbar {
+  display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;
+  padding: 0.4rem 0.8rem; font-size: 0.82rem; color: var(--sex-muted);
+  background: var(--sex-surface); border-top: 1px solid #334155;
+}
+.sex-chip {
+  background: #422006; color: #fbbf24; border-radius: 999px; padding: 0.15rem 0.6rem;
+}
+
+@media (max-width: 720px) {
+  .sex-shell { grid-template-columns: 1fr; }
+  .sex-side { border-right: none; border-bottom: 1px solid #334155; max-height: 46vh; }
+}
