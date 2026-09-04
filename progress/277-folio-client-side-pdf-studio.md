@@ -21,7 +21,7 @@
     previews (click/drag/keyboard/touch-button, true undo).
   - Dynamic verification: Playwright interaction + screenshots
     (desktop 1280 + mobile 390), zero JS errors.
-- [ ] **M2: Native AcroForms & Vector Markup (this PR, Refs #277)**
+- [x] **M2: Native AcroForms & Vector Markup (this PR, Refs #277)**
   - [x] Ink strokes as real `/Ink` annotation objects (InkList + bbox + RDP).
   - [x] Square/Circle/Line as real annotation objects (not content-burned).
   - [x] Quad-aware bake v2 (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line).
@@ -66,6 +66,11 @@ Tester (adversarial). Next: Maintainer merges, then dispatches M3 (WASM OCR
   (text+checkbox+dropdown create/fill/flatten roundtrip, 0 fields after
   flatten), choice-fill option guard confirmed in form-ops.js:42-44.
   Decision action: review.
+- 2026-09-04 (Fixer): closed the createField silent-select hole (validate
+  value against options in validateFieldDef plus pre-select guards on all
+  three choice paths in form-ops.js) and flipped the M2 parent box to [x].
+  Verified: core suites 21/21 green, unknown-value defs throw for
+  dropdown/list/radio, valid values pass. Decision action: review.
 
 ## Next steps
 
