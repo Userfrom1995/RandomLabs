@@ -39,7 +39,7 @@ honestly with evidence, then complies when overruled.
   never the owner - with no `Co-authored-by:` trailer. Human contributor
   credit is preserved.
 
-Prompt files live in `.github/agents/` (see §19). The roster is `REGISTRY.md`.
+Prompt files live in `.github/agents/` (see §17). The roster is `REGISTRY.md`.
 
 ## 3. The collaborative team call flow
 
@@ -89,7 +89,7 @@ concurrency:
 ```
 
 - Runs queue sequentially so that active merges and repo surveys finish cleanly.
-  vision. Repo-wide items (schedule, dispatch without PR) serialize on the
+  Repo-wide items (schedule, dispatch without PR) serialize on the
   `global` group.
 - No scoping of decisions - every run has full repo-wide vision and authority;
   per-run safety comes from fresh re-survey + dedup + one-trigger-per-PR-per-run.
@@ -168,16 +168,16 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 
 ## 10. The Reviewer
 
-- Strict gate: README preservation, security, code quality, correctness,
+- Strict gate with high-thinking rigor: README preservation, security, code quality, correctness,
   scope, linked issue, ideas entry, docs/site, preview infra, up-to-date /
-  conflict-free, rebuttals - plus no-interactive-input and progress-file
-  honesty checks.
+  conflict-free, rebuttals - plus no-interactive-input, progress-file
+  honesty checks, and line-by-line diff scrutiny.
 - "Ask using code": every finding cites exact `file:line`, quotes the
   offending code, and includes the corrected code.
 - Bot PRs with issues → the workflow posts the short `/oc fix` trigger
   (owner PAT) → the Fixer runs.
 - Human PRs → the review is posted and the human is asked to fix it (never a
-  Fixer call). Fork PRs: never - guidance only (see §22).
+  Fixer call). Fork PRs: never - guidance only (see §23).
 - Clean → posts `/oc approve: <message>` → the Tester is dispatched via `/oc test`.
 - Rebuttal etiquette: honest evaluation, withdraw valid pushbacks,
   2×-then-apply, approve trivial leftovers after 2+ rounds.
@@ -185,10 +185,12 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 
 ## 11. The Tester
 
-- Triggered by `/oc test` after the Reviewer approves.
-- Focuses on E2E functionality and performance of the running application.
-- If issues are found, posts `/oc fix: <details>` → the Fixer runs.
-- If clean, posts `/oc approve-test` → the Maintainer is dispatched to merge.
+- Triggered by `/oc test` after the Reviewer approves, executing under high-thinking rigor.
+- Focuses on E2E functionality, dynamic simulation, and performance of the running application (headless Playwright/Puppeteer browser tests for web UI; stress, fuzz, and memory checks for engines/CLIs).
+- **Test Authoring & Commit Authorization**: Authorized to author permanent regression and E2E test suites in project test directories (`tests/`, `e2e/`, etc.) and commit them directly to the PR branch under `tester: ...`.
+- **Strict Separation of Concerns**: The Tester never touches production application logic. If a test fails, the failing test is committed and pushed so the bug is reproducible, and the Tester posts `/oc fix: <details>` → the Fixer runs.
+- **Infrastructure PR Guard**: If the diff touches `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, the Tester operates strictly read-only (never commits/pushes), validates infrastructure dynamically, and routes issues to `/oc lab`.
+- If clean and all tests pass, the Tester commits any new test suites, pushes, and posts `/oc approve-test` → the Maintainer is dispatched to merge.
 
 ## 12. Human PR playbook
 
@@ -218,19 +220,12 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
   reopen with credit intact → finish → merge.
 - Every decision logged with rationale.
 
-## 14. The Brainstorm Board
+## 14. The Brainstorm Board & Ideation Governance
 
-- Pinned "Brainstorm Board" issue (label `brainstorm`) - the idea pipeline.
-- The Ideator (dispatched by the Maintainer when the lab is idle): reads
-  the board + reaction scores; posts 2–3 candidates per run as comments in a
-  template (Name / What it is / Why it's cool), bot-signed; never repeats an
-  idea (dedup by name); may improve a liked-but-not-picked idea; replaces
-  disliked/stale ones.
-- The Maintainer: likes/dislikes candidates (reactions + one-line reasons; the
-  owner's 👍/👎 weighted higher); picks one → opens the real `agent-generated`
-  issue → posts `/oc build this` (assigns the Builder); marks picked; prunes
-  candidates older than ~14 days.
-- If nothing is viable → the Maintainer dispatches the Ideator for a new batch.
+- Pinned "Brainstorm Board" issue (label `brainstorm`) - the community and owner idea pipeline.
+- The Ideator (dispatched on-demand when the Owner or Maintainer requests fresh proposals, or via `/oc ideate`): reads the board + reaction scores; posts 2-3 candidates per run as comments in a template (Name / What it is / Why it's cool), bot-signed; never repeats an idea (dedup by name); may improve a liked-but-not-picked idea; replaces disliked/stale ones.
+- Single-Pick & Pause: The Maintainer or Owner picks at most one candidate to build, opening the dedicated task issue and assigning the squad. Once picked, ideation immediately pauses. The Ideator is NEVER run in an automatic idle loop.
+- Standby on Idle: When all active PRs and issues are resolved, the pipeline halts on standby (`decision: []`) and waits quietly for the next directive, issue, or ideation request.
 
 ## 15. Idea diversity (Ideator rules)
 
@@ -245,11 +240,11 @@ for evaluation: 3 days bot work / 7 days human (fork 7).
 ## 16. Logging & transparency
 
 - **`maintainer/logs` branch** (bot-authored): `logs/YYYY-MM-DD.md` - state
-  snapshots, decisions, rationale, agent callbacks, run links. `STATE.md`  - 
+  snapshots, decisions, rationale, agent callbacks, run links. `STATE.md` -
   the live checkpoint (in-flight PRs, next steps, open questions). Every new
-  Maintainer instance catches up by reading it (see §21).
+  Maintainer instance catches up by reading it (see §22).
 - `personality.md` on the same branch - the Maintainer's evolving identity.
-- `maintainer/logs` branch (STATE.md, logs) - internal state memory root - this architecture document.
+- `LAB.md` - this architecture document.
 - `AGENTS.md` - the agent blueprint.
 
 ## 17. Prompt files (prompts out of YAML)
@@ -279,7 +274,7 @@ Workflow YAML stays thin wiring: the trigger envelope tells the agent to read
 its prompt file (`.github/agents/<role>.md`) - that file IS its complete
 system prompt. The Maintainer may edit any agent's prompt (including its own)
 and create new agents (new `.md` + trigger wiring + registry entry) via its
-own PRs through the review loop (see §20). Only its own domain (log branch,
+own PRs through the review loop (see §21). Only its own domain (log branch,
 personality, CHANGELOG) is direct-commit.
 
 ## 18. Decision files
@@ -305,7 +300,7 @@ personality, CHANGELOG) is direct-commit.
 | `opencode.yml` | Build / Fix / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); restore-head; short `/oc fix` trigger |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
-| `ideate.yml` | Dispatch-only Ideator - posts candidates on the Brainstorm Board; no PAT in env |
+| `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also

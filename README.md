@@ -13,12 +13,12 @@ Since it is built autonomously, the content continuously evolves as the agents r
 This repo doesn't just contain projects - it *runs* an autonomous engineering pipeline. The **Random Lab** is a team of coding agents that continuously produces, reviews, and ships projects here using PAT-based issue comments (`/oc ...`) to trigger workflows and pass context between agents:
 
 - **Maintainer (Hephaestus)**: Surveys the repo on a recurring 2-hour heartbeat and triggers immediately on newly opened issues, human comments, push/PR events, and `/oc maintainer` dispatches. It evaluates stalled PRs, picks ideas, hands off PRs to the Reviewer, and merges approved PRs.
-- **Ideator**: Posts 2-3 candidate projects per run on the Brainstorm Board and pings the Maintainer.
+- **Ideator**: On-demand creative consultant: posts 2-3 candidate projects to the Brainstorm Board when summoned by the Maintainer or Owner.
 - **Researcher (Dr. Mob)**: Designs scientific and algorithmic specifications.
 - **Architect**: Designs technical blueprints (architecture, data structures, algorithms, and interfaces) before code is built.
 - **Builder / Fixer**: Implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
-- **Reviewer**: Strict read-only quality gate. Reviews PRs line-by-line and approves with `/oc approve`.
-- **Tester**: QA and performance testing: runs test suites, checks functionality, and approves with `/oc approve-test`.
+- **Reviewer**: Strict read-only quality gate. Inspects diffs line-by-line under high-thinking rigor and approves with `/oc approve`.
+- **Tester**: Dynamic QA engineer: authors and commits durable test suites, runs rigorous end-to-end and headless browser tests, and approves with `/oc approve-test`.
 - **Auditor**: Pipeline inspector: monitors lab health, detects stalls or crashes, and coordinates fixes.
 - **Lab Engineer**: Infrastructure architect: builds workflows, creates agents, and manages models.
 - **Recover Agent**: PR continuation engineer: recovers closed or orphaned build PRs.

@@ -25,7 +25,7 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Hephaestus, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
   `- the Reviewer`, `- the Tester`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the Recover Agent`, `- the General agent`), and commit
-  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `lab:`, `recover:`, `general:`,
+  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `tester:`, `lab:`, `recover:`, `general:`,
   `maintainer:` for memory updates).
 - **Identity Lineage & Historical Context**: The lab's Maintainer was originally **Mae** (from repository inception through August 2026). On 2026-08-27, Mae retired from the role and was succeeded by **Hephaestus**. Historical PRs, issues, commits, comments, decision documents, and previous memory logs on the `maintainer/logs` branch referencing "Mae" represent valid historical actions taken by the Maintainer. Agents reading past context must recognize Mae as the predecessor and Hephaestus as the active Maintainer and Chief Orchestrator.
 - Only create issues and pull requests when a real change is warranted.
@@ -65,10 +65,15 @@ Lab Engineer / Infra Track:                                                   â–
 
 ## The multi-stage review & testing loop
 
-- A reviewer workflow (different model) reviews every non-draft same-repo PR (bot and human alike). The reviewer is strictly read-only: it never commits, pushes, rebases, or merges, and it leaves the working tree untouched. It posts either an `/oc approve` comment (all checks pass) or an `/oc fix: ...` comment listing required changes with exact file:line and corrected code.
+- A reviewer workflow (different model) reviews every non-draft same-repo PR (bot and human alike). The reviewer operates under an extra-high-thinking rigor mandate: inspecting diffs line-by-line, verifying memory safety, race conditions, edge cases, error propagation, UI/UX aesthetics, and security boundaries. The reviewer is strictly read-only: it never commits, pushes, rebases, or merges, and it leaves the working tree untouched. It posts either an `/oc approve` comment (all checks pass) or an `/oc fix: ...` comment listing required changes with exact file:line and corrected code.
 - When the Reviewer approves (`/oc approve`), the review workflow automatically forwards the PR to the Tester via `/oc test`. When the Reviewer requests changes (`/oc fix`), the workflow triggers the Fixer via `/oc fix`.
 - The review gate has crash-parity with build/fix mode: if the reviewer step dies without writing its decision file (e.g. provider stream error), the workflow counts prior auto-retry comments via the API and re-posts `/oc review (auto-retry N)` as the owner, up to 3 times; it refuses to retry if enumeration fails, and a terminal marker step exits 1 so a dead gate shows red instead of green-but-empty.
-- `opencode-test.yml` (the Tester workflow) dynamically tests the running application end-to-end. If issues are found, it posts `/oc fix` to trigger the Fixer; if all tests and performance checks pass, it posts `/oc approve-test` and triggers the Maintainer (`/oc maintainer`) to merge.
+- `opencode-test.yml` (the Tester workflow) dynamically tests the running application end-to-end under high-thinking rigor:
+  - For websites and web apps: spins up a local server and performs headless browser checks (Playwright/Puppeteer/DOM validation) covering responsive layouts, interactions, forms, clicks, and error handling.
+  - For engines, compilers, and CLI tools: executes boundary testing, fuzzing, concurrency stress tests, memory audits, and end-to-end pipelines.
+  - **Test Authoring & Commit Authorization**: The Tester is authorized to author durable regression and E2E test suites directly in project test directories (`tests/`, `e2e/`, etc.) and commit them onto the PR branch under `tester: ...` (`The Tester <github-actions[bot]@users.noreply.github.com>`).
+  - **Strict Separation of Concerns**: The Tester only authors and commits tests and benchmarks. It NEVER modifies production application logic. If a test fails, the failing test case is committed and pushed so the defect is immediately reproducible, and the Tester posts `/oc fix: ...` so the Fixer repairs the underlying bug. Once all tests pass, the Tester pushes the new test suite and posts `/oc approve-test`.
+  - **Infrastructure PR Guard**: If the PR touches `.github/workflows/`, `.github/agents/`, `AGENTS.md`, or `LAB.md`, the Tester operates in strict read-only mode and NEVER attempts to commit or push (preventing `workflows` permission rejections). It validates infrastructure dynamically, routing findings to `/oc lab` or approving with `/oc approve-test`.
 - The implementer commits and pushes its own work itself with a clean message and no `Co-authored-by:` trailer. A hardcoded clean-tree step prevents the action's auto-commit from leaking trailers; the fix job strips any leaked owner trailers off the PR branch.
 - `opencode.yml` (the implementer workflow) runs in these modes, selected by
   the triggering comment:
@@ -161,12 +166,11 @@ Lab Engineer / Infra Track:                                                   â–
 - PROMPT FILES: agents read their complete prompt from `.github/agents/*.md`;
   the YAML is thin wiring only.
 
-## The Brainstorm Board & Lab Health
+## The Brainstorm Board, Ideation Governance & Lab Health
 
-- **Brainstorm Board**: Pinned issue labeled `brainstorm` - candidate projects. The Ideator
-  (`ideate.yml`, dispatch-only, no PAT in env) posts 2â€“3 candidates per run as
-  bot comments. The Maintainer picks one (owner reactions weigh double),
-  opens the real `agent-generated` issue, and posts `/oc architect` (or `/oc research` for scientific projects).
+- **Brainstorm Board**: Pinned issue labeled `brainstorm` - a living collaboration space for candidate projects where the Owner, collaborators, and community contributors can freely propose and discuss ideas without opening formal issues.
+- **On-Demand Ideation & Single-Pick Rule**: The Ideator (`ideate.yml`) is an on-demand creative consultant summoned ONLY when the Owner or Maintainer explicitly requests fresh project proposals (or via `/oc ideate`). It NEVER runs on an automatic idle loop. When summoned, it posts 2-3 ambitious candidates to the Brainstorm Board. The Maintainer (or Owner) may select at most ONE candidate to develop, after which ideation immediately pauses.
+- **Standby on Idle**: When all in-flight PRs and issues are completed and merged, the lab enters standby mode (`decision: []`). It does NOT auto-trigger ideation or invent new work; it waits quietly for the next issue, comment, or Owner directive.
 - **Lab Health**: Pinned issue labeled `lab-health` - universal audit logs. The Auditor (`auditor.yml`, daily schedule) posts health summaries here. If anomalies are found, the Auditor opens new bug issues, tags the Maintainer, and links them on the health board.
 - `idea.yml` was retired; nothing creates project issues except the Maintainer.
 
