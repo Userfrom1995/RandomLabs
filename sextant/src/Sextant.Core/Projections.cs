@@ -138,7 +138,7 @@ public sealed class AlbersProjection : IProjection
 /// <summary>
 /// Pure point re-projection between two projections. App keeps WGS84 source of
 /// truth and caches projected vertices per projection id (one LRU generation).
-/// QGeom-overload arrives with the tile pipeline (Phase 2).
+/// <see cref="Reprojector.ReprojectTo"/> carries whole tile inputs across.
 /// </summary>
 public static class Reprojector
 {
@@ -157,5 +157,58 @@ public static class Reprojector
         var inv = src.Inverse(x, y);
         if (!inv.Valid) return new ProjectionResult(double.NaN, double.NaN, false);
         return dst.Forward(inv.Lon, inv.Lat);
+    }
+
+    /// <summary>
+    /// Re-project a WGS84 tile input into the destination projection (the
+    /// Phase 5 Albers view path: WGS84 stays the source of truth, projected
+    /// vertices are per-projection cache generations). Points that fall
+    /// outside the destination domain are dropped; a feature left with no
+    /// valid geometry returns null.
+    /// </summary>
+    public static TileInput? ReprojectTo(TileInput input, IProjection dst)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(dst);
+        return input switch
+        {
+            PointInput pt => ProjectPoint(pt, pt.Point, dst) is { } q
+                ? new PointInput(pt.Layer, q) : null,
+            PolylineInput pl => ProjectLine(pl, pl.Points, dst) is { } q && q.Count >= 2
+                ? new PolylineInput(pl.Layer, q) : null,
+            PolygonInput pg => ProjectPolygon(pg, dst) is { } q && q.Count > 0
+                ? new PolygonInput(pg.Layer, q) : null,
+            _ => throw new ArgumentOutOfRangeException(nameof(input)),
+        };
+    }
+
+    private static GeoPoint? ProjectPoint(TileInput input, GeoPoint p, IProjection dst)
+    {
+        _ = input;
+        var r = dst.Forward(p.Lon, p.Lat);
+        // Projected meters ride in the GeoPoint fields so the tile pipeline
+        // shape stays uniform; the caller renders them as planar meters.
+        return r.Valid ? new GeoPoint(r.X, r.Y) : null;
+    }
+
+    private static List<GeoPoint>? ProjectLine(TileInput input, IReadOnlyList<GeoPoint> line, IProjection dst)
+    {
+        var output = new List<GeoPoint>(line.Count);
+        foreach (var p in line)
+            if (ProjectPoint(input, p, dst) is { } q)
+                output.Add(q);
+        return output;
+    }
+
+    private static List<IReadOnlyList<GeoPoint>>? ProjectPolygon(PolygonInput pg, IProjection dst)
+    {
+        var rings = new List<IReadOnlyList<GeoPoint>>(pg.Rings.Count);
+        foreach (var ring in pg.Rings)
+        {
+            var projected = ProjectLine(pg, ring, dst);
+            if (projected is not null && projected.Count >= 3)
+                rings.Add(projected);
+        }
+        return rings;
     }
 }
