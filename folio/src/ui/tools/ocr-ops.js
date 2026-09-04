@@ -71,14 +71,18 @@ export async function ensureOcrPack(onProgress, signal) {
 }
 
 export function ocrUrls() {
-  const base = OCR_PACK_MANIFEST.replace("pack.json", "");
-  return { workerPath: base + "worker.min.js", corePath: base + "tesseract-core-lstm.wasm.js", langPath: base + "lang", esm: base + "tesseract.esm.min.js" };
+  // Absolute URLs anchored at this module: the worker internally resolves
+  // corePath against the worker script URL, so page-relative paths would
+  // double up (…/ocr/packs/ocr/…) and 404. import.meta keeps this correct
+  // under any hosting base path.
+  const abs = (p) => new URL(p, import.meta.url).href;
+  return { workerPath: abs("../../../packs/ocr/worker.min.js"), corePath: abs("../../../packs/ocr/tesseract-core-lstm.wasm.js"), langPath: abs("../../../packs/ocr/lang"), esm: abs("../../../packs/ocr/tesseract.esm.min.js") };
 }
 
 // Boot a Tesseract worker against the vendored same-origin pack.
 export async function bootOcrWorker(onLog) {
   const u = ocrUrls();
-  const T = (await import("../../../packs/ocr/tesseract.esm.min.js")).default;
+  const T = (await import(u.esm)).default;
   const worker = await T.createWorker("eng", T.OEM.LSTM, {
     workerPath: u.workerPath,
     corePath: u.corePath,
