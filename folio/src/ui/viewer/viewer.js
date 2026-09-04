@@ -9,7 +9,7 @@ let pageNum = 1;
 let textCache = new Map();
 
 export async function initViewer(workerSrc) {
-  pdfjs = await import("../../vendor/pdf.mjs");
+  pdfjs = await import("../../../vendor/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = workerSrc || "vendor/pdf.worker.mjs";
   return !!pdfjs;
 }

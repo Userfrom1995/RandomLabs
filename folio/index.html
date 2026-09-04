@@ -7,6 +7,7 @@
 <title>Folio - client-side PDF studio</title>
 <meta name="description" content="Folio: merge, split, compress, annotate, convert and chain PDF tools entirely in your browser. No uploads, works offline." />
 <link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="data:," />
 <meta name="theme-color" content="#0b0e14" />
 <style>
 :root{--folio-bg:#0b0e14;--folio-surface:#141822;--folio-panel:#1a2030;--folio-border:#263042;--folio-ink:#d7dce8;--folio-muted:#8a93a8;--folio-accent:#4fc1a0;--folio-accent2:#7aa2f7;--folio-danger:#e05656}
@@ -35,9 +36,16 @@ textarea{width:100%;min-height:90px}
 #dropzone{border:1.5px dashed var(--folio-border);border-radius:10px;padding:18px;text-align:center;color:var(--folio-muted);margin-bottom:10px}
 #dropzone.over{border-color:var(--folio-accent);color:var(--folio-accent)}
 #pagecanvas{max-width:100%;border:1px solid var(--folio-border);border-radius:8px;background:#fff}
-#pagestrip{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.thumb{min-width:34px}
-.thumb.active{border-color:var(--folio-accent)}
+#pagegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-top:10px}
+.pcard{background:#0f172a;border:2px solid var(--folio-border);border-radius:8px;padding:6px;margin:0;text-align:center;cursor:pointer;user-select:none}
+.pcard img{width:100%;height:auto;display:block;border-radius:4px;background:#fff;pointer-events:none}
+.pcard figcaption{font-size:0.75rem;color:var(--folio-muted);margin-top:4px;pointer-events:none}
+.pcard.selected{border-color:var(--folio-accent)}
+.pcard.selected figcaption{color:var(--folio-accent)}
+.pcard.dragover{border-color:var(--folio-accent2);border-style:dashed}
+.pcard.dragging{opacity:0.45}
+.pcard:focus-visible{outline:2px solid var(--folio-accent);outline-offset:2px}
+#gridtools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
 .op{display:inline-block;background:#0f172a;border:1px solid var(--folio-accent);border-radius:999px;padding:2px 10px;margin:2px;font-size:0.78rem}
 .muted{color:var(--folio-muted);font-size:0.85rem}
 .badge{color:var(--folio-accent);font-size:0.8rem}
@@ -46,7 +54,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 :focus-visible{outline:2px solid var(--folio-accent);outline-offset:2px}
 @media(max-width:980px){.layout{grid-template-columns:1fr}aside{order:2}.panel-right{order:3;border-left:none;border-top:1px solid var(--folio-border)}}
-@media print{aside,.panel-right,nav,#pagestrip,.route .row,footer.status{display:none!important}main{overflow:visible}#pagecanvas{max-width:100%;border:none}}
+@media print{aside,.panel-right,nav,#pagegrid,#gridtools,.route .row,footer.status{display:none!important}main{overflow:visible}#pagecanvas{max-width:100%;border:none}}
 </style>
 </head>
 <body>
@@ -72,7 +80,7 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><button id="undobtn">Undo</button><button id="redobtn">Redo</button><button id="exportbtn">Export</button></div>
 </div>
 <nav aria-label="Tools">
-<a href="#/pages">Pages</a><a href="#/compress">Compress</a><a href="#/security">Security</a><a href="#/annotate">Annotate</a><a href="#/edit">Edit</a><a href="#/images">Images</a><a href="#/forms">Forms</a><a href="#/ocr">OCR</a><a href="#/convert">Convert</a><a href="#/workflow">Workflow</a>
+<a href="#/pages">Pages</a><a href="#/compress">Compress</a><a href="#/security">Security</a><a href="#/annotate">Annotate</a><a href="#/edit">Edit</a><a href="#/images">Images</a><a href="#/forms">Forms</a><a href="#/convert">Convert</a><a href="#/workflow">Workflow</a>
 </nav>
 </aside>
 <main>
@@ -84,7 +92,15 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 </div>
 <div class="muted" id="searchhits"></div>
 <canvas id="pagecanvas" width="600" height="800" aria-label="PDF page preview"></canvas>
-<div id="pagestrip" aria-label="Page thumbnails"></div>
+<div class="card" style="margin-top:10px" aria-label="Page organizer">
+<h3>Page grid <span class="muted" id="gridcount"></span></h3>
+<p class="muted" style="margin:0 0 6px">Drag a thumbnail to reorder pages. Click to preview. Keyboard: arrows move, Ctrl+arrows reorder, Delete removes.</p>
+<div id="gridtools" role="toolbar" aria-label="Selected page tools">
+<button id="g-rot">Rotate selected 90</button><button id="g-dup">Duplicate selected</button><button id="g-left">Move left</button><button id="g-right">Move right</button><button id="g-del">Delete selected</button>
+</div>
+<div id="pagegrid" role="listbox" aria-label="Page thumbnails" tabindex="0"></div>
+<div class="muted" id="gridnote"></div>
+</div>
 </div>
 
 <section class="route" id="route-pages"><div class="card"><h3>Merge / split / organize (P1-P3, P6-P9, P19)</h3>
@@ -110,32 +126,17 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="row"><select id="cprofile"><option value="low">low (150dpi/q0.7)</option><option value="medium" selected>medium (110dpi/q0.55)</option><option value="high">high (80dpi/q0.4)</option><option value="extreme">extreme (55dpi/q0.25)</option></select><button id="t-compress">Profile-gated compress</button></div>
 <p class="muted">Rasterize applies only to image-dominant pages (ink-vs-image coverage gate); text pages always take the lossless path so they stay searchable. Image-page raster needs the browser canvas path; without it those pages defer (reported, never silently rasterized).</p>
 <div class="muted" id="compressreport">No compression run yet.</div>
-<div class="row"><button id="t-gc">Remove unused objects</button><button id="t-gray">Grayscale intent</button></div>
-<div class="row"><select id="down-dpi"><option value="72">72 DPI</option><option value="110">110 DPI</option><option value="150" selected>150 DPI</option><option value="200">200 DPI</option><option value="300">300 DPI</option></select><button id="t-downsample">Downsample spec</button><select id="pdfa-level"><option>PDF/A-1b</option><option selected>PDF/A-2b</option><option>PDF/A-3b</option></select><button id="t-pdfa">Convert to PDF/A subset</button></div>
-<div class="row"><button id="t-linearize">Fast-web-view note</button></div>
+<div class="row"><button id="t-gc">Remove unused objects</button></div>
 <div class="muted" id="compress-extra-report"></div>
 </div></section>
 
-<section class="route" id="route-security"><div class="card"><h3>Security (S1-S4, S6-S9)</h3>
+<section class="route" id="route-security"><div class="card"><h3>Security (scrub + inspect + signature stamp)</h3>
 <div class="row"><button id="t-scrub">Metadata + JS scrub (real)</button><button id="t-jsinspect">Inspect JS / actions</button></div>
 <div class="muted" id="jsreport"></div>
-<div class="card"><h3>Password envelope (AES-256-GCM file envelope)</h3>
-<p class="muted">Envelope encryption, not native PDF passwords: encrypted files open only in Folio (decrypt here). Passwords are zeroed after use and never stored.</p>
-<div class="row"><input id="pw1" type="password" placeholder="Password" autocomplete="off" /><button id="t-encrypt">Add password</button><button id="t-decrypt">Unlock + open</button></div>
-<div class="row"><input id="pwnew" type="password" placeholder="New password" autocomplete="off" /><button id="t-rekey">Change password</button></div>
-<div class="row"><label><input type="checkbox" id="pm-print" checked /> print</label><label><input type="checkbox" id="pm-modify" /> modify</label><label><input type="checkbox" id="pm-copy" checked /> copy</label><label><input type="checkbox" id="pm-annotate" /> annotate</label></div>
-<div class="muted" id="pwreport"></div>
-</div>
-<div class="card"><h3>Signature (S6 stamp; S7/S8 certificate scope)</h3>
-<div class="row"><input id="signtext" placeholder="Signature, e.g. Ada Lovelace" style="flex:1;min-width:140px" /><button id="t-sign">Signature stamp</button><button id="t-certsig">Certificate-sign placeholder</button><button id="t-certvalidate">Validate signature</button></div>
-<div class="muted">Certificate signing stays appearance-only in v1 (no PKI vendor): the placeholder reserves the ByteRange; validation recomputes the digest (INTEGRITY) and reports chain trust separately.</div>
+<div class="card"><h3>Signature stamp</h3>
+<div class="row"><input id="signtext" placeholder="Signature, e.g. Ada Lovelace" style="flex:1;min-width:140px" /><button id="t-sign">Signature stamp</button></div>
+<div class="muted">A visible drawn signature on the current page. Not a cryptographic signature: there is no PKI vendor in this build, so Folio offers no certify/validate buttons.</div>
 <div class="muted" id="signreport"></div>
-</div>
-<div class="card"><h3>Burn-in redact (S5, true removal)</h3>
-<p class="muted">Paints an opaque box, then byte-scrubs the text from decoded content streams (WinAnsi literal + hex, precise per-word). Reports the acceptance gate: extraction-over-region empty AND output bytes clean.</p>
-<div class="row"><input id="rdpage" type="number" value="1" style="width:64px" title="Page (1-based)" /><input id="rdx" type="number" value="50" style="width:70px" title="x (pt, from left)" /><input id="rdy" type="number" value="700" style="width:70px" title="y (pt, from bottom)" /><input id="rdw" type="number" value="200" style="width:70px" title="width" /><input id="rdh" type="number" value="30" style="width:70px" title="height" /></div>
-<div class="row"><input id="rdextra" placeholder="Extra strings to scrub (comma separated)" style="flex:1;min-width:140px" /><button id="t-redact">Burn-in redact</button></div>
-<div class="muted" id="redactreport"></div>
 </div>
 </div></section>
 
@@ -162,16 +163,11 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="muted" id="annotreport"></div>
 </div></section>
 
-<section class="route" id="route-edit"><div class="card"><h3>Edit (E6-E7, E17, N-up/booklet/overlay, compare)</h3>
+<section class="route" id="route-edit"><div class="card"><h3>Edit (impose, overlay, compare)</h3>
 <div class="row"><input id="mdtitle" placeholder="Title" /><input id="mdauthor" placeholder="Author" /><button id="t-metadata">Set metadata</button></div>
-<div class="row"><input id="frquery" placeholder="Find" style="flex:1;min-width:100px" /><input id="frrepl" placeholder="Replace with" style="flex:1;min-width:100px" /><button id="t-findreplace">Find + replace (whole file)</button></div>
-<div class="row"><input id="pematch" placeholder="Line contains..." style="flex:1;min-width:100px" /><input id="penew" placeholder="New text" style="flex:1;min-width:100px" /><button id="t-pedit">Paragraph edit (current page)</button></div>
 <div class="row"><select id="nupn"><option value="2">2-up</option><option value="4">4-up</option><option value="6">6-up</option><option value="8">8-up</option></select><button id="t-nup">N-up imposition</button><button id="t-booklet">Booklet</button><button id="t-overlay">Overlay B onto A</button></div>
 <div class="row"><button id="t-compare">Compare A vs B (word-diff report)</button><span class="muted">B is the second PDF in the sidebar.</span></div>
 <div class="row"><button id="t-flattenall">Flatten all (forms + annotations)</button><button id="t-print">Print (booklet-ready)</button></div>
-<div class="card"><h3>Attachments (E16: registry + OPFS sidecar)</h3>
-<div class="row"><input type="file" id="attach-pick" /><button id="t-attach">Attach file</button><button id="t-attachlist">List attachments</button></div>
-<div class="row"><input id="attach-name" placeholder="Name to extract/delete" style="flex:1;min-width:120px" /><button id="t-attachextract">Extract</button><button id="t-attachdel">Delete</button></div></div>
 <div class="card"><h3>Auto-rename (E19)</h3>
 <div class="row"><input id="rename-pattern" value="{name}-{index}p" style="flex:1;min-width:120px" /><button id="t-rename">Rename A+B exports</button></div></div>
 <div class="muted" id="editreport"></div>
@@ -196,30 +192,14 @@ footer.status{border-top:1px solid var(--folio-border);padding:8px 16px;color:va
 <div class="muted" id="formreport"></div>
 </div></section>
 
-<section class="route" id="route-ocr"><div class="card"><h3>OCR to searchable layer (C1, C3)</h3>
-<div id="ocr-consent"></div>
-<p class="muted">Scanned pages detected via zero text items route here. The Tesseract LSTM engine loads as a consent-gated same-origin pack (progress/cancel/per-page retry). Below: bake a recognized-word list (hOCR words or pack output) as a true rendering-mode-3 invisible text layer.</p>
-<div class="row"><button id="t-ocrscan">Detect scanned pages</button></div>
-<textarea id="ocrwords" placeholder='Recognized words as JSON: [{"page":1,"words":[{"text":"hello","x":56,"y":100,"size":12}]}] - x/y in PDF points from TOP-LEFT'></textarea>
-<div class="row"><button id="t-ocrlayer">Bake invisible text layer</button></div>
-<div class="row"><input id="deskew-angle" type="number" value="0" step="0.5" style="width:90px" title="Skew angle in degrees" /><button id="t-deskew">Deskew pre-pass check (C2)</button></div>
-<div class="muted" id="ocrreport"></div>
-</div></section>
-
-<section class="route" id="route-convert"><div class="card"><h3>Convert (V1-V4, V5-V11)</h3>
-<div id="office-consent"></div>
-<div class="card"><h3>Office to PDF (V3 pack / V4 basic)</h3>
-<div class="row"><input type="file" id="officepick" accept=".docx,.xlsx,.pptx" /><button id="t-office2pdf">Office to PDF</button></div>
-<div class="muted" id="officebanner"></div>
-<div class="muted" id="officereport"></div></div>
+<section class="route" id="route-convert"><div class="card"><h3>Convert (PDF in and out)</h3>
 <div class="row"><button id="t-pdf2text">PDF to text</button><button id="t-pdf2md">PDF to Markdown</button><button id="t-pdf2html">PDF to HTML</button></div>
-<div class="row"><button id="t-pdf2docx">PDF to Word (.docx)</button><button id="t-pdf2xlsx">PDF tables to Excel (.xlsx)</button><button id="t-pdf2pptx">PDF to slides (.pptx)</button><button id="t-pdf2csv">PDF tables to CSV</button></div>
 <div class="row"><input id="mdtitle2" placeholder="Note title" /></div>
 <textarea id="mdtext" placeholder="Write text or markdown, then export to PDF"></textarea>
 <div class="row"><button id="t-text2pdf">Text to PDF</button></div>
-<div class="card"><h3>CSV to PDF table (V2) / URL to PDF (V11)</h3>
+<div class="card"><h3>CSV to PDF table</h3>
 <textarea id="csvtext" placeholder="Paste CSV rows, e.g.&#10;name,qty&#10;widget,3"></textarea>
-<div class="row"><button id="t-csv2pdf">CSV to PDF</button><input id="urltext" placeholder="https://same-origin/page" style="flex:1;min-width:140px" /><button id="t-url2pdf">URL import spec</button></div>
+<div class="row"><button id="t-csv2pdf">CSV to PDF</button></div>
 <div class="muted" id="convertreport"></div>
 </div></section>
 
