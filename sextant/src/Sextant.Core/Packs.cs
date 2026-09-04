@@ -24,6 +24,9 @@ public static class PackLayers
 /// Pack manifest: version + seed + center + per-layer feature counts.
 /// Serialized with fixed property order, `\n` newlines, UTF-8 no BOM, so the
 /// same inputs always produce the same bytes (determinism gate, Phase 2).
+/// GraphNodes/GraphEdges are present when the packer also emitted the
+/// routable graph (graph.bin + graph.geojson, Phase 4); older manifests
+/// without them still parse (null = no graph asset).
 /// </summary>
 public sealed record PackManifest(
     string Version,
@@ -31,7 +34,9 @@ public sealed record PackManifest(
     double CenterLon,
     double CenterLat,
     Dictionary<string, int> FeatureCounts,
-    string Source)
+    string Source,
+    int? GraphNodes = null,
+    int? GraphEdges = null)
 {
     public const string CurrentVersion = "sextant-pack/1";
 

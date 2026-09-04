@@ -10,5 +10,7 @@
     "landuse": 2,
     "pois": 12
   },
-  "Source": "synthetic-v1"
+  "Source": "synthetic-v1",
+  "GraphNodes": 5665,
+  "GraphEdges": 18658
 }
