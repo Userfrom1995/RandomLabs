@@ -1,10 +1,10 @@
 # Progress: Folio (fully client-side PDF studio) - Milestone Epic
 
 - **Issue:** #277
-- **Branch (M1):** opencode/issue277-20260904120709
+- **Branch (M2):** opencode/issue277-folio-m2
 - **Status:** in-progress
-- **Active Milestone:** M1 (Complete, ready for review)
-- **Updated:** 2026-09-04T00:00:00Z
+- **Active Milestone:** M2 (Native AcroForms & Vector Markup, in build)
+- **Updated:** 2026-09-04T12:55:00Z
 
 ## Milestone roadmap (Autonomous Milestone Epic Protocol, owner directive 2026-09-04)
 
@@ -21,9 +21,12 @@
     previews (click/drag/keyboard/touch-button, true undo).
   - Dynamic verification: Playwright interaction + screenshots
     (desktop 1280 + mobile 390), zero JS errors.
-- [ ] **M2: Native AcroForms & Vector Markup (next PR, Refs #277)**
-  - Native form fill + flatten (text, checkbox, radio via pdf-lib Form APIs).
-  - Native vector annotation layer (freehand ink, highlight, underline, rects).
+- [ ] **M2: Native AcroForms & Vector Markup (this PR, Refs #277)**
+  - [ ] Ink strokes as real `/Ink` annotation objects (InkList + bbox + RDP).
+  - [ ] Square/Circle/Line as real annotation objects (not content-burned).
+  - [ ] Quad-aware bake v2 (Highlight/Underline/StrikeOut/Ink/Square/Circle/Line).
+  - [ ] Forms roundtrip hardening: create/fill/flatten all 5 kinds, pdf.js verify.
+  - [ ] UI: ink/shape place annots, bake-all button, subtype delete filter.
 - [ ] **M3: Client-Side WASM OCR & Converters (later PR, Refs #277)**
   - Vendored Tesseract WASM with real language models (same-origin pack,
     consent-gated, Cache/OPFS cached).
@@ -40,10 +43,12 @@
 
 ## Current step
 
-M1 complete on this branch: `folio/` boots in a real browser (first time:
-the viewer pdf.mjs import was broken on main), every visible control runs
-a real engine op, grid interactions commit through reorderPages with
-byte-restore undo. Ready for Reviewer (anti-facade) + Tester (adversarial).
+M1 merged to main (PR #288). M2 build started on `opencode/issue277-folio-m2`:
+vector annotation layer (Ink/Square/Circle/Line as real annot objects +
+quad-aware bake) and forms roundtrip hardening. Survey done: form
+fill/create/flatten executors exist and look real; ink/shapes currently
+burn straight into content (no annot layer); bakeMarkup covers only text
+markup via Rect (ignores QuadPoints); simplifyInk is wired only in app.js.
 
 ## Next steps
 
