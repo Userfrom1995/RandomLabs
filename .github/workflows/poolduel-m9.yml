@@ -179,6 +179,12 @@ jobs:
           ldconfig -p | grep -E 'libpgagroal|libpq' || true
 
       - name: Set up Elixir/OTP and Rust (Supavisor build toolchain)
+        # Warn-only by design: Supavisor is the new contender, so a
+        # toolchain flake must record honest per-arm Supavisor errors
+        # instead of killing all 103 chunks (run 34775215643 failed 103/103
+        # inside setup-beam at `mix local.rebar` with a builds.hex.pm TLS
+        # `unsupported_certificate` alert; every downstream step skipped).
+        continue-on-error: true
         uses: erlef/setup-beam@v1
         with:
           # Pinned toolchain satisfying supavisor mix.exs (elixir ~> 1.14):
@@ -186,8 +192,19 @@ jobs:
           # rustler) comes from rustup below, not from setup-beam.
           elixir-version: "1.17.3"
           otp-version: "27.1"
+          # Do NOT fetch hex/rebar inside the action: that fetch is what
+          # failed with the TLS alert above. The Build Supavisor step
+          # installs them manually with retries instead.
+          install-hex: false
+          install-rebar: false
 
       - name: Build Supavisor (pinned v2.9.13, SHA recorded)
+        # Warn-only by design (see setup-beam note above): any Supavisor-only
+        # failure writes a BLOCKED marker sha and exits 0 so incumbents
+        # still measure; Supavisor arms then error loudly per-cell via the
+        # shared runner healthcheck. Never kills the chunk.
+        if: always()
+        continue-on-error: true
         run: |
           set -eux
           # Pinned per poolduel/docs/versions.md + harness/supavisor.py
@@ -203,8 +220,38 @@ jobs:
               sh -s -- -y --profile minimal
           fi
           export PATH="$HOME/.cargo/bin:$HOME/.mix:$PATH"
-          mix local.hex --force
-          mix local.rebar --force
+          # If setup-beam flaked, mix is absent: record BLOCKED and exit 0
+          # (warn-only) so incumbents still measure.
+          if ! command -v mix >/dev/null 2>&1; then
+            echo "poolduel: mix missing (setup-beam flaked), Supavisor BLOCKED this chunk" >&2
+            mkdir -p /tmp/poolers
+            echo "BLOCKED: no elixir toolchain" > /tmp/poolers/supavisor.sha
+            exit 0
+          fi
+          # Manual hex/rebar install with retries (the builds.hex.pm TLS
+          # flake from run 34775215643 must not kill incumbents).
+          attempt=1
+          until mix local.hex --force; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "poolduel: mix local.hex failed, Supavisor BLOCKED this chunk" >&2
+              mkdir -p /tmp/poolers
+              echo "BLOCKED: hex install failed" > /tmp/poolers/supavisor.sha
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 15
+          done
+          attempt=1
+          until mix local.rebar --force; do
+            if [ "$attempt" -ge 3 ]; then
+              echo "poolduel: mix local.rebar failed, Supavisor BLOCKED this chunk" >&2
+              mkdir -p /tmp/poolers
+              echo "BLOCKED: rebar install failed" > /tmp/poolers/supavisor.sha
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 15
+          done
           mkdir -p /tmp/poolers
           cd /tmp/poolers
           rm -rf supavisor-2.9.13
@@ -213,8 +260,19 @@ jobs:
           cd supavisor-2.9.13
           git rev-parse HEAD | tee /tmp/poolers/supavisor.sha
           test -s /tmp/poolers/supavisor.sha
-          MIX_ENV=prod mix deps.get --only prod
-          MIX_ENV=prod mix release
+          # Release build itself is warn-only: on failure record BLOCKED
+          # beside the real SHA attempt and exit 0 (incumbents still
+          # measure; Supavisor arms error loudly per-cell).
+          if ! MIX_ENV=prod mix deps.get --only prod; then
+            echo "poolduel: supavisor deps.get failed, Supavisor BLOCKED this chunk" >&2
+            echo "BLOCKED: deps.get failed" >> /tmp/poolers/supavisor.sha
+            exit 0
+          fi
+          if ! MIX_ENV=prod mix release; then
+            echo "poolduel: supavisor release failed, Supavisor BLOCKED this chunk" >&2
+            echo "BLOCKED: release failed" >> /tmp/poolers/supavisor.sha
+            exit 0
+          fi
           # Install the release binary on PATH as `supavisor` (the name the
           # harness adapter execs). The release boots with `supavisor start`
           # per development/installation/; the adapter wraps that exact call
@@ -225,6 +283,8 @@ jobs:
           elixir --version
 
       - name: Verify pooler binaries
+        # Must run even when Supavisor toolchain flaked (warn-only there).
+        if: always()
         run: |
           set -eux
           export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$HOME/.cargo/bin:$HOME/.mix:$PATH"
@@ -254,6 +314,8 @@ jobs:
           cat /tmp/poolers/supavisor.sha
 
       - name: Init dataset and checkpoint (scale-aware)
+        # Must run even when Supavisor toolchain flaked.
+        if: always()
         run: |
           set -eux
           export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$PATH"
@@ -271,6 +333,10 @@ jobs:
           PGPASSWORD=benchpass psql -h 127.0.0.1 -U benchuser -d benchdb -c "VACUUM (ANALYZE);"
 
       - name: Provision Supavisor metadata + tenant (static smoke gate)
+        # Warn-only by design: a Supavisor-only provision failure must not
+        # kill incumbent measurement (same doctrine as the build steps).
+        if: always()
+        continue-on-error: true
         run: |
           set -eux
           # Renders the provisioning bundle with the real adapter setup()
@@ -289,11 +355,14 @@ jobs:
             --out "$(pwd)/poolduel/results/m9-${{ matrix.chunk }}"
 
       - name: Preflight check
+        # Must run even when Supavisor steps flaked.
+        if: always()
         run: |
           python3 poolduel/harness/check.py
 
       - name: Run M9 chunk
-        if: ${{ inputs.chunk == '' || inputs.chunk == matrix.chunk }}
+        # Must run even when Supavisor steps flaked; chunk filter preserved.
+        if: ${{ always() && (inputs.chunk == '' || inputs.chunk == matrix.chunk) }}
         env:
           PGPASSWORD: benchpass
         run: |
