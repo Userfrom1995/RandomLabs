@@ -6,7 +6,7 @@ bootstrap CIs, Holm correction). Six blocks, all as DATA plus pure
 functions; no procedure branches live here:
 
 - R block: scale-10 resweep of the 7 M1 geometries (flagship n=10,
-  standard n=7) on all 8 arms (direct + 5 incumbents + Supavisor).
+  standard n=7) on all 7 arms (direct + 5 incumbents + Supavisor).
   Same cell IDs as M1 (M1-1..M1-7); raw lands in poolduel/results/m9/
   so nothing mixes with the M1/M2 medians, and every record carries
   its seed + repeat for provenance.
@@ -25,7 +25,7 @@ functions; no procedure branches live here:
   measure, 3 paired repeats, direct arm) on M1-1 geometry.
 - E block: M9-E1 equalized-auth churn control (G-CHURN100 geometry,
   SCRAM on every frontend via the ``auth_mode=equalized`` variant,
-  all 8 arms, n=7) beside the labeled asymmetric arms.
+   all 7 arms, n=7) beside the labeled asymmetric arms.
 
 Paired seeds: the seed schedule is a pure function of the repeat
 index only, never of the arm, so every arm runs repeat r on the
@@ -33,13 +33,16 @@ identical seed (pairing cancels exogenous noise in M10). Three base
 seeds cycle with a stride coprime to their spread, giving distinct
 seeds for every repeat (proven in tests, not asserted).
 
-Chunking: every chunk fits under the 60 min cap (budget estimator
-below); per-chunk direct control holds everywhere a comparison is
-drawn. Scale-100 init cost (pgbench -i -s 100, ~1.5 GB) is per-chunk
-workflow time, priced beside the matrix in m9_total_budget().
+Chunking: every chunk fits under the 60 min cap in measured time
+(the budget estimator below covers warmup + measure + 30 s per run
+only); per-chunk direct control holds everywhere a comparison is
+drawn. Scale-100 init cost (pgbench -i -s 100, ~1.5 GB),
+adapter/DB-restart, and provisioning time are per-chunk workflow
+wall clock outside the measured budget, priced beside the matrix
+in docs/m9-matrix.md.
 """
 
-from .cells import ARMS, M1_CELLS, check_ratio, get_cell
+from .cells import check_ratio, get_cell
 from .m2 import GEOMETRIES, M2_ROWS, M2_WARMUP_S, M2_DURATION_S
 
 # Powered repeats (plan section 5): flagship n>=10, standard n>=7.
@@ -52,7 +55,7 @@ M9_REPEATS_STANDARD = 7
 M9_SEEDS = (42, 1337, 9001)
 M9_SEED_STRIDE = 7919
 
-# All 8 M9 arms: the 6 M1 incumbents plus Supavisor (M7 onboarded,
+# All 7 M9 arms: the 6 M1 incumbents plus Supavisor (M7 onboarded,
 # smoke-gated before matrix entry).
 M9_ARMS = ["direct", "pgagroal", "pgbouncer", "pgpool", "odyssey",
            "pgcat", "supavisor"]
@@ -89,8 +92,10 @@ def m9_seed_for(repeat, base_seed=42):
         raise ValueError("m9_seed_for needs repeat >= 1, got %r"
                          % (repeat,))
     base = int(base_seed)
-    seeds = (base, base + 1295, base + 8959)
-    return seeds[(r - 1) % len(seeds)] + ((r - 1) // len(seeds)) * 7919
+    seeds = (base, base + (M9_SEEDS[1] - M9_SEEDS[0]),
+             base + (M9_SEEDS[2] - M9_SEEDS[0]))
+    return (seeds[(r - 1) % len(seeds)]
+            + ((r - 1) // len(seeds)) * M9_SEED_STRIDE)
 
 
 def m9_resweep_cell(cell_id):
@@ -104,9 +109,13 @@ def m9_resweep_cell(cell_id):
 
 def m9_c100_cell(index):
     """Scale-100 twin of M1-<index> (1-based): new ID, powered reps."""
+    cell_id = "M9-C%d" % index
+    if cell_id not in M9_C100_IDS:
+        raise KeyError("unknown M9 scale-100 twin %r (want one of %s)"
+                       % (index, sorted(M9_C100_IDS)))
     src = get_cell("M1-%d" % index)
     cell = dict(src)
-    cell["cell_id"] = "M9-C%d" % index
+    cell["cell_id"] = cell_id
     cell["scale"] = 100
     cell["repeats"] = m9_repeats(src)
     check_ratio(cell)
@@ -114,12 +123,33 @@ def m9_c100_cell(index):
 
 
 def m9_c100_cells():
-    return [m9_c100_cell(i) for i in range(1, 8)]
+    return [m9_c100_cell(i)
+            for i in range(1, len(M9_C100_IDS) + 1)]
 
 
 def m9_curve_cell(warmup_s):
-    """One warmup-curve point: M1-1 geometry, fixed 60 s measure."""
-    key = str(int(warmup_s))
+    """One warmup-curve point: M1-1 geometry, fixed 60 s measure.
+
+    The warmup must name a candidate exactly (int, integral float,
+    or exact key string); non-integral values such as 30.5 raise
+    KeyError instead of truncating onto a neighbouring candidate.
+    """
+    if isinstance(warmup_s, bool):
+        raise KeyError("unknown curve warmup %r (want one of %s)"
+                       % (warmup_s, sorted(M9_CURVE_IDS)))
+    if isinstance(warmup_s, int):
+        key = str(warmup_s)
+    elif isinstance(warmup_s, float):
+        if not warmup_s.is_integer():
+            raise KeyError(
+                "unknown curve warmup %r (want one of %s)"
+                % (warmup_s, sorted(M9_CURVE_IDS)))
+        key = str(int(warmup_s))
+    elif isinstance(warmup_s, str):
+        key = warmup_s.strip()
+    else:
+        raise KeyError("unknown curve warmup %r (want one of %s)"
+                       % (warmup_s, sorted(M9_CURVE_IDS)))
     if key not in M9_CURVE_IDS:
         raise KeyError("unknown curve warmup %r (want one of %s)"
                        % (warmup_s, sorted(M9_CURVE_IDS)))
@@ -238,8 +268,8 @@ def m9_supa_ids():
 
 
 # Chunk table: chunk -> list of (namespace, id, reps-or-None, arms).
-# Namespaces: m1 (M1 twin, all 8 arms), c100 (scale-100 twin, all 8),
-# e1 (equalized churn, all 8), k (curve point, direct only),
+# Namespaces: m1 (M1 twin, all 7 arms), c100 (scale-100 twin, all 7),
+# e1 (equalized churn, all 7), k (curve point, direct only),
 # m2 (M2 row: row arm + direct), supa (supavisor twin: supa + direct).
 # reps None means the registry default for that entry.
 def _rep_range(n):
@@ -262,9 +292,9 @@ def _build_chunks():
     def add(name, entries):
         chunks[name] = entries
 
-    # R block: M1-1/M1-2 flagship (8 arms x 10 reps x 3 min = 240 min
-    # each) in 5 shards of 2 reps (48 min); M1-3..M1-7 standard
-    # (8 x 7 x 2 = 112 min) in shards [1-3],[4,5],[6,7] (48/32/32).
+    # R block: M1-1/M1-2 flagship (7 arms x 10 reps x 3 min = 210 min
+    # each) in 5 shards of 2 reps (42 min); M1-3..M1-7 standard
+    # (7 x 7 x 2 = 98 min) in shards [1-3],[4,5],[6,7] (42/28/28).
     n = 1
     for cid in ("M1-1", "M1-2"):
         for shard in _split_reps(M9_REPEATS_FLAGSHIP, 5):
@@ -292,8 +322,8 @@ def _build_chunks():
             [("supa", uid, None, None) for uid in supaids[i:i + 2]])
         n += 1
 
-    # C block: scale-100 twins. C1/C2 flagship (8 x 10 x 3 = 240 min)
-    # in 5 shards of 2 reps; C3..C7 standard (8 x 7 x 2 = 112 min)
+    # C block: scale-100 twins. C1/C2 flagship (7 x 10 x 3 = 210 min)
+    # in 5 shards of 2 reps; C3..C7 standard (7 x 7 x 2 = 98 min)
     # in shards [1-3],[4,5],[6,7].
     n = 1
     for uid in ("M9-C1", "M9-C2"):
@@ -305,11 +335,11 @@ def _build_chunks():
             add("m9c%02d" % n, [("c100", uid, shard, None)])
             n += 1
 
-    # K block: warmup curve, 4 candidates x 3 reps direct (24 min).
+    # K block: warmup curve, 4 candidates x 3 reps direct (23 min).
     add("m9k01", [("k", M9_CURVE_IDS[w], None, ["direct"])
                   for w in ("0", "10", "30", "60")])
 
-    # E block: M9-E1 (8 arms x 7 reps x 2 = 112 min) in 3 shards.
+    # E block: M9-E1 (7 arms x 7 reps x 2 = 98 min) in 3 shards.
     n = 1
     for shard in ([1, 2, 3], [4, 5], [6, 7]):
         add("m9e%02d" % n, [("e1", M9_E1_ID, shard, None)])
@@ -367,12 +397,14 @@ def m9_entry_cells(entry):
         raise KeyError("unknown M9 curve entry %r" % (eid,))
     if ns == "supa":
         cell = m9_supa_cell(eid)
-        return cell, ["supavisor", "direct"], _rep_range(cell["repeats"])
+        return cell, ["supavisor", "direct"], (
+            list(reps) if reps else _rep_range(cell["repeats"]))
     if ns == "m2":
         from .m2 import m2_cell as _m2cell
         src = _m2cell(eid)
         src["repeats"] = M9_REPEATS_STANDARD
-        return src, [src["arm"], "direct"], _rep_range(src["repeats"])
+        return src, [src["arm"], "direct"], (
+            list(reps) if reps else _rep_range(src["repeats"]))
     raise KeyError("unknown M9 namespace %r" % (ns,))
 
 
@@ -459,7 +491,7 @@ def m9_total_budget():
 def m9_budget_table():
     """Published per-arm measured row counts (budget parity surfacing).
 
-    R/C/E/K cells run all 8 arms; W rows run their own arm + direct;
+    R/C/E/K cells run all 7 arms; W rows run their own arm + direct;
     U rows run supavisor + direct. Counts are arm-runs at matrix level
     (repeats folded in m9_total_budget, not here).
     """
