@@ -1,0 +1,41 @@
+{
+  "artifacts": {
+    "agglog": null,
+    "stdout": null,
+    "txnlog": null
+  },
+  "cell_id": "M9-U-T4",
+  "churn": false,
+  "clients": 50,
+  "duration_s": 60,
+  "exit_code": null,
+  "failed": 0,
+  "latency_avg_ms": null,
+  "latency_stddev_ms": null,
+  "p50_ms": null,
+  "p90_ms": null,
+  "p999_ms": null,
+  "p99_ms": null,
+  "pg_config": {
+    "fsync": "on",
+    "max_connections": 300,
+    "shared_buffers": "512MB",
+    "synchronous_commit": "on"
+  },
+  "pg_show": {},
+  "pg_version": "PG 17",
+  "pool_size": 10,
+  "pooler": "supavisor",
+  "pooler_config": "N/A: no statement pool_mode upstream (pool_modes doc); twin of M2-T4/odyssey",
+  "pooler_version": "v2.9.13",
+  "protocol": "simple",
+  "repeat": 1,
+  "scale": 10,
+  "seed": 42,
+  "skipped": 0,
+  "status": "N/A (unsupported)",
+  "threads": 4,
+  "tps": null,
+  "warmup_s": 30,
+  "workload": "tpcb-like"
+}

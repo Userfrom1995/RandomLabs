@@ -1,0 +1,65 @@
+{
+  "artifacts": {
+    "agglog": null,
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9e03/work-M9-E1-pgpool-r6/logs/cell-M9-E1-r6-31915.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9e03/work-M9-E1-pgpool-r6/logs/cell-M9-E1-r6-31915.stdout.txt"
+  },
+  "auth_posture": "scram-sha-256 on every frontend (M9-E1 equalized control)",
+  "cell_id": "M9-E1",
+  "churn": true,
+  "clients": 100,
+  "dataset": {
+    "init": "pgbench -i -s 10 per chunk",
+    "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+  },
+  "duration_s": 60,
+  "exit_code": 1,
+  "failed": 0,
+  "isolation": {
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "governor": "unknown",
+    "kernel": "6.17.0-1022-azure",
+    "nproc": 4,
+    "pgbench_j": 4,
+    "pinning": "none",
+    "threads": 4,
+    "topology": "x86_64/x86_64"
+  },
+  "latency_avg_ms": null,
+  "latency_stddev_ms": null,
+  "p50_ms": null,
+  "p90_ms": null,
+  "p999_ms": null,
+  "p99_ms": null,
+  "pg_config": {
+    "fsync": "on",
+    "max_connections": 300,
+    "shared_buffers": "512MB",
+    "synchronous_commit": "on"
+  },
+  "pg_config_divergence": [],
+  "pg_config_status": "unknown",
+  "pg_show": {},
+  "pg_version": "PG 17",
+  "pool_size": 10,
+  "pooler": "pgpool",
+  "pooler_config": "# pgpool-II M9-E1 equalized control (session-class, pool_hba scram-sha-256)\n# refs: runtime-config-connection-pooling.html, runtime-config-connection.html\nlisten_addresses = '127.0.0.1'\nport = 6434\nbackend_hostname0 = '127.0.0.1'\nbackend_port0 = 5432\nconnection_cache = on\nmax_pool = 1\nnum_init_children = 100\nreserved_connections = 0\nlisten_backlog_multiplier = 2\nserialize_accept = off\nchild_life_time = 300\nchild_max_connections = 0\nconnection_life_time = 0\nclient_idle_limit = 0\nreset_query_list = 'ABORT; DISCARD ALL'\nload_balance_mode = off\n# auth (docs ch.6 Client Authentication, CI-only): frontend\nenable_pool_hba = on\n# pool_hba.conf in this workdir carries the scram-sha-256 host entry (6.2.4.2).\n# effective backends (children x max_pool) = 100\n",
+  "pooler_version": "4.7.2",
+  "protocol": "simple",
+  "repeat": 6,
+  "resources": {
+    "cpu_time_s": 0.11765899999999999,
+    "fd_count": 6,
+    "peak_rss_kb": 15796,
+    "pg_stat": null,
+    "pool_wait": null
+  },
+  "scale": 10,
+  "seed": 16920,
+  "skipped": 0,
+  "status": "timeout/inconclusive",
+  "threads": 4,
+  "tps": null,
+  "warmup_s": 30,
+  "workload": "select-only"
+}

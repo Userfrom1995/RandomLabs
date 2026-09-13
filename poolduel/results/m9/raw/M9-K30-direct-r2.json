@@ -1,0 +1,75 @@
+{
+  "artifacts": {
+    "agglog": null,
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9k01/work-M9-K30-direct-r2/logs/cell-M9-K30-r2-31779.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9k01/work-M9-K30-direct-r2/logs/cell-M9-K30-r2-31779.26342"
+  },
+  "auth_posture": "scram (PG backend, no pooler frontend)",
+  "cell_id": "M9-K30",
+  "churn": false,
+  "clients": 100,
+  "dataset": {
+    "init": "pgbench -i -s 10 per chunk",
+    "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+  },
+  "duration_s": 60,
+  "exit_code": 0,
+  "failed": 0,
+  "isolation": {
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "governor": "unknown",
+    "kernel": "6.17.0-1022-azure",
+    "nproc": 4,
+    "pgbench_j": 4,
+    "pinning": "none",
+    "threads": 4,
+    "topology": "x86_64/x86_64"
+  },
+  "latency_avg_ms": 4.059,
+  "latency_stddev_ms": 3.063,
+  "p50_ms": 3.834,
+  "p90_ms": 5.22,
+  "p999_ms": 26.16952500000014,
+  "p99_ms": 18.41975,
+  "pg_config": {
+    "fsync": "on",
+    "max_connections": 300,
+    "shared_buffers": "512MB",
+    "synchronous_commit": "on"
+  },
+  "pg_config_divergence": [
+    "key shared_buffers: want '512MB', effective '128MB'",
+    "key max_connections: want 300, effective '100'"
+  ],
+  "pg_config_status": "disclosed",
+  "pg_show": {
+    "fsync": "on",
+    "max_connections": "100",
+    "password_encryption": "scram-sha-256",
+    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
+    "shared_buffers": "128MB",
+    "synchronous_commit": "on"
+  },
+  "pg_version": "PG 17",
+  "pool_size": 10,
+  "pooler": "direct",
+  "pooler_config": "# direct-PG control (no pooler)\n# docs: https://www.postgresql.org/docs/17/pgbench.html\nshared_buffers = 512MB\nmax_connections = 300\nsynchronous_commit = on\nfsync = on\n",
+  "pooler_version": null,
+  "protocol": "simple",
+  "repeat": 2,
+  "resources": {
+    "cpu_time_s": 12.778836,
+    "fd_count": 6,
+    "peak_rss_kb": 89604,
+    "pg_stat": null,
+    "pool_wait": null
+  },
+  "scale": 10,
+  "seed": 1337,
+  "skipped": 0,
+  "status": "measured",
+  "threads": 4,
+  "tps": 24571.459588,
+  "warmup_s": 30,
+  "workload": "select-only"
+}
