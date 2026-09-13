@@ -128,7 +128,7 @@
         <a href="https://userfrom1995.github.io/RandomLabs/folio/">Open studio</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-folio-client-side-pdf-studio.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/RandomLabs/folio/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/docs/">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/277">Issue #277</a>
       </div>
     </div>
@@ -140,7 +140,7 @@
         <a href="https://userfrom1995.github.io/RandomLabs/tabula/">Open spreadsheet</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tabula/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-03-tabula-spreadsheet-engine.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/RandomLabs/tabula/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tabula/docs/">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/282">Issue #282</a>
       </div>
     </div>
@@ -152,14 +152,14 @@
         <a href="https://userfrom1995.github.io/RandomLabs/sextant/">Open Sextant</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/sextant/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-04-sextant-gis-engine.md">Writeup</a>
-        <a href="https://userfrom1995.github.io/RandomLabs/sextant/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/sextant/docs/">Documentation</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/issues/286">Issue #286</a>
       </div>
     </div>
     <div class="card current">
       <span class="tag">In progress</span>
       <h4>Poolduel</h4>
-      <p>An exhaustive PostgreSQL connection pooler shootout (issue #302 open): pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus a direct-PG control. One pooler-blind harness drives pgbench workloads under clients far exceeding pool size with interleaved repeats and medians; M1 covers transaction pooling, M2 covers session, statement, and I/O arms, M3 publishes best-vs-best plus iso-region comparisons with full-matrix CSVs and a fairness audit. M1 medians (42 rows) and M2 medians (111 rows) plus the report bundle are published on main and under review (Refs #302).</p>
+      <p>An exhaustive PostgreSQL connection pooler shootout (issue #302 open): pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus a direct-PG control. One pooler-blind harness drives pgbench workloads under clients far exceeding pool size with interleaved repeats and medians; M1 covers transaction pooling, M2 covers session, statement, and I/O arms, M3 publishes best-vs-best plus iso-region comparisons with full-matrix CSVs and a fairness audit. M1 medians (42 rows) and M2 medians (111 rows) plus the report bundle are published on main and under review; M9 powered resweep in flight (7 arms, paired seeds, harness plus matrix docs staged, sweep redispatched, Refs #302).</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/poolduel/">Open report</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/poolduel/README.md">Run it</a>
@@ -171,7 +171,7 @@
     <div class="card current">
       <span class="tag">Finished at ceiling</span>
       <h4>Prism</h4>
-      <p>A lossless image codec written from scratch in C++20, accepted by the Owner as finished-at-ceiling at <code>9bd6d10</code> (2026-09-03, issue #130 closed, gates FAIL, never gate-passed). M0 done: 5-level LeGall 5/3 DWT, reversible YCoCg-R, MA decision trees, multi-cluster rANS, 100% byte-exact round-trips. Accepted ceiling on Kodak-24: X6b 3.2175/sample / 9.6525 summed (repro 3.21843/9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured; full negative ledger on main; all branches retained.</p>
+      <p>A lossless image codec written from scratch in C++17, accepted by the Owner as finished-at-ceiling at <code>9bd6d10</code> (2026-09-03, issue #130 closed, gates FAIL, never gate-passed). M0 done: 5-level LeGall 5/3 DWT, reversible YCoCg-R, MA decision trees, multi-cluster rANS, 100% byte-exact round-trips. Accepted ceiling on Kodak-24: X6b 3.2175/sample / 9.6525 summed (repro 3.21843/9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured; full negative ledger on main; all branches retained.</p>
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
@@ -225,7 +225,7 @@
     </li>
     <li>
       <h4>Prism</h4>
-      <p>A lossless image codec written from scratch in C++20, finished-at-ceiling (issue #130 closed 2026-09-03 at <code>9bd6d10</code>, gates FAIL, never gate-passed): M0 bit-exact round-trips shipped; X6b ceiling 3.2175/sample / 9.6525 summed on Kodak-24 (repro 3.21843/9.65529); M2 FAIL ~1.6%, M3 FAIL ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured across 7+ programs; full negative ledger on main; all branches retained.</p>
+      <p>A lossless image codec written from scratch in C++17, finished-at-ceiling (issue #130 closed 2026-09-03 at <code>9bd6d10</code>, gates FAIL, never gate-passed): M0 bit-exact round-trips shipped; X6b ceiling 3.2175/sample / 9.6525 summed on Kodak-24 (repro 3.21843/9.65529); M2 FAIL ~1.6%, M3 FAIL ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured across 7+ programs; full negative ledger on main; all branches retained.</p>
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-21-prism-lossless-image-codec.md">Writeup</a>
