@@ -61,7 +61,7 @@
 - Report corrections land in a public errata log with date, affected
   cells, cause, and new values (M12 trust machinery).
 
-## 6. Open items (to be closed by M6-M8)
+## 6. Open items (to be closed by M6-M9)
 
 - M6 (closed 2026-09-13): PG config enforcement wording (section 3:
   runner applies `harness/pgconf.py:apply_sql`, per-row
@@ -108,3 +108,16 @@
   (`PIPELINE_FORBIDDEN_REASON`; multi-statement covers batching inside
   the standard protocol). Full spec in `docs/calibration.md`; CLI
   readout via `--list-calibration`.
+- M9 (closed 2026-09-13): main matrix resweep defined (measured by the
+  staged sweep, analyzed in M10). Six blocks in `harness/m9.py`:
+  R (7 M1 geometries at scale 10, flagship n=10 / standard n=7,
+  8 arms), W (52 M2 rows, n=7, row arm + direct), U (46 Supavisor
+  twins + 6 statement N/A), C (7 M1 twins at scale 100, M9-C1..C7;
+  M8-P1..P3 subsumed), K (M8-C1 warmup curve), E (M9-E1
+  equalized-auth churn, SCRAM everywhere via `auth_mode=equalized`
+  on odyssey/pgpool, other arms unchanged). Paired seeds
+  (`m9_seed_for`: repeat-only schedule, 3 bases, distinct every
+  repeat). 103 chunks under the 60 min cap, priced at 78.1 measured
+  hours (`cli --list-m9`, `docs/m9-matrix.md`); staged sweep
+  `poolduel/ci/poolduel-m9.yml` (Lab promotes). M2-at-100 deferred
+  to M9b behind the C-block gate (written reason, not silence).

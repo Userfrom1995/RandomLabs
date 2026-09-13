@@ -599,3 +599,53 @@ Next steps: Reviewer audit -> Tester (full suite re-run + HTTP smoke
   + calibration readout) -> merge -> Builder M9 per blueprint.
 
 - the Builder
+
+## M9 build log (Builder, 2026-09-13, branch `opencode/issue302-poolduel-m9`)
+
+Implements the M9 slice of `ideas/2026-09-13-poolduel-redesign.md`
+(main matrix resweep definition, plan sections 5/7/8/9). Harness +
+docs + staged sweep only; no sweep execution (Maintainer dispatches
+after Lab promotes `poolduel/ci/poolduel-m9.yml`), no numbers claimed.
+
+- New: `harness/m9.py` (six blocks R/W/U/C/K/E, 103 chunks, powered
+  repeats flagship 10 / standard 7, paired-seed schedule
+  `m9_seed_for` repeat-only with 3 bases + 7919 stride proven
+  distinct, Supavisor mode mapping with statement N/A, chunk budgets
+  all under 60 min, priced total 2203 arm-runs / 78.1 measured h).
+- Wiring: `runner.run_plan` optional `seed_fn` (default preserves
+  `seed + repeat`; M9 passes the paired schedule) + E1 equalized
+  `auth_posture` label from the cell variant; `cli --matrix m9`
+  (chunk/pilot/dry-run with per-run seeds, `--list-m9`,
+  `--write-na` for 6 supa statement N/A); `check.py` M9 coherence
+  (repeat cover, seed distinctness + no-arm rule, N/A schema,
+  scale split, budgets).
+- Adapters: odyssey `auth_mode=equalized` (scram-sha-256 + password,
+  rules.html-cited, CI proves the password form loudly); pgpool
+  `auth_mode=equalized` (`enable_pool_hba = on` + workdir
+  pool_hba.conf scram line, 4.7.2 ch.6-cited); all other arms
+  tolerate the variant key (proven by test). Baselines render
+  byte-identically (full suite green).
+- Staged: `poolduel/ci/poolduel-m9.yml` (103-chunk matrix generated
+  from the harness, scale-aware init via `m9_chunk_scale`, supavisor
+  SHA + smoke-gate steps, aggregate merging raw + rebuilding
+  medians + committing `results/m9/`); Lab promotes + fills the
+  incumbent-build copy and migration/API-port verification.
+- Docs: `docs/m9-matrix.md` (composition, 6 scope decisions with
+  reasons, pricing), E1 notes in `configs/odyssey.md` +
+  `configs/pgpool-II.md`, spec-v1 s6 M9 closed; `repro.sh --m9-*`
+  modes (smoke/chunk/na/dry-run/full).
+- `tests/test_m9_matrix.py`: 36 new tests (repeats, seeds, mapping,
+  chunks, adapters, runner, CLI, preflight).
+- Scope decisions: M1 IDs reused (M9 out dir), C IDs new
+  (medians-key collision rule); M8-P subsumed by C1..C3; M2-at-100
+  deferred to M9b behind the C-block gate; native absent (nothing
+  to twin); pgagroal performance maps to session (geometric
+  comparison, documented).
+- `Refs #302`: no `Closes`, no owner notification (mandate rule 6).
+
+Current step: M9 definition complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  m9 dry-run/list checks) -> merge -> Lab promotes sweep ->
+  Maintainer dispatches M9 -> Builder M10 per blueprint.
+
+- the Builder

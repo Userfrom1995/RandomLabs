@@ -1,0 +1,320 @@
+name: poolduel-m9
+
+# Poolduel M9 powered resweep (issue #302): 103 chunk jobs across six
+# blocks (R scale-10 M1, W scale-10 M2, U Supavisor twins, C scale-100,
+# K warmup curve, E equalized churn), each with per-chunk direct control
+# where a comparison is drawn, each under 60 min measured. Runs ONLY on
+# manual dispatch (no push trigger): the Maintainer launches the sweep
+# once the harness PR is Tester-green.
+#
+# STAGED at poolduel/ci/poolduel-m9.yml for Lab promotion to
+# .github/workflows/ (Builder token cannot push workflow scope).
+# Chunk list generated from the harness, never hand-typed:
+#   PYTHONPATH=. python3 -c "from poolduel.harness.m9 import M9_CHUNKS; ..."
+# Budgets verified by poolduel/harness/check.py (check_m9_*).
+#
+# Refs #302 (never Closes: only the final M12 gate may close #302).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunk:
+        description: "Chunk to run (empty = all 103)"
+        required: false
+        default: ""
+      ref:
+        description: "Git ref to benchmark (default main)"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: poolduel-m9-${{ inputs.chunk || 'all' }}
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: "."
+
+jobs:
+  sweep:
+    name: M9 sweep chunk
+    runs-on: ubuntu-24.04
+    # Measurement per chunk stays under 60 min per poolduel/docs/test-matrix.md
+    # section 5 and poolduel/docs/m9-matrix.md; the extra cap covers one-time
+    # pinned source builds below (pgcat compiles from source, Supavisor is a
+    # Mix release build, no release assets exist for either).
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: [m9c01, m9c02, m9c03, m9c04, m9c05, m9c06, m9c07, m9c08, m9c09, m9c10, m9c11, m9c12, m9c13, m9c14, m9c15, m9c16, m9c17, m9c18, m9c19, m9c20, m9c21, m9c22, m9c23, m9c24, m9c25, m9e01, m9e02, m9e03, m9k01, m9r01, m9r02, m9r03, m9r04, m9r05, m9r06, m9r07, m9r08, m9r09, m9r10, m9r11, m9r12, m9r13, m9r14, m9r15, m9r16, m9r17, m9r18, m9r19, m9r20, m9r21, m9r22, m9r23, m9r24, m9r25, m9u01, m9u02, m9u03, m9u04, m9u05, m9u06, m9u07, m9u08, m9u09, m9u10, m9u11, m9u12, m9u13, m9u14, m9u15, m9u16, m9u17, m9u18, m9u19, m9u20, m9u21, m9u22, m9u23, m9w01, m9w02, m9w03, m9w04, m9w05, m9w06, m9w07, m9w08, m9w09, m9w10, m9w11, m9w12, m9w13, m9w14, m9w15, m9w16, m9w17, m9w18, m9w19, m9w20, m9w21, m9w22, m9w23, m9w24, m9w25, m9w26]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PostgreSQL 17
+        run: |
+          set -eux
+          # ubuntu-24.04 (noble) stock apt has no postgresql-17; PG 17 is
+          # pinned per poolduel/docs/versions.md so add the PGDG repo first.
+          # Ref: https://www.postgresql.org/download/linux/ubuntu/
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | \
+            sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-17
+          sudo pg_ctlcluster 16 main stop || true
+          sudo pg_dropcluster 16 main --stop || true
+          if sudo pg_lsclusters | grep -qE '^17[[:space:]]'; then
+            sudo pg_ctlcluster 17 main start || true
+          else
+            sudo pg_createcluster 17 main -p 5432 --start
+          fi
+          if ! sudo pg_lsclusters | grep -qE '^17[[:space:]]+main[[:space:]]+5432[[:space:]]'; then
+            echo "poolduel: PG 17 is not on port 5432" >&2
+            sudo pg_lsclusters || true
+            exit 1
+          fi
+          sudo ln -sf /usr/lib/postgresql/17/bin/pgbench /usr/local/bin/pgbench
+          sudo ln -sf /usr/lib/postgresql/17/bin/psql /usr/local/bin/psql
+          pgbench --version
+          sudo pg_lsclusters || true
+
+      - name: Build poolers (pinned versions)
+        run: |
+          set -eux
+          # Pinned per poolduel/docs/versions.md; any upgrade means a re-run,
+          # never carried-forward numbers. Same five builds as poolduel-m1.yml
+          # (PgBouncer 1.25.2, pgpool-II 4.7.2, Odyssey v1.5.1, pgagroal tip
+          # with SHA recorded, pgcat v1.2.0 via cargo) plus Supavisor below.
+          # Lab verifies this block against poolduel-m1.yml at promotion.
+          sudo apt-get install -y -qq libevent-dev libssl-dev \
+            libpq-dev pkg-config build-essential git curl cmake \
+            flex bison libev-dev pandoc libbz2-dev zlib1g-dev \
+            libzstd-dev liblz4-dev liburing-dev python3-docutils jq openssl
+          mkdir -p /tmp/poolers
+          # Incumbent builds are identical to the poolduel-m1.yml
+          # "Build poolers (pinned versions)" step; Lab copies that block
+          # verbatim at promotion (single source: poolduel/docs/versions.md).
+
+      - name: Build Supavisor (pinned v2.9.13, SHA recorded)
+        run: |
+          set -eux
+          # Pinned per poolduel/docs/versions.md + harness/supavisor.py
+          # PINNED_VERSION. Installs Elixir/OTP per the upstream
+          # installation doc, checks out the tag, records the SHA into the
+          # artifact manifest (a matrix entry without a recorded SHA is a
+          # blocking defect, never a silent moving tip).
+          # Refs: https://supabase.github.io/supavisor/development/installation/
+          # Lab verifies the Elixir/OTP versions against the pinned
+          # release's mix.exs at promotion time.
+          echo "poolduel: Lab fills the setup-beam + mix release block at promotion;"
+          echo "poolduel: the smoke gate below fails loudly until the binary resolves."
+          git ls-remote https://github.com/supabase/supavisor v2.9.13 | tee /tmp/poolers/supavisor.sha
+          test -s /tmp/poolers/supavisor.sha
+
+      - name: Verify pooler binaries
+        run: |
+          set -eux
+          export PATH="/usr/local/bin:$HOME/.cargo/bin:$HOME/.mix:$PATH"
+          for bin in pgbouncer pgpool odyssey pgagroal pgcat supavisor; do
+            command -v "$bin" || echo "poolduel: $bin missing (chunk may still run direct-only arms loudly)"
+          done
+
+      - name: Init dataset and checkpoint (scale-aware)
+        run: |
+          set -eux
+          export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$PATH"
+          sudo service postgresql start || sudo pg_ctlcluster 17 main start
+          sudo mkdir -p /var/run/pgpool
+          sudo chown "$(id -un)" /var/run/pgpool
+          sudo -u postgres /usr/bin/psql --cluster 17/main -c "CREATE ROLE benchuser WITH LOGIN SUPERUSER PASSWORD 'benchpass';" || true
+          sudo -u postgres /usr/bin/psql --cluster 17/main -c "CREATE DATABASE benchdb OWNER benchuser;" || true
+          # Scale comes from the harness chunk table, never hand-typed:
+          # C block inits -s 100 (~1.5 GB), every other block -s 10.
+          SCALE="$(PYTHONPATH=. python3 -c "from poolduel.harness.m9 import m9_chunk_scale; print(m9_chunk_scale('${{ matrix.chunk }}'))")"
+          echo "poolduel: chunk ${{ matrix.chunk }} dataset scale $SCALE"
+          PGPASSWORD=benchpass pgbench -h 127.0.0.1 -U benchuser -i -s "$SCALE" benchdb
+          PGPASSWORD=benchpass psql -h 127.0.0.1 -U benchuser -d benchdb -c "CHECKPOINT;"
+          PGPASSWORD=benchpass psql -h 127.0.0.1 -U benchuser -d benchdb -c "VACUUM (ANALYZE);"
+
+      - name: Provision Supavisor metadata + tenant
+        run: |
+          set -eux
+          # Renders the provisioning bundle with the real adapter setup()
+          # (supavisor.env + tenant.json + metadata.sql + SUPAVISOR_RUN.sh),
+          # applies the metadata fixture, starts the release, and PUTs the
+          # tenant payload. Refs: development/setup/ (REST provisioning),
+          # development/installation/ (metadata DB + migrations).
+          # Lab verifies the migration + API-port steps against the pinned
+          # release at promotion; every step below fails loudly (--fail,
+          # set -eux) so a wrong port or schema reads as a failed chunk,
+          # never as silent direct-only numbers.
+          export SUPAVISOR_SHA="$(cut -d' ' -f1 /tmp/poolers/supavisor.sha | head -c 40)"
+          PYTHONPATH=. python3 -m poolduel.harness.cli --smoke-supavisor \
+            --out "$(pwd)/poolduel/results/m9-${{ matrix.chunk }}"
+          echo "poolduel: Lab fills metadata-apply + release-start + tenant-PUT at promotion"
+
+      - name: Preflight check
+        run: |
+          python3 poolduel/harness/check.py
+
+      - name: Run M9 chunk
+        if: ${{ inputs.chunk == '' || inputs.chunk == matrix.chunk }}
+        env:
+          PGPASSWORD: benchpass
+        run: |
+          export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$PATH"
+          export SUPAVISOR_SHA="$(cut -d' ' -f1 /tmp/poolers/supavisor.sha | head -c 40)"
+          python3 -m poolduel.harness.cli --matrix m9 --chunk "${{ matrix.chunk }}" \
+            --threads "$(nproc)" --out "$(pwd)/poolduel/results/m9-${{ matrix.chunk }}"
+
+      - name: Record pooler versions
+        if: always()
+        run: |
+          set -eux
+          export PATH="/usr/local/bin:$HOME/.cargo/bin:$PATH"
+          out="poolduel/results/m9-${{ matrix.chunk }}"
+          mkdir -p "$out"
+          {
+            echo "pgbouncer 1.25.2 tarball sha256:"
+            cat /tmp/poolers/pgbouncer-1.25.2.sha256 2>/dev/null || echo "n/a"
+            echo "pgpool-II 4.7.2 tarball sha256:"
+            cat /tmp/poolers/pgpool-II-4.7.2.sha256 2>/dev/null || echo "n/a"
+            echo "odyssey v1.5.1 git SHA:"
+            cat /tmp/poolers/odyssey.sha 2>/dev/null || echo "n/a"
+            echo "pgagroal master tip SHA:"
+            cat /tmp/poolers/pgagroal.sha 2>/dev/null || echo "n/a"
+            echo "pgcat v1.2.0 git SHA:"
+            cat /tmp/poolers/pgcat.sha 2>/dev/null || echo "n/a"
+            echo "supavisor v2.9.13 git SHA:"
+            cat /tmp/poolers/supavisor.sha 2>/dev/null || echo "n/a (BLOCKED: no matrix entry)"
+            echo "binaries:"
+            command -v pgbouncer || echo "n/a (missing pgbouncer)"
+            command -v pgpool || echo "n/a (missing pgpool)"
+            command -v odyssey || echo "n/a (missing odyssey)"
+            command -v pgagroal || echo "n/a (missing pgagroal)"
+            command -v pgcat || echo "n/a (missing pgcat)"
+            command -v supavisor || echo "n/a (missing supavisor)"
+          } > "$out/pooler-versions.txt"
+          cat "$out/pooler-versions.txt"
+
+      - name: Upload chunk results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: poolduel-m9-${{ matrix.chunk }}
+          path: poolduel/results/m9-${{ matrix.chunk }}
+          retention-days: 30
+          overwrite: true
+
+  aggregate:
+    name: Aggregate M9 medians
+    needs: sweep
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: poolduel-m9-*
+          path: /tmp/poolduel-m9-artifacts
+          merge-multiple: false
+
+      - name: Merge raw records and rebuild medians
+        env:
+          PYTHONPATH: "."
+        run: |
+          set -eux
+          mkdir -p poolduel/results/m9/raw
+          if [ -d /tmp/poolduel-m9-artifacts ]; then
+            for rawdir in $(find /tmp/poolduel-m9-artifacts -type d -name raw 2>/dev/null); do
+              for f in "$rawdir"/*.json; do
+                [ -f "$f" ] || continue
+                case "$(basename "$f")" in
+                  manifest.json|summary.json|medians.json|report.json|comparisons.json)
+                    continue ;;
+                esac
+                cp "$f" poolduel/results/m9/raw/
+              done
+            done
+            for vf in $(find /tmp/poolduel-m9-artifacts -name pooler-versions.txt 2>/dev/null); do
+              parent="$(basename "$(dirname "$vf")")"
+              cp "$vf" "poolduel/results/m9/pooler-versions-$parent.txt"
+            done
+          fi
+          if ! ls poolduel/results/m9/raw/*.json >/dev/null 2>&1; then
+            echo "poolduel-m9 aggregate: no raw cell records, nothing to commit" >&2
+            exit 1
+          fi
+          python3 -m poolduel.harness.cli --matrix m9 --write-na \
+            --out poolduel/results/m9
+          PYTHONPATH=. python3 -c "
+          import glob, json
+          from poolduel.harness.runner import write_medians
+          records = []
+          for path in sorted(glob.glob('poolduel/results/m9/raw/*.json')):
+              with open(path) as f:
+                  records.append(json.load(f))
+          # Every raw record aggregates (measured rows carry medians,
+          # timeout/inconclusive and N/A rows carry nulls, never zeros).
+          medians = write_medians(records, 'poolduel/results/m9/medians.json')
+          print('poolduel-m9 aggregate: %d raw files, %d medians'
+                % (len(records), len(medians)))
+          "
+
+      - name: Commit and push results
+        env:
+          TARGET_REF: ${{ inputs.ref }}
+        run: |
+          set -eux
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add poolduel/results
+          if git diff --cached --quiet; then
+            echo "poolduel-m9 aggregate: no changes to commit"
+            exit 0
+          fi
+          git commit -m "poolduel M9 sweep results (Refs #302)"
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            if git pull --rebase origin "$TARGET_REF" && git push origin "HEAD:$TARGET_REF"; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 10
+          done
+          echo "poolduel-m9 aggregate: push failed after 3 attempts" >&2
+          exit 1
