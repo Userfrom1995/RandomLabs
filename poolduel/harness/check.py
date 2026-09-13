@@ -126,9 +126,9 @@ def check_m9_coverage():
                 seen_cells.setdefault(key, []).append(chunk)
             else:
                 seen_rows.setdefault(eid, []).append(chunk)
-    for key, chunks in seen_cells.items():
-        if len(chunks) > 1 and key != M9_E1_ID and key not in M9_CURVE_IDS.values():
-            pass  # R/C shards repeat a cell across chunks by design
+    # R/C shards repeat a cell across chunks by design, and E1/curve
+    # cells likewise span their shard chunks, so multi-chunk sightings
+    # here are expected (repeat completeness is pinned below).
     # Full repeat coverage: R twins 1..10/1..7, C twins likewise,
     # E1 1..7, curve points 1..3.
     from poolduel.harness.m9 import (M9_REPEATS_FLAGSHIP,
