@@ -296,13 +296,18 @@ def build_record(cell, pooler, pooler_config, measurement, pg_version,
 
 def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
              host="127.0.0.1", threads=4, seed=42, pg_version="PG 17",
-             pg_config=None, env=None):
+             pg_config=None, env=None, seed_fn=None):
     """Execute a round-robin plan. Returns (records, errors).
 
     adapters maps arm name to an adapter instance exposing start(),
     healthcheck(timeout_s), stop(), config_text(cell), port. The runner
     starts the adapter before each arm run and stops it right after, so
     no pooler state leaks across arms.
+
+    seed_fn, when given, maps (base_seed, repeat) to the pgbench seed
+    for that repeat. It is a function of the repeat only, never of the
+    arm, so paired repeats stay on identical seeds across arms (M9
+    paired-seed discipline). The default preserves seed + repeat.
     """
     pg_config = dict(pg_config or PG_CONFIG_BASELINE)
     os.makedirs(out_dir, exist_ok=True)
@@ -319,12 +324,24 @@ def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
             adapter.healthcheck(timeout_s=30)
             port = adapter.port
             config_text = adapter.config_text(cell)
+            use_seed = (seed_fn(seed, repeat) if seed_fn is not None
+                        else seed + repeat)
+            # M9-E1 equalized control: the cell variant carries
+            # auth_mode=equalized, so the record labels the posture it
+            # measured instead of the adapter default (provenance for
+            # the churn-auth comparison in M10).
+            variant = cell.get("variant") or {}
+            auth_posture = (
+                "scram-sha-256 on every frontend "
+                "(M9-E1 equalized control)"
+                if variant.get("auth_mode") == "equalized" else None)
             measurement = measure_once(
                 cell, host, port, dbname, user, threads,
-                seed + repeat, repeat, workdir, pg_config, env)
+                use_seed, repeat, workdir, pg_config, env)
             record = build_record(cell, arm, config_text, measurement,
                                   pg_version, pg_config, threads,
-                                  repeat, seed + repeat,
+                                  repeat, use_seed,
+                                  auth_posture=auth_posture,
                                   pg_show=capture_pg_show(
                                       host, port, dbname, user, env))
             errs = validate_cell(record)

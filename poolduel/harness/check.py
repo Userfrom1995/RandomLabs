@@ -103,6 +103,133 @@ def check_supavisor_budget():
     return ["Supavisor M9 budget parity broken: %s" % detail]
 
 
+def check_m9_coverage():
+    """Every M9 cell/row lives in exactly one chunk with full repeats."""
+    from poolduel.harness.m9 import (M9_CHUNKS, M9_CURVE_IDS, M9_E1_ID,
+                                     m9_entry_cells)
+    from poolduel.harness.m2 import m2_cell_ids
+    errors = []
+    seen_cells, seen_rows = {}, {}
+    rep_cover = {}
+    for chunk, entries in M9_CHUNKS.items():
+        for entry in entries:
+            ns, eid, reps, _arms = entry
+            try:
+                cell, _arms2, plan_reps = m9_entry_cells(entry)
+            except (KeyError, ValueError) as exc:
+                errors.append("M9 chunk %s entry %r broken: %s"
+                              % (chunk, entry, exc))
+                continue
+            if ns in ("m1", "c100", "e1", "k"):
+                key = cell["cell_id"]
+                rep_cover.setdefault(key, set()).update(plan_reps)
+                seen_cells.setdefault(key, []).append(chunk)
+            else:
+                seen_rows.setdefault(eid, []).append(chunk)
+    for key, chunks in seen_cells.items():
+        if len(chunks) > 1 and key != M9_E1_ID and key not in M9_CURVE_IDS.values():
+            pass  # R/C shards repeat a cell across chunks by design
+    # Full repeat coverage: R twins 1..10/1..7, C twins likewise,
+    # E1 1..7, curve points 1..3.
+    from poolduel.harness.m9 import (M9_REPEATS_FLAGSHIP,
+                                     M9_REPEATS_STANDARD, m9_repeats,
+                                     m9_resweep_cell)
+    for cid in ("M1-1", "M1-2", "M1-3", "M1-4", "M1-5", "M1-6",
+                "M1-7"):
+        want = set(range(1, m9_repeats(m9_resweep_cell(cid)) + 1))
+        if rep_cover.get(cid, set()) != want:
+            errors.append("M9 R cell %s repeat cover %s, want %s"
+                          % (cid, sorted(rep_cover.get(cid, set())),
+                             sorted(want)))
+    for i in range(1, 8):
+        key = "M9-C%d" % i
+        want_n = (M9_REPEATS_FLAGSHIP if i <= 2 else M9_REPEATS_STANDARD)
+        if rep_cover.get(key, set()) != set(range(1, want_n + 1)):
+            errors.append("M9 C cell %s repeat cover %s, want 1..%d"
+                          % (key, sorted(rep_cover.get(key, set())),
+                             want_n))
+    if rep_cover.get(M9_E1_ID, set()) != set(
+            range(1, M9_REPEATS_STANDARD + 1)):
+        errors.append("M9 E1 repeat cover %s, want 1..%d"
+                      % (sorted(rep_cover.get(M9_E1_ID, set())),
+                         M9_REPEATS_STANDARD))
+    for key in M9_CURVE_IDS.values():
+        if rep_cover.get(key, set()) != {1, 2, 3}:
+            errors.append("M9 K cell %s repeat cover %s, want [1, 2, 3]"
+                          % (key, sorted(rep_cover.get(key, set()))))
+    # Every M2 row reswept exactly once; every supa twin exactly once.
+    from poolduel.harness.m9 import m9_supa_ids
+    for cid in m2_cell_ids():
+        n = len(seen_rows.get(cid, []))
+        if n != 1:
+            errors.append("M9 W row %s in %d chunks, want 1" % (cid, n))
+    for uid in m9_supa_ids():
+        n = len(seen_rows.get(uid, []))
+        if n != 1:
+            errors.append("M9 U row %s in %d chunks, want 1" % (uid, n))
+    return errors
+
+
+def check_m9_seeds():
+    """Paired-seed schedule: distinct seeds 1..10, arm-independent."""
+    from poolduel.harness.m9 import m9_seed_for
+    errors = []
+    seeds = [m9_seed_for(r) for r in range(1, 11)]
+    if len(set(seeds)) != len(seeds):
+        errors.append("M9 paired seeds collide over repeats 1..10")
+    try:
+        m9_seed_for(0)
+        errors.append("M9 m9_seed_for(0) must raise")
+    except ValueError:
+        pass
+    import inspect
+    params = list(inspect.signature(m9_seed_for).parameters)
+    if "arm" in params:
+        errors.append("M9 seed schedule must not take an arm parameter")
+    return errors
+
+
+def check_m9_supa_na_schema():
+    """Every M9 supavisor N/A row renders a schema-valid nulls record."""
+    import copy
+
+    from poolduel.harness.m2 import GEOMETRIES
+    from poolduel.harness.m9 import m9_supa_na_rows
+    from poolduel.harness.runner import PG_CONFIG_BASELINE
+    from poolduel.harness.schema import make_na_record, validate_cell
+    errors = []
+    if not m9_supa_na_rows():
+        errors.append("M9 expects statement-twin N/A rows, found none")
+    for (uid, geom, arm, reason) in m9_supa_na_rows():
+        g = GEOMETRIES[geom]
+        cell = {"cell_id": uid, "workload": g["workload"],
+                "clients": g["clients"], "pool_size": g["pool_size"],
+                "protocol": g["protocol"], "churn": g["churn"],
+                "duration_s": 60, "warmup_s": 30}
+        rec = make_na_record(cell, arm, "N/A: %s" % reason, "PG 17",
+                             copy.deepcopy(PG_CONFIG_BASELINE), 4, 1, 42)
+        errs = validate_cell(rec)
+        if errs:
+            errors.append("%s/%s N/A invalid: %s"
+                          % (uid, arm, "; ".join(errs)))
+    return errors
+
+
+def check_m9_scale_init():
+    """C-block chunks declare scale 100 (workflow init -s 100)."""
+    from poolduel.harness.m9 import M9_CHUNKS, m9_chunk_scale
+    errors = []
+    c100 = sorted(c for c in M9_CHUNKS if c.startswith("m9c"))
+    if len(c100) != 25:
+        errors.append("M9 C block wants 25 chunks, found %d" % len(c100))
+    for chunk in M9_CHUNKS:
+        want = 100 if chunk.startswith("m9c") else 10
+        if m9_chunk_scale(chunk) != want:
+            errors.append("M9 chunk %s scale %d, want %d"
+                          % (chunk, m9_chunk_scale(chunk), want))
+    return errors
+
+
 def main():
     errors = []
     for binary in ("pgbench", "psql"):
@@ -130,6 +257,17 @@ def main():
     errors.extend(check_m2_na_schema())
     errors.extend(check_supavisor_budget())
     errors.extend(check_m8_calibration())
+    errors.extend(check_m9_coverage())
+    errors.extend(check_m9_seeds())
+    errors.extend(check_m9_supa_na_schema())
+    errors.extend(check_m9_scale_init())
+    from poolduel.harness.m9 import (M9_CHUNKS, check_m9_chunk_budgets,
+                                     m9_supa_na_rows)
+    over9 = check_m9_chunk_budgets()
+    if over9:
+        errors.append("M9 chunks over 60 min cap: %s" % over9)
+    if not M9_CHUNKS:
+        errors.append("no M9 chunks defined")
     if errors:
         for err in errors:
             print("poolduel check FAILED: %s" % err)

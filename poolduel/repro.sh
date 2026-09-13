@@ -1,12 +1,14 @@
 #!/bin/sh
-# Poolduel one-command repro (M1+M2). Replays the matrix with identical
-# procedure code. Default is the M1 pilot subset; M2 rides --m2-* flags.
+# Poolduel one-command repro (M1+M2+M9). Replays the matrix with identical
+# procedure code. Default is the M1 pilot subset; M2 rides --m2-* flags;
+# M9 (powered resweep) rides --m9-* flags.
 # No interactive prompts; everything via flags. Refs #302.
 set -eu
 
 THREADS="${THREADS:-$(nproc 2>/dev/null || echo 4)}"
 OUT="${OUT:-poolduel/results/m1}"
 M2OUT="${M2OUT:-poolduel/results/m2}"
+M9OUT="${M9OUT:-poolduel/results/m9}"
 MODE="${1:-}"
 M2CHUNK="${2:-}"
 
@@ -15,7 +17,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 case "$MODE" in
-  --report|--charts|--pagemeta|--dry-run|--m2-dry-run) ;;
+  --report|--charts|--pagemeta|--dry-run|--m2-dry-run|--m9-dry-run) ;;
   *)
     if ! command -v pgbench >/dev/null 2>&1; then
       echo "poolduel repro: pgbench is required (install PostgreSQL 17)" >&2
@@ -73,6 +75,40 @@ case "$MODE" in
     python3 -m poolduel.harness.cli --matrix m2 --write-na \
       --threads "$THREADS" --out "$M2OUT"
     ;;
+  --m9-dry-run)
+    python3 -m poolduel.harness.cli --matrix m9 --dry-run | tail -3
+    python3 -m poolduel.harness.cli --list-m9 | head -12
+    ;;
+  --m9-smoke)
+    echo "poolduel repro: M9 smoke (m9k01 warmup curve, one repeat)"
+    python3 -m poolduel.harness.cli --matrix m9 --pilot \
+      --threads "$THREADS" --out "$M9OUT-smoke"
+    ;;
+  --m9-chunk)
+    if [ -z "$M2CHUNK" ]; then
+      echo "usage: repro.sh --m9-chunk <m9r01..m9e03>" >&2
+      exit 2
+    fi
+    echo "poolduel repro: M9 chunk $M2CHUNK"
+    python3 -m poolduel.harness.cli --matrix m9 --chunk "$M2CHUNK" \
+      --threads "$THREADS" --out "$M9OUT-$M2CHUNK"
+    ;;
+  --m9-na)
+    echo "poolduel repro: M9 N/A records (supavisor statement twins)"
+    python3 -m poolduel.harness.cli --matrix m9 --write-na \
+      --threads "$THREADS" --out "$M9OUT"
+    ;;
+  --m9-full)
+    # shellcheck disable=SC2046
+    for chunk in $(PYTHONPATH=. python3 -c \
+      "from poolduel.harness.m9 import M9_CHUNKS; print(' '.join(sorted(M9_CHUNKS)))"); do
+      echo "poolduel repro: M9 chunk $chunk"
+      python3 -m poolduel.harness.cli --matrix m9 --chunk "$chunk" \
+        --threads "$THREADS" --out "$M9OUT-$chunk"
+    done
+    python3 -m poolduel.harness.cli --matrix m9 --write-na \
+      --threads "$THREADS" --out "$M9OUT"
+    ;;
   --report)
     echo "poolduel repro: build medians, matrix CSVs, report.json"
     M1ARGS=""
@@ -117,6 +153,8 @@ case "$MODE" in
     echo "usage: repro.sh [--pilot|--full|--dry-run|--report|--charts|--pagemeta]" >&2
     echo "       repro.sh [--m2-smoke|--m2-chunk <name>|--m2-na|" >&2
     echo "                --m2-dry-run|--m2-full]" >&2
+    echo "       repro.sh [--m9-smoke|--m9-chunk <name>|--m9-na|" >&2
+    echo "                --m9-dry-run|--m9-full]" >&2
     exit 2
     ;;
 esac

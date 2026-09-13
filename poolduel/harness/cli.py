@@ -18,7 +18,7 @@ def build_parser():
         description="Poolduel harness: shared pgbench procedure, "
                     "pooler-blind arms. M1 transaction sweep plus "
                     "M2 modes/I-O/workload twins.")
-    p.add_argument("--matrix", default="m1", choices=("m1", "m2"),
+    p.add_argument("--matrix", default="m1", choices=("m1", "m2", "m9"),
                    help="which matrix to run (default: m1)")
     p.add_argument("--cells", default="",
                    help="comma-separated cell ids (default: all in matrix)")
@@ -36,6 +36,9 @@ def build_parser():
                         "with --matrix m2: m2a1 rows, one repeat")
     p.add_argument("--list-m2", action="store_true",
                    help="print the M2 variant table plus N/A rows and exit")
+    p.add_argument("--list-m9", action="store_true",
+                   help="print the M9 resweep matrix (blocks, chunks, "
+                        "budgets, N/A rows) and exit")
     p.add_argument("--list-budget", action="store_true",
                    help="print per-contender cell budgets (M1+M2) and exit")
     p.add_argument("--list-calibration", action="store_true",
@@ -62,6 +65,20 @@ def build_parser():
 
 
 def resolve_cells(args):
+    if args.matrix == "m9":
+        from .m9 import m9_chunk_plan, m9_full_plan
+        if args.chunk:
+            return [cell for (cell, _arm, _rep)
+                    in m9_chunk_plan(args.chunk)]
+        if args.pilot:
+            return [cell for (cell, _arm, _rep)
+                    in m9_chunk_plan("m9k01")]
+        seen, cells = set(), []
+        for (cell, _arm, _rep) in m9_full_plan():
+            if cell["cell_id"] not in seen:
+                seen.add(cell["cell_id"])
+                cells.append(cell)
+        return cells
     if args.matrix == "m2":
         if args.chunk:
             return m2_chunk_cells(args.chunk)
@@ -192,6 +209,31 @@ def print_calibration():
           % ", ".join(workloads_mod.SCRIPT_WORKLOADS))
 
 
+def print_m9_table():
+    from .m9 import (M9_CHUNKS, M9_CHUNK_DESCRIPTIONS, m9_budget_table,
+                     m9_chunk_budget_minutes, m9_supa_na_rows,
+                     m9_total_budget)
+    total = m9_total_budget()
+    print("M9 resweep blocks (powered repeats, paired seeds):")
+    for block, agg in sorted(total["blocks"].items()):
+        print("  %s: %d chunks, %d arm-runs, %.1f measured min"
+              % (block, agg["chunks"], agg["runs"], agg["minutes"]))
+    print("--- chunks (%d, cap 60 min each) ---" % len(M9_CHUNKS))
+    for name in sorted(M9_CHUNKS):
+        print("%s: %s [%.1f min]"
+              % (name, M9_CHUNK_DESCRIPTIONS[name],
+                 m9_chunk_budget_minutes(name)))
+    print("--- N/A (unsupported, nulls, zero time) ---")
+    for (uid, geom, arm, reason) in m9_supa_na_rows():
+        print("%s %s %s N/A: %s" % (uid, arm, geom, reason))
+    print("--- measured arm-runs per arm (matrix level) ---")
+    print(json.dumps(m9_budget_table(), sort_keys=True))
+    print("total: %d arm-runs, %.1f measured hours across %d chunks "
+          "(+ per-chunk init/build wall clock, priced in docs/m9-matrix.md)"
+          % (total["arm_runs"], total["measured_hours"],
+             total["chunks"]))
+
+
 def print_m2_table():
     from .m2 import (GEOMETRIES, M2_CHUNK_DESCRIPTIONS, M2_ROWS,
                      m2_budget_table)
@@ -236,6 +278,36 @@ def write_na_records(out_dir, threads=4, seed=42, pg_version="PG 17"):
         if errs:
             raise SystemExit("N/A record invalid: %s" % "; ".join(errs))
         fname = os.path.join(raw_dir, "%s-%s-na.json" % (cid, arm))
+        with open(fname, "w") as f:
+            json.dump(rec, f, indent=2, sort_keys=True)
+        written.append(fname)
+    return written
+
+
+def write_m9_na_records(out_dir, threads=4, seed=42, pg_version="PG 17"):
+    """Emit schema-valid N/A JSON records for M9 supavisor statement twins."""
+    import copy
+
+    from .m9 import m9_supa_na_rows
+    from .runner import PG_CONFIG_BASELINE
+    from .schema import make_na_record, validate_cell
+    raw_dir = os.path.join(out_dir, "raw")
+    os.makedirs(raw_dir, exist_ok=True)
+    written = []
+    for (uid, geom, arm, reason) in m9_supa_na_rows():
+        from .m2 import GEOMETRIES
+        g = GEOMETRIES[geom]
+        cell = {"cell_id": uid, "workload": g["workload"],
+                "clients": g["clients"], "pool_size": g["pool_size"],
+                "protocol": g["protocol"], "churn": g["churn"],
+                "duration_s": 60, "warmup_s": 30}
+        rec = make_na_record(cell, arm, "N/A: %s" % reason, pg_version,
+                             copy.deepcopy(PG_CONFIG_BASELINE),
+                             threads, 1, seed)
+        errs = validate_cell(rec)
+        if errs:
+            raise SystemExit("N/A record invalid: %s" % "; ".join(errs))
+        fname = os.path.join(raw_dir, "%s-%s-na.json" % (uid, arm))
         with open(fname, "w") as f:
             json.dump(rec, f, indent=2, sort_keys=True)
         written.append(fname)
@@ -314,6 +386,9 @@ def main(argv=None):
     if args.list_m2:
         print_m2_table()
         return 0
+    if args.list_m9:
+        print_m9_table()
+        return 0
     if args.list_budget:
         print_budget()
         return 0
@@ -323,20 +398,52 @@ def main(argv=None):
     if args.smoke_supavisor:
         return smoke_supavisor(args)
     if args.write_na:
+        if args.matrix == "m9":
+            written = write_m9_na_records(
+                args.out, threads=args.threads, seed=args.seed,
+                pg_version=args.pg_version)
+            print("wrote %d N/A records -> %s/raw" % (len(written),
+                                                      args.out))
+            return 0
         if args.matrix != "m2":
-            parser.error("--write-na needs --matrix m2")
+            parser.error("--write-na needs --matrix m2 or --matrix m9")
         written = write_na_records(
             args.out, threads=args.threads, seed=args.seed,
             pg_version=args.pg_version)
         print("wrote %d N/A records -> %s/raw" % (len(written), args.out))
         return 0
-    if args.matrix == "m2" and args.arms != ",".join(ARMS):
-        parser.error("--arms is M1-only; M2 rows carry their own arm")
+    if args.matrix in ("m2", "m9") and args.arms != ",".join(ARMS):
+        parser.error("--arms is M1-only; M2/M9 rows carry their own arm")
     cells = resolve_cells(args)
     repeats = args.repeats if args.repeats > 0 else None
     if args.pilot:
         repeats = 1
-    if args.matrix == "m2":
+    seed_fn = None
+    if args.matrix == "m9":
+        from .m9 import m9_chunk_plan, m9_full_plan, m9_seed_for
+
+        def seed_fn(base_seed, repeat):
+            return m9_seed_for(repeat, base_seed=base_seed)
+        if args.chunk:
+            plan = m9_chunk_plan(args.chunk)
+            if repeats is not None:
+                plan = [(c, a, r) for (c, a, r) in plan
+                        if r <= repeats]
+        elif args.pilot:
+            # M9 pilot is the warmup-curve chunk (calibration first):
+            # one repeat per (cell, arm) of m9k01.
+            seen, plan = set(), []
+            for (c, a, _r) in m9_chunk_plan("m9k01"):
+                if (c["cell_id"], a) not in seen:
+                    seen.add((c["cell_id"], a))
+                    plan.append((c, a, 1))
+        else:
+            plan = m9_full_plan()
+            if repeats is not None:
+                plan = [(c, a, r) for (c, a, r) in plan
+                        if r <= repeats]
+        arms = sorted({arm for (_, arm, _) in plan})
+    elif args.matrix == "m2":
         plan = m2_plan(cells, repeats_per_cell=repeats)
         arms = sorted({arm for (_, arm, _) in plan})
     else:
@@ -347,11 +454,16 @@ def main(argv=None):
     if args.dry_run:
         for (cell, arm, rep) in plan:
             variant = cell.get("variant") or {}
-            print("%s %s r%d T=%d c=%d pool=%d %s%s%s" % (
+            seed = (seed_fn(args.seed, rep) if seed_fn is not None
+                    else args.seed + rep)
+            suffix = " seed=%d scale=%d" % (seed, cell.get("scale", 10)) \
+                if args.matrix == "m9" else ""
+            print("%s %s r%d T=%d c=%d pool=%d %s%s%s%s" % (
                 cell["cell_id"], arm, rep, cell["duration_s"],
                 cell["clients"], cell["pool_size"], cell["workload"],
                 " prepared" if cell["protocol"] == "prepared" else "",
-                " %s" % (variant,) if variant else ""))
+                " %s" % (variant,) if variant else "",
+                suffix))
         print("plan=%d out=%s" % (len(plan), args.out))
         return 0
     if not plan:
@@ -363,7 +475,7 @@ def main(argv=None):
     records, errors = run_plan(
         plan, adapters, args.out, dbname=args.dbname, user=args.user,
         host=args.host, threads=args.threads, seed=args.seed,
-        pg_version=args.pg_version)
+        pg_version=args.pg_version, seed_fn=seed_fn)
     medians = write_medians(
         records, os.path.join(args.out, "medians.json"))
     summary = {"records": len(records), "errors": errors,
