@@ -366,7 +366,7 @@ milestones autonomously, notify once when publishable. Blueprint:
 `ideas/2026-09-13-poolduel-redesign.md`. All PRs use `Refs #302`; no
 `Closes #302` until the plan section 11 full gate passes.
 
-Active Milestone: M8 (complete, ready for review)
+Active Milestone: M9 (definition in review; M8 complete)
 
 - Milestone 5 (charter + registry + spec + drift test): [x] IA lock
   verified (relative links, vendored ECharts 5.5.1, no CDN, no Mermaid
@@ -634,8 +634,11 @@ after Lab promotes `poolduel/ci/poolduel-m9.yml`), no numbers claimed.
   reasons, pricing), E1 notes in `configs/odyssey.md` +
   `configs/pgpool-II.md`, spec-v1 s6 M9 closed; `repro.sh --m9-*`
   modes (smoke/chunk/na/dry-run/full).
-- `tests/test_m9_matrix.py`: 36 new tests (repeats, seeds, mapping,
-  chunks, adapters, runner, CLI, preflight).
+- `tests/test_m9_matrix.py`: 43 tests (repeats, seeds incl.
+  multi-base distinctness + M9_SEEDS derivation, mapping, chunks incl.
+  7-arm pin + reps-shard honor, adapters incl. pgagroal toleration +
+  odyssey/pgpool-only change, runner E1 pooler-only posture, CLI
+  incl. m9 --cells filter, preflight).
 - Scope decisions: M1 IDs reused (M9 out dir), C IDs new
   (medians-key collision rule); M8-P subsumed by C1..C3; M2-at-100
   deferred to M9b behind the C-block gate; native absent (nothing
@@ -647,5 +650,45 @@ Current step: M9 definition complete, awaiting review
 Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
   m9 dry-run/list checks) -> merge -> Lab promotes sweep ->
   Maintainer dispatches M9 -> Builder M10 per blueprint.
+
+## M9 fixer log (the Fixer, 2026-09-13, Reviewer `/oc fix` round 1)
+
+Applied all 5 blocking findings plus 11 of 12 nits on
+`opencode/issue302-poolduel-m9` (Refs #302, definition scope kept):
+
+- B1 `runner.py`: E1 `auth_posture` scoped to pooler arms via new
+  `e1_auth_posture(cell, arm)` helper (direct returns None, resolving
+  to the adapter default "scram (PG backend, no pooler frontend)");
+  dry-run + unit test show direct None vs 6 pooler arms labeled.
+- B2: "8 arms" corrected to 7 everywhere (`m9.py` docstring, arm
+  comment, namespace comment, R/C/E/K chunk math, `m9_budget_table`
+  docstring; `docs/m9-matrix.md` table + seeds prose; `spec-v1.md`
+  s6 M9 entry). Verified budgets: m9r01 42.0 min, E total 98.0,
+  2203 arm-runs / 78.08 measured h.
+- B3 `m9_seed_for`: offsets and stride derive from `M9_SEEDS` /
+  `M9_SEED_STRIDE` (editing the constant now changes behavior).
+- B4 `m9_entry_cells`: supa/m2 branches honor the reps shard
+  (`list(reps) if reps else ...`), matching m1/c100/e1/k.
+- B5: chunk-cap claim weakened to measured time; init/restart/
+  provisioning named as wall clock outside the estimator
+  (priced in `docs/m9-matrix.md`).
+- Nits fixed: dropped unused `ARMS, M1_CELLS` import; `M9_C100_IDS`
+  now canonical (length drives `m9_c100_cells`, unknown index raises);
+  `m9_curve_cell` rejects non-integral warmups (30.5 raises, no
+  truncation); tests pin 46/6 + NA ids, exact 2203/78.08, pgagroal
+  toleration with per-arm equality plus odyssey/pgpool-only change;
+  `check.py` dead branch replaced by comment; `cli` honors `--cells`
+  for `--matrix m9` (unknown ids error); `repro.sh --m9-smoke` adds
+  an m9e01 dry-run so the E1 path is exercised; removed the stale
+  open-M8 spec bullet; progress header now tracks M9.
+- Rebuttal (1 nit deferred): `--report` M9 aggregation (raw glob +
+  medians/charts plumbing) is M10 statistics-rebuild scope, not
+  definition scope; this PR stays harness + docs + staged sweep with
+  zero numbers claimed. Happy to build it in the M10 milestone.
+
+Verification: 437/437 full suite green (43 M9 tests), `check.py`
+exit 0, M9 dry-run plans verified, no em dashes.
+
+- the Fixer
 
 - the Builder

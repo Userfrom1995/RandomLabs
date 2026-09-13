@@ -88,9 +88,6 @@
   (`smoke_gate`/`gate_passes`, CLI `--smoke-supavisor`, zero fail rows
   required); deferral doc lifted to a lift note; modes coverage matrix
   carries the M9 arms column. M1/M2 medians untouched (no backfill).
-- M8: warmup sensitivity curve result; scale-100 pilot parameters;
-  resource-field schema; workload breadth additions (Zipf, think-time,
-  multi-statement, JSONB/COPY-adjacent, fixed-offer `-R`).
 - M8 (closed 2026-09-13): calibration instruments defined (measured in
   M9). Warmup curve M8-C1 (`harness/calibrate.py:WARMUP_CANDIDATES`
   0/10/30/60 s on the M1-1 geometry, direct arm, 60 s measure, 3 paired
@@ -111,10 +108,10 @@
 - M9 (closed 2026-09-13): main matrix resweep defined (measured by the
   staged sweep, analyzed in M10). Six blocks in `harness/m9.py`:
   R (7 M1 geometries at scale 10, flagship n=10 / standard n=7,
-  8 arms), W (52 M2 rows, n=7, row arm + direct), U (46 Supavisor
+   7 arms), W (52 M2 rows, n=7, row arm + direct), U (46 Supavisor
   twins + 6 statement N/A), C (7 M1 twins at scale 100, M9-C1..C7;
   M8-P1..P3 subsumed), K (M8-C1 warmup curve), E (M9-E1
-  equalized-auth churn, SCRAM everywhere via `auth_mode=equalized`
+   equalized-auth churn, SCRAM on pooler frontends via `auth_mode=equalized`
   on odyssey/pgpool, other arms unchanged). Paired seeds
   (`m9_seed_for`: repeat-only schedule, 3 bases, distinct every
   repeat). 103 chunks under the 60 min cap, priced at 78.1 measured

@@ -9,12 +9,12 @@ not its results.
 
 | Block | Content | Chunks | Arm-runs | Measured |
 |---|---|---|---|---|
-| R scale-10 M1 | 7 M1 geometries, flagship n=10 / standard n=7, 8 arms | 25 | 385 | 15.2 h |
+| R scale-10 M1 | 7 M1 geometries, flagship n=10 / standard n=7, 7 arms | 25 | 385 | 15.2 h |
 | W scale-10 M2 | all 52 M2 rows, n=7, row arm + direct control | 26 | 728 | 24.3 h |
 | U supavisor twins | 46 Supavisor twins of M2 geometries, n=7 | 23 | 644 | 21.5 h |
-| C scale-100 | 7 M1 twins at `-s 100` (M9-C1..C7), n=10/7, 8 arms | 25 | 385 | 15.2 h |
+| C scale-100 | 7 M1 twins at `-s 100` (M9-C1..C7), n=10/7, 7 arms | 25 | 385 | 15.2 h |
 | K warmup curve | M8-C1 candidates 0/10/30/60 s, 3 paired reps, direct | 1 | 12 | 0.4 h |
-| E equalized churn | M9-E1, SCRAM everywhere, 8 arms, n=7 | 3 | 49 | 1.6 h |
+| E equalized churn | M9-E1, SCRAM on pooler frontends, 7 arms, n=7 | 3 | 49 | 1.6 h |
 | N/A | 6 Supavisor statement twins (nulls, zero time) | - | - | 0 |
 | Total | | 103 | 2203 | 78.1 h |
 
@@ -57,7 +57,7 @@ from `m9_seed_for(repeat, base_seed)`: three bases cycling with a
 7919 stride (offsets 0/1295/8959, none a multiple of the stride, so
 seeds stay distinct for every repeat at any base). The schedule is a
 function of the repeat only, never the arm: repeat r runs on the
-identical seed on all 8 arms (pairing for the M10 CIs). `--seed`
+identical seed on all 7 arms (pairing for the M10 CIs). `--seed`
 overrides the base; the default base is 42.
 
 ## Pricing
