@@ -10,6 +10,12 @@ M2 variants from the cell's ``variant`` dict (grid.md section 4):
 (modes.md section 4: accepted by config, thin upstream prose): results
 carry a provisional config comment and the empirical 26000 rule still
 applies. Cells without a variant render the M1 baseline byte-identically.
+
+M9-E1 equalized control: ``auth_mode=equalized`` switches the frontend
+from CI-only ``none`` to ``scram-sha-256`` with a password, so churn
+deltas measure multiplexing, not auth cost (rules.html authentication
++ password reference). CI startup proves the password form; a rejection
+fails loudly at healthcheck, never silently.
 """
 
 from .base import BaseAdapter
@@ -37,6 +43,13 @@ class OdysseyAdapter(BaseAdapter):
             raise ValueError("odyssey: workers must be 1, 2, or 4")
         return workers
 
+    def auth_lines(self, cell):
+        """Frontend auth lines: CI-only none, or SCRAM when equalized."""
+        if self.variant(cell).get("auth_mode") == "equalized":
+            return ['    authentication "scram-sha-256"',
+                    '    password "benchpass"']
+        return ['    authentication "none"']
+
     def config_text(self, cell):
         pool_size = int(cell["pool_size"])
         pool = self.pool(cell)
@@ -47,10 +60,13 @@ class OdysseyAdapter(BaseAdapter):
         else:
             reserve = ("yes" if cell.get("protocol") == "prepared" else "no")
         prov = bool(variant.get("provisional", pool == "statement"))
+        equalized = variant.get("auth_mode") == "equalized"
         label = ("M1 baseline (transaction pool, workers = 1)"
                  if pool == "transaction" and workers == 1 and not prov
-                 else "M2 variant (pool=%s, workers=%d%s)"
-                 % (pool, workers, ", provisional" if prov else ""))
+                 and not equalized
+                 else "M2 variant (pool=%s, workers=%d%s%s)"
+                 % (pool, workers, ", provisional" if prov else "",
+                    ", equalized-auth" if equalized else ""))
         lines = [
             "# Odyssey %s" % label,
             "# refs: rules.html, global.html, storage.html, "
@@ -84,9 +100,15 @@ class OdysseyAdapter(BaseAdapter):
             # the storage. Frontend authentication "none" is CI-only (the
             # benchmark client is trusted); the backend leg always uses
             # storage_user/storage_password against PostgreSQL scram.
+            # M9-E1 equalized control (auth_mode=equalized): frontend
+            # scram-sha-256 with password (rules.html authentication +
+            # password: plain/MD5/SCRAM secret accepted), so churn arms
+            # stop mixing auth costs.
             'database "benchdb" {',
             '  user "benchuser" {',
-            '    authentication "none"',
+        ])
+        lines.extend(self.auth_lines(cell))
+        lines.extend([
             '    storage "benchdb_store"',
             '    storage_user "benchuser"',
             '    storage_password "benchpass"',

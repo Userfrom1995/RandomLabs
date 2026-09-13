@@ -48,4 +48,13 @@ entry (section 6.2.4.1: SCRAM backend auth requires a plaintext or AES
 entry - md5 entries cannot be used). pgpool resolves `pool_passwd` in its
 startup working directory, which the harness sets to the per-arm workdir.
 
+## M9-E1 equalized control
+
+`auth_mode=equalized` renders `enable_pool_hba = on` with a workdir
+`pool_hba.conf` carrying `host all all 127.0.0.1/32 scram-sha-256`
+(pgpool-II 4.7.2 docs chapter 6 Client Authentication, sections 6.1 +
+6.2.4.2: pool_passwd plaintext entry plus a scram-sha-256 pool_hba
+line). The backend leg is unchanged (pool_passwd SCRAM). CI startup
+proves the lookup; rejection fails loudly at healthcheck.
+
 - Dr. Mob, the Researcher

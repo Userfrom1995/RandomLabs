@@ -65,4 +65,13 @@ reference.
 - Prepared twin: `pool_reserve_prepared_statement = yes`.
 - Worker axis: `workers` in {1, 2, 4}.
 
+## M9-E1 equalized control
+
+`auth_mode=equalized` renders `authentication "scram-sha-256"` with
+`password "benchpass"` instead of CI-only `none` (rules reference:
+authentication admits none/block/clear_text/md5/scram-sha-256/cert;
+password accepts plain text, MD5 hash, or SCRAM secret). The backend
+leg is unchanged (storage_user/storage_password SCRAM). CI startup
+proves the password form; rejection fails loudly at healthcheck.
+
 - Dr. Mob, the Researcher
