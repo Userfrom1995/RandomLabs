@@ -33,7 +33,7 @@ on:
     # rule) and the Reviewer blocks infra PRs that add/rename a workflow
     # without updating it - so a new workflow can never silently miss
     # failure triage.
-    workflows: [auditor, "Deploy static site to GitHub Pages", "Lab Engineer", opencode-review, opencode-pr-trigger, opencode-test, ideate, opencode, opencode-recover, poolduel-m1, poolduel-m2, postformer-cpu-train, curator]
+    workflows: [auditor, "Deploy static site to GitHub Pages", "Lab Engineer", opencode-review, opencode-pr-trigger, opencode-test, ideate, opencode, opencode-recover, poolduel-m1, poolduel-m2, poolduel-m9, postformer-cpu-train, curator]
     types: [completed]
 
 permissions:
@@ -475,7 +475,7 @@ jobs:
               # must go out with the owner credential. Handled here (never
               # via an agent-run gh call, never via /oc comment) because no
               # agent env may hold the PAT.
-              SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "postformer-cpu-train")
+              SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "poolduel-m9", "postformer-cpu-train")
               if action == "sweep":
                   wf = d.get("workflow", "")
                   ref = d.get("ref", "") or "main"
