@@ -294,6 +294,23 @@ def build_record(cell, pooler, pooler_config, measurement, pg_version,
     }
 
 
+def e1_auth_posture(cell, arm):
+    """M9-E1 equalized-auth record label for one (cell, arm) run.
+
+    Pooler arms on an auth_mode=equalized cell measured SCRAM on
+    their frontend, so the record labels that posture for the M10
+    churn-auth comparison. The direct arm has no pooler frontend
+    (auth.py: "scram (PG backend, no pooler frontend)") and every
+    non-equalized cell keeps the adapter default, so both return
+    None here (build_record resolves None to the adapter posture).
+    """
+    variant = cell.get("variant") or {}
+    if variant.get("auth_mode") == "equalized" and arm != "direct":
+        return ("scram-sha-256 on every frontend "
+                "(M9-E1 equalized control)")
+    return None
+
+
 def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
              host="127.0.0.1", threads=4, seed=42, pg_version="PG 17",
              pg_config=None, env=None, seed_fn=None):
@@ -329,12 +346,9 @@ def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
             # M9-E1 equalized control: the cell variant carries
             # auth_mode=equalized, so the record labels the posture it
             # measured instead of the adapter default (provenance for
-            # the churn-auth comparison in M10).
-            variant = cell.get("variant") or {}
-            auth_posture = (
-                "scram-sha-256 on every frontend "
-                "(M9-E1 equalized control)"
-                if variant.get("auth_mode") == "equalized" else None)
+            # the churn-auth comparison in M10). Scoped to pooler
+            # arms: direct has no pooler frontend (see e1_auth_posture).
+            auth_posture = e1_auth_posture(cell, arm)
             measurement = measure_once(
                 cell, host, port, dbname, user, threads,
                 use_seed, repeat, workdir, pg_config, env)
