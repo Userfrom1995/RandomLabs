@@ -44,6 +44,10 @@ class TestM9Repeats(unittest.TestCase):
             self.assertEqual(cell["repeats"], 3)
         with self.assertRaises(KeyError):
             m9_curve_cell(45)
+        with self.assertRaises(KeyError):
+            m9_curve_cell(30.5)
+        with self.assertRaises(KeyError):
+            m9_curve_cell("45")
 
     def test_e1_cell(self):
         from poolduel.harness.m9 import m9_e1_cell
@@ -59,6 +63,21 @@ class TestM9Seeds(unittest.TestCase):
         from poolduel.harness.m9 import m9_seed_for
         seeds = [m9_seed_for(r) for r in range(1, 11)]
         self.assertEqual(len(set(seeds)), 10)
+
+    def test_distinct_across_bases_and_wide_range(self):
+        from poolduel.harness.m9 import M9_SEEDS, m9_seed_for
+        for base in list(M9_SEEDS) + [1, 100000]:
+            seeds = [m9_seed_for(r, base_seed=base)
+                     for r in range(1, 31)]
+            self.assertEqual(len(set(seeds)), 30,
+                             "seeds collide at base %r" % (base,))
+
+    def test_offsets_derive_from_m9_seeds(self):
+        from poolduel.harness.m9 import M9_SEEDS, m9_seed_for
+        self.assertEqual(m9_seed_for(2, base_seed=100),
+                         100 + (M9_SEEDS[1] - M9_SEEDS[0]))
+        self.assertEqual(m9_seed_for(3, base_seed=100),
+                         100 + (M9_SEEDS[2] - M9_SEEDS[0]))
 
     def test_deterministic(self):
         from poolduel.harness.m9 import m9_seed_for
@@ -110,7 +129,12 @@ class TestSupavisorMapping(unittest.TestCase):
                                          m9_supa_rows)
         rows = m9_supa_rows()
         na = m9_supa_na_rows()
+        self.assertEqual(len(rows), 46)
+        self.assertEqual(len(na), 6)
         self.assertEqual(len(rows) + len(na), 52)
+        self.assertEqual(sorted(uid for (uid, _, _, _) in na),
+                         ["M9-U-P3", "M9-U-P4", "M9-U-T1", "M9-U-T2",
+                          "M9-U-T3", "M9-U-T4"])
         self.assertTrue(all(uid.startswith("M9-U-") for uid in m9_supa_ids()))
         self.assertTrue(all("statement" in reason for (_, _, _, reason)
                             in na))
@@ -127,6 +151,23 @@ class TestSupavisorMapping(unittest.TestCase):
 
 
 class TestM9Chunks(unittest.TestCase):
+    def test_seven_arms(self):
+        from poolduel.harness.m9 import M9_ARMS
+        self.assertEqual(len(M9_ARMS), 7)
+        self.assertEqual(sorted(M9_ARMS),
+                         ["direct", "odyssey", "pgagroal", "pgbouncer",
+                          "pgcat", "pgpool", "supavisor"])
+
+    def test_entry_cells_honor_reps_shard(self):
+        from poolduel.harness.m2 import m2_cell_ids
+        from poolduel.harness.m9 import m9_entry_cells, m9_supa_ids
+        _cell, _arms, reps = m9_entry_cells(
+            ("supa", m9_supa_ids()[0], [4, 5], None))
+        self.assertEqual(reps, [4, 5])
+        _cell, _arms, reps = m9_entry_cells(
+            ("m2", m2_cell_ids()[0], [6, 7], None))
+        self.assertEqual(reps, [6, 7])
+
     def test_counts(self):
         from poolduel.harness.m9 import M9_CHUNKS
         self.assertEqual(len(M9_CHUNKS), 103)
@@ -181,8 +222,8 @@ class TestM9Chunks(unittest.TestCase):
         from poolduel.harness.m9 import m9_total_budget
         total = m9_total_budget()
         self.assertEqual(total["chunks"], 103)
-        self.assertGreater(total["arm_runs"], 2000)
-        self.assertGreater(total["measured_hours"], 70.0)
+        self.assertEqual(total["arm_runs"], 2203)
+        self.assertEqual(round(total["measured_hours"], 2), 78.08)
 
     def test_budget_table_covers_all_arms(self):
         from poolduel.harness.m9 import m9_budget_table
@@ -234,17 +275,49 @@ class TestEqualizedAdapters(unittest.TestCase):
 
     def test_other_adapters_tolerate_auth_mode(self):
         from poolduel.harness.adapters.direct import DirectAdapter
+        from poolduel.harness.adapters.pgagroal import PgAgroalAdapter
         from poolduel.harness.adapters.pgbouncer import PgBouncerAdapter
         from poolduel.harness.adapters.pgcat import PgCatAdapter
         from poolduel.harness.adapters.supavisor import SupavisorAdapter
-        cell = self._cell({"auth_mode": "equalized"})
-        for maker in (DirectAdapter, PgBouncerAdapter, PgCatAdapter,
-                      SupavisorAdapter):
-            text = maker().config_text(cell)
-            self.assertTrue(text.strip())
+        for maker in (DirectAdapter, PgAgroalAdapter, PgBouncerAdapter,
+                      PgCatAdapter, SupavisorAdapter):
+            plain = self._cell({})
+            equalized = self._cell({"auth_mode": "equalized"})
+            self.assertEqual(maker().config_text(equalized),
+                             maker().config_text(plain),
+                             "%s must ignore auth_mode" % maker.NAME)
+            self.assertTrue(maker().config_text(equalized).strip())
+
+    def test_equalized_changes_only_odyssey_pgpool(self):
+        from poolduel.harness.adapters.odyssey import OdysseyAdapter
+        from poolduel.harness.adapters.pgpool import PgPoolAdapter
+        for maker in (OdysseyAdapter, PgPoolAdapter):
+            plain = maker().config_text(self._cell({}))
+            equalized = maker().config_text(
+                self._cell({"auth_mode": "equalized"}))
+            self.assertNotEqual(equalized, plain,
+                                "%s must change under auth_mode=equalized"
+                                % maker.NAME)
 
 
 class TestRunnerWiring(unittest.TestCase):
+    def test_e1_posture_pooler_only(self):
+        from poolduel.harness.runner import e1_auth_posture
+        cell = {"cell_id": "M9-E1",
+                "variant": {"auth_mode": "equalized"}}
+        for arm in ("pgagroal", "pgbouncer", "pgpool", "odyssey",
+                    "pgcat", "supavisor"):
+            posture = e1_auth_posture(cell, arm)
+            self.assertIn("M9-E1", posture)
+            self.assertIn("frontend", posture)
+        # Direct has no pooler frontend: no equalized label.
+        self.assertIsNone(e1_auth_posture(cell, "direct"))
+        # Non-equalized cells keep the adapter default (None here).
+        self.assertIsNone(e1_auth_posture({"cell_id": "M1-1"}, "odyssey"))
+        self.assertIsNone(e1_auth_posture({"cell_id": "M9-E1",
+                                           "variant": {}},
+                                          "odyssey"))
+
     def test_equalized_posture_recorded(self):
         from poolduel.harness.runner import build_record
         measurement = {"tps": 10.0, "latency_avg_ms": 1.0,
@@ -309,6 +382,20 @@ class TestM9CLI(unittest.TestCase):
         body = buf.getvalue()
         self.assertIn("M9-E1", body)
         self.assertIn("auth_mode", body)
+
+    def test_m9_cells_filter(self):
+        from poolduel.harness.cli import main
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["--matrix", "m9", "--chunk", "m9e01",
+                       "--cells", "M9-E1",
+                       "--out", "/tmp/m9-test-out", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertIn("M9-E1", buf.getvalue())
+        with self.assertRaises(SystemExit):
+            main(["--matrix", "m9", "--chunk", "m9e01",
+                  "--cells", "M9-NOPE",
+                  "--out", "/tmp/m9-test-out", "--dry-run"])
 
     def test_dry_run_r_seeds_paired(self):
         from poolduel.harness.cli import main
