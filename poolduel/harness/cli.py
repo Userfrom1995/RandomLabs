@@ -78,6 +78,10 @@ def resolve_cells(args):
             if cell["cell_id"] not in seen:
                 seen.add(cell["cell_id"])
                 cells.append(cell)
+        if args.cells.strip():
+            want = {c.strip() for c in args.cells.split(",")
+                    if c.strip()}
+            cells = [c for c in cells if c["cell_id"] in want]
         return cells
     if args.matrix == "m2":
         if args.chunk:
@@ -442,6 +446,17 @@ def main(argv=None):
             if repeats is not None:
                 plan = [(c, a, r) for (c, a, r) in plan
                         if r <= repeats]
+        if args.cells.strip() and not args.pilot:
+            want = {c.strip() for c in args.cells.split(",")
+                    if c.strip()}
+            known = {c["cell_id"] for (c, _a, _r) in plan}
+            unknown = sorted(want - known)
+            if unknown:
+                parser.error("--cells unknown for this M9 scope: %s "
+                             "(want one of %s)"
+                             % (unknown, sorted(known)))
+            plan = [(c, a, r) for (c, a, r) in plan
+                    if c["cell_id"] in want]
         arms = sorted({arm for (_, arm, _) in plan})
     elif args.matrix == "m2":
         plan = m2_plan(cells, repeats_per_cell=repeats)

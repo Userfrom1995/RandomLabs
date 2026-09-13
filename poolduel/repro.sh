@@ -83,6 +83,9 @@ case "$MODE" in
     echo "poolduel repro: M9 smoke (m9k01 warmup curve, one repeat)"
     python3 -m poolduel.harness.cli --matrix m9 --pilot \
       --threads "$THREADS" --out "$M9OUT-smoke"
+    echo "poolduel repro: M9 smoke (m9e01 equalized-churn dry-run)"
+    python3 -m poolduel.harness.cli --matrix m9 --chunk m9e01 \
+      --out "$M9OUT-smoke" --dry-run | tail -2
     ;;
   --m9-chunk)
     if [ -z "$M2CHUNK" ]; then
