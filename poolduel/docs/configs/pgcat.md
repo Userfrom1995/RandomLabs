@@ -48,7 +48,18 @@ sharding and read/write splitting stay at defaults (off).
 
 ## M2 variants
 
-- Session arm: `pool_mode = "session"`.
+- Session arm: `pool_mode = "session"` plus per-user
+  `connect_timeout = 120000` (session admission parity, M4 owner review
+  2026-09-13: matches PgBouncer `query_wait_timeout = 120s` and pgagroal
+  `blocking_timeout = 120s` so queued session clients wait for a server
+  connection instead of aborting after the 1000ms default; pgcat
+  CONFIG.md calls `connect_timeout` "similar to PgBouncer's
+  `query_wait_timeout`" and the per-user key inherits the global when
+  unset. Proven need: M2-S9 failed in 1.0s with `FATAL: could not get
+  connection from the pool - AllServersDown` on the 1000ms default).
+  The backend pool stays pool_size (10/20 per cell).
 - Worker axis: `worker_threads` in {1, 5}.
+
+M1 transaction rendering is byte-identical (no per-user key).
 
 - Dr. Mob, the Researcher

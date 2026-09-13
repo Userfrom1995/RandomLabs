@@ -6,24 +6,26 @@
 <meta name="poolduel-charts-prefix" content="../results/charts/">
 <title>Poolduel deep-dive: PgBouncer</title>
 <style>
-:root {{ color-scheme: dark; }}
-body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+:root { color-scheme: dark; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   max-width: 1080px; margin: 0 auto; padding: 24px; line-height: 1.55;
-  background: #0d1117; color: #e6edf3; }}
-.sub {{ color: #9aa7b4; margin-top: 0; }}
-table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.88rem; }}
-th, td {{ border: 1px solid #30363d; padding: 6px 8px; text-align: left; }}
-th {{ background: #161b22; }}
-code, pre {{ background: #161b22; border-radius: 6px; }}
-pre {{ padding: 12px; overflow-x: auto; font-size: 0.8rem; }}
-code {{ padding: 1px 5px; }}
-a {{ color: #58a6ff; }}
-.section {{ margin-top: 30px; border-top: 1px solid #21262d; padding-top: 18px; }}
-.note {{ color: #9aa7b4; font-size: 0.88rem; }}
-.echart {{ width: 100%; height: 420px; background: #161b22;
-  border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }}
-nav.poolnav {{ display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }}
-footer {{ margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }}
+  background: #0d1117; color: #e6edf3; }
+.sub { color: #9aa7b4; margin-top: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.88rem; }
+th, td { border: 1px solid #30363d; padding: 6px 8px; text-align: left; }
+th { background: #161b22; }
+code, pre { background: #161b22; border-radius: 6px; }
+pre { padding: 12px; overflow-x: auto; font-size: 0.8rem; }
+code { padding: 1px 5px; }
+a { color: #58a6ff; }
+.section { margin-top: 30px; border-top: 1px solid #21262d; padding-top: 18px; }
+.note { color: #9aa7b4; font-size: 0.88rem; }
+.ok { color: #3fb950; }
+.na { color: #9aa7b4; }
+.echart { width: 100%; height: 420px; background: #161b22;
+  border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
+nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -37,25 +39,43 @@ footer {{ margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }}
 
 <div class="section" id="s-charts">
 <h2>Own-surface charts</h2>
-<p class="note">Median tps with min-max bands, generated from committed bundles by <code>harness/charts.py</code> (no hand values). Rendered with vendored ECharts, SVG renderer.</p>
+<p class="note">Median tps with min-max bands, generated from committed bundles by <code>harness/charts.py</code> (no hand values). Rendered with vendored ECharts, SVG renderer. Log twins show the same data on a log scale.</p>
 <div class="echart" data-page="pgbouncer" data-chart="own-m1"></div>
+<div class="echart" data-page="pgbouncer" data-chart="own-m1-log"></div>
 <div class="echart" data-page="pgbouncer" data-chart="own-m2"></div>
+<div class="echart" data-page="pgbouncer" data-chart="own-m2-log"></div>
 </div>
 
 <div class="section" id="s-flatness">
 <h2>Flatness verdict</h2>
-<p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point.</p>
-<div id="flat-block"><p class="note">Live data: fills from <code>../results/report.json</code>.</p></div>
+<p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point. Trough workload named, never silent.</p>
+<div id="flat-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
 </div>
 
 <div class="section" id="s-config">
 <h2>Config anatomy</h2>
-<table>
-<tr><th>Axis</th><th>Setting (every non-default cites upstream docs)</th></tr>
-<tr><td>M1 mode</td><td><code>pool_mode = transaction</code></td></tr>
-<tr><td>M2 session arms</td><td><code>pool_mode = session</code>, 1 vs 2 instances (so_reuseport)</td></tr>
-<tr><td>M2 statement arms</td><td><code>pool_mode = statement</code></td></tr>
-<tr><td>Backends</td><td><code>default_pool_size</code> 10/20, <code>max_client_conn</code> 500</td></tr>
+<p class="note">Every PgBouncer config with its results in full: M1 7 rows plus 12 M2 rows (8 measured + 4 timeout/inconclusive) plus 0 N/A rows. Settings columns are static markup from the harness adapters; tps/status columns fill live from committed medians over HTTP (peak tagged).</p>
+<table data-config-results data-pooler="pgbouncer">
+<tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Status</th></tr>
+<tr data-cell="M1-1" data-pooler="pgbouncer"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance, <code>max_client_conn</code> 500</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M1-2" data-pooler="pgbouncer"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M1-3" data-pooler="pgbouncer"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=transaction</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M1-4" data-pooler="pgbouncer"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M1-5" data-pooler="pgbouncer"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=transaction</code>, pool 20, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M1-6" data-pooler="pgbouncer"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M1-7" data-pooler="pgbouncer"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-S5" data-pooler="pgbouncer"><td>M2-S5</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-S6" data-pooler="pgbouncer"><td>M2-S6</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-S15" data-pooler="pgbouncer"><td>M2-S15</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-S16" data-pooler="pgbouncer"><td>M2-S16</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-T1" data-pooler="pgbouncer"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=statement</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-T2" data-pooler="pgbouncer"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=statement</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-I5" data-pooler="pgbouncer"><td>M2-I5</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-I6" data-pooler="pgbouncer"><td>M2-I6</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-W2" data-pooler="pgbouncer"><td>M2-W2</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=session</code>, pool 20</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-W7" data-pooler="pgbouncer"><td>M2-W7</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=session</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-P2" data-pooler="pgbouncer"><td>M2-P2</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=session</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<tr data-cell="M2-P3" data-pooler="pgbouncer"><td>M2-P3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=statement</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/pgbouncer.md">docs/configs/pgbouncer.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
 </div>
@@ -63,13 +83,13 @@ footer {{ margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }}
 <div class="section" id="s-verdict">
 <h2>Data-bound strengths and limits</h2>
 <p class="note">Derived strings from <code>report.json</code> ranked verdicts (best count, inconclusive count, timeout count), never free prose.</p>
-<div id="verdict-block"><p class="note">Live data: fills from <code>../results/report.json</code>.</p></div>
+<div id="verdict-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
 </div>
 
 <div class="section" id="s-na">
 <h2>N/A table</h2>
-<p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated.</p>
-<div id="na-block"><p class="note">Live data: fills from committed medians.</p></div>
+<p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated. Over-cap cells read <code>timeout/inconclusive</code>.</p>
+<div id="na-block"><p class="note">Loading live data from committed medians (serve over HTTP).</p></div>
 </div>
 
 <div class="section" id="s-repro">
@@ -91,13 +111,28 @@ Poolduel per-pooler deep-dive: PgBouncer. Refs #302 (never Closes without explic
   "use strict";
   var SLUG = "pgbouncer";
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  function naturalKey(s) {
+    return String(s).split(/(\d+)/).map(function (part) {
+      return (/^\d+$/.test(part) ? ("000000" + part).slice(-6) : part);
+    }).join("");
+  }
   function fetchJson(url) {
     return fetch(url, { cache: "no-store" }).then(function (r) {
       return r.ok ? r.json() : null;
     }).catch(function () { return null; });
   }
+  function fetchFailNote(what) {
+    return "<p class='note'>Live results unavailable here: " + esc(what) +
+      " did not load (serve poolduel/ over HTTP).</p>";
+  }
   fetchJson("../results/report.json").then(function (bundle) {
-    if (!bundle) return;
+    if (!bundle) {
+      document.getElementById("flat-block").innerHTML =
+        fetchFailNote("../results/report.json");
+      document.getElementById("verdict-block").innerHTML =
+        fetchFailNote("../results/report.json");
+      return;
+    }
     var flat = bundle.flatness ? bundle.flatness[SLUG] : null;
     var flatHost = document.getElementById("flat-block");
     if (flat) {
@@ -106,13 +141,18 @@ Poolduel per-pooler deep-dive: PgBouncer. Refs #302 (never Closes without explic
         esc(flat.configs_measured) + "</td><td>" +
         (flat.spread == null ? "-" : (100 * flat.spread).toFixed(1) + "%") +
         "</td><td>" + esc(flat.verdict) + "</td><td>" +
-        (flat.peak ? esc(flat.peak.cell_id) + " @ " + esc(flat.peak.tps_median) : "-") +
+        (flat.peak ? esc(flat.peak.cell_id) + " @ " + esc(flat.peak.tps_median) +
+          " (" + esc(flat.peak.workload || "?") + ")" : "-") +
         "</td><td>" +
-        (flat.trough ? esc(flat.trough.cell_id) + " @ " + esc(flat.trough.tps_median) : "-") +
+        (flat.trough ? esc(flat.trough.cell_id) + " @ " + esc(flat.trough.tps_median) +
+          " (" + esc(flat.trough.workload || "?") + ")" : "-") +
         "</td></tr></table>";
     }
     var best = bundle.best || {};
-    var cells = Object.keys(best).sort();
+    var cells = Object.keys(best).sort(function (a, b) {
+      var ka = naturalKey(a), kb = naturalKey(b);
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
     var nBest = 0, nInc = 0, nLose = 0, nNA = 0, nTimeout = 0;
     cells.forEach(function (cell) {
       var info = best[cell];
@@ -138,6 +178,11 @@ Poolduel per-pooler deep-dive: PgBouncer. Refs #302 (never Closes without explic
   });
   fetchJson("../results/m1/medians.json").then(function (m1) {
     fetchJson("../results/m2/medians.json").then(function (m2) {
+      if (!m1 && !m2) {
+        document.getElementById("na-block").innerHTML =
+          fetchFailNote("committed medians");
+        return;
+      }
       var all = (m1 || []).concat(m2 || []);
       var mine = all.filter(function (e) { return e.pooler === SLUG; });
       var na = mine.filter(function (e) { return e.status === "N/A (unsupported)"; });
@@ -145,7 +190,8 @@ Poolduel per-pooler deep-dive: PgBouncer. Refs #302 (never Closes without explic
       if (!mine.length) return;
       var html = "<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>";
       mine.sort(function (a, b) {
-        return a.cell_id < b.cell_id ? -1 : 1;
+        var ka = naturalKey(a.cell_id), kb = naturalKey(b.cell_id);
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
       }).forEach(function (e) {
         html += "<tr><td>" + esc(e.cell_id) + "</td><td>" + esc(e.status) +
           "</td><td>" + (e.tps && e.tps.median != null ? esc(e.tps.median) : "-") +

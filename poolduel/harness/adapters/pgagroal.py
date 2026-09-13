@@ -74,8 +74,16 @@ class PgAgroalAdapter(BaseAdapter):
         pipe = self.pipeline(cell)
         ev = self.ev_backend(cell)
         track = "on" if cell.get("protocol") == "prepared" else "off"
-        # grid.md: blocking_timeout 0 in transaction mode, 30s in sessions.
-        blocking = "0" if pipe == "transaction" else "30s"
+        # grid.md: blocking_timeout 0 in transaction mode (M1 baseline,
+        # byte-identical); 120s in session/performance (M2). The 120s is
+        # frontend-admission parity with PgBouncer query_wait_timeout=120s
+        # and pgcat per-user connect_timeout=120s: queued session clients
+        # wait for a backend instead of failing at connect time, while the
+        # backend pool stays at the cell's pool_size for every arm.
+        # (pgagroal CONFIGURATION.html: blocking_timeout is the time the
+        # process blocks for a connection. Proven need: M2-S1..S4 failed
+        # in 30.1s with FATAL connection pool is full on blocking 30s.)
+        blocking = "0" if pipe == "transaction" else "120s"
         label = ("M1 baseline (transaction pipeline)" if pipe == "transaction"
                   and ev == "auto"
                   else "M2 variant (pipeline=%s, ev_backend=%s)" % (pipe, ev))

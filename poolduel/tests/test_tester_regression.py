@@ -251,6 +251,17 @@ class RunnerHostileTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertIsNone(runner.find_log(d, "prefix"))
 
+    def test_pick_txn_path_skips_aggregate_sibling(self):
+        with tempfile.TemporaryDirectory() as d:
+            agg = os.path.join(d, "cell-X-aggregate-12345.log")
+            worker = os.path.join(d, "cell-X-r1-12345.12345.log")
+            open(agg, "w").close()
+            open(worker, "w").close()
+            # "-" sorts before ".", so the aggregate wins an naive glob.
+            self.assertLess(os.path.basename(agg), os.path.basename(worker))
+            self.assertEqual(runner.pick_txn_path(d, "cell-X"), worker)
+            self.assertIsNone(runner.pick_txn_path(d, "nothing-here"))
+
     def test_manifest_resume_roundtrip(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "o")

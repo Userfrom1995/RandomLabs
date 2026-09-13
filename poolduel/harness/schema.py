@@ -25,7 +25,11 @@ REQUIRED_FIELDS = (
 )
 
 NULLABLE_METRICS = ("tps", "latency_avg_ms", "latency_stddev_ms",
-                    "p50_ms", "p90_ms", "p99_ms", "p999_ms")
+                     "p50_ms", "p90_ms", "p99_ms", "p999_ms")
+
+# Additive provenance fields: allowed when present, never required, so
+# older committed raw records (written before the field existed) stay valid.
+OPTIONAL_FIELDS = ("pg_show",)
 
 
 def validate_cell(record):
@@ -35,7 +39,7 @@ def validate_cell(record):
         if field not in record:
             errors.append("missing field %r" % field)
     for key in record:
-        if key not in REQUIRED_FIELDS:
+        if key not in REQUIRED_FIELDS and key not in OPTIONAL_FIELDS:
             errors.append("forbidden extra field %r" % key)
     if errors:
         return errors
@@ -82,6 +86,7 @@ def make_na_record(cell, pooler, pooler_config, pg_version, pg_config,
         "pooler_config": pooler_config,
         "pg_version": pg_version,
         "pg_config": dict(pg_config),
+        "pg_show": {},
         "scale": cell.get("scale", 10),
         "clients": cell["clients"],
         "pool_size": cell["pool_size"],

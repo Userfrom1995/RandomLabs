@@ -14,12 +14,19 @@ https://www.pgbouncer.org/features.html (mode semantics).
 
 pgbench ships with Postgres, speaks both simple and extended protocols,
 supports built-in TPC-B-like, SELECT-only, and simple-update workloads,
-scales with `-s`, and reports a parseable `tps (without initial connection
-time)` line plus latency averages. Percentiles come from offline analysis of
-per-transaction logs (`-l`, microsecond `time_us` column), because pgbench
-has no native percentile output. Aggregate-interval logs
-(`--aggregate-interval`) give steady-state trimming and variance checks.
-Flags used (`-b -c -C -j -l -L -M -P -r -R -S -N -t -T --aggregate-interval
+scales with `-s`, and reports a parseable `tps = N (...)` line (the
+parenthetical reads `(without initial connection time)` without `-C`
+and `(including reconnection times)` with `-C`; the parser accepts
+either and prefers the steady-state line) plus latency averages.
+Percentiles come from offline analysis of per-transaction logs (`-l`
+without `--aggregate-interval`, microsecond `time_us` column), because
+pgbench has no native percentile output. `--aggregate-interval` is
+deliberately NOT passed: with it the log files carry aggregate SUM
+lines that poison percentile math (M4 finding 2026-09-13: every
+pre-M4 p99 was an aggregate sum off by ~1e4x; `parse_txn_log` now
+skips aggregate-shaped lines and the runner merges all per-worker
+files). Steady-state trimming comes from the discarded 30s warmup run.
+Flags used (`-b -c -C -j -l -M -P -T
 --sampling-rate --log-prefix --random-seed`) are stable across PG 15/16/17/18.
 
 ## 3. Dataset and run shape
@@ -27,7 +34,10 @@ Flags used (`-b -c -C -j -l -L -M -P -r -R -S -N -t -T --aggregate-interval
 Scale `-s 10` (1M accounts, roughly 150-200 MB with indexes): satisfies the
 pgbench rule that scale must meet or exceed the largest client count, fits in
 CI RAM next to PG plus pooler plus pgbench, and keeps pooler overhead visible
-instead of drowned in buffer-miss noise. Fresh `pgbench -i -s 10` per run,
+instead of drowned in buffer-miss noise. Fresh `pgbench -i -s 10` per chunk
+(one init per chunk, not per cell: per-cell re-init would blow the 60 min
+chunk cap; fairness holds because every arm in the chunk shares the same
+dataset in interleaved round-robin order with its own direct control),
 `CHECKPOINT` before each measured run, default vacuum behavior held constant.
 Warmup `-T 30` discarded, measured `-T 60` (flagship `-T 120`). Three repeats
 per cell, five for flagship; median headline with min-max band and CV.
@@ -72,14 +82,25 @@ invalidate carried-forward numbers and trigger re-runs.
 2. Prepared-mode incompatibility: transaction pooling breaks server-side
    prepares unless the pooler tracks them; errors are findings, not harness
    bugs; every prepared cell has a simple-protocol twin.
-3. Auth and startup asymmetry: `-C` cells measure connect plus auth; reset
-   queries and auth methods are held constant and logged.
+3. Auth and startup asymmetry (RECORDED, not held constant): `-C` cells
+   measure connect plus auth. The frontend auth posture differs by pooler
+   and is disclosed, never silently equalized: Odyssey
+   `authentication "none"` (CI-only frontend; backend leg always SCRAM
+   via storage_user/storage_password), pgpool-II `pool_hba` disabled
+   (default; backend SCRAM via pool_passwd), PgBouncer/pgagroal/pgcat
+   SCRAM against their user/vault files. Reset queries
+   (`DISCARD ALL`-style) are part of the fair cost of multiplexing,
+   held constant and reported. Effective server settings per arm-run
+   are captured in each record's `pg_show` block (`SHOW max_connections,
+   shared_buffers, synchronous_commit, fsync, password_encryption`,
+   best-effort, `{}` when unavailable).
 4. Session-state leakage: custom scripts must stay transaction-scoped
    (`SET LOCAL`, `pg_advisory_xact_lock`); builtins already do.
 5. Reset-query cost: `DISCARD ALL` style resets are part of the fair cost of
    multiplexing, held constant and reported.
 6. Autovacuum and checkpoints: fixed `CHECKPOINT`, identical vacuum defaults,
-   warmup trimming via aggregate-interval logs.
+   warmup trimming via the discarded 30s warmup run (per-transaction logs,
+   never aggregate-interval sums).
 7. Shared-runner noise: handled by interleaving and medians, never by static
    baselines or single runs.
 

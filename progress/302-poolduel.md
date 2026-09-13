@@ -301,3 +301,54 @@ Next steps: Reviewer audit -> Tester (Tier-1 re-run + sample-cell repro
   + Tier-2 vision read) -> Maintainer tags @Userfrom1995 for direction.
 
 - the Builder
+
+## Owner-review fix log (Builder, 2026-09-13, branch `opencode/issue302-20260913071636`)
+
+Owner review 2026-09-13T07:13:22Z (5 blocking groups, Refs #302,
+best-mode on shared load). All fixes proven empirically, never guessed:
+
+- p99 parser (`harness/pgbench.py`): local PG16 proved `--aggregate-interval`
+  switches logs to `interval_start num_tx latency_sum ...` (field 2 is a SUM)
+  and `-C` prints `(including reconnection times)`. Fixes: tolerant TPS_RE
+  (prefer excluding/without, fall back to including - churn M1-6/M2-W6..W10
+  parse now), aggregate lines skipped via epoch guard, `--aggregate-interval`
+  removed from default argv, all per-worker log files merged
+  (`parse_txn_logs` + `find_logs`). Live proof: p50 0.046ms over 606k
+  samples (was 249895ms), churn tps 884.7 parses.
+- Session cells (chunk workdirs `poolduel-m2-m2a1/m2a2` of run 34710318693):
+  pgagroal S1-S4 `FATAL: connection pool is full` in 30.1s (blocking 30s);
+  pgcat S9/S10/S13/S14 `AllServersDown` in 1.0s (connect_timeout 1000ms).
+  Siblings queue (pgbouncer max_client_conn 500 + query_wait_timeout 120;
+  session serving verified live: 20 clients on pool 2 full-rate). Fixes,
+  session-variants-only (M1 byte-identical): pgagroal blocking 30s to 120s,
+  pgcat per-user connect_timeout to 120000ms (CONFIG.md: "similar to
+  PgBouncer's query_wait_timeout"). Backend pools unchanged.
+- Medians/report rebuilt from committed raw: `p_quarantined` on all 107
+  measured medians (raw untouched), gates re-evaluated (49 A-faster + 5
+  inconclusive, was 46/54 inconclusive); cross-matrix iso slices live
+  (simple-update M1-5+M2-W, prepared M1-3+M2-P); flatness troughs named.
+- Charts (`harness/charts.py`): natural sort, log twins, scroll legend +
+  de-collided grid, off-baseline markers (symbolOffset + labels), empty
+  series dropped and named, cross-matrix iso preferred, relabeled flatness,
+  peak/n/warmup/hardware subtitles, distinct palette (pgagroal blue,
+  pgpool-II naming unified), y units `tps (transactions/s)`. Loader adds
+  rich tooltips (n/CV/p99/verdict/config) from the same bundles.
+- Pages: index log hosts, inline fallback SVG cut, natural table sort,
+  honest fetch-failure notes; all five per-pooler pages carry full static
+  config tables (M1 7 + own M2 rows + N/A) with live tps/status/PEAK
+  columns over HTTP. HTTP smoke: all pages + bundles 200.
+- Fairness hardening: churn auth asymmetry recorded (methodology s7.3),
+  `pg_show` capture per arm-run (schema-optional), dataset-init doc
+  aligned to per-chunk code, pgpool 1:1 backend label in config doc +
+  deep-dive page, fairness-audit section 6 re-check.
+- Tests: 215/215 green (12 new: churn/aggregate/multi-worker parser,
+  quarantine + gate fallback, readability gates incl. sort/log/markers).
+
+Current step: owner-review fixes complete, awaiting review
+Next steps: Reviewer audit -> Tester sample-cell repro -> Maintainer
+  dispatches SELECTED cells only (churn block + pgagroal/pgcat session
+  cells with fixed harness; full re-sweep needed for matrix-wide real
+  percentiles) -> Pages. `Refs #302`; no `Closes` without explicit
+  @Userfrom1995 approval.
+
+- the Builder

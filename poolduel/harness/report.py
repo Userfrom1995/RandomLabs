@@ -112,8 +112,43 @@ def aggregate(records):
             for metric in METRIC_KEYS:
                 entry[metric] = summarize(
                     [r[metric] for r in rows if r[metric] is not None])
+        quarantine_p_latency(entry)
         medians.append(entry)
     return medians
+
+
+# Quarantine rule for the M4 aggregate-log contamination (proven 2026-09-13
+# on local pgbench 16.15/17.11): runs logged with --aggregate-interval
+# wrote aggregate SUM lines that the old parser read as latencies, so every
+# committed p50/p90/p99/p999 from those runs is off by orders of magnitude
+# (e.g. direct M1-1 lat_avg 3.9ms with p50 249895ms) or exactly 0.0. A
+# measured median whose p50 is exactly 0 or more than 100x its own
+# latency_avg is quarantined (p-summaries nulled, flag set) so the binding
+# gate falls back to its documented tps-only verdict instead of ruling on
+# garbage. Raw records are untouched: the evidence stays, the derived
+# medians say what they can honestly say. Fresh sweeps (no aggregate
+# interval, multi-worker per-txn logs) fill real percentiles.
+P_QUARANTINE_RATIO = 100.0
+
+
+def quarantine_p_latency(entry):
+    """Null proven-invalid p-latency summaries in place. Returns True if so."""
+    if entry.get("status") != "measured":
+        entry["p_quarantined"] = False
+        return False
+    lat = (entry.get("latency_avg_ms") or {}).get("median")
+    p50 = (entry.get("p50_ms") or {}).get("median")
+    if lat is None or p50 is None:
+        entry["p_quarantined"] = False
+        return False
+    if (p50 == 0 and (entry.get("p50_ms") or {}).get("n", 0) > 0) or \
+            (lat > 0 and p50 > P_QUARANTINE_RATIO * lat):
+        for metric in ("p50_ms", "p90_ms", "p99_ms", "p999_ms"):
+            entry[metric] = summarize([])
+        entry["p_quarantined"] = True
+        return True
+    entry["p_quarantined"] = False
+    return False
 
 
 def measured_entries(medians):
@@ -232,11 +267,13 @@ def flatness(medians):
     medians. At or below FLATNESS_SPREAD_FRACTION the surface reads
     "flat"; above it reads "peaky". Poolers with fewer than two
     measured configs read "single-point" (never a verdict on one cell).
+    Peak/trough carry their workload so charts never compare mixed
+    workloads silently.
     """
     out = {}
     poolers = sorted({e["pooler"] for e in medians})
     for pooler in poolers:
-        peaks = [(e["cell_id"], e["tps"]["median"])
+        peaks = [(e["cell_id"], e["tps"]["median"], e.get("workload"))
                  for e in measured_entries(medians)
                  if e["pooler"] == pooler
                  and e["tps"]["median"] is not None]
@@ -255,8 +292,10 @@ def flatness(medians):
             "configs_measured": len(peaks),
             "spread": spread,
             "verdict": verdict,
-            "peak": {"cell_id": peak[0], "tps_median": peak[1]},
-            "trough": {"cell_id": trough[0], "tps_median": trough[1]},
+            "peak": {"cell_id": peak[0], "tps_median": peak[1],
+                     "workload": peak[2]},
+            "trough": {"cell_id": trough[0], "tps_median": trough[1],
+                       "workload": trough[2]},
         }
     return out
 

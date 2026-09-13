@@ -73,7 +73,7 @@ class PgAgroalArgvHostileTest(unittest.TestCase):
         sess = ad.config_text({"pool_size": 10,
                                "variant": {"pipeline": "session"}})
         self.assertIn("blocking_timeout = 0", tx)
-        self.assertIn("blocking_timeout = 30s", sess)
+        self.assertIn("blocking_timeout = 120s", sess)
 
 
 class PgAgroalProvisionHostileTest(unittest.TestCase):

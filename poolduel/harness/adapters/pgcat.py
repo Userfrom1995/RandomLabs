@@ -44,6 +44,19 @@ class PgCatAdapter(BaseAdapter):
                  if mode == "transaction" and threads == 5
                  else "M2 variant (pool_mode=%s, worker_threads=%d)"
                  % (mode, threads))
+        # Session admission parity (M2 only; M1 transaction rendering is
+        # byte-identical): per-user connect_timeout 120000ms matches
+        # PgBouncer query_wait_timeout=120s and pgagroal
+        # blocking_timeout=120s, so queued session clients wait for a
+        # server connection instead of aborting after the 1000ms default.
+        # (pgcat CONFIG.md: general.connect_timeout is "similar to
+        # PgBouncer's query_wait_timeout"; the per-user key inherits the
+        # global when unset. Proven need: M2-S9 failed in 1.0s with
+        # FATAL could not get connection from the pool - AllServersDown
+        # on the 1000ms default.) The backend pool stays pool_size.
+        user_connect_timeout = (
+            "" if mode == "transaction"
+            else "connect_timeout = 120000\n")
         return (
             "# pgcat %s\n" % label +
             "# refs: CONFIG.md, README.md, pgcat.toml example\n"
@@ -69,6 +82,7 @@ class PgCatAdapter(BaseAdapter):
             'username = "benchuser"\n'
             'password = "benchpass"\n'
             "pool_size = %d\n" % pool_size +
+            user_connect_timeout +
             "# single-shard layout (CONFIG.md pools.<pool>.shards.<idx>:\n"
             "# servers are [host, port, role] triples, database selects\n"
             "# the backend database; one primary shard, no replicas)\n"

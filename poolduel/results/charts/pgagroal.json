@@ -3,6 +3,7 @@
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -10,16 +11,18 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
@@ -36,7 +39,7 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2"
         },
         "name": "pgagroal",
         "type": "bar"
@@ -52,15 +55,18 @@
           297.645707
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -75,15 +81,18 @@
           402.588554
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -103,15 +112,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -121,7 +135,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; N/A and timeout cells marked",
+      "subtext": "median tps with min-max bands; N/A and timeout cells marked. peak 1532.1 tps (M1-1 pgagroal); 4 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "pgagroal M1 own surface",
       "textStyle": {
         "color": "#E6EDF3"
@@ -162,14 +176,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "own-m2": {
+  "own-m1-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -177,16 +192,165 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          1532.053875,
+          1120.265641,
+          null,
+          null,
+          332.101502,
+          null,
+          306.024942
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal",
+        "type": "bar"
+      },
+      {
+        "data": [
+          1396.054607,
+          392.711012,
+          null,
+          null,
+          122.024945,
+          null,
+          297.645707
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          2051.393094,
+          1375.982769,
+          null,
+          null,
+          482.76923,
+          null,
+          402.588554
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; N/A and timeout cells marked. peak 1532.1 tps (M1-1 pgagroal); 4 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "pgagroal M1 own surface (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M1-1",
+        "M1-2",
+        "M1-3",
+        "M1-4",
+        "M1-5",
+        "M1-6",
+        "M1-7"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "own-m2": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
@@ -209,7 +373,7 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2"
         },
         "name": "pgagroal",
         "type": "bar"
@@ -231,15 +395,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -260,15 +427,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -284,15 +454,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#484F58"
+          "color": "#FFFFFF"
         },
         "label": {
-          "color": "#484F58",
+          "color": "#FFFFFF",
           "formatter": "N/A (unsupported)",
+          "position": "top",
           "show": true
         },
         "name": "N/A (unsupported)",
-        "symbol": "cross",
+        "symbol": "diamond",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       },
@@ -328,15 +503,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -346,7 +526,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; N/A and timeout cells marked",
+      "subtext": "median tps with min-max bands; N/A and timeout cells marked. peak 2695.6 tps (M2-I3 pgagroal); 4 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "pgagroal M2 own surface",
       "textStyle": {
         "color": "#E6EDF3"
@@ -393,8 +573,179 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
+    }
+  },
+  "own-m2-log": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          2129.805933,
+          1266.090419,
+          2695.642066,
+          1433.122834,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal",
+        "type": "bar"
+      },
+      {
+        "data": [
+          1404.421878,
+          1254.373202,
+          2404.554549,
+          1423.552768,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          2412.908373,
+          1309.474443,
+          3148.276147,
+          1461.457075,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; N/A and timeout cells marked. peak 2695.6 tps (M2-I3 pgagroal); 4 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "pgagroal M2 own surface (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-I1",
+        "M2-I2",
+        "M2-I3",
+        "M2-I4",
+        "M2-P1",
+        "M2-S1",
+        "M2-S2",
+        "M2-S3",
+        "M2-S4",
+        "M2-T1",
+        "M2-T2",
+        "M2-W1",
+        "M2-W6"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
     }
   }
 }

@@ -29,6 +29,11 @@ PG_CONFIG_BASELINE = {
 
 SAMPLING_RATE_FALLBACK = "0.1"
 
+# Effective server settings recorded per arm-run (fairness audit: the
+# values PostgreSQL actually runs with, not just the requested config).
+PG_SHOW_KEYS = ("server_version", "max_connections", "shared_buffers",
+                "synchronous_commit", "fsync", "password_encryption")
+
 
 def cell_cap_s(cell):
     return FLAGSHIP_CAP_S if cell.get("flagship") else STANDARD_CAP_S
@@ -58,8 +63,47 @@ def pg_version_string(pg_version_cmd="SELECT version()"):
     return pg_version_cmd
 
 
+def capture_pg_show(host, port, dbname, user, env=None, timeout_s=30):
+    """Best-effort SHOW snapshot of effective PG settings (never raises).
+
+    Returns a dict (possibly empty) for the record's ``pg_show`` field.
+    An empty dict means the snapshot was unavailable, never a failure of
+    the measured run itself.
+    """
+    show = {}
+    for key in PG_SHOW_KEYS:
+        res = run_subprocess(
+            ["psql", "-h", host, "-p", str(port), "-U", user, "-d", dbname,
+             "-tAc", "SHOW %s" % key],
+            timeout_s=timeout_s, env=env)
+        if res["rc"] == 0 and (res["stdout"] or "").strip():
+            show[key] = res["stdout"].strip().splitlines()[0].strip()
+    return show
+
+
 def find_log(log_dir, prefix):
     cands = sorted(glob.glob(os.path.join(log_dir, prefix + "*")))
+    return cands[0] if cands else None
+
+
+def find_logs(log_dir, prefix):
+    """All pgbench log files for one run (one per worker with -j N).
+
+    Returns the sorted list (possibly empty). Warmup files carry a
+    ``warm-`` prefix so they never match a measured prefix.
+    """
+    return sorted(glob.glob(os.path.join(log_dir, prefix + "*")))
+
+
+def pick_txn_path(log_dir, prefix):
+    """Provenance pointer to a per-worker txn log (never the aggregate).
+
+    ``-`` (0x2D) sorts before ``.`` (0x2E), so an aggregate sibling of a
+    worker file would otherwise win an unfiltered glob. Returns None
+    when no per-worker file exists.
+    """
+    cands = [p for p in find_logs(log_dir, prefix)
+             if "aggregate" not in os.path.basename(p)]
     return cands[0] if cands else None
 
 
@@ -98,7 +142,9 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
         f.write("--- stdout ---\n%s\n" % res["stdout"])
         f.write("--- stderr ---\n%s\n" % res["stderr"])
 
-    txn_path = find_log(log_dir, prefix)
+    txn_path = pick_txn_path(log_dir, prefix)
+    txn_paths = [p for p in find_logs(log_dir, prefix)
+                 if "aggregate" not in os.path.basename(p)]
     agg_path = None
     for cand in sorted(glob.glob(os.path.join(log_dir, prefix + "*"))):
         if "aggregate" in os.path.basename(cand):
@@ -132,9 +178,9 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
     if pgbench_mod.failed_ratio_exceeds(parsed):
         parsed["_rejected"] = True
     pct = {"p50_ms": None, "p90_ms": None, "p99_ms": None, "p999_ms": None}
-    if txn_path and os.path.exists(txn_path):
+    if txn_paths:
         try:
-            pct = pgbench_mod.parse_txn_log(txn_path)
+            pct = pgbench_mod.parse_txn_logs(txn_paths)
         except ValueError:
             pct = {"p50_ms": None, "p90_ms": None, "p99_ms": None,
                    "p999_ms": None}
@@ -173,7 +219,7 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
 
 
 def build_record(cell, pooler, pooler_config, measurement, pg_version,
-                 pg_config, threads, repeat, seed):
+                 pg_config, threads, repeat, seed, pg_show=None):
     return {
         "cell_id": cell["cell_id"],
         "workload": cell["workload"],
@@ -182,6 +228,7 @@ def build_record(cell, pooler, pooler_config, measurement, pg_version,
         "pooler_config": pooler_config,
         "pg_version": pg_version,
         "pg_config": dict(pg_config or PG_CONFIG_BASELINE),
+        "pg_show": dict(pg_show or {}),
         "scale": cell.get("scale", 10),
         "clients": cell["clients"],
         "pool_size": cell["pool_size"],
@@ -241,7 +288,9 @@ def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
                 seed + repeat, repeat, workdir, pg_config, env)
             record = build_record(cell, arm, config_text, measurement,
                                   pg_version, pg_config, threads,
-                                  repeat, seed + repeat)
+                                  repeat, seed + repeat,
+                                  pg_show=capture_pg_show(
+                                      host, port, dbname, user, env))
             errs = validate_cell(record)
             if errs:
                 errors.append("%s/%s/r%d schema: %s"

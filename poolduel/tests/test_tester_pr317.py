@@ -147,7 +147,7 @@ class ConfigSemanticsHostileTest(unittest.TestCase):
         ad = PgAgroalAdapter()
         self.assertIn("blocking_timeout = 0",
                       ad.config_text({"pool_size": 10}))
-        self.assertIn("blocking_timeout = 30s",
+        self.assertIn("blocking_timeout = 120s",
                       ad.config_text({"pool_size": 10,
                                       "variant": {"pipeline": "session"}}))
 

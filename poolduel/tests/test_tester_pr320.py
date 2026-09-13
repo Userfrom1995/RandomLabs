@@ -137,17 +137,20 @@ class DegenerateButValidTest(unittest.TestCase):
 
 
 class ChartCountContractTest(unittest.TestCase):
-    def test_comparison_has_eight_figures(self):
+    def test_comparison_figures_linear_plus_log_twins(self):
         options = _load("results/charts/comparison.json")
         self.assertEqual(
             sorted(options),
-            ["flatness", "iso-overlay", "m1-best", "m2-io", "m2-prepared",
-             "m2-session", "m2-statement", "m2-workloads"])
+            ["flatness", "iso-overlay", "m1-best", "m1-best-log",
+             "m2-io", "m2-io-log", "m2-prepared", "m2-prepared-log",
+             "m2-session", "m2-session-log", "m2-statement",
+             "m2-statement-log", "m2-workloads", "m2-workloads-log"])
 
     def test_pooler_pages_have_own_m1_and_own_m2(self):
         for slug in charts_mod.PAGE_POOLERS:
             options = _load("results/charts/%s.json" % slug)
-            self.assertEqual(sorted(options), ["own-m1", "own-m2"],
+            self.assertEqual(sorted(options),
+                             ["own-m1", "own-m1-log", "own-m2", "own-m2-log"],
                              "chart drift on %s" % slug)
 
     def test_manifest_lists_all_six_pages(self):

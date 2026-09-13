@@ -210,11 +210,19 @@ class FurnitureTest(unittest.TestCase):
         for page in ["comparison"] + list(charts_mod.PAGE_POOLERS):
             options = _load_json("results/charts/%s.json" % page)
             for chart_id, opt in options.items():
+                if chart_id.endswith("-log"):
+                    self.assertEqual(opt["yAxis"]["type"], "log",
+                                     "%s/%s is not a log twin"
+                                     % (page, chart_id))
+                    continue
                 self.assertEqual(opt["yAxis"]["min"], 0,
                                  "%s/%s truncates its axis" % (page, chart_id))
                 self.assertTrue(opt["dataZoom"], "%s/%s lacks zoom"
                                 % (page, chart_id))
                 self.assertIn("legend", opt)
+                self.assertEqual(opt["legend"].get("type"), "scroll",
+                                 "%s/%s legend does not scroll"
+                                 % (page, chart_id))
                 self.assertIn("saveAsImage",
                               json.dumps(opt.get("toolbox", {})),
                               "%s/%s lacks PNG export" % (page, chart_id))
@@ -230,6 +238,103 @@ class FurnitureTest(unittest.TestCase):
              os.path.join(ROOT, "assets/poolduel-charts.js")],
             capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
+
+
+class ReadabilityRegressionTest(unittest.TestCase):
+    """Owner review (2026-09-13) readability gates, all deterministic."""
+
+    def test_x_labels_sort_numerically(self):
+        options = _load_json("results/charts/comparison.json")
+        labels = options["m2-io"]["xAxis"]["data"]
+        self.assertEqual(labels, sorted(labels, key=charts_mod._natural))
+        self.assertLess(labels.index("M2-I2"), labels.index("M2-I10"),
+                        "lexicographic zigzag: I10 before I2")
+
+    def test_log_twins_mirror_linear_values(self):
+        options = _load_json("results/charts/comparison.json")
+        for chart_id in ("m1-best", "m2-session", "m2-statement", "m2-io",
+                         "m2-workloads", "m2-prepared"):
+            linear = options[chart_id]
+            twin = options[chart_id + "-log"]
+            self.assertEqual(twin["yAxis"]["type"], "log")
+            self.assertEqual(twin["xAxis"]["data"], linear["xAxis"]["data"])
+            # y=0 N/A/timeout markers are undefined on a log axis, so the
+            # twin is bar/line-only; markers live on the linear chart.
+            for series in twin["series"]:
+                self.assertNotEqual(series.get("type"), "scatter",
+                                    "%s log twin carries a scatter series"
+                                    % chart_id)
+            expected = [s for s in linear["series"]
+                        if s.get("type") != "scatter"]
+            self.assertEqual(len(twin["series"]), len(expected),
+                             "%s log twin dropped a data series" % chart_id)
+            for lseries, tseries in zip(expected, twin["series"]):
+                self.assertEqual(lseries["name"], tseries["name"])
+                self.assertEqual(tseries["data"], lseries["data"])
+            self.assertIn("markers shown on the linear chart",
+                          twin["title"]["subtext"])
+
+    def test_own_page_log_twins_carry_no_scatter(self):
+        for pooler in charts_mod.PAGE_POOLERS:
+            options = _load_json("results/charts/%s.json" % pooler)
+            for chart_id in ("own-m1", "own-m2"):
+                twin = options[chart_id + "-log"]
+                self.assertEqual(twin["yAxis"]["type"], "log")
+                for series in twin["series"]:
+                    self.assertNotEqual(series.get("type"), "scatter",
+                                        "%s/%s log twin carries a scatter "
+                                        "series" % (pooler, chart_id))
+
+    def test_markers_lift_off_baseline_with_labels(self):
+        options = _load_json("results/charts/comparison.json")
+        found = False
+        for charts in options.values():
+            for series in charts.get("series", []):
+                if series.get("type") != "scatter":
+                    continue
+                found = True
+                self.assertEqual(series.get("symbolOffset"), [0, -14])
+                self.assertTrue((series.get("label") or {}).get("show"))
+                for point in series["data"]:
+                    self.assertEqual(point[1], 0)
+        self.assertTrue(found, "no marker series generated")
+
+    def test_all_none_poolers_dropped_with_subtitle_note(self):
+        options = _load_json("results/charts/comparison.json")
+        stmt = options["m2-statement"]
+        names = [s["name"] for s in stmt["series"]]
+        self.assertNotIn("pgagroal", names)
+        self.assertNotIn("pgpool-II", names)
+        self.assertNotIn("pgcat", names)
+        self.assertIn("No measured cells", stmt["title"]["subtext"])
+
+    def test_iso_prefers_cross_matrix_slice(self):
+        bundle = _load_json("results/report.json")
+        cross = [r for r in bundle["iso_regions"] if r["matched"]
+                 and any(c.startswith("M1-") for c in r["matched_cells"])
+                 and any(c.startswith("M2-") for c in r["matched_cells"])]
+        options = _load_json("results/charts/comparison.json")
+        if cross:
+            iso = options["iso-overlay"]
+            self.assertIn("cross-matrix", iso["title"]["subtext"])
+        else:
+            self.assertNotIn("iso-overlay", options)
+
+    def test_flatness_names_carry_workloads(self):
+        options = _load_json("results/charts/comparison.json")
+        data = options["flatness"]["series"][0]["data"]
+        for point in data:
+            if point["value"] is None:
+                continue
+            self.assertIn("trough", point["name"])
+            self.assertRegex(point["name"], r"\(.+\)")
+
+    def test_subtitles_carry_peak_and_context(self):
+        options = _load_json("results/charts/comparison.json")
+        subtext = options["m1-best"]["title"]["subtext"]
+        self.assertIn("peak", subtext)
+        self.assertIn("warmup", subtext.lower())
+        self.assertIn("scale 10", subtext)
 
 
 class OfflineCleanTest(unittest.TestCase):

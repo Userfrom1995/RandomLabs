@@ -137,3 +137,66 @@ unchecked until then). No `Closes` is claimed: the binding close rule
 needs explicit @Userfrom1995 approval.
 
 - the Builder
+
+## 6. Owner-review re-check (Builder, 2026-09-13, Refs #302)
+
+Owner review of 2026-09-13T07:13:22Z (5 blocking groups) re-verified
+against the committed sweep plus the harness fixes on this branch:
+
+- p99 parser (binding): pre-M4 percentiles were aggregate SUM lines read
+  as latencies (proven on local pgbench 16.15/17.11: `--aggregate-interval`
+  switches the log to `interval_start num_tx latency_sum ...`). All 107
+  measured medians carry the documented `p_quarantined: true` flag with
+  nulled p-summaries; raw records untouched. Binding gates re-evaluated
+  on the same data: 49 tps-decided `A faster` + 5 `inconclusive` (was
+  46/54 inconclusive on poisoned p99s). Fresh sweeps write per-transaction
+  logs (no aggregate flag, all worker files merged) and refill real
+  percentiles; until then no p99-backed headline stands.
+- Churn block: M1-6 all arms (incl. direct) plus M2-W6..W10 showed exit 0
+  with null tps because the parser only accepted `(without initial
+  connection time)` while `-C` runs print `(including reconnection
+  times)` (proven locally). Fixed and covered; churn cells re-run
+  selected-only after merge.
+- Session cells: M2-S1..S4 (pgagroal, `FATAL: connection pool is full`
+  in 30.1s) and M2-S9/S10/S13/S14 (pgcat, `AllServersDown` in 1.0s)
+  were admission-timeout config items, proven from the m2a1/m2a2 chunk
+  workdirs - not pooler rankings. Fixes (session variants only, M1
+  byte-identical): pgagroal `blocking_timeout` 30s to 120s, pgcat
+  per-user `connect_timeout` 1000ms to 120000ms, both at admission
+  parity with PgBouncer `query_wait_timeout = 120s` (pgcat CONFIG.md
+  blesses the comparison). Backend pools unchanged (pool_size per
+  cell). Re-run selected session cells only after merge.
+- Churn auth posture (recorded, not equalized): Odyssey frontend
+  `authentication "none"` (CI-only; backend SCRAM via storage
+  credentials) and pgpool-II frontend `pool_hba` disabled (default;
+  backend SCRAM via pool_passwd) versus SCRAM client auth on
+  PgBouncer/pgagroal/pgcat. Threats section 3 and methodology record
+  the asymmetry; `pg_show` blocks (SHOW max_connections,
+  shared_buffers, synchronous_commit, fsync, password_encryption,
+  best-effort) now ride every new raw record (schema-optional, old
+  records stay valid).
+- Dataset init (doc-vs-code resolved): the runner never re-inited per
+  cell - init runs once per chunk plus `CHECKPOINT` before each
+  measured run (workflow-verified). Methodology section 3 now says
+  per chunk; fairness holds via interleaved round-robin plus
+  per-chunk direct control.
+- pgpool backend-count label kept: every pgpool cell runs
+  `children x max_pool` dedicated backends (100-200, 1:1 or more),
+  labeled in `docs/configs/pgpool-II.md` and on the pgpool deep-dive
+  page - process-per-connection architecture, never counted as
+  multiplexed pooling.
+- Charts/pages: natural x-sort, log twins, off-baseline markers with
+  labels, dropped-empty series named in subtitles, cross-matrix
+  iso-overlay preferred (simple-update M1-5 + M2-W1..W5 and prepared
+  M1-3 + M2-P1..P6 both live), flatness trough workloads named,
+  per-chart peak/n/warmup/hardware subtitles, rich loader tooltips
+  (n, CV, p99, verdict, config path), per-pooler full config+results
+  tables over HTTP with honest fetch-failure notes.
+
+Still pending after this branch (Maintainer-owned): selected-cell
+sweeps (churn block + pgagroal/pgcat session cells) with the fixed
+harness, Tester sample-cell repro, Pages deploy showing numbers.
+`Refs #302` throughout; no `Closes` without explicit @Userfrom1995
+approval.
+
+- the Builder

@@ -98,6 +98,59 @@ class AggregateTest(unittest.TestCase):
         self.assertTrue(med[0]["context_mixed"])
         self.assertEqual(med[0]["tps"]["n"], 3)
 
+    def test_sane_percentiles_not_quarantined(self):
+        recs = trio("M1-1", "pgbouncer", [1000.0, 1100.0, 1200.0],
+                    [2.0, 2.1, 2.2])
+        med = report.aggregate(recs)
+        self.assertFalse(med[0]["p_quarantined"])
+        self.assertEqual(med[0]["p99_ms"]["median"], 2.1)
+
+    def test_aggregate_sum_contamination_quarantined(self):
+        # Direct M1-1 shape: lat_avg ~4ms with p50 ~250000ms (a SUM read
+        # as a latency). p-summaries null out, tps survives, flag set.
+        recs = trio("M1-1", "direct", [24000.0, 25405.0, 25509.0],
+                    [249908.0, 249934.0, 249947.0])
+        for rec in recs:
+            rec["latency_avg_ms"] = 3.93
+            rec["p50_ms"] = 249895.0
+            rec["p90_ms"] = 249926.0
+            rec["p999_ms"] = 249935.0
+        med = report.aggregate(recs)
+        self.assertTrue(med[0]["p_quarantined"])
+        for metric in ("p50_ms", "p90_ms", "p99_ms", "p999_ms"):
+            self.assertIsNone(med[0][metric]["median"], metric)
+        self.assertEqual(med[0]["tps"]["median"], 25405.0)
+        self.assertEqual(med[0]["status"], "measured")
+
+    def test_zero_p50_quarantined(self):
+        recs = trio("M1-5", "pgagroal", [480.0, 482.0, 490.0],
+                    [5.0, 5.1, 5.2])
+        for rec in recs:
+            rec["latency_avg_ms"] = 200.0
+            rec["p50_ms"] = 0.0
+            rec["p90_ms"] = 0.0
+            rec["p999_ms"] = 0.0
+        med = report.aggregate(recs)
+        self.assertTrue(med[0]["p_quarantined"])
+        self.assertIsNone(med[0]["p99_ms"]["median"])
+
+    def test_quarantined_gate_falls_back_to_tps(self):
+        # Binding gate with quarantined p99 decides on tps bands alone.
+        recs = (trio("M1-1", "direct", [24000.0, 24100.0, 24200.0],
+                     [249900.0, 249910.0, 249920.0]) +
+                trio("M1-1", "pgbouncer", [17000.0, 17100.0, 17200.0],
+                     [249900.0, 249910.0, 249920.0]))
+        for rec in recs:
+            rec["latency_avg_ms"] = 4.0
+            rec["p50_ms"] = 249895.0
+            rec["p90_ms"] = 249900.0
+            rec["p999_ms"] = 249930.0
+        best = report.per_cell_best(report.aggregate(recs))
+        ranked = best["M1-1"]["ranked"]
+        self.assertEqual(ranked[0]["pooler"], "direct")
+        self.assertEqual(ranked[0]["verdict"], "best")
+        self.assertIn("A faster", ranked[1]["verdict"])
+
 
 class LoadRawTest(unittest.TestCase):
     def test_loads_valid_skips_sidecars_reports_bad(self):

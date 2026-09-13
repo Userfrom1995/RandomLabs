@@ -6,18 +6,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 6.157893107617586e-05,
-            "max": 249947.761651,
-            "median": 249935.23259999996,
-            "min": 249908.297486,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.122781938456775e-05,
-            "max": 249947.19151,
-            "median": 249934.428,
-            "min": 249908.02286000003,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -32,18 +32,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.00011252299097177983,
-            "max": 248408.124108,
-            "median": 248357.753666,
-            "min": 248344.782001,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001000591721251207,
-            "max": 248398.50408,
-            "median": 248356.42766000002,
-            "min": 248343.30601,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -53,23 +53,23 @@
             "min": 19506.320689,
             "n": 5
           },
-          "verdict": "best-vs-pgcat: inconclusive"
+          "verdict": "best-vs-pgcat: A faster"
         },
         {
           "n": 5,
           "p999_ms": {
-            "cv": 5.296653621366006e-05,
-            "max": 249938.36913500002,
-            "median": 249924.27128999998,
-            "min": 249908.161869,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 5.0425717669558105e-05,
-            "max": 249936.31835000002,
-            "median": 249923.3559,
-            "min": 249907.57569000003,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -79,23 +79,23 @@
             "min": 17047.450127,
             "n": 5
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         },
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.0009200491173737102,
-            "max": 250306.91632400002,
-            "median": 249816.61964999998,
-            "min": 249764.24857999998,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0008273699090206355,
-            "max": 250252.71224000002,
-            "median": 249813.75449999998,
-            "min": 249762.1028,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -105,23 +105,23 @@
             "min": 15410.125695,
             "n": 5
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         },
         {
           "n": 5,
           "p999_ms": {
-            "cv": 5.530998768056644e-05,
-            "max": 249994.856112,
-            "median": 249969.575885,
-            "min": 249960.238855,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 5.129554064561501e-05,
-            "max": 249991.80612,
-            "median": 249969.43085,
-            "min": 249959.72455,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -136,18 +136,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.9506807276642861,
-            "max": 40399.718980000005,
-            "median": 10092.854700000002,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.9503927233217336,
-            "max": 40365.9598,
-            "median": 10087.821000000002,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -157,7 +157,7 @@
             "min": 1396.054607,
             "n": 5
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -172,18 +172,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.014217271934900398,
-            "max": 133820.488476,
-            "median": 129985.885,
-            "min": 129940.49556299999,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.013144507646827779,
-            "max": 133481.54376,
-            "median": 129978.757,
-            "min": 129933.68763,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -198,18 +198,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.008959116154333965,
-            "max": 132745.86919800003,
-            "median": 130933.96279,
-            "min": 130124.37486799998,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.008329341682884206,
-            "max": 132518.96298,
-            "median": 130842.07990000001,
-            "min": 130116.84968,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -224,18 +224,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.005377016154171056,
-            "max": 132030.69108699998,
-            "median": 131878.475144,
-            "min": 130377.54787499999,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005186055608240308,
-            "max": 131996.23087,
-            "median": 131693.05844,
-            "min": 130353.15675000001,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -250,18 +250,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 0.007963910606705135,
-            "max": 132014.446758,
-            "median": 130014.038368,
-            "min": 129474.44073,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.007866898356840775,
-            "max": 131963.16258,
-            "median": 130011.61168,
-            "min": 129454.2423,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -276,18 +276,18 @@
         {
           "n": 5,
           "p999_ms": {
-            "cv": 1.6245355362366083,
-            "max": 30088.637486,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.6248775248961276,
-            "max": 30086.77886,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -297,7 +297,7 @@
             "min": 392.711012,
             "n": 5
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -324,18 +324,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00038419994797401645,
-            "max": 129985.216504,
-            "median": 129907.77473499998,
-            "min": 129891.92792,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0003692967046548583,
-            "max": 129981.64804,
-            "median": 129907.52935,
-            "min": 129891.80119999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -350,18 +350,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0006269861324459998,
-            "max": 129482.409445,
-            "median": 129359.57007500001,
-            "min": 129329.1903,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0006203094046406838,
-            "max": 129480.10045,
-            "median": 129358.68875,
-            "min": 129328.455,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -371,7 +371,7 @@
             "min": 1778.284382,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -394,18 +394,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 4.379104771188047e-05,
-            "max": 497942.935585,
-            "median": 497907.855245,
-            "min": 497902.96070999996,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.127326959270712e-05,
-            "max": 497928.49585,
-            "median": 497901.9051,
-            "min": 497901.16145,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -420,18 +420,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0002582264710271891,
-            "max": 499879.27296000003,
-            "median": 499675.83785199997,
-            "min": 499640.013976,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002651645404641084,
-            "max": 499877.3196,
-            "median": 499657.98952,
-            "min": 499638.82576,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -446,18 +446,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0007086869051399981,
-            "max": 499969.96215000004,
-            "median": 499915.45277,
-            "min": 499331.10628,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0007185360924852811,
-            "max": 499968.40650000004,
-            "median": 499914.8207,
-            "min": 499321.40680000006,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -477,18 +477,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 5.4772987982495745e-05,
-            "max": 249878.23283599998,
-            "median": 249854.808915,
-            "min": 249854.257675,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.266155305375107e-05,
-            "max": 249875.94535999998,
-            "median": 249850.56915,
-            "min": 249847.36974999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -503,18 +503,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0034562419482651106,
-            "max": 251574.087405,
-            "median": 250179.67454500002,
-            "min": 249986.98191,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.003299388493370037,
-            "max": 251501.92005,
-            "median": 250172.07445000001,
-            "min": 249986.2341,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -529,18 +529,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0034578181309637425,
-            "max": 251363.86873,
-            "median": 249871.727315,
-            "min": 249857.194215,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0032991704790276384,
-            "max": 251294.8363,
-            "median": 249871.64915,
-            "min": 249857.07015,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -550,23 +550,23 @@
             "min": 7191.21828,
             "n": 3
           },
-          "verdict": "best-vs-pgcat: inconclusive"
+          "verdict": "best-vs-pgcat: A faster"
         },
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.009590207338994294,
-            "max": 254679.11715,
-            "median": 251211.184345,
-            "min": 250029.98846000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.009158335434325707,
-            "max": 254467.35749999998,
-            "median": 251157.25045,
-            "min": 250028.9666,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -581,18 +581,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00015289956486130344,
-            "max": 250019.73940000002,
-            "median": 249954.101905,
-            "min": 249952.98893999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015293635109290743,
-            "max": 250017.322,
-            "median": 249951.11639999997,
-            "min": 249951.09505,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -607,18 +607,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.732050807568877,
-            "max": 69936.489816,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.732050807568877,
-            "max": 69934.89516,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -628,7 +628,7 @@
             "min": 122.024945,
             "n": 3
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -667,18 +667,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.004255048751075014,
-            "max": 252133.58546,
-            "median": 250410.886745,
-            "min": 250179.66689000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00410713733023174,
-            "max": 252061.3466,
-            "median": 250401.23645,
-            "min": 250173.8609,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -693,18 +693,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0002023414699351341,
-            "max": 250096.46837000002,
-            "median": 250047.54340499997,
-            "min": 249995.29701500002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00019849034344498863,
-            "max": 250093.80769999998,
-            "median": 250046.94405,
-            "min": 249994.59515,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -714,23 +714,23 @@
             "min": 3139.917779,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         },
         {
           "n": 3,
           "p999_ms": {
-            "cv": 7.040553771404195e-05,
-            "max": 250030.06418,
-            "median": 250019.887575,
-            "min": 249995.789115,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.848241721789883e-05,
-            "max": 250028.2658,
-            "median": 250017.09375,
-            "min": 249994.64714999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -740,23 +740,23 @@
             "min": 2976.055743,
             "n": 3
           },
-          "verdict": "best-vs-pgcat: inconclusive"
+          "verdict": "best-vs-pgcat: A faster"
         },
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.000291088437061151,
-            "max": 250188.783435,
-            "median": 250099.25024999998,
-            "min": 250044.57192999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002823023693444557,
-            "max": 250181.66835,
-            "median": 250095.1215,
-            "min": 250041.7633,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -766,23 +766,23 @@
             "min": 2907.320582,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         },
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0015499532034441363,
-            "max": 249792.01662399998,
-            "median": 249232.30183,
-            "min": 249050.454245,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.001488664941037,
-            "max": 249761.98024,
-            "median": 249225.8293,
-            "min": 249049.20545,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -792,23 +792,23 @@
             "min": 2474.835752,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         },
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.7320508075688772,
-            "max": 49677.112043999994,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.7320508075688774,
-            "max": 49676.79744,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -818,7 +818,7 @@
             "min": 297.645707,
             "n": 3
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -828,18 +828,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 6.949233967990956e-05,
-            "max": 249916.060445,
-            "median": 249894.60515000002,
-            "min": 249881.67941999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.926209732001561e-05,
-            "max": 249915.92044999998,
-            "median": 249894.5705,
-            "min": 249881.6472,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -854,18 +854,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.4726242543683419,
-            "max": 87054.22542,
-            "median": 9994.055444000001,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.472455774338805,
-            "max": 86988.70920000001,
-            "median": 9994.04144,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -875,7 +875,7 @@
             "min": 1404.421878,
             "n": 3
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -885,18 +885,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00017289199199906858,
-            "max": 130057.363515,
-            "median": 130027.60301499999,
-            "min": 130013.29415,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00016403294636324977,
-            "max": 130053.58815,
-            "median": 130026.05514999999,
-            "min": 130011.60350000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -911,18 +911,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00010232509686676622,
-            "max": 130014.45266,
-            "median": 129993.275265,
-            "min": 129989.91826,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00010159856888989495,
-            "max": 130013.5766,
-            "median": 129992.14365,
-            "min": 129989.4886,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -932,7 +932,7 @@
             "min": 3013.071792,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -942,18 +942,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00217031653756559,
-            "max": 250872.201435,
-            "median": 249945.361932,
-            "min": 249918.234532,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0020709176238052638,
-            "max": 250828.46534999998,
-            "median": 249944.19131999998,
-            "min": 249918.18532,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -968,18 +968,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.8227956082633345e-05,
-            "max": 249968.12579000002,
-            "median": 249961.69870500002,
-            "min": 249959.317655,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.7114619964405458e-05,
-            "max": 249966.6659,
-            "median": 249961.03905,
-            "min": 249958.27055,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -989,7 +989,7 @@
             "min": 16395.23658,
             "n": 3
           },
-          "verdict": "best-vs-pgcat: inconclusive"
+          "verdict": "best-vs-pgcat: A faster"
         }
       ]
     },
@@ -999,18 +999,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00022266140014807874,
-            "max": 130002.36218499999,
-            "median": 129998.090115,
-            "min": 129950.23329,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00021036719878725875,
-            "max": 129998.34085,
-            "median": 129996.03015,
-            "min": 129949.8669,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1025,18 +1025,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 3.889216815445263e-05,
-            "max": 130006.84268000002,
-            "median": 129998.99881,
-            "min": 129997.39395499999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.891805153347427e-05,
-            "max": 130006.44380000001,
-            "median": 129998.83510000001,
-            "min": 129996.86254999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -1046,7 +1046,7 @@
             "min": 2820.366933,
             "n": 3
           },
-          "verdict": "best-vs-pgcat: inconclusive"
+          "verdict": "best-vs-pgcat: A faster"
         }
       ]
     },
@@ -1056,18 +1056,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 6.090449633736634e-06,
-            "max": 249913.81203499998,
-            "median": 249911.66116999998,
-            "min": 249910.870995,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 8.08980595248832e-06,
-            "max": 249913.74935,
-            "median": 249911.0237,
-            "min": 249909.79995,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1082,18 +1082,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00010481233944815371,
-            "max": 249726.303365,
-            "median": 249684.58243600003,
-            "min": 249678.06906500002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001093702227426021,
-            "max": 249725.21765,
-            "median": 249677.94436,
-            "min": 249677.88965000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -1103,7 +1103,7 @@
             "min": 37395.909408,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -1113,18 +1113,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.006129185183143386,
-            "max": 131713.308265,
-            "median": 131386.02082499999,
-            "min": 130187.11552,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005974632814929387,
-            "max": 131653.83865,
-            "median": 131360.29725,
-            "min": 130174.8172,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1139,18 +1139,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0062201273024763675,
-            "max": 132010.91647,
-            "median": 131964.43703,
-            "min": 130571.355575,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0060052838733362325,
-            "max": 131940.0743,
-            "median": 131924.4667,
-            "min": 130564.79075000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -1160,7 +1160,7 @@
             "min": 906.581805,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -1170,18 +1170,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 9.457517358792852e-05,
-            "max": 249934.75548000002,
-            "median": 249925.389535,
-            "min": 249889.945475,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 9.57221463853803e-05,
-            "max": 249933.7518,
-            "median": 249925.27735,
-            "min": 249888.73474999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1196,18 +1196,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00041602022489593333,
-            "max": 249780.67038000003,
-            "median": 249756.60286400001,
-            "min": 249589.915512,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00040515732305051143,
-            "max": 249772.2048,
-            "median": 249756.50264,
-            "min": 249589.65012,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -1217,7 +1217,7 @@
             "min": 36769.872674,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -1227,18 +1227,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.006312907472429684,
-            "max": 132058.883415,
-            "median": 130755.304585,
-            "min": 130523.47608000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.006167722730859642,
-            "max": 132004.93215,
-            "median": 130728.06685,
-            "min": 130507.3938,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1253,18 +1253,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.009488178456014008,
-            "max": 133434.34528,
-            "median": 132007.59803,
-            "min": 130935.45143500001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.009102877379859426,
-            "max": 133321.7218,
-            "median": 131947.94629999998,
-            "min": 130925.96935,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -1274,7 +1274,7 @@
             "min": 1114.857611,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -1284,18 +1284,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0003964405328993695,
-            "max": 130011.46461,
-            "median": 129939.93591000001,
-            "min": 129911.47097000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0003761961594467184,
-            "max": 130006.6371,
-            "median": 129939.85410000001,
-            "min": 129911.3987,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1310,18 +1310,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.916266017106042,
-            "max": 29962.900325,
-            "median": 19996.414774999997,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.9162685999995859,
-            "max": 29962.36325,
-            "median": 19995.83675,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -1331,7 +1331,7 @@
             "min": 1254.373202,
             "n": 3
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -1341,18 +1341,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00012100289935319015,
-            "max": 249969.568555,
-            "median": 249952.80898000003,
-            "min": 249910.85551999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00011522841943367918,
-            "max": 249966.44155000002,
-            "median": 249951.17080000002,
-            "min": 249910.7072,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1367,18 +1367,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.8652858809340788,
-            "max": 63301.660088,
-            "median": 21257.640936,
-            "min": 11228.852551999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.8662220432017952,
-            "max": 63221.48888,
-            "median": 21211.05636,
-            "min": 11183.91152,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -1388,7 +1388,7 @@
             "min": 2404.554549,
             "n": 3
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -1398,18 +1398,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.000322839170232562,
-            "max": 130043.98077,
-            "median": 129989.10728499999,
-            "min": 129961.537265,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00030484632388783187,
-            "max": 130038.8307,
-            "median": 129987.31885,
-            "min": 129960.90965,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1424,18 +1424,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.2451495031156607,
-            "max": 39858.062275000004,
-            "median": 10075.842115,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.2452605828758057,
-            "max": 39857.89375,
-            "median": 10072.576149999999,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -1445,7 +1445,7 @@
             "min": 1423.552768,
             "n": 3
           },
-          "verdict": "best-vs-pgagroal: inconclusive"
+          "verdict": "best-vs-pgagroal: A faster"
         }
       ]
     },
@@ -1455,18 +1455,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 7.085664194828148e-05,
-            "max": 249937.211472,
-            "median": 249931.82117999997,
-            "min": 249904.201085,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 7.330643786474196e-05,
-            "max": 249937.04472,
-            "median": 249931.25579999998,
-            "min": 249902.81585,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1481,18 +1481,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00016245345365086537,
-            "max": 249921.35414,
-            "median": 249920.884232,
-            "min": 249850.80474500003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001616287051924825,
-            "max": 249920.26532,
-            "median": 249920.2124,
-            "min": 249850.28045000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -1502,7 +1502,7 @@
             "min": 17043.054761,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -1512,18 +1512,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00015730424607911006,
-            "max": 129990.63098,
-            "median": 129957.105225,
-            "min": 129953.596555,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015339003777325942,
-            "max": 129988.8758,
-            "median": 129955.99125,
-            "min": 129952.90855,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1538,18 +1538,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0001502562798833912,
-            "max": 130041.35594,
-            "median": 130015.62918,
-            "min": 130003.024855,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00014586130586009924,
-            "max": 130039.9334,
-            "median": 130014.1458,
-            "min": 130002.95155,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -1569,18 +1569,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 2.46238082612577e-05,
-            "max": 249924.637345,
-            "median": 249915.199576,
-            "min": 249913.07676999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.414762127114346e-05,
-            "max": 249923.05644999997,
-            "median": 249914.24176,
-            "min": 249911.5087,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1595,18 +1595,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 5.634892971688014e-05,
-            "max": 249905.70837,
-            "median": 249902.746715,
-            "min": 249879.97311499997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 5.498597425196771e-05,
-            "max": 249904.2627,
-            "median": 249901.75415,
-            "min": 249879.30814999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -1616,7 +1616,7 @@
             "min": 12967.69768,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -1626,18 +1626,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0013991943069648816,
-            "max": 130305.82356499998,
-            "median": 129992.80586000001,
-            "min": 129988.321825,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.001345833349646205,
-            "max": 130292.79664999999,
-            "median": 129991.2926,
-            "min": 129987.83425000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1652,18 +1652,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 2.640415577023573e-05,
-            "max": 129990.48780500001,
-            "median": 129986.81464,
-            "min": 129983.62918999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.6126610108019e-05,
-            "max": 129990.09005,
-            "median": 129986.7214,
-            "min": 129983.2979,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -1673,7 +1673,7 @@
             "min": 2972.764757,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -1683,18 +1683,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 3.3691409982211334e-05,
-            "max": 249950.32026,
-            "median": 249940.15406499998,
-            "min": 249933.608755,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.307435585887224e-05,
-            "max": 249949.28759999998,
-            "median": 249940.01964999997,
-            "min": 249932.79654999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1709,18 +1709,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.4005706306884667e-05,
-            "max": 249841.72183000002,
-            "median": 249840.16520000002,
-            "min": 249835.0346,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.4487447708129108e-05,
-            "max": 249840.73930000002,
-            "median": 249839.744,
-            "min": 249834.032,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -1730,7 +1730,7 @@
             "min": 13199.727856,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -1745,18 +1745,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00896694261563718,
-            "max": 132003.61299,
-            "median": 130002.995565,
-            "min": 129947.04708,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.008539458887749847,
-            "max": 131905.0449,
-            "median": 130002.03765,
-            "min": 129945.4278,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1781,18 +1781,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.007472307999911217,
-            "max": 131890.05411,
-            "median": 130996.89814,
-            "min": 129935.60269,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.007154512645715823,
-            "max": 131804.7621,
-            "median": 130947.53439999999,
-            "min": 129933.95289999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1817,18 +1817,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.008945010689163415,
-            "max": 132510.95175500002,
-            "median": 130567.24107999999,
-            "min": 130400.73873999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.008514098596109456,
-            "max": 132388.80155,
-            "median": 130564.03779999999,
-            "min": 130362.56739999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1848,18 +1848,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00035361103094478166,
-            "max": 129961.07182,
-            "median": 129906.10882000001,
-            "min": 129869.83045000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00034603865687228997,
-            "max": 129958.0012,
-            "median": 129904.3162,
-            "min": 129868.7005,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1874,18 +1874,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0003142875093664757,
-            "max": 130130.65131500001,
-            "median": 130084.24746500001,
-            "min": 130049.141835,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00029697225069537917,
-            "max": 130125.70415,
-            "median": 130080.59765000001,
-            "min": 130048.82535,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -1910,18 +1910,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00016728651453183275,
-            "max": 129902.48716,
-            "median": 129887.53534999999,
-            "min": 129859.675535,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015952909248156532,
-            "max": 129900.2656,
-            "median": 129886.33249999999,
-            "min": 129859.50035000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1946,18 +1946,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0005516550921925362,
-            "max": 130030.66748,
-            "median": 129959.72648,
-            "min": 129887.28476,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0005297588810990597,
-            "max": 130023.3008,
-            "median": 129957.75980000001,
-            "min": 129885.6626,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -1972,18 +1972,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.000405250637132571,
-            "max": 129426.703748,
-            "median": 129346.24101000001,
-            "min": 129328.25044,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00040030320397397743,
-            "max": 129425.04548000002,
-            "median": 129346.21410000001,
-            "min": 129327.4534,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -1993,7 +1993,7 @@
             "min": 2002.850731,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -2008,18 +2008,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 8.366982597075383e-05,
-            "max": 249937.39809,
-            "median": 249936.73754,
-            "min": 249900.853105,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 8.342772411263463e-05,
-            "max": 249936.60689999998,
-            "median": 249934.8344,
-            "min": 249899.63905,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2044,18 +2044,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0015970583169350578,
-            "max": 130367.879505,
-            "median": 130041.573316,
-            "min": 129981.751205,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0015206998150118494,
-            "max": 130348.89405,
-            "median": 130039.56016000001,
-            "min": 129980.44804999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2075,18 +2075,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00042701502552656626,
-            "max": 250081.805925,
-            "median": 249932.473495,
-            "min": 249875.02661,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0004122624463807802,
-            "max": 250074.82124999998,
-            "median": 249931.55095,
-            "min": 249874.87910000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2101,18 +2101,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 4.3175187149154286e-05,
-            "max": 249746.02114,
-            "median": 249733.464516,
-            "min": 249724.559776,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 4.392752829008938e-05,
-            "max": 249745.7164,
-            "median": 249733.35216,
-            "min": 249723.83776,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -2122,7 +2122,7 @@
             "min": 17181.492479,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -2132,18 +2132,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00013655586348669643,
-            "max": 130006.41519999999,
-            "median": 129983.97372499999,
-            "min": 129971.37161199999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00013258763154560144,
-            "max": 130004.53600000001,
-            "median": 129981.77524999999,
-            "min": 129970.73812,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2158,18 +2158,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0007080164148447372,
-            "max": 129182.18976499999,
-            "median": 129055.185784,
-            "min": 129004.84757200001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0006840496333050491,
-            "max": 129173.92564999999,
-            "median": 129051.84484,
-            "min": 129002.38672,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -2179,7 +2179,7 @@
             "min": 2785.658493,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -2194,18 +2194,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.6682519026752174e-05,
-            "max": 249925.55638999998,
-            "median": 249919.44603,
-            "min": 249917.587245,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.7060254064803175e-05,
-            "max": 249925.0109,
-            "median": 249919.1493,
-            "min": 249916.71645,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2230,18 +2230,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.005661603995373387,
-            "max": 132437.55943,
-            "median": 131163.46639000002,
-            "min": 131131.69119,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005418705121455798,
-            "max": 132350.70429999998,
-            "median": 131127.4179,
-            "min": 131105.38390000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2261,18 +2261,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 2.918797704678878e-05,
-            "max": 249923.64088999998,
-            "median": 249914.5939,
-            "min": 249909.205544,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.9104174812500163e-05,
-            "max": 249923.14489999998,
-            "median": 249914.512,
-            "min": 249908.68844000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2287,18 +2287,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.8645620155637994,
-            "max": 79473.23920799998,
-            "median": 19919.753943999996,
-            "min": 19917.669785000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.864545765951505,
-            "max": 79470.76608,
-            "median": 19919.70844,
-            "min": 19917.595849999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -2308,7 +2308,7 @@
             "min": 18720.962903,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -2318,18 +2318,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00024561197223784055,
-            "max": 130020.7245,
-            "median": 129995.15344000001,
-            "min": 129957.26689500001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00023334624687521284,
-            "max": 130017.3,
-            "median": 129994.2394,
-            "min": 129957.17595,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2344,18 +2344,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.21640962116660944,
-            "max": 29984.665685000004,
-            "median": 29979.465265000003,
-            "min": 19992.013715,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.2164101168930768,
-            "max": 29984.48285,
-            "median": 29979.45865,
-            "min": 19991.930150000004,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -2365,7 +2365,7 @@
             "min": 3039.57275,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -2380,18 +2380,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.014333434741056198,
-            "max": 133823.17375500003,
-            "median": 130782.71406,
-            "min": 130366.40599500001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.013676992119809727,
-            "max": 133661.49555,
-            "median": 130760.9706,
-            "min": 130365.03795000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2416,18 +2416,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 3.81392519351515e-05,
-            "max": 249936.18955,
-            "median": 249920.59657999998,
-            "min": 249918.89468000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.776247810348124e-05,
-            "max": 249935.4565,
-            "median": 249919.6028,
-            "min": 249918.6578,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2452,18 +2452,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.006498309933457406,
-            "max": 132578.34522,
-            "median": 131980.72273500002,
-            "min": 130889.09107499999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.006466154802087736,
-            "max": 132544.9122,
-            "median": 131925.79335,
-            "min": 130860.32775,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2483,18 +2483,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 3.683993768843885e-05,
-            "max": 249933.77865999998,
-            "median": 249932.79141,
-            "min": 249917.36040499998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.64813580169229e-05,
-            "max": 249932.7586,
-            "median": 249932.50710000002,
-            "min": 249916.84205,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2509,18 +2509,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 1.6347847202235701,
-            "max": 1278245.38353,
-            "median": 29815.525335,
-            "min": 19920.623484,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.6304680155303717,
-            "max": 1221783.7713000001,
-            "median": 29815.285350000002,
-            "min": 19920.60984,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -2530,7 +2530,7 @@
             "min": 18581.051627,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -2540,18 +2540,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0026035714305683824,
-            "max": 130882.95784999999,
-            "median": 130563.01316,
-            "min": 130203.549195,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.002540496488263673,
-            "max": 130866.1535,
-            "median": 130553.6276,
-            "min": 130203.23595,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2566,18 +2566,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.5014058790843738,
-            "max": 30272.87953,
-            "median": 20209.62141,
-            "min": 10041.557524999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.5013062961875445,
-            "max": 30264.1543,
-            "median": 20208.8511,
-            "min": 10040.41925,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -2587,7 +2587,7 @@
             "min": 1259.617146,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -2597,18 +2597,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 4.279671042712201e-05,
-            "max": 249937.86666,
-            "median": 249937.502475,
-            "min": 249919.16081,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 4.590518046896925e-05,
-            "max": 249937.1796,
-            "median": 249937.02975,
-            "min": 249917.2331,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2623,18 +2623,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.9982837666590065,
-            "max": 39564.482840000004,
-            "median": 19884.53428,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.9982751629352472,
-            "max": 39563.212400000004,
-            "median": 19884.410799999998,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -2644,7 +2644,7 @@
             "min": 22753.581387,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -2654,18 +2654,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0003880015805616203,
-            "max": 130058.240775,
-            "median": 130039.685245,
-            "min": 129963.07471,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00038032194543234356,
-            "max": 130052.86575,
-            "median": 130039.30045,
-            "min": 129961.24510000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2680,18 +2680,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.866025406524758,
-            "max": 19990.726359999997,
-            "median": 19988.890125,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.8660254060683426,
-            "max": 19990.558599999997,
-            "median": 19988.88225,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -2701,7 +2701,7 @@
             "min": 3627.135733,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -2716,18 +2716,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 4.042044028843648e-05,
-            "max": 249937.967716,
-            "median": 249921.00079000002,
-            "min": 249919.98416,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 4.0646749590861153e-05,
-            "max": 249937.44316,
-            "median": 249920.9089,
-            "min": 249918.9506,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2760,18 +2760,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00010885321088419389,
-            "max": 249948.87678000002,
-            "median": 249915.99672999998,
-            "min": 249894.894176,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00010576781902190369,
-            "max": 249947.15579999998,
-            "median": 249915.1303,
-            "min": 249894.71576,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2786,18 +2786,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 3.1229052649075836e-05,
-            "max": 249922.865665,
-            "median": 249913.85597499998,
-            "min": 249907.32205199997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.8734374445969887e-05,
-            "max": 249921.31465,
-            "median": 249912.99175,
-            "min": 249907.01652,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -2807,7 +2807,7 @@
             "min": 17563.758323,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -2834,18 +2834,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0002104490826104168,
-            "max": 130011.336965,
-            "median": 129979.71101,
-            "min": 129956.862735,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002019660902802309,
-            "max": 130008.70865,
-            "median": 129977.92910000001,
-            "min": 129956.48234999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2865,18 +2865,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 8.579075215176451e-05,
-            "max": 249933.15214,
-            "median": 249909.18808,
-            "min": 249890.375315,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 8.353520138223987e-05,
-            "max": 249931.95640000002,
-            "median": 249908.3968,
-            "min": 249890.32415,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2891,18 +2891,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 3.291878781572738e-05,
-            "max": 249975.67315000002,
-            "median": 249974.724335,
-            "min": 249960.96988000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.349260387576227e-05,
-            "max": 249975.1075,
-            "median": 249974.55635,
-            "min": 249960.3388,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -2922,18 +2922,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00038823172361668703,
-            "max": 130019.00025000001,
-            "median": 130002.62844500001,
-            "min": 129924.56723199999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00038178496281948693,
-            "max": 130017.72450000001,
-            "median": 130000.31045,
-            "min": 129924.39832,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -2948,18 +2948,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.0001550956530437953,
-            "max": 130069.220585,
-            "median": 130045.32679,
-            "min": 130029.12612999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001506469954840754,
-            "max": 130067.02985,
-            "median": 130044.9559,
-            "min": 130027.9573,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -2984,18 +2984,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00647558487469119,
-            "max": 251404.028935,
-            "median": 249794.31536399998,
-            "min": 248168.980365,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.006327716685061286,
-            "max": 251283.51835,
-            "median": 249785.99364,
-            "min": 248124.47865,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3028,18 +3028,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00016257777643400475,
-            "max": 249866.595092,
-            "median": 249840.112085,
-            "min": 249786.846375,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015753238167016007,
-            "max": 249860.29592000003,
-            "median": 249832.88585,
-            "min": 249782.69175,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3054,18 +3054,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.000904506763234724,
-            "max": 50057.264855,
-            "median": 49981.134065,
-            "min": 49976.88727,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0008638214682993893,
-            "max": 50053.62755,
-            "median": 49980.98165,
-            "min": 49976.8177,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -3075,7 +3075,7 @@
             "min": 3875.552003,
             "n": 3
           },
-          "verdict": "best-vs-pgbouncer: inconclusive"
+          "verdict": "best-vs-pgbouncer: A faster"
         }
       ]
     },
@@ -3085,18 +3085,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.00028374468554554817,
-            "max": 249876.09797,
-            "median": 249867.019804,
-            "min": 249749.028995,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002689711554933517,
-            "max": 249870.20270000002,
-            "median": 249856.19103999998,
-            "min": 249747.44495,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3111,18 +3111,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.20329377957641429,
-            "max": 69917.38987999999,
-            "median": 50002.26512,
-            "min": 49955.51551,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.20330644771796683,
-            "max": 69917.3888,
-            "median": 50000.3042,
-            "min": 49955.4571,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -3132,7 +3132,7 @@
             "min": 4704.546159,
             "n": 3
           },
-          "verdict": "best-vs-odyssey: inconclusive"
+          "verdict": "best-vs-odyssey: A faster"
         }
       ]
     },
@@ -3147,18 +3147,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.001018048841707676,
-            "max": 249772.47246999998,
-            "median": 249385.22677999997,
-            "min": 249294.14182499997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0010678304615218755,
-            "max": 249769.7497,
-            "median": 249379.8248,
-            "min": 249260.36325,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3178,18 +3178,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.005718803606433461,
-            "max": 251985.635392,
-            "median": 249734.55157,
-            "min": 249327.531944,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005569358829654177,
-            "max": 251859.80992,
-            "median": 249585.5167,
-            "min": 249326.77544000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3204,18 +3204,18 @@
         {
           "n": 3,
           "p999_ms": {
-            "cv": 0.03528191393184011,
-            "max": 249931.358105,
-            "median": 241641.861165,
-            "min": 232893.05060000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.03529286175193866,
-            "max": 249931.03505,
-            "median": 241372.69965000002,
-            "min": 232891.80500000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -3225,7 +3225,7 @@
             "min": 3956.293171,
             "n": 3
           },
-          "verdict": "best-vs-pgpool: inconclusive"
+          "verdict": "best-vs-pgpool: A faster"
         }
       ]
     },
@@ -3287,12 +3287,14 @@
       "configs_measured": 52,
       "peak": {
         "cell_id": "M2-I15",
-        "tps_median": 66934.965444
+        "tps_median": 66934.965444,
+        "workload": "select-only"
       },
       "spread": 0.9782957611113516,
       "trough": {
         "cell_id": "M2-S4",
-        "tps_median": 1452.77248
+        "tps_median": 1452.77248,
+        "workload": "tpcb-like"
       },
       "verdict": "peaky"
     },
@@ -3300,12 +3302,14 @@
       "configs_measured": 15,
       "peak": {
         "cell_id": "M2-S7",
-        "tps_median": 23527.818557
+        "tps_median": 23527.818557,
+        "workload": "select-only"
       },
       "spread": 0.9412343904875686,
       "trough": {
         "cell_id": "M2-P4",
-        "tps_median": 1382.626598
+        "tps_median": 1382.626598,
+        "workload": "tpcb-like"
       },
       "verdict": "peaky"
     },
@@ -3313,12 +3317,14 @@
       "configs_measured": 8,
       "peak": {
         "cell_id": "M2-I3",
-        "tps_median": 2695.642066
+        "tps_median": 2695.642066,
+        "workload": "select-only"
       },
       "spread": 0.886474192601504,
       "trough": {
         "cell_id": "M1-7",
-        "tps_median": 306.024942
+        "tps_median": 306.024942,
+        "workload": "tpcb-like"
       },
       "verdict": "peaky"
     },
@@ -3326,12 +3332,14 @@
       "configs_measured": 13,
       "peak": {
         "cell_id": "M2-S15",
-        "tps_median": 18867.317352
+        "tps_median": 18867.317352,
+        "workload": "select-only"
       },
       "spread": 0.928214126643901,
       "trough": {
         "cell_id": "M2-S6",
-        "tps_median": 1354.406854
+        "tps_median": 1354.406854,
+        "workload": "tpcb-like"
       },
       "verdict": "peaky"
     },
@@ -3339,12 +3347,14 @@
       "configs_measured": 6,
       "peak": {
         "cell_id": "M1-1",
-        "tps_median": 19579.167029
+        "tps_median": 19579.167029,
+        "workload": "select-only"
       },
       "spread": 0.8541442846485664,
       "trough": {
         "cell_id": "M2-I12",
-        "tps_median": 2855.733413
+        "tps_median": 2855.733413,
+        "workload": "tpcb-like"
       },
       "verdict": "peaky"
     },
@@ -3352,12 +3362,14 @@
       "configs_measured": 13,
       "peak": {
         "cell_id": "M2-I13",
-        "tps_median": 37859.480956
+        "tps_median": 37859.480956,
+        "workload": "select-only"
       },
       "spread": 0.9683611382736041,
       "trough": {
         "cell_id": "M2-I16",
-        "tps_median": 1197.830883
+        "tps_median": 1197.830883,
+        "workload": "tpcb-like"
       },
       "verdict": "peaky"
     }
@@ -3378,18 +3390,18 @@
           "cell_id": "M1-1",
           "n": 5,
           "p999_ms": {
-            "cv": 6.157893107617586e-05,
-            "max": 249947.761651,
-            "median": 249935.23259999996,
-            "min": 249908.297486,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.122781938456775e-05,
-            "max": 249947.19151,
-            "median": 249934.428,
-            "min": 249908.02286000003,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3404,18 +3416,18 @@
           "cell_id": "M1-1",
           "n": 5,
           "p999_ms": {
-            "cv": 5.530998768056644e-05,
-            "max": 249994.856112,
-            "median": 249969.575885,
-            "min": 249960.238855,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 5.129554064561501e-05,
-            "max": 249991.80612,
-            "median": 249969.43085,
-            "min": 249959.72455,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -3430,18 +3442,18 @@
           "cell_id": "M1-1",
           "n": 5,
           "p999_ms": {
-            "cv": 0.9506807276642861,
-            "max": 40399.718980000005,
-            "median": 10092.854700000002,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.9503927233217336,
-            "max": 40365.9598,
-            "median": 10087.821000000002,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -3456,18 +3468,18 @@
           "cell_id": "M1-1",
           "n": 5,
           "p999_ms": {
-            "cv": 5.296653621366006e-05,
-            "max": 249938.36913500002,
-            "median": 249924.27128999998,
-            "min": 249908.161869,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 5.0425717669558105e-05,
-            "max": 249936.31835000002,
-            "median": 249923.3559,
-            "min": 249907.57569000003,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -3482,18 +3494,18 @@
           "cell_id": "M1-1",
           "n": 5,
           "p999_ms": {
-            "cv": 0.00011252299097177983,
-            "max": 248408.124108,
-            "median": 248357.753666,
-            "min": 248344.782001,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001000591721251207,
-            "max": 248398.50408,
-            "median": 248356.42766000002,
-            "min": 248343.30601,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -3508,18 +3520,18 @@
           "cell_id": "M1-1",
           "n": 5,
           "p999_ms": {
-            "cv": 0.0009200491173737102,
-            "max": 250306.91632400002,
-            "median": 249816.61964999998,
-            "min": 249764.24857999998,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0008273699090206355,
-            "max": 250252.71224000002,
-            "median": 249813.75449999998,
-            "min": 249762.1028,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -3565,18 +3577,18 @@
           "cell_id": "M2-I1",
           "n": 3,
           "p999_ms": {
-            "cv": 6.949233967990956e-05,
-            "max": 249916.060445,
-            "median": 249894.60515000002,
-            "min": 249881.67941999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.926209732001561e-05,
-            "max": 249915.92044999998,
-            "median": 249894.5705,
-            "min": 249881.6472,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3591,18 +3603,18 @@
           "cell_id": "M2-I1",
           "n": 3,
           "p999_ms": {
-            "cv": 1.4726242543683419,
-            "max": 87054.22542,
-            "median": 9994.055444000001,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.472455774338805,
-            "max": 86988.70920000001,
-            "median": 9994.04144,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -3617,18 +3629,18 @@
           "cell_id": "M2-I11",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00217031653756559,
-            "max": 250872.201435,
-            "median": 249945.361932,
-            "min": 249918.234532,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0020709176238052638,
-            "max": 250828.46534999998,
-            "median": 249944.19131999998,
-            "min": 249918.18532,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3643,18 +3655,18 @@
           "cell_id": "M2-I11",
           "n": 3,
           "p999_ms": {
-            "cv": 1.8227956082633345e-05,
-            "max": 249968.12579000002,
-            "median": 249961.69870500002,
-            "min": 249959.317655,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.7114619964405458e-05,
-            "max": 249966.6659,
-            "median": 249961.03905,
-            "min": 249958.27055,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -3669,18 +3681,18 @@
           "cell_id": "M2-I13",
           "n": 3,
           "p999_ms": {
-            "cv": 6.090449633736634e-06,
-            "max": 249913.81203499998,
-            "median": 249911.66116999998,
-            "min": 249910.870995,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 8.08980595248832e-06,
-            "max": 249913.74935,
-            "median": 249911.0237,
-            "min": 249909.79995,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3695,18 +3707,18 @@
           "cell_id": "M2-I13",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00010481233944815371,
-            "max": 249726.303365,
-            "median": 249684.58243600003,
-            "min": 249678.06906500002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001093702227426021,
-            "max": 249725.21765,
-            "median": 249677.94436,
-            "min": 249677.88965000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -3721,18 +3733,18 @@
           "cell_id": "M2-I15",
           "n": 3,
           "p999_ms": {
-            "cv": 9.457517358792852e-05,
-            "max": 249934.75548000002,
-            "median": 249925.389535,
-            "min": 249889.945475,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 9.57221463853803e-05,
-            "max": 249933.7518,
-            "median": 249925.27735,
-            "min": 249888.73474999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3747,18 +3759,18 @@
           "cell_id": "M2-I15",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00041602022489593333,
-            "max": 249780.67038000003,
-            "median": 249756.60286400001,
-            "min": 249589.915512,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00040515732305051143,
-            "max": 249772.2048,
-            "median": 249756.50264,
-            "min": 249589.65012,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -3773,18 +3785,18 @@
           "cell_id": "M2-I3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00012100289935319015,
-            "max": 249969.568555,
-            "median": 249952.80898000003,
-            "min": 249910.85551999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00011522841943367918,
-            "max": 249966.44155000002,
-            "median": 249951.17080000002,
-            "min": 249910.7072,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3799,18 +3811,18 @@
           "cell_id": "M2-I3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.8652858809340788,
-            "max": 63301.660088,
-            "median": 21257.640936,
-            "min": 11228.852551999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.8662220432017952,
-            "max": 63221.48888,
-            "median": 21211.05636,
-            "min": 11183.91152,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -3825,18 +3837,18 @@
           "cell_id": "M2-I5",
           "n": 3,
           "p999_ms": {
-            "cv": 7.085664194828148e-05,
-            "max": 249937.211472,
-            "median": 249931.82117999997,
-            "min": 249904.201085,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 7.330643786474196e-05,
-            "max": 249937.04472,
-            "median": 249931.25579999998,
-            "min": 249902.81585,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3851,18 +3863,18 @@
           "cell_id": "M2-I5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00016245345365086537,
-            "max": 249921.35414,
-            "median": 249920.884232,
-            "min": 249850.80474500003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001616287051924825,
-            "max": 249920.26532,
-            "median": 249920.2124,
-            "min": 249850.28045000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -3877,18 +3889,18 @@
           "cell_id": "M2-I7",
           "n": 3,
           "p999_ms": {
-            "cv": 2.46238082612577e-05,
-            "max": 249924.637345,
-            "median": 249915.199576,
-            "min": 249913.07676999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.414762127114346e-05,
-            "max": 249923.05644999997,
-            "median": 249914.24176,
-            "min": 249911.5087,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3903,18 +3915,18 @@
           "cell_id": "M2-I7",
           "n": 3,
           "p999_ms": {
-            "cv": 5.634892971688014e-05,
-            "max": 249905.70837,
-            "median": 249902.746715,
-            "min": 249879.97311499997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 5.498597425196771e-05,
-            "max": 249904.2627,
-            "median": 249901.75415,
-            "min": 249879.30814999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -3929,18 +3941,18 @@
           "cell_id": "M2-I9",
           "n": 3,
           "p999_ms": {
-            "cv": 3.3691409982211334e-05,
-            "max": 249950.32026,
-            "median": 249940.15406499998,
-            "min": 249933.608755,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.307435585887224e-05,
-            "max": 249949.28759999998,
-            "median": 249940.01964999997,
-            "min": 249932.79654999997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -3955,18 +3967,18 @@
           "cell_id": "M2-I9",
           "n": 3,
           "p999_ms": {
-            "cv": 1.4005706306884667e-05,
-            "max": 249841.72183000002,
-            "median": 249840.16520000002,
-            "min": 249835.0346,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.4487447708129108e-05,
-            "max": 249840.73930000002,
-            "median": 249839.744,
-            "min": 249834.032,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -3981,18 +3993,18 @@
           "cell_id": "M2-S1",
           "n": 3,
           "p999_ms": {
-            "cv": 8.366982597075383e-05,
-            "max": 249937.39809,
-            "median": 249936.73754,
-            "min": 249900.853105,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 8.342772411263463e-05,
-            "max": 249936.60689999998,
-            "median": 249934.8344,
-            "min": 249899.63905,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4007,18 +4019,18 @@
           "cell_id": "M2-S11",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00042701502552656626,
-            "max": 250081.805925,
-            "median": 249932.473495,
-            "min": 249875.02661,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0004122624463807802,
-            "max": 250074.82124999998,
-            "median": 249931.55095,
-            "min": 249874.87910000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4033,18 +4045,18 @@
           "cell_id": "M2-S11",
           "n": 3,
           "p999_ms": {
-            "cv": 4.3175187149154286e-05,
-            "max": 249746.02114,
-            "median": 249733.464516,
-            "min": 249724.559776,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 4.392752829008938e-05,
-            "max": 249745.7164,
-            "median": 249733.35216,
-            "min": 249723.83776,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -4059,18 +4071,18 @@
           "cell_id": "M2-S13",
           "n": 3,
           "p999_ms": {
-            "cv": 1.6682519026752174e-05,
-            "max": 249925.55638999998,
-            "median": 249919.44603,
-            "min": 249917.587245,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.7060254064803175e-05,
-            "max": 249925.0109,
-            "median": 249919.1493,
-            "min": 249916.71645,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4085,18 +4097,18 @@
           "cell_id": "M2-S15",
           "n": 3,
           "p999_ms": {
-            "cv": 2.918797704678878e-05,
-            "max": 249923.64088999998,
-            "median": 249914.5939,
-            "min": 249909.205544,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.9104174812500163e-05,
-            "max": 249923.14489999998,
-            "median": 249914.512,
-            "min": 249908.68844000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4111,18 +4123,18 @@
           "cell_id": "M2-S15",
           "n": 3,
           "p999_ms": {
-            "cv": 0.8645620155637994,
-            "max": 79473.23920799998,
-            "median": 19919.753943999996,
-            "min": 19917.669785000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.864545765951505,
-            "max": 79470.76608,
-            "median": 19919.70844,
-            "min": 19917.595849999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4137,18 +4149,18 @@
           "cell_id": "M2-S3",
           "n": 3,
           "p999_ms": {
-            "cv": 3.81392519351515e-05,
-            "max": 249936.18955,
-            "median": 249920.59657999998,
-            "min": 249918.89468000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.776247810348124e-05,
-            "max": 249935.4565,
-            "median": 249919.6028,
-            "min": 249918.6578,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4163,18 +4175,18 @@
           "cell_id": "M2-S5",
           "n": 3,
           "p999_ms": {
-            "cv": 3.683993768843885e-05,
-            "max": 249933.77865999998,
-            "median": 249932.79141,
-            "min": 249917.36040499998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.64813580169229e-05,
-            "max": 249932.7586,
-            "median": 249932.50710000002,
-            "min": 249916.84205,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4189,18 +4201,18 @@
           "cell_id": "M2-S5",
           "n": 3,
           "p999_ms": {
-            "cv": 1.6347847202235701,
-            "max": 1278245.38353,
-            "median": 29815.525335,
-            "min": 19920.623484,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.6304680155303717,
-            "max": 1221783.7713000001,
-            "median": 29815.285350000002,
-            "min": 19920.60984,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4215,18 +4227,18 @@
           "cell_id": "M2-S7",
           "n": 3,
           "p999_ms": {
-            "cv": 4.279671042712201e-05,
-            "max": 249937.86666,
-            "median": 249937.502475,
-            "min": 249919.16081,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 4.590518046896925e-05,
-            "max": 249937.1796,
-            "median": 249937.02975,
-            "min": 249917.2331,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4241,18 +4253,18 @@
           "cell_id": "M2-S7",
           "n": 3,
           "p999_ms": {
-            "cv": 0.9982837666590065,
-            "max": 39564.482840000004,
-            "median": 19884.53428,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.9982751629352472,
-            "max": 39563.212400000004,
-            "median": 19884.410799999998,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -4267,18 +4279,18 @@
           "cell_id": "M2-S9",
           "n": 3,
           "p999_ms": {
-            "cv": 4.042044028843648e-05,
-            "max": 249937.967716,
-            "median": 249921.00079000002,
-            "min": 249919.98416,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 4.0646749590861153e-05,
-            "max": 249937.44316,
-            "median": 249920.9089,
-            "min": 249918.9506,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4293,18 +4305,18 @@
           "cell_id": "M2-T1",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00010885321088419389,
-            "max": 249948.87678000002,
-            "median": 249915.99672999998,
-            "min": 249894.894176,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00010576781902190369,
-            "max": 249947.15579999998,
-            "median": 249915.1303,
-            "min": 249894.71576,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4319,18 +4331,18 @@
           "cell_id": "M2-T1",
           "n": 3,
           "p999_ms": {
-            "cv": 3.1229052649075836e-05,
-            "max": 249922.865665,
-            "median": 249913.85597499998,
-            "min": 249907.32205199997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.8734374445969887e-05,
-            "max": 249921.31465,
-            "median": 249912.99175,
-            "min": 249907.01652,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4345,18 +4357,18 @@
           "cell_id": "M2-T3",
           "n": 3,
           "p999_ms": {
-            "cv": 8.579075215176451e-05,
-            "max": 249933.15214,
-            "median": 249909.18808,
-            "min": 249890.375315,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 8.353520138223987e-05,
-            "max": 249931.95640000002,
-            "median": 249908.3968,
-            "min": 249890.32415,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4371,18 +4383,18 @@
           "cell_id": "M2-T3",
           "n": 3,
           "p999_ms": {
-            "cv": 3.291878781572738e-05,
-            "max": 249975.67315000002,
-            "median": 249974.724335,
-            "min": 249960.96988000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.349260387576227e-05,
-            "max": 249975.1075,
-            "median": 249974.55635,
-            "min": 249960.3388,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -4411,18 +4423,18 @@
           "cell_id": "M1-4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0007086869051399981,
-            "max": 499969.96215000004,
-            "median": 499915.45277,
-            "min": 499331.10628,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0007185360924852811,
-            "max": 499968.40650000004,
-            "median": 499914.8207,
-            "min": 499321.40680000006,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -4437,18 +4449,18 @@
           "cell_id": "M1-4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0002582264710271891,
-            "max": 499879.27296000003,
-            "median": 499675.83785199997,
-            "min": 499640.013976,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002651645404641084,
-            "max": 499877.3196,
-            "median": 499657.98952,
-            "min": 499638.82576,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4463,18 +4475,18 @@
           "cell_id": "M1-4",
           "n": 3,
           "p999_ms": {
-            "cv": 4.379104771188047e-05,
-            "max": 497942.935585,
-            "median": 497907.855245,
-            "min": 497902.96070999996,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.127326959270712e-05,
-            "max": 497928.49585,
-            "median": 497901.9051,
-            "min": 497901.16145,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -4508,18 +4520,18 @@
           "cell_id": "M1-5",
           "n": 3,
           "p999_ms": {
-            "cv": 5.4772987982495745e-05,
-            "max": 249878.23283599998,
-            "median": 249854.808915,
-            "min": 249854.257675,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.266155305375107e-05,
-            "max": 249875.94535999998,
-            "median": 249850.56915,
-            "min": 249847.36974999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4534,18 +4546,18 @@
           "cell_id": "M1-5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0034562419482651106,
-            "max": 251574.087405,
-            "median": 250179.67454500002,
-            "min": 249986.98191,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.003299388493370037,
-            "max": 251501.92005,
-            "median": 250172.07445000001,
-            "min": 249986.2341,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -4560,18 +4572,18 @@
           "cell_id": "M1-5",
           "n": 3,
           "p999_ms": {
-            "cv": 1.732050807568877,
-            "max": 69936.489816,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.732050807568877,
-            "max": 69934.89516,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -4586,18 +4598,18 @@
           "cell_id": "M1-5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.009590207338994294,
-            "max": 254679.11715,
-            "median": 251211.184345,
-            "min": 250029.98846000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.009158335434325707,
-            "max": 254467.35749999998,
-            "median": 251157.25045,
-            "min": 250028.9666,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4612,18 +4624,18 @@
           "cell_id": "M1-5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0034578181309637425,
-            "max": 251363.86873,
-            "median": 249871.727315,
-            "min": 249857.194215,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0032991704790276384,
-            "max": 251294.8363,
-            "median": 249871.64915,
-            "min": 249857.07015,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -4638,18 +4650,18 @@
           "cell_id": "M1-5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00015289956486130344,
-            "max": 250019.73940000002,
-            "median": 249954.101905,
-            "min": 249952.98893999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015293635109290743,
-            "max": 250017.322,
-            "median": 249951.11639999997,
-            "min": 249951.09505,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -4664,18 +4676,18 @@
           "cell_id": "M2-W1",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00647558487469119,
-            "max": 251404.028935,
-            "median": 249794.31536399998,
-            "min": 248168.980365,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.006327716685061286,
-            "max": 251283.51835,
-            "median": 249785.99364,
-            "min": 248124.47865,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4690,18 +4702,18 @@
           "cell_id": "M2-W2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00016257777643400475,
-            "max": 249866.595092,
-            "median": 249840.112085,
-            "min": 249786.846375,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015753238167016007,
-            "max": 249860.29592000003,
-            "median": 249832.88585,
-            "min": 249782.69175,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4716,18 +4728,18 @@
           "cell_id": "M2-W2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.000904506763234724,
-            "max": 50057.264855,
-            "median": 49981.134065,
-            "min": 49976.88727,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0008638214682993893,
-            "max": 50053.62755,
-            "median": 49980.98165,
-            "min": 49976.8177,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4742,18 +4754,18 @@
           "cell_id": "M2-W3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00028374468554554817,
-            "max": 249876.09797,
-            "median": 249867.019804,
-            "min": 249749.028995,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002689711554933517,
-            "max": 249870.20270000002,
-            "median": 249856.19103999998,
-            "min": 249747.44495,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4768,18 +4780,18 @@
           "cell_id": "M2-W3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.20329377957641429,
-            "max": 69917.38987999999,
-            "median": 50002.26512,
-            "min": 49955.51551,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.20330644771796683,
-            "max": 69917.3888,
-            "median": 50000.3042,
-            "min": 49955.4571,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -4794,18 +4806,18 @@
           "cell_id": "M2-W4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.001018048841707676,
-            "max": 249772.47246999998,
-            "median": 249385.22677999997,
-            "min": 249294.14182499997,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0010678304615218755,
-            "max": 249769.7497,
-            "median": 249379.8248,
-            "min": 249260.36325,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4820,18 +4832,18 @@
           "cell_id": "M2-W5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.005718803606433461,
-            "max": 251985.635392,
-            "median": 249734.55157,
-            "min": 249327.531944,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005569358829654177,
-            "max": 251859.80992,
-            "median": 249585.5167,
-            "min": 249326.77544000003,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4846,18 +4858,18 @@
           "cell_id": "M2-W5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.03528191393184011,
-            "max": 249931.358105,
-            "median": 241641.861165,
-            "min": 232893.05060000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.03529286175193866,
-            "max": 249931.03505,
-            "median": 241372.69965000002,
-            "min": 232891.80500000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -4886,18 +4898,18 @@
           "cell_id": "M1-7",
           "n": 3,
           "p999_ms": {
-            "cv": 0.004255048751075014,
-            "max": 252133.58546,
-            "median": 250410.886745,
-            "min": 250179.66689000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00410713733023174,
-            "max": 252061.3466,
-            "median": 250401.23645,
-            "min": 250173.8609,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -4912,18 +4924,18 @@
           "cell_id": "M1-7",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0002023414699351341,
-            "max": 250096.46837000002,
-            "median": 250047.54340499997,
-            "min": 249995.29701500002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00019849034344498863,
-            "max": 250093.80769999998,
-            "median": 250046.94405,
-            "min": 249994.59515,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -4938,18 +4950,18 @@
           "cell_id": "M1-7",
           "n": 3,
           "p999_ms": {
-            "cv": 1.7320508075688772,
-            "max": 49677.112043999994,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.7320508075688774,
-            "max": 49676.79744,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -4964,18 +4976,18 @@
           "cell_id": "M1-7",
           "n": 3,
           "p999_ms": {
-            "cv": 0.000291088437061151,
-            "max": 250188.783435,
-            "median": 250099.25024999998,
-            "min": 250044.57192999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002823023693444557,
-            "max": 250181.66835,
-            "median": 250095.1215,
-            "min": 250041.7633,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -4990,18 +5002,18 @@
           "cell_id": "M1-7",
           "n": 3,
           "p999_ms": {
-            "cv": 7.040553771404195e-05,
-            "max": 250030.06418,
-            "median": 250019.887575,
-            "min": 249995.789115,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 6.848241721789883e-05,
-            "max": 250028.2658,
-            "median": 250017.09375,
-            "min": 249994.64714999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -5016,18 +5028,18 @@
           "cell_id": "M1-7",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0015499532034441363,
-            "max": 249792.01662399998,
-            "median": 249232.30183,
-            "min": 249050.454245,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.001488664941037,
-            "max": 249761.98024,
-            "median": 249225.8293,
-            "min": 249049.20545,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5056,18 +5068,18 @@
           "cell_id": "M1-2",
           "n": 5,
           "p999_ms": {
-            "cv": 0.014217271934900398,
-            "max": 133820.488476,
-            "median": 129985.885,
-            "min": 129940.49556299999,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.013144507646827779,
-            "max": 133481.54376,
-            "median": 129978.757,
-            "min": 129933.68763,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5082,18 +5094,18 @@
           "cell_id": "M1-2",
           "n": 5,
           "p999_ms": {
-            "cv": 0.005377016154171056,
-            "max": 132030.69108699998,
-            "median": 131878.475144,
-            "min": 130377.54787499999,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005186055608240308,
-            "max": 131996.23087,
-            "median": 131693.05844,
-            "min": 130353.15675000001,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -5108,18 +5120,18 @@
           "cell_id": "M1-2",
           "n": 5,
           "p999_ms": {
-            "cv": 1.6245355362366083,
-            "max": 30088.637486,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.6248775248961276,
-            "max": 30086.77886,
-            "median": 0.0,
-            "min": 0.0,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -5134,18 +5146,18 @@
           "cell_id": "M1-2",
           "n": 5,
           "p999_ms": {
-            "cv": 0.008959116154333965,
-            "max": 132745.86919800003,
-            "median": 130933.96279,
-            "min": 130124.37486799998,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.008329341682884206,
-            "max": 132518.96298,
-            "median": 130842.07990000001,
-            "min": 130116.84968,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -5160,18 +5172,18 @@
           "cell_id": "M1-2",
           "n": 5,
           "p999_ms": {
-            "cv": 0.007963910606705135,
-            "max": 132014.446758,
-            "median": 130014.038368,
-            "min": 129474.44073,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.007866898356840775,
-            "max": 131963.16258,
-            "median": 130011.61168,
-            "min": 129454.2423,
-            "n": 5
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5206,18 +5218,18 @@
           "cell_id": "M1-3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00038419994797401645,
-            "max": 129985.216504,
-            "median": 129907.77473499998,
-            "min": 129891.92792,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0003692967046548583,
-            "max": 129981.64804,
-            "median": 129907.52935,
-            "min": 129891.80119999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5232,18 +5244,18 @@
           "cell_id": "M1-3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0006269861324459998,
-            "max": 129482.409445,
-            "median": 129359.57007500001,
-            "min": 129329.1903,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0006203094046406838,
-            "max": 129480.10045,
-            "median": 129358.68875,
-            "min": 129328.455,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5258,18 +5270,18 @@
           "cell_id": "M2-P1",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00896694261563718,
-            "max": 132003.61299,
-            "median": 130002.995565,
-            "min": 129947.04708,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.008539458887749847,
-            "max": 131905.0449,
-            "median": 130002.03765,
-            "min": 129945.4278,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5284,18 +5296,18 @@
           "cell_id": "M2-P2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.007472307999911217,
-            "max": 131890.05411,
-            "median": 130996.89814,
-            "min": 129935.60269,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.007154512645715823,
-            "max": 131804.7621,
-            "median": 130947.53439999999,
-            "min": 129933.95289999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5310,18 +5322,18 @@
           "cell_id": "M2-P3",
           "n": 3,
           "p999_ms": {
-            "cv": 0.008945010689163415,
-            "max": 132510.95175500002,
-            "median": 130567.24107999999,
-            "min": 130400.73873999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.008514098596109456,
-            "max": 132388.80155,
-            "median": 130564.03779999999,
-            "min": 130362.56739999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5336,18 +5348,18 @@
           "cell_id": "M2-P4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00035361103094478166,
-            "max": 129961.07182,
-            "median": 129906.10882000001,
-            "min": 129869.83045000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00034603865687228997,
-            "max": 129958.0012,
-            "median": 129904.3162,
-            "min": 129868.7005,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5362,18 +5374,18 @@
           "cell_id": "M2-P4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0003142875093664757,
-            "max": 130130.65131500001,
-            "median": 130084.24746500001,
-            "min": 130049.141835,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00029697225069537917,
-            "max": 130125.70415,
-            "median": 130080.59765000001,
-            "min": 130048.82535,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -5388,18 +5400,18 @@
           "cell_id": "M2-P5",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00016728651453183275,
-            "max": 129902.48716,
-            "median": 129887.53534999999,
-            "min": 129859.675535,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015952909248156532,
-            "max": 129900.2656,
-            "median": 129886.33249999999,
-            "min": 129859.50035000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5414,18 +5426,18 @@
           "cell_id": "M2-P6",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0005516550921925362,
-            "max": 130030.66748,
-            "median": 129959.72648,
-            "min": 129887.28476,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0005297588810990597,
-            "max": 130023.3008,
-            "median": 129957.75980000001,
-            "min": 129885.6626,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5440,18 +5452,18 @@
           "cell_id": "M2-P6",
           "n": 3,
           "p999_ms": {
-            "cv": 0.000405250637132571,
-            "max": 129426.703748,
-            "median": 129346.24101000001,
-            "min": 129328.25044,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00040030320397397743,
-            "max": 129425.04548000002,
-            "median": 129346.21410000001,
-            "min": 129327.4534,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5497,18 +5509,18 @@
           "cell_id": "M2-I10",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00017289199199906858,
-            "max": 130057.363515,
-            "median": 130027.60301499999,
-            "min": 130013.29415,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00016403294636324977,
-            "max": 130053.58815,
-            "median": 130026.05514999999,
-            "min": 130011.60350000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5523,18 +5535,18 @@
           "cell_id": "M2-I10",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00010232509686676622,
-            "max": 130014.45266,
-            "median": 129993.275265,
-            "min": 129989.91826,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00010159856888989495,
-            "max": 130013.5766,
-            "median": 129992.14365,
-            "min": 129989.4886,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -5549,18 +5561,18 @@
           "cell_id": "M2-I12",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00022266140014807874,
-            "max": 130002.36218499999,
-            "median": 129998.090115,
-            "min": 129950.23329,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00021036719878725875,
-            "max": 129998.34085,
-            "median": 129996.03015,
-            "min": 129949.8669,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5575,18 +5587,18 @@
           "cell_id": "M2-I12",
           "n": 3,
           "p999_ms": {
-            "cv": 3.889216815445263e-05,
-            "max": 130006.84268000002,
-            "median": 129998.99881,
-            "min": 129997.39395499999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 3.891805153347427e-05,
-            "max": 130006.44380000001,
-            "median": 129998.83510000001,
-            "min": 129996.86254999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgcat",
           "tps": {
@@ -5601,18 +5613,18 @@
           "cell_id": "M2-I14",
           "n": 3,
           "p999_ms": {
-            "cv": 0.006129185183143386,
-            "max": 131713.308265,
-            "median": 131386.02082499999,
-            "min": 130187.11552,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005974632814929387,
-            "max": 131653.83865,
-            "median": 131360.29725,
-            "min": 130174.8172,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5627,18 +5639,18 @@
           "cell_id": "M2-I14",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0062201273024763675,
-            "max": 132010.91647,
-            "median": 131964.43703,
-            "min": 130571.355575,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0060052838733362325,
-            "max": 131940.0743,
-            "median": 131924.4667,
-            "min": 130564.79075000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5653,18 +5665,18 @@
           "cell_id": "M2-I16",
           "n": 3,
           "p999_ms": {
-            "cv": 0.006312907472429684,
-            "max": 132058.883415,
-            "median": 130755.304585,
-            "min": 130523.47608000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.006167722730859642,
-            "max": 132004.93215,
-            "median": 130728.06685,
-            "min": 130507.3938,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5679,18 +5691,18 @@
           "cell_id": "M2-I16",
           "n": 3,
           "p999_ms": {
-            "cv": 0.009488178456014008,
-            "max": 133434.34528,
-            "median": 132007.59803,
-            "min": 130935.45143500001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.009102877379859426,
-            "max": 133321.7218,
-            "median": 131947.94629999998,
-            "min": 130925.96935,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5705,18 +5717,18 @@
           "cell_id": "M2-I2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0003964405328993695,
-            "max": 130011.46461,
-            "median": 129939.93591000001,
-            "min": 129911.47097000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0003761961594467184,
-            "max": 130006.6371,
-            "median": 129939.85410000001,
-            "min": 129911.3987,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5731,18 +5743,18 @@
           "cell_id": "M2-I2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.916266017106042,
-            "max": 29962.900325,
-            "median": 19996.414774999997,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.9162685999995859,
-            "max": 29962.36325,
-            "median": 19995.83675,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -5757,18 +5769,18 @@
           "cell_id": "M2-I4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.000322839170232562,
-            "max": 130043.98077,
-            "median": 129989.10728499999,
-            "min": 129961.537265,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00030484632388783187,
-            "max": 130038.8307,
-            "median": 129987.31885,
-            "min": 129960.90965,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5783,18 +5795,18 @@
           "cell_id": "M2-I4",
           "n": 3,
           "p999_ms": {
-            "cv": 1.2451495031156607,
-            "max": 39858.062275000004,
-            "median": 10075.842115,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 1.2452605828758057,
-            "max": 39857.89375,
-            "median": 10072.576149999999,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgagroal",
           "tps": {
@@ -5809,18 +5821,18 @@
           "cell_id": "M2-I6",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00015730424607911006,
-            "max": 129990.63098,
-            "median": 129957.105225,
-            "min": 129953.596555,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00015339003777325942,
-            "max": 129988.8758,
-            "median": 129955.99125,
-            "min": 129952.90855,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5835,18 +5847,18 @@
           "cell_id": "M2-I6",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0001502562798833912,
-            "max": 130041.35594,
-            "median": 130015.62918,
-            "min": 130003.024855,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00014586130586009924,
-            "max": 130039.9334,
-            "median": 130014.1458,
-            "min": 130002.95155,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -5861,18 +5873,18 @@
           "cell_id": "M2-I8",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0013991943069648816,
-            "max": 130305.82356499998,
-            "median": 129992.80586000001,
-            "min": 129988.321825,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.001345833349646205,
-            "max": 130292.79664999999,
-            "median": 129991.2926,
-            "min": 129987.83425000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5887,18 +5899,18 @@
           "cell_id": "M2-I8",
           "n": 3,
           "p999_ms": {
-            "cv": 2.640415577023573e-05,
-            "max": 129990.48780500001,
-            "median": 129986.81464,
-            "min": 129983.62918999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 2.6126610108019e-05,
-            "max": 129990.09005,
-            "median": 129986.7214,
-            "min": 129983.2979,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -5913,18 +5925,18 @@
           "cell_id": "M2-S10",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0015970583169350578,
-            "max": 130367.879505,
-            "median": 130041.573316,
-            "min": 129981.751205,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0015206998150118494,
-            "max": 130348.89405,
-            "median": 130039.56016000001,
-            "min": 129980.44804999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5939,18 +5951,18 @@
           "cell_id": "M2-S12",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00013655586348669643,
-            "max": 130006.41519999999,
-            "median": 129983.97372499999,
-            "min": 129971.37161199999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00013258763154560144,
-            "max": 130004.53600000001,
-            "median": 129981.77524999999,
-            "min": 129970.73812,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -5965,18 +5977,18 @@
           "cell_id": "M2-S12",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0007080164148447372,
-            "max": 129182.18976499999,
-            "median": 129055.185784,
-            "min": 129004.84757200001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0006840496333050491,
-            "max": 129173.92564999999,
-            "median": 129051.84484,
-            "min": 129002.38672,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgpool",
           "tps": {
@@ -5991,18 +6003,18 @@
           "cell_id": "M2-S14",
           "n": 3,
           "p999_ms": {
-            "cv": 0.005661603995373387,
-            "max": 132437.55943,
-            "median": 131163.46639000002,
-            "min": 131131.69119,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.005418705121455798,
-            "max": 132350.70429999998,
-            "median": 131127.4179,
-            "min": 131105.38390000002,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6017,18 +6029,18 @@
           "cell_id": "M2-S16",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00024561197223784055,
-            "max": 130020.7245,
-            "median": 129995.15344000001,
-            "min": 129957.26689500001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00023334624687521284,
-            "max": 130017.3,
-            "median": 129994.2394,
-            "min": 129957.17595,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6043,18 +6055,18 @@
           "cell_id": "M2-S16",
           "n": 3,
           "p999_ms": {
-            "cv": 0.21640962116660944,
-            "max": 29984.665685000004,
-            "median": 29979.465265000003,
-            "min": 19992.013715,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.2164101168930768,
-            "max": 29984.48285,
-            "median": 29979.45865,
-            "min": 19991.930150000004,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -6069,18 +6081,18 @@
           "cell_id": "M2-S2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.014333434741056198,
-            "max": 133823.17375500003,
-            "median": 130782.71406,
-            "min": 130366.40599500001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.013676992119809727,
-            "max": 133661.49555,
-            "median": 130760.9706,
-            "min": 130365.03795000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6095,18 +6107,18 @@
           "cell_id": "M2-S4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.006498309933457406,
-            "max": 132578.34522,
-            "median": 131980.72273500002,
-            "min": 130889.09107499999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.006466154802087736,
-            "max": 132544.9122,
-            "median": 131925.79335,
-            "min": 130860.32775,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6121,18 +6133,18 @@
           "cell_id": "M2-S6",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0026035714305683824,
-            "max": 130882.95784999999,
-            "median": 130563.01316,
-            "min": 130203.549195,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.002540496488263673,
-            "max": 130866.1535,
-            "median": 130553.6276,
-            "min": 130203.23595,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6147,18 +6159,18 @@
           "cell_id": "M2-S6",
           "n": 3,
           "p999_ms": {
-            "cv": 0.5014058790843738,
-            "max": 30272.87953,
-            "median": 20209.62141,
-            "min": 10041.557524999998,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.5013062961875445,
-            "max": 30264.1543,
-            "median": 20208.8511,
-            "min": 10040.41925,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "pgbouncer",
           "tps": {
@@ -6173,18 +6185,18 @@
           "cell_id": "M2-S8",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0003880015805616203,
-            "max": 130058.240775,
-            "median": 130039.685245,
-            "min": 129963.07471,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00038032194543234356,
-            "max": 130052.86575,
-            "median": 130039.30045,
-            "min": 129961.24510000001,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6199,18 +6211,18 @@
           "cell_id": "M2-S8",
           "n": 3,
           "p999_ms": {
-            "cv": 0.866025406524758,
-            "max": 19990.726359999997,
-            "median": 19988.890125,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.8660254060683426,
-            "max": 19990.558599999997,
-            "median": 19988.88225,
-            "min": 0.0,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -6225,18 +6237,18 @@
           "cell_id": "M2-T2",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0002104490826104168,
-            "max": 130011.336965,
-            "median": 129979.71101,
-            "min": 129956.862735,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0002019660902802309,
-            "max": 130008.70865,
-            "median": 129977.92910000001,
-            "min": 129956.48234999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6251,18 +6263,18 @@
           "cell_id": "M2-T4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.00038823172361668703,
-            "max": 130019.00025000001,
-            "median": 130002.62844500001,
-            "min": 129924.56723199999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.00038178496281948693,
-            "max": 130017.72450000001,
-            "median": 130000.31045,
-            "min": 129924.39832,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "direct",
           "tps": {
@@ -6277,18 +6289,18 @@
           "cell_id": "M2-T4",
           "n": 3,
           "p999_ms": {
-            "cv": 0.0001550956530437953,
-            "max": 130069.220585,
-            "median": 130045.32679,
-            "min": 130029.12612999999,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "p99_ms": {
-            "cv": 0.0001506469954840754,
-            "max": 130067.02985,
-            "median": 130044.9559,
-            "min": 130027.9573,
-            "n": 3
+            "cv": null,
+            "max": null,
+            "median": null,
+            "min": null,
+            "n": 0
           },
           "pooler": "odyssey",
           "tps": {
@@ -6378,27 +6390,27 @@
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
@@ -6413,22 +6425,22 @@
       {
         "a": "odyssey",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgbouncer",
@@ -6438,7 +6450,7 @@
       {
         "a": "pgbouncer",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "pgcat",
@@ -6455,7 +6467,7 @@
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
@@ -6470,7 +6482,7 @@
       {
         "a": "odyssey",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
@@ -6485,12 +6497,12 @@
       {
         "a": "pgagroal",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgbouncer",
@@ -6502,7 +6514,7 @@
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M1-4": [
@@ -6531,7 +6543,7 @@
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
@@ -6541,7 +6553,7 @@
       {
         "a": "direct",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
@@ -6551,12 +6563,12 @@
       {
         "a": "odyssey",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
@@ -6571,22 +6583,22 @@
       {
         "a": "pgagroal",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgbouncer",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgbouncer",
@@ -6604,62 +6616,62 @@
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "odyssey",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "pgagroal",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgagroal",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "B faster"
       },
       {
         "a": "pgbouncer",
@@ -6669,96 +6681,96 @@
       {
         "a": "pgbouncer",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       },
       {
         "a": "pgcat",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I1": [
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I10": [
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I11": [
       {
         "a": "direct",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I12": [
       {
         "a": "direct",
         "b": "pgcat",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I13": [
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I14": [
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I15": [
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I16": [
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I2": [
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I3": [
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I4": [
       {
         "a": "direct",
         "b": "pgagroal",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I5": [
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I6": [
@@ -6772,21 +6784,21 @@
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I8": [
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-I9": [
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-P1": [],
@@ -6804,7 +6816,7 @@
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S1": [],
@@ -6813,14 +6825,14 @@
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S12": [
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S13": [],
@@ -6829,14 +6841,14 @@
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S16": [
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S2": [],
@@ -6846,28 +6858,28 @@
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S6": [
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S7": [
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S8": [
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-S9": [],
@@ -6875,7 +6887,7 @@
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-T2": [],
@@ -6899,14 +6911,14 @@
       {
         "a": "direct",
         "b": "pgbouncer",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-W3": [
       {
         "a": "direct",
         "b": "odyssey",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-W4": [],
@@ -6914,7 +6926,7 @@
       {
         "a": "direct",
         "b": "pgpool",
-        "verdict": "inconclusive"
+        "verdict": "A faster"
       }
     ],
     "M2-W6": [],

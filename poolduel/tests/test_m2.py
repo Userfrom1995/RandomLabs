@@ -81,7 +81,9 @@ class M2VariantConfigTest(unittest.TestCase):
         s1 = m2_mod.m2_cell("M2-S1")
         self.assertIn("pipeline = session",
                       PgAgroalAdapter().config_text(s1))
-        self.assertIn("blocking_timeout = 30s",
+        # Session admission parity with PgBouncer query_wait_timeout=120s
+        # (M2-S1 artifact: FATAL pool full on the old 30s blocking).
+        self.assertIn("blocking_timeout = 120s",
                       PgAgroalAdapter().config_text(s1))
         s5 = m2_mod.m2_cell("M2-S5")
         self.assertIn("pool_mode = session",

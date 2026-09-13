@@ -5,59 +5,75 @@
         "flatness",
         "iso-overlay",
         "m1-best",
+        "m1-best-log",
         "m2-io",
+        "m2-io-log",
         "m2-prepared",
+        "m2-prepared-log",
         "m2-session",
+        "m2-session-log",
         "m2-statement",
-        "m2-workloads"
+        "m2-statement-log",
+        "m2-workloads",
+        "m2-workloads-log"
       ],
       "file": "comparison.json",
-      "sha256": "f6eb5e3583855734452a774f6c19f523abee49ec2f4526ac671d194b00d2013c"
+      "sha256": "14aa4519578d5f72703167bf9a057be85fca3e1963ced4c092d30f5074c5474e"
     },
     "odyssey": {
       "charts": [
         "own-m1",
-        "own-m2"
+        "own-m1-log",
+        "own-m2",
+        "own-m2-log"
       ],
       "file": "odyssey.json",
-      "sha256": "530a1bcf66f15f05175c015a4062e0ec8654df4fc8283193179fbad6d6ce2fc9"
+      "sha256": "773a6d153954767bde148263b19658c7b4e26b11e303d278f415030abc850706"
     },
     "pgagroal": {
       "charts": [
         "own-m1",
-        "own-m2"
+        "own-m1-log",
+        "own-m2",
+        "own-m2-log"
       ],
       "file": "pgagroal.json",
-      "sha256": "10f3112a62a48e3620afde1782f7e6db66ba7f60a8f281536485a7c9646b6e7b"
+      "sha256": "dcf30d69b995f20af02263f67cb9e03e4d94152359a94e10e577867abfb58a11"
     },
     "pgbouncer": {
       "charts": [
         "own-m1",
-        "own-m2"
+        "own-m1-log",
+        "own-m2",
+        "own-m2-log"
       ],
       "file": "pgbouncer.json",
-      "sha256": "9f584671f94f20f9a6e176180ed4906436bdeba57238616ee4a55b3ea5fd86a1"
+      "sha256": "ce3aeabc781061c6ee91c83e80c4c1b1d9b9de3eeb6235e6eb08ae7bb580e190"
     },
     "pgcat": {
       "charts": [
         "own-m1",
-        "own-m2"
+        "own-m1-log",
+        "own-m2",
+        "own-m2-log"
       ],
       "file": "pgcat.json",
-      "sha256": "bff481d755dd7436ad3001ad89517cdc6cbfeb76fb7c126320a08ab29962e7aa"
+      "sha256": "6ceab11030945052eb0f94ded782f2093f63a05e727d2223c194a67a88515ebd"
     },
     "pgpool": {
       "charts": [
         "own-m1",
-        "own-m2"
+        "own-m1-log",
+        "own-m2",
+        "own-m2-log"
       ],
       "file": "pgpool.json",
-      "sha256": "6d0e823f12cc1ba949088347d3208e3b4acb2134f1caff5ace4d58f88495fb28"
+      "sha256": "258572e7024c5c08cf605b8c39e7664d00e6d633ef82f02f34ed12a4fb6038e0"
     }
   },
   "sources": {
-    "m1/medians.json": "e7e01610a47a88c4c12fb052ac44cd3fc0d253cdb0b2b41df5569ec94f8287fa",
-    "m2/medians.json": "7ce90ea550f2febab8252b7620e271228f3ff2b063d321e075d5daf782922f92",
-    "report.json": "bda5afb42fdcea718419a0656b442ad2a67056fa4475bfa2b335ac2daabf2846"
+    "m1/medians.json": "22a1db917dc8b688d0598dbe00a43f30dd8bb03f1bb4ce3c27b3d507fd7cc804",
+    "m2/medians.json": "87ccb930d39debb73b04dbe4f45ad9b086566a24d8f38be6e3c92f59e715f956",
+    "report.json": "89cd1542fb04f0ec188c96a701192b844211d87cdfa6b3df04fae82b4a356a5c"
   }
 }

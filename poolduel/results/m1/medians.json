@@ -14,33 +14,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 6.376678508049956e-05,
-      "max": 249912.535,
-      "median": 249895.42,
-      "min": 249869.4545,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 5.759589817187387e-05,
-      "max": 249940.04849999998,
-      "median": 249926.382,
-      "min": 249904.8093,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 6.157893107617586e-05,
-      "max": 249947.761651,
-      "median": 249935.23259999996,
-      "min": 249908.297486,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 6.122781938456775e-05,
-      "max": 249947.19151,
-      "median": 249934.428,
-      "min": 249908.02286000003,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "direct",
     "protocol": "simple",
@@ -70,33 +71,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 2.2436997581556776e-05,
-      "max": 249947.3105,
-      "median": 249942.22600000002,
-      "min": 249932.21850000002,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 2.2768569303641924e-05,
-      "max": 249966.5978,
-      "median": 249959.6414,
-      "min": 249953.1284,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 5.530998768056644e-05,
-      "max": 249994.856112,
-      "median": 249969.575885,
-      "min": 249960.238855,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 5.129554064561501e-05,
-      "max": 249991.80612,
-      "median": 249969.43085,
-      "min": 249959.72455,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "odyssey",
     "protocol": "simple",
@@ -126,33 +128,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 0.9435844837958908,
-      "max": 39577.103,
-      "median": 9982.527,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.9475060228075092,
-      "max": 40028.368,
-      "median": 10037.484,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.9506807276642861,
-      "max": 40399.718980000005,
-      "median": 10092.854700000002,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.9503927233217336,
-      "max": 40365.9598,
-      "median": 10087.821000000002,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgagroal",
     "protocol": "simple",
@@ -182,33 +185,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 2.8419543915132176e-05,
-      "max": 249899.8425,
-      "median": 249894.473,
-      "min": 249884.38,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 2.8093925675669e-05,
-      "max": 249917.2937,
-      "median": 249912.88780000003,
-      "min": 249901.71600000001,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 5.296653621366006e-05,
-      "max": 249938.36913500002,
-      "median": 249924.27128999998,
-      "min": 249908.161869,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 5.0425717669558105e-05,
-      "max": 249936.31835000002,
-      "median": 249923.3559,
-      "min": 249907.57569000003,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgbouncer",
     "protocol": "simple",
@@ -238,33 +242,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 9.633147536195041e-05,
-      "max": 248285.035,
-      "median": 248263.08899999998,
-      "min": 248226.09399999998,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 6.902706121893024e-05,
-      "max": 248355.7976,
-      "median": 248334.50919999997,
-      "min": 248310.07520000002,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.00011252299097177983,
-      "max": 248408.124108,
-      "median": 248357.753666,
-      "min": 248344.782001,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0001000591721251207,
-      "max": 248398.50408,
-      "median": 248356.42766000002,
-      "min": 248343.30601,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgcat",
     "protocol": "simple",
@@ -294,33 +299,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 0.00011394485724743969,
-      "max": 249749.24550000002,
-      "median": 249720.609,
-      "min": 249675.253,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.00013219502414651475,
-      "max": 249824.6752,
-      "median": 249763.89860000001,
-      "min": 249740.645,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0009200491173737102,
-      "max": 250306.91632400002,
-      "median": 249816.61964999998,
-      "min": 249764.24857999998,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0008273699090206355,
-      "max": 250252.71224000002,
-      "median": 249813.75449999998,
-      "min": 249762.1028,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgpool",
     "protocol": "simple",
@@ -350,33 +356,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 0.0005560766438350821,
-      "max": 129950.572,
-      "median": 129815.5275,
-      "min": 129800.75450000001,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.004142978688545416,
-      "max": 131119.2618,
-      "median": 129913.7099,
-      "min": 129872.16459999999,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.014217271934900398,
-      "max": 133820.488476,
-      "median": 129985.885,
-      "min": 129940.49556299999,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.013144507646827779,
-      "max": 133481.54376,
-      "median": 129978.757,
-      "min": 129933.68763,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "direct",
     "protocol": "simple",
@@ -406,33 +413,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 3.438076090322589e-05,
-      "max": 129986.792,
-      "median": 129983.82,
-      "min": 129974.997,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.005206894999452159,
-      "max": 131625.3814,
-      "median": 130413.7728,
-      "min": 130022.7451,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.005377016154171056,
-      "max": 132030.69108699998,
-      "median": 131878.475144,
-      "min": 130377.54787499999,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.005186055608240308,
-      "max": 131996.23087,
-      "median": 131693.05844,
-      "min": 130353.15675000001,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "odyssey",
     "protocol": "simple",
@@ -462,33 +470,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 1.6291773767760467,
-      "max": 29971.513,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 1.62800375049569,
-      "max": 30069.920599999998,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 1.6245355362366083,
-      "max": 30088.637486,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 1.6248775248961276,
-      "max": 30086.77886,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgagroal",
     "protocol": "simple",
@@ -518,33 +527,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 4.0702002047668185e-05,
-      "max": 129988.85,
-      "median": 129983.11850000001,
-      "min": 129976.282,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.003516843771331173,
-      "max": 131133.2084,
-      "median": 130470.8778,
-      "min": 130014.76490000001,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.008959116154333965,
-      "max": 132745.86919800003,
-      "median": 130933.96279,
-      "min": 130124.37486799998,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.008329341682884206,
-      "max": 132518.96298,
-      "median": 130842.07990000001,
-      "min": 130116.84968,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgbouncer",
     "protocol": "simple",
@@ -601,6 +611,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgcat",
     "protocol": "simple",
@@ -630,33 +641,34 @@
     },
     "n": 5,
     "p50_ms": {
-      "cv": 0.0012570663779066366,
-      "max": 129436.3285,
-      "median": 129304.80600000001,
-      "min": 129048.228,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0066014893764365186,
-      "max": 131327.2058,
-      "median": 129959.79370000001,
-      "min": 129217.9475,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.007963910606705135,
-      "max": 132014.446758,
-      "median": 130014.038368,
-      "min": 129474.44073,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.007866898356840775,
-      "max": 131963.16258,
-      "median": 130011.61168,
-      "min": 129454.2423,
-      "n": 5
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgpool",
     "protocol": "simple",
@@ -686,33 +698,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.00017945432218910494,
-      "max": 129836.658,
-      "median": 129812.572,
-      "min": 129790.076,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0002212183434434747,
-      "max": 129945.9634,
-      "median": 129905.0755,
-      "min": 129890.53399999999,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.00038419994797401645,
-      "max": 129985.216504,
-      "median": 129907.77473499998,
-      "min": 129891.92792,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0003692967046548583,
-      "max": 129981.64804,
-      "median": 129907.52935,
-      "min": 129891.80119999999,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "direct",
     "protocol": "prepared",
@@ -769,6 +782,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "odyssey",
     "protocol": "prepared",
@@ -825,6 +839,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgagroal",
     "protocol": "prepared",
@@ -881,6 +896,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgbouncer",
     "protocol": "prepared",
@@ -937,6 +953,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgcat",
     "protocol": "prepared",
@@ -966,33 +983,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.00037143220257037605,
-      "max": 129300.122,
-      "median": 129286.1815,
-      "min": 129210.871,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0005535838452200943,
-      "max": 129457.0105,
-      "median": 129349.8755,
-      "min": 129321.102,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0006269861324459998,
-      "max": 129482.409445,
-      "median": 129359.57007500001,
-      "min": 129329.1903,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0006203094046406838,
-      "max": 129480.10045,
-      "median": 129358.68875,
-      "min": 129328.455,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgpool",
     "protocol": "prepared",
@@ -1049,6 +1067,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "direct",
     "protocol": "simple",
@@ -1078,33 +1097,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.0014706883218040818,
-      "max": 499887.296,
-      "median": 498728.76300000004,
-      "min": 498527.407,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0008172253965206567,
-      "max": 499952.85,
-      "median": 499908.5,
-      "min": 499224.412,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0007086869051399981,
-      "max": 499969.96215000004,
-      "median": 499915.45277,
-      "min": 499331.10628,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0007185360924852811,
-      "max": 499968.40650000004,
-      "median": 499914.8207,
-      "min": 499321.40680000006,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "odyssey",
     "protocol": "simple",
@@ -1161,6 +1181,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgagroal",
     "protocol": "simple",
@@ -1190,33 +1211,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.0011873014873939611,
-      "max": 499821.8935,
-      "median": 498922.04,
-      "min": 498703.86,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0003815959031971422,
-      "max": 499857.78599999996,
-      "median": 499626.9436,
-      "min": 499479.5062,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0002582264710271891,
-      "max": 499879.27296000003,
-      "median": 499675.83785199997,
-      "min": 499640.013976,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0002651645404641084,
-      "max": 499877.3196,
-      "median": 499657.98952,
-      "min": 499638.82576,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgbouncer",
     "protocol": "simple",
@@ -1246,33 +1268,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.00018348513946610378,
-      "max": 497572.73,
-      "median": 497556.7355,
-      "min": 497407.22849999997,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.00010779303776601973,
-      "max": 497891.349,
-      "median": 497834.22349999996,
-      "min": 497784.09849999996,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 4.379104771188047e-05,
-      "max": 497942.935585,
-      "median": 497907.855245,
-      "min": 497902.96070999996,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 3.127326959270712e-05,
-      "max": 497928.49585,
-      "median": 497901.9051,
-      "min": 497901.16145,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgcat",
     "protocol": "simple",
@@ -1329,6 +1352,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgpool",
     "protocol": "simple",
@@ -1358,33 +1382,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.00039842626150513787,
-      "max": 249804.465,
-      "median": 249694.338,
-      "min": 249605.8835,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.00015030400034540253,
-      "max": 249853.07059999998,
-      "median": 249808.1715,
-      "min": 249778.4905,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 5.4772987982495745e-05,
-      "max": 249878.23283599998,
-      "median": 249854.808915,
-      "min": 249854.257675,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 6.266155305375107e-05,
-      "max": 249875.94535999998,
-      "median": 249850.56915,
-      "min": 249847.36974999998,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 20,
     "pooler": "direct",
     "protocol": "simple",
@@ -1414,33 +1439,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.0005457213628121162,
-      "max": 249969.201,
-      "median": 249967.6595,
-      "min": 249732.234,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0017294962553750877,
-      "max": 250780.2465,
-      "median": 250096.0735,
-      "min": 249978.756,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0034562419482651106,
-      "max": 251574.087405,
-      "median": 250179.67454500002,
-      "min": 249986.98191,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.003299388493370037,
-      "max": 251501.92005,
-      "median": 250172.07445000001,
-      "min": 249986.2341,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 20,
     "pooler": "odyssey",
     "protocol": "simple",
@@ -1470,33 +1496,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 1.7320508075688772,
-      "max": 69721.573,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 1.732050807568877,
-      "max": 69918.9486,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 1.732050807568877,
-      "max": 69936.489816,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 1.732050807568877,
-      "max": 69934.89516,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 20,
     "pooler": "pgagroal",
     "protocol": "simple",
@@ -1526,33 +1553,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 3.588095932079747e-05,
-      "max": 249961.079,
-      "median": 249957.451,
-      "min": 249944.052,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.004822812510312336,
-      "max": 252349.761,
-      "median": 250617.9115,
-      "min": 250018.74800000002,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.009590207338994294,
-      "max": 254679.11715,
-      "median": 251211.184345,
-      "min": 250029.98846000002,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.009158335434325707,
-      "max": 254467.35749999998,
-      "median": 251157.25045,
-      "min": 250028.9666,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 20,
     "pooler": "pgbouncer",
     "protocol": "simple",
@@ -1582,33 +1610,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 2.7474218021349453e-05,
-      "max": 249801.56699999998,
-      "median": 249789.95,
-      "min": 249789.4275,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.001711152338064652,
-      "max": 250604.512,
-      "median": 249870.8675,
-      "min": 249855.8295,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0034578181309637425,
-      "max": 251363.86873,
-      "median": 249871.727315,
-      "min": 249857.194215,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0032991704790276384,
-      "max": 251294.8363,
-      "median": 249871.64915,
-      "min": 249857.07015,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 20,
     "pooler": "pgcat",
     "protocol": "simple",
@@ -1638,33 +1667,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.00010327789374537772,
-      "max": 249888.97350000002,
-      "median": 249881.07549999998,
-      "min": 249840.8535,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.00015514095324408199,
-      "max": 249993.148,
-      "median": 249932.391,
-      "min": 249921.02649999998,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.00015289956486130344,
-      "max": 250019.73940000002,
-      "median": 249954.101905,
-      "min": 249952.98893999998,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.00015293635109290743,
-      "max": 250017.322,
-      "median": 249951.11639999997,
-      "min": 249951.09505,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 20,
     "pooler": "pgpool",
     "protocol": "simple",
@@ -1721,6 +1751,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "direct",
     "protocol": "simple",
@@ -1777,6 +1808,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "odyssey",
     "protocol": "simple",
@@ -1833,6 +1865,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgagroal",
     "protocol": "simple",
@@ -1889,6 +1922,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgbouncer",
     "protocol": "simple",
@@ -1945,6 +1979,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgcat",
     "protocol": "simple",
@@ -2001,6 +2036,7 @@
       "min": null,
       "n": 0
     },
+    "p_quarantined": false,
     "pool_size": 10,
     "pooler": "pgpool",
     "protocol": "simple",
@@ -2030,33 +2066,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.00037290721900262676,
-      "max": 249901.2165,
-      "median": 249772.22249999997,
-      "min": 249720.3065,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.002627681268701678,
-      "max": 251338.95799999998,
-      "median": 250304.7335,
-      "min": 250115.801,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.004255048751075014,
-      "max": 252133.58546,
-      "median": 250410.886745,
-      "min": 250179.66689000002,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.00410713733023174,
-      "max": 252061.3466,
-      "median": 250401.23645,
-      "min": 250173.8609,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "direct",
     "protocol": "simple",
@@ -2086,33 +2123,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 9.797299559737481e-05,
-      "max": 249995.9385,
-      "median": 249960.6575,
-      "min": 249948.8745,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.00016227887538002343,
-      "max": 250067.201,
-      "median": 250040.95049999998,
-      "min": 249987.5765,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0002023414699351341,
-      "max": 250096.46837000002,
-      "median": 250047.54340499997,
-      "min": 249995.29701500002,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.00019849034344498863,
-      "max": 250093.80769999998,
-      "median": 250046.94405,
-      "min": 249994.59515,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "odyssey",
     "protocol": "simple",
@@ -2142,33 +2180,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 1.732050807568877,
-      "max": 49630.772,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 1.7320508075688776,
-      "max": 49673.6514,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 1.7320508075688772,
-      "max": 49677.112043999994,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 1.7320508075688774,
-      "max": 49676.79744,
-      "median": 0.0,
-      "min": 0.0,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgagroal",
     "protocol": "simple",
@@ -2198,33 +2237,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.0001864847989931899,
-      "max": 249977.7765,
-      "median": 249951.255,
-      "min": 249887.1215,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.00019457266382703442,
-      "max": 250110.51750000002,
-      "median": 250053.834,
-      "min": 250013.677,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.000291088437061151,
-      "max": 250188.783435,
-      "median": 250099.25024999998,
-      "min": 250044.57192999998,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.0002823023693444557,
-      "max": 250181.66835,
-      "median": 250095.1215,
-      "min": 250041.7633,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgbouncer",
     "protocol": "simple",
@@ -2254,33 +2294,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 8.369133287745444e-05,
-      "max": 249953.2505,
-      "median": 249945.37300000002,
-      "min": 249913.72950000002,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 5.6885200199024915e-05,
-      "max": 250010.282,
-      "median": 249989.1555,
-      "min": 249983.22749999998,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 7.040553771404195e-05,
-      "max": 250030.06418,
-      "median": 250019.887575,
-      "min": 249995.789115,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 6.848241721789883e-05,
-      "max": 250028.2658,
-      "median": 250017.09375,
-      "min": 249994.64714999998,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgcat",
     "protocol": "simple",
@@ -2310,33 +2351,34 @@
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.000729016444103172,
-      "max": 248891.397,
-      "median": 248675.9025,
-      "min": 248531.0885,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.0008765298822043386,
-      "max": 249461.6164,
-      "median": 249161.104,
-      "min": 249036.7175,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.0015499532034441363,
-      "max": 249792.01662399998,
-      "median": 249232.30183,
-      "min": 249050.454245,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.001488664941037,
-      "max": 249761.98024,
-      "median": 249225.8293,
-      "min": 249049.20545,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
+    "p_quarantined": true,
     "pool_size": 10,
     "pooler": "pgpool",
     "protocol": "simple",

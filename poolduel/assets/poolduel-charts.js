@@ -7,17 +7,53 @@
 // poolduel/harness/charts.py (bundles in, option JSON out, no hand values)
 // and renders with the SVG renderer only. No inline data lives in this
 // file or in any page. A host whose option is missing keeps an honest
-// pending note instead of an empty box.
+// note (fetch failed or figure intentionally cut) instead of an empty box.
 //
 // Served relative paths: comparison page hosts use "results/charts/";
 // per-pooler pages one level deeper use "../results/charts/".
+//
+// Rich tooltips: after the options load, the loader also fetches the
+// committed medians plus report.json and attaches a tooltip formatter
+// that shows n, CV, p99 (or the quarantine note), the binding-gate
+// verdict, and the config doc path for the hovered cell/arm. All values
+// come from the fetched bundles; nothing is hand-typed here.
+//
+// Config+results tables: any <table data-config-results data-pooler="X">
+// gets its live columns (tps median [min-max], status, peak tag) filled
+// from the same bundles; static settings columns are page markup.
 (function () {
   "use strict";
 
-  function chartUrl(page) {
+  var DISPLAY_TO_POOLER = {
+    direct: "direct",
+    pgagroal: "pgagroal",
+    PgBouncer: "pgbouncer",
+    "pgpool-II": "pgpool",
+    Odyssey: "odyssey",
+    pgcat: "pgcat"
+  };
+
+  var CONFIG_DOC = {
+    direct: null,
+    pgagroal: "docs/configs/pgagroal.md",
+    pgbouncer: "docs/configs/pgbouncer.md",
+    pgpool: "docs/configs/pgpool-II.md",
+    odyssey: "docs/configs/odyssey.md",
+    pgcat: "docs/configs/pgcat.md"
+  };
+
+  function prefixBase() {
     var prefix = document.querySelector('meta[name="poolduel-charts-prefix"]');
     var base = prefix ? prefix.getAttribute("content") : "results/charts/";
-    return base + page + ".json";
+    return base;
+  }
+
+  function resultsBase() {
+    return prefixBase().replace(/charts\/$/, "");
+  }
+
+  function chartUrl(page) {
+    return prefixBase() + page + ".json";
   }
 
   function note(host, text) {
@@ -27,12 +63,77 @@
     host.appendChild(p);
   }
 
-  function render(host, option) {
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function fetchJson(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).catch(function () { return null; });
+  }
+
+  function fmtBand(tps) {
+    if (!tps || tps.median == null) return "-";
+    return tps.median + " [" + tps.min + "-" + tps.max + "]";
+  }
+
+  function buildLookups(m1, m2, bundle) {
+    var byKey = {};
+    (m1 || []).concat(m2 || []).forEach(function (e) {
+      byKey[e.cell_id + "|" + e.pooler] = e;
+    });
+    var verdicts = {};
+    Object.keys((bundle && bundle.best) || {}).forEach(function (cell) {
+      (bundle.best[cell].ranked || []).forEach(function (r) {
+        verdicts[cell + "|" + r.pooler] = r.verdict;
+      });
+    });
+    return { byKey: byKey, verdicts: verdicts };
+  }
+
+  function tooltipFormatter(lookups) {
+    return function (params) {
+      if (!params || !params.length) return "";
+      var cell = params[0].axisValue || params[0].name || "";
+      var html = "<b>" + esc(cell) + "</b>";
+      params.forEach(function (p) {
+        if (p.value == null || p.seriesType === "scatter") return;
+        var pooler = DISPLAY_TO_POOLER[p.seriesName] || p.seriesName;
+        var entry = lookups.byKey[cell + "|" + pooler];
+        html += "<br>" + p.marker + " " + esc(p.seriesName + ": " + p.value);
+        if (entry) {
+          var tps = entry.tps || {};
+          html += "<br>&nbsp;&nbsp;n=" + esc(tps.n) +
+            " CV=" + (tps.cv == null ? "-" : Number(tps.cv).toFixed(3));
+          var p99 = entry.p99_ms || {};
+          html += " p99=" + (p99.median == null ? "-" : esc(p99.median) + " ms");
+          if (entry.p_quarantined) html += " (p-latency quarantined)";
+          var verdict = lookups.verdicts[cell + "|" + pooler];
+          if (verdict) html += "<br>&nbsp;&nbsp;verdict: " + esc(verdict);
+          var doc = CONFIG_DOC[pooler];
+          if (doc) html += "<br>&nbsp;&nbsp;config: " + esc(doc);
+        }
+      });
+      return html;
+    };
+  }
+
+  function render(host, option, lookups) {
     if (typeof echarts === "undefined") {
-      note(host, "Chart pending: vendored ECharts failed to load.");
+      note(host, "Chart unavailable: vendored ECharts failed to load " +
+        "(serve poolduel/ over HTTP with vendor/ present).");
       return false;
     }
     var chart = echarts.init(host, null, { renderer: "svg" });
+    if (lookups) {
+      try {
+        option.tooltip = option.tooltip || {};
+        option.tooltip.formatter = tooltipFormatter(lookups);
+      } catch (e) { /* keep the generated axis tooltip */ }
+    }
     chart.setOption(option);
     if (typeof window !== "undefined" && window.addEventListener) {
       window.addEventListener("resize", function () { chart.resize(); });
@@ -40,35 +141,117 @@
     return true;
   }
 
+  function fillConfigResults(lookups, bundle) {
+    var tables = document.querySelectorAll("table[data-config-results]");
+    if (!tables.length || !lookups) return false;
+    var peaks = {};
+    Object.keys((bundle && bundle.flatness) || {}).forEach(function (p) {
+      var peak = bundle.flatness[p].peak;
+      if (peak) peaks[p + "|" + peak.cell_id] = true;
+    });
+    var anyData = false;
+    Array.prototype.forEach.call(tables, function (table) {
+      var rows = table.querySelectorAll("tr[data-cell]");
+      Array.prototype.forEach.call(rows, function (row) {
+        var cell = row.getAttribute("data-cell");
+        var pooler = row.getAttribute("data-pooler") ||
+          table.getAttribute("data-pooler");
+        var entry = lookups.byKey[cell + "|" + pooler];
+        var tpsTd = row.querySelector(".live-tps");
+        var statusTd = row.querySelector(".live-status");
+        if (!entry) {
+          if (tpsTd) { tpsTd.textContent = "no record"; tpsTd.className = "live-tps"; }
+          if (statusTd) { statusTd.textContent = "-"; statusTd.className = "live-status"; }
+          return;
+        }
+        anyData = true;
+        var tag = peaks[pooler + "|" + cell] ? " PEAK" : "";
+        if (tpsTd) {
+          tpsTd.textContent = fmtBand(entry.tps) + tag;
+          tpsTd.className = "live-tps ok";
+        }
+        if (statusTd) {
+          statusTd.textContent = entry.status +
+            (entry.p_quarantined ? " (p-latency quarantined)" : "");
+          statusTd.className = "live-status " +
+            (entry.status === "measured" ? "ok" : "na");
+        }
+      });
+    });
+    return anyData;
+  }
+
   function load() {
     var hosts = document.querySelectorAll(".echart[data-page][data-chart]");
-    if (!hosts.length) return;
+    var tables = document.querySelectorAll("table[data-config-results]");
+    if (!hosts.length && !tables.length) return;
     var byPage = {};
     Array.prototype.forEach.call(hosts, function (host) {
       var page = host.getAttribute("data-page");
       (byPage[page] = byPage[page] || []).push(host);
     });
+    var base = resultsBase();
+    var dataPromise = Promise.all([
+      fetchJson(base + "m1/medians.json"),
+      fetchJson(base + "m2/medians.json"),
+      fetchJson(base + "report.json")
+    ]).then(function (parts) {
+      if (!parts[0] && !parts[1]) return null;
+      return {
+        lookups: buildLookups(parts[0], parts[1], parts[2]),
+        bundle: parts[2]
+      };
+    });
     Object.keys(byPage).forEach(function (page) {
       fetch(chartUrl(page), { cache: "no-store" }).then(function (r) {
         return r.ok ? r.json() : null;
       }).then(function (options) {
-        byPage[page].forEach(function (host) {
-          var id = host.getAttribute("data-chart");
-          var option = options ? options[id] : null;
-          if (!option) {
-            note(host, "Chart pending: option '" + id +
-              "' not published yet (run repro.sh --charts).");
-            return;
+        return dataPromise.then(function (data) {
+          var lookups = data ? data.lookups : null;
+          if (data && data.bundle) {
+            fillConfigResults(lookups, data.bundle);
+          } else {
+            Array.prototype.forEach.call(
+              document.querySelectorAll("table[data-config-results]"),
+              function (table) {
+                note(table.parentNode,
+                  "Live results unavailable: could not fetch " + base +
+                  "m1/medians.json (serve poolduel/ over HTTP).");
+              });
           }
-          render(host, option);
+          byPage[page].forEach(function (host) {
+            var id = host.getAttribute("data-chart");
+            var option = options ? options[id] : null;
+            if (!option) {
+              note(host, "No data for this figure: option '" + id +
+                "' is not in " + chartUrl(page) +
+                " (figure cut for lack of a shared slice, or run" +
+                " repro.sh --charts; serve poolduel/ over HTTP).");
+              return;
+            }
+            render(host, option, lookups);
+          });
         });
       }).catch(function () {
         byPage[page].forEach(function (host) {
-          note(host, "Chart pending: could not fetch " + chartUrl(page) +
-            " (serve poolduel/ over HTTP or run repro.sh --charts).");
+          note(host, "Could not fetch " + chartUrl(page) +
+            ": serve poolduel/ over HTTP or run repro.sh --charts.");
         });
       });
     });
+    if (!hosts.length && tables.length) {
+      dataPromise.then(function (data) {
+        if (data && data.bundle) {
+          fillConfigResults(data.lookups, data.bundle);
+        } else {
+          Array.prototype.forEach.call(tables, function (table) {
+            note(table.parentNode,
+              "Live results unavailable: could not fetch " + base +
+              "m1/medians.json (serve poolduel/ over HTTP).");
+          });
+        }
+      });
+    }
   }
 
   if (document.readyState === "loading") {

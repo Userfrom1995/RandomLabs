@@ -132,6 +132,20 @@ class AdapterStartupFixTest(unittest.TestCase):
         self.assertIn('"primary"', text)
         self.assertIn('database = "benchdb"', text)
 
+    def test_pgcat_session_admission_parity(self):
+        # M1 transaction rendering stays byte-identical (no per-user
+        # connect_timeout); session variants carry the 120s admission
+        # parity with PgBouncer query_wait_timeout (M2-S9 artifact:
+        # AllServersDown after the 1000ms default).
+        from poolduel.harness import m2 as m2_mod
+        m1 = PgCatAdapter().config_text(get_cell("M1-2"))
+        self.assertNotIn("connect_timeout = 120000", m1)
+        s9 = m2_mod.m2_cell("M2-S9")
+        text = PgCatAdapter().config_text(s9)
+        self.assertIn('pool_mode = "session"', text)
+        self.assertIn("connect_timeout = 120000", text)
+        self.assertIn("pool_size = 10", text)
+
     def test_pgbouncer_auth_file(self):
         cell = get_cell("M1-2")
         with tempfile.TemporaryDirectory() as tmp:

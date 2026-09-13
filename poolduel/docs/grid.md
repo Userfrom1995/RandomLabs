@@ -34,7 +34,7 @@ https://pgagroal.github.io/doc/PIPELINES.html
 | per-db `MAX_SIZE` | matches `max_connections` | unset |
 | per-db `INITIAL_SIZE`, `MIN_SIZE` | prefilled to `MAX_SIZE` (all > 0, mandatory for transaction) | 0 |
 | user vault (`-u`) | benchuser defined (mandatory for transaction) | unset |
-| `blocking_timeout` | {0 (transaction mode per docs), 30s (session modes)} | 30s |
+| `blocking_timeout` | {0 (transaction mode per docs), 120s (session modes, admission parity with PgBouncer 120s)} | 30s |
 | `idle_timeout`, `max_connection_age` | {0} (disabled per transaction-mode advice) | 0 |
 | `validation` | {off} (M1/M2 baseline) | off |
 | `track_prepared_statements` | {off, on} (transaction prepared twin only) | off |
@@ -121,6 +121,7 @@ Ref: https://github.com/postgresml/pgcat/blob/main/CONFIG.md
 | `default_role`, `primary_reads_enabled`, `query_parser_*` | defaults fixed (splitting off) | `any` / true |
 | `prepared_statements_cache_size` | {0} fixed (transaction+prepared is N/A) | 0 |
 | `general.connect_timeout` / `idle_timeout` / `server_lifetime` | defaults fixed | 1000ms / 30000ms / 24h |
+| per-user `connect_timeout` | {unset (transaction), 120000ms (session, admission parity with PgBouncer 120s)} | unset (= global) |
 
 Sharding keys, regexes, `db_activity_based_routing` are out of scope.
 

@@ -19,8 +19,10 @@ pooler cell satisfies `clients >> pool_size`. Any cell with
 - Order: round-robin interleaved across arms per repeat (A,B,C,A,B,C...),
   never blocked (AAxBBxCC). Same-runner discipline: every chunk carries its
   own direct-PG control arm.
-- Logging per cell: `-P 10 -l --aggregate-interval=10 --log-prefix=cell-<id>`;
-  add `--sampling-rate=0.1` only if per-transaction logs threaten 200 MB.
+- Logging per cell: `-P 10 -l --log-prefix=cell-<id>` (per-transaction
+  rows; `--aggregate-interval` is never passed - its SUM lines poisoned
+  pre-M4 percentiles); add `--sampling-rate=0.1` only if
+  per-transaction logs threaten 200 MB.
 - Metrics per cell: throughput (tps, `without initial connection time` line),
   latency avg/stddev plus offline p50/p90/p99/p999 from per-transaction logs,
   failed/skipped counts, exit code. Cells with `failed > 1%` are rejected.

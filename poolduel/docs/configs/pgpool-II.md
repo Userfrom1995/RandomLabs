@@ -33,6 +33,14 @@ ceiling (`children x max_pool`) inside PG `max_connections` with headroom;
 measures pooling, not routing. For the 200-client row use
 `num_init_children = 200, max_pool = 1`.
 
+Backend-count label (binding, M4): every measured pgpool cell runs
+`children x max_pool` dedicated backends (M1: 100x1 = 100 backends, M1-4:
+200x1 = 200; M2-I15/I16: 200x1), i.e. 1:1 or more backends than the
+cell's pool_size - pgpool does NOT multiplex frontends onto fewer
+backends the way transaction poolers do. This is pgpool's documented
+process-per-connection architecture, labeled here and on the pgpool
+deep-dive page, never hidden and never counted as multiplexed pooling.
+
 Auth (CI-only): frontend `pool_hba` stays disabled (the default), so the
 benchmark client connects unchallenged; the backend SCRAM leg uses the
 workdir `pool_passwd` file holding the plaintext `benchuser:benchpass`

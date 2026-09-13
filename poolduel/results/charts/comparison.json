@@ -3,6 +3,7 @@
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -10,54 +11,62 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
           {
             "itemStyle": {
-              "color": "#9AA7B4"
+              "color": "#999999"
             },
+            "name": "direct peak M2-I15 (select-only) trough M2-S4 (tpcb-like)",
             "value": 66934.965444
           },
           {
             "itemStyle": {
               "color": "#009E73"
             },
+            "name": "Odyssey peak M2-S7 (select-only) trough M2-P4 (tpcb-like)",
             "value": 23527.818557
           },
           {
             "itemStyle": {
-              "color": "#D55E00"
+              "color": "#0072B2"
             },
+            "name": "pgagroal peak M2-I3 (select-only) trough M1-7 (tpcb-like)",
             "value": 2695.642066
           },
           {
             "itemStyle": {
               "color": "#56B4E9"
             },
+            "name": "PgBouncer peak M2-S15 (select-only) trough M2-S6 (tpcb-like)",
             "value": 18867.317352
           },
           {
             "itemStyle": {
               "color": "#CC79A7"
             },
+            "name": "pgcat peak M1-1 (select-only) trough M2-I12 (tpcb-like)",
             "value": 19579.167029
           },
           {
             "itemStyle": {
               "color": "#E69F00"
             },
+            "name": "pgpool-II peak M2-I13 (select-only) trough M2-I16 (tpcb-like)",
             "value": 37859.480956
           }
         ],
@@ -94,7 +103,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "peak of each pooler's own measured configs; spread verdict in the table",
+      "subtext": "Peak minus trough over peak across each pooler's own measured configs (mixed workloads: trough workload named per bar). Spread verdicts live in the table. 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Surface flatness: peak tps per pooler",
       "textStyle": {
         "color": "#E6EDF3"
@@ -134,7 +143,7 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
@@ -142,6 +151,7 @@
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -149,211 +159,105 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
           {
             "itemStyle": {
-              "color": "#9AA7B4"
+              "color": "#999999"
             },
-            "value": 25207.915273
+            "value": 10467.680111
           },
           {
             "itemStyle": {
-              "color": "#D55E00"
+              "color": "#009E73"
             },
-            "value": 2129.805933
+            "value": 7481.456628
           },
           {
             "itemStyle": {
-              "color": "#9AA7B4"
+              "color": "#0072B2"
             },
-            "value": 24674.34269
+            "value": 332.101502
+          },
+          {
+            "itemStyle": {
+              "color": "#56B4E9"
+            },
+            "value": 7051.986587
           },
           {
             "itemStyle": {
               "color": "#CC79A7"
             },
-            "value": 16619.120116
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 66115.383979
+            "value": 7217.102444
           },
           {
             "itemStyle": {
               "color": "#E69F00"
             },
-            "value": 37859.480956
+            "value": 6785.796626
           },
           {
             "itemStyle": {
-              "color": "#9AA7B4"
+              "color": "#999999"
             },
-            "value": 66934.965444
+            "value": 5538.132803
+          },
+          {
+            "itemStyle": {
+              "color": "#999999"
+            },
+            "value": 5491.931315
+          },
+          {
+            "itemStyle": {
+              "color": "#56B4E9"
+            },
+            "value": 3919.445119
+          },
+          {
+            "itemStyle": {
+              "color": "#999999"
+            },
+            "value": 5537.94669
+          },
+          {
+            "itemStyle": {
+              "color": "#009E73"
+            },
+            "value": 4798.867937
+          },
+          {
+            "itemStyle": {
+              "color": "#999999"
+            },
+            "value": 5895.900676
+          },
+          {
+            "itemStyle": {
+              "color": "#999999"
+            },
+            "value": 5910.613037
           },
           {
             "itemStyle": {
               "color": "#E69F00"
             },
-            "value": 36978.494489
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25044.845066
-          },
-          {
-            "itemStyle": {
-              "color": "#D55E00"
-            },
-            "value": 2695.642066
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25524.440472
-          },
-          {
-            "itemStyle": {
-              "color": "#56B4E9"
-            },
-            "value": 17401.200952
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 23662.435588
-          },
-          {
-            "itemStyle": {
-              "color": "#009E73"
-            },
-            "value": 13149.89564
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 24132.944452
-          },
-          {
-            "itemStyle": {
-              "color": "#009E73"
-            },
-            "value": 13319.171971
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25375.862041
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 26000.070925
-          },
-          {
-            "itemStyle": {
-              "color": "#E69F00"
-            },
-            "value": 17632.137429
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25961.772406
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25937.417885
-          },
-          {
-            "itemStyle": {
-              "color": "#56B4E9"
-            },
-            "value": 18867.317352
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25508.681407
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 26008.8747
-          },
-          {
-            "itemStyle": {
-              "color": "#56B4E9"
-            },
-            "value": 18612.731976
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25922.420166
-          },
-          {
-            "itemStyle": {
-              "color": "#009E73"
-            },
-            "value": 23527.818557
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25927.007337
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25723.76833
-          },
-          {
-            "itemStyle": {
-              "color": "#56B4E9"
-            },
-            "value": 17724.625848
-          },
-          {
-            "itemStyle": {
-              "color": "#9AA7B4"
-            },
-            "value": 25606.47814
-          },
-          {
-            "itemStyle": {
-              "color": "#009E73"
-            },
-            "value": 11975.90628
+            "value": 4201.714975
           }
         ],
         "label": {
@@ -370,8 +274,8 @@
     },
     "title": {
       "left": "center",
-      "subtext": "matched cells: M2-I1, M2-I11, M2-I13, M2-I15, M2-I3, M2-I5, M2-I7, M2-I9, M2-S1, M2-S11, M2-S13, M2-S15, M2-S3, M2-S5, M2-S7, M2-S9, M2-T1, M2-T3",
-      "text": "Iso-region overlay: select-only c=100 pool=10 T=60 simple",
+      "subtext": "cross-matrix M1+M2 shared geometry; matched cells: M1-5, M2-W1, M2-W2, M2-W3, M2-W4, M2-W5. 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Iso-region overlay: simple-update c=100 pool=20 T=60 simple",
       "textStyle": {
         "color": "#E6EDF3"
       }
@@ -395,38 +299,20 @@
         "rotate": 30
       },
       "data": [
-        "M2-I1 direct",
-        "M2-I1 pgagroal",
-        "M2-I11 direct",
-        "M2-I11 pgcat",
-        "M2-I13 direct",
-        "M2-I13 pgpool",
-        "M2-I15 direct",
-        "M2-I15 pgpool",
-        "M2-I3 direct",
-        "M2-I3 pgagroal",
-        "M2-I5 direct",
-        "M2-I5 pgbouncer",
-        "M2-I7 direct",
-        "M2-I7 odyssey",
-        "M2-I9 direct",
-        "M2-I9 odyssey",
-        "M2-S1 direct",
-        "M2-S11 direct",
-        "M2-S11 pgpool",
-        "M2-S13 direct",
-        "M2-S15 direct",
-        "M2-S15 pgbouncer",
-        "M2-S3 direct",
-        "M2-S5 direct",
-        "M2-S5 pgbouncer",
-        "M2-S7 direct",
-        "M2-S7 odyssey",
-        "M2-S9 direct",
-        "M2-T1 direct",
-        "M2-T1 pgbouncer",
-        "M2-T3 direct",
-        "M2-T3 odyssey"
+        "M1-5 direct",
+        "M1-5 odyssey",
+        "M1-5 pgagroal",
+        "M1-5 pgbouncer",
+        "M1-5 pgcat",
+        "M1-5 pgpool",
+        "M2-W1 direct",
+        "M2-W2 direct",
+        "M2-W2 pgbouncer",
+        "M2-W3 direct",
+        "M2-W3 odyssey",
+        "M2-W4 direct",
+        "M2-W5 direct",
+        "M2-W5 pgpool"
       ],
       "name": "cell",
       "type": "category"
@@ -436,7 +322,7 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
@@ -444,6 +330,7 @@
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -451,16 +338,18 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
@@ -477,7 +366,7 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999"
         },
         "name": "direct",
         "type": "bar"
@@ -493,15 +382,18 @@
           3334.344552
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -516,15 +408,18 @@
           3428.371655
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -542,7 +437,7 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2"
         },
         "name": "pgagroal",
         "type": "bar"
@@ -558,15 +453,18 @@
           297.645707
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -581,15 +479,18 @@
           402.588554
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -623,15 +524,18 @@
           2907.320582
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -646,15 +550,18 @@
           2989.30725
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -688,15 +595,18 @@
           2474.835752
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -711,15 +621,18 @@
           2553.146552
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -753,15 +666,18 @@
           3139.917779
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -776,15 +692,18 @@
           3182.509741
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -818,15 +737,18 @@
           2976.055743
         ],
         "itemStyle": {
-          "color": "#CC79A7"
+          "color": "#CC79A7",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#CC79A7",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgcat min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -841,15 +763,18 @@
           3005.002996
         ],
         "itemStyle": {
-          "color": "#CC79A7"
+          "color": "#CC79A7",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#CC79A7",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgcat max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -873,15 +798,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -891,7 +821,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; N/A and timeout cells marked, never zero-filled",
+      "subtext": "median tps with min-max bands; N/A and timeout cells marked, never zero-filled. peak 25405.0 tps (M1-1 direct); 28 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "M1 best-vs-best per workload",
       "textStyle": {
         "color": "#E6EDF3"
@@ -932,14 +862,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "m2-io": {
+  "m1-best-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -947,28 +878,525 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          25405.035073,
+          6626.070454,
+          4068.05665,
+          null,
+          10467.680111,
+          null,
+          3354.636948
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          24068.165286,
+          2712.817132,
+          4033.039921,
+          null,
+          9328.726709,
+          null,
+          3334.344552
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          25509.585626,
+          6987.102217,
+          4075.92611,
+          null,
+          10604.895348,
+          null,
+          3428.371655
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          1532.053875,
+          1120.265641,
+          null,
+          null,
+          332.101502,
+          null,
+          306.024942
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal",
+        "type": "bar"
+      },
+      {
+        "data": [
+          1396.054607,
+          392.711012,
+          null,
+          null,
+          122.024945,
+          null,
+          297.645707
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          2051.393094,
+          1375.982769,
+          null,
+          null,
+          482.76923,
+          null,
+          402.588554
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          17117.380195,
+          4815.110093,
+          null,
+          7073.605591,
+          7051.986587,
+          null,
+          2950.996026
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          17047.450127,
+          2234.292681,
+          null,
+          7056.030938,
+          6667.573867,
+          null,
+          2907.320582
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          17344.156695,
+          5245.395816,
+          null,
+          17385.768297,
+          7098.320477,
+          null,
+          2989.30725
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          16712.28225,
+          4248.30764,
+          1896.227943,
+          null,
+          6785.796626,
+          null,
+          2512.749189
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          15410.125695,
+          2341.603084,
+          1778.284382,
+          null,
+          6766.366958,
+          null,
+          2474.835752
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          16829.291307,
+          4797.934647,
+          1963.365609,
+          null,
+          7324.479154,
+          null,
+          2553.146552
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          11331.231417,
+          4537.732931,
+          null,
+          5142.454638,
+          7481.456628,
+          null,
+          3179.268295
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          11260.28364,
+          2048.058918,
+          null,
+          4831.660228,
+          7305.99103,
+          null,
+          3139.917779
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          11489.694242,
+          5222.723414,
+          null,
+          11507.314474,
+          7548.616825,
+          null,
+          3182.509741
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          19579.167029,
+          null,
+          null,
+          9837.579344,
+          7217.102444,
+          null,
+          2990.605785
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat",
+        "type": "bar"
+      },
+      {
+        "data": [
+          19506.320689,
+          null,
+          null,
+          9750.451538,
+          7191.21828,
+          null,
+          2976.055743
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          19856.403039,
+          null,
+          null,
+          19497.929024,
+          7356.121975,
+          null,
+          3005.002996
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; N/A and timeout cells marked, never zero-filled. peak 25405.0 tps (M1-1 direct); 28 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "M1 best-vs-best per workload (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M1-1",
+        "M1-2",
+        "M1-3",
+        "M1-4",
+        "M1-5",
+        "M1-6",
+        "M1-7"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "m2-io": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
           25207.915273,
-          3668.684861,
-          24674.34269,
-          3750.143076,
-          66115.383979,
-          2292.147186,
-          66934.965444,
-          1926.252156,
           3465.11691,
           25044.845066,
           3463.878047,
@@ -976,13 +1404,20 @@
           3535.777166,
           23662.435588,
           3680.823851,
-          24132.944452
+          24132.944452,
+          3668.684861,
+          24674.34269,
+          3750.143076,
+          66115.383979,
+          2292.147186,
+          66934.965444,
+          1926.252156
         ],
         "emphasis": {
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999"
         },
         "name": "direct",
         "type": "bar"
@@ -990,13 +1425,6 @@
       {
         "data": [
           24994.010183,
-          3592.081396,
-          24543.864971,
-          3727.398564,
-          65997.068353,
-          1806.998074,
-          65526.006001,
-          1776.573687,
           3451.941473,
           24697.391728,
           3461.758053,
@@ -1004,31 +1432,34 @@
           3527.473029,
           23104.357161,
           3609.448963,
-          22959.866197
+          22959.866197,
+          3592.081396,
+          24543.864971,
+          3727.398564,
+          65997.068353,
+          1806.998074,
+          65526.006001,
+          1776.573687
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           25276.872545,
-          3780.604781,
-          25049.563136,
-          3780.058297,
-          66384.233599,
-          2314.107081,
-          68887.664185,
-          1956.539561,
           3491.713652,
           25306.578823,
           3467.803686,
@@ -1036,34 +1467,44 @@
           3536.625067,
           23896.187557,
           3767.498236,
-          24375.484515
+          24375.484515,
+          3780.604781,
+          25049.563136,
+          3780.058297,
+          66384.233599,
+          2314.107081,
+          68887.664185,
+          1956.539561
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           2129.805933,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           1266.090419,
           2695.642066,
           1433.122834,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1074,7 +1515,7 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2"
         },
         "name": "pgagroal",
         "type": "bar"
@@ -1082,13 +1523,6 @@
       {
         "data": [
           1404.421878,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           1254.373202,
           2404.554549,
           1423.552768,
@@ -1096,31 +1530,34 @@
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           2412.908373,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           1309.474443,
           3148.276147,
           1461.457075,
@@ -1128,18 +1565,28 @@
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1149,15 +1596,15 @@
           null,
           null,
           null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           17401.200952,
           2671.156836,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null
@@ -1177,41 +1624,37 @@
           null,
           null,
           null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           17043.054761,
           2661.162209,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -1220,18 +1663,28 @@
           2684.972101,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1241,18 +1694,18 @@
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           37859.480956,
           1233.037841,
           36978.494489,
-          1197.830883,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
+          1197.830883
         ],
         "emphasis": {
           "focus": "series"
@@ -1269,34 +1722,45 @@
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           37395.909408,
           906.581805,
           36769.872674,
-          1114.857611,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
+          1114.857611
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1304,38 +1768,26 @@
           41234.275385,
           1348.718238,
           37210.392918,
-          1629.00076,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
+          1629.00076
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
-          3037.59756,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -1344,7 +1796,14 @@
           null,
           13149.89564,
           3031.664969,
-          13319.171971
+          13319.171971,
+          3037.59756,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
         ],
         "emphasis": {
           "focus": "series"
@@ -1358,13 +1817,6 @@
       {
         "data": [
           null,
-          3013.071792,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -1372,30 +1824,33 @@
           null,
           12967.69768,
           2972.764757,
-          13199.727856
+          13199.727856,
+          3013.071792,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
-          3054.331251,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -1404,18 +1859,28 @@
           null,
           13214.598679,
           3051.093264,
-          13329.846641
+          13329.846641,
+          3054.331251,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1423,16 +1888,16 @@
         "data": [
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           16619.120116,
           2855.733413,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -1451,31 +1916,34 @@
         "data": [
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           16395.23658,
           2820.366933,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
           null
         ],
         "itemStyle": {
-          "color": "#CC79A7"
+          "color": "#CC79A7",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#CC79A7",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgcat min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1483,31 +1951,34 @@
         "data": [
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           16621.216593,
           2866.961499,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
           null
         ],
         "itemStyle": {
-          "color": "#CC79A7"
+          "color": "#CC79A7",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#CC79A7",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgcat max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       }
@@ -1517,7 +1988,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; prefix M2-I",
+      "subtext": "median tps with min-max bands; prefix M2-I. peak 66935.0 tps (M2-I15 direct); 32 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "M2 I/O block heads",
       "textStyle": {
         "color": "#E6EDF3"
@@ -1543,13 +2014,6 @@
       },
       "data": [
         "M2-I1",
-        "M2-I10",
-        "M2-I11",
-        "M2-I12",
-        "M2-I13",
-        "M2-I14",
-        "M2-I15",
-        "M2-I16",
         "M2-I2",
         "M2-I3",
         "M2-I4",
@@ -1557,7 +2021,14 @@
         "M2-I6",
         "M2-I7",
         "M2-I8",
-        "M2-I9"
+        "M2-I9",
+        "M2-I10",
+        "M2-I11",
+        "M2-I12",
+        "M2-I13",
+        "M2-I14",
+        "M2-I15",
+        "M2-I16"
       ],
       "name": "cell",
       "type": "category"
@@ -1567,14 +2038,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "m2-prepared": {
+  "m2-io-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -1582,82 +2054,130 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
-          4749.371388,
-          4723.367367,
-          4392.016762,
-          4491.177549,
-          4427.28069,
-          4451.053467
+          25207.915273,
+          3465.11691,
+          25044.845066,
+          3463.878047,
+          25524.440472,
+          3535.777166,
+          23662.435588,
+          3680.823851,
+          24132.944452,
+          3668.684861,
+          24674.34269,
+          3750.143076,
+          66115.383979,
+          2292.147186,
+          66934.965444,
+          1926.252156
         ],
         "emphasis": {
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999"
         },
         "name": "direct",
         "type": "bar"
       },
       {
         "data": [
-          4421.574987,
-          3940.249299,
-          3576.500765,
-          4469.170011,
-          4386.903032,
-          4405.734865
+          24994.010183,
+          3451.941473,
+          24697.391728,
+          3461.758053,
+          25348.579459,
+          3527.473029,
+          23104.357161,
+          3609.448963,
+          22959.866197,
+          3592.081396,
+          24543.864971,
+          3727.398564,
+          65997.068353,
+          1806.998074,
+          65526.006001,
+          1776.573687
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          5094.965167,
-          4894.105371,
-          4527.297,
-          4496.816392,
-          4459.475547,
-          4492.517406
+          25276.872545,
+          3491.713652,
+          25306.578823,
+          3467.803686,
+          25552.908734,
+          3536.625067,
+          23896.187557,
+          3767.498236,
+          24375.484515,
+          3780.604781,
+          25049.563136,
+          3780.058297,
+          66384.233599,
+          2314.107081,
+          68887.664185,
+          1956.539561
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
+          2129.805933,
+          1266.090419,
+          2695.642066,
+          1433.122834,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1669,13 +2189,23 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2"
         },
         "name": "pgagroal",
         "type": "bar"
       },
       {
         "data": [
+          1404.421878,
+          1254.373202,
+          2404.554549,
+          1423.552768,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1684,20 +2214,33 @@
           null
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
+          2412.908373,
+          1309.474443,
+          3148.276147,
+          1461.457075,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1706,20 +2249,33 @@
           null
         ],
         "itemStyle": {
-          "color": "#D55E00"
+          "color": "#0072B2",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgagroal max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
+          null,
+          null,
+          null,
+          null,
+          17401.200952,
+          2671.156836,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           null,
@@ -1742,19 +2298,67 @@
           null,
           null,
           null,
+          17043.054761,
+          2661.162209,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          18550.943311,
+          2684.972101,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1765,18 +2369,443 @@
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          37859.480956,
+          1233.037841,
+          36978.494489,
+          1197.830883
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          37395.909408,
+          906.581805,
+          36769.872674,
+          1114.857611
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          41234.275385,
+          1348.718238,
+          37210.392918,
+          1629.00076
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          13149.89564,
+          3031.664969,
+          13319.171971,
+          3037.59756,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          12967.69768,
+          2972.764757,
+          13199.727856,
+          3013.071792,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#56B4E9",
-          "type": "dashed"
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
-        "name": "PgBouncer max",
+        "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          13214.598679,
+          3051.093264,
+          13329.846641,
+          3054.331251,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          16619.120116,
+          2855.733413,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          16395.23658,
+          2820.366933,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          16621.216593,
+          2866.961499,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; prefix M2-I. peak 66935.0 tps (M2-I15 direct); 32 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "M2 I/O block heads (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-I1",
+        "M2-I2",
+        "M2-I3",
+        "M2-I4",
+        "M2-I5",
+        "M2-I6",
+        "M2-I7",
+        "M2-I8",
+        "M2-I9",
+        "M2-I10",
+        "M2-I11",
+        "M2-I12",
+        "M2-I13",
+        "M2-I14",
+        "M2-I15",
+        "M2-I16"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "m2-prepared": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          4749.371388,
+          4723.367367,
+          4392.016762,
+          4491.177549,
+          4427.28069,
+          4451.053467
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          4421.574987,
+          3940.249299,
+          3576.500765,
+          4469.170011,
+          4386.903032,
+          4405.734865
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          5094.965167,
+          4894.105371,
+          4527.297,
+          4496.816392,
+          4459.475547,
+          4492.517406
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1808,15 +2837,18 @@
           2002.850731
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1830,15 +2862,18 @@
           2013.192143
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1870,15 +2905,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1892,77 +2930,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "name": "pgcat",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat max",
-        "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -1974,15 +2953,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#484F58"
+          "color": "#FFFFFF"
         },
         "label": {
-          "color": "#484F58",
+          "color": "#FFFFFF",
           "formatter": "N/A (unsupported)",
+          "position": "top",
           "show": true
         },
         "name": "N/A (unsupported)",
-        "symbol": "cross",
+        "symbol": "diamond",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       },
@@ -2006,15 +2990,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -2024,7 +3013,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; prefix M2-P",
+      "subtext": "median tps with min-max bands; prefix M2-P. peak 4749.4 tps (M2-P1 direct); 8 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, PgBouncer, pgcat.",
       "text": "M2 prepared twins",
       "textStyle": {
         "color": "#E6EDF3"
@@ -2064,14 +3053,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "m2-session": {
+  "m2-prepared-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -2079,28 +3069,302 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          4749.371388,
+          4723.367367,
+          4392.016762,
+          4491.177549,
+          4427.28069,
+          4451.053467
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          4421.574987,
+          3940.249299,
+          3576.500765,
+          4469.170011,
+          4386.903032,
+          4405.734865
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          5094.965167,
+          4894.105371,
+          4527.297,
+          4496.816392,
+          4459.475547,
+          4492.517406
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          2011.656527
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          2002.850731
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          2013.192143
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          1382.626598,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          1363.079846,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          1385.222661,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; prefix M2-P. peak 4749.4 tps (M2-P1 direct); 8 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, PgBouncer, pgcat.",
+      "text": "M2 prepared twins (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-P1",
+        "M2-P2",
+        "M2-P3",
+        "M2-P4",
+        "M2-P5",
+        "M2-P6"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "m2-session": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
           25375.862041,
-          3850.513769,
-          26000.070925,
-          3829.886817,
-          25961.772406,
-          1884.558559,
-          25937.417885,
-          3858.848007,
           1918.518222,
           25508.681407,
           1452.77248,
@@ -2108,13 +3372,20 @@
           2123.865035,
           25922.420166,
           3835.885628,
-          25927.007337
+          25927.007337,
+          3850.513769,
+          26000.070925,
+          3829.886817,
+          25961.772406,
+          1884.558559,
+          25937.417885,
+          3858.848007
         ],
         "emphasis": {
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999"
         },
         "name": "direct",
         "type": "bar"
@@ -2122,13 +3393,6 @@
       {
         "data": [
           23606.744795,
-          3808.02255,
-          25969.915498,
-          3808.316506,
-          23468.843371,
-          1679.212499,
-          25900.023378,
-          3844.060917,
           1910.872774,
           25245.734066,
           1337.587223,
@@ -2136,31 +3400,34 @@
           1719.026765,
           25862.863747,
           3811.013721,
-          25792.60069
+          25792.60069,
+          3808.02255,
+          25969.915498,
+          3808.316506,
+          23468.843371,
+          1679.212499,
+          25900.023378,
+          3844.060917
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           26076.865339,
-          3875.407075,
-          26026.808221,
-          3864.182565,
-          25986.04278,
-          2609.893432,
-          26028.258002,
-          3870.959489,
           2026.92853,
           25801.132675,
           1853.970821,
@@ -2168,123 +3435,34 @@
           2135.73461,
           25935.558705,
           3848.110584,
-          25946.605313
+          25946.605313,
+          3875.407075,
+          26026.808221,
+          3864.182565,
+          25986.04278,
+          2609.893432,
+          26028.258002,
+          3870.959489
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "name": "pgagroal",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
-        },
-        "name": "pgagroal min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
-        },
-        "name": "pgagroal max",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          18867.317352,
-          3040.591597,
           null,
           null,
           null,
@@ -2292,7 +3470,14 @@
           1354.406854,
           null,
           null,
-          null
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          18867.317352,
+          3040.591597
         ],
         "emphasis": {
           "focus": "series"
@@ -2309,42 +3494,38 @@
           null,
           null,
           null,
-          null,
-          null,
-          18720.962903,
-          3039.57275,
-          null,
-          null,
-          null,
           18581.051627,
           1259.617146,
           null,
           null,
-          null
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          18720.962903,
+          3039.57275
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          21024.45214,
-          3141.238253,
           null,
           null,
           null,
@@ -2352,18 +3533,28 @@
           1480.904494,
           null,
           null,
-          null
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          21024.45214,
+          3141.238253
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -2371,16 +3562,16 @@
         "data": [
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           17632.137429,
           2796.074689,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -2399,36 +3590,47 @@
         "data": [
           null,
           null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           17181.492479,
           2785.658493,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
           null
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null,
           null,
           17775.638066,
@@ -2436,38 +3638,26 @@
           null,
           null,
           null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -2476,6 +3666,13 @@
           null,
           23527.818557,
           3648.806263,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "emphasis": {
@@ -2495,39 +3692,35 @@
           null,
           null,
           null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           22753.581387,
           3627.135733,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
           null,
           null,
           null,
@@ -2536,110 +3729,28 @@
           null,
           23872.686826,
           3687.11794,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "name": "pgcat",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat max",
-        "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -2654,11 +3765,11 @@
             0
           ],
           [
-            4,
+            2,
             0
           ],
           [
-            5,
+            3,
             0
           ],
           [
@@ -2670,24 +3781,29 @@
             0
           ],
           [
-            10,
+            12,
             0
           ],
           [
-            15,
+            13,
             0
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -2697,7 +3813,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; prefix M2-S",
+      "subtext": "median tps with min-max bands; prefix M2-S. peak 26008.9 tps (M2-S5 direct); 24 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, pgcat.",
       "text": "M2 session block heads",
       "textStyle": {
         "color": "#E6EDF3"
@@ -2723,13 +3839,6 @@
       },
       "data": [
         "M2-S1",
-        "M2-S10",
-        "M2-S11",
-        "M2-S12",
-        "M2-S13",
-        "M2-S14",
-        "M2-S15",
-        "M2-S16",
         "M2-S2",
         "M2-S3",
         "M2-S4",
@@ -2737,7 +3846,14 @@
         "M2-S6",
         "M2-S7",
         "M2-S8",
-        "M2-S9"
+        "M2-S9",
+        "M2-S10",
+        "M2-S11",
+        "M2-S12",
+        "M2-S13",
+        "M2-S14",
+        "M2-S15",
+        "M2-S16"
       ],
       "name": "cell",
       "type": "category"
@@ -2747,14 +3863,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "m2-statement": {
+  "m2-session-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -2762,16 +3879,495 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          25375.862041,
+          1918.518222,
+          25508.681407,
+          1452.77248,
+          26008.8747,
+          2123.865035,
+          25922.420166,
+          3835.885628,
+          25927.007337,
+          3850.513769,
+          26000.070925,
+          3829.886817,
+          25961.772406,
+          1884.558559,
+          25937.417885,
+          3858.848007
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          23606.744795,
+          1910.872774,
+          25245.734066,
+          1337.587223,
+          23142.252775,
+          1719.026765,
+          25862.863747,
+          3811.013721,
+          25792.60069,
+          3808.02255,
+          25969.915498,
+          3808.316506,
+          23468.843371,
+          1679.212499,
+          25900.023378,
+          3844.060917
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          26076.865339,
+          2026.92853,
+          25801.132675,
+          1853.970821,
+          26073.865558,
+          2135.73461,
+          25935.558705,
+          3848.110584,
+          25946.605313,
+          3875.407075,
+          26026.808221,
+          3864.182565,
+          25986.04278,
+          2609.893432,
+          26028.258002,
+          3870.959489
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          18612.731976,
+          1354.406854,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          18867.317352,
+          3040.591597
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          18581.051627,
+          1259.617146,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          18720.962903,
+          3039.57275
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          18618.044423,
+          1480.904494,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          21024.45214,
+          3141.238253
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          17632.137429,
+          2796.074689,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          17181.492479,
+          2785.658493,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          17775.638066,
+          2799.928562,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          23527.818557,
+          3648.806263,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          22753.581387,
+          3627.135733,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          23872.686826,
+          3687.11794,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; prefix M2-S. peak 26008.9 tps (M2-S5 direct); 24 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, pgcat.",
+      "text": "M2 session block heads (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-S1",
+        "M2-S2",
+        "M2-S3",
+        "M2-S4",
+        "M2-S5",
+        "M2-S6",
+        "M2-S7",
+        "M2-S8",
+        "M2-S9",
+        "M2-S10",
+        "M2-S11",
+        "M2-S12",
+        "M2-S13",
+        "M2-S14",
+        "M2-S15",
+        "M2-S16"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "m2-statement": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
@@ -2785,7 +4381,7 @@
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999"
         },
         "name": "direct",
         "type": "bar"
@@ -2798,15 +4394,18 @@
           3525.847882
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -2818,71 +4417,18 @@
           3558.221555
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct max",
         "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "name": "pgagroal",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
-        },
-        "name": "pgagroal min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
-        },
-        "name": "pgagroal max",
-        "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -2910,15 +4456,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -2930,71 +4479,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer max",
         "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#E69F00"
-        },
-        "name": "pgpool-II",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#E69F00"
-        },
-        "lineStyle": {
-          "color": "#E69F00",
-          "type": "dashed"
-        },
-        "name": "pgpool-II min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#E69F00"
-        },
-        "lineStyle": {
-          "color": "#E69F00",
-          "type": "dashed"
-        },
-        "name": "pgpool-II max",
-        "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -3022,15 +4518,18 @@
           1509.583458
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -3042,71 +4541,18 @@
           1531.579766
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "name": "pgcat",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat max",
-        "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -3122,15 +4568,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#484F58"
+          "color": "#FFFFFF"
         },
         "label": {
-          "color": "#484F58",
+          "color": "#FFFFFF",
           "formatter": "N/A (unsupported)",
+          "position": "top",
           "show": true
         },
         "name": "N/A (unsupported)",
-        "symbol": "cross",
+        "symbol": "diamond",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       },
@@ -3142,15 +4593,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -3160,7 +4616,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; prefix M2-T",
+      "subtext": "median tps with min-max bands; prefix M2-T. peak 25723.8 tps (M2-T1 direct); 7 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, pgpool-II, pgcat.",
       "text": "M2 statement block heads",
       "textStyle": {
         "color": "#E6EDF3"
@@ -3198,14 +4654,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "m2-workloads": {
+  "m2-statement-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -3213,22 +4670,282 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          25723.76833,
+          3546.933431,
+          25606.47814,
+          3537.465898
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          25635.443342,
+          3532.868574,
+          25429.994997,
+          3525.847882
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          25739.508247,
+          3557.654212,
+          25744.669841,
+          3558.221555
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          17724.625848,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          17563.758323,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          17803.631354,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          11975.90628,
+          1525.325985
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          11948.141554,
+          1509.583458
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          11978.724314,
+          1531.579766
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; prefix M2-T. peak 25723.8 tps (M2-T1 direct); 7 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, pgpool-II, pgcat.",
+      "text": "M2 statement block heads (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-T1",
+        "M2-T2",
+        "M2-T3",
+        "M2-T4"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "m2-workloads": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
           5538.132803,
-          null,
           5491.931315,
           5537.94669,
           5895.900676,
@@ -3236,13 +4953,14 @@
           null,
           null,
           null,
+          null,
           null
         ],
         "emphasis": {
           "focus": "series"
         },
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999"
         },
         "name": "direct",
         "type": "bar"
@@ -3250,7 +4968,6 @@
       {
         "data": [
           5517.995862,
-          null,
           5394.404289,
           5477.655001,
           5867.774429,
@@ -3258,25 +4975,28 @@
           null,
           null,
           null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
           5568.09397,
-          null,
           5550.461727,
           5566.268583,
           6004.646654,
@@ -3284,100 +5004,30 @@
           null,
           null,
           null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#9AA7B4"
+          "color": "#999999",
+          "opacity": 0.55
         },
         "lineStyle": {
-          "color": "#9AA7B4",
-          "type": "dashed"
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "direct max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "name": "pgagroal",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
-        },
-        "name": "pgagroal min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#D55E00"
-        },
-        "lineStyle": {
-          "color": "#D55E00",
-          "type": "dashed"
-        },
-        "name": "pgagroal max",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
           null,
           3919.445119,
+          null,
           null,
           null,
           null,
@@ -3398,8 +5048,8 @@
       {
         "data": [
           null,
-          null,
           3875.552003,
+          null,
           null,
           null,
           null,
@@ -3409,21 +5059,23 @@
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
           null,
           3992.878677,
           null,
@@ -3432,18 +5084,22 @@
           null,
           null,
           null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#56B4E9"
+          "color": "#56B4E9",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#56B4E9",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "PgBouncer max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -3453,8 +5109,8 @@
           null,
           null,
           null,
-          null,
           4201.714975,
+          null,
           null,
           null,
           null,
@@ -3475,29 +5131,31 @@
           null,
           null,
           null,
-          null,
           3956.293171,
+          null,
           null,
           null,
           null,
           null
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
           null,
           null,
           null,
@@ -3506,18 +5164,22 @@
           null,
           null,
           null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#E69F00"
+          "color": "#E69F00",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#E69F00",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "pgpool-II max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -3525,8 +5187,8 @@
         "data": [
           null,
           null,
-          null,
           4798.867937,
+          null,
           null,
           null,
           null,
@@ -3547,8 +5209,8 @@
         "data": [
           null,
           null,
-          null,
           4704.546159,
+          null,
           null,
           null,
           null,
@@ -3557,21 +5219,23 @@
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          null,
           null,
           null,
           4897.710984,
@@ -3580,92 +5244,22 @@
           null,
           null,
           null,
+          null,
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "emphasis": {
-          "focus": "series"
-        },
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "name": "pgcat",
-        "type": "bar"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat min",
-        "showSymbol": true,
-        "symbol": "circle",
-        "symbolSize": 6,
-        "type": "line"
-      },
-      {
-        "data": [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null
-        ],
-        "itemStyle": {
-          "color": "#CC79A7"
-        },
-        "lineStyle": {
-          "color": "#CC79A7",
-          "type": "dashed"
-        },
-        "name": "pgcat max",
-        "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -3676,11 +5270,11 @@
             0
           ],
           [
-            1,
+            3,
             0
           ],
           [
-            4,
+            5,
             0
           ],
           [
@@ -3701,15 +5295,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -3719,7 +5318,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; prefix M2-W",
+      "subtext": "median tps with min-max bands; prefix M2-W. peak 5910.6 tps (M2-W5 direct); 8 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, pgcat.",
       "text": "M2 workload twins",
       "textStyle": {
         "color": "#E6EDF3"
@@ -3745,7 +5344,6 @@
       },
       "data": [
         "M2-W1",
-        "M2-W10",
         "M2-W2",
         "M2-W3",
         "M2-W4",
@@ -3753,7 +5351,8 @@
         "M2-W6",
         "M2-W7",
         "M2-W8",
-        "M2-W9"
+        "M2-W9",
+        "M2-W10"
       ],
       "name": "cell",
       "type": "category"
@@ -3763,8 +5362,407 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
+    }
+  },
+  "m2-workloads-log": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          5538.132803,
+          5491.931315,
+          5537.94669,
+          5895.900676,
+          5910.613037,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          5517.995862,
+          5394.404289,
+          5477.655001,
+          5867.774429,
+          5902.912595,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          5568.09397,
+          5550.461727,
+          5566.268583,
+          6004.646654,
+          6013.651773,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          3919.445119,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          3875.552003,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          3992.878677,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          4201.714975,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          3956.293171,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          null,
+          null,
+          4255.540082,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          4798.867937,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null,
+          4704.546159,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null,
+          4897.710984,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; prefix M2-W. peak 5910.6 tps (M2-W5 direct); 8 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners No measured cells: pgagroal, pgcat.",
+      "text": "M2 workload twins (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-W1",
+        "M2-W2",
+        "M2-W3",
+        "M2-W4",
+        "M2-W5",
+        "M2-W6",
+        "M2-W7",
+        "M2-W8",
+        "M2-W9",
+        "M2-W10"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
     }
   }
 }

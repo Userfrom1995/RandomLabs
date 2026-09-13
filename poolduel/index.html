@@ -183,7 +183,6 @@ Full matrix: <a href="results/m1/matrix.csv">results/m1/matrix.csv</a> (publishe
 </table>
 <p class="note" id="m1-note">Live data hook: fills from <code>results/m1/medians.json</code>
 (harness <code>write_medians</code> schema) once the sweep publishes it. Otherwise pending by design.</p>
-<div class="chart" id="chart-m1"><p class="note">Chart pending: bars render here once <code>results/report.json</code> is published (median tps with min-max whiskers, every arm, every M1 cell).</p></div>
 </div>
 
 <div class="section">
@@ -219,16 +218,28 @@ timeout cells are marked, never zero-filled. Per-pooler deep-dives:
 <a href="pgcat/">pgcat</a>.</p>
 <h3>M1 best-vs-best per workload</h3>
 <div class="echart" data-page="comparison" data-chart="m1-best"></div>
+<h3>M1 best-vs-best, log scale (same data)</h3>
+<div class="echart" data-page="comparison" data-chart="m1-best-log"></div>
 <h3>M2 session block</h3>
 <div class="echart" data-page="comparison" data-chart="m2-session"></div>
+<h3>M2 session block, log scale (same data)</h3>
+<div class="echart" data-page="comparison" data-chart="m2-session-log"></div>
 <h3>M2 statement block</h3>
 <div class="echart" data-page="comparison" data-chart="m2-statement"></div>
+<h3>M2 statement block, log scale (same data)</h3>
+<div class="echart" data-page="comparison" data-chart="m2-statement-log"></div>
 <h3>M2 I/O block</h3>
 <div class="echart" data-page="comparison" data-chart="m2-io"></div>
+<h3>M2 I/O block, log scale (same data)</h3>
+<div class="echart" data-page="comparison" data-chart="m2-io-log"></div>
 <h3>M2 workload twins</h3>
 <div class="echart" data-page="comparison" data-chart="m2-workloads"></div>
+<h3>M2 workload twins, log scale (same data)</h3>
+<div class="echart" data-page="comparison" data-chart="m2-workloads-log"></div>
 <h3>M2 prepared twins</h3>
 <div class="echart" data-page="comparison" data-chart="m2-prepared"></div>
+<h3>M2 prepared twins, log scale (same data)</h3>
+<div class="echart" data-page="comparison" data-chart="m2-prepared-log"></div>
 <h3>Iso-region overlay (shared geometry)</h3>
 <div class="echart" data-page="comparison" data-chart="iso-overlay"></div>
 <h3>Surface flatness strip</h3>
@@ -244,7 +255,7 @@ timeout cells are marked, never zero-filled. Per-pooler deep-dives:
 where clients, backends, and duration match exactly (for example M1-1 beside
 M2 session rows on the shared G-SEL100 geometry). Matched slices render here
 from <code>results/report.json</code>.</p>
-<div id="iso-block"><p class="note">Pending sweep data.</p></div>
+<div id="iso-block"><p class="note">Loading live data from <code>results/report.json</code> (serve over HTTP).</p></div>
 </div>
 <div>
 <h3>Surface flatness</h3>
@@ -252,7 +263,7 @@ from <code>results/report.json</code>.</p>
 (peak minus trough) over peak across each pooler's own measured configs.
 At or below 15% reads flat, above reads peaky, one config reads
 single-point. Verdicts render here from <code>results/report.json</code>.</p>
-<div id="flat-block"><p class="note">Pending sweep data.</p></div>
+<div id="flat-block"><p class="note">Loading live data from <code>results/report.json</code> (serve over HTTP).</p></div>
 </div>
 </div>
 </div>
@@ -385,6 +396,12 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
   }
 
+  function naturalKey(s) {
+    return String(s).split(/(\d+)/).map(function (part) {
+      return /^\d+$/.test(part) ? ("000000" + part).slice(-6) : part;
+    }).join("");
+  }
+
   function fillM2(bundle) {
     if (!bundle || !bundle.best) return false;
     var blocks = [
@@ -401,7 +418,10 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
     blocks.forEach(function (b) {
       var cells = Object.keys(bundle.best).filter(function (c) {
         return c.indexOf(b.prefix) === 0;
-      }).sort();
+      }).sort(function (a, c) {
+        var ka = naturalKey(a), kb = naturalKey(c);
+        return ka < kb ? -1 : ka > kb ? 1 : 0;
+      });
       if (!cells.length) {
         html += "<tr><td>" + esc(b.label) +
           '</td><td class="pend">pending</td><td class="pend">pending</td>' +
@@ -431,58 +451,6 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
         "Live data: best-vs-best rows loaded from results/report.json published with the sweep.";
     }
     return anyData;
-  }
-
-  function renderCharts(bundle, m1medians) {
-    var host = document.getElementById("chart-m1");
-    var byKey = {};
-    (m1medians || []).forEach(function (e) {
-      byKey[e.cell_id + "|" + e.pooler] = e;
-    });
-    var peak = 0;
-    M1_CELLS.forEach(function (c) {
-      ARMS.forEach(function (a) {
-        var e = byKey[c + "|" + a];
-        if (e && e.tps && e.tps.max != null && e.tps.max > peak) peak = e.tps.max;
-      });
-    });
-    if (!peak) return false;
-    var W = 640, rowH = 20, labelW = 150, pad = 8;
-    var rows = [];
-    M1_CELLS.forEach(function (c) {
-      ARMS.forEach(function (a) { rows.push({ cell: c, arm: a }); });
-    });
-    var H = rows.length * rowH + 30;
-    var svg = '<svg width="' + W + '" height="' + H +
-      '" role="img" aria-label="M1 median tps with min-max bands">';
-    rows.forEach(function (r, i) {
-      var y = 24 + i * rowH;
-      var e = byKey[r.cell + "|" + r.arm];
-      svg += '<text x="0" y="' + (y + 11) + '">' +
-        esc(r.cell + " " + r.arm) + "</text>";
-      if (e && e.tps && e.tps.median != null) {
-        var x0 = labelW + (e.tps.min / peak) * (W - labelW - pad);
-        var x1 = labelW + (e.tps.max / peak) * (W - labelW - pad);
-        var xm = labelW + (e.tps.median / peak) * (W - labelW - pad);
-        var color = r.arm === "direct" ? "#9aa7b4" : "#3fb950";
-        svg += '<line x1="' + x0.toFixed(1) + '" y1="' + (y + 8) +
-          '" x2="' + x1.toFixed(1) + '" y2="' + (y + 8) +
-          '" stroke="#58a6ff" stroke-width="3"/>';
-        svg += '<line x1="' + xm.toFixed(1) + '" y1="' + (y + 3) +
-          '" x2="' + xm.toFixed(1) + '" y2="' + (y + 13) +
-          '" stroke="' + color + '" stroke-width="2"/>';
-        svg += '<text x="' + (x1 + 4).toFixed(1) + '" y="' + (y + 11) + '">' +
-          esc(e.tps.median) + "</text>";
-      } else {
-        svg += '<text x="' + labelW + '" y="' + (y + 11) +
-          '" class="pend" fill="#d29922">' +
-          (e ? esc(e.status) : "pending") + "</text>";
-      }
-    });
-    svg += "</svg>";
-    host.innerHTML = "<p class='note'>M1 median tps per arm (blue bar: min-max " +
-      "band, tick: median). Live from results/m1/medians.json.</p>" + svg;
-    return true;
   }
 
   function fillIsoFlat(bundle) {
@@ -523,10 +491,17 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
   fetchJson("results/m1/medians.json").then(function (m1) {
     var gotM1 = fillM1(m1);
     return fetchJson("results/report.json").then(function (bundle) {
-      var gotChart = renderCharts(bundle, m1);
       var gotM2 = fillM2(bundle);
       var gotIso = fillIsoFlat(bundle);
-      if (gotM1 || gotM2 || gotChart || gotIso) {
+      if (!bundle) {
+        document.getElementById("iso-block").innerHTML =
+          "<p class='note'>Live results unavailable here: the report " +
+          "bundle did not load (serve poolduel/ over HTTP).</p>";
+        document.getElementById("flat-block").innerHTML =
+          "<p class='note'>Live results unavailable here: the report " +
+          "bundle did not load (serve poolduel/ over HTTP).</p>";
+      }
+      if (gotM1 || gotM2 || gotIso) {
         var banner = document.getElementById("status-banner");
         banner.className = "banner";
         banner.innerHTML = "<strong>Status: sweep medians published below.</strong> " +

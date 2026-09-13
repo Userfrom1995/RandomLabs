@@ -3,6 +3,7 @@
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -10,16 +11,18 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
@@ -52,15 +55,18 @@
           3139.917779
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -75,15 +81,18 @@
           3182.509741
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -99,15 +108,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -117,7 +131,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; N/A and timeout cells marked",
+      "subtext": "median tps with min-max bands; N/A and timeout cells marked. peak 11331.2 tps (M1-1 odyssey); 5 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Odyssey M1 own surface",
       "textStyle": {
         "color": "#E6EDF3"
@@ -158,14 +172,15 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
     }
   },
-  "own-m2": {
+  "own-m1-log": {
     "backgroundColor": "transparent",
     "dataZoom": [
       {
+        "bottom": 8,
         "type": "slider"
       },
       {
@@ -173,24 +188,173 @@
       }
     ],
     "grid": {
-      "bottom": "18%",
+      "bottom": "24%",
       "containLabel": true,
       "left": "8%",
-      "right": "6%"
+      "right": "6%",
+      "top": "30%"
     },
     "legend": {
       "textStyle": {
         "color": "#E6EDF3"
       },
-      "top": "bottom"
+      "top": 56,
+      "type": "scroll"
     },
     "series": [
       {
         "data": [
-          3037.59756,
+          11331.231417,
+          4537.732931,
+          null,
+          5142.454638,
+          7481.456628,
+          null,
+          3179.268295
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          11260.28364,
+          2048.058918,
+          null,
+          4831.660228,
+          7305.99103,
+          null,
+          3139.917779
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          11489.694242,
+          5222.723414,
+          null,
+          11507.314474,
+          7548.616825,
+          null,
+          3182.509741
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; N/A and timeout cells marked. peak 11331.2 tps (M1-1 odyssey); 5 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Odyssey M1 own surface (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M1-1",
+        "M1-2",
+        "M1-3",
+        "M1-4",
+        "M1-5",
+        "M1-6",
+        "M1-7"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
+    }
+  },
+  "own-m2": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
           13149.89564,
           3031.664969,
           13319.171971,
+          3037.59756,
           1382.626598,
           null,
           23527.818557,
@@ -211,10 +375,10 @@
       },
       {
         "data": [
-          3013.071792,
           12967.69768,
           2972.764757,
           13199.727856,
+          3013.071792,
           1363.079846,
           null,
           22753.581387,
@@ -225,24 +389,27 @@
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey min",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
       {
         "data": [
-          3054.331251,
           13214.598679,
           3051.093264,
           13329.846641,
+          3054.331251,
           1385.222661,
           null,
           23872.686826,
@@ -253,15 +420,18 @@
           null
         ],
         "itemStyle": {
-          "color": "#009E73"
+          "color": "#009E73",
+          "opacity": 0.55
         },
         "lineStyle": {
           "color": "#009E73",
-          "type": "dashed"
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
         },
         "name": "Odyssey max",
         "showSymbol": true,
-        "symbol": "circle",
+        "symbol": "emptyCircle",
         "symbolSize": 6,
         "type": "line"
       },
@@ -273,15 +443,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#484F58"
+          "color": "#FFFFFF"
         },
         "label": {
-          "color": "#484F58",
+          "color": "#FFFFFF",
           "formatter": "N/A (unsupported)",
+          "position": "top",
           "show": true
         },
         "name": "N/A (unsupported)",
-        "symbol": "cross",
+        "symbol": "diamond",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       },
@@ -293,15 +468,20 @@
           ]
         ],
         "itemStyle": {
-          "color": "#D29922"
+          "color": "#F0E442"
         },
         "label": {
-          "color": "#D29922",
+          "color": "#F0E442",
           "formatter": "timeout/inconclusive",
+          "position": "top",
           "show": true
         },
         "name": "timeout/inconclusive",
         "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
         "symbolSize": 14,
         "type": "scatter"
       }
@@ -311,7 +491,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; N/A and timeout cells marked",
+      "subtext": "median tps with min-max bands; N/A and timeout cells marked. peak 23527.8 tps (M2-S7 odyssey); 10 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Odyssey M2 own surface",
       "textStyle": {
         "color": "#E6EDF3"
@@ -336,10 +516,10 @@
         "rotate": 30
       },
       "data": [
-        "M2-I10",
         "M2-I7",
         "M2-I8",
         "M2-I9",
+        "M2-I10",
         "M2-P4",
         "M2-P6",
         "M2-S7",
@@ -357,8 +537,175 @@
         "color": "#E6EDF3"
       },
       "min": 0,
-      "name": "tps",
+      "name": "tps (transactions/s)",
       "type": "value"
+    }
+  },
+  "own-m2-log": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          13149.89564,
+          3031.664969,
+          13319.171971,
+          3037.59756,
+          1382.626598,
+          null,
+          23527.818557,
+          3648.806263,
+          11975.90628,
+          1525.325985,
+          4798.867937,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          12967.69768,
+          2972.764757,
+          13199.727856,
+          3013.071792,
+          1363.079846,
+          null,
+          22753.581387,
+          3627.135733,
+          11948.141554,
+          1509.583458,
+          4704.546159,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          13214.598679,
+          3051.093264,
+          13329.846641,
+          3054.331251,
+          1385.222661,
+          null,
+          23872.686826,
+          3687.11794,
+          11978.724314,
+          1531.579766,
+          4897.710984,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "log-scaled twin of the same data (N/A/timeout markers shown on the linear chart); median tps with min-max bands; N/A and timeout cells marked. peak 23527.8 tps (M2-S7 odyssey); 10 measured cells; 30s warmup discarded; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Odyssey M2 own surface (log scale)",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "M2-I7",
+        "M2-I8",
+        "M2-I9",
+        "M2-I10",
+        "M2-P4",
+        "M2-P6",
+        "M2-S7",
+        "M2-S8",
+        "M2-T3",
+        "M2-T4",
+        "M2-W3",
+        "M2-W8"
+      ],
+      "name": "cell",
+      "type": "category"
+    },
+    "yAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3"
+      },
+      "name": "tps (transactions/s, log scale)",
+      "type": "log"
     }
   }
 }

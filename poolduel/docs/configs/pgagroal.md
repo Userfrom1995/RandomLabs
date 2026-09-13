@@ -66,9 +66,20 @@ choices from ARCHITECTURE.
 
 ## M2 variants
 
-- Session arm: `pipeline = session`, `blocking_timeout = 30s`.
-- Performance arm: `pipeline = performance`, `blocking_timeout = 30s`.
+- Session arm: `pipeline = session`, `blocking_timeout = 120s`.
+- Performance arm: `pipeline = performance`, `blocking_timeout = 120s`.
 - I/O axis: `ev_backend = io_uring` versus `epoll` (record resolved `auto`).
 - Prepared twin: `track_prepared_statements = on` (transaction only).
+
+Session admission parity (M4 owner review, 2026-09-13): the 120s
+`blocking_timeout` on session/performance pipelines matches PgBouncer
+`query_wait_timeout = 120s` and pgcat per-user `connect_timeout = 120s`,
+so queued session clients wait for a backend instead of failing at
+connect time, while the backend pool stays at the cell's pool_size for
+every arm (CONFIGURATION.html: `blocking_timeout` is the time the
+process blocks for a connection; `max_connections` caps connections to
+PostgreSQL, i.e. backends). Proven need: M2-S1..S4 failed in 30.1s with
+`FATAL: connection pool is full` on the old 30s blocking. M1
+transaction rendering is byte-identical (`blocking_timeout = 0`).
 
 - Dr. Mob, the Researcher
