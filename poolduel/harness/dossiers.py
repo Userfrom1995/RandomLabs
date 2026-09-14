@@ -476,20 +476,25 @@ def render_flat(dossier):
         '<table><tr><th>Configs measured</th><th>Spread</th>'
         "<th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr>"
         "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
-        "</table>" % (flat["configs"], spread, _esc(flat["verdict"]),
+        "</table>" % (flat["configs"], spread, _esc(flat["verdict"] or "-"),
                       _esc(peak_txt), _esc(trough_txt)))
 
 
 def render_verdict(dossier):
     verdicts = dossier["verdicts"]
+    ranked = (verdicts["wins"] + verdicts["inconclusive"] +
+              verdicts["lose"] + verdicts["na"] + verdicts["timeout"])
+    rest = verdicts["cells"] - ranked
     return (
-        "<p>Across %d ranked cells, %s is best in %d, inconclusive in "
-        "%d, loses in %d; N/A (unsupported) in %d cells, "
-        "timeout/inconclusive in %d cells. (Derived from report.json "
-        "ranked verdicts.)</p>"
-        % (verdicts["cells"], _esc(dossier["pooler"]), verdicts["wins"],
+        "<p>Across %d ranked cells (%d with %s participating), %s is "
+        "best in %d, inconclusive in %d, loses in %d; N/A "
+        "(unsupported) in %d cells, timeout/inconclusive in %d cells; "
+        "not ranked in %d cells. (Derived from report.json ranked "
+        "verdicts.)</p>"
+        % (verdicts["cells"], ranked, _esc(dossier["pooler"]),
+           _esc(dossier["pooler"]), verdicts["wins"],
            verdicts["inconclusive"], verdicts["lose"], verdicts["na"],
-           verdicts["timeout"]))
+           verdicts["timeout"], rest))
 
 
 def render_na(dossier):
