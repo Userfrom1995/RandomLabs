@@ -362,14 +362,59 @@ jobs:
 
       - name: Run M9 chunk
         # Must run even when Supavisor steps flaked; chunk filter preserved.
+        # Supavisor warn-only doctrine (same as the setup-beam, build,
+        # verify, and provision steps above): a chunk whose ONLY failures
+        # are Supavisor arms still measured its incumbents, so it succeeds
+        # honestly instead of going red. Per-arm Supavisor errors stay
+        # printed in the log and Supavisor medians stay null (never
+        # zero-filled). Any non-supavisor error, or zero incumbent
+        # records, still fails the chunk loudly.
+        # Refs: run 34782062919 failed 76 chunks here with supavisor-only
+        # rc=127 (BLOCKED toolchain, binary missing) while every one of
+        # those chunks wrote incumbent raw records; aggregate committed
+        # 250 medians anyway, so the red chunks were pure signal noise.
         if: ${{ always() && (inputs.chunk == '' || inputs.chunk == matrix.chunk) }}
         env:
           PGPASSWORD: benchpass
         run: |
           export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$PATH"
           export SUPAVISOR_SHA="$(cut -d' ' -f1 /tmp/poolers/supavisor.sha | head -c 40)"
+          out="$(pwd)/poolduel/results/m9-${{ matrix.chunk }}"
+          mkdir -p "$out"
+          chunk_log="/tmp/poolduel-m9-${{ matrix.chunk }}.log"
+          set +e
           python3 -m poolduel.harness.cli --matrix m9 --chunk "${{ matrix.chunk }}" \
-            --threads "$(nproc)" --out "$(pwd)/poolduel/results/m9-${{ matrix.chunk }}"
+            --threads "$(nproc)" --out "$out" >"$chunk_log" 2>&1
+          rc=$?
+          set -e
+          cat "$chunk_log"
+          if [ "$rc" -eq 0 ]; then
+            exit 0
+          fi
+          if grep -E '^ERROR' "$chunk_log" | grep -v '/supavisor/' >/dev/null 2>&1; then
+            echo "poolduel: non-supavisor arm errors present, chunk fails" >&2
+            exit "$rc"
+          fi
+          if ! grep -E '^ERROR' "$chunk_log" | grep -q '/supavisor/'; then
+            echo "poolduel: harness failed without supavisor errors, chunk fails" >&2
+            exit "$rc"
+          fi
+          incumbent="$(OUT_DIR="$out" PYTHONPATH=. python3 -c 'import glob, json, os
+          n = 0
+          for path in glob.glob(os.path.join(os.environ["OUT_DIR"], "raw", "*.json")):
+              try:
+                  rec = json.load(open(path))
+              except Exception:
+                  continue
+              if rec.get("pooler") != "supavisor":
+                  n += 1
+          print(n)')" || incumbent=0
+          if [ "${incumbent:-0}" -gt 0 ]; then
+            echo "poolduel: supavisor-only errors with $incumbent incumbent records, chunk honestly partial (Refs #302)"
+            exit 0
+          fi
+          echo "poolduel: no incumbent records, chunk fails" >&2
+          exit "$rc"
 
       - name: Record pooler versions
         if: always()
