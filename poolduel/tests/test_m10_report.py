@@ -128,7 +128,9 @@ class BundleCompatTest(unittest.TestCase):
                          "report.json"):
                 self.assertTrue(os.path.exists(os.path.join(tmp, path)),
                                 path)
-            on_disk = json.load(open(os.path.join(tmp, "report.json")))
+            on_disk_path = os.path.join(tmp, "report.json")
+            with open(on_disk_path) as f:
+                on_disk = json.load(f)
             self.assertEqual(on_disk["statistics"]["family_size"], 1)
             self.assertEqual(bundle["statistics"]["family_size"], 1)
 
@@ -145,7 +147,8 @@ class BundleCompatTest(unittest.TestCase):
                 rc = report.main(["--m9-dir", raw, "--bootstrap-b", "200",
                                   "--bootstrap-seed", "7", "--out", out])
                 self.assertEqual(rc, 0)
-                bundle = json.load(open(os.path.join(out, "report.json")))
+                with open(os.path.join(out, "report.json")) as f:
+                    bundle = json.load(f)
                 self.assertIn("statistics", bundle)
                 self.assertEqual(bundle["m9_cells"], ["M9-R1"])
 

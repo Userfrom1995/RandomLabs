@@ -118,7 +118,7 @@
   hours (`cli --list-m9`, `docs/m9-matrix.md`); staged sweep
   `poolduel/ci/poolduel-m9.yml` (Lab promotes). M2-at-100 deferred
   to M9b behind the C-block gate (written reason, not silence).
-- M10 (closed 2026-09-14): statistics rebuild plus soak definition
+- M10 (defined 2026-09-14, staged; closes on merge): statistics rebuild plus soak definition
   (measured by the staged soak sweep; headlines from M11 on). Paired
   95 percent bootstrap CIs on paired differences
   (`harness/statistics.py`: `BOOTSTRAP_B` 5000, `BOOTSTRAP_SEED`
