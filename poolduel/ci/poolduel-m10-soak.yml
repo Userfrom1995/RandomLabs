@@ -150,6 +150,23 @@ jobs:
         run: |
           python3 poolduel/harness/check.py
 
+      # Fail fast when this chunk's own arm binary is absent (except
+      # direct, which needs no pooler). The verify step above only
+      # warns, so without this gate a chunk would burn PG install +
+      # dataset init and then record 3 inconclusive rows. Single-chunk
+      # dispatch note: the matrix still fans out all 36 jobs through
+      # install + init with only the run step gated below (same shape
+      # as the M9 soak route); dispatch one chunk to test, all 36 for
+      # the real sweep.
+      - name: Require arm binary
+        run: |
+          set -eux
+          export PATH="/usr/local/bin:$HOME/.cargo/bin:$PATH"
+          arm="$(PYTHONPATH=. python3 -c "from poolduel.harness.soak import SOAK_CHUNKS; print(SOAK_CHUNKS['${{ matrix.chunk }}'][0][3])")"
+          if [ "$arm" != "direct" ] && ! command -v "$arm"; then
+            echo "poolduel: required arm binary $arm missing" >&2; exit 1
+          fi
+
       - name: Run M10 soak chunk
         if: ${{ inputs.chunk == '' || inputs.chunk == matrix.chunk }}
         env:
