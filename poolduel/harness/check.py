@@ -428,8 +428,11 @@ def check_dossier_coherence():
             page = os.path.join(root, pooler, "index.html")
             with open(page) as handle:
                 settings[pooler] = dossmod.parse_settings(handle.read())
+        rawdirs = [os.path.join(root, "results", leg, "raw")
+                   for leg in ("m1", "m2", "m9")]
+        raw_stats = dossmod.collect_raw(rawdirs)
         fresh = dossmod.build_all(loaded["m1"], loaded["m2"], loaded["m9"],
-                                  loaded["report"], {}, settings)
+                                  loaded["report"], raw_stats, settings)
     except (OSError, ValueError) as exc:
         return ["dossier rebuild failed: %s" % exc]
     committed_dossiers = committed.get("dossiers", {})
@@ -439,7 +442,8 @@ def check_dossier_coherence():
         if got is None:
             errors.append("dossiermeta lacks dossier %s" % pooler)
             continue
-        for key in ("rows", "counts", "legs", "flatness", "verdicts"):
+        for key in ("rows", "counts", "legs", "flatness", "verdicts",
+                    "resources"):
             if got.get(key) != (want or {}).get(key):
                 errors.append("dossiermeta[%s/%s] drifted from bundles; "
                               "re-run repro.sh --dossiers" % (pooler, key))
