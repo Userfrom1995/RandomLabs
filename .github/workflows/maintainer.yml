@@ -127,9 +127,30 @@ jobs:
       - name: Get opencode version
         id: opencode_version
         shell: bash
+        # Best-effort cache-key lookup only: it must NEVER veto the run.
+        # Belt and suspenders with the in-script `|| true` fallback below
+        # (issue #336: two runs died here on unauthenticated rate limits
+        # before the agent ever started).
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(curl -sf https://api.github.com/repos/anomalyco/opencode/releases/latest | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
+          # Authenticated (5000 req/hour, per-repo) so shared-runner-IP
+          # unauthenticated rate limits (60 req/hour) stop applying.
+          # Retry loop with backoff; the `|| true` keeps `pipefail` from
+          # aborting on curl non-2xx or grep no-match, so the
+          # `${VERSION:-latest}` fallback always engages.
+          VERSION=""
+          for attempt in 1 2 3; do
+            VERSION=$(curl -sf --retry 2 --retry-delay 5 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/anomalyco/opencode/releases/latest | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4 || true)
+            if [ -n "$VERSION" ]; then
+              break
+            fi
+            echo "version lookup attempt $attempt failed; retrying..."
+            sleep $((attempt * 10))
+          done
           echo "version=${VERSION:-latest}" >> $GITHUB_OUTPUT
+          echo "resolved opencode version: ${VERSION:-latest}"
 
       - name: Cache opencode
         id: opencode_cache
@@ -141,7 +162,9 @@ jobs:
       - name: Install opencode
         if: steps.opencode_cache.outputs.cache-hit != 'true'
         shell: bash
-        run: curl -fsSL https://opencode.ai/install | bash
+        # Single-shot network fetch: retry transient blips, but a genuine
+        # failure still fails loudly (the install is really needed).
+        run: curl -fsSL --retry 3 --retry-delay 10 https://opencode.ai/install | bash
 
       - name: Add opencode to PATH
         shell: bash
@@ -439,8 +462,9 @@ jobs:
 
           if not decisions:
               print("::warning::Maintainer produced no decisions (missing or empty decision.json). "
-                    "Check the 'Run Maintainer agent' step log: a step timeout or a model/billing error "
-                    "may have killed the agent before it wrote its output files. No /oc triggers were posted.")
+                    "Check the 'Run Maintainer agent' step log: a step timeout, a model/billing error, "
+                    "or an earlier setup step failure (Get opencode version, Cache opencode, Install opencode) "
+                    "may have stopped the agent before it wrote its output files. No /oc triggers were posted.")
 
           posted = set()
           for d in decisions:
