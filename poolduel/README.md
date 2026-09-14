@@ -49,10 +49,15 @@ After any sweep, build the publication artifacts with one command:
 ```sh
 ./poolduel/repro.sh --report  # raw JSON -> results/m1+m2/medians.json,
                               # matrix.csv per matrix, results/report.json
+./poolduel/repro.sh --site    # bundles -> results/sitemeta.json,
+                              # pre-rendered master-report sections
 ```
 
 With no sweep data on disk `--report` fails loudly instead of inventing
-numbers; the report page stays honestly pending by design.
+numbers. The master report (`index.html`) is static-first: every table
+and headline card is pre-rendered from committed bundles by
+`harness/site.py` (`repro.sh --site`), so it reads correctly with
+JavaScript disabled; JS only switches column groups and refreshes counts.
 
 Requires `pgbench` plus `psql` from PostgreSQL 17. `repro.sh` runs
 `poolduel/harness/check.py` first (binaries, ratio guards, chunk caps)

@@ -752,3 +752,43 @@ Next steps: Reviewer audit -> Tester (full suite + --list-soak +
   -> Builder M11 per blueprint.
 
 - the Builder
+
+## M11b build log (Builder, 2026-09-14, branch `opencode/issue302-20260914103956`)
+
+Implements the M11b slice of `ideas/2026-09-13-poolduel-redesign.md`
+(static-first master report, plan section 10 step 1). Harness + page +
+docs only; no sweep execution (Maintainer dispatches after Lab
+promotions), no numbers published beyond committed bundles (claims
+1/2/3/5 verified with excluding-zero CIs, claim 4 inconclusive by the
+kill rule, all from the M11a-published statistics leg).
+
+Active Milestone: M11 (website rebuild; M11a statistics publication merged)
+
+- New: `harness/site.py` (bundles in, `results/sitemeta.json` out:
+  5 executive cards from `statistics.CLAIM_CELLS` titles, 7 flagship
+  rows with plain-words geometry titles + throughput beside p99 +
+  `Best in class` badges, 52 M2 per-cell rows, M9 leg 215/250 +
+  family 98 + 96 headlines, matched-only iso slices, flatness with
+  named peak/trough, source SHAs; `--apply` splices fragments into
+  `index.html` SITE markers), `tests/test_m11b_site.py` (19 tests).
+- Rewrote `index.html` results sections pre-rendered (new section 0
+  cards, section 5 flagship + Throughput|Latency|All-telemetry toggle,
+  section 6 M2 blocks, new section 6c M9 leg, section 7 iso/flatness;
+  zero `pending` as visible content; `.echart` 560px min-height;
+  inline JS enhancement-only with the same 3 bundle URLs so the M3
+  page contract stays green).
+- Wiring: `repro.sh --site`, `check.py` site coherence (recompute +
+  SHA + markers), README repro docs, ideas entry
+  `ideas/2026-09-14-poolduel-m11b-static-report.md`.
+- Proof: full suite 586 green, `check.py` ok, page JS `node --check`
+  clean, served-HTTP smoke (5 cards, 7 badges, formatted bands).
+- `Refs #302`: no `Closes`, no owner notification (mandate rule 6;
+  M11c/M11d/M12 remain). Follow-ups: M11c dossiers, M11d
+  supplementary sections + design system, M12 package + red-team.
+
+Current step: M11b implementation complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  sitemeta drift + no-pending-content checks) -> merge -> Builder
+  M11c per blueprint.
+
+- the Builder
