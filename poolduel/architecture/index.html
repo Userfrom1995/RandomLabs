@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poolduel architecture: how the six poolers differ</title>
+<link rel="stylesheet" href="../assets/poolduel-theme.css">
+</head>
+<body>
+<div class="toolbar"><button id="theme-toggle" type="button">Light theme</button></div>
+<h1>Poolduel architecture: how the six poolers differ</h1>
+<p class="sub">Taxonomy of process models, pooling modes, and I/O backends. Prose is cited to each pooler's own config doc; numbers live in dossiers, never here. Tracks issue #302.</p>
+<!-- SUPPLEMENT:meta:begin -->
+<p class="note" id="supplement-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7" data-m9-total="250" data-m9-measured="215" data-m9-na="6">Evidence: M1 42 cells, M2 111 records incl. 7 N/A, M9 250 cells (215 measured, 6 N/A). Pins: pgagroal 2.1.0+tip, pgbouncer 1.25.2, pgpool 4.7.2, odyssey 1.5.1, pgcat v1.2.0, supavisor v2.9.13. Generated from <code>results/supplementmeta.json</code>.</p>
+<!-- SUPPLEMENT:meta:end -->
+<nav class="poolnav">
+<a href="../">comparison page</a> |
+<a href="../guide/">prev: guide</a> |
+<a href="../methodology/">next: methodology</a> |
+<a href="../reproducibility/">reproducibility</a>
+</nav>
+
+<div class="section">
+<h2 id="taxonomy">Six-way taxonomy</h2>
+<table>
+<tr><th>Contender</th><th>Implementation</th><th>Pooling modes measured</th><th>I/O / scaling axis</th><th>Dossier</th></tr>
+<tr><td>PgBouncer</td><td>C, single-process event loop (2-instance so_reuseport twin measured)</td><td>transaction, session, statement</td><td>so_reuseport 2-instance removes the single-core ceiling</td><td><a href="../pgbouncer/">dossier</a></td></tr>
+<tr><td>pgagroal</td><td>C, pipeline modes (transaction / session / performance)</td><td>transaction, session, performance-as-session</td><td>ev_backend epoll vs io_uring twins</td><td><a href="../pgagroal/">dossier</a></td></tr>
+<tr><td>Odyssey</td><td>C, worker processes</td><td>transaction, session, statement (provisional)</td><td>workers 1/2/4</td><td><a href="../odyssey/">dossier</a></td></tr>
+<tr><td>pgcat</td><td>Rust, sharded pools</td><td>transaction, session</td><td>worker_threads 1/5</td><td><a href="../pgcat/">dossier</a></td></tr>
+<tr><td>pgpool-II</td><td>C, child processes (session-class only mode, labeled)</td><td>session-class</td><td>children sweep 100x1/200x1 (1:1 backend label)</td><td><a href="../pgpool/">dossier</a></td></tr>
+<tr><td>Supavisor</td><td>Elixir/OTP, tenant rows (M9 onboarding)</td><td>transaction, session, native; statement N/A by design</td><td>tenant payload, no manager bypass</td><td><a href="../supavisor/">dossier</a></td></tr>
+</table>
+<p class="note">Config sources: <a href="../docs/configs/pgbouncer.md">pgbouncer.md</a>, <a href="../docs/configs/pgagroal.md">pgagroal.md</a>, <a href="../docs/configs/odyssey.md">odyssey.md</a>, <a href="../docs/configs/pgcat.md">pgcat.md</a>, <a href="../docs/configs/pgpool-II.md">pgpool-II.md</a>, <a href="../docs/configs/supavisor.md">supavisor.md</a>. Every non-default setting cites the pooler's own tuning docs or fails review.</p>
+</div>
+
+<div class="section">
+<h2 id="lifecycle">Lifecycle paths (text diagrams, no renderer)</h2>
+<h3 id="life-pgbouncer">PgBouncer</h3>
+<pre class="tree">client --TCP--> pgbouncer (transaction|session|statement) --SCRAM--> PG backend
+             users.txt auth_file; 2-instance twin shares port via so_reuseport</pre>
+<h3 id="life-pgagroal">pgagroal</h3>
+<pre class="tree">client --TCP--> pgagroal pipeline (transaction|session|performance) --SCRAM--> PG backend
+             vault users.conf; ev_backend epoll|io_uring</pre>
+<h3 id="life-odyssey">Odyssey</h3>
+<pre class="tree">client --TCP--> odyssey workers (1|2|4) --storage_user--> PG backend
+             storage + database/user routing rule</pre>
+<h3 id="life-pgcat">pgcat</h3>
+<pre class="tree">client --TCP--> pgcat shards (single primary) --SCRAM--> PG backend
+             admin_* required; worker_threads 1|5</pre>
+<h3 id="life-pgpool">pgpool-II</h3>
+<pre class="tree">client --TCP--> pgpool children --pool_passwd--> PG backend (1:1 child:backend label)
+             session-class only; pool_hba equalized arm enables SCRAM</pre>
+<h3 id="life-supavisor">Supavisor</h3>
+<pre class="tree">client --TCP(6437 CI remap)--> supavisor tenant row --tenant SCRAM--> PG backend
+             per-user rows, require_user, no manager bypass; statement N/A</pre>
+</div>
+
+<div class="section">
+<h2 id="memory">Memory per 1000 idle connections</h2>
+<p class="note">Honest status: per-run resource fields (CPU time, peak RSS, FD count, pool-wait passthrough, pg_stat deltas) are recorded nullable on every raw row by <code>harness/resources.py</code> but the soak sweep that prices thousand-idle memory has not landed, so no figure is published here. Publishing an estimate would be fabrication; the dossiers carry the per-arm resource evidence that does exist. Never gap-filled.</p>
+<table>
+<tr><th>Contender</th><th>Figure</th><th>Status</th></tr>
+<tr><td>PgBouncer</td><td>-</td><td>absent until soak measures</td></tr>
+<tr><td>pgagroal</td><td>-</td><td>absent until soak measures</td></tr>
+<tr><td>Odyssey</td><td>-</td><td>absent until soak measures</td></tr>
+<tr><td>pgcat</td><td>-</td><td>absent until soak measures</td></tr>
+<tr><td>pgpool-II</td><td>-</td><td>absent until soak measures</td></tr>
+<tr><td>Supavisor</td><td>-</td><td>absent until soak measures</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2 id="modes">Mode matrix (where N/A is a finding)</h2>
+<table>
+<tr><th>Mode</th><th>pgagroal</th><th>PgBouncer</th><th>pgpool-II</th><th>Odyssey</th><th>pgcat</th><th>Supavisor</th></tr>
+<tr><td>Transaction</td><td>measured</td><td>measured</td><td>N/A (session-class only)</td><td>measured</td><td>measured</td><td>measured</td></tr>
+<tr><td>Session</td><td>measured</td><td>measured</td><td>measured (session-class)</td><td>measured</td><td>measured</td><td>measured</td></tr>
+<tr><td>Statement</td><td>N/A</td><td>measured</td><td>N/A</td><td>provisional</td><td>N/A</td><td>N/A by design</td></tr>
+<tr><td>Native</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>measured</td></tr>
+</table>
+<p class="note">Full per-cell status in <a href="../docs/test-matrix.md">docs/test-matrix.md</a> and <a href="../docs/modes.md">docs/modes.md</a>; N/A rows carry nulls, never zeros.</p>
+</div>
+
+<footer>
+Poolduel architecture. Refs #302 (never Closes without explicit owner approval). - the Builder
+</footer>
+<script src="../assets/poolduel-ui.js"></script>
+</body>
+</html>

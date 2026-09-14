@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poolduel reproducibility: re-run any cell, challenge any number</title>
+<link rel="stylesheet" href="../assets/poolduel-theme.css">
+</head>
+<body>
+<div class="toolbar"><button id="theme-toggle" type="button">Light theme</button></div>
+<h1>Poolduel reproducibility: re-run any cell, challenge any number</h1>
+<p class="sub">Reproducibility-by-adversary: disclosure complete enough that a pooler maintainer could re-run a cell or file a founded objection. Tracks issue #302.</p>
+<!-- SUPPLEMENT:meta:begin -->
+<p class="note" id="supplement-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7" data-m9-total="250" data-m9-measured="215" data-m9-na="6">Evidence: M1 42 cells, M2 111 records incl. 7 N/A, M9 250 cells (215 measured, 6 N/A). Pins: pgagroal 2.1.0+tip, pgbouncer 1.25.2, pgpool 4.7.2, odyssey 1.5.1, pgcat v1.2.0, supavisor v2.9.13. Generated from <code>results/supplementmeta.json</code>.</p>
+<!-- SUPPLEMENT:meta:end -->
+<nav class="poolnav">
+<a href="../">comparison page</a> |
+<a href="../methodology/">prev: methodology</a> |
+<a href="../guide/">guide</a> |
+<a href="../architecture/">architecture</a>
+</nav>
+
+<div class="section">
+<h2 id="runbook">One-command runbook</h2>
+<pre>git clone https://github.com/Userfrom1995/RandomLabs &amp;&amp; cd RandomLabs
+sh poolduel/repro.sh --dry-run      # 12-row pilot plan, no PG needed
+sh poolduel/repro.sh --pilot        # live pilot: M1-1 + M1-2, one repeat
+sh poolduel/repro.sh --full         # full M1 matrix (needs PG 17 + poolers)
+sh poolduel/repro.sh --report       # medians + matrix.csv + report.json from raw
+sh poolduel/repro.sh --charts       # chart options from committed bundles
+sh poolduel/repro.sh --pagemeta     # banner counts from bundles
+sh poolduel/repro.sh --site         # pre-rendered master facts
+sh poolduel/repro.sh --dossiers     # pre-rendered dossier facts
+sh poolduel/repro.sh --supplement   # supplementary-page facts (this section)
+python3 -m poolduel.harness.check   # coherence gate (must exit 0)</pre>
+<p class="note">Serve <code>poolduel/</code> over HTTP for the live-fetch contract (<code>python3 -m http.server</code> inside <code>poolduel/</code>); opening files directly shows the pre-rendered publish with an honest fetch-failure note.</p>
+</div>
+
+<div class="section">
+<h2 id="cell">Per-cell recipe (any maintainer can re-run)</h2>
+<ol>
+<li>Install PG 17 (PGDG) plus the five pinned poolers per <a href="../docs/versions.md">docs/versions.md</a>; Supavisor v2.9.13 per <a href="../docs/configs/supavisor.md">supavisor.md</a>.</li>
+<li>Init the dataset at the cell's scale (<code>pgbench -i -s 10</code>, C-block <code>-s 100</code>).</li>
+<li>Render the exact config from <code>results/m1|m2|m9/raw/&lt;cell&gt;-&lt;arm&gt;-r&lt;n&gt;.json</code> (<code>pooler_config</code> verbatim).</li>
+<li>Run the cell argv from the raw record (warmup discarded, measure kept, per-cell cap enforced by the runner).</li>
+<li>Compare your tps/p99 against the committed median band; file a challenge below on mismatch.</li>
+</ol>
+</div>
+
+<div class="section">
+<h2 id="manifest">Manifest, digests, corpus</h2>
+<p class="note">Deterministic build: <code>repro.sh --report/--charts/--site/--dossiers/--supplement</code> re-derives every derived bundle from committed raw; the drift tests fail on any hand-typed number. Pinned action/container digests live in <code>.github/workflows/</code>; the per-chunk <code>pooler-versions-*.txt</code> files in <code>results/m1|m2|m9/</code> record the exact SHAs measured. The log corpus (per-cell stdout/stderr workdirs) ships as CI artifacts per sweep run. DOI/license snapshot: MIT repo, commit-pinned citation below.</p>
+</div>
+
+<div class="section">
+<h2 id="bibtex">Cite this shootout (BibTeX)</h2>
+<pre id="bibtex-block">@misc{poolduel2026,
+  title  = {Poolduel: exhaustive PostgreSQL connection pooler shootout},
+  author = {{RandomLabs}},
+  year   = {2026},
+  note   = {pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus Supavisor, PostgreSQL 17. Refs \#302},
+  url    = {https://Userfrom1995.github.io/RandomLabs/poolduel/}
+}</pre>
+<p><button id="bibtex-copy" type="button">Copy BibTeX</button></p>
+<p class="note">Data-availability statement: all raw JSON, medians, matrix CSVs, configs, and generator code are committed in <code>poolduel/results/</code> and <code>poolduel/harness/</code> under MIT; no data sits behind access controls.</p>
+</div>
+
+<div class="section">
+<h2 id="challenge">Challenge flow</h2>
+<ol>
+<li>Re-run the cell per the recipe above (same PG 17, same scale, same argv except port).</li>
+<li>Open an issue citing the cell ID, arm, your tps/p99 band, and iron (<code>isolate</code> record fields).</li>
+<li>Maintainer triages: harness bug (fix + selected-cell re-run), infra flake (re-dispatch), or genuine disagreement (published erratum).</li>
+</ol>
+</div>
+
+<div class="section">
+<h2 id="errata">Errata log</h2>
+<table>
+<tr><th>Date</th><th>Cell / page</th><th>Issue</th><th>Fix</th></tr>
+<tr><td colspan="4">No errata filed yet. This table fills instead of staying silent.</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2 id="verified">Verified-by table</h2>
+<table>
+<tr><th>Date</th><th>Verifier</th><th>Cell</th><th>Result</th></tr>
+<tr><td colspan="4">No independent re-runs recorded yet. Tester sample-cell repros land here with run links.</td></tr>
+</table>
+</div>
+
+<footer>
+Poolduel reproducibility. Refs #302 (never Closes without explicit owner approval). - the Builder
+</footer>
+<script src="../assets/poolduel-ui.js"></script>
+</body>
+</html>
