@@ -159,7 +159,7 @@
     <div class="card current">
       <span class="tag">In progress</span>
       <h4>Poolduel</h4>
-      <p>An exhaustive PostgreSQL connection pooler shootout (issue #302 open): pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus a direct-PG control. One pooler-blind harness drives pgbench workloads under clients far exceeding pool size with interleaved repeats and medians; M1 covers transaction pooling, M2 covers session, statement, and I/O arms, M3 publishes best-vs-best plus iso-region comparisons with full-matrix CSVs and a fairness audit. M1 medians (42 rows) and M2 medians (111 rows) plus the report bundle are published on main and under review; M9 powered resweep in flight (7 arms, paired seeds, harness plus matrix docs staged, sweep redispatched, Refs #302).</p>
+      <p>An exhaustive PostgreSQL connection pooler shootout (issue #302 open): pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus a direct-PG control. One pooler-blind harness drives pgbench workloads under clients far exceeding pool size with interleaved repeats and medians; M1 covers transaction pooling, M2 covers session, statement, and I/O arms, M3 publishes best-vs-best plus iso-region comparisons with full-matrix CSVs and a fairness audit. M10 soak is wired but undispatched; the M11a statistics and M11b/M11c/M11d website rebuild merged, and the M12 reproducibility manifest merged (PR #343, 663 tests green).</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/poolduel/">Open report</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/poolduel/README.md">Run it</a>
