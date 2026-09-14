@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="poolduel-charts-prefix" content="../results/charts/">
+<title>Poolduel deep-dive: supavisor</title>
+<style>
+:root { color-scheme: dark; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  max-width: 1080px; margin: 0 auto; padding: 24px; line-height: 1.55;
+  background: #0d1117; color: #e6edf3; }
+.sub { color: #9aa7b4; margin-top: 0; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.88rem; }
+th, td { border: 1px solid #30363d; padding: 6px 8px; text-align: left; }
+th { background: #161b22; }
+code, pre { background: #161b22; border-radius: 6px; }
+pre { padding: 12px; overflow-x: auto; font-size: 0.8rem; }
+code { padding: 1px 5px; }
+a { color: #58a6ff; }
+.section { margin-top: 30px; border-top: 1px solid #21262d; padding-top: 18px; }
+.note { color: #9aa7b4; font-size: 0.88rem; }
+.ok { color: #3fb950; }
+.na { color: #9aa7b4; }
+.echart { width: 100%; height: 420px; background: #161b22;
+  border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
+nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle button { background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+  border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.85rem; }
+.viewtoggle button.on { border-color: #58a6ff; color: #58a6ff; }
+footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="section" id="s-header">
+<h1>Poolduel deep-dive: supavisor</h1>
+<p class="sub">Per-pooler page on one fixed 7-section template (identical across all six poolers). Tracks issue #302.</p>
+<!-- DOSSIER:pin:begin -->
+<p>Pinned version: <strong>v2.9.13</strong> on shared PG 17 backend; tracks issue #302.</p>
+<!-- DOSSIER:pin:end -->
+<!-- DOSSIER:lifecycle:begin -->
+<p class="note">Connection path: client -&gt; Supavisor tenant pool (transaction/session, native protocol) -&gt; PostgreSQL backend; config in <a href="../docs/configs/supavisor.md">docs/configs/supavisor.md</a>.</p>
+<!-- DOSSIER:lifecycle:end -->
+<nav class="poolnav">
+<a href="../">comparison page</a> | <a href="../pgcat/">prev: pgcat</a> | <a href="../pgagroal/">next: pgagroal</a>
+</nav>
+</div>
+
+<div class="section" id="s-charts">
+<h2>Own-surface charts</h2>
+<p class="note">Median tps with min-max bands, generated from committed bundles by <code>harness/charts.py</code> (no hand values). Rendered with vendored ECharts, SVG renderer. Log twins show the same data on a log scale.</p>
+<p class="note">Supavisor has zero measured cells so far (statement twins unsupported, smoke gate pending): no own-surface figure exists yet. This section renders charts as soon as measured medians land.</p>
+<div class="echart" data-page="supavisor" data-chart="own-m1"></div>
+<div class="echart" data-page="supavisor" data-chart="own-m1-log"></div>
+<div class="echart" data-page="supavisor" data-chart="own-m2"></div>
+<div class="echart" data-page="supavisor" data-chart="own-m2-log"></div>
+</div>
+
+<div class="section" id="s-flatness">
+<h2>Flatness verdict</h2>
+<p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point. Trough workload named, never silent.</p>
+<!-- DOSSIER:flat:begin -->
+<table><tr><th>Configs measured</th><th>Spread</th><th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>0</td><td>-</td><td></td><td>-</td><td>-</td></tr></table>
+<!-- DOSSIER:flat:end -->
+</div>
+
+<div class="section" id="s-config">
+<h2>Config anatomy</h2>
+<!-- DOSSIER:config:begin -->
+<div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
+<p class="note">Every supavisor config with its results in full: M1 0 rows plus 0 M2 rows (0 measured + 0 timeout/inconclusive) plus 0 N/A rows; M9 6 rows (0 measured + 0 timeout/inconclusive) plus 6 N/A rows. Table shows the max-repeats evidence per cell; full history in the matrix.csv files. Peak config tagged.</p>
+<table data-config-results data-pooler="supavisor"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
+<tr data-cell="M9-U-P3" data-pooler="supavisor" data-status="na"><td>M9-U-P3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=transaction</code>, tenant pool, prepared protocol</td><td><a href="../docs/configs/supavisor.md">supavisor.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M9-U-P4" data-pooler="supavisor" data-status="na"><td>M9-U-P4</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=session</code>, tenant pool, prepared protocol</td><td><a href="../docs/configs/supavisor.md">supavisor.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M9-U-T1" data-pooler="supavisor" data-status="na"><td>M9-U-T1</td><td>select-only, 100c/10p, simple</td><td>N/A (unsupported): statement mode rejected by adapter</td><td><a href="../docs/configs/supavisor.md">supavisor.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M9-U-T2" data-pooler="supavisor" data-status="na"><td>M9-U-T2</td><td>tpcb-like, 50c/10p, simple</td><td>N/A (unsupported): statement mode rejected by adapter</td><td><a href="../docs/configs/supavisor.md">supavisor.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M9-U-T3" data-pooler="supavisor" data-status="na"><td>M9-U-T3</td><td>select-only, 100c/10p, simple</td><td>N/A (unsupported): statement mode rejected by adapter</td><td><a href="../docs/configs/supavisor.md">supavisor.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M9-U-T4" data-pooler="supavisor" data-status="na"><td>M9-U-T4</td><td>tpcb-like, 50c/10p, simple</td><td>N/A (unsupported): statement mode rejected by adapter</td><td><a href="../docs/configs/supavisor.md">supavisor.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+</table>
+<p>Full verbatim configs: <a href="../docs/configs/supavisor.md">docs/configs/supavisor.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
+<!-- DOSSIER:config:end -->
+</div>
+
+<div class="section" id="s-verdict">
+<h2>Data-bound strengths and limits</h2>
+<p class="note">Derived strings from <code>report.json</code> ranked verdicts (best count, inconclusive count, timeout count), never free prose.</p>
+<!-- DOSSIER:verdict:begin -->
+<p>Across 59 ranked cells, supavisor is best in 0, inconclusive in 0, loses in 0; N/A (unsupported) in 0 cells, timeout/inconclusive in 0 cells. (Derived from report.json ranked verdicts.)</p>
+<!-- DOSSIER:verdict:end -->
+<h3>Resource evidence</h3>
+<!-- DOSSIER:resources:begin -->
+<p class="note">Resource telemetry: no measured raw record for supavisor carries cpu/RSS fields yet; mechanism evidence lands with the soak sweep (M10).</p>
+<!-- DOSSIER:resources:end -->
+</div>
+
+<div class="section" id="s-na">
+<h2>N/A table</h2>
+<p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated. Over-cap cells read <code>timeout/inconclusive</code>.</p>
+<!-- DOSSIER:na:begin -->
+<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>
+<tr><td>M9-U-P3</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-U-P4</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-U-T1</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-U-T2</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-U-T3</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-U-T4</td><td>N/A (unsupported)</td><td>-</td></tr>
+</table>
+<!-- DOSSIER:na:end -->
+</div>
+
+<div class="section" id="s-repro">
+<h2>Reproduce it</h2>
+<pre>./poolduel/repro.sh --dry-run   # M1 pilot plan, runs nothing
+./poolduel/repro.sh --report    # raw JSON -&gt; medians, CSVs, report.json
+./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON
+./poolduel/repro.sh --dossiers  # bundles -&gt; pre-rendered dossier pages</pre>
+<p>Method: <a href="../docs/methodology.md">docs/methodology.md</a> section 8 (reproducibility-by-adversary). Comparison page: <a href="../">../</a>.</p>
+</div>
+
+<footer>
+Poolduel per-pooler deep-dive: supavisor. Refs #302 (never Closes without explicit owner approval). - the Builder
+</footer>
+
+<script src="../vendor/echarts-5.5.1/dist/echarts.min.js"></script>
+<script src="../assets/poolduel-charts.js"></script>
+<script>
+(function () {
+  "use strict";
+  document.querySelectorAll(".viewtoggle button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var table = btn.closest(".section").querySelector("table");
+      var want = btn.getAttribute("data-filter");
+      table.closest(".section").querySelectorAll(".viewtoggle button")
+        .forEach(function (b) { b.classList.remove("on"); });
+      btn.classList.add("on");
+      table.querySelectorAll("tr[data-status]").forEach(function (row) {
+        row.style.display = (want === "all" ||
+          row.getAttribute("data-status") === want) ? "" : "none";
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

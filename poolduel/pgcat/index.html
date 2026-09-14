@@ -25,15 +25,25 @@ a { color: #58a6ff; }
 .echart { width: 100%; height: 420px; background: #161b22;
   border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
 nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle button { background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+  border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.85rem; }
+.viewtoggle button.on { border-color: #58a6ff; color: #58a6ff; }
 footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 </style>
 </head>
 <body>
 <div class="section" id="s-header">
 <h1>Poolduel deep-dive: pgcat</h1>
-<p class="sub">Per-pooler page on one fixed 7-section template (identical across all five poolers). Pinned version: v1.2.0. Tracks issue #302.</p>
+<p class="sub">Per-pooler page on one fixed 7-section template (identical across all six poolers). Tracks issue #302.</p>
+<!-- DOSSIER:pin:begin -->
+<p>Pinned version: <strong>v1.2.0</strong> on shared PG 17 backend; tracks issue #302.</p>
+<!-- DOSSIER:pin:end -->
+<!-- DOSSIER:lifecycle:begin -->
+<p class="note">Connection path: client -&gt; pgcat pools with shards -&gt; PostgreSQL backend; config in <a href="../docs/configs/pgcat.md">docs/configs/pgcat.md</a>.</p>
+<!-- DOSSIER:lifecycle:end -->
 <nav class="poolnav">
-<a href="../">comparison page</a> | <a href="../odyssey/">prev: odyssey</a> | <a href="../pgagroal/">next: pgagroal</a>
+<a href="../">comparison page</a> | <a href="../odyssey/">prev: odyssey</a> | <a href="../supavisor/">next: supavisor</a>
 </nav>
 </div>
 
@@ -49,53 +59,87 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <div class="section" id="s-flatness">
 <h2>Flatness verdict</h2>
 <p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point. Trough workload named, never silent.</p>
-<div id="flat-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:flat:begin -->
+<table><tr><th>Configs measured</th><th>Spread</th><th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>14</td><td>89.4%</td><td>peaky</td><td>M1-1 @ 19,629 tps (select-only)</td><td>M2-S14 @ 2,087 tps (tpcb-like)</td></tr></table>
+<!-- DOSSIER:flat:end -->
 </div>
 
 <div class="section" id="s-config">
 <h2>Config anatomy</h2>
-<p class="note">Every pgcat config with its results in full: M1 7 rows plus 11 M2 rows (8 measured + 1 timeout/inconclusive) plus 2 N/A rows. Settings columns are static markup from the harness adapters; tps/status columns fill live from committed medians over HTTP (peak tagged).</p>
-<table data-config-results data-pooler="pgcat">
-<tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Status</th></tr>
-<tr data-cell="M1-1" data-pooler="pgcat"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-2" data-pooler="pgcat"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-3" data-pooler="pgcat"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=transaction</code>, worker_threads=5, prepared protocol</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-4" data-pooler="pgcat"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-5" data-pooler="pgcat"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 20</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-6" data-pooler="pgcat"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-7" data-pooler="pgcat"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S9" data-pooler="pgcat"><td>M2-S9</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=5, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S10" data-pooler="pgcat"><td>M2-S10</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=5, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S13" data-pooler="pgcat"><td>M2-S13</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=1, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S14" data-pooler="pgcat"><td>M2-S14</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=1, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I11" data-pooler="pgcat"><td>M2-I11</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=1</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I12" data-pooler="pgcat"><td>M2-I12</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=1</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W4" data-pooler="pgcat"><td>M2-W4</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=session</code>, pool 20, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W9" data-pooler="pgcat"><td>M2-W9</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=session</code>, pool 10, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-P5" data-pooler="pgcat"><td>M2-P5</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=session</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T1" data-pooler="pgcat"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td class="na">N/A (unsupported): statement unsupported</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T2" data-pooler="pgcat"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td class="na">N/A (unsupported): statement unsupported</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<!-- DOSSIER:config:begin -->
+<div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
+<p class="note">Every pgcat config with its results in full: M1 7 rows plus 11 M2 rows (8 measured + 1 timeout/inconclusive) plus 2 N/A rows; M9 24 rows (21 measured + 3 timeout/inconclusive) plus 0 N/A rows. Table shows the max-repeats evidence per cell; full history in the matrix.csv files. Peak config tagged.</p>
+<table data-config-results data-pooler="pgcat"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
+<tr data-cell="M1-1" data-pooler="pgcat" data-status="measured"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">19,208 [19,024-22,249] PEAK</td><td>p99 6.9 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-2" data-pooler="pgcat" data-status="measured"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,687 [2,533-4,109]</td><td>p99 26.8 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-3" data-pooler="pgcat" data-status="timeout"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=transaction</code>, worker_threads=5, prepared protocol</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M1-4" data-pooler="pgcat" data-status="measured"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">19,178 [2,460-40,933]</td><td>p99 12.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-5" data-pooler="pgcat" data-status="measured"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 20</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">5,024 [3,858-8,205]</td><td>p99 28.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-6" data-pooler="pgcat" data-status="measured"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">4,158 [4,129-6,529]</td><td>p99 25.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-7" data-pooler="pgcat" data-status="measured"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,988 [2,648-3,414]</td><td>p99 40.2 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I11" data-pooler="pgcat" data-status="measured"><td>M2-I11</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=1</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">16,344 [16,106-16,630]</td><td>p99 7.4 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I12" data-pooler="pgcat" data-status="measured"><td>M2-I12</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=1</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,862 [2,836-2,925]</td><td>p99 20.7 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-P5" data-pooler="pgcat" data-status="timeout"><td>M2-P5</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=session</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-S9" data-pooler="pgcat" data-status="measured"><td>M2-S9</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=5, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">18,019 [17,734-18,050]</td><td>p99 1.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S10" data-pooler="pgcat" data-status="measured"><td>M2-S10</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=5, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,669 [2,635-2,737]</td><td>p99 6.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S13" data-pooler="pgcat" data-status="measured"><td>M2-S13</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=1, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">15,005 [14,785-15,169]</td><td>p99 1.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S14" data-pooler="pgcat" data-status="measured"><td>M2-S14</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, worker_threads=1, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,360 [2,327-2,391]</td><td>p99 7.3 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-T1" data-pooler="pgcat" data-status="na"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td>N/A (unsupported): statement unsupported</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M2-T2" data-pooler="pgcat" data-status="na"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td>N/A (unsupported): statement unsupported</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M2-W4" data-pooler="pgcat" data-status="measured"><td>M2-W4</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=session</code>, pool 20, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">5,090 [5,023-5,143]</td><td>p99 6.2 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-W9" data-pooler="pgcat" data-status="measured"><td>M2-W9</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=session</code>, pool 10, user connect_timeout 120s</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">6,768 [6,407-6,814]</td><td>p99 15.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C1" data-pooler="pgcat" data-status="measured"><td>M9-C1</td><td>select-only, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">18,899 [18,077-20,955]</td><td>p99 6.9 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C2" data-pooler="pgcat" data-status="measured"><td>M9-C2</td><td>tpcb-like, 50c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,603 [2,507-2,699]</td><td>p99 23.4 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C3" data-pooler="pgcat" data-status="timeout"><td>M9-C3</td><td>tpcb-like, 50c/10p, prepared, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M9-C4" data-pooler="pgcat" data-status="measured"><td>M9-C4</td><td>select-only, 200c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">18,605 [17,967-21,884]</td><td>p99 12.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C5" data-pooler="pgcat" data-status="measured"><td>M9-C5</td><td>simple-update, 100c/20p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">4,220 [3,015-4,851]</td><td>p99 141.5 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C6" data-pooler="pgcat" data-status="measured"><td>M9-C6</td><td>select-only, 100c/10p, simple, churn (-C), scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">4,115 [4,060-5,625]</td><td>p99 25.3 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C7" data-pooler="pgcat" data-status="measured"><td>M9-C7</td><td>tpcb-like, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,571 [2,014-2,699]</td><td>p99 46.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-E1" data-pooler="pgcat" data-status="measured"><td>M9-E1</td><td>select-only, 100c/10p, simple, churn (-C)</td><td>M9 resweep, scale 10; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">4,178 [4,155-6,626]</td><td>p99 24.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/pgcat.md">docs/configs/pgcat.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
+<!-- DOSSIER:config:end -->
 </div>
 
 <div class="section" id="s-verdict">
 <h2>Data-bound strengths and limits</h2>
 <p class="note">Derived strings from <code>report.json</code> ranked verdicts (best count, inconclusive count, timeout count), never free prose.</p>
-<div id="verdict-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:verdict:begin -->
+<p>Across 59 ranked cells, pgcat is best in 2, inconclusive in 11, loses in 1; N/A (unsupported) in 2 cells, timeout/inconclusive in 2 cells. (Derived from report.json ranked verdicts.)</p>
+<!-- DOSSIER:verdict:end -->
+<h3>Resource evidence</h3>
+<!-- DOSSIER:resources:begin -->
+<table><tr><th>Signal</th><th>Median over measured raw</th></tr>
+<tr><td>pgbench CPU time</td><td>3.76 s (n=159)</td></tr>
+<tr><td>pgbench peak RSS</td><td>50,056 KB</td></tr>
+<tr><td>Iron</td><td>AMD EPYC 7763 64-Core Processor, kernel 6.17.0-1022-azure, 4 CPUs, pgbench -j 4</td></tr>
+<tr><td>PG config status</td><td>0 enforced, 159 disclosed, 0 other</td></tr>
+</table>
+<p class="note">Auth posture: scram-sha-256 on every frontend (M9-E1 equalized control); scram-sha-256 via admin/users file.</p>
+<p class="note">Dataset: per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk.</p>
+<!-- DOSSIER:resources:end -->
 </div>
 
 <div class="section" id="s-na">
 <h2>N/A table</h2>
 <p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated. Over-cap cells read <code>timeout/inconclusive</code>.</p>
-<div id="na-block"><p class="note">Loading live data from committed medians (serve over HTTP).</p></div>
+<!-- DOSSIER:na:begin -->
+<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>
+<tr><td>M1-3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-P5</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-T1</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M2-T2</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-C3</td><td>timeout/inconclusive</td><td>-</td></tr>
+</table>
+<!-- DOSSIER:na:end -->
 </div>
 
 <div class="section" id="s-repro">
 <h2>Reproduce it</h2>
 <pre>./poolduel/repro.sh --dry-run   # M1 pilot plan, runs nothing
 ./poolduel/repro.sh --report    # raw JSON -&gt; medians, CSVs, report.json
-./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON</pre>
+./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON
+./poolduel/repro.sh --dossiers  # bundles -&gt; pre-rendered dossier pages</pre>
 <p>Method: <a href="../docs/methodology.md">docs/methodology.md</a> section 8 (reproducibility-by-adversary). Comparison page: <a href="../">../</a>.</p>
 </div>
 
@@ -108,96 +152,17 @@ Poolduel per-pooler deep-dive: pgcat. Refs #302 (never Closes without explicit o
 <script>
 (function () {
   "use strict";
-  var SLUG = "pgcat";
-  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
-  function naturalKey(s) {
-    return String(s).split(/(\d+)/).map(function (part) {
-      return (/^\d+$/.test(part) ? ("000000" + part).slice(-6) : part);
-    }).join("");
-  }
-  function fetchJson(url) {
-    return fetch(url, { cache: "no-store" }).then(function (r) {
-      return r.ok ? r.json() : null;
-    }).catch(function () { return null; });
-  }
-  function fetchFailNote(what) {
-    return "<p class='note'>Live results unavailable here: " + esc(what) +
-      " did not load (serve poolduel/ over HTTP).</p>";
-  }
-  fetchJson("../results/report.json").then(function (bundle) {
-    if (!bundle) {
-      document.getElementById("flat-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      document.getElementById("verdict-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      return;
-    }
-    var flat = bundle.flatness ? bundle.flatness[SLUG] : null;
-    var flatHost = document.getElementById("flat-block");
-    if (flat) {
-      flatHost.innerHTML = "<table><tr><th>Configs measured</th><th>Spread</th>" +
-        "<th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>" +
-        esc(flat.configs_measured) + "</td><td>" +
-        (flat.spread == null ? "-" : (100 * flat.spread).toFixed(1) + "%") +
-        "</td><td>" + esc(flat.verdict) + "</td><td>" +
-        (flat.peak ? esc(flat.peak.cell_id) + " @ " + esc(flat.peak.tps_median) +
-          " (" + esc(flat.peak.workload || "?") + ")" : "-") +
-        "</td><td>" +
-        (flat.trough ? esc(flat.trough.cell_id) + " @ " + esc(flat.trough.tps_median) +
-          " (" + esc(flat.trough.workload || "?") + ")" : "-") +
-        "</td></tr></table>";
-    }
-    var best = bundle.best || {};
-    var cells = Object.keys(best).sort(function (a, b) {
-      var ka = naturalKey(a), kb = naturalKey(b);
-      return ka < kb ? -1 : ka > kb ? 1 : 0;
-    });
-    var nBest = 0, nInc = 0, nLose = 0, nNA = 0, nTimeout = 0;
-    cells.forEach(function (cell) {
-      var info = best[cell];
-      var mine = (info.ranked || []).filter(function (r) { return r.pooler === SLUG; })[0];
-      if (mine) {
-        if (mine.verdict === "best") nBest++;
-        else if (String(mine.verdict).indexOf("inconclusive") >= 0) nInc++;
-        else nLose++;
-      }
-      (info.na || []).forEach(function (n) {
-        if (n.pooler === SLUG) {
-          if (n.status === "N/A (unsupported)") nNA++;
-          else nTimeout++;
-        }
+  document.querySelectorAll(".viewtoggle button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var table = btn.closest(".section").querySelector("table");
+      var want = btn.getAttribute("data-filter");
+      table.closest(".section").querySelectorAll(".viewtoggle button")
+        .forEach(function (b) { b.classList.remove("on"); });
+      btn.classList.add("on");
+      table.querySelectorAll("tr[data-status]").forEach(function (row) {
+        row.style.display = (want === "all" ||
+          row.getAttribute("data-status") === want) ? "" : "none";
       });
-    });
-    document.getElementById("verdict-block").innerHTML =
-      "<p>Across " + cells.length + " ranked cells, " + esc(SLUG) +
-      " is best in " + nBest + ", inconclusive in " + nInc +
-      ", loses in " + nLose + "; N/A (unsupported) in " + nNA +
-      " cells, timeout/inconclusive in " + nTimeout +
-      " cells. (Derived from report.json ranked verdicts.)</p>";
-  });
-  fetchJson("../results/m1/medians.json").then(function (m1) {
-    fetchJson("../results/m2/medians.json").then(function (m2) {
-      if (!m1 && !m2) {
-        document.getElementById("na-block").innerHTML =
-          fetchFailNote("committed medians");
-        return;
-      }
-      var all = (m1 || []).concat(m2 || []);
-      var mine = all.filter(function (e) { return e.pooler === SLUG; });
-      var na = mine.filter(function (e) { return e.status === "N/A (unsupported)"; });
-      var host = document.getElementById("na-block");
-      if (!mine.length) return;
-      var html = "<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>";
-      mine.sort(function (a, b) {
-        var ka = naturalKey(a.cell_id), kb = naturalKey(b.cell_id);
-        return ka < kb ? -1 : ka > kb ? 1 : 0;
-      }).forEach(function (e) {
-        html += "<tr><td>" + esc(e.cell_id) + "</td><td>" + esc(e.status) +
-          "</td><td>" + (e.tps && e.tps.median != null ? esc(e.tps.median) : "-") +
-          "</td></tr>";
-      });
-      host.innerHTML = html + "</table><p class='note'>" + na.length +
-        " N/A (unsupported) cells with nulls.</p>";
     });
   });
 })();

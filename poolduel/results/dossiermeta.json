@@ -1,0 +1,2362 @@
+{
+  "dossiers": {
+    "odyssey": {
+      "counts": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 11,
+          "na": 1,
+          "timeout": 0,
+          "total": 12
+        },
+        "M9": {
+          "measured": 7,
+          "na": 0,
+          "timeout": 1,
+          "total": 8
+        }
+      },
+      "display": "odyssey",
+      "flatness": {
+        "configs": 17,
+        "peak": {
+          "cell_id": "M2-S7",
+          "tps_median": 20476.224423,
+          "workload": "select-only"
+        },
+        "spread_pct": 95.0,
+        "trough": {
+          "cell_id": "M2-P4",
+          "tps_median": 1025.506241,
+          "workload": "tpcb-like"
+        },
+        "verdict": "peaky"
+      },
+      "legs": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 11,
+          "na": 1,
+          "timeout": 0,
+          "total": 12
+        },
+        "M9": {
+          "measured": 24,
+          "na": 0,
+          "timeout": 2,
+          "total": 26
+        }
+      },
+      "pg": "PG 17",
+      "pin": "1.5.1",
+      "pooler": "odyssey",
+      "resources": {
+        "auth": [
+          "none (CI-only frontend; backend leg SCRAM)",
+          "scram-sha-256 on every frontend (M9-E1 equalized control)"
+        ],
+        "cpu_median_s": 3.517715,
+        "dataset": [
+          "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+        ],
+        "iron": {
+          "cpu_model": "AMD EPYC 7763 64-Core Processor",
+          "kernel": "6.17.0-1022-azure",
+          "nproc": 4,
+          "pgbench_j": 4
+        },
+        "pg_disclosed": 180,
+        "pg_enforced": 0,
+        "pg_other": 0,
+        "rss_median_kb": 52768.0,
+        "samples": 180
+      },
+      "rows": [
+        {
+          "cell_id": "M1-1",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, simple",
+          "n": 10,
+          "p99": "10.5 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "11,168 [10,999-13,222]",
+          "tps_median": 11168.1028735
+        },
+        {
+          "cell_id": "M1-2",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 10,
+          "p99": "22.7 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "2,762 [2,130-4,904]",
+          "tps_median": 2762.05138
+        },
+        {
+          "cell_id": "M1-3",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, prepared protocol",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M1-4",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "select-only, 200c/10p, simple",
+          "n": 7,
+          "p99": "20.2 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "11,366 [1,218-28,294]",
+          "tps_median": 11365.7826
+        },
+        {
+          "cell_id": "M1-5",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "31.2 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, pool_size 20",
+          "status": "measured",
+          "tps_band": "5,303 [3,887-8,519]",
+          "tps_median": 5303.186585
+        },
+        {
+          "cell_id": "M1-6",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "23.6 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "4,571 [4,538-8,178]",
+          "tps_median": 4571.409372
+        },
+        {
+          "cell_id": "M1-7",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M1",
+          "load": "tpcb-like, 100c/10p, simple",
+          "n": 7,
+          "p99": "39.1 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "3,168 [2,824-3,632]",
+          "tps_median": 3168.104404
+        },
+        {
+          "cell_id": "M2-I7",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "10.9 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=2",
+          "status": "measured",
+          "tps_band": "11,341 [11,272-11,424]",
+          "tps_median": 11341.022878
+        },
+        {
+          "cell_id": "M2-I8",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "23.1 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=2",
+          "status": "measured",
+          "tps_band": "2,688 [2,645-2,701]",
+          "tps_median": 2687.681985
+        },
+        {
+          "cell_id": "M2-I9",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "5.7 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=4",
+          "status": "measured",
+          "tps_band": "23,248 [22,418-24,064]",
+          "tps_median": 23248.372456
+        },
+        {
+          "cell_id": "M2-I10",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "164.2 ms",
+          "peak": false,
+          "settings": "<code>pool=transaction</code>, workers=4",
+          "status": "measured",
+          "tps_band": "2,485 [2,127-3,048]",
+          "tps_median": 2484.590771
+        },
+        {
+          "cell_id": "M2-P4",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 7,
+          "p99": "44.1 ms",
+          "peak": false,
+          "settings": "<code>pool=statement</code>, workers=1, provisional, prepared-reservation",
+          "status": "measured",
+          "tps_band": "1,304 [1,299-1,311]",
+          "tps_median": 1303.95173
+        },
+        {
+          "cell_id": "M2-P6",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): session prepared reservation incompatible with session pooling",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S7",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "1.0 ms",
+          "peak": true,
+          "settings": "<code>pool=session</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "21,110 [20,749-22,220]",
+          "tps_median": 21109.79217
+        },
+        {
+          "cell_id": "M2-S8",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "5.5 ms",
+          "peak": false,
+          "settings": "<code>pool=session</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "3,184 [3,114-3,292]",
+          "tps_median": 3183.792846
+        },
+        {
+          "cell_id": "M2-T3",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "10.4 ms",
+          "peak": false,
+          "settings": "<code>pool=statement</code>, workers=1, provisional (verified empirically)",
+          "status": "measured",
+          "tps_band": "11,219 [11,179-11,270]",
+          "tps_median": 11219.480835
+        },
+        {
+          "cell_id": "M2-T4",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "39.9 ms",
+          "peak": false,
+          "settings": "<code>pool=statement</code>, workers=1, provisional (verified empirically)",
+          "status": "measured",
+          "tps_band": "1,461 [1,430-1,471]",
+          "tps_median": 1460.960046
+        },
+        {
+          "cell_id": "M2-W3",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "5.6 ms",
+          "peak": false,
+          "settings": "<code>pool=session</code>, workers=1, pool_size 20",
+          "status": "measured",
+          "tps_band": "5,640 [5,359-5,864]",
+          "tps_median": 5640.303098
+        },
+        {
+          "cell_id": "M2-W8",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "24.3 ms",
+          "peak": false,
+          "settings": "<code>pool=session</code>, workers=1, pool_size 10",
+          "status": "measured",
+          "tps_band": "4,467 [4,408-4,495]",
+          "tps_median": 4467.313414
+        },
+        {
+          "cell_id": "M9-C1",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "10.4 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "11,323 [10,912-12,968]",
+          "tps_median": 11323.1641485
+        },
+        {
+          "cell_id": "M9-C2",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "24.2 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,700 [2,568-2,825]",
+          "tps_median": 2700.1635925
+        },
+        {
+          "cell_id": "M9-C3",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared, scale 100",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C4",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "select-only, 200c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "20.1 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "11,302 [10,822-14,064]",
+          "tps_median": 11302.325973
+        },
+        {
+          "cell_id": "M9-C5",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "simple-update, 100c/20p, simple, scale 100",
+          "n": 7,
+          "p99": "142.0 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "4,183 [3,651-4,289]",
+          "tps_median": 4182.94759
+        },
+        {
+          "cell_id": "M9-C6",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
+          "n": 7,
+          "p99": "23.9 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "4,498 [4,454-6,392]",
+          "tps_median": 4497.758246
+        },
+        {
+          "cell_id": "M9-C7",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "tpcb-like, 100c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "46.1 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,671 [2,359-2,859]",
+          "tps_median": 2671.188563
+        },
+        {
+          "cell_id": "M9-E1",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C)",
+          "n": 7,
+          "p99": "455.9 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 10; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "216 [215-228]",
+          "tps_median": 216.022706
+        }
+      ],
+      "verdicts": {
+        "cells": 59,
+        "inconclusive": 14,
+        "lose": 1,
+        "na": 1,
+        "timeout": 1,
+        "wins": 2
+      }
+    },
+    "pgagroal": {
+      "counts": {
+        "M1": {
+          "measured": 5,
+          "na": 0,
+          "timeout": 2,
+          "total": 7
+        },
+        "M2": {
+          "measured": 4,
+          "na": 2,
+          "timeout": 7,
+          "total": 13
+        },
+        "M9": {
+          "measured": 5,
+          "na": 0,
+          "timeout": 3,
+          "total": 8
+        }
+      },
+      "display": "pgagroal",
+      "flatness": {
+        "configs": 9,
+        "peak": {
+          "cell_id": "M2-I3",
+          "tps_median": 2583.629729,
+          "workload": "select-only"
+        },
+        "spread_pct": 88.8,
+        "trough": {
+          "cell_id": "M2-I2",
+          "tps_median": 289.179567,
+          "workload": "tpcb-like"
+        },
+        "verdict": "peaky"
+      },
+      "legs": {
+        "M1": {
+          "measured": 5,
+          "na": 0,
+          "timeout": 2,
+          "total": 7
+        },
+        "M2": {
+          "measured": 4,
+          "na": 2,
+          "timeout": 7,
+          "total": 13
+        },
+        "M9": {
+          "measured": 13,
+          "na": 0,
+          "timeout": 13,
+          "total": 26
+        }
+      },
+      "pg": "PG 17",
+      "pin": "2.1.0+tip",
+      "pooler": "pgagroal",
+      "resources": {
+        "auth": [
+          "scram-sha-256 via HBA + vault passthrough"
+        ],
+        "cpu_median_s": 2.5843835,
+        "dataset": [
+          "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+        ],
+        "iron": {
+          "cpu_model": "AMD EPYC 7763 64-Core Processor",
+          "kernel": "6.17.0-1022-azure",
+          "nproc": 4,
+          "pgbench_j": 4
+        },
+        "pg_disclosed": 108,
+        "pg_enforced": 0,
+        "pg_other": 0,
+        "rss_median_kb": 51332.0,
+        "samples": 108
+      },
+      "rows": [
+        {
+          "cell_id": "M1-1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, simple",
+          "n": 10,
+          "p99": "64.7 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "1,717 [1,230-2,167]",
+          "tps_median": 1717.062523
+        },
+        {
+          "cell_id": "M1-2",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 10,
+          "p99": "27.4 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "1,234 [120-1,683]",
+          "tps_median": 1234.2196885
+        },
+        {
+          "cell_id": "M1-3",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>track_prepared=on</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M1-4",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "select-only, 200c/10p, simple",
+          "n": 3,
+          "p99": "33.6 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "1,558 [1,387-1,711]",
+          "tps_median": 1557.970181
+        },
+        {
+          "cell_id": "M1-5",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "476.9 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 20/20/20",
+          "status": "measured",
+          "tps_band": "553 [145-824]",
+          "tps_median": 553.332869
+        },
+        {
+          "cell_id": "M1-6",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M1-7",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M1",
+          "load": "tpcb-like, 100c/10p, simple",
+          "n": 7,
+          "p99": "189.3 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "322 [103-608]",
+          "tps_median": 321.858309
+        },
+        {
+          "cell_id": "M2-I1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "4.1 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>ev_backend=io_uring</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "8,475 [6,270-9,976]",
+          "tps_median": 8475.193904
+        },
+        {
+          "cell_id": "M2-I2",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "207.6 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>ev_backend=io_uring</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "441 [336-456]",
+          "tps_median": 440.863388
+        },
+        {
+          "cell_id": "M2-I3",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "17.6 ms",
+          "peak": true,
+          "settings": "<code>pipeline=transaction</code>, <code>ev_backend=epoll</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "2,486 [1,924-3,730]",
+          "tps_median": 2485.87787
+        },
+        {
+          "cell_id": "M2-I4",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "201.4 ms",
+          "peak": false,
+          "settings": "<code>pipeline=transaction</code>, <code>ev_backend=epoll</code>, MAX 10/10/10",
+          "status": "measured",
+          "tps_band": "571 [434-700]",
+          "tps_median": 571.434512
+        },
+        {
+          "cell_id": "M2-P1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=session</code>, <code>track_prepared=on</code>, <code>blocking 120s</code>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S2",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S3",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=performance</code>, <code>blocking 120s</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S4",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=performance</code>, <code>blocking 120s</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-T1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): no statement mode",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-T2",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): no statement mode",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-W1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=session</code>, <code>blocking 120s</code>, MAX 20/20/20",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-W6",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "44.2 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "1,641 [530-2,447]",
+          "tps_median": 1640.8877325
+        },
+        {
+          "cell_id": "M9-C2",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "23.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "1,229 [1,198-1,265]",
+          "tps_median": 1228.583172
+        },
+        {
+          "cell_id": "M9-C3",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared, scale 100",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C4",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "select-only, 200c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "35.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "1,407 [807-1,939]",
+          "tps_median": 1407.106758
+        },
+        {
+          "cell_id": "M9-C5",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "simple-update, 100c/20p, simple, scale 100",
+          "n": 7,
+          "p99": "3407.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "186 [90-408]",
+          "tps_median": 185.887915
+        },
+        {
+          "cell_id": "M9-C6",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C7",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "tpcb-like, 100c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "347.0 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "427 [180-635]",
+          "tps_median": 427.050253
+        },
+        {
+          "cell_id": "M9-E1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C)",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 10; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        }
+      ],
+      "verdicts": {
+        "cells": 59,
+        "inconclusive": 6,
+        "lose": 3,
+        "na": 2,
+        "timeout": 9,
+        "wins": 0
+      }
+    },
+    "pgbouncer": {
+      "counts": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 9,
+          "na": 0,
+          "timeout": 3,
+          "total": 12
+        },
+        "M9": {
+          "measured": 7,
+          "na": 0,
+          "timeout": 1,
+          "total": 8
+        }
+      },
+      "display": "pgbouncer",
+      "flatness": {
+        "configs": 15,
+        "peak": {
+          "cell_id": "M2-I5",
+          "tps_median": 26346.868736,
+          "workload": "select-only"
+        },
+        "spread_pct": 98.5,
+        "trough": {
+          "cell_id": "M2-W7",
+          "tps_median": 391.785895,
+          "workload": "select-only"
+        },
+        "verdict": "peaky"
+      },
+      "legs": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 9,
+          "na": 0,
+          "timeout": 3,
+          "total": 12
+        },
+        "M9": {
+          "measured": 22,
+          "na": 0,
+          "timeout": 5,
+          "total": 27
+        }
+      },
+      "pg": "PG 17",
+      "pin": "1.25.2",
+      "pooler": "pgbouncer",
+      "resources": {
+        "auth": [
+          "scram-sha-256 on every frontend (M9-E1 equalized control)",
+          "scram-sha-256 via auth_file users.txt"
+        ],
+        "cpu_median_s": 2.8921175,
+        "dataset": [
+          "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+        ],
+        "iron": {
+          "cpu_model": "AMD EPYC 7763 64-Core Processor",
+          "kernel": "6.17.0-1022-azure",
+          "nproc": 4,
+          "pgbench_j": 4
+        },
+        "pg_disclosed": 166,
+        "pg_enforced": 0,
+        "pg_other": 0,
+        "rss_median_kb": 59296.0,
+        "samples": 166
+      },
+      "rows": [
+        {
+          "cell_id": "M1-1",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, simple",
+          "n": 10,
+          "p99": "7.6 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 10, 1 instance, <code>max_client_conn</code> 500",
+          "status": "measured",
+          "tps_band": "16,883 [16,613-20,912]",
+          "tps_median": 16882.766694500002
+        },
+        {
+          "cell_id": "M1-2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 10,
+          "p99": "23.9 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 10, 1 instance",
+          "status": "measured",
+          "tps_band": "2,582 [2,094-4,585]",
+          "tps_median": 2581.6439705000003
+        },
+        {
+          "cell_id": "M1-3",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 10, prepared protocol",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M1-4",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "select-only, 200c/10p, simple",
+          "n": 7,
+          "p99": "14.8 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 10, 1 instance",
+          "status": "measured",
+          "tps_band": "17,107 [2,560-46,053]",
+          "tps_median": 17106.594169
+        },
+        {
+          "cell_id": "M1-5",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "31.0 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 20, 1 instance",
+          "status": "measured",
+          "tps_band": "5,316 [3,894-8,447]",
+          "tps_median": 5316.256911
+        },
+        {
+          "cell_id": "M1-6",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "263.8 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 10, 1 instance",
+          "status": "measured",
+          "tps_band": "379 [343-381]",
+          "tps_median": 379.393287
+        },
+        {
+          "cell_id": "M1-7",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M1",
+          "load": "tpcb-like, 100c/10p, simple",
+          "n": 7,
+          "p99": "43.7 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, pool 10, 1 instance",
+          "status": "measured",
+          "tps_band": "2,927 [2,629-3,374]",
+          "tps_median": 2927.498759
+        },
+        {
+          "cell_id": "M2-I5",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "7.7 ms",
+          "peak": true,
+          "settings": "<code>pool_mode=transaction</code>, 2 instances (so_reuseport)",
+          "status": "measured",
+          "tps_band": "16,788 [16,585-16,998]",
+          "tps_median": 16788.341864
+        },
+        {
+          "cell_id": "M2-I6",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "24.4 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, 2 instances (so_reuseport)",
+          "status": "measured",
+          "tps_band": "2,563 [2,536-2,751]",
+          "tps_median": 2562.75812
+        },
+        {
+          "cell_id": "M2-P2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, prepared protocol",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-P3",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=statement</code>, pool 10, prepared protocol",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S5",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "1.0 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, 1 instance",
+          "status": "measured",
+          "tps_band": "18,078 [17,674-18,783]",
+          "tps_median": 18078.221525
+        },
+        {
+          "cell_id": "M2-S6",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "6.6 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, 1 instance",
+          "status": "measured",
+          "tps_band": "2,671 [2,646-2,696]",
+          "tps_median": 2670.566294
+        },
+        {
+          "cell_id": "M2-S15",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "1.6 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)",
+          "status": "measured",
+          "tps_band": "28,405 [24,869-29,281]",
+          "tps_median": 28404.878318
+        },
+        {
+          "cell_id": "M2-S16",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "103.9 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)",
+          "status": "measured",
+          "tps_band": "2,334 [1,877-2,854]",
+          "tps_median": 2334.427543
+        },
+        {
+          "cell_id": "M2-T1",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "7.6 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=statement</code>, pool 10",
+          "status": "measured",
+          "tps_band": "16,990 [16,848-17,270]",
+          "tps_median": 16990.096801
+        },
+        {
+          "cell_id": "M2-T2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=statement</code>, pool 10",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-W2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "7.1 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 20",
+          "status": "measured",
+          "tps_band": "4,078 [4,032-4,161]",
+          "tps_median": 4077.937986
+        },
+        {
+          "cell_id": "M2-W7",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "267.4 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10",
+          "status": "measured",
+          "tps_band": "372 [370-374]",
+          "tps_median": 372.174681
+        },
+        {
+          "cell_id": "M9-C1",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "7.6 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "16,791 [16,150-19,784]",
+          "tps_median": 16791.421211
+        },
+        {
+          "cell_id": "M9-C2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "24.7 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,538 [2,498-2,580]",
+          "tps_median": 2537.5631395
+        },
+        {
+          "cell_id": "M9-C3",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared, scale 100",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C4",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "select-only, 200c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "15.0 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "17,163 [16,618-20,350]",
+          "tps_median": 17162.738191
+        },
+        {
+          "cell_id": "M9-C5",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "simple-update, 100c/20p, simple, scale 100",
+          "n": 7,
+          "p99": "143.1 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "3,936 [2,878-4,514]",
+          "tps_median": 3936.197533
+        },
+        {
+          "cell_id": "M9-C6",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
+          "n": 7,
+          "p99": "262.2 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "382 [371-498]",
+          "tps_median": 381.667502
+        },
+        {
+          "cell_id": "M9-C7",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "tpcb-like, 100c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "47.9 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,518 [1,783-2,686]",
+          "tps_median": 2517.526618
+        },
+        {
+          "cell_id": "M9-E1",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C)",
+          "n": 7,
+          "p99": "268.1 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 10; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "372 [357-379]",
+          "tps_median": 372.486822
+        }
+      ],
+      "verdicts": {
+        "cells": 59,
+        "inconclusive": 11,
+        "lose": 3,
+        "na": 0,
+        "timeout": 4,
+        "wins": 1
+      }
+    },
+    "pgcat": {
+      "counts": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 8,
+          "na": 2,
+          "timeout": 1,
+          "total": 11
+        },
+        "M9": {
+          "measured": 7,
+          "na": 0,
+          "timeout": 1,
+          "total": 8
+        }
+      },
+      "display": "pgcat",
+      "flatness": {
+        "configs": 14,
+        "peak": {
+          "cell_id": "M1-1",
+          "tps_median": 19628.780704,
+          "workload": "select-only"
+        },
+        "spread_pct": 89.4,
+        "trough": {
+          "cell_id": "M2-S14",
+          "tps_median": 2086.701567,
+          "workload": "tpcb-like"
+        },
+        "verdict": "peaky"
+      },
+      "legs": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 8,
+          "na": 2,
+          "timeout": 1,
+          "total": 11
+        },
+        "M9": {
+          "measured": 21,
+          "na": 0,
+          "timeout": 3,
+          "total": 24
+        }
+      },
+      "pg": "PG 17",
+      "pin": "v1.2.0",
+      "pooler": "pgcat",
+      "resources": {
+        "auth": [
+          "scram-sha-256 on every frontend (M9-E1 equalized control)",
+          "scram-sha-256 via admin/users file"
+        ],
+        "cpu_median_s": 3.763808,
+        "dataset": [
+          "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+        ],
+        "iron": {
+          "cpu_model": "AMD EPYC 7763 64-Core Processor",
+          "kernel": "6.17.0-1022-azure",
+          "nproc": 4,
+          "pgbench_j": 4
+        },
+        "pg_disclosed": 159,
+        "pg_enforced": 0,
+        "pg_other": 0,
+        "rss_median_kb": 50056,
+        "samples": 159
+      },
+      "rows": [
+        {
+          "cell_id": "M1-1",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, simple",
+          "n": 10,
+          "p99": "6.9 ms",
+          "peak": true,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, pool 10",
+          "status": "measured",
+          "tps_band": "19,208 [19,024-22,249]",
+          "tps_median": 19208.0855325
+        },
+        {
+          "cell_id": "M1-2",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 10,
+          "p99": "26.8 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, pool 10",
+          "status": "measured",
+          "tps_band": "2,687 [2,533-4,109]",
+          "tps_median": 2686.7557185
+        },
+        {
+          "cell_id": "M1-3",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, prepared protocol",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M1-4",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "select-only, 200c/10p, simple",
+          "n": 7,
+          "p99": "12.6 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, pool 10",
+          "status": "measured",
+          "tps_band": "19,178 [2,460-40,933]",
+          "tps_median": 19177.879377
+        },
+        {
+          "cell_id": "M1-5",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "28.1 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, pool 20",
+          "status": "measured",
+          "tps_band": "5,024 [3,858-8,205]",
+          "tps_median": 5024.46331
+        },
+        {
+          "cell_id": "M1-6",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "25.1 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, pool 10",
+          "status": "measured",
+          "tps_band": "4,158 [4,129-6,529]",
+          "tps_median": 4158.101036
+        },
+        {
+          "cell_id": "M1-7",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M1",
+          "load": "tpcb-like, 100c/10p, simple",
+          "n": 7,
+          "p99": "40.2 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=5, pool 10",
+          "status": "measured",
+          "tps_band": "2,988 [2,648-3,414]",
+          "tps_median": 2988.334932
+        },
+        {
+          "cell_id": "M2-I11",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "7.4 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=1",
+          "status": "measured",
+          "tps_band": "16,344 [16,106-16,630]",
+          "tps_median": 16344.20162
+        },
+        {
+          "cell_id": "M2-I12",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "20.7 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, worker_threads=1",
+          "status": "measured",
+          "tps_band": "2,862 [2,836-2,925]",
+          "tps_median": 2861.942948
+        },
+        {
+          "cell_id": "M2-P5",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, prepared protocol",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-S9",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "1.1 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, worker_threads=5, user connect_timeout 120s",
+          "status": "measured",
+          "tps_band": "18,019 [17,734-18,050]",
+          "tps_median": 18018.578929
+        },
+        {
+          "cell_id": "M2-S10",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "6.6 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, worker_threads=5, user connect_timeout 120s",
+          "status": "measured",
+          "tps_band": "2,669 [2,635-2,737]",
+          "tps_median": 2668.600745
+        },
+        {
+          "cell_id": "M2-S13",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "1.1 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, worker_threads=1, user connect_timeout 120s",
+          "status": "measured",
+          "tps_band": "15,005 [14,785-15,169]",
+          "tps_median": 15004.903905
+        },
+        {
+          "cell_id": "M2-S14",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "7.3 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, worker_threads=1, user connect_timeout 120s",
+          "status": "measured",
+          "tps_band": "2,360 [2,327-2,391]",
+          "tps_median": 2360.220851
+        },
+        {
+          "cell_id": "M2-T1",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): statement unsupported",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-T2",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): statement unsupported",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-W4",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "6.2 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 20, user connect_timeout 120s",
+          "status": "measured",
+          "tps_band": "5,090 [5,023-5,143]",
+          "tps_median": 5089.5227
+        },
+        {
+          "cell_id": "M2-W9",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "15.8 ms",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, pool 10, user connect_timeout 120s",
+          "status": "measured",
+          "tps_band": "6,768 [6,407-6,814]",
+          "tps_median": 6767.627136
+        },
+        {
+          "cell_id": "M9-C1",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "6.9 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "18,899 [18,077-20,955]",
+          "tps_median": 18899.1171355
+        },
+        {
+          "cell_id": "M9-C2",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "23.4 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,603 [2,507-2,699]",
+          "tps_median": 2602.7369015
+        },
+        {
+          "cell_id": "M9-C3",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared, scale 100",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C4",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "select-only, 200c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "12.9 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "18,605 [17,967-21,884]",
+          "tps_median": 18604.883881
+        },
+        {
+          "cell_id": "M9-C5",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "simple-update, 100c/20p, simple, scale 100",
+          "n": 7,
+          "p99": "141.5 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "4,220 [3,015-4,851]",
+          "tps_median": 4219.693487
+        },
+        {
+          "cell_id": "M9-C6",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
+          "n": 7,
+          "p99": "25.3 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "4,115 [4,060-5,625]",
+          "tps_median": 4114.899395
+        },
+        {
+          "cell_id": "M9-C7",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "tpcb-like, 100c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "46.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,571 [2,014-2,699]",
+          "tps_median": 2570.804799
+        },
+        {
+          "cell_id": "M9-E1",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C)",
+          "n": 7,
+          "p99": "24.9 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 10; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "4,178 [4,155-6,626]",
+          "tps_median": 4178.118574
+        }
+      ],
+      "verdicts": {
+        "cells": 59,
+        "inconclusive": 11,
+        "lose": 1,
+        "na": 2,
+        "timeout": 2,
+        "wins": 2
+      }
+    },
+    "pgpool": {
+      "counts": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 8,
+          "na": 2,
+          "timeout": 1,
+          "total": 11
+        },
+        "M9": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 2,
+          "total": 8
+        }
+      },
+      "display": "pgpool-II",
+      "flatness": {
+        "configs": 14,
+        "peak": {
+          "cell_id": "M2-I13",
+          "tps_median": 16596.544526,
+          "workload": "select-only"
+        },
+        "spread_pct": 98.7,
+        "trough": {
+          "cell_id": "M2-W10",
+          "tps_median": 207.616593,
+          "workload": "select-only"
+        },
+        "verdict": "peaky"
+      },
+      "legs": {
+        "M1": {
+          "measured": 6,
+          "na": 0,
+          "timeout": 1,
+          "total": 7
+        },
+        "M2": {
+          "measured": 8,
+          "na": 2,
+          "timeout": 1,
+          "total": 11
+        },
+        "M9": {
+          "measured": 20,
+          "na": 0,
+          "timeout": 4,
+          "total": 24
+        }
+      },
+      "pg": "PG 17",
+      "pin": "4.7.2",
+      "pooler": "pgpool",
+      "resources": {
+        "auth": [
+          "pool_hba disabled (default; backend SCRAM via pool_passwd)"
+        ],
+        "cpu_median_s": 2.51206,
+        "dataset": [
+          "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+        ],
+        "iron": {
+          "cpu_model": "AMD EPYC 7763 64-Core Processor",
+          "kernel": "6.17.0-1022-azure",
+          "nproc": 4,
+          "pgbench_j": 4
+        },
+        "pg_disclosed": 153,
+        "pg_enforced": 0,
+        "pg_other": 0,
+        "rss_median_kb": 36284,
+        "samples": 153
+      },
+      "rows": [
+        {
+          "cell_id": "M1-1",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, simple",
+          "n": 10,
+          "p99": "25.9 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1, no multiplexing)",
+          "status": "measured",
+          "tps_band": "14,679 [14,112-17,443]",
+          "tps_median": 14679.347552
+        },
+        {
+          "cell_id": "M1-2",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 10,
+          "p99": "85.5 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "2,476 [2,225-4,393]",
+          "tps_median": 2475.7087375
+        },
+        {
+          "cell_id": "M1-3",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 7,
+          "p99": "164.2 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "1,928 [1,440-2,056]",
+          "tps_median": 1927.841248
+        },
+        {
+          "cell_id": "M1-4",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "select-only, 200c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "session-class; children 200x max_pool 1 = 200 backends (1:1)",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M1-5",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "68.6 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "5,328 [3,632-8,429]",
+          "tps_median": 5327.855494
+        },
+        {
+          "cell_id": "M1-6",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "522.4 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "208 [208-218]",
+          "tps_median": 208.367252
+        },
+        {
+          "cell_id": "M1-7",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M1",
+          "load": "tpcb-like, 100c/10p, simple",
+          "n": 7,
+          "p99": "243.1 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "2,513 [2,351-3,182]",
+          "tps_median": 2513.157954
+        },
+        {
+          "cell_id": "M2-I13",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "22.9 ms",
+          "peak": true,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends",
+          "status": "measured",
+          "tps_band": "16,735 [16,045-17,651]",
+          "tps_median": 16735.10913
+        },
+        {
+          "cell_id": "M2-I14",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "82.2 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends",
+          "status": "measured",
+          "tps_band": "2,517 [2,392-2,544]",
+          "tps_median": 2516.929242
+        },
+        {
+          "cell_id": "M2-I15",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "session-class; children 200x max_pool 1 = 200 backends",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-I16",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "75.6 ms",
+          "peak": false,
+          "settings": "session-class; children 200x max_pool 1 = 200 backends",
+          "status": "measured",
+          "tps_band": "2,743 [2,734-2,771]",
+          "tps_median": 2742.580219
+        },
+        {
+          "cell_id": "M2-P6",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 7,
+          "p99": "104.9 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "1,915 [1,892-1,922]",
+          "tps_median": 1914.988427
+        },
+        {
+          "cell_id": "M2-S11",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 7,
+          "p99": "17.0 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "22,723 [21,804-24,788]",
+          "tps_median": 22722.592419
+        },
+        {
+          "cell_id": "M2-S12",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 7,
+          "p99": "214.1 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "2,238 [1,884-2,774]",
+          "tps_median": 2237.528791
+        },
+        {
+          "cell_id": "M2-T1",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): session-class only",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-T2",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): session-class only",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M2-W5",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "simple-update, 100c/20p, simple",
+          "n": 7,
+          "p99": "55.6 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "4,097 [3,882-4,268]",
+          "tps_median": 4097.381249
+        },
+        {
+          "cell_id": "M2-W10",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M2",
+          "load": "select-only, 100c/10p, churn (-C)",
+          "n": 7,
+          "p99": "498.4 ms",
+          "peak": false,
+          "settings": "session-class; children 100x max_pool 1 = 100 backends (1:1)",
+          "status": "measured",
+          "tps_band": "229 [228-230]",
+          "tps_median": 228.798922
+        },
+        {
+          "cell_id": "M9-C1",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "26.7 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "15,019 [13,671-16,118]",
+          "tps_median": 15019.086738499998
+        },
+        {
+          "cell_id": "M9-C2",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple, scale 100",
+          "n": 10,
+          "p99": "47.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,497 [2,323-2,586]",
+          "tps_median": 2497.074859
+        },
+        {
+          "cell_id": "M9-C3",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared, scale 100",
+          "n": 7,
+          "p99": "44.0 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,111 [2,054-3,447]",
+          "tps_median": 2110.581713
+        },
+        {
+          "cell_id": "M9-C4",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "select-only, 200c/10p, simple, scale 100",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-C5",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "simple-update, 100c/20p, simple, scale 100",
+          "n": 7,
+          "p99": "171.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "3,995 [3,421-4,864]",
+          "tps_median": 3995.426881
+        },
+        {
+          "cell_id": "M9-C6",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
+          "n": 7,
+          "p99": "519.6 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "209 [208-264]",
+          "tps_median": 208.818433
+        },
+        {
+          "cell_id": "M9-C7",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "tpcb-like, 100c/10p, simple, scale 100",
+          "n": 7,
+          "p99": "105.8 ms",
+          "peak": false,
+          "settings": "M9 resweep, scale 100; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "2,469 [2,311-2,687]",
+          "tps_median": 2468.747436
+        },
+        {
+          "cell_id": "M9-E1",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple, churn (-C)",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M9 resweep, scale 10; exact variant in <a href=\"../results/m9/matrix.csv\">results/m9/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        }
+      ],
+      "verdicts": {
+        "cells": 59,
+        "inconclusive": 3,
+        "lose": 10,
+        "na": 2,
+        "timeout": 2,
+        "wins": 1
+      }
+    },
+    "supavisor": {
+      "counts": {
+        "M1": {
+          "measured": 0,
+          "na": 0,
+          "timeout": 0,
+          "total": 0
+        },
+        "M2": {
+          "measured": 0,
+          "na": 0,
+          "timeout": 0,
+          "total": 0
+        },
+        "M9": {
+          "measured": 0,
+          "na": 6,
+          "timeout": 0,
+          "total": 6
+        }
+      },
+      "display": "supavisor",
+      "flatness": {
+        "configs": 0,
+        "peak": {},
+        "spread_pct": null,
+        "trough": {},
+        "verdict": ""
+      },
+      "legs": {
+        "M1": {
+          "measured": 0,
+          "na": 0,
+          "timeout": 0,
+          "total": 0
+        },
+        "M2": {
+          "measured": 0,
+          "na": 0,
+          "timeout": 0,
+          "total": 0
+        },
+        "M9": {
+          "measured": 0,
+          "na": 6,
+          "timeout": 0,
+          "total": 6
+        }
+      },
+      "pg": "PG 17",
+      "pin": "v2.9.13",
+      "pooler": "supavisor",
+      "resources": {
+        "auth": [],
+        "cpu_median_s": null,
+        "dataset": [],
+        "iron": null,
+        "pg_disclosed": 0,
+        "pg_enforced": 0,
+        "pg_other": 0,
+        "rss_median_kb": null,
+        "samples": 0
+      },
+      "rows": [
+        {
+          "cell_id": "M9-U-P3",
+          "docs": "../docs/configs/supavisor.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=transaction</code>, tenant pool, prepared protocol",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-U-P4",
+          "docs": "../docs/configs/supavisor.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, prepared",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "<code>pool_mode=session</code>, tenant pool, prepared protocol",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-U-T1",
+          "docs": "../docs/configs/supavisor.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): statement mode rejected by adapter",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-U-T2",
+          "docs": "../docs/configs/supavisor.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): statement mode rejected by adapter",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-U-T3",
+          "docs": "../docs/configs/supavisor.md",
+          "leg": "M9",
+          "load": "select-only, 100c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): statement mode rejected by adapter",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M9-U-T4",
+          "docs": "../docs/configs/supavisor.md",
+          "leg": "M9",
+          "load": "tpcb-like, 50c/10p, simple",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "N/A (unsupported): statement mode rejected by adapter",
+          "status": "N/A (unsupported)",
+          "tps_band": null,
+          "tps_median": null
+        }
+      ],
+      "verdicts": {
+        "cells": 59,
+        "inconclusive": 0,
+        "lose": 0,
+        "na": 0,
+        "timeout": 0,
+        "wins": 0
+      }
+    }
+  },
+  "sources": {
+    "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
+    "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
+    "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
+    "report.json": "d1d207e56eb2ceb6efdc05a85af40d25119b50a8d9974c78672d0e8f6ff5a35b"
+  }
+}

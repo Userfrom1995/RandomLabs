@@ -25,15 +25,25 @@ a { color: #58a6ff; }
 .echart { width: 100%; height: 420px; background: #161b22;
   border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
 nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle button { background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+  border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.85rem; }
+.viewtoggle button.on { border-color: #58a6ff; color: #58a6ff; }
 footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 </style>
 </head>
 <body>
 <div class="section" id="s-header">
 <h1>Poolduel deep-dive: pgagroal</h1>
-<p class="sub">Per-pooler page on one fixed 7-section template (identical across all five poolers). Pinned version: 2.1.0 baseline, master tip SHA pinned at build. Tracks issue #302.</p>
+<p class="sub">Per-pooler page on one fixed 7-section template (identical across all six poolers). Tracks issue #302.</p>
+<!-- DOSSIER:pin:begin -->
+<p>Pinned version: <strong>2.1.0+tip</strong> on shared PG 17 backend; tracks issue #302.</p>
+<!-- DOSSIER:pin:end -->
+<!-- DOSSIER:lifecycle:begin -->
+<p class="note">Connection path: client -&gt; pgagroal pipeline (transaction/session/performance) -&gt; PostgreSQL backend; config in <a href="../docs/configs/pgagroal.md">docs/configs/pgagroal.md</a>.</p>
+<!-- DOSSIER:lifecycle:end -->
 <nav class="poolnav">
-<a href="../">comparison page</a> | <a href="../pgcat/">prev: pgcat</a> | <a href="../pgbouncer/">next: pgbouncer</a>
+<a href="../">comparison page</a> | <a href="../supavisor/">prev: supavisor</a> | <a href="../pgbouncer/">next: pgbouncer</a>
 </nav>
 </div>
 
@@ -49,55 +59,98 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <div class="section" id="s-flatness">
 <h2>Flatness verdict</h2>
 <p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point. Trough workload named, never silent.</p>
-<div id="flat-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:flat:begin -->
+<table><tr><th>Configs measured</th><th>Spread</th><th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>9</td><td>88.8%</td><td>peaky</td><td>M2-I3 @ 2,584 tps (select-only)</td><td>M2-I2 @ 289 tps (tpcb-like)</td></tr></table>
+<!-- DOSSIER:flat:end -->
 </div>
 
 <div class="section" id="s-config">
 <h2>Config anatomy</h2>
-<p class="note">Every pgagroal config with its results in full: M1 7 rows plus 13 M2 rows (4 measured + 7 timeout/inconclusive) plus 2 N/A rows. Settings columns are static markup from the harness adapters; tps/status columns fill live from committed medians over HTTP (peak tagged).</p>
-<table data-config-results data-pooler="pgagroal">
-<tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Status</th></tr>
-<tr data-cell="M1-1" data-pooler="pgagroal"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-2" data-pooler="pgagroal"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-3" data-pooler="pgagroal"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pipeline=transaction</code>, <code>track_prepared=on</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-4" data-pooler="pgagroal"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-5" data-pooler="pgagroal"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 20/20/20</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-6" data-pooler="pgagroal"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-7" data-pooler="pgagroal"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S1" data-pooler="pgagroal"><td>M2-S1</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S2" data-pooler="pgagroal"><td>M2-S2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S3" data-pooler="pgagroal"><td>M2-S3</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=performance</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S4" data-pooler="pgagroal"><td>M2-S4</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=performance</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I1" data-pooler="pgagroal"><td>M2-I1</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=io_uring</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I2" data-pooler="pgagroal"><td>M2-I2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=io_uring</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I3" data-pooler="pgagroal"><td>M2-I3</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=epoll</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I4" data-pooler="pgagroal"><td>M2-I4</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=epoll</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W1" data-pooler="pgagroal"><td>M2-W1</td><td>simple-update, 100c/20p, simple</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 20/20/20</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W6" data-pooler="pgagroal"><td>M2-W6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-P1" data-pooler="pgagroal"><td>M2-P1</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pipeline=session</code>, <code>track_prepared=on</code>, <code>blocking 120s</code></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T1" data-pooler="pgagroal"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td class="na">N/A (unsupported): no statement mode</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T2" data-pooler="pgagroal"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td class="na">N/A (unsupported): no statement mode</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<!-- DOSSIER:config:begin -->
+<div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
+<p class="note">Every pgagroal config with its results in full: M1 7 rows plus 13 M2 rows (4 measured + 7 timeout/inconclusive) plus 2 N/A rows; M9 26 rows (13 measured + 13 timeout/inconclusive) plus 0 N/A rows. Table shows the max-repeats evidence per cell; full history in the matrix.csv files. Peak config tagged.</p>
+<table data-config-results data-pooler="pgagroal"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
+<tr data-cell="M1-1" data-pooler="pgagroal" data-status="measured"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">1,717 [1,230-2,167]</td><td>p99 64.7 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-2" data-pooler="pgagroal" data-status="measured"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">1,234 [120-1,683]</td><td>p99 27.4 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-3" data-pooler="pgagroal" data-status="timeout"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pipeline=transaction</code>, <code>track_prepared=on</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M1-4" data-pooler="pgagroal" data-status="measured"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">1,558 [1,387-1,711]</td><td>p99 33.6 ms, n=3</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-5" data-pooler="pgagroal" data-status="measured"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 20/20/20</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">553 [145-824]</td><td>p99 476.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-6" data-pooler="pgagroal" data-status="timeout"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M1-7" data-pooler="pgagroal" data-status="measured"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>blocking 0</code>, <code>ev auto</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">322 [103-608]</td><td>p99 189.3 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I1" data-pooler="pgagroal" data-status="measured"><td>M2-I1</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=io_uring</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">8,475 [6,270-9,976]</td><td>p99 4.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I2" data-pooler="pgagroal" data-status="measured"><td>M2-I2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=io_uring</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">441 [336-456]</td><td>p99 207.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I3" data-pooler="pgagroal" data-status="measured"><td>M2-I3</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=epoll</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">2,486 [1,924-3,730] PEAK</td><td>p99 17.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I4" data-pooler="pgagroal" data-status="measured"><td>M2-I4</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=transaction</code>, <code>ev_backend=epoll</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">571 [434-700]</td><td>p99 201.4 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-P1" data-pooler="pgagroal" data-status="timeout"><td>M2-P1</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pipeline=session</code>, <code>track_prepared=on</code>, <code>blocking 120s</code></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-S1" data-pooler="pgagroal" data-status="timeout"><td>M2-S1</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-S2" data-pooler="pgagroal" data-status="timeout"><td>M2-S2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-S3" data-pooler="pgagroal" data-status="timeout"><td>M2-S3</td><td>select-only, 100c/10p, simple</td><td><code>pipeline=performance</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-S4" data-pooler="pgagroal" data-status="timeout"><td>M2-S4</td><td>tpcb-like, 50c/10p, simple</td><td><code>pipeline=performance</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-T1" data-pooler="pgagroal" data-status="na"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td>N/A (unsupported): no statement mode</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M2-T2" data-pooler="pgagroal" data-status="na"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td>N/A (unsupported): no statement mode</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M2-W1" data-pooler="pgagroal" data-status="timeout"><td>M2-W1</td><td>simple-update, 100c/20p, simple</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 20/20/20</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-W6" data-pooler="pgagroal" data-status="timeout"><td>M2-W6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pipeline=session</code>, <code>blocking 120s</code>, MAX 10/10/10</td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M9-C1" data-pooler="pgagroal" data-status="measured"><td>M9-C1</td><td>select-only, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">1,641 [530-2,447]</td><td>p99 44.2 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C2" data-pooler="pgagroal" data-status="measured"><td>M9-C2</td><td>tpcb-like, 50c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">1,229 [1,198-1,265]</td><td>p99 23.8 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C3" data-pooler="pgagroal" data-status="timeout"><td>M9-C3</td><td>tpcb-like, 50c/10p, prepared, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M9-C4" data-pooler="pgagroal" data-status="measured"><td>M9-C4</td><td>select-only, 200c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">1,407 [807-1,939]</td><td>p99 35.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C5" data-pooler="pgagroal" data-status="measured"><td>M9-C5</td><td>simple-update, 100c/20p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">186 [90-408]</td><td>p99 3407.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C6" data-pooler="pgagroal" data-status="timeout"><td>M9-C6</td><td>select-only, 100c/10p, simple, churn (-C), scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M9-C7" data-pooler="pgagroal" data-status="measured"><td>M9-C7</td><td>tpcb-like, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps ok">427 [180-635]</td><td>p99 347.0 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-E1" data-pooler="pgagroal" data-status="timeout"><td>M9-E1</td><td>select-only, 100c/10p, simple, churn (-C)</td><td>M9 resweep, scale 10; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgagroal.md">pgagroal.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/pgagroal.md">docs/configs/pgagroal.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
+<!-- DOSSIER:config:end -->
 </div>
 
 <div class="section" id="s-verdict">
 <h2>Data-bound strengths and limits</h2>
 <p class="note">Derived strings from <code>report.json</code> ranked verdicts (best count, inconclusive count, timeout count), never free prose.</p>
-<div id="verdict-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:verdict:begin -->
+<p>Across 59 ranked cells, pgagroal is best in 0, inconclusive in 6, loses in 3; N/A (unsupported) in 2 cells, timeout/inconclusive in 9 cells. (Derived from report.json ranked verdicts.)</p>
+<!-- DOSSIER:verdict:end -->
+<h3>Resource evidence</h3>
+<!-- DOSSIER:resources:begin -->
+<table><tr><th>Signal</th><th>Median over measured raw</th></tr>
+<tr><td>pgbench CPU time</td><td>2.58 s (n=108)</td></tr>
+<tr><td>pgbench peak RSS</td><td>51,332 KB</td></tr>
+<tr><td>Iron</td><td>AMD EPYC 7763 64-Core Processor, kernel 6.17.0-1022-azure, 4 CPUs, pgbench -j 4</td></tr>
+<tr><td>PG config status</td><td>0 enforced, 108 disclosed, 0 other</td></tr>
+</table>
+<p class="note">Auth posture: scram-sha-256 via HBA + vault passthrough.</p>
+<p class="note">Dataset: per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk.</p>
+<!-- DOSSIER:resources:end -->
 </div>
 
 <div class="section" id="s-na">
 <h2>N/A table</h2>
 <p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated. Over-cap cells read <code>timeout/inconclusive</code>.</p>
-<div id="na-block"><p class="note">Loading live data from committed medians (serve over HTTP).</p></div>
+<!-- DOSSIER:na:begin -->
+<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>
+<tr><td>M1-3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M1-6</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-P1</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-S1</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-S2</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-S3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-S4</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-T1</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M2-T2</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M2-W1</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-W6</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M9-C3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M9-C6</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M9-E1</td><td>timeout/inconclusive</td><td>-</td></tr>
+</table>
+<!-- DOSSIER:na:end -->
 </div>
 
 <div class="section" id="s-repro">
 <h2>Reproduce it</h2>
 <pre>./poolduel/repro.sh --dry-run   # M1 pilot plan, runs nothing
 ./poolduel/repro.sh --report    # raw JSON -&gt; medians, CSVs, report.json
-./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON</pre>
+./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON
+./poolduel/repro.sh --dossiers  # bundles -&gt; pre-rendered dossier pages</pre>
 <p>Method: <a href="../docs/methodology.md">docs/methodology.md</a> section 8 (reproducibility-by-adversary). Comparison page: <a href="../">../</a>.</p>
 </div>
 
@@ -110,96 +163,17 @@ Poolduel per-pooler deep-dive: pgagroal. Refs #302 (never Closes without explici
 <script>
 (function () {
   "use strict";
-  var SLUG = "pgagroal";
-  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
-  function naturalKey(s) {
-    return String(s).split(/(\d+)/).map(function (part) {
-      return (/^\d+$/.test(part) ? ("000000" + part).slice(-6) : part);
-    }).join("");
-  }
-  function fetchJson(url) {
-    return fetch(url, { cache: "no-store" }).then(function (r) {
-      return r.ok ? r.json() : null;
-    }).catch(function () { return null; });
-  }
-  function fetchFailNote(what) {
-    return "<p class='note'>Live results unavailable here: " + esc(what) +
-      " did not load (serve poolduel/ over HTTP).</p>";
-  }
-  fetchJson("../results/report.json").then(function (bundle) {
-    if (!bundle) {
-      document.getElementById("flat-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      document.getElementById("verdict-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      return;
-    }
-    var flat = bundle.flatness ? bundle.flatness[SLUG] : null;
-    var flatHost = document.getElementById("flat-block");
-    if (flat) {
-      flatHost.innerHTML = "<table><tr><th>Configs measured</th><th>Spread</th>" +
-        "<th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>" +
-        esc(flat.configs_measured) + "</td><td>" +
-        (flat.spread == null ? "-" : (100 * flat.spread).toFixed(1) + "%") +
-        "</td><td>" + esc(flat.verdict) + "</td><td>" +
-        (flat.peak ? esc(flat.peak.cell_id) + " @ " + esc(flat.peak.tps_median) +
-          " (" + esc(flat.peak.workload || "?") + ")" : "-") +
-        "</td><td>" +
-        (flat.trough ? esc(flat.trough.cell_id) + " @ " + esc(flat.trough.tps_median) +
-          " (" + esc(flat.trough.workload || "?") + ")" : "-") +
-        "</td></tr></table>";
-    }
-    var best = bundle.best || {};
-    var cells = Object.keys(best).sort(function (a, b) {
-      var ka = naturalKey(a), kb = naturalKey(b);
-      return ka < kb ? -1 : ka > kb ? 1 : 0;
-    });
-    var nBest = 0, nInc = 0, nLose = 0, nNA = 0, nTimeout = 0;
-    cells.forEach(function (cell) {
-      var info = best[cell];
-      var mine = (info.ranked || []).filter(function (r) { return r.pooler === SLUG; })[0];
-      if (mine) {
-        if (mine.verdict === "best") nBest++;
-        else if (String(mine.verdict).indexOf("inconclusive") >= 0) nInc++;
-        else nLose++;
-      }
-      (info.na || []).forEach(function (n) {
-        if (n.pooler === SLUG) {
-          if (n.status === "N/A (unsupported)") nNA++;
-          else nTimeout++;
-        }
+  document.querySelectorAll(".viewtoggle button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var table = btn.closest(".section").querySelector("table");
+      var want = btn.getAttribute("data-filter");
+      table.closest(".section").querySelectorAll(".viewtoggle button")
+        .forEach(function (b) { b.classList.remove("on"); });
+      btn.classList.add("on");
+      table.querySelectorAll("tr[data-status]").forEach(function (row) {
+        row.style.display = (want === "all" ||
+          row.getAttribute("data-status") === want) ? "" : "none";
       });
-    });
-    document.getElementById("verdict-block").innerHTML =
-      "<p>Across " + cells.length + " ranked cells, " + esc(SLUG) +
-      " is best in " + nBest + ", inconclusive in " + nInc +
-      ", loses in " + nLose + "; N/A (unsupported) in " + nNA +
-      " cells, timeout/inconclusive in " + nTimeout +
-      " cells. (Derived from report.json ranked verdicts.)</p>";
-  });
-  fetchJson("../results/m1/medians.json").then(function (m1) {
-    fetchJson("../results/m2/medians.json").then(function (m2) {
-      if (!m1 && !m2) {
-        document.getElementById("na-block").innerHTML =
-          fetchFailNote("committed medians");
-        return;
-      }
-      var all = (m1 || []).concat(m2 || []);
-      var mine = all.filter(function (e) { return e.pooler === SLUG; });
-      var na = mine.filter(function (e) { return e.status === "N/A (unsupported)"; });
-      var host = document.getElementById("na-block");
-      if (!mine.length) return;
-      var html = "<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>";
-      mine.sort(function (a, b) {
-        var ka = naturalKey(a.cell_id), kb = naturalKey(b.cell_id);
-        return ka < kb ? -1 : ka > kb ? 1 : 0;
-      }).forEach(function (e) {
-        html += "<tr><td>" + esc(e.cell_id) + "</td><td>" + esc(e.status) +
-          "</td><td>" + (e.tps && e.tps.median != null ? esc(e.tps.median) : "-") +
-          "</td></tr>";
-      });
-      host.innerHTML = html + "</table><p class='note'>" + na.length +
-        " N/A (unsupported) cells with nulls.</p>";
     });
   });
 })();

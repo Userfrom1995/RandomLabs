@@ -25,13 +25,23 @@ a { color: #58a6ff; }
 .echart { width: 100%; height: 420px; background: #161b22;
   border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
 nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle button { background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+  border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.85rem; }
+.viewtoggle button.on { border-color: #58a6ff; color: #58a6ff; }
 footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 </style>
 </head>
 <body>
 <div class="section" id="s-header">
 <h1>Poolduel deep-dive: PgBouncer</h1>
-<p class="sub">Per-pooler page on one fixed 7-section template (identical across all five poolers). Pinned version: 1.25.2 tarball plus sha256. Tracks issue #302.</p>
+<p class="sub">Per-pooler page on one fixed 7-section template (identical across all six poolers). Tracks issue #302.</p>
+<!-- DOSSIER:pin:begin -->
+<p>Pinned version: <strong>1.25.2</strong> on shared PG 17 backend; tracks issue #302.</p>
+<!-- DOSSIER:pin:end -->
+<!-- DOSSIER:lifecycle:begin -->
+<p class="note">Connection path: client -&gt; PgBouncer pool (transaction/session/statement) -&gt; PostgreSQL backend; config in <a href="../docs/configs/pgbouncer.md">docs/configs/pgbouncer.md</a>.</p>
+<!-- DOSSIER:lifecycle:end -->
 <nav class="poolnav">
 <a href="../">comparison page</a> | <a href="../pgagroal/">prev: pgagroal</a> | <a href="../pgpool/">next: pgpool</a>
 </nav>
@@ -49,54 +59,88 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <div class="section" id="s-flatness">
 <h2>Flatness verdict</h2>
 <p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point. Trough workload named, never silent.</p>
-<div id="flat-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:flat:begin -->
+<table><tr><th>Configs measured</th><th>Spread</th><th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>15</td><td>98.5%</td><td>peaky</td><td>M2-I5 @ 26,347 tps (select-only)</td><td>M2-W7 @ 392 tps (select-only)</td></tr></table>
+<!-- DOSSIER:flat:end -->
 </div>
 
 <div class="section" id="s-config">
 <h2>Config anatomy</h2>
-<p class="note">Every PgBouncer config with its results in full: M1 7 rows plus 12 M2 rows (9 measured + 3 timeout/inconclusive) plus 0 N/A rows. Settings columns are static markup from the harness adapters; tps/status columns fill live from committed medians over HTTP (peak tagged).</p>
-<table data-config-results data-pooler="pgbouncer">
-<tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Status</th></tr>
-<tr data-cell="M1-1" data-pooler="pgbouncer"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance, <code>max_client_conn</code> 500</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-2" data-pooler="pgbouncer"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-3" data-pooler="pgbouncer"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=transaction</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-4" data-pooler="pgbouncer"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-5" data-pooler="pgbouncer"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=transaction</code>, pool 20, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-6" data-pooler="pgbouncer"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-7" data-pooler="pgbouncer"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S5" data-pooler="pgbouncer"><td>M2-S5</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S6" data-pooler="pgbouncer"><td>M2-S6</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S15" data-pooler="pgbouncer"><td>M2-S15</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S16" data-pooler="pgbouncer"><td>M2-S16</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T1" data-pooler="pgbouncer"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=statement</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T2" data-pooler="pgbouncer"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=statement</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I5" data-pooler="pgbouncer"><td>M2-I5</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I6" data-pooler="pgbouncer"><td>M2-I6</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W2" data-pooler="pgbouncer"><td>M2-W2</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=session</code>, pool 20</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W7" data-pooler="pgbouncer"><td>M2-W7</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=session</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-P2" data-pooler="pgbouncer"><td>M2-P2</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=session</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-P3" data-pooler="pgbouncer"><td>M2-P3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=statement</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<!-- DOSSIER:config:begin -->
+<div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
+<p class="note">Every pgbouncer config with its results in full: M1 7 rows plus 12 M2 rows (9 measured + 3 timeout/inconclusive) plus 0 N/A rows; M9 27 rows (22 measured + 5 timeout/inconclusive) plus 0 N/A rows. Table shows the max-repeats evidence per cell; full history in the matrix.csv files. Peak config tagged.</p>
+<table data-config-results data-pooler="pgbouncer"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
+<tr data-cell="M1-1" data-pooler="pgbouncer" data-status="measured"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance, <code>max_client_conn</code> 500</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">16,883 [16,613-20,912]</td><td>p99 7.6 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-2" data-pooler="pgbouncer" data-status="measured"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,582 [2,094-4,585]</td><td>p99 23.9 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-3" data-pooler="pgbouncer" data-status="timeout"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=transaction</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M1-4" data-pooler="pgbouncer" data-status="measured"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">17,107 [2,560-46,053]</td><td>p99 14.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-5" data-pooler="pgbouncer" data-status="measured"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=transaction</code>, pool 20, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">5,316 [3,894-8,447]</td><td>p99 31.0 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-6" data-pooler="pgbouncer" data-status="measured"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">379 [343-381]</td><td>p99 263.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-7" data-pooler="pgbouncer" data-status="measured"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,927 [2,629-3,374]</td><td>p99 43.7 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I5" data-pooler="pgbouncer" data-status="measured"><td>M2-I5</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">16,788 [16,585-16,998] PEAK</td><td>p99 7.7 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I6" data-pooler="pgbouncer" data-status="measured"><td>M2-I6</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,563 [2,536-2,751]</td><td>p99 24.4 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-P2" data-pooler="pgbouncer" data-status="timeout"><td>M2-P2</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=session</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-P3" data-pooler="pgbouncer" data-status="timeout"><td>M2-P3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool_mode=statement</code>, pool 10, prepared protocol</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-S5" data-pooler="pgbouncer" data-status="measured"><td>M2-S5</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">18,078 [17,674-18,783]</td><td>p99 1.0 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S6" data-pooler="pgbouncer" data-status="measured"><td>M2-S6</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 1 instance</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,671 [2,646-2,696]</td><td>p99 6.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S15" data-pooler="pgbouncer" data-status="measured"><td>M2-S15</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">28,405 [24,869-29,281]</td><td>p99 1.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S16" data-pooler="pgbouncer" data-status="measured"><td>M2-S16</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=session</code>, pool 10, 2 instances (so_reuseport)</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,334 [1,877-2,854]</td><td>p99 103.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-T1" data-pooler="pgbouncer" data-status="measured"><td>M2-T1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=statement</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">16,990 [16,848-17,270]</td><td>p99 7.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-T2" data-pooler="pgbouncer" data-status="timeout"><td>M2-T2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=statement</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M2-W2" data-pooler="pgbouncer" data-status="measured"><td>M2-W2</td><td>simple-update, 100c/20p, simple</td><td><code>pool_mode=session</code>, pool 20</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">4,078 [4,032-4,161]</td><td>p99 7.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-W7" data-pooler="pgbouncer" data-status="measured"><td>M2-W7</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool_mode=session</code>, pool 10</td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">372 [370-374]</td><td>p99 267.4 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C1" data-pooler="pgbouncer" data-status="measured"><td>M9-C1</td><td>select-only, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">16,791 [16,150-19,784]</td><td>p99 7.6 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C2" data-pooler="pgbouncer" data-status="measured"><td>M9-C2</td><td>tpcb-like, 50c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,538 [2,498-2,580]</td><td>p99 24.7 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C3" data-pooler="pgbouncer" data-status="timeout"><td>M9-C3</td><td>tpcb-like, 50c/10p, prepared, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M9-C4" data-pooler="pgbouncer" data-status="measured"><td>M9-C4</td><td>select-only, 200c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">17,163 [16,618-20,350]</td><td>p99 15.0 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C5" data-pooler="pgbouncer" data-status="measured"><td>M9-C5</td><td>simple-update, 100c/20p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">3,936 [2,878-4,514]</td><td>p99 143.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C6" data-pooler="pgbouncer" data-status="measured"><td>M9-C6</td><td>select-only, 100c/10p, simple, churn (-C), scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">382 [371-498]</td><td>p99 262.2 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C7" data-pooler="pgbouncer" data-status="measured"><td>M9-C7</td><td>tpcb-like, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">2,518 [1,783-2,686]</td><td>p99 47.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-E1" data-pooler="pgbouncer" data-status="measured"><td>M9-E1</td><td>select-only, 100c/10p, simple, churn (-C)</td><td>M9 resweep, scale 10; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgbouncer.md">pgbouncer.md</a></td><td class="live-tps ok">372 [357-379]</td><td>p99 268.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/pgbouncer.md">docs/configs/pgbouncer.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
+<!-- DOSSIER:config:end -->
 </div>
 
 <div class="section" id="s-verdict">
 <h2>Data-bound strengths and limits</h2>
 <p class="note">Derived strings from <code>report.json</code> ranked verdicts (best count, inconclusive count, timeout count), never free prose.</p>
-<div id="verdict-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:verdict:begin -->
+<p>Across 59 ranked cells, pgbouncer is best in 1, inconclusive in 11, loses in 3; N/A (unsupported) in 0 cells, timeout/inconclusive in 4 cells. (Derived from report.json ranked verdicts.)</p>
+<!-- DOSSIER:verdict:end -->
+<h3>Resource evidence</h3>
+<!-- DOSSIER:resources:begin -->
+<table><tr><th>Signal</th><th>Median over measured raw</th></tr>
+<tr><td>pgbench CPU time</td><td>2.89 s (n=166)</td></tr>
+<tr><td>pgbench peak RSS</td><td>59,296 KB</td></tr>
+<tr><td>Iron</td><td>AMD EPYC 7763 64-Core Processor, kernel 6.17.0-1022-azure, 4 CPUs, pgbench -j 4</td></tr>
+<tr><td>PG config status</td><td>0 enforced, 166 disclosed, 0 other</td></tr>
+</table>
+<p class="note">Auth posture: scram-sha-256 on every frontend (M9-E1 equalized control); scram-sha-256 via auth_file users.txt.</p>
+<p class="note">Dataset: per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk.</p>
+<!-- DOSSIER:resources:end -->
 </div>
 
 <div class="section" id="s-na">
 <h2>N/A table</h2>
 <p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated. Over-cap cells read <code>timeout/inconclusive</code>.</p>
-<div id="na-block"><p class="note">Loading live data from committed medians (serve over HTTP).</p></div>
+<!-- DOSSIER:na:begin -->
+<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>
+<tr><td>M1-3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-P2</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-P3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-T2</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M9-C3</td><td>timeout/inconclusive</td><td>-</td></tr>
+</table>
+<!-- DOSSIER:na:end -->
 </div>
 
 <div class="section" id="s-repro">
 <h2>Reproduce it</h2>
 <pre>./poolduel/repro.sh --dry-run   # M1 pilot plan, runs nothing
 ./poolduel/repro.sh --report    # raw JSON -&gt; medians, CSVs, report.json
-./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON</pre>
+./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON
+./poolduel/repro.sh --dossiers  # bundles -&gt; pre-rendered dossier pages</pre>
 <p>Method: <a href="../docs/methodology.md">docs/methodology.md</a> section 8 (reproducibility-by-adversary). Comparison page: <a href="../">../</a>.</p>
 </div>
 
@@ -109,96 +153,17 @@ Poolduel per-pooler deep-dive: PgBouncer. Refs #302 (never Closes without explic
 <script>
 (function () {
   "use strict";
-  var SLUG = "pgbouncer";
-  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
-  function naturalKey(s) {
-    return String(s).split(/(\d+)/).map(function (part) {
-      return (/^\d+$/.test(part) ? ("000000" + part).slice(-6) : part);
-    }).join("");
-  }
-  function fetchJson(url) {
-    return fetch(url, { cache: "no-store" }).then(function (r) {
-      return r.ok ? r.json() : null;
-    }).catch(function () { return null; });
-  }
-  function fetchFailNote(what) {
-    return "<p class='note'>Live results unavailable here: " + esc(what) +
-      " did not load (serve poolduel/ over HTTP).</p>";
-  }
-  fetchJson("../results/report.json").then(function (bundle) {
-    if (!bundle) {
-      document.getElementById("flat-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      document.getElementById("verdict-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      return;
-    }
-    var flat = bundle.flatness ? bundle.flatness[SLUG] : null;
-    var flatHost = document.getElementById("flat-block");
-    if (flat) {
-      flatHost.innerHTML = "<table><tr><th>Configs measured</th><th>Spread</th>" +
-        "<th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>" +
-        esc(flat.configs_measured) + "</td><td>" +
-        (flat.spread == null ? "-" : (100 * flat.spread).toFixed(1) + "%") +
-        "</td><td>" + esc(flat.verdict) + "</td><td>" +
-        (flat.peak ? esc(flat.peak.cell_id) + " @ " + esc(flat.peak.tps_median) +
-          " (" + esc(flat.peak.workload || "?") + ")" : "-") +
-        "</td><td>" +
-        (flat.trough ? esc(flat.trough.cell_id) + " @ " + esc(flat.trough.tps_median) +
-          " (" + esc(flat.trough.workload || "?") + ")" : "-") +
-        "</td></tr></table>";
-    }
-    var best = bundle.best || {};
-    var cells = Object.keys(best).sort(function (a, b) {
-      var ka = naturalKey(a), kb = naturalKey(b);
-      return ka < kb ? -1 : ka > kb ? 1 : 0;
-    });
-    var nBest = 0, nInc = 0, nLose = 0, nNA = 0, nTimeout = 0;
-    cells.forEach(function (cell) {
-      var info = best[cell];
-      var mine = (info.ranked || []).filter(function (r) { return r.pooler === SLUG; })[0];
-      if (mine) {
-        if (mine.verdict === "best") nBest++;
-        else if (String(mine.verdict).indexOf("inconclusive") >= 0) nInc++;
-        else nLose++;
-      }
-      (info.na || []).forEach(function (n) {
-        if (n.pooler === SLUG) {
-          if (n.status === "N/A (unsupported)") nNA++;
-          else nTimeout++;
-        }
+  document.querySelectorAll(".viewtoggle button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var table = btn.closest(".section").querySelector("table");
+      var want = btn.getAttribute("data-filter");
+      table.closest(".section").querySelectorAll(".viewtoggle button")
+        .forEach(function (b) { b.classList.remove("on"); });
+      btn.classList.add("on");
+      table.querySelectorAll("tr[data-status]").forEach(function (row) {
+        row.style.display = (want === "all" ||
+          row.getAttribute("data-status") === want) ? "" : "none";
       });
-    });
-    document.getElementById("verdict-block").innerHTML =
-      "<p>Across " + cells.length + " ranked cells, " + esc(SLUG) +
-      " is best in " + nBest + ", inconclusive in " + nInc +
-      ", loses in " + nLose + "; N/A (unsupported) in " + nNA +
-      " cells, timeout/inconclusive in " + nTimeout +
-      " cells. (Derived from report.json ranked verdicts.)</p>";
-  });
-  fetchJson("../results/m1/medians.json").then(function (m1) {
-    fetchJson("../results/m2/medians.json").then(function (m2) {
-      if (!m1 && !m2) {
-        document.getElementById("na-block").innerHTML =
-          fetchFailNote("committed medians");
-        return;
-      }
-      var all = (m1 || []).concat(m2 || []);
-      var mine = all.filter(function (e) { return e.pooler === SLUG; });
-      var na = mine.filter(function (e) { return e.status === "N/A (unsupported)"; });
-      var host = document.getElementById("na-block");
-      if (!mine.length) return;
-      var html = "<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>";
-      mine.sort(function (a, b) {
-        var ka = naturalKey(a.cell_id), kb = naturalKey(b.cell_id);
-        return ka < kb ? -1 : ka > kb ? 1 : 0;
-      }).forEach(function (e) {
-        html += "<tr><td>" + esc(e.cell_id) + "</td><td>" + esc(e.status) +
-          "</td><td>" + (e.tps && e.tps.median != null ? esc(e.tps.median) : "-") +
-          "</td></tr>";
-      });
-      host.innerHTML = html + "</table><p class='note'>" + na.length +
-        " N/A (unsupported) cells with nulls.</p>";
     });
   });
 })();
