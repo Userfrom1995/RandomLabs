@@ -366,7 +366,7 @@ milestones autonomously, notify once when publishable. Blueprint:
 `ideas/2026-09-13-poolduel-redesign.md`. All PRs use `Refs #302`; no
 `Closes #302` until the plan section 11 full gate passes.
 
-Active Milestone: M9 (definition in review; M8 complete)
+Active Milestone: M10 (statistics + soak definition; M9 GREEN held at 37d7948c)
 
 - Milestone 5 (charter + registry + spec + drift test): [x] IA lock
   verified (relative links, vendored ECharts 5.5.1, no CDN, no Mermaid
@@ -690,5 +690,54 @@ Verification: 437/437 full suite green (43 M9 tests), `check.py`
 exit 0, M9 dry-run plans verified, no em dashes.
 
 - the Fixer
+
+- the Builder
+
+## M10 build log (Builder, 2026-09-14, branch `opencode/issue302-20260914094202`)
+
+Implements the M10 slice of `ideas/2026-09-13-poolduel-redesign.md`
+(soak + statistics rebuild, plan sections 5/7). Harness + docs +
+staged sweep only; no sweep execution (Maintainer dispatches after
+Lab promotes `poolduel/ci/poolduel-m10-soak.yml`), no numbers
+published (claims.md pre-registration frozen).
+
+Active Milestone: M10 (statistics + soak definition; M9 GREEN held)
+
+- New: `harness/statistics.py` (paired bootstrap 95% CIs B=5000
+  seed 20260914 deterministic, bootstrap p, Holm step-down alpha
+  0.05, Tukey-IQR outlier rule + trimmed sensitivity with
+  forensic demotion, compare_ci effect/CI/verdict/p order,
+  family_verdicts headline triple-gate, CLAIM_CELLS +
+  rederive_claims with kill rule), `harness/soak.py` (3 cells x
+  6 arms x 30/60-min tiers x 3 paired repeats, 36 chunks
+  m10s01..m10s36, 108 arm-runs, 86.4 measured h, 200-min cap
+  with written 120-deviation rationale, SUPAVISOR_SOAK_DEFERRAL,
+  soak_drift), staged `poolduel/ci/poolduel-m10-soak.yml`.
+- Wiring: runner pre/post resource sampling (never raises,
+  additive, old rows valid), schema OPTIONAL_FIELDS, check.py
+  soak coherence (success line byte-identical), cli --matrix
+  soak + --list-soak, report.py --m9-dir + build_statistics +
+  bundle/write_outputs m9 + statistics keys (m1/m2-only shape
+  unchanged, old gate kept for backward comparison), repro.sh
+  --report m9 dirs.
+- Docs: spec-v1 s6 M10 closed, methodology s6 rewritten (old
+  gate retired), new `docs/m10-soak-matrix.md` (composition,
+  budget, drift figures, 6 scope decisions). claims.md untouched.
+- Tests: `tests/test_m10_statistics.py` (28), `tests/test_m10_soak.py`
+  (34), `tests/test_m10_report.py` (7 wiring/compat/CLI).
+- Proof (throwaway dirs, results/ untouched): full B=5000 rebuild
+  over committed data gives 42+111+250 medians (342 measured),
+  family 98 with 96 Holm-gated headlines + 2 inconclusive; claims
+  1/2/3/5 survive with excluding-zero CIs, claim 4 killed by
+  mixed_status (kill rule visibly working, never a win).
+- `Refs #302`: no `Closes`, no owner notification (mandate rule 6;
+  M11/M12 remain). Follow-ups: Lab promotes the soak sweep and
+  switches the M9 aggregate to `report --m9-dir`; Maintainer
+  dispatches soak; Builder M11 reads committed bundles.
+
+Current step: M10 implementation complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + --list-soak +
+  /tmp rebuild check) -> merge -> Lab promotion -> soak dispatch
+  -> Builder M11 per blueprint.
 
 - the Builder

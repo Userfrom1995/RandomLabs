@@ -118,3 +118,31 @@
   hours (`cli --list-m9`, `docs/m9-matrix.md`); staged sweep
   `poolduel/ci/poolduel-m9.yml` (Lab promotes). M2-at-100 deferred
   to M9b behind the C-block gate (written reason, not silence).
+- M10 (closed 2026-09-14): statistics rebuild plus soak definition
+  (measured by the staged soak sweep; headlines from M11 on). Paired
+  95 percent bootstrap CIs on paired differences
+  (`harness/statistics.py`: `BOOTSTRAP_B` 5000, `BOOTSTRAP_SEED`
+  20260914, deterministic across machines; `compare_ci` reports
+  effect plus CI first, verdict second, p-value last; `inconclusive`
+  means the CI includes zero, evidence is quarantined, too few
+  repeats, a sensitivity flip, or mixed statuses, and the entry says
+  which); Holm step-down across each matrix family
+  (`holm_adjust`, alpha 0.05; a headline needs CI-excludes-zero AND
+  Holm-adjusted p below alpha AND no quarantine label); outlier rule
+  (Tukey IQR fences 1.5 flag / 3.0 extreme, `OUTLIER_RULE` verbatim,
+  plus trimmed-mean sensitivity: a verdict flip demotes to
+  inconclusive with forensics retained, never silently dropped);
+  per-repeat p99/p999 feed the CI machinery at repeat level, never
+  pooled; quarantined p-latency forces tps-only verdicts labeled
+  on-figure; claims.md candidates re-derived by `rederive_claims`
+  with the kill rule enforced (CI includes zero or quarantined
+  dependency ships as `inconclusive`, never a win). The old
+  min-max-band plus tps/p99-agreement gate is retired as a headline
+  rule and stays in `harness/stats.py` plus the report
+  best/pairwise sections for backward comparison only. Soak matrix
+  (`harness/soak.py`, `docs/m10-soak-matrix.md`): 3 cells (M1-1
+  standard, M1-4 saturation, M1-6 churn shapes) by 6 arms by
+  30/60 min tiers, 3 paired repeats, 36 chunks staged at
+  `poolduel/ci/poolduel-m10-soak.yml` (Lab promotes); per-run
+  pre/post resource samples (`resources_pre/post/drift`, nullable
+  for old rows) feed RSS/FD leak plus tail-drift figures.
