@@ -17,7 +17,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 case "$MODE" in
-  --report|--charts|--pagemeta|--site|--dossiers|--dry-run|--m2-dry-run|--m9-dry-run) ;;
+  --report|--charts|--pagemeta|--site|--dossiers|--supplement|--dry-run|--m2-dry-run|--m9-dry-run) ;;
   *)
     if ! command -v pgbench >/dev/null 2>&1; then
       echo "poolduel repro: pgbench is required (install PostgreSQL 17)" >&2
@@ -172,6 +172,16 @@ case "$MODE" in
       --out poolduel/results/dossiermeta.json \
       --apply
     ;;
+  --supplement)
+    echo "poolduel repro: build supplementary-page facts from committed bundles"
+    python3 -m poolduel.harness.supplement \
+      --m1 poolduel/results/m1/medians.json \
+      --m2 poolduel/results/m2/medians.json \
+      --m9 poolduel/results/m9/medians.json \
+      --report poolduel/results/report.json \
+      --out poolduel/results/supplementmeta.json \
+      --apply
+    ;;
   --charts)
     echo "poolduel repro: build report then chart options"
     "$0" --report
@@ -182,7 +192,7 @@ case "$MODE" in
       --out poolduel/results/charts
     ;;
   *)
-    echo "usage: repro.sh [--pilot|--full|--dry-run|--report|--charts|--pagemeta|--site|--dossiers]" >&2
+    echo "usage: repro.sh [--pilot|--full|--dry-run|--report|--charts|--pagemeta|--site|--dossiers|--supplement]" >&2
     echo "       repro.sh [--m2-smoke|--m2-chunk <name>|--m2-na|" >&2
     echo "                --m2-dry-run|--m2-full]" >&2
     echo "       repro.sh [--m9-smoke|--m9-chunk <name>|--m9-na|" >&2

@@ -162,4 +162,18 @@
   (median CPU/RSS over measured raw, iron record, auth/dataset
   posture, PG config enforced/disclosed/other). Live JS stays
   enhancement-only (`poolduel-charts.js` lookups now cover m9
-  medians with max-n dedupe so served pages never clobber M9 rows).
+   medians with max-n dedupe so served pages never clobber M9 rows).
+- M11d (this change): supplementary sections plus design system.
+  Four static-first pages (`poolduel/guide/`, `poolduel/architecture/`,
+  `poolduel/methodology/`, `poolduel/reproducibility/`) with two-way
+  nav to the comparison page and a prev/next ring across the four.
+  `harness/supplement.py` (`repro.sh --supplement`) builds
+  `results/supplementmeta.json` from committed bundles (counts, pins,
+  SHAs) and splices one generated meta fragment into
+  `SUPPLEMENT:meta` markers; all prose (decision tree, taxonomy,
+  lifecycle text diagrams, runbook, FAQ, glossary, BibTeX, errata,
+  verified-by) is static markup. Shared `assets/poolduel-theme.css`
+  (dark default, light toggle, print) plus `assets/poolduel-ui.js`
+  (enhancement-only: theme, permalinks, picker, BibTeX copy, FAQ).
+  Memory-per-1000-idle ships as an honest absent table until the
+  soak sweep measures it, never an estimate.
