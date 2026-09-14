@@ -11,7 +11,7 @@ on:
   # medians land in git but Pages stays stale (seen 2026-09-12: no deploy on
   # 8a8e0989 or 77ee77d). Redeploy declaratively on sweep completion instead.
   workflow_run:
-    workflows: [poolduel-m1, poolduel-m2, poolduel-m9]
+    workflows: [poolduel-m1, poolduel-m2, poolduel-m9, poolduel-m10-soak]
     types: [completed]
 
 permissions:
