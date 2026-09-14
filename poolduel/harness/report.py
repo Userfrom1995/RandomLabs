@@ -28,6 +28,8 @@ import os
 import sys
 
 from .schema import POOLER_VERSIONS, validate_cell
+from .statistics import (ALPHA, BOOTSTRAP_B, BOOTSTRAP_SEED, OUTLIER_RULE,
+                         compare_ci, family_verdicts, rederive_claims)
 from .stats import compare_pair, summarize
 
 # Flatness verdict threshold: a pooler whose tps medians spread more than
@@ -331,10 +333,18 @@ def matrix_csv(medians):
     return buf.getvalue()
 
 
-def build_bundle(m1_medians, m2_medians, pg_version="PG 17"):
-    """Single report bundle consumed by index.html live hooks."""
+def build_bundle(m1_medians, m2_medians, pg_version="PG 17",
+                 m9_medians=None, statistics=None):
+    """Single report bundle consumed by index.html live hooks.
+
+    The M3 best/pairwise/iso/flatness sections keep the retired
+    min-max-band gate for backward comparison only (plan section 5):
+    headlines must come from the ``statistics`` section (paired
+    bootstrap CIs with Holm gating) once present. With no M9 data the
+    bundle shape is byte-identical to the M3 form.
+    """
     medians = list(m1_medians) + list(m2_medians)
-    return {
+    bundle = {
         "pg_version": pg_version,
         "pooler_versions": dict(POOLER_VERSIONS),
         "m1_cells": sorted({e["cell_id"] for e in m1_medians}),
@@ -346,9 +356,88 @@ def build_bundle(m1_medians, m2_medians, pg_version="PG 17"):
         "iso_regions": iso_regions(medians),
         "flatness": flatness(medians),
     }
+    if m9_medians is not None:
+        bundle["m9_cells"] = sorted({e["cell_id"] for e in m9_medians})
+        bundle["m9_measured"] = len(measured_entries(m9_medians))
+        bundle["m9_na"] = len(na_entries(m9_medians))
+    if statistics is not None:
+        bundle["statistics"] = statistics
+    return bundle
 
 
-def write_outputs(m1_medians, m2_medians, out_dir, pg_version="PG 17"):
+def build_statistics(m9_medians, m9_records, b=BOOTSTRAP_B,
+                     seed=BOOTSTRAP_SEED):
+    """M10 statistics rebuild over the M9 resweep (plan section 5).
+
+    ``m9_medians`` is the ``aggregate()`` list (quarantine flags and
+    head ranking are read from it); ``m9_records`` are the raw
+    per-repeat rows. Returns the ``statistics`` bundle section:
+    method constants, the Holm-gated best-vs-rest family over every
+    M9 cell with two or more measured arms, and the re-derived
+    claims.md verdicts with the kill rule applied. The old
+    min-max-band gate is NOT recomputed here; it stays in
+    ``best``/``pairwise`` for backward comparison.
+    """
+    raw_by_key = {}
+    for rec in m9_records:
+        raw_by_key.setdefault(
+            (rec.get("cell_id"), rec.get("pooler")), []).append(rec)
+    qmap = {(e.get("cell_id"), e.get("pooler")): bool(e.get("p_quarantined"))
+            for e in (m9_medians or []) if isinstance(e, dict)}
+    comparisons = []
+    for cell_id in sorted({e["cell_id"] for e in (m9_medians or [])
+                           if e.get("status") == "measured"}):
+        arms = sorted(
+            [e for e in m9_medians
+             if e["cell_id"] == cell_id and e["status"] == "measured"],
+            key=lambda e: (e["tps"]["median"] is None,
+                           -(e["tps"]["median"] or 0.0)))
+        if len(arms) < 2:
+            continue
+        head = arms[0]
+        head_rows = raw_by_key.get((cell_id, head["pooler"]), [])
+        for entry in arms[1:]:
+            arm_rows = raw_by_key.get((cell_id, entry["pooler"]), [])
+            try:
+                result = compare_ci(
+                    head_rows, arm_rows, metric="tps",
+                    a_quarantined=qmap.get((cell_id, head["pooler"]),
+                                           False),
+                    b_quarantined=qmap.get((cell_id, entry["pooler"]),
+                                           False),
+                    b=b, seed=seed)
+            except ValueError as exc:
+                result = {"effect_abs": None, "effect_rel": None,
+                          "ci_lo": None, "ci_hi": None,
+                          "verdict": "inconclusive", "reason": str(exc),
+                          "quarantine_label": None, "p": None}
+            comparisons.append({"cell_id": cell_id, "a": head["pooler"],
+                                "b": entry["pooler"], **result})
+    family = family_verdicts(comparisons)
+    claims = rederive_claims(m9_medians or [], raw_by_key, b=b, seed=seed)
+    headlines = [c for c in family if c.get("headline")]
+    return {
+        "method": {
+            "bootstrap_b": b,
+            "bootstrap_seed": seed,
+            "alpha": ALPHA,
+            "outlier_rule": OUTLIER_RULE,
+            "headline_rule": "paired 95 percent bootstrap CI excludes "
+                             "zero AND Holm-adjusted p < alpha AND no "
+                             "quarantine label",
+            "old_gate": "min-max bands + tps/p99 agreement retired as "
+                        "headline rule; retained in best/pairwise for "
+                        "backward comparison only",
+        },
+        "family_size": len(family),
+        "headlines": len(headlines),
+        "family": family,
+        "claims": claims,
+    }
+
+
+def write_outputs(m1_medians, m2_medians, out_dir, pg_version="PG 17",
+                  m9_medians=None, statistics=None):
     """Write medians.json + matrix.csv per matrix plus report.json."""
     os.makedirs(os.path.join(out_dir, "m1"), exist_ok=True)
     os.makedirs(os.path.join(out_dir, "m2"), exist_ok=True)
@@ -357,7 +446,14 @@ def write_outputs(m1_medians, m2_medians, out_dir, pg_version="PG 17"):
             json.dump(med, f, indent=2, sort_keys=True)
         with open(os.path.join(out_dir, name, "matrix.csv"), "w") as f:
             f.write(matrix_csv(med))
-    bundle = build_bundle(m1_medians, m2_medians, pg_version=pg_version)
+    if m9_medians:
+        os.makedirs(os.path.join(out_dir, "m9"), exist_ok=True)
+        with open(os.path.join(out_dir, "m9", "medians.json"), "w") as f:
+            json.dump(m9_medians, f, indent=2, sort_keys=True)
+        with open(os.path.join(out_dir, "m9", "matrix.csv"), "w") as f:
+            f.write(matrix_csv(m9_medians))
+    bundle = build_bundle(m1_medians, m2_medians, pg_version=pg_version,
+                          m9_medians=m9_medians, statistics=statistics)
     with open(os.path.join(out_dir, "report.json"), "w") as f:
         json.dump(bundle, f, indent=2, sort_keys=True)
     return bundle
@@ -371,6 +467,13 @@ def build_parser():
                    help="M1 results dir (contains raw/); repeatable")
     p.add_argument("--m2-dir", action="append", default=[],
                    help="M2 results dir (contains raw/); repeatable")
+    p.add_argument("--m9-dir", action="append", default=[],
+                   help="M9 results dir (contains raw/); repeatable; "
+                        "adds the M10 statistics rebuild to report.json")
+    p.add_argument("--bootstrap-b", type=int, default=BOOTSTRAP_B,
+                   help="bootstrap resamples for the M10 rebuild")
+    p.add_argument("--bootstrap-seed", type=int, default=BOOTSTRAP_SEED,
+                   help="deterministic seed for the M10 rebuild")
     p.add_argument("--out", default="poolduel/results",
                    help="output dir for m1/, m2/, report.json")
     p.add_argument("--pg-version", default="PG 17")
@@ -388,11 +491,13 @@ def _raw_subdirs(dirs):
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not args.m1_dir and not args.m2_dir:
-        parser.error("need at least one of --m1-dir / --m2-dir")
+    if not args.m1_dir and not args.m2_dir and not args.m9_dir:
+        parser.error("need at least one of --m1-dir / --m2-dir / --m9-dir")
     errors = []
-    m1_medians, m2_medians = [], []
-    for label, dirs in (("m1", args.m1_dir), ("m2", args.m2_dir)):
+    m1_medians, m2_medians, m9_medians = [], [], []
+    m9_records = []
+    for label, dirs in (("m1", args.m1_dir), ("m2", args.m2_dir),
+                        ("m9", args.m9_dir)):
         if not dirs:
             continue
         records, load_errors = load_raw(_raw_subdirs(dirs))
@@ -403,18 +508,34 @@ def main(argv=None):
             continue
         if label == "m1":
             m1_medians = aggregate(records)
-        else:
+        elif label == "m2":
             m2_medians = aggregate(records)
+        else:
+            m9_medians = aggregate(records)
+            m9_records = records
     if errors:
         for err in errors:
             print("poolduel report FAILED: %s" % err, file=sys.stderr)
         return 1
+    statistics = None
+    if m9_records:
+        statistics = build_statistics(
+            m9_medians, m9_records, b=args.bootstrap_b,
+            seed=args.bootstrap_seed)
     bundle = write_outputs(m1_medians, m2_medians, args.out,
-                           pg_version=args.pg_version)
-    print("poolduel report: %d m1 + %d m2 median entries "
+                           pg_version=args.pg_version,
+                           m9_medians=m9_medians or None,
+                           statistics=statistics)
+    print("poolduel report: %d m1 + %d m2 + %d m9 median entries "
           "(%d measured, %d N/A/timeout) -> %s"
-          % (len(m1_medians), len(m2_medians),
-             bundle["measured"], bundle["na"], args.out))
+          % (len(m1_medians), len(m2_medians), len(m9_medians),
+             bundle["measured"] + bundle.get("m9_measured", 0),
+             bundle["na"] + bundle.get("m9_na", 0), args.out))
+    if statistics is not None:
+        print("poolduel statistics: family %d, headlines %d, claims %s"
+              % (statistics["family_size"], statistics["headlines"],
+                 ",".join("%s=%s" % (c["claim"], c["verdict"])
+                           for c in statistics["claims"])))
     return 0
 
 

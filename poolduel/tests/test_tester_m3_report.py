@@ -181,7 +181,8 @@ class M3ReproModesTest(unittest.TestCase):
     def test_report_with_no_sweep_data_fails_loudly(self):
         with tempfile.TemporaryDirectory() as tmp:
             env = {"OUT": os.path.join(tmp, "m1"),
-                   "M2OUT": os.path.join(tmp, "m2")}
+                   "M2OUT": os.path.join(tmp, "m2"),
+                   "M9OUT": os.path.join(tmp, "m9")}
             proc = self._run(["--report"], env_extra=env)
             self.assertNotEqual(proc.returncode, 0)
             combined = proc.stdout + proc.stderr
