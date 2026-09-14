@@ -79,14 +79,30 @@ iso-region slices on shared axes (clients, backends, duration). Unsupported
 cells are `N/A (unsupported)`, never zero. Peaks carry exact configs plus
 surface-flatness analysis (fast everywhere versus fast at one magic setting).
 
-## 6. Comparison logic
+## 6. Comparison logic (M10 rebuild; old gate retired)
 
-Headline deltas require non-overlapping min-max bands across repeats AND
-same-direction agreement of tps and p99; otherwise the comparison is
-`inconclusive` and the issue stays open on `Refs`, never `Closes`, for
-negative or marginal results. Claims are comparative deltas inside stated
-hardware envelopes only, never absolute capacity claims. Version upgrades
-invalidate carried-forward numbers and trigger re-runs.
+Headlines come from paired 95 percent bootstrap CIs on paired
+differences across repeats (`harness/statistics.py`), never from
+min-max bands alone. Repeats: flagship n>=10, standard n>=7, at
+least 3 seeds, paired seeds across arms (M9; M1/M2 ran n=3-5
+unpaired and are labeled as such wherever shown). A headline needs
+all three: the paired CI excludes zero, the Holm-adjusted p-value
+is below 0.05 across the matrix family, and no quarantine label
+applies. Verdicts report effect plus CI first, verdict second,
+p-value last or omitted. `Inconclusive` means the CI includes zero,
+the evidence is quarantined, too few repeats survived, a
+trimmed-mean sensitivity check flipped the verdict, or repeat
+statuses mixed - and the entry says which, with forensics retained.
+Outliers are flagged by a stated Tukey-IQR rule, never silently
+dropped. Per-repeat p99/p999 feed the CI machinery at repeat level,
+never pooled raw transactions across repeats; quarantined
+p-latency forces labeled tps-only verdicts. The pre-M10 gate
+(non-overlapping min-max bands plus tps/p99 directional agreement)
+is retired as a headline rule and stays in the codebase and report
+bundles for backward comparison only. Claims are comparative
+deltas inside stated hardware envelopes only, never absolute
+capacity claims. Version upgrades invalidate carried-forward
+numbers and trigger re-runs.
 
 ## 7. Threats to validity (mandatory in the report)
 
