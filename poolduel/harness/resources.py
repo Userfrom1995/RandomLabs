@@ -22,12 +22,17 @@ Fields recorded on ``resources`` (all nullable):
   ``tup_fetched``, ``conflicts``, ``deadlocks``, ``temp_bytes``)
   between snapshots taken before and after the measured run; None when
   the snapshot queries are unavailable.
+- ``wall_s``: monotonic clock stamp (``time.monotonic``) of this
+  sample; the M10 soak pairs pre/post samples and diffs the stamps
+  into the run wall duration (``soak_drift``). None when the clock is
+  unavailable, never fabricated.
 
 Stdlib only. Nothing here touches the network; the SQL strings are
 executed by the workflow/runner (Lab scope), deltas computed here.
 """
 
 import os
+import time
 
 # Counters read from pg_stat_database for one snapshot row of the
 # benchmark database. All are monotonically non-decreasing bigint
@@ -38,7 +43,13 @@ PG_STAT_KEYS = ("xact_commit", "xact_rollback", "blks_read", "blks_hit",
                 "temp_bytes")
 
 RESOURCE_KEYS = ("cpu_time_s", "peak_rss_kb", "fd_count",
-                 "pool_wait", "pg_stat")
+                 "pool_wait", "pg_stat", "wall_s")
+
+# Soak drift fields (poolduel/harness/soak.py soak_drift output): leak
+# deltas plus the wall window they were measured across. RSS/FD deltas
+# may be negative (shrinkage is evidence, not an error), so no sign
+# constraint applies; every field is nullable (missing -> None).
+DRIFT_KEYS = ("rss_delta_kb", "fd_delta", "cpu_time_s", "duration_s")
 
 
 def pg_stat_snapshot_sql(dbname="benchdb"):
@@ -92,11 +103,20 @@ def _self_fd_count():
         return None
 
 
+def _wall_now():
+    try:
+        return float(time.monotonic())
+    except Exception:
+        return None
+
+
 def collect_self_resources(pool_wait=None, pg_stat=None):
     """Best-effort harness-side resource record (never raises).
 
     ``pool_wait``/``pg_stat`` are caller-supplied (adapter counters,
     pg_stat deltas) or None; this function never fabricates them.
+    ``wall_s`` stamps the sample on the monotonic clock for soak
+    pre/post pairing (None only when the clock itself fails).
     """
     try:
         cpu, rss = _self_rusage()
@@ -106,10 +126,12 @@ def collect_self_resources(pool_wait=None, pg_stat=None):
             "fd_count": _self_fd_count(),
             "pool_wait": dict(pool_wait) if pool_wait is not None else None,
             "pg_stat": dict(pg_stat) if pg_stat is not None else None,
+            "wall_s": _wall_now(),
         }
     except Exception:
         return {"cpu_time_s": None, "peak_rss_kb": None,
-                "fd_count": None, "pool_wait": None, "pg_stat": None}
+                "fd_count": None, "pool_wait": None, "pg_stat": None,
+                "wall_s": None}
 
 
 def validate_resources(value):
@@ -127,7 +149,7 @@ def validate_resources(value):
     for key in value:
         if key not in RESOURCE_KEYS:
             errors.append("resources forbids extra field %r" % key)
-    for key in ("cpu_time_s", "peak_rss_kb", "fd_count"):
+    for key in ("cpu_time_s", "peak_rss_kb", "fd_count", "wall_s"):
         if key in value and value[key] is not None:
             if not isinstance(value[key], (int, float)):
                 errors.append("resources.%s must be numeric or null" % key)
@@ -137,4 +159,28 @@ def validate_resources(value):
         if key in value and value[key] is not None:
             if not isinstance(value[key], dict):
                 errors.append("resources.%s must be an object or null" % key)
+    return errors
+
+
+def validate_drift(value):
+    """Error strings for a ``resources_drift`` block (empty when valid).
+
+    None (missing block: non-soak rows, or pre-M10 rows) is valid.
+    Present blocks must be dicts with exactly the known keys; every
+    field is numeric-or-null with no sign constraint (RSS/FD deltas
+    may legitimately go negative).
+    """
+    if value is None:
+        return []
+    if not isinstance(value, dict):
+        return ["resources_drift must be an object or null"]
+    errors = []
+    for key in value:
+        if key not in DRIFT_KEYS:
+            errors.append("resources_drift forbids extra field %r" % key)
+    for key in DRIFT_KEYS:
+        if key in value and value[key] is not None:
+            if not isinstance(value[key], (int, float)):
+                errors.append(
+                    "resources_drift.%s must be numeric or null" % key)
     return errors
