@@ -1,0 +1,1116 @@
+{
+  "counts": {
+    "m1_measured": 35,
+    "m1_total": 42,
+    "m2_na": 7,
+    "m2_total": 111
+  },
+  "executive_cards": [
+    {
+      "arms": "pgbouncer M1-1 vs pgbouncer M2-I5",
+      "badge": "verified",
+      "claim": 1,
+      "detail": "Verdict A faster: paired effect -270 tps, 95% CI [-2,707, -100] (excludes zero, Holm-gated headline)",
+      "title": "Multi-process PgBouncer (so_reuseport, 2 instances) removes the single-core ceiling on read-heavy load",
+      "verdict": "A faster"
+    },
+    {
+      "arms": "direct M9-E1 vs odyssey M9-E1",
+      "badge": "verified",
+      "claim": 2,
+      "detail": "Verdict B faster: paired effect 20 tps, 95% CI [18, 24] (excludes zero, Holm-gated headline)",
+      "title": "Under per-query connect/disconnect churn, direct PG collapses on fork cost while Odyssey holds throughput",
+      "verdict": "B faster"
+    },
+    {
+      "arms": "pgagroal M2-I1 vs pgagroal M2-I3",
+      "badge": "verified",
+      "claim": 3,
+      "detail": "Verdict A faster: paired effect -4,891 tps, 95% CI [-6,295, -4,502] (excludes zero, Holm-gated headline)",
+      "title": "For short queries on this iron, pgagroal epoll beats io_uring on throughput and tail latency",
+      "verdict": "A faster"
+    },
+    {
+      "arms": "direct M1-4 vs pgcat M1-4",
+      "badge": "inconclusive",
+      "claim": 4,
+      "detail": "No verified winner (mixed_status); ships as inconclusive, never as a win",
+      "title": "At 200 clients on a 10-connection pool, pooled arms hold throughput while direct PG degrades",
+      "verdict": "inconclusive"
+    },
+    {
+      "arms": "direct M1-3 vs pgpool M1-3",
+      "badge": "verified",
+      "claim": 5,
+      "detail": "Verdict A faster: paired effect -2,163 tps, 95% CI [-2,264, -1,531] (excludes zero, Holm-gated headline)",
+      "title": "Transaction pooling breaks server-side prepares; process-isolated arms survive",
+      "verdict": "A faster"
+    }
+  ],
+  "family": 98,
+  "flagship": [
+    {
+      "arms": [
+        {
+          "badge": "Best in class",
+          "n": 5,
+          "p99": "19.1 ms",
+          "pooler": "direct",
+          "status": "measured",
+          "tps_band": "24,039 [23,305-24,716]",
+          "tps_median": 24038.533387
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "35.3 ms",
+          "pooler": "pgagroal",
+          "status": "measured",
+          "tps_band": "2,294 [1,600-2,426]",
+          "tps_median": 2294.001345
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "7.5 ms",
+          "pooler": "pgbouncer",
+          "status": "measured",
+          "tps_band": "17,000 [16,860-20,394]",
+          "tps_median": 17000.202362
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "24.6 ms",
+          "pooler": "pgpool",
+          "status": "measured",
+          "tps_band": "15,835 [15,273-17,522]",
+          "tps_median": 15834.647514
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "10.2 ms",
+          "pooler": "odyssey",
+          "status": "measured",
+          "tps_band": "11,445 [11,392-12,755]",
+          "tps_median": 11445.408012
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "6.7 ms",
+          "pooler": "pgcat",
+          "status": "measured",
+          "tps_band": "19,629 [19,410-21,993]",
+          "tps_median": 19628.780704
+        }
+      ],
+      "cell_id": "M1-1",
+      "geometry": "100 clients / 10 pooled, 120s measured",
+      "head": "direct",
+      "title": "Read-heavy (SELECT-only), 100 clients / 10 pooled; flagship"
+    },
+    {
+      "arms": [
+        {
+          "badge": "Best in class",
+          "n": 5,
+          "p99": "42.7 ms",
+          "pooler": "direct",
+          "status": "measured",
+          "tps_band": "5,838 [4,305-5,987]",
+          "tps_median": 5838.235114
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "23.7 ms",
+          "pooler": "pgagroal",
+          "status": "measured",
+          "tps_band": "1,738 [1,137-1,794]",
+          "tps_median": 1737.699558
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "22.5 ms",
+          "pooler": "pgbouncer",
+          "status": "measured",
+          "tps_band": "4,527 [2,978-4,564]",
+          "tps_median": 4527.027756
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "55.6 ms",
+          "pooler": "pgpool",
+          "status": "measured",
+          "tps_band": "4,342 [3,282-4,376]",
+          "tps_median": 4342.186776
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "21.3 ms",
+          "pooler": "odyssey",
+          "status": "measured",
+          "tps_band": "4,795 [3,115-4,862]",
+          "tps_median": 4795.424215
+        },
+        {
+          "badge": "",
+          "n": 5,
+          "p99": "23.2 ms",
+          "pooler": "pgcat",
+          "status": "measured",
+          "tps_band": "4,066 [2,485-4,114]",
+          "tps_median": 4065.915379
+        }
+      ],
+      "cell_id": "M1-2",
+      "geometry": "50 clients / 10 pooled, 120s measured",
+      "head": "direct",
+      "title": "Read-write (TPC-B-like), 50 clients / 10 pooled; flagship"
+    },
+    {
+      "arms": [
+        {
+          "badge": "Best in class",
+          "n": 3,
+          "p99": "35.9 ms",
+          "pooler": "direct",
+          "status": "measured",
+          "tps_band": "6,123 [6,105-6,181]",
+          "tps_median": 6122.597034
+        },
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "pgagroal",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "pgbouncer",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "61.7 ms",
+          "pooler": "pgpool",
+          "status": "measured",
+          "tps_band": "3,127 [3,086-3,145]",
+          "tps_median": 3126.884985
+        },
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "odyssey",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "pgcat",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        }
+      ],
+      "cell_id": "M1-3",
+      "geometry": "50 clients / 10 pooled, 60s measured",
+      "head": "direct",
+      "title": "Read-write (TPC-B-like), 50 clients / 10 pooled; server-side prepares"
+    },
+    {
+      "arms": [
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "direct",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "33.6 ms",
+          "pooler": "pgagroal",
+          "status": "measured",
+          "tps_band": "1,558 [1,387-1,711]",
+          "tps_median": 1557.970181
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "14.9 ms",
+          "pooler": "pgbouncer",
+          "status": "measured",
+          "tps_band": "17,129 [17,073-17,141]",
+          "tps_median": 17128.579151
+        },
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "pgpool",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "20.3 ms",
+          "pooler": "odyssey",
+          "status": "measured",
+          "tps_band": "11,266 [11,199-11,470]",
+          "tps_median": 11265.95352
+        },
+        {
+          "badge": "Best in class",
+          "n": 3,
+          "p99": "12.5 ms",
+          "pooler": "pgcat",
+          "status": "measured",
+          "tps_band": "19,322 [18,864-19,331]",
+          "tps_median": 19322.287475
+        }
+      ],
+      "cell_id": "M1-4",
+      "geometry": "200 clients / 10 pooled, 60s measured",
+      "head": "pgcat",
+      "title": "Read-heavy (SELECT-only), 200 clients / 10 pooled"
+    },
+    {
+      "arms": [
+        {
+          "badge": "Best in class",
+          "n": 3,
+          "p99": "63.2 ms",
+          "pooler": "direct",
+          "status": "measured",
+          "tps_band": "5,698 [5,339-5,855]",
+          "tps_median": 5697.526141
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "253.4 ms",
+          "pooler": "pgagroal",
+          "status": "measured",
+          "tps_band": "602 [455-1,021]",
+          "tps_median": 601.977554
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "30.1 ms",
+          "pooler": "pgbouncer",
+          "status": "measured",
+          "tps_band": "3,931 [3,887-3,944]",
+          "tps_median": 3931.085306
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "70.1 ms",
+          "pooler": "pgpool",
+          "status": "measured",
+          "tps_band": "3,730 [3,595-3,964]",
+          "tps_median": 3729.805552
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "30.4 ms",
+          "pooler": "odyssey",
+          "status": "measured",
+          "tps_band": "3,985 [3,926-3,987]",
+          "tps_median": 3985.25233
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "26.6 ms",
+          "pooler": "pgcat",
+          "status": "measured",
+          "tps_band": "4,453 [4,414-4,459]",
+          "tps_median": 4453.374647
+        }
+      ],
+      "cell_id": "M1-5",
+      "geometry": "100 clients / 20 pooled, 60s measured",
+      "head": "direct",
+      "title": "Write-heavy (simple UPDATE), 100 clients / 20 pooled"
+    },
+    {
+      "arms": [
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "528.2 ms",
+          "pooler": "direct",
+          "status": "measured",
+          "tps_band": "265 [264-267]",
+          "tps_median": 265.322084
+        },
+        {
+          "badge": "",
+          "n": 0,
+          "p99": "-",
+          "pooler": "pgagroal",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "193.2 ms",
+          "pooler": "pgbouncer",
+          "status": "measured",
+          "tps_band": "523 [521-524]",
+          "tps_median": 523.259108
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "406.3 ms",
+          "pooler": "pgpool",
+          "status": "measured",
+          "tps_band": "266 [264-266]",
+          "tps_median": 265.792982
+        },
+        {
+          "badge": "Best in class",
+          "n": 3,
+          "p99": "17.0 ms",
+          "pooler": "odyssey",
+          "status": "measured",
+          "tps_band": "6,495 [6,472-6,520]",
+          "tps_median": 6494.827999
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "18.2 ms",
+          "pooler": "pgcat",
+          "status": "measured",
+          "tps_band": "5,709 [5,618-5,721]",
+          "tps_median": 5708.628882
+        }
+      ],
+      "cell_id": "M1-6",
+      "geometry": "100 clients / 10 pooled, 60s measured",
+      "head": "odyssey",
+      "title": "Read-heavy (SELECT-only), 100 clients / 10 pooled; reconnect-per-transaction churn"
+    },
+    {
+      "arms": [
+        {
+          "badge": "Best in class",
+          "n": 3,
+          "p99": "195.6 ms",
+          "pooler": "direct",
+          "status": "measured",
+          "tps_band": "3,093 [3,066-3,143]",
+          "tps_median": 3093.329084
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "224.7 ms",
+          "pooler": "pgagroal",
+          "status": "measured",
+          "tps_band": "522 [464-525]",
+          "tps_median": 521.935503
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "46.8 ms",
+          "pooler": "pgbouncer",
+          "status": "measured",
+          "tps_band": "2,539 [2,497-2,563]",
+          "tps_median": 2538.510368
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "259.6 ms",
+          "pooler": "pgpool",
+          "status": "measured",
+          "tps_band": "2,319 [2,313-2,329]",
+          "tps_median": 2319.037572
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "44.1 ms",
+          "pooler": "odyssey",
+          "status": "measured",
+          "tps_band": "2,711 [2,698-2,722]",
+          "tps_median": 2710.702769
+        },
+        {
+          "badge": "",
+          "n": 3,
+          "p99": "45.8 ms",
+          "pooler": "pgcat",
+          "status": "measured",
+          "tps_band": "2,579 [2,527-2,593]",
+          "tps_median": 2578.790279
+        }
+      ],
+      "cell_id": "M1-7",
+      "geometry": "100 clients / 10 pooled, 60s measured",
+      "head": "direct",
+      "title": "Read-write (TPC-B-like), 100 clients / 10 pooled"
+    }
+  ],
+  "flatness": [
+    {
+      "configs": 58,
+      "peak": "M2-I5 @ 31,237 tps",
+      "pooler": "direct",
+      "spread_pct": 99.4,
+      "trough": "M2-W6 @ 200 tps",
+      "verdict": "peaky"
+    },
+    {
+      "configs": 17,
+      "peak": "M2-S7 @ 20,476 tps",
+      "pooler": "odyssey",
+      "spread_pct": 95.0,
+      "trough": "M2-P4 @ 1,026 tps",
+      "verdict": "peaky"
+    },
+    {
+      "configs": 9,
+      "peak": "M2-I3 @ 2,584 tps",
+      "pooler": "pgagroal",
+      "spread_pct": 88.8,
+      "trough": "M2-I2 @ 289 tps",
+      "verdict": "peaky"
+    },
+    {
+      "configs": 15,
+      "peak": "M2-I5 @ 26,347 tps",
+      "pooler": "pgbouncer",
+      "spread_pct": 98.5,
+      "trough": "M2-W7 @ 392 tps",
+      "verdict": "peaky"
+    },
+    {
+      "configs": 14,
+      "peak": "M1-1 @ 19,629 tps",
+      "pooler": "pgcat",
+      "spread_pct": 89.4,
+      "trough": "M2-S14 @ 2,087 tps",
+      "verdict": "peaky"
+    },
+    {
+      "configs": 14,
+      "peak": "M2-I13 @ 16,597 tps",
+      "pooler": "pgpool",
+      "spread_pct": 98.7,
+      "trough": "M2-W10 @ 208 tps",
+      "verdict": "peaky"
+    }
+  ],
+  "headline_count": 96,
+  "iso_regions": [
+    {
+      "cells": [
+        "M2-I1",
+        "M2-I11",
+        "M2-I13",
+        "M2-I15",
+        "M2-I3",
+        "M2-I5",
+        "M2-I7",
+        "M2-I9",
+        "M2-S1",
+        "M2-S11",
+        "M2-S13",
+        "M2-S15",
+        "M2-S3",
+        "M2-S5",
+        "M2-S7",
+        "M2-S9",
+        "M2-T1",
+        "M2-T3"
+      ],
+      "label": "select-only, 100 clients / 10 pooled, 60s"
+    },
+    {
+      "cells": [
+        "M1-6",
+        "M2-W10",
+        "M2-W6",
+        "M2-W7",
+        "M2-W8",
+        "M2-W9"
+      ],
+      "label": "select-only, 100 clients / 10 pooled, 60s churn"
+    },
+    {
+      "cells": [
+        "M1-5",
+        "M2-W1",
+        "M2-W2",
+        "M2-W3",
+        "M2-W4",
+        "M2-W5"
+      ],
+      "label": "simple-update, 100 clients / 20 pooled, 60s"
+    },
+    {
+      "cells": [
+        "M1-3",
+        "M2-P1",
+        "M2-P2",
+        "M2-P3",
+        "M2-P4",
+        "M2-P5",
+        "M2-P6"
+      ],
+      "label": "tpcb-like, 50 clients / 10 pooled, 60s"
+    },
+    {
+      "cells": [
+        "M2-I10",
+        "M2-I12",
+        "M2-I14",
+        "M2-I16",
+        "M2-I2",
+        "M2-I4",
+        "M2-I6",
+        "M2-I8",
+        "M2-S10",
+        "M2-S12",
+        "M2-S14",
+        "M2-S16",
+        "M2-S2",
+        "M2-S4",
+        "M2-S6",
+        "M2-S8",
+        "M2-T2",
+        "M2-T4"
+      ],
+      "label": "tpcb-like, 50 clients / 10 pooled, 60s"
+    }
+  ],
+  "m2_blocks": [
+    {
+      "label": "Session pooling",
+      "prefix": "M2-S",
+      "rows": [
+        {
+          "cell_id": "M2-S1",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "18.6 ms",
+          "tps_band": "25,013 [24,905-25,108]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S2",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "250.0 ms",
+          "tps_band": "2,643 [1,797-2,991]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S3",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "18.6 ms",
+          "tps_band": "25,000 [24,974-25,054]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S4",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "327.4 ms",
+          "tps_band": "1,748 [1,455-3,883]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S5",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "18.6 ms",
+          "tps_band": "24,994 [24,963-25,082]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S6",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "163.3 ms",
+          "tps_band": "3,822 [1,294-3,937]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S7",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "19.7 ms",
+          "tps_band": "22,626 [22,446-22,996]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S8",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "62.9 ms",
+          "tps_band": "3,366 [3,235-3,405]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S9",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "19.5 ms",
+          "tps_band": "22,889 [22,582-23,101]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S10",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "65.4 ms",
+          "tps_band": "3,283 [3,278-3,494]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S11",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "19.4 ms",
+          "tps_band": "22,734 [22,713-24,662]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S12",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "61.4 ms",
+          "tps_band": "3,462 [3,377-3,518]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S13",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "18.7 ms",
+          "tps_band": "24,945 [24,675-25,088]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S14",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "186.9 ms",
+          "tps_band": "3,184 [3,044-4,085]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S15",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "19.8 ms",
+          "tps_band": "23,025 [22,540-24,508]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-S16",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "60.6 ms",
+          "tps_band": "3,435 [3,388-3,486]",
+          "verdict": "best"
+        }
+      ]
+    },
+    {
+      "label": "Statement pooling",
+      "prefix": "M2-T",
+      "rows": [
+        {
+          "cell_id": "M2-T1",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal",
+            "pgcat",
+            "pgpool"
+          ],
+          "p99": "18.7 ms",
+          "tps_band": "24,653 [24,106-24,738]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-T2",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal",
+            "pgbouncer",
+            "pgcat",
+            "pgpool"
+          ],
+          "p99": "58.6 ms",
+          "tps_band": "3,497 [3,425-3,503]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-T3",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "18.9 ms",
+          "tps_band": "24,712 [24,042-24,725]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-T4",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "63.3 ms",
+          "tps_band": "3,368 [3,318-3,511]",
+          "verdict": "best"
+        }
+      ]
+    },
+    {
+      "label": "I/O backends",
+      "prefix": "M2-I",
+      "rows": [
+        {
+          "cell_id": "M2-I1",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "15.1 ms",
+          "tps_band": "30,967 [29,472-31,472]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I2",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "214.6 ms",
+          "tps_band": "2,349 [2,292-2,528]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I3",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "15.3 ms",
+          "tps_band": "30,257 [29,383-31,145]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I4",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "156.2 ms",
+          "tps_band": "2,674 [2,193-3,026]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I5",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "14.9 ms",
+          "tps_band": "31,237 [30,787-31,386]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I6",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "256.2 ms",
+          "tps_band": "1,840 [1,585-1,981]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I7",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "18.5 ms",
+          "tps_band": "24,394 [24,234-24,726]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I8",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "59.1 ms",
+          "tps_band": "3,483 [3,395-3,491]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I9",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "18.7 ms",
+          "tps_band": "24,565 [23,982-24,699]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I10",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "59.3 ms",
+          "tps_band": "3,494 [3,490-3,530]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I11",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "18.8 ms",
+          "tps_band": "24,353 [24,298-24,601]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I12",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "54.0 ms",
+          "tps_band": "3,836 [3,796-3,876]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I13",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "19.0 ms",
+          "tps_band": "24,353 [23,591-24,356]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I14",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "61.2 ms",
+          "tps_band": "3,460 [3,459-3,466]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I15",
+          "head": "direct",
+          "na_arms": [
+            "pgpool"
+          ],
+          "p99": "18.8 ms",
+          "tps_band": "24,555 [24,434-24,584]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-I16",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "61.3 ms",
+          "tps_band": "3,416 [3,410-3,473]",
+          "verdict": "best"
+        }
+      ]
+    },
+    {
+      "label": "Workload twins",
+      "prefix": "M2-W",
+      "rows": [
+        {
+          "cell_id": "M2-W1",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "27.1 ms",
+          "tps_band": "8,648 [8,372-8,751]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W2",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "32.2 ms",
+          "tps_band": "8,496 [7,460-8,780]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W3",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "27.6 ms",
+          "tps_band": "8,623 [7,442-8,700]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W4",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "38.9 ms",
+          "tps_band": "6,198 [6,169-6,369]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W5",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "44.1 ms",
+          "tps_band": "6,258 [5,611-6,344]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W6",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "630.6 ms",
+          "tps_band": "200 [200-201]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W7",
+          "head": "pgbouncer",
+          "na_arms": [],
+          "p99": "254.7 ms",
+          "tps_band": "392 [390-392]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W8",
+          "head": "odyssey",
+          "na_arms": [],
+          "p99": "22.4 ms",
+          "tps_band": "4,835 [4,806-4,868]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W9",
+          "head": "pgcat",
+          "na_arms": [],
+          "p99": "24.0 ms",
+          "tps_band": "4,435 [4,433-4,451]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-W10",
+          "head": "pgpool",
+          "na_arms": [],
+          "p99": "526.3 ms",
+          "tps_band": "208 [208-208]",
+          "verdict": "best"
+        }
+      ]
+    },
+    {
+      "label": "Prepared-statement twins",
+      "prefix": "M2-P",
+      "rows": [
+        {
+          "cell_id": "M2-P1",
+          "head": "direct",
+          "na_arms": [
+            "pgagroal"
+          ],
+          "p99": "56.5 ms",
+          "tps_band": "4,113 [3,999-4,218]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-P2",
+          "head": "direct",
+          "na_arms": [
+            "pgbouncer"
+          ],
+          "p99": "54.1 ms",
+          "tps_band": "4,211 [4,119-4,248]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-P3",
+          "head": "direct",
+          "na_arms": [
+            "pgbouncer"
+          ],
+          "p99": "55.3 ms",
+          "tps_band": "4,199 [4,116-4,203]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-P4",
+          "head": "direct",
+          "na_arms": [],
+          "p99": "113.3 ms",
+          "tps_band": "3,688 [3,684-3,747]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-P5",
+          "head": "direct",
+          "na_arms": [
+            "pgcat"
+          ],
+          "p99": "94.2 ms",
+          "tps_band": "3,956 [3,735-4,156]",
+          "verdict": "best"
+        },
+        {
+          "cell_id": "M2-P6",
+          "head": "direct",
+          "na_arms": [
+            "odyssey"
+          ],
+          "p99": "114.2 ms",
+          "tps_band": "3,810 [3,223-3,850]",
+          "verdict": "best"
+        }
+      ]
+    }
+  ],
+  "m9_leg": {
+    "family": 98,
+    "headlines": 96,
+    "measured": 215,
+    "method": "flagship n>=10 / standard n>=7, >=3 paired seeds; paired 95% bootstrap CIs with Holm correction",
+    "na": 6,
+    "timeout": 29,
+    "total": 250
+  },
+  "sources": {
+    "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
+    "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
+    "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
+    "report.json": "d1d207e56eb2ceb6efdc05a85af40d25119b50a8d9974c78672d0e8f6ff5a35b"
+  }
+}
