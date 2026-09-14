@@ -49,7 +49,10 @@ python3 -m poolduel.harness.check   # coherence gate (must exit 0)</pre>
 
 <div class="section">
 <h2 id="manifest">Manifest, digests, corpus</h2>
-<p class="note">Deterministic build: <code>repro.sh --report/--charts/--site/--dossiers/--supplement</code> re-derives every derived bundle from committed raw; the drift tests fail on any hand-typed number. Pinned action/container digests live in <code>.github/workflows/</code>; the per-chunk <code>pooler-versions-*.txt</code> files in <code>results/m1|m2|m9/</code> record the exact SHAs measured. The log corpus (per-cell stdout/stderr workdirs) ships as CI artifacts per sweep run. DOI/license snapshot: MIT repo, commit-pinned citation below.</p>
+<!-- MANIFEST:meta:begin -->
+<p class="note" id="manifest-counts" data-build-hash="4c1bc703063c67028e47ea004f31a90cea18f47c2a1288ea021cfdbedd24c846" data-raw-files="2239" data-raw-bytes="5667788">Corpus: m1 150 files, m2 319 files, m9 1770 files (2239 files, 5667788 bytes, budget 524288000 bytes). Deterministic build hash <code>4c1bc703063c67028e47ea004f31a90cea18f47c2a1288ea021cfdbedd24c846</code> over sorted raw paths. Generated from <code>results/manifest.json</code>; verify with <code>sh poolduel/repro.sh --manifest-verify</code>.</p>
+<!-- MANIFEST:meta:end -->
+<p class="note">Deterministic build: <code>repro.sh --report/--charts/--site/--dossiers/--supplement</code> re-derives every derived bundle from committed raw; the drift tests fail on any hand-typed number. Pinned action/container digests live in <code>.github/workflows/</code> (recorded in <code>results/manifest.json</code> and <a href="../docs/digests.md">docs/digests.md</a>); the per-chunk <code>pooler-versions-*.txt</code> files in <code>results/m1|m2|m9/</code> record the exact SHAs measured. The log corpus (per-cell stdout/stderr workdirs) ships as CI artifacts per sweep run. DOI/license snapshot: MIT repo, commit-pinned citation below.</p>
 </div>
 
 <div class="section">
