@@ -30,7 +30,9 @@
     PgBouncer: "pgbouncer",
     "pgpool-II": "pgpool",
     Odyssey: "odyssey",
-    pgcat: "pgcat"
+    pgcat: "pgcat",
+    Supavisor: "supavisor",
+    supavisor: "supavisor"
   };
 
   var CONFIG_DOC = {
@@ -39,7 +41,8 @@
     pgbouncer: "docs/configs/pgbouncer.md",
     pgpool: "docs/configs/pgpool-II.md",
     odyssey: "docs/configs/odyssey.md",
-    pgcat: "docs/configs/pgcat.md"
+    pgcat: "docs/configs/pgcat.md",
+    supavisor: "docs/configs/supavisor.md"
   };
 
   function prefixBase() {
@@ -80,13 +83,16 @@
     return tps.median + " [" + tps.min + "-" + tps.max + "]";
   }
 
+  function nOf(e) {
+    return (e && e.tps && e.tps.n != null) ? e.tps.n : 0;
+  }
+
   function buildLookups(m1, m2, bundle, m9) {
     var byKey = {};
     (m1 || []).concat(m2 || []).concat(m9 || []).forEach(function (e) {
-      if (!byKey[e.cell_id + "|" + e.pooler] ||
-          (e.tps && e.tps.n != null && byKey[e.cell_id + "|" + e.pooler].tps &&
-            e.tps.n > byKey[e.cell_id + "|" + e.pooler].tps.n)) {
-        byKey[e.cell_id + "|" + e.pooler] = e;
+      var k = e.cell_id + "|" + e.pooler;
+      if (!byKey[k] || nOf(e) > nOf(byKey[k])) {
+        byKey[k] = e;
       }
     });
     var verdicts = {};
