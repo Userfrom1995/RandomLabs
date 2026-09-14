@@ -155,6 +155,9 @@ def paired_differences(a_rows, b_rows, metric="tps"):
             except (TypeError, ValueError):
                 forensics["excluded_%s_null" % side] += 1
                 continue
+            if not math.isfinite(fval):
+                forensics["excluded_%s_null" % side] += 1
+                continue
             if key not in by_key:
                 by_key[key] = (r, fval)
             else:
@@ -202,8 +205,6 @@ def paired_differences(a_rows, b_rows, metric="tps"):
 
     for key in sorted(b_by, key=lambda k: (str(k[0]), k[1], k[2])):
         forensics["unmatched_b"].append([key[0], key[1], key[2]])
-    if short_b:
-        forensics["collisions"] += 0  # counted at index time
     forensics["n_paired"] = len(pairs)
     return pairs, forensics
 
@@ -222,6 +223,8 @@ def bootstrap_ci(diffs, b=BOOTSTRAP_B, seed=BOOTSTRAP_SEED):
     vals = [float(d) for d in diffs]
     if not vals:
         raise ValueError("bootstrap_ci needs at least one difference")
+    if not all(math.isfinite(v) for v in vals):
+        raise ValueError("bootstrap_ci needs finite differences")
     b = int(b)
     if b < 1:
         raise ValueError("bootstrap_ci needs b >= 1, got %r" % (b,))
@@ -265,6 +268,8 @@ def bootstrap_p(diffs, b=BOOTSTRAP_B, seed=BOOTSTRAP_SEED):
     vals = [float(d) for d in diffs]
     if not vals:
         raise ValueError("bootstrap_p needs at least one difference")
+    if not all(math.isfinite(v) for v in vals):
+        raise ValueError("bootstrap_p needs finite differences")
     b = int(b)
     if b < 1:
         raise ValueError("bootstrap_p needs b >= 1, got %r" % (b,))
@@ -293,10 +298,22 @@ def holm_adjust(pvals, alpha=ALPHA):
     over the ascending sort (``m`` = count of non-None p-values);
     rejection walks the sorted p-values and stops at the first
     ``p > alpha / (m - rank + 1)``. None p-values stay None and
-    never reject.
+    never reject. NaN, infinite, or out-of-range p-values are treated
+    as None (invalid input never rejects, never headlines).
     """
-    out = [{"p": p, "adj_p": None, "reject": False} for p in pvals]
-    ranked = sorted(((p, i) for i, p in enumerate(pvals)
+    clean = []
+    for p in pvals:
+        try:
+            if p is None or isinstance(p, bool):
+                clean.append(None)
+            elif not math.isfinite(float(p)) or not 0.0 <= float(p) <= 1.0:
+                clean.append(None)
+            else:
+                clean.append(float(p))
+        except (TypeError, ValueError):
+            clean.append(None)
+    out = [{"p": p, "adj_p": None, "reject": False} for p in clean]
+    ranked = sorted(((p, i) for i, p in enumerate(clean)
                      if p is not None))
     m = len(ranked)
     if m == 0:
@@ -521,10 +538,10 @@ def compare_ci(a_rows, b_rows, metric="tps", higher_is_better=True,
     excludes_zero = bool(ci["lo"] > 0 or ci["hi"] < 0)
     positive = ci["lo"] > 0
 
-    if not excludes_zero:
-        verdict, reason = "inconclusive", "ci_includes_zero"
-    elif n < MIN_N:
+    if n < MIN_N:
         verdict, reason = "inconclusive", "too_few"
+    elif not excludes_zero:
+        verdict, reason = "inconclusive", "ci_includes_zero"
     elif positive:
         verdict = "B faster" if higher_is_better else "A faster"
         reason = None

@@ -346,5 +346,36 @@ class TestFamily(unittest.TestCase):
         self.assertFalse(out[0]["headline"])
 
 
+class TestNonFiniteGuards(unittest.TestCase):
+    def test_nan_inf_rows_excluded_with_forensics(self):
+        a = make_rows("M1-1", "direct", [100.0, 102.0, 98.0])
+        b = make_rows("M1-1", "pgbouncer",
+                      [110.0, float("nan"), float("inf")])
+        pairs, forensics = st.paired_differences(a, b)
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(forensics["excluded_b_null"], 2)
+
+    def test_bootstrap_rejects_non_finite(self):
+        with self.assertRaises(ValueError):
+            st.bootstrap_ci([1.0, float("nan")], b=50)
+        with self.assertRaises(ValueError):
+            st.bootstrap_p([1.0, float("inf")], b=50)
+
+    def test_holm_absorbs_invalid_p_as_none(self):
+        out = st.holm_adjust([float("nan"), 2.0, -0.1, 0.0001])
+        self.assertIsNone(out[0]["adj_p"])
+        self.assertFalse(out[0]["reject"])
+        self.assertIsNone(out[1]["adj_p"])
+        self.assertIsNone(out[2]["adj_p"])
+        self.assertTrue(out[3]["reject"])
+
+    def test_too_few_beats_ci_includes_zero(self):
+        a = make_rows("M1-1", "direct", [100.0, 100.0])
+        b = make_rows("M1-1", "pgbouncer", [100.0, 100.0])
+        comp = st.compare_ci(a, b)
+        self.assertEqual(comp["verdict"], "inconclusive")
+        self.assertEqual(comp["reason"], "too_few")
+
+
 if __name__ == "__main__":
     unittest.main()
