@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="poolduel-charts-prefix" content="results/charts/">
-<title>Poolduel: PostgreSQL Pooler Shootout (M1+M2 report)</title>
+<title>Poolduel: PostgreSQL Pooler Shootout (static-first report)</title>
 <style>
 :root { color-scheme: dark; }
 body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -31,9 +31,24 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 ul.tight li { margin-bottom: 4px; }
 .chart { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
   padding: 12px; margin: 12px 0; overflow-x: auto; }
-.echart { width: 100%; height: 420px; background: #161b22;
+.echart { width: 100%; min-height: 560px; background: #161b22;
   border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
 nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+@media (max-width: 800px) { .cards { grid-template-columns: 1fr; } }
+.card { border: 1px solid #30363d; border-radius: 8px; padding: 12px 14px;
+  background: #161b22; }
+.card.ok { border-color: #3fb950; }
+.card.warn { border-color: #d29922; }
+.pill { display: inline-block; border-radius: 20px; padding: 1px 10px;
+  font-size: 0.78rem; font-weight: 600; margin-right: 8px; }
+.pill.ok { background: #0f2a18; color: #3fb950; border: 1px solid #3fb950; }
+.pill.pend { background: #2a2008; color: #d29922; border: 1px solid #d29922; }
+.viewtoggle { display: flex; gap: 8px; margin: 8px 0; }
+.viewtoggle button { background: #161b22; color: #9aa7b4;
+  border: 1px solid #30363d; border-radius: 6px; padding: 4px 12px;
+  font-size: 0.85rem; cursor: pointer; }
+.viewtoggle button.on { color: #e6edf3; border-color: #58a6ff; }
 .chart .bar-na { fill: #484f58; }
 .note { color: #9aa7b4; font-size: 0.88rem; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -42,10 +57,10 @@ nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
 </head>
 <body>
 <h1>Poolduel: PostgreSQL connection pooler shootout</h1>
-<p class="sub">pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat, plus direct-to-PostgreSQL control. Tracks issue #302. Full M1+M2 report.</p>
+<p class="sub">pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat, plus direct-to-PostgreSQL control. Tracks issue #302. Static-first report: every number below is pre-rendered from committed bundles.</p>
 
 <div class="banner" id="status-banner">
-<strong>Status: sweep medians published below.</strong>
+<strong>Status: sweep medians published below (pre-rendered, no JavaScript needed).</strong>
 Raw JSON plus medians committed with exact configs
 (<span id="pagemeta-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7">M1: 42 cells, M2: 111 records incl. 7 N/A with nulls</span>,
 generated from <code>results/pagemeta.json</code>); CSV exports alongside the tables.
@@ -56,6 +71,27 @@ Per-pooler deep-dives:
 <a href="odyssey/">Odyssey</a> |
 <a href="pgcat/">pgcat</a>.
 Refs #302.
+</div>
+
+<div class="section">
+<h2>0. Executive summary: verified headline cards</h2>
+<p class="note">Headline comparisons pre-registered in
+<a href="docs/claims.md">docs/claims.md</a>, re-derived with paired 95%
+bootstrap CIs plus Holm correction (statistics leg of
+<a href="results/report.json">results/report.json</a>). Effect plus CI
+first, verdict second. <code>inconclusive</code> means the CI includes
+zero or the evidence tripped the kill rule; inconclusive cards ship as
+findings, never as wins. Powered by the M9 resweep (flagship n&gt;=10,
+standard n&gt;=7, paired seeds).</p>
+<!-- SITE:exec:begin -->
+<div class="cards">
+<div class="card ok"><span class="pill ok">verified</span><strong>Claim 1: Multi-process PgBouncer (so_reuseport, 2 instances) removes the single-core ceiling on read-heavy load</strong><br><span class="note">Verdict A faster: paired effect -270 tps, 95% CI [-2,707, -100] (excludes zero, Holm-gated headline)</span><br><span class="note">pgbouncer M1-1 vs pgbouncer M2-I5</span></div>
+<div class="card ok"><span class="pill ok">verified</span><strong>Claim 2: Under per-query connect/disconnect churn, direct PG collapses on fork cost while Odyssey holds throughput</strong><br><span class="note">Verdict B faster: paired effect 20 tps, 95% CI [18, 24] (excludes zero, Holm-gated headline)</span><br><span class="note">direct M9-E1 vs odyssey M9-E1</span></div>
+<div class="card ok"><span class="pill ok">verified</span><strong>Claim 3: For short queries on this iron, pgagroal epoll beats io_uring on throughput and tail latency</strong><br><span class="note">Verdict A faster: paired effect -4,891 tps, 95% CI [-6,295, -4,502] (excludes zero, Holm-gated headline)</span><br><span class="note">pgagroal M2-I1 vs pgagroal M2-I3</span></div>
+<div class="card warn"><span class="pill pend">inconclusive</span><strong>Claim 4: At 200 clients on a 10-connection pool, pooled arms hold throughput while direct PG degrades</strong><br><span class="note">No verified winner (mixed_status); ships as inconclusive, never as a win</span><br><span class="note">direct M1-4 vs pgcat M1-4</span></div>
+<div class="card ok"><span class="pill ok">verified</span><strong>Claim 5: Transaction pooling breaks server-side prepares; process-isolated arms survive</strong><br><span class="note">Verdict A faster: paired effect -2,163 tps, 95% CI [-2,264, -1,531] (excludes zero, Holm-gated headline)</span><br><span class="note">direct M1-3 vs pgpool M1-3</span></div>
+</div>
+<!-- SITE:exec:end -->
 </div>
 
 <div class="section">
@@ -166,47 +202,120 @@ dry-run plans 312 arm-runs (<code>repro.sh --m2-dry-run</code>).</p>
 </div>
 
 <div class="section">
-<h2>5. Results: M1 medians (sweep published)</h2>
+<h2>5. Results: flagship baseline (all 7 workloads, pre-rendered)</h2>
 <p>Headline metric per cell: median tps with min-max band and CV, plus p50/p90/
-p99/p999 from per-transaction logs, failed/skipped counts, exit codes. Published
-per arm only after the sweep. Unsupported cells will read
+p99/p999 from per-transaction logs, failed/skipped counts, exit codes.
+Throughput beside tail latency in every row; the toggle switches column
+groups without hiding the pre-rendered values from no-JS readers.
+Unsupported cells read
 <code>N/A (unsupported)</code>; over-cap cells <code>timeout/inconclusive</code>.
 Full matrix: <a href="results/m1/matrix.csv">results/m1/matrix.csv</a> (published with the sweep).</p>
-<table id="results-m1">
-<tr><th>Cell</th><th>direct</th><th>pgagroal</th><th>PgBouncer</th><th>pgpool-II</th><th>Odyssey</th><th>pgcat</th></tr>
-<tr><td>M1-1 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M1-2 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M1-3 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M1-4 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M1-5 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M1-6 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M1-7 tps (median)</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
+<!-- SITE:flagship:begin -->
+<div class="viewtoggle" role="group" aria-label="Columns"><button data-view="tps" class="on">Throughput</button><button data-view="lat">Latency</button><button data-view="all" class="on">All telemetry</button></div>
+<table id="results-m1"><tr><th>Workload</th><th>Best arm</th><th data-col="tps">Throughput tps (median [min-max])</th><th data-col="lat">Tail latency p99</th><th data-col="all">All arms (tps band; n; status)</th></tr>
+<tr><td><strong>M1-1</strong><br><span class='note'>Read-heavy (SELECT-only), 100 clients / 10 pooled; flagship; 100 clients / 10 pooled, 120s measured</span></td><td>direct</td><td data-col="tps">24,039 [23,305-24,716]</td><td data-col="lat">19.1 ms</td><td data-col="all" class="note">direct: 24,039 [23,305-24,716] (n=5) [Best in class]<br>pgagroal: 2,294 [1,600-2,426] (n=5)<br>pgbouncer: 17,000 [16,860-20,394] (n=5)<br>pgpool: 15,835 [15,273-17,522] (n=5)<br>odyssey: 11,445 [11,392-12,755] (n=5)<br>pgcat: 19,629 [19,410-21,993] (n=5)</td></tr>
+<tr><td><strong>M1-2</strong><br><span class='note'>Read-write (TPC-B-like), 50 clients / 10 pooled; flagship; 50 clients / 10 pooled, 120s measured</span></td><td>direct</td><td data-col="tps">5,838 [4,305-5,987]</td><td data-col="lat">42.7 ms</td><td data-col="all" class="note">direct: 5,838 [4,305-5,987] (n=5) [Best in class]<br>pgagroal: 1,738 [1,137-1,794] (n=5)<br>pgbouncer: 4,527 [2,978-4,564] (n=5)<br>pgpool: 4,342 [3,282-4,376] (n=5)<br>odyssey: 4,795 [3,115-4,862] (n=5)<br>pgcat: 4,066 [2,485-4,114] (n=5)</td></tr>
+<tr><td><strong>M1-3</strong><br><span class='note'>Read-write (TPC-B-like), 50 clients / 10 pooled; server-side prepares; 50 clients / 10 pooled, 60s measured</span></td><td>direct</td><td data-col="tps">6,123 [6,105-6,181]</td><td data-col="lat">35.9 ms</td><td data-col="all" class="note">direct: 6,123 [6,105-6,181] (n=3) [Best in class]<br>pgagroal: timeout/inconclusive<br>pgbouncer: timeout/inconclusive<br>pgpool: 3,127 [3,086-3,145] (n=3)<br>odyssey: timeout/inconclusive<br>pgcat: timeout/inconclusive</td></tr>
+<tr><td><strong>M1-4</strong><br><span class='note'>Read-heavy (SELECT-only), 200 clients / 10 pooled; 200 clients / 10 pooled, 60s measured</span></td><td>pgcat</td><td data-col="tps">19,322 [18,864-19,331]</td><td data-col="lat">12.5 ms</td><td data-col="all" class="note">direct: timeout/inconclusive<br>pgagroal: 1,558 [1,387-1,711] (n=3)<br>pgbouncer: 17,129 [17,073-17,141] (n=3)<br>pgpool: timeout/inconclusive<br>odyssey: 11,266 [11,199-11,470] (n=3)<br>pgcat: 19,322 [18,864-19,331] (n=3) [Best in class]</td></tr>
+<tr><td><strong>M1-5</strong><br><span class='note'>Write-heavy (simple UPDATE), 100 clients / 20 pooled; 100 clients / 20 pooled, 60s measured</span></td><td>direct</td><td data-col="tps">5,698 [5,339-5,855]</td><td data-col="lat">63.2 ms</td><td data-col="all" class="note">direct: 5,698 [5,339-5,855] (n=3) [Best in class]<br>pgagroal: 602 [455-1,021] (n=3)<br>pgbouncer: 3,931 [3,887-3,944] (n=3)<br>pgpool: 3,730 [3,595-3,964] (n=3)<br>odyssey: 3,985 [3,926-3,987] (n=3)<br>pgcat: 4,453 [4,414-4,459] (n=3)</td></tr>
+<tr><td><strong>M1-6</strong><br><span class='note'>Read-heavy (SELECT-only), 100 clients / 10 pooled; reconnect-per-transaction churn; 100 clients / 10 pooled, 60s measured</span></td><td>odyssey</td><td data-col="tps">6,495 [6,472-6,520]</td><td data-col="lat">17.0 ms</td><td data-col="all" class="note">direct: 265 [264-267] (n=3)<br>pgagroal: timeout/inconclusive<br>pgbouncer: 523 [521-524] (n=3)<br>pgpool: 266 [264-266] (n=3)<br>odyssey: 6,495 [6,472-6,520] (n=3) [Best in class]<br>pgcat: 5,709 [5,618-5,721] (n=3)</td></tr>
+<tr><td><strong>M1-7</strong><br><span class='note'>Read-write (TPC-B-like), 100 clients / 10 pooled; 100 clients / 10 pooled, 60s measured</span></td><td>direct</td><td data-col="tps">3,093 [3,066-3,143]</td><td data-col="lat">195.6 ms</td><td data-col="all" class="note">direct: 3,093 [3,066-3,143] (n=3) [Best in class]<br>pgagroal: 522 [464-525] (n=3)<br>pgbouncer: 2,539 [2,497-2,563] (n=3)<br>pgpool: 2,319 [2,313-2,329] (n=3)<br>odyssey: 2,711 [2,698-2,722] (n=3)<br>pgcat: 2,579 [2,527-2,593] (n=3)</td></tr>
 </table>
-<p class="note" id="m1-note">Live data hook: fills from <code>results/m1/medians.json</code>
-(harness <code>write_medians</code> schema) once the sweep publishes it. Otherwise pending by design.</p>
+<!-- SITE:flagship:end -->
+<p class="note" id="m1-note">Pre-rendered from <code>results/m1/medians.json</code>
+plus the <code>best</code> leg of <code>results/report.json</code> by
+<code>harness/site.py</code> (<code>repro.sh --site</code>); JS only switches
+the Throughput/Latency/All-telemetry column groups, never the values.</p>
 </div>
 
 <div class="section">
-<h2>6. Results: M2 best-vs-best plus N/A (sweep published)</h2>
+<h2>6. Results: M2 best-vs-best plus N/A (pre-rendered)</h2>
 <p>Per cell the head arm is the highest tps median; every other arm carries the
 binding-gate verdict (non-overlapping min-max bands AND same-direction tps plus
 p99 agreement, else <code>inconclusive</code>). N/A rows are listed with nulls,
 never zeros, never interpolated. Full matrix:
 <a href="results/m2/matrix.csv">results/m2/matrix.csv</a>; machine-readable
 bundle: <a href="results/report.json">results/report.json</a>.</p>
-<table id="results-m2">
-<tr><th>Cell</th><th>Best arm</th><th>tps (median [min-max])</th><th>p99 (ms)</th><th>N/A arms</th></tr>
-<tr><td>M2-S session block</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M2-T statement block</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="na">pgagroal, pgcat, pgpool-II (unsupported)</td></tr>
-<tr><td>M2-I I/O block</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M2-W workload twins</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td></tr>
-<tr><td>M2-P prepared twins</td><td class="pend">pending</td><td class="pend">pending</td><td class="pend">pending</td><td class="na">Odyssey session twin (see section 3)</td></tr>
+<!-- SITE:m2:begin -->
+<h3>Session pooling block (M2-S)</h3>
+<table><tr><th>Cell</th><th>Best arm</th><th>Throughput tps (median [min-max])</th><th>Tail latency p99</th><th>N/A arms</th></tr>
+<tr><td>M2-S1</td><td>direct</td><td>25,013 [24,905-25,108]</td><td>18.6 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-S2</td><td>direct</td><td>2,643 [1,797-2,991]</td><td>250.0 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-S3</td><td>direct</td><td>25,000 [24,974-25,054]</td><td>18.6 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-S4</td><td>direct</td><td>1,748 [1,455-3,883]</td><td>327.4 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-S5</td><td>direct</td><td>24,994 [24,963-25,082]</td><td>18.6 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S6</td><td>direct</td><td>3,822 [1,294-3,937]</td><td>163.3 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S7</td><td>direct</td><td>22,626 [22,446-22,996]</td><td>19.7 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S8</td><td>direct</td><td>3,366 [3,235-3,405]</td><td>62.9 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S9</td><td>direct</td><td>22,889 [22,582-23,101]</td><td>19.5 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S10</td><td>direct</td><td>3,283 [3,278-3,494]</td><td>65.4 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S11</td><td>direct</td><td>22,734 [22,713-24,662]</td><td>19.4 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S12</td><td>direct</td><td>3,462 [3,377-3,518]</td><td>61.4 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S13</td><td>direct</td><td>24,945 [24,675-25,088]</td><td>18.7 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S14</td><td>direct</td><td>3,184 [3,044-4,085]</td><td>186.9 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S15</td><td>direct</td><td>23,025 [22,540-24,508]</td><td>19.8 ms</td><td class="na">-</td></tr>
+<tr><td>M2-S16</td><td>direct</td><td>3,435 [3,388-3,486]</td><td>60.6 ms</td><td class="na">-</td></tr>
 </table>
-<p class="note" id="m2-note">Live data hook: per-cell best rows render here from
-<code>results/report.json</code> once published. Peaks always ship with their
+<h3>Statement pooling block (M2-T)</h3>
+<table><tr><th>Cell</th><th>Best arm</th><th>Throughput tps (median [min-max])</th><th>Tail latency p99</th><th>N/A arms</th></tr>
+<tr><td>M2-T1</td><td>direct</td><td>24,653 [24,106-24,738]</td><td>18.7 ms</td><td class="na">pgagroal, pgcat, pgpool</td></tr>
+<tr><td>M2-T2</td><td>direct</td><td>3,497 [3,425-3,503]</td><td>58.6 ms</td><td class="na">pgagroal, pgbouncer, pgcat, pgpool</td></tr>
+<tr><td>M2-T3</td><td>direct</td><td>24,712 [24,042-24,725]</td><td>18.9 ms</td><td class="na">-</td></tr>
+<tr><td>M2-T4</td><td>direct</td><td>3,368 [3,318-3,511]</td><td>63.3 ms</td><td class="na">-</td></tr>
+</table>
+<h3>I/O backends block (M2-I)</h3>
+<table><tr><th>Cell</th><th>Best arm</th><th>Throughput tps (median [min-max])</th><th>Tail latency p99</th><th>N/A arms</th></tr>
+<tr><td>M2-I1</td><td>direct</td><td>30,967 [29,472-31,472]</td><td>15.1 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I2</td><td>direct</td><td>2,349 [2,292-2,528]</td><td>214.6 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I3</td><td>direct</td><td>30,257 [29,383-31,145]</td><td>15.3 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I4</td><td>direct</td><td>2,674 [2,193-3,026]</td><td>156.2 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I5</td><td>direct</td><td>31,237 [30,787-31,386]</td><td>14.9 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I6</td><td>direct</td><td>1,840 [1,585-1,981]</td><td>256.2 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I7</td><td>direct</td><td>24,394 [24,234-24,726]</td><td>18.5 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I8</td><td>direct</td><td>3,483 [3,395-3,491]</td><td>59.1 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I9</td><td>direct</td><td>24,565 [23,982-24,699]</td><td>18.7 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I10</td><td>direct</td><td>3,494 [3,490-3,530]</td><td>59.3 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I11</td><td>direct</td><td>24,353 [24,298-24,601]</td><td>18.8 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I12</td><td>direct</td><td>3,836 [3,796-3,876]</td><td>54.0 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I13</td><td>direct</td><td>24,353 [23,591-24,356]</td><td>19.0 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I14</td><td>direct</td><td>3,460 [3,459-3,466]</td><td>61.2 ms</td><td class="na">-</td></tr>
+<tr><td>M2-I15</td><td>direct</td><td>24,555 [24,434-24,584]</td><td>18.8 ms</td><td class="na">pgpool</td></tr>
+<tr><td>M2-I16</td><td>direct</td><td>3,416 [3,410-3,473]</td><td>61.3 ms</td><td class="na">-</td></tr>
+</table>
+<h3>Workload twins block (M2-W)</h3>
+<table><tr><th>Cell</th><th>Best arm</th><th>Throughput tps (median [min-max])</th><th>Tail latency p99</th><th>N/A arms</th></tr>
+<tr><td>M2-W1</td><td>direct</td><td>8,648 [8,372-8,751]</td><td>27.1 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-W2</td><td>direct</td><td>8,496 [7,460-8,780]</td><td>32.2 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W3</td><td>direct</td><td>8,623 [7,442-8,700]</td><td>27.6 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W4</td><td>direct</td><td>6,198 [6,169-6,369]</td><td>38.9 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W5</td><td>direct</td><td>6,258 [5,611-6,344]</td><td>44.1 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W6</td><td>direct</td><td>200 [200-201]</td><td>630.6 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-W7</td><td>pgbouncer</td><td>392 [390-392]</td><td>254.7 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W8</td><td>odyssey</td><td>4,835 [4,806-4,868]</td><td>22.4 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W9</td><td>pgcat</td><td>4,435 [4,433-4,451]</td><td>24.0 ms</td><td class="na">-</td></tr>
+<tr><td>M2-W10</td><td>pgpool</td><td>208 [208-208]</td><td>526.3 ms</td><td class="na">-</td></tr>
+</table>
+<h3>Prepared-statement twins block (M2-P)</h3>
+<table><tr><th>Cell</th><th>Best arm</th><th>Throughput tps (median [min-max])</th><th>Tail latency p99</th><th>N/A arms</th></tr>
+<tr><td>M2-P1</td><td>direct</td><td>4,113 [3,999-4,218]</td><td>56.5 ms</td><td class="na">pgagroal</td></tr>
+<tr><td>M2-P2</td><td>direct</td><td>4,211 [4,119-4,248]</td><td>54.1 ms</td><td class="na">pgbouncer</td></tr>
+<tr><td>M2-P3</td><td>direct</td><td>4,199 [4,116-4,203]</td><td>55.3 ms</td><td class="na">pgbouncer</td></tr>
+<tr><td>M2-P4</td><td>direct</td><td>3,688 [3,684-3,747]</td><td>113.3 ms</td><td class="na">-</td></tr>
+<tr><td>M2-P5</td><td>direct</td><td>3,956 [3,735-4,156]</td><td>94.2 ms</td><td class="na">pgcat</td></tr>
+<tr><td>M2-P6</td><td>direct</td><td>3,810 [3,223-3,850]</td><td>114.2 ms</td><td class="na">odyssey</td></tr>
+</table>
+<!-- SITE:m2:end -->
+<p class="note" id="m2-note">Pre-rendered from the <code>best</code> leg of
+<code>results/report.json</code> by <code>harness/site.py</code>. Peaks always ship with their
 exact configs attached (verbatim in <code>docs/configs/</code>).</p>
 </div>
 
+<div class="section">
+<h2>6c. Powered resweep leg (M9: paired repeats that feed the CIs)</h2>
+<!-- SITE:m9:begin -->
+<p>Powered resweep: <strong>215 measured</strong> of 250 cells (29 timeout/inconclusive, 6 unsupported with nulls). Statistics family 98 with 96 Holm-gated headlines. Method: flagship n&gt;=10 / standard n&gt;=7, &gt;=3 paired seeds; paired 95% bootstrap CIs with Holm correction. Full matrix: <a href="results/m9/matrix.csv">results/m9/matrix.csv</a>.</p>
+<!-- SITE:m9:end -->
+</div>
 <div class="section">
 <h2>6b. Comparison graphs (interactive, ECharts SVG)</h2>
 <p class="note">Every figure below is generated from committed bundles by
@@ -248,25 +357,26 @@ timeout cells are marked, never zero-filled. Per-pooler deep-dives:
 </div>
 
 <div class="section">
-<h2>7. Iso-region slices and surface flatness (sweep published)</h2>
-<div class="grid2">
-<div>
-<h3>Iso-region matching</h3>
+<h2>7. Iso-region slices and surface flatness (pre-rendered)</h2>
 <p class="note">Every best-vs-best claim is accompanied by at least one slice
 where clients, backends, and duration match exactly (for example M1-1 beside
-M2 session rows on the shared G-SEL100 geometry). Matched slices render here
-from <code>results/report.json</code>.</p>
-<div id="iso-block"><p class="note">Loading live data from <code>results/report.json</code> (serve over HTTP).</p></div>
-</div>
-<div>
-<h3>Surface flatness</h3>
-<p class="note">Fast everywhere vs fast at one magic setting: spread is
-(peak minus trough) over peak across each pooler's own measured configs.
-At or below 15% reads flat, above reads peaky, one config reads
-single-point. Verdicts render here from <code>results/report.json</code>.</p>
-<div id="flat-block"><p class="note">Loading live data from <code>results/report.json</code> (serve over HTTP).</p></div>
-</div>
-</div>
+M2 session rows on the shared G-SEL100 geometry). Peak and trough workloads
+are named on-figure, never hover-only.</p>
+<!-- SITE:isoflat:begin -->
+<p class='note'><code>select-only, 100 clients / 10 pooled, 60s</code> matched cells: M2-I1, M2-I11, M2-I13, M2-I15, M2-I3, M2-I5, M2-I7, M2-I9, M2-S1, M2-S11, M2-S13, M2-S15, M2-S3, M2-S5, M2-S7, M2-S9, M2-T1, M2-T3</p>
+<p class='note'><code>select-only, 100 clients / 10 pooled, 60s churn</code> matched cells: M1-6, M2-W10, M2-W6, M2-W7, M2-W8, M2-W9</p>
+<p class='note'><code>simple-update, 100 clients / 20 pooled, 60s</code> matched cells: M1-5, M2-W1, M2-W2, M2-W3, M2-W4, M2-W5</p>
+<p class='note'><code>tpcb-like, 50 clients / 10 pooled, 60s</code> matched cells: M1-3, M2-P1, M2-P2, M2-P3, M2-P4, M2-P5, M2-P6</p>
+<p class='note'><code>tpcb-like, 50 clients / 10 pooled, 60s</code> matched cells: M2-I10, M2-I12, M2-I14, M2-I16, M2-I2, M2-I4, M2-I6, M2-I8, M2-S10, M2-S12, M2-S14, M2-S16, M2-S2, M2-S4, M2-S6, M2-S8, M2-T2, M2-T4</p>
+<table><tr><th>Pooler</th><th>Configs</th><th>Spread</th><th>Verdict</th><th>Peak</th><th>Trough</th></tr>
+<tr><td>direct</td><td>58</td><td>99.4%</td><td>peaky</td><td>M2-I5 @ 31,237 tps</td><td>M2-W6 @ 200 tps</td></tr>
+<tr><td>odyssey</td><td>17</td><td>95.0%</td><td>peaky</td><td>M2-S7 @ 20,476 tps</td><td>M2-P4 @ 1,026 tps</td></tr>
+<tr><td>pgagroal</td><td>9</td><td>88.8%</td><td>peaky</td><td>M2-I3 @ 2,584 tps</td><td>M2-I2 @ 289 tps</td></tr>
+<tr><td>pgbouncer</td><td>15</td><td>98.5%</td><td>peaky</td><td>M2-I5 @ 26,347 tps</td><td>M2-W7 @ 392 tps</td></tr>
+<tr><td>pgcat</td><td>14</td><td>89.4%</td><td>peaky</td><td>M1-1 @ 19,629 tps</td><td>M2-S14 @ 2,087 tps</td></tr>
+<tr><td>pgpool</td><td>14</td><td>98.7%</td><td>peaky</td><td>M2-I13 @ 16,597 tps</td><td>M2-W10 @ 208 tps</td></tr>
+</table>
+<!-- SITE:isoflat:end -->
 </div>
 
 <div class="section">
@@ -347,16 +457,16 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
 <script src="vendor/echarts-5.5.1/dist/echarts.min.js"></script>
 <script src="assets/poolduel-charts.js"></script>
 <script>
-// Poolduel live report: fills pending tables and charts from sweep artifacts.
-// Absence of artifacts keeps every cell honestly pending (never zero-filled).
+// Poolduel static-first report (M11b): all tables and cards above are
+// pre-rendered from committed bundles by harness/site.py. This script
+// only enhances: banner counts from pagemeta, the column toggle, and an
+// honest note when a bundle fails to load (stale content stays honestly
+// pending-never-zero until repro.sh --site refreshes it, never zero-filled).
 (function () {
   "use strict";
-  var ARMS = ["direct", "pgagroal", "pgbouncer", "pgpool", "odyssey", "pgcat"];
-  var M1_CELLS = ["M1-1", "M1-2", "M1-3", "M1-4", "M1-5", "M1-6", "M1-7"];
 
-  function fmtBand(tps) {
-    if (!tps || tps.median == null) return null;
-    return tps.median + " [" + tps.min + "-" + tps.max + "]";
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
   }
 
   function fetchJson(url) {
@@ -365,132 +475,48 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
     }).catch(function () { return null; });
   }
 
-  function fillM1(medians) {
-    if (!medians || !medians.length) return false;
-    var byKey = {};
-    medians.forEach(function (e) { byKey[e.cell_id + "|" + e.pooler] = e; });
-    var table = document.getElementById("results-m1");
-    var rows = table.getElementsByTagName("tr");
-    var filled = 0;
-    for (var i = 1; i < rows.length; i++) {
-      var tds = rows[i].getElementsByTagName("td");
-      for (var j = 1; j < tds.length; j++) {
-        var entry = byKey[M1_CELLS[i - 1] + "|" + ARMS[j - 1]];
-        if (entry && entry.status === "N/A (unsupported)") {
-          tds[j].textContent = "N/A (unsupported)";
-          tds[j].className = "na";
-          filled++;
-        } else {
-          var v = entry ? fmtBand(entry.tps) : null;
-          if (v) { tds[j].textContent = v; tds[j].className = "ok"; filled++; }
-        }
+  function wireToggle() {
+    var groups = document.querySelectorAll(".viewtoggle");
+    Array.prototype.forEach.call(groups, function (group) {
+      var table = group.nextElementSibling;
+      function visible(view) {
+        var btn = group.querySelector('[data-view="' + view + '"]');
+        return btn && btn.className.indexOf("on") >= 0;
       }
-    }
-    if (filled) {
-      document.getElementById("m1-note").textContent =
-        "Live data: loaded from results/m1/medians.json published with the sweep.";
-    }
-    return filled > 0;
-  }
-
-  function esc(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
-  }
-
-  function naturalKey(s) {
-    return String(s).split(/(\d+)/).map(function (part) {
-      return /^\d+$/.test(part) ? ("000000" + part).slice(-6) : part;
-    }).join("");
-  }
-
-  function fillM2(bundle) {
-    if (!bundle || !bundle.best) return false;
-    var blocks = [
-      { label: "M2-S session block", prefix: "M2-S" },
-      { label: "M2-T statement block", prefix: "M2-T" },
-      { label: "M2-I I/O block", prefix: "M2-I" },
-      { label: "M2-W workload twins", prefix: "M2-W" },
-      { label: "M2-P prepared twins", prefix: "M2-P" }
-    ];
-    var table = document.getElementById("results-m2");
-    var html = "<tr><th>Cell</th><th>Best arm</th>" +
-      "<th>tps (median [min-max])</th><th>p99 (ms)</th><th>N/A arms</th></tr>";
-    var anyData = false;
-    blocks.forEach(function (b) {
-      var cells = Object.keys(bundle.best).filter(function (c) {
-        return c.indexOf(b.prefix) === 0;
-      }).sort(function (a, c) {
-        var ka = naturalKey(a), kb = naturalKey(c);
-        return ka < kb ? -1 : ka > kb ? 1 : 0;
-      });
-      if (!cells.length) {
-        html += "<tr><td>" + esc(b.label) +
-          '</td><td class="pend">pending</td><td class="pend">pending</td>' +
-          '<td class="pend">pending</td><td class="pend">pending</td></tr>';
-        return;
-      };
-      cells.forEach(function (cell) {
-        anyData = true;
-        var info = bundle.best[cell];
-        var head = info.ranked.length ? info.ranked[0] : null;
-        var na = info.na.map(function (n) {
-          return n.pooler + " (" + n.status + ")";
-        }).join(", ") || "-";
-        html += "<tr><td>" + esc(cell) + "</td>" +
-          "<td>" + (head ? esc(head.pooler) + " <span class='note'>" +
-            esc(head.verdict === "best" ? "" : head.verdict) + "</span>"
-            : '<span class="na">no measured arms</span>') + "</td>" +
-          "<td>" + (head ? esc(fmtBand(head.tps) || "-") : "-") + "</td>" +
-          "<td>" + (head && head.p99_ms && head.p99_ms.median != null
-            ? esc(head.p99_ms.median) : "-") + "</td>" +
-          '<td class="na">' + esc(na) + "</td></tr>";
-      });
+      function apply() {
+        var showTps = visible("tps") || visible("all");
+        var showLat = visible("lat") || visible("all");
+        var showAll = visible("all");
+        if (!table || table.tagName !== "TABLE") return;
+        Array.prototype.forEach.call(
+          table.querySelectorAll('[data-col="tps"]'), function (cell) {
+            cell.style.display = showTps ? "" : "none";
+          });
+        Array.prototype.forEach.call(
+          table.querySelectorAll('[data-col="lat"]'), function (cell) {
+            cell.style.display = showLat ? "" : "none";
+          });
+        Array.prototype.forEach.call(
+          table.querySelectorAll('[data-col="all"]'), function (cell) {
+            cell.style.display = showAll ? "" : "none";
+          });
+      }
+      Array.prototype.forEach.call(
+        group.querySelectorAll("button"), function (btn) {
+          btn.addEventListener("click", function () {
+            btn.className = btn.className.indexOf("on") >= 0 ? "" : "on";
+            apply();
+          });
+        });
+      apply();
     });
-    table.innerHTML = html;
-    if (anyData) {
-      document.getElementById("m2-note").textContent =
-        "Live data: best-vs-best rows loaded from results/report.json published with the sweep.";
-    }
-    return anyData;
   }
 
-  function fillIsoFlat(bundle) {
-    if (!bundle) return false;
-    var iso = document.getElementById("iso-block");
-    var regions = (bundle.iso_regions || []).filter(function (r) {
-      return r.matched;
-    });
-    if (regions.length) {
-      var html = "";
-      regions.forEach(function (r) {
-        html += "<p class='note'><code>" + esc(r.workload) + " c=" +
-          esc(r.clients) + " pool=" + esc(r.pool_size) + " T=" +
-          esc(r.duration_s) + " " + esc(r.protocol) +
-          (r.churn ? " churn" : "") + "</code> matched cells: " +
-          esc(r.matched_cells.join(", ")) + "</p>";
-      });
-      iso.innerHTML = html;
-    }
-    var flat = document.getElementById("flat-block");
-    var keys = bundle.flatness ? Object.keys(bundle.flatness).sort() : [];
-    if (keys.length) {
-      var fhtml = "<table><tr><th>Pooler</th><th>Configs</th>" +
-        "<th>Spread</th><th>Verdict</th><th>Peak cell</th></tr>";
-      keys.forEach(function (k) {
-        var f = bundle.flatness[k];
-        fhtml += "<tr><td>" + esc(k) + "</td><td>" + esc(f.configs_measured) +
-          "</td><td>" + (f.spread == null ? "-" : (100 * f.spread).toFixed(1) +
-            "%") + "</td><td>" + esc(f.verdict) + "</td><td>" +
-          (f.peak ? esc(f.peak.cell_id) + " @ " + esc(f.peak.tps_median)
-            : "-") + "</td></tr>";
-      });
-      flat.innerHTML = fhtml + "</table>";
-    }
-    return regions.length > 0 || keys.length > 0;
-  }
-
+  wireToggle();
   fetchJson("results/m1/medians.json").then(function (m1) {
-    var gotM1 = fillM1(m1);
+    // Static tables already carry the medians; this probe only appends
+    // an honest fetch-failure note naming the missing bundle plus the
+    // repro command, so a broken deploy reads pending, never silent.
     // Generated page facts (M5): banner counts render from
     // results/pagemeta.json; the static fallback above must byte-match it
     // (drift test test_pagemeta_drift enforces this).
@@ -501,26 +527,20 @@ Docs: <a href="docs/test-matrix.md">test-matrix</a> |
       }
     });
     return fetchJson("results/report.json").then(function (bundle) {
-      var gotM2 = fillM2(bundle);
-      var gotIso = fillIsoFlat(bundle);
-      if (!bundle) {
-        document.getElementById("iso-block").innerHTML =
-          "<p class='note'>Live results unavailable here: the report " +
-          "bundle did not load (serve poolduel/ over HTTP).</p>";
-        document.getElementById("flat-block").innerHTML =
-          "<p class='note'>Live results unavailable here: the report " +
-          "bundle did not load (serve poolduel/ over HTTP).</p>";
-      }
-      if (gotM1 || gotM2 || gotIso) {
+      if ((!m1 || !m1.length) && !bundle) {
+        var note = document.createElement("p");
+        note.className = "note";
+        note.textContent = "Live bundles did not load here (serve " +
+          "poolduel/ over HTTP). Showing the last pre-rendered publish; " +
+          "run repro.sh --site to refresh after a sweep. " +
+          esc("pending until then");
         var banner = document.getElementById("status-banner");
-        banner.className = "banner";
-        banner.innerHTML = "<strong>Status: sweep medians published below.</strong> " +
-          "Raw JSON plus medians committed with exact configs; " +
-          "CSV exports alongside the tables. Refs #302.";
+        if (banner) banner.appendChild(note);
       }
     });
   });
 })();
 </script>
+
 </body>
 </html>
