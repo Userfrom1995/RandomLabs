@@ -59,10 +59,16 @@ class TestCuratorIssue333(unittest.TestCase):
         self.assertIn("C++17", read("prism/README.md"))
 
     def test_poolduel_m9_in_flight_noted(self):
-        clause = "M9 powered resweep in flight"
-        self.assertIn(clause, read("index.html"))
-        self.assertIn(clause, read("README.md"))
-        self.assertIn("Refs #302", read("index.html"))
+        # SUPERSEDED by issue #345 (PR #346): the M9-in-flight wording was
+        # correct at #333 time but the entries have since moved to the
+        # verified M10-M12 state. Assert the stale clause is gone and the
+        # new state is present; detailed M10-M12 coverage lives in
+        # tests/test_curator_issue345.py.
+        stale = "M9 powered resweep in flight"
+        self.assertNotIn(stale, read("index.html"))
+        self.assertNotIn(stale, read("README.md"))
+        self.assertIn("M12", read("index.html"))
+        self.assertIn("#302", read("index.html"))
 
     def test_no_em_dashes_in_changed_files(self):
         for name in ("index.html", "README.md"):
