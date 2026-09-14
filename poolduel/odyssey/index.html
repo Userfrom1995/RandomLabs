@@ -25,13 +25,23 @@ a { color: #58a6ff; }
 .echart { width: 100%; height: 420px; background: #161b22;
   border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin: 12px 0; }
 nav.poolnav { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.viewtoggle button { background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+  border-radius: 6px; padding: 4px 12px; cursor: pointer; font-size: 0.85rem; }
+.viewtoggle button.on { border-color: #58a6ff; color: #58a6ff; }
 footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 </style>
 </head>
 <body>
 <div class="section" id="s-header">
 <h1>Poolduel deep-dive: Odyssey</h1>
-<p class="sub">Per-pooler page on one fixed 7-section template (identical across all five poolers). Pinned version: v1.5.1 stable. Tracks issue #302.</p>
+<p class="sub">Per-pooler page on one fixed 7-section template (identical across all six poolers). Tracks issue #302.</p>
+<!-- DOSSIER:pin:begin -->
+<p>Pinned version: <strong>1.5.1</strong> on shared PG 17 backend; tracks issue #302.</p>
+<!-- DOSSIER:pin:end -->
+<!-- DOSSIER:lifecycle:begin -->
+<p class="note">Connection path: client -&gt; Odyssey workers with routes and storage -&gt; PostgreSQL backend; config in <a href="../docs/configs/odyssey.md">docs/configs/odyssey.md</a>.</p>
+<!-- DOSSIER:lifecycle:end -->
 <nav class="poolnav">
 <a href="../">comparison page</a> | <a href="../pgpool/">prev: pgpool</a> | <a href="../pgcat/">next: pgcat</a>
 </nav>
@@ -49,54 +59,86 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <div class="section" id="s-flatness">
 <h2>Flatness verdict</h2>
 <p class="note">Spread is (peak minus trough) over peak across this pooler's own measured configs. At or below 15% reads flat, above reads peaky, one config reads single-point. Trough workload named, never silent.</p>
-<div id="flat-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:flat:begin -->
+<table><tr><th>Configs measured</th><th>Spread</th><th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>17</td><td>95.0%</td><td>peaky</td><td>M2-S7 @ 20,476 tps (select-only)</td><td>M2-P4 @ 1,026 tps (tpcb-like)</td></tr></table>
+<!-- DOSSIER:flat:end -->
 </div>
 
 <div class="section" id="s-config">
 <h2>Config anatomy</h2>
-<p class="note">Every Odyssey config with its results in full: M1 7 rows plus 12 M2 rows (11 measured + 0 timeout/inconclusive) plus 1 N/A rows. Settings columns are static markup from the harness adapters; tps/status columns fill live from committed medians over HTTP (peak tagged).</p>
-<table data-config-results data-pooler="odyssey">
-<tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Status</th></tr>
-<tr data-cell="M1-1" data-pooler="odyssey"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-2" data-pooler="odyssey"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-3" data-pooler="odyssey"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool=transaction</code>, workers=1, prepared protocol</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-4" data-pooler="odyssey"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-5" data-pooler="odyssey"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 20</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-6" data-pooler="odyssey"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M1-7" data-pooler="odyssey"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S7" data-pooler="odyssey"><td>M2-S7</td><td>select-only, 100c/10p, simple</td><td><code>pool=session</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-S8" data-pooler="odyssey"><td>M2-S8</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=session</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T3" data-pooler="odyssey"><td>M2-T3</td><td>select-only, 100c/10p, simple</td><td><code>pool=statement</code>, workers=1, provisional (verified empirically)</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-T4" data-pooler="odyssey"><td>M2-T4</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=statement</code>, workers=1, provisional (verified empirically)</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I7" data-pooler="odyssey"><td>M2-I7</td><td>select-only, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=2</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I8" data-pooler="odyssey"><td>M2-I8</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=transaction</code>, workers=2</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I9" data-pooler="odyssey"><td>M2-I9</td><td>select-only, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=4</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-I10" data-pooler="odyssey"><td>M2-I10</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=transaction</code>, workers=4</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W3" data-pooler="odyssey"><td>M2-W3</td><td>simple-update, 100c/20p, simple</td><td><code>pool=session</code>, workers=1, pool_size 20</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-W8" data-pooler="odyssey"><td>M2-W8</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool=session</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-P4" data-pooler="odyssey"><td>M2-P4</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool=statement</code>, workers=1, provisional, prepared-reservation</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
-<tr data-cell="M2-P6" data-pooler="odyssey"><td>M2-P6</td><td>tpcb-like, 50c/10p, prepared</td><td class="na">N/A (unsupported): session prepared reservation incompatible with session pooling</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">loading…</td><td class="live-status">loading…</td></tr>
+<!-- DOSSIER:config:begin -->
+<div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
+<p class="note">Every odyssey config with its results in full: M1 7 rows plus 12 M2 rows (11 measured + 0 timeout/inconclusive) plus 1 N/A rows; M9 26 rows (24 measured + 2 timeout/inconclusive) plus 0 N/A rows. Table shows the max-repeats evidence per cell; full history in the matrix.csv files. Peak config tagged.</p>
+<table data-config-results data-pooler="odyssey"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
+<tr data-cell="M1-1" data-pooler="odyssey" data-status="measured"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">11,168 [10,999-13,222]</td><td>p99 10.5 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-2" data-pooler="odyssey" data-status="measured"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">2,762 [2,130-4,904]</td><td>p99 22.7 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-3" data-pooler="odyssey" data-status="timeout"><td>M1-3</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool=transaction</code>, workers=1, prepared protocol</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M1-4" data-pooler="odyssey" data-status="measured"><td>M1-4</td><td>select-only, 200c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">11,366 [1,218-28,294]</td><td>p99 20.2 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-5" data-pooler="odyssey" data-status="measured"><td>M1-5</td><td>simple-update, 100c/20p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 20</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">5,303 [3,887-8,519]</td><td>p99 31.2 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-6" data-pooler="odyssey" data-status="measured"><td>M1-6</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">4,571 [4,538-8,178]</td><td>p99 23.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M1-7" data-pooler="odyssey" data-status="measured"><td>M1-7</td><td>tpcb-like, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">3,168 [2,824-3,632]</td><td>p99 39.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I7" data-pooler="odyssey" data-status="measured"><td>M2-I7</td><td>select-only, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=2</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">11,341 [11,272-11,424]</td><td>p99 10.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I8" data-pooler="odyssey" data-status="measured"><td>M2-I8</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=transaction</code>, workers=2</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">2,688 [2,645-2,701]</td><td>p99 23.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I9" data-pooler="odyssey" data-status="measured"><td>M2-I9</td><td>select-only, 100c/10p, simple</td><td><code>pool=transaction</code>, workers=4</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">23,248 [22,418-24,064]</td><td>p99 5.7 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-I10" data-pooler="odyssey" data-status="measured"><td>M2-I10</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=transaction</code>, workers=4</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">2,485 [2,127-3,048]</td><td>p99 164.2 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-P4" data-pooler="odyssey" data-status="measured"><td>M2-P4</td><td>tpcb-like, 50c/10p, prepared</td><td><code>pool=statement</code>, workers=1, provisional, prepared-reservation</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">1,304 [1,299-1,311]</td><td>p99 44.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-P6" data-pooler="odyssey" data-status="na"><td>M2-P6</td><td>tpcb-like, 50c/10p, prepared</td><td>N/A (unsupported): session prepared reservation incompatible with session pooling</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">N/A (unsupported)</td><td>p99 -, n=0</td><td class="live-status na">N/A (unsupported)</td></tr>
+<tr data-cell="M2-S7" data-pooler="odyssey" data-status="measured"><td>M2-S7</td><td>select-only, 100c/10p, simple</td><td><code>pool=session</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">21,110 [20,749-22,220] PEAK</td><td>p99 1.0 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-S8" data-pooler="odyssey" data-status="measured"><td>M2-S8</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=session</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">3,184 [3,114-3,292]</td><td>p99 5.5 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-T3" data-pooler="odyssey" data-status="measured"><td>M2-T3</td><td>select-only, 100c/10p, simple</td><td><code>pool=statement</code>, workers=1, provisional (verified empirically)</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">11,219 [11,179-11,270]</td><td>p99 10.4 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-T4" data-pooler="odyssey" data-status="measured"><td>M2-T4</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool=statement</code>, workers=1, provisional (verified empirically)</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">1,461 [1,430-1,471]</td><td>p99 39.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-W3" data-pooler="odyssey" data-status="measured"><td>M2-W3</td><td>simple-update, 100c/20p, simple</td><td><code>pool=session</code>, workers=1, pool_size 20</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">5,640 [5,359-5,864]</td><td>p99 5.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M2-W8" data-pooler="odyssey" data-status="measured"><td>M2-W8</td><td>select-only, 100c/10p, churn (-C)</td><td><code>pool=session</code>, workers=1, pool_size 10</td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">4,467 [4,408-4,495]</td><td>p99 24.3 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C1" data-pooler="odyssey" data-status="measured"><td>M9-C1</td><td>select-only, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">11,323 [10,912-12,968]</td><td>p99 10.4 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C2" data-pooler="odyssey" data-status="measured"><td>M9-C2</td><td>tpcb-like, 50c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">2,700 [2,568-2,825]</td><td>p99 24.2 ms, n=10</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C3" data-pooler="odyssey" data-status="timeout"><td>M9-C3</td><td>tpcb-like, 50c/10p, prepared, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M9-C4" data-pooler="odyssey" data-status="measured"><td>M9-C4</td><td>select-only, 200c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">11,302 [10,822-14,064]</td><td>p99 20.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C5" data-pooler="odyssey" data-status="measured"><td>M9-C5</td><td>simple-update, 100c/20p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">4,183 [3,651-4,289]</td><td>p99 142.0 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C6" data-pooler="odyssey" data-status="measured"><td>M9-C6</td><td>select-only, 100c/10p, simple, churn (-C), scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">4,498 [4,454-6,392]</td><td>p99 23.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-C7" data-pooler="odyssey" data-status="measured"><td>M9-C7</td><td>tpcb-like, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">2,671 [2,359-2,859]</td><td>p99 46.1 ms, n=7</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M9-E1" data-pooler="odyssey" data-status="measured"><td>M9-E1</td><td>select-only, 100c/10p, simple, churn (-C)</td><td>M9 resweep, scale 10; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/odyssey.md">odyssey.md</a></td><td class="live-tps ok">216 [215-228]</td><td>p99 455.9 ms, n=7</td><td class="live-status ok">measured</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/odyssey.md">docs/configs/odyssey.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
+<!-- DOSSIER:config:end -->
 </div>
 
 <div class="section" id="s-verdict">
 <h2>Data-bound strengths and limits</h2>
 <p class="note">Derived strings from <code>report.json</code> ranked verdicts (best count, inconclusive count, timeout count), never free prose.</p>
-<div id="verdict-block"><p class="note">Loading live data from <code>../results/report.json</code> (serve over HTTP).</p></div>
+<!-- DOSSIER:verdict:begin -->
+<p>Across 59 ranked cells, odyssey is best in 2, inconclusive in 14, loses in 1; N/A (unsupported) in 1 cells, timeout/inconclusive in 1 cells. (Derived from report.json ranked verdicts.)</p>
+<!-- DOSSIER:verdict:end -->
+<h3>Resource evidence</h3>
+<!-- DOSSIER:resources:begin -->
+<table><tr><th>Signal</th><th>Median over measured raw</th></tr>
+<tr><td>pgbench CPU time</td><td>3.52 s (n=180)</td></tr>
+<tr><td>pgbench peak RSS</td><td>52,768 KB</td></tr>
+<tr><td>Iron</td><td>AMD EPYC 7763 64-Core Processor, kernel 6.17.0-1022-azure, 4 CPUs, pgbench -j 4</td></tr>
+<tr><td>PG config status</td><td>0 enforced, 180 disclosed, 0 other</td></tr>
+</table>
+<p class="note">Auth posture: none (CI-only frontend; backend leg SCRAM); scram-sha-256 on every frontend (M9-E1 equalized control).</p>
+<p class="note">Dataset: per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk.</p>
+<!-- DOSSIER:resources:end -->
 </div>
 
 <div class="section" id="s-na">
 <h2>N/A table</h2>
 <p class="note">Unsupported cells read <code>N/A (unsupported)</code> with nulls, never zeros, never interpolated. Over-cap cells read <code>timeout/inconclusive</code>.</p>
-<div id="na-block"><p class="note">Loading live data from committed medians (serve over HTTP).</p></div>
+<!-- DOSSIER:na:begin -->
+<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>
+<tr><td>M1-3</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M2-P6</td><td>N/A (unsupported)</td><td>-</td></tr>
+<tr><td>M9-C3</td><td>timeout/inconclusive</td><td>-</td></tr>
+</table>
+<!-- DOSSIER:na:end -->
 </div>
 
 <div class="section" id="s-repro">
 <h2>Reproduce it</h2>
 <pre>./poolduel/repro.sh --dry-run   # M1 pilot plan, runs nothing
 ./poolduel/repro.sh --report    # raw JSON -&gt; medians, CSVs, report.json
-./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON</pre>
+./poolduel/repro.sh --charts    # report.json -&gt; results/charts/ option JSON
+./poolduel/repro.sh --dossiers  # bundles -&gt; pre-rendered dossier pages</pre>
 <p>Method: <a href="../docs/methodology.md">docs/methodology.md</a> section 8 (reproducibility-by-adversary). Comparison page: <a href="../">../</a>.</p>
 </div>
 
@@ -109,96 +151,17 @@ Poolduel per-pooler deep-dive: Odyssey. Refs #302 (never Closes without explicit
 <script>
 (function () {
   "use strict";
-  var SLUG = "odyssey";
-  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
-  function naturalKey(s) {
-    return String(s).split(/(\d+)/).map(function (part) {
-      return (/^\d+$/.test(part) ? ("000000" + part).slice(-6) : part);
-    }).join("");
-  }
-  function fetchJson(url) {
-    return fetch(url, { cache: "no-store" }).then(function (r) {
-      return r.ok ? r.json() : null;
-    }).catch(function () { return null; });
-  }
-  function fetchFailNote(what) {
-    return "<p class='note'>Live results unavailable here: " + esc(what) +
-      " did not load (serve poolduel/ over HTTP).</p>";
-  }
-  fetchJson("../results/report.json").then(function (bundle) {
-    if (!bundle) {
-      document.getElementById("flat-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      document.getElementById("verdict-block").innerHTML =
-        fetchFailNote("../results/report.json");
-      return;
-    }
-    var flat = bundle.flatness ? bundle.flatness[SLUG] : null;
-    var flatHost = document.getElementById("flat-block");
-    if (flat) {
-      flatHost.innerHTML = "<table><tr><th>Configs measured</th><th>Spread</th>" +
-        "<th>Verdict</th><th>Peak cell</th><th>Trough cell</th></tr><tr><td>" +
-        esc(flat.configs_measured) + "</td><td>" +
-        (flat.spread == null ? "-" : (100 * flat.spread).toFixed(1) + "%") +
-        "</td><td>" + esc(flat.verdict) + "</td><td>" +
-        (flat.peak ? esc(flat.peak.cell_id) + " @ " + esc(flat.peak.tps_median) +
-          " (" + esc(flat.peak.workload || "?") + ")" : "-") +
-        "</td><td>" +
-        (flat.trough ? esc(flat.trough.cell_id) + " @ " + esc(flat.trough.tps_median) +
-          " (" + esc(flat.trough.workload || "?") + ")" : "-") +
-        "</td></tr></table>";
-    }
-    var best = bundle.best || {};
-    var cells = Object.keys(best).sort(function (a, b) {
-      var ka = naturalKey(a), kb = naturalKey(b);
-      return ka < kb ? -1 : ka > kb ? 1 : 0;
-    });
-    var nBest = 0, nInc = 0, nLose = 0, nNA = 0, nTimeout = 0;
-    cells.forEach(function (cell) {
-      var info = best[cell];
-      var mine = (info.ranked || []).filter(function (r) { return r.pooler === SLUG; })[0];
-      if (mine) {
-        if (mine.verdict === "best") nBest++;
-        else if (String(mine.verdict).indexOf("inconclusive") >= 0) nInc++;
-        else nLose++;
-      }
-      (info.na || []).forEach(function (n) {
-        if (n.pooler === SLUG) {
-          if (n.status === "N/A (unsupported)") nNA++;
-          else nTimeout++;
-        }
+  document.querySelectorAll(".viewtoggle button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var table = btn.closest(".section").querySelector("table");
+      var want = btn.getAttribute("data-filter");
+      table.closest(".section").querySelectorAll(".viewtoggle button")
+        .forEach(function (b) { b.classList.remove("on"); });
+      btn.classList.add("on");
+      table.querySelectorAll("tr[data-status]").forEach(function (row) {
+        row.style.display = (want === "all" ||
+          row.getAttribute("data-status") === want) ? "" : "none";
       });
-    });
-    document.getElementById("verdict-block").innerHTML =
-      "<p>Across " + cells.length + " ranked cells, " + esc(SLUG) +
-      " is best in " + nBest + ", inconclusive in " + nInc +
-      ", loses in " + nLose + "; N/A (unsupported) in " + nNA +
-      " cells, timeout/inconclusive in " + nTimeout +
-      " cells. (Derived from report.json ranked verdicts.)</p>";
-  });
-  fetchJson("../results/m1/medians.json").then(function (m1) {
-    fetchJson("../results/m2/medians.json").then(function (m2) {
-      if (!m1 && !m2) {
-        document.getElementById("na-block").innerHTML =
-          fetchFailNote("committed medians");
-        return;
-      }
-      var all = (m1 || []).concat(m2 || []);
-      var mine = all.filter(function (e) { return e.pooler === SLUG; });
-      var na = mine.filter(function (e) { return e.status === "N/A (unsupported)"; });
-      var host = document.getElementById("na-block");
-      if (!mine.length) return;
-      var html = "<table><tr><th>Cell</th><th>Status</th><th>tps median</th></tr>";
-      mine.sort(function (a, b) {
-        var ka = naturalKey(a.cell_id), kb = naturalKey(b.cell_id);
-        return ka < kb ? -1 : ka > kb ? 1 : 0;
-      }).forEach(function (e) {
-        html += "<tr><td>" + esc(e.cell_id) + "</td><td>" + esc(e.status) +
-          "</td><td>" + (e.tps && e.tps.median != null ? esc(e.tps.median) : "-") +
-          "</td></tr>";
-      });
-      host.innerHTML = html + "</table><p class='note'>" + na.length +
-        " N/A (unsupported) cells with nulls.</p>";
     });
   });
 })();
