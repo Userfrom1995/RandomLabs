@@ -41,7 +41,12 @@ PG_SHOW_KEYS = ("server_version", "max_connections", "shared_buffers",
 
 
 def cell_cap_s(cell):
-    return FLAGSHIP_CAP_S if cell.get("flagship") else STANDARD_CAP_S
+    if cell.get("flagship"):
+        return FLAGSHIP_CAP_S
+    # Soak cells run 1800/3600 s measured windows; the subprocess cap
+    # must clear duration + warmup + margin, not the 8-min standard cap.
+    return max(STANDARD_CAP_S,
+               int(cell.get("duration_s", 0)) + int(cell.get("warmup_s", 0)) + 120)
 
 
 def run_subprocess(argv, timeout_s, cwd=None, env=None):

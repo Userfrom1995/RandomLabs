@@ -389,5 +389,29 @@ class TestSoakPreflight(unittest.TestCase):
         self.assertEqual(check_mod.check_soak_seeds(), [])
 
 
+class TestSoakCapRegression(unittest.TestCase):
+    def test_cap_clears_duration_plus_warmup_every_cell_tier(self):
+        from poolduel.harness.runner import cell_cap_s
+        from poolduel.harness.soak import (SOAK_CELL_IDS, SOAK_DURATIONS,
+                                           soak_cell)
+        for cid in SOAK_CELL_IDS:
+            for duration in SOAK_DURATIONS:
+                cell = soak_cell(cid, duration)
+                cap = cell_cap_s(cell)
+                self.assertGreater(
+                    cap, duration,
+                    "%s/%ds cap %d must clear the measured window"
+                    % (cid, duration, cap))
+                self.assertGreaterEqual(
+                    cap, cell["duration_s"] + cell["warmup_s"],
+                    "%s/%ds cap %d must clear duration + warmup"
+                    % (cid, duration, cap))
+
+    def test_standard_cap_untouched_for_short_cells(self):
+        from poolduel.harness.cells import get_cell
+        from poolduel.harness.runner import STANDARD_CAP_S, cell_cap_s
+        self.assertEqual(cell_cap_s(get_cell("M1-3")), STANDARD_CAP_S)
+
+
 if __name__ == "__main__":
     unittest.main()
