@@ -1,8 +1,10 @@
 """M10 soak matrix (plan section 7, spec-v1.md s3/s6, issue #302).
 
 Long-horizon stability arms beside the M9 powered resweep: 30-min and
-60-min measured runs that surface what short cells cannot - pooler-side
-leak drift (RSS/FD growth across the run), tail-latency drift, and
+60-min measured runs that surface what short cells cannot - harness-side
+cost drift (RSS/FD growth across the run as a run-validity signal, sampled
+on the harness process via collect_self_resources; per-pooler-process leak
+sampling is future work, not claimed here), tail-latency drift, and
 stability (timeouts/errors late in the window). All as DATA plus pure
 functions; no procedure branches live here:
 
