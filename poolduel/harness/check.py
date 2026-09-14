@@ -5,6 +5,8 @@ Covers the M1 matrix (cells, chunks) and the M2 matrix (variants, chunks,
 chunk coverage, N/A schema validity).
 """
 
+import json
+import os
 import shutil
 import sys
 
@@ -340,6 +342,55 @@ def check_soak_seeds():
     return errors
 
 
+def check_site_coherence():
+    """sitemeta.json recomputes from the committed bundles (no hand values)."""
+    from poolduel.harness import site as sitemod
+    errors = []
+    root = os.path.join(os.path.dirname(__file__), "..")
+    paths = {
+        "m1": os.path.join(root, "results", "m1", "medians.json"),
+        "m2": os.path.join(root, "results", "m2", "medians.json"),
+        "m9": os.path.join(root, "results", "m9", "medians.json"),
+        "report": os.path.join(root, "results", "report.json"),
+        "sitemeta": os.path.join(root, "results", "sitemeta.json"),
+    }
+    try:
+        with open(paths["sitemeta"]) as handle:
+            committed = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["sitemeta.json unreadable: %s" % exc]
+    try:
+        loaded = {}
+        for key in ("m1", "m2", "m9", "report"):
+            with open(paths[key]) as handle:
+                loaded[key] = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["site input bundle unreadable: %s" % exc]
+    fresh = sitemod.build_sitemeta(loaded["m1"], loaded["m2"],
+                                   loaded["m9"], loaded["report"])
+    for key in ("executive_cards", "flagship", "m2_blocks", "m9_leg",
+                "iso_regions", "flatness", "counts"):
+        if committed.get(key) != fresh.get(key):
+            errors.append("sitemeta.json[%s] drifted from bundles; "
+                          "re-run repro.sh --site" % key)
+    for key in ("m1/medians.json", "m2/medians.json", "m9/medians.json",
+                "report.json"):
+        want = sitemod._sha256_file(os.path.join(root, "results", key))
+        if committed.get("sources", {}).get(key) != want:
+            errors.append("sitemeta sources[%s] SHA mismatch; "
+                          "re-run repro.sh --site" % key)
+    index = os.path.join(root, "index.html")
+    try:
+        with open(index) as handle:
+            text = handle.read()
+    except OSError as exc:
+        return errors + ["index.html unreadable: %s" % exc]
+    for name in sitemod.SECTIONS:
+        if "<!-- SITE:%s:begin -->" % name not in text:
+            errors.append("index.html lacks SITE marker %s" % name)
+    return errors
+
+
 def main():
     errors = []
     for binary in ("pgbench", "psql"):
@@ -375,6 +426,7 @@ def main():
     errors.extend(check_soak_budgets())
     errors.extend(check_soak_scale_init())
     errors.extend(check_soak_seeds())
+    errors.extend(check_site_coherence())
     from poolduel.harness.m9 import (M9_CHUNKS, check_m9_chunk_budgets,
                                      m9_supa_na_rows)
     over9 = check_m9_chunk_budgets()
