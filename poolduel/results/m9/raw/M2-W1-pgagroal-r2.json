@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r2/logs/cell-M2-W1-r2-42955.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r2/logs/cell-M2-W1-r2-42955.stdout.txt"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r2/logs/cell-M2-W1-r2-64625.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r2/logs/cell-M2-W1-r2-64625.stdout.txt"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M2-W1",
@@ -38,15 +38,12 @@
     "synchronous_commit": "on"
   },
   "pg_config_divergence": [
-    "key shared_buffers: want '512MB', effective '128MB'",
-    "key max_connections: want 300, effective '100'"
+    "key shared_buffers: want '512MB', effective '128MB'"
   ],
   "pg_config_status": "disclosed",
   "pg_show": {
     "fsync": "on",
-    "max_connections": "100",
     "password_encryption": "scram-sha-256",
-    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
     "shared_buffers": "128MB",
     "synchronous_commit": "on"
   },
@@ -58,9 +55,9 @@
   "protocol": "simple",
   "repeat": 2,
   "resources": {
-    "cpu_time_s": 0.475245,
+    "cpu_time_s": 0.427711,
     "fd_count": 6,
-    "peak_rss_kb": 31908,
+    "peak_rss_kb": 32100,
     "pg_stat": null,
     "pool_wait": null
   },

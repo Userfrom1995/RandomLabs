@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c11/work-M9-C3-pgbouncer-r2/logs/cell-M9-C3-r2-42523.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c11/work-M9-C3-pgbouncer-r2/logs/cell-M9-C3-r2-42523.26410"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c11/work-M9-C3-pgbouncer-r2/logs/cell-M9-C3-r2-59759.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c11/work-M9-C3-pgbouncer-r2/logs/cell-M9-C3-r2-59759.26474"
   },
   "auth_posture": "scram-sha-256 via auth_file users.txt",
   "cell_id": "M9-C3",
@@ -58,9 +58,9 @@
   "protocol": "prepared",
   "repeat": 2,
   "resources": {
-    "cpu_time_s": 0.804815,
+    "cpu_time_s": 0.823005,
     "fd_count": 6,
-    "peak_rss_kb": 28168,
+    "peak_rss_kb": 28156,
     "pg_stat": null,
     "pool_wait": null
   },

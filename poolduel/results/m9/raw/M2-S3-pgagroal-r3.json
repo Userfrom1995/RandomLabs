@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w02/work-M2-S3-pgagroal-r3/logs/cell-M2-S3-r3-42516.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w02/work-M2-S3-pgagroal-r3/logs/cell-M2-S3-r3-42516.25693"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w02/work-M2-S3-pgagroal-r3/logs/cell-M2-S3-r3-65193.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w02/work-M2-S3-pgagroal-r3/logs/cell-M2-S3-r3-65193.25741"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M2-S3",
@@ -16,7 +16,7 @@
   "exit_code": 1,
   "failed": 0,
   "isolation": {
-    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
     "governor": "unknown",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
@@ -58,9 +58,9 @@
   "protocol": "simple",
   "repeat": 3,
   "resources": {
-    "cpu_time_s": 3.182163,
+    "cpu_time_s": 3.04574,
     "fd_count": 6,
-    "peak_rss_kb": 87624,
+    "peak_rss_kb": 89268,
     "pg_stat": null,
     "pool_wait": null
   },

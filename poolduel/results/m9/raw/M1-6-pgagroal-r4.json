@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r21/work-M1-6-pgagroal-r4/logs/cell-M1-6-r4-35533.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r21/work-M1-6-pgagroal-r4/logs/cell-M1-6-r4-35533.47100"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r21/work-M1-6-pgagroal-r4/logs/cell-M1-6-r4-59159.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r21/work-M1-6-pgagroal-r4/logs/cell-M1-6-r4-59159.47144"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M1-6",
@@ -58,9 +58,9 @@
   "protocol": "simple",
   "repeat": 4,
   "resources": {
-    "cpu_time_s": 0.084377,
+    "cpu_time_s": 0.097422,
     "fd_count": 6,
-    "peak_rss_kb": 15144,
+    "peak_rss_kb": 15012,
     "pg_stat": null,
     "pool_wait": null
   },

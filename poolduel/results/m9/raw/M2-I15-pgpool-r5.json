@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w18/work-M2-I15-pgpool-r5/logs/cell-M2-I15-r5-41118.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w18/work-M2-I15-pgpool-r5/logs/cell-M2-I15-r5-41118.27678"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w18/work-M2-I15-pgpool-r5/logs/cell-M2-I15-r5-65135.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w18/work-M2-I15-pgpool-r5/logs/cell-M2-I15-r5-65135.27877"
   },
   "auth_posture": "pool_hba disabled (default; backend SCRAM via pool_passwd)",
   "cell_id": "M2-I15",
@@ -16,8 +16,8 @@
   "exit_code": 1,
   "failed": 0,
   "isolation": {
-    "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
-    "governor": "performance",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "governor": "unknown",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
     "pgbench_j": 4,
@@ -38,15 +38,13 @@
     "synchronous_commit": "on"
   },
   "pg_config_divergence": [
-    "key shared_buffers: want '512MB', effective '128MB'",
     "key max_connections: want 300, effective '100'"
   ],
   "pg_config_status": "disclosed",
   "pg_show": {
     "fsync": "on",
     "max_connections": "100",
-    "shared_buffers": "128MB",
-    "synchronous_commit": "on"
+    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)"
   },
   "pg_version": "PG 17",
   "pool_size": 10,
@@ -56,9 +54,9 @@
   "protocol": "simple",
   "repeat": 5,
   "resources": {
-    "cpu_time_s": 10.250349,
+    "cpu_time_s": 6.9487630000000005,
     "fd_count": 6,
-    "peak_rss_kb": 180932,
+    "peak_rss_kb": 88252,
     "pg_stat": null,
     "pool_wait": null
   },

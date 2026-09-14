@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-pgagroal-r5/logs/cell-M1-4-r5-35824.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-pgagroal-r5/logs/cell-M1-4-r5-35824.27167"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-pgagroal-r5/logs/cell-M1-4-r5-60510.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-pgagroal-r5/logs/cell-M1-4-r5-60510.stdout.txt"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M1-4",
@@ -13,11 +13,11 @@
     "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
   },
   "duration_s": 60,
-  "exit_code": 0,
+  "exit_code": null,
   "failed": 0,
   "isolation": {
-    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
-    "governor": "unknown",
+    "cpu_model": "Intel(R) Xeon(R) 6973P-C",
+    "governor": "performance",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
     "pgbench_j": 4,
@@ -25,31 +25,21 @@
     "threads": 4,
     "topology": "x86_64/x86_64"
   },
-  "latency_avg_ms": 257.262,
-  "latency_stddev_ms": 3141.026,
-  "p50_ms": 11.516,
-  "p90_ms": 17.955800000000018,
-  "p999_ms": 40554.871518,
-  "p99_ms": 44.59821999999999,
+  "latency_avg_ms": null,
+  "latency_stddev_ms": null,
+  "p50_ms": null,
+  "p90_ms": null,
+  "p999_ms": null,
+  "p99_ms": null,
   "pg_config": {
     "fsync": "on",
     "max_connections": 300,
     "shared_buffers": "512MB",
     "synchronous_commit": "on"
   },
-  "pg_config_divergence": [
-    "key shared_buffers: want '512MB', effective '128MB'",
-    "key max_connections: want 300, effective '100'"
-  ],
-  "pg_config_status": "disclosed",
-  "pg_show": {
-    "fsync": "on",
-    "max_connections": "100",
-    "password_encryption": "scram-sha-256",
-    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
-    "shared_buffers": "128MB",
-    "synchronous_commit": "on"
-  },
+  "pg_config_divergence": [],
+  "pg_config_status": "unknown",
+  "pg_show": {},
   "pg_version": "PG 17",
   "pool_size": 10,
   "pooler": "pgagroal",
@@ -58,18 +48,18 @@
   "protocol": "simple",
   "repeat": 5,
   "resources": {
-    "cpu_time_s": 3.192892,
+    "cpu_time_s": 4.369953000000001,
     "fd_count": 6,
-    "peak_rss_kb": 81912,
+    "peak_rss_kb": 138432,
     "pg_stat": null,
     "pool_wait": null
   },
   "scale": 10,
   "seed": 9256,
   "skipped": 0,
-  "status": "measured",
+  "status": "timeout/inconclusive",
   "threads": 4,
-  "tps": 772.119277,
+  "tps": null,
   "warmup_s": 30,
   "workload": "select-only"
 }

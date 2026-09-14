@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w20/work-M2-W3-odyssey-r5/logs/cell-M2-W3-r5-42907.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w20/work-M2-W3-odyssey-r5/logs/cell-M2-W3-r5-42907.26229"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w20/work-M2-W3-odyssey-r5/logs/cell-M2-W3-r5-67161.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w20/work-M2-W3-odyssey-r5/logs/cell-M2-W3-r5-67161.26308"
   },
   "auth_posture": "none (CI-only frontend; backend leg SCRAM)",
   "cell_id": "M2-W3",
@@ -16,7 +16,7 @@
   "exit_code": 0,
   "failed": 0,
   "isolation": {
-    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
     "governor": "unknown",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
@@ -25,12 +25,12 @@
     "threads": 4,
     "topology": "x86_64/x86_64"
   },
-  "latency_avg_ms": 20.029,
-  "latency_stddev_ms": 980.591,
-  "p50_ms": 3.908,
-  "p90_ms": 4.756,
-  "p999_ms": 9.767720000000205,
-  "p99_ms": 6.128900000000023,
+  "latency_avg_ms": 18.648,
+  "latency_stddev_ms": 946.151,
+  "p50_ms": 3.609,
+  "p90_ms": 4.667,
+  "p999_ms": 18.766179999852028,
+  "p99_ms": 5.881,
   "pg_config": {
     "fsync": "on",
     "max_connections": 300,
@@ -58,9 +58,9 @@
   "protocol": "simple",
   "repeat": 5,
   "resources": {
-    "cpu_time_s": 3.0495609999999997,
+    "cpu_time_s": 3.208155,
     "fd_count": 6,
-    "peak_rss_kb": 32060,
+    "peak_rss_kb": 33248,
     "pg_stat": null,
     "pool_wait": null
   },
@@ -69,7 +69,7 @@
   "skipped": 0,
   "status": "measured",
   "threads": 4,
-  "tps": 4989.173774,
+  "tps": 5359.278168,
   "warmup_s": 30,
   "workload": "simple-update"
 }

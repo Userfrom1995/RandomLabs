@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r14/work-M1-4-pgagroal-r3/logs/cell-M1-4-r3-37787.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r14/work-M1-4-pgagroal-r3/logs/cell-M1-4-r3-37787.28251"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r14/work-M1-4-pgagroal-r3/logs/cell-M1-4-r3-62822.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r14/work-M1-4-pgagroal-r3/logs/cell-M1-4-r3-62822.stdout.txt"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M1-4",
@@ -13,10 +13,10 @@
     "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
   },
   "duration_s": 60,
-  "exit_code": 0,
+  "exit_code": null,
   "failed": 0,
   "isolation": {
-    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
     "governor": "unknown",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
@@ -25,31 +25,21 @@
     "threads": 4,
     "topology": "x86_64/x86_64"
   },
-  "latency_avg_ms": 192.826,
-  "latency_stddev_ms": 2743.884,
-  "p50_ms": 9.83,
-  "p90_ms": 12.4044,
-  "p999_ms": 41283.72528,
-  "p99_ms": 33.67176000000002,
+  "latency_avg_ms": null,
+  "latency_stddev_ms": null,
+  "p50_ms": null,
+  "p90_ms": null,
+  "p999_ms": null,
+  "p99_ms": null,
   "pg_config": {
     "fsync": "on",
     "max_connections": 300,
     "shared_buffers": "512MB",
     "synchronous_commit": "on"
   },
-  "pg_config_divergence": [
-    "key shared_buffers: want '512MB', effective '128MB'",
-    "key max_connections: want 300, effective '100'"
-  ],
-  "pg_config_status": "disclosed",
-  "pg_show": {
-    "fsync": "on",
-    "max_connections": "100",
-    "password_encryption": "scram-sha-256",
-    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
-    "shared_buffers": "128MB",
-    "synchronous_commit": "on"
-  },
+  "pg_config_divergence": [],
+  "pg_config_status": "unknown",
+  "pg_show": {},
   "pg_version": "PG 17",
   "pool_size": 10,
   "pooler": "pgagroal",
@@ -58,18 +48,18 @@
   "protocol": "simple",
   "repeat": 3,
   "resources": {
-    "cpu_time_s": 6.282794999999999,
+    "cpu_time_s": 5.882053,
     "fd_count": 6,
-    "peak_rss_kb": 80948,
+    "peak_rss_kb": 74388,
     "pg_stat": null,
     "pool_wait": null
   },
   "scale": 10,
   "seed": 9001,
   "skipped": 0,
-  "status": "measured",
+  "status": "timeout/inconclusive",
   "threads": 4,
-  "tps": 1030.586826,
+  "tps": null,
   "warmup_s": 30,
   "workload": "select-only"
 }

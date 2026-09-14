@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r6/logs/cell-M2-W1-r6-43562.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r6/logs/cell-M2-W1-r6-43562.26628"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r6/logs/cell-M2-W1-r6-65593.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r6/logs/cell-M2-W1-r6-65593.stdout.txt"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M2-W1",
@@ -46,7 +46,6 @@
     "fsync": "on",
     "max_connections": "100",
     "password_encryption": "scram-sha-256",
-    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
     "shared_buffers": "128MB",
     "synchronous_commit": "on"
   },
@@ -58,9 +57,9 @@
   "protocol": "simple",
   "repeat": 6,
   "resources": {
-    "cpu_time_s": 2.155784,
+    "cpu_time_s": 2.1266879999999997,
     "fd_count": 6,
-    "peak_rss_kb": 31908,
+    "peak_rss_kb": 32100,
     "pg_stat": null,
     "pool_wait": null
   },
