@@ -366,7 +366,18 @@ milestones autonomously, notify once when publishable. Blueprint:
 `ideas/2026-09-13-poolduel-redesign.md`. All PRs use `Refs #302`; no
 `Closes #302` until the plan section 11 full gate passes.
 
-Active Milestone: M10 (statistics + soak definition; M9 GREEN held at 37d7948c)
+Active Milestone: M11 (website rebuild; M10 merged at 1ec99126, M9 GREEN held)
+
+- Milestone 11a (statistics publication, this PR): [x] deterministic
+  `repro.sh --report` rebuild over committed raw (42 m1 + 111 m2
+  byte-identical, 250 m9 with context + quarantine flags, new
+  m9/matrix.csv, report.json gains m9 leg + statistics family 98 /
+  96 headlines / claims 1/2/3/5 faster + 4 inconclusive); [x] charts
+  regen byte-identical options (manifest SHA refresh only);
+  [x] pagemeta refresh (unchanged); [x] 2 honest m9 verdict deltas
+  logged (M1-4/pgagroal mixed-status to inconclusive, M2-I15/pgpool
+  timeout values to nulls); [x] 558/558 green. Next: M11b website
+  rebuild reads the committed bundles. (This PR, Refs #302)
 
 - Milestone 5 (charter + registry + spec + drift test): [x] IA lock
   verified (relative links, vendored ECharts 5.5.1, no CDN, no Mermaid
