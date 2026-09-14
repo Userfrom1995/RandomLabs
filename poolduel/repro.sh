@@ -126,14 +126,22 @@ case "$MODE" in
         M2ARGS="$M2ARGS --m2-dir $d"
       fi
     done
-    if [ -z "$M1ARGS$M2ARGS" ]; then
+    M9ARGS=""
+    for d in "$M9OUT" poolduel/results/m9-*; do
+      if [ -d "$d/raw" ] && ls "$d"/raw/*.json >/dev/null 2>&1; then
+        M9ARGS="$M9ARGS --m9-dir $d"
+      fi
+    done
+    if [ -z "$M1ARGS$M2ARGS$M9ARGS" ]; then
       echo "poolduel repro: no sweep data (no raw/*.json under" >&2
-      echo "  $OUT, $M2OUT, poolduel/results/m1-*, poolduel/results/m2*)" >&2
-      echo "  run --pilot/--full/--m2-full first; not inventing numbers" >&2
+      echo "  $OUT, $M2OUT, $M9OUT, poolduel/results/m1-*," >&2
+      echo "  poolduel/results/m2-*, poolduel/results/m9-*)" >&2
+      echo "  run --pilot/--full/--m2-full/--m9-full first;" >&2
+      echo "  not inventing numbers" >&2
       exit 1
     fi
     # shellcheck disable=SC2086
-    python3 -m poolduel.harness.report $M1ARGS $M2ARGS \
+    python3 -m poolduel.harness.report $M1ARGS $M2ARGS $M9ARGS \
       --out poolduel/results
     ;;
   --pagemeta)
