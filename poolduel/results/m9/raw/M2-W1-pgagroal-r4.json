@@ -1,0 +1,75 @@
+{
+  "artifacts": {
+    "agglog": null,
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r4/logs/cell-M2-W1-r4-43259.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w19/work-M2-W1-pgagroal-r4/logs/cell-M2-W1-r4-43259.stdout.txt"
+  },
+  "auth_posture": "scram-sha-256 via HBA + vault passthrough",
+  "cell_id": "M2-W1",
+  "churn": false,
+  "clients": 100,
+  "dataset": {
+    "init": "pgbench -i -s 10 per chunk",
+    "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+  },
+  "duration_s": 60,
+  "exit_code": 1,
+  "failed": 0,
+  "isolation": {
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "governor": "unknown",
+    "kernel": "6.17.0-1022-azure",
+    "nproc": 4,
+    "pgbench_j": 4,
+    "pinning": "none",
+    "threads": 4,
+    "topology": "x86_64/x86_64"
+  },
+  "latency_avg_ms": null,
+  "latency_stddev_ms": null,
+  "p50_ms": null,
+  "p90_ms": null,
+  "p999_ms": null,
+  "p99_ms": null,
+  "pg_config": {
+    "fsync": "on",
+    "max_connections": 300,
+    "shared_buffers": "512MB",
+    "synchronous_commit": "on"
+  },
+  "pg_config_divergence": [
+    "key shared_buffers: want '512MB', effective '128MB'",
+    "key max_connections: want 300, effective '100'"
+  ],
+  "pg_config_status": "disclosed",
+  "pg_show": {
+    "fsync": "on",
+    "max_connections": "100",
+    "password_encryption": "scram-sha-256",
+    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
+    "shared_buffers": "128MB",
+    "synchronous_commit": "on"
+  },
+  "pg_version": "PG 17",
+  "pool_size": 20,
+  "pooler": "pgagroal",
+  "pooler_config": "# pgagroal M2 variant (pipeline=session, ev_backend=auto)\n# refs: CONFIGURATION.html, PIPELINES.html, ARCHITECTURE.html\n[pgagroal]\nhost = 127.0.0.1\nport = 6432\nunix_socket_dir = /tmp\nmax_connections = 20\npipeline = session\nev_backend = auto\nblocking_timeout = 120s\nidle_timeout = 0\nmax_connection_age = 0\nvalidation = off\ntrack_prepared_statements = off\nnodelay = on\nkeep_alive = on\n# allow_unknown_users = false is MANDATORY for the transaction\n# pipeline (upstream validator FATALs otherwise; test/conf/01-02\n# pin the same). benchuser is defined in the user vault\n# (pgagroal_users.conf via -u), provisioned in setup().\nallow_unknown_users = false\nlog_type = console\nlog_level = info\n# backend server section (CONFIGURATION.html: sections other\n# than [pgagroal] each configure one PostgreSQL backend;\n# without one the pooler has no server to pool)\n[primary]\nhost = 127.0.0.1\nport = 5432\nprimary = on\n# per-db pool (pgagroal_databases.conf): full\n# DATABASE USER MAX_SIZE INITIAL_SIZE MIN_SIZE triple, all > 0\n# (mandatory for the transaction pipeline); prefilled to max\n# per the PIPELINES prefill recommendation.\n# HBA (pgagroal_hba.conf, CI-only): scram-sha-256 so the\n# vault-known benchuser authenticates against PostgreSQL\n# itself (CONFIGURATION.html); `trust` cannot be used because\n# the pooler would then hold no password for the SCRAM backend.\n",
+  "pooler_version": "2.1.0+tip",
+  "protocol": "simple",
+  "repeat": 4,
+  "resources": {
+    "cpu_time_s": 1.2968270000000002,
+    "fd_count": 6,
+    "peak_rss_kb": 31908,
+    "pg_stat": null,
+    "pool_wait": null
+  },
+  "scale": 10,
+  "seed": 7961,
+  "skipped": 0,
+  "status": "timeout/inconclusive",
+  "threads": 4,
+  "tps": null,
+  "warmup_s": 30,
+  "workload": "simple-update"
+}

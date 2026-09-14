@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r02/work-M1-1-odyssey-r3/logs/cell-M1-1-r3-32941.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r02/work-M1-1-odyssey-r3/logs/cell-M1-1-r3-32941.25969"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r02/work-M1-1-odyssey-r3/logs/cell-M1-1-r3-40571.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r02/work-M1-1-odyssey-r3/logs/cell-M1-1-r3-40571.25884"
   },
   "auth_posture": "none (CI-only frontend; backend leg SCRAM)",
   "cell_id": "M1-1",
@@ -16,8 +16,8 @@
   "exit_code": 0,
   "failed": 0,
   "isolation": {
-    "cpu_model": "AMD EPYC 7763 64-Core Processor",
-    "governor": "unknown",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "governor": "performance",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
     "pgbench_j": 4,
@@ -25,12 +25,12 @@
     "threads": 4,
     "topology": "x86_64/x86_64"
   },
-  "latency_avg_ms": 8.871,
-  "latency_stddev_ms": 0.474,
-  "p50_ms": 8.779,
-  "p90_ms": 9.395,
-  "p999_ms": 12.16,
-  "p99_ms": 10.609,
+  "latency_avg_ms": 5.174,
+  "latency_stddev_ms": 0.349,
+  "p50_ms": 5.099,
+  "p90_ms": 5.549,
+  "p999_ms": 7.553,
+  "p99_ms": 6.535,
   "pg_config": {
     "fsync": "on",
     "max_connections": 300,
@@ -58,9 +58,9 @@
   "protocol": "simple",
   "repeat": 3,
   "resources": {
-    "cpu_time_s": 8.236043,
+    "cpu_time_s": 11.285917999999999,
     "fd_count": 6,
-    "peak_rss_kb": 153676,
+    "peak_rss_kb": 203008,
     "pg_stat": null,
     "pool_wait": null
   },
@@ -69,7 +69,7 @@
   "skipped": 0,
   "status": "measured",
   "threads": 4,
-  "tps": 11264.476534,
+  "tps": 19310.676342,
   "warmup_s": 30,
   "workload": "select-only"
 }

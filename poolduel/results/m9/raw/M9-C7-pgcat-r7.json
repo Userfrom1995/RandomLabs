@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c25/work-M9-C7-pgcat-r7/logs/cell-M9-C7-r7-33117.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c25/work-M9-C7-pgcat-r7/logs/cell-M9-C7-r7-33117.26901"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c25/work-M9-C7-pgcat-r7/logs/cell-M9-C7-r7-36446.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c25/work-M9-C7-pgcat-r7/logs/cell-M9-C7-r7-36446.26915"
   },
   "auth_posture": "scram-sha-256 via admin/users file",
   "cell_id": "M9-C7",
@@ -25,12 +25,12 @@
     "threads": 4,
     "topology": "x86_64/x86_64"
   },
-  "latency_avg_ms": 35.336,
-  "latency_stddev_ms": 25.841,
-  "p50_ms": 33.195,
-  "p90_ms": 35.58,
-  "p999_ms": 454.5993939999995,
-  "p99_ms": 46.00114999999994,
+  "latency_avg_ms": 35.271,
+  "latency_stddev_ms": 27.297,
+  "p50_ms": 33.1,
+  "p90_ms": 35.309,
+  "p999_ms": 490.5469700000001,
+  "p99_ms": 42.63740000000002,
   "pg_config": {
     "fsync": "on",
     "max_connections": 300,
@@ -58,9 +58,9 @@
   "protocol": "simple",
   "repeat": 7,
   "resources": {
-    "cpu_time_s": 2.005807,
+    "cpu_time_s": 1.975916,
     "fd_count": 6,
-    "peak_rss_kb": 25680,
+    "peak_rss_kb": 25448,
     "pg_stat": null,
     "pool_wait": null
   },
@@ -69,7 +69,7 @@
   "skipped": 0,
   "status": "measured",
   "threads": 4,
-  "tps": 2827.936765,
+  "tps": 2833.085633,
   "warmup_s": 30,
   "workload": "tpcb-like"
 }

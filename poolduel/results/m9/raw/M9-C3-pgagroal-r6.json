@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c13/work-M9-C3-pgagroal-r6/logs/cell-M9-C3-r6-31333.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c13/work-M9-C3-pgagroal-r6/logs/cell-M9-C3-r6-31333.25004"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c13/work-M9-C3-pgagroal-r6/logs/cell-M9-C3-r6-38767.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9c13/work-M9-C3-pgagroal-r6/logs/cell-M9-C3-r6-38767.stdout.txt"
   },
   "auth_posture": "scram-sha-256 via HBA + vault passthrough",
   "cell_id": "M9-C3",
@@ -13,11 +13,11 @@
     "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
   },
   "duration_s": 60,
-  "exit_code": null,
+  "exit_code": 1,
   "failed": 0,
   "isolation": {
-    "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
-    "governor": "performance",
+    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "governor": "unknown",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
     "pgbench_j": 4,
@@ -46,6 +46,7 @@
     "fsync": "on",
     "max_connections": "100",
     "password_encryption": "scram-sha-256",
+    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
     "shared_buffers": "128MB",
     "synchronous_commit": "on"
   },
@@ -57,9 +58,9 @@
   "protocol": "prepared",
   "repeat": 6,
   "resources": {
-    "cpu_time_s": 0.324137,
+    "cpu_time_s": 0.365747,
     "fd_count": 6,
-    "peak_rss_kb": 32048,
+    "peak_rss_kb": 28040,
     "pg_stat": null,
     "pool_wait": null
   },

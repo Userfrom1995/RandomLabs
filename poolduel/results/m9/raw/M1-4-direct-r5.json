@@ -1,8 +1,8 @@
 {
   "artifacts": {
     "agglog": null,
-    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-direct-r5/logs/cell-M1-4-r5-30422.stdout.txt",
-    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-direct-r5/logs/cell-M1-4-r5-30422.26461"
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-direct-r5/logs/cell-M1-4-r5-35821.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9r15/work-M1-4-direct-r5/logs/cell-M1-4-r5-35821.26777"
   },
   "auth_posture": "scram (PG backend, no pooler frontend)",
   "cell_id": "M1-4",
@@ -13,10 +13,10 @@
     "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
   },
   "duration_s": 60,
-  "exit_code": 1,
+  "exit_code": -11,
   "failed": 0,
   "isolation": {
-    "cpu_model": "AMD EPYC 7763 64-Core Processor",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor",
     "governor": "unknown",
     "kernel": "6.17.0-1022-azure",
     "nproc": 4,
@@ -58,9 +58,9 @@
   "protocol": "simple",
   "repeat": 5,
   "resources": {
-    "cpu_time_s": 3.0430789999999996,
+    "cpu_time_s": 3.157105,
     "fd_count": 6,
-    "peak_rss_kb": 63220,
+    "peak_rss_kb": 81912,
     "pg_stat": null,
     "pool_wait": null
   },

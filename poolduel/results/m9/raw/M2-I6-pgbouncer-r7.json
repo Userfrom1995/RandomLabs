@@ -1,0 +1,75 @@
+{
+  "artifacts": {
+    "agglog": null,
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w13/work-M2-I6-pgbouncer-r7/logs/cell-M2-I6-r7-46069.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w13/work-M2-I6-pgbouncer-r7/logs/cell-M2-I6-r7-46069.28203"
+  },
+  "auth_posture": "scram-sha-256 via auth_file users.txt",
+  "cell_id": "M2-I6",
+  "churn": false,
+  "clients": 50,
+  "dataset": {
+    "init": "pgbench -i -s 10 per chunk",
+    "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+  },
+  "duration_s": 60,
+  "exit_code": 0,
+  "failed": 0,
+  "isolation": {
+    "cpu_model": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "governor": "performance",
+    "kernel": "6.17.0-1022-azure",
+    "nproc": 4,
+    "pgbench_j": 4,
+    "pinning": "none",
+    "threads": 4,
+    "topology": "x86_64/x86_64"
+  },
+  "latency_avg_ms": 12.393,
+  "latency_stddev_ms": 6.078,
+  "p50_ms": 11.778,
+  "p90_ms": 13.52,
+  "p999_ms": 95.8250549999994,
+  "p99_ms": 19.355450000000012,
+  "pg_config": {
+    "fsync": "on",
+    "max_connections": 300,
+    "shared_buffers": "512MB",
+    "synchronous_commit": "on"
+  },
+  "pg_config_divergence": [
+    "key shared_buffers: want '512MB', effective '128MB'",
+    "key max_connections: want 300, effective '100'"
+  ],
+  "pg_config_status": "disclosed",
+  "pg_show": {
+    "fsync": "on",
+    "max_connections": "100",
+    "password_encryption": "scram-sha-256",
+    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
+    "shared_buffers": "128MB",
+    "synchronous_commit": "on"
+  },
+  "pg_version": "PG 17",
+  "pool_size": 10,
+  "pooler": "pgbouncer",
+  "pooler_config": "# PgBouncer M2 variant (pool_mode=transaction, instances=2)\n# refs: config.html, features.html, faq.html\n[pgbouncer]\nlisten_addr = 127.0.0.1\nlisten_port = 6433\npool_mode = transaction\ndefault_pool_size = 10\nmax_client_conn = 500\nmin_pool_size = 0\nreserve_pool_size = 0\nreserve_pool_timeout = 5.0\n# client auth (config.html Authentication settings):\n# scram-sha-256 against users.txt (plaintext benchpass entry,\n# CI-only). PgBouncer logs into PostgreSQL with the client's\n# password, so the benchuser/benchpass pair that pgbench\n# presents (PGPASSWORD in CI) also authenticates the backend.\nauth_type = scram-sha-256\nauth_file = /home/runner/work/RandomLabs/RandomLabs/poolduel/results/m9-m9w13/work-M2-I6-pgbouncer-r7/users.txt\nserver_reset_query = DISCARD ALL\nserver_lifetime = 3600.0\nserver_idle_timeout = 600.0\nquery_wait_timeout = 120.0\nso_reuseport = 1\nmax_prepared_statements = 0\n\n[databases]\nbenchdb = host=127.0.0.1 port=5432 dbname=benchdb\n",
+  "pooler_version": "1.25.2",
+  "protocol": "simple",
+  "repeat": 7,
+  "resources": {
+    "cpu_time_s": 34.613543,
+    "fd_count": 6,
+    "peak_rss_kb": 159452,
+    "pg_stat": null,
+    "pool_wait": null
+  },
+  "scale": 10,
+  "seed": 15880,
+  "skipped": 0,
+  "status": "measured",
+  "threads": 4,
+  "tps": 4032.000138,
+  "warmup_s": 30,
+  "workload": "tpcb-like"
+}
