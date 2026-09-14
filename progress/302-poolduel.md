@@ -4,7 +4,7 @@ Status: in-progress
 Date: 2026-09-12. Owner directive via #42 (supreme priority).
 Blueprint: `ideas/2026-09-11-poolduel.md`. Researcher spec: `poolduel/docs/`.
 
-Active Milestone: M4 (per-pooler deep-dives + ECharts charts + verification)
+Active Milestone: M11c (static-first dossiers; M11b merged, M9 GREEN held)
 
 ## Milestone roadmap
 
@@ -790,5 +790,44 @@ Current step: M11b implementation complete, awaiting review
 Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
   sitemeta drift + no-pending-content checks) -> merge -> Builder
   M11c per blueprint.
+
+- the Builder
+
+## M11c build log (Builder, 2026-09-14, branch `opencode/issue302-poolduel-m11c`)
+
+Implements the M11c slice of `ideas/2026-09-13-poolduel-redesign.md`
+(six dossiers on the 7-section-ID contract with full config tables,
+filters, resource-evidenced diagnostics). Harness + pages + docs
+only; no sweep execution, no numbers beyond committed bundles.
+
+Active Milestone: M11c (dossiers; M11b merged at 6fec9403, M9 GREEN held)
+
+- New: `harness/dossiers.py` (bundles + raw in,
+  `results/dossiermeta.json` out, `--apply` splices DOSSIER markers;
+  max-n dedupe since M9 re-measured M1/M2 geometries under original
+  ids; na-class settings parse; unescape-stable idempotent re-apply),
+  `tests/test_m11c_dossiers.py` (17 tests).
+- Migrated 5 dossier pages to DOSSIER markers (live-fetch scripts
+  replaced by filter-only scripts); new `poolduel/supavisor/`
+  sixth dossier (6 N/A rows, zero measured, smoke-gate note);
+  prev/next rewired pgcat -> supavisor -> pgagroal.
+- Wiring: `repro.sh --dossiers`, `check.py` dossier coherence
+  (rebuild + markers + template sameness + no-loading), README
+  repro docs, spec-v1 s6 M11c note, master index Supavisor links,
+  charts.js m9 lookups with max-n dedupe.
+- Fixes during build: M9-blind live JS would clobber M9 rows
+  ("no record"); Tester PR321 M2 note-shape contract preserved and
+  extended (raw per-leg counts in note, winners in table).
+- Proof: full suite 617 green, `check.py` rc=0, second `--apply`
+  byte-identical meta, served-HTTP smoke on all six dossiers
+  (zero loading, filters present), `node --check` clean.
+- `Refs #302`: no `Closes`, no owner notification (mandate rule 6;
+  M11d/M12 remain). Follow-ups: M11d supplementary sections +
+  design system, M12 package + red-team.
+
+Current step: M11c implementation complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  dossiermeta drift + no-loading checks) -> merge -> Builder M11d
+  per blueprint.
 
 - the Builder

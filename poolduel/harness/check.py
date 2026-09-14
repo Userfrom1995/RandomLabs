@@ -391,6 +391,83 @@ def check_site_coherence():
     return errors
 
 
+def check_dossier_coherence():
+    """dossiermeta.json recomputes from the committed bundles (no hand values).
+
+    Also verifies every dossier page carries all DOSSIER markers, the
+    same 7-section template as its siblings, and zero ``loading``
+    cells as content.
+    """
+    import re
+    from poolduel.harness import dossiers as dossmod
+    errors = []
+    root = os.path.join(os.path.dirname(__file__), "..")
+    paths = {
+        "m1": os.path.join(root, "results", "m1", "medians.json"),
+        "m2": os.path.join(root, "results", "m2", "medians.json"),
+        "m9": os.path.join(root, "results", "m9", "medians.json"),
+        "report": os.path.join(root, "results", "report.json"),
+        "dossiermeta": os.path.join(root, "results", "dossiermeta.json"),
+    }
+    try:
+        with open(paths["dossiermeta"]) as handle:
+            committed = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["dossiermeta.json unreadable: %s" % exc]
+    try:
+        loaded = {}
+        for key in ("m1", "m2", "m9", "report"):
+            with open(paths[key]) as handle:
+                loaded[key] = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["dossier input bundle unreadable: %s" % exc]
+    fresh = None
+    try:
+        settings = {}
+        for pooler in dossmod.DOSSIERS:
+            page = os.path.join(root, pooler, "index.html")
+            with open(page) as handle:
+                settings[pooler] = dossmod.parse_settings(handle.read())
+        fresh = dossmod.build_all(loaded["m1"], loaded["m2"], loaded["m9"],
+                                  loaded["report"], {}, settings)
+    except (OSError, ValueError) as exc:
+        return ["dossier rebuild failed: %s" % exc]
+    committed_dossiers = committed.get("dossiers", {})
+    for pooler in dossmod.DOSSIERS:
+        want = fresh.get(pooler)
+        got = committed_dossiers.get(pooler)
+        if got is None:
+            errors.append("dossiermeta lacks dossier %s" % pooler)
+            continue
+        for key in ("rows", "counts", "legs", "flatness", "verdicts"):
+            if got.get(key) != (want or {}).get(key):
+                errors.append("dossiermeta[%s/%s] drifted from bundles; "
+                              "re-run repro.sh --dossiers" % (pooler, key))
+    sections = None
+    for pooler in dossmod.DOSSIERS:
+        page = os.path.join(root, pooler, "index.html")
+        try:
+            with open(page) as handle:
+                text = handle.read()
+        except OSError as exc:
+            errors.append("%s/index.html unreadable: %s" % (pooler, exc))
+            continue
+        for name in dossmod.MARKERS:
+            if "<!-- DOSSIER:%s:begin -->" % name not in text:
+                errors.append("%s lacks DOSSIER marker %s" % (pooler,
+                                                              name))
+        if "loading" in text:
+            errors.append("%s still ships loading cells; "
+                          "re-run repro.sh --dossiers" % pooler)
+        found = re.findall(r'<div class="section" id="([^"]+)">', text)
+        if sections is None:
+            sections = found
+        elif found != sections:
+            errors.append("%s breaks the 7-section template contract"
+                          % pooler)
+    return errors
+
+
 def main():
     errors = []
     for binary in ("pgbench", "psql"):
@@ -427,6 +504,7 @@ def main():
     errors.extend(check_soak_scale_init())
     errors.extend(check_soak_seeds())
     errors.extend(check_site_coherence())
+    errors.extend(check_dossier_coherence())
     from poolduel.harness.m9 import (M9_CHUNKS, check_m9_chunk_budgets,
                                      m9_supa_na_rows)
     over9 = check_m9_chunk_budgets()

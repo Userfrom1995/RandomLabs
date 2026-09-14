@@ -146,3 +146,20 @@
   `poolduel/ci/poolduel-m10-soak.yml` (Lab promotes); per-run
   pre/post resource samples (`resources_pre/post/drift`, nullable
   for old rows) feed RSS/FD leak plus tail-drift figures.
+- M11c (closed 2026-09-14): static-first per-pooler dossiers. Six
+  dossiers on one 7-section template (`poolduel/<slug>/`, Supavisor
+  joins as the sixth; template sameness is the neutrality
+  guarantee). `harness/dossiers.py` (`repro.sh --dossiers`) builds
+  `results/dossiermeta.json` from committed bundles plus raw
+  records and splices fragments into `DOSSIER:` markers: pin line
+  (report.json pooler_versions), lifecycle path (cited prose, never
+  numbers), full config table (M1+M2+M9 rows, deduped to the
+  max-repeats evidence per cell since M9 re-measured M1/M2
+  geometries under their original ids; M1/M2 settings reuse the
+  page's own static markup verbatim, M9 rows generated from median
+  geometry with a matrix.csv pointer), flatness with named
+  peak/trough, ranked-verdict counts, N/A table, resource evidence
+  (median CPU/RSS over measured raw, iron record, auth/dataset
+  posture, PG config enforced/disclosed/other). Live JS stays
+  enhancement-only (`poolduel-charts.js` lookups now cover m9
+  medians with max-n dedupe so served pages never clobber M9 rows).

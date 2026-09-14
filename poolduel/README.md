@@ -51,6 +51,9 @@ After any sweep, build the publication artifacts with one command:
                               # matrix.csv per matrix, results/report.json
 ./poolduel/repro.sh --site    # bundles -> results/sitemeta.json,
                               # pre-rendered master-report sections
+./poolduel/repro.sh --dossiers  # bundles -> results/dossiermeta.json,
+                              # pre-rendered per-pooler dossier pages
+                              # (M11c: six dossiers incl. Supavisor)
 ```
 
 With no sweep data on disk `--report` fails loudly instead of inventing
