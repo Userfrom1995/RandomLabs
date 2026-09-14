@@ -32,6 +32,10 @@ on:
         description: "Git ref to benchmark (default main)"
         required: false
         default: "main"
+      backfill_run_id:
+        description: "Aggregate artifacts from an existing run ID instead of this run (empty = this run)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -47,6 +51,10 @@ env:
 jobs:
   sweep:
     name: M10 soak chunk
+    # Backfill dispatch (backfill_run_id set) aggregates artifacts from a
+    # prior run: all 36 sweep jobs skip in seconds and aggregate pulls the
+    # named run's artifacts. Normal dispatch leaves this empty.
+    if: ${{ inputs.backfill_run_id == '' }}
     runs-on: ubuntu-24.04
     # Soak chunks are long-running by design: 30-min tier chunks cost
     # ~99 min, 60-min tier chunks ~189 min measured (warmup + measure
@@ -288,9 +296,15 @@ jobs:
   aggregate:
     name: Aggregate M10 soak medians
     needs: sweep
+    # always() covers two paths: normal sweep (sweep ran, some chunks may
+    # have failed) and backfill dispatch (sweep skipped via
+    # backfill_run_id, artifacts pulled from the named prior run).
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Streaming download of ~31 GB across 36 chunk artifacts (run
+    # 34860375403 proved bulk download+extract exceeds runner disk and the
+    # 15-min cap). 60 min covers sequential fetch plus merge headroom.
+    timeout-minutes: 60
     permissions:
       contents: write
       actions: read
@@ -307,12 +321,50 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download chunk artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: poolduel-m10-soak-*
-          path: /tmp/poolduel-m10-soak-artifacts
-          merge-multiple: false
+      - name: Free disk space
+        run: |
+          set -eux
+          df -h
+          # Hosted runners ship ~10 GB of dotnet, ~15 GB of Android, plus
+          # GHC/powershell/swift toolcaches the aggregate never touches.
+          # Purge them before fetching multi-GB soak artifacts (run
+          # 34860375403 died with ENOSPC during bulk download).
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/share/powershell /usr/share/swift \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: Download chunk artifacts (streaming)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.backfill_run_id }}
+        run: |
+          set -eux
+          # One chunk at a time: bulk download-artifact of all 36 soak
+          # artifacts (~31 GB in run 34860375403, single chunks up to
+          # ~2.9 GB with per-repeat workdirs) plus extraction more than
+          # doubles peak disk and killed the aggregate with ENOSPC.
+          # Streaming keeps peak near one chunk. Missing per-chunk
+          # artifacts warn here; the merge step below still fails loudly
+          # when zero raw records exist overall.
+          mkdir -p /tmp/poolduel-m10-soak-artifacts
+          if [ -n "$SOURCE_RUN" ]; then
+            run_id="$SOURCE_RUN"
+          else
+            run_id="${{ github.run_id }}"
+          fi
+          echo "poolduel: aggregating artifacts from run $run_id"
+          for chunk in m10s01 m10s02 m10s03 m10s04 m10s05 m10s06 m10s07 m10s08 m10s09 m10s10 m10s11 m10s12 m10s13 m10s14 m10s15 m10s16 m10s17 m10s18 m10s19 m10s20 m10s21 m10s22 m10s23 m10s24 m10s25 m10s26 m10s27 m10s28 m10s29 m10s30 m10s31 m10s32 m10s33 m10s34 m10s35 m10s36; do
+            dest="/tmp/poolduel-m10-soak-artifacts/poolduel-m10-soak-$chunk"
+            mkdir -p "$dest"
+            if ! gh run download "$run_id" -n "poolduel-m10-soak-$chunk" \
+              -D "$dest" --repo "${{ github.repository }}"; then
+              echo "poolduel: no artifact for $chunk (skipped or failed chunk)" >&2
+              rmdir "$dest" 2>/dev/null || true
+            fi
+          done
+          df -h
 
       - name: Merge raw records and rebuild medians
         env:
