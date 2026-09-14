@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poolduel guide: which pooler for your workload</title>
+<link rel="stylesheet" href="../assets/poolduel-theme.css">
+</head>
+<body>
+<div class="toolbar"><button id="theme-toggle" type="button">Light theme</button></div>
+<h1>Poolduel guide: which pooler for your workload</h1>
+<p class="sub">Buyer decision tree over committed evidence. Every recommendation below points at a measured cell or a dossier; nothing here is a vendor claim. Tracks issue #302.</p>
+<!-- SUPPLEMENT:meta:begin -->
+<p class="note" id="supplement-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7" data-m9-total="250" data-m9-measured="215" data-m9-na="6">Evidence: M1 42 cells, M2 111 records incl. 7 N/A, M9 250 cells (215 measured, 6 N/A). Pins: pgagroal 2.1.0+tip, pgbouncer 1.25.2, pgpool 4.7.2, odyssey 1.5.1, pgcat v1.2.0, supavisor v2.9.13. Generated from <code>results/supplementmeta.json</code>.</p>
+<!-- SUPPLEMENT:meta:end -->
+<nav class="poolnav">
+<a href="../">comparison page</a> |
+<a href="../architecture/">next: architecture</a> |
+<a href="../methodology/">methodology</a> |
+<a href="../reproducibility/">reproducibility</a>
+</nav>
+
+<div class="section">
+<h2 id="picker">Contender picker</h2>
+<p class="note">Pick a contender to open its dossier (same 7-section template on all six pages, neutrality guarantee).</p>
+<div class="toolbar"><select id="contender-picker">
+<option value="">Choose a contender...</option>
+<option value="../pgbouncer/">PgBouncer</option>
+<option value="../pgagroal/">pgagroal</option>
+<option value="../odyssey/">Odyssey</option>
+<option value="../pgcat/">pgcat</option>
+<option value="../pgpool/">pgpool-II</option>
+<option value="../supavisor/">Supavisor</option>
+</select></div>
+</div>
+
+<div class="section">
+<h2 id="tree">Decision tree</h2>
+<p class="note">Read top to bottom; each leaf names the cells that back it. Claims cite the pre-registered registry (<a href="../docs/claims.md">docs/claims.md</a>); headline verdicts come from the paired-CI statistics leg.</p>
+<pre class="tree">Your workload
+|- Mostly short SELECTs, many idle clients?
+|  |- Yes: start with PgBouncer (transaction) or Odyssey.
+|  |  Evidence: M1-1 flagship + M2-I so_reuseport twins (Claim 1).
+|  |  Dossiers: <a href="../pgbouncer/">PgBouncer</a>, <a href="../odyssey/">Odyssey</a>
+|  |- No: see below.
+|- Connect/disconnect per query (serverless / churn)?
+|  |- Yes: Odyssey or pgcat held throughput where direct PG forked per connection.
+|  |  Evidence: M9-E1 equalized-churn control beside labeled asymmetric arms (Claim 2).
+|  |  Dossiers: <a href="../odyssey/">Odyssey</a>, <a href="../pgcat/">pgcat</a>
+|  |- No: see below.
+|- Heavy prepared-statement traffic?
+|  |- Yes: prefer process-isolated arms; transaction pooling breaks server prepares unless virtualized.
+|  |  Evidence: M1-3 + M2-P prepared twins (Claim 5).
+|  |  Dossier: <a href="../pgpool/">pgpool-II</a> (only measured survivor beside direct)
+|  |- No: see below.
+|- Need PostgreSQL features beyond pooling (load balance, failover, query routing)?
+|  |- Yes: pgpool-II is the only candidate in that class here; read its dossier first.
+|  |  Dossier: <a href="../pgpool/">pgpool-II</a>
+|  |- No: pgagroal (transaction/session/performance pipelines) is the tuned-C specialist.
+|     Dossier: <a href="../pgagroal/">pgagroal</a>
+Supavisor note: sixth contender, onboarding in M9 (statement mode N/A by design).
+Dossier: <a href="../supavisor/">Supavisor</a></pre>
+</div>
+
+<div class="section">
+<h2 id="table">Needs table</h2>
+<table>
+<tr><th>Need</th><th>Start with</th><th>Evidence</th></tr>
+<tr><td>Max read throughput, many clients</td><td><a href="../pgbouncer/">PgBouncer</a> (2-instance so_reuseport)</td><td>M2-I twins, Claim 1</td></tr>
+<tr><td>Churn / serverless connects</td><td><a href="../odyssey/">Odyssey</a>, <a href="../pgcat/">pgcat</a></td><td>M9-E1, Claim 2</td></tr>
+<tr><td>Prepared statements at scale</td><td><a href="../pgpool/">pgpool-II</a> or direct</td><td>M1-3 + M2-P, Claim 5</td></tr>
+<tr><td>Saturation (200 clients, 10 backends)</td><td>Compare dossiers; Claim 4 is inconclusive</td><td>M1-4, Claim 4 (inconclusive, never a win)</td></tr>
+<tr><td>C tuning, epoll vs io_uring</td><td><a href="../pgagroal/">pgagroal</a> epoll</td><td>M2-I1..I4, Claim 3</td></tr>
+<tr><td>Elixir / Supabase-style tenancy</td><td><a href="../supavisor/">Supavisor</a> (M9 onboarding)</td><td>M9 twins, 6 statement N/A rows</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2 id="faq">FAQ</h2>
+<p class="note"><button id="faq-toggle-all" type="button">Open all</button></p>
+<details class="faq"><summary>Is there a single winner?</summary>
+<p>No. Every headline is a paired comparison on one workload with a 95% bootstrap CI plus Holm correction. The same pooler can win one claim and lose another; read the dossier tables, not a score.</p></details>
+<details class="faq"><summary>Why do some cells read timeout/inconclusive?</summary>
+<p>Per-cell caps (8 min standard, 12 flagship) stop a stalled arm instead of letting CI burn. Timeouts are published findings with nulls, never zeros, never retried into a pass.</p></details>
+<details class="faq"><summary>What does N/A (unsupported) mean?</summary>
+<p>The pooler has no such mode (for example Supavisor statement mode). N/A rows carry nulls and are never interpolated or gap-filled on charts.</p></details>
+<details class="faq"><summary>Can I reproduce a cell?</summary>
+<p>Yes: <a href="../reproducibility/">reproducibility runbook</a> gives the one-command repro plus the per-cell recipe any maintainer could re-run.</p></details>
+<details class="faq"><summary>Do the numbers apply to my hardware?</summary>
+<p>No. Numbers are valid for the stated iron and PG 17 build only (see <a href="../docs/spec-v1.md">spec-v1.md</a> hardware envelope). Compare deltas inside the stated envelope, never absolute capacity.</p></details>
+<details class="faq"><summary>Why is Claim 4 inconclusive?</summary>
+<p>Its paired CI did not exclude zero (or it depended on quarantined evidence), so the kill rule fired: it ships as inconclusive, never as a win.</p></details>
+</div>
+
+<div class="section">
+<h2 id="glossary">Glossary</h2>
+<dl class="glossary">
+<dt>Transaction pooling</dt><dd>Backend assigned per transaction, returned at COMMIT/ROLLBACK. Highest sharing; breaks session state and server prepares unless virtualized.</dd>
+<dt>Session pooling</dt><dd>Backend held for the whole client session. Safest semantics; lowest sharing under churn.</dd>
+<dt>Statement pooling</dt><dd>Backend assigned per statement (PgBouncer-class). Only some poolers implement it; elsewhere N/A.</dd>
+<dt>Churn (-C)</dt><dd>pgbench reconnects per transaction, pricing connect/fork cost. The equalized M9-E1 control runs SCRAM everywhere.</dd>
+<dt>Powered repeats</dt><dd>Flagship n&gt;=10, standard n&gt;=7, paired seeds across arms; headlines need CI-excludes-zero plus Holm.</dd>
+<dt>Kill rule</dt><dd>A claim whose CI includes zero (or leans on quarantined p-latency) ships inconclusive, never a win.</dd>
+<dt>Quarantine</dt><dd>p-latency flagged untrustworthy by the parser forensics stays published but cannot carry a headline.</dd>
+<dt>Flatness</dt><dd>Whether a pooler is fast everywhere or at one magic setting; peaks always ship with exact configs.</dd>
+<dt>Iso-region</dt><dd>Comparison restricted to cells sharing identical geometry (clients, backends, duration).</dd>
+<dt>Reproducibility-by-adversary</dt><dd>Disclosure complete enough that a pooler maintainer could re-run a cell or file a founded objection.</dd>
+</dl>
+</div>
+
+<div class="section">
+<h2 id="onboarding">Onboarding ladder</h2>
+<ol>
+<li>Read the <a href="../">comparison page</a> executive cards (verified headlines only).</li>
+<li>Walk this tree to two candidate dossiers; compare their full config tables.</li>
+<li>Check <a href="../methodology/">methodology</a> threats before quoting any number.</li>
+<li>Re-run one cell with the <a href="../reproducibility/">runbook</a>, then file a challenge if it disagrees.</li>
+</ol>
+</div>
+
+<footer>
+Poolduel guide. Refs #302 (never Closes without explicit owner approval). - the Builder
+</footer>
+<script src="../assets/poolduel-ui.js"></script>
+</body>
+</html>

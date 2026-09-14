@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Poolduel methodology: registry, design, discipline</title>
+<link rel="stylesheet" href="../assets/poolduel-theme.css">
+</head>
+<body>
+<div class="toolbar"><button id="theme-toggle" type="button">Light theme</button></div>
+<h1>Poolduel methodology: registry, design, discipline</h1>
+<p class="sub">What was pre-registered, how cells run, and what could still be wrong. Full spec: <a href="../docs/methodology.md">docs/methodology.md</a>, <a href="../docs/spec-v1.md">spec-v1.md</a>, <a href="../docs/claims.md">claims.md</a>. Tracks issue #302.</p>
+<!-- SUPPLEMENT:meta:begin -->
+<p class="note" id="supplement-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7" data-m9-total="250" data-m9-measured="215" data-m9-na="6">Evidence: M1 42 cells, M2 111 records incl. 7 N/A, M9 250 cells (215 measured, 6 N/A). Pins: pgagroal 2.1.0+tip, pgbouncer 1.25.2, pgpool 4.7.2, odyssey 1.5.1, pgcat v1.2.0, supavisor v2.9.13. Generated from <code>results/supplementmeta.json</code>.</p>
+<!-- SUPPLEMENT:meta:end -->
+<nav class="poolnav">
+<a href="../">comparison page</a> |
+<a href="../architecture/">prev: architecture</a> |
+<a href="../guide/">guide</a> |
+<a href="../reproducibility/">next: reproducibility</a>
+</nav>
+
+<div class="section">
+<h2 id="registry">Claim registry (pre-registered before the resweep)</h2>
+<p class="note">Five headline candidates; only paired CIs that exclude zero (Holm-gated) become verified cards. Claim 4 currently ships inconclusive by the kill rule.</p>
+<table>
+<tr><th>#</th><th>Plain-words claim</th><th>Cells</th></tr>
+<tr><td>1</td><td>Multi-process PgBouncer removes the single-core ceiling on read-heavy load</td><td>M2 I/O twins beside M1-1</td></tr>
+<tr><td>2</td><td>Under churn, direct PG collapses on fork cost while Odyssey/pgcat hold</td><td>M1-6 + M2 churn twins + M9-E1 equalized control</td></tr>
+<tr><td>3</td><td>pgagroal epoll beats io_uring for short queries on this iron</td><td>M2 I1..I4</td></tr>
+<tr><td>4</td><td>At 200 clients / 10 backends, pooled arms hold while direct degrades (inconclusive)</td><td>M1-4</td></tr>
+<tr><td>5</td><td>Transaction pooling breaks server prepares; process-isolated arms survive</td><td>M1-3 + M2-P</td></tr>
+</table>
+<p class="note">Non-goals: no absolute capacity claims, no cross-hardware numbers, no single-score rankings (claims.md section 4).</p>
+</div>
+
+<div class="section">
+<h2 id="design">Run rules (shared load, best-mode)</h2>
+<table>
+<tr><th>Rule</th><th>Value</th></tr>
+<tr><td>PostgreSQL</td><td>PG 17 via PGDG, same build and config per run</td></tr>
+<tr><td>Dataset</td><td>Freshly re-initialized per chunk, scale 10 (M9 adds scale-100 C block); CHECKPOINT + VACUUM ANALYZE policy</td></tr>
+<tr><td>Clients vs pool</td><td>clients &gt;&gt; pool_size, minimum 5x; any measured cell below that is rejected</td></tr>
+<tr><td>Timing</td><td>30 s warmup discarded, 60 s measure (120 s flagship); per-cell caps 8 min standard / 12 flagship</td></tr>
+<tr><td>Repeats</td><td>M1/M2 n=3..5 unpaired (labeled); M9 flagship n&gt;=10, standard n&gt;=7, paired seeds across arms</td></tr>
+<tr><td>Order</td><td>Interleaved round-robin, same runner, per-chunk direct control</td></tr>
+<tr><td>Modes</td><td>Best-mode per pooler on shared load (never identical knobs); best-vs-best plus iso-region slices</td></tr>
+<tr><td>Metrics</td><td>tps primary (without-connect), p99/p999/errors always counted, CPU/RSS/FD secondary</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2 id="statistics">Statistics (M10 rebuild; old gate retired)</h2>
+<p>Headlines use paired-difference bootstrap 95% CIs (B=5000, seed 20260914, deterministic) with Holm step-down at alpha 0.05. A headline needs CI-excludes-zero plus Holm-adjusted p below alpha plus no quarantine label. Outliers follow Tukey IQR fences (1.5 flag / 3.0 extreme) with a trimmed-mean sensitivity check; a flip demotes to inconclusive with forensics retained. Per-repeat p99/p999 feed the machinery at repeat level, never pooled; quarantined p-latency forces tps-only verdicts labeled on-figure. The old min-max-band plus tps/p99-agreement gate stays in <code>harness/stats.py</code> for backward comparison only.</p>
+</div>
+
+<div class="section">
+<h2 id="disclosure">Disclosure minimums</h2>
+<p>Every measured cell publishes throughput plus p99/p999 plus errors with medians over repeats; peaks carry exact configs verbatim in <a href="../docs/configs/pgagroal.md">docs/configs/</a>; N/A rows carry nulls; timeouts stay timeout/inconclusive with nulls. Raw JSON plus medians are committed; any version upgrade means a re-run, never carried-forward numbers.</p>
+</div>
+
+<div class="section">
+<h2 id="threats">Threats to validity (mandatory)</h2>
+<ul class="tight">
+<li>Shared-runner variance: medians plus paired seeds damp it but never remove it; cross-machine comparison is forbidden.</li>
+<li>Single PG build and dataset scale per leg: scale-100 C block exists to test the scale threat, not to erase it.</li>
+<li>Churn auth asymmetry in early legs (SCRAM everywhere only from M9-E1); read the auth posture per row.</li>
+<li>Short-query bias: pgbench TPC-B-like plus SELECT-only plus churn plus prepared twins; Zipf/think-time/multi-statement breadth lands with calibration.</li>
+<li>Timeout caps censor the left tail: a timeout is a finding about the cap, not a ranking proof.</li>
+<li>Supavisor is a new contender: M9 twins are its first measured evidence; statement N/A is by design.</li>
+</ul>
+<p class="note">Full text: <a href="../docs/methodology.md">docs/methodology.md</a> section 7.</p>
+</div>
+
+<footer>
+Poolduel methodology. Refs #302 (never Closes without explicit owner approval). - the Builder
+</footer>
+<script src="../assets/poolduel-ui.js"></script>
+</body>
+</html>
