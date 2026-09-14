@@ -54,6 +54,9 @@ After any sweep, build the publication artifacts with one command:
 ./poolduel/repro.sh --dossiers  # bundles -> results/dossiermeta.json,
                               # pre-rendered per-pooler dossier pages
                               # (M11c: six dossiers incl. Supavisor)
+./poolduel/repro.sh --supplement  # bundles -> results/supplementmeta.json,
+                              # pre-rendered guide/architecture/methodology/
+                              # reproducibility facts (M11d)
 ```
 
 With no sweep data on disk `--report` fails loudly instead of inventing

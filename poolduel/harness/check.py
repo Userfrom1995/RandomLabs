@@ -391,6 +391,80 @@ def check_site_coherence():
     return errors
 
 
+def check_supplement_coherence():
+    """supplementmeta.json recomputes from the committed bundles.
+
+    Also verifies every supplementary page carries its SUPPLEMENT
+    marker, relative links only, and zero pending/loading content.
+    """
+    import re
+    from poolduel.harness import supplement as supmod
+    errors = []
+    root = os.path.join(os.path.dirname(__file__), "..")
+    paths = {
+        "m1": os.path.join(root, "results", "m1", "medians.json"),
+        "m2": os.path.join(root, "results", "m2", "medians.json"),
+        "m9": os.path.join(root, "results", "m9", "medians.json"),
+        "report": os.path.join(root, "results", "report.json"),
+        "supplementmeta": os.path.join(root, "results",
+                                       "supplementmeta.json"),
+    }
+    try:
+        with open(paths["supplementmeta"]) as handle:
+            committed = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["supplementmeta.json unreadable: %s" % exc]
+    try:
+        loaded = {}
+        for key in ("m1", "m2", "m9", "report"):
+            with open(paths[key]) as handle:
+                loaded[key] = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["supplement input bundle unreadable: %s" % exc]
+    path_shas = {
+        "m1/medians.json": supmod._sha256_file(paths["m1"]),
+        "m2/medians.json": supmod._sha256_file(paths["m2"]),
+        "m9/medians.json": supmod._sha256_file(paths["m9"]),
+        "report.json": supmod._sha256_file(paths["report"]),
+    }
+    fresh = supmod.build_supplementmeta(loaded["m1"], loaded["m2"],
+                                        loaded["m9"], loaded["report"],
+                                        path_shas)
+    for key in ("counts", "pooler_versions", "banner_sentence"):
+        if committed.get(key) != fresh.get(key):
+            errors.append("supplementmeta.json[%s] drifted from bundles; "
+                          "re-run repro.sh --supplement" % key)
+    for key, want in path_shas.items():
+        if committed.get("sources", {}).get(key) != want:
+            errors.append("supplementmeta sources[%s] SHA mismatch; "
+                          "re-run repro.sh --supplement" % key)
+    for page in supmod.SUPPLEMENT_PAGES:
+        path = os.path.join(root, page, "index.html")
+        try:
+            with open(path) as handle:
+                text = handle.read()
+        except OSError as exc:
+            errors.append("%s/index.html unreadable: %s" % (page, exc))
+            continue
+        if "<!-- SUPPLEMENT:meta:begin -->" not in text:
+            errors.append("%s lacks SUPPLEMENT marker" % page)
+        if 'id="supplement-counts"' not in text:
+            errors.append("%s meta fragment not applied; "
+                          "re-run repro.sh --supplement" % page)
+        for attr in re.findall(r'(?:src|href)="([^"]*)"', text):
+            if (attr.startswith("http://") or attr.startswith("https://")
+                    or attr.startswith("//")):
+                errors.append("%s carries a non-relative ref: %s" % (page,
+                                                                     attr))
+        flat = re.sub(r"<script.*?</script>", "", text, flags=re.S).lower()
+        flat = re.sub(r"<!--.*?-->", "", flat, flags=re.S)
+        if "pending" in flat:
+            errors.append("%s ships pending cells as content" % page)
+        if "loading" in flat:
+            errors.append("%s ships loading cells as content" % page)
+    return errors
+
+
 def check_dossier_coherence():
     """dossiermeta.json recomputes from the committed bundles (no hand values).
 
@@ -509,6 +583,7 @@ def main():
     errors.extend(check_soak_seeds())
     errors.extend(check_site_coherence())
     errors.extend(check_dossier_coherence())
+    errors.extend(check_supplement_coherence())
     from poolduel.harness.m9 import (M9_CHUNKS, check_m9_chunk_budgets,
                                      m9_supa_na_rows)
     over9 = check_m9_chunk_budgets()

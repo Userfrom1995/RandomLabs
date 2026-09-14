@@ -4,7 +4,7 @@ Status: in-progress
 Date: 2026-09-12. Owner directive via #42 (supreme priority).
 Blueprint: `ideas/2026-09-11-poolduel.md`. Researcher spec: `poolduel/docs/`.
 
-Active Milestone: M11c (static-first dossiers; M11b merged, M9 GREEN held)
+Active Milestone: M11d (supplementary sections + design system; M11c merged)
 
 ## Milestone roadmap
 
@@ -828,6 +828,47 @@ Active Milestone: M11c (dossiers; M11b merged at 6fec9403, M9 GREEN held)
 Current step: M11c implementation complete, awaiting review
 Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
   dossiermeta drift + no-loading checks) -> merge -> Builder M11d
+  per blueprint.
+
+- the Builder
+
+## M11d build log (Builder, 2026-09-14, branch `opencode/issue302-20260914112807`)
+
+Implements the M11d slice of `ideas/2026-09-13-poolduel-redesign.md`
+(supplementary sections + design system, plan section 10). Pages +
+assets + generator + docs only; no sweep execution, no numbers
+beyond committed bundles.
+
+Active Milestone: M11d (supplementary sections; M11c merged at 3f7d46b2)
+
+- New: `guide/` (picker, decision tree, needs table, FAQ, glossary,
+  onboarding ladder), `architecture/` (six-way taxonomy with config
+  citations, text lifecycle diagrams, honest absent
+  memory-per-1000-idle table, mode matrix), `methodology/`
+  (registry, run rules, M10 statistics, disclosure, threats),
+  `reproducibility/` (runbook, per-cell recipe, manifest note,
+  BibTeX + copy, data-availability, challenge flow, errata +
+  verified-by tables); shared `assets/poolduel-theme.css` (dark /
+  light / print) + `assets/poolduel-ui.js` (enhancement-only).
+- New: `harness/supplement.py` (bundles in,
+  `results/supplementmeta.json` out with counts/pins/SHAs,
+  `--apply` into `SUPPLEMENT:meta` markers, idempotent),
+  `tests/test_m11d_supplement.py` (14 tests).
+- Wiring: master banner links all four pages (two-way nav + ring),
+  `repro.sh --supplement`, `check.py` supplement coherence, README
+  repro docs, spec-v1 s6 M11d note, ideas entry
+  `ideas/2026-09-14-poolduel-m11d-supplement.md`.
+- Proof: full suite 640 green (14 new), `check.py` ok,
+  `--supplement` idempotent, page JS `node --check` clean,
+  served-HTTP smoke on master + four pages (zero pending/loading
+  content).
+- `Refs #302`: no `Closes`, no owner notification (mandate rule 6;
+  M12 remains). Follow-ups: M12 package + red-team + single
+  @Userfrom1995 notification.
+
+Current step: M11d implementation complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  supplementmeta drift + no-pending checks) -> merge -> Builder M12
   per blueprint.
 
 - the Builder
