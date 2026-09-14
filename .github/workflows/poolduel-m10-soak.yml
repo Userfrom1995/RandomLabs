@@ -1,0 +1,379 @@
+name: poolduel-m10-soak
+
+# Poolduel M10 soak (issue #302): 36 chunk jobs, one per
+# (cell, arm, duration) across 3 cells (standard/saturation/churn),
+# 6 arms (direct + 5 incumbents, Supavisor deferred per
+# harness/soak.py SUPAVISOR_SOAK_DEFERRAL), and 2 duration tiers
+# (30-min + 60-min measured). Each chunk runs 3 paired-seed repeats
+# of its arm with pre/post resource sampling for leak (RSS/FD drift),
+# tail drift, and stability figures. Runs ONLY on manual dispatch (no
+# push trigger): the Maintainer launches the sweep once the harness
+# PR is Tester-green.
+#
+# STAGED source: poolduel/ci/poolduel-m10-soak.yml (harness-owned matrix).
+# Promoted to .github/workflows/ by the Lab Engineer (same route M9 took;
+# Builder token cannot push workflow scope). The build block below is copied
+# verbatim from poolduel-m1.yml (five pinned incumbents, Supavisor deferred
+# per harness/soak.py SUPAVISOR_SOAK_DEFERRAL).
+# Chunk list generated from the harness, never hand-typed:
+#   PYTHONPATH=. python3 -c "from poolduel.harness.soak import SOAK_CHUNKS; ..."
+# Budgets verified by poolduel/harness/check.py (check_soak_*).
+#
+# Refs #302 (never Closes: only the final M12 gate may close #302).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunk:
+        description: "Chunk to run (empty = all 36)"
+        required: false
+        default: ""
+      ref:
+        description: "Git ref to benchmark (default main)"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: poolduel-m10-soak-${{ inputs.chunk || 'all' }}
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: "."
+
+jobs:
+  sweep:
+    name: M10 soak chunk
+    runs-on: ubuntu-24.04
+    # Soak chunks are long-running by design: 30-min tier chunks cost
+    # ~99 min, 60-min tier chunks ~189 min measured (warmup + measure
+    # + run overhead per harness/soak.py). The 300-min cap covers the
+    # worst chunk plus one-time pinned source builds below (pgcat
+    # compiles from source; no release assets exist).
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: [m10s01, m10s02, m10s03, m10s04, m10s05, m10s06, m10s07, m10s08, m10s09, m10s10, m10s11, m10s12, m10s13, m10s14, m10s15, m10s16, m10s17, m10s18, m10s19, m10s20, m10s21, m10s22, m10s23, m10s24, m10s25, m10s26, m10s27, m10s28, m10s29, m10s30, m10s31, m10s32, m10s33, m10s34, m10s35, m10s36]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PostgreSQL 17
+        run: |
+          set -eux
+          # ubuntu-24.04 (noble) stock apt has no postgresql-17; PG 17 is
+          # pinned per poolduel/docs/versions.md so add the PGDG repo first.
+          # Ref: https://www.postgresql.org/download/linux/ubuntu/
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | \
+            sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-17
+          sudo pg_ctlcluster 16 main stop || true
+          sudo pg_dropcluster 16 main --stop || true
+          if sudo pg_lsclusters | grep -qE '^17[[:space:]]'; then
+            sudo pg_ctlcluster 17 main start || true
+          else
+            sudo pg_createcluster 17 main -p 5432 --start
+          fi
+          if ! sudo pg_lsclusters | grep -qE '^17[[:space:]]+main[[:space:]]+5432[[:space:]]'; then
+            echo "poolduel: PG 17 is not on port 5432" >&2
+            sudo pg_lsclusters || true
+            exit 1
+          fi
+          sudo ln -sf /usr/lib/postgresql/17/bin/pgbench /usr/local/bin/pgbench
+          sudo ln -sf /usr/lib/postgresql/17/bin/psql /usr/local/bin/psql
+          pgbench --version
+          sudo pg_lsclusters || true
+
+      - name: Build poolers (pinned versions)
+        run: |
+          set -eux
+          # Pinned per poolduel/docs/versions.md; any upgrade means a re-run,
+          # never carried-forward numbers. pgagroal pins its master tip SHA
+          # at build time and discloses it (see pooler-versions step below).
+          # Copied verbatim from poolduel-m1.yml at promotion; the single
+          # source for pins is poolduel/docs/versions.md. No Supavisor build:
+          # soak defers Supavisor until its M9 smoke gate passes (see
+          # harness/soak.py SUPAVISOR_SOAK_DEFERRAL).
+          # Refs:
+          # https://www.pgbouncer.org/downloads/
+          # https://www.pgpool.net/docs/pgpool-II-4.7.2/en/html/install-getsource.html
+          # https://github.com/yandex/odyssey/releases/tag/v1.5.1
+          # https://github.com/pgagroal/pgagroal
+          # https://github.com/postgresml/pgcat/releases/tag/v1.2.0
+          # pgagroal CMakeLists.txt lists FATAL deps: zlib, bzip2, zstd, lz4,
+          # OpenSSL 3+, rst2man, liburing 2.5+ on Linux, libatomic.
+          # Ref: https://github.com/pgagroal/pgagroal/blob/master/CMakeLists.txt
+          sudo apt-get install -y -qq libevent-dev libssl-dev \
+            libpq-dev pkg-config build-essential git curl cmake \
+            flex bison libev-dev pandoc libbz2-dev zlib1g-dev \
+            libzstd-dev liblz4-dev liburing-dev python3-docutils jq openssl
+          mkdir -p /tmp/poolers
+          cd /tmp/poolers
+          # --- PgBouncer 1.25.2 (2026-05-08) ---
+          curl -fsSL -o pgbouncer-1.25.2.tar.gz \
+            https://www.pgbouncer.org/downloads/files/1.25.2/pgbouncer-1.25.2.tar.gz
+          sha256sum pgbouncer-1.25.2.tar.gz | tee pgbouncer-1.25.2.sha256
+          tar xzf pgbouncer-1.25.2.tar.gz
+          cd pgbouncer-1.25.2
+          ./configure --prefix=/usr/local
+          make -j"$(nproc)"
+          sudo make install
+          cd /tmp/poolers
+          # --- pgpool-II 4.7.2 (head of 4.7 series, 2026-06-04) ---
+          curl -fsSL -o pgpool-II-4.7.2.tar.gz \
+            https://www.pgpool.net/source/pgpool-II-4.7.2.tar.gz
+          sha256sum pgpool-II-4.7.2.tar.gz | tee pgpool-II-4.7.2.sha256
+          tar xzf pgpool-II-4.7.2.tar.gz
+          cd pgpool-II-4.7.2
+          ./configure --prefix=/usr/local
+          make -j"$(nproc)"
+          sudo make install
+          cd /tmp/poolers
+          # --- Odyssey v1.5.1 stable (2026-07-12) ---
+          git clone --branch v1.5.1 --depth 1 \
+            https://github.com/yandex/odyssey.git odyssey-1.5.1
+          cd odyssey-1.5.1
+          git rev-parse HEAD | tee /tmp/poolers/odyssey.sha
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j"$(nproc)"
+          sudo make install || sudo install -m 0755 odyssey /usr/local/bin/odyssey
+          cd /tmp/poolers
+          # --- pgagroal master tip (SHA pinned at build, disclosed) ---
+          git clone https://github.com/pgagroal/pgagroal.git pgagroal-tip
+          cd pgagroal-tip
+          git rev-parse HEAD | tee /tmp/poolers/pgagroal.sha
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make -j"$(nproc)"
+          sudo make install
+          cd /tmp/poolers
+          # --- pgcat v1.2.0 (2024-08-30; release carries no binary
+          # --- assets, so build the v1.2.0 tag from source with cargo) ---
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+              sh -s -- -y --profile minimal
+          fi
+          export PATH="$HOME/.cargo/bin:$PATH"
+          git clone --branch v1.2.0 --depth 1 \
+            https://github.com/postgresml/pgcat.git pgcat-1.2.0
+          cd pgcat-1.2.0
+          git rev-parse HEAD | tee /tmp/poolers/pgcat.sha
+          cargo build --release
+          sudo install -m 0755 target/release/pgcat /usr/local/bin/pgcat
+          cd /tmp/poolers
+          # Refresh the loader cache: pgagroal installs libpgagroal.so.2
+          # under /usr/local/lib and fails at startup without this
+          # (run 34689464131: "cannot open shared object file").
+          sudo ldconfig
+          ldconfig -p | grep -E 'libpgagroal|libpq' || true
+
+      - name: Verify pooler binaries
+        run: |
+          set -eux
+          export PATH="/usr/local/bin:$HOME/.cargo/bin:$PATH"
+          for bin in pgbouncer pgpool odyssey pgagroal pgcat; do
+            command -v "$bin" || echo "poolduel: $bin missing (chunk may still run direct-only arms loudly)"
+          done
+
+      - name: Init dataset and checkpoint (scale-aware)
+        run: |
+          set -eux
+          export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$PATH"
+          sudo service postgresql start || sudo pg_ctlcluster 17 main start
+          sudo mkdir -p /var/run/pgpool
+          sudo chown "$(id -un)" /var/run/pgpool
+          sudo -u postgres /usr/bin/psql --cluster 17/main -c "CREATE ROLE benchuser WITH LOGIN SUPERUSER PASSWORD 'benchpass';" || true
+          sudo -u postgres /usr/bin/psql --cluster 17/main -c "CREATE DATABASE benchdb OWNER benchuser;" || true
+          # Scale comes from the harness chunk table, never hand-typed:
+          # every soak chunk inits -s 10.
+          SCALE="$(PYTHONPATH=. python3 -c "from poolduel.harness.soak import soak_chunk_scale; print(soak_chunk_scale('${{ matrix.chunk }}'))")"
+          echo "poolduel: chunk ${{ matrix.chunk }} dataset scale $SCALE"
+          PGPASSWORD=benchpass pgbench -h 127.0.0.1 -U benchuser -i -s "$SCALE" benchdb
+          PGPASSWORD=benchpass psql -h 127.0.0.1 -U benchuser -d benchdb -c "CHECKPOINT;"
+          PGPASSWORD=benchpass psql -h 127.0.0.1 -U benchuser -d benchdb -c "VACUUM (ANALYZE);"
+
+      - name: Preflight check
+        run: |
+          python3 poolduel/harness/check.py
+
+      # Fail fast when this chunk's own arm binary is absent (except
+      # direct, which needs no pooler). The verify step above only
+      # warns, so without this gate a chunk would burn PG install +
+      # dataset init and then record 3 inconclusive rows. Single-chunk
+      # dispatch note: the matrix still fans out all 36 jobs through
+      # install + init with only the run step gated below (same shape
+      # as the M9 soak route); dispatch one chunk to test, all 36 for
+      # the real sweep.
+      - name: Require arm binary
+        run: |
+          set -eux
+          export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
+          # Pinned per poolduel/docs/versions.md: pgbench must be PG 17.
+          # Fail loudly here before any soak hour is spent (parity with the
+          # poolduel-m1.yml Verify gate; the warn-only step above cannot).
+          case "$(pgbench --version)" in
+            *" 17."*) echo "pgbench is PG 17: $(pgbench --version)" ;;
+            *) echo "poolduel: pgbench is not PG 17: $(pgbench --version)" >&2; exit 1 ;;
+          esac
+          arm="$(PYTHONPATH=. python3 -c "from poolduel.harness.soak import SOAK_CHUNKS; print(SOAK_CHUNKS['${{ matrix.chunk }}'][0][3])")"
+          if [ "$arm" != "direct" ] && ! command -v "$arm"; then
+            echo "poolduel: required arm binary $arm missing" >&2; exit 1
+          fi
+
+      - name: Run M10 soak chunk
+        if: ${{ inputs.chunk == '' || inputs.chunk == matrix.chunk }}
+        env:
+          PGPASSWORD: benchpass
+        run: |
+          export PATH="/usr/lib/postgresql/17/bin:/usr/local/bin:$PATH"
+          python3 -m poolduel.harness.cli --matrix soak --chunk "${{ matrix.chunk }}" \
+            --threads "$(nproc)" --out "$(pwd)/poolduel/results/m10-soak-${{ matrix.chunk }}"
+
+      - name: Record pooler versions
+        if: always()
+        run: |
+          set -eux
+          export PATH="/usr/local/bin:$HOME/.cargo/bin:$PATH"
+          out="poolduel/results/m10-soak-${{ matrix.chunk }}"
+          mkdir -p "$out"
+          {
+            echo "pgbouncer 1.25.2 tarball sha256:"
+            cat /tmp/poolers/pgbouncer-1.25.2.sha256 2>/dev/null || echo "n/a"
+            echo "pgpool-II 4.7.2 tarball sha256:"
+            cat /tmp/poolers/pgpool-II-4.7.2.sha256 2>/dev/null || echo "n/a"
+            echo "odyssey v1.5.1 git SHA:"
+            cat /tmp/poolers/odyssey.sha 2>/dev/null || echo "n/a"
+            echo "pgagroal master tip SHA:"
+            cat /tmp/poolers/pgagroal.sha 2>/dev/null || echo "n/a"
+            echo "pgcat v1.2.0 git SHA:"
+            cat /tmp/poolers/pgcat.sha 2>/dev/null || echo "n/a"
+            echo "binaries:"
+            command -v pgbouncer || echo "n/a (missing pgbouncer)"
+            command -v pgpool || echo "n/a (missing pgpool)"
+            command -v odyssey || echo "n/a (missing odyssey)"
+            command -v pgagroal || echo "n/a (missing pgagroal)"
+            command -v pgcat || echo "n/a (missing pgcat)"
+          } > "$out/pooler-versions.txt"
+          cat "$out/pooler-versions.txt"
+
+      - name: Upload chunk results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: poolduel-m10-soak-${{ matrix.chunk }}
+          path: poolduel/results/m10-soak-${{ matrix.chunk }}
+          retention-days: 30
+          overwrite: true
+
+  aggregate:
+    name: Aggregate M10 soak medians
+    needs: sweep
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: poolduel-m10-soak-*
+          path: /tmp/poolduel-m10-soak-artifacts
+          merge-multiple: false
+
+      - name: Merge raw records and rebuild medians
+        env:
+          PYTHONPATH: "."
+        run: |
+          set -eux
+          mkdir -p poolduel/results/m10-soak/raw
+          if [ -d /tmp/poolduel-m10-soak-artifacts ]; then
+            for rawdir in $(find /tmp/poolduel-m10-soak-artifacts -type d -name raw 2>/dev/null); do
+              for f in "$rawdir"/*.json; do
+                [ -f "$f" ] || continue
+                case "$(basename "$f")" in
+                  manifest.json|summary.json|medians.json|report.json|comparisons.json)
+                    continue ;;
+                esac
+                cp "$f" poolduel/results/m10-soak/raw/
+              done
+            done
+            for vf in $(find /tmp/poolduel-m10-soak-artifacts -name pooler-versions.txt 2>/dev/null); do
+              parent="$(basename "$(dirname "$vf")")"
+              cp "$vf" "poolduel/results/m10-soak/pooler-versions-$parent.txt"
+            done
+          fi
+          if ! ls poolduel/results/m10-soak/raw/*.json >/dev/null 2>&1; then
+            echo "poolduel-m10-soak aggregate: no raw cell records, nothing to commit" >&2
+            exit 1
+          fi
+          PYTHONPATH=. python3 -c "
+          import glob, json
+          from poolduel.harness.runner import write_medians
+          records = []
+          for path in sorted(glob.glob('poolduel/results/m10-soak/raw/*.json')):
+              with open(path) as f:
+                  records.append(json.load(f))
+          # Every raw record aggregates (measured rows carry medians,
+          # timeout/inconclusive rows carry nulls, never zeros).
+          medians = write_medians(records, 'poolduel/results/m10-soak/medians.json')
+          print('poolduel-m10-soak aggregate: %d raw files, %d medians'
+                % (len(records), len(medians)))
+          "
+
+      - name: Commit and push results
+        env:
+          TARGET_REF: ${{ inputs.ref }}
+        run: |
+          set -eux
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add poolduel/results
+          if git diff --cached --quiet; then
+            echo "poolduel-m10-soak aggregate: no changes to commit"
+            exit 0
+          fi
+          git commit -m "poolduel M10 soak sweep results (Refs #302)"
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+            if git pull --rebase origin "$TARGET_REF" && git push origin "HEAD:$TARGET_REF"; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 10
+          done
+          echo "poolduel-m10-soak aggregate: push failed after 3 attempts" >&2
+          exit 1
