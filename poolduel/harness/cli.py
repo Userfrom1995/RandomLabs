@@ -18,7 +18,8 @@ def build_parser():
         description="Poolduel harness: shared pgbench procedure, "
                     "pooler-blind arms. M1 transaction sweep plus "
                     "M2 modes/I-O/workload twins.")
-    p.add_argument("--matrix", default="m1", choices=("m1", "m2", "m9"),
+    p.add_argument("--matrix", default="m1", choices=("m1", "m2", "m9",
+                                                        "soak"),
                    help="which matrix to run (default: m1)")
     p.add_argument("--cells", default="",
                    help="comma-separated cell ids (default: all in matrix)")
@@ -39,6 +40,9 @@ def build_parser():
     p.add_argument("--list-m9", action="store_true",
                    help="print the M9 resweep matrix (blocks, chunks, "
                         "budgets, N/A rows) and exit")
+    p.add_argument("--list-soak", action="store_true",
+                   help="print the M10 soak matrix (cells, chunks, "
+                        "budgets, arms) and exit")
     p.add_argument("--list-budget", action="store_true",
                    help="print per-contender cell budgets (M1+M2) and exit")
     p.add_argument("--list-calibration", action="store_true",
@@ -65,6 +69,24 @@ def build_parser():
 
 
 def resolve_cells(args):
+    if args.matrix == "soak":
+        from .soak import soak_chunk_plan, soak_full_plan
+        if args.chunk:
+            return [cell for (cell, _arm, _rep)
+                    in soak_chunk_plan(args.chunk)]
+        if args.pilot:
+            return [cell for (cell, _arm, _rep)
+                    in soak_chunk_plan("m10s01")]
+        seen, cells = set(), []
+        for (cell, _arm, _rep) in soak_full_plan():
+            if cell["cell_id"] not in seen:
+                seen.add(cell["cell_id"])
+                cells.append(cell)
+        if args.cells.strip():
+            want = {c.strip() for c in args.cells.split(",")
+                    if c.strip()}
+            cells = [c for c in cells if c["cell_id"] in want]
+        return cells
     if args.matrix == "m9":
         from .m9 import m9_chunk_plan, m9_full_plan
         if args.chunk:
@@ -238,6 +260,35 @@ def print_m9_table():
              total["chunks"]))
 
 
+def print_soak_table():
+    from .soak import (SOAK_ARMS, SOAK_CHUNKS, SOAK_CHUNK_DESCRIPTIONS,
+                       SOAK_CHUNK_BUDGET_CAP_MINUTES,
+                       SUPAVISOR_SOAK_DEFERRAL, soak_budget_table,
+                       soak_chunk_budget_minutes, soak_total_budget)
+    total = soak_total_budget()
+    print("M10 soak matrix (long-horizon stability, paired seeds):")
+    for block, agg in sorted(total["blocks"].items()):
+        print("  %s: %d chunks, %d arm-runs, %.1f measured min"
+              % (block, agg["chunks"], agg["runs"], agg["minutes"]))
+    print("--- chunks (%d, cap %.0f min each) ---"
+          % (len(SOAK_CHUNKS), SOAK_CHUNK_BUDGET_CAP_MINUTES))
+    for name in sorted(SOAK_CHUNKS):
+        print("%s: %s [%.1f min]"
+              % (name, SOAK_CHUNK_DESCRIPTIONS[name],
+                 soak_chunk_budget_minutes(name)))
+    print("--- arms (direct is an arm like the rest) ---")
+    print(", ".join(SOAK_ARMS))
+    print("--- N/A (unsupported, nulls, zero time) ---")
+    print("none: every soak arm runs every soak cell; %s"
+          % SUPAVISOR_SOAK_DEFERRAL)
+    print("--- measured arm-runs per arm (matrix level) ---")
+    print(json.dumps(soak_budget_table(), sort_keys=True))
+    print("total: %d arm-runs, %.1f measured hours across %d chunks "
+          "(+ per-chunk init/build wall clock, priced beside the matrix)"
+          % (total["arm_runs"], total["measured_hours"],
+             total["chunks"]))
+
+
 def print_m2_table():
     from .m2 import (GEOMETRIES, M2_CHUNK_DESCRIPTIONS, M2_ROWS,
                      m2_budget_table)
@@ -393,6 +444,9 @@ def main(argv=None):
     if args.list_m9:
         print_m9_table()
         return 0
+    if args.list_soak:
+        print_soak_table()
+        return 0
     if args.list_budget:
         print_budget()
         return 0
@@ -416,14 +470,50 @@ def main(argv=None):
             pg_version=args.pg_version)
         print("wrote %d N/A records -> %s/raw" % (len(written), args.out))
         return 0
-    if args.matrix in ("m2", "m9") and args.arms != ",".join(ARMS):
-        parser.error("--arms is M1-only; M2/M9 rows carry their own arm")
+    if args.matrix in ("m2", "m9", "soak") and args.arms != ",".join(ARMS):
+        parser.error("--arms is M1-only; M2/M9/soak rows carry their "
+                     "own arm")
     cells = resolve_cells(args)
     repeats = args.repeats if args.repeats > 0 else None
     if args.pilot:
         repeats = 1
     seed_fn = None
-    if args.matrix == "m9":
+    if args.matrix == "soak":
+        from .soak import soak_chunk_plan, soak_full_plan, soak_seed_for
+
+        def seed_fn(base_seed, repeat):
+            return soak_seed_for(repeat, base_seed=base_seed)
+        if args.chunk:
+            plan = soak_chunk_plan(args.chunk)
+            if repeats is not None:
+                plan = [(c, a, r) for (c, a, r) in plan
+                        if r <= repeats]
+        elif args.pilot:
+            # Soak pilot is the first chunk (standard cell, 30-min
+            # tier, direct arm): one repeat.
+            seen, plan = set(), []
+            for (c, a, _r) in soak_chunk_plan("m10s01"):
+                if (c["cell_id"], a) not in seen:
+                    seen.add((c["cell_id"], a))
+                    plan.append((c, a, 1))
+        else:
+            plan = soak_full_plan()
+            if repeats is not None:
+                plan = [(c, a, r) for (c, a, r) in plan
+                        if r <= repeats]
+        if args.cells.strip() and not args.pilot:
+            want = {c.strip() for c in args.cells.split(",")
+                    if c.strip()}
+            known = {c["cell_id"] for (c, _a, _r) in plan}
+            unknown = sorted(want - known)
+            if unknown:
+                parser.error("--cells unknown for this soak scope: %s "
+                             "(want one of %s)"
+                             % (unknown, sorted(known)))
+            plan = [(c, a, r) for (c, a, r) in plan
+                    if c["cell_id"] in want]
+        arms = sorted({arm for (_, arm, _) in plan})
+    elif args.matrix == "m9":
         from .m9 import m9_chunk_plan, m9_full_plan, m9_seed_for
 
         def seed_fn(base_seed, repeat):
@@ -472,7 +562,7 @@ def main(argv=None):
             seed = (seed_fn(args.seed, rep) if seed_fn is not None
                     else args.seed + rep)
             suffix = " seed=%d scale=%d" % (seed, cell.get("scale", 10)) \
-                if args.matrix == "m9" else ""
+                if args.matrix in ("m9", "soak") else ""
             print("%s %s r%d T=%d c=%d pool=%d %s%s%s%s" % (
                 cell["cell_id"], arm, rep, cell["duration_s"],
                 cell["clients"], cell["pool_size"], cell["workload"],

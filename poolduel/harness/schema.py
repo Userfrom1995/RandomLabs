@@ -37,8 +37,13 @@ NULLABLE_METRICS = ("tps", "latency_avg_ms", "latency_stddev_ms",
 # verdict), isolation (iron record), auth_posture (churn asymmetry
 # label), and dataset (init policy pointer). M8 calibration adds
 # resources (per-run CPU/RSS/FD/pool-wait/pg_stat, all nullable).
+# M10 soak adds resources_pre/resources_post (pre/post measured-run
+# samples) and resources_drift (soak leak/stability deltas, soak cells
+# only; None elsewhere). All optional; old rows stay valid.
 OPTIONAL_FIELDS = ("pg_show", "pg_config_status", "pg_config_divergence",
-                   "isolation", "auth_posture", "dataset", "resources")
+                   "isolation", "auth_posture", "dataset", "resources",
+                   "resources_pre", "resources_post",
+                   "resources_drift")
 
 
 def validate_cell(record):
@@ -83,6 +88,13 @@ def validate_cell(record):
     if "resources" in record:
         from .resources import validate_resources
         errors.extend(validate_resources(record.get("resources")))
+    for key in ("resources_pre", "resources_post"):
+        if key in record:
+            from .resources import validate_resources
+            errors.extend(validate_resources(record.get(key)))
+    if "resources_drift" in record:
+        from .resources import validate_drift
+        errors.extend(validate_drift(record.get("resources_drift")))
     return errors
 
 

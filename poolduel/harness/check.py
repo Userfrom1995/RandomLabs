@@ -230,6 +230,110 @@ def check_m9_scale_init():
     return errors
 
 
+def check_soak_coverage():
+    """Every soak (cell, duration) owns all 6 arms incl. direct.
+
+    One chunk per (cell, arm, duration): 36 chunks named m10s01..m10s36,
+    each with full repeats 1..3 of its arm. Supavisor must be absent
+    (deferred with reason, never silently dropped).
+    """
+    from poolduel.harness.soak import (SOAK_ARMS, SOAK_CELL_IDS,
+                                       SOAK_CHUNKS, SOAK_DURATIONS,
+                                       SOAK_REPEATS, soak_entry_cells)
+    errors = []
+    if len(SOAK_CHUNKS) != 36:
+        errors.append("soak wants 36 chunks, found %d" % len(SOAK_CHUNKS))
+    if sorted(SOAK_CHUNKS) != ["m10s%02d" % n for n in range(1, 37)]:
+        errors.append("soak chunks must be exactly m10s01..m10s36")
+    cover, rep_cover = {}, {}
+    for chunk, entries in SOAK_CHUNKS.items():
+        if len(entries) != 1:
+            errors.append("soak chunk %s must hold one entry, found %d"
+                          % (chunk, len(entries)))
+            continue
+        try:
+            cell, arms, reps = soak_entry_cells(entries[0])
+        except (KeyError, ValueError) as exc:
+            errors.append("soak chunk %s entry %r broken: %s"
+                          % (chunk, entries[0], exc))
+            continue
+        key = (cell["cell_id"], cell["duration_s"])
+        for arm in arms:
+            cover.setdefault(key, set()).add(arm)
+            rep_cover.setdefault((key, arm), set()).update(reps)
+    for cid in SOAK_CELL_IDS:
+        for duration in SOAK_DURATIONS:
+            key = (cid, duration)
+            if cover.get(key, set()) != set(SOAK_ARMS):
+                errors.append("soak %s/%ds arms %s, want %s"
+                              % (cid, duration,
+                                 sorted(cover.get(key, set())),
+                                 sorted(SOAK_ARMS)))
+            if "direct" not in cover.get(key, set()):
+                errors.append("soak %s/%ds missing direct control chunk"
+                              % (cid, duration))
+            for arm in SOAK_ARMS:
+                want = set(range(1, SOAK_REPEATS + 1))
+                if rep_cover.get((key, arm), set()) != want:
+                    errors.append("soak %s/%ds/%s repeats %s, want %s"
+                                  % (cid, duration, arm,
+                                     sorted(rep_cover.get((key, arm),
+                                                          set())),
+                                     sorted(want)))
+    for chunk, entries in SOAK_CHUNKS.items():
+        for entry in entries:
+            if entry[3] == "supavisor":
+                errors.append("soak chunk %s carries deferred supavisor"
+                              % chunk)
+    return errors
+
+
+def check_soak_budgets():
+    """Every soak chunk sits under the soak budget cap (200 min)."""
+    from poolduel.harness.soak import (SOAK_CHUNK_BUDGET_CAP_MINUTES,
+                                       check_soak_chunk_budgets)
+    over = check_soak_chunk_budgets()
+    if over:
+        return ["soak chunks over %.0f min cap: %s"
+                % (SOAK_CHUNK_BUDGET_CAP_MINUTES, over)]
+    return []
+
+
+def check_soak_scale_init():
+    """Every soak chunk declares scale 10 (workflow init -s 10)."""
+    from poolduel.harness.soak import SOAK_CHUNKS, soak_chunk_scale
+    errors = []
+    for chunk in SOAK_CHUNKS:
+        try:
+            scale = soak_chunk_scale(chunk)
+        except KeyError as exc:
+            errors.append("soak scale error: %s" % exc)
+            continue
+        if scale != 10:
+            errors.append("soak chunk %s scale %d, want 10"
+                          % (chunk, scale))
+    return errors
+
+
+def check_soak_seeds():
+    """Soak repeats reuse the paired M9 seed schedule (arm-independent)."""
+    from poolduel.harness.soak import soak_seed_for
+    errors = []
+    seeds = [soak_seed_for(r) for r in range(1, 4)]
+    if len(set(seeds)) != len(seeds):
+        errors.append("soak paired seeds collide over repeats 1..3")
+    try:
+        soak_seed_for(0)
+        errors.append("soak soak_seed_for(0) must raise")
+    except ValueError:
+        pass
+    import inspect
+    params = list(inspect.signature(soak_seed_for).parameters)
+    if "arm" in params:
+        errors.append("soak seed schedule must not take an arm parameter")
+    return errors
+
+
 def main():
     errors = []
     for binary in ("pgbench", "psql"):
@@ -261,6 +365,10 @@ def main():
     errors.extend(check_m9_seeds())
     errors.extend(check_m9_supa_na_schema())
     errors.extend(check_m9_scale_init())
+    errors.extend(check_soak_coverage())
+    errors.extend(check_soak_budgets())
+    errors.extend(check_soak_scale_init())
+    errors.extend(check_soak_seeds())
     from poolduel.harness.m9 import (M9_CHUNKS, check_m9_chunk_budgets,
                                      m9_supa_na_rows)
     over9 = check_m9_chunk_budgets()

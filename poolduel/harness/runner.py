@@ -91,6 +91,33 @@ def find_log(log_dir, prefix):
     return cands[0] if cands else None
 
 
+def _sample_resources():
+    """Best-effort resource sample for soak pre/post pairing.
+
+    Never raises; total failure degrades to an all-None block keyed
+    exactly like ``collect_self_resources`` (never fabricated values).
+    """
+    try:
+        return resources_mod.collect_self_resources()
+    except Exception:
+        return {key: None for key in resources_mod.RESOURCE_KEYS}
+
+
+def _soak_drift_for(cell, pre, post):
+    """Soak leak/stability drift for one record (None when not soak).
+
+    Soak cells (``M10-S*``) get ``soak_drift(pre, post)``; every other
+    cell carries the pre/post samples with a None drift. Never raises.
+    """
+    try:
+        from .soak import is_soak_cell, soak_drift
+        if is_soak_cell((cell or {}).get("cell_id")):
+            return soak_drift(pre, post)
+    except Exception:
+        pass
+    return None
+
+
 def find_logs(log_dir, prefix):
     """All pgbench log files for one run (one per worker with -j N).
 
@@ -141,9 +168,14 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
         cell, host, port, dbname, user, threads,
         duration_s=cell["duration_s"], log_prefix=prefix, seed=seed,
         script_path=script_path)
+    # Soak pre/post pairing: sample immediately before the measured
+    # run (warmup already discarded above) and right after it. Best
+    # effort, never raises; M1/M2 argv rendering above is untouched.
+    resources_pre = _sample_resources()
     start = time.time()
     res = run_subprocess(argv, timeout_s=cap, cwd=log_dir, env=env)
     elapsed = time.time() - start
+    resources_post = _sample_resources()
 
     stdout_path = os.path.join(log_dir, prefix + ".stdout.txt")
     with open(stdout_path, "w") as f:
@@ -172,6 +204,8 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
             "stdout_path": stdout_path, "txn_path": txn_path,
             "agg_path": agg_path, "stderr": res["stderr"],
             "stdout": res["stdout"],
+            "resources_pre": resources_pre,
+            "resources_post": resources_post,
         }
     try:
         parsed = pgbench_mod.parse_stdout(res["stdout"])
@@ -186,6 +220,8 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
             "stdout_path": stdout_path, "txn_path": txn_path,
             "agg_path": agg_path, "stderr": res["stderr"],
             "stdout": res["stdout"],
+            "resources_pre": resources_pre,
+            "resources_post": resources_post,
         }
     if pgbench_mod.failed_ratio_exceeds(parsed):
         parsed["_rejected"] = True
@@ -227,6 +263,8 @@ def measure_once(cell, host, port, dbname, user, threads, seed, repeat,
         "stdout_path": stdout_path, "txn_path": txn_path,
         "agg_path": agg_path, "stderr": res["stderr"],
         "stdout": res["stdout"],
+        "resources_pre": resources_pre,
+        "resources_post": resources_post,
     }
 
 
@@ -237,6 +275,13 @@ def build_record(cell, pooler, pooler_config, measurement, pg_version,
     pg_show = dict(pg_show or {})
     verdict = pgconf_mod.enforcement_verdict(
         pg_show, dict(pg_config or PG_CONFIG_BASELINE))
+    # Soak pre/post samples ride the measurement skeleton (recorded by
+    # measure_once around the measured run); absent on hand-built or
+    # pre-M10 skeletons, which stay valid with None here. Drift is
+    # computed for soak cells only; every other cell carries the
+    # samples with a None drift. All additive and optional.
+    _pre = measurement.get("resources_pre")
+    _post = measurement.get("resources_post")
     return {
         "cell_id": cell["cell_id"],
         "workload": cell["workload"],
@@ -259,6 +304,10 @@ def build_record(cell, pooler, pooler_config, measurement, pg_version,
                          else auth_mod.posture(pooler)),
         "resources": (dict(resources) if resources is not None
                       else resources_mod.collect_self_resources()),
+        "resources_pre": (dict(_pre) if isinstance(_pre, dict) else _pre),
+        "resources_post": (dict(_post) if isinstance(_post, dict)
+                           else _post),
+        "resources_drift": _soak_drift_for(cell, _pre, _post),
         "dataset": (dict(dataset) if dataset is not None else {
             "policy": ("per-chunk pgbench -i -s 10, CHECKPOINT + "
                        "VACUUM (ANALYZE) before each measured block, "
