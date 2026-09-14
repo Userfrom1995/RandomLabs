@@ -152,9 +152,16 @@ class M3CliLoudFailureTest(unittest.TestCase):
             out = os.path.join(tmp, "out")
             self.assertEqual(report.main(["--m1-dir", m1, "--out", out]), 0)
             for path in ("m1/medians.json", "m1/matrix.csv",
-                         "m2/medians.json", "m2/matrix.csv", "report.json"):
+                         "report.json"):
                 self.assertTrue(os.path.exists(os.path.join(out, path)), path)
-            bundle = json.load(open(os.path.join(out, "report.json")))
+            # Write-guards for requested matrices only: an m1-only run
+            # must not invent empty m2 outputs (bare --m9-dir must not
+            # clobber m1/m2 medians with [] either).
+            for path in ("m2/medians.json", "m2/matrix.csv"):
+                self.assertFalse(os.path.exists(os.path.join(out, path)),
+                                 path)
+            with open(os.path.join(out, "report.json")) as f:
+                bundle = json.load(f)
             for key in ("best", "pairwise", "iso_regions", "flatness",
                         "measured", "na", "pg_version", "pooler_versions"):
                 self.assertIn(key, bundle)

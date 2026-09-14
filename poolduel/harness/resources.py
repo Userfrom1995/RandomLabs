@@ -151,7 +151,8 @@ def validate_resources(value):
             errors.append("resources forbids extra field %r" % key)
     for key in ("cpu_time_s", "peak_rss_kb", "fd_count", "wall_s"):
         if key in value and value[key] is not None:
-            if not isinstance(value[key], (int, float)):
+            if isinstance(value[key], bool) or not isinstance(
+                    value[key], (int, float)):
                 errors.append("resources.%s must be numeric or null" % key)
             elif value[key] < 0:
                 errors.append("resources.%s must be non-negative" % key)
@@ -180,7 +181,8 @@ def validate_drift(value):
             errors.append("resources_drift forbids extra field %r" % key)
     for key in DRIFT_KEYS:
         if key in value and value[key] is not None:
-            if not isinstance(value[key], (int, float)):
+            if isinstance(value[key], bool) or not isinstance(
+                    value[key], (int, float)):
                 errors.append(
                     "resources_drift.%s must be numeric or null" % key)
     return errors

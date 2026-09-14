@@ -437,11 +437,23 @@ def build_statistics(m9_medians, m9_records, b=BOOTSTRAP_B,
 
 
 def write_outputs(m1_medians, m2_medians, out_dir, pg_version="PG 17",
-                  m9_medians=None, statistics=None):
-    """Write medians.json + matrix.csv per matrix plus report.json."""
-    os.makedirs(os.path.join(out_dir, "m1"), exist_ok=True)
-    os.makedirs(os.path.join(out_dir, "m2"), exist_ok=True)
-    for name, med in (("m1", m1_medians), ("m2", m2_medians)):
+                  m9_medians=None, statistics=None,
+                  write_m1=True, write_m2=True):
+    """Write medians.json + matrix.csv per requested matrix plus report.json.
+
+    Only matrices requested by the caller are written: a bare
+    ``--m9-dir`` run must not clobber ``m1/m2/medians.json`` with
+    ``[]``. Defaults preserve the old always-write behavior for
+    direct callers that pass both lists.
+    """
+    if write_m1:
+        os.makedirs(os.path.join(out_dir, "m1"), exist_ok=True)
+    if write_m2:
+        os.makedirs(os.path.join(out_dir, "m2"), exist_ok=True)
+    for name, med, wanted in (("m1", m1_medians, write_m1),
+                              ("m2", m2_medians, write_m2)):
+        if not wanted:
+            continue
         with open(os.path.join(out_dir, name, "medians.json"), "w") as f:
             json.dump(med, f, indent=2, sort_keys=True)
         with open(os.path.join(out_dir, name, "matrix.csv"), "w") as f:
@@ -525,7 +537,9 @@ def main(argv=None):
     bundle = write_outputs(m1_medians, m2_medians, args.out,
                            pg_version=args.pg_version,
                            m9_medians=m9_medians or None,
-                           statistics=statistics)
+                           statistics=statistics,
+                           write_m1=bool(args.m1_dir),
+                           write_m2=bool(args.m2_dir))
     print("poolduel report: %d m1 + %d m2 + %d m9 median entries "
           "(%d measured, %d N/A/timeout) -> %s"
           % (len(m1_medians), len(m2_medians), len(m9_medians),

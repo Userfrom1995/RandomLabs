@@ -237,10 +237,16 @@ def check_soak_coverage():
     each with full repeats 1..3 of its arm. Supavisor must be absent
     (deferred with reason, never silently dropped).
     """
-    from poolduel.harness.soak import (SOAK_ARMS, SOAK_CELL_IDS,
-                                       SOAK_CHUNKS, SOAK_DURATIONS,
-                                       SOAK_REPEATS, soak_entry_cells)
+    from poolduel.harness.soak import (SOAK_ARMS, SOAK_CHUNKS,
+                                       SOAK_DURATIONS, SOAK_REPEATS,
+                                       soak_cell_ids, soak_entry_cells,
+                                       validate_soak_ratios)
     errors = []
+    try:
+        validate_soak_ratios()
+    except (KeyError, ValueError) as exc:
+        errors.append("soak ratio/cell error: %s" % exc)
+        return errors
     if len(SOAK_CHUNKS) != 36:
         errors.append("soak wants 36 chunks, found %d" % len(SOAK_CHUNKS))
     if sorted(SOAK_CHUNKS) != ["m10s%02d" % n for n in range(1, 37)]:
@@ -261,7 +267,7 @@ def check_soak_coverage():
         for arm in arms:
             cover.setdefault(key, set()).add(arm)
             rep_cover.setdefault((key, arm), set()).update(reps)
-    for cid in SOAK_CELL_IDS:
+    for cid in soak_cell_ids():
         for duration in SOAK_DURATIONS:
             key = (cid, duration)
             if cover.get(key, set()) != set(SOAK_ARMS):

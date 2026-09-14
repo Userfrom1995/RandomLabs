@@ -75,6 +75,12 @@ class TestResources(unittest.TestCase):
         self.assertNotEqual(
             resources_mod.validate_resources("nope"), [])
 
+    def test_validate_rejects_bool_numerics(self):
+        errs = resources_mod.validate_resources({"cpu_time_s": True})
+        self.assertTrue(any("numeric" in e for e in errs))
+        derrs = resources_mod.validate_drift({"rss_delta_kb": False})
+        self.assertTrue(any("numeric" in e for e in derrs))
+
     def test_snapshot_sql_names_counters(self):
         sql = resources_mod.pg_stat_snapshot_sql()
         self.assertIn("pg_stat_database", sql)
