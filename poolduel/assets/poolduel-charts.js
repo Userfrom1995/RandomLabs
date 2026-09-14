@@ -80,10 +80,14 @@
     return tps.median + " [" + tps.min + "-" + tps.max + "]";
   }
 
-  function buildLookups(m1, m2, bundle) {
+  function buildLookups(m1, m2, bundle, m9) {
     var byKey = {};
-    (m1 || []).concat(m2 || []).forEach(function (e) {
-      byKey[e.cell_id + "|" + e.pooler] = e;
+    (m1 || []).concat(m2 || []).concat(m9 || []).forEach(function (e) {
+      if (!byKey[e.cell_id + "|" + e.pooler] ||
+          (e.tps && e.tps.n != null && byKey[e.cell_id + "|" + e.pooler].tps &&
+            e.tps.n > byKey[e.cell_id + "|" + e.pooler].tps.n)) {
+        byKey[e.cell_id + "|" + e.pooler] = e;
+      }
     });
     var verdicts = {};
     Object.keys((bundle && bundle.best) || {}).forEach(function (cell) {
@@ -194,11 +198,12 @@
     var dataPromise = Promise.all([
       fetchJson(base + "m1/medians.json"),
       fetchJson(base + "m2/medians.json"),
-      fetchJson(base + "report.json")
+      fetchJson(base + "report.json"),
+      fetchJson(base + "m9/medians.json")
     ]).then(function (parts) {
-      if (!parts[0] && !parts[1]) return null;
+      if (!parts[0] && !parts[1] && !parts[3]) return null;
       return {
-        lookups: buildLookups(parts[0], parts[1], parts[2]),
+        lookups: buildLookups(parts[0], parts[1], parts[2], parts[3]),
         bundle: parts[2]
       };
     });
