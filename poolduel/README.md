@@ -57,6 +57,10 @@ After any sweep, build the publication artifacts with one command:
 ./poolduel/repro.sh --supplement  # bundles -> results/supplementmeta.json,
                               # pre-rendered guide/architecture/methodology/
                               # reproducibility facts (M11d)
+./poolduel/repro.sh --manifest  # corpus -> results/manifest.json,
+                              # deterministic build hash + size budget,
+                              # pre-rendered reproducibility manifest (M12)
+./poolduel/repro.sh --manifest-verify  # recompute + compare, fail on drift
 ```
 
 With no sweep data on disk `--report` fails loudly instead of inventing

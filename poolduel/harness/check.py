@@ -465,6 +465,78 @@ def check_supplement_coherence():
     return errors
 
 
+def check_manifest_coherence():
+    """manifest.json recomputes from the committed raw corpus (M12).
+
+    Also verifies the reproducibility page carries its MANIFEST marker,
+    the errata/verified-by tables match docs/errata.md, and the page is
+    mobile-readable (viewport meta present).
+    """
+    from poolduel.harness import manifest as manmod
+    errors = []
+    root = os.path.join(os.path.dirname(__file__), "..")
+    results = os.path.join(root, "results")
+    manifest_path = os.path.join(results, "manifest.json")
+    try:
+        with open(manifest_path) as handle:
+            committed = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["manifest.json unreadable: %s" % exc]
+    try:
+        fresh = manmod.build_manifest(results, os.path.join(root, ".."))
+    except OSError as exc:
+        return ["manifest corpus unreadable: %s" % exc]
+    for key in ("build_hash", "total_raw_files", "total_raw_bytes",
+                "within_budget"):
+        if committed.get(key) != fresh.get(key):
+            errors.append("manifest.json[%s] drifted from corpus; "
+                          "re-run repro.sh --manifest" % key)
+    for leg in manmod.RAW_LEGS:
+        if (committed.get("legs", {}).get(leg, {}).get("raw_files")
+                != fresh["legs"][leg]["raw_files"]):
+            errors.append("manifest.json legs[%s] file count drifted; "
+                          "re-run repro.sh --manifest" % leg)
+    for bundle, want in fresh["bundles"].items():
+        if committed.get("bundles", {}).get(bundle) != want:
+            errors.append("manifest.json bundles[%s] drifted; "
+                          "re-run repro.sh --manifest" % bundle)
+    if not committed.get("within_budget", False):
+        errors.append("raw corpus exceeds size budget")
+    page = os.path.join(root, "reproducibility", "index.html")
+    try:
+        with open(page) as handle:
+            text = handle.read()
+    except OSError as exc:
+        return errors + ["reproducibility page unreadable: %s" % exc]
+    if "<!-- MANIFEST:meta:begin -->" not in text:
+        errors.append("reproducibility page lacks MANIFEST marker")
+    if 'id="manifest-counts"' not in text:
+        errors.append("reproducibility manifest fragment not applied; "
+                      "re-run repro.sh --manifest")
+    if committed.get("build_hash") and committed["build_hash"] not in text:
+        errors.append("reproducibility page build hash disagrees with "
+                      "manifest.json; re-run repro.sh --manifest")
+    if 'name="viewport"' not in text:
+        errors.append("reproducibility page lacks viewport meta "
+                      "(mobile readability gate)")
+    try:
+        with open(os.path.join(root, "docs", "errata.md")) as handle:
+            ledger = handle.read()
+    except OSError as exc:
+        errors.append("docs/errata.md unreadable: %s" % exc)
+        ledger = ""
+    ledger_empty = ("No errata filed yet" in ledger
+                    and "No independent re-runs recorded yet" in ledger)
+    if ledger_empty:
+        if "No errata filed yet" not in text:
+            errors.append("reproducibility errata table disagrees with "
+                          "docs/errata.md; sync the page")
+        if "No independent re-runs recorded yet" not in text:
+            errors.append("reproducibility verified-by table disagrees "
+                          "with docs/errata.md; sync the page")
+    return errors
+
+
 def check_dossier_coherence():
     """dossiermeta.json recomputes from the committed bundles (no hand values).
 
@@ -584,6 +656,7 @@ def main():
     errors.extend(check_site_coherence())
     errors.extend(check_dossier_coherence())
     errors.extend(check_supplement_coherence())
+    errors.extend(check_manifest_coherence())
     from poolduel.harness.m9 import (M9_CHUNKS, check_m9_chunk_budgets,
                                      m9_supa_na_rows)
     over9 = check_m9_chunk_budgets()

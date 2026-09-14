@@ -4,7 +4,7 @@ Status: in-progress
 Date: 2026-09-12. Owner directive via #42 (supreme priority).
 Blueprint: `ideas/2026-09-11-poolduel.md`. Researcher spec: `poolduel/docs/`.
 
-Active Milestone: M11d (supplementary sections + design system; M11c merged)
+Active Milestone: M12 (reproducibility package; M11d merged at cb4ab82d)
 
 ## Milestone roadmap
 
@@ -870,5 +870,41 @@ Current step: M11d implementation complete, awaiting review
 Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
   supplementmeta drift + no-pending checks) -> merge -> Builder M12
   per blueprint.
+
+- the Builder
+
+## M12 build log (Builder, 2026-09-14, branch `opencode/issue302-20260914114556`)
+
+Implements the M12 slice of `ideas/2026-09-13-poolduel-redesign.md`
+(reproducibility package + red-team, plan sections 11 + 12.2). Harness +
+page + docs only; no sweep execution (Maintainer dispatches), no workflow
+edits (Lab scope), no numbers beyond committed bundles.
+
+Active Milestone: M12 (reproducibility package; M11d merged at cb4ab82d)
+
+- New: `harness/manifest.py` (deterministic build hash over sorted
+  relpath+sha lines, 2239 files: m1 150, m2 319, m9 1770; 5.67 MB vs
+  500 MB budget; 10 derived-bundle SHAs; workflow pins read-only;
+  `--verify` tamper detection; `--apply` into `MANIFEST:meta` markers,
+  idempotent), `results/manifest.json`,
+  `tests/test_m12_manifest.py` (15 tests).
+- New: `docs/digests.md` (images + pins + refresh procedure),
+  `docs/errata.md` (ledger source, honestly empty, drift-checked).
+- Wiring: `repro.sh --manifest` + `--manifest-verify`, `check.py`
+  `check_manifest_coherence` (recompute + fragment + ledger + viewport
+  mobile gate), README repro docs, spec-v1 s6 M12 note, ideas entry
+  `ideas/2026-09-14-poolduel-m12-manifest.md`.
+- Proof: full suite 663 green, `check.py` rc=0, `--manifest-verify`
+  matches committed hash, page JS `node --check` clean.
+- Known gap (not hidden): M10 soak staged but undispatched, so soak
+  evidence + memory-per-1000-idle stay honest absent; section-11 full
+  gate not claimed green.
+- `Refs #302`: no `Closes`, no owner notification (mandate rule 6;
+  soak dispatch + Tester repro + Tier-2 vision remain).
+
+Current step: M12 implementation complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  manifest drift + tamper-evidence checks) -> merge -> Maintainer
+  owns soak dispatch + final gate verdict.
 
 - the Builder

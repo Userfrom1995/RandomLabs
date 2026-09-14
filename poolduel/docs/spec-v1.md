@@ -177,3 +177,21 @@
   (enhancement-only: theme, permalinks, picker, BibTeX copy, FAQ).
   Memory-per-1000-idle ships as an honest absent table until the
   soak sweep measures it, never an estimate.
+- M12 (this change): reproducibility package plus red-team pass.
+  `harness/manifest.py` (`repro.sh --manifest`) builds
+  `results/manifest.json` from the committed raw corpus (2239 files:
+  m1 150, m2 319, m9 1770): deterministic build hash over sorted
+  relpath+sha lines (never directory-scan order), per-leg file/byte
+  counts, derived-bundle SHAs, sweep-workflow pins (read-only record;
+  workflows stay Lab scope), and the 500 MB size-budget verdict.
+  `repro.sh --manifest-verify` recomputes and fails loudly on any
+  mismatch (tamper detection). The build hash plus corpus counts are
+  spliced into `MANIFEST:meta` markers on the reproducibility page;
+  `check.py` fails when the manifest, the page fragment, or the
+  errata/verified-by tables drift from `docs/errata.md` (the ledger
+  source). `docs/digests.md` records runner images plus action pins
+  with a refresh procedure. Known gap (not hidden): the M10 soak
+  sweep is staged at `poolduel/ci/poolduel-m10-soak.yml` but not yet
+  dispatched, so soak evidence plus memory-per-1000-idle stay honest
+  absent until the Maintainer dispatches and Lab promotes; no gate
+  depending on them is claimed green.
