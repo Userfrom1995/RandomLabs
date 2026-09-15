@@ -643,6 +643,103 @@ def check_dossier_coherence():
     return errors
 
 
+def check_soak_figure_coherence():
+    """Soak stability figures recompute from the committed soak bundles.
+
+    Rebuilds the six ``soak-*`` options from ``results/m10-soak/``
+    (medians + raw drift) and deep-compares them against the
+    committed ``results/charts/comparison.json`` (no hand values);
+    verifies the charts manifest SHA + soak sources; verifies the
+    master soak section carries the figure hosts, the honest
+    absent-note where tiers are missing, and zero ``pending`` as
+    visible content where data exists.
+    """
+    import glob
+    from poolduel.harness import charts as chartsmod
+    from poolduel.harness.soak import SOAK_ABSENT_LABEL
+    errors = []
+    root = os.path.join(os.path.dirname(__file__), "..")
+    medians_path = os.path.join(root, "results", "m10-soak",
+                                "medians.json")
+    raw_dir = os.path.join(root, "results", "m10-soak", "raw")
+    comparison_path = os.path.join(root, "results", "charts",
+                                   "comparison.json")
+    charts_manifest_path = os.path.join(root, "results", "charts",
+                                        "manifest.json")
+    try:
+        with open(medians_path) as handle:
+            soak_medians = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["soak medians unreadable: %s" % exc]
+    try:
+        with open(comparison_path) as handle:
+            committed = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return ["charts comparison.json unreadable: %s" % exc]
+    raw_records = []
+    for path in sorted(glob.glob(os.path.join(raw_dir, "*.json"))):
+        try:
+            with open(path) as handle:
+                raw_records.append(json.load(handle))
+        except (OSError, ValueError):
+            continue
+    try:
+        fresh = chartsmod.build_soak_charts(soak_medians, raw_records)
+    except (ValueError, KeyError) as exc:
+        return ["soak figure rebuild failed: %s" % exc]
+    for chart_id, opt in fresh.items():
+        if committed.get(chart_id) != opt:
+            errors.append("charts comparison.json[%s] drifted from "
+                          "soak bundles; re-run repro.sh --charts"
+                          % chart_id)
+    try:
+        with open(charts_manifest_path) as handle:
+            manifest = json.load(handle)
+    except (OSError, ValueError) as exc:
+        return errors + ["charts manifest.json unreadable: %s" % exc]
+    page = (manifest.get("pages") or {}).get("comparison", {})
+    for chart_id in fresh:
+        if chart_id not in (page.get("charts") or []):
+            errors.append("charts manifest lacks soak figure %s; "
+                          "re-run repro.sh --charts" % chart_id)
+    sources = manifest.get("sources") or {}
+    want_medians = chartsmod._sha256_file(medians_path)
+    if sources.get("m10-soak/medians.json") != want_medians:
+        errors.append("charts manifest m10-soak/medians.json SHA "
+                      "mismatch; re-run repro.sh --charts")
+    if sources.get("m10-soak/raw_files") != len(raw_records):
+        errors.append("charts manifest m10-soak/raw_files count "
+                      "mismatch; re-run repro.sh --charts")
+    want_page = chartsmod._sha256_file(comparison_path)
+    if page.get("sha256") != want_page:
+        errors.append("charts manifest comparison SHA mismatch; "
+                      "re-run repro.sh --charts")
+    index = os.path.join(root, "index.html")
+    try:
+        with open(index) as handle:
+            text = handle.read()
+    except OSError as exc:
+        return errors + ["index.html unreadable: %s" % exc]
+    begin = "<!-- SITE:soak:begin -->"
+    end = "<!-- SITE:soak:end -->"
+    if begin not in text or end not in text:
+        errors.append("index.html lacks SITE soak markers")
+        return errors
+    section = text.split(begin, 1)[1].split(end, 1)[0]
+    for chart_id in sorted(fresh):
+        if 'data-chart="%s"' % chart_id not in section:
+            errors.append("index soak section lacks figure host %s; "
+                          "re-run repro.sh --site" % chart_id)
+    if "pending" in section.lower():
+        errors.append("index soak section ships pending content; "
+                      "re-run repro.sh --site")
+    if len(soak_medians) < 36 and SOAK_ABSENT_LABEL not in section:
+        errors.append("index soak section lacks the honest absent "
+                      "note while tiers are missing; "
+                      "re-run repro.sh --site")
+    return errors
+
+
 def main():
     errors = []
     for binary in ("pgbench", "psql"):
@@ -679,6 +776,7 @@ def main():
     errors.extend(check_soak_scale_init())
     errors.extend(check_soak_seeds())
     errors.extend(check_site_coherence())
+    errors.extend(check_soak_figure_coherence())
     errors.extend(check_dossier_coherence())
     errors.extend(check_supplement_coherence())
     errors.extend(check_manifest_coherence())

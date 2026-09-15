@@ -26,7 +26,10 @@ template sameness is the neutrality guarantee):
   and settings cells reuse the page's own static markup (parsed,
   never re-typed); M9 rows are generated from median geometry with
   an explicit pointer at ``results/m9/matrix.csv`` for the exact
-  variant. The flatness peak cell is tagged ``[peak]``.
+  variant. Soak rows render both duration tiers per cell with
+  tier-suffixed labels; tiers never in git render as absent rows
+  carrying the re-dispatch label (never zero-filled, never
+  interpolated). The flatness peak cell is tagged ``[peak]``.
 - flatness / verdict / N-A blocks: same derivation as the live JS
   they replace (ranked verdicts from the ``best`` leg, named peak
   and trough, derived-sentence verdicts, never free prose).
@@ -315,6 +318,8 @@ def dedupe_entries(m1, m2, m9, soak=None):
 
 def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings,
                   soak=None):
+    from poolduel.harness.soak import (SOAK_ABSENT_LABEL, soak_absent,
+                                       soak_cell)
     entries = [e for e in dedupe_entries(m1, m2, m9, soak)
                if isinstance(e, dict) and e.get("pooler") == pooler]
     flat = ((bundle or {}).get("flatness", {}) or {}).get(pooler) or {}
@@ -332,12 +337,17 @@ def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings,
         if isinstance(tps, dict) and sitemod._num(tps.get("n")) is not None:
             n = int(tps["n"])
         known = settings.get(cid)
-        if known is not None:
-            load, setting_html, docs_href = known
-        elif leg_of(cid) == "soak":
+        if leg_of(cid) == "soak":
+            # Soak rows are always entry-derived (never the page's
+            # static markup): two tiers share one cell id, so a
+            # static lookup keyed by cell alone would smear one
+            # tier's label onto the other on re-apply. Pure
+            # functions of the entry, hence idempotent.
             load = load_label(entry)
             setting_html = soak_settings(entry, pooler)
             docs_href = "../docs/configs/%s" % slug_docs(pooler)
+        elif known is not None:
+            load, setting_html, docs_href = known
         else:
             load = load_label(entry)
             setting_html = m9_settings(entry, pooler)
@@ -356,7 +366,39 @@ def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings,
             "n": n,
             "peak": bool(peak_cell and cid == peak_cell
                          and status == MEASURED),
+            "duration_s": (entry.get("duration_s")
+                           if isinstance(entry.get("duration_s"),
+                                         int) else None),
         })
+    # Absent soak tiers: one row per spec triple never in git, with
+    # tier-suffixed labels derived from the soak geometry (never
+    # hand-typed). They disappear with no code change when the
+    # Maintainer-owned re-dispatch lands.
+    for (cid, arm, duration) in soak_absent(soak):
+        if arm != pooler:
+            continue
+        try:
+            synth = soak_cell(cid, duration)
+        except (KeyError, ValueError):
+            continue
+        rows.append({
+            "cell_id": cid,
+            "leg": "soak",
+            "load": load_label(synth),
+            "settings": soak_settings(synth, pooler),
+            "docs": "../docs/configs/%s" % slug_docs(pooler),
+            "status": SOAK_ABSENT_LABEL,
+            "tps_band": None,
+            "tps_median": None,
+            "p99": sitemod.fmt_ms(None),
+            "n": None,
+            "peak": False,
+            "duration_s": int(duration),
+        })
+    rows.sort(key=lambda r: (r["leg"], natural_key(r["cell_id"]),
+                             r["duration_s"]
+                             if isinstance(r["duration_s"], int)
+                             else -1))
     counts = {}
     for leg in ("M1", "M2", "M9", "soak"):
         leg_rows = [r for r in rows if r["leg"] == leg]
@@ -426,10 +468,13 @@ def render_lifecycle(pooler):
 
 
 def render_config(dossier):
+    from poolduel.harness.soak import SOAK_ABSENT_LABEL
     legs = dossier["legs"]
     m1, m2, m9 = legs["M1"], legs["M2"], legs["M9"]
     soak = legs.get("soak", {"total": 0, "measured": 0, "timeout": 0,
                              "na": 0})
+    missing = sum(1 for r in dossier["rows"]
+                  if r["status"] == SOAK_ABSENT_LABEL)
     parts = [
         '<div class="viewtoggle" role="group" aria-label="Rows">'
         '<button data-filter="all" class="on">All</button>'
@@ -442,13 +487,15 @@ def render_config(dossier):
         "M9 %d rows (%d measured + %d timeout/inconclusive) "
         "plus %d N/A rows; "
         "M10 soak %d tier-rows (%d measured + %d "
-        "timeout/inconclusive). Table shows the max-repeats evidence per "
+        "timeout/inconclusive) plus %d absent tier-rows "
+        "(re-dispatch owned by Maintainer). Table shows the "
+        "max-repeats evidence per "
         "tier-cell; full history in the matrix.csv files. "
         "Peak config tagged.</p>"
         % (_esc(dossier["display"]), m1["total"],
            m2["total"], m2["measured"], m2["timeout"], m2["na"],
            m9["total"], m9["measured"], m9["timeout"], m9["na"],
-           soak["total"], soak["measured"], soak["timeout"]),
+           soak["total"], soak["measured"], soak["timeout"], missing),
         '<table data-config-results data-pooler="%s">'
         "<tr><th>Cell</th><th>Load</th><th>Non-default settings</th>"
         "<th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th>"
@@ -464,18 +511,26 @@ def render_config(dossier):
         elif row["status"] == TIMEOUT:
             tps = "timeout/inconclusive"
             tps_cls, status_cls = "live-tps", "live-status na"
+        elif row["status"] == SOAK_ABSENT_LABEL:
+            tps = SOAK_ABSENT_LABEL
+            tps_cls, status_cls = "live-tps", "live-status"
         else:
             tps = row["status"]
             tps_cls, status_cls = "live-tps", "live-status"
         fkey = ("measured" if row["status"] == MEASURED
-                else "na" if row["status"] == NA else "timeout")
+                else "na" if row["status"] == NA
+                else "timeout" if row["status"] == TIMEOUT
+                else "missing")
+        dur = ((' data-duration="%d"' % row["duration_s"])
+               if isinstance(row.get("duration_s"), int) else "")
         parts.append(
-            '<tr data-cell="%s" data-pooler="%s" data-status="%s">'
+            '<tr data-cell="%s" data-pooler="%s" data-status="%s"%s>'
             "<td>%s</td><td>%s</td><td>%s</td>"
             '<td><a href="%s">%s</a></td>'
             '<td class="%s">%s</td><td>p99 %s, n=%s</td>'
             '<td class="%s">%s</td></tr>' % (
                 _esc(row["cell_id"]), _esc(dossier["pooler"]), fkey,
+                dur,
                 _esc(row["cell_id"]), _esc(row["load"]), row["settings"],
                 _esc(row["docs"]),
                 _esc(row["docs"].split("/")[-1]),
@@ -531,7 +586,13 @@ def render_verdict(dossier):
 
 
 def render_na(dossier):
-    rows = [r for r in dossier["rows"] if r["status"] != MEASURED]
+    from poolduel.harness.soak import SOAK_ABSENT_LABEL
+    # Absent soak tiers live in the config table with their
+    # re-dispatch label; this table keeps its N/A + timeout
+    # findings contract.
+    rows = [r for r in dossier["rows"]
+            if r["status"] != MEASURED
+            and r["status"] != SOAK_ABSENT_LABEL]
     if not rows:
         return ("<p class=\"note\">No N/A or timeout cells: every config "
                 "measured.</p>")

@@ -417,7 +417,322 @@ def pooler_page_charts(pooler, m1_entries, m2_entries):
     return charts
 
 
-def build_options(m1_entries, m2_entries, bundle):
+# Soak stability figure context (M13a): 60 s warmup (not the 30 s
+# short-cell value), scale 10, same iron. A constant here, never
+# per-chart hand values.
+SOAK_FIGURE_CONTEXT = ("60 s warmup; scale 10; PG 17 (PGDG); "
+                       "ubuntu-24.04 CI runners")
+
+# Absent-tier marker style: grey rounded squares, distinct from the
+# white N/A diamonds and the yellow timeout triangles.
+ABSENT_COLOR = "#6E7681"
+
+
+def _soak_tier_labels():
+    """Numeric tier order: 1800 s before 3600 s, never lexicographic."""
+    return ["30-min tier (1800 s)", "60-min tier (3600 s)"]
+
+
+def _soak_subtitle(cell_id, entries, absent_count):
+    measured = [(_median(e), e.get("pooler")) for e in entries or []
+                if e.get("status") == "measured"
+                and _median(e) is not None]
+    if not measured:
+        head = "no measured tiers"
+    else:
+        peak = max(measured, key=lambda t: t[0])
+        head = ("peak %.1f tps (%s); %d measured tiers; "
+                % (peak[0], peak[1], len(measured)))
+    absent = ("; %d absent tiers %s" % (
+        absent_count, "(re-dispatch owned by Maintainer)")
+        if absent_count else "; all tiers present")
+    return head + absent + ". " + SOAK_FIGURE_CONTEXT
+
+
+def _soak_marker_series(name, positions, color, symbol, point_label=None):
+    # Same off-baseline contract as _marker_series (y=0 values with
+    # symbolOffset, never bars), but the on-point label stays short
+    # ("absent") while the series name carries the full honest text
+    # for the legend and axis tooltips.
+    return {
+        "name": name,
+        "type": "scatter",
+        "symbol": symbol,
+        "symbolSize": 14,
+        "symbolOffset": [0, -14],
+        "itemStyle": {"color": color},
+        "label": {"show": True,
+                  "formatter": point_label or name,
+                  "color": color, "position": "top"},
+        "data": [[pos, 0] for pos in positions],
+    }
+
+
+def _p99_median(entry):
+    stat = (entry or {}).get("p99_ms") or {}
+    return stat.get("median")
+
+
+def soak_tps_chart(cell_id, soak_medians, absent):
+    """Tps + tail per arm across the two duration tiers of one cell.
+
+    Bars are tps medians with min-max band lines; the dotted line per
+    arm is the p99 median on the right axis (null where quarantined,
+    timeout, or absent, so the line breaks instead of interpolating).
+    Absent (cell, arm, tier) triples are off-baseline markers,
+    distinct from timeout/inconclusive findings. Every value traces
+    to ``soak_medians``; no hand values.
+    """
+    from poolduel.harness.soak import (SOAK_ABSENT_LABEL, SOAK_ARMS,
+                                       SOAK_DURATIONS)
+    tiers = list(SOAK_DURATIONS)
+    by_key = {(e.get("cell_id"), e.get("duration_s"), e.get("pooler")): e
+              for e in (soak_medians or []) if isinstance(e, dict)}
+    labels = _soak_tier_labels()
+    entries = [by_key.get((cell_id, d, a))
+               for d in tiers for a in SOAK_ARMS]
+    entries = [e for e in entries if e is not None]
+    cell_absent = [t for t in (absent or []) if t[0] == cell_id]
+    opt = _base_option(
+        "Soak stability %s: tps per tier per arm" % cell_id,
+        "median tps with min-max bands; dotted lines are p99 latency "
+        "(right axis), null where quarantined or unmeasured. " +
+        _soak_subtitle(cell_id, entries, len(cell_absent)), labels)
+    opt["xAxis"]["name"] = "duration tier"
+    opt["yAxis"] = [
+        {"type": "value", "min": 0, "name": "tps (transactions/s)",
+         "axisLabel": {"color": TEXT_COLOR}},
+        {"type": "value", "name": "p99 latency (ms)",
+         "axisLabel": {"color": TEXT_COLOR}},
+    ]
+    absent_pos, timeout_pos = [], []
+    for arm in SOAK_ARMS:
+        meds, mins, maxs, p99s = [], [], [], []
+        for i, duration in enumerate(tiers):
+            entry = by_key.get((cell_id, duration, arm))
+            if entry is None or (cell_id, arm, duration) in (
+                    set(cell_absent)):
+                meds.append(None)
+                mins.append(None)
+                maxs.append(None)
+                p99s.append(None)
+                if (cell_id, arm, duration) in set(cell_absent):
+                    absent_pos.append(i)
+            elif entry.get("status") == "measured":
+                meds.append(_median(entry))
+                lo, hi = _band(entry)
+                mins.append(lo)
+                maxs.append(hi)
+                p99s.append(_p99_median(entry))
+            else:
+                meds.append(None)
+                mins.append(None)
+                maxs.append(None)
+                p99s.append(None)
+                timeout_pos.append(i)
+        # Fixed six-arm spec: every arm keeps its series (absent tiers
+        # are markers, never silent gaps), so the legend always reads
+        # the full incumbent set.
+        opt["series"].append(_bar_series(arm, meds, [], []))
+        opt["series"].extend(_band_series(arm, mins, maxs))
+        opt["series"].append({
+            "name": DISPLAY[arm] + " p99",
+            "type": "line",
+            "yAxisIndex": 1,
+            "symbol": "emptyCircle",
+            "showSymbol": True,
+            "symbolSize": 6,
+            "lineStyle": {"type": "dotted", "color": PALETTE[arm],
+                          "width": 1, "opacity": 0.8},
+            "itemStyle": {"color": PALETTE[arm], "opacity": 0.8},
+            "data": list(p99s),
+        })
+    if absent_pos:
+        opt["series"].append(
+            _soak_marker_series(SOAK_ABSENT_LABEL,
+                                sorted(set(absent_pos)),
+                                ABSENT_COLOR, "roundRect", "absent"))
+    if timeout_pos:
+        opt["series"].append(
+            _marker_series("timeout/inconclusive",
+                           sorted(set(timeout_pos)),
+                           TIMEOUT_COLOR, "triangle"))
+    return opt
+
+
+def _finite(value):
+    try:
+        if isinstance(value, bool):
+            return None
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    return number
+
+
+def _median_of(values):
+    import statistics
+    clean = [v for v in (_finite(v) for v in values) if v is not None]
+    if not clean:
+        return None
+    return float(statistics.median(clean))
+
+
+def soak_drift_from_raw(raw_records):
+    """Median pre/post resource drift per (cell, duration, pooler).
+
+    Reads the committed raw ``resources_drift`` fields (harness-process
+    rusage sampled before/after each measured run): median RSS delta
+    in KB and FD-count delta across the repeats of each tier-group.
+    Pure bundle math: missing or non-finite inputs degrade to None
+    (n/a, never zero); never raises on hostile shapes.
+    """
+    grouped = {}
+    for rec in raw_records or []:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            key = (rec.get("cell_id"), int(rec.get("duration_s")),
+                   rec.get("pooler"))
+        except (TypeError, ValueError):
+            continue
+        drift = rec.get("resources_drift")
+        if not isinstance(drift, dict):
+            drift = {}
+        bucket = grouped.setdefault(key, {"rss": [], "fd": [],
+                                          "rows": 0})
+        bucket["rows"] += 1
+        rss = _finite(drift.get("rss_delta_kb"))
+        if rss is not None:
+            bucket["rss"].append(rss)
+        fd = _finite(drift.get("fd_delta"))
+        if fd is not None:
+            bucket["fd"].append(fd)
+    out = {}
+    for key, bucket in grouped.items():
+        out[key] = {
+            "rss_delta_kb": _median_of(bucket["rss"]),
+            "fd_delta": _median_of(bucket["fd"]),
+            "n": bucket["rows"],
+        }
+    return out
+
+
+def soak_drift_chart(cell_id, drift, absent):
+    """Pre/post resource drift per arm across the two tiers of one cell.
+
+    RSS-delta bars (left axis) plus FD-delta dotted lines (right
+    axis), both in the shared arm palette. Harness-process rusage is
+    a run-validity signal, not pooler-process leak sampling (future
+    work, never claimed here). Tiers with no raw evidence mark
+    ``n/a (not recorded)``; tiers never in git carry the absent
+    marker instead. Every value traces to committed raw drift
+    fields; no hand values.
+    """
+    from poolduel.harness.soak import (SOAK_ABSENT_LABEL, SOAK_ARMS,
+                                       SOAK_DURATIONS)
+    tiers = list(SOAK_DURATIONS)
+    labels = _soak_tier_labels()
+    cell_absent = set(t for t in (absent or []) if t[0] == cell_id)
+    opt = _base_option(
+        "Soak drift %s: harness RSS/FD change per tier per arm"
+        % cell_id,
+        "median pre/post drift across repeats; harness-process "
+        "rusage (run-validity signal, not pooler-process sampling); "
+        "nulls mark n/a, never zero. " + SOAK_FIGURE_CONTEXT, labels)
+    opt["xAxis"]["name"] = "duration tier"
+    opt["yAxis"] = [
+        {"type": "value", "name": "RSS delta (KB)",
+         "axisLabel": {"color": TEXT_COLOR}},
+        {"type": "value", "name": "FD-count delta",
+         "axisLabel": {"color": TEXT_COLOR}},
+    ]
+    absent_pos, na_pos = [], []
+    for arm in SOAK_ARMS:
+        rss, fds = [], []
+        for i, duration in enumerate(tiers):
+            if (cell_id, arm, duration) in cell_absent:
+                rss.append(None)
+                fds.append(None)
+                absent_pos.append(i)
+                continue
+            point = (drift or {}).get((cell_id, duration, arm))
+            if point is None or (point.get("rss_delta_kb") is None
+                                 and point.get("fd_delta") is None):
+                rss.append(None)
+                fds.append(None)
+                na_pos.append(i)
+            else:
+                rss.append(point.get("rss_delta_kb"))
+                fds.append(point.get("fd_delta"))
+        opt["series"].append({
+            "name": DISPLAY[arm] + " RSS delta",
+            "type": "bar",
+            "itemStyle": {"color": PALETTE[arm]},
+            "emphasis": {"focus": "series"},
+            "data": list(rss),
+        })
+        opt["series"].append({
+            "name": DISPLAY[arm] + " FD delta",
+            "type": "line",
+            "yAxisIndex": 1,
+            "symbol": "emptyCircle",
+            "showSymbol": True,
+            "symbolSize": 6,
+            "lineStyle": {"type": "dotted", "color": PALETTE[arm],
+                          "width": 1, "opacity": 0.8},
+            "itemStyle": {"color": PALETTE[arm], "opacity": 0.8},
+            "data": list(fds),
+        })
+    if absent_pos:
+        opt["series"].append(
+            _soak_marker_series(SOAK_ABSENT_LABEL,
+                                sorted(set(absent_pos)),
+                                ABSENT_COLOR, "roundRect", "absent"))
+    if na_pos:
+        opt["series"].append(
+            _soak_marker_series("n/a (not recorded)",
+                                sorted(set(na_pos)),
+                                NA_COLOR, "diamond"))
+    return opt
+
+
+def build_soak_charts(soak_medians, raw_records=None):
+    """Return {chart_id: option} for the six soak stability figures.
+
+    Two figures per soak cell (tps + drift); absent triples derive
+    from ``soak_absent`` (spec minus present, never hand-typed) so
+    the marks disappear with no code change when the re-dispatch
+    lands. Soak figures never enter the statistics family,
+    headlines, or claims (stability estimand, n=3).
+    """
+    from poolduel.harness.soak import (SOAK_CELL_IDS, soak_absent)
+    cells = [c for c in SOAK_CELL_IDS
+             if any(isinstance(e, dict) and e.get("cell_id") == c
+                    for e in (soak_medians or []))]
+    if not cells:
+        return {}
+    absent = soak_absent(soak_medians)
+    drift = soak_drift_from_raw(raw_records)
+    charts = {}
+    for cell_id in cells:
+        charts["soak-" + cell_id] = soak_tps_chart(
+            cell_id, soak_medians, absent)
+        charts["soak-" + cell_id + "-drift"] = soak_drift_chart(
+            cell_id, drift, absent)
+    return charts
+
+
+def build_options(m1_entries, m2_entries, bundle, soak_medians=None,
+                  soak_raw=None):
+    """Return {page: {chart_id: option}} for all six pages.
+
+    Soak stability figures ride on the comparison page when
+    ``soak_medians`` are passed (M13a); older callers that pass only
+    (m1, m2, bundle) get the M4 shape unchanged.
+    """
     """Return {page: {chart_id: option}} for all six pages."""
     for entry in list(m1_entries or []) + list(m2_entries or []):
         if not isinstance(entry, dict) or "cell_id" not in entry \
@@ -448,6 +763,9 @@ def build_options(m1_entries, m2_entries, bundle):
     iso = iso_overlay_chart(bundle)
     if iso is not None:
         comparison["iso-overlay"] = iso
+    for chart_id, opt in sorted(
+            build_soak_charts(soak_medians, soak_raw).items()):
+        comparison[chart_id] = opt
     pages["comparison"] = comparison
     for pooler in PAGE_POOLERS:
         pages[pooler] = pooler_page_charts(pooler, m1_entries or [],
@@ -470,6 +788,14 @@ def build_parser():
     p.add_argument("--m1", default="poolduel/results/m1/medians.json")
     p.add_argument("--m2", default="poolduel/results/m2/medians.json")
     p.add_argument("--report", default="poolduel/results/report.json")
+    p.add_argument("--soak",
+                   default="poolduel/results/m10-soak/medians.json",
+                   help="M10 soak medians (tier-labeled); missing file "
+                        "cuts the soak figures instead of failing")
+    p.add_argument("--soak-raw",
+                   default="poolduel/results/m10-soak/raw",
+                   help="M10 soak raw dir (resources_drift fields); "
+                        "missing dir marks drift n/a, never zero")
     p.add_argument("--out", default="poolduel/results/charts")
     return p
 
@@ -505,7 +831,24 @@ def main(argv=None):
               file=sys.stderr)
         return 1
     try:
-        pages = build_options(m1_entries, m2_entries, bundle)
+        with open(args.soak) as f:
+            soak_medians = json.load(f)
+    except (ValueError, OSError):
+        soak_medians = []
+    soak_raw = []
+    if os.path.isdir(args.soak_raw):
+        import glob
+        for path in sorted(glob.glob(
+                os.path.join(args.soak_raw, "*.json"))):
+            try:
+                with open(path) as f:
+                    soak_raw.append(json.load(f))
+            except (ValueError, OSError):
+                continue
+    try:
+        pages = build_options(m1_entries, m2_entries, bundle,
+                              soak_medians=soak_medians,
+                              soak_raw=soak_raw)
     except ValueError as exc:
         print("poolduel charts FAILED: %s" % exc, file=sys.stderr)
         return 1
@@ -515,6 +858,12 @@ def main(argv=None):
                        ("m2/medians.json", args.m2),
                        ("report.json", args.report)):
         manifest["sources"][label] = _sha256_file(src)
+    if os.path.isfile(args.soak):
+        manifest["sources"]["m10-soak/medians.json"] = _sha256_file(
+            args.soak)
+    else:
+        manifest["sources"]["m10-soak/medians.json"] = "absent"
+    manifest["sources"]["m10-soak/raw_files"] = len(soak_raw)
     for page, charts in sorted(pages.items()):
         path = os.path.join(args.out, page + ".json")
         with open(path, "w") as f:
@@ -526,8 +875,12 @@ def main(argv=None):
         }
     with open(os.path.join(args.out, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2, sort_keys=True)
-    print("poolduel charts: %d pages (%s) -> %s"
-          % (len(pages), ", ".join(sorted(pages)), args.out))
+    print("poolduel charts: %d pages (%s) -> %s; soak figures %d "
+          "(%d medians, %d raw records)"
+          % (len(pages), ", ".join(sorted(pages)), args.out,
+             sum(1 for charts in pages.values() for c in charts
+                 if str(c).startswith("soak-")),
+             len(soak_medians), len(soak_raw)))
     return 0
 
 

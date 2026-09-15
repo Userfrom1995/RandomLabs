@@ -557,6 +557,17 @@ def render_soak_html(leg):
     if not leg["rows"]:
         parts.append("<p class='note'>No soak tiers measured yet.</p>")
         return "\n".join(parts)
+    parts.append(
+        "<p>Stability figures (tps per tier per arm with min-max "
+        "bands plus p99 tails, beside harness RSS/FD drift panels; "
+        "absent tiers mark re-dispatch-owned, never zero-filled):</p>")
+    for cell in ("M10-S1", "M10-S2", "M10-S3"):
+        parts.append(
+            '<div class="echart" data-page="comparison" '
+            'data-chart="soak-%s"></div>' % cell)
+        parts.append(
+            '<div class="echart" data-page="comparison" '
+            'data-chart="soak-%s-drift"></div>' % cell)
     parts.append('<table><tr><th>Tier cell</th><th>Geometry</th>'
                  '<th>Arms (tps median [min-max]; status)</th></tr>')
     for row in leg["rows"]:
