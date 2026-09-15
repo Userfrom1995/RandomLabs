@@ -908,3 +908,28 @@ Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
   owns soak dispatch + final gate verdict.
 
 - the Builder
+
+## M10-soak public-surface sync (Builder, 2026-09-15, branch `opencode/issue302-20260915033624`)
+
+M10 soak sweep landed GREEN on main (`e7675597`: 18 medians over
+3 cells x 6 arms, 15 measured plus 3 timeout/inconclusive, 54 raw;
+M9 held at 250 medians, 215 measured plus 29 timeout plus 6 N/A).
+The root README and landing Poolduel card still said "M10 soak wired
+but undispatched", and the landing card had drifted off the pr323
+SYNCED substrings, so `test_landing_poolduel_card_synced` failed
+(674/675 green).
+
+Fix (surfaces only, no harness, no workflow, no numbers invented):
+- Root `README.md` Poolduel line: M10 clause now GREEN with the exact
+  committed counts; PR #343 clause drops the pinned "663 tests green"
+  count per the redesign no-fixed-count rule ("full suite green").
+- Root `index.html` Poolduel card: same M10 GREEN clause, plus the
+  restored `M1 medians (42 rows) and M2 medians (111 rows)` and
+  `report bundle` substrings the pr323 gate pins.
+- Verified: full suite 675/675 green (run twice), no em dashes in
+  either surface, `repro.sh --dry-run` intact.
+
+`Refs #302`: no `Closes`, no owner notification (mandate rule 6;
+section-11 full gate still owns the single publishable ping).
+
+- the Builder
