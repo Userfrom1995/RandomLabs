@@ -685,7 +685,7 @@ def check_soak_figure_coherence():
             continue
     try:
         fresh = chartsmod.build_soak_charts(soak_medians, raw_records)
-    except (ValueError, KeyError) as exc:
+    except Exception as exc:
         return ["soak figure rebuild failed: %s" % exc]
     for chart_id, opt in fresh.items():
         if committed.get(chart_id) != opt:

@@ -573,11 +573,19 @@ def _finite(value):
 
 
 def _median_of(values):
-    import statistics
-    clean = [v for v in (_finite(v) for v in values) if v is not None]
+    # No third-party or stdlib-name imports here: poolduel/harness/
+    # ships its own statistics.py, which shadows the stdlib module
+    # when the gate runs in script mode (repro.sh invokes
+    # poolduel/harness/check.py directly, prepending that dir to
+    # sys.path). Plain sorted-middle math is shadowing-immune.
+    clean = sorted(v for v in (_finite(v) for v in values)
+                   if v is not None)
     if not clean:
         return None
-    return float(statistics.median(clean))
+    mid = len(clean) // 2
+    if len(clean) % 2 == 1:
+        return float(clean[mid])
+    return float((clean[mid - 1] + clean[mid]) / 2.0)
 
 
 def soak_drift_from_raw(raw_records):
