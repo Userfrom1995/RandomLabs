@@ -24,7 +24,7 @@
           "measured": 3,
           "na": 0,
           "timeout": 0,
-          "total": 3
+          "total": 6
         }
       },
       "display": "odyssey",
@@ -97,6 +97,7 @@
         {
           "cell_id": "M1-1",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "select-only, 100c/10p, simple",
           "n": 10,
@@ -110,6 +111,7 @@
         {
           "cell_id": "M1-2",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 10,
@@ -123,6 +125,7 @@
         {
           "cell_id": "M1-3",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -136,6 +139,7 @@
         {
           "cell_id": "M1-4",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 200c/10p, simple",
           "n": 7,
@@ -149,6 +153,7 @@
         {
           "cell_id": "M1-5",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -162,6 +167,7 @@
         {
           "cell_id": "M1-6",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -175,6 +181,7 @@
         {
           "cell_id": "M1-7",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 100c/10p, simple",
           "n": 7,
@@ -188,6 +195,7 @@
         {
           "cell_id": "M2-I7",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -201,6 +209,7 @@
         {
           "cell_id": "M2-I8",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -214,6 +223,7 @@
         {
           "cell_id": "M2-I9",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -227,6 +237,7 @@
         {
           "cell_id": "M2-I10",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -240,6 +251,7 @@
         {
           "cell_id": "M2-P4",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 7,
@@ -253,6 +265,7 @@
         {
           "cell_id": "M2-P6",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -266,6 +279,7 @@
         {
           "cell_id": "M2-S7",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -279,6 +293,7 @@
         {
           "cell_id": "M2-S8",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -292,6 +307,7 @@
         {
           "cell_id": "M2-T3",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -305,6 +321,7 @@
         {
           "cell_id": "M2-T4",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -318,6 +335,7 @@
         {
           "cell_id": "M2-W3",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -331,6 +349,7 @@
         {
           "cell_id": "M2-W8",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -344,6 +363,7 @@
         {
           "cell_id": "M9-C1",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, scale 100",
           "n": 10,
@@ -357,6 +377,7 @@
         {
           "cell_id": "M9-C2",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple, scale 100",
           "n": 10,
@@ -370,6 +391,7 @@
         {
           "cell_id": "M9-C3",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared, scale 100",
           "n": 0,
@@ -383,6 +405,7 @@
         {
           "cell_id": "M9-C4",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 200c/10p, simple, scale 100",
           "n": 7,
@@ -396,6 +419,7 @@
         {
           "cell_id": "M9-C5",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "simple-update, 100c/20p, simple, scale 100",
           "n": 7,
@@ -409,6 +433,7 @@
         {
           "cell_id": "M9-C6",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
           "n": 7,
@@ -422,6 +447,7 @@
         {
           "cell_id": "M9-C7",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 100c/10p, simple, scale 100",
           "n": 7,
@@ -435,6 +461,7 @@
         {
           "cell_id": "M9-E1",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C)",
           "n": 7,
@@ -448,6 +475,21 @@
         {
           "cell_id": "M10-S1",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 1800,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 30-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/odyssey.md",
+          "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
           "n": 3,
@@ -461,6 +503,21 @@
         {
           "cell_id": "M10-S2",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 1800,
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 30-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/odyssey.md",
+          "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
           "n": 3,
@@ -474,6 +531,7 @@
         {
           "cell_id": "M10-S3",
           "docs": "../docs/configs/odyssey.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
           "n": 3,
@@ -483,6 +541,20 @@
           "status": "measured",
           "tps_band": "6,461 [6,442-6,469]",
           "tps_median": 6460.874565
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/odyssey.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
         }
       ],
       "verdicts": {
@@ -518,7 +590,7 @@
           "measured": 2,
           "na": 0,
           "timeout": 1,
-          "total": 3
+          "total": 6
         }
       },
       "display": "pgagroal",
@@ -590,6 +662,7 @@
         {
           "cell_id": "M1-1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "select-only, 100c/10p, simple",
           "n": 10,
@@ -603,6 +676,7 @@
         {
           "cell_id": "M1-2",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 10,
@@ -616,6 +690,7 @@
         {
           "cell_id": "M1-3",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -629,6 +704,7 @@
         {
           "cell_id": "M1-4",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 200c/10p, simple",
           "n": 3,
@@ -642,6 +718,7 @@
         {
           "cell_id": "M1-5",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -655,6 +732,7 @@
         {
           "cell_id": "M1-6",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 0,
@@ -668,6 +746,7 @@
         {
           "cell_id": "M1-7",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 100c/10p, simple",
           "n": 7,
@@ -681,6 +760,7 @@
         {
           "cell_id": "M2-I1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -694,6 +774,7 @@
         {
           "cell_id": "M2-I2",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -707,6 +788,7 @@
         {
           "cell_id": "M2-I3",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -720,6 +802,7 @@
         {
           "cell_id": "M2-I4",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -733,6 +816,7 @@
         {
           "cell_id": "M2-P1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -746,6 +830,7 @@
         {
           "cell_id": "M2-S1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -759,6 +844,7 @@
         {
           "cell_id": "M2-S2",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -772,6 +858,7 @@
         {
           "cell_id": "M2-S3",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -785,6 +872,7 @@
         {
           "cell_id": "M2-S4",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -798,6 +886,7 @@
         {
           "cell_id": "M2-T1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -811,6 +900,7 @@
         {
           "cell_id": "M2-T2",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -824,6 +914,7 @@
         {
           "cell_id": "M2-W1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "simple-update, 100c/20p, simple",
           "n": 0,
@@ -837,6 +928,7 @@
         {
           "cell_id": "M2-W6",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 0,
@@ -850,6 +942,7 @@
         {
           "cell_id": "M9-C1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, scale 100",
           "n": 10,
@@ -863,6 +956,7 @@
         {
           "cell_id": "M9-C2",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple, scale 100",
           "n": 10,
@@ -876,6 +970,7 @@
         {
           "cell_id": "M9-C3",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared, scale 100",
           "n": 0,
@@ -889,6 +984,7 @@
         {
           "cell_id": "M9-C4",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 200c/10p, simple, scale 100",
           "n": 7,
@@ -902,6 +998,7 @@
         {
           "cell_id": "M9-C5",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "simple-update, 100c/20p, simple, scale 100",
           "n": 7,
@@ -915,6 +1012,7 @@
         {
           "cell_id": "M9-C6",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
           "n": 0,
@@ -928,6 +1026,7 @@
         {
           "cell_id": "M9-C7",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 100c/10p, simple, scale 100",
           "n": 7,
@@ -941,6 +1040,7 @@
         {
           "cell_id": "M9-E1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C)",
           "n": 0,
@@ -954,6 +1054,7 @@
         {
           "cell_id": "M10-S1",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
           "n": 3,
@@ -965,8 +1066,37 @@
           "tps_median": 1820.922519
         },
         {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
           "cell_id": "M10-S2",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 1800,
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 30-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
           "n": 3,
@@ -980,6 +1110,7 @@
         {
           "cell_id": "M10-S3",
           "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
           "n": 0,
@@ -987,6 +1118,20 @@
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgagroal.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
           "tps_band": null,
           "tps_median": null
         }
@@ -1024,7 +1169,7 @@
           "measured": 3,
           "na": 0,
           "timeout": 0,
-          "total": 3
+          "total": 6
         }
       },
       "display": "pgbouncer",
@@ -1097,6 +1242,7 @@
         {
           "cell_id": "M1-1",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "select-only, 100c/10p, simple",
           "n": 10,
@@ -1110,6 +1256,7 @@
         {
           "cell_id": "M1-2",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 10,
@@ -1123,6 +1270,7 @@
         {
           "cell_id": "M1-3",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -1136,6 +1284,7 @@
         {
           "cell_id": "M1-4",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 200c/10p, simple",
           "n": 7,
@@ -1149,6 +1298,7 @@
         {
           "cell_id": "M1-5",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -1162,6 +1312,7 @@
         {
           "cell_id": "M1-6",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -1175,6 +1326,7 @@
         {
           "cell_id": "M1-7",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 100c/10p, simple",
           "n": 7,
@@ -1188,6 +1340,7 @@
         {
           "cell_id": "M2-I5",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1201,6 +1354,7 @@
         {
           "cell_id": "M2-I6",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -1214,6 +1368,7 @@
         {
           "cell_id": "M2-P2",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -1227,6 +1382,7 @@
         {
           "cell_id": "M2-P3",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -1240,6 +1396,7 @@
         {
           "cell_id": "M2-S5",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1253,6 +1410,7 @@
         {
           "cell_id": "M2-S6",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -1266,6 +1424,7 @@
         {
           "cell_id": "M2-S15",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1279,6 +1438,7 @@
         {
           "cell_id": "M2-S16",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -1292,6 +1452,7 @@
         {
           "cell_id": "M2-T1",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1305,6 +1466,7 @@
         {
           "cell_id": "M2-T2",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -1318,6 +1480,7 @@
         {
           "cell_id": "M2-W2",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -1331,6 +1494,7 @@
         {
           "cell_id": "M2-W7",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -1344,6 +1508,7 @@
         {
           "cell_id": "M9-C1",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, scale 100",
           "n": 10,
@@ -1357,6 +1522,7 @@
         {
           "cell_id": "M9-C2",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple, scale 100",
           "n": 10,
@@ -1370,6 +1536,7 @@
         {
           "cell_id": "M9-C3",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared, scale 100",
           "n": 0,
@@ -1383,6 +1550,7 @@
         {
           "cell_id": "M9-C4",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 200c/10p, simple, scale 100",
           "n": 7,
@@ -1396,6 +1564,7 @@
         {
           "cell_id": "M9-C5",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "simple-update, 100c/20p, simple, scale 100",
           "n": 7,
@@ -1409,6 +1578,7 @@
         {
           "cell_id": "M9-C6",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
           "n": 7,
@@ -1422,6 +1592,7 @@
         {
           "cell_id": "M9-C7",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 100c/10p, simple, scale 100",
           "n": 7,
@@ -1435,6 +1606,7 @@
         {
           "cell_id": "M9-E1",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C)",
           "n": 7,
@@ -1448,6 +1620,21 @@
         {
           "cell_id": "M10-S1",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 1800,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 30-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
           "n": 3,
@@ -1461,6 +1648,7 @@
         {
           "cell_id": "M10-S2",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
           "n": 3,
@@ -1472,8 +1660,23 @@
           "tps_median": 45606.046406
         },
         {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
           "cell_id": "M10-S3",
           "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
           "n": 3,
@@ -1483,6 +1686,20 @@
           "status": "measured",
           "tps_band": "397 [396-400]",
           "tps_median": 396.954385
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgbouncer.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
         }
       ],
       "verdicts": {
@@ -1518,7 +1735,7 @@
           "measured": 3,
           "na": 0,
           "timeout": 0,
-          "total": 3
+          "total": 6
         }
       },
       "display": "pgcat",
@@ -1591,6 +1808,7 @@
         {
           "cell_id": "M1-1",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "select-only, 100c/10p, simple",
           "n": 10,
@@ -1604,6 +1822,7 @@
         {
           "cell_id": "M1-2",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 10,
@@ -1617,6 +1836,7 @@
         {
           "cell_id": "M1-3",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -1630,6 +1850,7 @@
         {
           "cell_id": "M1-4",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 200c/10p, simple",
           "n": 7,
@@ -1643,6 +1864,7 @@
         {
           "cell_id": "M1-5",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -1656,6 +1878,7 @@
         {
           "cell_id": "M1-6",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -1669,6 +1892,7 @@
         {
           "cell_id": "M1-7",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 100c/10p, simple",
           "n": 7,
@@ -1682,6 +1906,7 @@
         {
           "cell_id": "M2-I11",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1695,6 +1920,7 @@
         {
           "cell_id": "M2-I12",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -1708,6 +1934,7 @@
         {
           "cell_id": "M2-P5",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -1721,6 +1948,7 @@
         {
           "cell_id": "M2-S9",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1734,6 +1962,7 @@
         {
           "cell_id": "M2-S10",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -1747,6 +1976,7 @@
         {
           "cell_id": "M2-S13",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -1760,6 +1990,7 @@
         {
           "cell_id": "M2-S14",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -1773,6 +2004,7 @@
         {
           "cell_id": "M2-T1",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -1786,6 +2018,7 @@
         {
           "cell_id": "M2-T2",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -1799,6 +2032,7 @@
         {
           "cell_id": "M2-W4",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -1812,6 +2046,7 @@
         {
           "cell_id": "M2-W9",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -1825,6 +2060,7 @@
         {
           "cell_id": "M9-C1",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, scale 100",
           "n": 10,
@@ -1838,6 +2074,7 @@
         {
           "cell_id": "M9-C2",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple, scale 100",
           "n": 10,
@@ -1851,6 +2088,7 @@
         {
           "cell_id": "M9-C3",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared, scale 100",
           "n": 0,
@@ -1864,6 +2102,7 @@
         {
           "cell_id": "M9-C4",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 200c/10p, simple, scale 100",
           "n": 7,
@@ -1877,6 +2116,7 @@
         {
           "cell_id": "M9-C5",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "simple-update, 100c/20p, simple, scale 100",
           "n": 7,
@@ -1890,6 +2130,7 @@
         {
           "cell_id": "M9-C6",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
           "n": 7,
@@ -1903,6 +2144,7 @@
         {
           "cell_id": "M9-C7",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 100c/10p, simple, scale 100",
           "n": 7,
@@ -1916,6 +2158,7 @@
         {
           "cell_id": "M9-E1",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C)",
           "n": 7,
@@ -1929,6 +2172,7 @@
         {
           "cell_id": "M10-S1",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
           "n": 3,
@@ -1940,8 +2184,23 @@
           "tps_median": 18717.873345
         },
         {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgcat.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
           "cell_id": "M10-S2",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
           "n": 3,
@@ -1953,8 +2212,23 @@
           "tps_median": 18819.659952
         },
         {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgcat.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
           "cell_id": "M10-S3",
           "docs": "../docs/configs/pgcat.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
           "n": 3,
@@ -1964,6 +2238,20 @@
           "status": "measured",
           "tps_band": "5,732 [5,707-5,771]",
           "tps_median": 5732.222936
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgcat.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
         }
       ],
       "verdicts": {
@@ -1999,7 +2287,7 @@
           "measured": 2,
           "na": 0,
           "timeout": 1,
-          "total": 3
+          "total": 6
         }
       },
       "display": "pgpool-II",
@@ -2071,6 +2359,7 @@
         {
           "cell_id": "M1-1",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "select-only, 100c/10p, simple",
           "n": 10,
@@ -2084,6 +2373,7 @@
         {
           "cell_id": "M1-2",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 120,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 10,
@@ -2097,6 +2387,7 @@
         {
           "cell_id": "M1-3",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 7,
@@ -2110,6 +2401,7 @@
         {
           "cell_id": "M1-4",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 200c/10p, simple",
           "n": 0,
@@ -2123,6 +2415,7 @@
         {
           "cell_id": "M1-5",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -2136,6 +2429,7 @@
         {
           "cell_id": "M1-6",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -2149,6 +2443,7 @@
         {
           "cell_id": "M1-7",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M1",
           "load": "tpcb-like, 100c/10p, simple",
           "n": 7,
@@ -2162,6 +2457,7 @@
         {
           "cell_id": "M2-I13",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -2175,6 +2471,7 @@
         {
           "cell_id": "M2-I14",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -2188,6 +2485,7 @@
         {
           "cell_id": "M2-I15",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -2201,6 +2499,7 @@
         {
           "cell_id": "M2-I16",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -2214,6 +2513,7 @@
         {
           "cell_id": "M2-P6",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 7,
@@ -2227,6 +2527,7 @@
         {
           "cell_id": "M2-S11",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 7,
@@ -2240,6 +2541,7 @@
         {
           "cell_id": "M2-S12",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 7,
@@ -2253,6 +2555,7 @@
         {
           "cell_id": "M2-T1",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -2266,6 +2569,7 @@
         {
           "cell_id": "M2-T2",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -2279,6 +2583,7 @@
         {
           "cell_id": "M2-W5",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "simple-update, 100c/20p, simple",
           "n": 7,
@@ -2292,6 +2597,7 @@
         {
           "cell_id": "M2-W10",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M2",
           "load": "select-only, 100c/10p, churn (-C)",
           "n": 7,
@@ -2305,6 +2611,7 @@
         {
           "cell_id": "M9-C1",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, scale 100",
           "n": 10,
@@ -2318,6 +2625,7 @@
         {
           "cell_id": "M9-C2",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 120,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple, scale 100",
           "n": 10,
@@ -2331,6 +2639,7 @@
         {
           "cell_id": "M9-C3",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared, scale 100",
           "n": 7,
@@ -2344,6 +2653,7 @@
         {
           "cell_id": "M9-C4",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 200c/10p, simple, scale 100",
           "n": 0,
@@ -2357,6 +2667,7 @@
         {
           "cell_id": "M9-C5",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "simple-update, 100c/20p, simple, scale 100",
           "n": 7,
@@ -2370,6 +2681,7 @@
         {
           "cell_id": "M9-C6",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C), scale 100",
           "n": 7,
@@ -2383,6 +2695,7 @@
         {
           "cell_id": "M9-C7",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 100c/10p, simple, scale 100",
           "n": 7,
@@ -2396,6 +2709,7 @@
         {
           "cell_id": "M9-E1",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple, churn (-C)",
           "n": 0,
@@ -2409,6 +2723,7 @@
         {
           "cell_id": "M10-S1",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
           "n": 3,
@@ -2420,8 +2735,23 @@
           "tps_median": 37143.053253
         },
         {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
           "cell_id": "M10-S2",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
           "n": 0,
@@ -2433,8 +2763,37 @@
           "tps_median": null
         },
         {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 3600,
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 60-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
           "cell_id": "M10-S3",
           "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 1800,
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
+          "n": null,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgpool-II.md",
+          "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
           "n": 3,
@@ -2534,6 +2893,7 @@
         {
           "cell_id": "M9-U-P3",
           "docs": "../docs/configs/supavisor.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -2547,6 +2907,7 @@
         {
           "cell_id": "M9-U-P4",
           "docs": "../docs/configs/supavisor.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, prepared",
           "n": 0,
@@ -2560,6 +2921,7 @@
         {
           "cell_id": "M9-U-T1",
           "docs": "../docs/configs/supavisor.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -2573,6 +2935,7 @@
         {
           "cell_id": "M9-U-T2",
           "docs": "../docs/configs/supavisor.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,
@@ -2586,6 +2949,7 @@
         {
           "cell_id": "M9-U-T3",
           "docs": "../docs/configs/supavisor.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "select-only, 100c/10p, simple",
           "n": 0,
@@ -2599,6 +2963,7 @@
         {
           "cell_id": "M9-U-T4",
           "docs": "../docs/configs/supavisor.md",
+          "duration_s": 60,
           "leg": "M9",
           "load": "tpcb-like, 50c/10p, simple",
           "n": 0,

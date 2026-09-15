@@ -15,10 +15,16 @@
         "m2-statement",
         "m2-statement-log",
         "m2-workloads",
-        "m2-workloads-log"
+        "m2-workloads-log",
+        "soak-M10-S1",
+        "soak-M10-S1-drift",
+        "soak-M10-S2",
+        "soak-M10-S2-drift",
+        "soak-M10-S3",
+        "soak-M10-S3-drift"
       ],
       "file": "comparison.json",
-      "sha256": "b88e73b0892dfe0253b43f0372532b8587f6dc74435b706d9de22b74e4b2b6e9"
+      "sha256": "25b2670e882c04b3020d27b64b7b1644b5f9e17781b4d920bf874ad5b199603d"
     },
     "odyssey": {
       "charts": [
@@ -73,6 +79,8 @@
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
+    "m10-soak/medians.json": "49bce7ffa875d3f42642efbc2481817d5c446c39f01f28b239192e157c3d56cb",
+    "m10-soak/raw_files": 54,
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "report.json": "ba4720eaafdaa8ef7a3b4be0c916fbe1a2f30869991a9b129722b9bd07e03464"
   }
