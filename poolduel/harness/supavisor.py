@@ -71,13 +71,19 @@ def pin_sha(recorded_sha):
 
     The build checks out the pinned tag, records ``git rev-parse HEAD``,
     and bakes it into every artifact manifest. Returns the stripped SHA,
-    or raises ValueError when empty (a matrix entry without a recorded
-    SHA is a blocking defect, never a silent moving tip).
+    or raises ValueError when empty, truncated, or carrying a
+    ``BLOCKED:`` toolchain-flake marker (a matrix entry without a
+    recorded SHA is a blocking defect, never a silent moving tip, and
+    a blocked toolchain must never masquerade as a recorded SHA).
     """
+    import re
     sha = (recorded_sha or "").strip()
     if not sha:
         raise ValueError("supavisor: no recorded SHA (check out %s and "
                          "record `git rev-parse HEAD`)" % PINNED_VERSION)
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", sha):
+        raise ValueError("supavisor: recorded SHA must be a full 40-hex "
+                         "commit SHA, got %r" % sha)
     return sha
 
 

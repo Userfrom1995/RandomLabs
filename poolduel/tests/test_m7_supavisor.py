@@ -52,10 +52,22 @@ class TestPin(unittest.TestCase):
 
     def test_sha_strips(self):
         self.assertEqual(
-            supavisor_mod.pin_sha("  abc123\n"), "abc123")
+            supavisor_mod.pin_sha("  %s\n" % ("b" * 40)), "b" * 40)
 
     def test_empty_sha_blocking(self):
         for bad in ("", "   ", None):
+            with self.assertRaises(ValueError):
+                supavisor_mod.pin_sha(bad)
+
+    def test_blocked_markers_rejected(self):
+        # CI toolchain flakes write BLOCKED markers into
+        # supavisor.sha; they must fail loudly here so the smoke
+        # gate reports fail (matrix entry stays blocked) instead
+        # of recording a pass on a fake SHA.
+        for bad in ("BLOCKED:", "BLOCKED: no elixir toolchain",
+                    "BLOCKED: hex install failed",
+                    "BLOCKED: deps.get failed",
+                    "abc123", "b" * 39, "b" * 41, "z" * 40):
             with self.assertRaises(ValueError):
                 supavisor_mod.pin_sha(bad)
 
