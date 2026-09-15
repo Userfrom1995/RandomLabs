@@ -8173,7 +8173,7 @@
       {
         "data": [
           5503.2365685,
-          null
+          4918.953034
         ],
         "emphasis": {
           "focus": "series"
@@ -8187,7 +8187,7 @@
       {
         "data": [
           4538.924797,
-          null
+          4889.960759
         ],
         "itemStyle": {
           "color": "#009E73",
@@ -8208,7 +8208,7 @@
       {
         "data": [
           6469.114051,
-          null
+          4954.662051
         ],
         "itemStyle": {
           "color": "#009E73",
@@ -8229,7 +8229,7 @@
       {
         "data": [
           20.5105,
-          null
+          21.988
         ],
         "itemStyle": {
           "color": "#009E73",
@@ -8251,7 +8251,7 @@
       {
         "data": [
           4921.6493485,
-          null
+          4147.83309
         ],
         "emphasis": {
           "focus": "series"
@@ -8265,7 +8265,7 @@
       {
         "data": [
           4122.281402,
-          null
+          4146.635165
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -8286,7 +8286,7 @@
       {
         "data": [
           5770.709557,
-          null
+          4149.208424
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -8307,7 +8307,7 @@
       {
         "data": [
           21.7485,
-          null
+          25.115
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -8325,31 +8325,6 @@
         "symbolSize": 6,
         "type": "line",
         "yAxisIndex": 1
-      },
-      {
-        "data": [
-          [
-            1,
-            0
-          ]
-        ],
-        "itemStyle": {
-          "color": "#6E7681"
-        },
-        "label": {
-          "color": "#6E7681",
-          "formatter": "absent",
-          "position": "top",
-          "show": true
-        },
-        "name": "tier not in git (re-dispatch owned by Maintainer)",
-        "symbol": "roundRect",
-        "symbolOffset": [
-          0,
-          -14
-        ],
-        "symbolSize": 14,
-        "type": "scatter"
       },
       {
         "data": [
@@ -8386,7 +8361,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 5503.2 tps (odyssey); 8 measured tiers; ; 2 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 5503.2 tps (odyssey); 10 measured tiers; ; all tiers present. 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Soak stability M10-S3: tps per tier per arm",
       "textStyle": {
         "color": "#E6EDF3"
@@ -8608,7 +8583,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -8622,7 +8597,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#009E73",
@@ -8644,7 +8619,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -8658,7 +8633,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -8676,31 +8651,6 @@
         "symbolSize": 6,
         "type": "line",
         "yAxisIndex": 1
-      },
-      {
-        "data": [
-          [
-            1,
-            0
-          ]
-        ],
-        "itemStyle": {
-          "color": "#6E7681"
-        },
-        "label": {
-          "color": "#6E7681",
-          "formatter": "absent",
-          "position": "top",
-          "show": true
-        },
-        "name": "tier not in git (re-dispatch owned by Maintainer)",
-        "symbol": "roundRect",
-        "symbolOffset": [
-          0,
-          -14
-        ],
-        "symbolSize": 14,
-        "type": "scatter"
       }
     ],
     "textStyle": {

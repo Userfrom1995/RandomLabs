@@ -21,7 +21,7 @@
           "total": 8
         },
         "soak": {
-          "measured": 5,
+          "measured": 6,
           "na": 0,
           "timeout": 0,
           "total": 6
@@ -63,10 +63,10 @@
           "total": 26
         },
         "soak": {
-          "measured": 5,
+          "measured": 6,
           "na": 0,
           "timeout": 0,
-          "total": 5
+          "total": 6
         }
       },
       "pg": "PG 17",
@@ -77,7 +77,7 @@
           "none (CI-only frontend; backend leg SCRAM)",
           "scram-sha-256 on every frontend (M9-E1 equalized control)"
         ],
-        "cpu_median_s": 3.517715,
+        "cpu_median_s": 3.774336,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -87,11 +87,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 204,
+        "pg_disclosed": 207,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 52768.0,
-        "samples": 204
+        "rss_median_kb": 52768,
+        "samples": 207
       },
       "rows": [
         {
@@ -548,13 +548,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "22.0 ms",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "4,919 [4,890-4,955]",
+          "tps_median": 4918.953034
         }
       ],
       "verdicts": {
@@ -1732,7 +1732,7 @@
           "total": 8
         },
         "soak": {
-          "measured": 5,
+          "measured": 6,
           "na": 0,
           "timeout": 0,
           "total": 6
@@ -1774,10 +1774,10 @@
           "total": 24
         },
         "soak": {
-          "measured": 5,
+          "measured": 6,
           "na": 0,
           "timeout": 0,
-          "total": 5
+          "total": 6
         }
       },
       "pg": "PG 17",
@@ -1788,7 +1788,7 @@
           "scram-sha-256 on every frontend (M9-E1 equalized control)",
           "scram-sha-256 via admin/users file"
         ],
-        "cpu_median_s": 3.375022,
+        "cpu_median_s": 3.5161944999999997,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -1798,11 +1798,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 183,
+        "pg_disclosed": 186,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 38696,
-        "samples": 183
+        "rss_median_kb": 40648.0,
+        "samples": 186
       },
       "rows": [
         {
@@ -2245,13 +2245,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "25.1 ms",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "4,148 [4,147-4,149]",
+          "tps_median": 4147.83309
         }
       ],
       "verdicts": {
@@ -2987,9 +2987,9 @@
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
-    "m10-soak/medians.json": "635b30215fa98687dc23cb81dad1f0c843e3ba1aea260bbde92fab1abce0d449",
+    "m10-soak/medians.json": "4118cc2397424876f368ab5ef41ba1990a934ac37e2a8d7db166ecd5dabdd9bf",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "54598d76632bc5b772eec989a493bef69b008885277d2d1a2fe63b8e2a9a3f45"
+    "report.json": "dbde97916e3c321f6944c73d081ba3a8e6fc8fabf57dd3f8f29372b37ed18671"
   }
 }

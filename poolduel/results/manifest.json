@@ -1,10 +1,10 @@
 {
-  "build_hash": "0ffa0915bf2a4effab9e8da3072b7501222713b598b8281f5b37ea411141eb98",
+  "build_hash": "df810538761ac25bc26ce4fe8c2faceb6ed2d221a6be75e9dc3667820d2a5061",
   "bundles": {
     "dossiermeta.json": {
-      "bytes": 99018,
+      "bytes": 98999,
       "present": true,
-      "sha256": "adcfac70521e4b6627167d3fb6bded577f9d3b11d321848c38fb150881b21faf"
+      "sha256": "400cc5bc9ff57444823295528ee83a3fbca9bd85364907e413f9f9dfcbb9fa70"
     },
     "m1/matrix.csv": {
       "bytes": 6381,
@@ -17,14 +17,14 @@
       "sha256": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05"
     },
     "m10-soak/matrix.csv": {
-      "bytes": 4671,
+      "bytes": 4963,
       "present": true,
-      "sha256": "f4b52078a3e66aa106e98b1a5499bc56fced00fc955ed713ad4a1c6c51056ce2"
+      "sha256": "e8d75e2acde92d4dd1504cd47dc7e456c089a57f8deb233c6b492c1948b6d1b9"
     },
     "m10-soak/medians.json": {
-      "bytes": 37511,
+      "bytes": 39799,
       "present": true,
-      "sha256": "635b30215fa98687dc23cb81dad1f0c843e3ba1aea260bbde92fab1abce0d449"
+      "sha256": "4118cc2397424876f368ab5ef41ba1990a934ac37e2a8d7db166ecd5dabdd9bf"
     },
     "m2/matrix.csv": {
       "bytes": 16632,
@@ -49,17 +49,17 @@
     "report.json": {
       "bytes": 462570,
       "present": true,
-      "sha256": "54598d76632bc5b772eec989a493bef69b008885277d2d1a2fe63b8e2a9a3f45"
+      "sha256": "dbde97916e3c321f6944c73d081ba3a8e6fc8fabf57dd3f8f29372b37ed18671"
     },
     "sitemeta.json": {
-      "bytes": 35258,
+      "bytes": 35294,
       "present": true,
-      "sha256": "d7b04c3d7e77ba4e1b19df92cd7cdd403ada54e1ff11d255ed938153a9097ff8"
+      "sha256": "bdc00c092de8b2991a7b068f36ded15e0c2013dc9e8fa4cc257d981c54feccd2"
     },
     "supplementmeta.json": {
       "bytes": 1027,
       "present": true,
-      "sha256": "0f1a0fd1f318e99ecce905ad6cc9879715f9367f553d89e892f96e93063b8962"
+      "sha256": "19085fa982d1d20b7d7c075fda3b0d1ca31205e83d1348e487cb9d2bdc3da74f"
     }
   },
   "corpus_policy": "per-cell raw JSON committed in git; per-cell stdout/stderr workdirs ship as CI sweep-run artifacts linked from the sweep run",
@@ -1468,6 +1468,21 @@
           "sha256": "95db673223c15f866608f147e555b2fe222cf121cc06d6d084b3b0db1a3cc364"
         },
         {
+          "bytes": 3428,
+          "path": "m10-soak/raw/M10-S3-3600s-odyssey-r1.json",
+          "sha256": "5dc1071283a7d95885c576dcf1a58d22224a3492acc600fa7fe94476f6ae85dc"
+        },
+        {
+          "bytes": 3420,
+          "path": "m10-soak/raw/M10-S3-3600s-odyssey-r2.json",
+          "sha256": "fad5e8b243bdf1baf6251af79799fdbb83105fdc84781284d132533bb86440f5"
+        },
+        {
+          "bytes": 3427,
+          "path": "m10-soak/raw/M10-S3-3600s-odyssey-r3.json",
+          "sha256": "c20a5b899dedf4fb97c314a4a156d0d3ffc129ffece14b09fd82ad9c78144cbd"
+        },
+        {
           "bytes": 3979,
           "path": "m10-soak/raw/M10-S3-3600s-pgagroal-r1.json",
           "sha256": "6da20ff9b1bac0a0b64513480fbb5bcd136c87194f528a23cd597ce68e91d688"
@@ -1496,6 +1511,21 @@
           "bytes": 3601,
           "path": "m10-soak/raw/M10-S3-3600s-pgbouncer-r3.json",
           "sha256": "b855dfa5e9134de4a9c40e90e8877fa98399ebdcc3e7d2163bacad34bf84f1a9"
+        },
+        {
+          "bytes": 3619,
+          "path": "m10-soak/raw/M10-S3-3600s-pgcat-r1.json",
+          "sha256": "922fbfe7b4ef51eaeab5b0b82cd79fbae3a868fde0ca1716e79fccaf94b82259"
+        },
+        {
+          "bytes": 3616,
+          "path": "m10-soak/raw/M10-S3-3600s-pgcat-r2.json",
+          "sha256": "d7fe53eeffed2298569681636990329a2d9f5bb373377190bfa204ba95098f3f"
+        },
+        {
+          "bytes": 3631,
+          "path": "m10-soak/raw/M10-S3-3600s-pgcat-r3.json",
+          "sha256": "41027a708e081b2e7041b83e02a08e77ea5a620c3aca577b5fab6e6eebbf8e70"
         },
         {
           "bytes": 3460,
@@ -1603,8 +1633,8 @@
           "sha256": "f01bd1ac4d6130303d5ada61bcffe29b7fd99c9b470920942c9ba884a208a93a"
         }
       ],
-      "raw_bytes": 541134,
-      "raw_files": 156
+      "raw_bytes": 562275,
+      "raw_files": 162
     },
     "m2": {
       "files": [
@@ -12065,8 +12095,8 @@
     }
   },
   "size_budget_bytes": 524288000,
-  "total_raw_bytes": 6208922,
-  "total_raw_files": 2395,
+  "total_raw_bytes": 6230063,
+  "total_raw_files": 2401,
   "within_budget": true,
   "workflow_pins": {
     ".github/workflows/pages.yml": {

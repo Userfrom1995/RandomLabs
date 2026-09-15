@@ -4,7 +4,7 @@
     "m1_total": 42,
     "m2_na": 7,
     "m2_total": 111,
-    "soak_total": 34
+    "soak_total": 36
   },
   "executive_cards": [
     {
@@ -1109,10 +1109,10 @@
     "total": 250
   },
   "soak_leg": {
-    "measured": 27,
+    "measured": 29,
     "method": "30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift",
-    "missing": 2,
-    "present": 34,
+    "missing": 0,
+    "present": 36,
     "rows": [
       {
         "arms": [
@@ -1328,13 +1328,13 @@
           },
           {
             "pooler": "odyssey",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "4,919 [4,890-4,955]"
           },
           {
             "pooler": "pgcat",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "4,148 [4,147-4,149]"
           }
         ],
         "cell_id": "M10-S3",
@@ -1348,9 +1348,9 @@
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
-    "m10-soak/medians.json": "635b30215fa98687dc23cb81dad1f0c843e3ba1aea260bbde92fab1abce0d449",
+    "m10-soak/medians.json": "4118cc2397424876f368ab5ef41ba1990a934ac37e2a8d7db166ecd5dabdd9bf",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "54598d76632bc5b772eec989a493bef69b008885277d2d1a2fe63b8e2a9a3f45"
+    "report.json": "dbde97916e3c321f6944c73d081ba3a8e6fc8fabf57dd3f8f29372b37ed18671"
   }
 }
