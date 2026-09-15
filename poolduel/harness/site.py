@@ -350,7 +350,8 @@ def build_soak_leg(soak_entries):
         by_tier.setdefault(key, {})[entry.get("pooler")] = entry
     rows = []
     for (cid, duration) in sorted(
-            by_tier, key=lambda k: (k[0] or "", k[1] or -1)):
+            by_tier, key=lambda k: (k[0] or "",
+                                    k[1] if k[1] is not None else -1)):
         arms = []
         for arm in ARMS:
             entry = by_tier[(cid, duration)].get(arm, {})

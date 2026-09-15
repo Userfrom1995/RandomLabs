@@ -18,6 +18,7 @@ pins the fix:
 
 import json
 import os
+import tempfile
 import unittest
 
 from poolduel.harness import report
@@ -130,7 +131,9 @@ class NoMixTest(unittest.TestCase):
         for dur in (1800, 3600):
             for rep in (1, 2, 3):
                 recs.append(_rec("M10-S9", dur, "pgcat", rep))
-        med = write_medians(recs, "/tmp/poolduel-soak-nomix.json")
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "poolduel-soak-nomix.json")
+            med = write_medians(recs, out)
         self.assertEqual(len(med), 2)
         self.assertEqual({e["duration_s"] for e in med}, {1800, 3600})
         for e in med:

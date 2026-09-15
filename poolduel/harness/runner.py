@@ -380,8 +380,14 @@ def raw_filename(cell, arm, repeat):
     """
     from .soak import is_soak_cell
     if is_soak_cell(cell["cell_id"]):
+        try:
+            duration = int(cell["duration_s"])
+        except (KeyError, TypeError, ValueError):
+            raise ValueError(
+                "soak cell %s needs integer duration_s, got %r"
+                % (cell.get("cell_id"), cell.get("duration_s")))
         return "%s-%ds-%s-r%d.json" % (cell["cell_id"],
-                                       int(cell["duration_s"]),
+                                       duration,
                                        arm, repeat)
     return "%s-%s-r%d.json" % (cell["cell_id"], arm, repeat)
 
