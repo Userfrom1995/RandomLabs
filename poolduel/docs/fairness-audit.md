@@ -200,3 +200,61 @@ harness, Tester sample-cell repro, Pages deploy showing numbers.
 approval.
 
 - the Builder
+
+## 7. M13b final re-check (Builder, 2026-09-15, Refs #302)
+
+Verified mechanically against committed git truth on this branch
+(manifest seals 2401 raw files: m1 150, m2 319, m9 1770, m10-soak
+162; `--report` / `--charts` / `--site` / `--dossiers` /
+`--supplement` / `--pagemeta` rebuilds all byte-identical,
+`--manifest-verify` matches the committed hash; full suite green;
+`check.py` ok):
+
+- Config disclosure: 0 empty `pooler_config` blocks across all four
+  legs. `direct` rows carry an empty `pooler_version` by design (no
+  pooler in the path). The only rows missing doc-cited mode keys are
+  the 6 M2 N/A stubs (`M2-T1`/`M2-T2` x pgagroal/pgcat/pgpool), which
+  carry an honest `# N/A (unsupported)` stub citing `docs/modes.md`
+  with the written reason - no config exists to cite for an
+  unsupported mode. Every measured and error row for the five
+  incumbents carries its doc-cited key (`pool_mode` / `pipeline` /
+  `pool` / `num_init_children`).
+- Budget parity extended: M1 7 workloads per pooler (42 medians); M2
+  realized rows pgagroal 11 / PgBouncer 12 / Odyssey 11 / pgcat 9 /
+  pgpool-II 9 (111 medians incl. 7 N/A with nulls); M9 250 medians
+  (215 measured + 29 timeout/inconclusive + 6 Supavisor statement
+  N/A); soak 36/36 tier groups (29 measured + 7 timeout, 162 raw,
+  absent set empty). The direct control rides every chunk in all
+  legs. Same procedure code, same caps, same cell budget discipline
+  throughout.
+- p99 quarantine lifted by re-measurement: the M9 and soak legs were
+  measured with per-transaction logs (no aggregate flag, all worker
+  files merged), so all 439 medians across M1/M2/M9/soak now carry
+  real p-summaries; no headline rests on nulled percentiles. The
+  statistics family stands at 98 with 96 Holm-gated headlines;
+  claims 1/2/3/5 survive with excluding-zero CIs while claim 4 is
+  killed by the mixed-status rule (the kill rule visibly working,
+  never a win).
+- Equalized-auth churn (M9-E1) measured beside the labeled
+  asymmetric arms; per-arm posture labels ride every new raw row;
+  `pg_show` blocks recorded best-effort per the M6 contract.
+- Pages: served-HTTP smoke 17/17 200 on master + six dossiers +
+  four supplement pages + six bundles; zero visible pending/loading
+  text (only honest empty-state notes, e.g. the Supavisor zero-data
+  explainer); fluid-width mobile PASS with resize-aware charts;
+  Tier-2 vision read-back 3/3 exact on soak figures
+  (`(M10-S1, pgbouncer, 1800)` 17008.336377,
+  `(M10-S1, direct, 3600)` 31217.17811,
+  `(M10-S2, pgcat, 3600)` 21371.978407); Tier-1 deterministic suite
+  green.
+
+Honestly open (not this branch): Tester sample-cell reproduction
+(section 3 box still unchecked - Tester's lane, `Verified-by` in
+`docs/errata.md` awaits its first row); Supavisor zero measured
+cells (smoke gate never passed, ONBOARDING retained per
+`docs/supavisor-deferral.md`, section-11 "six poolers" item open);
+full byte-match of committed configs modulo ports/paths remains the
+Reviewer's blocking check (section 4). `Refs #302`; no `Closes`
+without explicit @Userfrom1995 approval.
+
+- the Builder
