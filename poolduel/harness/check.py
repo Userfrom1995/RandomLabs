@@ -351,6 +351,7 @@ def check_site_coherence():
         "m1": os.path.join(root, "results", "m1", "medians.json"),
         "m2": os.path.join(root, "results", "m2", "medians.json"),
         "m9": os.path.join(root, "results", "m9", "medians.json"),
+        "soak": os.path.join(root, "results", "m10-soak", "medians.json"),
         "report": os.path.join(root, "results", "report.json"),
         "sitemeta": os.path.join(root, "results", "sitemeta.json"),
     }
@@ -364,17 +365,23 @@ def check_site_coherence():
         for key in ("m1", "m2", "m9", "report"):
             with open(paths[key]) as handle:
                 loaded[key] = json.load(handle)
+        try:
+            with open(paths["soak"]) as handle:
+                loaded["soak"] = json.load(handle)
+        except (OSError, ValueError):
+            loaded["soak"] = []
     except (OSError, ValueError) as exc:
         return ["site input bundle unreadable: %s" % exc]
     fresh = sitemod.build_sitemeta(loaded["m1"], loaded["m2"],
-                                   loaded["m9"], loaded["report"])
+                                   loaded["m9"], loaded["report"],
+                                   soak_entries=loaded["soak"])
     for key in ("executive_cards", "flagship", "m2_blocks", "m9_leg",
-                "iso_regions", "flatness", "counts"):
+                "soak_leg", "iso_regions", "flatness", "counts"):
         if committed.get(key) != fresh.get(key):
             errors.append("sitemeta.json[%s] drifted from bundles; "
                           "re-run repro.sh --site" % key)
     for key in ("m1/medians.json", "m2/medians.json", "m9/medians.json",
-                "report.json"):
+                "m10-soak/medians.json", "report.json"):
         want = sitemod._sha256_file(os.path.join(root, "results", key))
         if committed.get("sources", {}).get(key) != want:
             errors.append("sitemeta sources[%s] SHA mismatch; "
@@ -405,6 +412,7 @@ def check_supplement_coherence():
         "m1": os.path.join(root, "results", "m1", "medians.json"),
         "m2": os.path.join(root, "results", "m2", "medians.json"),
         "m9": os.path.join(root, "results", "m9", "medians.json"),
+        "soak": os.path.join(root, "results", "m10-soak", "medians.json"),
         "report": os.path.join(root, "results", "report.json"),
         "supplementmeta": os.path.join(root, "results",
                                        "supplementmeta.json"),
@@ -419,17 +427,24 @@ def check_supplement_coherence():
         for key in ("m1", "m2", "m9", "report"):
             with open(paths[key]) as handle:
                 loaded[key] = json.load(handle)
+        try:
+            with open(paths["soak"]) as handle:
+                loaded["soak"] = json.load(handle)
+        except (OSError, ValueError):
+            loaded["soak"] = []
     except (OSError, ValueError) as exc:
         return ["supplement input bundle unreadable: %s" % exc]
     path_shas = {
         "m1/medians.json": supmod._sha256_file(paths["m1"]),
         "m2/medians.json": supmod._sha256_file(paths["m2"]),
         "m9/medians.json": supmod._sha256_file(paths["m9"]),
+        "m10-soak/medians.json": supmod._sha256_file(paths["soak"]),
         "report.json": supmod._sha256_file(paths["report"]),
     }
     fresh = supmod.build_supplementmeta(loaded["m1"], loaded["m2"],
                                         loaded["m9"], loaded["report"],
-                                        path_shas)
+                                        path_shas,
+                                        soak_entries=loaded["soak"])
     for key in ("counts", "pooler_versions", "banner_sentence"):
         if committed.get(key) != fresh.get(key):
             errors.append("supplementmeta.json[%s] drifted from bundles; "
@@ -552,6 +567,7 @@ def check_dossier_coherence():
         "m1": os.path.join(root, "results", "m1", "medians.json"),
         "m2": os.path.join(root, "results", "m2", "medians.json"),
         "m9": os.path.join(root, "results", "m9", "medians.json"),
+        "soak": os.path.join(root, "results", "m10-soak", "medians.json"),
         "report": os.path.join(root, "results", "report.json"),
         "dossiermeta": os.path.join(root, "results", "dossiermeta.json"),
     }
@@ -565,6 +581,11 @@ def check_dossier_coherence():
         for key in ("m1", "m2", "m9", "report"):
             with open(paths[key]) as handle:
                 loaded[key] = json.load(handle)
+        try:
+            with open(paths["soak"]) as handle:
+                loaded["soak"] = json.load(handle)
+        except (OSError, ValueError):
+            loaded["soak"] = []
     except (OSError, ValueError) as exc:
         return ["dossier input bundle unreadable: %s" % exc]
     fresh = None
@@ -575,10 +596,11 @@ def check_dossier_coherence():
             with open(page) as handle:
                 settings[pooler] = dossmod.parse_settings(handle.read())
         rawdirs = [os.path.join(root, "results", leg, "raw")
-                   for leg in ("m1", "m2", "m9")]
+                   for leg in ("m1", "m2", "m9", "m10-soak")]
         raw_stats = dossmod.collect_raw(rawdirs)
         fresh = dossmod.build_all(loaded["m1"], loaded["m2"], loaded["m9"],
-                                  loaded["report"], raw_stats, settings)
+                                  loaded["report"], raw_stats, settings,
+                                  soak=loaded["soak"])
     except (OSError, ValueError) as exc:
         return ["dossier rebuild failed: %s" % exc]
     committed_dossiers = committed.get("dossiers", {})

@@ -331,7 +331,64 @@ def build_iso_flat(bundle):
     return regions, flat
 
 
-def build_sitemeta(m1_entries, m2_entries, m9_entries, bundle):
+def build_soak_leg(soak_entries):
+    """Long-horizon stability rows, one per (cell, duration tier).
+
+    Soak is a stability estimand, not a head-to-head: no best arm,
+    no verdicts, no headlines. Each row lists every arm's throughput
+    band with its status, so a flat leak/tail figure reads beside a
+    collapsing one. Tiers stay separate rows (a 30-min tier never
+    pools with a 60-min tier).
+    """
+    from poolduel.harness.soak import SOAK_DURATIONS, SOAK_GEOMETRIES
+    nick = {cid: label for (cid, _shape, label) in SOAK_GEOMETRIES}
+    by_tier = {}
+    for entry in soak_entries or []:
+        if not isinstance(entry, dict):
+            continue
+        key = (entry.get("cell_id"), entry.get("duration_s"))
+        by_tier.setdefault(key, {})[entry.get("pooler")] = entry
+    rows = []
+    for (cid, duration) in sorted(
+            by_tier, key=lambda k: (k[0] or "", k[1] or -1)):
+        arms = []
+        for arm in ARMS:
+            entry = by_tier[(cid, duration)].get(arm, {})
+            status = entry.get("status", "missing")
+            tps = entry.get("tps") if isinstance(entry, dict) else None
+            arms.append({
+                "pooler": arm,
+                "status": status,
+                "tps_band": fmt_band(tps),
+            })
+        minutes = (duration // 60) if isinstance(duration, int) else "?"
+        rows.append({
+            "cell_id": cid,
+            "duration_s": duration,
+            "title": "%s, %s-min tier" % (cid, minutes),
+            "geometry": nick.get(cid, ""),
+            "arms": arms,
+        })
+    measured = sum(1 for e in (soak_entries or [])
+                   if isinstance(e, dict) and e.get("status") == MEASURED)
+    timeout = sum(1 for e in (soak_entries or [])
+                  if isinstance(e, dict) and e.get("status") == TIMEOUT)
+    spec_total = (len(SOAK_GEOMETRIES) * len(SOAK_DURATIONS) * len(ARMS))
+    return {
+        "total": spec_total,
+        "present": len(soak_entries or []),
+        "measured": measured,
+        "timeout": timeout,
+        "missing": spec_total - len(soak_entries or []),
+        "rows": rows,
+        "method": "30/60-min measured windows, 60 s warmup, 3 paired "
+                  "repeats per (cell, arm, tier); drift evidence in "
+                  "raw resources_pre/post/drift",
+    }
+
+
+def build_sitemeta(m1_entries, m2_entries, m9_entries, bundle,
+                   soak_entries=None):
     """Assemble the full pre-render bundle (all inputs already loaded)."""
     cards, headline_count, family = build_executive_cards(bundle)
     regions, flat = build_iso_flat(bundle)
@@ -347,6 +404,7 @@ def build_sitemeta(m1_entries, m2_entries, m9_entries, bundle):
         "flagship": build_flagship(m1_entries, bundle),
         "m2_blocks": build_m2_blocks(bundle),
         "m9_leg": build_m9_leg(m9_entries, bundle),
+        "soak_leg": build_soak_leg(soak_entries),
         "iso_regions": regions,
         "flatness": flat,
         "counts": {
@@ -354,6 +412,7 @@ def build_sitemeta(m1_entries, m2_entries, m9_entries, bundle):
             "m1_measured": m1_measured,
             "m2_total": m2_total,
             "m2_na": m2_na,
+            "soak_total": len(soak_entries or []),
         },
     }
 
@@ -481,7 +540,45 @@ def render_m9_html(leg):
             leg["family"], leg["headlines"], _esc(leg["method"])))
 
 
-SECTIONS = ("exec", "flagship", "m2", "m9", "isoflat")
+def render_soak_html(leg):
+    parts = [
+        "<p>Long-horizon stability: <strong>%s measured</strong> of %s "
+        "spec tier-cells (%s present, %s timeout/inconclusive, %s "
+        "not yet measured). No best arm, no verdicts: soak figures "
+        "read as stability beside collapse. "
+        "Method: %s. Full matrix: "
+        '<a href="results/m10-soak/matrix.csv">results/m10-soak/'
+        "matrix.csv</a>.</p>" % (
+            leg["measured"], leg["total"], leg["present"],
+            leg["timeout"], leg["missing"],
+            _esc(leg["method"])),
+    ]
+    if not leg["rows"]:
+        parts.append("<p class='note'>No soak tiers measured yet.</p>")
+        return "\n".join(parts)
+    parts.append('<table><tr><th>Tier cell</th><th>Geometry</th>'
+                 '<th>Arms (tps median [min-max]; status)</th></tr>')
+    for row in leg["rows"]:
+        cells = []
+        for arm in row["arms"]:
+            if arm["status"] == MEASURED and arm["tps_band"]:
+                cells.append("%s: %s" % (arm["pooler"], arm["tps_band"]))
+            elif arm["status"] == TIMEOUT:
+                cells.append("%s: timeout/inconclusive" % arm["pooler"])
+            elif arm["status"] == "missing":
+                cells.append("%s: tier not in git (re-dispatch owned "
+                             "by Maintainer)" % arm["pooler"])
+            else:
+                cells.append("%s: %s" % (arm["pooler"], arm["status"]))
+        parts.append("<tr><td><strong>%s</strong></td><td>%s</td>"
+                     '<td class="note">%s</td></tr>' % (
+                         _esc(row["title"]), _esc(row["geometry"]),
+                         "<br>".join(_esc(c) for c in cells)))
+    parts.append("</table>")
+    return "\n".join(parts)
+
+
+SECTIONS = ("exec", "flagship", "m2", "m9", "soak", "isoflat")
 
 
 def render_all(meta):
@@ -490,6 +587,7 @@ def render_all(meta):
         "flagship": render_flagship_html(meta["flagship"]),
         "m2": render_m2_html(meta["m2_blocks"]),
         "m9": render_m9_html(meta["m9_leg"]),
+        "soak": render_soak_html(meta["soak_leg"]),
         "isoflat": render_iso_flat_html(meta["iso_regions"],
                                         meta["flatness"]),
     }
@@ -521,6 +619,11 @@ def main(argv=None):
     parser.add_argument("--m1", required=True)
     parser.add_argument("--m2", required=True)
     parser.add_argument("--m9", required=True)
+    parser.add_argument("--soak",
+                        default="poolduel/results/m10-soak/medians.json",
+                        help="M10 soak medians (tier-labeled); missing "
+                             "file renders the honestly-empty soak "
+                             "section instead of failing")
     parser.add_argument("--report", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--apply", default=None,
@@ -529,12 +632,20 @@ def main(argv=None):
     m1 = _load(args.m1)
     m2 = _load(args.m2)
     m9 = _load(args.m9)
+    try:
+        with open(args.soak) as handle:
+            soak = json.load(handle)
+    except (OSError, ValueError):
+        soak = []
     bundle = _load(args.report)
-    meta = build_sitemeta(m1, m2, m9, bundle)
+    meta = build_sitemeta(m1, m2, m9, bundle, soak_entries=soak)
     meta["sources"] = {
         "m1/medians.json": _sha256_file(args.m1),
         "m2/medians.json": _sha256_file(args.m2),
         "m9/medians.json": _sha256_file(args.m9),
+        "m10-soak/medians.json": (
+            _sha256_file(args.soak)
+            if os.path.exists(args.soak) else "absent"),
         "report.json": _sha256_file(args.report),
     }
     with open(args.out, "w") as handle:
@@ -543,9 +654,11 @@ def main(argv=None):
     if args.apply:
         apply_to_index(args.apply, render_all(meta))
     kinds = (len(meta["executive_cards"]), len(meta["flagship"]),
-             sum(len(b["rows"]) for b in meta["m2_blocks"]))
-    print("poolduel site: %d cards, %d flagship rows, %d m2 rows -> %s"
-          % (kinds[0], kinds[1], kinds[2], args.out))
+             sum(len(b["rows"]) for b in meta["m2_blocks"]),
+             len(meta["soak_leg"]["rows"]))
+    print("poolduel site: %d cards, %d flagship rows, %d m2 rows, "
+          "%d soak rows -> %s"
+          % (kinds[0], kinds[1], kinds[2], kinds[3], args.out))
     return 0
 
 

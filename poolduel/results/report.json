@@ -8186,6 +8186,16 @@
     "pgpool": "4.7.2",
     "supavisor": "v2.9.13"
   },
+  "soak_cells": [
+    "M10-S1/1800s",
+    "M10-S1/3600s",
+    "M10-S2/1800s",
+    "M10-S2/3600s",
+    "M10-S3/1800s",
+    "M10-S3/3600s"
+  ],
+  "soak_measured": 15,
+  "soak_na": 3,
   "statistics": {
     "claims": [
       {

@@ -109,10 +109,12 @@ class TestM11aBundlePublication(unittest.TestCase):
                 "--m1-dir", os.path.join(RESULTS, "m1"),
                 "--m2-dir", os.path.join(RESULTS, "m2"),
                 "--m9-dir", os.path.join(RESULTS, "m9"),
+                "--soak-dir", os.path.join(RESULTS, "m10-soak"),
                 "--out", tmp,
             ])
             for rel in ("m1/medians.json", "m2/medians.json",
                         "m9/medians.json", "m9/matrix.csv",
+                        "m10-soak/medians.json", "m10-soak/matrix.csv",
                         "report.json"):
                 with open(os.path.join(tmp, rel), "rb") as fh:
                     fresh = fh.read()

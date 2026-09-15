@@ -20,6 +20,7 @@ PAGES = ["guide", "architecture", "methodology", "reproducibility"]
 M1_MEDIANS = os.path.join(ROOT, "results", "m1", "medians.json")
 M2_MEDIANS = os.path.join(ROOT, "results", "m2", "medians.json")
 M9_MEDIANS = os.path.join(ROOT, "results", "m9", "medians.json")
+SOAK_MEDIANS = os.path.join(ROOT, "results", "m10-soak", "medians.json")
 REPORT = os.path.join(ROOT, "results", "report.json")
 SUPPLEMENTMETA = os.path.join(ROOT, "results", "supplementmeta.json")
 
@@ -52,7 +53,9 @@ class TestSupplementMetaDrift(unittest.TestCase):
              (("m1/medians.json", M1_MEDIANS),
               ("m2/medians.json", M2_MEDIANS),
               ("m9/medians.json", M9_MEDIANS),
-              ("report.json", REPORT))})
+              ("m10-soak/medians.json", SOAK_MEDIANS),
+              ("report.json", REPORT))},
+            soak_entries=_load(SOAK_MEDIANS))
         self.assertEqual(committed["counts"], fresh["counts"],
                          "supplementmeta counts drifted; re-run --supplement")
         self.assertEqual(committed["pooler_versions"],
@@ -67,6 +70,7 @@ class TestSupplementMetaDrift(unittest.TestCase):
         for key, path in (("m1/medians.json", M1_MEDIANS),
                           ("m2/medians.json", M2_MEDIANS),
                           ("m9/medians.json", M9_MEDIANS),
+                          ("m10-soak/medians.json", SOAK_MEDIANS),
                           ("report.json", REPORT)):
             self.assertEqual(committed["sources"][key],
                              supmod._sha256_file(path),

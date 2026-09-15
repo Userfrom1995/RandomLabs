@@ -55,19 +55,20 @@ def _count(entries):
 
 
 def build_supplementmeta(m1_entries, m2_entries, m9_entries, bundle,
-                         paths):
+                         paths, soak_entries=()):
     """Build the supplementmeta dict from committed bundles (no hand values)."""
     m1_total, m1_measured, _ = _count(m1_entries)
     m2_total, m2_measured, m2_na = _count(m2_entries)
     m9_total, m9_measured, m9_na = _count(m9_entries)
+    soak_total, soak_measured, _ = _count(soak_entries)
     pooler_versions = {}
     if isinstance(bundle, dict):
         pooler_versions = dict(bundle.get("pooler_versions") or {})
     pins = {p: pooler_versions.get(p) for p in POOLERS}
     sentence = ("M1: %d cells, M2: %d records incl. %d N/A, M9: %d cells "
-                "(%d measured, %d N/A)" % (
-                    m1_total, m2_total, m2_na, m9_total,
-                    m9_measured, m9_na))
+                "(%d measured, %d N/A), soak: %d tier-cells (%d measured)"
+                % (m1_total, m2_total, m2_na, m9_total,
+                   m9_measured, m9_na, soak_total, soak_measured))
     return {
         "counts": {
             "m1_total": m1_total,
@@ -78,6 +79,8 @@ def build_supplementmeta(m1_entries, m2_entries, m9_entries, bundle,
             "m9_total": m9_total,
             "m9_measured": m9_measured,
             "m9_na": m9_na,
+            "soak_total": soak_total,
+            "soak_measured": soak_measured,
         },
         "pooler_versions": pins,
         "sources": dict(paths),
@@ -94,14 +97,18 @@ def render_meta_fragment(meta):
     return (
         '<p class="note" id="supplement-counts" '
         'data-m1-total="%d" data-m2-total="%d" data-m2-na="%d" '
-        'data-m9-total="%d" data-m9-measured="%d" data-m9-na="%d">'
+        'data-m9-total="%d" data-m9-measured="%d" data-m9-na="%d" '
+        'data-soak-total="%d" data-soak-measured="%d">'
         'Evidence: M1 %d cells, M2 %d records incl. %d N/A, M9 %d cells '
-        '(%d measured, %d N/A). Pins: %s. '
+        '(%d measured, %d N/A), soak %d tier-cells (%d measured). '
+        'Pins: %s. '
         'Generated from <code>results/supplementmeta.json</code>.</p>'
         % (counts["m1_total"], counts["m2_total"], counts["m2_na"],
            counts["m9_total"], counts["m9_measured"], counts["m9_na"],
+           counts["soak_total"], counts["soak_measured"],
            counts["m1_total"], counts["m2_total"], counts["m2_na"],
            counts["m9_total"], counts["m9_measured"], counts["m9_na"],
+           counts["soak_total"], counts["soak_measured"],
            pin_bits))
 
 
@@ -133,6 +140,10 @@ def main(argv=None):
     parser.add_argument("--m1", default="poolduel/results/m1/medians.json")
     parser.add_argument("--m2", default="poolduel/results/m2/medians.json")
     parser.add_argument("--m9", default="poolduel/results/m9/medians.json")
+    parser.add_argument("--soak",
+                        default="poolduel/results/m10-soak/medians.json",
+                        help="M10 soak medians; missing file renders "
+                             "zero soak counts instead of failing")
     parser.add_argument("--report", default="poolduel/results/report.json")
     parser.add_argument("--out",
                         default="poolduel/results/supplementmeta.json")
@@ -144,6 +155,10 @@ def main(argv=None):
         m1 = _load_json(args.m1)
         m2 = _load_json(args.m2)
         m9 = _load_json(args.m9)
+        try:
+            soak = _load_json(args.soak)
+        except (OSError, ValueError):
+            soak = []
         with open(args.report) as handle:
             bundle = json.load(handle)
     except (OSError, ValueError) as exc:
@@ -153,9 +168,13 @@ def main(argv=None):
         "m1/medians.json": _sha256_file(args.m1),
         "m2/medians.json": _sha256_file(args.m2),
         "m9/medians.json": _sha256_file(args.m9),
+        "m10-soak/medians.json": (
+            _sha256_file(args.soak)
+            if os.path.exists(args.soak) else "absent"),
         "report.json": _sha256_file(args.report),
     }
-    meta = build_supplementmeta(m1, m2, m9, bundle, paths)
+    meta = build_supplementmeta(m1, m2, m9, bundle, paths,
+                                soak_entries=soak)
     meta["sources"] = paths
     with open(args.out, "w") as handle:
         json.dump(meta, handle, indent=2, sort_keys=True)

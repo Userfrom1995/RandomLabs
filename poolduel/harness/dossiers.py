@@ -102,6 +102,8 @@ def natural_key(cell_id):
 
 
 def leg_of(cell_id):
+    if str(cell_id).startswith("M10-S"):
+        return "soak"
     if str(cell_id).startswith("M9-"):
         return "M9"
     if str(cell_id).startswith("M2-"):
@@ -120,6 +122,11 @@ def load_label(entry):
         bits += ", churn (-C)"
     if entry.get("scale", 10) != 10:
         bits += ", scale %s" % entry.get("scale")
+    if str(entry.get("cell_id", "")).startswith("M10-S"):
+        duration = entry.get("duration_s")
+        tier = ("%d-min tier" % (duration // 60)
+                if isinstance(duration, int) else "tiered soak")
+        bits += ", %s" % tier
     return bits
 
 
@@ -149,6 +156,16 @@ def m9_settings(entry, slug):
     return ("M9 resweep, scale %s; exact variant in "
             '<a href="../results/m9/matrix.csv">results/m9/matrix.csv</a>'
             % entry.get("scale", 10))
+
+
+def soak_settings(entry, slug):
+    duration = entry.get("duration_s")
+    tier = ("%d-min tier" % (duration // 60)
+            if isinstance(duration, int) else "tiered soak")
+    return ("M10 soak %s; drift evidence in raw "
+            "resources_pre/post/drift, exact rows in "
+            '<a href="../results/m10-soak/matrix.csv">results/m10-soak/'
+            "matrix.csv</a>" % tier)
 
 
 def collect_raw(rawdirs):
@@ -268,31 +285,37 @@ def _entry_n(entry):
     return 0
 
 
-def dedupe_entries(m1, m2, m9):
-    """One row per (cell_id, pooler): M9 re-measured M1/M2 geometries.
+def dedupe_entries(m1, m2, m9, soak=None):
+    """One row per (cell_id, duration_s, pooler).
 
     The powered resweep re-ran M1/M2 cells under their original ids
     with more repeats, so the same (cell, pooler) appears in several
     legs. Keep the entry with the most repeats (powered evidence
-    wins); ties prefer the later leg. Never show the same cell twice.
+    wins); ties prefer the later leg. The duration sits in the key
+    so the two soak tiers of one arm stay separate rows instead of
+    collapsing (M1/M2/M9 are duration-uniform per cell, so their
+    rows are unchanged). Never show the same tier-cell twice.
     """
     tagged = ([(e, "M1") for e in (m1 or [])] +
               [(e, "M2") for e in (m2 or [])] +
-              [(e, "M9") for e in (m9 or [])])
-    order = {"M1": 0, "M2": 1, "M9": 2}
+              [(e, "M9") for e in (m9 or [])] +
+              [(e, "soak") for e in (soak or [])])
+    order = {"M1": 0, "M2": 1, "M9": 2, "soak": 3}
     best = {}
     for entry, leg in tagged:
         if not isinstance(entry, dict):
             continue
-        key = (entry.get("cell_id"), entry.get("pooler"))
+        key = (entry.get("cell_id"), entry.get("duration_s"),
+               entry.get("pooler"))
         rank = (_entry_n(entry), order[leg])
         if key not in best or rank >= best[key][1]:
             best[key] = (entry, rank)
     return [entry for entry, _rank in best.values()]
 
 
-def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings):
-    entries = [e for e in dedupe_entries(m1, m2, m9)
+def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings,
+                  soak=None):
+    entries = [e for e in dedupe_entries(m1, m2, m9, soak)
                if isinstance(e, dict) and e.get("pooler") == pooler]
     flat = ((bundle or {}).get("flatness", {}) or {}).get(pooler) or {}
     peak_cell = ((flat.get("peak") or {}).get("cell_id")
@@ -311,6 +334,10 @@ def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings):
         known = settings.get(cid)
         if known is not None:
             load, setting_html, docs_href = known
+        elif leg_of(cid) == "soak":
+            load = load_label(entry)
+            setting_html = soak_settings(entry, pooler)
+            docs_href = "../docs/configs/%s" % slug_docs(pooler)
         else:
             load = load_label(entry)
             setting_html = m9_settings(entry, pooler)
@@ -331,7 +358,7 @@ def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings):
                          and status == MEASURED),
         })
     counts = {}
-    for leg in ("M1", "M2", "M9"):
+    for leg in ("M1", "M2", "M9", "soak"):
         leg_rows = [r for r in rows if r["leg"] == leg]
         counts[leg] = {
             "total": len(leg_rows),
@@ -341,7 +368,8 @@ def build_dossier(pooler, m1, m2, m9, bundle, raw_stats, settings):
                            if r["status"] == TIMEOUT),
             "na": sum(1 for r in leg_rows if r["status"] == NA),
         }
-    legs = leg_counts({"M1": m1, "M2": m2, "M9": m9}, pooler)
+    legs = leg_counts({"M1": m1, "M2": m2, "M9": m9, "soak": soak},
+                      pooler)
     spread = sitemod._num(flat.get("spread"))
     raw = raw_stats.get(pooler, {}) if raw_stats else {}
     iron = None
@@ -400,6 +428,8 @@ def render_lifecycle(pooler):
 def render_config(dossier):
     legs = dossier["legs"]
     m1, m2, m9 = legs["M1"], legs["M2"], legs["M9"]
+    soak = legs.get("soak", {"total": 0, "measured": 0, "timeout": 0,
+                             "na": 0})
     parts = [
         '<div class="viewtoggle" role="group" aria-label="Rows">'
         '<button data-filter="all" class="on">All</button>'
@@ -410,12 +440,15 @@ def render_config(dossier):
         "M1 %d rows plus %d M2 rows (%d measured + %d "
         "timeout/inconclusive) plus %d N/A rows; "
         "M9 %d rows (%d measured + %d timeout/inconclusive) "
-        "plus %d N/A rows. Table shows the max-repeats evidence per "
-        "cell; full history in the matrix.csv files. "
+        "plus %d N/A rows; "
+        "M10 soak %d tier-rows (%d measured + %d "
+        "timeout/inconclusive). Table shows the max-repeats evidence per "
+        "tier-cell; full history in the matrix.csv files. "
         "Peak config tagged.</p>"
         % (_esc(dossier["display"]), m1["total"],
            m2["total"], m2["measured"], m2["timeout"], m2["na"],
-           m9["total"], m9["measured"], m9["timeout"], m9["na"]),
+           m9["total"], m9["measured"], m9["timeout"], m9["na"],
+           soak["total"], soak["measured"], soak["timeout"]),
         '<table data-config-results data-pooler="%s">'
         "<tr><th>Cell</th><th>Load</th><th>Non-default settings</th>"
         "<th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th>"
@@ -560,9 +593,11 @@ def render_all(dossier):
     }
 
 
-def build_all(m1, m2, m9, bundle, raw_stats, settings_by_pooler):
+def build_all(m1, m2, m9, bundle, raw_stats, settings_by_pooler,
+              soak=None):
     return {pooler: build_dossier(pooler, m1, m2, m9, bundle, raw_stats,
-                                 settings_by_pooler.get(pooler, {}))
+                                 settings_by_pooler.get(pooler, {}),
+                                 soak=soak)
             for pooler in DOSSIERS}
 
 
@@ -592,6 +627,11 @@ def main(argv=None):
     parser.add_argument("--m1", required=True)
     parser.add_argument("--m2", required=True)
     parser.add_argument("--m9", required=True)
+    parser.add_argument("--soak",
+                        default="poolduel/results/m10-soak/medians.json",
+                        help="M10 soak medians; missing file renders "
+                             "dossiers without soak rows instead of "
+                             "failing")
     parser.add_argument("--report", required=True)
     parser.add_argument("--rawdirs", required=True,
                         help="comma-separated raw record directories")
@@ -604,6 +644,11 @@ def main(argv=None):
     m1 = _load(args.m1)
     m2 = _load(args.m2)
     m9 = _load(args.m9)
+    try:
+        with open(args.soak) as handle:
+            soak = json.load(handle)
+    except (OSError, ValueError):
+        soak = []
     bundle = _load(args.report)
     raw_stats = collect_raw([p for p in args.rawdirs.split(",") if p])
     settings = {}
@@ -615,11 +660,14 @@ def main(argv=None):
         except OSError:
             settings[pooler] = {}
     meta = {"dossiers": build_all(m1, m2, m9, bundle, raw_stats,
-                                 settings)}
+                                 settings, soak=soak)}
     meta["sources"] = {
         "m1/medians.json": sitemod._sha256_file(args.m1),
         "m2/medians.json": sitemod._sha256_file(args.m2),
         "m9/medians.json": sitemod._sha256_file(args.m9),
+        "m10-soak/medians.json": (
+            sitemod._sha256_file(args.soak)
+            if os.path.exists(args.soak) else "absent"),
         "report.json": sitemod._sha256_file(args.report),
     }
     with open(args.out, "w") as handle:

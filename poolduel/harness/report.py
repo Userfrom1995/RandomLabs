@@ -342,14 +342,19 @@ def matrix_csv(medians):
 
 
 def build_bundle(m1_medians, m2_medians, pg_version="PG 17",
-                 m9_medians=None, statistics=None):
+                 m9_medians=None, statistics=None, soak_medians=None):
     """Single report bundle consumed by index.html live hooks.
 
     The M3 best/pairwise/iso/flatness sections keep the retired
     min-max-band gate for backward comparison only (plan section 5):
     headlines must come from the ``statistics`` section (paired
     bootstrap CIs with Holm gating) once present. With no M9 data the
-    bundle shape is byte-identical to the M3 form.
+    bundle shape is byte-identical to the M3 form. The soak leg is
+    counts only: soak is a stability estimand (leak/tail drift over
+    30/60-min windows, n=3, no per-repeat p-latency), so it stays
+    out of the best-vs-rest family, the headlines, and the claims
+    re-derivation by design; its evidence ships as tier-labeled
+    cells plus drift figures from raw.
     """
     medians = list(m1_medians) + list(m2_medians)
     bundle = {
@@ -368,6 +373,14 @@ def build_bundle(m1_medians, m2_medians, pg_version="PG 17",
         bundle["m9_cells"] = sorted({e["cell_id"] for e in m9_medians})
         bundle["m9_measured"] = len(measured_entries(m9_medians))
         bundle["m9_na"] = len(na_entries(m9_medians))
+    if soak_medians is not None:
+        bundle["soak_cells"] = sorted(
+            {(e["cell_id"], e.get("duration_s")) for e in soak_medians
+             if isinstance(e, dict)})
+        bundle["soak_cells"] = [
+            "%s/%ds" % (cid, dur) for (cid, dur) in bundle["soak_cells"]]
+        bundle["soak_measured"] = len(measured_entries(soak_medians))
+        bundle["soak_na"] = len(na_entries(soak_medians))
     if statistics is not None:
         bundle["statistics"] = statistics
     return bundle
@@ -445,14 +458,16 @@ def build_statistics(m9_medians, m9_records, b=BOOTSTRAP_B,
 
 
 def write_outputs(m1_medians, m2_medians, out_dir, pg_version="PG 17",
-                  m9_medians=None, statistics=None,
-                  write_m1=True, write_m2=True):
+                  m9_medians=None, statistics=None, soak_medians=None,
+                  write_m1=True, write_m2=True, write_soak=False):
     """Write medians.json + matrix.csv per requested matrix plus report.json.
 
     Only matrices requested by the caller are written: a bare
     ``--m9-dir`` run must not clobber ``m1/m2/medians.json`` with
     ``[]``. Defaults preserve the old always-write behavior for
-    direct callers that pass both lists.
+    direct callers that pass both lists. The soak leg writes only
+    when ``write_soak`` is set (a ``--soak-dir`` run), so ordinary
+    m1/m2/m9 rebuilds never touch ``m10-soak/``.
     """
     if write_m1:
         os.makedirs(os.path.join(out_dir, "m1"), exist_ok=True)
@@ -472,8 +487,17 @@ def write_outputs(m1_medians, m2_medians, out_dir, pg_version="PG 17",
             json.dump(m9_medians, f, indent=2, sort_keys=True)
         with open(os.path.join(out_dir, "m9", "matrix.csv"), "w") as f:
             f.write(matrix_csv(m9_medians))
+    if soak_medians is not None and write_soak:
+        os.makedirs(os.path.join(out_dir, "m10-soak"), exist_ok=True)
+        with open(os.path.join(out_dir, "m10-soak",
+                               "medians.json"), "w") as f:
+            json.dump(soak_medians, f, indent=2, sort_keys=True)
+        with open(os.path.join(out_dir, "m10-soak",
+                               "matrix.csv"), "w") as f:
+            f.write(matrix_csv(soak_medians))
     bundle = build_bundle(m1_medians, m2_medians, pg_version=pg_version,
-                          m9_medians=m9_medians, statistics=statistics)
+                          m9_medians=m9_medians, statistics=statistics,
+                          soak_medians=soak_medians)
     with open(os.path.join(out_dir, "report.json"), "w") as f:
         json.dump(bundle, f, indent=2, sort_keys=True)
     return bundle
@@ -490,6 +514,11 @@ def build_parser():
     p.add_argument("--m9-dir", action="append", default=[],
                    help="M9 results dir (contains raw/); repeatable; "
                         "adds the M10 statistics rebuild to report.json")
+    p.add_argument("--soak-dir", action="append", default=[],
+                   help="M10 soak results dir (contains raw/); "
+                        "repeatable; adds the tier-labeled soak leg to "
+                        "report.json and rewrites m10-soak/medians.json "
+                        "+ matrix.csv")
     p.add_argument("--bootstrap-b", type=int, default=BOOTSTRAP_B,
                    help="bootstrap resamples for the M10 rebuild")
     p.add_argument("--bootstrap-seed", type=int, default=BOOTSTRAP_SEED,
@@ -511,13 +540,15 @@ def _raw_subdirs(dirs):
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not args.m1_dir and not args.m2_dir and not args.m9_dir:
-        parser.error("need at least one of --m1-dir / --m2-dir / --m9-dir")
+    if (not args.m1_dir and not args.m2_dir and not args.m9_dir
+            and not args.soak_dir):
+        parser.error("need at least one of --m1-dir / --m2-dir / "
+                     "--m9-dir / --soak-dir")
     errors = []
-    m1_medians, m2_medians, m9_medians = [], [], []
+    m1_medians, m2_medians, m9_medians, soak_medians = [], [], [], []
     m9_records = []
     for label, dirs in (("m1", args.m1_dir), ("m2", args.m2_dir),
-                        ("m9", args.m9_dir)):
+                        ("m9", args.m9_dir), ("soak", args.soak_dir)):
         if not dirs:
             continue
         records, load_errors = load_raw(_raw_subdirs(dirs))
@@ -530,9 +561,11 @@ def main(argv=None):
             m1_medians = aggregate(records)
         elif label == "m2":
             m2_medians = aggregate(records)
-        else:
+        elif label == "m9":
             m9_medians = aggregate(records)
             m9_records = records
+        else:
+            soak_medians = aggregate(records)
     if errors:
         for err in errors:
             print("poolduel report FAILED: %s" % err, file=sys.stderr)
@@ -546,13 +579,18 @@ def main(argv=None):
                            pg_version=args.pg_version,
                            m9_medians=m9_medians or None,
                            statistics=statistics,
+                           soak_medians=soak_medians or None,
                            write_m1=bool(args.m1_dir),
-                           write_m2=bool(args.m2_dir))
-    print("poolduel report: %d m1 + %d m2 + %d m9 median entries "
-          "(%d measured, %d N/A/timeout) -> %s"
+                           write_m2=bool(args.m2_dir),
+                           write_soak=bool(args.soak_dir))
+    print("poolduel report: %d m1 + %d m2 + %d m9 + %d soak median "
+          "entries (%d measured, %d N/A/timeout) -> %s"
           % (len(m1_medians), len(m2_medians), len(m9_medians),
-             bundle["measured"] + bundle.get("m9_measured", 0),
-             bundle["na"] + bundle.get("m9_na", 0), args.out))
+             len(soak_medians),
+             bundle["measured"] + bundle.get("m9_measured", 0)
+             + bundle.get("soak_measured", 0),
+             bundle["na"] + bundle.get("m9_na", 0)
+             + bundle.get("soak_na", 0), args.out))
     if statistics is not None:
         print("poolduel statistics: family %d, headlines %d, claims %s"
               % (statistics["family_size"], statistics["headlines"],

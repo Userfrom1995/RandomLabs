@@ -23,6 +23,7 @@ SITEMETA = os.path.join(ROOT, "results", "sitemeta.json")
 M1_MEDIANS = os.path.join(ROOT, "results", "m1", "medians.json")
 M2_MEDIANS = os.path.join(ROOT, "results", "m2", "medians.json")
 M9_MEDIANS = os.path.join(ROOT, "results", "m9", "medians.json")
+SOAK_MEDIANS = os.path.join(ROOT, "results", "m10-soak", "medians.json")
 REPORT = os.path.join(ROOT, "results", "report.json")
 
 
@@ -184,9 +185,10 @@ class TestCommittedSitemetaDrift(unittest.TestCase):
     def test_sitemeta_recomputes_from_bundles(self):
         committed = _load(SITEMETA)
         fresh = sitemod.build_sitemeta(_load(M1_MEDIANS), _load(M2_MEDIANS),
-                                       _load(M9_MEDIANS), _load(REPORT))
+                                       _load(M9_MEDIANS), _load(REPORT),
+                                       soak_entries=_load(SOAK_MEDIANS))
         for key in ("executive_cards", "flagship", "m2_blocks", "m9_leg",
-                    "iso_regions", "flatness", "counts"):
+                    "soak_leg", "iso_regions", "flatness", "counts"):
             self.assertEqual(committed[key], fresh[key],
                              "sitemeta.json[%s] drifted; "
                              "re-run repro.sh --site" % key)
@@ -196,6 +198,8 @@ class TestCommittedSitemetaDrift(unittest.TestCase):
         for key, rel in (("m1/medians.json", "m1/medians.json"),
                          ("m2/medians.json", "m2/medians.json"),
                          ("m9/medians.json", "m9/medians.json"),
+                         ("m10-soak/medians.json",
+                          "m10-soak/medians.json"),
                          ("report.json", "report.json")):
             self.assertEqual(
                 committed["sources"][key],
@@ -206,10 +210,12 @@ class TestCommittedSitemetaDrift(unittest.TestCase):
         self.assertEqual(meta["counts"]["m1_total"], 42)
         self.assertEqual(meta["counts"]["m2_total"], 111)
         self.assertEqual(meta["counts"]["m2_na"], 7)
+        self.assertEqual(meta["counts"]["soak_total"], 18)
         self.assertEqual(len(meta["executive_cards"]), 5)
         self.assertEqual(len(meta["flagship"]), 7)
         self.assertEqual(
             sum(len(b["rows"]) for b in meta["m2_blocks"]), 52)
+        self.assertEqual(len(meta["soak_leg"]["rows"]), 6)
 
 
 class TestIndexPreRender(unittest.TestCase):

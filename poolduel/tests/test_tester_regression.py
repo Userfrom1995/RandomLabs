@@ -342,13 +342,32 @@ class RunnerHostileTest(unittest.TestCase):
         base = _measured()
         recs = [dict(base, repeat=1, tps=100.0, p99_ms=9.0),
                 dict(base, repeat=2, tps=200.0, p99_ms=5.0),
-                dict(base, repeat=3, tps=None, p99_ms=None,
-                     status="timeout/inconclusive")]
+                dict(base, repeat=3, tps=None, p99_ms=None)]
         with tempfile.TemporaryDirectory() as d:
             meds = runner.write_medians(
                 recs, os.path.join(d, "medians.json"))
         self.assertEqual(meds[0]["tps"]["median"], 150.0)
         self.assertEqual(meds[0]["tps"]["n"], 2)
+
+    def test_write_medians_mixed_status_goes_inconclusive(self):
+        # Parity with report.aggregate (the published-medians path):
+        # repeats disagreeing on status collapse the group instead
+        # of silently summarizing the survivors.
+        from poolduel.harness import report as report_mod
+        base = _measured()
+        recs = [dict(base, repeat=1, tps=100.0, p99_ms=9.0),
+                dict(base, repeat=2, tps=200.0, p99_ms=5.0),
+                dict(base, repeat=3, tps=None, p99_ms=None,
+                     status="timeout/inconclusive")]
+        with tempfile.TemporaryDirectory() as d:
+            meds = runner.write_medians(
+                recs, os.path.join(d, "medians.json"))
+        self.assertEqual(meds[0]["status"], "timeout/inconclusive")
+        self.assertIsNone(meds[0]["tps"]["median"])
+        agg = report_mod.aggregate(recs)
+        self.assertEqual(len(agg), 1)
+        self.assertEqual(agg[0]["status"], "timeout/inconclusive")
+        self.assertIsNone(agg[0]["tps"]["median"])
 
 
 if __name__ == "__main__":
