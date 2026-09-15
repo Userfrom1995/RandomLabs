@@ -185,5 +185,86 @@ class CommittedSoakTest(unittest.TestCase):
         self.assertEqual(raw_groups, PRESENT_GROUPS)
 
 
+class SoakBundleLegTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(RESULTS, "m10-soak",
+                               "medians.json")) as f:
+            cls.soak = json.load(f)
+        with open(os.path.join(RESULTS, "m1", "medians.json")) as f:
+            cls.m1 = json.load(f)
+        with open(os.path.join(RESULTS, "m2", "medians.json")) as f:
+            cls.m2 = json.load(f)
+        with open(os.path.join(RESULTS, "report.json")) as f:
+            cls.bundle = json.load(f)
+
+    def test_bundle_soak_leg(self):
+        self.assertEqual(self.bundle["soak_measured"], 15)
+        self.assertEqual(self.bundle["soak_na"], 3)
+        self.assertEqual(len(self.bundle["soak_cells"]), 6)
+        # Tier-labeled cell keys, never bare cell ids.
+        for key in self.bundle["soak_cells"]:
+            self.assertRegex(key, r"^M10-S[123]/(1800|3600)s$")
+
+    def test_bundle_without_soak_has_no_soak_keys(self):
+        bare = report.build_bundle(self.m1, self.m2)
+        self.assertNotIn("soak_cells", bare)
+        self.assertNotIn("soak_measured", bare)
+
+    def test_soak_out_of_statistics_by_design(self):
+        stats = self.bundle.get("statistics", {})
+        blob = json.dumps(stats)
+        self.assertNotIn("M10-S", blob)
+
+    def test_sitemeta_soak_leg(self):
+        from poolduel.harness import site as sitemod
+        leg = sitemod.build_soak_leg(self.soak)
+        self.assertEqual(leg["total"], 36)
+        self.assertEqual(leg["present"], 18)
+        self.assertEqual(leg["measured"], 15)
+        self.assertEqual(leg["missing"], 18)
+        self.assertEqual(len(leg["rows"]), 6)
+        html = sitemod.render_soak_html(leg)
+        self.assertNotIn("missing<br", html)
+        self.assertIn("not yet measured", html)
+        self.assertIn("results/m10-soak/matrix.csv", html)
+
+    def test_supplement_soak_counts(self):
+        from poolduel.harness import supplement as supmod
+        meta = supmod.build_supplementmeta(self.m1, self.m2, [], {},
+                                           {}, soak_entries=self.soak)
+        self.assertEqual(meta["counts"]["soak_total"], 18)
+        self.assertEqual(meta["counts"]["soak_measured"], 15)
+        self.assertIn("soak:", meta["banner_sentence"])
+
+    def test_dossier_soak_rows_per_pooler(self):
+        from poolduel.harness import dossiers as dossmod
+        deduped = dossmod.dedupe_entries([], [], [], self.soak)
+        self.assertEqual(len(deduped), 18)
+        by_pooler = {}
+        for e in deduped:
+            by_pooler.setdefault(e["pooler"], []).append(
+                (e["cell_id"], e["duration_s"]))
+        # Each pooler keeps exactly its present tier-groups.
+        self.assertEqual(
+            sorted(by_pooler["direct"]),
+            [("M10-S1", 1800), ("M10-S2", 3600), ("M10-S3", 1800)])
+        self.assertEqual(
+            sorted(by_pooler["pgpool"]),
+            [("M10-S1", 1800), ("M10-S2", 1800), ("M10-S3", 3600)])
+        self.assertEqual(dossmod.leg_of("M10-S1"), "soak")
+        self.assertEqual(dossmod.leg_of("M1-1"), "M1")
+
+    def test_manifest_covers_soak_leg(self):
+        from poolduel.harness import manifest as manmod
+        self.assertIn("m10-soak", manmod.RAW_LEGS)
+        self.assertIn("m10-soak/medians.json", manmod.DERIVED_BUNDLES)
+        self.assertIn("m10-soak/matrix.csv", manmod.DERIVED_BUNDLES)
+        meta = manmod.build_manifest(RESULTS, ".")
+        self.assertEqual(meta["legs"]["m10-soak"]["raw_files"], 54)
+        self.assertTrue(
+            meta["bundles"]["m10-soak/medians.json"]["present"])
+
+
 if __name__ == "__main__":
     unittest.main()

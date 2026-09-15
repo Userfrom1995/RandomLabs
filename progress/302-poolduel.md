@@ -909,6 +909,49 @@ Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
 
 - the Builder
 
+## Soak bundle legs (Builder, 2026-09-15, same branch)
+
+Tier-labeled medians now flow through every derived bundle; all
+pages render the partial soak leg honestly (36 spec / 18 present /
+15 measured / 18 owned by Maintainer re-dispatch).
+
+- `report.py`: `--soak-dir` + `soak_cells/soak_measured/soak_na`
+  in `report.json` (counts only; soak stays out of the statistics
+  family/headlines/claims by design: stability estimand, n=3).
+  Full `--report` rebuild leaves m1/m2/m9 bytes identical,
+  statistics unchanged (family 98, headlines 96).
+- `manifest.py`: `m10-soak` in RAW_LEGS/DERIVED_BUNDLES/pins
+  (2293 files sealed); `site.py`: `soak_leg` + index section 6d
+  (no best arm, no verdicts; missing arms read "tier not in git
+  (re-dispatch owned by Maintainer)"); `supplement.py`: counts +
+  banner; `dossiers.py`: soak rows per pooler (duration-aware
+  dedupe, tier-suffixed labels, drift pointers), config prose
+  extended; `check.py`: all four coherence fns take soak inputs;
+  `repro.sh`: soak discovery + apply wiring.
+- Regen order verified: report -> site -> dossiers -> supplement
+  -> manifest -> charts (manifest SHA refresh only, no chart data
+  churn). `check.py` ok, 700/700 green, `repro.sh --dry-run`
+  intact, page JS `node --check` clean, HTTP smoke 200s with soak
+  rows live on dossiers and section 6d on index.
+- `docs/errata.md` filed + reproducibility table mirrors it;
+  `docs/m10-soak-matrix.md` status/coverage/sections 7-8.
+- Incidents: suite-order report.json clobber via unisolated
+  SOAKOUT in the no-data test (fixed in-test); mixed-status
+  unification pinned by parity test. Ideas:
+  `ideas/2026-09-15-poolduel-soak-tier-integrity.md`.
+- Follow-ups (not this slice): Maintainer re-dispatch of the 18
+  missing chunks (manifest in m10-soak-matrix.md s8); soak chart
+  figure (tps + drift per arm per tier); section-11 full gate.
+
+Current step: soak legs complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  manifest verify + --report determinism) -> merge -> Maintainer
+  re-dispatches the 18 missing soak chunks, then chains the
+  remaining section-11 work.
+`Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
+
+- the Builder
+
 ## Soak tier-integrity fix (Builder, 2026-09-15, branch `opencode/issue302-20260915034435`)
 
 Proven from committed git truth (not guessed): the m10-soak sweep

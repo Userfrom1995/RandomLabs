@@ -1,8 +1,13 @@
 # M10 Soak Matrix (long-horizon stability, Refs #302)
 
-> **Status**: defined in M10 (2026-09-14), staged sweep at
-> `poolduel/ci/poolduel-m10-soak.yml` (Lab promotes, Maintainer
-> dispatches). No soak numbers exist yet; nothing here is a result.
+> **Status**: defined in M10 (2026-09-14); sweep dispatched and
+> partially landed 2026-09-15 (run 34910054732, commit e7675597):
+> 18 of 36 (cell, arm, duration) groups in git (54 raw, 15 measured
+> plus 3 timeout/inconclusive medians, 34/36 chunk version files).
+> A harness filename defect dropped one tier per arm at merge (see
+> `docs/errata.md` 2026-09-15 and section 8 below); the absent 18
+> groups await Maintainer re-dispatch. Nothing here beyond the
+> committed bundles is a result.
 
 ## 1. Why soak
 
@@ -22,9 +27,13 @@ repeats (`m9_seed_for` bases 42/1337/9001, stride schedule):
 
 | Cell | Shape reused | Clients / pool | Workload |
 |---|---|---|---|
-| M10-S1 | M1-1 standard | 50 / 10 | tpcb read-write |
-| M10-S2 | M1-4 saturation | 200 / 10 | tpcb read-write |
+| M10-S1 | M1-1 standard | 100 / 10 | select-only |
+| M10-S2 | M1-4 saturation | 200 / 10 | select-only |
 | M10-S3 | M1-6 churn | per M1-6 | reconnect-per-transaction |
+
+(Geometries copied field-for-field from the M1 twin by
+`harness/soak.py:soak_cell`; verified against committed raw:
+workload/clients/pool_size on every landed row.)
 
 - Arms: direct, pgagroal, pgbouncer, pgpool, odyssey, pgcat.
   Supavisor is excluded from soak with a written reason
@@ -92,3 +101,49 @@ repeats at 30 vs 60 min).
 - Execution: `poolduel-m10-soak.yml` after Lab promotion,
   Maintainer dispatch.
 - Publication: M11 leak/tail/stability panels, verified-only.
+
+## 7. Scope correction (2026-09-15)
+
+Decision 6 above is superseded: soak medians no longer use the
+old context-free `write_medians` shape. Both `write_medians` and
+`report.aggregate` group by `(cell_id, duration_s, pooler)` and
+carry context keys plus `context_mixed` plus the p-latency
+quarantine flag, so every median is tier-labeled. Soak stays out
+of the statistics family, headlines, and claims by design (a
+stability estimand at n=3 with no per-repeat p-latency cannot
+feed paired-difference CIs); its bundle leg is counts plus
+tier-rows (`report.json: soak_cells/soak_measured/soak_na`,
+`sitemeta.json: soak_leg`, dossier soak rows).
+
+## 8. Landed coverage and re-dispatch manifest (2026-09-15)
+
+Run 34910054732 landed 18 of 36 groups (commit e7675597). Each
+(cell, arm) below ran at exactly one tier; the complementary
+tier never reached git (filename-collision loss, `docs/errata.md`).
+
+Present (tier-labeled medians in `results/m10-soak/`):
+
+| Cell | 1800 s tier | 3600 s tier |
+|---|---|---|
+| M10-S1 | direct, pgagroal, pgcat, pgpool | pgbouncer, odyssey |
+| M10-S2 | pgbouncer, pgcat, pgpool (timeout) | direct (timeout), pgagroal, odyssey |
+| M10-S3 | direct, odyssey, pgagroal (timeout), pgbouncer, pgcat | pgpool |
+
+Timeout/inconclusive groups above are honest 3/3-repeat
+findings, not gaps. Absent groups (Maintainer re-dispatch,
+chunk ids from `harness/soak.py` order):
+
+| Chunks | Groups |
+|---|---|
+| m10s03, m10s05 | M10-S1/1800 pgbouncer, odyssey |
+| m10s07, m10s08, m10s10, m10s12 | M10-S1/3600 direct, pgagroal, pgpool, pgcat |
+| m10s13, m10s14, m10s17 | M10-S2/1800 direct, pgagroal, odyssey |
+| m10s21, m10s22, m10s24 | M10-S2/3600 pgbouncer, pgpool, pgcat |
+| m10s28 | M10-S3/1800 pgpool |
+| m10s31, m10s32, m10s33, m10s35, m10s36 | M10-S3/3600 direct, pgagroal, pgbouncer, odyssey, pgcat |
+
+Chunks m10s35/m10s36 uploaded no version file at all; the other
+16 absent groups uploaded version files but lost their raw at
+the merge. Re-dispatch runs the fixed harness (tiered raw
+filenames), so re-measured tiers merge without collision. No
+group is interpolated, zero-filled, or carried forward.
