@@ -1,5 +1,5 @@
 {
-  "banner_sentence": "M1: 42 cells, M2: 111 records incl. 7 N/A, M9: 250 cells (215 measured, 6 N/A)",
+  "banner_sentence": "M1: 42 cells, M2: 111 records incl. 7 N/A, M9: 250 cells (215 measured, 6 N/A), soak: 18 tier-cells (15 measured)",
   "counts": {
     "m1_measured": 35,
     "m1_total": 42,
@@ -8,7 +8,9 @@
     "m2_total": 111,
     "m9_measured": 215,
     "m9_na": 6,
-    "m9_total": 250
+    "m9_total": 250,
+    "soak_measured": 15,
+    "soak_total": 18
   },
   "pooler_versions": {
     "odyssey": "1.5.1",
@@ -20,8 +22,9 @@
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
+    "m10-soak/medians.json": "49bce7ffa875d3f42642efbc2481817d5c446c39f01f28b239192e157c3d56cb",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "d1d207e56eb2ceb6efdc05a85af40d25119b50a8d9974c78672d0e8f6ff5a35b"
+    "report.json": "ba4720eaafdaa8ef7a3b4be0c916fbe1a2f30869991a9b129722b9bd07e03464"
   }
 }

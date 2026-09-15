@@ -35,8 +35,10 @@ class TesterManifestSealTest(unittest.TestCase):
         self.assertEqual(len(h), 64)
         self.assertTrue(all(c in "0123456789abcdef" for c in h))
         self.assertEqual(self.committed["build_hash"], h)
-        self.assertEqual(self.committed["total_raw_files"], 2239)
-        self.assertEqual(self.meta["total_raw_files"], 2239)
+        self.assertEqual(self.committed["total_raw_files"],
+                         150 + 319 + 1770 + 54)
+        self.assertEqual(self.meta["total_raw_files"],
+                         150 + 319 + 1770 + 54)
 
     def test_tamper_changes_hash(self):
         entries = copy.deepcopy(self.meta["legs"]["m1"]["files"][:3])
@@ -90,7 +92,7 @@ class TesterManifestSealTest(unittest.TestCase):
     def test_fragment_carries_hash_counts_bytes(self):
         fragment = manmod.render_meta_fragment(self.meta)
         self.assertIn(self.meta["build_hash"], fragment)
-        self.assertIn('data-raw-files="2239"', fragment)
+        self.assertIn('data-raw-files="2293"', fragment)
         self.assertIn('data-raw-bytes="%d"' % self.meta["total_raw_bytes"],
                       fragment)
 

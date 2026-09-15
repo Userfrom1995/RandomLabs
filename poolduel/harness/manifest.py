@@ -1,10 +1,11 @@
 """Poolduel M12 reproducibility manifest: deterministic build-hash package.
 
-Reads the committed ``results/m1|m2|m9/raw/*.json`` corpus plus every
-derived bundle (``medians.json``, ``matrix.csv``, ``report.json``,
-``sitemeta.json``, ``dossiermeta.json``, ``supplementmeta.json``) and
-writes ``results/manifest.json``: the single machine-readable source for
-the reproducibility page's manifest section (plan sections 11 + 12.2).
+Reads the committed ``results/m1|m2|m9|m10-soak/raw/*.json`` corpus
+plus every derived bundle (``medians.json``, ``matrix.csv``,
+``report.json``, ``sitemeta.json``, ``dossiermeta.json``,
+``supplementmeta.json``) and writes ``results/manifest.json``: the
+single machine-readable source for the reproducibility page's
+manifest section (plan sections 11 + 12.2).
 
 Determinism contract (plan section 11): the manifest hash is computed
 over ``relpath + sha256`` lines sorted by relpath, never over directory
@@ -19,9 +20,10 @@ data-availability) is static markup reviewed in git. Only the meta
 fragment between ``MANIFEST:meta`` markers is generated.
 
 Corpus policy (plan section 11): per-cell raw JSON is committed in git
-(2239 files, ~6 MB, budget 500 MB); per-cell stdout/stderr workdirs ship
-as CI sweep-run artifacts (too large for git, linked from the sweep run
-page); the manifest records both halves so a missing half is visible.
+(m1 150 + m2 319 + m9 1770 + m10-soak 54 files, ~6 MB, budget
+500 MB); per-cell stdout/stderr workdirs ship as CI sweep-run
+artifacts (too large for git, linked from the sweep run page); the
+manifest records both halves so a missing half is visible.
 
 Stdlib only. No interactive prompts; everything via flags.
 """
@@ -33,7 +35,7 @@ import json
 import os
 import sys
 
-RAW_LEGS = ["m1", "m2", "m9"]
+RAW_LEGS = ["m1", "m2", "m9", "m10-soak"]
 
 DERIVED_BUNDLES = [
     "m1/medians.json",
@@ -42,6 +44,8 @@ DERIVED_BUNDLES = [
     "m2/matrix.csv",
     "m9/medians.json",
     "m9/matrix.csv",
+    "m10-soak/medians.json",
+    "m10-soak/matrix.csv",
     "report.json",
     "sitemeta.json",
     "dossiermeta.json",
@@ -52,6 +56,7 @@ SWEEP_WORKFLOWS = [
     ".github/workflows/poolduel-m1.yml",
     ".github/workflows/poolduel-m2.yml",
     ".github/workflows/poolduel-m9.yml",
+    ".github/workflows/poolduel-m10-soak.yml",
     ".github/workflows/pages.yml",
 ]
 

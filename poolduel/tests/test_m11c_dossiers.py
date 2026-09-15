@@ -23,6 +23,7 @@ DOSSIERMETA = os.path.join(ROOT, "results", "dossiermeta.json")
 M1_MEDIANS = os.path.join(ROOT, "results", "m1", "medians.json")
 M2_MEDIANS = os.path.join(ROOT, "results", "m2", "medians.json")
 M9_MEDIANS = os.path.join(ROOT, "results", "m9", "medians.json")
+SOAK_MEDIANS = os.path.join(ROOT, "results", "m10-soak", "medians.json")
 REPORT = os.path.join(ROOT, "results", "report.json")
 
 
@@ -184,6 +185,7 @@ class TestDossierDrift(unittest.TestCase):
         cls.m1 = _load(M1_MEDIANS)
         cls.m2 = _load(M2_MEDIANS)
         cls.m9 = _load(M9_MEDIANS)
+        cls.soak = _load(SOAK_MEDIANS)
         cls.bundle = _load(REPORT)
 
     def test_all_six_dossiers_present(self):
@@ -194,7 +196,8 @@ class TestDossierDrift(unittest.TestCase):
     def test_rows_match_deduped_bundles(self):
         for pooler, dossier in self.meta["dossiers"].items():
             fresh = dossmod.build_dossier(pooler, self.m1, self.m2,
-                                         self.m9, self.bundle, {}, {})
+                                         self.m9, self.bundle, {}, {},
+                                         soak=self.soak)
             self.assertEqual(
                 [(r["cell_id"], r["status"], r["tps_band"]) for r in
                  dossier["rows"]],
@@ -205,13 +208,15 @@ class TestDossierDrift(unittest.TestCase):
     def test_leg_counts_match_raw_bundles(self):
         for pooler, dossier in self.meta["dossiers"].items():
             fresh_legs = dossmod.leg_counts(
-                {"M1": self.m1, "M2": self.m2, "M9": self.m9}, pooler)
+                {"M1": self.m1, "M2": self.m2, "M9": self.m9,
+                 "soak": self.soak}, pooler)
             self.assertEqual(dossier["legs"], fresh_legs,
                              "leg counts drifted for %s" % pooler)
 
     def test_sources_sha_match(self):
         for key in ("m1/medians.json", "m2/medians.json",
-                    "m9/medians.json", "report.json"):
+                    "m9/medians.json", "m10-soak/medians.json",
+                    "report.json"):
             path = os.path.join(ROOT, "results", key)
             with open(path, "rb") as handle:
                 import hashlib

@@ -19,6 +19,12 @@
           "na": 0,
           "timeout": 1,
           "total": 8
+        },
+        "soak": {
+          "measured": 3,
+          "na": 0,
+          "timeout": 0,
+          "total": 3
         }
       },
       "display": "odyssey",
@@ -55,6 +61,12 @@
           "na": 0,
           "timeout": 2,
           "total": 26
+        },
+        "soak": {
+          "measured": 3,
+          "na": 0,
+          "timeout": 0,
+          "total": 3
         }
       },
       "pg": "PG 17",
@@ -65,7 +77,7 @@
           "none (CI-only frontend; backend leg SCRAM)",
           "scram-sha-256 on every frontend (M9-E1 equalized control)"
         ],
-        "cpu_median_s": 3.517715,
+        "cpu_median_s": 3.5101769999999997,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -75,11 +87,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 180,
+        "pg_disclosed": 189,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 52768.0,
-        "samples": 180
+        "rss_median_kb": 52768,
+        "samples": 189
       },
       "rows": [
         {
@@ -432,6 +444,45 @@
           "status": "measured",
           "tps_band": "216 [215-228]",
           "tps_median": 216.022706
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 60-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "11,217 [11,196-11,256]",
+          "tps_median": 11216.856668
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 60-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "11,345 [11,331-11,361]",
+          "tps_median": 11344.994858
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/odyssey.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
+          "n": 3,
+          "p99": "17.4 ms",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "6,461 [6,442-6,469]",
+          "tps_median": 6460.874565
         }
       ],
       "verdicts": {
@@ -462,6 +513,12 @@
           "na": 0,
           "timeout": 3,
           "total": 8
+        },
+        "soak": {
+          "measured": 2,
+          "na": 0,
+          "timeout": 1,
+          "total": 3
         }
       },
       "display": "pgagroal",
@@ -498,6 +555,12 @@
           "na": 0,
           "timeout": 13,
           "total": 26
+        },
+        "soak": {
+          "measured": 2,
+          "na": 0,
+          "timeout": 1,
+          "total": 3
         }
       },
       "pg": "PG 17",
@@ -507,7 +570,7 @@
         "auth": [
           "scram-sha-256 via HBA + vault passthrough"
         ],
-        "cpu_median_s": 2.5843835,
+        "cpu_median_s": 2.9306025,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -517,11 +580,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 108,
+        "pg_disclosed": 114,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 51332.0,
-        "samples": 108
+        "rss_median_kb": 70602.0,
+        "samples": 114
       },
       "rows": [
         {
@@ -887,6 +950,45 @@
           "status": "timeout/inconclusive",
           "tps_band": null,
           "tps_median": null
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 30-min tier",
+          "n": 3,
+          "p99": "55.8 ms",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "1,821 [1,692-2,314]",
+          "tps_median": 1820.922519
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 60-min tier",
+          "n": 3,
+          "p99": "35.1 ms",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "1,408 [1,259-1,686]",
+          "tps_median": 1408.089415
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgagroal.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
         }
       ],
       "verdicts": {
@@ -917,6 +1019,12 @@
           "na": 0,
           "timeout": 1,
           "total": 8
+        },
+        "soak": {
+          "measured": 3,
+          "na": 0,
+          "timeout": 0,
+          "total": 3
         }
       },
       "display": "pgbouncer",
@@ -953,6 +1061,12 @@
           "na": 0,
           "timeout": 5,
           "total": 27
+        },
+        "soak": {
+          "measured": 3,
+          "na": 0,
+          "timeout": 0,
+          "total": 3
         }
       },
       "pg": "PG 17",
@@ -963,7 +1077,7 @@
           "scram-sha-256 on every frontend (M9-E1 equalized control)",
           "scram-sha-256 via auth_file users.txt"
         ],
-        "cpu_median_s": 2.8921175,
+        "cpu_median_s": 2.814424,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -973,11 +1087,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 166,
+        "pg_disclosed": 175,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 59296.0,
-        "samples": 166
+        "rss_median_kb": 52352,
+        "samples": 175
       },
       "rows": [
         {
@@ -1330,6 +1444,45 @@
           "status": "measured",
           "tps_band": "372 [357-379]",
           "tps_median": 372.486822
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 60-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "26,657 [26,475-26,787]",
+          "tps_median": 26657.160698
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 30-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "45,606 [45,533-45,868]",
+          "tps_median": 45606.046406
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgbouncer.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
+          "n": 3,
+          "p99": "253.1 ms",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "397 [396-400]",
+          "tps_median": 396.954385
         }
       ],
       "verdicts": {
@@ -1360,6 +1513,12 @@
           "na": 0,
           "timeout": 1,
           "total": 8
+        },
+        "soak": {
+          "measured": 3,
+          "na": 0,
+          "timeout": 0,
+          "total": 3
         }
       },
       "display": "pgcat",
@@ -1396,6 +1555,12 @@
           "na": 0,
           "timeout": 3,
           "total": 24
+        },
+        "soak": {
+          "measured": 3,
+          "na": 0,
+          "timeout": 0,
+          "total": 3
         }
       },
       "pg": "PG 17",
@@ -1406,7 +1571,7 @@
           "scram-sha-256 on every frontend (M9-E1 equalized control)",
           "scram-sha-256 via admin/users file"
         ],
-        "cpu_median_s": 3.763808,
+        "cpu_median_s": 3.7477905,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -1416,11 +1581,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 159,
+        "pg_disclosed": 168,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 50056,
-        "samples": 159
+        "rss_median_kb": 42572.0,
+        "samples": 168
       },
       "rows": [
         {
@@ -1760,6 +1925,45 @@
           "status": "measured",
           "tps_band": "4,178 [4,155-6,626]",
           "tps_median": 4178.118574
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 30-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "18,718 [18,706-18,729]",
+          "tps_median": 18717.873345
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 30-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "18,820 [18,520-18,825]",
+          "tps_median": 18819.659952
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgcat.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
+          "n": 3,
+          "p99": "18.2 ms",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "5,732 [5,707-5,771]",
+          "tps_median": 5732.222936
         }
       ],
       "verdicts": {
@@ -1790,6 +1994,12 @@
           "na": 0,
           "timeout": 2,
           "total": 8
+        },
+        "soak": {
+          "measured": 2,
+          "na": 0,
+          "timeout": 1,
+          "total": 3
         }
       },
       "display": "pgpool-II",
@@ -1826,6 +2036,12 @@
           "na": 0,
           "timeout": 4,
           "total": 24
+        },
+        "soak": {
+          "measured": 2,
+          "na": 0,
+          "timeout": 1,
+          "total": 3
         }
       },
       "pg": "PG 17",
@@ -1835,7 +2051,7 @@
         "auth": [
           "pool_hba disabled (default; backend SCRAM via pool_passwd)"
         ],
-        "cpu_median_s": 2.51206,
+        "cpu_median_s": 2.463877,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -1845,11 +2061,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 153,
+        "pg_disclosed": 159,
         "pg_enforced": 0,
         "pg_other": 0,
         "rss_median_kb": 36284,
-        "samples": 153
+        "samples": 159
       },
       "rows": [
         {
@@ -2189,6 +2405,45 @@
           "status": "timeout/inconclusive",
           "tps_band": null,
           "tps_median": null
+        },
+        {
+          "cell_id": "M10-S1",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, 30-min tier",
+          "n": 3,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "37,143 [36,954-37,675]",
+          "tps_median": 37143.053253
+        },
+        {
+          "cell_id": "M10-S2",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "soak",
+          "load": "select-only, 200c/10p, simple, 30-min tier",
+          "n": 0,
+          "p99": "-",
+          "peak": false,
+          "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "timeout/inconclusive",
+          "tps_band": null,
+          "tps_median": null
+        },
+        {
+          "cell_id": "M10-S3",
+          "docs": "../docs/configs/pgpool-II.md",
+          "leg": "soak",
+          "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
+          "n": 3,
+          "p99": "525.4 ms",
+          "peak": false,
+          "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
+          "status": "measured",
+          "tps_band": "209 [208-209]",
+          "tps_median": 208.565865
         }
       ],
       "verdicts": {
@@ -2219,6 +2474,12 @@
           "na": 6,
           "timeout": 0,
           "total": 6
+        },
+        "soak": {
+          "measured": 0,
+          "na": 0,
+          "timeout": 0,
+          "total": 0
         }
       },
       "display": "supavisor",
@@ -2247,6 +2508,12 @@
           "na": 6,
           "timeout": 0,
           "total": 6
+        },
+        "soak": {
+          "measured": 0,
+          "na": 0,
+          "timeout": 0,
+          "total": 0
         }
       },
       "pg": "PG 17",
@@ -2355,8 +2622,9 @@
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
+    "m10-soak/medians.json": "49bce7ffa875d3f42642efbc2481817d5c446c39f01f28b239192e157c3d56cb",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "d1d207e56eb2ceb6efdc05a85af40d25119b50a8d9974c78672d0e8f6ff5a35b"
+    "report.json": "ba4720eaafdaa8ef7a3b4be0c916fbe1a2f30869991a9b129722b9bd07e03464"
   }
 }

@@ -68,7 +68,7 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <h2>Config anatomy</h2>
 <!-- DOSSIER:config:begin -->
 <div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
-<p class="note">Every pgpool-II config with its results in full: M1 7 rows plus 11 M2 rows (8 measured + 1 timeout/inconclusive) plus 2 N/A rows; M9 24 rows (20 measured + 4 timeout/inconclusive) plus 0 N/A rows. Table shows the max-repeats evidence per cell; full history in the matrix.csv files. Peak config tagged.</p>
+<p class="note">Every pgpool-II config with its results in full: M1 7 rows plus 11 M2 rows (8 measured + 1 timeout/inconclusive) plus 2 N/A rows; M9 24 rows (20 measured + 4 timeout/inconclusive) plus 0 N/A rows; M10 soak 3 tier-rows (2 measured + 1 timeout/inconclusive). Table shows the max-repeats evidence per tier-cell; full history in the matrix.csv files. Peak config tagged.</p>
 <table data-config-results data-pooler="pgpool"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
 <tr data-cell="M1-1" data-pooler="pgpool" data-status="measured"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td>session-class; children 100x max_pool 1 = 100 backends (1:1, no multiplexing)</td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps ok">14,679 [14,112-17,443]</td><td>p99 25.9 ms, n=10</td><td class="live-status ok">measured</td></tr>
 <tr data-cell="M1-2" data-pooler="pgpool" data-status="measured"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td>session-class; children 100x max_pool 1 = 100 backends (1:1)</td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps ok">2,476 [2,225-4,393]</td><td>p99 85.5 ms, n=10</td><td class="live-status ok">measured</td></tr>
@@ -96,6 +96,9 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <tr data-cell="M9-C6" data-pooler="pgpool" data-status="measured"><td>M9-C6</td><td>select-only, 100c/10p, simple, churn (-C), scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps ok">209 [208-264]</td><td>p99 519.6 ms, n=7</td><td class="live-status ok">measured</td></tr>
 <tr data-cell="M9-C7" data-pooler="pgpool" data-status="measured"><td>M9-C7</td><td>tpcb-like, 100c/10p, simple, scale 100</td><td>M9 resweep, scale 100; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps ok">2,469 [2,311-2,687]</td><td>p99 105.8 ms, n=7</td><td class="live-status ok">measured</td></tr>
 <tr data-cell="M9-E1" data-pooler="pgpool" data-status="timeout"><td>M9-E1</td><td>select-only, 100c/10p, simple, churn (-C)</td><td>M9 resweep, scale 10; exact variant in <a href="../results/m9/matrix.csv">results/m9/matrix.csv</a></td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M10-S1" data-pooler="pgpool" data-status="measured"><td>M10-S1</td><td>select-only, 100c/10p, simple, 30-min tier</td><td>M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps ok">37,143 [36,954-37,675]</td><td>p99 -, n=3</td><td class="live-status ok">measured</td></tr>
+<tr data-cell="M10-S2" data-pooler="pgpool" data-status="timeout"><td>M10-S2</td><td>select-only, 200c/10p, simple, 30-min tier</td><td>M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps">timeout/inconclusive</td><td>p99 -, n=0</td><td class="live-status na">timeout/inconclusive</td></tr>
+<tr data-cell="M10-S3" data-pooler="pgpool" data-status="measured"><td>M10-S3</td><td>select-only, 100c/10p, simple, churn (-C), 60-min tier</td><td>M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgpool-II.md">pgpool-II.md</a></td><td class="live-tps ok">209 [208-209]</td><td>p99 525.4 ms, n=3</td><td class="live-status ok">measured</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/pgpool-II.md">docs/configs/pgpool-II.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
 <!-- DOSSIER:config:end -->
@@ -110,10 +113,10 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <h3>Resource evidence</h3>
 <!-- DOSSIER:resources:begin -->
 <table><tr><th>Signal</th><th>Median over measured raw</th></tr>
-<tr><td>pgbench CPU time</td><td>2.51 s (n=153)</td></tr>
+<tr><td>pgbench CPU time</td><td>2.46 s (n=159)</td></tr>
 <tr><td>pgbench peak RSS</td><td>36,284 KB</td></tr>
 <tr><td>Iron</td><td>AMD EPYC 7763 64-Core Processor, kernel 6.17.0-1022-azure, 4 CPUs, pgbench -j 4</td></tr>
-<tr><td>PG config status</td><td>0 enforced, 153 disclosed, 0 other</td></tr>
+<tr><td>PG config status</td><td>0 enforced, 159 disclosed, 0 other</td></tr>
 </table>
 <p class="note">Auth posture: pool_hba disabled (default; backend SCRAM via pool_passwd).</p>
 <p class="note">Dataset: per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk.</p>
@@ -131,6 +134,7 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <tr><td>M2-T2</td><td>N/A (unsupported)</td><td>-</td></tr>
 <tr><td>M9-C4</td><td>timeout/inconclusive</td><td>-</td></tr>
 <tr><td>M9-E1</td><td>timeout/inconclusive</td><td>-</td></tr>
+<tr><td>M10-S2</td><td>timeout/inconclusive</td><td>-</td></tr>
 </table>
 <!-- DOSSIER:na:end -->
 </div>

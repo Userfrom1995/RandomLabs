@@ -75,10 +75,12 @@ class ManifestContentTest(unittest.TestCase):
         cls.meta = manmod.build_manifest(RESULTS, repo)
 
     def test_counts_match_corpus(self):
-        self.assertEqual(self.meta["total_raw_files"], 150 + 319 + 1770)
+        self.assertEqual(self.meta["total_raw_files"],
+                         150 + 319 + 1770 + 54)
         self.assertEqual(self.meta["legs"]["m1"]["raw_files"], 150)
         self.assertEqual(self.meta["legs"]["m2"]["raw_files"], 319)
         self.assertEqual(self.meta["legs"]["m9"]["raw_files"], 1770)
+        self.assertEqual(self.meta["legs"]["m10-soak"]["raw_files"], 54)
 
     def test_within_size_budget(self):
         self.assertTrue(self.meta["within_budget"])

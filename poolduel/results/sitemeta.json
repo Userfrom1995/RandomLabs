@@ -3,7 +3,8 @@
     "m1_measured": 35,
     "m1_total": 42,
     "m2_na": 7,
-    "m2_total": 111
+    "m2_total": 111,
+    "soak_total": 18
   },
   "executive_cards": [
     {
@@ -1107,10 +1108,249 @@
     "timeout": 29,
     "total": 250
   },
+  "soak_leg": {
+    "measured": 15,
+    "method": "30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift",
+    "missing": 18,
+    "present": 18,
+    "rows": [
+      {
+        "arms": [
+          {
+            "pooler": "direct",
+            "status": "measured",
+            "tps_band": "23,247 [23,199-23,753]"
+          },
+          {
+            "pooler": "pgagroal",
+            "status": "measured",
+            "tps_band": "1,821 [1,692-2,314]"
+          },
+          {
+            "pooler": "pgbouncer",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgpool",
+            "status": "measured",
+            "tps_band": "37,143 [36,954-37,675]"
+          },
+          {
+            "pooler": "odyssey",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgcat",
+            "status": "measured",
+            "tps_band": "18,718 [18,706-18,729]"
+          }
+        ],
+        "cell_id": "M10-S1",
+        "duration_s": 1800,
+        "geometry": "standard select-only 100c/10p (M1-1 shape): baseline leak/tail figure every pooler must hold flat",
+        "title": "M10-S1, 30-min tier"
+      },
+      {
+        "arms": [
+          {
+            "pooler": "direct",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgagroal",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgbouncer",
+            "status": "measured",
+            "tps_band": "26,657 [26,475-26,787]"
+          },
+          {
+            "pooler": "pgpool",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "odyssey",
+            "status": "measured",
+            "tps_band": "11,217 [11,196-11,256]"
+          },
+          {
+            "pooler": "pgcat",
+            "status": "missing",
+            "tps_band": null
+          }
+        ],
+        "cell_id": "M10-S1",
+        "duration_s": 3600,
+        "geometry": "standard select-only 100c/10p (M1-1 shape): baseline leak/tail figure every pooler must hold flat",
+        "title": "M10-S1, 60-min tier"
+      },
+      {
+        "arms": [
+          {
+            "pooler": "direct",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgagroal",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgbouncer",
+            "status": "measured",
+            "tps_band": "45,606 [45,533-45,868]"
+          },
+          {
+            "pooler": "pgpool",
+            "status": "timeout/inconclusive",
+            "tps_band": null
+          },
+          {
+            "pooler": "odyssey",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgcat",
+            "status": "measured",
+            "tps_band": "18,820 [18,520-18,825]"
+          }
+        ],
+        "cell_id": "M10-S2",
+        "duration_s": 1800,
+        "geometry": "saturation 200c/10p (M1-4 shape): pool-exhaustion pressure over 30-60 min, where queue/RSS drift shows first",
+        "title": "M10-S2, 30-min tier"
+      },
+      {
+        "arms": [
+          {
+            "pooler": "direct",
+            "status": "timeout/inconclusive",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgagroal",
+            "status": "measured",
+            "tps_band": "1,408 [1,259-1,686]"
+          },
+          {
+            "pooler": "pgbouncer",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgpool",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "odyssey",
+            "status": "measured",
+            "tps_band": "11,345 [11,331-11,361]"
+          },
+          {
+            "pooler": "pgcat",
+            "status": "missing",
+            "tps_band": null
+          }
+        ],
+        "cell_id": "M10-S2",
+        "duration_s": 3600,
+        "geometry": "saturation 200c/10p (M1-4 shape): pool-exhaustion pressure over 30-60 min, where queue/RSS drift shows first",
+        "title": "M10-S2, 60-min tier"
+      },
+      {
+        "arms": [
+          {
+            "pooler": "direct",
+            "status": "measured",
+            "tps_band": "262 [262-263]"
+          },
+          {
+            "pooler": "pgagroal",
+            "status": "timeout/inconclusive",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgbouncer",
+            "status": "measured",
+            "tps_band": "397 [396-400]"
+          },
+          {
+            "pooler": "pgpool",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "odyssey",
+            "status": "measured",
+            "tps_band": "6,461 [6,442-6,469]"
+          },
+          {
+            "pooler": "pgcat",
+            "status": "measured",
+            "tps_band": "5,732 [5,707-5,771]"
+          }
+        ],
+        "cell_id": "M10-S3",
+        "duration_s": 1800,
+        "geometry": "connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first",
+        "title": "M10-S3, 30-min tier"
+      },
+      {
+        "arms": [
+          {
+            "pooler": "direct",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgagroal",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgbouncer",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgpool",
+            "status": "measured",
+            "tps_band": "209 [208-209]"
+          },
+          {
+            "pooler": "odyssey",
+            "status": "missing",
+            "tps_band": null
+          },
+          {
+            "pooler": "pgcat",
+            "status": "missing",
+            "tps_band": null
+          }
+        ],
+        "cell_id": "M10-S3",
+        "duration_s": 3600,
+        "geometry": "connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first",
+        "title": "M10-S3, 60-min tier"
+      }
+    ],
+    "timeout": 3,
+    "total": 36
+  },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
+    "m10-soak/medians.json": "49bce7ffa875d3f42642efbc2481817d5c446c39f01f28b239192e157c3d56cb",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "d1d207e56eb2ceb6efdc05a85af40d25119b50a8d9974c78672d0e8f6ff5a35b"
+    "report.json": "ba4720eaafdaa8ef7a3b4be0c916fbe1a2f30869991a9b129722b9bd07e03464"
   }
 }

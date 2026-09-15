@@ -323,6 +323,20 @@ exact configs attached (verbatim in <code>docs/configs/</code>).</p>
 <!-- SITE:m9:end -->
 </div>
 <div class="section">
+<h2>6d. Long-horizon stability leg (M10 soak: leak and tail drift)</h2>
+<!-- SITE:soak:begin -->
+<p>Long-horizon stability: <strong>15 measured</strong> of 36 spec tier-cells (18 present, 3 timeout/inconclusive, 18 not yet measured). No best arm, no verdicts: soak figures read as stability beside collapse. Method: 30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift. Full matrix: <a href="results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a>.</p>
+<table><tr><th>Tier cell</th><th>Geometry</th><th>Arms (tps median [min-max]; status)</th></tr>
+<tr><td><strong>M10-S1, 30-min tier</strong></td><td>standard select-only 100c/10p (M1-1 shape): baseline leak/tail figure every pooler must hold flat</td><td class="note">direct: 23,247 [23,199-23,753]<br>pgagroal: 1,821 [1,692-2,314]<br>pgbouncer: tier not in git (re-dispatch owned by Maintainer)<br>pgpool: 37,143 [36,954-37,675]<br>odyssey: tier not in git (re-dispatch owned by Maintainer)<br>pgcat: 18,718 [18,706-18,729]</td></tr>
+<tr><td><strong>M10-S1, 60-min tier</strong></td><td>standard select-only 100c/10p (M1-1 shape): baseline leak/tail figure every pooler must hold flat</td><td class="note">direct: tier not in git (re-dispatch owned by Maintainer)<br>pgagroal: tier not in git (re-dispatch owned by Maintainer)<br>pgbouncer: 26,657 [26,475-26,787]<br>pgpool: tier not in git (re-dispatch owned by Maintainer)<br>odyssey: 11,217 [11,196-11,256]<br>pgcat: tier not in git (re-dispatch owned by Maintainer)</td></tr>
+<tr><td><strong>M10-S2, 30-min tier</strong></td><td>saturation 200c/10p (M1-4 shape): pool-exhaustion pressure over 30-60 min, where queue/RSS drift shows first</td><td class="note">direct: tier not in git (re-dispatch owned by Maintainer)<br>pgagroal: tier not in git (re-dispatch owned by Maintainer)<br>pgbouncer: 45,606 [45,533-45,868]<br>pgpool: timeout/inconclusive<br>odyssey: tier not in git (re-dispatch owned by Maintainer)<br>pgcat: 18,820 [18,520-18,825]</td></tr>
+<tr><td><strong>M10-S2, 60-min tier</strong></td><td>saturation 200c/10p (M1-4 shape): pool-exhaustion pressure over 30-60 min, where queue/RSS drift shows first</td><td class="note">direct: timeout/inconclusive<br>pgagroal: 1,408 [1,259-1,686]<br>pgbouncer: tier not in git (re-dispatch owned by Maintainer)<br>pgpool: tier not in git (re-dispatch owned by Maintainer)<br>odyssey: 11,345 [11,331-11,361]<br>pgcat: tier not in git (re-dispatch owned by Maintainer)</td></tr>
+<tr><td><strong>M10-S3, 30-min tier</strong></td><td>connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first</td><td class="note">direct: 262 [262-263]<br>pgagroal: timeout/inconclusive<br>pgbouncer: 397 [396-400]<br>pgpool: tier not in git (re-dispatch owned by Maintainer)<br>odyssey: 6,461 [6,442-6,469]<br>pgcat: 5,732 [5,707-5,771]</td></tr>
+<tr><td><strong>M10-S3, 60-min tier</strong></td><td>connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first</td><td class="note">direct: tier not in git (re-dispatch owned by Maintainer)<br>pgagroal: tier not in git (re-dispatch owned by Maintainer)<br>pgbouncer: tier not in git (re-dispatch owned by Maintainer)<br>pgpool: 209 [208-209]<br>odyssey: tier not in git (re-dispatch owned by Maintainer)<br>pgcat: tier not in git (re-dispatch owned by Maintainer)</td></tr>
+</table>
+<!-- SITE:soak:end -->
+</div>
+<div class="section">
 <h2>6b. Comparison graphs (interactive, ECharts SVG)</h2>
 <p class="note">Every figure below is generated from committed bundles by
 <code>harness/charts.py</code> (<code>results/charts/comparison.json</code>,

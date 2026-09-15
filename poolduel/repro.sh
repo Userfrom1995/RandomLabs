@@ -9,6 +9,7 @@ THREADS="${THREADS:-$(nproc 2>/dev/null || echo 4)}"
 OUT="${OUT:-poolduel/results/m1}"
 M2OUT="${M2OUT:-poolduel/results/m2}"
 M9OUT="${M9OUT:-poolduel/results/m9}"
+SOAKOUT="${SOAKOUT:-poolduel/results/m10-soak}"
 MODE="${1:-}"
 M2CHUNK="${2:-}"
 
@@ -132,16 +133,23 @@ case "$MODE" in
         M9ARGS="$M9ARGS --m9-dir $d"
       fi
     done
-    if [ -z "$M1ARGS$M2ARGS$M9ARGS" ]; then
+    SOAKARGS=""
+    for d in "$SOAKOUT" poolduel/results/m10-soak-*; do
+      if [ -d "$d/raw" ] && ls "$d"/raw/*.json >/dev/null 2>&1; then
+        SOAKARGS="$SOAKARGS --soak-dir $d"
+      fi
+    done
+    if [ -z "$M1ARGS$M2ARGS$M9ARGS$SOAKARGS" ]; then
       echo "poolduel repro: no sweep data (no raw/*.json under" >&2
-      echo "  $OUT, $M2OUT, $M9OUT, poolduel/results/m1-*," >&2
-      echo "  poolduel/results/m2-*, poolduel/results/m9-*)" >&2
+      echo "  $OUT, $M2OUT, $M9OUT, $SOAKOUT, poolduel/results/m1-*," >&2
+      echo "  poolduel/results/m2-*, poolduel/results/m9-*," >&2
+      echo "  poolduel/results/m10-soak-*)" >&2
       echo "  run --pilot/--full/--m2-full/--m9-full first;" >&2
       echo "  not inventing numbers" >&2
       exit 1
     fi
     # shellcheck disable=SC2086
-    python3 -m poolduel.harness.report $M1ARGS $M2ARGS $M9ARGS \
+    python3 -m poolduel.harness.report $M1ARGS $M2ARGS $M9ARGS $SOAKARGS \
       --out poolduel/results
     ;;
   --pagemeta)
@@ -157,8 +165,10 @@ case "$MODE" in
       --m1 poolduel/results/m1/medians.json \
       --m2 poolduel/results/m2/medians.json \
       --m9 poolduel/results/m9/medians.json \
+      --soak poolduel/results/m10-soak/medians.json \
       --report poolduel/results/report.json \
-      --out poolduel/results/sitemeta.json
+      --out poolduel/results/sitemeta.json \
+      --apply poolduel/index.html
     ;;
   --dossiers)
     echo "poolduel repro: pre-render dossier pages from committed bundles"
@@ -166,8 +176,9 @@ case "$MODE" in
       --m1 poolduel/results/m1/medians.json \
       --m2 poolduel/results/m2/medians.json \
       --m9 poolduel/results/m9/medians.json \
+      --soak poolduel/results/m10-soak/medians.json \
       --report poolduel/results/report.json \
-      --rawdirs poolduel/results/m1/raw,poolduel/results/m2/raw,poolduel/results/m9/raw \
+      --rawdirs poolduel/results/m1/raw,poolduel/results/m2/raw,poolduel/results/m9/raw,poolduel/results/m10-soak/raw \
       --pages poolduel \
       --out poolduel/results/dossiermeta.json \
       --apply
@@ -178,6 +189,7 @@ case "$MODE" in
       --m1 poolduel/results/m1/medians.json \
       --m2 poolduel/results/m2/medians.json \
       --m9 poolduel/results/m9/medians.json \
+      --soak poolduel/results/m10-soak/medians.json \
       --report poolduel/results/report.json \
       --out poolduel/results/supplementmeta.json \
       --apply
