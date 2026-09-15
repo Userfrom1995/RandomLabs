@@ -6,13 +6,13 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.013095447779344564,
+      "cv": 0.018236493467882146,
       "max": 4.305,
-      "median": 4.296,
-      "min": 4.204,
-      "n": 3
+      "median": 4.1845,
+      "min": 4.122,
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -48,10 +48,67 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.013099816082980277,
-      "max": 23752.506947,
-      "median": 23247.443376,
+      "cv": 0.018075928984008338,
+      "max": 24225.585577,
+      "median": 23863.761818,
       "min": 23199.031128,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S1",
+    "churn": false,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.0028849560920175803,
+      "max": 8.745,
+      "median": 8.706,
+      "min": 8.698,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.0032173037545628748,
+      "max": 8.696,
+      "median": 8.651,
+      "min": 8.645,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.0025466628231580225,
+      "max": 9.079,
+      "median": 9.059000000000001,
+      "min": 9.033,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.0033848223838899745,
+      "max": 11.533,
+      "median": 11.52,
+      "min": 11.46,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.00039504596308301114,
+      "max": 10.234,
+      "median": 10.231,
+      "min": 10.226,
+      "n": 3
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "odyssey",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.0028958247036764886,
+      "max": 11488.629242,
+      "median": 11478.843542,
+      "min": 11426.860234,
       "n": 3
     },
     "workload": "select-only"
@@ -63,40 +120,40 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.1586274753559737,
+      "cv": 0.1316740578003732,
       "max": 59.002,
-      "median": 54.729,
+      "median": 50.644,
       "min": 42.997,
-      "n": 3
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
-      "cv": 0.18188286196271114,
+      "cv": 0.16357608625059655,
       "max": 2.542,
-      "median": 2.102,
-      "min": 1.767,
-      "n": 3
+      "median": 2.0164999999999997,
+      "min": 1.669,
+      "n": 6
     },
     "p90_ms": {
-      "cv": 0.11554558501993835,
+      "cv": 0.10674806037040112,
       "max": 7.36,
-      "median": 7.219,
+      "median": 6.6945,
       "min": 5.927,
-      "n": 3
+      "n": 6
     },
     "p999_ms": {
-      "cv": 0.231708612320212,
+      "cv": 0.19021624893680583,
       "max": 397.5871840000148,
-      "median": 330.00626999999304,
+      "median": 307.113916999999,
       "min": 247.25493700000504,
-      "n": 3
+      "n": 6
     },
     "p99_ms": {
-      "cv": 0.17894314217735285,
+      "cv": 0.13531886747435912,
       "max": 56.711,
-      "median": 55.83831999999984,
+      "median": 51.40722999999998,
       "min": 40.482569999999825,
-      "n": 3
+      "n": 6
     },
     "p_quarantined": false,
     "pool_size": 10,
@@ -105,10 +162,67 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.16900352586467562,
+      "cv": 0.13109343740705973,
       "max": 2314.256292,
-      "median": 1820.922519,
+      "median": 1980.8240095,
       "min": 1692.365536,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S1",
+    "churn": false,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.003831624209725882,
+      "max": 5.895,
+      "median": 5.873,
+      "min": 5.85,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgbouncer",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.0038808213875981645,
+      "max": 17075.865852,
+      "median": 17008.336377,
+      "min": 16943.857075,
       "n": 3
     },
     "workload": "select-only"
@@ -120,13 +234,13 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.0005674295441649544,
+      "cv": 0.030865873708243535,
       "max": 5.29,
-      "median": 5.287,
-      "min": 5.284,
-      "n": 3
+      "median": 5.1530000000000005,
+      "min": 4.972,
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -162,11 +276,11 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.0006165393677862479,
-      "max": 18729.472062,
-      "median": 18717.873345,
+      "cv": 0.030937242213842496,
+      "max": 19905.379613,
+      "median": 19218.439701000003,
       "min": 18706.391501,
-      "n": 3
+      "n": 6
     },
     "workload": "select-only"
   },
@@ -177,13 +291,13 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.010096377811115446,
-      "max": 2.702,
-      "median": 2.689,
+      "cv": 0.42386837949083933,
+      "max": 6.08,
+      "median": 4.3695,
       "min": 2.65,
-      "n": 3
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -219,10 +333,67 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.010032043152216886,
+      "cv": 0.4251909254525621,
       "max": 37675.043924,
-      "median": 37143.053253,
-      "min": 36954.243461,
+      "median": 26733.0677395,
+      "min": 16361.129302,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S1",
+    "churn": false,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.004128825391798665,
+      "max": 3.219,
+      "median": 3.199,
+      "min": 3.194,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "direct",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.004014102824202044,
+      "max": 31263.395106,
+      "median": 31217.17811,
+      "min": 31027.306342,
       "n": 3
     },
     "workload": "select-only"
@@ -234,13 +405,13 @@
     "context_mixed": false,
     "duration_s": 3600,
     "latency_avg_ms": {
-      "cv": 0.0026836934288743666,
+      "cv": 0.07969470733798696,
       "max": 8.925,
-      "median": 8.909,
-      "min": 8.878,
-      "n": 3
+      "median": 8.3165,
+      "min": 7.653,
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -276,10 +447,67 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.002712192340561094,
-      "max": 11256.049564,
-      "median": 11216.856668,
+      "cv": 0.07974656011555352,
+      "max": 13058.04492,
+      "median": 12071.1610865,
       "min": 11196.1105,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S1",
+    "churn": false,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.07970719678075099,
+      "max": 63.21,
+      "median": 60.028,
+      "min": 53.945,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.023728921334911418,
+      "max": 1.871,
+      "median": 1.849,
+      "min": 1.787,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.10124499312898134,
+      "max": 8.713,
+      "median": 7.928,
+      "min": 7.11,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.11173557422287145,
+      "max": 506.1868919999897,
+      "median": 489.4797779999506,
+      "min": 408.418108000001,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.18463389919593537,
+      "max": 65.69688000000082,
+      "median": 56.141,
+      "min": 45.158,
+      "n": 3
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgagroal",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.08219579778480815,
+      "max": 1852.67114,
+      "median": 1664.35299,
+      "min": 1579.886546,
       "n": 3
     },
     "workload": "select-only"
@@ -291,13 +519,13 @@
     "context_mixed": false,
     "duration_s": 3600,
     "latency_avg_ms": {
-      "cv": 0.005900999474670783,
+      "cv": 0.26525317154725553,
       "max": 3.772,
-      "median": 3.746,
-      "min": 3.728,
-      "n": 3
+      "median": 3.0105000000000004,
+      "min": 2.283,
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -333,10 +561,124 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.005879524214427571,
-      "max": 26787.076249,
-      "median": 26657.160698,
+      "cv": 0.2651329475984725,
+      "max": 43744.796311,
+      "median": 35162.592192000004,
       "min": 26475.258398,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S1",
+    "churn": false,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.0034644059580699205,
+      "max": 5.087,
+      "median": 5.081,
+      "min": 5.054,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgcat",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.003399795214236749,
+      "max": 19595.747821,
+      "median": 19494.138092,
+      "min": 19470.986662,
+      "n": 3
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S1",
+    "churn": false,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.012810315575335933,
+      "max": 6.707,
+      "median": 6.569,
+      "min": 6.553,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgpool",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.012714927622408079,
+      "max": 15219.483072,
+      "median": 15197.752441,
+      "min": 14876.649849,
       "n": 3
     },
     "workload": "select-only"
@@ -348,13 +690,184 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.0038460456884454267,
-      "max": 4.387,
-      "median": 4.38,
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "direct",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S2",
+    "churn": false,
+    "clients": 200,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.006960459262482501,
+      "max": 17.999,
+      "median": 17.795,
+      "min": 17.774,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.008786830563778296,
+      "max": 17.926,
+      "median": 17.671,
+      "min": 17.643,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.008097753156755361,
+      "max": 18.746,
+      "median": 18.547,
+      "min": 18.451,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.00897474691443162,
+      "max": 23.077,
+      "median": 22.784,
+      "min": 22.682,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.006717183440049351,
+      "max": 20.977,
+      "median": 20.746,
+      "min": 20.725,
+      "n": 3
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "odyssey",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.006928189945088001,
+      "max": 11247.537718,
+      "median": 11234.68102,
+      "min": 11107.214038,
+      "n": 3
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S2",
+    "churn": false,
+    "clients": 200,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgagroal",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S2",
+    "churn": false,
+    "clients": 200,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.4933253733596159,
+      "max": 11.71,
+      "median": 7.901999999999999,
       "min": 4.355,
-      "n": 3
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -390,11 +903,11 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.0038552450852911914,
+      "cv": 0.4929693324890093,
       "max": 45867.570085,
-      "median": 45606.046406,
-      "min": 45532.602919,
-      "n": 3
+      "median": 31518.280007,
+      "min": 17066.313908,
+      "n": 6
     },
     "workload": "select-only"
   },
@@ -405,13 +918,13 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.00939307966599457,
+      "cv": 0.3684302565249595,
       "max": 10.719,
-      "median": 10.548,
-      "min": 10.545,
-      "n": 3
+      "median": 7.9215,
+      "min": 5.252,
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -447,11 +960,11 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.009336473454046531,
-      "max": 18825.436693,
-      "median": 18819.659952,
+      "cv": 0.36869523761337236,
+      "max": 37825.247423,
+      "median": 28160.53247,
       "min": 18519.837331,
-      "n": 3
+      "n": 6
     },
     "workload": "select-only"
   },
@@ -468,7 +981,7 @@
       "min": null,
       "n": 0
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -525,7 +1038,7 @@
       "min": null,
       "n": 0
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -576,13 +1089,13 @@
     "context_mixed": false,
     "duration_s": 3600,
     "latency_avg_ms": {
-      "cv": 0.001306929397254407,
-      "max": 17.643,
-      "median": 17.622,
+      "cv": 0.004312919149516068,
+      "max": 17.801,
+      "median": 17.6555,
       "min": 17.597,
-      "n": 3
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
       "cv": null,
       "max": null,
@@ -618,10 +1131,124 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.0013146142822339497,
+      "cv": 0.0042952593373376076,
       "max": 11360.964579,
-      "median": 11344.994858,
-      "min": 11331.159589,
+      "median": 11323.3043335,
+      "min": 11230.989538,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S2",
+    "churn": false,
+    "clients": 200,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.26013213332277163,
+      "max": 230.309,
+      "median": 182.131,
+      "min": 117.974,
+      "n": 6
+    },
+    "n": 6,
+    "p50_ms": {
+      "cv": 0.1886782294404497,
+      "max": 5.967,
+      "median": 4.5809999999999995,
+      "min": 3.729,
+      "n": 6
+    },
+    "p90_ms": {
+      "cv": 0.09684930289244477,
+      "max": 11.0,
+      "median": 9.4085,
+      "min": 8.639,
+      "n": 6
+    },
+    "p999_ms": {
+      "cv": 1.0368066057621483,
+      "max": 1978.5520999999967,
+      "median": 775.5431594999943,
+      "min": 59.699445000000296,
+      "n": 6
+    },
+    "p99_ms": {
+      "cv": 0.1488713949637648,
+      "max": 42.27639999999944,
+      "median": 38.14235499999998,
+      "min": 27.457,
+      "n": 6
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgagroal",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.27784589363613665,
+      "max": 1686.200047,
+      "median": 1112.2556755,
+      "min": 866.973326,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S2",
+    "churn": false,
+    "clients": 200,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.013313167293752742,
+      "max": 7.987,
+      "median": 7.978,
+      "min": 7.8,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgbouncer",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.013392716410852983,
+      "max": 25616.692205,
+      "median": 25045.70714,
+      "min": 25018.272726,
       "n": 3
     },
     "workload": "select-only"
@@ -633,53 +1260,110 @@
     "context_mixed": false,
     "duration_s": 3600,
     "latency_avg_ms": {
-      "cv": 0.14379533044437903,
-      "max": 157.758,
-      "median": 141.11,
-      "min": 117.974,
+      "cv": 0.00826382911701092,
+      "max": 9.409,
+      "median": 9.282,
+      "min": 9.27,
       "n": 3
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.10309120836520491,
-      "max": 5.967,
-      "median": 5.512,
-      "min": 4.851,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p90_ms": {
-      "cv": 0.11618622821316277,
-      "max": 11.0,
-      "median": 10.037,
-      "min": 8.706,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p999_ms": {
-      "cv": 0.03907626199803952,
-      "max": 64.26129499999992,
-      "median": 63.48920600000024,
-      "min": 59.699445000000296,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p99_ms": {
-      "cv": 0.17366815703666258,
-      "max": 39.01495000000019,
-      "median": 35.13303000000026,
-      "min": 27.457,
-      "n": 3
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "p_quarantined": false,
     "pool_size": 10,
-    "pooler": "pgagroal",
+    "pooler": "pgcat",
     "protocol": "simple",
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.14953414580980262,
-      "max": 1686.200047,
-      "median": 1408.089415,
-      "min": 1258.664133,
+      "cv": 0.008157154159175891,
+      "max": 21401.570607,
+      "median": 21371.978407,
+      "min": 21087.114336,
       "n": 3
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S2",
+    "churn": false,
+    "clients": 200,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgpool",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
     },
     "workload": "select-only"
   },
@@ -690,39 +1374,381 @@
     "context_mixed": false,
     "duration_s": 1800,
     "latency_avg_ms": {
-      "cv": 0.0030588787037493636,
+      "cv": 0.008444790197700718,
       "max": 186.803,
-      "median": 186.653,
-      "min": 185.749,
+      "median": 184.837,
+      "min": 183.431,
+      "n": 6
+    },
+    "n": 6,
+    "p50_ms": {
+      "cv": 0.0295061528497525,
+      "max": 174.7545,
+      "median": 169.5005,
+      "min": 163.93,
+      "n": 6
+    },
+    "p90_ms": {
+      "cv": 0.009405512103658769,
+      "max": 407.1322,
+      "median": 402.46270000000004,
+      "min": 398.911,
+      "n": 6
+    },
+    "p999_ms": {
+      "cv": 0.05853169309212381,
+      "max": 713.7507360000001,
+      "median": 674.2494464999993,
+      "min": 626.2722099999999,
+      "n": 6
+    },
+    "p99_ms": {
+      "cv": 0.046525605860334183,
+      "max": 564.3343400000001,
+      "median": 535.78565,
+      "min": 513.0484799999999,
+      "n": 6
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "direct",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.009335790234127459,
+      "max": 267.033486,
+      "median": 264.849897,
+      "min": 261.844289,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.19033674058393493,
+      "max": 11.152,
+      "median": 9.461500000000001,
+      "min": 7.804,
+      "n": 6
+    },
+    "n": 6,
+    "p50_ms": {
+      "cv": 0.1962604985131215,
+      "max": 10.976,
+      "median": 9.269,
+      "min": 7.594,
+      "n": 6
+    },
+    "p90_ms": {
+      "cv": 0.1830378114559181,
+      "max": 19.001,
+      "median": 16.2215,
+      "min": 13.499,
+      "n": 6
+    },
+    "p999_ms": {
+      "cv": 0.1424838166387813,
+      "max": 26.478,
+      "median": 23.3315,
+      "min": 20.23,
+      "n": 6
+    },
+    "p99_ms": {
+      "cv": 0.16519860213428245,
+      "max": 23.716,
+      "median": 20.5105,
+      "min": 17.402,
+      "n": 6
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "odyssey",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.1892111386550087,
+      "max": 6469.114051,
+      "median": 5503.2365685,
+      "min": 4538.924797,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 6,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgagroal",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.02878684983038113,
+      "max": 132.955,
+      "median": 129.2175,
+      "min": 125.014,
+      "n": 6
+    },
+    "n": 6,
+    "p50_ms": {
+      "cv": 0.029010244540623883,
+      "max": 132.954,
+      "median": 129.16225,
+      "min": 124.919,
+      "n": 6
+    },
+    "p90_ms": {
+      "cv": 0.02817548965611608,
+      "max": 236.482,
+      "median": 230.12295,
+      "min": 222.528,
+      "n": 6
+    },
+    "p999_ms": {
+      "cv": 0.02469154400667225,
+      "max": 285.914133,
+      "median": 282.1641520000001,
+      "min": 270.5822799999998,
+      "n": 6
+    },
+    "p99_ms": {
+      "cv": 0.025773144708502192,
+      "max": 266.2606599999999,
+      "median": 259.19548999999995,
+      "min": 252.83680000000004,
+      "n": 6
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgbouncer",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.028803807330891697,
+      "max": 399.816151,
+      "median": 386.990311,
+      "min": 376.035695,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.17903529058698528,
+      "max": 12.195,
+      "median": 10.478,
+      "min": 8.706,
+      "n": 6
+    },
+    "n": 6,
+    "p50_ms": {
+      "cv": 0.1788432889432646,
+      "max": 12.0855,
+      "median": 10.3835,
+      "min": 8.632,
+      "n": 6
+    },
+    "p90_ms": {
+      "cv": 0.1775526215671521,
+      "max": 20.855,
+      "median": 17.932000000000002,
+      "min": 14.924,
+      "n": 6
+    },
+    "p999_ms": {
+      "cv": 0.18320410462146425,
+      "max": 27.941000000000003,
+      "median": 23.623,
+      "min": 19.451,
+      "n": 6
+    },
+    "p99_ms": {
+      "cv": 0.18060627569533538,
+      "max": 25.406,
+      "median": 21.7485,
+      "min": 18.018,
+      "n": 6
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgcat",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.17880916084152854,
+      "max": 5770.709557,
+      "median": 4921.6493485,
+      "min": 4122.281402,
+      "n": 6
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 1800,
+    "latency_avg_ms": {
+      "cv": 0.0003662334653044493,
+      "max": 187.442,
+      "median": 187.39,
+      "min": 187.306,
       "n": 3
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.005150781727250267,
-      "max": 174.7545,
-      "median": 174.451,
-      "min": 173.072,
+      "cv": 0.000991158679691428,
+      "max": 185.026,
+      "median": 184.762,
+      "min": 184.674,
       "n": 3
     },
     "p90_ms": {
-      "cv": 0.0007392330258181809,
-      "max": 399.4374,
-      "median": 399.40549999999996,
-      "min": 398.911,
+      "cv": 0.0017218974774116588,
+      "max": 358.591,
+      "median": 358.4515,
+      "min": 357.4599,
       "n": 3
     },
     "p999_ms": {
-      "cv": 0.015202432404929165,
-      "max": 645.5117699999997,
-      "median": 637.7003099999981,
-      "min": 626.2722099999999,
+      "cv": 0.004857386158456557,
+      "max": 478.85234499999956,
+      "median": 477.2685980000002,
+      "min": 474.29076799999984,
       "n": 3
     },
     "p99_ms": {
-      "cv": 0.0026841214624494262,
-      "max": 515.797,
-      "median": 514.1944000000001,
-      "min": 513.0484799999999,
+      "cv": 0.0016727479309826077,
+      "max": 428.65554999999995,
+      "median": 427.74352000000005,
+      "min": 427.24402999999984,
+      "n": 3
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "pgpool",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.0004658456095332203,
+      "max": 265.901157,
+      "median": 265.871801,
+      "min": 265.673513,
+      "n": 3
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
+      "cv": 0.008518868073224588,
+      "max": 257.201,
+      "median": 253.827,
+      "min": 253.15,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.011569656752898477,
+      "max": 246.47750000000002,
+      "median": 241.808,
+      "min": 241.42149999999998,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.005971732778110187,
+      "max": 531.7584000000002,
+      "median": 530.6153,
+      "min": 525.8014000000002,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.011241232051265915,
+      "max": 778.8017380000001,
+      "median": 765.7464740000016,
+      "min": 762.4581079999992,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.006829286717042247,
+      "max": 669.44723,
+      "median": 666.32954,
+      "min": 660.49488,
       "n": 3
     },
     "p_quarantined": false,
@@ -732,10 +1758,10 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.00320864732574092,
-      "max": 263.336023,
-      "median": 261.914056,
-      "min": 261.844289,
+      "cv": 0.008168753733444988,
+      "max": 193.130677,
+      "median": 192.88133,
+      "min": 190.29659,
       "n": 3
     },
     "workload": "select-only"
@@ -745,64 +1771,7 @@
     "churn": true,
     "clients": 100,
     "context_mixed": false,
-    "duration_s": 1800,
-    "latency_avg_ms": {
-      "cv": 0.0024138093235186522,
-      "max": 7.841,
-      "median": 7.816,
-      "min": 7.804,
-      "n": 3
-    },
-    "n": 3,
-    "p50_ms": {
-      "cv": 0.002454544960224598,
-      "max": 7.631,
-      "median": 7.608,
-      "min": 7.594,
-      "n": 3
-    },
-    "p90_ms": {
-      "cv": 0.001927909769280127,
-      "max": 13.546,
-      "median": 13.503,
-      "min": 13.499,
-      "n": 3
-    },
-    "p999_ms": {
-      "cv": 0.00447480150128309,
-      "max": 20.392,
-      "median": 20.24,
-      "min": 20.23,
-      "n": 3
-    },
-    "p99_ms": {
-      "cv": 0.0024351977017183354,
-      "max": 17.476,
-      "median": 17.403,
-      "min": 17.402,
-      "n": 3
-    },
-    "p_quarantined": false,
-    "pool_size": 10,
-    "pooler": "odyssey",
-    "protocol": "simple",
-    "scale": 10,
-    "status": "measured",
-    "tps": {
-      "cv": 0.002195419153002817,
-      "max": 6469.114051,
-      "median": 6460.874565,
-      "min": 6441.500153,
-      "n": 3
-    },
-    "workload": "select-only"
-  },
-  {
-    "cell_id": "M10-S3",
-    "churn": true,
-    "clients": 100,
-    "context_mixed": false,
-    "duration_s": 1800,
+    "duration_s": 3600,
     "latency_avg_ms": {
       "cv": null,
       "max": null,
@@ -859,41 +1828,41 @@
     "churn": true,
     "clients": 100,
     "context_mixed": false,
-    "duration_s": 1800,
+    "duration_s": 3600,
     "latency_avg_ms": {
-      "cv": 0.005402910351193344,
-      "max": 126.334,
-      "median": 125.954,
-      "min": 125.014,
+      "cv": 0.0013265274828802504,
+      "max": 132.828,
+      "median": 132.711,
+      "min": 132.482,
       "n": 3
     },
     "n": 3,
     "p50_ms": {
-      "cv": 0.005531969973259346,
-      "max": 126.2635,
-      "median": 125.899,
-      "min": 124.919,
+      "cv": 0.0012498499377763665,
+      "max": 132.753,
+      "median": 132.647,
+      "min": 132.428,
       "n": 3
     },
     "p90_ms": {
-      "cv": 0.006145661576480745,
-      "max": 225.21490000000003,
-      "median": 224.394,
-      "min": 222.528,
+      "cv": 0.0013630209282552016,
+      "max": 236.359,
+      "median": 236.132,
+      "min": 235.724,
       "n": 3
     },
     "p999_ms": {
-      "cv": 0.02030555192107294,
-      "max": 280.4773160000001,
-      "median": 271.11718800000057,
-      "min": 270.5822799999998,
+      "cv": 0.0023371031008094013,
+      "max": 284.0793520000006,
+      "median": 283.48818399999993,
+      "min": 282.75695800000005,
       "n": 3
     },
     "p99_ms": {
-      "cv": 0.0017775494972473828,
-      "max": 253.72397999999998,
-      "median": 253.14787000000013,
-      "min": 252.83680000000004,
+      "cv": 0.001698599345038439,
+      "max": 265.673,
+      "median": 265.396,
+      "min": 264.79179,
       "n": 3
     },
     "p_quarantined": false,
@@ -903,67 +1872,10 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.005374017449590384,
-      "max": 399.816151,
-      "median": 396.954385,
-      "min": 395.638393,
-      "n": 3
-    },
-    "workload": "select-only"
-  },
-  {
-    "cell_id": "M10-S3",
-    "churn": true,
-    "clients": 100,
-    "context_mixed": false,
-    "duration_s": 1800,
-    "latency_avg_ms": {
-      "cv": 0.005626254850310575,
-      "max": 8.804,
-      "median": 8.764,
-      "min": 8.706,
-      "n": 3
-    },
-    "n": 3,
-    "p50_ms": {
-      "cv": 0.0053741480580371,
-      "max": 8.725,
-      "median": 8.685,
-      "min": 8.632,
-      "n": 3
-    },
-    "p90_ms": {
-      "cv": 0.005668043849517745,
-      "max": 15.093,
-      "median": 15.026,
-      "min": 14.924,
-      "n": 3
-    },
-    "p999_ms": {
-      "cv": 0.011733903977669541,
-      "max": 19.888,
-      "median": 19.801,
-      "min": 19.451,
-      "n": 3
-    },
-    "p99_ms": {
-      "cv": 0.006990676091400962,
-      "max": 18.266,
-      "median": 18.189,
-      "min": 18.018,
-      "n": 3
-    },
-    "p_quarantined": false,
-    "pool_size": 10,
-    "pooler": "pgcat",
-    "protocol": "simple",
-    "scale": 10,
-    "status": "measured",
-    "tps": {
-      "cv": 0.005591902272095421,
-      "max": 5770.709557,
-      "median": 5732.222936,
-      "min": 5707.011456,
+      "cv": 0.001379448453825689,
+      "max": 377.366883,
+      "median": 376.640982,
+      "min": 376.359529,
       "n": 3
     },
     "workload": "select-only"
@@ -975,40 +1887,40 @@
     "context_mixed": false,
     "duration_s": 3600,
     "latency_avg_ms": {
-      "cv": 0.0005985699235105628,
+      "cv": 0.04330576746019273,
       "max": 239.19,
-      "median": 238.971,
-      "min": 238.921,
-      "n": 3
+      "median": 230.622,
+      "min": 218.652,
+      "n": 6
     },
-    "n": 3,
+    "n": 6,
     "p50_ms": {
-      "cv": 0.0007168163216751912,
+      "cv": 0.047494941199800765,
       "max": 237.1855,
-      "median": 236.922,
-      "min": 236.868,
-      "n": 3
+      "median": 227.74349999999998,
+      "min": 215.39249999999998,
+      "n": 6
     },
     "p90_ms": {
-      "cv": 0.0010979497480017102,
+      "cv": 0.029153239006466516,
       "max": 449.9789999999999,
-      "median": 449.73299999999995,
-      "min": 449.028,
-      "n": 3
+      "median": 439.664,
+      "min": 420.8283,
+      "n": 6
     },
     "p999_ms": {
-      "cv": 0.001869415169962454,
-      "max": 573.3177540000003,
-      "median": 573.1824919999987,
-      "min": 571.3996850000028,
-      "n": 3
+      "cv": 0.011537703534679485,
+      "max": 573.8477120000022,
+      "median": 572.2910885000008,
+      "min": 556.6434669999963,
+      "n": 6
     },
     "p99_ms": {
-      "cv": 0.0015949614933597849,
+      "cv": 0.019398043083087794,
       "max": 526.1128199999999,
-      "median": 525.3755800000004,
-      "min": 524.441,
-      "n": 3
+      "median": 519.29267,
+      "min": 500.4881599999992,
+      "n": 6
     },
     "p_quarantined": false,
     "pool_size": 10,
@@ -1017,11 +1929,11 @@
     "scale": 10,
     "status": "measured",
     "tps": {
-      "cv": 0.0005190760386704714,
-      "max": 208.628558,
-      "median": 208.565865,
+      "cv": 0.04236987886189538,
+      "max": 227.626598,
+      "median": 216.165777,
       "min": 208.417756,
-      "n": 3
+      "n": 6
     },
     "workload": "select-only"
   }
