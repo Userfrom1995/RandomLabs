@@ -11,7 +11,7 @@
 <h1>Poolduel reproducibility: re-run any cell, challenge any number</h1>
 <p class="sub">Reproducibility-by-adversary: disclosure complete enough that a pooler maintainer could re-run a cell or file a founded objection. Tracks issue #302.</p>
 <!-- SUPPLEMENT:meta:begin -->
-<p class="note" id="supplement-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7" data-m9-total="250" data-m9-measured="215" data-m9-na="6" data-soak-total="18" data-soak-measured="15">Evidence: M1 42 cells, M2 111 records incl. 7 N/A, M9 250 cells (215 measured, 6 N/A), soak 18 tier-cells (15 measured). Pins: pgagroal 2.1.0+tip, pgbouncer 1.25.2, pgpool 4.7.2, odyssey 1.5.1, pgcat v1.2.0, supavisor v2.9.13. Generated from <code>results/supplementmeta.json</code>.</p>
+<p class="note" id="supplement-counts" data-m1-total="42" data-m2-total="111" data-m2-na="7" data-m9-total="250" data-m9-measured="215" data-m9-na="6" data-soak-total="34" data-soak-measured="27">Evidence: M1 42 cells, M2 111 records incl. 7 N/A, M9 250 cells (215 measured, 6 N/A), soak 34 tier-cells (27 measured). Pins: pgagroal 2.1.0+tip, pgbouncer 1.25.2, pgpool 4.7.2, odyssey 1.5.1, pgcat v1.2.0, supavisor v2.9.13. Generated from <code>results/supplementmeta.json</code>.</p>
 <!-- SUPPLEMENT:meta:end -->
 <nav class="poolnav">
 <a href="../">comparison page</a> |
@@ -50,7 +50,7 @@ python3 -m poolduel.harness.check   # coherence gate (must exit 0)</pre>
 <div class="section">
 <h2 id="manifest">Manifest, digests, corpus</h2>
 <!-- MANIFEST:meta:begin -->
-<p class="note" id="manifest-counts" data-build-hash="2cc48a453a64cfb73e96f7b7f893452e5ef62a1805bc091f2d72fda42e34d67c" data-raw-files="2293" data-raw-bytes="5855486">Corpus: m1 150 files, m2 319 files, m9 1770 files, m10-soak 54 files (2293 files, 5855486 bytes, budget 524288000 bytes). Deterministic build hash <code>2cc48a453a64cfb73e96f7b7f893452e5ef62a1805bc091f2d72fda42e34d67c</code> over sorted raw paths. Generated from <code>results/manifest.json</code>; verify with <code>sh poolduel/repro.sh --manifest-verify</code>.</p>
+<p class="note" id="manifest-counts" data-build-hash="0ffa0915bf2a4effab9e8da3072b7501222713b598b8281f5b37ea411141eb98" data-raw-files="2395" data-raw-bytes="6208922">Corpus: m1 150 files, m2 319 files, m9 1770 files, m10-soak 156 files (2395 files, 6208922 bytes, budget 524288000 bytes). Deterministic build hash <code>0ffa0915bf2a4effab9e8da3072b7501222713b598b8281f5b37ea411141eb98</code> over sorted raw paths. Generated from <code>results/manifest.json</code>; verify with <code>sh poolduel/repro.sh --manifest-verify</code>.</p>
 <!-- MANIFEST:meta:end -->
 <p class="note">Deterministic build: <code>repro.sh --report/--charts/--site/--dossiers/--supplement</code> re-derives every derived bundle from committed raw; the drift tests fail on any hand-typed number. Pinned action/container digests live in <code>.github/workflows/</code> (recorded in <code>results/manifest.json</code> and <a href="../docs/digests.md">docs/digests.md</a>); the per-chunk <code>pooler-versions-*.txt</code> files in <code>results/m1|m2|m9/</code> record the exact SHAs measured. The log corpus (per-cell stdout/stderr workdirs) ships as CI artifacts per sweep run. DOI/license snapshot: MIT repo, commit-pinned citation below.</p>
 </div>
@@ -82,6 +82,7 @@ python3 -m poolduel.harness.check   # coherence gate (must exit 0)</pre>
 <table>
 <tr><th>Date</th><th>Cell / page</th><th>Issue</th><th>Fix</th></tr>
 <tr><td>2026-09-15</td><td>M10 soak, 18 of 36 tier-groups absent</td><td>Harness defect: soak raw filenames carried no duration tier, so the aggregate flat-dir merge kept one tier per arm; grouping ignored duration. Proven from 34/36 chunk version files vs 18 landed groups; lost tier unrecoverable (artifacts expired).</td><td>Tiered filenames plus duration-aware grouping; surviving 18 medians rebuilt tier-labeled with identical values; absent 18 listed for re-dispatch in docs/m10-soak-matrix.md section 8. See docs/errata.md.</td></tr>
+<tr><td>2026-09-15</td><td>M10 soak re-dispatch, 34 of 36 in git</td><td>Re-dispatch ran the fixed harness; all 36 chunks carry version files but m10s35/m10s36 recorded versions without raw, so M10-S3/3600 odyssey plus pgcat stay absent. Proven from 156 raw files vs SOAK_CHUNKS order.</td><td>Derived bundles rebuilt from committed data only (soak leg 27 measured plus 7 timeout; M1/M2/M9 identical, statistics unchanged); remaining 2 groups stay Maintainer-owned per docs/m10-soak-matrix.md section 8. See docs/errata.md.</td></tr>
 </table>
 </div>
 

@@ -1093,3 +1093,42 @@ Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
 `Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
 
 - the Builder
+
+## Soak 34-group sync (Builder, 2026-09-15, branch `opencode/issue302-20260915134631`)
+
+Re-dispatch commits 9c08348b + 4ff63721 landed 16 more soak
+tier-groups on e7675597. Committed truth now 34/36 (156 raw,
+27 measured + 7 timeout medians); absent is exactly M10-S3/3600
+odyssey + pgcat (m10s35/m10s36 recorded version files, 36/36
+present, but no raw). Proven from `results/m10-soak/raw/` vs
+`SOAK_CHUNKS` order, not guessed.
+
+- Regen (generators unchanged, outputs only): `repro.sh --report`
+  (soak leg + soak matrix.csv; m1/m2/m9 bytes identical,
+  statistics family 98 / headlines 96 unchanged), `--site`,
+  `--dossiers`, `--supplement`, `--charts` (6 soak figures,
+  34 medians / 156 raw), `--manifest` (2395 files sealed).
+  `check.py` ok.
+- Pins: 7 test files moved 18-state to 34-state
+  (test_soak_tiers incl. duplicate-triple + at-most-two-tiers
+  tripwires, test_m13a_soak_figure, test_m11b_site,
+  test_m12_manifest, test_m12_tester_gate, test_tester_pr348,
+  test_tester_pr349_crash). Absent pinned as the 2 known
+  triples; final landing fails loudly until rebuild.
+- Docs/surfaces: `m10-soak-matrix.md` status + s8 (per-tier
+  present table verified cell-by-cell against medians.json,
+  remaining manifest m10s35/m10s36), `errata.md` new ledger row
+  + matching reproducibility page row, root README + landing
+  soak counts (34/27/7/156). Ideas:
+  `ideas/2026-09-15-poolduel-soak-34sync.md`.
+- Proof: 745/745 green, `check.py` ok, page JS `node --check`
+  clean, HTTP smoke 200s on master + six dossiers with 6 soak
+  figure hosts and zero pending in the soak section.
+
+Current step: 34-group sync complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke)
+  -> merge -> Maintainer re-dispatches m10s35/m10s36 ->
+  Builder M13b final gate.
+`Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
+
+- the Builder
