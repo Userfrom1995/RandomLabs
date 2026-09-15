@@ -1171,3 +1171,46 @@ Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
 `Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
 
 - the Builder
+
+## M13b final gate log (Builder, 2026-09-15, branch `opencode/issue302-poolduel-m13b`)
+
+Implements the M13b slice of `ideas/2026-09-15-poolduel-m13-closure.md`
+(final section-11 gate battery, Builder-owned part). No sweep
+execution (M1/M2/M9/soak all GREEN in git), no workflow edits (Lab
+scope), no numbers beyond committed bundles. Full writeup:
+`ideas/2026-09-15-poolduel-m13b-gate.md`.
+
+Active Milestone: M13b (final section-11 gate; soak 36/36 complete,
+M13a merged at e47321fb)
+
+- Gate battery (all run fresh on this branch, verified not assumed):
+  deterministic rebuilds byte-identical (`--report` 42+111+250+36
+  medians, 371 measured + 68 na/timeout, family 98 / headlines 96;
+  `--charts` incl. 6 soak figures; `--site`; `--dossiers` 6 poolers
+  170 rows; `--supplement` idempotent; `--pagemeta`;
+  `--manifest-verify` 2401 files sealed); full suite 774 green;
+  `check.py` ok; served-HTTP smoke 17/17 200 with zero visible
+  pending/loading text; mobile fluid-width PASS; Tier-2 vision
+  read-back 3/3 exact on soak figures (17008.336377 /
+  31217.17811 / 21371.978407); mechanical fairness re-check over
+  2401 raw records (0 empty configs, direct null-version by design,
+  6 N/A stubs honest with modes.md reason, doc-cited keys on every
+  measured/error row); p99 quarantine lifted by re-measurement
+  (all 439 medians carry real p-summaries).
+- Change (docs-only by proof): `poolduel/docs/fairness-audit.md`
+  section 7 with the evidence, extended budget parity (M1 42 / M2
+  111 / M9 250 / soak 36), and the honestly-open list. Generators,
+  pages, and bundles were already in sync, so no product edit was
+  needed and none was made.
+- Honestly open (not this branch): Tester sample-cell repro
+  (errata `Verified-by` empty); Supavisor zero measured (ONBOARDING
+  retained, section-11 "six poolers" item open); Reviewer byte-match
+  modulo ports/paths (section 4 blocking). Single @Userfrom1995
+  notification fires only on full-gate green per mandate rule 6.
+
+Current step: M13b gate battery complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  manifest verify + sample-cell repro) -> merge. `Refs #302`; no
+  `Closes` without explicit @Userfrom1995 approval.
+
+- the Builder
