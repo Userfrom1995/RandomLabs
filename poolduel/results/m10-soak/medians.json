@@ -1773,6 +1773,63 @@
     "context_mixed": false,
     "duration_s": 3600,
     "latency_avg_ms": {
+      "cv": 0.006775336722196547,
+      "max": 10.35,
+      "median": 10.289,
+      "min": 10.211,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.006280904964613287,
+      "max": 10.16,
+      "median": 10.11,
+      "min": 10.034,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.006673597177578231,
+      "max": 17.727,
+      "median": 17.614,
+      "min": 17.492,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.016985171100224662,
+      "max": 25.2,
+      "median": 24.592,
+      "min": 24.394,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.00961790417718979,
+      "max": 22.238,
+      "median": 21.988,
+      "min": 21.817,
+      "n": 3
+    },
+    "p_quarantined": false,
+    "pool_size": 10,
+    "pooler": "odyssey",
+    "protocol": "simple",
+    "scale": 10,
+    "status": "measured",
+    "tps": {
+      "cv": 0.006585538735478379,
+      "max": 4954.662051,
+      "median": 4918.953034,
+      "min": 4889.960759,
+      "n": 3
+    },
+    "workload": "select-only"
+  },
+  {
+    "cell_id": "M10-S3",
+    "churn": true,
+    "clients": 100,
+    "context_mixed": false,
+    "duration_s": 3600,
+    "latency_avg_ms": {
       "cv": null,
       "max": null,
       "median": null,
