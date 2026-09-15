@@ -326,6 +326,13 @@ exact configs attached (verbatim in <code>docs/configs/</code>).</p>
 <h2>6d. Long-horizon stability leg (M10 soak: leak and tail drift)</h2>
 <!-- SITE:soak:begin -->
 <p>Long-horizon stability: <strong>15 measured</strong> of 36 spec tier-cells (18 present, 3 timeout/inconclusive, 18 not yet measured). No best arm, no verdicts: soak figures read as stability beside collapse. Method: 30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift. Full matrix: <a href="results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a>.</p>
+<p>Stability figures (tps per tier per arm with min-max bands plus p99 tails, beside harness RSS/FD drift panels; absent tiers mark re-dispatch-owned, never zero-filled):</p>
+<div class="echart" data-page="comparison" data-chart="soak-M10-S1"></div>
+<div class="echart" data-page="comparison" data-chart="soak-M10-S1-drift"></div>
+<div class="echart" data-page="comparison" data-chart="soak-M10-S2"></div>
+<div class="echart" data-page="comparison" data-chart="soak-M10-S2-drift"></div>
+<div class="echart" data-page="comparison" data-chart="soak-M10-S3"></div>
+<div class="echart" data-page="comparison" data-chart="soak-M10-S3-drift"></div>
 <table><tr><th>Tier cell</th><th>Geometry</th><th>Arms (tps median [min-max]; status)</th></tr>
 <tr><td><strong>M10-S1, 30-min tier</strong></td><td>standard select-only 100c/10p (M1-1 shape): baseline leak/tail figure every pooler must hold flat</td><td class="note">direct: 23,247 [23,199-23,753]<br>pgagroal: 1,821 [1,692-2,314]<br>pgbouncer: tier not in git (re-dispatch owned by Maintainer)<br>pgpool: 37,143 [36,954-37,675]<br>odyssey: tier not in git (re-dispatch owned by Maintainer)<br>pgcat: 18,718 [18,706-18,729]</td></tr>
 <tr><td><strong>M10-S1, 60-min tier</strong></td><td>standard select-only 100c/10p (M1-1 shape): baseline leak/tail figure every pooler must hold flat</td><td class="note">direct: tier not in git (re-dispatch owned by Maintainer)<br>pgagroal: tier not in git (re-dispatch owned by Maintainer)<br>pgbouncer: 26,657 [26,475-26,787]<br>pgpool: tier not in git (re-dispatch owned by Maintainer)<br>odyssey: 11,217 [11,196-11,256]<br>pgcat: tier not in git (re-dispatch owned by Maintainer)</td></tr>

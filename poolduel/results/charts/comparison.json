@@ -6112,5 +6112,2768 @@
       "name": "tps (transactions/s, log scale)",
       "type": "log"
     }
+  },
+  "soak-M10-S1": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          23247.443376,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          23199.031128,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          23752.506947,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          1820.922519,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal",
+        "type": "bar"
+      },
+      {
+        "data": [
+          1692.365536,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          2314.256292,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          55.83831999999984,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          26657.160698
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          26475.258398
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          26787.076249
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          37143.053253,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          36954.243461,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          37675.043924,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          11216.856668
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          11196.1105
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          11256.049564
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          18717.873345,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat",
+        "type": "bar"
+      },
+      {
+        "data": [
+          18706.391501,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          18729.472062,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#6E7681"
+        },
+        "label": {
+          "color": "#6E7681",
+          "formatter": "absent",
+          "position": "top",
+          "show": true
+        },
+        "name": "tier not in git (re-dispatch owned by Maintainer)",
+        "symbol": "roundRect",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 37143.1 tps (pgpool); 6 measured tiers; ; 6 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Soak stability M10-S1: tps per tier per arm",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "30-min tier (1800 s)",
+        "60-min tier (3600 s)"
+      ],
+      "name": "duration tier",
+      "type": "category"
+    },
+    "yAxis": [
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "min": 0,
+        "name": "tps (transactions/s)",
+        "type": "value"
+      },
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "p99 latency (ms)",
+        "type": "value"
+      }
+    ]
+  },
+  "soak-M10-S1-drift": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#6E7681"
+        },
+        "label": {
+          "color": "#6E7681",
+          "formatter": "absent",
+          "position": "top",
+          "show": true
+        },
+        "name": "tier not in git (re-dispatch owned by Maintainer)",
+        "symbol": "roundRect",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "median pre/post drift across repeats; harness-process rusage (run-validity signal, not pooler-process sampling); nulls mark n/a, never zero. 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Soak drift M10-S1: harness RSS/FD change per tier per arm",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "30-min tier (1800 s)",
+        "60-min tier (3600 s)"
+      ],
+      "name": "duration tier",
+      "type": "category"
+    },
+    "yAxis": [
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "RSS delta (KB)",
+        "type": "value"
+      },
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "FD-count delta",
+        "type": "value"
+      }
+    ]
+  },
+  "soak-M10-S2": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          1408.089415
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          1258.664133
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          1686.200047
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          35.13303000000026
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          45606.046406,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          45532.602919,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          45867.570085,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          11344.994858
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          11331.159589
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          11360.964579
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          18819.659952,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat",
+        "type": "bar"
+      },
+      {
+        "data": [
+          18519.837331,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          18825.436693,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#6E7681"
+        },
+        "label": {
+          "color": "#6E7681",
+          "formatter": "absent",
+          "position": "top",
+          "show": true
+        },
+        "name": "tier not in git (re-dispatch owned by Maintainer)",
+        "symbol": "roundRect",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#F0E442"
+        },
+        "label": {
+          "color": "#F0E442",
+          "formatter": "timeout/inconclusive",
+          "position": "top",
+          "show": true
+        },
+        "name": "timeout/inconclusive",
+        "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 45606.0 tps (pgbouncer); 4 measured tiers; ; 6 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Soak stability M10-S2: tps per tier per arm",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "30-min tier (1800 s)",
+        "60-min tier (3600 s)"
+      ],
+      "name": "duration tier",
+      "type": "category"
+    },
+    "yAxis": [
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "min": 0,
+        "name": "tps (transactions/s)",
+        "type": "value"
+      },
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "p99 latency (ms)",
+        "type": "value"
+      }
+    ]
+  },
+  "soak-M10-S2-drift": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#6E7681"
+        },
+        "label": {
+          "color": "#6E7681",
+          "formatter": "absent",
+          "position": "top",
+          "show": true
+        },
+        "name": "tier not in git (re-dispatch owned by Maintainer)",
+        "symbol": "roundRect",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "median pre/post drift across repeats; harness-process rusage (run-validity signal, not pooler-process sampling); nulls mark n/a, never zero. 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Soak drift M10-S2: harness RSS/FD change per tier per arm",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "30-min tier (1800 s)",
+        "60-min tier (3600 s)"
+      ],
+      "name": "duration tier",
+      "type": "category"
+    },
+    "yAxis": [
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "RSS delta (KB)",
+        "type": "value"
+      },
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "FD-count delta",
+        "type": "value"
+      }
+    ]
+  },
+  "soak-M10-S3": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          261.914056,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct",
+        "type": "bar"
+      },
+      {
+        "data": [
+          261.844289,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          263.336023,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          514.1944000000001,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          396.954385,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer",
+        "type": "bar"
+      },
+      {
+        "data": [
+          395.638393,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          399.816151,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          253.14787000000013,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          208.565865
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          208.417756
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          208.628558
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          null,
+          525.3755800000004
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          6460.874565,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey",
+        "type": "bar"
+      },
+      {
+        "data": [
+          6441.500153,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          6469.114051,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          17.403,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          5732.222936,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat",
+        "type": "bar"
+      },
+      {
+        "data": [
+          5707.011456,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat min",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          5770.709557,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.55,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat max",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line"
+      },
+      {
+        "data": [
+          18.189,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat p99",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#6E7681"
+        },
+        "label": {
+          "color": "#6E7681",
+          "formatter": "absent",
+          "position": "top",
+          "show": true
+        },
+        "name": "tier not in git (re-dispatch owned by Maintainer)",
+        "symbol": "roundRect",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#F0E442"
+        },
+        "label": {
+          "color": "#F0E442",
+          "formatter": "timeout/inconclusive",
+          "position": "top",
+          "show": true
+        },
+        "name": "timeout/inconclusive",
+        "symbol": "triangle",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 6460.9 tps (odyssey); 5 measured tiers; ; 6 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Soak stability M10-S3: tps per tier per arm",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "30-min tier (1800 s)",
+        "60-min tier (3600 s)"
+      ],
+      "name": "duration tier",
+      "type": "category"
+    },
+    "yAxis": [
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "min": 0,
+        "name": "tps (transactions/s)",
+        "type": "value"
+      },
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "p99 latency (ms)",
+        "type": "value"
+      }
+    ]
+  },
+  "soak-M10-S3-drift": {
+    "backgroundColor": "transparent",
+    "dataZoom": [
+      {
+        "bottom": 8,
+        "type": "slider"
+      },
+      {
+        "type": "inside"
+      }
+    ],
+    "grid": {
+      "bottom": "24%",
+      "containLabel": true,
+      "left": "8%",
+      "right": "6%",
+      "top": "30%"
+    },
+    "legend": {
+      "textStyle": {
+        "color": "#E6EDF3"
+      },
+      "top": 56,
+      "type": "scroll"
+    },
+    "series": [
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#999999"
+        },
+        "name": "direct RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#999999",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#999999",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "direct FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#0072B2"
+        },
+        "name": "pgagroal RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#0072B2",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgagroal FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#56B4E9"
+        },
+        "name": "PgBouncer RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#56B4E9",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "PgBouncer FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#E69F00"
+        },
+        "name": "pgpool-II RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          null,
+          0.0
+        ],
+        "itemStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#E69F00",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgpool-II FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#009E73"
+        },
+        "name": "Odyssey RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#009E73",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#009E73",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "Odyssey FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "emphasis": {
+          "focus": "series"
+        },
+        "itemStyle": {
+          "color": "#CC79A7"
+        },
+        "name": "pgcat RSS delta",
+        "type": "bar"
+      },
+      {
+        "data": [
+          0.0,
+          null
+        ],
+        "itemStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8
+        },
+        "lineStyle": {
+          "color": "#CC79A7",
+          "opacity": 0.8,
+          "type": "dotted",
+          "width": 1
+        },
+        "name": "pgcat FD delta",
+        "showSymbol": true,
+        "symbol": "emptyCircle",
+        "symbolSize": 6,
+        "type": "line",
+        "yAxisIndex": 1
+      },
+      {
+        "data": [
+          [
+            0,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ],
+        "itemStyle": {
+          "color": "#6E7681"
+        },
+        "label": {
+          "color": "#6E7681",
+          "formatter": "absent",
+          "position": "top",
+          "show": true
+        },
+        "name": "tier not in git (re-dispatch owned by Maintainer)",
+        "symbol": "roundRect",
+        "symbolOffset": [
+          0,
+          -14
+        ],
+        "symbolSize": 14,
+        "type": "scatter"
+      }
+    ],
+    "textStyle": {
+      "color": "#E6EDF3"
+    },
+    "title": {
+      "left": "center",
+      "subtext": "median pre/post drift across repeats; harness-process rusage (run-validity signal, not pooler-process sampling); nulls mark n/a, never zero. 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "text": "Soak drift M10-S3: harness RSS/FD change per tier per arm",
+      "textStyle": {
+        "color": "#E6EDF3"
+      }
+    },
+    "toolbox": {
+      "feature": {
+        "saveAsImage": {
+          "title": "Save PNG"
+        }
+      }
+    },
+    "tooltip": {
+      "axisPointer": {
+        "type": "shadow"
+      },
+      "trigger": "axis"
+    },
+    "xAxis": {
+      "axisLabel": {
+        "color": "#E6EDF3",
+        "rotate": 30
+      },
+      "data": [
+        "30-min tier (1800 s)",
+        "60-min tier (3600 s)"
+      ],
+      "name": "duration tier",
+      "type": "category"
+    },
+    "yAxis": [
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "RSS delta (KB)",
+        "type": "value"
+      },
+      {
+        "axisLabel": {
+          "color": "#E6EDF3"
+        },
+        "name": "FD-count delta",
+        "type": "value"
+      }
+    ]
   }
 }

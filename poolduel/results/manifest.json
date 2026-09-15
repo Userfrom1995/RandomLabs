@@ -2,9 +2,9 @@
   "build_hash": "2cc48a453a64cfb73e96f7b7f893452e5ef62a1805bc091f2d72fda42e34d67c",
   "bundles": {
     "dossiermeta.json": {
-      "bytes": 85795,
+      "bytes": 99269,
       "present": true,
-      "sha256": "d4a893ee22796d62c93fd43cf9f41d88f8508067c7720aa129e60820aa8b51cc"
+      "sha256": "9a8e27a5c0be4477d3739fd6841f078277eee931ad1beea1e41f95d90e84db1f"
     },
     "m1/matrix.csv": {
       "bytes": 6381,
