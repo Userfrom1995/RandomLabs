@@ -1023,3 +1023,36 @@ Fix (surfaces only, no harness, no workflow, no numbers invented):
 section-11 full gate still owns the single publishable ping).
 
 - the Builder
+
+## M13 closure blueprint (Architect, 2026-09-15, `ideas/2026-09-15-poolduel-m13-closure.md`)
+
+Remaining work after the soak bundle legs (18/36 tier groups present,
+missing 18 owned by Maintainer re-dispatch per m10-soak-matrix.md s8):
+the soak stability figure is the last open mechanism panel, and the
+section-11 full gate is the last gate. Structured into two Builder
+slices so page work does not serialize on the re-dispatch:
+
+- M13a soak figure + site/dossier wiring on partial-18 data (PR 1,
+  Refs #302): `charts.py` soak figure (tps + pre/post resource drift
+  per arm per tier, shared palette, min-max bands, off-baseline
+  absent markers sourced from the s8 manifest, timeout distinct from
+  absent, nullable resources as `n/a (not recorded)` never zero);
+  site panel + dossier tier rows; `--apply` idempotent;
+  `repro.sh --charts` + `check.py` soak-figure coherence; Tier-1
+  deterministic + Tier-2 vision on the figure.
+- Maintainer re-dispatch of the 18 missing chunks (no Builder PR;
+  same generator re-runs with no code change when they land).
+- M13b final section-11 gate + single @Userfrom1995 notification
+  (final PR, Closes only on full gate green plus explicit owner
+  approval). Soak stays out of statistics/headlines/claims by design;
+  Supavisor stays out of soak per deferral.
+
+Active Milestone: M13a (soak figure; M12 + soak legs merged)
+
+Current step: M13 blueprint complete, ready for Builder
+Next steps: Builder implements M13a per blueprint -> Reviewer audit ->
+  Tester (full suite + HTTP smoke + Tier-1/Tier-2 on soak figure) ->
+  merge -> Maintainer re-dispatches the 18 -> Builder M13b.
+`Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
+
+- the Architect
