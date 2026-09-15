@@ -1,15 +1,14 @@
 # M10 Soak Matrix (long-horizon stability, Refs #302)
 
 > **Status**: defined in M10 (2026-09-14); sweep dispatched and
-> landed 2026-09-15 (run 34910054732, commit e7675597, plus
-> re-dispatch commits 9c08348b + 4ff63721): 34 of 36
-> (cell, arm, duration) groups in git (156 raw, 27 measured
+> landed 2026-09-15 in full (run 34910054732, commit e7675597, plus
+> re-dispatch commits 9c08348b + 4ff63721 and the final m10s35/m10s36
+> landing): all 36 of 36
+> (cell, arm, duration) groups in git (162 raw, 29 measured
 > plus 7 timeout/inconclusive medians, 36/36 chunk version
 > files). A harness filename defect dropped one tier per arm at
 > the first merge (see `docs/errata.md` 2026-09-15 and section 8
-> below); the remaining 2 groups (M10-S3/3600 odyssey + pgcat,
-> chunks m10s35/m10s36, version files present but no raw)
-> await Maintainer re-dispatch. Nothing here beyond the
+> below); every group has since landed. Nothing here beyond the
 > committed bundles is a result.
 
 ## 1. Why soak
@@ -118,32 +117,27 @@ feed paired-difference CIs); its bundle leg is counts plus
 tier-rows (`report.json: soak_cells/soak_measured/soak_na`,
 `sitemeta.json: soak_leg`, dossier soak rows).
 
-## 8. Landed coverage and re-dispatch manifest (2026-09-15)
+## 8. Landed coverage (2026-09-15, complete)
 
 Run 34910054732 landed 18 of 36 groups (commit e7675597). Each
 (cell, arm) below ran at exactly one tier; the complementary
 tier never reached git (filename-collision loss, `docs/errata.md`).
 The Maintainer re-dispatch then landed 16 more groups
-(commits 9c08348b + 4ff63721); all 36 chunks now carry version
-files, but m10s35/m10s36 recorded versions without raw, so
-M10-S3/3600 odyssey + pgcat stay absent.
+(commits 9c08348b + 4ff63721), and a final re-dispatch landed
+the last 2 groups (m10s35/m10s36: M10-S3/3600 odyssey + pgcat).
+All 36 chunks carry version files and raw; coverage is complete.
 
-Present (tier-labeled medians in `results/m10-soak/`, 34 groups):
+Present (tier-labeled medians in `results/m10-soak/`, 36 groups):
 
 | Cell | 1800 s tier | 3600 s tier |
 |---|---|---|
 | M10-S1 | direct, pgagroal, pgbouncer, pgcat, pgpool, odyssey | direct, pgagroal, pgbouncer, pgcat, pgpool, odyssey |
 | M10-S2 | direct (timeout), pgagroal (timeout), pgbouncer, pgcat, pgpool (timeout), odyssey | direct (timeout), pgagroal, pgbouncer, pgcat, pgpool (timeout), odyssey |
-| M10-S3 | direct, pgagroal (timeout), pgbouncer, pgcat, pgpool, odyssey | direct, pgagroal (timeout), pgbouncer, pgpool |
+| M10-S3 | direct, pgagroal (timeout), pgbouncer, pgcat, pgpool, odyssey | direct, pgagroal (timeout), pgbouncer, pgcat, pgpool, odyssey |
 
 Timeout/inconclusive groups above are honest 3-repeat
-findings, not gaps. Absent groups (Maintainer re-dispatch,
-chunk ids from `harness/soak.py` order):
-
-| Chunks | Groups |
-|---|---|
-| m10s35, m10s36 | M10-S3/3600 odyssey, pgcat |
-
-Re-measured tiers merge without collision under the fixed
-tiered raw filenames. No group is interpolated, zero-filled,
+findings, not gaps. No group is absent, interpolated, zero-filled,
 or carried forward.
+
+Re-measured tiers merged without collision under the fixed
+tiered raw filenames.

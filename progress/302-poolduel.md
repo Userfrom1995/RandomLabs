@@ -4,7 +4,7 @@ Status: in-progress
 Date: 2026-09-12. Owner directive via #42 (supreme priority).
 Blueprint: `ideas/2026-09-11-poolduel.md`. Researcher spec: `poolduel/docs/`.
 
-Active Milestone: M12 (reproducibility package; M11d merged at cb4ab82d)
+Active Milestone: M13b (final section-11 gate; soak 36/36 complete, M13a merged)
 
 ## Milestone roadmap
 
@@ -1125,10 +1125,49 @@ present, but no raw). Proven from `results/m10-soak/raw/` vs
   clean, HTTP smoke 200s on master + six dossiers with 6 soak
   figure hosts and zero pending in the soak section.
 
-Current step: 34-group sync complete, awaiting review
+Current step: 36-group sync complete, awaiting review
 Next steps: Reviewer audit -> Tester (full suite + HTTP smoke)
-  -> merge -> Maintainer re-dispatches m10s35/m10s36 ->
-  Builder M13b final gate.
+  -> merge -> Builder M13b final gate.
+`Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
+
+- the Builder
+
+## Soak 36-group sync (Builder, 2026-09-15, branch `opencode/issue302-20260915192954`)
+
+Final re-dispatch (m10s35/m10s36) landed M10-S3/3600 odyssey + pgcat.
+Committed truth now 36/36 (162 raw, 29 measured + 7 timeout medians);
+absent is the empty set, proven from `results/m10-soak/raw/` vs
+`SOAK_CHUNKS` order, not guessed.
+
+- Regen (generators unchanged, outputs only): `repro.sh --report`
+  (soak leg 29+7 + soak matrix.csv; m1/m2/m9 bytes identical,
+  statistics family 98 / headlines 96 unchanged), `--site`,
+  `--dossiers` (odyssey/pgcat regain S3/3600 rows, zero absent rows),
+  `--supplement`, `--charts` (6 soak figures, 36 medians / 162 raw,
+  timeout markers with zero absent markers), `--manifest` (2401 files
+  sealed, new build hash). `check.py` ok.
+- Pins: 8 test files moved 18/34-state to 36-state
+  (test_soak_tiers incl. empty-absent + full-18-arm tripwires,
+  test_m13a_soak_figure, test_tester_pr353/348/349, test_m11b_site,
+  test_m12_manifest, test_m12_tester_gate; pr350 needed no edit).
+  Final landing fails loudly until rebuild.
+- SHA hardening (Lab-flagged product scope): `pin_sha` now requires
+  a full 40-hex commit SHA, so CI `BLOCKED:` toolchain-flake markers
+  fail loudly in the smoke gate instead of rendering as recorded-SHA
+  passes. New `test_blocked_markers_rejected` matrix.
+- Docs/surfaces: `m10-soak-matrix.md` status + s8 complete,
+  `errata.md` new ledger row + matching reproducibility page row,
+  root README + landing soak counts (36/29/7/162, no pending clause).
+  Ideas: `ideas/2026-09-15-poolduel-soak-36sync.md`.
+- Proof: 761/761 green, `check.py` ok, page JS `node --check`
+  clean, HTTP smoke 200s on master + six dossiers + four supplement
+  pages with zero static pending cells and the soak section complete.
+
+Current step: 36-group sync complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  manifest verify + Tier-1/Tier-2 on unchanged figures) -> merge
+  -> Builder M13b final section-11 gate + single @Userfrom1995
+  notification.
 `Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
 
 - the Builder
