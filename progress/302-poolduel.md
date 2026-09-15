@@ -909,6 +909,53 @@ Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
 
 - the Builder
 
+## Soak tier-integrity fix (Builder, 2026-09-15, branch `opencode/issue302-20260915034435`)
+
+Proven from committed git truth (not guessed): the m10-soak sweep
+landed 18 of 36 spec groups in `results/m10-soak/` (54 raw, 18
+medians, 34/36 chunk version files, commit e7675597). Root cause is
+a harness bug, not runner flake:
+
+- `runner.run_plan` wrote raw as `CELL-ARM-rN.json` with no duration
+  tier, so the 30-min and 60-min tiers of one arm wrote identical
+  filenames; the aggregate's flat-dir `cp` kept one tier per arm
+  (last-writer-wins). 34 chunks uploaded version files, so the
+  absent 18 groups most likely ran and were overwritten at merge.
+- `runner.write_medians` grouped by `(cell_id, pooler)`, ignoring
+  duration; the committed soak medians carry no `duration_s` tier
+  label. The success run's artifacts are expired (0 retained), so
+  the lost tier is unrecoverable from artifacts and must be
+  re-measured.
+
+Fix (harness only, no workflow edits):
+- `stats.median_group_key`: `(cell_id, duration_s, pooler)` shared
+  by `report.aggregate` and `runner.write_medians` (M1/M2/M9 output
+  order- and content-identical: durations are uniform per group).
+- `runner.raw_filename`: soak cells gain a duration segment
+  (`M10-S1-1800s-direct-r1.json`); M1/M2/M9 names byte-identical.
+- `runner.write_medians`: context keys + `context_mixed` +
+  p-latency quarantine, mirroring `report.aggregate`.
+- Rebuilt `results/m10-soak/medians.json` via `report.aggregate`
+  over committed raw: same 18 groups, numerically identical tps
+  (verified by comparison), now tier-labeled; new
+  `results/m10-soak/matrix.csv`.
+- `tests/test_soak_tiers.py`: 11 tests (filename scheme, no-mix
+  proof, committed present-18 vs missing-18 tripwire).
+
+Missing-18 re-dispatch manifest (for Maintainer; chunks from
+`harness/soak.py` order): m10s03, m10s05, m10s07, m10s08, m10s10,
+m10s12, m10s13, m10s14, m10s17, m10s21, m10s22, m10s24, m10s28,
+m10s31, m10s32, m10s33, m10s35, m10s36. Timeout/inconclusive groups
+(S2-3600-direct, S2-1800-pgpool, S3-1800-pgagroal) are honest
+findings, not gaps.
+
+Current step: tier-integrity fix complete, bundle legs next
+Next steps: soak legs in report bundle/manifest/sitemeta/
+supplement/dossiers + page re-apply + errata + re-dispatch note.
+`Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
+
+- the Builder
+
 ## M10-soak public-surface sync (Builder, 2026-09-15, branch `opencode/issue302-20260915033624`)
 
 M10 soak sweep landed GREEN on main (`e7675597`: 18 medians over

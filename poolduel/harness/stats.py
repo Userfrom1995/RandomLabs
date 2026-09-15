@@ -39,6 +39,20 @@ def cv(values):
     return stdev(values) / abs(m)
 
 
+def median_group_key(rec):
+    """Grouping key for raw repeat records into median entries.
+
+    Duration is structural: a 30-min tier and a 60-min tier of the
+    same (cell, pooler) must never pool into one median (proven
+    2026-09-15 on the M10 soak: the aggregate grouped by
+    (cell, pooler) and the flat-dir merge silently kept one tier per
+    arm). Records without a duration (legacy/hand-built) group under
+    None and stay mutually comparable only with each other.
+    """
+    return (rec.get("cell_id"), rec.get("duration_s"),
+            rec.get("pooler"))
+
+
 def summarize(values):
     vals = [float(v) for v in values if v is not None]
     if not vals:

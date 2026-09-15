@@ -21,6 +21,7 @@ from . import workloads as workloads_mod
 from .cells import check_ratio
 from .chunk import mark_completed
 from .schema import POOLER_VERSIONS, validate_cell
+from .stats import median_group_key, summarize
 
 STANDARD_CAP_S = 8 * 60
 FLAGSHIP_CAP_S = 12 * 60
@@ -365,6 +366,26 @@ def e1_auth_posture(cell, arm):
     return None
 
 
+def raw_filename(cell, arm, repeat):
+    """Raw record filename for one (cell, arm, repeat) run.
+
+    M1/M2/M9 shape stays byte-identical (``CELL-ARM-rN.json``): the
+    sweep aggregates glob the flat raw dir, and existing artifacts
+    use this form. Soak cells carry a duration segment
+    (``M10-S1-1800s-direct-r1.json``): soak runs the same
+    (cell, arm) at two duration tiers, and without the segment both
+    tiers write the same filename, so a flat-dir merge silently keeps
+    one tier per arm (proven 2026-09-15: 18 of 36 soak groups lost
+    at the m10-soak aggregate, see docs/errata.md).
+    """
+    from .soak import is_soak_cell
+    if is_soak_cell(cell["cell_id"]):
+        return "%s-%ds-%s-r%d.json" % (cell["cell_id"],
+                                       int(cell["duration_s"]),
+                                       arm, repeat)
+    return "%s-%s-r%d.json" % (cell["cell_id"], arm, repeat)
+
+
 def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
              host="127.0.0.1", threads=4, seed=42, pg_version="PG 17",
              pg_config=None, env=None, seed_fn=None):
@@ -418,9 +439,8 @@ def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
                               % (cell["cell_id"], arm, repeat,
                                  "; ".join(errs)))
                 continue
-            fname = os.path.join(
-                raw_dir, "%s-%s-r%d.json"
-                % (cell["cell_id"], arm, repeat))
+            fname = os.path.join(raw_dir,
+                                 raw_filename(cell, arm, repeat))
             with open(fname, "w") as f:
                 json.dump(record, f, indent=2, sort_keys=True)
             records.append(record)
@@ -437,22 +457,46 @@ def run_plan(plan, adapters, out_dir, dbname="benchdb", user="benchuser",
 
 
 def write_medians(records, out_path):
-    """Aggregate raw repeat records into medians JSON with bands and CV."""
-    from .stats import summarize
+    """Aggregate raw repeat records into medians JSON with bands and CV.
+
+    Groups by ``(cell_id, duration_s, pooler)`` (see
+    ``stats.median_group_key``): duration is structural, so two
+    duration tiers of one arm stay separate medians. Entries carry
+    the measurement context plus ``context_mixed`` and the
+    p-latency quarantine flag, mirroring ``report.aggregate`` (the
+    M10 soak aggregate used the old context-free form, which left
+    tier-unlabeled medians; rebuilt soak medians carry context).
+    """
+    from .report import (CONTEXT_KEYS, METRIC_KEYS,
+                         quarantine_p_latency)
     grouped = {}
     for rec in records:
-        key = (rec["cell_id"], rec["pooler"])
-        grouped.setdefault(key, []).append(rec)
+        grouped.setdefault(median_group_key(rec), []).append(rec)
     medians = []
-    for (cell_id, pooler), rows in sorted(grouped.items()):
+    for (cell_id, _duration_s, pooler), rows in sorted(
+            grouped.items(),
+            key=lambda kv: (kv[0][0] or "",
+                            kv[0][1] if kv[0][1] is not None else -1,
+                            kv[0][2] or "")):
         rows = sorted(rows, key=lambda r: r["repeat"])
         entry = {"cell_id": cell_id, "pooler": pooler,
                  "n": len(rows),
                  "status": rows[0]["status"] if rows else None}
-        for metric in ("tps", "latency_avg_ms", "p50_ms", "p90_ms",
-                       "p99_ms", "p999_ms"):
-            entry[metric] = summarize(
-                [r[metric] for r in rows if r[metric] is not None])
+        for key in CONTEXT_KEYS:
+            entry[key] = rows[0].get(key)
+        entry["context_mixed"] = any(
+            r.get(key) != rows[0].get(key)
+            for r in rows for key in CONTEXT_KEYS)
+        statuses = {r["status"] for r in rows}
+        if len(statuses) > 1:
+            entry["status"] = "timeout/inconclusive"
+            for metric in METRIC_KEYS:
+                entry[metric] = summarize([])
+        else:
+            for metric in METRIC_KEYS:
+                entry[metric] = summarize(
+                    [r[metric] for r in rows if r[metric] is not None])
+        quarantine_p_latency(entry)
         medians.append(entry)
     with open(out_path, "w") as f:
         json.dump(medians, f, indent=2, sort_keys=True)

@@ -30,7 +30,7 @@ import sys
 from .schema import POOLER_VERSIONS, validate_cell
 from .statistics import (ALPHA, BOOTSTRAP_B, BOOTSTRAP_SEED, OUTLIER_RULE,
                          compare_ci, family_verdicts, rederive_claims)
-from .stats import compare_pair, summarize
+from .stats import compare_pair, median_group_key, summarize
 
 # Flatness verdict threshold: a pooler whose tps medians spread more than
 # this fraction of its own peak across its measured configs is "peaky"
@@ -88,15 +88,23 @@ def aggregate(records):
     Output entries carry the same ``cell_id``/``pooler``/metric-summary
     shape as ``runner.write_medians`` plus the measurement context
     (workload, clients, pool_size, protocol, churn, duration_s, scale)
-    taken from the first record of each group. Groups whose repeats
-    disagree on context are still aggregated; the disagreement is
-    recorded in ``context_mixed: true`` instead of failing the report.
+    taken from the first record of each group. Groups are keyed by
+    ``(cell_id, duration_s, pooler)``: duration is structural, so a
+    30-min tier and a 60-min tier of one arm stay separate medians
+    instead of pooling (M10 soak filename-collision lesson,
+    2026-09-15). Groups whose repeats disagree on the remaining
+    context are still aggregated; the disagreement is recorded in
+    ``context_mixed: true`` instead of failing the report.
     """
     grouped = {}
     for rec in records:
-        grouped.setdefault((rec["cell_id"], rec["pooler"]), []).append(rec)
+        grouped.setdefault(median_group_key(rec), []).append(rec)
     medians = []
-    for (cell_id, pooler), rows in sorted(grouped.items()):
+    for (cell_id, _duration_s, pooler), rows in sorted(
+            grouped.items(),
+            key=lambda kv: (kv[0][0] or "",
+                            kv[0][1] if kv[0][1] is not None else -1,
+                            kv[0][2] or "")):
         rows = sorted(rows, key=lambda r: r["repeat"])
         entry = {"cell_id": cell_id, "pooler": pooler,
                  "n": len(rows), "status": rows[0]["status"]}
