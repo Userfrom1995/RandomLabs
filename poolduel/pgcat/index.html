@@ -68,7 +68,7 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <h2>Config anatomy</h2>
 <!-- DOSSIER:config:begin -->
 <div class="viewtoggle" role="group" aria-label="Rows"><button data-filter="all" class="on">All</button><button data-filter="measured">Measured</button><button data-filter="na">N/A</button><button data-filter="timeout">Timeout</button></div>
-<p class="note">Every pgcat config with its results in full: M1 7 rows plus 11 M2 rows (8 measured + 1 timeout/inconclusive) plus 2 N/A rows; M9 24 rows (21 measured + 3 timeout/inconclusive) plus 0 N/A rows; M10 soak 5 tier-rows (5 measured + 0 timeout/inconclusive) plus 1 absent tier-rows (re-dispatch owned by Maintainer). Table shows the max-repeats evidence per tier-cell; full history in the matrix.csv files. Peak config tagged.</p>
+<p class="note">Every pgcat config with its results in full: M1 7 rows plus 11 M2 rows (8 measured + 1 timeout/inconclusive) plus 2 N/A rows; M9 24 rows (21 measured + 3 timeout/inconclusive) plus 0 N/A rows; M10 soak 6 tier-rows (6 measured + 0 timeout/inconclusive) plus 0 absent tier-rows (re-dispatch owned by Maintainer). Table shows the max-repeats evidence per tier-cell; full history in the matrix.csv files. Peak config tagged.</p>
 <table data-config-results data-pooler="pgcat"><tr><th>Cell</th><th>Load</th><th>Non-default settings</th><th>Docs</th><th>tps median [min-max]</th><th>Tail latency</th><th>Status</th></tr>
 <tr data-cell="M1-1" data-pooler="pgcat" data-status="measured" data-duration="120"><td>M1-1</td><td>select-only, 100c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">19,208 [19,024-22,249] PEAK</td><td>p99 6.9 ms, n=10</td><td class="live-status ok">measured</td></tr>
 <tr data-cell="M1-2" data-pooler="pgcat" data-status="measured" data-duration="120"><td>M1-2</td><td>tpcb-like, 50c/10p, simple</td><td><code>pool_mode=transaction</code>, worker_threads=5, pool 10</td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">2,687 [2,533-4,109]</td><td>p99 26.8 ms, n=10</td><td class="live-status ok">measured</td></tr>
@@ -101,7 +101,7 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <tr data-cell="M10-S2" data-pooler="pgcat" data-status="measured" data-duration="1800"><td>M10-S2</td><td>select-only, 200c/10p, simple, 30-min tier</td><td>M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">28,161 [18,520-37,825]</td><td>p99 -, n=6</td><td class="live-status ok">measured</td></tr>
 <tr data-cell="M10-S2" data-pooler="pgcat" data-status="measured" data-duration="3600"><td>M10-S2</td><td>select-only, 200c/10p, simple, 60-min tier</td><td>M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">21,372 [21,087-21,402]</td><td>p99 -, n=3</td><td class="live-status ok">measured</td></tr>
 <tr data-cell="M10-S3" data-pooler="pgcat" data-status="measured" data-duration="1800"><td>M10-S3</td><td>select-only, 100c/10p, simple, churn (-C), 30-min tier</td><td>M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">4,922 [4,122-5,771]</td><td>p99 21.7 ms, n=6</td><td class="live-status ok">measured</td></tr>
-<tr data-cell="M10-S3" data-pooler="pgcat" data-status="missing" data-duration="3600"><td>M10-S3</td><td>select-only, 100c/10p, simple, churn (-C), 60-min tier</td><td>M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps">tier not in git (re-dispatch owned by Maintainer)</td><td>p99 -, n=?</td><td class="live-status">tier not in git (re-dispatch owned by Maintainer)</td></tr>
+<tr data-cell="M10-S3" data-pooler="pgcat" data-status="measured" data-duration="3600"><td>M10-S3</td><td>select-only, 100c/10p, simple, churn (-C), 60-min tier</td><td>M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href="../results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a></td><td><a href="../docs/configs/pgcat.md">pgcat.md</a></td><td class="live-tps ok">4,148 [4,147-4,149]</td><td>p99 25.1 ms, n=3</td><td class="live-status ok">measured</td></tr>
 </table>
 <p>Full verbatim configs: <a href="../docs/configs/pgcat.md">docs/configs/pgcat.md</a>. Audit: <a href="../docs/fairness-audit.md">docs/fairness-audit.md</a>.</p>
 <!-- DOSSIER:config:end -->
@@ -116,10 +116,10 @@ footer { margin-top: 36px; color: #9aa7b4; font-size: 0.85rem; }
 <h3>Resource evidence</h3>
 <!-- DOSSIER:resources:begin -->
 <table><tr><th>Signal</th><th>Median over measured raw</th></tr>
-<tr><td>pgbench CPU time</td><td>3.38 s (n=183)</td></tr>
-<tr><td>pgbench peak RSS</td><td>38,696 KB</td></tr>
+<tr><td>pgbench CPU time</td><td>3.52 s (n=186)</td></tr>
+<tr><td>pgbench peak RSS</td><td>40,648 KB</td></tr>
 <tr><td>Iron</td><td>AMD EPYC 7763 64-Core Processor, kernel 6.17.0-1022-azure, 4 CPUs, pgbench -j 4</td></tr>
-<tr><td>PG config status</td><td>0 enforced, 183 disclosed, 0 other</td></tr>
+<tr><td>PG config status</td><td>0 enforced, 186 disclosed, 0 other</td></tr>
 </table>
 <p class="note">Auth posture: scram-sha-256 on every frontend (M9-E1 equalized control); scram-sha-256 via admin/users file.</p>
 <p class="note">Dataset: per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk.</p>

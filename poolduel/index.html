@@ -325,7 +325,7 @@ exact configs attached (verbatim in <code>docs/configs/</code>).</p>
 <div class="section">
 <h2>6d. Long-horizon stability leg (M10 soak: leak and tail drift)</h2>
 <!-- SITE:soak:begin -->
-<p>Long-horizon stability: <strong>27 measured</strong> of 36 spec tier-cells (34 present, 7 timeout/inconclusive, 2 not yet measured). No best arm, no verdicts: soak figures read as stability beside collapse. Method: 30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift. Full matrix: <a href="results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a>.</p>
+<p>Long-horizon stability: <strong>29 measured</strong> of 36 spec tier-cells (36 present, 7 timeout/inconclusive, 0 not yet measured). No best arm, no verdicts: soak figures read as stability beside collapse. Method: 30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift. Full matrix: <a href="results/m10-soak/matrix.csv">results/m10-soak/matrix.csv</a>.</p>
 <p>Stability figures (tps per tier per arm with min-max bands plus p99 tails, beside harness RSS/FD drift panels; absent tiers mark re-dispatch-owned, never zero-filled):</p>
 <div class="echart" data-page="comparison" data-chart="soak-M10-S1"></div>
 <div class="echart" data-page="comparison" data-chart="soak-M10-S1-drift"></div>
@@ -339,7 +339,7 @@ exact configs attached (verbatim in <code>docs/configs/</code>).</p>
 <tr><td><strong>M10-S2, 30-min tier</strong></td><td>saturation 200c/10p (M1-4 shape): pool-exhaustion pressure over 30-60 min, where queue/RSS drift shows first</td><td class="note">direct: timeout/inconclusive<br>pgagroal: timeout/inconclusive<br>pgbouncer: 31,518 [17,066-45,868]<br>pgpool: timeout/inconclusive<br>odyssey: 11,235 [11,107-11,248]<br>pgcat: 28,161 [18,520-37,825]</td></tr>
 <tr><td><strong>M10-S2, 60-min tier</strong></td><td>saturation 200c/10p (M1-4 shape): pool-exhaustion pressure over 30-60 min, where queue/RSS drift shows first</td><td class="note">direct: timeout/inconclusive<br>pgagroal: 1,112 [867-1,686]<br>pgbouncer: 25,046 [25,018-25,617]<br>pgpool: timeout/inconclusive<br>odyssey: 11,323 [11,231-11,361]<br>pgcat: 21,372 [21,087-21,402]</td></tr>
 <tr><td><strong>M10-S3, 30-min tier</strong></td><td>connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first</td><td class="note">direct: 265 [262-267]<br>pgagroal: timeout/inconclusive<br>pgbouncer: 387 [376-400]<br>pgpool: 266 [266-266]<br>odyssey: 5,503 [4,539-6,469]<br>pgcat: 4,922 [4,122-5,771]</td></tr>
-<tr><td><strong>M10-S3, 60-min tier</strong></td><td>connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first</td><td class="note">direct: 193 [190-193]<br>pgagroal: timeout/inconclusive<br>pgbouncer: 377 [376-377]<br>pgpool: 216 [208-228]<br>odyssey: tier not in git (re-dispatch owned by Maintainer)<br>pgcat: tier not in git (re-dispatch owned by Maintainer)</td></tr>
+<tr><td><strong>M10-S3, 60-min tier</strong></td><td>connect-per-transaction churn (M1-6 shape): fork/auth cost compounds over long windows; FD leak shows first</td><td class="note">direct: 193 [190-193]<br>pgagroal: timeout/inconclusive<br>pgbouncer: 377 [376-377]<br>pgpool: 216 [208-228]<br>odyssey: 4,919 [4,890-4,955]<br>pgcat: 4,148 [4,147-4,149]</td></tr>
 </table>
 <!-- SITE:soak:end -->
 </div>
