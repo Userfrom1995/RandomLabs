@@ -1049,10 +1049,47 @@ slices so page work does not serialize on the re-dispatch:
 
 Active Milestone: M13a (soak figure; M12 + soak legs merged)
 
-Current step: M13 blueprint complete, ready for Builder
-Next steps: Builder implements M13a per blueprint -> Reviewer audit ->
-  Tester (full suite + HTTP smoke + Tier-1/Tier-2 on soak figure) ->
-  merge -> Maintainer re-dispatches the 18 -> Builder M13b.
+## M13a build log (Builder, 2026-09-15, branch `opencode/issue302-20260915074754`)
+
+Implements the M13a slice of `ideas/2026-09-15-poolduel-m13-closure.md`
+(soak stability figure on partial-18 data). Harness + pages + loader
+only; no sweep execution (Maintainer owns the 18-chunk re-dispatch),
+no workflow edits (Lab scope), no numbers beyond committed bundles.
+
+Active Milestone: M13a (soak figure; M12 + soak legs merged)
+
+- New: `soak_absent()` + `soak_spec_triples()` + `SOAK_ABSENT_LABEL`
+  in `harness/soak.py` (spec minus present in chunk order, never
+  hand-typed); six soak figures in `harness/charts.py`
+  (`soak-M10-S1/S2/S3` tps + p99 tails with bands, `-drift`
+  RSS/FD panels from raw drift medians, shared palette, absent
+  markers distinct from timeout, nullable resources as n/a never
+  zero); `check_soak_figure_coherence` in `harness/check.py`;
+  `tests/test_m13a_soak_figure.py` (23 tests).
+- Wiring: site soak panel figure hosts; dossier absent-tier rows
+  with tier-suffixed labels (Supavisor: none, deferred by design);
+  soak rows always entry-derived + `data-duration` attrs; loader
+  soak-aware lookups that never clobber `data-status="missing"`
+  rows (also fixing the pre-existing live "no record" overwrite of
+  present soak rows); `repro.sh --charts` soak inputs; charts
+  manifest soak sources; README `--charts` line; ideas entry
+  `ideas/2026-09-15-poolduel-m13a-soak-figure.md`.
+- M4-era pinned tests extended for the new figure kind (drift-zero
+  exemption with traceability pin, dual-axis furniture rule,
+  chart-count + manifest + deep-equal with soak inputs).
+- Proof: full suite 739/739 green, `check.py` ok (m1/m2/m9 bytes
+  identical, statistics family 98 / headlines 96 unchanged),
+  idempotent re-apply, page JS `node --check` clean, HTTP smoke
+  (six figure hosts, absent rows live, zero pending in soak
+  section), Tier-2 headless read-back (20 SVGs, bundle peaks
+  on-figure, 24 absent-label marks).
+- `Refs #302`: no `Closes` (M13b final gate + explicit owner
+  approval remain), no owner notification (mandate rule 6).
+
+Current step: M13a implementation complete, awaiting review
+Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
+  Tier-1/Tier-2 on soak figure + loader live-fill check) -> merge
+  -> Maintainer re-dispatches the 18 -> Builder M13b.
 `Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
 
-- the Architect
+- the Builder
