@@ -2,12 +2,13 @@
 
 The soak stability figure is the last open mechanism panel: tps +
 p99 tails per arm per tier with min-max bands, beside harness
-RSS/FD drift panels, generated from the committed soak bundles by
-committed code. Present tiers render measured values; the 18
-absent triples (Maintainer-owned re-dispatch, ``docs/m10-soak-
-matrix.md`` section 8) render as off-baseline markers, never zeros
-and never interpolated; timeout/inconclusive findings keep their
-own distinct marks. Nullable resources mark ``n/a (not recorded)``.
+   RSS/FD drift panels, generated from the committed soak bundles by
+   committed code. Present tiers render measured values; the 2
+   absent triples (M10-S3/3600 odyssey + pgcat, Maintainer-owned
+   re-dispatch m10s35/m10s36, ``docs/m10-soak-matrix.md`` section 8)
+   render as off-baseline markers, never zeros and never
+   interpolated; timeout/inconclusive findings keep their
+   own distinct marks. Nullable resources mark ``n/a (not recorded)``.
 """
 
 import copy
@@ -64,21 +65,22 @@ class TestSoakAbsentDerivation(unittest.TestCase):
                    for e in soak}
         self.assertEqual(len(absent), 36 - len(present))
         self.assertFalse(set(absent) & present)
-        # The s8 re-dispatch manifest count holds on partial-18 data.
-        self.assertEqual(len(absent), 18)
-        self.assertIn(("M10-S1", "pgbouncer", 1800), absent)
+        # The s8 re-dispatch manifest count holds on 34-group data:
+        # only M10-S3/3600 odyssey + pgcat are still absent.
+        self.assertEqual(len(absent), 2)
+        self.assertIn(("M10-S3", "odyssey", 3600), absent)
         self.assertIn(("M10-S3", "pgcat", 3600), absent)
         # Present tiers are never marked absent.
         self.assertNotIn(("M10-S1", "direct", 1800), absent)
 
     def test_absent_shrinks_when_tiers_land(self):
         soak = _load(SOAK_MEDIANS)
-        grown = list(soak) + [_fixture_median("M10-S1", 1800,
-                                              "pgbouncer", 25000.0)]
+        grown = list(soak) + [_fixture_median("M10-S3", 3600,
+                                              "odyssey", 5500.0)]
         before = soak_absent(soak)
         after = soak_absent(grown)
         self.assertEqual(len(after), len(before) - 1)
-        self.assertNotIn(("M10-S1", "pgbouncer", 1800), after)
+        self.assertNotIn(("M10-S3", "odyssey", 3600), after)
 
 
 class TestSoakTpsFigure(unittest.TestCase):
@@ -121,6 +123,13 @@ class TestSoakTpsFigure(unittest.TestCase):
             markers = [s for s in opt["series"]
                        if s.get("type") == "scatter"
                        and s.get("name") == SOAK_ABSENT_LABEL]
+            cell_absent = [t for t in self.absent
+                           if t[0] == cell_id]
+            if not cell_absent:
+                # Fully landed cells carry no absent series
+                # (empty series are dropped, never zero-filled).
+                self.assertEqual(markers, [], cell_id)
+                continue
             self.assertEqual(len(markers), 1, cell_id)
             got = sorted(p[0] for p in markers[0]["data"])
             # One marker per affected tier (x positions dedupe
@@ -137,9 +146,9 @@ class TestSoakTpsFigure(unittest.TestCase):
                              [0, -14])
 
     def test_timeout_markers_distinct_from_absent(self):
-        # M10-S2 carries both: pgpool/1800 timeout present in git,
-        # direct/1800 absent from git.
-        opt = chartsmod.soak_tps_chart("M10-S2", self.soak,
+        # M10-S3 carries both: pgagroal/1800+3600 timeouts present
+        # in git, odyssey+pgcat/3600 absent from git.
+        opt = chartsmod.soak_tps_chart("M10-S3", self.soak,
                                        self.absent)
         names = [s["name"] for s in opt["series"]
                  if s.get("type") == "scatter"]
@@ -322,16 +331,15 @@ class TestSoakDossierAbsentRows(unittest.TestCase):
 
     def test_absent_rows_present_with_tier_labels(self):
         dossier = self.dossmod.build_dossier(
-            "pgbouncer", self.m1, self.m2, self.m9, self.bundle,
+            "odyssey", self.m1, self.m2, self.m9, self.bundle,
             {}, {}, soak=self.soak)
         missing = [r for r in dossier["rows"]
                    if r["status"] == SOAK_ABSENT_LABEL]
-        # pgbouncer present: S1/3600, S2/1800, S3/1800; the other
-        # three triples are Maintainer-owned re-dispatch.
+        # Odyssey present on every tier-group except M10-S3/3600;
+        # that one triple is Maintainer-owned re-dispatch (m10s35).
         self.assertEqual(
             sorted((r["cell_id"], r["duration_s"]) for r in missing),
-            [("M10-S1", 1800), ("M10-S2", 3600),
-             ("M10-S3", 3600)])
+            [("M10-S3", 3600)])
         for row in missing:
             minutes = row["duration_s"] // 60
             self.assertIn("%d-min tier" % minutes, row["load"])

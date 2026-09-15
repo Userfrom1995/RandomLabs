@@ -210,7 +210,7 @@ class TestCommittedSitemetaDrift(unittest.TestCase):
         self.assertEqual(meta["counts"]["m1_total"], 42)
         self.assertEqual(meta["counts"]["m2_total"], 111)
         self.assertEqual(meta["counts"]["m2_na"], 7)
-        self.assertEqual(meta["counts"]["soak_total"], 18)
+        self.assertEqual(meta["counts"]["soak_total"], 34)
         self.assertEqual(len(meta["executive_cards"]), 5)
         self.assertEqual(len(meta["flagship"]), 7)
         self.assertEqual(
