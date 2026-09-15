@@ -149,7 +149,7 @@ class TestSoakTierContracts(unittest.TestCase):
         with open(os.path.join("poolduel", "results", "m10-soak",
                                "matrix.csv")) as fh:
             rows = list(csv.DictReader(fh))
-        self.assertEqual(len(rows), 18)
+        self.assertEqual(len(rows), 34)
         self.assertIn("duration_s", rows[0])
         self.assertEqual(sorted(set(r["duration_s"] for r in rows)),
                          ["1800", "3600"])

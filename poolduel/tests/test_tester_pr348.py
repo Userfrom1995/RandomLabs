@@ -2,10 +2,11 @@
 
 Pins the root README Poolduel line and landing Poolduel card to the
 committed M10 soak truth, from the outside:
-1. Both surfaces claim M10 soak GREEN with exact counts (18 medians:
-   15 measured plus 3 timeout/inconclusive, 54 raw).
-2. Counts match poolduel/results/m10-soak/medians.json (18 rows,
-   3 cells x 6 arms) and raw/ file count (54).
+1. Both surfaces claim M10 soak GREEN with exact counts (34 medians:
+   27 measured plus 7 timeout/inconclusive, 156 raw).
+2. Counts match poolduel/results/m10-soak/medians.json (34 rows,
+   3 cells x 6 arms x 2 tiers minus 2 pending) and raw/ file
+   count (156).
 3. pr323 SYNCED substrings still present in both surfaces.
 4. No stale "undispatched" / "wired but undispatched" soak claim.
 5. No pinned "663 tests green" count (redesign no-fixed-count rule).
@@ -36,20 +37,20 @@ class M10SoakSurfacesSyncTest(unittest.TestCase):
         for rel in ("README.md", "index.html"):
             text = _read(rel)
             self.assertIn("M10 soak sweep is GREEN", text, rel)
-            self.assertIn("18 medians", text, rel)
-            self.assertIn("15 measured", text, rel)
-            self.assertIn("3 timeout/inconclusive", text, rel)
-            self.assertIn("54 raw", text, rel)
+            self.assertIn("34 medians", text, rel)
+            self.assertIn("27 measured", text, rel)
+            self.assertIn("7 timeout/inconclusive", text, rel)
+            self.assertIn("156 raw", text, rel)
 
     def test_counts_match_committed_data(self):
         medians = _load("poolduel/results/m10-soak/medians.json")
         self.assertIsInstance(medians, list)
-        self.assertEqual(len(medians), 18)
+        self.assertEqual(len(medians), 34)
         measured = [r for r in medians if r.get("status") == "measured"]
         inconc = [r for r in medians
                   if r.get("status") == "timeout/inconclusive"]
-        self.assertEqual(len(measured), 15)
-        self.assertEqual(len(inconc), 3)
+        self.assertEqual(len(measured), 27)
+        self.assertEqual(len(inconc), 7)
         cells = set(r["cell_id"] for r in medians)
         self.assertEqual(cells, {"M10-S1", "M10-S2", "M10-S3"})
         poolers = set(r["pooler"] for r in medians)
@@ -57,7 +58,7 @@ class M10SoakSurfacesSyncTest(unittest.TestCase):
                                    "pgbouncer", "pgcat", "pgpool"})
         raw = glob.glob(os.path.join(
             REPO, "poolduel", "results", "m10-soak", "raw", "*"))
-        self.assertEqual(len(raw), 54)
+        self.assertEqual(len(raw), 156)
 
     def test_pr323_synced_substrings_intact(self):
         synced = "M1 medians (42 rows) and M2 medians (111 rows)"
