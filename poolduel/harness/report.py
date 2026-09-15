@@ -162,11 +162,11 @@ def quarantine_p_latency(entry):
 
 
 def measured_entries(medians):
-    return [e for e in medians if e["status"] == "measured"]
+    return [e for e in medians if e.get("status") == "measured"]
 
 
 def na_entries(medians):
-    return [e for e in medians if e["status"] != "measured"]
+    return [e for e in medians if e.get("status") != "measured"]
 
 
 def per_cell_best(medians):
@@ -376,9 +376,13 @@ def build_bundle(m1_medians, m2_medians, pg_version="PG 17",
     if soak_medians is not None:
         bundle["soak_cells"] = sorted(
             {(e["cell_id"], e.get("duration_s")) for e in soak_medians
-             if isinstance(e, dict)})
+             if isinstance(e, dict)},
+            key=lambda t: (t[0] or "", t[1] if t[1] is not None else -1))
         bundle["soak_cells"] = [
-            "%s/%ds" % (cid, dur) for (cid, dur) in bundle["soak_cells"]]
+            ("%s/%ds" % (cid, dur)
+             if isinstance(dur, int) and not isinstance(dur, bool)
+             else "%s/unknown-tier" % (cid,))
+            for (cid, dur) in bundle["soak_cells"]]
         bundle["soak_measured"] = len(measured_entries(soak_medians))
         bundle["soak_na"] = len(na_entries(soak_medians))
     if statistics is not None:
