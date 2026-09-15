@@ -144,7 +144,10 @@ class ChartCountContractTest(unittest.TestCase):
             ["flatness", "iso-overlay", "m1-best", "m1-best-log",
              "m2-io", "m2-io-log", "m2-prepared", "m2-prepared-log",
              "m2-session", "m2-session-log", "m2-statement",
-             "m2-statement-log", "m2-workloads", "m2-workloads-log"])
+             "m2-statement-log", "m2-workloads", "m2-workloads-log",
+             "soak-M10-S1", "soak-M10-S1-drift", "soak-M10-S2",
+             "soak-M10-S2-drift", "soak-M10-S3",
+             "soak-M10-S3-drift"])
 
     def test_pooler_pages_have_own_m1_and_own_m2(self):
         for slug in charts_mod.PAGE_POOLERS:

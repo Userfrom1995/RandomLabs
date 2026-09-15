@@ -118,8 +118,14 @@ class NaMarkerTest(unittest.TestCase):
         options = _load_json("results/charts/comparison.json")
         blob = json.dumps(options)
         self.assertIn("N/A (unsupported)", blob)
-        # every bar series: N/A cells are null, never 0
-        for charts in options.values():
+        # every bar series: N/A cells are null, never 0. Soak
+        # drift panels are exempt from the zero ban: a 0.0 RSS/FD
+        # delta is a measured flat drift median traced to committed
+        # raw resources_drift fields (pinned in
+        # test_m13a_soak_figure), not a gap-fill.
+        for chart_id, charts in options.items():
+            if chart_id.endswith("-drift"):
+                continue
             for series in charts.get("series", []):
                 if series.get("type") != "bar":
                     continue
@@ -139,7 +145,15 @@ class ZeroHandValuesTest(unittest.TestCase):
         m1 = _load_json("results/m1/medians.json")
         m2 = _load_json("results/m2/medians.json")
         bundle = _load_json("results/report.json")
-        fresh = charts_mod.build_options(m1, m2, bundle)
+        soak = _load_json("results/m10-soak/medians.json")
+        raw = []
+        raw_dir = os.path.join(ROOT, "results", "m10-soak", "raw")
+        for name in sorted(os.listdir(raw_dir)):
+            if name.endswith(".json"):
+                raw.append(_load_json("results/m10-soak/raw/" + name))
+        fresh = charts_mod.build_options(m1, m2, bundle,
+                                         soak_medians=soak,
+                                         soak_raw=raw)
         for page, charts in fresh.items():
             committed = _load_json("results/charts/%s.json" % page)
             self.assertEqual(committed, charts,
@@ -157,11 +171,17 @@ class ZeroHandValuesTest(unittest.TestCase):
             return digest.hexdigest()
 
         sources = manifest["sources"]
+        raw_dir = os.path.join(ROOT, "results", "m10-soak", "raw")
+        raw_files = len([n for n in os.listdir(raw_dir)
+                         if n.endswith(".json")])
         self.assertEqual(
             sources,
             {"m1/medians.json": sha("results/m1/medians.json"),
              "m2/medians.json": sha("results/m2/medians.json"),
-             "report.json": sha("results/report.json")})
+             "report.json": sha("results/report.json"),
+             "m10-soak/medians.json":
+                 sha("results/m10-soak/medians.json"),
+             "m10-soak/raw_files": raw_files})
         self.assertEqual(len(manifest["pages"]), 6)
 
 
@@ -215,8 +235,28 @@ class FurnitureTest(unittest.TestCase):
                                      "%s/%s is not a log twin"
                                      % (page, chart_id))
                     continue
-                self.assertEqual(opt["yAxis"]["min"], 0,
-                                 "%s/%s truncates its axis" % (page, chart_id))
+                if isinstance(opt["yAxis"], list):
+                    # Dual-axis soak figures: the tps panel stays
+                    # zero-based; the signed-delta drift panel
+                    # auto-scales (deltas cross zero by nature) with
+                    # named RSS/FD axes.
+                    names = [a.get("name") for a in opt["yAxis"]]
+                    if "tps (transactions/s)" in names:
+                        idx = names.index("tps (transactions/s)")
+                        self.assertEqual(opt["yAxis"][idx]["min"], 0,
+                                         "%s/%s truncates its axis"
+                                         % (page, chart_id))
+                    else:
+                        self.assertIn("RSS delta (KB)", names,
+                                      "%s/%s lost its drift axes"
+                                      % (page, chart_id))
+                        self.assertIn("FD-count delta", names,
+                                      "%s/%s lost its drift axes"
+                                      % (page, chart_id))
+                else:
+                    self.assertEqual(opt["yAxis"]["min"], 0,
+                                     "%s/%s truncates its axis"
+                                     % (page, chart_id))
                 self.assertTrue(opt["dataZoom"], "%s/%s lacks zoom"
                                 % (page, chart_id))
                 self.assertIn("legend", opt)

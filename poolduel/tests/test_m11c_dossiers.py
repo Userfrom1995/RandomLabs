@@ -246,13 +246,16 @@ class TestDossierDrift(unittest.TestCase):
         self.assertEqual(len(sections), 7)
 
     def test_page_tables_match_meta_rows(self):
+        # Multiset comparison: soak tier-cells share one cell id
+        # across the 1800 s and 3600 s tiers (M13a), so duplicate
+        # data-cell values are expected wherever both tiers render.
         for pooler, dossier in self.meta["dossiers"].items():
             page = os.path.join(ROOT, pooler, "index.html")
             with open(page) as handle:
                 text = handle.read()
             cells = re.findall(r'data-cell="([^"]+)"', text)
             self.assertEqual(
-                sorted(set(cells)),
+                sorted(cells),
                 sorted(r["cell_id"] for r in dossier["rows"]), pooler)
 
 
