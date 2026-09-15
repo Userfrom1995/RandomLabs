@@ -8194,8 +8194,8 @@
     "M10-S3/1800s",
     "M10-S3/3600s"
   ],
-  "soak_measured": 15,
-  "soak_na": 3,
+  "soak_measured": 27,
+  "soak_na": 7,
   "statistics": {
     "claims": [
       {

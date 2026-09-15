@@ -6141,8 +6141,8 @@
     "series": [
       {
         "data": [
-          23247.443376,
-          null
+          23863.761818,
+          31217.17811
         ],
         "emphasis": {
           "focus": "series"
@@ -6156,7 +6156,7 @@
       {
         "data": [
           23199.031128,
-          null
+          31027.306342
         ],
         "itemStyle": {
           "color": "#999999",
@@ -6176,8 +6176,8 @@
       },
       {
         "data": [
-          23752.506947,
-          null
+          24225.585577,
+          31263.395106
         ],
         "itemStyle": {
           "color": "#999999",
@@ -6219,8 +6219,8 @@
       },
       {
         "data": [
-          1820.922519,
-          null
+          1980.8240095,
+          1664.35299
         ],
         "emphasis": {
           "focus": "series"
@@ -6234,7 +6234,7 @@
       {
         "data": [
           1692.365536,
-          null
+          1579.886546
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -6255,7 +6255,7 @@
       {
         "data": [
           2314.256292,
-          null
+          1852.67114
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -6275,8 +6275,8 @@
       },
       {
         "data": [
-          55.83831999999984,
-          null
+          51.40722999999998,
+          56.141
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -6297,8 +6297,8 @@
       },
       {
         "data": [
-          null,
-          26657.160698
+          17008.336377,
+          35162.592192000004
         ],
         "emphasis": {
           "focus": "series"
@@ -6311,7 +6311,7 @@
       },
       {
         "data": [
-          null,
+          16943.857075,
           26475.258398
         ],
         "itemStyle": {
@@ -6332,8 +6332,8 @@
       },
       {
         "data": [
-          null,
-          26787.076249
+          17075.865852,
+          43744.796311
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -6375,8 +6375,8 @@
       },
       {
         "data": [
-          37143.053253,
-          null
+          26733.0677395,
+          15197.752441
         ],
         "emphasis": {
           "focus": "series"
@@ -6389,8 +6389,8 @@
       },
       {
         "data": [
-          36954.243461,
-          null
+          16361.129302,
+          14876.649849
         ],
         "itemStyle": {
           "color": "#E69F00",
@@ -6411,7 +6411,7 @@
       {
         "data": [
           37675.043924,
-          null
+          15219.483072
         ],
         "itemStyle": {
           "color": "#E69F00",
@@ -6453,8 +6453,8 @@
       },
       {
         "data": [
-          null,
-          11216.856668
+          11478.843542,
+          12071.1610865
         ],
         "emphasis": {
           "focus": "series"
@@ -6467,7 +6467,7 @@
       },
       {
         "data": [
-          null,
+          11426.860234,
           11196.1105
         ],
         "itemStyle": {
@@ -6488,8 +6488,8 @@
       },
       {
         "data": [
-          null,
-          11256.049564
+          11488.629242,
+          13058.04492
         ],
         "itemStyle": {
           "color": "#009E73",
@@ -6509,7 +6509,7 @@
       },
       {
         "data": [
-          null,
+          10.231,
           null
         ],
         "itemStyle": {
@@ -6531,8 +6531,8 @@
       },
       {
         "data": [
-          18717.873345,
-          null
+          19218.439701000003,
+          19494.138092
         ],
         "emphasis": {
           "focus": "series"
@@ -6546,7 +6546,7 @@
       {
         "data": [
           18706.391501,
-          null
+          19470.986662
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -6566,8 +6566,8 @@
       },
       {
         "data": [
-          18729.472062,
-          null
+          19905.379613,
+          19595.747821
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -6606,35 +6606,6 @@
         "symbolSize": 6,
         "type": "line",
         "yAxisIndex": 1
-      },
-      {
-        "data": [
-          [
-            0,
-            0
-          ],
-          [
-            1,
-            0
-          ]
-        ],
-        "itemStyle": {
-          "color": "#6E7681"
-        },
-        "label": {
-          "color": "#6E7681",
-          "formatter": "absent",
-          "position": "top",
-          "show": true
-        },
-        "name": "tier not in git (re-dispatch owned by Maintainer)",
-        "symbol": "roundRect",
-        "symbolOffset": [
-          0,
-          -14
-        ],
-        "symbolSize": 14,
-        "type": "scatter"
       }
     ],
     "textStyle": {
@@ -6642,7 +6613,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 37143.1 tps (pgpool); 6 measured tiers; ; 6 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 35162.6 tps (pgbouncer); 12 measured tiers; ; all tiers present. 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Soak stability M10-S1: tps per tier per arm",
       "textStyle": {
         "color": "#E6EDF3"
@@ -6720,7 +6691,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -6734,7 +6705,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#999999",
@@ -6756,7 +6727,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -6770,7 +6741,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -6791,7 +6762,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "emphasis": {
@@ -6805,7 +6776,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "itemStyle": {
@@ -6828,7 +6799,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -6842,7 +6813,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#E69F00",
@@ -6863,7 +6834,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "emphasis": {
@@ -6877,7 +6848,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "itemStyle": {
@@ -6900,7 +6871,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -6914,7 +6885,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -6932,35 +6903,6 @@
         "symbolSize": 6,
         "type": "line",
         "yAxisIndex": 1
-      },
-      {
-        "data": [
-          [
-            0,
-            0
-          ],
-          [
-            1,
-            0
-          ]
-        ],
-        "itemStyle": {
-          "color": "#6E7681"
-        },
-        "label": {
-          "color": "#6E7681",
-          "formatter": "absent",
-          "position": "top",
-          "show": true
-        },
-        "name": "tier not in git (re-dispatch owned by Maintainer)",
-        "symbol": "roundRect",
-        "symbolOffset": [
-          0,
-          -14
-        ],
-        "symbolSize": 14,
-        "type": "scatter"
       }
     ],
     "textStyle": {
@@ -7123,7 +7065,7 @@
       {
         "data": [
           null,
-          1408.089415
+          1112.2556755
         ],
         "emphasis": {
           "focus": "series"
@@ -7137,7 +7079,7 @@
       {
         "data": [
           null,
-          1258.664133
+          866.973326
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -7179,7 +7121,7 @@
       {
         "data": [
           null,
-          35.13303000000026
+          38.14235499999998
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -7200,8 +7142,8 @@
       },
       {
         "data": [
-          45606.046406,
-          null
+          31518.280007,
+          25045.70714
         ],
         "emphasis": {
           "focus": "series"
@@ -7214,8 +7156,8 @@
       },
       {
         "data": [
-          45532.602919,
-          null
+          17066.313908,
+          25018.272726
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -7236,7 +7178,7 @@
       {
         "data": [
           45867.570085,
-          null
+          25616.692205
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -7356,8 +7298,8 @@
       },
       {
         "data": [
-          null,
-          11344.994858
+          11234.68102,
+          11323.3043335
         ],
         "emphasis": {
           "focus": "series"
@@ -7370,8 +7312,8 @@
       },
       {
         "data": [
-          null,
-          11331.159589
+          11107.214038,
+          11230.989538
         ],
         "itemStyle": {
           "color": "#009E73",
@@ -7391,7 +7333,7 @@
       },
       {
         "data": [
-          null,
+          11247.537718,
           11360.964579
         ],
         "itemStyle": {
@@ -7412,7 +7354,7 @@
       },
       {
         "data": [
-          null,
+          20.746,
           null
         ],
         "itemStyle": {
@@ -7434,8 +7376,8 @@
       },
       {
         "data": [
-          18819.659952,
-          null
+          28160.53247,
+          21371.978407
         ],
         "emphasis": {
           "focus": "series"
@@ -7449,7 +7391,7 @@
       {
         "data": [
           18519.837331,
-          null
+          21087.114336
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -7469,8 +7411,8 @@
       },
       {
         "data": [
-          18825.436693,
-          null
+          37825.247423,
+          21401.570607
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -7522,35 +7464,6 @@
           ]
         ],
         "itemStyle": {
-          "color": "#6E7681"
-        },
-        "label": {
-          "color": "#6E7681",
-          "formatter": "absent",
-          "position": "top",
-          "show": true
-        },
-        "name": "tier not in git (re-dispatch owned by Maintainer)",
-        "symbol": "roundRect",
-        "symbolOffset": [
-          0,
-          -14
-        ],
-        "symbolSize": 14,
-        "type": "scatter"
-      },
-      {
-        "data": [
-          [
-            0,
-            0
-          ],
-          [
-            1,
-            0
-          ]
-        ],
-        "itemStyle": {
           "color": "#F0E442"
         },
         "label": {
@@ -7574,7 +7487,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 45606.0 tps (pgbouncer); 4 measured tiers; ; 6 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 31518.3 tps (pgbouncer); 7 measured tiers; ; all tiers present. 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Soak stability M10-S2: tps per tier per arm",
       "textStyle": {
         "color": "#E6EDF3"
@@ -7651,7 +7564,7 @@
     "series": [
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "emphasis": {
@@ -7665,7 +7578,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "itemStyle": {
@@ -7687,7 +7600,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "emphasis": {
@@ -7701,7 +7614,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "itemStyle": {
@@ -7724,7 +7637,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -7738,7 +7651,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -7760,7 +7673,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -7774,7 +7687,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#E69F00",
@@ -7795,7 +7708,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "emphasis": {
@@ -7809,7 +7722,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "itemStyle": {
@@ -7832,7 +7745,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -7846,7 +7759,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#CC79A7",
@@ -7864,35 +7777,6 @@
         "symbolSize": 6,
         "type": "line",
         "yAxisIndex": 1
-      },
-      {
-        "data": [
-          [
-            0,
-            0
-          ],
-          [
-            1,
-            0
-          ]
-        ],
-        "itemStyle": {
-          "color": "#6E7681"
-        },
-        "label": {
-          "color": "#6E7681",
-          "formatter": "absent",
-          "position": "top",
-          "show": true
-        },
-        "name": "tier not in git (re-dispatch owned by Maintainer)",
-        "symbol": "roundRect",
-        "symbolOffset": [
-          0,
-          -14
-        ],
-        "symbolSize": 14,
-        "type": "scatter"
       }
     ],
     "textStyle": {
@@ -7976,8 +7860,8 @@
     "series": [
       {
         "data": [
-          261.914056,
-          null
+          264.849897,
+          192.88133
         ],
         "emphasis": {
           "focus": "series"
@@ -7991,7 +7875,7 @@
       {
         "data": [
           261.844289,
-          null
+          190.29659
         ],
         "itemStyle": {
           "color": "#999999",
@@ -8011,8 +7895,8 @@
       },
       {
         "data": [
-          263.336023,
-          null
+          267.033486,
+          193.130677
         ],
         "itemStyle": {
           "color": "#999999",
@@ -8032,8 +7916,8 @@
       },
       {
         "data": [
-          514.1944000000001,
-          null
+          535.78565,
+          666.32954
         ],
         "itemStyle": {
           "color": "#999999",
@@ -8132,8 +8016,8 @@
       },
       {
         "data": [
-          396.954385,
-          null
+          386.990311,
+          376.640982
         ],
         "emphasis": {
           "focus": "series"
@@ -8146,8 +8030,8 @@
       },
       {
         "data": [
-          395.638393,
-          null
+          376.035695,
+          376.359529
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -8168,7 +8052,7 @@
       {
         "data": [
           399.816151,
-          null
+          377.366883
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -8188,8 +8072,8 @@
       },
       {
         "data": [
-          253.14787000000013,
-          null
+          259.19548999999995,
+          265.396
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -8210,8 +8094,8 @@
       },
       {
         "data": [
-          null,
-          208.565865
+          265.871801,
+          216.165777
         ],
         "emphasis": {
           "focus": "series"
@@ -8224,7 +8108,7 @@
       },
       {
         "data": [
-          null,
+          265.673513,
           208.417756
         ],
         "itemStyle": {
@@ -8245,8 +8129,8 @@
       },
       {
         "data": [
-          null,
-          208.628558
+          265.901157,
+          227.626598
         ],
         "itemStyle": {
           "color": "#E69F00",
@@ -8266,8 +8150,8 @@
       },
       {
         "data": [
-          null,
-          525.3755800000004
+          427.74352000000005,
+          519.29267
         ],
         "itemStyle": {
           "color": "#E69F00",
@@ -8288,7 +8172,7 @@
       },
       {
         "data": [
-          6460.874565,
+          5503.2365685,
           null
         ],
         "emphasis": {
@@ -8302,7 +8186,7 @@
       },
       {
         "data": [
-          6441.500153,
+          4538.924797,
           null
         ],
         "itemStyle": {
@@ -8344,7 +8228,7 @@
       },
       {
         "data": [
-          17.403,
+          20.5105,
           null
         ],
         "itemStyle": {
@@ -8366,7 +8250,7 @@
       },
       {
         "data": [
-          5732.222936,
+          4921.6493485,
           null
         ],
         "emphasis": {
@@ -8380,7 +8264,7 @@
       },
       {
         "data": [
-          5707.011456,
+          4122.281402,
           null
         ],
         "itemStyle": {
@@ -8422,7 +8306,7 @@
       },
       {
         "data": [
-          18.189,
+          21.7485,
           null
         ],
         "itemStyle": {
@@ -8444,10 +8328,6 @@
       },
       {
         "data": [
-          [
-            0,
-            0
-          ],
           [
             1,
             0
@@ -8476,6 +8356,10 @@
           [
             0,
             0
+          ],
+          [
+            1,
+            0
           ]
         ],
         "itemStyle": {
@@ -8502,7 +8386,7 @@
     },
     "title": {
       "left": "center",
-      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 6460.9 tps (odyssey); 5 measured tiers; ; 6 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
+      "subtext": "median tps with min-max bands; dotted lines are p99 latency (right axis), null where quarantined or unmeasured. peak 5503.2 tps (odyssey); 8 measured tiers; ; 2 absent tiers (re-dispatch owned by Maintainer). 60 s warmup; scale 10; PG 17 (PGDG); ubuntu-24.04 CI runners",
       "text": "Soak stability M10-S3: tps per tier per arm",
       "textStyle": {
         "color": "#E6EDF3"
@@ -8580,7 +8464,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -8594,7 +8478,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#999999",
@@ -8616,7 +8500,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -8630,7 +8514,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#0072B2",
@@ -8652,7 +8536,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "emphasis": {
           "focus": "series"
@@ -8666,7 +8550,7 @@
       {
         "data": [
           0.0,
-          null
+          0.0
         ],
         "itemStyle": {
           "color": "#56B4E9",
@@ -8687,7 +8571,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "emphasis": {
@@ -8701,7 +8585,7 @@
       },
       {
         "data": [
-          null,
+          0.0,
           0.0
         ],
         "itemStyle": {
@@ -8795,10 +8679,6 @@
       },
       {
         "data": [
-          [
-            0,
-            0
-          ],
           [
             1,
             0

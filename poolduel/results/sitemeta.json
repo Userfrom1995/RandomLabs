@@ -4,7 +4,7 @@
     "m1_total": 42,
     "m2_na": 7,
     "m2_total": 111,
-    "soak_total": 18
+    "soak_total": 34
   },
   "executive_cards": [
     {
@@ -1109,42 +1109,42 @@
     "total": 250
   },
   "soak_leg": {
-    "measured": 15,
+    "measured": 27,
     "method": "30/60-min measured windows, 60 s warmup, 3 paired repeats per (cell, arm, tier); drift evidence in raw resources_pre/post/drift",
-    "missing": 18,
-    "present": 18,
+    "missing": 2,
+    "present": 34,
     "rows": [
       {
         "arms": [
           {
             "pooler": "direct",
             "status": "measured",
-            "tps_band": "23,247 [23,199-23,753]"
+            "tps_band": "23,864 [23,199-24,226]"
           },
           {
             "pooler": "pgagroal",
             "status": "measured",
-            "tps_band": "1,821 [1,692-2,314]"
+            "tps_band": "1,981 [1,692-2,314]"
           },
           {
             "pooler": "pgbouncer",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "17,008 [16,944-17,076]"
           },
           {
             "pooler": "pgpool",
             "status": "measured",
-            "tps_band": "37,143 [36,954-37,675]"
+            "tps_band": "26,733 [16,361-37,675]"
           },
           {
             "pooler": "odyssey",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "11,479 [11,427-11,489]"
           },
           {
             "pooler": "pgcat",
             "status": "measured",
-            "tps_band": "18,718 [18,706-18,729]"
+            "tps_band": "19,218 [18,706-19,905]"
           }
         ],
         "cell_id": "M10-S1",
@@ -1156,33 +1156,33 @@
         "arms": [
           {
             "pooler": "direct",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "31,217 [31,027-31,263]"
           },
           {
             "pooler": "pgagroal",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "1,664 [1,580-1,853]"
           },
           {
             "pooler": "pgbouncer",
             "status": "measured",
-            "tps_band": "26,657 [26,475-26,787]"
+            "tps_band": "35,163 [26,475-43,745]"
           },
           {
             "pooler": "pgpool",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "15,198 [14,877-15,219]"
           },
           {
             "pooler": "odyssey",
             "status": "measured",
-            "tps_band": "11,217 [11,196-11,256]"
+            "tps_band": "12,071 [11,196-13,058]"
           },
           {
             "pooler": "pgcat",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "19,494 [19,471-19,596]"
           }
         ],
         "cell_id": "M10-S1",
@@ -1194,18 +1194,18 @@
         "arms": [
           {
             "pooler": "direct",
-            "status": "missing",
+            "status": "timeout/inconclusive",
             "tps_band": null
           },
           {
             "pooler": "pgagroal",
-            "status": "missing",
+            "status": "timeout/inconclusive",
             "tps_band": null
           },
           {
             "pooler": "pgbouncer",
             "status": "measured",
-            "tps_band": "45,606 [45,533-45,868]"
+            "tps_band": "31,518 [17,066-45,868]"
           },
           {
             "pooler": "pgpool",
@@ -1214,13 +1214,13 @@
           },
           {
             "pooler": "odyssey",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "11,235 [11,107-11,248]"
           },
           {
             "pooler": "pgcat",
             "status": "measured",
-            "tps_band": "18,820 [18,520-18,825]"
+            "tps_band": "28,161 [18,520-37,825]"
           }
         ],
         "cell_id": "M10-S2",
@@ -1238,27 +1238,27 @@
           {
             "pooler": "pgagroal",
             "status": "measured",
-            "tps_band": "1,408 [1,259-1,686]"
+            "tps_band": "1,112 [867-1,686]"
           },
           {
             "pooler": "pgbouncer",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "25,046 [25,018-25,617]"
           },
           {
             "pooler": "pgpool",
-            "status": "missing",
+            "status": "timeout/inconclusive",
             "tps_band": null
           },
           {
             "pooler": "odyssey",
             "status": "measured",
-            "tps_band": "11,345 [11,331-11,361]"
+            "tps_band": "11,323 [11,231-11,361]"
           },
           {
             "pooler": "pgcat",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "21,372 [21,087-21,402]"
           }
         ],
         "cell_id": "M10-S2",
@@ -1271,7 +1271,7 @@
           {
             "pooler": "direct",
             "status": "measured",
-            "tps_band": "262 [262-263]"
+            "tps_band": "265 [262-267]"
           },
           {
             "pooler": "pgagroal",
@@ -1281,22 +1281,22 @@
           {
             "pooler": "pgbouncer",
             "status": "measured",
-            "tps_band": "397 [396-400]"
+            "tps_band": "387 [376-400]"
           },
           {
             "pooler": "pgpool",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "266 [266-266]"
           },
           {
             "pooler": "odyssey",
             "status": "measured",
-            "tps_band": "6,461 [6,442-6,469]"
+            "tps_band": "5,503 [4,539-6,469]"
           },
           {
             "pooler": "pgcat",
             "status": "measured",
-            "tps_band": "5,732 [5,707-5,771]"
+            "tps_band": "4,922 [4,122-5,771]"
           }
         ],
         "cell_id": "M10-S3",
@@ -1308,23 +1308,23 @@
         "arms": [
           {
             "pooler": "direct",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "193 [190-193]"
           },
           {
             "pooler": "pgagroal",
-            "status": "missing",
+            "status": "timeout/inconclusive",
             "tps_band": null
           },
           {
             "pooler": "pgbouncer",
-            "status": "missing",
-            "tps_band": null
+            "status": "measured",
+            "tps_band": "377 [376-377]"
           },
           {
             "pooler": "pgpool",
             "status": "measured",
-            "tps_band": "209 [208-209]"
+            "tps_band": "216 [208-228]"
           },
           {
             "pooler": "odyssey",
@@ -1343,14 +1343,14 @@
         "title": "M10-S3, 60-min tier"
       }
     ],
-    "timeout": 3,
+    "timeout": 7,
     "total": 36
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
-    "m10-soak/medians.json": "49bce7ffa875d3f42642efbc2481817d5c446c39f01f28b239192e157c3d56cb",
+    "m10-soak/medians.json": "635b30215fa98687dc23cb81dad1f0c843e3ba1aea260bbde92fab1abce0d449",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "ba4720eaafdaa8ef7a3b4be0c916fbe1a2f30869991a9b129722b9bd07e03464"
+    "report.json": "54598d76632bc5b772eec989a493bef69b008885277d2d1a2fe63b8e2a9a3f45"
   }
 }

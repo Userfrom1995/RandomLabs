@@ -21,7 +21,7 @@
           "total": 8
         },
         "soak": {
-          "measured": 3,
+          "measured": 5,
           "na": 0,
           "timeout": 0,
           "total": 6
@@ -63,10 +63,10 @@
           "total": 26
         },
         "soak": {
-          "measured": 3,
+          "measured": 5,
           "na": 0,
           "timeout": 0,
-          "total": 3
+          "total": 5
         }
       },
       "pg": "PG 17",
@@ -77,7 +77,7 @@
           "none (CI-only frontend; backend leg SCRAM)",
           "scram-sha-256 on every frontend (M9-E1 equalized control)"
         ],
-        "cpu_median_s": 3.5101769999999997,
+        "cpu_median_s": 3.517715,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -87,11 +87,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 189,
+        "pg_disclosed": 204,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 52768,
-        "samples": 189
+        "rss_median_kb": 52768.0,
+        "samples": 204
       },
       "rows": [
         {
@@ -478,13 +478,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "10.2 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "11,479 [11,427-11,489]",
+          "tps_median": 11478.843542
         },
         {
           "cell_id": "M10-S1",
@@ -492,13 +492,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "11,217 [11,196-11,256]",
-          "tps_median": 11216.856668
+          "tps_band": "12,071 [11,196-13,058]",
+          "tps_median": 12071.1610865
         },
         {
           "cell_id": "M10-S2",
@@ -506,13 +506,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "20.7 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "11,235 [11,107-11,248]",
+          "tps_median": 11234.68102
         },
         {
           "cell_id": "M10-S2",
@@ -520,13 +520,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "11,345 [11,331-11,361]",
-          "tps_median": 11344.994858
+          "tps_band": "11,323 [11,231-11,361]",
+          "tps_median": 11323.3043335
         },
         {
           "cell_id": "M10-S3",
@@ -534,13 +534,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
-          "n": 3,
-          "p99": "17.4 ms",
+          "n": 6,
+          "p99": "20.5 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "6,461 [6,442-6,469]",
-          "tps_median": 6460.874565
+          "tps_band": "5,503 [4,539-6,469]",
+          "tps_median": 5503.2365685
         },
         {
           "cell_id": "M10-S3",
@@ -587,9 +587,9 @@
           "total": 8
         },
         "soak": {
-          "measured": 2,
+          "measured": 3,
           "na": 0,
-          "timeout": 1,
+          "timeout": 3,
           "total": 6
         }
       },
@@ -629,10 +629,10 @@
           "total": 26
         },
         "soak": {
-          "measured": 2,
+          "measured": 3,
           "na": 0,
-          "timeout": 1,
-          "total": 3
+          "timeout": 3,
+          "total": 6
         }
       },
       "pg": "PG 17",
@@ -642,7 +642,7 @@
         "auth": [
           "scram-sha-256 via HBA + vault passthrough"
         ],
-        "cpu_median_s": 2.9306025,
+        "cpu_median_s": 3.012579,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -652,11 +652,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 114,
+        "pg_disclosed": 123,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 70602.0,
-        "samples": 114
+        "rss_median_kb": 83316,
+        "samples": 123
       },
       "rows": [
         {
@@ -1057,13 +1057,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
-          "n": 3,
-          "p99": "55.8 ms",
+          "n": 6,
+          "p99": "51.4 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "1,821 [1,692-2,314]",
-          "tps_median": 1820.922519
+          "tps_band": "1,981 [1,692-2,314]",
+          "tps_median": 1980.8240095
         },
         {
           "cell_id": "M10-S1",
@@ -1071,13 +1071,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "56.1 ms",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "1,664 [1,580-1,853]",
+          "tps_median": 1664.35299
         },
         {
           "cell_id": "M10-S2",
@@ -1085,11 +1085,11 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
-          "n": null,
+          "n": 0,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "status": "timeout/inconclusive",
           "tps_band": null,
           "tps_median": null
         },
@@ -1099,13 +1099,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
-          "n": 3,
-          "p99": "35.1 ms",
+          "n": 6,
+          "p99": "38.1 ms",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "1,408 [1,259-1,686]",
-          "tps_median": 1408.089415
+          "tps_band": "1,112 [867-1,686]",
+          "tps_median": 1112.2556755
         },
         {
           "cell_id": "M10-S3",
@@ -1127,11 +1127,11 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
-          "n": null,
+          "n": 0,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "status": "timeout/inconclusive",
           "tps_band": null,
           "tps_median": null
         }
@@ -1166,7 +1166,7 @@
           "total": 8
         },
         "soak": {
-          "measured": 3,
+          "measured": 6,
           "na": 0,
           "timeout": 0,
           "total": 6
@@ -1208,10 +1208,10 @@
           "total": 27
         },
         "soak": {
-          "measured": 3,
+          "measured": 6,
           "na": 0,
           "timeout": 0,
-          "total": 3
+          "total": 6
         }
       },
       "pg": "PG 17",
@@ -1222,7 +1222,7 @@
           "scram-sha-256 on every frontend (M9-E1 equalized control)",
           "scram-sha-256 via auth_file users.txt"
         ],
-        "cpu_median_s": 2.814424,
+        "cpu_median_s": 2.247382,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -1232,11 +1232,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 175,
+        "pg_disclosed": 193,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 52352,
-        "samples": 175
+        "rss_median_kb": 42572,
+        "samples": 193
       },
       "rows": [
         {
@@ -1623,13 +1623,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
-          "n": null,
+          "n": 3,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "17,008 [16,944-17,076]",
+          "tps_median": 17008.336377
         },
         {
           "cell_id": "M10-S1",
@@ -1637,13 +1637,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "26,657 [26,475-26,787]",
-          "tps_median": 26657.160698
+          "tps_band": "35,163 [26,475-43,745]",
+          "tps_median": 35162.592192000004
         },
         {
           "cell_id": "M10-S2",
@@ -1651,13 +1651,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "45,606 [45,533-45,868]",
-          "tps_median": 45606.046406
+          "tps_band": "31,518 [17,066-45,868]",
+          "tps_median": 31518.280007
         },
         {
           "cell_id": "M10-S2",
@@ -1665,13 +1665,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
-          "n": null,
+          "n": 3,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "25,046 [25,018-25,617]",
+          "tps_median": 25045.70714
         },
         {
           "cell_id": "M10-S3",
@@ -1679,13 +1679,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
-          "n": 3,
-          "p99": "253.1 ms",
+          "n": 6,
+          "p99": "259.2 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "397 [396-400]",
-          "tps_median": 396.954385
+          "tps_band": "387 [376-400]",
+          "tps_median": 386.990311
         },
         {
           "cell_id": "M10-S3",
@@ -1693,13 +1693,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "265.4 ms",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "377 [376-377]",
+          "tps_median": 376.640982
         }
       ],
       "verdicts": {
@@ -1732,7 +1732,7 @@
           "total": 8
         },
         "soak": {
-          "measured": 3,
+          "measured": 5,
           "na": 0,
           "timeout": 0,
           "total": 6
@@ -1774,10 +1774,10 @@
           "total": 24
         },
         "soak": {
-          "measured": 3,
+          "measured": 5,
           "na": 0,
           "timeout": 0,
-          "total": 3
+          "total": 5
         }
       },
       "pg": "PG 17",
@@ -1788,7 +1788,7 @@
           "scram-sha-256 on every frontend (M9-E1 equalized control)",
           "scram-sha-256 via admin/users file"
         ],
-        "cpu_median_s": 3.7477905,
+        "cpu_median_s": 3.375022,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -1798,11 +1798,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 168,
+        "pg_disclosed": 183,
         "pg_enforced": 0,
         "pg_other": 0,
-        "rss_median_kb": 42572.0,
-        "samples": 168
+        "rss_median_kb": 38696,
+        "samples": 183
       },
       "rows": [
         {
@@ -2175,13 +2175,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "18,718 [18,706-18,729]",
-          "tps_median": 18717.873345
+          "tps_band": "19,218 [18,706-19,905]",
+          "tps_median": 19218.439701000003
         },
         {
           "cell_id": "M10-S1",
@@ -2189,13 +2189,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
-          "n": null,
+          "n": 3,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "19,494 [19,471-19,596]",
+          "tps_median": 19494.138092
         },
         {
           "cell_id": "M10-S2",
@@ -2203,13 +2203,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 30-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "18,820 [18,520-18,825]",
-          "tps_median": 18819.659952
+          "tps_band": "28,161 [18,520-37,825]",
+          "tps_median": 28160.53247
         },
         {
           "cell_id": "M10-S2",
@@ -2217,13 +2217,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
-          "n": null,
+          "n": 3,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "21,372 [21,087-21,402]",
+          "tps_median": 21371.978407
         },
         {
           "cell_id": "M10-S3",
@@ -2231,13 +2231,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
-          "n": 3,
-          "p99": "18.2 ms",
+          "n": 6,
+          "p99": "21.7 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "5,732 [5,707-5,771]",
-          "tps_median": 5732.222936
+          "tps_band": "4,922 [4,122-5,771]",
+          "tps_median": 4921.6493485
         },
         {
           "cell_id": "M10-S3",
@@ -2284,9 +2284,9 @@
           "total": 8
         },
         "soak": {
-          "measured": 2,
+          "measured": 4,
           "na": 0,
-          "timeout": 1,
+          "timeout": 2,
           "total": 6
         }
       },
@@ -2326,10 +2326,10 @@
           "total": 24
         },
         "soak": {
-          "measured": 2,
+          "measured": 4,
           "na": 0,
-          "timeout": 1,
-          "total": 3
+          "timeout": 2,
+          "total": 6
         }
       },
       "pg": "PG 17",
@@ -2339,7 +2339,7 @@
         "auth": [
           "pool_hba disabled (default; backend SCRAM via pool_passwd)"
         ],
-        "cpu_median_s": 2.463877,
+        "cpu_median_s": 2.340186,
         "dataset": [
           "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
         ],
@@ -2349,11 +2349,11 @@
           "nproc": 4,
           "pgbench_j": 4
         },
-        "pg_disclosed": 159,
+        "pg_disclosed": 171,
         "pg_enforced": 0,
         "pg_other": 0,
         "rss_median_kb": 36284,
-        "samples": 159
+        "samples": 171
       },
       "rows": [
         {
@@ -2726,13 +2726,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 30-min tier",
-          "n": 3,
+          "n": 6,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "37,143 [36,954-37,675]",
-          "tps_median": 37143.053253
+          "tps_band": "26,733 [16,361-37,675]",
+          "tps_median": 26733.0677395
         },
         {
           "cell_id": "M10-S1",
@@ -2740,13 +2740,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, 60-min tier",
-          "n": null,
+          "n": 3,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "15,198 [14,877-15,219]",
+          "tps_median": 15197.752441
         },
         {
           "cell_id": "M10-S2",
@@ -2768,11 +2768,11 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 200c/10p, simple, 60-min tier",
-          "n": null,
+          "n": 0,
           "p99": "-",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
+          "status": "timeout/inconclusive",
           "tps_band": null,
           "tps_median": null
         },
@@ -2782,13 +2782,13 @@
           "duration_s": 1800,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 30-min tier",
-          "n": null,
-          "p99": "-",
+          "n": 3,
+          "p99": "427.7 ms",
           "peak": false,
           "settings": "M10 soak 30-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
-          "status": "tier not in git (re-dispatch owned by Maintainer)",
-          "tps_band": null,
-          "tps_median": null
+          "status": "measured",
+          "tps_band": "266 [266-266]",
+          "tps_median": 265.871801
         },
         {
           "cell_id": "M10-S3",
@@ -2796,13 +2796,13 @@
           "duration_s": 3600,
           "leg": "soak",
           "load": "select-only, 100c/10p, simple, churn (-C), 60-min tier",
-          "n": 3,
-          "p99": "525.4 ms",
+          "n": 6,
+          "p99": "519.3 ms",
           "peak": false,
           "settings": "M10 soak 60-min tier; drift evidence in raw resources_pre/post/drift, exact rows in <a href=\"../results/m10-soak/matrix.csv\">results/m10-soak/matrix.csv</a>",
           "status": "measured",
-          "tps_band": "209 [208-209]",
-          "tps_median": 208.565865
+          "tps_band": "216 [208-228]",
+          "tps_median": 216.165777
         }
       ],
       "verdicts": {
@@ -2987,9 +2987,9 @@
   },
   "sources": {
     "m1/medians.json": "69f711bb8963e4bafcb0b22870e1c370d5930b89bc84fc000563ff05ef024a05",
-    "m10-soak/medians.json": "49bce7ffa875d3f42642efbc2481817d5c446c39f01f28b239192e157c3d56cb",
+    "m10-soak/medians.json": "635b30215fa98687dc23cb81dad1f0c843e3ba1aea260bbde92fab1abce0d449",
     "m2/medians.json": "806253b287201f004be126587ee4bb8973358a8b62c4ca7ddee2cacd1f8cc516",
     "m9/medians.json": "cd6d5f264945b9bc16eec50c6163e090732c260c8e905312041fa4ecb2e34938",
-    "report.json": "ba4720eaafdaa8ef7a3b4be0c916fbe1a2f30869991a9b129722b9bd07e03464"
+    "report.json": "54598d76632bc5b772eec989a493bef69b008885277d2d1a2fe63b8e2a9a3f45"
   }
 }
