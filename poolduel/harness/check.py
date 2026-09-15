@@ -382,7 +382,8 @@ def check_site_coherence():
                           "re-run repro.sh --site" % key)
     for key in ("m1/medians.json", "m2/medians.json", "m9/medians.json",
                 "m10-soak/medians.json", "report.json"):
-        want = sitemod._sha256_file(os.path.join(root, "results", key))
+        _p = os.path.join(root, "results", key)
+        want = sitemod._sha256_file(_p) if os.path.exists(_p) else "absent"
         if committed.get("sources", {}).get(key) != want:
             errors.append("sitemeta sources[%s] SHA mismatch; "
                           "re-run repro.sh --site" % key)
@@ -438,7 +439,9 @@ def check_supplement_coherence():
         "m1/medians.json": supmod._sha256_file(paths["m1"]),
         "m2/medians.json": supmod._sha256_file(paths["m2"]),
         "m9/medians.json": supmod._sha256_file(paths["m9"]),
-        "m10-soak/medians.json": supmod._sha256_file(paths["soak"]),
+        "m10-soak/medians.json": (supmod._sha256_file(paths["soak"])
+                                  if os.path.exists(paths["soak"])
+                                  else "absent"),
         "report.json": supmod._sha256_file(paths["report"]),
     }
     fresh = supmod.build_supplementmeta(loaded["m1"], loaded["m2"],
