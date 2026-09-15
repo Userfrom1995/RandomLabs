@@ -1,0 +1,98 @@
+{
+  "artifacts": {
+    "agglog": null,
+    "stdout": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m10-soak-m10s16/work-M10-S2-pgpool-r2/logs/cell-M10-S2-r2-4875.stdout.txt",
+    "txnlog": "/home/runner/work/RandomLabs/RandomLabs/poolduel/results/m10-soak-m10s16/work-M10-S2-pgpool-r2/logs/cell-M10-S2-r2-4875.25298"
+  },
+  "auth_posture": "pool_hba disabled (default; backend SCRAM via pool_passwd)",
+  "cell_id": "M10-S2",
+  "churn": false,
+  "clients": 200,
+  "dataset": {
+    "init": "pgbench -i -s 10 per chunk",
+    "policy": "per-chunk pgbench -i -s 10, CHECKPOINT + VACUUM (ANALYZE) before each measured block, bloat accounting per chunk"
+  },
+  "duration_s": 1800,
+  "exit_code": 1,
+  "failed": 0,
+  "isolation": {
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    "governor": "performance",
+    "kernel": "6.17.0-1022-azure",
+    "nproc": 4,
+    "pgbench_j": 4,
+    "pinning": "none",
+    "threads": 4,
+    "topology": "x86_64/x86_64"
+  },
+  "latency_avg_ms": null,
+  "latency_stddev_ms": null,
+  "p50_ms": null,
+  "p90_ms": null,
+  "p999_ms": null,
+  "p99_ms": null,
+  "pg_config": {
+    "fsync": "on",
+    "max_connections": 300,
+    "shared_buffers": "512MB",
+    "synchronous_commit": "on"
+  },
+  "pg_config_divergence": [
+    "key shared_buffers: want '512MB', effective '128MB'",
+    "key max_connections: want 300, effective '100'"
+  ],
+  "pg_config_status": "disclosed",
+  "pg_show": {
+    "fsync": "on",
+    "max_connections": "100",
+    "password_encryption": "scram-sha-256",
+    "server_version": "17.11 (Ubuntu 17.11-1.pgdg24.04+2)",
+    "shared_buffers": "128MB",
+    "synchronous_commit": "on"
+  },
+  "pg_version": "PG 17",
+  "pool_size": 10,
+  "pooler": "pgpool",
+  "pooler_config": "# pgpool-II M1 baseline (session-class, the only pooling mode)\n# refs: runtime-config-connection-pooling.html, runtime-config-connection.html\nlisten_addresses = '127.0.0.1'\nport = 6434\nbackend_hostname0 = '127.0.0.1'\nbackend_port0 = 5432\nconnection_cache = on\nmax_pool = 1\nnum_init_children = 200\nreserved_connections = 0\nlisten_backlog_multiplier = 2\nserialize_accept = off\nchild_life_time = 300\nchild_max_connections = 0\nconnection_life_time = 0\nclient_idle_limit = 0\nreset_query_list = 'ABORT; DISCARD ALL'\nload_balance_mode = off\n# auth (docs ch.6 Client Authentication, CI-only): frontend\n# pool_hba stays disabled (default), backend SCRAM uses the\n# workdir pool_passwd plaintext benchuser entry (6.2.4.1).\n# effective backends (children x max_pool) = 200\n",
+  "pooler_version": "4.7.2",
+  "protocol": "simple",
+  "repeat": 2,
+  "resources": {
+    "cpu_time_s": 0.072451,
+    "fd_count": 6,
+    "peak_rss_kb": 16028,
+    "pg_stat": null,
+    "pool_wait": null,
+    "wall_s": 312.552982025
+  },
+  "resources_drift": {
+    "cpu_time_s": 0.0012770000000000004,
+    "duration_s": 1.0430580170000212,
+    "fd_delta": 0.0,
+    "rss_delta_kb": 0.0
+  },
+  "resources_post": {
+    "cpu_time_s": 0.067868,
+    "fd_count": 6,
+    "peak_rss_kb": 16028,
+    "pg_stat": null,
+    "pool_wait": null,
+    "wall_s": 312.353776529
+  },
+  "resources_pre": {
+    "cpu_time_s": 0.066591,
+    "fd_count": 6,
+    "peak_rss_kb": 16028,
+    "pg_stat": null,
+    "pool_wait": null,
+    "wall_s": 311.310718512
+  },
+  "scale": 10,
+  "seed": 1337,
+  "skipped": 0,
+  "status": "timeout/inconclusive",
+  "threads": 4,
+  "tps": null,
+  "warmup_s": 60,
+  "workload": "select-only"
+}

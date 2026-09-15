@@ -1,0 +1,16 @@
+pgbouncer 1.25.2 tarball sha256:
+924ad35113fd0a71c8e2dbe85b5d03445532e2b7b37a9f8a48983beea238b332  pgbouncer-1.25.2.tar.gz
+pgpool-II 4.7.2 tarball sha256:
+e72b9d0ff3620f7da7e33a58dda44b77919d056752dc9bd86b2985c4988d1938  pgpool-II-4.7.2.tar.gz
+odyssey v1.5.1 git SHA:
+a2d276a033af57b30e64219ea4edda5f4b135a63
+pgagroal master tip SHA:
+420ec0ef0c725713a74666fce4d8a886fb36e310
+pgcat v1.2.0 git SHA:
+4a7a6a8e7a78354b889002a4db118a8e2f2d6d79
+binaries:
+/usr/local/bin/pgbouncer
+/usr/local/bin/pgpool
+/usr/bin/odyssey
+/usr/local/bin/pgagroal
+/usr/local/bin/pgcat

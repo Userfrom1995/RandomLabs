@@ -1,0 +1,866 @@
+[
+  {
+    "cell_id": "M10-S1",
+    "latency_avg_ms": {
+      "cv": 0.013095447779344564,
+      "max": 4.305,
+      "median": 4.296,
+      "min": 4.204,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "direct",
+    "status": "measured",
+    "tps": {
+      "cv": 0.013099816082980277,
+      "max": 23752.506947,
+      "median": 23247.443376,
+      "min": 23199.031128,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S1",
+    "latency_avg_ms": {
+      "cv": 0.0026836934288743666,
+      "max": 8.925,
+      "median": 8.909,
+      "min": 8.878,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "odyssey",
+    "status": "measured",
+    "tps": {
+      "cv": 0.002712192340561094,
+      "max": 11256.049564,
+      "median": 11216.856668,
+      "min": 11196.1105,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S1",
+    "latency_avg_ms": {
+      "cv": 0.1586274753559737,
+      "max": 59.002,
+      "median": 54.729,
+      "min": 42.997,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.18188286196271114,
+      "max": 2.542,
+      "median": 2.102,
+      "min": 1.767,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.11554558501993835,
+      "max": 7.36,
+      "median": 7.219,
+      "min": 5.927,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.231708612320212,
+      "max": 397.5871840000148,
+      "median": 330.00626999999304,
+      "min": 247.25493700000504,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.17894314217735285,
+      "max": 56.711,
+      "median": 55.83831999999984,
+      "min": 40.482569999999825,
+      "n": 3
+    },
+    "pooler": "pgagroal",
+    "status": "measured",
+    "tps": {
+      "cv": 0.16900352586467562,
+      "max": 2314.256292,
+      "median": 1820.922519,
+      "min": 1692.365536,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S1",
+    "latency_avg_ms": {
+      "cv": 0.005900999474670783,
+      "max": 3.772,
+      "median": 3.746,
+      "min": 3.728,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgbouncer",
+    "status": "measured",
+    "tps": {
+      "cv": 0.005879524214427571,
+      "max": 26787.076249,
+      "median": 26657.160698,
+      "min": 26475.258398,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S1",
+    "latency_avg_ms": {
+      "cv": 0.0005674295441649544,
+      "max": 5.29,
+      "median": 5.287,
+      "min": 5.284,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgcat",
+    "status": "measured",
+    "tps": {
+      "cv": 0.0006165393677862479,
+      "max": 18729.472062,
+      "median": 18717.873345,
+      "min": 18706.391501,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S1",
+    "latency_avg_ms": {
+      "cv": 0.010096377811115446,
+      "max": 2.702,
+      "median": 2.689,
+      "min": 2.65,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgpool",
+    "status": "measured",
+    "tps": {
+      "cv": 0.010032043152216886,
+      "max": 37675.043924,
+      "median": 37143.053253,
+      "min": 36954.243461,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S2",
+    "latency_avg_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "direct",
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    }
+  },
+  {
+    "cell_id": "M10-S2",
+    "latency_avg_ms": {
+      "cv": 0.001306929397254407,
+      "max": 17.643,
+      "median": 17.622,
+      "min": 17.597,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "odyssey",
+    "status": "measured",
+    "tps": {
+      "cv": 0.0013146142822339497,
+      "max": 11360.964579,
+      "median": 11344.994858,
+      "min": 11331.159589,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S2",
+    "latency_avg_ms": {
+      "cv": 0.14379533044437903,
+      "max": 157.758,
+      "median": 141.11,
+      "min": 117.974,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.10309120836520491,
+      "max": 5.967,
+      "median": 5.512,
+      "min": 4.851,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.11618622821316277,
+      "max": 11.0,
+      "median": 10.037,
+      "min": 8.706,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.03907626199803952,
+      "max": 64.26129499999992,
+      "median": 63.48920600000024,
+      "min": 59.699445000000296,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.17366815703666258,
+      "max": 39.01495000000019,
+      "median": 35.13303000000026,
+      "min": 27.457,
+      "n": 3
+    },
+    "pooler": "pgagroal",
+    "status": "measured",
+    "tps": {
+      "cv": 0.14953414580980262,
+      "max": 1686.200047,
+      "median": 1408.089415,
+      "min": 1258.664133,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S2",
+    "latency_avg_ms": {
+      "cv": 0.0038460456884454267,
+      "max": 4.387,
+      "median": 4.38,
+      "min": 4.355,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgbouncer",
+    "status": "measured",
+    "tps": {
+      "cv": 0.0038552450852911914,
+      "max": 45867.570085,
+      "median": 45606.046406,
+      "min": 45532.602919,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S2",
+    "latency_avg_ms": {
+      "cv": 0.00939307966599457,
+      "max": 10.719,
+      "median": 10.548,
+      "min": 10.545,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgcat",
+    "status": "measured",
+    "tps": {
+      "cv": 0.009336473454046531,
+      "max": 18825.436693,
+      "median": 18819.659952,
+      "min": 18519.837331,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S2",
+    "latency_avg_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgpool",
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    }
+  },
+  {
+    "cell_id": "M10-S3",
+    "latency_avg_ms": {
+      "cv": 0.0030588787037493636,
+      "max": 186.803,
+      "median": 186.653,
+      "min": 185.749,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.005150781727250267,
+      "max": 174.7545,
+      "median": 174.451,
+      "min": 173.072,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.0007392330258181809,
+      "max": 399.4374,
+      "median": 399.40549999999996,
+      "min": 398.911,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.015202432404929165,
+      "max": 645.5117699999997,
+      "median": 637.7003099999981,
+      "min": 626.2722099999999,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.0026841214624494262,
+      "max": 515.797,
+      "median": 514.1944000000001,
+      "min": 513.0484799999999,
+      "n": 3
+    },
+    "pooler": "direct",
+    "status": "measured",
+    "tps": {
+      "cv": 0.00320864732574092,
+      "max": 263.336023,
+      "median": 261.914056,
+      "min": 261.844289,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S3",
+    "latency_avg_ms": {
+      "cv": 0.0024138093235186522,
+      "max": 7.841,
+      "median": 7.816,
+      "min": 7.804,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.002454544960224598,
+      "max": 7.631,
+      "median": 7.608,
+      "min": 7.594,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.001927909769280127,
+      "max": 13.546,
+      "median": 13.503,
+      "min": 13.499,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.00447480150128309,
+      "max": 20.392,
+      "median": 20.24,
+      "min": 20.23,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.0024351977017183354,
+      "max": 17.476,
+      "median": 17.403,
+      "min": 17.402,
+      "n": 3
+    },
+    "pooler": "odyssey",
+    "status": "measured",
+    "tps": {
+      "cv": 0.002195419153002817,
+      "max": 6469.114051,
+      "median": 6460.874565,
+      "min": 6441.500153,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S3",
+    "latency_avg_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p90_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p999_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "p99_ms": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    },
+    "pooler": "pgagroal",
+    "status": "timeout/inconclusive",
+    "tps": {
+      "cv": null,
+      "max": null,
+      "median": null,
+      "min": null,
+      "n": 0
+    }
+  },
+  {
+    "cell_id": "M10-S3",
+    "latency_avg_ms": {
+      "cv": 0.005402910351193344,
+      "max": 126.334,
+      "median": 125.954,
+      "min": 125.014,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.005531969973259346,
+      "max": 126.2635,
+      "median": 125.899,
+      "min": 124.919,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.006145661576480745,
+      "max": 225.21490000000003,
+      "median": 224.394,
+      "min": 222.528,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.02030555192107294,
+      "max": 280.4773160000001,
+      "median": 271.11718800000057,
+      "min": 270.5822799999998,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.0017775494972473828,
+      "max": 253.72397999999998,
+      "median": 253.14787000000013,
+      "min": 252.83680000000004,
+      "n": 3
+    },
+    "pooler": "pgbouncer",
+    "status": "measured",
+    "tps": {
+      "cv": 0.005374017449590384,
+      "max": 399.816151,
+      "median": 396.954385,
+      "min": 395.638393,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S3",
+    "latency_avg_ms": {
+      "cv": 0.005626254850310575,
+      "max": 8.804,
+      "median": 8.764,
+      "min": 8.706,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.0053741480580371,
+      "max": 8.725,
+      "median": 8.685,
+      "min": 8.632,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.005668043849517745,
+      "max": 15.093,
+      "median": 15.026,
+      "min": 14.924,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.011733903977669541,
+      "max": 19.888,
+      "median": 19.801,
+      "min": 19.451,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.006990676091400962,
+      "max": 18.266,
+      "median": 18.189,
+      "min": 18.018,
+      "n": 3
+    },
+    "pooler": "pgcat",
+    "status": "measured",
+    "tps": {
+      "cv": 0.005591902272095421,
+      "max": 5770.709557,
+      "median": 5732.222936,
+      "min": 5707.011456,
+      "n": 3
+    }
+  },
+  {
+    "cell_id": "M10-S3",
+    "latency_avg_ms": {
+      "cv": 0.0005985699235105628,
+      "max": 239.19,
+      "median": 238.971,
+      "min": 238.921,
+      "n": 3
+    },
+    "n": 3,
+    "p50_ms": {
+      "cv": 0.0007168163216751912,
+      "max": 237.1855,
+      "median": 236.922,
+      "min": 236.868,
+      "n": 3
+    },
+    "p90_ms": {
+      "cv": 0.0010979497480017102,
+      "max": 449.9789999999999,
+      "median": 449.73299999999995,
+      "min": 449.028,
+      "n": 3
+    },
+    "p999_ms": {
+      "cv": 0.001869415169962454,
+      "max": 573.3177540000003,
+      "median": 573.1824919999987,
+      "min": 571.3996850000028,
+      "n": 3
+    },
+    "p99_ms": {
+      "cv": 0.0015949614933597849,
+      "max": 526.1128199999999,
+      "median": 525.3755800000004,
+      "min": 524.441,
+      "n": 3
+    },
+    "pooler": "pgpool",
+    "status": "measured",
+    "tps": {
+      "cv": 0.0005190760386704714,
+      "max": 208.628558,
+      "median": 208.565865,
+      "min": 208.417756,
+      "n": 3
+    }
+  }
+]
