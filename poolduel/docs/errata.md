@@ -7,9 +7,9 @@
 
 ## Errata
 
-No errata filed yet. Contested numbers get re-run and either corrected
-with an entry here (date, affected cells, cause, new values) or defended
-with evidence.
+| Date | Cell / page | Issue | Fix |
+|---|---|---|---|
+| 2026-09-15 | M10 soak, 18 of 36 (cell, arm, duration) groups absent from git | Harness defect: `runner.run_plan` wrote raw records as `CELL-ARM-rN.json` with no duration tier, so the 30-min and 60-min tiers of one arm wrote identical filenames and the `poolduel-m10-soak` aggregate's flat-dir copy kept one tier per arm (last-writer-wins); `write_medians` grouped by `(cell_id, pooler)`, ignoring duration. Proven: 34 of 36 chunks uploaded `pooler-versions-*.txt` while only 18 tier-groups reached `results/m10-soak/raw/`; the success run's artifacts have expired, so the lost tier is unrecoverable from artifacts. | Filenames now carry the tier (`M10-S1-1800s-direct-r1.json`, soak cells only; M1/M2/M9 names byte-identical); grouping is `(cell_id, duration_s, pooler)` everywhere. The surviving 18 medians were rebuilt tier-labeled with numerically identical values (verified by comparison). The absent 18 groups are listed for Maintainer re-dispatch in `docs/m10-soak-matrix.md` section 8; nothing interpolated, nothing carried forward. |
 
 ## Verified-by
 
