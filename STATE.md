@@ -1,8 +1,8 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-15T15:23Z (maintainer run 34988066801 `schedule` on main 5fbd8bc5 LIVE 34/36 sync MERGED, sweeps m10s35/m10s36 in_progress on 5fbd8bc5, standby)**
- - **Action this run:** STANDBY `[]` - sweeps in_progress on 5fbd8bc5 supersede; no new dispatch, no merge, trigger-list 15/15 PASS, two-knob free.
+ - **Updated: 2026-09-15T16:35Z (maintainer run 34995903658 `created` on PR #355 582c955 Curator Ideator fix review approve + test in_progress, main 5fbd8bc5 LIVE 34/36 sync MERGED, sweeps m10s35/m10s36 in_progress, standby)**
+ - **Action this run:** STANDBY `[]` - PR #355 awaiting Tester verdict (Reviewer approved 16:35:26Z), sweeps in_progress on 5fbd8bc5 supersede; no merge, trigger-list 15/15 PASS, two-knob free.
  - **Main:** `5fbd8bc5` LIVE (soak 34-group sync Refs #302 at 14:02Z on top of 4ff63721 aggregate 34/36 with 156 raw/27 measured/7 timeout, missing S3-3600 odyssey/pgcat exactly 2 pending; parent chain 4ff63721 -> b7df5100 builder bundle rebuild -> d13dd5b0 pins -> 43a8374d docs/surfaces -> 5fbd8bc5 tester gate; `opencode.json` two-knob both free (`muse-spark-1.3-contributor-free`/`muse-spark-1.2-contributor-free`), Pages SUCCESS workflow_dispatch on 5fbd8bc5 via workflow_run, trigger-list 15/15 PASS)
- - **Branch retention:** `opencode/302-poolduel-redesign-plan` at `864738b` OPERATIVE plan v2.2 + `opencode/lab-302-poolduel-m10-aggregate-fix` at `1ef05920` MERGED to 9d748bb1 ancestor of 5fbd8bc5 (retained, linear) + `opencode/schedule-bfc19e-20260913183521` at `1390af1f` OPEN PR #331 artifact (.tmp.log only, parent 7d128330, linear not orphan, preview staged) + `opencode/issue351-curate-poolduel-m13a-sync` at `8c5710f9` MERGED to 61e82201 ancestor of 5fbd8bc5 (retained, `git merge-base --is-ancestor 61e82201 5fbd8bc5` true) + `opencode/issue302-20260915134631` at `2435bce5` MERGED to 5fbd8bc5 via rebase (Refs #302, 32 files, branch retained, linear on 4ff63721, `git merge-base origin/main 2435bce5` = 5fbd8bc5 ancestor)
+ - **Branch retention:** `opencode/302-poolduel-redesign-plan` at `864738b` OPERATIVE plan v2.2 + `opencode/lab-302-poolduel-m10-aggregate-fix` at `1ef05920` MERGED to 9d748bb1 ancestor of 5fbd8bc5 (retained, linear) + `opencode/schedule-bfc19e-20260913183521` at `1390af1f` OPEN PR #331 artifact (.tmp.log only, parent 7d128330, linear not orphan, preview staged) + `opencode/issue351-curate-poolduel-m13a-sync` at `8c5710f9` MERGED to 61e82201 ancestor of 5fbd8bc5 (retained, `git merge-base --is-ancestor 61e82201 5fbd8bc5` true) + `opencode/issue302-20260915134631` at `2435bce5` MERGED to 5fbd8bc5 via rebase (Refs #302, 32 files, branch retained, linear on 4ff63721, `git merge-base origin/main 2435bce5` = 5fbd8bc5 ancestor) + `opencode/issue354-curate-ideator-on-demand` at `582c955f` OPEN PR #355 MERGEABLE CLEAN (single-line index.html fix, Fixes #354, preview staged)
 ---
 
 ## STANDING OWNER DIRECTIVES (active)
@@ -20,25 +20,29 @@
 
 ## IN FLIGHT
  - **Poolduel #302 - REDESIGN ACTIVE at 864738b + M13a MERGED + aggregate 5fbd8bc5 34/36 sync MERGED + sweeps m10s35/m10s36 in_progress:** Issue OPEN, Plan v2.2 operative 864738b + publishability rebuild (s1/s11/s12). Main 5fbd8bc5 with 34/36 medians (M10-S1 12/M10-S2 12/M10-S3 10, 156 raw, missing M10-S3 3600 odyssey/pgcat exactly 2 pending, 27 measured + 7 timeout), sweeps `poolduel-m10-soak` 34979105305 + 34979101760 in_progress on 5fbd8bc5 at 14:03Z to reach 36/36 before M13b. Refs #302 until section-11 full gate + explicit approval, silence until publishable.
+ - **PR #355 - Curator Ideator cadence fix OPEN at 582c955f MERGEABLE CLEAN (Fixes #354):** Single-line index.html About This Repo fix (daily -> on-demand), matching AGENTS.md, ideate.yml (no schedule), README.md. Reviewer approved at 16:35:26Z (5 checks, scope 1 file, no em dashes, Refs not needed - Fixes #354 is surgical), Tester in_progress 34995965844 (issue_comment dispatch on main head 5fbd8bc5) at 16:35Z. Await Tester approve-test before merge (Excellence gate). Preview staged at /preview/pr-355/. No workflow files touched, so `lab` not needed.
  - **PR #331 - schedule artifact OPEN at 1390af1f:** Contains only `.tmp.log`, parent 7d128330, linear not orphan, preview staged. Keep as archive, no merge.
  - **Lab health #70:** Nominal, trigger-list 15/15, two-knob free, Pages SUCCESS on 5fbd8bc5, sweeps in_progress healthy.
 
 ## PIPELINE POSITION
- Folio/Tabula/Sextant SHIPPED, M1 GREEN 8a8e098, M2 GREEN 77ee77d, M4 MERGED 493166ab, Curator MERGED df2bf028 + 76228862 + 10d776f9, REDESIGN Plan 864738b - M5 e8fd5651 - M6 75f14a35 - M7 8fcfd4c6 - M8 fefe891c - M9 MERGED 19f41d0e -> results 37d7948c -> M10 1ec99126 -> M11a c268ac69 -> M11b 6fec9403 -> M11c 3f7d46b2 -> M11d cb4ab82d -> M12 50163484 (soak promotion b5b42374) -> owner infra 76ac6c1 -> Curator 4e465ed5 -> Lab 9d748bb1 -> Soak e767559 (18) -> Sync 6860a81c -> tier fix a04f5dd0 (716/716) -> M13a 8f7277b1 (744/744) -> Curator 61e82201 (739/739) -> aggregate 4ff63721 (34/36, 156 raw, Aggregate SUCCESS, preflight drift) -> Sync rebuild 5fbd8bc5 (34-group sync, 759/759, Reviewer+Tester approve, Refs #302) -> sweeps m10s35/m10s36 in_progress -> 36/36 -> M13b publishable gate.
+ Folio/Tabula/Sextant SHIPPED, M1 GREEN 8a8e098, M2 GREEN 77ee77d, M4 MERGED 493166ab, Curator MERGED df2bf028 + 76228862 + 10d776f9, REDESIGN Plan 864738b - M5 e8fd5651 - M6 75f14a35 - M7 8fcfd4c6 - M8 fefe891c - M9 MERGED 19f41d0e -> results 37d7948c -> M10 1ec99126 -> M11a c268ac69 -> M11b 6fec9403 -> M11c 3f7d46b2 -> M11d cb4ab82d -> M12 50163484 (soak promotion b5b42374) -> owner infra 76ac6c1 -> Curator 4e465ed5 -> Lab 9d748bb1 -> Soak e767559 (18) -> Sync 6860a81c -> tier fix a04f5dd0 (716/716) -> M13a 8f7277b1 (744/744) -> Curator 61e82201 (739/739) -> aggregate 4ff63721 (34/36, 156 raw, Aggregate SUCCESS, preflight drift) -> Sync rebuild 5fbd8bc5 (34-group sync, 759/759, Reviewer+Tester approve, Refs #302) -> sweeps m10s35/m10s36 in_progress -> 36/36 -> M13b publishable gate + Curator sync 582c955f (PR #355 pending Tester, Fixes #354, not gating Poolduel).
 
 ## NEXT-RUN PLAYBOOK
  1. Verify `poolduel-m10-soak` sweeps 34979105305+34979101760 on 5fbd8bc5 reach GREEN (streaming aggregate 60-min, Free disk purge) and commit final 2 medians to 36/36 (36 medians, 162+ raw with tiered filenames); deduplicate if both full 36-chunk sweeps succeed (aggregate will land same 36/36).
- 2. After 36/36, chain Builder M13b: final section-11 full gate + single @Userfrom1995 publishable notification. Soak stays out of statistics/headlines/claims; Supavisor stays out of soak. Keep Refs #302 until explicit owner approval.
- 3. Keep PR #331 artifact open as archive, no merge; no lab fix needed (trigger-list 15/15 PASS, hourly+PR trigger beneficial, two-knob free, Pages SUCCESS).
- 4. Maintain Refs #302 and silence until publishable per s1/s11/s12; do not close #302 without explicit @Userfrom1995 approval.
+ 2. Await Tester verdict on PR #355 582c955f (582c955f, 1 file): on `/oc approve-test` merge via `gh pr merge 355 --rebase` (no --delete-branch, verify `git merge-base origin/main 582c955f` linear, not orphan, no workflow touch so bot rebase valid), then close #354; on `/oc fix` dispatch Fixer. Do NOT merge before Tester approval per Hard rules.
+ 3. After 36/36, chain Builder M13b: final section-11 full gate + single @Userfrom1995 publishable notification. Soak stays out of statistics/headlines/claims; Supavisor stays out of soak. Keep Refs #302 until explicit owner approval.
+ 4. Keep PR #331 artifact open as archive, no merge; no lab fix needed (trigger-list 15/15 PASS, hourly+PR trigger beneficial, two-knob free, Pages SUCCESS).
+ 5. Maintain Refs #302 and silence until publishable per s1/s11/s12; do not close #302 without explicit @Userfrom1995 approval.
 
 ## ISSUES
  - **#302 Poolduel** - OPEN (5fbd8bc5 LIVE 34/36, sweeps m10s35/m10s36 in_progress 36/36 pending, Refs #302, M13b pending)
+ - **#354 Curator Ideator cadence** - OPEN (PR #355 at 582c955f MERGEABLE CLEAN, Reviewer approve 16:35:26Z, Tester in_progress 34995965844, Fixes #354 pending Tester gate)
  - **#331 PR** - OPEN artifact (1390af1f, .tmp.log only, parent 7d128330, no merge)
  - **#42** - OPEN brainstorm (FROZEN per #302 freeze)
  - **#70** - OPEN lab-health (nominal, Pages SUCCESS on 5fbd8bc5, trigger-list healthy, sweeps in_progress)
 
 ## OPEN QUESTIONS
+ - Will Tester approve PR #355 (single-line doc fix, preview staged, no workflow touch) and allow Maintainer merge Fixes #354?
  - Will soak sweeps m10s35/m10s36 in_progress fill final 2 medians (S3/3600 odyssey/pgcat) to 36/36 without collision via tiered filenames (300-min cap, streaming)?
  - Will Pages + trigger-list + two-knob remain SUCCESS through rebuild to publishable gate?
  - Will aggregate 36/36 plus derived rebuild preserve M1/M2/M9 bytes identical and 759/759 green?
