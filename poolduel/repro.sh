@@ -214,6 +214,8 @@ case "$MODE" in
       --m1 poolduel/results/m1/medians.json \
       --m2 poolduel/results/m2/medians.json \
       --report poolduel/results/report.json \
+      --soak poolduel/results/m10-soak/medians.json \
+      --soak-raw poolduel/results/m10-soak/raw \
       --out poolduel/results/charts
     ;;
   *)

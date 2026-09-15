@@ -358,6 +358,50 @@ def soak_drift(pre_resources, post_resources):
                 "cpu_time_s": None, "duration_s": None}
 
 
+# Honest absent-tier label shared by the soak figure, the site soak
+# panel, and the dossier soak rows. Absent means the tier never
+# reached git (filename-collision loss, docs/errata.md); the
+# re-dispatch is Maintainer-owned. Never "pending", never zero.
+SOAK_ABSENT_LABEL = ("tier not in git (re-dispatch owned "
+                     "by Maintainer)")
+
+
+def soak_spec_triples():
+    """Every spec (cell_id, pooler, duration_s) triple in chunk order.
+
+    3 cells x 6 arms x 2 tiers = 36 triples, ordered by the
+    ``SOAK_CHUNKS`` table (m10s01..m10s36) so the generator, the
+    site panel, the dossiers, and ``docs/m10-soak-matrix.md``
+    section 8 can never drift apart: absent triples are spec minus
+    present, never hand-typed.
+    """
+    triples = []
+    for chunk in sorted(SOAK_CHUNKS):
+        _ns, cid, duration, arm = SOAK_CHUNKS[chunk][0]
+        triples.append((cid, arm, int(duration)))
+    return triples
+
+
+def soak_absent(present_medians):
+    """Spec triples with no median in git, in chunk order.
+
+    ``present_medians`` are the tier-labeled soak median entries
+    (``cell_id``, ``pooler``, ``duration_s``). When the
+    Maintainer-owned re-dispatch lands, the same call returns fewer
+    triples with no code change and the absent marks disappear.
+    """
+    present = set()
+    for entry in present_medians or []:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            present.add((entry.get("cell_id"), entry.get("pooler"),
+                         int(entry.get("duration_s"))))
+        except (TypeError, ValueError):
+            continue
+    return [t for t in soak_spec_triples() if t not in present]
+
+
 def validate_soak_ratios():
     for cid in SOAK_CELL_IDS:
         for duration in SOAK_DURATIONS:

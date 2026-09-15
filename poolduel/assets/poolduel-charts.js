@@ -87,12 +87,30 @@
     return (e && e.tps && e.tps.n != null) ? e.tps.n : 0;
   }
 
-  function buildLookups(m1, m2, bundle, m9) {
+  function soakKey(e) {
+    return e.cell_id + "|" +
+      (e.duration_s == null ? "" : String(e.duration_s)) + "|" + e.pooler;
+  }
+
+  function buildLookups(m1, m2, bundle, m9, soak) {
     var byKey = {};
     (m1 || []).concat(m2 || []).concat(m9 || []).forEach(function (e) {
       var k = e.cell_id + "|" + e.pooler;
       if (!byKey[k] || nOf(e) > nOf(byKey[k])) {
         byKey[k] = e;
+      }
+    });
+    // Soak tiers share cell ids across durations, so they key on
+    // (cell, duration, pooler); the duration-blind fallback mirrors
+    // the dossier max-repeats dedupe for rows without data-duration.
+    (soak || []).forEach(function (e) {
+      var k = soakKey(e);
+      if (!byKey[k] || nOf(e) > nOf(byKey[k])) {
+        byKey[k] = e;
+      }
+      var legacy = e.cell_id + "|" + e.pooler;
+      if (!byKey[legacy] || nOf(e) > nOf(byKey[legacy])) {
+        byKey[legacy] = e;
       }
     });
     var verdicts = {};
@@ -166,7 +184,13 @@
         var cell = row.getAttribute("data-cell");
         var pooler = row.getAttribute("data-pooler") ||
           table.getAttribute("data-pooler");
-        var entry = lookups.byKey[cell + "|" + pooler];
+        // Absent soak tiers carry their honest baked label; the live
+        // fill must never overwrite them with "no record".
+        if (row.getAttribute("data-status") === "missing") return;
+        var dur = row.getAttribute("data-duration");
+        var entry = (dur != null &&
+          lookups.byKey[cell + "|" + dur + "|" + pooler]) ||
+          lookups.byKey[cell + "|" + pooler];
         var tpsTd = row.querySelector(".live-tps");
         var statusTd = row.querySelector(".live-status");
         if (!entry) {
@@ -205,11 +229,13 @@
       fetchJson(base + "m1/medians.json"),
       fetchJson(base + "m2/medians.json"),
       fetchJson(base + "report.json"),
-      fetchJson(base + "m9/medians.json")
+      fetchJson(base + "m9/medians.json"),
+      fetchJson(base + "m10-soak/medians.json")
     ]).then(function (parts) {
       if (!parts[0] && !parts[1] && !parts[3]) return null;
       return {
-        lookups: buildLookups(parts[0], parts[1], parts[2], parts[3]),
+        lookups: buildLookups(parts[0], parts[1], parts[2], parts[3],
+                              parts[4]),
         bundle: parts[2]
       };
     });
