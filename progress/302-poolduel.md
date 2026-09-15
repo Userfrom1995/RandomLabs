@@ -982,7 +982,7 @@ Fix (harness only, no workflow edits):
   over committed raw: same 18 groups, numerically identical tps
   (verified by comparison), now tier-labeled; new
   `results/m10-soak/matrix.csv`.
-- `tests/test_soak_tiers.py`: 11 tests (filename scheme, no-mix
+- `tests/test_soak_tiers.py`: 18 tests (filename scheme, no-mix
   proof, committed present-18 vs missing-18 tripwire).
 
 Missing-18 re-dispatch manifest (for Maintainer; chunks from
