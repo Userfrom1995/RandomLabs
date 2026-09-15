@@ -3,12 +3,14 @@
 The soak stability figure is the last open mechanism panel: tps +
 p99 tails per arm per tier with min-max bands, beside harness
    RSS/FD drift panels, generated from the committed soak bundles by
-   committed code. Present tiers render measured values; the 2
-   absent triples (M10-S3/3600 odyssey + pgcat, Maintainer-owned
-   re-dispatch m10s35/m10s36, ``docs/m10-soak-matrix.md`` section 8)
-   render as off-baseline markers, never zeros and never
-   interpolated; timeout/inconclusive findings keep their
-   own distinct marks. Nullable resources mark ``n/a (not recorded)``.
+   committed code. The full 3x2x6 spec has landed in git (36 medians,
+   162 raw files, zero absent triples): committed figures carry no
+   absent markers, so present tiers render measured values and
+   timeout/inconclusive findings keep their own distinct marks.
+   Synthetic fixtures below still prove the absent path (spec minus
+   present renders as off-baseline markers, never zeros and never
+   interpolated) for any future gap. Nullable resources mark
+   ``n/a (not recorded)``.
 """
 
 import copy
@@ -65,22 +67,50 @@ class TestSoakAbsentDerivation(unittest.TestCase):
                    for e in soak}
         self.assertEqual(len(absent), 36 - len(present))
         self.assertFalse(set(absent) & present)
-        # The s8 re-dispatch manifest count holds on 34-group data:
-        # only M10-S3/3600 odyssey + pgcat are still absent.
-        self.assertEqual(len(absent), 2)
-        self.assertIn(("M10-S3", "odyssey", 3600), absent)
-        self.assertIn(("M10-S3", "pgcat", 3600), absent)
+        # The s8 re-dispatch has landed on 36-group data: the full
+        # 3x2x6 spec is present (29 measured + 7
+        # timeout/inconclusive), so committed absent is empty.
+        self.assertEqual(len(soak), 36)
+        self.assertEqual(absent, [])
         # Present tiers are never marked absent.
         self.assertNotIn(("M10-S1", "direct", 1800), absent)
+        # Synthetic-fixture proof: absent still equals
+        # spec-minus-present when something is missing.
+        fixture = [_fixture_median("M10-S1", 1800, "direct",
+                                   23247.4)]
+        synth_absent = soak_absent(fixture)
+        spec = soak_spec_triples()
+        self.assertEqual(len(synth_absent),
+                         len(spec) - 1)
+        self.assertNotIn(("M10-S1", "direct", 1800),
+                         synth_absent)
+        self.assertIn(("M10-S3", "pgcat", 3600), synth_absent)
 
     def test_absent_shrinks_when_tiers_land(self):
         soak = _load(SOAK_MEDIANS)
-        grown = list(soak) + [_fixture_median("M10-S3", 3600,
-                                              "odyssey", 5500.0)]
-        before = soak_absent(soak)
+        # Committed landing is complete: absent is already empty.
+        self.assertEqual(soak_absent(soak), [])
+        # Shrink-logic proof on a synthetic fixture missing the two
+        # landed triples (M10-S3/3600 odyssey + pgcat): each landing
+        # shrinks absent by one, and reaching the full spec yields
+        # the empty set.
+        partial = [
+            _fixture_median(cid, dur, arm, 5500.0)
+            for (cid, arm, dur) in soak_spec_triples()
+            if (cid, arm, dur) not in {("M10-S3", "odyssey", 3600),
+                                       ("M10-S3", "pgcat", 3600)}
+        ]
+        before = soak_absent(partial)
+        self.assertEqual(len(before), 2)
+        grown = partial + [_fixture_median("M10-S3", 3600,
+                                           "odyssey", 5500.0)]
         after = soak_absent(grown)
         self.assertEqual(len(after), len(before) - 1)
         self.assertNotIn(("M10-S3", "odyssey", 3600), after)
+        self.assertIn(("M10-S3", "pgcat", 3600), after)
+        landed = grown + [_fixture_median("M10-S3", 3600,
+                                          "pgcat", 5400.0)]
+        self.assertEqual(soak_absent(landed), [])
 
 
 class TestSoakTpsFigure(unittest.TestCase):
@@ -117,6 +147,9 @@ class TestSoakTpsFigure(unittest.TestCase):
         self.assertEqual(by_name["direct p99"]["data"], [4.3, 4.5])
 
     def test_absent_markers_for_every_missing_triple(self):
+        # Committed 36-group data: every cell is fully landed, so no
+        # tps figure carries an absent series (empty series are
+        # dropped, never zero-filled).
         for cell_id in SOAK_CELL_IDS:
             opt = chartsmod.soak_tps_chart(cell_id, self.soak,
                                            self.absent)
@@ -144,26 +177,81 @@ class TestSoakTpsFigure(unittest.TestCase):
                                 markers[0]["data"]))
             self.assertEqual(markers[0].get("symbolOffset"),
                              [0, -14])
+        # Committed-data pin: zero absent markers across all three
+        # cells on the landed 36-group bundles.
+        total_absent = sum(
+            1 for cell_id in SOAK_CELL_IDS
+            for s in chartsmod.soak_tps_chart(
+                cell_id, self.soak, self.absent)["series"]
+            if s.get("type") == "scatter"
+            and s.get("name") == SOAK_ABSENT_LABEL)
+        self.assertEqual(total_absent, 0)
+        # Synthetic-fixture proof: a missing triple still renders one
+        # off-baseline absent marker per affected tier.
+        fixture = [
+            _fixture_median("M10-S1", 1800, "direct", 23247.4,
+                            lo=23199.0, hi=23752.5, p99=4.3),
+            _fixture_median("M10-S1", 3600, "direct", 22100.0,
+                            lo=22000.0, hi=22300.0, p99=4.5),
+        ]
+        synth_absent = [t for t in soak_absent(fixture)
+                        if t[0] == "M10-S1" and t[1] == "odyssey"
+                        and t[2] == 3600]
+        self.assertEqual(len(synth_absent), 1)
+        synth_opt = chartsmod.soak_tps_chart("M10-S1", fixture,
+                                             synth_absent)
+        synth_markers = [s for s in synth_opt["series"]
+                         if s.get("type") == "scatter"
+                         and s.get("name") == SOAK_ABSENT_LABEL]
+        self.assertEqual(len(synth_markers), 1)
+        self.assertEqual(sorted(p[0] for p in
+                                synth_markers[0]["data"]), [1])
+        self.assertTrue(all(p[1] == 0 for p in
+                            synth_markers[0]["data"]))
+        self.assertEqual(synth_markers[0].get("symbolOffset"),
+                         [0, -14])
 
     def test_timeout_markers_distinct_from_absent(self):
-        # M10-S3 carries both: pgagroal/1800+3600 timeouts present
-        # in git, odyssey+pgcat/3600 absent from git.
+        # Committed 36-group data: M10-S3 carries timeout markers
+        # (pgagroal/1800+3600 present in git as
+        # timeout/inconclusive) and zero absent markers (the
+        # odyssey+pgcat/3600 re-dispatch has landed).
         opt = chartsmod.soak_tps_chart("M10-S3", self.soak,
                                        self.absent)
-        names = [s["name"] for s in opt["series"]
-                 if s.get("type") == "scatter"]
-        self.assertIn(SOAK_ABSENT_LABEL, names)
+        scatters = [s for s in opt["series"]
+                    if s.get("type") == "scatter"]
+        names = [s["name"] for s in scatters]
         self.assertIn("timeout/inconclusive", names)
-        absent_sym = next(s["symbol"] for s in opt["series"]
+        self.assertEqual(
+            sum(1 for s in scatters
+                if s.get("name") == SOAK_ABSENT_LABEL), 0)
+        # Fixture-level distinctness proof: with one absent triple
+        # and one timeout entry side by side, both markers render
+        # with distinct symbols and colors.
+        fixture = [
+            _fixture_median("M10-S1", 1800, "direct", 23247.4,
+                            p99=4.3),
+            _fixture_median("M10-S1", 3600, "direct", None,
+                            status="timeout/inconclusive"),
+        ]
+        synth_absent = [("M10-S1", "odyssey", 3600)]
+        synth_opt = chartsmod.soak_tps_chart("M10-S1", fixture,
+                                             synth_absent)
+        synth_names = [s["name"] for s in synth_opt["series"]
+                       if s.get("type") == "scatter"]
+        self.assertIn(SOAK_ABSENT_LABEL, synth_names)
+        self.assertIn("timeout/inconclusive", synth_names)
+        absent_sym = next(s["symbol"] for s in synth_opt["series"]
                           if s.get("name") == SOAK_ABSENT_LABEL)
-        timeout_sym = next(s["symbol"] for s in opt["series"]
-                           if s.get("name") == "timeout/inconclusive")
+        timeout_sym = next(s["symbol"] for s in synth_opt["series"]
+                           if s.get("name") ==
+                           "timeout/inconclusive")
         self.assertNotEqual(absent_sym, timeout_sym)
         absent_color = next(s["itemStyle"]["color"]
-                            for s in opt["series"]
+                            for s in synth_opt["series"]
                             if s.get("name") == SOAK_ABSENT_LABEL)
         timeout_color = next(s["itemStyle"]["color"]
-                             for s in opt["series"]
+                             for s in synth_opt["series"]
                              if s.get("name") ==
                              "timeout/inconclusive")
         self.assertNotEqual(absent_color, timeout_color)
@@ -335,12 +423,27 @@ class TestSoakDossierAbsentRows(unittest.TestCase):
             {}, {}, soak=self.soak)
         missing = [r for r in dossier["rows"]
                    if r["status"] == SOAK_ABSENT_LABEL]
-        # Odyssey present on every tier-group except M10-S3/3600;
-        # that one triple is Maintainer-owned re-dispatch (m10s35).
+        # The s8 re-dispatch has landed: every odyssey tier-group is
+        # present in git, so the committed dossier carries zero
+        # absent rows (all tiers present).
+        self.assertEqual(missing, [])
+        # Synthetic-fixture proof: with M10-S3/3600 odyssey withheld,
+        # that one triple renders as an absent row with
+        # tier-suffixed labels, null bands, and no peak flag.
+        partial = [e for e in self.soak
+                   if not (e.get("cell_id") == "M10-S3"
+                           and e.get("pooler") == "odyssey"
+                           and e.get("duration_s") == 3600)]
+        synth = self.dossmod.build_dossier(
+            "odyssey", self.m1, self.m2, self.m9, self.bundle,
+            {}, {}, soak=partial)
+        synth_missing = [r for r in synth["rows"]
+                         if r["status"] == SOAK_ABSENT_LABEL]
         self.assertEqual(
-            sorted((r["cell_id"], r["duration_s"]) for r in missing),
+            sorted((r["cell_id"], r["duration_s"])
+                   for r in synth_missing),
             [("M10-S3", 3600)])
-        for row in missing:
+        for row in synth_missing:
             minutes = row["duration_s"] // 60
             self.assertIn("%d-min tier" % minutes, row["load"])
             self.assertIn("%d-min tier" % minutes,

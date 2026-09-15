@@ -27,15 +27,14 @@ from poolduel.harness.stats import median_group_key
 
 RESULTS = os.path.join("poolduel", "results")
 
-# The 34 (cell, duration, arm) groups present in git after the
-# 2026-09-15 re-dispatch landed (commits 9c08348b + 4ff63721 on top
-# of e7675597): every spec group except the two M10-S3/3600 groups
-# below. All 36 chunks uploaded version files, but m10s35/m10s36
-# (S3/3600 odyssey + pgcat) produced no raw, so those two tiers
-# remain Maintainer-owned re-dispatch, never interpolation here.
-ABSENT_GROUPS = frozenset([
-    ("M10-S3", 3600, "odyssey"), ("M10-S3", 3600, "pgcat"),
-])
+# The 36 (cell, duration, arm) groups present in git after the
+# 2026-09-15 re-dispatch landed in full (commits 9c08348b + 4ff63721
+# plus the final m10s35/m10s36 landing on top of e7675597): every
+# spec group measured or honestly timeout/inconclusive, zero absent.
+# The former M10-S3/3600 odyssey + pgcat gap is closed; the empty
+# ABSENT_GROUPS below is the tripwire that fails loudly if any
+# group ever drops out of git again (never interpolation here).
+ABSENT_GROUPS = frozenset()
 
 ALL_ARMS = ("direct", "pgagroal", "pgbouncer", "pgpool", "odyssey",
             "pgcat")
@@ -143,8 +142,8 @@ class CommittedSoakTest(unittest.TestCase):
                                "medians.json")) as f:
             cls.medians = json.load(f)
 
-    def test_thirtyfour_tier_labeled_medians(self):
-        self.assertEqual(len(self.medians), 34)
+    def test_thirtysix_tier_labeled_medians(self):
+        self.assertEqual(len(self.medians), 36)
         groups = {(e["cell_id"], e["duration_s"], e["pooler"])
                   for e in self.medians}
         self.assertEqual(groups, PRESENT_GROUPS)
@@ -180,14 +179,14 @@ class CommittedSoakTest(unittest.TestCase):
             self.assertLessEqual(len(durs), 2, key)
         full = [k for k, durs in by_arm.items()
                 if durs == {1800, 3600}]
-        self.assertEqual(len(full), 16)
+        self.assertEqual(len(full), 18)
 
-    def test_missing_groups_are_exactly_the_known_two(self):
+    def test_no_groups_missing_all_tiers_landed(self):
         # Tripwire in both directions: a re-dispatch landing new
         # groups without a bundle rebuild fails here, and so does
         # silently dropping a committed group.
         self.assertEqual(MISSING_GROUPS, ABSENT_GROUPS)
-        self.assertEqual(len(MISSING_GROUPS), 2)
+        self.assertEqual(len(MISSING_GROUPS), 0)
         raw_groups = set()
         raw_dir = os.path.join(RESULTS, "m10-soak", "raw")
         for base in os.listdir(raw_dir):
@@ -214,7 +213,7 @@ class SoakBundleLegTest(unittest.TestCase):
             cls.bundle = json.load(f)
 
     def test_bundle_soak_leg(self):
-        self.assertEqual(self.bundle["soak_measured"], 27)
+        self.assertEqual(self.bundle["soak_measured"], 29)
         self.assertEqual(self.bundle["soak_na"], 7)
         self.assertEqual(len(self.bundle["soak_cells"]), 6)
         # Tier-labeled cell keys, never bare cell ids.
@@ -235,9 +234,9 @@ class SoakBundleLegTest(unittest.TestCase):
         from poolduel.harness import site as sitemod
         leg = sitemod.build_soak_leg(self.soak)
         self.assertEqual(leg["total"], 36)
-        self.assertEqual(leg["present"], 34)
-        self.assertEqual(leg["measured"], 27)
-        self.assertEqual(leg["missing"], 2)
+        self.assertEqual(leg["present"], 36)
+        self.assertEqual(leg["measured"], 29)
+        self.assertEqual(leg["missing"], 0)
         self.assertEqual(len(leg["rows"]), 6)
         html = sitemod.render_soak_html(leg)
         self.assertNotIn("missing<br", html)
@@ -248,14 +247,14 @@ class SoakBundleLegTest(unittest.TestCase):
         from poolduel.harness import supplement as supmod
         meta = supmod.build_supplementmeta(self.m1, self.m2, [], {},
                                            {}, soak_entries=self.soak)
-        self.assertEqual(meta["counts"]["soak_total"], 34)
-        self.assertEqual(meta["counts"]["soak_measured"], 27)
+        self.assertEqual(meta["counts"]["soak_total"], 36)
+        self.assertEqual(meta["counts"]["soak_measured"], 29)
         self.assertIn("soak:", meta["banner_sentence"])
 
     def test_dossier_soak_rows_per_pooler(self):
         from poolduel.harness import dossiers as dossmod
         deduped = dossmod.dedupe_entries([], [], [], self.soak)
-        self.assertEqual(len(deduped), 34)
+        self.assertEqual(len(deduped), 36)
         by_pooler = {}
         for e in deduped:
             by_pooler.setdefault(e["pooler"], []).append(
@@ -266,13 +265,20 @@ class SoakBundleLegTest(unittest.TestCase):
             [("M10-S1", 1800), ("M10-S1", 3600),
              ("M10-S2", 1800), ("M10-S2", 3600),
              ("M10-S3", 1800), ("M10-S3", 3600)])
-        # Odyssey still misses its M10-S3/3600 tier
-        # (Maintainer-owned m10s35 re-dispatch).
+        # Odyssey's M10-S3/3600 tier landed with the final
+        # re-dispatch (m10s35); all six tiers present.
         self.assertEqual(
             sorted(by_pooler["odyssey"]),
             [("M10-S1", 1800), ("M10-S1", 3600),
              ("M10-S2", 1800), ("M10-S2", 3600),
-             ("M10-S3", 1800)])
+             ("M10-S3", 1800), ("M10-S3", 3600)])
+        # pgcat's M10-S3/3600 tier landed with the final
+        # re-dispatch (m10s36); all six tiers present.
+        self.assertEqual(
+            sorted(by_pooler["pgcat"]),
+            [("M10-S1", 1800), ("M10-S1", 3600),
+             ("M10-S2", 1800), ("M10-S2", 3600),
+             ("M10-S3", 1800), ("M10-S3", 3600)])
         self.assertEqual(dossmod.leg_of("M10-S1"), "soak")
         self.assertEqual(dossmod.leg_of("M1-1"), "M1")
 
@@ -282,7 +288,7 @@ class SoakBundleLegTest(unittest.TestCase):
         self.assertIn("m10-soak/medians.json", manmod.DERIVED_BUNDLES)
         self.assertIn("m10-soak/matrix.csv", manmod.DERIVED_BUNDLES)
         meta = manmod.build_manifest(RESULTS, ".")
-        self.assertEqual(meta["legs"]["m10-soak"]["raw_files"], 156)
+        self.assertEqual(meta["legs"]["m10-soak"]["raw_files"], 162)
         self.assertTrue(
             meta["bundles"]["m10-soak/medians.json"]["present"])
 
