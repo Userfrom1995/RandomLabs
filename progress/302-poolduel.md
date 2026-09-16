@@ -1214,3 +1214,31 @@ Next steps: Reviewer audit -> Tester (full suite + HTTP smoke +
   `Closes` without explicit @Userfrom1995 approval.
 
 - the Builder
+
+## Verification sweep (Builder, 2026-09-16, branch `opencode/issue302-20260916114114`)
+
+Triggered as `/oc build` on #302 with M13b already merged (#357,
+2026-09-15T21:47:30Z, plus Tester regression on top at `01d3aca9`).
+Surveyed for Builder-owned remainder; found none. Verified fresh on
+this branch (not assumed):
+
+- Committed truth: m1 42 + m2 111 + m9 250 + soak 36/36 medians
+  (soak raw 162 files); statistics family 98 / headlines 96 intact.
+- Full suite 787/787 green; `check.py` ok (7 M1 ratio-clean, 52 M2
+  rows, 7 N/A schema-valid); `repro.sh --dry-run` rc=0 with the
+  12-row pilot plan intact.
+- Lab-flagged product items already closed: `pin_sha` requires a
+  full 40-hex SHA (BLOCKED flake markers fail loudly in the smoke
+  gate); absolute workdir paths in `base.py` (no relative doubling).
+- Honestly open, all out of Builder scope: Tester sample-cell repro
+  (`Verified-by` ledger empty); Supavisor zero measured (needs Lab
+  `m9-supavisor-resilience` merge + Maintainer M9 dispatch);
+  Reviewer byte-match modulo ports/paths. No workflow edits made
+  (Lab domain); no numbers invented.
+
+Current step: verification complete, no code change required
+Next steps: Reviewer audit of this log -> Tester sample-cell repro
+  -> Maintainer owns M9/Supavisor dispatch + final gate verdict.
+`Refs #302`; no `Closes` without explicit @Userfrom1995 approval.
+
+- the Builder
