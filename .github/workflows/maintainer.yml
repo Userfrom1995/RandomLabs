@@ -35,7 +35,7 @@ on:
     # rule) and the Reviewer blocks infra PRs that add/rename a workflow
     # without updating it - so a new workflow can never silently miss
     # failure triage.
-    workflows: [auditor, "Deploy static site to GitHub Pages", "Lab Engineer", opencode-review, opencode-pr-trigger, opencode-test, ideate, opencode, opencode-recover, poolduel-m1, poolduel-m2, poolduel-m9, poolduel-m10-soak, postformer-cpu-train, curator]
+    workflows: [auditor, "Deploy static site to GitHub Pages", "Lab Engineer", opencode-review, opencode-pr-trigger, opencode-test, opencode-eval, ideate, opencode, opencode-recover, poolduel-m1, poolduel-m2, poolduel-m9, poolduel-m10-soak, postformer-cpu-train, curator]
     types: [completed]
 
 permissions:
@@ -58,7 +58,7 @@ jobs:
        !startsWith(github.event.comment.body, '/opencode')) ||
       (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/oc maintainer'))
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 360
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -175,7 +175,7 @@ jobs:
       - name: Run Maintainer agent
         id: maintainer_run
         continue-on-error: true
-        timeout-minutes: 60
+        timeout-minutes: 330
         shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

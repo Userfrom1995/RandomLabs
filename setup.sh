@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh — one-command setup/validation for the Random lab.
+# setup.sh - one-command setup/validation for the Random lab.
 # Idempotent and safe: it never deletes anything. Run from the repo root.
 #
 #   bash setup.sh              # check/print status, guided prompts
@@ -22,7 +22,7 @@ for arg in "$@"; do
   esac
 done
 
-need() { command -v "$1" >/dev/null 2>&1 || { echo "MISSING: $1 — install it first."; return 1; }; }
+need() { command -v "$1" >/dev/null 2>&1 || { echo "MISSING: $1 - install it first."; return 1; }; }
 status() { printf '%-34s %s\n' "$1" "$2"; }
 
 echo "== Random Lab setup =="
@@ -49,7 +49,9 @@ LAB_FILES=(
   ".github/agents/fixer.md"
   ".github/agents/reviewer.md"
   ".github/agents/tester.md"
+  ".github/agents/evaluator.md"
   ".github/agents/auditor.md"
+  ".github/agents/curator.md"
   ".github/agents/general.md"
   ".github/agents/decisions/README.md"
 )
@@ -68,7 +70,12 @@ LAB_WORKFLOWS=(
   ".github/workflows/ideate.yml"
   ".github/workflows/opencode.yml"
   ".github/workflows/opencode-review.yml"
-  ".github/workflows/opencode-review-trigger.yml"
+  ".github/workflows/opencode-pr-trigger.yml"
+  ".github/workflows/opencode-test.yml"
+  ".github/workflows/opencode-eval.yml"
+  ".github/workflows/curator.yml"
+  ".github/workflows/lab.yml"
+  ".github/workflows/auditor.yml"
   ".github/workflows/pages.yml"
 )
 for f in "${LAB_WORKFLOWS[@]}"; do
@@ -82,7 +89,7 @@ done
 
 echo
 if [ "$ok" -eq 0 ]; then
-  echo "Lab files/workflows are incomplete — fix the MISSING items before continuing."
+  echo "Lab files/workflows are incomplete - fix the MISSING items before continuing."
   [ "$MODE" = "check" ] && exit 1
 fi
 
@@ -124,7 +131,7 @@ fi
 
 # 5. Branch protection guidance (needs admin; print, don't apply)
 echo
-echo "== Branch protection on main (requires admin — apply manually or via API) =="
+echo "== Branch protection on main (requires admin - apply manually or via API) =="
 echo "  • Require a pull request before merging"
 echo "  • Require approvals: the Reviewer's /oc approve is the gate (bot merges approved PRs only)"
 echo "  • Do NOT require status checks on bot runs you want to stay auto (held runs are auto-approved)"
@@ -132,7 +139,7 @@ echo
 
 # 6. First run
 if [ "$DO_DISPATCH" -eq 1 ] && [ -n "$REPO" ] && command -v gh >/dev/null 2>&1; then
-  echo "== Dispatching the Maintainer (first run — approval-exempt) =="
+  echo "== Dispatching the Maintainer (first run - approval-exempt) =="
   gh workflow run maintainer.yml --repo "$REPO"
   echo "Dispatched. Watch it at https://github.com/$REPO/actions"
 fi
@@ -141,8 +148,8 @@ echo
 echo "== Onboarding =="
 echo "• For the first ~14 days, GitHub may hold workflow runs on the bot's PRs."
 echo "  opencode.yml auto-approves held runs after every push; if it cannot, a"
-echo "  comment asks you to click Approve — do that once and the loop resumes."
-echo "• Talk to the lab with /oc comments: /oc build …, /oc continue, /oc fix,"
+echo "  comment asks you to click Approve - do that once and the loop resumes."
+echo "• Talk to the lab with /oc comments: /oc build ..., /oc continue, /oc fix,"
 echo "  /oc review, /oc approve|decline, /oc help (see AGENTS.md)."
 echo "• Undo anytime: bash shutdown.sh"
 echo

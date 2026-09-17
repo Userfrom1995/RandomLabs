@@ -1,0 +1,118 @@
+name: opencode-eval
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: opencode-eval-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    if: github.event.issue.pull_request != null && (startsWith(github.event.comment.body, '/oc eval') || startsWith(github.event.comment.body, '/opencode eval'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Get PR info
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository (PR head)
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Evaluator"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run opencode evaluator
+        id: eval
+        continue-on-error: true
+        timeout-minutes: 330
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/muse-spark-1.3-contributor-free
+          use_github_token: true
+          prompt: |
+            You are The Evaluator (Quality Council) of the Random lab, triggered by "/oc eval" on the open PR in this checkout.
+
+            READ FIRST: `.github/agents/evaluator.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - You are strictly read-only. NEVER write application source code, never commit, never push.
+            - Audit the PR across all 5 dimensions:
+              1. Non-Parametric Statistical Power (d >= 0.80, CI 95%, Mann-Whitney U / Wilcoxon)
+              2. Empirical Baseline Completeness (fair compute/memory matched baselines, no lazy nulls)
+              3. Direct Visual Manipulation & Consumer UX (Headless Playwright visual audit, 1440px vs 390px, zero bot jargon)
+              4. Adversarial Red-Team & Soak Resistance (chaos fuzzing, memory leak profiles)
+              5. Architectural Modularity & Clean Contracts
+            - Score out of 10.0. Acceptance threshold is strictly >= 9.8 / 10.
+            - If score >= 9.8 / 10: output {"action":"maintainer"} to /tmp/random-lab-decision.json and post approval comment starting with `/oc approve-eval`.
+            - If score < 9.8 / 10: output {"action":"fix"} (or {"action":"architect"} for structural rebuild) to /tmp/random-lab-decision.json and post critique starting with `/oc fix: ...`.
+            - End every comment with: `- The Evaluator (Quality Council)`.
+
+      - name: Verify eval decided, else fail closed
+        id: verify-eval
+        if: always()
+        run: |
+          outcome="${{ steps.eval.outcome }}"
+
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Evaluator decision file present; council rendered a verdict (step outcome: $outcome)."
+            exit 0
+          fi
+
+          echo "::error::Evaluator step finished with outcome '$outcome' and no decision file (timed out or crashed mid-run). Failing closed instead of exiting green."
+          exit 1
+
+      - name: Forward evaluator decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "::error::No decision file found; verify step above already failed the job closed."
+            exit 1
+          fi
+
+          action=$(jq -r '.action' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+
+          if [ "$action" = "maintainer" ]; then
+            echo "Quality Council score >= 9.8/10! Posting /oc maintainer to hand over to Maintainer for merge"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          elif [ "$action" = "architect" ]; then
+            echo "Quality Council requested architectural redesign. Posting /oc architect"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc architect"
+          elif [ "$action" = "fix" ]; then
+            head_branch="${{ steps.pr-info.outputs.head_ref }}"
+            if echo "$head_branch" | grep -q "opencode/lab"; then
+              echo "Quality Council requested fixes on lab PR. Posting /oc lab"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
+            else
+              echo "Quality Council requested fixes. Posting /oc fix to trigger Fixer"
+              gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc fix"
+            fi
+          fi

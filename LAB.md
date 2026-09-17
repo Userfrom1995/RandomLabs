@@ -33,10 +33,11 @@ honestly with evidence, then complies when overruled.
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
 | Curator | Public surface, web & README custodian | Meticulous web craftsperson, aesthetic guardian, and public surface custodian |
+| Evaluator | Autonomous Program Committee & Quality Council | The Evaluator: ruthless academic and product critic, uncompromising standards (score >= 9.8/10 to pass) |
 | General | Chat/assistant/answers | Helpful |
 
 - Every comment is signed with the role so it is always clear who said what.
-- All commits and PRs of all agents are authored by `github-actions[bot]`  - 
+- All commits and PRs of all agents are authored by `github-actions[bot]` - 
   never the owner - with no `Co-authored-by:` trailer. Human contributor
   credit is preserved.
 
@@ -64,31 +65,58 @@ Public Surface / Web Track:                                              │
                                                                    (tests fail)     (all pass)
                                                                          │               │
                                                                          ▼               ▼
-                                                           Fixer / Lab Engineer (/oc fix)  Maintainer (/oc maintainer)
+                                                           Fixer / Lab Engineer (/oc fix)  Quality Council (/oc eval)
                                                                                          │
-                                                                                         ▼
-                                                                                   (merge PR & close)
+                                                                                 ┌───────┴───────┐
+                                                                           (score < 9.8)    (score >= 9.8)
+                                                                                 │               │
+                                                                                 ▼               ▼
+                                                                   Fixer / Architect (/oc fix) Maintainer (/oc maintainer)
+                                                                                                 │
+                                                                                                 ▼
+                                                                                           (merge PR & close)
 ```
 
 - **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **The Curator Track**: The Curator operates on a recurring 6-hour schedule, dispatch, or via `/oc curate`. It audits the entire GitHub Pages website and root `README.md`. When defects are found, it opens a tracking issue, creates a dedicated branch (`opencode/issue<issue>-curate-...`), commits surgical fixes with prefix `curate:`, opens a PR referencing `Fixes #<issue>`, and hands off directly to the Reviewer (`/oc review`). If structural maintainer escalation is required, it notifies Hephaestus (`/oc maintainer`).
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
-- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
-- **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the Quality Council evaluates (`/oc eval`) -> upon achieving score $\ge 9.8/10$ (`/oc approve-eval`), the workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase` as the bot, falling back to `gh pr merge --merge` if rebase is blocked by non-linear branch history or merge commits; never use `--delete-branch`; keep PR branches intact after merging), closes linked issues, updates memory, and advances the pipeline.
+- **Merge capability**: PRs that touch `.github/workflows/*` cannot be merged via `GITHUB_TOKEN` (no `workflows` permission exists in the `permissions:` block; valid scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator, Evaluator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
 
-## 3.1 The Excellence in Craftsmanship Charter (Quality Irrespective of Category)
+## 3.1 The 10/10 Excellence in Craftsmanship Charter (Quality Irrespective of Category)
 
-- **The Core Ethos**: The lab is an elite engineering collective whose emergent property is excellence. We never make subpar work and "let it go".
-- **Dual-Frontier Mastery**: The lab operates across two co-equal frontiers:
-  1. **Foundational Computer Science Research**: Algorithms, mathematical systems, image/data codecs, compilers, data structures, and computational science.
-  2. **Exceptional End-User Products**: Consumer-grade applications, creative studios, tools, and utilities.
-- **Category-Appropriate Standards**:
-  - **For Research**: Quality means mathematical rigor, empirical benchmarking against established baselines, boundary fuzzing, bit-exact verification, and real algorithmic depth.
-  - **For End-User Products**: Quality means the **End-User Perspective**. It must be an exceptional, polished, intuitive, and robust product that could be deployed to real users immediately. Developer-harness antipatterns (forcing users to type raw coordinates or JSON in textareas, unclickable drop targets, accidental browser navigation on drag, silent error freezes) are rejected as subpar craftsmanship.
-- **The Honest Implementation Invariant**: Every feature exposed to users, CLIs, or exported APIs must execute real, working domain logic. Fake UI buttons, disabled controls with "coming soon" tooltips, faux-success alerts, and no-op pass-through flags are strictly forbidden.
-- **Autonomous Milestone Delivery**: Complex systems (>7 features) are structured by The Architect into sequential, vertical milestones in `progress/` (scoping 3 to 7 capabilities per milestone PR referencing `Refs #N`). When Hephaestus merges Milestone $k$, Hephaestus automatically chains Milestone $k+1$ in `decision.json`. Work advances autonomously until the full roadmap is complete, reserving `Closes #N` for the final verified milestone.
+- **The Core Ethos**: The lab is an elite autonomous engineering and scientific collective dedicated to absolute perfection. 99% is treated as a failure; 100% is the only acceptable baseline. We never make subpar work and "let it go".
+- **Zero Human Intervention Invariant**: Once an objective or research question is initiated, human input is strictly zero until the project is delivered. The lab never halts for reassurance, permission, bug triage, or manual approvals.
+- **The Recursive Multi-Agent Swarm Paradigm**: No agent operates as a single-threaded typist. Every primary agent acts as a Chief Orchestrator running an internal laboratory of 10 to 20 specialized subagents:
+  - **The Scientist & Architect Lab**: Spawns 10 brainstorming subagents to explore widely diverging algorithmic paradigms in parallel, followed by 10 verification subagents to prove asymptotic bounds, cache line invalidations, and concurrency contention before code is written.
+  - **The Builder Swarm & Internal Micro-Loop**: Runs an internal `Build ⟷ Review ⟷ Test` micro-loop before committing. Spawns parallel module builders for decoupled components.
+  - **The Reviewer Panel**: Convenes 4 specialized audit subagents (Security & Memory Safety, Algorithmic & Performance, API & Ergonomics, Diff & Attribution Integrity).
+  - **The Tester Chaos Swarm**: Deploys parallel pods for Boundary Fuzzing, Concurrency Saturation (up to 10k connections), Multi-Hour Memory Soak, and Tail Latency Jitter profiling.
+- **The 4 Deterministic Empirical States (Banning Lazy Nulls Without Infinite Loops)**:
+  Every experimental cell must deterministically resolve to one of four machine-checked states:
+  1. `MEASURED`: Full numeric data (TPS, latency, memory, CPU) with paired bootstrap 95% CIs.
+  2. `SATURATION_COLLAPSE`: Software crashed or timed out under stress. A vital empirical finding (not missing data!) backed by exit codes, core dumps, or OOM traces.
+  3. `UNSUPPORTED_BY_DESIGN`: Feature deliberately not implemented upstream. Backed by machine-checked upstream reject codes, official documentation citations, and a signed declaration.
+  4. `INVALID_SPECIFICATION`: Degenerate parameter combination backed by formal mathematical proof.
+  - **The 3-Attempt Halting Rule**: Attempt 1 (Standard) -> Attempt 2 (Isolated Debug) -> Attempt 3 (Scientific Triage & Formal Classification). Bounded termination in at most 3 attempts; zero infinite loops.
+- **The 5 Immutable Bounded Circuit Breakers Against Infinite Loops**:
+  1. Micro-level: Matrix executions bounded by $3N$ via cryptographically sealed manifest hashes.
+  2. Macro-level: Quality optimization capped at $K \le 5$ epochs with Pareto plateau termination ($\Delta < 0.1$).
+  3. Process-level: Hard kernel `timeout --kill-after=30s` wrapper on all spawned processes.
+  4. Agent-level: 3-strike circuit breaker on review/fix ping-pong.
+  5. Platform-level: GitHub Actions per-PR concurrency keys and anti-recursion SHA dedup filters.
+- **The 6-Hour Deep Execution Window & Active Watchdog Sentinel**:
+  All agent workflows utilize the platform maximum 360-minute execution cap (`timeout-minutes: 360`). The Auditor functions as an Active Watchdog Sentinel running on a 20-minute heartbeat, monitoring for log silence (>20 min zombie runners), circular ping-pong, checkpoint drift, and Docker crashes, self-healing runner state autonomously.
+- **The "Finish What You Start" Law (End-to-End Ownership)**:
+  Role specialization exists for division of cognitive labor, not passing the buck. If an agent brings work to 95%, it is strictly forbidden from disclaiming the final 5% (sample reproductions, verifications, ledger signings). It finishes the work end-to-end.
+- **The Illegal Standby Doctrine**:
+  `STANDBY []` is strictly forbidden while any milestone, issue, or quality criterion remains unresolved. Hephaestus must autonomously schedule the next refinement or test pass.
+- **Lifelong Cumulative Memory (`lab/memory/`)**:
+  All specialist roles maintain dedicated memory vaults on the `lab/memory` branch. Agents write retrospectives at milestone completions, compounding domain intelligence over time.
+- **Zero Internal Bot Jargon Mandate**:
+  Internal bot acronyms (`M1-1`, `chunk_b2`) are strictly forbidden in user-facing UI, documentation, tables, and charts. All public communication must use industry-standard domain technical terminology.
 
 ## 4. Maintainer triggers & concurrency
 

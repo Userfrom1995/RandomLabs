@@ -12,7 +12,7 @@ jobs:
   review:
     if: startsWith(github.event.comment.body, '/oc review')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     permissions:
       contents: write
       pull-requests: write
@@ -79,7 +79,7 @@ jobs:
         id: review
         if: steps.pr-info.outputs.is_pr == 'true'
         continue-on-error: true
-        timeout-minutes: 90
+        timeout-minutes: 330
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

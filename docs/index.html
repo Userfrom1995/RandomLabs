@@ -143,11 +143,15 @@
     </div>
     <div class="card">
       <h4>Tester</h4>
-      <p>The QA and Performance Engineer. Verifies the running application with E2E tests, checks performance, and approves with <code>/oc approve-test</code>.</p>
+      <p>The QA and Performance Engineer. Verifies the running application with E2E tests, checks performance, and hands off with <code>/oc eval</code>.</p>
+    </div>
+    <div class="card">
+      <h4>The Evaluator (Quality Council)</h4>
+      <p>The autonomous Program Committee. Evaluates deliverables across 5 dimensions (statistical power, baseline completeness, Playwright visual UI audit, adversarial red-team, and modularity) enforcing the 9.8 / 10 bar (<code>/oc eval</code>) before Maintainer merge.</p>
     </div>
     <div class="card">
       <h4>Auditor</h4>
-      <p>The pipeline inspector. Actively monitors the lab health, identifies stalled/looping agents, and creatively devises solutions to infrastructure bugs, escalating to the Maintainer.</p>
+      <p>The pipeline inspector &amp; Active Watchdog Sentinel. Actively monitors lab health on a 20-minute heartbeat, kills zombie hangs, identifies stalled/looping agents, and coordinates fixes with the Maintainer.</p>
     </div>
     <div class="card">
       <h4>Lab Engineer</h4>
@@ -163,16 +167,16 @@
     </div>
   </section>
 
-  <h2>The review loop</h2>
+  <h2>The review &amp; evaluation loop</h2>
   <div class="term">Product Track: [Researcher/Architect] ──► Builder ──┐
 Lab Engineer Track: [Auditor/Maintainer] ──► Lab Engineer ───┤
-Curator Track: [Curator] ────────────────────────────────────┴──► Reviewer ──► (clean) ──► Tester ──► "/oc fix: …" ──► Fixer/Lab Engineer ──► push
-                                                             ▲                   │                      │                       │
-                                                             │                   └─► "/oc fix: …" ──────┘                       │
-                                                             │                                                                  │
-                                                             └──────────────────────────────────────────────────────────────────┘
-                                                             └── "/oc approve-test" ──► Maintainer merges (rebase, bot identity), closes issues</div>
-  <p>Nothing reaches <code>main</code> without the Reviewer's approval. Human
+Curator Track: [Curator] ────────────────────────────────────┴──► Reviewer ──► (approved) ──► Tester ──► (tests pass) ──► Quality Council (/oc eval)
+                                                              ▲                   │                      │                       │
+                                                              │                   └─► "/oc fix: …" ──────┴─ (score &lt; 9.8) ───────┤
+                                                              │                                                                  │
+                                                              └────────────────────────────────── (score &gt;= 9.8) ───────────────┘
+                                                                                                 └──► Maintainer merges (rebase, bot identity)</div>
+  <p>Nothing reaches <code>main</code> without Reviewer approval, passing dynamic tests, and achieving a Quality Council score of at least 9.8 / 10. Human
   PRs are reviewed too - findings are guidance for the human to apply; the bot
   never pushes to forks (guidance only).</p>
 
@@ -201,7 +205,7 @@ bash shutdown.sh</code></pre>
     <tr><td><code>AGENTS.md</code></td><td>The operating blueprint for every agent.</td></tr>
     <tr><td><code>.github/agents/</code></td><td>The prompts themselves, <code>REGISTRY.md</code> roster, and <code>CREATING_AGENTS.md</code> creation rules.</td></tr>
     <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
-    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>auditor.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>opencode-eval.yml</code>, <code>curator.yml</code>, <code>lab.yml</code>, <code>auditor.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
   </table>
 
   <h2>Security &amp; fail-safes</h2>
