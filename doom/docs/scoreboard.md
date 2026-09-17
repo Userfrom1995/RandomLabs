@@ -9,6 +9,29 @@ Frame-time intervals are computed on frame times then converted, never averaged
 as FPS. Cells resolve to MEASURED, SATURATION_COLLAPSE, UNSUPPORTED_BY_DESIGN,
 or INVALID_SPECIFICATION (at most 3 attempts per cell).
 
+## M2 ledger (unit-gated, node:test, 2026-09-17)
+
+Functional gates for the renderer plus input milestone. Browser frame-time
+cells (H1/H2) stay pending to M5 with Playwright tracing; headless GL is
+unavailable in this runner by design (`GlUnavailable` fallback unit-gated).
+
+- Tic pipeline: vanilla speeds pinned (forward 25/50, side 24/40, turn
+  640/1280/320), moves clamp +-50, hostile input sanitizes to zero;
+  `latchTiccmd` merges per-field with angle accumulation.
+- Bindings: doom-bindings v1 save/load round-trip, corrupt store falls back
+  to defaults, conflict assignment swaps and reports the displaced action.
+- Engine movement: forward/side ticcmd displaces the player, twin engines
+  converge bit-exactly (framebuffer plus x/y/angle/weapon/attackCount),
+  buttons latch exactly one tick, hostile sequences never corrupt state.
+- Governor: steps down under sustained load, 500 ms interval lock blocks
+  flip-flop, battery saver pins 320x200 or below, hostile samples ignored.
+- Upload math: R8 frame 64 KB vs RGBA 256 KB at 320x200 (4x); palette
+  manager uploads once per change, never per frame.
+- Shell audit (`docs/audit-m2.md`): 48/48 ALL PASS covering the blueprint
+  E2E testid set, no-dialog rules, live tier/governor/tic/bindings
+  behavior, 44 px targets, safe-area insets, reduced-motion path, and
+  contrast (text/bg plus muted/panel, all >= 4.5:1).
+
 ## M1 ledger
 
 | Hypothesis | Claim | N | Result | State |

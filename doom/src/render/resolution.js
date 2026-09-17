@@ -27,7 +27,7 @@ export function initialStepIndex({ mobile = false, batterySaver = false } = {}) 
 export function createResolutionGovernor(opts = {}) {
   const now = opts.now || (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   let index = Number.isInteger(opts.initial) ? Math.max(0, Math.min(LADDER.length - 1, opts.initial)) : 0;
-  let manual = Number.isInteger(opts.initial);
+  let manual = false; // only setManual pins the ladder; initial is a start step
   let batterySaver = !!opts.batterySaver;
   let ewma = 16.667;
   let lastSwitchAt = -Infinity;

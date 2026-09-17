@@ -67,9 +67,9 @@ export function createTouchState(opts = {}) {
       };
       const strafe = (held.has('strafeR') ? 1 : 0) - (held.has('strafeL') ? 1 : 0);
       return {
-        moveF: -shaped(stick.dy),
+        moveF: 0 - shaped(stick.dy),
         moveS: strafe,
-        turn: shaped(stick.dx),
+        turn: shaped(stick.dx) + 0,
         run: true,
         attack: held.has('fire'),
         use: held.has('use'),
@@ -82,11 +82,12 @@ export function createTouchState(opts = {}) {
 // Coarse-pointer detection for showing the overlay (DOM-guarded).
 export function shouldShowTouchOverlay(env = {}) {
   try {
-    const mq = env.matchMedia || (typeof window !== 'undefined' && window.matchMedia);
+    const mq = env.matchMedia || (typeof window !== 'undefined' ? window.matchMedia : null);
     if (typeof mq === 'function') {
-      if (mq.call(env.globalThis || window, '(pointer: coarse)').matches) return true;
+      const thisArg = env.globalThis || env;
+      if (mq.call(thisArg, '(pointer: coarse)').matches) return true;
     }
-    const nav = env.navigator || (typeof navigator !== 'undefined' && navigator);
+    const nav = env.navigator || (typeof navigator !== 'undefined' ? navigator : null);
     if (nav && Number(nav.maxTouchPoints) > 0) return true;
   } catch { /* fall through */ }
   return false;
