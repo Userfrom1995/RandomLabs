@@ -3,31 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Doom: client-side web engine (M1)</title>
+<title>Doom: client-side web engine (M2)</title>
 <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
 <header>
   <h1>DOOM / WEB</h1>
-  <span class="sub">client-side engine at /doom/ - Milestone 1: engine core plus WAD parser plus basic loop</span>
+  <span class="sub">client-side engine at /doom/ - Milestone 2: WebGL renderer plus full input</span>
   <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
 </header>
 <main>
   <div id="stage">
-    <canvas id="doom-canvas" data-testid="canvas" width="320" height="200" aria-label="Doom automap viewport"></canvas>
+    <canvas id="doom-canvas" data-testid="canvas" width="320" height="200" aria-label="Doom viewport. Click to capture the mouse for look and fire."></canvas>
+    <div id="pause-overlay" data-testid="pause-overlay" hidden>
+      <p>Paused. Click to recapture the mouse and resume.</p>
+      <button id="btn-recapture" type="button">Resume</button>
+    </div>
+    <div id="touch-ui" hidden>
+      <div id="joystick" data-testid="joystick" role="application" aria-label="Move stick: up and down move, left and right turn" tabindex="0">
+        <div id="stick-nub" aria-hidden="true"></div>
+      </div>
+      <div class="touch-cluster" role="group" aria-label="Touch actions">
+        <button id="btn-fire" data-testid="btn-fire" type="button" aria-label="Fire">FIRE</button>
+        <button id="btn-use" data-testid="btn-use" type="button" aria-label="Use">USE</button>
+        <button id="btn-strafe-l" type="button" aria-label="Strafe left">SL</button>
+        <button id="btn-strafe-r" type="button" aria-label="Strafe right">SR</button>
+        <button id="btn-menu" data-testid="btn-menu" type="button" aria-label="Menu">MENU</button>
+      </div>
+      <div id="weapon-strip" data-testid="weapon-strip" role="group" aria-label="Weapon select"></div>
+    </div>
   </div>
   <p id="status-line" data-testid="status-line" aria-live="polite">Loading…</p>
 
   <section class="panel" aria-label="Game controls">
     <h2>Controls</h2>
     <div class="row">
-      <button id="btn-pause" data-testid="pause-overlay">Pause</button>
-      <button id="btn-resume">Resume</button>
+      <button id="btn-pause" data-testid="pause-overlay-btn" type="button">Pause</button>
+      <button id="btn-resume" type="button">Resume</button>
       <label>Map
         <select id="map-select" aria-label="Select map"></select>
       </label>
     </div>
-    <p>Keys: <kbd>A</kbd>/<kbd>D</kbd> or arrows turn, <kbd>W</kbd> advance tick. No other inputs exist yet; pointer lock, touch overlay, and audio arrive in M2/M3 and are omitted here, not stubbed.</p>
+    <p id="controls-hint">Desktop: WASD or arrows move and turn, mouse look after clicking the canvas (Pointer Lock), Space or left click fires. Touch devices show an on-screen stick plus FIRE, USE, strafe, weapon, and menu buttons. Every key remaps below.</p>
+  </section>
+
+  <section class="panel" aria-label="Video">
+    <h2>Video</h2>
+    <div class="row">
+      <label>Renderer
+        <select id="tier-select" aria-label="Renderer tier">
+          <option value="auto">Auto</option>
+          <option value="0">Tier 0: WebGL2 paletted</option>
+          <option value="1">Tier 1: WebGL1 RGBA</option>
+          <option value="2">Tier 2: Canvas2D</option>
+          <option value="3">Tier 3: Canvas2D 30 FPS cap</option>
+          <option value="4">Tier 4: emergency 256x160</option>
+        </select>
+      </label>
+      <label>Resolution
+        <select id="res-select" aria-label="Resolution">
+          <option value="auto">Auto</option>
+          <option value="0">640x400</option>
+          <option value="1">480x300</option>
+          <option value="2">320x200</option>
+          <option value="3">256x160</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="battery-saver"> Battery saver</label>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Input remapping">
+    <h2>Remap keys</h2>
+    <p>Select a binding, then press the new key. Conflicts swap automatically. Bindings persist on this device.</p>
+    <div id="remap-table"></div>
+    <p id="remap-notice" aria-live="polite"></p>
+    <div class="row">
+      <button id="btn-bindings-reset" type="button">Reset to defaults</button>
+    </div>
   </section>
 
   <section class="panel" aria-label="WAD loading">
@@ -44,8 +97,8 @@
   </section>
 
   <section class="panel" aria-label="About this milestone">
-    <h2>Milestone 1 scope</h2>
-    <p>Checked WAD reader with layered diagnostics, map discovery, lump decoders, texture composition tables, Hexen detect-and-report, stable engine boundary, 35 Hz fixed-step loop, Canvas2D automap first frame. Full 3D rasterizer (M2), audio plus persistence (M3), and ecosystem polish (M4) are future milestones.</p>
+    <h2>Milestone 2 scope</h2>
+    <p>WebGL paletted renderer (Tier 0) with RGBA fallback (Tier 1) and Canvas2D fallback (Tier 2/3), resolution ladder with battery saver, 35 Hz ticcmd pipeline with Pointer Lock mouse look, touch overlay with stick plus strafe plus weapon strip, and persisted remapping. Audio plus persistence (M3) and ecosystem polish (M4) are future milestones.</p>
   </section>
 
   <footer>Doom engine code is GPL-2.0 lineage (doomgeneric/Chocolate Doom); game data is yours. Built-in levels are generated, not id Software data.</footer>
