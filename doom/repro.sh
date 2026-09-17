@@ -1,5 +1,6 @@
-// M1 serve + test + first-frame render + evidence regeneration.
-// Usage: sh doom/repro.sh  (run from the repo root)
+#!/bin/sh
+# M1 serve + test + first-frame render + evidence regeneration.
+# Usage: sh doom/repro.sh  (run from the repo root)
 set -eu
 
 SCRIPT_DIR="$(dirname "$0")"
