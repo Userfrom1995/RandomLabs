@@ -1,0 +1,17 @@
+{
+  "suite": "m1-extended-soak",
+  "ticks": 100000,
+  "tickCountExact": true,
+  "framebufferHash": "f6cad8e9",
+  "referenceHash": "f6cad8e9",
+  "deterministic": true,
+  "elapsedMs": 1104,
+  "ticksPerSecond": 90580,
+  "heapUsedBefore": 4332696,
+  "heapUsedAfter": 4509328,
+  "heapDeltaBytes": 176632,
+  "heapDeltaPerTickBytes": 1.76632,
+  "node": "v22.23.2",
+  "platform": "linux",
+  "generatedAt": "2026-09-17T21:50:32.328Z"
+}
