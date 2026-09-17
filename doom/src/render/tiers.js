@@ -19,6 +19,7 @@ export function probeCapabilities(env = {}) {
 }
 
 export function resolveTier(caps, override = null) {
+  caps = caps ?? {}; // sealed pin: null caps resolve Tier 3, never throw
   if (override !== null && override >= 0 && override <= 4) return override;
   if (typeof window !== 'undefined') {
     try {

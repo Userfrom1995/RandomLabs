@@ -7,7 +7,9 @@ export const UNPACK_ALIGNMENT = 1;
 export const UPLOAD_FORMATS = ['r8', 'rgba', 'cpu'];
 
 // Pure capability decision, unit-tested: webgl2 first, then webgl, else cpu.
+// Non-null contract: null/undefined caps fall back to cpu (sealed pin).
 export function chooseUploadFormat(caps = {}) {
+  caps = caps ?? {};
   if (caps.webgl2 || caps.hasWebGL2) return 'r8';
   if (caps.webgl || caps.hasWebGL1) return 'rgba';
   return 'cpu';
