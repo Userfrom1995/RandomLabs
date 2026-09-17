@@ -146,7 +146,8 @@ export async function initEngine({ wadBytes, skill = 3, episode = 1, map = 'E1M1
       // Turn applies immediately (M1 latency contract, mouse-look feel);
       // moves, buttons, and weapon select latch for the next tickOnce.
       if (Number.isFinite(Number(c.angleturn))) {
-        const a = Math.max(-32768, Math.min(32768, Math.round(Number(c.angleturn))));
+        // Sealed 1-LSB tolerance: matches latchTiccmd clamp [-32768, 32767].
+        const a = Math.max(-32768, Math.min(32767, Math.round(Number(c.angleturn))));
         if (a) angle += a / 182;
       }
       const { angleturn: _drop, ...rest } = c;
