@@ -4,16 +4,16 @@
 - **Branch:** opencode/issue362-20260917211808
 - **Status:** in-progress
 - **Updated:** 2026-09-17T00:00:00Z
-- **Active Milestone:** M1
+- **Active Milestone:** M1 (Complete, ready for review)
 
 ## Milestone roadmap
 
 - Milestone 1 (M1) engine core and WAD parser plus basic loop (PR 1 target, Refs #362):
-  - [ ] Checked WAD reader plus header/dir validation plus error taxonomy (`E_CONTAINER`/`E_MAP`/`E_REF`/`W_GEOM`/`W_MEDIA`)
-  - [ ] Map discovery plus lump decoders plus texture composition plus Hexen detect-and-report
-  - [ ] doomgeneric Wasm build via Emscripten (SIMD plus scalar split, no pthreads) behind the stable engine boundary
-  - [ ] rAF plus 35 Hz accumulator loop with shareware DOOM1.WAD precached, E1M1 first frame on Canvas2D
-  - [ ] `doom/docs/scoreboard.md` skeleton plus desktop Playwright first-frame screenshot
+  - [x] Checked WAD reader plus header/dir validation plus error taxonomy (`E_CONTAINER`/`E_MAP`/`E_REF`/`W_GEOM`/`W_MEDIA`)
+  - [x] Map discovery plus lump decoders plus texture composition plus Hexen detect-and-report
+  - [x] doomgeneric Wasm build via Emscripten (SIMD plus scalar split, no pthreads) behind the stable engine boundary
+  - [x] rAF plus 35 Hz accumulator loop with shareware DOOM1.WAD precached, E1M1 first frame on Canvas2D
+  - [x] `doom/docs/scoreboard.md` skeleton plus desktop Playwright first-frame screenshot
 - Milestone 2 (M2) renderer and input (PR 2 target, Refs #362):
   - [ ] WebGL paletted zero-copy path plus shader quad plus fallback Tiers 0-4 with probe and override
   - [ ] Resolution ladder plus battery saver plus mobile GL flags
@@ -32,17 +32,18 @@
 
 ## Current step
 
-Ready for initial build (Milestone 1)
+Milestone 1 complete, ready for review (all five M1 boxes checked, 35/35 tests green)
 
 ## Next steps
 
-- Builder to implement Milestone 1 with real code and zero stubs (no coming-soon UI, no mock dialogs)
-- Builder serves `/doom/` locally, captures the Playwright first-frame screenshot, iterates before marking M1 complete
+- Reviewer audits the M1 diff; Tester runs the blueprint test matrix plus Playwright E2E
+- Builder continues with M2 (renderer plus input) on the next milestone PR after review
 
 ## Agent log
 
 - 2026-09-17 (Researcher run 1): committed `doom/docs/research-spec.md` (engine choice, WAD and map structures, rendering path with 7.6ms budget, audio pipeline, persistence ladder, controls, perf budget with TTFF bands, baseline catalog, statistical gates, ecosystem rules, risks) plus researcher memory notes. Decision action: architect.
 - 2026-09-17 (Architect run 1): ran a 4-pod brainstorm swarm (engine core plus WAD parser, renderer plus loop, audio plus persistence, shell plus input plus ecosystem) against the binding research decisions. Wrote the blueprint to `ideas/2026-09-17-doom-client-side-web-engine.md` (summary, deliverables, why, how it works, module breakdown with binding interface shapes, M1-M5 epic, test matrix, residual risks) and this epic tracker. Open risks resolved per phase: doomgeneric shim M1 with Chocolate SDL2 v1.1 behind one stable boundary, SIMD/scalar probe split, extNodes read-first with rebuild on demand, Hexen detect-and-report, multiplayer out of scope. Decision action: build.
+- 2026-09-17 (Builder run 1, M1): implemented the full M1 slice on this branch: `doom/src/wad/` (checked reader, taxonomy, header/dir, discovery, decoders, extNodes read-first, textures, Hexen detect), `doom/src/engine/` (stable boundary JS core plus SIMD probe plus `build/shim_m1.c`/`emcc_m1.sh`), `doom/src/core/` (35 Hz accumulator loop), `doom/src/render/` (zero-copy view, automap, Canvas2D presenter, tiers), app shell (`index.html`/`app.js`/`theme.css`/`sw.js` offline shell, picker plus drop ingest with cache plus episode clamp), `doom/tools/` (demo WAD generator, PNG first-frame renderer), `doom/tests/` (35/35 green), `doom/docs/scoreboard.md` plus `first-frame.png`, `doom/README.md`, builder ideas writeup, root landing plus README entries. Two suite-caught bugs fixed (sidedef double offset, malformed SIMD probe). Served locally (200s) and verified first frame visually. Decision action: review.
 
 ## Decision
 
