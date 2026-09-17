@@ -1,0 +1,54 @@
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --panel: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #9aa7b4;
+  --accent: #f85149;
+  --gold: #d29922;
+  --ok: #3fb950;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  margin: 0; padding: 0; line-height: 1.5;
+}
+header {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+header h1 { font-size: 1.2rem; margin: 0; letter-spacing: 0.04em; }
+header .sub { color: var(--muted); font-size: 0.85rem; }
+header nav { margin-left: auto; display: flex; gap: 8px; }
+main { max-width: 860px; margin: 0 auto; padding: 16px 20px 40px; }
+#stage { position: relative; }
+canvas#doom-canvas {
+  width: 100%; aspect-ratio: 8/5; display: block;
+  background: #000; border: 1px solid var(--border); border-radius: 8px;
+  image-rendering: pixelated;
+}
+#status-line {
+  margin-top: 8px; min-height: 1.6em; font-size: 0.9rem; color: var(--muted);
+}
+#status-line[aria-live] { outline: none; }
+.panel {
+  border: 1px solid var(--border); border-radius: 8px; background: var(--panel);
+  padding: 12px 16px; margin-top: 12px;
+}
+.panel h2 { font-size: 1rem; margin: 0 0 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button, select, input[type="file"] { font-size: 0.9rem; }
+button {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#error-list { color: var(--gold); font-size: 0.88rem; }
+#error-list .fatal { color: var(--accent); }
+kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; font-size: 0.85em; }
+footer { color: var(--muted); font-size: 0.8rem; margin-top: 24px; }
+a { color: #58a6ff; }
