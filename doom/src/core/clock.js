@@ -12,7 +12,9 @@ export function nowMs() {
 
 // Pure step function for determinism tests: __test.accumulatorStep hook.
 export function accumulatorStep(state, dtMs) {
-  const dt = Math.min(Math.max(dtMs, 0), MAX_DT_MS);
+  let dt;
+  if (typeof dtMs !== 'number' || Number.isNaN(dtMs)) dt = 0;
+  else dt = Math.min(Math.max(dtMs, 0), MAX_DT_MS);
   state.acc += dt;
   let steps = 0;
   while (state.acc >= TIC_STEP_MS && steps < MAX_STEPS) {
