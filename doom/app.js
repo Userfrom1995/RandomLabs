@@ -44,7 +44,20 @@ function bindMapSelect(maps, current) {
   }
 }
 
-async function boot(wadBytes, label) {
+function probeGL() {
+  // Probe on a throwaway canvas (never the visible one): acquiring one WebGL
+  // context type locks the canvas, so probing webgl then webgl2 on the same
+  // canvas always reports webgl2 as missing. Try webgl2 first, then webgl.
+  try {
+    const probe = document.createElement('canvas');
+    const webgl2 = !!probe.getContext('webgl2');
+    const probe2 = document.createElement('canvas');
+    const webgl = !!probe2.getContext('webgl');
+    return { webgl, webgl2 };
+  } catch {
+    return { webgl: false, webgl2: false };
+  }
+}
   if (loop) loop.stop();
   try {
     engine = await initEngine({ wadBytes, episode: 1, map: undefined });
@@ -57,7 +70,8 @@ async function boot(wadBytes, label) {
   presenter = createPresenter(canvas, engine.__palette);
   bindMapSelect(engine.maps, engine.map);
   showErrors(engine.report, null);
-  const tier = resolveTier(probeCapabilities({ webgl: !!canvas.getContext('webgl'), webgl2: !!canvas.getContext('webgl2') }));
+  const gl = probeGL();
+  const tier = resolveTier(probeCapabilities(gl));
   status(`${label}: ${engine.map} running (tier ${tier}, ${engine.version}, ${engine.__geo.linedefs.length} lines, ${engine.__geo.sectors.length} sector${engine.__geo.sectors.length === 1 ? '' : 's'})`);
 
   loop = createLoop({
