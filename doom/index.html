@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Doom: client-side web engine (M1)</title>
+<link rel="stylesheet" href="./theme.css">
+</head>
+<body>
+<header>
+  <h1>DOOM / WEB</h1>
+  <span class="sub">client-side engine at /doom/ - Milestone 1: engine core plus WAD parser plus basic loop</span>
+  <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
+</header>
+<main>
+  <div id="stage">
+    <canvas id="doom-canvas" data-testid="canvas" width="320" height="200" aria-label="Doom automap viewport"></canvas>
+  </div>
+  <p id="status-line" data-testid="status-line" aria-live="polite">Loading…</p>
+
+  <section class="panel" aria-label="Game controls">
+    <h2>Controls</h2>
+    <div class="row">
+      <button id="btn-pause" data-testid="pause-overlay">Pause</button>
+      <button id="btn-resume">Resume</button>
+      <label>Map
+        <select id="map-select" aria-label="Select map"></select>
+      </label>
+    </div>
+    <p>Keys: <kbd>A</kbd>/<kbd>D</kbd> or arrows turn, <kbd>W</kbd> advance tick. No other inputs exist yet; pointer lock, touch overlay, and audio arrive in M2/M3 and are omitted here, not stubbed.</p>
+  </section>
+
+  <section class="panel" aria-label="WAD loading">
+    <h2>WAD</h2>
+    <div class="row">
+      <input type="file" id="wad-picker" accept=".wad" aria-label="Load a WAD file">
+      <span id="wad-info">Built-in demo level active. Drop a shareware DOOM1.WAD (or any IWAD/PWAD) to play real maps.</span>
+    </div>
+    <div id="wad-drop" data-testid="wad-drop" tabindex="0" role="button" aria-label="Drop a WAD file here"
+         style="margin-top:8px;border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;color:var(--muted)">
+      Drop a .WAD file here
+    </div>
+    <ul id="error-list" aria-label="WAD diagnostics"></ul>
+  </section>
+
+  <section class="panel" aria-label="About this milestone">
+    <h2>Milestone 1 scope</h2>
+    <p>Checked WAD reader with layered diagnostics, map discovery, lump decoders, texture composition tables, Hexen detect-and-report, stable engine boundary, 35 Hz fixed-step loop, Canvas2D automap first frame. Full 3D rasterizer (M2), audio plus persistence (M3), and ecosystem polish (M4) are future milestones.</p>
+  </section>
+
+  <footer>Doom engine code is GPL-2.0 lineage (doomgeneric/Chocolate Doom); game data is yours. Built-in levels are generated, not id Software data.</footer>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
