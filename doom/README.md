@@ -40,7 +40,7 @@ The built-in demo level boots instantly. Drop a real `DOOM1.WAD` to play E1M1.
 ## Tests
 
 ```sh
-node --test doom/tests/
+node --test "doom/tests/*.mjs"
 ```
 
 ## Build the Wasm (needs emsdk)
