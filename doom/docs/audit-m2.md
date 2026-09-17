@@ -1,0 +1,56 @@
+# Doom M2 audit: renderer plus input shell contract
+
+- **Updated:** 2026-09-17 (M2)
+- **Result:** ALL PASS (48/48 checks)
+- **Runner:** node-only static plus live unit-behavior audit (browser E2E stays M5 scope)
+
+## Checks
+
+- [x] testid canvas
+- [x] testid btn-fire
+- [x] testid btn-use
+- [x] testid btn-menu
+- [x] testid joystick
+- [x] testid weapon-strip
+- [x] testid pause-overlay
+- [x] testid wad-drop
+- [x] testid status-line
+- [x] id #doom-canvas
+- [x] id #status-line
+- [x] id #wad-picker
+- [x] id #wad-drop
+- [x] id #map-select
+- [x] id #btn-pause
+- [x] id #btn-resume
+- [x] id #error-list
+- [x] id #wad-info
+- [x] id #remap-table
+- [x] id #tier-select
+- [x] id #res-select
+- [x] id #battery-saver
+- [x] id #touch-ui
+- [x] id #map-select
+- [x] canvas 320x200 attrs
+- [x] aria-live polite
+- [x] dropzone keyboard path
+- [x] no blocking dialogs
+- [x] no eval/new Function
+- [x] innerHTML only clears
+- [x] probeGL webgl2-first throwaway
+- [x] pointer lock wiring
+- [x] tier M1 pins
+- [x] tier M2 GL
+- [x] tier failure chain
+- [x] governor hysteresis
+- [x] tic speeds
+- [x] bindings swap
+- [x] stick radius 56px
+- [x] 44px targets
+- [x] safe-area insets
+- [x] landscape translucent overlay
+- [x] reduced-motion path
+- [x] focus rings
+- [x] touch state clamp
+- [x] contrast text/bg >= 4.5 (16.02)
+- [x] contrast muted/panel >= 4.5 (7.05)
+- [x] no em dashes in M2 files

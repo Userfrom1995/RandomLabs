@@ -20,7 +20,8 @@ export const TIC = {
 };
 
 function finite01(v) {
-  return typeof v === 'number' && Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
+  if (typeof v !== 'number' || !Number.isFinite(v)) return 0;
+  return Math.max(-1, Math.min(1, v)) || 0; // normalize -0 to 0
 }
 
 function clampMove(v) {

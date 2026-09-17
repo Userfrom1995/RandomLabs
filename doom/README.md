@@ -1,6 +1,7 @@
 # Doom: client-side web engine at `/doom/`
 
-Milestone 1 (issue #362): engine core plus WAD parser plus basic loop.
+Milestones 1-2 (issue #362): engine core plus WAD parser plus basic loop (M1),
+WebGL renderer plus full input (M2).
 
 ## What works (M1)
 
@@ -25,6 +26,24 @@ Milestone 1 (issue #362): engine core plus WAD parser plus basic loop.
 - App shell (`index.html`, `app.js`): canvas, pause/resume, map select,
   `.wad` picker plus drag-drop ingest with Cache Storage precache and episode
   clamp, layered diagnostics list, keyboard turning, offline shell service worker.
+
+## What works (M2)
+
+- Render ladder (`src/render/`): WebGL2 paletted single-pass quad (Tier 0,
+  64 KB frames) with WebGL1 RGBA fallback (Tier 1), Canvas2D fallback
+  (Tier 2/3, Tier 3 capped at 30 FPS), emergency 256x160 (Tier 4);
+  upload-once palette manager; resolution ladder (640x400 to 256x160) with
+  500 ms hysteresis, battery saver, and mobile start step; renderer plus
+  resolution controls persisted on device.
+- Input pipeline (`src/input/`): 35 Hz ticcmd sampling (vanilla speeds,
+  +-50 clamp) from desktop keys, Pointer Lock mouse look (raw-input
+  attempt, drag fallback, ESC auto-pause with recapture overlay), and a DOM
+  touch overlay (dynamic-origin stick for move plus turn, FIRE/USE/strafe,
+  weapon strip with landscape auto-collapse, menu). Versioned remapping
+  (`doom-bindings` v1) with conflict swap, persisted per device.
+- Engine movement: full ticcmd moves with per-tick button edges and weapon
+  select, live automap player marker, deterministic twin convergence.
+  Collision against linedefs arrives with the 3D BSP milestone.
 
 ## Run it
 
