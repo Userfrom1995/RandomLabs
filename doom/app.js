@@ -58,6 +58,8 @@ function probeGL() {
     return { webgl: false, webgl2: false };
   }
 }
+
+async function boot(wadBytes, label) {
   if (loop) loop.stop();
   try {
     engine = await initEngine({ wadBytes, episode: 1, map: undefined });
