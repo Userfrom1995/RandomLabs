@@ -7,7 +7,7 @@ import { createFrameBuffer } from './fbView.js';
 export const FB_W = 320;
 export const FB_H = 200;
 
-export function renderAutomap(fb, geo, paletteIndex = { wall: 31, thing: 175, player: 216, bg: 0 }) {
+export function renderAutomap(fb, geo, paletteIndex = { wall: 31, thing: 175, player: 216, bg: 0 }, playerPos = null) {
   const { width, height, data } = fb;
   data.fill(paletteIndex.bg);
   if (!geo || !geo.vertexes || !geo.linedefs) return fb;
@@ -41,12 +41,18 @@ export function renderAutomap(fb, geo, paletteIndex = { wall: 31, thing: 175, pl
   }
   if (geo.things) {
     for (const t of geo.things) {
-      const [x, y] = px(t.x, t.y);
       const isPlayer = t.type === 1;
+      // M2 live marker: the engine passes its simulated player position so
+      // movement is visible; a null override renders the static spawn thing
+      // (identical pixels when the player has not moved).
+      const px0 = isPlayer && playerPos ? playerPos.x : t.x;
+      const py0 = isPlayer && playerPos ? playerPos.y : t.y;
+      const ang = isPlayer && playerPos && Number.isFinite(playerPos.angle) ? playerPos.angle : t.angle;
+      const [x, y] = px(px0, py0);
       const c = isPlayer ? paletteIndex.player : paletteIndex.thing;
       for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(x + dx, y + dy, c);
       if (isPlayer) {
-        const rad = (t.angle * Math.PI) / 180;
+        const rad = (ang * Math.PI) / 180;
         const [ax, ay] = [x + Math.round(Math.cos(rad) * 8), y + Math.round(Math.sin(rad) * 8)];
         line(x, y, ax, ay, c);
       }

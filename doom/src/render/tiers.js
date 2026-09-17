@@ -1,6 +1,8 @@
-// Render tiers + capability probe (spec 4.6). M1 ships Tier 2 (Canvas2D +
-// JS core) as the first visible loop; WebGL tiers land in M2. Choice cached
-// in localStorage with manual override (?tier=N or window.DOOM_TIER).
+// Render tiers + capability probe (spec 4.6). M2 implements Tier 0/1 (WebGL
+// paletted/RGBA in glQuad.js); Tier 2 is Canvas2D + Wasm framebuffer, Tier 3
+// is Canvas2D + pure-JS core at a 30 FPS cap, Tier 4 is emergency 256x160.
+// Choice cached in localStorage with manual override (?tier=N or
+// window.DOOM_TIER). M1 pins preserved: no GL flags means Tier 2/3 only.
 export const TIERS = [
   'Tier 0: WebGL2 paletted + Wasm SIMD (M2)',
   'Tier 1: WebGL1 RGBA + Wasm scalar (M2)',
@@ -26,7 +28,16 @@ export function resolveTier(caps, override = null) {
       if (cached !== null) return Math.max(0, Math.min(4, parseInt(cached, 10) || 0));
     } catch { /* storage blocked: fall through */ }
   }
-  // M1: WebGL tiers not yet implemented, so resolve to Tier 2/3.
+  // M2: WebGL tiers resolve when the probe found GL; otherwise Tier 2/3.
+  if (caps.hasWebGL2 || caps.webgl2) return 0;
+  if (caps.hasWebGL1 || caps.webgl) return 1;
   if (caps.hasWasm) return 2;
   return 3;
+}
+
+// Fallback chain when a tier's presenter throws (GL context loss, shader
+// failure): step exactly one rung down the ladder per failure.
+export function tierForFailure(tier) {
+  if (!Number.isInteger(tier)) return 2;
+  return Math.min(4, Math.max(0, tier) + 1);
 }
