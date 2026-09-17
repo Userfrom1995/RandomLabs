@@ -1,0 +1,100 @@
+{
+  "suite": "m2-headless-upload-governor",
+  "scene": "320x200 (64000 indices), 768-byte palette, node CPU path",
+  "n": 60,
+  "framesPerSample": 20,
+  "resamples": 10000,
+  "timer": "performance.now batch intervals, per-frame stats converted from batch means",
+  "node": "v22.23.2",
+  "platform": "linux",
+  "rgbaExpand_ms": {
+    "n": 60,
+    "mean": 0.2945157258333334,
+    "median": 0.29092355000000014,
+    "p95": 0.3754818475,
+    "p99": 0.4170119974999992,
+    "min": 0.2134119499999997,
+    "max": 0.4717077999999987,
+    "sd": 0.050358641722085165,
+    "cv": 0.17098795515789586,
+    "ci95": {
+      "lo": 0.28181388502083343,
+      "hi": 0.3077154170625001,
+      "resamples": 10000,
+      "seed": 49420
+    }
+  },
+  "r8Memcpy_ms": {
+    "n": 60,
+    "mean": 0.001746169166666836,
+    "median": 0.0017207500000004927,
+    "p95": 0.0018789299999998476,
+    "p99": 0.0019883259999998867,
+    "min": 0.0016694999999998573,
+    "max": 0.001990449999999555,
+    "sd": 0.00007075250674813239,
+    "cv": 0.040518701222509765,
+    "ci95": {
+      "lo": 0.0017293507083335662,
+      "hi": 0.0017644312083334645,
+      "resamples": 10000,
+      "seed": 49420
+    }
+  },
+  "paired_rgbaMinusR8_ms": {
+    "meanDiff": 0.29276955666666654,
+    "medianDiff": 0.28921130000000017,
+    "lo": 0.2806674436874998,
+    "hi": 0.305513309458333,
+    "resamples": 10000,
+    "seed": 2654435769,
+    "n": 60
+  },
+  "governor_stepFrames_40msLoad": {
+    "n": 60,
+    "mean": 2,
+    "median": 2,
+    "p95": 2,
+    "p99": 2,
+    "min": 2,
+    "max": 2,
+    "sd": 0,
+    "cv": 0,
+    "ci95": {
+      "lo": 2,
+      "hi": 2,
+      "resamples": 10000,
+      "seed": 49420
+    }
+  },
+  "governor_recoverFrames_4msEase": {
+    "n": 60,
+    "mean": 10,
+    "median": 10,
+    "p95": 10,
+    "p99": 10,
+    "min": 10,
+    "max": 10,
+    "sd": 0,
+    "cv": 0,
+    "ci95": {
+      "lo": 10,
+      "hi": 10,
+      "resamples": 10000,
+      "seed": 49420
+    }
+  },
+  "glProbe": {
+    "hasWindow": false,
+    "hasDocument": false,
+    "webgl": "unavailable-headless (no DOM canvas, GlUnavailable by design)",
+    "playwright": "no browser installed in this runner (node-only audit)"
+  },
+  "gate": {
+    "minN": 30,
+    "cvBelow": 0.05,
+    "rgbaCvMet": false,
+    "r8CvMet": true
+  },
+  "generatedAt": "2026-09-17T23:43:36.781Z"
+}
