@@ -31,7 +31,7 @@ or INVALID_SPECIFICATION (at most 3 attempts per cell).
 - B1 baseline pair sealed in the same artifact; Wasm-vs-JS pair stays pending
   (no emsdk in runner: UNSUPPORTED_BY_DESIGN for this environment, build
   script `build/emcc_m1.sh` present and reviewed but unexecuted)
-- Layout audit (`doom/docs/layout-audit.md`): 14 static checks ALL PASS at
+- Layout audit (`doom/docs/layout-audit.md`): 15 static checks ALL PASS at
   1280px and 390px, 8 contrast pairs all >= 4.5:1; Playwright screenshots
   remain for a browser-capable runner
 - Extended soak (`doom/docs/soak-m1.json`): 100000 ticks exact, framebuffer
