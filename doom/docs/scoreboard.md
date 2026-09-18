@@ -11,6 +11,44 @@ or INVALID_SPECIFICATION (at most 3 attempts per cell). No bare `pending` rows
 are allowed for M2-owned claims: browser-only cells resolve to
 UNSUPPORTED_BY_DESIGN headless with M5 ownership and machine proof.
 
+## M3 ledger (unit-gated, node:test, 2026-09-17)
+
+Functional gates for the audio plus persistence milestone (46 new tests in
+`tests/test-m3-audio.mjs` plus `tests/test-m3-storage.mjs`; full suite
+291/291 green with all M1/M2 sealed pins untouched; `tools/audit-m3.mjs`
+48/48 ALL PASS).
+
+- wadAudio: DMX format 3 golden strip (playable span is length minus 32),
+  u8 to f32 mapping (0 to -1, 128 to 0, 255 near 1), format-0 plus
+  truncation plus vanilla-cap rejects.
+- mus2mid: SMF Type 0 with paired note on/off plus end-of-track, drum
+  channel 15 to MIDI 9, volume scale-not-clamp (two-pass 127/Vmax),
+  byte-for-byte determinism, magic plus truncation rejects.
+- SFX: lazy LRU cache with corrupt-skip prefetch; 8-voice pool with
+  same-origin then quietest steal, 200/1200 distance curve with MAP08
+  floor, separation pan, deterministic pitch jitter, duration release.
+- Mixer: menu 0..15 linear map, mute flags, persisted doom.audio shape.
+- Unlock: suspended start, pre-gesture schedules dropped and counted,
+  running after one gesture (H5 headless cell below).
+- Music: GENMIDI strict-magic parse with safe bounds, MIDI note extraction
+  round-trip of mus2mid output, deterministic bounded FM render (silence
+  when empty), song-switch counting with loop flag.
+- Storage: memory round-trip plus copy semantics plus E_PATH; ladder
+  fault-injection (OPFS throw plus IDB unavailable fall through to
+  memory); OPFS/IDB unavailable headless is graceful fallback by design;
+  local tier JSON/binary round-trip with save-slot refusal
+  (E_SAVE_UNAVAILABLE); 6 slots save/load/list/delete with E_SLOT;
+  debounce plus flush; engine snapshot twin-convergence (restore then
+  identical input stays bit-exact); bundle export/import byte equality
+  with atomic rollback on quota failure.
+
+## M3 measured cells (headless, `doom/docs/bench-m3.json`, N=30, 10k resamples)
+
+| Hypothesis | Claim | N | Result | State |
+|---|---|---|---|---|
+| H5 (M3 headless unlock) | Suspended-to-running on first gesture, zero scheduled events before unlock | deterministic state machine plus 46-test M3 suite | 2 pre-gesture trySchedule calls dropped and counted, 0 scheduled before running; 1 gesture transitions to running; browser AudioContext resume latency owned by M5 Playwright | MEASURED |
+| M3 music CPU | MUS-to-MIDI conversion plus 1 s JS-FM render, 16-note song | 30 batches | conversion mean ~0.03ms; FM render mean ~5.4ms one-shot per song switch (looped buffer, never per frame; timing rows refresh run-to-run by design) | MEASURED |
+
 ## M2 ledger (unit-gated, node:test, 2026-09-17)
 
 Functional gates for the renderer plus input milestone. Browser frame-time
