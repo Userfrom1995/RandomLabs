@@ -1,8 +1,11 @@
-// M3 boot: tier-aware presenter (WebGL paletted -> RGBA -> Canvas2D),
+// M4 boot: tier-aware presenter (WebGL paletted -> RGBA -> Canvas2D),
 // 35 Hz ticcmd pipeline (keyboard + Pointer Lock mouse + touch overlay),
 // resolution ladder with battery saver, persisted remapping, WebAudio SFX
-// plus FM music behind a gesture unlock, OPFS/IDB/local save persistence.
+// plus FM music behind a gesture unlock, OPFS/IDB/local save persistence,
+// and the multi-WAD loadout (load order, per-map isolation, onboarding).
 import { buildDemoWad } from './tools/make-demo-wad.mjs';
+import { buildLoadout, assembleWad, probeMaps, identifyWad, findDehacked, describeLoadOrder, describeDehacked } from './src/wad/loadout.js';
+import { resolveShellState, loadingLine, emptyLoadOrderLine, droppedLines, ONBOARDED_KEY } from './src/ui/shellStates.js';
 import { initEngine } from './src/engine/doomEngine.js';
 import { createLoop } from './src/core/loop.js';
 import { createPresenter } from './src/render/present2d.js';
@@ -17,7 +20,7 @@ import { createMouseLook, pixelsToAngleTurn, attachPointerLock } from './src/inp
 import { createTouchState, shouldShowTouchOverlay } from './src/input/touch.js';
 import { renderRemapTable } from './src/input/remap-ui.js';
 import { precacheWad, loadCachedWad } from './src/storage/wad-cache.js';
-import { episodeClamp, discoverMaps, parseWadDirectory, lumpBytes } from './src/wad/index.js';
+import { parseWadDirectory, lumpBytes } from './src/wad/index.js';
 import { musToMidi } from './src/audio/mus2mid.js';
 import { createSfxCache } from './src/audio/sfxCache.js';
 import { createSfxEngine, renderSfxFrame } from './src/audio/sfxEngine.js';
@@ -70,6 +73,83 @@ function loadVideoPrefs() {
 
 function saveVideoPrefs(prefs) {
   try { store.setItem('doom-video', JSON.stringify(prefs)); } catch { /* ignore */ }
+}
+
+// M4 loadout state: ordered in-memory file set (base first, patches in
+// drop order) plus the last assembled boot bytes. The set is session
+// scoped; the assembled result persists through the WAD cache.
+let wadSet = [];
+let mergedBytesCurrent = null;
+let shellFatal = null;
+
+function showFatal(msg) {
+  shellFatal = msg;
+  $('wad-error').textContent = msg || '';
+}
+
+function setLoading(fileName) {
+  const line = fileName ? loadingLine(fileName) : '';
+  $('wad-loading').textContent = line;
+  $('status-line').setAttribute('aria-busy', fileName ? 'true' : 'false');
+  if (fileName) status(line);
+}
+
+// Paint one frame so the loading line actually appears before the
+// (synchronous) parse + assemble + boot work below it.
+function paintLoading() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function renderWadOrder() {
+  const ol = $('wad-order');
+  ol.textContent = '';
+  if (wadSet.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = emptyLoadOrderLine();
+    ol.appendChild(li);
+    return;
+  }
+  const lines = describeLoadOrder(wadSet);
+  wadSet.forEach((file, i) => {
+    const li = document.createElement('li');
+    const span = document.createElement('span');
+    span.textContent = lines[i];
+    li.appendChild(span);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', `Remove ${file.name} from the load order`);
+    remove.addEventListener('click', () => { void removeWad(file.name); });
+    li.appendChild(remove);
+    ol.appendChild(li);
+  });
+}
+
+function renderDehacked(dehacked) {
+  $('dehacked-note').textContent = dehacked.length === 0
+    ? ''
+    : dehacked.map(describeDehacked).join(' ');
+}
+
+function renderClamp(identity) {
+  if (!identity) { $('wad-clamp').textContent = ''; return; }
+  $('wad-clamp').textContent = identity.sharewareLikely && identity.kind === 'doom1'
+    ? 'Shareware WAD detected: map list clamps to Episode 1.'
+    : '';
+}
+
+function mapPassesClamp(name, identity) {
+  if (!identity || !(identity.sharewareLikely && identity.kind === 'doom1')) return true;
+  return /^E1M[1-9]$/.test(name);
+}
+
+function isOnboarded() {
+  try { return store.getItem(ONBOARDED_KEY) === '1'; } catch { return false; }
+}
+
+function markOnboarded() {
+  try { store.setItem(ONBOARDED_KEY, '1'); } catch { /* onboarding flag optional */ }
+  $('onboard-panel').hidden = true;
 }
 
 function showErrors(report, fatalMsg) {
@@ -287,10 +367,11 @@ function applyAudioStateToUi(audio) {
   if (audioCtx && mixNodes) applyMixerGraph(audioCtx, mixer, mixNodes);
 }
 
-function bindMapSelect(maps, current) {
+function bindMapSelect(maps, current, identity) {
   const sel = $('map-select');
   sel.innerHTML = '';
-  for (const m of maps) {
+  const visible = (maps || []).filter((m) => mapPassesClamp(m, identity));
+  for (const m of visible.length > 0 ? visible : (maps || [])) {
     const o = document.createElement('option');
     o.value = m; o.textContent = m;
     if (m === current) o.selected = true;
@@ -400,6 +481,7 @@ function setPaused(v, reason) {
 }
 
 async function boot(wadBytes, label) {
+  const hadEngine = !!(engine && presenter);
   if (loop) loop.stop();
   stopMapMusic();
   try {
@@ -408,11 +490,18 @@ async function boot(wadBytes, label) {
     engine = await initEngine({ wadBytes, episode: 1, map: resumeMapPref });
     resumeMapPref = undefined;
   } catch (e) {
-    showErrors(e.details ? { warnings: [], toJSON: () => ({ maps: [{ map: '', errors: e.details }] }) } : null, `Load failed: ${e.message}`);
-    status(`Load failed: ${e.message}`);
+    // M4 error state: a failed load never kills the running level. Resume
+    // the previous loop and report through the alert box plus diagnostics.
+    const msg = `Load failed: ${e.message}`;
+    showErrors(e.details ? { warnings: [], toJSON: () => ({ maps: [{ map: '', errors: e.details }] }) } : null, msg);
+    showFatal(`${msg} The previous level keeps running.`);
+    setLoading(null);
+    status(msg);
+    if (hadEngine) setPaused(false);
     return;
   }
   indexWadLumps(wadBytes);
+  mergedBytesCurrent = wadBytes;
   const view = $('doom-canvas');
   const gl = probeGL();
   tier = resolveTier(probeCapabilities(gl));
@@ -420,8 +509,30 @@ async function boot(wadBytes, label) {
   presenter = made.presenter;
   presenterKind = made.kind;
   tier = made.tier;
-  bindMapSelect(engine.maps, engine.map);
+  // M4 ecosystem report: identity (shareware clamp), per-map isolation
+  // survivors for the map list, dropped-map warnings, DEHACKED notes.
+  let identity = null;
+  let viableMaps = engine.maps;
+  let dropped = [];
+  try {
+    identity = identifyWad(parseWadDirectory(wadBytes));
+    const probe = probeMaps(wadBytes);
+    if (probe.viable.length > 0) viableMaps = probe.viable;
+    dropped = probe.dropped;
+    renderDehacked(findDehacked(parseWadDirectory(wadBytes).lumps));
+  } catch { /* diagnostics are best-effort; the level already runs */ }
+  bindMapSelect(viableMaps, engine.map, identity);
+  // The clamp note names a staged file set; the built-in sample level
+  // boots without it (E1-only by construction, nothing to clamp).
+  renderClamp(wadSet.length > 0 ? identity : null);
   showErrors(engine.report, null);
+  for (const line of droppedLines(dropped)) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    $('error-list').appendChild(li);
+  }
+  showFatal(null);
+  setLoading(null);
   applyResolution(true);
   status(`${label}: ${engine.map} running (${describeTier(tier)}, ${presenterKind}, ${view.width}x${view.height}, ${engine.__geo.linedefs.length} lines)`);
   setPaused(false);
@@ -468,16 +579,59 @@ async function readFile(file) {
   return new Uint8Array(buf);
 }
 
-function clampToEpisode1(bytes) {
-  // Episode clamp: if only Episode 1 markers exist, map select stays E1Mx.
-  try {
-    const dir = parseWadDirectory(bytes);
-    const maps = discoverMaps(dir.lumps);
-    const clamp = episodeClamp(maps);
-    return clamp;
-  } catch {
-    return { episodes: [1], sharewareLikely: true };
+// M4 ingest pipeline: stage the file in load order, merge with map-group
+// replacement plus last-wins resources, isolate bad maps, then boot the
+// survivors. A rejected file keeps the running level untouched.
+async function ingest(file) {
+  if (!file || !/\.wad$/i.test(file.name)) {
+    showFatal('Not a .WAD file; load rejected. The current level keeps running.');
+    status('Not a .WAD file; load rejected.');
+    return;
   }
+  setLoading(file.name);
+  await paintLoading();
+  showFatal(null);
+  let bytes;
+  try {
+    bytes = await readFile(file);
+  } catch {
+    showFatal(`Could not read ${file.name}. The current level keeps running.`);
+    setLoading(null);
+    return;
+  }
+  const staged = wadSet.filter((f) => f.name !== file.name).concat([{ name: file.name, bytes }]);
+  const layout = buildLoadout(staged);
+  const hit = layout.rejected.find((r) => r.name === file.name);
+  if (hit) {
+    showFatal(`${file.name} rejected (${hit.code}): ${hit.message} The current level keeps running.`);
+    showErrors(null, `${hit.code} in ${file.name}: ${hit.message}`);
+    setLoading(null);
+    return;
+  }
+  const magic = staged.length === 1
+    ? (layout.valid.length > 0 ? parseWadDirectory(staged[0].bytes).magic : 'PWAD')
+    : 'PWAD';
+  const merged = assembleWad(layout.merged, magic);
+  let probe;
+  try {
+    probe = probeMaps(merged);
+  } catch (e) {
+    showFatal(`${file.name} produced no bootable maps (${(e && e.code) || 'E_MAP'}). The current level keeps running.`);
+    setLoading(null);
+    return;
+  }
+  if (probe.viable.length === 0) {
+    const first = probe.dropped[0];
+    showFatal(`${file.name} has no bootable maps${first ? ` (${first.code}: ${first.message})` : ''}. The current level keeps running.`);
+    setLoading(null);
+    return;
+  }
+  wadSet = staged;
+  renderWadOrder();
+  await precacheWad(merged);
+  $('wad-info').textContent = `${file.name} staged (${merged.length} bytes merged, ${probe.viable.length} playable maps${probe.dropped.length ? `, ${probe.dropped.length} skipped` : ''}).`;
+  markOnboarded();
+  await boot(merged, file.name);
 }
 
 function buildWeaponStrip() {
@@ -761,6 +915,48 @@ function wireVideoControls() {
   });
 }
 
+// M4 load-order removal: drop the file, re-merge the survivors, and boot
+// the result. Removing the last file returns to the cached WAD or the
+// built-in sample level; the running level survives a removal that yields
+// no bootable maps.
+async function removeWad(name) {
+  const rest = wadSet.filter((f) => f.name !== name);
+  setLoading(name);
+  await paintLoading();
+  if (rest.length === 0) {
+    wadSet = [];
+    renderWadOrder();
+    const cached = await loadCachedWad();
+    if (cached) {
+      wadSet = [{ name: 'cached.wad', bytes: cached }];
+      renderWadOrder();
+      await boot(cached, 'Cached WAD');
+    } else {
+      await boot(buildDemoWad(), 'Sample level');
+    }
+    return;
+  }
+  const layout = buildLoadout(rest);
+  const merged = assembleWad(layout.merged, 'PWAD');
+  let probe;
+  try {
+    probe = probeMaps(merged);
+  } catch (e) {
+    showFatal(`Removal left no bootable maps (${(e && e.code) || 'E_MAP'}). ${name} stays staged.`);
+    setLoading(null);
+    return;
+  }
+  if (probe.viable.length === 0) {
+    showFatal(`Removal left no bootable maps. ${name} stays staged.`);
+    setLoading(null);
+    return;
+  }
+  wadSet = rest;
+  renderWadOrder();
+  await precacheWad(merged);
+  await boot(merged, 'Load order updated');
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
   // Drag-and-drop window protection: only the dropzone accepts files.
   window.addEventListener('dragover', (e) => e.preventDefault());
@@ -814,7 +1010,20 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (prog && typeof prog.map === 'string') resumeMap = prog.map;
     } catch { /* fresh boot */ }
   }
+  // M4 onboarding: first visit (no cache, never dismissed) opens the
+  // getting-started panel; returning visitors go straight to the level.
+  renderWadOrder();
+  const shellState = resolveShellState({
+    loading: false, fatal: null, seenBefore: !!(cached || isOnboarded()), droppedCount: 0,
+  });
+  if (shellState === 'onboarding') {
+    $('onboard-panel').hidden = false;
+  }
   if (cached) {
+    // A persisted cache counts as a previous visit: seed the load order
+    // so remove/reorder semantics stay honest from the first frame.
+    wadSet = [{ name: 'cached.wad', bytes: cached }];
+    renderWadOrder();
     resumeMapPref = resumeMap;
     await boot(cached, 'Cached WAD');
   } else {
@@ -822,18 +1031,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     resumeMapPref = resumeMap;
     await boot(demo, 'Demo level');
   }
-
-  const ingest = async (file) => {
-    if (!file || !/\.wad$/i.test(file.name)) {
-      status('Not a .WAD file; load rejected.');
-      return;
-    }
-    const bytes = await readFile(file);
-    await precacheWad(bytes);
-    clampToEpisode1(bytes);
-    $('wad-info').textContent = `${file.name} (${bytes.length} bytes) cached.`;
-    await boot(bytes, file.name);
-  };
 
   $('wad-picker').addEventListener('change', (e) => ingest(e.target.files[0]));
   const drop = $('wad-drop');
@@ -844,7 +1041,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   $('map-select').addEventListener('change', async (e) => {
-    const bytes = (await loadCachedWad()) || buildDemoWad();
+    const bytes = mergedBytesCurrent || (await loadCachedWad()) || buildDemoWad();
     if (loop) loop.stop();
     try {
       engine = await initEngine({ wadBytes: bytes, map: e.target.value });
@@ -866,6 +1063,27 @@ window.addEventListener('DOMContentLoaded', async () => {
     setPaused(false);
     $('doom-canvas').click();
   });
+
+  // M4 onboarding plus sample controls.
+  $('btn-sample-load').addEventListener('click', async () => {
+    markOnboarded();
+    const demo = buildDemoWad();
+    wadSet = [];
+    renderWadOrder();
+    await precacheWad(demo);
+    await boot(demo, 'Sample level');
+  });
+  $('btn-sample-download').addEventListener('click', () => {
+    const demo = buildDemoWad();
+    const blob = new Blob([demo], { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sample-level.wad';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    markOnboarded();
+  });
+  $('btn-onboard-dismiss').addEventListener('click', () => markOnboarded());
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && loop) setPaused(true, 'Paused (tab hidden). Press Resume.');
