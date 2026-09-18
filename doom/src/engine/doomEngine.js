@@ -155,6 +155,23 @@ export async function initEngine({ wadBytes, skill = 3, episode = 1, map = 'E1M1
     },
     getPlayer() { return { ...player, angle }; },
     get tickCount() { return ticks; },
+    // M3 save/restore: re-apply a captured sim snapshot bit-exactly.
+    // Numbers are sanitized (finite, clamped to map bounds via step path).
+    setPlayerState(state, tickValue) {
+      if (!state || typeof state !== 'object') return;
+      const finite = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
+      player.x = finite(state.x, player.x);
+      player.y = finite(state.y, player.y);
+      angle = finite(state.angle, angle);
+      const w = Math.round(finite(state.weapon, player.weapon));
+      player.weapon = Math.max(1, Math.min(7, w));
+      player.attackCount = Math.max(0, Math.floor(finite(state.attackCount, 0)));
+      player.useCount = Math.max(0, Math.floor(finite(state.useCount, 0)));
+      clampToMapBounds();
+      if (Number.isInteger(tickValue) && tickValue >= 0) ticks = tickValue;
+      latched = null;
+      drawFrame();
+    },
     shutdown() {},
     onMemoryGrow() {},
     __fb: fb,
