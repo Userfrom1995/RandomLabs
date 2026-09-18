@@ -42,6 +42,16 @@
   the last console 404. Committed driver `tools/cdp-m5.mjs` (Node built-ins
   only) plus `tools/capture-m5.mjs` with settled proofs
   `docs/shell-m5-1280.png` / `docs/shell-m5-390.png` and `docs/render-m5.md`.
+- M5 step 3: `tools/bench-m5.mjs` plus `docs/bench-m5.json` resolve every
+  cell. H1 zero dropped vsyncs in 357 frames (rAF trace rides the vsync
+  clock, mean exactly 16.666ms). H2browser paired Tier0/Tier1 null result
+  (CI includes zero, vsync-bound; upload gap stays H2c). H3
+  UNSUPPORTED_BY_DESIGN (no emsdk, machine proof). H4 cold 403ms within
+  broadband, warm 279ms within the warm band (N=30 each, bootstrap CIs).
+  H5 gesture-to-running 52ms. Ecosystem E2E 4/4 pass. The bench run caught
+  one more real bug: rejected files left the status line stuck on their
+  stale loading line; `restoreRunningStatus()` now repaints the surviving
+  level on all four ingest/remove reject paths.
 
 ## Current step
 

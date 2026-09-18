@@ -94,6 +94,16 @@ function setLoading(fileName) {
   if (fileName) status(line);
 }
 
+// A rejected file must leave the status line on the surviving level, never
+// stuck on its own stale loading line.
+function restoreRunningStatus() {
+  setLoading(null);
+  if (engine && presenter) {
+    const view = $('doom-canvas');
+    status(`${engine.map} running (${describeTier(tier)}, ${presenterKind}, ${view.width}x${view.height}, ${engine.__geo.linedefs.length} lines)`);
+  }
+}
+
 // Paint one frame so the loading line actually appears before the
 // (synchronous) parse + assemble + boot work below it.
 function paintLoading() {
@@ -605,7 +615,7 @@ async function ingest(file) {
     bytes = await readFile(file);
   } catch {
     showFatal(`Could not read ${file.name}. The current level keeps running.`);
-    setLoading(null);
+    restoreRunningStatus();
     return;
   }
   const staged = wadSet.filter((f) => f.name !== file.name).concat([{ name: file.name, bytes }]);
@@ -614,7 +624,7 @@ async function ingest(file) {
   if (hit) {
     showFatal(`${file.name} rejected (${hit.code}): ${hit.message} The current level keeps running.`);
     showErrors(null, `${hit.code} in ${file.name}: ${hit.message}`);
-    setLoading(null);
+    restoreRunningStatus();
     return;
   }
   const magic = staged.length === 1
@@ -626,13 +636,13 @@ async function ingest(file) {
     probe = probeMaps(merged);
   } catch (e) {
     showFatal(`${file.name} produced no bootable maps (${(e && e.code) || 'E_MAP'}). The current level keeps running.`);
-    setLoading(null);
+    restoreRunningStatus();
     return;
   }
   if (probe.viable.length === 0) {
     const first = probe.dropped[0];
     showFatal(`${file.name} has no bootable maps${first ? ` (${first.code}: ${first.message})` : ''}. The current level keeps running.`);
-    setLoading(null);
+    restoreRunningStatus();
     return;
   }
   wadSet = staged;
@@ -956,12 +966,12 @@ async function removeWad(name) {
     probe = probeMaps(merged);
   } catch (e) {
     showFatal(`Removal left no bootable maps (${(e && e.code) || 'E_MAP'}). ${name} stays staged.`);
-    setLoading(null);
+    restoreRunningStatus();
     return;
   }
   if (probe.viable.length === 0) {
     showFatal(`Removal left no bootable maps. ${name} stays staged.`);
-    setLoading(null);
+    restoreRunningStatus();
     return;
   }
   wadSet = rest;
