@@ -1,8 +1,8 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-18T01:02Z (maintainer run 35293533564 issue_comment QC 8.8/10 at 27e7767 -> fix)**
- - **Action this run:** FIX on PR #367 at 27e7767 per Quality Council 8.8/10 (run 35293529039 success)
+ - **Updated: 2026-09-18T01:02Z (maintainer run 35293718584 issue_comment on PR #367 fix already in_progress)**
+ - **Action this run:** [] standby - Fixer already in_progress on PR #367 at 27e7767 per QC 8.8/10 (run 35293529039); duplicate /oc fix at 01:02:39Z queued as pending 35293718581, no new dispatch.
  - **Main:** `5c2f5cd3` LIVE (M1 merged at 14ae078b, M2 merged at 2665121a, M3 merged at 5a9549e7, M4 merged at 5c2f5cd3, `opencode.json` two-knob both free (`muse-spark-1.3-contributor-free`/`muse-spark-1.2-contributor-free`), trigger-list 16/16 PASS, Pages Deploy success on 5c2f5cd3)
- - **Branch retention:** `opencode/issue362-20260917211808` at `35264eaf` MERGED to main 14ae078b (19 commits, linear, retained); `opencode/issue362-doom-m2` at `d29fd0be` MERGED to main 2665121a (10 commits 8df2d594..d29fd0be, linear, retained, Refs #362); `opencode/issue362-20260917235314` at `160e4f18` MERGED to main 5a9549e7 (10 commits cd76580..160e4f1, linear, retained, Refs #362); `opencode/issue362-doom-m4` at `aeace84a` MERGED to main 5c2f5cd3 (5 commits 448a6cd6..aeace84a, linear, retained, Refs #362); `opencode/issue362-20260918004409` at `27e7767` OPEN (6 commits a558018..27e7767, Refs #362, M5, review APPROVED -> tester success -> eval 8.8/10 fix)
+ - **Branch retention:** `opencode/issue362-20260917211808` at `35264eaf` MERGED to main 14ae078b (19 commits, linear, retained); `opencode/issue362-doom-m2` at `d29fd0be` MERGED to main 2665121a (10 commits 8df2d594..d29fd0be, linear, retained, Refs #362); `opencode/issue362-20260917235314` at `160e4f18` MERGED to main 5a9549e7 (10 commits cd76580..160e4f1, linear, retained, Refs #362); `opencode/issue362-doom-m4` at `aeace84a` MERGED to main 5c2f5cd3 (5 commits 448a6cd6..aeace84a, linear, retained, Refs #362); `opencode/issue362-20260918004409` at `27e7767` OPEN (6 commits a558018..27e7767, Refs #362, M5, QC 8.8 fix -> Fixer in_progress)
 ---
 
 ## STANDING OWNER DIRECTIVES (active)
@@ -19,21 +19,21 @@
  - **Pages/PR preview:** M4 merged at 5c2f5cd3; Deploy on 5c2f5cd3 success, PR #367 preview at /preview/pr-367/ live at 4022129 then 27e7767.
 
 ## IN FLIGHT
- - **Doom #362 OPEN + PR #363 MERGED (M1) + PR #364 MERGED (M2) + PR #365 MERGED (M3) + PR #366 MERGED (M4) -> M5 PR #367 OPEN at 27e7767 FIX:** Issue #362 tracking M1-M5 epic; PR #367 `opencode/issue362-20260918004409` at `27e7767866c25c102e8153bf973f2ade097e0d94` OPEN MERGEABLE (6 commits, Refs #362), Reviewer `/oc approve` 00:58:57Z (361fa18, 385/385, 70/70), Tester `/oc eval` 01:00:12Z (4022129, 396/396, hostile 14/14, 5k soak), Evaluator `/oc fix` 01:01:21Z at 27e7767 score 8.8/10 (7.5/9.0/9.5/8.5/9.5) blocking on H5 N>=30, H4 CV<5% + CI drift, H1 N>=30, corpus fuzz N>=30, bounded soak. progress/362-doom.md shows M1-M4 [x] Complete, M5 pending H1-H5 ledger plus baselines fix.
- - **No pending failure workflows needing extra triage beyond the fix:** opencode-review 35293352328 success approve at 361fa18, opencode-test 35293440345 success eval at 4022129, opencode-eval 35293529039 success fix 8.8/10 at 27e7767, opencode-eval 35293533585 cancelled (duplicate queued eval on owner /oc eval 01:00:13Z), maintainer runs 35293533564 in_progress.
+ - **Doom #362 OPEN + PR #363 MERGED (M1) + PR #364 MERGED (M2) + PR #365 MERGED (M3) + PR #366 MERGED (M4) -> M5 PR #367 OPEN at 27e7767 FIX IN_PROGRESS:** Issue #362 tracking M1-M5 epic; PR #367 `opencode/issue362-20260918004409` at `27e7767866c25c102e8153bf973f2ade097e0d94` OPEN MERGEABLE (6 commits, Refs #362, M5, review APPROVED -> tester success -> eval 8.8/10 fix -> Fixer opencode 35293612250 in_progress since 01:01:28Z + 35293718581 pending queued on duplicate /oc fix 01:02:39Z). progress/362-doom.md shows M1-M4 [x] Complete, M5 pending H1-H5 ledger plus baselines fix.
+ - **No pending failure workflows needing extra triage beyond the fix:** opencode-review 35293352328 success approve at 361fa18, opencode-test 35293440345 success eval at 4022129, opencode-eval 35293529039 success fix 8.8/10 at 27e7767, opencode 35293612250 fix in_progress (Owner /oc fix 01:01:22Z), opencode 35293718581 pending (duplicate /oc fix 01:02:39Z), maintainer 35293533564 dispatched fix at 27e7767.
 
 ## PIPELINE POSITION
- Doom M1 REJECT 5.3 -> fix -> APPROVE 9.84 -> MERGE -> M2 8.0 -> fix -> 9.8 MERGE -> M3 fix NaN -> 9.86 MERGE -> M4 9.88 MERGE -> **M5 PR #367 at 27e7767: review APPROVED 00:58:57Z -> tester success 01:00:12Z -> eval REJECT 8.8/10 01:01:21Z -> fixer dispatched 01:02Z -> await fix hardening then re-review/test/eval >=9.8 before final Closes #362.**
+ Doom M1 REJECT 5.3 -> fix -> APPROVE 9.84 -> MERGE -> M2 8.0 -> fix -> 9.8 MERGE -> M3 fix NaN -> 9.86 MERGE -> M4 9.88 MERGE -> **M5 PR #367 at 27e7767: review APPROVED 00:58:57Z -> tester success 01:00:12Z -> eval REJECT 8.8/10 01:01:21Z -> Fixer in_progress 01:01:28Z (await H5 N>=30 CI, H4 CV<5% or threats+tail, H1 reframe, ledger digit-exact sync, corpus fuzz N>=30, 30-min soak) -> re-review/test/eval >=9.8 before final Closes #362.**
 
 ## NEXT-RUN PLAYBOOK
- 1. Await Fixer on #367 at 27e7767 (H5 N>=30 CI, H4 cold CV<5% or threats+tail, H1 run count or vsync-drop reframe, scoreboard/bench digit-exact sync, corpus fuzz N>=30, 30+min soak + leak profile).
+ 1. Await Fixer on #367 at 27e7767 (H5 N>=30 CI, H4 cold CV<5% or threats+tail, H1 vsync-drop reframe, scoreboard/bench digit-exact sync, corpus fuzz N>=30, 30+min soak + leak profile). Do not duplicate dispatch while in_progress/pending jobs exist.
  2. On Fixer push -> Reviewer re-audits diff at new head; on `/oc approve` -> Tester re-runs 396/396 + audits + hostile soak; on `/oc approve-test` -> Quality Council re-evaluates 5 dims.
  3. On Evaluator `/oc approve-eval` >=9.8/10 -> Maintainer merges PR #367 via rebase (Closes #362), verifies orphan-main guard, closes issue, advances Pages Deploy.
  4. Keep trigger-list 16/16 + two-knob free verified each run.
 
 ## ISSUES
- - **#362 Doom — client-side Web Doom engine at /doom/** - OPEN (M1 merged at 14ae078b, M2 merged at 2665121a, M3 merged at 5a9549e7, M4 merged at 5c2f5cd3, M5 PR #367 OPEN at 27e7767 QC 8.8 fix)
- - **PR #367 Doom M5: integration and end-to-end audit (Refs #362)** - OPEN at 27e7767 (6 commits a558018..27e7767, MERGEABLE, review APPROVED 00:58:57Z, tester 396/396 at 4022129, evaluator 8.8/10 fix at 27e7767)
+ - **#362 Doom — client-side Web Doom engine at /doom/** - OPEN (M1 merged at 14ae078b, M2 merged at 2665121a, M3 merged at 5a9549e7, M4 merged at 5c2f5cd3, M5 PR #367 OPEN at 27e7767 QC 8.8 fix in_progress)
+ - **PR #367 Doom M5: integration and end-to-end audit (Refs #362)** - OPEN at 27e7767 (6 commits a558018..27e7767, MERGEABLE, review APPROVED 00:58:57Z, tester 396/396 at 4022129, evaluator 8.8/10 fix at 27e7767, Fixer in_progress 35293612250 + pending 35293718581)
  - **PR #366 Doom M4: WAD ecosystem and polish (Refs #362)** - MERGED at aeace84a to main 5c2f5cd3 00:43:03Z (5 commits 448a6cd6..aeace84a, review APPROVED 00:39:36Z, tester 364/364, evaluator 9.88/10, branch retained)
  - **PR #365 Doom M3: audio and persistence (Refs #362)** - MERGED at 160e4f18 to main 5a9549e7 00:27:11Z (10 commits cd76580..160e4f1, review APPROVED 00:19:31Z, evaluator 9.86/10 00:26:02Z, branch retained)
  - **PR #364 Doom M2: renderer and input (Refs #362)** - MERGED at d29fd0be to main 2665121a 23:52:11Z (10 commits 8df2d594..d29fd0be, linear, retained, eval 9.8/10)
