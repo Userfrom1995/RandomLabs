@@ -4,7 +4,7 @@
 - **Branch:** opencode/issue362-20260917235314
 - **Status:** in-progress
 - **Updated:** 2026-09-18T00:00:00Z
-- **Active Milestone:** M3 (In progress, phases A-B landed)
+- **Active Milestone:** M3 (Complete, ready for review)
 
 ## Milestone roadmap
 
@@ -22,7 +22,7 @@
 - Milestone 3 (M3) audio and persistence (PR 3 target, Refs #362):
   - [x] `wadAudio` plus `mus2mid` golden-tested, SFX cache plus 8-voice engine plus mixer plus unlock gate
   - [x] OPL3 music worklet with GENMIDI bank plus song switch (pure-JS DBOPL fallback)
-  - [ ] `StorageProvider` x3 plus save slots plus config plus progression plus bundle export/import
+  - [x] `StorageProvider` x3 plus save slots plus config plus progression plus bundle export/import
 - Milestone 4 (M4) WAD ecosystem and polish (PR 4 target, Refs #362):
   - [ ] Drag-drop plus picker IWAD/PWAD ingest with per-map isolation and load-order rules
   - [ ] Onboarding plus sample plus empty/loading/error states, episode clamp, service worker offline pass, landing card
@@ -32,11 +32,11 @@
 
 ## Current step
 
-Milestone 3 phases A-B landed (audio plus storage, 48 headless tests green); phases C-D (shell, tools/docs) follow on this branch.
+Milestone 3 complete, ready for review (all three M3 boxes checked, 293/293 tests green: 245 M1/M2 pins untouched, 48 M3 new; audit-m3 52/52 ALL PASS; headless-Chromium settled proofs at docs/shell-m3-1280.png plus shell-m3-390.png)
 
 ## Next steps
 
-- Land M3 phases B-D, then Reviewer audits the M3 diff; Tester runs the blueprint test matrix plus Playwright E2E
+- Reviewer audits the M3 diff; Tester runs the blueprint test matrix plus Playwright E2E (desktop 1280x800, mobile 390x844 portrait plus landscape, audible audio audition, OPFS-success gates on Chromium/Firefox)
 - Builder continues with M4 (WAD ecosystem and polish) on the next milestone PR after review
 
 ## Agent log
@@ -49,9 +49,11 @@ Milestone 3 phases A-B landed (audio plus storage, 48 headless tests green); pha
 - 2026-09-17 (Fixer run 2, M2 hardening for Quality Council 8.0/10 rejection): applied all five M2-scoped findings without M3/M4 creep. (d) `chooseUploadFormat`/`resolveTier` accept null via `?? {}` sealed pins plus tests; (e) `injectTiccmd` clamp aligned to 32767 with 1-LSB tolerance test. (b) `tools/bench-m2.mjs` plus `docs/bench-m2.json` (H2c RGBA-expand vs R8-memcpy paired bootstrap CIs, G1 governor step/recovery frames, glProbe machine evidence). (a) scoreboard converted to deterministic states only (H2c/G1 MEASURED, H1/H2-browser/H3/H4/H5 UNSUPPORTED_BY_DESIGN headless with M5/M3 ownership). (c) `tools/render-m2-shell.mjs` plus `docs/shell-1440.png`/`shell-390.png`/`render-m2.md` headless shell proofs. Suite 227/227 green, audit-m2 48/48 ALL PASS. Decision action: review.
 - 2026-09-18 (Builder run 3, M3 phase A): audio pure modules (`src/audio/`: DMX parser, MUS-to-SMF port, LRU cache, 8-voice engine, mixer, unlock machine, FM music core) plus `tests/test-m3-audio.mjs` (31 tests) green alongside the sealed suite.
 - 2026-09-18 (Builder run 3, M3 phase B): storage ladder plus save manager plus bundle plus engine hook plus storage tests green.
-- 2026-09-18 (Builder run 3, M3 phase C): storage ladder (`src/storage/`: provider plus memory tier with probed OPFS/IDB/local tiers, atomic OPFS writes, 6-slot save manager with debounce plus flush, versioned bundle export/import with rollback) plus engine `setPlayerState` hook plus `tests/test-m3-storage.mjs` green; WAD cache races wedged backends with a 3 s timeout. audio pure modules (`src/audio/`: DMX parser, MUS-to-SMF port, LRU cache, 8-voice engine, mixer, unlock machine, FM music core) plus `tests/test-m3-audio.mjs` (31 tests) green alongside the sealed suite.
+- 2026-09-18 (Builder run 3, M3 phase B): storage ladder (`src/storage/`: provider plus memory tier with probed OPFS/IDB/local tiers, atomic OPFS writes, 6-slot save manager with debounce plus flush, versioned bundle export/import with rollback) plus engine `setPlayerState` hook plus `tests/test-m3-storage.mjs` green; WAD cache races wedged backends with a 3 s timeout.
+- 2026-09-18 (Builder run 3, M3 phase C): shell wiring (`app.js` Audio plus Saves panels, gesture unlock, fire-edge SFX, per-map FM music, progression resume, bindings migration, pumpAudioFrame) plus `index.html` panels plus README M3 section; sealed boot-header pin kept via module-state resume map.
 
 ## Decision
 
 - **Decision action:** build
 - **Rationale:** blueprint and epic roadmap are committed; M1 has a concrete module list with interface shapes and test hooks for the Builder.
+- 2026-09-18 (Builder run 3, M3 phase D): tools plus docs (`tools/audit-m3.mjs` 52/52, `tools/bench-m3.mjs` with H5 plus music-CPU MEASURED cells, `docs/scoreboard.md` M3 ledger, `docs/render-m3.md` plus settled CDP screenshots at desktop and 390px). Full suite 293/293 green. Decision action: review.
