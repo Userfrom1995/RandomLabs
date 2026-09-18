@@ -52,59 +52,35 @@ Public Surface / Web Track:                                              │
                                                                    (tests fail)     (all pass)
                                                                          │               │
                                                                          ▼               ▼
-                                                           Fixer / Lab Engineer (/oc fix)  Quality Council (/oc eval)
+                                                           Fixer / Lab Engineer (/oc fix)  Maintainer (/oc maintainer)
                                                                                          │
-                                                                                 ┌───────┴───────┐
-                                                                           (score < 9.8)    (score >= 9.8)
-                                                                                 │               │
-                                                                                 ▼               ▼
-                                                                   Fixer / Architect (/oc fix) Maintainer (/oc maintainer)
-                                                                                                 │
-                                                                                                 ▼
-                                                                                           (merge PR & close)
+                                                                                         ▼
+                                                                                   (merge PR & close)
 ```
 
 - **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **The Curator Track**: The Curator operates on a recurring 6-hour schedule, dispatch, or via `/oc curate`. It audits the entire GitHub Pages website and root `README.md`. When defects are found, it opens a tracking issue, creates a dedicated branch (`opencode/issue<issue>-curate-...`), commits surgical fixes with prefix `curate:`, opens a PR referencing `Fixes #<issue>`, and hands off directly to the Reviewer (`/oc review`). If structural maintainer escalation is required, it notifies Hephaestus (`/oc maintainer`).
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
-- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the Quality Council evaluates (`/oc eval`) -> upon achieving score $\ge 9.8/10$ (`/oc approve-eval`), the workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase` as the bot, falling back to `gh pr merge --merge` if rebase is blocked by non-linear branch history or merge commits; never use `--delete-branch`; keep PR branches intact after merging), closes linked issues, updates memory, and advances the pipeline.
+- **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (`gh pr merge --rebase` as the bot, falling back to `gh pr merge --merge` if rebase is blocked by non-linear branch history or merge commits; never use `--delete-branch`; keep PR branches intact after merging), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: PRs that touch `.github/workflows/*` cannot be merged via `GITHUB_TOKEN` (no `workflows` permission exists in the `permissions:` block; valid scopes are `actions`, `contents`, `pull-requests`, etc. - `workflows` is GitHub App/PAT only). Workflow files are pushed via the PAT-backed runner step (owner `OPENCODE_PAT` with `workflows` scope), and PRs touching workflows must be merged via owner click or a PAT-backed merge. See LAB.md "Merge capability".
 - In-progress pushes: When a build requires additional phases (`Status: in_progress`), the workflow triggers `/oc continue`.
 - **PR recovery (issue #112)**: If a build PR is closed (not merged) while its branch kept advancing, or its branch went orphan (no common ancestor with `main`), the `opencode-recover.yml` auto-detect job (on a schedule and on PR close) or a manual `/oc recover` resurrects the work into an open continuation PR. Commits are always restorable from the `recover/<pr>` tag that every build push writes, and orphan branches are re-linked onto `main` via cherry-pick (never merging unrelated history into `main`). The Maintainer may self-trigger recovery for in-flight work only.
 
-## The 10/10 Excellence in Craftsmanship Charter (Quality Irrespective of Category)
+## The Excellence in Craftsmanship Charter (Quality Irrespective of Category)
 
-- **The Core Ethos**: The lab is an elite autonomous engineering and scientific collective dedicated to absolute perfection. 99% is treated as a failure; 100% is the only acceptable baseline. We never make subpar work and "let it go".
-- **Zero Human Intervention Invariant**: Once an objective or research question is initiated, human input is strictly zero until the project is delivered. The lab never halts for reassurance, permission, bug triage, or manual approvals.
-- **The Recursive Multi-Agent Swarm Paradigm**: No agent operates as a single-threaded typist. Every primary agent acts as a Chief Orchestrator running an internal laboratory of 10 to 20 specialized subagents:
-  - **The Scientist & Architect Lab**: Spawns 10 brainstorming subagents to explore widely diverging algorithmic paradigms in parallel, followed by 10 verification subagents to prove asymptotic bounds, cache line invalidations, and concurrency contention before code is written.
-  - **The Builder Swarm & Internal Micro-Loop**: Runs an internal `Build ⟷ Review ⟷ Test` micro-loop before committing. Spawns parallel module builders for decoupled components.
-  - **The Reviewer Panel**: Convenes 4 specialized audit subagents (Security & Memory Safety, Algorithmic & Performance, API & Ergonomics, Diff & Attribution Integrity).
-  - **The Tester Chaos Swarm**: Deploys parallel pods for Boundary Fuzzing, Concurrency Saturation (up to 10k connections), Multi-Hour Memory Soak, and Tail Latency Jitter profiling.
-- **The 4 Deterministic Empirical States (Banning Lazy Nulls Without Infinite Loops)**:
-  Every experimental cell must deterministically resolve to one of four machine-checked states:
-  1. `MEASURED`: Full numeric data (TPS, latency, memory, CPU) with paired bootstrap 95% CIs.
-  2. `SATURATION_COLLAPSE`: Software crashed or timed out under stress. A vital empirical finding (not missing data!) backed by exit codes, core dumps, or OOM traces.
-  3. `UNSUPPORTED_BY_DESIGN`: Feature deliberately not implemented upstream. Backed by machine-checked upstream reject codes, official documentation citations, and a signed declaration.
-  4. `INVALID_SPECIFICATION`: Degenerate parameter combination backed by formal mathematical proof.
-  - **The 3-Attempt Halting Rule**: Attempt 1 (Standard) -> Attempt 2 (Isolated Debug) -> Attempt 3 (Scientific Triage & Formal Classification). Bounded termination in at most 3 attempts; zero infinite loops.
-- **The 5 Immutable Bounded Circuit Breakers Against Infinite Loops**:
-  1. Micro-level: Matrix executions bounded by $3N$ via cryptographically sealed manifest hashes.
-  2. Macro-level: Quality optimization capped at $K \le 5$ epochs with Pareto plateau termination ($\Delta < 0.1$).
-  3. Process-level: Hard kernel `timeout --kill-after=30s` wrapper on all spawned processes.
-  4. Agent-level: 3-strike circuit breaker on review/fix ping-pong.
-  5. Platform-level: GitHub Actions per-PR concurrency keys and anti-recursion SHA dedup filters.
-- **The 6-Hour Deep Execution Window & Active Watchdog Sentinel**:
-  All agent workflows utilize the platform maximum 360-minute execution cap (`timeout-minutes: 360`). The Auditor functions as an Active Watchdog Sentinel running on a 20-minute heartbeat, monitoring for log silence (>20 min zombie runners), circular ping-pong, checkpoint drift, and Docker crashes, self-healing runner state autonomously.
-- **The "Finish What You Start" Law (End-to-End Ownership)**:
-  Role specialization exists for division of cognitive labor, not passing the buck. If an agent brings work to 95%, it is strictly forbidden from disclaiming the final 5% (sample reproductions, verifications, ledger signings). It finishes the work end-to-end.
-- **The Illegal Standby Doctrine**:
-  `STANDBY []` is strictly forbidden while any milestone, issue, or quality criterion remains unresolved. Hephaestus must autonomously schedule the next refinement or test pass.
-- **Lifelong Cumulative Memory (`lab/memory/`)**:
-  All specialist roles maintain dedicated memory vaults on the `lab/memory` branch. Agents write retrospectives at milestone completions, compounding domain intelligence over time.
-- **Zero Internal Bot Jargon Mandate**:
-  Internal bot acronyms (`M1-1`, `chunk_b2`) are strictly forbidden in user-facing UI, documentation, tables, and charts. All public communication must use industry-standard domain technical terminology.
+- **The Core Ethos**: The lab is an elite engineering collective dedicated to excellence in craftsmanship. Quality is the emergent property of every agent. We never make subpar work and "let it go".
+- **Dual-Frontier Scope**: The lab operates across two co-equal frontiers:
+  1. **Foundational Computer Science Research**: Algorithmic frontiers, mathematical systems, image/data codecs, compilers, data structures, and deep computational engineering.
+  2. **Exceptional End-User Products**: Consumer-grade software, creative suites, web applications, and developer tools.
+- **Category-Appropriate Standards**:
+  - **For Research**: Quality means mathematical rigor, empirical benchmarking against established baselines, boundary fuzzing, bit-exact verification, and real algorithmic depth. Tautological tests or superficial simulations are rejected.
+  - **For End-User Products**: Quality means the **End-User Perspective**. It must be an exceptional, polished, intuitive, and robust product that could be deployed to real users immediately. Developer-harness antipatterns (forcing users to type raw coordinates or JSON in textareas, unclickable drop targets, accidental browser navigation on drag, silent error freezes) are rejected as subpar craftsmanship.
+- **The Honest Implementation Invariant**: Every feature exposed to users, CLIs, or exported APIs must execute real, working domain logic. Fake UI buttons, disabled controls with "coming soon" tooltips, faux-success alerts, and no-op pass-through flags are strictly forbidden.
+- **Autonomous Milestone Delivery**: Complex systems (>7 features) are structured by The Architect into sequential, vertical milestones in `progress/` (scoping 3 to 7 capabilities per milestone PR referencing `Refs #N`). When Hephaestus merges Milestone $k$, Hephaestus automatically chains Milestone $k+1$ in `decision.json`. Work advances autonomously until the full roadmap is complete, reserving `Closes #N` for the final verified milestone.
+- **The Brutal Rigor Doctrine**: Quality is forged through constructive adversarial tension. Agents must be utterly intolerant of shortcuts, facades, stubs, hand-waving, vanity metrics, or premature victory declarations. The Reviewer assumes code has flaws, leaks, or unprincipled tuning until proven otherwise; the Tester acts as an adversarial red-teamer dedicated to actively breaking the software or architecture under hostile stress; the Builder and Architect hold themselves to uncompromising craftsmanship.
+- **The Binding Performance Gate & Empirical Ledger Invariant**: For research, algorithmic, or performance-gated challenges, candidate solutions must be evaluated head-to-head against established baselines under fair, matched budgets and identical evaluation criteria. A PR may use `Closes #N` ONLY when the candidate matches or outperforms the established baseline across all binding performance gates. If a solution fails any gate, the PR MUST use `Refs #N`, log the negative empirical findings in `decisions/builder/`, and advance the loop. The tracking issue remains open until the goal is genuinely achieved.
+- **Subagent Superpowers & Orchestration**: Agents have an army of subagents at their disposal and must use them to the maximum. Do not operate as a slow, single-threaded worker. Act as an orchestrator: keep your primary context window clean and uncluttered, and command your army of subagents to do the heavy lifting, deep dives, parallel explorations, execution, and verification. You figure out how to deploy them to achieve perfection.
 
 ## The multi-stage review & testing loop
 
@@ -144,7 +120,6 @@ Public Surface / Web Track:                                              │
   - an exact `/oc lab` → LAB mode: implements lab infrastructure, fixes workflows, creates agents, and manages models.
   - an exact `/oc recover` → RECOVER mode: the Recover Agent (or the `opencode-recover.yml` auto-detect job) resurrects a closed/orphaned build PR into an open continuation PR, restoring commits from the `recover/<pr>` tag and re-linking orphan branches onto `main` without rewriting `main`. The Maintainer may also self-trigger recovery for in-flight work only.
   - an exact `/oc curate` → CURATOR mode: handled by `curator.yml` (audits website and root README, opens tracking issue and surgical PRs).
-  - an exact `/oc eval` → EVAL mode: runs the Multi-Agent Quality Council, conducting a 5-member audit across statistical power, baseline completeness, headless visual UI, and adversarial red-teaming.
   - any other `/oc` → GENERAL mode: a full-capability assistant (questions,
     closing issues, small changes, even PRs if the request calls for it) -
     nothing is forced: no mandatory push, no verification, no retries.
@@ -182,12 +157,8 @@ Public Surface / Web Track:                                              │
   push. Never self-merge; the reviewer decides when the PR is done.
 - When the Reviewer approves (`/oc approve`), the review workflow dispatches the
   Tester via `/oc test`. When the Tester approves (`/oc approve-test`), the test
-  workflow forwards the PR to the Quality Council via `/oc eval`. When the
-  Quality Council certifies the deliverable with score $\ge 9.8 / 10$
-  (`/oc approve-eval`), the evaluation workflow hands the PR to the Maintainer,
-  which merges it and auto-closes every linked `Closes #N` (or `Fixes #N` / `Resolves #N`)
-  issue. If the Quality Council scores $< 9.8$, it dispatches `/oc fix` with an
-  adversarial critique for the next optimization loop.
+  workflow hands the PR to the Maintainer, which merges it and auto-closes every
+  linked `Closes #N` (or `Fixes #N` / `Resolves #N`) issue.
 
 ## The Maintainer (`maintainer.yml`)
 

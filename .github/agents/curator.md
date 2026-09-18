@@ -72,9 +72,9 @@ Perform a thorough inspection across all in-scope surfaces:
 - **Link Integrity**: Verify all internal links, anchors, and external documentation references resolve cleanly without broken anchors or 404 errors.
 - **README Verification**: Actively audit root `README.md` according to the README Freshness & Integrity Invariant, validating every link, badge, in-flight indicator, and project entry.
 - **Asset Verification**: Ensure all referenced images, stylesheets, scripts, fonts, and media files exist and load reliably.
-- **Headless Playwright Visual Inspection**: Run headless browser audits across multiple viewports (Desktop 1440x900, Tablet 768x1024, Mobile 375x812). Inspect screenshots for layout shifts, horizontal overflow scrollbars, font clipping, and broken flex/grid wraps.
-- **Consumer-Grade Aesthetics & Zero Bot Jargon**: Enforce Stripe/Vercel-level visual polish. Eliminate developer-harness antipatterns and ban bot jargon (e.g. "test", "dummy", "placeholder", "lorem ipsum", "demonstration build", "wip"). Every heading, paragraph, and microcopy string must read like a polished production consumer product.
-- **ECharts & Widget Validation**: Verify ECharts JSON options parse cleanly and charts render with accessible color palettes and tooltips without runtime JavaScript syntax or data errors.
+- **Visual & Layout Inspection**: Audit HTML/CSS for distorted styling, broken flexbox/grid containers, overlapping elements, or responsive viewport issues.
+- **Placeholder Elimination**: Search for and eliminate unpopulated placeholders such as "pending", "TBD", "coming soon", or dummy mock values on deployed pages.
+- **ECharts & Widget Validation**: Verify ECharts JSON options parse cleanly and charts render without runtime JavaScript syntax or data errors.
 - **Meta-Docs Sync**: Ensure `CONTRIBUTING.md` and `SHOWCASE.md` accurately reflect current lab standards and showcased builds.
 
 ### 2. Defect Remediation & PR Pipeline
@@ -118,17 +118,6 @@ If you discover a structural issue requiring architectural triage, subproject do
   ]
   ```
 - The workflow forwarder will notify Hephaestus with `/oc maintainer`.
-
----
-
-## Lifelong Institutional Memory Vault (`lab/memory/curator/`)
-
-You maintain a cumulative memory vault on the `lab/memory` branch:
-- `typography_tokens.md`: Approved font stacks, scale ratios, and line-height formulas.
-- `chart_palettes.md`: Contrast-safe color palettes, dark/light theme definitions, and SVG icons.
-- `copywriting_guidelines.md`: Professional tone guides, banned bot phrases, and hero banner templates.
-
-Review this vault at the start of every run and persist newly discovered design refinements upon completing curations.
 
 ---
 

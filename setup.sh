@@ -49,9 +49,7 @@ LAB_FILES=(
   ".github/agents/fixer.md"
   ".github/agents/reviewer.md"
   ".github/agents/tester.md"
-  ".github/agents/evaluator.md"
   ".github/agents/auditor.md"
-  ".github/agents/curator.md"
   ".github/agents/general.md"
   ".github/agents/decisions/README.md"
 )
@@ -71,11 +69,6 @@ LAB_WORKFLOWS=(
   ".github/workflows/opencode.yml"
   ".github/workflows/opencode-review.yml"
   ".github/workflows/opencode-pr-trigger.yml"
-  ".github/workflows/opencode-test.yml"
-  ".github/workflows/opencode-eval.yml"
-  ".github/workflows/curator.yml"
-  ".github/workflows/lab.yml"
-  ".github/workflows/auditor.yml"
   ".github/workflows/pages.yml"
 )
 for f in "${LAB_WORKFLOWS[@]}"; do
@@ -149,7 +142,7 @@ echo "== Onboarding =="
 echo "• For the first ~14 days, GitHub may hold workflow runs on the bot's PRs."
 echo "  opencode.yml auto-approves held runs after every push; if it cannot, a"
 echo "  comment asks you to click Approve - do that once and the loop resumes."
-echo "• Talk to the lab with /oc comments: /oc build ..., /oc continue, /oc fix,"
+echo "• Talk to the lab with /oc comments: /oc build …, /oc continue, /oc fix,"
 echo "  /oc review, /oc approve|decline, /oc help (see AGENTS.md)."
 echo "• Undo anytime: bash shutdown.sh"
 echo
