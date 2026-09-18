@@ -1,8 +1,8 @@
 # Doom: client-side web engine at `/doom/`
 
-Milestones 1-3 (issue #362): engine core plus WAD parser plus basic loop (M1),
+Milestones 1-4 (issue #362): engine core plus WAD parser plus basic loop (M1),
 WebGL renderer plus full input (M2), WebAudio SFX plus music with save
-persistence (M3).
+persistence (M3), WAD ecosystem plus polish (M4).
 
 ## What works (M1)
 
@@ -67,6 +67,29 @@ persistence (M3).
   before selecting them, and the WAD cache races wedged backends with a
   3 s timeout, so boot always reaches first frame.
 
+## What works (M4)
+
+- Load order (`src/wad/loadout.js`): multi-file staging in drop order
+  (base plus patches), map-group replacement by marker with last-wins
+  standalone resources, stable order (replacements keep the base slot),
+  merged assembly the engine boots unchanged, per-file E_CONTAINER
+  isolation, WAD identity (doom1/doom2/mixed/unknown plus shareware
+  likelihood), DEHACKED surfaced as info and never applied.
+- Per-map isolation: the probe decodes every map's required lumps and
+  boots the survivors; one corrupt or Hexen-dialect map becomes a
+  diagnostics warning, never a dead load. The map list shows viable maps
+  only, clamped to Episode 1 on shareware markers.
+- Shell states (`src/ui/shellStates.js` plus panels): first-visit
+  onboarding with sample-level load and sample `.wad` download, loading
+  line with aria-busy, empty load-order line, alert-box errors that keep
+  the running level alive (failed loads resume the previous loop),
+  per-file remove buttons, offline service worker that preserves the WAD
+  cache across shell upgrades (`doom-m4-v1`).
+- Hardening found by headless Chromium: a wrong-module import of
+  `droppedLines` killed the entire boot; fixed and pinned by
+  `tools/audit-m4.mjs`, with settled proofs at `docs/shell-m4-1280.png`
+  and `docs/shell-m4-390.png` (see `docs/render-m4.md`).
+
 ## Run it
 
 Serve the repo root and open `/doom/`:
@@ -94,5 +117,5 @@ DOOMGENERIC_SRC=./vendor/doomgeneric sh doom/build/emcc_m1.sh
 
 - `docs/research-spec.md` (binding research), `docs/architecture.md` (pointer),
   `docs/scoreboard.md` (H1-H5 ledger), `docs/first-frame.png` (M1 first frame),
-  `docs/render-m3.md` plus `docs/shell-m3-1280.png`/`docs/shell-m3-390.png`
-  (M3 headless-Chromium shell proofs).
+  `docs/render-m4.md` plus `docs/shell-m4-1280.png`/`docs/shell-m4-390.png`
+  (M4 headless-Chromium shell proofs).

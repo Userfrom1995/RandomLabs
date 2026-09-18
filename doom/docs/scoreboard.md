@@ -1,7 +1,7 @@
 # Doom scoreboard: H1-H5 statistical ledger (binding test matrix)
 
 - **Issue:** #362
-- **Updated:** 2026-09-17 (M2 fixer hardening)
+- **Updated:** 2026-09-18 (M4 ecosystem and polish)
 
 Every quantitative claim requires N >= 30 runs, mean plus median plus p95/p99,
 paired bootstrap 95 percent CIs (about 10k resamples), and CV below 5 percent.
@@ -41,6 +41,32 @@ Functional gates for the audio plus persistence milestone (46 new tests in
   debounce plus flush; engine snapshot twin-convergence (restore then
   identical input stays bit-exact); bundle export/import byte equality
   with atomic rollback on quota failure.
+
+## M4 ledger (unit-gated, node:test, 2026-09-18)
+
+Functional gates for the WAD ecosystem and polish milestone (20 new tests
+in `tests/test-m4-ecosystem.mjs`; full suite 346/346 green with all
+M1/M2/M3 sealed pins untouched; `tools/audit-m4.mjs` 51/51 ALL PASS).
+
+- Load order: drop-order staging with same-name replace-in-place (no
+  duplicates); map groups replace by marker (patched E1M1 start moves,
+  E1M2 survives); standalone lumps last-wins (PLAYPAL override sticks);
+  corrupt files isolate into `rejected[]` with E_CONTAINER.
+- Assembly: single-file merge assembles byte-complete (24546 bytes,
+  parses, probes identically); empty merge yields a valid mapless
+  container; merged magic follows the base (PWAD for sets).
+- Isolation: hostile E1M2 patch drops E1M2 and keeps E1M1; dropped lines
+  keep taxonomy codes; DEHACKED surfaces as info, never boots as a map.
+- Identity: demo reads doom1/E1-only/shareware-likely; MAPxx reads the
+  doom2 family with a note; mapless reads unknown without throwing.
+- Shell states: loading beats fatal beats onboarding; returning visitors
+  see ready; drops escalate to ready-warnings; helper lines honest.
+- Settled browser proofs (headless Chromium, SwiftShader, 20 s settle):
+  `docs/shell-m4-1280.png` plus `docs/shell-m4-390.png` with the DOM dump
+  in `docs/render-m4.md` (Tier 0 live, OPFS saves, empty load order,
+  clamp note on staged WADs, onboarding first-visit). No new H-cells:
+  ingest round-trips with real IWAD/PWAD pairs plus TTFF bands stay owned
+  by M5 Playwright.
 
 ## M3 measured cells (headless, `doom/docs/bench-m3.json`, N=30, 10k resamples)
 
