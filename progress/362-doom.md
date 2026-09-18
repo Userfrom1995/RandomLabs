@@ -1,10 +1,10 @@
 # Progress: Doom - client-side Web Doom engine at /doom/
 
 - **Issue:** #362
-- **Branch:** opencode/issue362-doom-m4
+- **Branch:** opencode/issue362-20260918004409 (M5 final)
 - **Status:** in-progress
-- **Updated:** 2026-09-18T01:00:00Z
-- **Active Milestone:** M4 (Complete, ready for review)
+- **Updated:** 2026-09-18T02:00:00Z
+- **Active Milestone:** M5 integration and end-to-end audit (in progress, Closes #362)
 
 ## Milestone roadmap
 
@@ -29,6 +29,12 @@
 - Final Milestone (M5) integration and end-to-end audit (final PR, Closes #362):
   - [ ] H1-H5 statistical ledger plus baseline catalog measured
   - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `/oc approve-eval` >= 9.8/10, Pages deploy green
+
+## M5 build log (this run)
+
+- M5 step 1: `src/perf/m5gates.js` pure verdict logic (TTFF bands, frame-trace
+  budget, paired render-path compare, ingest/corrupt/onboarding/unlock/save
+  verdicts) plus `tests/test-m5-integration.mjs` (21 tests) green.
 
 ## Current step
 
