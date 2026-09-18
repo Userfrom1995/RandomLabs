@@ -19,7 +19,6 @@ reviewed PRs (see LAB.md §21).
 | The Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc lab` | `.github/agents/labengineer.md` |
 | The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
 | The Curator | Public surface, web & README custodian | worker | user-directive | 2026-09-13 | `/oc curate` · `schedule (6h)` | `.github/agents/curator.md` |
-| The Evaluator | Autonomous Quality Council & Program Committee | worker | user-directive | 2026-09-18 | `/oc eval` | `.github/agents/evaluator.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
 
 ## Team Spirit & Peer Calling Model
@@ -31,23 +30,11 @@ The lab operates as a collaborative, highly cohesive agent squad. Agents trust e
 - **Lab Engineer** implements infrastructure and workflow repairs, opens PRs, and hands off to **Reviewer** (`/oc review`), or applies direct model updates on `main`.
 - **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).
 - **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
-- **Tester** dynamically executes the app; on approval, hands off to **The Evaluator** (`/oc eval`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
-- **The Evaluator (Quality Council)** audits the project across 5 dimensions (statistical power, baseline completeness, visual UI, and adversarial red-teaming); on score >= 9.8/10, hands off to **Maintainer** (`/oc maintainer`) to merge; if score < 9.8/10, hands off to **Fixer** (`/oc fix`) with a line-by-line critique.
-- **Auditor** acts as Active Watchdog Sentinel; detects zombie runs (>20 min silence), ping-pong deadlocks, and container crashes, self-healing runner state and alerting the **Maintainer** (`/oc maintainer`).
+- **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
+- **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
 - **Curator** audits public surface, website pages, and root README.md; opens PRs with surgical fixes and hands off to **Reviewer** (`/oc review`), or notifies **Maintainer** (`/oc maintainer`) if structural escalation is needed.
 - **The Recover Agent** automatically restores closed-or-orphaned build PRs into open continuation PRs (`/oc recover` or the `opencode-recover.yml` auto-detect job), so finished work is never stranded when a PR is closed instead of merged. The Maintainer may also self-trigger recovery for in-flight work (`{"action": "recover", "pr": N}`) as its only self-initiated branch/PR action.
 - **Hephaestus (Maintainer)** orchestrates the lab, triages issues/PRs, coordinates team priorities, triggers the **Architect** (`/oc architect`) or **Lab Engineer** (`/oc lab`), and merges tested, approved projects. (Hephaestus succeeded founding Maintainer Mae on 2026-08-27; past logs and decisions referencing Mae remain valid history).
-
-## Lifelong Cumulative Memory Vaults (`lab/memory/`)
-
-Every specialist role maintains an institutional memory vault on the `lab/memory` branch:
-- `ideator/`: Active research frontiers, post-mortems of rejected proposals, landmark criteria.
-- `researcher/`: SOTA competitor catalog, non-parametric statistical playbooks, literature citations.
-- `architect/`: Zero-copy systems blueprints, lockless ring buffers, concurrency models.
-- `builder/`: Hot-path performance idioms, UI design tokens, past regression traps.
-- `tester/`: Adversarial chaos payloads, soak endurance leak profiles, tail latency traps.
-- `curator/`: Typography standards, chart design tokens, narrative structures.
-- `evaluator/`: SIGMOD/OSDI review rubrics, red-team attack playbooks, vision inspection checklists.
 
 ## Mandates (co-maintainers)
 
