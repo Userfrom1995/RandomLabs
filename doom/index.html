@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Doom: client-side web engine (M3)</title>
+<title>Doom: client-side web engine (M4)</title>
 <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
 <header>
   <h1>DOOM / WEB</h1>
-  <span class="sub">client-side engine at /doom/ - Milestone 3: WebAudio SFX plus music, save persistence</span>
+  <span class="sub">client-side engine at /doom/ - Milestone 4: WAD ecosystem and polish</span>
   <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
 </header>
 <main>
@@ -118,8 +118,25 @@
     </div>
   </section>
 
+  <section class="panel onboard" id="onboard-panel" data-testid="onboard-panel" aria-label="Getting started" hidden>
+    <h2>First visit: play in 30 seconds</h2>
+    <p>This Doom runs fully in your browser. No account, no server: the built-in sample level boots instantly, and your saves stay on this device.</p>
+    <ol>
+      <li>Press <strong>Load sample level</strong> to start playing now.</li>
+      <li>Click the canvas to capture the mouse (Pointer Lock), <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move, mouse turns, click fires.</li>
+      <li>Own DOOM1.WAD, DOOM2.WAD, or a community PWAD? Drop it on the WAD panel below. Files layer in drop order; bad maps are skipped, never fatal.</li>
+    </ol>
+    <div class="row">
+      <button id="btn-sample-load" data-testid="btn-sample-load" type="button">Load sample level</button>
+      <button id="btn-sample-download" data-testid="btn-sample-download" type="button">Download sample .WAD</button>
+      <button id="btn-onboard-dismiss" type="button">Dismiss</button>
+    </div>
+  </section>
+
   <section class="panel" aria-label="WAD loading">
     <h2>WAD</h2>
+    <p id="wad-loading" data-testid="wad-loading" aria-live="polite"></p>
+    <p id="wad-error" data-testid="wad-error" role="alert"></p>
     <div class="row">
       <input type="file" id="wad-picker" accept=".wad" aria-label="Load a WAD file">
       <span id="wad-info">Built-in demo level active. Drop a shareware DOOM1.WAD (or any IWAD/PWAD) to play real maps.</span>
@@ -128,12 +145,16 @@
          style="margin-top:8px;border:1px dashed var(--border);border-radius:8px;padding:14px;text-align:center;color:var(--muted)">
       Drop a .WAD file here
     </div>
+    <h3>Load order</h3>
+    <ol id="wad-order" data-testid="wad-order" aria-label="WAD load order"></ol>
+    <p id="wad-clamp" data-testid="wad-clamp" aria-live="polite"></p>
+    <p id="dehacked-note" data-testid="dehacked-note" aria-live="polite"></p>
     <ul id="error-list" aria-label="WAD diagnostics"></ul>
   </section>
 
   <section class="panel" aria-label="About this milestone">
-    <h2>Milestone 3 scope</h2>
-    <p>WebAudio SFX (DMX lumps, 8-voice pool, mixer, gesture unlock) plus OPL-style FM music from MUS lumps with GENMIDI bank, and full persistence (OPFS primary, IndexedDB fallback, localStorage config tier, 6 save slots, export/import bundles). WAD ecosystem polish (M4) is the next milestone.</p>
+    <h2>Milestone 4 scope</h2>
+    <p>WAD ecosystem and polish: multi-file load order with map-group replacement and last-wins resources, per-map isolation (one corrupt map never kills the load), DEHACKED surfacing, onboarding plus sample level, loading and error states with the previous level kept running, shareware episode clamp, and an offline service worker pass that preserves the WAD cache. Audio, saves, renderer, and input shipped in M1-M3.</p>
   </section>
 
   <footer>Doom engine code is GPL-2.0 lineage (doomgeneric/Chocolate Doom); game data is yours. Built-in levels are generated, not id Software data.</footer>

@@ -1,6 +1,9 @@
-// M1 service worker: versioned offline-first cache for the app shell
-// (same-origin GET only). M4 extends this with shareware WAD precache.
-const VERSION = 'doom-m1-v1';
+// M4 service worker: versioned offline-first cache for the app shell
+// (same-origin GET only). The WAD cache ('doom-wad-v1') is owned by the
+// storage layer and is NEVER evicted here: activate only retires older
+// shell versions (keys starting with 'doom-m'), leaving every other
+// cache (WAD bytes, browser internals) untouched.
+const VERSION = 'doom-m4-v1';
 const SHELL = ['./', './index.html', './app.js', './theme.css'];
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -9,7 +12,11 @@ self.addEventListener('install', (event) => {
 });
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()),
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((k) => k !== VERSION && k.startsWith('doom-m')).map((k) => caches.delete(k)),
+      ))
+      .then(() => self.clients.claim()),
   );
 });
 self.addEventListener('fetch', (event) => {

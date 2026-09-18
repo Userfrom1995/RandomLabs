@@ -111,7 +111,22 @@ a { color: #58a6ff; }
 #remap-notice { color: var(--gold); min-height: 1.4em; }
 .check { display: inline-flex; gap: 6px; align-items: center; }
 
+/* M4: onboarding highlight, WAD load order, loading and error states. */
+#onboard-panel { border-color: var(--gold); }
+#onboard-panel ol { margin: 8px 0; padding-left: 22px; }
+#wad-order { margin: 8px 0; padding-left: 22px; }
+#wad-order li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+#wad-order li button { padding: 2px 10px; }
+#wad-loading { color: var(--muted); min-height: 1.4em; }
+#wad-loading:not(:empty)::before { content: ""; display: inline-block; width: 0.8em; height: 0.8em; margin-right: 8px; border-radius: 50%; background: var(--gold); animation: wad-pulse 1s ease-in-out infinite; }
+#wad-error { color: var(--accent); min-height: 1.4em; font-weight: 600; }
+#wad-error:empty { display: none; }
+#wad-clamp, #dehacked-note { color: var(--muted); font-size: 0.88rem; }
+#wad-clamp:empty, #dehacked-note:empty, #wad-loading:empty { display: none; }
+@keyframes wad-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
 /* Reduced motion: disable strip fade and nub smoothing. */
 @media (prefers-reduced-motion: reduce) {
   #weapon-strip { transition: none; }
+  #wad-loading:not(:empty)::before { animation: none; }
 }
