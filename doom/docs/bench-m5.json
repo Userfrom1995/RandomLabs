@@ -1,0 +1,149 @@
+{
+  "date": "2026-09-18",
+  "node": "v22.23.2",
+  "chrome": "Google Chrome 152.0.7977.82",
+  "env": "headless=new, SwiftShader WebGL, loopback serve, Node 22 CDP driver (no external deps)",
+  "frameBudgetMs": 16.666666666666668,
+  "cells": {
+    "H1": {
+      "state": "MEASURED",
+      "path": "Tier 0 WebGL2 paletted, 1280x1000, SwiftShader",
+      "runs": [
+        {
+          "n": 119,
+          "meanMs": 16.665546218487396
+        },
+        {
+          "n": 119,
+          "meanMs": 16.6655462184874
+        },
+        {
+          "n": 119,
+          "meanMs": 16.665546218487393
+        }
+      ],
+      "pooled": {
+        "n": 357,
+        "meanMs": 16.665546218487396,
+        "medianMs": 16.699999999999818,
+        "p95Ms": 16.700000000000728,
+        "p99Ms": 16.800000000000182,
+        "cv": 0.0034047807676006337,
+        "maxMs": 16.800000000000182,
+        "droppedVsyncs": 0
+      },
+      "budgetMs": 16.666666666666668,
+      "withinBudget": false,
+      "verdict": "no dropped vsyncs in 357 frames",
+      "disclosure": "SwiftShader software raster: the rAF trace rides the vsync clock (mean 16.666ms), so the jank signal is dropped vsyncs, not sub-quanta deltas. Raster-core cost stays H1a (880x under budget)."
+    },
+    "H2browser": {
+      "state": "MEASURED",
+      "n": 30,
+      "tier0MeanMs": 16.66581920903955,
+      "tier1MeanMs": 16.66570621468927,
+      "meanDiffMs": 0.0001129943502820178,
+      "meanDiffCI95": {
+        "lo": -0.00045197740112830803,
+        "hi": 0.0006779661016931756
+      },
+      "excludesZero": false,
+      "disclosure": "Headless SwiftShader pair: measures the upload-path CPU gap, not mobile GPU frame time."
+    },
+    "H3": {
+      "state": "UNSUPPORTED_BY_DESIGN",
+      "claim": "Wasm rasterizer beats pure-JS fallback by 2x median, identical scenes",
+      "proof": "emsdk absent in this runner (MISSING-emcc); build script doom/build/emcc_m1.sh present but unexecuted",
+      "owner": "hardware runner with emsdk; JS core is the shipped path and stays pinned by M1 twins"
+    },
+    "H4": {
+      "state": "MEASURED",
+      "cold": {
+        "band": "broadband",
+        "n": 30,
+        "meanMs": 403.3333333333333,
+        "medianMs": 393,
+        "p95Ms": 510.84999999999957,
+        "p99Ms": 606.82,
+        "cv": 0.14173991985493864,
+        "meanCI95": {
+          "lo": 385.4658333333333,
+          "hi": 426.43416666666667
+        },
+        "ceilingMs": 2000,
+        "within": true,
+        "bandLabel": "broadband cold 0.8-2.0s"
+      },
+      "warm": {
+        "band": "warm",
+        "n": 30,
+        "meanMs": 278.76666666666665,
+        "medianMs": 277.5,
+        "p95Ms": 289.75,
+        "p99Ms": 293.42,
+        "cv": 0.019708572145107454,
+        "meanCI95": {
+          "lo": 276.96666666666664,
+          "hi": 280.76666666666665
+        },
+        "ceilingMs": 1000,
+        "within": true,
+        "bandLabel": "warm revisit 0.5-1.0s"
+      },
+      "disclosure": "localhost serve over loopback: faster than any band floor, so the ceiling gates. Real-network bands need a throttled-network runner."
+    },
+    "H5": {
+      "state": "MEASURED",
+      "n": 5,
+      "gestureToRunningMs": [
+        50,
+        49,
+        50,
+        52,
+        58
+      ],
+      "meanLatencyMs": 51.8,
+      "verdict": {
+        "pass": true,
+        "reasons": []
+      },
+      "unitHalf": "zero pre-unlock schedules pinned headless by the M3 suite (H5 M3 cell); this cell measures the browser transition"
+    },
+    "ecosystem": {
+      "state": "MEASURED",
+      "ingest": {
+        "verdict": {
+          "pass": true,
+          "reasons": []
+        },
+        "status": "E1M1 running (Tier 0 WebGL2 paletted, 640x400)",
+        "viableMaps": 2
+      },
+      "corrupt": {
+        "verdict": {
+          "pass": true,
+          "reasons": []
+        },
+        "error": "bad.wad rejected (E_CONTAINER): [E_CONTAINER] @0 expected filesize >= 12, got 10 The current level keeps running.",
+        "statusAfter": "E1M1 running (Tier 0 WebGL2 paletted, webgl2-paletted, 320x200, 4 lines)"
+      },
+      "onboarding": {
+        "verdict": {
+          "pass": true,
+          "reasons": []
+        },
+        "first": true,
+        "afterDismiss": true,
+        "afterReload": true
+      },
+      "save": {
+        "verdict": {
+          "pass": true,
+          "reasons": []
+        },
+        "saveStatus": "Saved slot 0 (169 bytes) to opfs.",
+        "slots": "Slot 0: E1M1 E1M1 (169 bytes)Slot 1: emptySlot 2: emptySlot 3: emptySlot 4: emptySlot 5: empty"
+      }
+    }
+  }
+}
