@@ -5,16 +5,26 @@
 export const MENU_MAX = 15;
 
 export function menuToGain(v) {
-  return Math.max(0, Math.min(1, Number(v ?? MENU_MAX) / MENU_MAX));
+  const n = Number(v ?? MENU_MAX);
+  if (Number.isNaN(n)) return 1;
+  return Math.max(0, Math.min(1, n / MENU_MAX));
 }
 
 export function createMixer({ master = MENU_MAX, sfx = MENU_MAX, music = MENU_MAX, muted = false, mutedSfx = false, mutedMusic = false } = {}) {
-  const state = { master, sfx, music, muted, mutedSfx, mutedMusic };
+  const coerceMenu = (v, fallback = MENU_MAX) => {
+    const n = Number(v);
+    if (Number.isNaN(n)) return fallback;
+    return Math.max(0, Math.min(MENU_MAX, Math.round(n)));
+  };
+  const state = { master: coerceMenu(master), sfx: coerceMenu(sfx), music: coerceMenu(music), muted, mutedSfx, mutedMusic };
   return {
     state,
     set(part, value) {
       if (part === 'master' || part === 'sfx' || part === 'music') {
-        state[part] = Math.max(0, Math.min(MENU_MAX, Math.round(Number(value))));
+        const n = Number(value);
+        if (!Number.isNaN(n)) {
+          state[part] = Math.max(0, Math.min(MENU_MAX, Math.round(n)));
+        }
       } else if (part === 'muted' || part === 'mutedSfx' || part === 'mutedMusic') {
         state[part] = !!value;
       }
