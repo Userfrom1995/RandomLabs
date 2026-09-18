@@ -1,6 +1,6 @@
 # Doom M1 layout audit (static, no browser in runner)
 
-- **Generated:** 2026-09-17T21:50:32.380Z
+- **Generated:** 2026-09-18T00:56:39.133Z
 - **Sources:** doom/index.html, doom/theme.css
 - **Result:** ALL PASS (15 checks)
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | viewport-meta | PASS | width=device-width present |
 | canvas-intrinsic-320x200 | PASS | 320x200 |
-| no-wide-fixed-widths | PASS | fixed/min widths seen: [] (max-width caps excluded) |
+| no-wide-fixed-widths | PASS | fixed/min widths seen: [128, 52, 44] (max-width caps excluded) |
 | main-capped-fluid | PASS | main max-width 860px, margin auto |
 | canvas-fluid | PASS | canvas width:100% + aspect-ratio 8/5 |
 | border-box | PASS | global border-box |
