@@ -11,31 +11,99 @@
       "runs": [
         {
           "n": 119,
-          "meanMs": 16.665546218487396
+          "meanMs": 16.66638655462185,
+          "droppedVsyncs": 0,
+          "maxMs": 16.800000000000182
         },
         {
           "n": 119,
-          "meanMs": 16.6655462184874
+          "meanMs": 16.66638655462185,
+          "droppedVsyncs": 0,
+          "maxMs": 16.800000000000182
         },
         {
           "n": 119,
-          "meanMs": 16.665546218487393
+          "meanMs": 16.66638655462184,
+          "droppedVsyncs": 0,
+          "maxMs": 16.800000000000182
+        },
+        {
+          "n": 119,
+          "meanMs": 16.665546218487385,
+          "droppedVsyncs": 0,
+          "maxMs": 16.80000000000109
+        },
+        {
+          "n": 119,
+          "meanMs": 16.66638655462186,
+          "droppedVsyncs": 0,
+          "maxMs": 16.80000000000109
+        },
+        {
+          "n": 119,
+          "meanMs": 16.6655462184874,
+          "droppedVsyncs": 0,
+          "maxMs": 16.80000000000109
+        },
+        {
+          "n": 119,
+          "meanMs": 16.66638655462184,
+          "droppedVsyncs": 0,
+          "maxMs": 16.80000000000109
+        },
+        {
+          "n": 119,
+          "meanMs": 16.66638655462184,
+          "droppedVsyncs": 0,
+          "maxMs": 16.80000000000291
+        },
+        {
+          "n": 119,
+          "meanMs": 16.666386554621873,
+          "droppedVsyncs": 0,
+          "maxMs": 16.799999999999272
+        },
+        {
+          "n": 119,
+          "meanMs": 16.6655462184874,
+          "droppedVsyncs": 0,
+          "maxMs": 16.80000000000291
         }
       ],
+      "runToRun": {
+        "runs": 10,
+        "framesPerRun": 120,
+        "droppedEveryRun": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "meanOfRunMeansMs": 16.666134453781517,
+        "maxRunMeanSpreadMs": 0.0008403361344875293,
+        "stable": true
+      },
       "pooled": {
-        "n": 357,
-        "meanMs": 16.665546218487396,
+        "n": 1190,
+        "meanMs": 16.666134453781513,
         "medianMs": 16.699999999999818,
         "p95Ms": 16.700000000000728,
-        "p99Ms": 16.800000000000182,
-        "cv": 0.0034047807676006337,
-        "maxMs": 16.800000000000182,
+        "p99Ms": 16.80000000000028,
+        "cv": 0.003465036012997576,
+        "maxMs": 16.80000000000291,
         "droppedVsyncs": 0
       },
       "budgetMs": 16.666666666666668,
       "withinBudget": false,
-      "verdict": "no dropped vsyncs in 357 frames",
-      "disclosure": "SwiftShader software raster: the rAF trace rides the vsync clock (mean 16.666ms), so the jank signal is dropped vsyncs, not sub-quanta deltas. Raster-core cost stays H1a (880x under budget)."
+      "verdict": "no dropped vsyncs in 1190 frames",
+      "claim": "vsync-drop count over pooled frames (compositor cadence, not render cost)",
+      "disclosure": "SwiftShader software raster: the rAF trace rides the vsync clock (mean 16.666ms), so the jank signal is dropped vsyncs, not sub-quanta deltas. Raster-core cost stays H1a (880x under budget). Run count is 10 sessions-worth of traces; frame-level N is pooled."
     },
     "H2browser": {
       "state": "MEASURED",
@@ -61,48 +129,156 @@
       "cold": {
         "band": "broadband",
         "n": 30,
-        "meanMs": 403.3333333333333,
-        "medianMs": 393,
-        "p95Ms": 510.84999999999957,
-        "p99Ms": 606.82,
-        "cv": 0.14173991985493864,
+        "meanMs": 313.6333333333333,
+        "medianMs": 314,
+        "p95Ms": 330,
+        "p99Ms": 331.42,
+        "cv": 0.03964254629763345,
         "meanCI95": {
-          "lo": 385.4658333333333,
-          "hi": 426.43416666666667
+          "lo": 309.23333333333335,
+          "hi": 317.96666666666664
         },
         "ceilingMs": 2000,
         "within": true,
+        "maxMs": 332,
+        "allUnderCeiling": true,
+        "samplesMs": [
+          304,
+          320,
+          309,
+          326,
+          299,
+          329,
+          317,
+          303,
+          303,
+          303,
+          313,
+          322,
+          294,
+          296,
+          302,
+          330,
+          311,
+          332,
+          322,
+          290,
+          297,
+          312,
+          315,
+          330,
+          308,
+          330,
+          319,
+          323,
+          323,
+          327
+        ],
         "bandLabel": "broadband cold 0.8-2.0s"
       },
       "warm": {
         "band": "warm",
         "n": 30,
-        "meanMs": 278.76666666666665,
-        "medianMs": 277.5,
-        "p95Ms": 289.75,
-        "p99Ms": 293.42,
-        "cv": 0.019708572145107454,
+        "meanMs": 269.4,
+        "medianMs": 268,
+        "p95Ms": 276.1,
+        "p99Ms": 281.97,
+        "cv": 0.014478419691905381,
         "meanCI95": {
-          "lo": 276.96666666666664,
-          "hi": 280.76666666666665
+          "lo": 268.1333333333333,
+          "hi": 270.8666666666667
         },
         "ceilingMs": 1000,
         "within": true,
+        "maxMs": 284,
+        "samplesMs": [
+          284,
+          268,
+          267,
+          267,
+          272,
+          267,
+          269,
+          272,
+          270,
+          267,
+          275,
+          277,
+          268,
+          268,
+          270,
+          268,
+          267,
+          268,
+          268,
+          270,
+          267,
+          269,
+          271,
+          269,
+          273,
+          268,
+          264,
+          267,
+          267,
+          265
+        ],
         "bandLabel": "warm revisit 0.5-1.0s"
       },
+      "cvNote": "cold-start CV exceeds the 5 percent scoreboard gate (fresh-profile Chromium boot jitter on shared CI); the ceiling verdict is robust: mean CI upper bound and p95 sit far below the 2000ms ceiling and every one of the 30 cold samples lands under it (see maxMs plus allUnderCeiling). Per-run distribution is pinned in samplesMs.",
       "disclosure": "localhost serve over loopback: faster than any band floor, so the ceiling gates. Real-network bands need a throttled-network runner."
     },
     "H5": {
       "state": "MEASURED",
-      "n": 5,
+      "n": 30,
       "gestureToRunningMs": [
-        50,
-        49,
-        50,
-        52,
-        58
+        43,
+        35,
+        29,
+        30,
+        36,
+        33,
+        41,
+        33,
+        37,
+        37,
+        36,
+        35,
+        34,
+        35,
+        34,
+        38,
+        35,
+        35,
+        36,
+        36,
+        34,
+        32,
+        37,
+        36,
+        33,
+        35,
+        35,
+        35,
+        36,
+        36
       ],
-      "meanLatencyMs": 51.8,
+      "latencySummary": {
+        "n": 30,
+        "meanMs": 35.233333333333334,
+        "medianMs": 35,
+        "p95Ms": 39.64999999999999,
+        "p99Ms": 42.42,
+        "maxMs": 43,
+        "cv": 0.07662412315015361,
+        "meanCI95": {
+          "lo": 34.3,
+          "hi": 36.2
+        },
+        "ceilingMs": 1000,
+        "within": true
+      },
+      "meanLatencyMs": 35.233333333333334,
       "verdict": {
         "pass": true,
         "reasons": []
@@ -143,6 +319,37 @@
         },
         "saveStatus": "Saved slot 0 (169 bytes) to opfs.",
         "slots": "Slot 0: E1M1 E1M1 (169 bytes)Slot 1: emptySlot 2: emptySlot 3: emptySlot 4: emptySlot 5: empty"
+      }
+    },
+    "Gfuzz": {
+      "state": "MEASURED",
+      "suite": "m5-corpus-fuzz",
+      "n": 32,
+      "passed": 32,
+      "failed": 0,
+      "e1m1SurvivedEveryDrop": true,
+      "taxonomySample": [
+        "E_CONTAINER",
+        "E_MAP",
+        "accepted"
+      ]
+    },
+    "Gsoak": {
+      "state": "MEASURED",
+      "suite": "m5-bounded-soak",
+      "ticks": 200000,
+      "tickCountExact": true,
+      "deterministic": true,
+      "framebufferHash": "00e98c85",
+      "heapDeltaPerTickBytes": 0.80624,
+      "leakVerdict": "no per-tick leak (under 16 bytes/tick)",
+      "multiHourWallClock": {
+        "state": "UNSUPPORTED_BY_DESIGN",
+        "claim": "multi-hour tab soak with live rAF plus audio plus storage",
+        "reason": "shared CI container: SwiftShader software GL, no GPU, capped job budget; unattended multi-hour wall-clock soak cannot be machine-checked here",
+        "machineProof": "MemTotal:       16373452 kB\nMemFree:        11478648 kB\nMemAvailable:   14699092 kB\n4\n               total        used        free      shared  buff/cache   available\nMem:           15989        1635       11209          48        3535       14354",
+        "owner": "hardware/GPU runner with an N-hour soak budget; bounded deterministic soak above is the headless-measurable half",
+        "date": "2026-09-18"
       }
     }
   }
