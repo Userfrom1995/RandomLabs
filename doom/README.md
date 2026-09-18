@@ -1,7 +1,8 @@
 # Doom: client-side web engine at `/doom/`
 
-Milestones 1-2 (issue #362): engine core plus WAD parser plus basic loop (M1),
-WebGL renderer plus full input (M2).
+Milestones 1-3 (issue #362): engine core plus WAD parser plus basic loop (M1),
+WebGL renderer plus full input (M2), WebAudio SFX plus music with save
+persistence (M3).
 
 ## What works (M1)
 
@@ -45,6 +46,27 @@ WebGL renderer plus full input (M2).
   select, live automap player marker, deterministic twin convergence.
   Collision against linedefs arrives with the 3D BSP milestone.
 
+## What works (M3)
+
+- SFX (`src/audio/`): DMX lump parser (format 3, pad strip, u8 to f32),
+  lazy LRU decode cache, 8-voice pool with vanilla distance/stereo/pitch
+  math and steal policy, mixer (master/SFX/music buses plus compressor,
+  menu 0..15, click-free mute), gesture unlock gate (nothing schedules
+  before first input). Fire edges play the pistol lump; volumes persist.
+- Music (`src/audio/musicEngine.js`): MUS to SMF Type 0 converter
+  (Crispy single-track port, drum-channel map, scale-not-clamp volumes),
+  GENMIDI bank parse, song switch per map, pure-JS 2-operator FM renderer
+  (looped lookahead buffer; cycle-accurate Wasm OPL3 stays M5 scope).
+- Persistence (`src/storage/`): `StorageProvider` ladder OPFS to
+  IndexedDB to localStorage to memory with real round-trip probes and
+  timeouts (a wedged tier falls through, never hangs boot); 6 opaque save
+  slots plus config/progression/bindings; 500 ms debounced writes flushed
+  on hide; versioned JSON-plus-base64 export/import bundles applied
+  atomically; progression resumes the last map on boot.
+- Hardening found by headless Chromium: the ladder now probes tiers
+  before selecting them, and the WAD cache races wedged backends with a
+  3 s timeout, so boot always reaches first frame.
+
 ## Run it
 
 Serve the repo root and open `/doom/`:
@@ -71,4 +93,6 @@ DOOMGENERIC_SRC=./vendor/doomgeneric sh doom/build/emcc_m1.sh
 ## Docs
 
 - `docs/research-spec.md` (binding research), `docs/architecture.md` (pointer),
-  `docs/scoreboard.md` (H1-H5 ledger), `docs/first-frame.png` (M1 first frame).
+  `docs/scoreboard.md` (H1-H5 ledger), `docs/first-frame.png` (M1 first frame),
+  `docs/render-m3.md` plus `docs/shell-m3-1280.png`/`docs/shell-m3-390.png`
+  (M3 headless-Chromium shell proofs).
