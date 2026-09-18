@@ -5,13 +5,13 @@
   "framebufferHash": "f6cad8e9",
   "referenceHash": "f6cad8e9",
   "deterministic": true,
-  "elapsedMs": 531,
-  "ticksPerSecond": 188324,
+  "elapsedMs": 1094,
+  "ticksPerSecond": 91408,
   "heapUsedBefore": 4347600,
-  "heapUsedAfter": 4540104,
-  "heapDeltaBytes": 192504,
-  "heapDeltaPerTickBytes": 1.92504,
+  "heapUsedAfter": 4540344,
+  "heapDeltaBytes": 192744,
+  "heapDeltaPerTickBytes": 1.92744,
   "node": "v22.23.2",
   "platform": "linux",
-  "generatedAt": "2026-09-18T01:07:05.676Z"
+  "generatedAt": "2026-09-18T01:13:41.117Z"
 }
