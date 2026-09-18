@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Doom: client-side web engine (M4)</title>
+<link rel="icon" href="data:,">
+<title>Doom: client-side web engine (M5)</title>
 <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
 <header>
   <h1>DOOM / WEB</h1>
-  <span class="sub">client-side engine at /doom/ - Milestone 4: WAD ecosystem and polish</span>
+  <span class="sub">client-side engine at /doom/ - Milestone 5: integration and end-to-end audit</span>
   <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
 </header>
 <main>
@@ -155,6 +156,11 @@
   <section class="panel" aria-label="About this milestone">
     <h2>Milestone 4 scope</h2>
     <p>WAD ecosystem and polish: multi-file load order with map-group replacement and last-wins resources, per-map isolation (one corrupt map never kills the load), DEHACKED surfacing, onboarding plus sample level, loading and error states with the previous level kept running, shareware episode clamp, and an offline service worker pass that preserves the WAD cache. Audio, saves, renderer, and input shipped in M1-M3.</p>
+  </section>
+
+  <section class="panel" aria-label="About milestone 5">
+    <h2>Milestone 5 scope</h2>
+    <p>Integration and end-to-end audit: the renderer selector now pins the stored tier instead of re-probing, the full H1-H5 ledger is measured end to end in a real browser (see docs/scoreboard.md and docs/bench-m5.json), and settled desktop plus mobile proofs live at docs/shell-m5-1280.png and docs/shell-m5-390.png (see docs/render-m5.md).</p>
   </section>
 
   <footer>Doom engine code is GPL-2.0 lineage (doomgeneric/Chocolate Doom); game data is yours. Built-in levels are generated, not id Software data.</footer>

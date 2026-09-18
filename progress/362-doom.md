@@ -35,6 +35,13 @@
 - M5 step 1: `src/perf/m5gates.js` pure verdict logic (TTFF bands, frame-trace
   budget, paired render-path compare, ingest/corrupt/onboarding/unlock/save
   verdicts) plus `tests/test-m5-integration.mjs` (21 tests) green.
+- M5 step 2: two real shell fixes proved in headless Chromium. The Video
+  renderer selector was a facade (boot always re-probed, stored `doom-tier`
+  ignored); boot now pins the stored tier and the selector reflects it
+  (forced Tier 1 boots `Tier 1 WebGL1 RGBA`). Inline data-URI favicon kills
+  the last console 404. Committed driver `tools/cdp-m5.mjs` (Node built-ins
+  only) plus `tools/capture-m5.mjs` with settled proofs
+  `docs/shell-m5-1280.png` / `docs/shell-m5-390.png` and `docs/render-m5.md`.
 
 ## Current step
 

@@ -505,6 +505,15 @@ async function boot(wadBytes, label) {
   const view = $('doom-canvas');
   const gl = probeGL();
   tier = resolveTier(probeCapabilities(gl));
+  // Manual renderer override (Video panel): a stored doom-tier 0..4 pins
+  // the tier instead of the probe result, so the selector is a real
+  // control rather than a reboot of the same tier.
+  try {
+    const forced = store.getItem('doom-tier');
+    if (forced !== null && forced !== 'auto' && /^[0-4]$/.test(String(forced))) {
+      tier = Number(forced);
+    }
+  } catch { /* override is optional */ }
   const made = makePresenter(view, tier, engine.__palette);
   presenter = made.presenter;
   presenterKind = made.kind;
@@ -887,7 +896,11 @@ function wireVideoControls() {
   const tierSel = $('tier-select');
   const resSel = $('res-select');
   const battery = $('battery-saver');
-  tierSel.value = 'auto';
+  // Reflect the stored renderer override so the selector shows the live tier.
+  let storedTier = 'auto';
+  try { storedTier = store.getItem('doom-tier') || 'auto'; } catch { /* default auto */ }
+  if (!['auto', '0', '1', '2', '3', '4'].includes(storedTier)) storedTier = 'auto';
+  tierSel.value = storedTier;
   resSel.value = videoPrefs.res === 'auto' ? 'auto' : String(videoPrefs.res);
   battery.checked = videoPrefs.battery;
   tierSel.addEventListener('change', async () => {
