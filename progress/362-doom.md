@@ -1,10 +1,10 @@
 # Progress: Doom - client-side Web Doom engine at /doom/
 
 - **Issue:** #362
-- **Branch:** opencode/issue362-20260917235314
+- **Branch:** opencode/issue362-doom-m4
 - **Status:** in-progress
-- **Updated:** 2026-09-18T00:00:00Z
-- **Active Milestone:** M3 (Complete, ready for review)
+- **Updated:** 2026-09-18T01:00:00Z
+- **Active Milestone:** M4 (Complete, ready for review)
 
 ## Milestone roadmap
 
@@ -24,20 +24,20 @@
   - [x] OPL3 music worklet with GENMIDI bank plus song switch (pure-JS DBOPL fallback)
   - [x] `StorageProvider` x3 plus save slots plus config plus progression plus bundle export/import
 - Milestone 4 (M4) WAD ecosystem and polish (PR 4 target, Refs #362):
-  - [ ] Drag-drop plus picker IWAD/PWAD ingest with per-map isolation and load-order rules
-  - [ ] Onboarding plus sample plus empty/loading/error states, episode clamp, service worker offline pass, landing card
+  - [x] `src/wad/loadout.js`: drop-order merge (map-group replace, last-wins singles), merged assembly, per-map isolation probe, WAD identity, DEHACKED surfacing
+  - [x] Shell states (`src/ui/shellStates.js`): onboarding plus sample, loading/empty/error states, failed loads resume the running level, shareware episode clamp on staged WADs, per-file remove, WAD-cache-preserving service worker `doom-m4-v1`, landing card
 - Final Milestone (M5) integration and end-to-end audit (final PR, Closes #362):
   - [ ] H1-H5 statistical ledger plus baseline catalog measured
   - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `/oc approve-eval` >= 9.8/10, Pages deploy green
 
 ## Current step
 
-Milestone 3 complete, ready for review (all three M3 boxes checked, 293/293 tests green: 245 M1/M2 pins untouched, 48 M3 new; audit-m3 52/52 ALL PASS; headless-Chromium settled proofs at docs/shell-m3-1280.png plus shell-m3-390.png)
+Milestone 4 complete, ready for review (both M4 boxes checked, 346/346 tests green: all M1/M2/M3 pins untouched, 20 M4 new; audit-m4 51/51 ALL PASS; settled headless-Chromium proofs at docs/shell-m4-1280.png plus docs/shell-m4-390.png with OPFS saves live)
 
 ## Next steps
 
-- Reviewer audits the M3 diff; Tester runs the blueprint test matrix plus Playwright E2E (desktop 1280x800, mobile 390x844 portrait plus landscape, audible audio audition, OPFS-success gates on Chromium/Firefox)
-- Builder continues with M4 (WAD ecosystem and polish) on the next milestone PR after review
+- Reviewer audits the M4 diff; Tester runs the blueprint test matrix plus Playwright E2E (IWAD/PWAD ingest round-trip, onboarding dismiss persistence, sample download, corrupt-WAD error list, mobile portrait plus landscape)
+- Builder continues with M5 (integration and end-to-end audit, Closes #362) after review
 
 ## Agent log
 
@@ -51,6 +51,7 @@ Milestone 3 complete, ready for review (all three M3 boxes checked, 293/293 test
 - 2026-09-18 (Builder run 3, M3 phase B): storage ladder plus save manager plus bundle plus engine hook plus storage tests green.
 - 2026-09-18 (Builder run 3, M3 phase B): storage ladder (`src/storage/`: provider plus memory tier with probed OPFS/IDB/local tiers, atomic OPFS writes, 6-slot save manager with debounce plus flush, versioned bundle export/import with rollback) plus engine `setPlayerState` hook plus `tests/test-m3-storage.mjs` green; WAD cache races wedged backends with a 3 s timeout.
 - 2026-09-18 (Builder run 3, M3 phase C): shell wiring (`app.js` Audio plus Saves panels, gesture unlock, fire-edge SFX, per-map FM music, progression resume, bindings migration, pumpAudioFrame) plus `index.html` panels plus README M3 section; sealed boot-header pin kept via module-state resume map.
+- 2026-09-18 (Builder run 4, M4): WAD ecosystem and polish on branch `opencode/issue362-doom-m4`: `src/wad/loadout.js` (identify, drop-order merge, assembly, per-map probe, DEHACKED, order lines) plus `src/ui/shellStates.js` (five-state resolver plus helper lines), shell wiring (ingest pipeline, removeWad, boot-failure loop resume, viable-map select, shareware clamp note, onboarding plus sample load/download, loading/error states, sw `doom-m4-v1` with WAD-cache preservation), `tests/test-m4-ecosystem.mjs` (20 tests), `tools/audit-m4.mjs` (51/51), `docs/render-m4.md` plus settled CDP screenshots at desktop and 390px (Tier 0 live, OPFS saves). Headless Chromium caught a wrong-module `droppedLines` import killing boot; fixed and pinned. Full suite 346/346 green. Decision action: review.
 
 ## Decision
 
