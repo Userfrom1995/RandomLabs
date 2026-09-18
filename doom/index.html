@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Doom: client-side web engine (M2)</title>
+<title>Doom: client-side web engine (M3)</title>
 <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
 <header>
   <h1>DOOM / WEB</h1>
-  <span class="sub">client-side engine at /doom/ - Milestone 2: WebGL renderer plus full input</span>
+  <span class="sub">client-side engine at /doom/ - Milestone 3: WebAudio SFX plus music, save persistence</span>
   <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
 </header>
 <main>
@@ -73,6 +73,41 @@
     </div>
   </section>
 
+  <section class="panel" aria-label="Audio">
+    <h2>Audio</h2>
+    <p id="audio-status" data-testid="audio-status" aria-live="polite">Audio locked. Press Enable audio (a click counts as the browser gesture).</p>
+    <div class="row">
+      <button id="btn-audio-enable" data-testid="audio-enable" type="button">Enable audio</button>
+      <label>Master <input type="range" id="vol-master" min="0" max="15" step="1" value="12" aria-label="Master volume"></label>
+      <label>SFX <input type="range" id="vol-sfx" min="0" max="15" step="1" value="12" aria-label="SFX volume"></label>
+      <label>Music <input type="range" id="vol-music" min="0" max="15" step="1" value="10" aria-label="Music volume"></label>
+      <label class="check"><input type="checkbox" id="mute-all"> Mute</label>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Saved games">
+    <h2>Saves</h2>
+    <p id="save-status" data-testid="save-status" aria-live="polite">No save manager yet.</p>
+    <div class="row">
+      <label>Slot
+        <select id="save-slot" data-testid="save-slot" aria-label="Save slot">
+          <option value="0">Slot 0</option>
+          <option value="1">Slot 1</option>
+          <option value="2">Slot 2</option>
+          <option value="3">Slot 3</option>
+          <option value="4">Slot 4</option>
+          <option value="5">Slot 5</option>
+        </select>
+      </label>
+      <button id="btn-save" data-testid="btn-save" type="button">Save</button>
+      <button id="btn-load" data-testid="btn-load" type="button">Load</button>
+      <button id="btn-save-delete" type="button">Delete</button>
+      <button id="btn-export" type="button">Export bundle</button>
+      <label>Import <input type="file" id="save-import" accept=".json,application/json" aria-label="Import a save bundle"></label>
+    </div>
+    <ul id="slots-list" aria-label="Save slots"></ul>
+  </section>
+
   <section class="panel" aria-label="Input remapping">
     <h2>Remap keys</h2>
     <p>Select a binding, then press the new key. Conflicts swap automatically. Bindings persist on this device.</p>
@@ -97,8 +132,8 @@
   </section>
 
   <section class="panel" aria-label="About this milestone">
-    <h2>Milestone 2 scope</h2>
-    <p>WebGL paletted renderer (Tier 0) with RGBA fallback (Tier 1) and Canvas2D fallback (Tier 2/3), resolution ladder with battery saver, 35 Hz ticcmd pipeline with Pointer Lock mouse look, touch overlay with stick plus strafe plus weapon strip, and persisted remapping. Audio plus persistence (M3) and ecosystem polish (M4) are future milestones.</p>
+    <h2>Milestone 3 scope</h2>
+    <p>WebAudio SFX (DMX lumps, 8-voice pool, mixer, gesture unlock) plus OPL-style FM music from MUS lumps with GENMIDI bank, and full persistence (OPFS primary, IndexedDB fallback, localStorage config tier, 6 save slots, export/import bundles). WAD ecosystem polish (M4) is the next milestone.</p>
   </section>
 
   <footer>Doom engine code is GPL-2.0 lineage (doomgeneric/Chocolate Doom); game data is yours. Built-in levels are generated, not id Software data.</footer>
