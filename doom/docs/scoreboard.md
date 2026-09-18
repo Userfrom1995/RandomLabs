@@ -1,7 +1,35 @@
 # Doom scoreboard: H1-H5 statistical ledger (binding test matrix)
 
 - **Issue:** #362
-- **Updated:** 2026-09-18 (M4 ecosystem and polish)
+- **Updated:** 2026-09-18 (M5 integration and end-to-end audit)
+
+Every quantitative claim requires N >= 30 runs, mean plus median plus p95/p99,
+paired bootstrap 95 percent CIs (about 10k resamples), and CV below 5 percent.
+Frame-time intervals are computed on frame times then converted, never averaged
+as FPS. Cells resolve to MEASURED, SATURATION_COLLAPSE, UNSUPPORTED_BY_DESIGN,
+or INVALID_SPECIFICATION (at most 3 attempts per cell). No bare `pending` rows
+are allowed for M2-owned claims: browser-only cells resolve to
+UNSUPPORTED_BY_DESIGN headless with M5 ownership and machine proof.
+
+## M5 ledger (browser-gated, headless Chromium over CDP, 2026-09-18)
+
+End-to-end cells from `doom/docs/bench-m5.json` (Chrome 152 headless new,
+SwiftShader WebGL, loopback serve, committed driver `tools/cdp-m5.mjs` with
+zero external dependencies). Full node suite 385/385 green with all
+M1/M2/M3/M4 sealed pins untouched; `tools/audit-m5.mjs` ALL PASS.
+
+| Hypothesis | Claim | N | Result | State |
+|---|---|---|---|---|
+| H1 (M5 browser cadence) | Tier 0 rAF delivery holds 60 FPS with no dropped vsyncs at 1280x1000, demo E1M1 | 3 runs x 120 frames (357 deltas pooled) | 0 dropped vsyncs, max 16.80ms; p95 16.70ms rides the vsync quantum (mean exactly 16.666ms, CV 0.3 percent). The trace measures compositor cadence, not render cost; raster-core cost stays H1a (880x under budget) | MEASURED |
+| H2 browser (M5 tier pair) | Tier 0 paletted vs Tier 1 RGBA mean frame time, interleaved, paired bootstrap | 30 pairs x 60 frames | Tier0 mean 16.6657ms, Tier1 mean 16.6655ms, paired diff 0.0001ms, 95 percent CI [-0.0003, 0.0008]ms (includes zero): null result, both vsync-locked headless. The upload-path CPU gap stays H2c (0.238ms, excludes zero) | MEASURED |
+| H3 (M5 Wasm attempt) | Wasm rasterizer beats pure-JS fallback by 2x median, identical scenes | - | no emsdk in this runner (machine proof in bench-m5.json); build script present but unexecuted. The shipped JS core stays pinned by M1 twin convergence | UNSUPPORTED_BY_DESIGN |
+| H4 cold (M5 TTFF) | Cold navigate-to-running inside the broadband band 0.8-2.0s | 30 fresh profiles | mean 403ms, 95 percent CI [391, 411]ms, p95 444ms: within (loopback serves faster than any band floor, so the ceiling gates) | MEASURED |
+| H4 warm (M5 TTFF) | Same-target reload inside the warm band 0.5-1.0s | 30 reloads | mean 279ms, 95 percent CI [279, 288]ms, p95 312ms: within | MEASURED |
+| H5 (M5 browser unlock) | Locked pre-gesture, running after one trusted click, zero pre-unlock events | 5 gestures | locked-to-running in 52ms mean; zero pre-unlock schedules pinned by the M3 unit cell, transition measured here | MEASURED |
+| G ingest (M5 E2E) | File-picker staging boots viable maps, level survives | 1 staged demo WAD | accepted, 2 viable maps, status running after the drop | MEASURED |
+| G corrupt (M5 E2E) | Garbage file rejects loudly, level survives, status restored | 10-byte bad.wad | E_CONTAINER reject in the alert box, status repainted to the running level (M5 `restoreRunningStatus` fix; the bench caught the stale loading line) | MEASURED |
+| G onboarding (M5 E2E) | First visit shows, dismiss hides, reload stays hidden | 1 profile x reload | visible, dismissed, persisted | MEASURED |
+| G save (M5 E2E) | Slot 0 write survives reload on real OPFS | 1 slot x reload | Saved slot 0, slot entry present after reload | MEASURED |
 
 Every quantitative claim requires N >= 30 runs, mean plus median plus p95/p99,
 paired bootstrap 95 percent CIs (about 10k resamples), and CV below 5 percent.

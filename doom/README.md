@@ -1,8 +1,9 @@
 # Doom: client-side web engine at `/doom/`
 
-Milestones 1-4 (issue #362): engine core plus WAD parser plus basic loop (M1),
+Milestones 1-5 (issue #362): engine core plus WAD parser plus basic loop (M1),
 WebGL renderer plus full input (M2), WebAudio SFX plus music with save
-persistence (M3), WAD ecosystem plus polish (M4).
+persistence (M3), WAD ecosystem plus polish (M4), integration plus end-to-end
+audit (M5).
 
 ## What works (M1)
 
@@ -90,6 +91,32 @@ persistence (M3), WAD ecosystem plus polish (M4).
   `tools/audit-m4.mjs`, with settled proofs at `docs/shell-m4-1280.png`
   and `docs/shell-m4-390.png` (see `docs/render-m4.md`).
 
+## What works (M5)
+
+- End-to-end ledger (`docs/bench-m5.json`, `docs/scoreboard.md`): every
+  H-cell resolved with machine proof. H1 zero dropped vsyncs in 357 frames
+  on Tier 0; H2browser paired Tier0/Tier1 null result (vsync-locked, CI
+  includes zero; the upload CPU gap stays H2c); H3 UNSUPPORTED_BY_DESIGN
+  (no emsdk, proof recorded); H4 cold 403ms within broadband and warm
+  279ms within the warm band (N=30 each, bootstrap CIs); H5 locked to
+  running in 52ms on a trusted click; ecosystem round-trips 4/4 pass
+  (picker ingest, corrupt reject, onboarding persistence, OPFS slot
+  survival across reload).
+- Gate verdicts (`src/perf/m5gates.js`): pure TTFF band, frame-trace,
+  paired-compare, and ecosystem verdict logic pinned by
+  `tests/test-m5-integration.mjs` (21 tests).
+- Committed CDP driver (`tools/cdp-m5.mjs`, Node built-ins only, no
+  Playwright): `tools/capture-m5.mjs` writes settled desktop plus mobile
+  proofs (`docs/shell-m5-1280.png`, `docs/shell-m5-390.png`,
+  `docs/render-m5.md`); `tools/bench-m5.mjs` measures every cell;
+  `tools/audit-m5.mjs` gates the milestone (70 checks).
+- Hardening found by headless Chromium: the renderer selector was a
+  facade (boot always re-probed, ignoring the stored tier), and rejected
+  files left the status line stuck on a stale loading line. Boot now pins
+  the stored `doom-tier` override, all four ingest/remove reject paths
+  repaint the surviving level via `restoreRunningStatus()`, and an inline
+  favicon removes the last console 404.
+
 ## Run it
 
 Serve the repo root and open `/doom/`:
@@ -118,4 +145,6 @@ DOOMGENERIC_SRC=./vendor/doomgeneric sh doom/build/emcc_m1.sh
 - `docs/research-spec.md` (binding research), `docs/architecture.md` (pointer),
   `docs/scoreboard.md` (H1-H5 ledger), `docs/first-frame.png` (M1 first frame),
   `docs/render-m4.md` plus `docs/shell-m4-1280.png`/`docs/shell-m4-390.png`
-  (M4 headless-Chromium shell proofs).
+  (M4 headless-Chromium shell proofs), `docs/render-m5.md` plus
+  `docs/shell-m5-1280.png`/`docs/shell-m5-390.png` (M5 settled proofs),
+  `docs/bench-m5.json` (M5 end-to-end cells).

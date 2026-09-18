@@ -27,7 +27,7 @@
   - [x] `src/wad/loadout.js`: drop-order merge (map-group replace, last-wins singles), merged assembly, per-map isolation probe, WAD identity, DEHACKED surfacing
   - [x] Shell states (`src/ui/shellStates.js`): onboarding plus sample, loading/empty/error states, failed loads resume the running level, shareware episode clamp on staged WADs, per-file remove, WAD-cache-preserving service worker `doom-m4-v1`, landing card
 - Final Milestone (M5) integration and end-to-end audit (final PR, Closes #362):
-  - [ ] H1-H5 statistical ledger plus baseline catalog measured
+  - [x] H1-H5 statistical ledger plus baseline catalog measured
   - [ ] Reviewer `/oc approve`, Tester `/oc approve-test`, Quality Council `/oc approve-eval` >= 9.8/10, Pages deploy green
 
 ## M5 build log (this run)
@@ -52,15 +52,25 @@
   one more real bug: rejected files left the status line stuck on their
   stale loading line; `restoreRunningStatus()` now repaints the surviving
   level on all four ingest/remove reject paths.
+- M5 step 4: `tools/audit-m5.mjs` (70 checks) green; scoreboard M5 ledger
+  with the full H1-H5 table; README `What works (M5)`; ideas entry
+  `2026-09-18-doom-m5-integration-audit.md`; root README plus landing
+  updated to M1-M5 done. Decision action: review.
 
 ## Current step
 
-Milestone 4 complete, ready for review (both M4 boxes checked, 346/346 tests green: all M1/M2/M3 pins untouched, 20 M4 new; audit-m4 51/51 ALL PASS; settled headless-Chromium proofs at docs/shell-m4-1280.png plus docs/shell-m4-390.png with OPFS saves live)
+M5 code-complete on this branch: 385/385 tests green (all M1-M4 pins
+untouched, 21 M5 new); audits m1/m2/m3/m4/m5 ALL PASS; repro.sh green;
+settled proofs `docs/shell-m5-1280.png` plus `docs/shell-m5-390.png` with
+zero console errors; `docs/bench-m5.json` resolves every H-cell with no
+bare pending rows. Ready for review.
 
 ## Next steps
 
-- Reviewer audits the M4 diff; Tester runs the blueprint test matrix plus Playwright E2E (IWAD/PWAD ingest round-trip, onboarding dismiss persistence, sample download, corrupt-WAD error list, mobile portrait plus landscape)
-- Builder continues with M5 (integration and end-to-end audit, Closes #362) after review
+- Reviewer audits the M5 diff; Tester runs the blueprint test matrix plus
+  independent Playwright E2E (hardware-GPU cadence, touch gestures,
+  multi-hour soak); Quality Council evaluates; Maintainer merges
+  (Closes #362) on score >= 9.8/10.
 
 ## Agent log
 
