@@ -84,6 +84,35 @@ export function summarizeTTFF(samplesMs, band) {
   };
 }
 
+// Generic latency summary with a bootstrap 95 percent CI on the mean
+// (used by the H5 unlock-transition cell, which has no TTFF band).
+// ceilingMs is informational: within is true when the CI upper bound sits
+// at or under it, null when no ceiling is given.
+export function summarizeLatency(samplesMs, ceilingMs = null) {
+  if (!Array.isArray(samplesMs) || samplesMs.length === 0) {
+    throw new Error('latency samples must be a non-empty array');
+  }
+  for (const s of samplesMs) {
+    requireFiniteNumber(s, 'latency sample');
+    if (s < 0) throw new Error('latency samples must be non-negative');
+  }
+  if (ceilingMs !== null) requireFiniteNumber(ceilingMs, 'latency ceiling');
+  const sorted = sortedCopy(samplesMs);
+  const ci = bootstrapMeanCI(samplesMs, { resamples: 10000 });
+  return {
+    n: samplesMs.length,
+    meanMs: mean(samplesMs),
+    medianMs: median(samplesMs),
+    p95Ms: quantileSorted(sorted, 0.95),
+    p99Ms: quantileSorted(sorted, 0.99),
+    maxMs: sorted[sorted.length - 1],
+    cv: cv(samplesMs),
+    meanCI95: { lo: ci.lo, hi: ci.hi },
+    ceilingMs,
+    within: ceilingMs === null ? null : ci.hi <= ceilingMs,
+  };
+}
+
 // Evaluate one rAF frame-time trace (ms per frame deltas). Rejects empty,
 // NaN, non-finite, and non-positive deltas (a zero or negative delta is a
 // broken clock, not a fast frame). Frame intervals convert to implied FPS
