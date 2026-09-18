@@ -115,11 +115,10 @@ export async function applyBundle(provider, parsed) {
       staged.push(path);
     }
     for (const s of parsed.saves) {
-      const { PATHS: P } = await import('./provider.js');
-      await provider.writeFile(P.saveData(s.slot), s.data);
-      staged.push(P.saveData(s.slot));
-      await provider.writeJSON(P.saveMeta(s.slot), { name: s.name, importedAt: new Date().toISOString() });
-      staged.push(P.saveMeta(s.slot));
+      await provider.writeFile(PATHS.saveData(s.slot), s.data);
+      staged.push(PATHS.saveData(s.slot));
+      await provider.writeJSON(PATHS.saveMeta(s.slot), { name: s.name, importedAt: new Date().toISOString() });
+      staged.push(PATHS.saveMeta(s.slot));
     }
     return { applied: staged.length, saves: parsed.saves.length };
   } catch (e) {
