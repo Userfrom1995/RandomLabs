@@ -59,11 +59,14 @@
 
 ## Current step
 
-M5 code-complete on this branch: 385/385 tests green (all M1-M4 pins
-untouched, 21 M5 new); audits m1/m2/m3/m4/m5 ALL PASS; repro.sh green;
-settled proofs `docs/shell-m5-1280.png` plus `docs/shell-m5-390.png` with
-zero console errors; `docs/bench-m5.json` resolves every H-cell with no
-bare pending rows. Ready for review.
+M5 Quality Council hardening (Fixer run, 2026-09-18, score 8.8/10
+response): H5 re-measured at N=30 with bootstrap CI, H4 re-measured at
+N=30 with raw samples plus CV 4.0 percent, H1 widened to 10 runs with a
+per-run stability row, scoreboard synced to bench-m5.json to the digit,
+G fuzz (32/32) plus G soak (200k deterministic ticks) rows landed with a
+signed multi-hour deferral. Suite 406/406 green; audits
+m2 48/48, m3 52/52, m4 51/51, m5 96/96 ALL PASS; repro.sh green. Ready
+for re-review.
 
 ## Next steps
 

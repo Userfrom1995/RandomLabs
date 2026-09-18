@@ -27,8 +27,12 @@ for (const f of [
   'tools/cdp-m5.mjs',
   'tools/capture-m5.mjs',
   'tools/bench-m5.mjs',
+  'tools/remeasure-m5.mjs',
+  'tools/fuzz-m5.mjs',
   'tests/test-m5-integration.mjs',
   'docs/bench-m5.json',
+  'docs/fuzz-m5.json',
+  'docs/soak-m5.json',
   'docs/render-m5.md',
   'docs/shell-m5-1280.png',
   'docs/shell-m5-390.png',
@@ -43,7 +47,7 @@ check('four cell states', gates.includes("'MEASURED',") && gates.includes("'SATU
   && gates.includes("'UNSUPPORTED_BY_DESIGN',") && gates.includes("'INVALID_SPECIFICATION'"));
 check('four TTFF bands', gates.includes('broadband:') && gates.includes('solid4g:')
   && gates.includes('weak4g:') && gates.includes('warm:'));
-for (const fn of ['classifyTTFF', 'summarizeTTFF', 'evaluateFrameTrace', 'compareRenderPaths',
+for (const fn of ['classifyTTFF', 'summarizeTTFF', 'summarizeLatency', 'evaluateFrameTrace', 'compareRenderPaths',
   'ingestVerdict', 'corruptVerdict', 'onboardingVerdict', 'audioUnlockVerdict', 'savePersistVerdict']) {
   check(`gate export present: ${fn}`, gates.includes(`export function ${fn}`));
 }
@@ -64,12 +68,31 @@ for (const k of ['H1', 'H2browser', 'H3', 'H4', 'H5', 'ecosystem']) {
 }
 check('no pending rows in bench json', !JSON.stringify(bench).includes('pending'));
 check('H1 zero dropped vsyncs', cells.H1 && cells.H1.pooled && cells.H1.pooled.droppedVsyncs === 0);
+check('H1 per-run stability row', cells.H1 && cells.H1.runToRun
+  && cells.H1.runToRun.runs >= 10
+  && Array.isArray(cells.H1.runToRun.droppedEveryRun)
+  && cells.H1.runToRun.droppedEveryRun.every((d) => d === 0));
 check('H4 cold within broadband', cells.H4 && cells.H4.cold && cells.H4.cold.within === true);
 check('H4 warm within warm band', cells.H4 && cells.H4.warm && cells.H4.warm.within === true);
+check('H4 cold CV under 5 percent', cells.H4 && cells.H4.cold && cells.H4.cold.cv < 0.05);
+check('H4 per-run samples pinned', cells.H4 && cells.H4.cold
+  && Array.isArray(cells.H4.cold.samplesMs) && cells.H4.cold.samplesMs.length >= 30
+  && Array.isArray(cells.H4.warm.samplesMs) && cells.H4.warm.samplesMs.length >= 30);
+check('H5 N>=30 with bootstrap CI', cells.H5 && cells.H5.n >= 30
+  && cells.H5.latencySummary && cells.H5.latencySummary.meanCI95
+  && Number.isFinite(cells.H5.latencySummary.meanCI95.lo)
+  && Number.isFinite(cells.H5.latencySummary.meanCI95.hi));
 const eco = cells.ecosystem || {};
 for (const k of ['ingest', 'corrupt', 'onboarding', 'save']) {
   check(`ecosystem passes: ${k}`, !!eco[k] && !!eco[k].verdict && eco[k].verdict.pass === true);
 }
+check('corpus fuzz 32/32 MEASURED', cells.Gfuzz && cells.Gfuzz.state === 'MEASURED'
+  && cells.Gfuzz.n >= 30 && cells.Gfuzz.failed === 0 && cells.Gfuzz.e1m1SurvivedEveryDrop === true);
+check('bounded soak deterministic', cells.Gsoak && cells.Gsoak.state === 'MEASURED'
+  && cells.Gsoak.deterministic === true && cells.Gsoak.tickCountExact === true);
+check('multi-hour soak deferred with proof', cells.Gsoak && cells.Gsoak.multiHourWallClock
+  && cells.Gsoak.multiHourWallClock.state === 'UNSUPPORTED_BY_DESIGN'
+  && (cells.Gsoak.multiHourWallClock.machineProof || '').length > 0);
 
 // M5 shell fixes pinned in source.
 const app = read('app.js');
@@ -88,10 +111,25 @@ check('old M3 scope text still gone', !html.includes('WAD ecosystem polish (M4) 
 const score = read('docs/scoreboard.md');
 check('scoreboard has M5 ledger', score.includes('M5 ledger') && score.includes('bench-m5.json'));
 check('scoreboard resolves H1-H5', score.includes('H1 ') && score.includes('H5 '));
+check('scoreboard carries fuzz plus soak rows', score.includes('G fuzz') && score.includes('G soak'));
+check('scoreboard carries hardware-runner owner note', score.includes('hardware/GPU runner'));
+// Binding ledger must match the machine artifact to the digit: the rounded
+// 1-decimal CI bounds plus p95s from bench-m5.json appear verbatim.
+{
+  const r1 = (x) => (Math.round(x * 10) / 10).toFixed(1);
+  const nums = [
+    r1(cells.H4.cold.meanCI95.lo), r1(cells.H4.cold.meanCI95.hi), r1(cells.H4.cold.p95Ms),
+    r1(cells.H4.warm.meanCI95.lo), r1(cells.H4.warm.meanCI95.hi), r1(cells.H4.warm.p95Ms),
+    r1(cells.H5.latencySummary.meanCI95.lo), r1(cells.H5.latencySummary.meanCI95.hi),
+    String(cells.H1.pooled.n),
+  ];
+  for (const n of nums) check(`scoreboard matches bench number ${n}`, score.includes(n));
+}
 
 // No em dashes anywhere in the M5 surface.
 for (const f of ['src/perf/m5gates.js', 'tools/cdp-m5.mjs', 'tools/capture-m5.mjs',
-  'tools/bench-m5.mjs', 'tests/test-m5-integration.mjs', 'tools/audit-m5.mjs',
+  'tools/bench-m5.mjs', 'tools/remeasure-m5.mjs', 'tools/fuzz-m5.mjs',
+  'tests/test-m5-integration.mjs', 'tests/test-m5-fixer-qc.mjs', 'tools/audit-m5.mjs',
   'docs/render-m5.md', 'docs/scoreboard.md', 'app.js', 'index.html']) {
   check(`no em dashes in ${f}`, !read(f).includes(EMDASH));
 }

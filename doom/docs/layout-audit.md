@@ -1,6 +1,6 @@
 # Doom M1 layout audit (static, no browser in runner)
 
-- **Generated:** 2026-09-18T01:01:07.087Z
+- **Generated:** 2026-09-18T01:07:05.704Z
 - **Sources:** doom/index.html, doom/theme.css
 - **Result:** ALL PASS (15 checks)
 
