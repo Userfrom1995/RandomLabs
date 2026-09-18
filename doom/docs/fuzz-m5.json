@@ -1,0 +1,466 @@
+{
+  "date": "2026-09-18",
+  "suite": "m5-corpus-fuzz",
+  "n": 32,
+  "passed": 32,
+  "failed": 0,
+  "e1m1SurvivedEveryDrop": true,
+  "survivorCount": 32,
+  "verdict": "MEASURED",
+  "rows": [
+    {
+      "file": "valid-copy.wad",
+      "expect": "accept",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "valid-copy2.wad",
+      "expect": "accept",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "empty-0.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "one-byte.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-4.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-10.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-11.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-12.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-100.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-1000.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-half.wad",
+      "expect": "reject-or-drop",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-half-plus1.wad",
+      "expect": "reject-or-drop",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "bad-magic.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "garbage-ff.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "garbage-text.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "hostile-e1m2-a.wad",
+      "expect": "drop-map",
+      "containerRejected": false,
+      "viable": [
+        "E1M1"
+      ],
+      "droppedCodes": [
+        "E1M2:E_MAP"
+      ],
+      "taxonomy": "E_MAP",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "hostile-e1m2-b.wad",
+      "expect": "drop-map",
+      "containerRejected": false,
+      "viable": [
+        "E1M1"
+      ],
+      "droppedCodes": [
+        "E1M2:E_MAP"
+      ],
+      "taxonomy": "E_MAP",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "referror-e1m2.wad",
+      "expect": "drop-map",
+      "containerRejected": false,
+      "viable": [
+        "E1M1"
+      ],
+      "droppedCodes": [
+        "E1M2:E_MAP"
+      ],
+      "taxonomy": "E_MAP",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "dehacked-note.wad",
+      "expect": "accept-tolerant",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "dehackedSurfaced": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "zeroed-dir.wad",
+      "expect": "accept-tolerant",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trailing-junk.wad",
+      "expect": "accept-or-drop",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-13.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-16.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "trunc-32.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "bitflip-head.wad",
+      "expect": "reject-or-drop",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "bitflip-mid.wad",
+      "expect": "accept-tolerant",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "empty-lumpname.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "iwad-magic-junk.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "pwad-magic-junk.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "single-ff-256.wad",
+      "expect": "reject",
+      "containerRejected": true,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "E_CONTAINER",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "hostile-e1m2-c.wad",
+      "expect": "drop-map",
+      "containerRejected": false,
+      "viable": [
+        "E1M1"
+      ],
+      "droppedCodes": [
+        "E1M2:E_MAP"
+      ],
+      "taxonomy": "E_MAP",
+      "e1m1Alive": true,
+      "pass": true,
+      "reasons": []
+    },
+    {
+      "file": "dehacked-b.wad",
+      "expect": "accept-tolerant",
+      "containerRejected": false,
+      "viable": [
+        "E1M1",
+        "E1M2"
+      ],
+      "droppedCodes": [],
+      "taxonomy": "accepted",
+      "e1m1Alive": true,
+      "dehackedSurfaced": true,
+      "pass": true,
+      "reasons": []
+    }
+  ]
+}

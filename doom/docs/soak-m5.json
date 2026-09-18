@@ -1,0 +1,32 @@
+{
+  "date": "2026-09-18",
+  "suite": "m5-bounded-soak",
+  "state": "MEASURED",
+  "ticks": 200000,
+  "tickCountExact": true,
+  "framebufferHash": "00e98c85",
+  "referenceHash": "00e98c85",
+  "deterministic": true,
+  "tickMs": 1072,
+  "ticksPerSecond": 186567,
+  "verdictLoopMs": 1,
+  "heapUsedBefore": 4939520,
+  "heapUsedAfter": 5100768,
+  "heapDeltaBytes": 161248,
+  "heapDeltaPerTickBytes": 0.80624,
+  "rssBefore": 64589824,
+  "rssAfter": 84029440,
+  "gcExposed": true,
+  "gcNote": "forced GC before both heap samples (run with --expose-gc)",
+  "leakVerdict": "no per-tick leak (under 16 bytes/tick)",
+  "node": "v22.23.2",
+  "platform": "linux",
+  "multiHourWallClock": {
+    "state": "UNSUPPORTED_BY_DESIGN",
+    "claim": "multi-hour tab soak with live rAF plus audio plus storage",
+    "reason": "shared CI container: SwiftShader software GL, no GPU, capped job budget; unattended multi-hour wall-clock soak cannot be machine-checked here",
+    "machineProof": "MemTotal:       16373452 kB\nMemFree:        11478648 kB\nMemAvailable:   14699092 kB\n4\n               total        used        free      shared  buff/cache   available\nMem:           15989        1635       11209          48        3535       14354",
+    "owner": "hardware/GPU runner with an N-hour soak budget; bounded deterministic soak above is the headless-measurable half",
+    "date": "2026-09-18"
+  }
+}
