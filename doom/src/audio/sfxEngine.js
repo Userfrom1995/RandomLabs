@@ -87,9 +87,14 @@ export function createSfxEngine({ seed = 1234 } = {}) {
         dropped.count++;
         return -1;
       }
-      const volume = Math.max(0, Math.min(127, Number(p.volume ?? 127)));
+      const rawVolume = Number(p.volume ?? 127);
+      if (Number.isNaN(rawVolume)) {
+        dropped.count++;
+        return -1;
+      }
+      const volume = Math.max(0, Math.min(127, rawVolume));
       const gain = (volume / 127) * distanceGain(p.distance ?? 0, { map08: !!p.map08 });
-      if (gain <= 0) {
+      if (!(gain > 0) || !Number.isFinite(gain)) {
         dropped.count++;
         return -1;
       }
