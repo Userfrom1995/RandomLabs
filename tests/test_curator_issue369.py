@@ -57,7 +57,10 @@ class TestCuratorIssue369(unittest.TestCase):
 
     def test_doom_tag_shipped(self):
         html = read("index.html")
-        doom_idx = html.index("Doom")
+        # Scope to the card heading: the synced meta description now
+        # (correctly, per issue #371) mentions Doom earlier in the file,
+        # so a bare index("Doom") lands in <head>, not on the card.
+        doom_idx = html.index("<h4>Doom</h4>")
         window = html[max(0, doom_idx - 500):doom_idx]
         self.assertIn("Shipped", window, "Doom card missing Shipped tag")
         self.assertNotIn("In progress", window, "stale Doom tag still present")
