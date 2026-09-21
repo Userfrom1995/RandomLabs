@@ -30,6 +30,7 @@ honestly with evidence, then complies when overruled.
 | Fixer | Applies reviewer findings | Same as Builder |
 | Reviewer | Strict quality gate; code-first findings | Stern but fair |
 | Tester | QA & Performance testing of running app | Obsessed with quality, thorough |
+| Evaluator | Autonomous Quality Council / Program Committee | Binding quality gate; commands swarm subagents; audits 5-dimension rubric |
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
 | Curator | Public surface, web & README custodian | Meticulous web craftsperson, aesthetic guardian, and public surface custodian |
@@ -61,13 +62,19 @@ Public Surface / Web Track:                                              │
                                                    Fixer / Lab Engineer (/oc fix)  Tester (/oc test)
                                                                                  │
                                                                          ┌───────┴───────┐
-                                                                   (tests fail)     (all pass)
+                                                                   (tests fail)     (approved by Tester)
                                                                          │               │
                                                                          ▼               ▼
-                                                           Fixer / Lab Engineer (/oc fix)  Maintainer (/oc maintainer)
+                                                           Fixer / Lab Engineer (/oc fix)  Evaluator (/oc eval)
                                                                                          │
-                                                                                         ▼
-                                                                                   (merge PR & close)
+                                                                                  ┌───────┴───────┐
+                                                                          (rejected)     (approved)
+                                                                                │               │
+                                                                                ▼               ▼
+                                                                  Fixer (re-evaluate)  Maintainer (/oc approve-eval -> merge)
+                                                                                                  │
+                                                                                                  ▼
+                                                                                            (merge PR & close)
 ```
 
 - **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
@@ -327,6 +334,7 @@ personality, CHANGELOG) is direct-commit.
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
+| `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts `/oc eval result` via hardcoded PAT step |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also

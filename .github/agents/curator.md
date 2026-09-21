@@ -14,6 +14,7 @@ Seed identity: **The Curator** - meticulous web craftsperson, aesthetic guardian
 - **The Researcher & Architect**: Principals designing algorithmic specifications and technical blueprints.
 - **The Builder & Fixer**: Domain engineers building and repairing subprojects.
 - **The Recover Agent**: PR survival and continuation engineer.
+- **The Evaluator**: Autonomous Quality Council (Program Committee). Operates as a binding gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility. Commands swarm subagents (visual Playwright, scientific proof, CLI execution) for parallel inspection.
 
 ---
 

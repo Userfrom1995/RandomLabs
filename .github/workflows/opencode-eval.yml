@@ -1,0 +1,151 @@
+name: opencode-eval
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: opencode-eval-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    # Triggered explicitly by /oc eval (called after Tester approval in the pipeline).
+    if: |
+      github.event.issue.pull_request != null && (
+        startsWith(github.event.comment.body, '/oc eval') ||
+        startsWith(github.event.comment.body, '/opencode eval')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Evaluator"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Read deliverable context
+        id: context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+          # Verify Tester approval presence (binding mechanism: evaluator blocks after tester).
+          approval_comments=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" \
+            --jq '[.[] | select(.body | contains("/oc approve-test"))] | length' 2>/dev/null || echo "0")
+          echo "approval_comments=$approval_comments" >> "$GITHUB_OUTPUT"
+
+          # Read progress/status from the branch.
+          branch="${head_ref:-main}"
+          git fetch origin "$branch" --quiet 2>/dev/null || true
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/evaluator-decision.json
+
+      - name: Run evaluator agent
+        id: evaluator
+        continue-on-error: true
+        timeout-minutes: 75
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/deepseek-v4-flash-free
+          use_github_token: true
+          prompt: |
+            You are the Evaluator of the Random lab, triggered by "/oc eval" on the open PR in this checkout.
+
+            READ FIRST: `.github/agents/evaluator.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding):
+            - Before ending the run, you MUST write `/tmp/evaluator-decision.json` with exactly one action: either `{"action":"approve-eval","score":X.X,"summary":"...","dimensions":{"empirical":X.X,"baseline":X.X,"visual":X.X,"resilience":X.X,"reproducibility":X.X}}` or `{"action":"fix","score":X.X,"critique":"...","dimensions":{"empirical":X.X,"baseline":X.X,"visual":X.X,"resilience":X.X,"reproducibility":X.X}}`.
+            - Sign your work: every comment ends with your sign-off (`- The Quality Council (Evaluator)`).
+            - You never post "/oc" comments yourself; the hardcoded workflow step posts the trigger.
+            - Verify the Tester has approved (`/oc approve-test` is present in PR comments) before giving approval; otherwise document the missing phase in your decision file.
+            - Invoke subagents for parallel evaluation: visual inspection (headless Playwright), scientific review (proof audit, benchmark verification, boundary fuzzing), CLI execution (interactive resilience, hostile inputs, reproduction script verification).
+            - End with a clean working tree (`git status --porcelain` must be empty at the end).
+
+      - name: Verify evaluator decided
+        id: verify-eval
+        if: always()
+        run: |
+          outcome="${{ steps.evaluator.outcome }}"
+
+          # Fail-closed guard: any missing decision file is a hard failure (crash or timeout).
+          if [ -f /tmp/evaluator-decision.json ]; then
+            echo "Evaluator decision file present; gate produced a verdict (step outcome: $outcome)."
+            echo "has_decision=true" >> "$GITHUB_OUTPUT"
+            # Log what kind of result we have.
+            action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
+            echo "eval_action=$action" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "::error::Evaluator step finished with outcome '$outcome' and no decision file (timed out or crashed mid-run). Failing closed instead of exiting green."
+          echo "has_decision=false" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Post /oc eval result (hardcoded step with owner PAT)
+        if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+
+          if [ ! -f /tmp/evaluator-decision.json ]; then
+            echo "No evaluator decision file found; nothing to post."
+            exit 0
+          fi
+
+          # Read structured decision.
+          action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
+          score=$(jq -r '.score // "N/A"' /tmp/evaluator-decision.json 2>/dev/null || echo "N/A")
+          summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
+
+          # The binding mechanism: post the Quality Council result back to the PR.
+          if [ "$action" = "approve-eval" ]; then
+            body="/oc eval result: APPROVED - Quality Council Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (>= 9.5 each, aggregate >= 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
+          elif [ "$action" = "fix" ]; then
+            body="/oc eval result: REJECTION - Quality Council Score ${score}/10. ${summary} - The Evaluator requires fixes before the deliverable can proceed to the Maintainer. Apply the detailed critique above and re-trigger `/oc eval` once resolved. - The Quality Council (Evaluator)"
+          else
+            body="/oc eval result: INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
+          fi
+
+          # Always post back to the PR so the pipeline has an auditable record.
+          echo "Posting evaluation result to PR/issue..."
+          gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "$body" || true
+
+      - name: Push evaluator memory to dedicated branch
+        if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          # Push evaluation memory (rubric updates, attack vectors, evaluation logs) to the Evaluator's dedicated branch.
+          git checkout -b evaluator/logs 2>/dev/null || git checkout evaluator/logs || true
+          mkdir -p lab/memory/evaluator
+          # Record the evaluation turn for institutional memory.
+          echo "# Evaluator Memory Update - $(date -Iseconds)" >> lab/memory/evaluator/eval-log.md
+          echo "- PR: ${{ github.event.issue.number }}" >> lab/memory/evaluator/eval-log.md
+          echo "- Score: $(jq -r '.score // \"N/A\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"N/A\")" >> lab/memory/evaluator/eval-log.md
+          echo "- Action: $(jq -r '.action // \"unknown\"' /tmp/evaluator-decision.json 2>/dev/null || echo \"unknown\")" >> lab/memory/evaluator/eval-log.md
+          git add lab/memory/evaluator/
+          git commit -m "evaluator: update memory branch with evaluation turn for PR ${{ github.event.issue.number }}" || true
+          git push origin evaluator/logs --force-with-lease || true

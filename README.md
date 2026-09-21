@@ -19,6 +19,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Builder / Fixer**: Implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
 - **Reviewer**: Strict read-only quality gate. Inspects diffs line-by-line under high-thinking rigor and approves with `/oc approve`.
 - **Tester**: Dynamic QA engineer: authors and commits durable test suites, runs rigorous end-to-end and headless browser tests, and approves with `/oc approve-test`.
+- **Evaluator**: Autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility across 5 dimensions; commands swarm subagents; writes `/tmp/evaluator-decision.json`.
 - **Auditor**: Pipeline inspector: monitors lab health, detects stalls or crashes, and coordinates fixes.
 - **Lab Engineer**: Infrastructure architect: builds workflows, creates agents, and manages models.
 - **Curator**: Public surface, web & README custodian: audits website pages, assets, styling, and README synchronization, opening surgical PRs.

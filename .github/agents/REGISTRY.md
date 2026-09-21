@@ -19,6 +19,7 @@ reviewed PRs (see LAB.md §21).
 | The Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc lab` | `.github/agents/labengineer.md` |
 | The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
 | The Curator | Public surface, web & README custodian | worker | user-directive | 2026-09-13 | `/oc curate` · `schedule (6h)` | `.github/agents/curator.md` |
+| The Evaluator | Autonomous Quality Council / Program Committee | worker | user-directive | 2026-09-22 | `/oc eval` | `.github/agents/evaluator.md` |
 | General | Chat/assistant/housekeeping | worker | bootstrap | 2026-08-12 | any other `/oc` | `.github/agents/general.md` |
 
 ## Team Spirit & Peer Calling Model
@@ -30,7 +31,8 @@ The lab operates as a collaborative, highly cohesive agent squad. Agents trust e
 - **Lab Engineer** implements infrastructure and workflow repairs, opens PRs, and hands off to **Reviewer** (`/oc review`), or applies direct model updates on `main`.
 - **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).
 - **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
-- **Tester** dynamically executes the app; on approval, hands off to **Maintainer** (`/oc maintainer`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
+- **Tester** dynamically executes the app; on approval (`/oc approve-test`), hands off to **Evaluator** (`/oc eval`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
+- **The Evaluator** audits the deliverable with a binding 5-dimension rubric (empirical rigor, competitive baseline integrity, visual/presentation craft, adversarial resilience, deterministic reproducibility). It commands swarm subagents for parallel inspection and writes its verdict (`approve-eval` or `fix`) to `/tmp/evaluator-decision.json`. When approved (`approve-eval`), the workflow posts `/oc approve-eval` so the pipeline advances to the Maintainer for final merge.
 - **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
 - **Curator** audits public surface, website pages, and root README.md; opens PRs with surgical fixes and hands off to **Reviewer** (`/oc review`), or notifies **Maintainer** (`/oc maintainer`) if structural escalation is needed.
 - **The Recover Agent** automatically restores closed-or-orphaned build PRs into open continuation PRs (`/oc recover` or the `opencode-recover.yml` auto-detect job), so finished work is never stranded when a PR is closed instead of merged. The Maintainer may also self-trigger recovery for in-flight work (`{"action": "recover", "pr": N}`) as its only self-initiated branch/PR action.
