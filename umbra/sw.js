@@ -7,6 +7,8 @@ const SHELL = [
   './theme.css',
   './app.js',
   './manifest.webmanifest',
+  './assets/icon-192.png',
+  './assets/icon-512.png',
   './src/rng.js',
   './src/poses.js',
   './src/arenas.js',
