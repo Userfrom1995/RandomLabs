@@ -37,7 +37,7 @@
 
 ## Current step
 
-M1 build complete (Builder run 1): app shell, all tiers, 36/36 node:test,
+M1 build complete (Builder run 1 + Fixer eval-hardening): app shell, all tiers, 63/63 node:test,
 headless-Chromium screenshots verified. Ready for review.
 
 ## Next steps
@@ -49,6 +49,11 @@ headless-Chromium screenshots verified. Ready for review.
   "Live Projects" section is shipped-on-main only)
 
 ## Agent log
+
+- 2026-09-22 (Fixer eval-hardening): NaN/Infinity tick clamp + clamped arena
+  stored in SceneDesc (scene.js), G1 rejects negative p95 (gates.js),
+  Canvas2D thin-edge rim + moon-halo/mote parity with GPU tiers (painter.js),
+  390px pill/HUD/topbar hardening (theme.css), suite count refreshed to 63/63.
 
 - 2026-09-22 (Architect run 1): wrote the binding blueprint to
   `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (summary, deliverables, why, how it works
