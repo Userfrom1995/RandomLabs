@@ -16,11 +16,14 @@ concurrency:
 jobs:
   eval:
     # Triggered explicitly by /oc eval (called after Tester approval in the pipeline).
+    # Result comments never retrigger: they post as github-actions[bot] WITHOUT a
+    # leading /oc prefix, and this guard excludes any legacy "/oc eval result" body
+    # so a rejection can never self-dispatch an infinite eval loop.
     if: |
       github.event.issue.pull_request != null && (
         startsWith(github.event.comment.body, '/oc eval') ||
         startsWith(github.event.comment.body, '/opencode eval')
-      )
+      ) && !startsWith(github.event.comment.body, '/oc eval result') && !startsWith(github.event.comment.body, '/opencode eval result')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -112,10 +115,10 @@ jobs:
           echo "has_decision=false" >> "$GITHUB_OUTPUT"
           exit 1
 
-      - name: Post /oc eval result (hardcoded step with owner PAT)
+      - name: Post Quality Council result as bot (never as owner, never with /oc prefix)
         if: always() && steps.verify-eval.outputs.has_decision == 'true'
         env:
-          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
 
@@ -130,12 +133,16 @@ jobs:
           summary=$(jq -r '.summary // .critique // "Evaluation complete. See `.github/agents/evaluator.md` for rubric details."' /tmp/evaluator-decision.json 2>/dev/null || echo "Evaluation complete.")
 
           # The binding mechanism: post the Quality Council result back to the PR.
+          # Bot identity (GITHUB_TOKEN, github-actions[bot]) plus no leading /oc
+          # prefix: result comments must neither impersonate the owner nor match
+          # any workflow trigger (eval guard above, general exclusion, maintainer
+          # bot-ignore). The Maintainer surveys comments fresh; it needs no /oc.
           if [ "$action" = "approve-eval" ]; then
-            body="/oc eval result: APPROVED - Quality Council Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (>= 9.5 each, aggregate >= 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
+            body="Quality Council APPROVED - Score ${score}/10. ${summary} - The Evaluator confirms the deliverable passes all 5 dimensions (aggregate at least 9.8). Passing to Hephaestus (Maintainer) for final merge. - The Quality Council (Evaluator)"
           elif [ "$action" = "fix" ]; then
-            body="/oc eval result: REJECTION - Quality Council Score ${score}/10. ${summary} - The Evaluator requires fixes before the deliverable can proceed to the Maintainer. Apply the detailed critique above and re-trigger `/oc eval` once resolved. - The Quality Council (Evaluator)"
+            body="Quality Council REJECTION - Score ${score}/10. ${summary} - The Evaluator requires fixes before the deliverable can proceed to the Maintainer. Hephaestus will route the next step once the findings are applied. - The Quality Council (Evaluator)"
           else
-            body="/oc eval result: INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
+            body="Quality Council INCOMPLETE - Action: ${action}. Score: ${score}. ${summary} - The Quality Council (Evaluator)"
           fi
 
           # Always post back to the PR so the pipeline has an auditable record.
