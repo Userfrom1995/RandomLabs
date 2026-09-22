@@ -59,7 +59,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(UMBRA_CACHE).then((cache) => cache.put(request, copy));
         }
         return res;
-      });
+      }).catch(() => caches.match('./index.html'));
     }),
   );
 });
