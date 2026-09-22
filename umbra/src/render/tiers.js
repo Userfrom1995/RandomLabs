@@ -12,10 +12,11 @@ export const TIER_NAMES = ['WebGPU', 'WebGL2', 'Canvas2D'];
  * @returns {0|1|2}
  */
 export function resolveTier(s) {
+  const q = s ?? {};
   const valid = (v) => v === 0 || v === 1 || v === 2 || v === '0' || v === '1' || v === '2';
-  if (valid(s.override) && String(s.override) !== 'auto') return Number(s.override);
-  if (valid(s.cached)) return Number(s.cached);
-  if (valid(s.probed)) return Number(s.probed);
+  if (valid(q.override) && String(q.override) !== 'auto') return Number(q.override);
+  if (valid(q.cached)) return Number(q.cached);
+  if (valid(q.probed)) return Number(q.probed);
   return 2;
 }
 
