@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Umbra: a shadow-fight silhouette combat game for the browser. M1 ambient render preview.">
+<meta name="theme-color" content="#0b0e14">
+<link rel="icon" href="data:,">
+<link rel="manifest" href="./manifest.webmanifest">
+<title>Umbra: shadow combat (M1 preview)</title>
+<link rel="stylesheet" href="./theme.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>UMBRA</h1>
+  <span class="sub">shadow combat at /umbra/ - M1 ambient render preview</span>
+  <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
+</header>
+<main>
+  <div id="stage">
+    <canvas id="umbra-canvas" data-testid="canvas" width="960" height="540"
+      aria-label="Umbra arena viewport showing two silhouette fighters in idle stance."></canvas>
+    <div id="hud" data-testid="hud" aria-live="polite">
+      <span id="hud-scene">Moonlit Temple</span>
+      <span id="hud-tier" data-testid="hud-tier">tier: probing…</span>
+      <span id="hud-fps" data-testid="hud-fps">-- fps</span>
+    </div>
+  </div>
+  <p id="status-line" data-testid="status-line" role="status">Loading…</p>
+
+  <section id="screen-title" class="panel" data-testid="screen-title" aria-label="Title screen">
+    <h2>Umbra</h2>
+    <p class="flavor">Two shadows breathe in the moonlit temple. Combat arrives in M2;
+      this milestone is the render shell: tier probe, resolution ladder, offline pass.</p>
+    <div class="row">
+      <button id="btn-versus-demo" data-testid="btn-versus-demo" type="button">Versus demo</button>
+      <button id="btn-settings" data-testid="btn-settings" type="button">Settings</button>
+    </div>
+    <p class="hint">Desktop: Enter starts the demo, S opens settings, Esc goes back.</p>
+  </section>
+
+  <section id="screen-demo" class="panel" data-testid="screen-demo" aria-label="Versus demo" hidden>
+    <h2>Versus demo <span class="pill">ambient preview</span></h2>
+    <p class="flavor">Wanderer vs Echo, idle guard. Playable combat, input, and KO flow ship in M2.</p>
+    <div class="row">
+      <button id="btn-demo-back" type="button">Back to title</button>
+      <button id="btn-demo-settings" type="button">Settings</button>
+    </div>
+  </section>
+
+  <section id="screen-settings" class="panel" data-testid="screen-settings" aria-label="Settings" hidden>
+    <h2>Settings</h2>
+    <form id="settings-form">
+      <div class="row">
+        <label>Renderer
+          <select id="set-tier" data-testid="set-tier" aria-label="Renderer tier">
+            <option value="auto">Auto (probe)</option>
+            <option value="0">Tier 0: WebGPU</option>
+            <option value="1">Tier 1: WebGL2</option>
+            <option value="2">Tier 2: Canvas2D</option>
+          </select>
+        </label>
+        <label>Resolution
+          <select id="set-ladder" data-testid="set-ladder" aria-label="Resolution">
+            <option value="auto">Auto (ladder)</option>
+            <option value="0">1280x720</option>
+            <option value="1">960x540</option>
+            <option value="2">640x360</option>
+            <option value="3">426x240</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="check"><input id="set-battery" type="checkbox"> Battery saver (lock 640x360, no particles)</label>
+        <label class="check"><input id="set-motion" type="checkbox"> Reduced motion (freeze drift, dim rim)</label>
+      </div>
+      <div class="row">
+        <button type="submit">Save</button>
+        <button id="btn-settings-back" type="button">Back</button>
+      </div>
+    </form>
+    <p class="hint">Saved to local profile (config-only until persistence v1 in M4).</p>
+  </section>
+</main>
+<footer>
+  <p>Umbra M1: scaffold + render tiers + offline shell. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
+</footer>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

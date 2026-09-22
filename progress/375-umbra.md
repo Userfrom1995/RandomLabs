@@ -3,8 +3,8 @@
 - **Issue:** #375
 - **Branch:** opencode/issue375-20260922160615 (M1 active)
 - **Status:** in-progress
-- **Updated:** 2026-09-22T16:10:00Z
-- **Active Milestone:** M1 scaffold + render tiers + offline shell (PR 1 target, Refs #375)
+- **Updated:** 2026-09-22T16:30:00Z
+- **Active Milestone:** M1 scaffold + render tiers + offline shell (Complete, ready for review; Refs #375)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -13,11 +13,11 @@
 ## Milestone roadmap
 
 - Milestone 1 (M1) scaffold + render tiers + offline shell (PR 1 target, Refs #375):
-  - [ ] `umbra/index.html` boot + tier probe (WebGPU/WebGL2/Canvas2D) with cached choice + override
-  - [ ] Four-pass WGSL set (background, silhouette, rim-light, particles) + GLSL ports + Canvas2D painter over one shared `SceneDesc`
-  - [ ] Two idle fighters posing in arena 1 (moonlit temple) via data-driven pose solver
-  - [ ] Resolution ladder + battery saver + `sw.js` offline pass
-  - [ ] `umbra/docs/scoreboard.md` skeleton (G1-G7) + desktop + mobile Playwright screenshots
+  - [x] `umbra/index.html` boot + tier probe (WebGPU/WebGL2/Canvas2D) with cached choice + override (+ `?tier=`/`?screen=` hooks)
+  - [x] Four-pass WGSL set (background, silhouette, rim-light, particles) + GLSL ports + Canvas2D painter over one shared `SceneDesc`
+  - [x] Two idle fighters posing in arena 1 (moonlit temple) via data-driven pose solver
+  - [x] Resolution ladder + battery saver + `sw.js` offline pass
+  - [x] `umbra/docs/scoreboard.md` skeleton (G1-G7) + desktop + mobile screenshots (headless Chromium evidence in `umbra/docs/shot-*`)
 - Milestone 2 (M2) deterministic combat engine + universal input (PR 2 target, Refs #375):
   - [ ] Headless `combat/` core (state machine, fists frame data, hitboxes, block/parry/dodge, hit-stop, combos + scaling, seeded AI tier 1)
   - [ ] Keyboard + gamepad + touch overlay with responsive contract + remapping UI + persisted bindings
@@ -37,12 +37,16 @@
 
 ## Current step
 
-M1 build in progress (Builder run 1): pure modules + all three render tiers done, app shell next.
+M1 build complete (Builder run 1): app shell, all tiers, 36/36 node:test,
+headless-Chromium screenshots verified. Ready for review.
 
 ## Next steps
 
-- Builder to finish app shell (index.html, theme.css, app.js, manifest, sw.js, docs, README), node:test suite, smoke test
-- Then review -> test -> eval per milestone; intermediates use `Refs #375`, only the final verified M5 uses `Closes #375`
+- Reviewer `/oc review` -> Tester `/oc test` -> Evaluator per milestone;
+  intermediates use `Refs #375`, only the final verified M5 uses `Closes #375`
+- M2 (next): deterministic combat engine + universal input on a new milestone branch
+- Landing card + root README sync deferred to M5 per blueprint (README
+  "Live Projects" section is shipped-on-main only)
 
 ## Agent log
 
@@ -56,8 +60,15 @@ M1 build in progress (Builder run 1): pure modules + all three render tiers done
 - 2026-09-22 (Builder run 1a): pure modules (`src/rng.js`, `src/poses.js`,
   `src/arenas.js`, `src/render/scene.js`, `src/render/resolution.js`,
   `src/render/tiers.js`, `src/render/caps.js`, `src/storage/`, `src/perf/`)
-  plus Tier 0 WebGPU (4 WGSL passes + pipeline), Tier 1 WebGL2 (GLSL ports +
-  renderer), Tier 2 Canvas2D painter. All over one shared SceneDesc.
+- 2026-09-22 (Builder run 1b): app shell (`index.html`, `theme.css`,
+  `app.js` with probe/cache/override + fixed-step loop + ladder + settings,
+  `sw.js`, manifest, procedural icons, docs, README), `?tier=`/`?screen=`
+  force hooks, 6 test files (36/36 green incl. golden hashes
+  `5046b8f7`/`4cdd52dc`), headless-Chromium shots (WebGL2 desktop,
+  Canvas2D desktop after rim-crescent + mote fixes, mobile portrait),
+  `ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md` writeup. M1
+  checklist complete; landing + root README deferred to M5 per blueprint.
+  Decision action: review.
 
 ## Decision
 
