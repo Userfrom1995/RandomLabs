@@ -146,6 +146,8 @@ describe('red-team: scene/pose determinism under hostile clocks', () => {
       assert.doesNotThrow(() => buildSceneDesc({ tick: t, arena: 0 }));
       assert.doesNotThrow(() => solveRig(idleAngles(t, 0), { x: 0, groundY: 0.14, facing: 1 }));
     }
+    assert.equal(buildSceneDesc({ tick: NaN, arena: 0 }).tick, 0);
+    assert.equal(buildSceneDesc({ tick: Infinity, arena: 0 }).tick, 0);
     assert.ok(Number.isFinite(buildSceneDesc({ tick: 1e15, arena: 0 }).time) === false ||
       Number.isFinite(buildSceneDesc({ tick: 1e15, arena: 0 }).time) === true);
   });
@@ -155,6 +157,7 @@ describe('red-team: scene/pose determinism under hostile clocks', () => {
       assert.ok(def && ARENAS.includes(def), `arenaAt(${String(a)}) must return a known def`);
     }
     const s = buildSceneDesc({ tick: 7, arena: 99 });
+    assert.equal(s.arena, 0);
     assert.equal(arenaAt(s.arena).id, 'moonlit-temple');
   });
   it('long-horizon determinism: same tick, 1000 ticks apart in call order', () => {
@@ -192,7 +195,7 @@ describe('red-team: stats and gates never false-green', () => {
     assert.equal(checkGate('G1', { p95Ms: 'fast' }).pass, null);
     assert.equal(checkGate('G1', { p95Ms: Infinity }).pass, null);
     assert.equal(checkGate('G1', { p95Ms: NaN }).pass, null);
-    assert.equal(checkGate('G1', { p95Ms: -3 }).pass, true); // impossible input, but under budget
+    assert.equal(checkGate('G1', { p95Ms: -3 }).pass, null); // impossible input must never green
     assert.equal(checkGate('G4', { hashA: 42, hashB: 42 }).pass, null);
     assert.equal(checkGate('G5', { roundTrip: 'yes' }).pass, null);
     assert.equal(checkGate('G9', {}).pass, null);
