@@ -6,9 +6,8 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
   issues: write
-  actions: read
 
 concurrency:
   group: opencode-eval-${{ github.event.issue.number }}
@@ -25,11 +24,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - name: Checkout repository
+      - name: Get PR info
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName')
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository (PR head)
         uses: actions/checkout@v6
         with:
           persist-credentials: true
           token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
       - name: Configure git identity
@@ -40,7 +49,7 @@ jobs:
       - name: Read deliverable context
         id: context
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.issue.number }}"
           head_ref=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "")
