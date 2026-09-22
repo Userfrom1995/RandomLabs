@@ -4,7 +4,7 @@
  */
 
 import { idleAngles, solveRig } from '../poses.js';
-import { arenaAt } from '../arenas.js';
+import { arenaAt, ARENAS } from '../arenas.js';
 import { frac, hash01 } from '../rng.js';
 
 export const PARTICLE_COUNT = 48;
@@ -37,9 +37,9 @@ export const GROUND_Y = 0.14;
  * @returns {SceneDesc}
  */
 export function buildSceneDesc(opts = {}) {
-  const tick = Math.max(0, Math.floor(opts.tick ?? 0));
-  const arena = opts.arena ?? 0;
-  arenaAt(arena);
+  const rawTick = Number(opts.tick ?? 0);
+  const tick = Number.isFinite(rawTick) ? Math.max(0, Math.floor(rawTick)) : 0;
+  const arena = ARENAS.indexOf(arenaAt(opts.arena ?? 0));
   const time = tick / 60;
   const fighters = [0, 1].map((side) => {
     const facing = side === 0 ? 1 : -1;
