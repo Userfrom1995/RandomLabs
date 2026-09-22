@@ -37,11 +37,11 @@
 
 ## Current step
 
-Ready for initial build (Milestone 1)
+M1 build in progress (Builder run 1): pure modules + all three render tiers done, app shell next.
 
 ## Next steps
 
-- Builder to implement Milestone 1 with real code and zero stubs (menu shows only title + versus-demo + settings; later-milestone features omitted from UI entirely)
+- Builder to finish app shell (index.html, theme.css, app.js, manifest, sw.js, docs, README), node:test suite, smoke test
 - Then review -> test -> eval per milestone; intermediates use `Refs #375`, only the final verified M5 uses `Closes #375`
 
 ## Agent log
@@ -53,7 +53,11 @@ Ready for initial build (Milestone 1)
   Key resolutions: plain ES-module JS with JSDoc types (zero-build Pages reliability, honoring the
   TypeScript-typed contract without a build step); one shared SceneDesc feeding all three render
   tiers; mulberry32 as the sim's only RNG; roster/weapons frozen at 3/5/6 for this epic.
-  Decision action: build.
+- 2026-09-22 (Builder run 1a): pure modules (`src/rng.js`, `src/poses.js`,
+  `src/arenas.js`, `src/render/scene.js`, `src/render/resolution.js`,
+  `src/render/tiers.js`, `src/render/caps.js`, `src/storage/`, `src/perf/`)
+  plus Tier 0 WebGPU (4 WGSL passes + pipeline), Tier 1 WebGL2 (GLSL ports +
+  renderer), Tier 2 Canvas2D painter. All over one shared SceneDesc.
 
 ## Decision
 
