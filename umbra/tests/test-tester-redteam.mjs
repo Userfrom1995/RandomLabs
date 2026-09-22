@@ -30,6 +30,9 @@ describe('red-team: resolveTier fuzz never throws, always 0|1|2', () => {
     assert.equal(resolveTier({ override: '0', cached: 2, probed: 2 }), 0);
     assert.equal(resolveTier({ override: '1', cached: 2, probed: 2 }), 1);
     assert.equal(resolveTier({ override: '2', cached: 0, probed: 0 }), 2);
+    // Null/undefined whole-arg must fall through to Canvas2D, never throw.
+    assert.equal(resolveTier(null), 2);
+    assert.equal(resolveTier(undefined), 2);
   });
   it('tierForFailure never throws on hostile input', () => {
     for (const v of [99, -1, '0', null, undefined, NaN, {}, []]) {
