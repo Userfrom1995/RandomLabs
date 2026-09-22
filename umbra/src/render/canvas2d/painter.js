@@ -94,29 +94,19 @@ export function createCanvas2DRenderer(canvas) {
     const segs = flattenSegments(scene);
     ctx.lineCap = 'round';
 
-    // Silhouette bodies.
-    for (const s of segs) {
-      const p = toPx(s, w, h);
-      ctx.strokeStyle = '#05060a';
-      ctx.lineWidth = p.w;
-      ctx.beginPath();
-      ctx.moveTo(p.ax, p.ay);
-      ctx.lineTo(p.bx, p.by);
-      ctx.stroke();
-    }
-
-    // Rim light: thin accent stroke offset toward the arena key light.
+    // Rim light first: full-width accent strokes shifted toward the arena
+    // key light, then narrower dark bodies on top, leaving a crescent.
     const lx = arena.keyLight[0];
     const ly = -arena.keyLight[1]; // arena y-up to canvas y-down
     const mag = Math.hypot(lx, ly) || 1;
-    const ox = (lx / mag) * w * 0.004;
-    const oy = (ly / mag) * h * 0.004;
     const accent = `rgb(${arena.accent.map((c) => Math.round(c * 255)).join(',')})`;
-    ctx.strokeStyle = accent;
     ctx.globalAlpha = opts.reducedMotion ? 0.7 : 1.0;
     for (const s of segs) {
       const p = toPx(s, w, h);
-      ctx.lineWidth = Math.max(1, p.w * 0.22);
+      const ox = (lx / mag) * p.w * 0.35;
+      const oy = (ly / mag) * p.w * 0.35;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = p.w;
       ctx.beginPath();
       ctx.moveTo(p.ax + ox, p.ay + oy);
       ctx.lineTo(p.bx + ox, p.by + oy);
@@ -124,12 +114,23 @@ export function createCanvas2DRenderer(canvas) {
     }
     ctx.globalAlpha = 1.0;
 
+    // Silhouette bodies.
+    for (const s of segs) {
+      const p = toPx(s, w, h);
+      ctx.strokeStyle = '#05060a';
+      ctx.lineWidth = p.w * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(p.ax, p.ay);
+      ctx.lineTo(p.bx, p.by);
+      ctx.stroke();
+    }
+
     // Ambient motes.
     if (!opts.batterySaver) {
       ctx.fillStyle = 'rgba(180,200,255,0.5)';
       for (const m of scene.particles) {
-        const r = Math.max(0.6, m.s * w * 0.5) * (opts.reducedMotion ? 0.7 : 1);
-        ctx.globalAlpha = m.b * 0.6;
+        const r = Math.max(0.6, m.s * w * 0.18) * (opts.reducedMotion ? 0.7 : 1);
+        ctx.globalAlpha = m.b * 0.5;
         ctx.beginPath();
         ctx.arc(m.x * w, (1 - m.y) * h, r, 0, Math.PI * 2);
         ctx.fill();
