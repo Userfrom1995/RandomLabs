@@ -97,9 +97,13 @@ export function createCanvas2DRenderer(canvas) {
     ctx.lineCap = 'round';
 
     // Rim light: dark bodies first at full width, then a thin accent edge
-    // offset toward the arena key light. This mirrors the GPU SDF rim
-    // (UMBRA_RIM_FS / rimlight.wgsl): a narrow lit edge whose intensity
-    // falls off away from the light, not a full-width offset double-image.
+    // offset toward the arena key light. This approximates the GPU SDF rim
+    // (UMBRA_RIM_FS / rimlight.wgsl): the GPU draws a narrow lit edge whose
+    // intensity falls off with edge distance and facing (pow(dot(n,l)*0.5+0.5,2)).
+    // Canvas2D cannot do per-pixel SDF, so this tier draws a uniform thin
+    // crescent (~0.2x width, alpha ~0.9) with a per-segment facing factor
+    // computed from the segment normal vs the key light. Same placement,
+    // narrower geometry than the old 0.35x full-alpha double-image.
     const lx = arena.keyLight[0];
     const ly = -arena.keyLight[1]; // arena y-up to canvas y-down
     const mag = Math.hypot(lx, ly) || 1;
@@ -113,13 +117,24 @@ export function createCanvas2DRenderer(canvas) {
       ctx.lineTo(p.bx, p.by);
       ctx.stroke();
     }
-    ctx.globalAlpha = opts.reducedMotion ? 0.7 : 1.0;
+    const baseAlpha = opts.reducedMotion ? 0.65 : 0.9;
+    const ll = Math.hypot(arena.keyLight[0], arena.keyLight[1]) || 1;
     for (const s of segs) {
       const p = toPx(s, w, h);
       const ox = (lx / mag) * p.w * 0.35;
       const oy = (ly / mag) * p.w * 0.35;
+      // Per-segment facing falloff (GPU pow(dot(n,l)*0.5+0.5,2) analogue):
+      // segment normal in arena y-up space dotted with the key light.
+      const dx = s.bx - s.ax;
+      const dy = s.by - s.ay;
+      const dl = Math.hypot(dx, dy) || 1;
+      const nx = -dy / dl;
+      const ny = dx / dl;
+      const dot = (nx * arena.keyLight[0] + ny * arena.keyLight[1]) / ll;
+      const facing = Math.pow(Math.min(1, Math.max(0, dot * 0.5 + 0.5)), 2);
+      ctx.globalAlpha = baseAlpha * (0.25 + 0.75 * facing);
       ctx.strokeStyle = accent;
-      ctx.lineWidth = Math.max(1, p.w * 0.35);
+      ctx.lineWidth = Math.max(1, p.w * 0.2);
       ctx.beginPath();
       ctx.moveTo(p.ax + ox, p.ay + oy);
       ctx.lineTo(p.bx + ox, p.by + oy);
