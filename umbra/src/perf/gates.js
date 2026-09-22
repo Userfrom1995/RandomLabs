@@ -24,7 +24,7 @@ export function checkGate(id, m = {}) {
   switch (id) {
     case 'G1': {
       const p95 = m.p95Ms;
-      if (!Number.isFinite(p95)) return { id, name, pass: null, detail: 'unmeasured' };
+      if (!Number.isFinite(p95) || p95 < 0) return { id, name, pass: null, detail: 'unmeasured' };
       return {
         id,
         name,
