@@ -233,6 +233,7 @@ function showBanner(text, ticksVisible) {
   el.textContent = text;
   el.hidden = false;
   boot.bannerUntil = boot.fight ? boot.fight.tick + ticksVisible : ticksVisible;
+  announce(text);
 }
 
 function hideBanner() {
@@ -868,7 +869,8 @@ function frame(nowMs) {
   // Fixed-step clock: 60 Hz, max 3 ticks per frame. Fight sim ticks here;
   // edges are consumed once per tick so input latency stays <= 2 ticks.
   // M5 KO slow-mo: the clock drains at quarter speed for 45 ticks after a KO.
-  const slow = boot.screen === 'fight' && boot.fight && !boot.paused ? slowMoFor(boot.fight.events, boot.fight.tick) : 1;
+  const reducedMo = boot.profile && boot.profile.config && boot.profile.config.reducedMotion;
+  const slow = reducedMo || boot.screen !== 'fight' || !boot.fight || boot.paused ? 1 : slowMoFor(boot.fight.events, boot.fight.tick);
   boot.acc += dt * slow;
   let steps = 0;
   while (boot.acc >= 16.667 && steps < 3) {
