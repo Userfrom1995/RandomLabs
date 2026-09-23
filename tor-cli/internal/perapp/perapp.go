@@ -233,7 +233,14 @@ type RunResult struct {
 // Run executes app argv under torsocks against the given SOCKS endpoint.
 // It fails closed: missing shim, bypass-class targets, and readiness gaps
 // are errors, never silent bypasses.
+//
+// On macOS and Windows (M4) there is no LD_PRELOAD shim product path,
+// so Run delegates to the proxy-environment backend (RunProxy) with its
+// honest coverage note instead of failing closed on a missing torsocks.
 func Run(socksAddr string, argv []string, extraEnv []string, confDir string) (RunResult, error) {
+	if NeedsProxy() {
+		return RunProxy(socksAddr, argv, extraEnv)
+	}
 	if len(argv) == 0 {
 		return RunResult{}, fmt.Errorf("perapp: no application given")
 	}
