@@ -61,7 +61,7 @@ export function burstsFor(events, tick) {
     if (age < 0 || age > BURST_LIFE) continue;
     let kinds = null;
     if (e.t === 'hit' || e.t === 'parried') kinds = ['spark'];
-    else if (e.t === 'block') kinds = ['ring'];
+    else if (e.t === 'block' || e.t === 'blocked') kinds = ['ring'];
     else if (e.t === 'ko' || e.t === 'round') kinds = ['dust', 'ring'];
     else continue;
     const cx = Number.isFinite(e.x) ? clamp(e.x, X_MIN, X_MAX) : DEFAULT_X;

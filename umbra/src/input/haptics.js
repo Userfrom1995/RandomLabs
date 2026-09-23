@@ -9,6 +9,7 @@
 export const HAPTIC_PATTERNS = {
   hit: [15],
   block: [10],
+  blocked: [10],
   parried: [10, 40, 20],
   ko: [40, 60, 40],
   whiff: [0],
