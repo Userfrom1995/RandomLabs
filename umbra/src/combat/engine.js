@@ -1,12 +1,13 @@
 /**
  * Umbra M2 bout engine: pure fixed-tick fight orchestration.
  * Pure ES module: no DOM, no Math.random, no Date.now.
- * The only randomness source is the mulberry32 stream seeded per bout.
+ * The only randomness source is stateless hash01 draws seeded per bout,
+ * so replays from the same seed plus the same input log are byte-identical.
  */
 
-import { createFighter, stepFighter } from "./fighter.js";
+import { createFighter, stepFighter, STAMINA_MAX } from "./fighter.js";
 import { MOVES } from "./moves.js";
-import { mulberry32, hashStr } from "../rng.js";
+import { hashStr } from "../rng.js";
 
 /**
  * @typedef {import("./types.js").CombatInput} CombatInput
@@ -63,7 +64,95 @@ export function sanitizeInput(input) {
 }
 
 /**
- * Create a fresh bout.
+ * Deep-copy a move table and freeze it: the bout owns its table, so a
+ * caller mutating their object after createFight can never desync a replay.
+ * @param {Record<string, import("./types.js").MoveDef>} [moves]
+ * @returns {Record<string, import("./types.js").MoveDef>} owned frozen copy
+ */
+export function copyMoves(moves) {
+  const table = moves ?? MOVES;
+  const out = {};
+  for (const [key, m] of Object.entries(table)) {
+    out[key] = Object.freeze({
+      ...m,
+      cancelInto: Array.isArray(m?.cancelInto) ? [...m.cancelInto] : [],
+    });
+  }
+  return Object.freeze(out);
+}
+
+/**
+ * Canonical digest of a move table for hashState: sorted keys and fields
+ * so table identity is pinned regardless of insertion order.
+ * @param {Record<string, import("./types.js").MoveDef>} [moves]
+ * @returns {string} 8-char hex string
+ */
+export function movesDigest(moves) {
+  const table = moves ?? {};
+  const canon = Object.keys(table)
+    .sort()
+    .map((key) => {
+      const m = table[key] ?? {};
+      const fields = Object.keys(m)
+        .sort()
+        .map((fk) => `${fk}:${Array.isArray(m[fk]) ? m[fk].join("+") : String(m[fk])}`);
+      return `${key}={${fields.join(",")}}`;
+    });
+  return hashStr(canon.join("|")).toString(16).padStart(8, "0");
+}
+
+/** Input buttons treated as rising edges (levels pass through untouched). */
+const EDGE_KEYS = ["jump", "punch", "kick", "special"];
+
+/**
+ * Gate edge buttons to their rising edges against the previous simulated
+ * tick: holding punch/kick/special no longer machine-guns attacks or
+ * auto-fires cancels. Levels (move/crouch/block) pass through as-is.
+ * @param {CombatInput} cur sanitized input for this tick
+ * @param {CombatInput} prev sanitized input from the last simulated tick
+ * @returns {CombatInput} input with only rising edges set
+ */
+export function edgeGate(cur, prev) {
+  const before = prev ?? NEUTRAL;
+  const out = { ...cur };
+  for (const key of EDGE_KEYS) out[key] = !!(cur[key] && !before[key]);
+  const dashNow = Number(cur.dash) || 0;
+  const dashBefore = Number(before.dash) || 0;
+  out.dash = dashNow !== 0 && dashBefore === 0 ? Math.max(-1, Math.min(1, Math.round(dashNow))) : 0;
+  return out;
+}
+
+/**
+ * Merge defender-side mutations computed against a pre-tick snapshot back
+ * into the live fighter. hp/x/stamina deltas apply additively (the live
+ * fighter advanced its own movement/regen meanwhile); a changed state means
+ * the foe's strike interrupted this fighter, so the snapshot outcome wins.
+ * @param {import("./types.js").FighterState} live live fighter
+ * @param {import("./types.js").FighterState} copy snapshot mutated as defender
+ * @param {{hp:number, x:number, stamina:number, state:string}} pre pre-tick values
+ */
+function mergeDefender(live, copy, pre) {
+  if (copy.hp !== pre.hp) live.hp = Math.max(0, copy.hp);
+  const dx = copy.x - pre.x;
+  if (dx !== 0) live.x = Math.max(-ARENA_X, Math.min(ARENA_X, live.x + dx));
+  const ds = copy.stamina - pre.stamina;
+  if (ds !== 0) {
+    const s = (Number.isFinite(live.stamina) ? live.stamina : STAMINA_MAX) + ds;
+    live.stamina = Math.max(0, Math.min(STAMINA_MAX, s));
+  }
+  if (copy.state !== pre.state) {
+    live.state = copy.state;
+    live.stateTick = copy.stateTick;
+    live.stunTick = copy.stunTick;
+    live.moveId = copy.moveId;
+    live.moveTick = copy.moveTick;
+    live.parryWindow = copy.parryWindow;
+  }
+}
+
+/**
+ * Create a fresh bout. The bout deep-copies and freezes the move table;
+ * later caller mutations cannot desync the sim.
  * @param {{seed?:number, arena?:number, rounds?:number, roundTicks?:number, moves?:Record<string, import("./types.js").MoveDef>, hp?:number}} [opts]
  * @returns {FightState}
  */
@@ -84,7 +173,7 @@ export function createFight({
     arena: Number.isInteger(arena) && arena >= 0 ? arena : 0,
     rounds: cleanRounds,
     roundTicks: cleanTimer,
-    moves,
+    moves: copyMoves(moves),
     tick: 0,
     round: 1,
     wins: [0, 0],
@@ -100,7 +189,7 @@ export function createFight({
     phase: "intro",
     phaseTick: 0,
     frozenTicks: 0,
-    rng: mulberry32(cleanSeed),
+    prev: [{ ...NEUTRAL }, { ...NEUTRAL }],
   };
 }
 
@@ -134,14 +223,15 @@ function applyHitstop(state, fromIndex) {
 }
 
 /**
- * Reset fighters, clock, and phase for the next round.
+ * Reset fighters, clock, and phase for the next round, preserving each
+ * side's own maxHp (asymmetric-hp bouts survive across rounds).
  * @param {FightState} state
  */
 export function resetRound(state) {
-  const hp = state.fighters[0].maxHp;
+  const hp = [state.fighters[0].maxHp, state.fighters[1].maxHp];
   state.fighters = [
-    createFighter({ x: -SPAWN_X, facing: 1, hp }),
-    createFighter({ x: SPAWN_X, facing: -1, hp }),
+    createFighter({ x: -SPAWN_X, facing: 1, hp: hp[0] }),
+    createFighter({ x: SPAWN_X, facing: -1, hp: hp[1] }),
   ];
   state.timer = state.roundTicks;
   state.hitstop = 0;
@@ -230,28 +320,40 @@ export function stepFight(state, p1Input, p2Input) {
 
   if (state.phase === "over") return state;
 
-  // Live fight tick.
+  // Live fight tick. Edges gate against the last SIMULATED tick only, so
+  // inputs held or pressed through hitstop/intro buffer instead of dying.
+  // Hit tests then run double-buffered: each side steps against a pre-tick
+  // snapshot of its foe, so same-tick trades resolve for both sides instead
+  // of handing side 0 a forced win through sequential mutation.
   faceBoth(state);
   const [f0, f1] = state.fighters;
   const fromIndex = state.events.length;
-  stepFighter(f0, p1, {
-    rng: state.rng,
+  const prev = Array.isArray(state.prev) ? state.prev : [{ ...NEUTRAL }, { ...NEUTRAL }];
+  const e1 = edgeGate(p1, sanitizeInput(prev[0]));
+  const e2 = edgeGate(p2, sanitizeInput(prev[1]));
+  state.prev = [p1, p2];
+  const foeFor0 = { ...f1 };
+  const foeFor1 = { ...f0 };
+  const pre0 = { hp: f0.hp, x: f0.x, stamina: f0.stamina, state: f0.state };
+  const pre1 = { hp: f1.hp, x: f1.x, stamina: f1.stamina, state: f1.state };
+  stepFighter(f0, e1, {
     seed: state.seed,
     events: state.events,
     tick: state.tick,
-    foe: f1,
+    foe: foeFor0,
     moveTable: state.moves,
     side: 0,
   });
-  stepFighter(f1, p2, {
-    rng: state.rng,
+  stepFighter(f1, e2, {
     seed: state.seed,
     events: state.events,
     tick: state.tick,
-    foe: f0,
+    foe: foeFor1,
     moveTable: state.moves,
     side: 1,
   });
+  mergeDefender(f0, foeFor1, pre0);
+  mergeDefender(f1, foeFor0, pre1);
   clampBoth(state);
   applyHitstop(state, fromIndex);
   if (state.timer > 0) state.timer -= 1;
@@ -275,6 +377,9 @@ export function hashState(state) {
     state.wins.join(""),
     state.hitstop,
     state.phase,
+    state.phaseTick,
+    state.frozenTicks,
+    movesDigest(state.moves),
     state.over ? 1 : 0,
     state.winner == null ? "x" : String(state.winner),
     state.events.length,
@@ -293,7 +398,9 @@ export function hashState(state) {
         f.stateTick,
         f.moveId ?? "-",
         f.moveTick,
+        f.didHit ? 1 : 0,
         f.blockHeld ? 1 : 0,
+        f.wantBlock ? 1 : 0,
         f.parryWindow,
         f.stunTick,
         f.combo,

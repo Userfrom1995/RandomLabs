@@ -7,6 +7,7 @@
  */
 
 import { mulberry32, hash01 } from "../rng.js";
+import { MOVES } from "./moves.js";
 
 /**
  * @typedef {import("./types.js").CombatInput} CombatInput
@@ -130,16 +131,21 @@ export function aiInput(ai, self, foe, rng, tick) {
   const dashRoll = hash01(ai.seed, now, 37);
   const driftRoll = hash01(ai.seed, now, 41);
 
-  const kickReach = ai.archetype === "zoner" ? 0.4 : 0.36;
-  const punchReach = 0.26;
+  // Strike bands derive from the live move table (minus epsilon) so the AI
+  // never plans strikes outside real reach: jab is the punch button's move,
+  // kick/sweep share one range, uppercut is the special.
+  const punchReach = MOVES.jab.range - 0.01;
+  const kickReach = MOVES.kick.range - 0.01;
+  const sweepReach = MOVES.sweep.range - 0.01;
+  const uppercutReach = MOVES.uppercut.range - 0.01;
 
   const tryStrike = (prob) => {
     if (strikeRoll >= prob) return;
     if (dist <= punchReach) {
-      if (sweepRoll < 0.12 * aggr && dist <= 0.32) {
+      if (sweepRoll < 0.12 * aggr && dist <= sweepReach) {
         out.crouch = true;
         out.kick = true;
-      } else if (specialRoll < 0.12 * aggr && dist <= 0.28) {
+      } else if (specialRoll < 0.12 * aggr && dist <= uppercutReach) {
         out.special = true;
       } else {
         out.punch = true;

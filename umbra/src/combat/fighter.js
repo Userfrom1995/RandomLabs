@@ -1,14 +1,15 @@
 /**
  * Umbra M2 headless fighter: one-tick state machine.
  * Pure ES module: no DOM, no Math.random, no Date.now.
- * The sim's only randomness is hash01/mulberry32 from ../rng.js;
- * damage jitter is a stateless hash01(seed, tick) draw so mirrored
- * bouts stay exactly symmetric and replays are byte-identical.
+ * The sim's only randomness is hash01 from ../rng.js; damage jitter is
+ * a stateless hash01(seed, tick, sideSalt, moveSalt) draw, domain-separated
+ * per side and per move so mirrored bouts stay symmetric while same-tick
+ * trades are never lockstep-correlated. Replays are byte-identical.
  */
 
 import { attackHits } from "./hitboxes.js";
-import { comboScale, COMBO_WINDOW } from "./combos.js";
-import { hash01 } from "../rng.js";
+import { advanceCombo } from "./combos.js";
+import { hash01, hashStr } from "../rng.js";
 
 /**
  * @typedef {import("./types.js").CombatInput} CombatInput
@@ -81,6 +82,7 @@ export function createFighter({ x = 0, facing = 1, hp = 100 } = {}) {
     moveTick: 0,
     didHit: false,
     blockHeld: false,
+    wantBlock: false,
     parryWindow: 0,
     stunTick: 0,
     combo: 0,
@@ -152,16 +154,15 @@ function enterKo(f, ev, moveId) {
 }
 
 function resolveHit(att, def, mv, ctx, ev) {
-  att.didHit = true;
-  if (!Number.isFinite(att.combo)) att.combo = 0;
-  if (ctx.tick - att.comboTick > COMBO_WINDOW) att.combo = 1;
-  else att.combo += 1;
-  att.comboTick = ctx.tick;
-  const scale = comboScale(att.combo);
   const seed = Number.isFinite(ctx.seed) ? ctx.seed : 0;
-  const jitter = Math.floor(hash01(seed, ctx.tick) * 3) - 1;
+  const side = ctx.side === 1 ? 1 : 0;
+  // Domain-separated per side and per move: same-tick trades never share
+  // a jitter draw, while mirrored bouts stay symmetric.
+  const moveSalt = hashStr(typeof mv.id === "string" ? mv.id : "");
+  const jitter = Math.floor(hash01(seed, ctx.tick, side ? 0x9e37 : 0x51f7, moveSalt) * 3) - 1;
 
   // Parry: held block inside the rising-edge window, grounded.
+  // Contact (no whiff) but no combo: parries and blocks never feed combo.
   if (def.parryWindow > 0 && def.blockHeld && def.grounded) {
     def.state = "parry";
     def.stateTick = 0;
@@ -174,16 +175,18 @@ function resolveHit(att, def, mv, ctx, ev) {
     att.stunTick = 20;
     att.moveId = null;
     att.moveTick = 0;
+    att.didHit = true;
     ev({ t: "parried", move: mv.id, damage: 0 });
     return;
   }
 
-  // Block: chip damage plus stamina drain.
+  // Block: chip damage plus stamina drain. Contact but no combo.
   if (isBlocking(def)) {
     const chip = Math.max(0, Math.round(mv.chip));
     def.hp = Math.max(0, def.hp - chip);
     def.stamina = Math.max(0, def.stamina - (4 + chip * 2));
     def.x = clampX(def.x + att.facing * mv.knockback * 0.5);
+    att.didHit = true;
     ev({ t: "blocked", move: mv.id, damage: chip });
     if (def.stamina <= 0 && def.hp > 0) {
       def.state = "stun";
@@ -196,6 +199,12 @@ function resolveHit(att, def, mv, ctx, ev) {
     return;
   }
 
+  // Clean hit only: advance the combo counter and scale damage.
+  const adv = advanceCombo(att.combo, att.comboTick, ctx.tick);
+  att.combo = adv.hits;
+  att.comboTick = ctx.tick;
+  att.didHit = true;
+  const scale = adv.scale;
   // Clean hit: scaled damage, knockback, stun or launch.
   const dmg = Math.max(1, Math.round(mv.damage * scale) + jitter);
   def.hp = Math.max(0, def.hp - dmg);
@@ -249,7 +258,7 @@ function attackTick(f, inp, ctx, ev) {
     foe.state !== "ko" &&
     foe.state !== "knockdown" &&
     foe.state !== "down" &&
-    attackHits(f.x, f.facing, mv.range, foe.x)
+    attackHits(f.x, f.facing, mv.range, foe.x, foe.y, mv.id)
   ) {
     resolveHit(f, foe, mv, ctx, ev);
   }
@@ -311,9 +320,19 @@ export function stepFighter(f, input, ctx = {}) {
   if (f.parryWindow > 0) f.parryWindow -= 1;
 
   // Block hold tracks the input every tick; the rising edge opens parry.
+  // wantBlock remembers raw intent separately: at 0 stamina blockHeld drops
+  // but wantBlock stays true so the passive guard-break below can fire.
   const wasHeld = f.blockHeld;
-  f.blockHeld = inp.block && f.stamina > 0 && f.grounded;
+  f.wantBlock = inp.block && f.grounded;
+  f.blockHeld = f.wantBlock && f.stamina > 0;
   if (!wasHeld && f.blockHeld) f.parryWindow = PARRY_WINDOW;
+
+  // A fighter at 0 hp is KO even mid-air: check before the airborne
+  // early-return below, which would otherwise skip the KO fallback.
+  if (f.hp <= 0 && f.state !== "ko") {
+    enterKo(f, ev, f.moveId);
+    return f;
+  }
 
   // Airborne: integrate jump physics, ignore attacks/blocks.
   if (!f.grounded) {
@@ -336,6 +355,15 @@ export function stepFighter(f, input, ctx = {}) {
   switch (f.state) {
     case "idle":
     case "walk": {
+      // Same-tick crouch+attack starts the crouch attack directly (sweep or
+      // uppercut) instead of dropping the attack edge on the way to crouch.
+      if (inp.crouch && (inp.kick || inp.special)) {
+        const crouchId = selectMove(inp, f.state);
+        if (crouchId && step.moveTable[crouchId]) {
+          startAttack(f, crouchId);
+          break;
+        }
+      }
       if (inp.crouch) {
         f.state = "crouch";
         f.stateTick = 0;
@@ -392,11 +420,11 @@ export function stepFighter(f, input, ctx = {}) {
     }
     case "block": {
       f.vx = 0;
-      if (!f.blockHeld) {
+      if (!f.wantBlock) {
         f.state = "idle";
         f.stateTick = 0;
       } else if (f.stamina <= 0) {
-        // Guard break: block held with no stamina left.
+        // Guard break: block still held with no stamina left.
         f.state = "stun";
         f.stateTick = 0;
         f.stunTick = 30;
