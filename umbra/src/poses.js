@@ -122,6 +122,118 @@ export function solveRig(a, opts = {}) {
 }
 
 /**
+ * M2 combat pose tracks: per-state overlays on the idle guard base.
+ * All pure functions of (state, moveId, progress, timeSec, phase).
+ * progress is 0..1 through the current move or state animation.
+ */
+
+/**
+ * Strike pose for one attack move at progress p (0 windup, 0.5 contact,
+ * 1.0 recover). Returns joint-angle deltas added to the idle base.
+ * @param {string|null} moveId move id from the FISTS table (jab/cross/kick/sweep/uppercut)
+ * @param {number} p progress 0..1
+ * @returns {Record<string, number>} angle deltas in radians
+ */
+export function attackDeltas(moveId, p) {
+  const c = Math.max(0, Math.min(1, Number.isFinite(p) ? p : 0));
+  // Strike envelope: rises fast to contact, eases back to guard.
+  const strike = c < 0.45 ? c / 0.45 : 1 - (c - 0.45) / 0.55;
+  const s = Math.max(0, Math.min(1, strike));
+  switch (moveId) {
+    case 'jab':
+      return { lean: 0.16 * s, shoulderF: -0.9 * s, elbowF: 0.55 * s, sway: 0.02 * s };
+    case 'cross':
+      return { lean: 0.24 * s, sway: 0.05 * s, shoulderF: -1.0 * s, elbowF: 0.7 * s, shoulderB: -0.3 * s };
+    case 'kick':
+      return { lean: -0.1 * s, hipF: 1.15 * s, kneeF: 0.9 * s, shoulderB: 0.4 * s, sway: -0.03 * s };
+    case 'sweep':
+      return { lean: 0.1 * s, bob: -0.09 * s, hipF: 0.95 * s, kneeF: 0.5 * s, hipB: -0.2 * s };
+    case 'uppercut':
+      return { lean: -0.14 * s, shoulderF: -1.2 * s, elbowF: 0.9 * s, bob: 0.03 * s };
+    default:
+      return { lean: 0.16 * s, shoulderF: -0.9 * s, elbowF: 0.55 * s };
+  }
+}
+
+/**
+ * Guard/hit/crumple overlays (deltas on the idle base).
+ * @param {string} state fighter state
+ * @param {number} p progress 0..1 for timed states (hit recoil, knockdown fall)
+ * @returns {Record<string, number>} angle deltas in radians
+ */
+export function stateDeltas(state, p) {
+  const c = Math.max(0, Math.min(1, Number.isFinite(p) ? p : 0));
+  switch (state) {
+    case 'block':
+    case 'parry':
+      return { shoulderF: -0.35, elbowF: -0.5, shoulderB: 0.35, elbowB: -0.55, lean: 0.1, bob: -0.01 };
+    case 'crouch':
+      return { bob: -0.1, hipF: 0.5, kneeF: -0.6, hipB: -0.1, kneeB: -0.5, lean: 0.12 };
+    case 'hit':
+    case 'stun': {
+      const r = c < 0.4 ? c / 0.4 : 1 - (c - 0.4) / 0.6;
+      return { lean: -0.3 * r, headTilt: -0.25 * r, shoulderF: 0.4 * r, sway: -0.04 * r };
+    }
+    case 'knockdown':
+    case 'down': {
+      const f = Math.min(1, c * 1.4);
+      return {
+        bob: -0.2 * f, lean: -0.55 * f, headTilt: -0.4 * f,
+        hipF: 0.9 * f, kneeF: -0.9 * f, hipB: 0.7 * f, kneeB: -0.8 * f,
+        shoulderF: 0.8 * f, elbowF: -0.3 * f, shoulderB: 0.9 * f, elbowB: -0.2 * f,
+      };
+    }
+    case 'ko':
+      return {
+        bob: -0.22, lean: -0.6, headTilt: -0.45,
+        hipF: 0.95, kneeF: -0.95, hipB: 0.75, kneeB: -0.85,
+        shoulderF: 0.85, elbowF: -0.3, shoulderB: 0.95, elbowB: -0.2,
+      };
+    case 'walk': {
+      const w = Math.sin(c * Math.PI * 2);
+      return { hipF: 0.3 * w, kneeF: -0.2 * Math.max(0, w), hipB: -0.3 * w, kneeB: -0.2 * Math.max(0, -w), bob: 0.008 * Math.abs(w) };
+    }
+    case 'jump':
+      return { hipF: 0.7, kneeF: -1.0, hipB: 0.4, kneeB: -0.8, shoulderF: -0.9, shoulderB: 0.7 };
+    default:
+      return {};
+  }
+}
+
+/**
+ * Full joint angles for a sim fighter: idle base plus the state overlay.
+ * M1 callers (idleAngles + solveRig) are untouched; golden hashes hold.
+ * @param {{state?: string, moveId?: string|null, moveTick?: number, stateTick?: number}} f sim fighter (or minimal {state})
+ * @param {number} timeSec presentation clock in seconds
+ * @param {number} phase per-fighter phase offset in radians
+ * @param {(id: string|null) => number} [moveLen] total ticks of a move (defaults to 14)
+ * @returns {Record<string, number>} joint angles in radians
+ */
+export function combatAngles(f, timeSec, phase, moveLen) {
+  const base = idleAngles(timeSec, phase);
+  const out = { ...base };
+  const state = (f && f.state) || 'idle';
+  const lenOf = typeof moveLen === 'function' ? moveLen : () => 14;
+  let delta = {};
+  if (state === 'attack') {
+    const total = Math.max(1, lenOf(f.moveId) || 14);
+    delta = attackDeltas(f.moveId, (f.moveTick || 0) / total);
+  } else if (state === 'walk') {
+    delta = stateDeltas('walk', ((f.stateTick || 0) % 24) / 24);
+  } else if (state === 'hit' || state === 'stun') {
+    delta = stateDeltas(state, Math.min(1, (f.stateTick || 0) / 18));
+  } else if (state === 'knockdown' || state === 'down') {
+    delta = stateDeltas(state, Math.min(1, (f.stateTick || 0) / 20));
+  } else {
+    delta = stateDeltas(state, 0);
+  }
+  for (const [k, v] of Object.entries(delta)) {
+    out[k] = (out[k] || 0) + v;
+  }
+  return out;
+}
+
+/**
  * Deterministic FNV-1a hash of a solved rig (quantized to 1e-4).
  * Used for golden pose tests.
  * @param {Array<{ax:number, ay:number, bx:number, by:number, w:number}>} segs
