@@ -92,7 +92,7 @@ func usage() {
 
 Usage:
   torshim run [--tor BIN] [--timeout D] [--reuse] -- <app> [args...]
-  torshim <app> [args...]          same as run (Linux: torsocks shim)
+  torshim <app> [args...]          same as run (shim on Linux, proxy env elsewhere)
   torshim shell                    child shell routed through Tor
   sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
   torshim disconnect               restore pre-connect networking (needs sudo)
@@ -100,11 +100,13 @@ Usage:
   torshim status [--json]          never claims protected when not
   torshim version                  wrapper + tor + backend versions
 
-Per-app on Linux uses torsocks (fail-closed). Static binaries, setuid
-tools, and non-ELF executables are refused: they would silently bypass
-the shim. System-wide connect/disconnect is Linux-only (M3); macOS and
-Windows ports land in M4. While connected, TCP goes through Tor, DNS
-resolves through Tor, non-DNS UDP/ICMP is blocked, and IPv6 is blocked.
+Per-app routing uses torsocks on Linux (fail-closed shim) and proxy
+environment (socks5h, DNS exit-side when the app honors it) on macOS
+and Windows - only apps honoring proxy env are covered there.
+System-wide connect/disconnect is Linux-only (iptables/nft); macOS and
+Windows system-wide needs a tun2socks path (M5) and refuses honestly.
+While connected, TCP goes through Tor, DNS resolves through Tor,
+non-DNS UDP/ICMP is blocked, and IPv6 is blocked.
 
 %s
 `, trademarkNote, "See tor-cli/README.md for details.")
@@ -218,6 +220,16 @@ func cmdRun(args []string) int {
 		return exitNotReady
 	}
 	defer cleanup()
+	if perapp.NeedsProxy() {
+		// macOS/Windows (M4): proxy-environment backend, no torsocks
+		// conf dir needed. Run prints the honest coverage note.
+		res, err := perapp.Run(socks, rest, nil, "")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+			return exitError
+		}
+		return res.ExitCode
+	}
 	confDir, err := os.MkdirTemp("", "torshim-conf-*")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: mkdtemp: %v\n", err)
@@ -249,6 +261,16 @@ func cmdShell(args []string) int {
 	}
 	defer cleanup()
 	cfg := shell.Config{SocksAddr: socks}
+	if perapp.NeedsProxy() {
+		// macOS/Windows (M4): proxy env only, no DYLD/LSP shim.
+		// Spawn prints the coverage banner; nothing to probe.
+		code, err := shell.Spawn(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+			return exitError
+		}
+		return code
+	}
 	if lib, lerr := perapp.FindLib(); lerr == nil {
 		confDir, merr := os.MkdirTemp("", "torshim-shell-*")
 		if merr != nil {
@@ -331,6 +353,9 @@ func cmdVersion(args []string) int {
 	}
 	info := version.Collect(*torBin)
 	fmt.Printf("torshim %s\n", info.Wrapper)
+	fmt.Printf("platform: %s\n", info.Platform)
+	fmt.Printf("per-app: %s\n", info.PerApp)
+	fmt.Printf("system-wide: %s\n", info.Syswide)
 	fmt.Printf("tor: %s\n", info.Tor)
 	fmt.Printf("torsocks: %s\n", info.Torsocks)
 	fmt.Println(trademarkNote)
@@ -359,7 +384,7 @@ func parseSyswide(fs *flag.FlagSet, args []string) (syswideFlags, error) {
 }
 
 func syswideUnsupported(cmd string) int {
-	fmt.Fprintf(os.Stderr, "torshim: system-wide %q is Linux-only in M3 (macOS/Windows ports land in M4).\n", cmd)
+	fmt.Fprintf(os.Stderr, "torshim: system-wide %q needs a tun2socks path on %s (M5): Linux uses iptables/nft transparent proxy; macOS needs utun+tun2socks+pf and Windows needs wintun+tun2socks+WFP. Per-app and shell modes work on this OS today; see tor-cli/docs/limitations.md.\n", cmd, runtime.GOOS)
 	return exitFutureMile
 }
 
