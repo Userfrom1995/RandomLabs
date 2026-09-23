@@ -1,4 +1,4 @@
-.TH TORSHIM 1 "September 2026" "torshim 0.3.0-m4" "User Commands"
+.TH TORSHIM 1 "September 2026" "torshim 0.4.0" "User Commands"
 .SH NAME
 torshim \- lightweight launcher for the Tor network (unofficial)
 .SH SYNOPSIS
@@ -104,13 +104,17 @@ usage error.
 tor not ready (fail-closed).
 .TP
 .B 4
-feature lands in a later milestone (e.g. system-wide on macOS/Windows).
+feature not available on this platform (system-wide routing on
+macOS/Windows: no tun2socks backend shipped; per-app and shell work).
 .SH LIMITATIONS
 Linux per-app needs the torsocks package. macOS per-app uses proxy
 env (no DYLD shim: SIP would strip it silently). Windows per-app uses
-proxy env. System-wide connect is Linux-only; macOS needs a
-utun+tun2socks+pf path and Windows a wintun+tun2socks+WFP path (M5).
+proxy env. System-wide connect is Linux-only; macOS would need a
+utun+tun2socks+pf path and Windows a wintun+tun2socks+WFP path (not
+implemented; the commands refuse honestly with exit 4).
 While connected, non-DNS UDP, ICMP, and IPv6 are blocked by design.
+Concurrent connect/disconnect/repair runs serialize on a session lock;
+a stale lock from a crashed run is reaped, a live one fails closed.
 See tor-cli/docs/limitations.md.
 .SH SEE ALSO
 .BR tor (1),

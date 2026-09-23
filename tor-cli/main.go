@@ -28,7 +28,7 @@ import (
 )
 
 // Exit codes: 0 ok, 1 runtime/app failure, 2 usage, 3 tor not ready
-// (fail-closed), 4 feature lands in a later milestone.
+// (fail-closed), 4 feature unavailable on this platform.
 const (
 	exitOK         = 0
 	exitError      = 1
@@ -104,7 +104,7 @@ Per-app routing uses torsocks on Linux (fail-closed shim) and proxy
 environment (socks5h, DNS exit-side when the app honors it) on macOS
 and Windows - only apps honoring proxy env are covered there.
 System-wide connect/disconnect is Linux-only (iptables/nft); macOS and
-Windows system-wide needs a tun2socks path (M5) and refuses honestly.
+Windows system-wide needs a tun2socks backend (not shipped) and refuses honestly.
 While connected, TCP goes through Tor, DNS resolves through Tor,
 non-DNS UDP/ICMP is blocked, and IPv6 is blocked.
 
@@ -384,7 +384,7 @@ func parseSyswide(fs *flag.FlagSet, args []string) (syswideFlags, error) {
 }
 
 func syswideUnsupported(cmd string) int {
-	fmt.Fprintf(os.Stderr, "torshim: system-wide %q needs a tun2socks path on %s (M5): Linux uses iptables/nft transparent proxy; macOS needs utun+tun2socks+pf and Windows needs wintun+tun2socks+WFP. Per-app and shell modes work on this OS today; see tor-cli/docs/limitations.md.\n", cmd, runtime.GOOS)
+	fmt.Fprintf(os.Stderr, "torshim: system-wide %q is Linux-only (no tun2socks backend shipped for %s: macOS would need utun+tun2socks+pf, Windows wintun+tun2socks+WFP). Per-app and shell modes work on this OS today; see tor-cli/docs/limitations.md.\n", cmd, runtime.GOOS)
 	return exitFutureMile
 }
 

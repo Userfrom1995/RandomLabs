@@ -1,7 +1,42 @@
-# torshim threat model (M4)
+# torshim threat model (M5 final)
 
 Unofficial frontend. Not sponsored by The Tor Project. `Tor` is a
 registered mark of The Tor Project.
+
+## M5 delta: concurrency, config injection, parser robustness
+
+- Concurrent mutating operations (two `connect`, `connect` vs
+  `disconnect`, `repair` mid-session) used to race on the state dir:
+  both could snapshot, both launch tor, both write `active.json`,
+  orphaning a tor next to a half-applied firewall. M5 serializes all
+  three entry points on a `session.lock` lockfile (pid + timestamp +
+  random token). A live holder fails the contender closed with the
+  holder pid named; a dead/ancient/corrupt lock is reaped. `Release`
+  only deletes a lock holding our own token, so a holder that
+  outlives its staleness window can never delete its successor's
+  lock. Pinned by `internal/syswide/lock_test.go` (contention,
+  stale-pid, ancient, corrupt, foreign-release, goroutine handoff)
+  plus entry-point tests (`edge_test.go`: failed contenders leave
+  session and holder lock untouched, locks never leak on success or
+  rollback).
+- torrc passthrough (`ExtraTorrc`, the bridge/pluggable-transport
+  path) was appended verbatim: a line like `SocksPort 0.0.0.0:9050`
+  or `Include /evil.conf` would add an unsupervised listener or pull
+  in arbitrary config outside wrapper supervision. M5 rejects every
+  line whose keyword is torshim-managed (listeners, `WriteToFile`
+  pointers, identity, daemon behavior, `Include`) in
+  `ValidateExtraTorrc`, fails `Launch` closed before creating
+  anything, and additionally filters at render time (defense in
+  depth). Bridge lines keep working. Pinned by
+  `TestValidateExtraTorrcRejectsManagedKeys`,
+  `TestGenerateTorrcDropsManagedKeys`, and
+  `TestLaunchRejectsManagedExtraBeforeSpawn`.
+- The control-protocol parsers ingest bytes from a (possibly foreign
+  or malicious) control endpoint. M5 pins them hostile-first:
+  `fuzz_test.go` asserts no-panic, determinism, never-Ready-straight-
+  from-the-parser, plus a 250k+ exec bounded fuzz run per target in
+  CI. A parser that cannot be driven to a false `Ready()` cannot be
+  driven to a false "protected".
 
 ## M4 delta: proxy-env per-app on macOS/Windows
 

@@ -1,6 +1,16 @@
-# torshim per-OS limitations (M4)
+# torshim per-OS limitations (M5 final)
 
 Unofficial frontend. Not sponsored by The Tor Project.
+
+M5 hardening (this milestone): concurrent connect/disconnect/repair
+runs serialize on a session lock (`session.lock` in the state dir; a
+stale lock from a crashed run is reaped, a live holder fails closed
+with the holder pid named); torrc passthrough lines that would
+override a torshim-managed key (listeners, identity, daemon behavior,
+`Include`) are rejected up front and fail `Launch` closed; the
+control-protocol parsers are fuzzed (`internal/control/fuzz_test.go`)
+and the syswide edge cases (corrupt/stale state, lock contention) are
+pinned by `internal/syswide/edge_test.go`.
 
 ## Linux (M3 fully implemented)
 
@@ -50,7 +60,10 @@ Unofficial frontend. Not sponsored by The Tor Project.
 - `connect` / `disconnect` / `repair` exit 4 with an honest pointer:
   system-wide needs a utun + tun2socks path plus per-service DNS
   overrides (fragile `pf route-to` fallback documented in research).
-  Tracked for M5.
+  Not implemented in 0.4.0: tun2socks was deferred as out of scope
+  for a lightweight wrapper (new binary dependency, kernel extension
+  surface, per-OS packet plumbing). Per-app + shell are the macOS
+  story.
 
 ## Windows (M4: per-app + shell work via proxy env)
 
@@ -60,14 +73,22 @@ Unofficial frontend. Not sponsored by The Tor Project.
 - `connect` / `disconnect` / `repair` exit 4 with an honest pointer:
   system-wide needs a wintun + tun2socks path or an existing WFP
   driver; `netsh advfirewall` cannot redirect, only allow/block.
-  Tracked for M5.
+  Not implemented in 0.4.0 (same deferral rationale as macOS above).
+  Per-app + shell are the Windows story.
 
 ## Reproducibility
 
 - `go build ./...` (stdlib only, `CGO_ENABLED=0` for the static
   binary), `go test ./...`, `go vet ./...`, plus
   `GOOS=darwin go build ./...` and `GOOS=windows go build ./...`.
+  `make cross` compiles all five release targets.
 - The syswide suite (`internal/syswide`) is hermetic: a fake Runner
   emulates iptables/nft statefully and a local UDP server stands in
-  for the Tor DNSPort. Live firewall/tor coverage needs root + tor and
-  runs in M5 CI with timeouts and documented skips.
+  for the Tor DNSPort. No CI job mutates a real firewall, by design.
+- Tri-OS CI lives in `.github/workflows/tor-cli.yml` (matrix +
+  cross + bounded fuzz + best-effort live-tor with timeouts and
+  documented skips). Builder pushes cannot carry workflow files (App
+  token lacks the `workflows` scope), so the identical content is
+  staged at `tor-cli/ci/tor-cli.yml` for the Lab Engineer to install
+  via `/oc lab`. See `docs/reproducibility.md` for the full matrix:
+  what CI proves, what stays hermetic, and the manual root checklist.
