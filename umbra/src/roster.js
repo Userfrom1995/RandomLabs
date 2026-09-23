@@ -181,7 +181,7 @@ export function validateRoster(playables = PLAYABLES, enemies = ENEMIES) {
   if (!Array.isArray(playables) || playables.length === 0) problems.push('playables must be a non-empty array');
   if (!Array.isArray(enemies) || enemies.length === 0) problems.push('enemies must be a non-empty array');
   const seen = new Set();
-  for (const [group, list] of [['playable', playables || []], ['enemy', enemies || []]]) {
+  for (const [group, list] of [['playable', Array.isArray(playables) ? playables : []], ['enemy', Array.isArray(enemies) ? enemies : []]]) {
     for (const f of list) {
       const tag = `${group}:${(f && f.id) || '?'}`;
       if (!f || typeof f !== 'object') {
