@@ -237,3 +237,21 @@ func TestStatusErrorSurface(t *testing.T) {
 		}
 	}
 }
+
+func TestGetOneCircuitStatusBlock(t *testing.T) {
+	// Regression: the fake server answers GETINFO circuit-status with a
+	// real "250+circuit-status=" data block. GetOne must surface the BUILT
+	// dump (the WaitReady fallback depends on it), not an empty string
+	// from a leaked "+" header pseudo-line.
+	c := dial(t, &fakeServer{})
+	dump, err := c.GetOne("circuit-status")
+	if err != nil {
+		t.Fatalf("GetOne circuit-status: %v", err)
+	}
+	if !strings.Contains(dump, "BUILT") {
+		t.Fatalf("expected BUILT in circuit-status dump, got %q", dump)
+	}
+	if !HasBuiltCircuit(dump) {
+		t.Fatalf("HasBuiltCircuit missed the dump: %q", dump)
+	}
+}
