@@ -148,10 +148,113 @@ footer {
 }
 footer a { color: var(--accent); }
 
+/* M2 fight HUD: health/stamina bars, timer, round pips, combo. */
+#hud { align-items: stretch; }
+.fighter-bar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.fighter-bar.right { align-items: flex-end; }
+.fname { font-size: 0.75rem; letter-spacing: 0.2em; color: var(--muted); }
+.hp-track, .st-track {
+  width: 100%; max-width: 340px; height: 12px; border-radius: 6px;
+  background: #232b3d; border: 1px solid var(--border); overflow: hidden;
+}
+.fighter-bar.right .hp-fill { float: right; }
+.hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #e5484d, #ffb224); transition: width 120ms linear; }
+.st-track { height: 6px; }
+.st-fill { height: 100%; width: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 120ms linear; }
+.mid-bar { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 64px; }
+#hud-timer { font-size: 1.4rem; font-weight: 700; color: var(--text); }
+#hud-combo { font-size: 0.8rem; color: var(--focus); min-height: 1.2em; }
+.pips { color: var(--focus); letter-spacing: 0.2em; font-size: 0.85rem; }
+
+#hud-meta {
+  display: flex; gap: 12px; padding: 6px 12px;
+  font-size: 0.8rem; color: var(--muted);
+  background: rgba(5, 6, 10, 0.72);
+  border-top: 1px solid var(--border);
+}
+
+/* Center announcements: ROUND / K.O. / draw. */
+#banner {
+  position: absolute; inset: 34% 0 auto 0; text-align: center;
+  font-size: clamp(1.6rem, 6vw, 3rem); font-weight: 800; letter-spacing: 0.18em;
+  color: var(--text); text-shadow: 0 0 24px var(--accent-2), 0 2px 6px #000;
+  pointer-events: none;
+}
+
+/* Pause + result overlays. */
+#pause-overlay, #result-overlay {
+  position: absolute; inset: 0; display: flex;
+  align-items: center; justify-content: center;
+  background: rgba(5, 6, 10, 0.66);
+}
+#pause-overlay[hidden], #result-overlay[hidden], #touch-ui[hidden], #banner[hidden] { display: none; }
+.overlay-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px 32px; text-align: center;
+}
+.overlay-card h2 { margin: 0 0 8px; letter-spacing: 0.2em; }
+
+/* M2 touch dock: joystick left, strike cluster right, in-flow BELOW the
+   canvas so controls never cover the fighter plane (E2E contract). */
+#touch-ui {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  gap: 12px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(5, 6, 10, 0.9);
+  border-top: 1px solid var(--border);
+}
+#joystick {
+  pointer-events: auto; width: 128px; height: 128px; border-radius: 50%;
+  border: 2px solid var(--border); background: rgba(20, 24, 34, 0.55);
+  position: relative; touch-action: none;
+}
+#joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 56px; height: 56px;
+  margin: -28px 0 0 -28px; border-radius: 50%;
+  background: rgba(115, 199, 255, 0.35); border: 2px solid var(--accent);
+}
+#touch-buttons {
+  pointer-events: auto; display: grid;
+  grid-template-columns: repeat(3, 60px); gap: 8px;
+}
+#touch-buttons button {
+  width: 60px; height: 60px; min-height: 60px; padding: 0; border-radius: 50%;
+  font-size: 0.8rem; font-weight: 700; touch-action: none; user-select: none;
+  -webkit-user-select: none; background: rgba(26, 32, 48, 0.72);
+}
+#touch-buttons button:active { border-color: var(--focus); background: rgba(115, 199, 255, 0.35); }
+
+/* Remap list in settings. */
+.remap { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.remap li {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel-2);
+}
+.remap button { min-height: 44px; font-family: monospace; }
+
 @media (max-width: 640px) {
   .topbar { flex-wrap: wrap; }
   .topbar h1 { letter-spacing: 0.2em; }
   .topbar nav { margin-left: 0; }
   .pill { font-size: 0.65rem; }
   #hud { font-size: 0.75rem; }
+  .fname { display: none; }
+  #hud-timer { font-size: 1.1rem; }
+  /* Portrait bottom-dock: controls sit below the fighter plane, never over center. */
+  #touch-buttons { grid-template-columns: repeat(3, 56px); }
+  #touch-buttons button { width: 56px; height: 56px; min-height: 56px; }
+  #joystick { width: 112px; height: 112px; }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Landscape: compact dock hugging the bottom edge. */
+  #touch-ui { padding-top: 6px; padding-bottom: 6px; }
+  #joystick { width: 96px; height: 96px; }
+  #touch-buttons { grid-template-columns: repeat(5, 52px); }
+  #touch-buttons button { width: 52px; height: 52px; min-height: 52px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-fill, .st-fill { transition: none; }
+  #banner { text-shadow: 0 2px 6px #000; }
 }

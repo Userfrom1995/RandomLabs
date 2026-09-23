@@ -1,8 +1,8 @@
 /**
- * Umbra app.js: boot, tier probe, screen state machine, fixed-step ambient
- * loop, resolution ladder, settings persistence. M1 shows title +
- * versus-demo (ambient) + settings only; later-milestone screens do not
- * exist in the UI until their milestone.
+ * Umbra app.js: boot, tier probe, screen state machine, fixed-step fight
+ * loop, resolution ladder, settings + bindings persistence, touch overlay,
+ * gamepad polling, HUD, pause/result flow. M2 adds the playable versus
+ * bout (player vs seeded AI, best of 3) on top of the M1 render shell.
  */
 
 import { buildSceneDesc } from './src/render/scene.js';
@@ -13,8 +13,22 @@ import { LADDER, ladderSize, nextLadderIndex, updateEwma } from './src/render/re
 import { createLocalProvider } from './src/storage/provider.js';
 import { loadProfile, saveProfile } from './src/storage/profile.js';
 import { summarize } from './src/perf/stats.js';
+import { createFight, stepFight } from './src/combat/engine.js';
+import { createAI, aiInput } from './src/combat/ai.js';
+import {
+  defaultBindings,
+  loadBindings,
+  serializeBindings,
+  rebind,
+  describeBindings,
+} from './src/input/bindings.js';
+import { createKeyboard } from './src/input/keyboard.js';
+import { pollGamepad } from './src/input/gamepad.js';
+import { createTouchState, shouldVibrate } from './src/input/touch.js';
+import { mergeInputs } from './src/input/combine.js';
 
 const $ = (id) => document.getElementById(id);
+const BINDINGS_PATH = 'bindings.json';
 
 const boot = {
   renderer: null,
@@ -32,17 +46,192 @@ const boot = {
   returnTo: 'title',
   profile: null,
   provider: null,
+  // M2 fight state.
+  fight: null,
+  ai: null,
+  paused: false,
+  keyboard: null,
+  touch: null,
+  bindings: null,
+  lastVibrateMs: null,
+  seenEvents: 0,
+  bannerUntil: 0,
+  remapCapture: null,
+  prevPadPause: false,
+  joyJumpFired: false,
 };
 
 function announce(msg) {
   $('status-line').textContent = msg;
 }
 
+function isTouchDevice() {
+  try {
+    if (new URLSearchParams(window.location.search).get('touch') === '1') return true;
+  } catch {
+    // URL parsing is best-effort; fall through to device detection.
+  }
+  if (typeof window === 'undefined') return false;
+  if ('ontouchstart' in window) return true;
+  if (typeof window.matchMedia === 'function') {
+    try {
+      return window.matchMedia('(pointer: coarse)').matches;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 function showScreen(name) {
   boot.screen = name;
-  for (const s of ['title', 'demo', 'settings']) {
+  for (const s of ['title', 'fight', 'settings']) {
     $(`screen-${s}`).hidden = s !== name;
   }
+  const inFight = name === 'fight';
+  $('touch-ui').hidden = !(inFight && isTouchDevice());
+  if (!inFight) {
+    boot.fight = null;
+    boot.paused = false;
+    $('pause-overlay').hidden = true;
+    $('result-overlay').hidden = true;
+    hideBanner();
+  }
+}
+
+function showBanner(text, ticksVisible) {
+  const el = $('banner');
+  el.textContent = text;
+  el.hidden = false;
+  boot.bannerUntil = boot.fight ? boot.fight.tick + ticksVisible : ticksVisible;
+}
+
+function hideBanner() {
+  $('banner').hidden = true;
+  boot.bannerUntil = 0;
+}
+
+function updateHud() {
+  const f = boot.fight;
+  if (!f) return;
+  for (let side = 0; side < 2; side++) {
+    const p = f.fighters[side];
+    const hpPct = Math.max(0, (p.hp / p.maxHp) * 100);
+    $(`hud-health-${side}`).style.width = `${hpPct}%`;
+    $(`hud-health-${side}`).setAttribute('aria-valuenow', String(Math.round(hpPct)));
+    const stPct = Math.max(0, Math.min(100, p.stamina));
+    $(`hud-stamina-${side}`).style.width = `${stPct}%`;
+    const won = f.wins[side];
+    const needed = Math.floor(f.rounds / 2) + 1;
+    $(`hud-pips-${side}`).textContent = '●'.repeat(won) + '○'.repeat(Math.max(0, needed - won));
+  }
+  $('hud-timer').textContent = String(Math.max(0, Math.ceil(f.timer / 60)));
+  // Combo: freshest attacker combo inside the 90-tick window.
+  let comboText = '';
+  for (let side = 0; side < 2; side++) {
+    const p = f.fighters[side];
+    if (p.combo > 1 && f.tick - p.comboTick < 90) {
+      comboText = side === 0 ? `${p.combo} HITS` : `HIT x${p.combo}`;
+    }
+  }
+  $('hud-combo').textContent = comboText;
+}
+
+function handleFightEvents() {
+  const f = boot.fight;
+  if (!f) return;
+  const fresh = f.events.slice(boot.seenEvents);
+  boot.seenEvents = f.events.length;
+  for (const e of fresh) {
+    if (e.t === 'round') {
+      if (f.over) {
+        showResult();
+      } else {
+        showBanner(e.side === -1 ? 'DRAW' : e.side === 0 ? 'YOU TAKE THE ROUND' : 'ECHO TAKES THE ROUND', 110);
+      }
+    } else if (e.t === 'hit' || e.t === 'parried') {
+      // Haptics: sharp buzz when the player is hit, light tick when landing.
+      const heavy = e.side === 1;
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (shouldVibrate(boot.lastVibrateMs, now) && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(heavy ? 40 : 15);
+          boot.lastVibrateMs = now;
+        } catch {
+          // Haptics are enhancement-only.
+        }
+      }
+    }
+  }
+  if (f.phase === 'intro' && f.phaseTick === 1) {
+    showBanner(f.round === 1 ? 'ROUND 1 — FIGHT' : `ROUND ${f.round} — FIGHT`, 70);
+  }
+  if (f.tick >= boot.bannerUntil && !$('banner').hidden) hideBanner();
+}
+
+function showResult() {
+  const f = boot.fight;
+  if (!f) return;
+  const title = f.winner === 0 ? 'Victory' : f.winner === 1 ? 'Defeat' : 'Draw';
+  $('result-title').textContent = title;
+  $('result-sub').textContent =
+    f.winner === 0
+      ? `You best Echo ${f.wins[0]}–${f.wins[1]} in the moonlit temple.`
+      : f.winner === 1
+        ? `Echo prevails ${f.wins[1]}–${f.wins[0]}. Study the guard, then rematch.`
+        : 'Neither shadow yields. Rematch to settle it.';
+  $('result-overlay').hidden = false;
+  announce(`Bout over: ${title} (${f.wins[0]}–${f.wins[1]}).`);
+}
+
+function startFight() {
+  const seed = (Math.random() * 0xffffffff) >>> 0;
+  boot.fight = createFight({ seed, arena: 0, rounds: 3 });
+  boot.ai = createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: 1, archetype: 'brawler' });
+  boot.paused = false;
+  boot.seenEvents = 0;
+  boot.lastVibrateMs = null;
+  $('pause-overlay').hidden = true;
+  $('result-overlay').hidden = true;
+  showScreen('fight');
+  updateHud();
+  announce('Fight! Best of three against Echo. J punch, K kick, L block, U special, Space dash.');
+}
+
+function togglePause(force) {
+  if (boot.screen !== 'fight' || !boot.fight || boot.fight.over) return;
+  boot.paused = typeof force === 'boolean' ? force : !boot.paused;
+  $('pause-overlay').hidden = !boot.paused;
+  announce(boot.paused ? 'Paused.' : 'Resumed.');
+}
+
+function pollPadPause() {
+  try {
+    if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return false;
+    const pads = navigator.getGamepads();
+    const pad = pads && pads[0];
+    const b = pad && pad.buttons && pad.buttons[9];
+    const down = !!(b && (b.pressed === true || (typeof b.value === 'number' && b.value > 0.5)));
+    const edge = down && !boot.prevPadPause;
+    boot.prevPadPause = down;
+    return edge;
+  } catch {
+    return false;
+  }
+}
+
+/** One fixed-step sim tick: gather universal input, sample AI, advance. */
+function tickFight() {
+  const f = boot.fight;
+  if (!f || boot.paused || f.over) return;
+  const kb = boot.keyboard ? boot.keyboard.consumeTick() : null;
+  const touch = boot.touch ? boot.touch.consumeTick() : null;
+  const pad = pollGamepad();
+  const p1 = mergeInputs(kb, touch, pad);
+  const p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], f.rng, f.tick);
+  stepFight(f, p1, p2);
+  handleFightEvents();
+  updateHud();
 }
 
 async function initRenderer(tier) {
@@ -100,13 +289,18 @@ function frame(nowMs) {
   const dt = Math.min(100, nowMs - boot.lastFrameMs);
   boot.lastFrameMs = nowMs;
 
-  // Fixed-step presentation clock: 60 Hz ticks, max 3 per frame.
+  // Fixed-step clock: 60 Hz, max 3 ticks per frame. Fight sim ticks here;
+  // edges are consumed once per tick so input latency stays <= 2 ticks.
   boot.acc += dt;
   let steps = 0;
   while (boot.acc >= 16.667 && steps < 3) {
     boot.acc -= 16.667;
     boot.tick += 1;
     steps += 1;
+    if (boot.screen === 'fight') {
+      if (pollPadPause()) togglePause();
+      tickFight();
+    }
   }
   if (steps === 3) boot.acc = 0;
 
@@ -125,9 +319,12 @@ function frame(nowMs) {
   }
   applyCanvasSize();
 
-  // Render the shared SceneDesc.
+  // Render the shared SceneDesc: live fight when bouting, ambient otherwise.
   if (boot.renderer && boot.screen !== 'title') {
-    const scene = buildSceneDesc({ tick: boot.tick, arena: 0 });
+    const scene =
+      boot.screen === 'fight' && boot.fight
+        ? buildSceneDesc({ tick: boot.fight.tick, arena: 0, fight: boot.fight })
+        : buildSceneDesc({ tick: boot.tick, arena: 0 });
     try {
       boot.renderer.render(scene, arenaAt(0), {
         batterySaver: boot.profile.config.batterySaver,
@@ -187,42 +384,167 @@ async function applySettingsAndRender() {
   announce(`Settings saved. Renderer: ${TIER_NAMES[boot.tier]}.`);
 }
 
-function wireUI() {
-  $('btn-versus-demo').addEventListener('click', () => {
-    showScreen('demo');
-    announce('Versus demo: Wanderer vs Echo, ambient preview. Combat arrives in M2.');
+async function persistBindings() {
+  try {
+    await boot.provider.writeJSON(BINDINGS_PATH, serializeBindings(boot.bindings));
+  } catch {
+    // Bindings persistence is best-effort; the session table still applies.
+  }
+}
+
+function renderRemap() {
+  const list = $('remap-list');
+  list.innerHTML = '';
+  for (const { action, label, codes } of describeBindings(boot.bindings)) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = label;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.action = action;
+    btn.textContent = boot.remapCapture === action ? 'press a key…' : codes.join(' · ') || 'unbound';
+    btn.addEventListener('click', () => {
+      boot.remapCapture = action;
+      renderRemap();
+      announce(`Press a key for ${label}. Escape cancels.`);
+    });
+    li.append(name, btn);
+    list.append(li);
+  }
+}
+
+function wireTouch() {
+  const joy = $('joystick');
+  const knob = $('joy-knob');
+  const setKnob = (dx, dy) => {
+    const max = 40;
+    const len = Math.hypot(dx, dy) || 1;
+    const cl = Math.min(len, max);
+    knob.style.transform = `translate(${(dx / len) * cl}px, ${(dy / len) * cl}px)`;
+  };
+  joy.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    try {
+      joy.setPointerCapture(ev.pointerId);
+    } catch {
+      // Capture is enhancement; state tracking still works.
+    }
+    const r = joy.getBoundingClientRect();
+    boot.touch.joyStart(ev.pointerId, r.left + r.width / 2, r.top + r.height / 2);
+    boot.joyJumpFired = false;
+    setKnob(0, 0);
   });
+  joy.addEventListener('pointermove', (ev) => {
+    if (!boot.touch.joy.active || boot.touch.joy.pointerId !== ev.pointerId) return;
+    ev.preventDefault();
+    boot.touch.joyMove(ev.pointerId, ev.clientX, ev.clientY);
+    setKnob(boot.touch.joy.dx, boot.touch.joy.dy);
+    // Swipe-up jump: a hard upward flick fires one jump edge per touch.
+    if (!boot.joyJumpFired && boot.touch.joy.dy < -48) {
+      boot.joyJumpFired = true;
+      boot.touch.press('jump');
+    }
+  });
+  const endJoy = (ev) => {
+    boot.touch.joyEnd(ev.pointerId);
+    setKnob(0, 0);
+  };
+  joy.addEventListener('pointerup', endJoy);
+  joy.addEventListener('pointercancel', endJoy);
+
+  for (const btn of ['punch', 'kick', 'block', 'special', 'jump']) {
+    const el = $(`btn-${btn}`);
+    el.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      boot.touch.press(btn);
+    });
+    const release = (ev) => {
+      ev.preventDefault();
+      boot.touch.release(btn);
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', (ev) => {
+      if (ev.buttons !== 0) boot.touch.release(btn);
+    });
+    // Touch buttons must never take keyboard focus mid-bout.
+    el.addEventListener('mousedown', (ev) => ev.preventDefault());
+  }
+}
+
+function wireUI() {
+  $('btn-versus').addEventListener('click', () => startFight());
   $('btn-settings').addEventListener('click', () => {
     boot.returnTo = boot.screen === 'settings' ? 'title' : boot.screen;
     writeSettingsForm();
+    renderRemap();
     showScreen('settings');
   });
-  $('btn-demo-back').addEventListener('click', () => showScreen('title'));
-  $('btn-demo-settings').addEventListener('click', () => {
-    boot.returnTo = 'demo';
-    writeSettingsForm();
-    showScreen('settings');
+  $('btn-pause').addEventListener('click', () => togglePause(true));
+  $('btn-fight-quit').addEventListener('click', () => showScreen('title'));
+  $('btn-resume').addEventListener('click', () => togglePause(false));
+  $('btn-quit').addEventListener('click', () => showScreen('title'));
+  $('btn-rematch').addEventListener('click', () => startFight());
+  $('btn-result-title').addEventListener('click', () => showScreen('title'));
+  $('btn-settings-back').addEventListener('click', () => {
+    boot.remapCapture = null;
+    showScreen(boot.returnTo || 'title');
   });
-  $('btn-settings-back').addEventListener('click', () => showScreen(boot.returnTo || 'title'));
   $('settings-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     applySettingsAndRender().catch((err) => announce(`Settings failed: ${err.message}`));
   });
 
+  // Remap capture: the next keydown rebinds the pending action (Esc cancels).
+  document.addEventListener(
+    'keydown',
+    (ev) => {
+      if (!boot.remapCapture) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const action = boot.remapCapture;
+      boot.remapCapture = null;
+      if (ev.code !== 'Escape') {
+        boot.bindings = rebind(boot.bindings, action, ev.code);
+        if (boot.keyboard) {
+          boot.keyboard.detach();
+          boot.keyboard = createKeyboard(boot.bindings);
+          boot.keyboard.attach(document);
+        }
+        persistBindings().catch(() => {});
+        announce(`Bound ${action} to ${ev.code}.`);
+      } else {
+        announce('Rebind cancelled.');
+      }
+      renderRemap();
+    },
+    true,
+  );
+
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && boot.screen === 'title') $('btn-versus-demo').click();
-    else if ((ev.key === 's' || ev.key === 'S') && boot.screen !== 'settings') $('btn-settings').click();
+    if (boot.remapCapture) return;
+    if (ev.key === 'Enter' && boot.screen === 'title') $('btn-versus').click();
+    else if ((ev.key === 's' || ev.key === 'S') && boot.screen === 'title') $('btn-settings').click();
+    else if (ev.key === 'Escape' && boot.screen === 'fight') togglePause();
     else if (ev.key === 'Escape' && boot.screen !== 'title') {
       showScreen(boot.screen === 'settings' ? boot.returnTo || 'title' : 'title');
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && boot.screen === 'fight' && boot.fight && !boot.fight.over) {
+      togglePause(true);
     }
   });
 }
 
 async function bootApp() {
+  boot.touch = createTouchState();
+  wireTouch();
   wireUI();
   showScreen('title');
 
-  // Test hook (also handy for debugging): ?tier=0|1|2|auto&screen=demo|settings
+  // Test hook (also handy for debugging): ?tier=0|1|2|auto&screen=fight|settings
   // overrides the stored config for this load without persisting it.
   const params = new URLSearchParams(window.location.search);
   const paramTier = params.get('tier');
@@ -235,6 +557,15 @@ async function bootApp() {
     const { defaultProfile } = await import('./src/storage/profile.js');
     boot.profile = defaultProfile();
   }
+  try {
+    const raw = await boot.provider.readJSON(BINDINGS_PATH);
+    const loaded = raw == null ? { ok: true, bindings: defaultBindings() } : loadBindings(raw);
+    boot.bindings = loaded.ok ? loaded.bindings : defaultBindings();
+  } catch {
+    boot.bindings = defaultBindings();
+  }
+  boot.keyboard = createKeyboard(boot.bindings);
+  boot.keyboard.attach(document);
   boot.ladderIndex = boot.profile.config.ladderIndex || 1;
 
   // Persist tier probe for next boot, then resolve with override support.
@@ -256,15 +587,20 @@ async function bootApp() {
   });
   try {
     await initRendererWithFallback(want);
-    announce(`Umbra ready on ${TIER_NAMES[boot.tier]}. Choose Versus demo or Settings.`);
+    announce(`Umbra ready on ${TIER_NAMES[boot.tier]}. Versus fight or Settings.`);
   } catch (err) {
     announce(`No renderer available: ${err.message}`);
     return;
   }
 
-  if (paramScreen === 'demo' || paramScreen === 'settings') {
-    if (paramScreen === 'settings') writeSettingsForm();
-    showScreen(paramScreen);
+  if (paramScreen === 'fight' || paramScreen === 'settings') {
+    if (paramScreen === 'settings') {
+      writeSettingsForm();
+      renderRemap();
+      showScreen(paramScreen);
+    } else {
+      startFight();
+    }
   }
 
   applyCanvasSize();

@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Umbra: a shadow-fight silhouette combat game for the browser. M1 ambient render preview.">
+<meta name="description" content="Umbra: a shadow-fight silhouette combat game for the browser. Playable versus combat, PC and touch.">
 <meta name="theme-color" content="#0b0e14">
 <link rel="icon" href="data:,">
 <link rel="manifest" href="./manifest.webmanifest">
-<title>Umbra: shadow combat (M1 preview)</title>
+<title>Umbra: shadow combat</title>
 <link rel="stylesheet" href="./theme.css">
 </head>
 <body>
 <header class="topbar">
   <h1>UMBRA</h1>
-  <span class="sub">shadow combat at /umbra/ - M1 ambient render preview</span>
+  <span class="sub">shadow combat at /umbra/ - versus combat</span>
   <nav><a href="../">Random lab</a> <a href="./docs/">docs</a></nav>
 </header>
 <main>
@@ -21,30 +21,82 @@
     <canvas id="umbra-canvas" data-testid="canvas" width="960" height="540"
       aria-label="Umbra arena viewport showing two silhouette fighters in idle stance."></canvas>
     <div id="hud" data-testid="hud" aria-live="polite">
+      <div class="fighter-bar" id="bar-0">
+        <span class="fname">You</span>
+        <div class="hp-track"><div class="hp-fill" id="hud-health-0" data-testid="hud-health-0"></div></div>
+        <div class="st-track"><div class="st-fill" id="hud-stamina-0" data-testid="hud-stamina-0"></div></div>
+        <span class="pips" id="hud-pips-0" data-testid="hud-pips-0" aria-label="rounds won by you"></span>
+      </div>
+      <div class="mid-bar">
+        <span id="hud-timer" data-testid="hud-timer">60</span>
+        <span id="hud-combo" data-testid="hud-combo" aria-label="combo counter"></span>
+      </div>
+      <div class="fighter-bar right" id="bar-1">
+        <span class="fname">Echo</span>
+        <div class="hp-track"><div class="hp-fill" id="hud-health-1" data-testid="hud-health-1"></div></div>
+        <div class="st-track"><div class="st-fill" id="hud-stamina-1" data-testid="hud-stamina-1"></div></div>
+        <span class="pips" id="hud-pips-1" data-testid="hud-pips-1" aria-label="rounds won by Echo"></span>
+      </div>
+    </div>
+    <div id="hud-meta">
       <span id="hud-scene">Moonlit Temple</span>
       <span id="hud-tier" data-testid="hud-tier">tier: probing…</span>
       <span id="hud-fps" data-testid="hud-fps">-- fps</span>
+    </div>
+    <div id="banner" data-testid="banner" role="status" hidden></div>
+    <div id="pause-overlay" data-testid="pause-overlay" hidden>
+      <div class="overlay-card" role="dialog" aria-modal="true" aria-label="Paused">
+        <h2>Paused</h2>
+        <div class="row">
+          <button id="btn-resume" type="button">Resume</button>
+          <button id="btn-quit" type="button">Quit to title</button>
+        </div>
+      </div>
+    </div>
+    <div id="result-overlay" data-testid="result-overlay" hidden>
+      <div class="overlay-card" role="dialog" aria-modal="true" aria-label="Bout result">
+        <h2 id="result-title">Victory</h2>
+        <p id="result-sub" class="flavor"></p>
+        <div class="row">
+          <button id="btn-rematch" type="button">Rematch</button>
+          <button id="btn-result-title" type="button">Title</button>
+        </div>
+      </div>
+    </div>
+    <div id="touch-ui" data-testid="touch-ui" hidden>
+      <div id="joystick" data-testid="joystick" aria-label="Move joystick">
+        <div id="joy-knob"></div>
+      </div>
+      <div id="touch-buttons">
+        <button id="btn-block" data-testid="btn-block" type="button" aria-label="Block">BLK</button>
+        <button id="btn-punch" data-testid="btn-punch" type="button" aria-label="Punch">PCH</button>
+        <button id="btn-kick" data-testid="btn-kick" type="button" aria-label="Kick">KCK</button>
+        <button id="btn-special" data-testid="btn-special" type="button" aria-label="Special">SPC</button>
+        <button id="btn-jump" data-testid="btn-jump" type="button" aria-label="Jump">JMP</button>
+      </div>
     </div>
   </div>
   <p id="status-line" data-testid="status-line" role="status">Loading…</p>
 
   <section id="screen-title" class="panel" data-testid="screen-title" aria-label="Title screen">
     <h2>Umbra</h2>
-    <p class="flavor">Two shadows breathe in the moonlit temple. Combat arrives in M2;
-      this milestone is the render shell: tier probe, resolution ladder, offline pass.</p>
+    <p class="flavor">Shadow combat in the moonlit temple. Best of three rounds
+      against Echo: punch, kick, block, parry, dash, and the rising uppercut.</p>
     <div class="row">
-      <button id="btn-versus-demo" data-testid="btn-versus-demo" type="button">Versus demo</button>
+      <button id="btn-versus" data-testid="btn-versus" type="button">Versus fight</button>
       <button id="btn-settings" data-testid="btn-settings" type="button">Settings</button>
     </div>
-    <p class="hint">Desktop: Enter starts the demo, S opens settings, Esc goes back.</p>
+    <p class="hint">Desktop: Enter fights, J punch, K kick, L block (hold), U special,
+      Space dash, S settings, Esc pause. Touch: left stick moves, buttons strike.</p>
   </section>
 
-  <section id="screen-demo" class="panel" data-testid="screen-demo" aria-label="Versus demo" hidden>
-    <h2>Versus demo <span class="pill">ambient preview</span></h2>
-    <p class="flavor">Wanderer vs Echo, idle guard. Playable combat, input, and KO flow ship in M2.</p>
+  <section id="screen-fight" class="panel" data-testid="screen-fight" aria-label="Versus fight" hidden>
+    <h2>Versus: you vs Echo <span class="pill">best of 3</span></h2>
+    <p class="flavor">The bout runs on the canvas above. Health, stamina, timer,
+      and round pips stay pinned over the arena.</p>
     <div class="row">
-      <button id="btn-demo-back" type="button">Back to title</button>
-      <button id="btn-demo-settings" type="button">Settings</button>
+      <button id="btn-pause" type="button">Pause</button>
+      <button id="btn-fight-quit" type="button">Quit to title</button>
     </div>
   </section>
 
@@ -79,11 +131,15 @@
         <button id="btn-settings-back" type="button">Back</button>
       </div>
     </form>
-    <p class="hint">Saved to local profile (config-only until persistence v1 in M4).</p>
+    <h3>Controls <span class="pill">click a binding, then press a key</span></h3>
+    <ul id="remap-list" data-testid="remap-list" class="remap"></ul>
+    <p class="hint">Bindings persist in the local profile. Gamepad: stick moves,
+      A punch, B kick, X special, LB/RB block, R3 dash, Start pauses.</p>
+    <p class="hint">Saved to local profile (full persistence v1 arrives in M4).</p>
   </section>
 </main>
 <footer>
-  <p>Umbra M1: scaffold + render tiers + offline shell. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
+  <p>Umbra M2: deterministic combat + universal input. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
 </footer>
 <script type="module" src="./app.js"></script>
 </body>

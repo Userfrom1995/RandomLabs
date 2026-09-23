@@ -233,17 +233,29 @@ describe('red-team: offline shell and PWA wiring (post-fixer invariants)', () =>
   it('every DOM id touched by app.js exists in index.html', () => {
     const html = readFileSync(join(root, 'index.html'), 'utf8');
     const js = readFileSync(join(root, 'app.js'), 'utf8');
-    const ids = new Set([...js.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]));
+    const ids = new Set(
+      [...js.matchAll(/\$\(`([^`]+)`\)/g)]
+        .map((m) => m[1].split('${')[0])
+        .filter((p) => p && !p.endsWith('-')),
+    );
+    for (const m of js.matchAll(/\$\('([^']+)'\)/g)) {
+      if (!m[1].includes('${')) ids.add(m[1]);
+    }
+    // M2 contract: title + fight + settings screens (ambient demo retired).
     ids.add('screen-title');
-    ids.add('screen-demo');
+    ids.add('screen-fight');
     ids.add('screen-settings');
     for (const id of ids) {
       assert.ok(html.includes(`id="${id}"`), `index.html missing #${id} used by app.js`);
     }
-    for (const b of ['btn-versus-demo', 'btn-settings', 'btn-demo-back', 'btn-demo-settings', 'btn-settings-back']) {
+    for (const b of ['btn-versus', 'btn-settings', 'btn-pause', 'btn-fight-quit', 'btn-resume', 'btn-quit', 'btn-rematch', 'btn-result-title', 'btn-settings-back']) {
       assert.ok(html.includes(`id="${b}"`), `button #${b} missing`);
     }
-    assert.ok(js.includes('btn-versus-demo') && js.includes('settings-form'), 'wiring must reference demo + settings');
+    // Blueprint E2E hooks: touch cluster + fight HUD + overlays.
+    for (const t of ['joystick', 'btn-punch', 'btn-kick', 'btn-block', 'btn-special', 'hud-health-0', 'hud-health-1', 'hud-timer', 'pause-overlay', 'banner', 'remap-list']) {
+      assert.ok(html.includes(`id="${t}"`) || html.includes(`data-testid="${t}"`), `touch/HUD hook #${t} missing`);
+    }
+    assert.ok(js.includes('btn-versus') && js.includes('settings-form'), 'wiring must reference fight + settings');
   });
   it('rig segment names are stable for GPU uniform packing', () => {
     assert.equal(SEG_NAMES.length, 11);

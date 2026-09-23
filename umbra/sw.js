@@ -1,5 +1,5 @@
 /* Umbra service worker: versioned offline-first shell, scope /umbra/. */
-const UMBRA_CACHE = 'umbra-v1';
+const UMBRA_CACHE = 'umbra-v2';
 
 const SHELL = [
   './',
@@ -27,6 +27,19 @@ const SHELL = [
   './src/storage/provider.js',
   './src/storage/profile.js',
   './src/perf/stats.js',
+  './src/perf/gates.js',
+  './src/combat/types.js',
+  './src/combat/moves.js',
+  './src/combat/fighter.js',
+  './src/combat/hitboxes.js',
+  './src/combat/engine.js',
+  './src/combat/combos.js',
+  './src/combat/ai.js',
+  './src/input/bindings.js',
+  './src/input/keyboard.js',
+  './src/input/gamepad.js',
+  './src/input/touch.js',
+  './src/input/combine.js',
 ];
 
 self.addEventListener('install', (event) => {
