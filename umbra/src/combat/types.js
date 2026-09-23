@@ -71,7 +71,10 @@
  * @property {number} arena arena index (presentation only)
  * @property {number} rounds total rounds in the match (first to floor(rounds/2)+1)
  * @property {number} roundTicks timer ticks per round
- * @property {Record<string, MoveDef>} moves bout-owned frozen copy of the move table
+ * @property {Record<string, MoveDef>} moves bout-owned frozen copy of the move table (side 0, and side 1 when movesB is null)
+ * @property {Record<string, MoveDef>|null} movesB bout-owned frozen copy for side 1 (null means side 1 shares moves)
+ * @property {[number, number]} power per-side damage multipliers (upgrades; boss enrage multiplies side 1 on top)
+ * @property {BossState|null} boss boss dynamics (null for standard bouts)
  * @property {[CombatInput, CombatInput]} prev sanitized inputs from the last simulated tick (rising-edge memory)
  * @property {number} tick global tick counter (advances even through hitstop)
  * @property {number} round current round, 1-indexed
@@ -85,6 +88,19 @@
  * @property {string} phase "intro" | "fight" | "roundEnd" | "over"
  * @property {number} phaseTick ticks spent in the current phase
  * @property {number} frozenTicks ticks skipped by hitstop (diagnostics)
+ */
+
+/**
+ * Per-bout boss dynamics (M4). Only present when createFight got a boss id.
+ * @typedef {object} BossState
+ * @property {string} id boss id (see src/bosses.js)
+ * @property {number} phase current phase index 0..2 (hp-fraction driven)
+ * @property {number} phaseTick ticks spent in the current phase
+ * @property {number} stance duelist stance index 0..1 (ruin only)
+ * @property {number} stanceTick ticks since the last stance switch
+ * @property {boolean} enraged true once the eclipse enrage has triggered (dusk only)
+ * @property {Array<{x:number, fuse:number}>} adds live summoner wisps (vex only)
+ * @property {number} addTick ticks since the last summon
  */
 
 /**

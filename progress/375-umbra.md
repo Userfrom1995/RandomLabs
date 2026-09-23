@@ -1,10 +1,10 @@
 # Progress: Umbra - Shadow Fight-inspired WebGPU combat game at /umbra/
 
 - **Issue:** #375
-- **Branch:** opencode/issue375-umbra-m3 (M3 active)
+- **Branch:** opencode/issue375-umbra-m4 (M4 active)
 - **Status:** in-progress
-- **Updated:** 2026-09-23T12:00:00Z
-- **Active Milestone:** M3 characters + story + levels (Complete, ready for review; Refs #375)
+- **Updated:** 2026-09-23T12:30:00Z
+- **Active Milestone:** M4 bosses + weapons + progression (in progress; Refs #375)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -27,9 +27,11 @@
   - [x] Story act graph + dialogue/cutscene box + progression walker + 5 arenas (WGSL backgrounds + parallax + music themes)
   - [x] Story mode flow (select > intro > fights > outro) + unlock triggers wired to profile
 - Milestone 4 (M4) bosses + weapons + progression (PR 4 target, Refs #375):
-  - [ ] 3 phased bosses with unique mechanics (summoner adds, duelist stance-switch, eclipse enrage timer)
-  - [ ] 6 weapons (fists, sword, nunchaku, spear, staff, daggers) with frame-data + pose tracks + trails
-  - [ ] Dojo training mode (dummy + frame-data display + combo trials) + shop/loot economy + upgrades + persistence v1 + export/import
+  - [x] 3 phased bosses with unique mechanics (vex summoner adds, ruin duelist stance-switch, dusk eclipse enrage timer)
+  - [x] 6 weapons (fists/sword/nunchaku/spear/staff/daggers) with frame-data tables + per-side bout tables + power scales
+  - [ ] Dojo training mode (dummy + frame-data display + combo trials) + shop/loot economy + upgrades + persistence v1 + export/import (pure modules done: dojo.js, economy.js, bundle.js, profile v2-additive; shell UI pending)
+  - [ ] Weapon trails in SceneDesc + all-3-tier renderer support (pending)
+  - [ ] Shell UI: weapon picker, shop/dojo screens, boss banners, awards, export/import + sw v4 (pending)
 - Final Milestone (M5) polish + product hardening (final PR, Closes #375 ONLY when all gates green):
   - [ ] VFX pass (hit sparks, dust, KO slow-mo) + SFX/adaptive-music mix + haptics tuning + onboarding tutorial bout
   - [ ] Accessibility audit + soak/fuzz ledger + G1-G7 scoreboard MEASURED + landing card + README/docs sync
@@ -37,14 +39,16 @@
 
 ## Current step
 
-M3 build complete (Builder run 3): `src/roster.js` (Kaito/Mira/Goran +
-Echo/Ash/Ruin/Vex/Dusk), `src/story.js` (17-node Ashen Veil chain +
-walker), `src/dialogue.js` (pure typewriter), profile v2, rig variants
-(bit-exact identity, M1/M2 goldens untouched), select/story/dialogue/
-versus screens, named bouts with per-side hp + enemy AI, versus unlock
-gating, SW umbra-v3. 199/199 node:test green (26 new). Headless-Chromium
-desktop + mobile evidence in `umbra/docs/shot-m3-*` (zero pageerrors).
-Ready for review.
+M4 engine half complete (Builder run 4a): `src/weapons.js` (6 tables,
+fists identity, balance gates), `src/bosses.js` (vex/ruin/dusk defs +
+phase index), `src/dojo.js` (6 trials + frameRows), `src/economy.js`
+(awards/upgrades/shop) + `src/storage/bundle.js` (export/import) +
+additive profile M4 fields (version stays 2, Tester pins intact).
+Engine: per-side `movesB`, `power` scales via `dmgScale`, boss sim
+(phases/wisps/stances/enrage) with golden-safe conditional hash parts.
+295/295 node:test green (M2 golden e9ef3be3 intact). Next: weapon trails
++ renderers, shell UI (shop/dojo/weapon picker/boss banners/awards),
+sw v4, scoreboard M4 rows, screenshots, ideas entry.
 
 ## Next steps
 
@@ -57,6 +61,11 @@ Ready for review.
 
 ## Agent log
 
+- 2026-09-23 (Builder run 4a, M4 engine): weapons + economy/bundle via 2
+  parallel subagents (17 + 29 tests), bosses + dojo + engine integration
+  direct (22 tests): per-side movesB, power/dmgScale, boss sim with
+  phases/wisps/stances/enrage, conditional hash parts (M2 golden
+  intact). 295/295 green. Decision action: continue (shell UI next).
 - 2026-09-23 (Builder run 3, M3): roster + story + dialogue + profile v2
   as pure modules with 26 new tests; rig multipliers on the pose solver
   (identity bit-exact, goldens pinned); scene rigs passthrough

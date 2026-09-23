@@ -2,7 +2,8 @@
  * Umbra profile + config schema with migrations.
  * v1 (M1/M2): config only. v2 (M3): story progress + unlocks
  * (unlockedArenas, unlockedFighters, story.completed/current).
- * Economy fields (currency awards) arrive in M4 via migration.
+ * M4 economy fields (ownedWeapons, equippedWeapon, upgrades, stats)
+ * ride on v2 additively: PROFILE_VERSION stays 2.
  * Pure, no DOM.
  */
 
@@ -31,6 +32,10 @@ export function defaultProfile() {
       unlockedFighters: ['kaito'],
       story: { completed: [], current: 'prologue' },
       currency: 0,
+      ownedWeapons: ['fists'],
+      equippedWeapon: 'fists',
+      upgrades: { dmg: 0, hp: 0 },
+      stats: { wins: 0, losses: 0, bossWins: 0, trials: [] },
     },
   };
 }
@@ -55,6 +60,9 @@ export function migrateProfile(raw) {
     if (typeof r.config.reducedMotion === 'boolean') cfg.reducedMotion = r.config.reducedMotion;
   }
   const progress = { ...base.progress };
+  progress.ownedWeapons = [...base.progress.ownedWeapons];
+  progress.upgrades = { ...base.progress.upgrades };
+  progress.stats = { ...base.progress.stats, trials: [...base.progress.stats.trials] };
   if (r.progress && typeof r.progress === 'object') {
     if (Array.isArray(r.progress.unlockedArenas)) {
       progress.unlockedArenas = r.progress.unlockedArenas.filter((n) => Number.isInteger(n));
@@ -76,6 +84,38 @@ export function migrateProfile(raw) {
     if (Number.isInteger(r.progress.currency) && r.progress.currency >= 0) {
       progress.currency = r.progress.currency;
     }
+    let owned = [...base.progress.ownedWeapons];
+    if (Array.isArray(r.progress.ownedWeapons)) {
+      owned = r.progress.ownedWeapons.filter((s) => typeof s === 'string' && s.length > 0);
+    }
+    if (!owned.includes('fists')) owned.unshift('fists');
+    progress.ownedWeapons = owned;
+    if (typeof r.progress.equippedWeapon === 'string' && owned.includes(r.progress.equippedWeapon)) {
+      progress.equippedWeapon = r.progress.equippedWeapon;
+    } else {
+      progress.equippedWeapon = 'fists';
+    }
+    const upgrades = { dmg: 0, hp: 0 };
+    if (r.progress.upgrades && typeof r.progress.upgrades === 'object') {
+      for (const track of ['dmg', 'hp']) {
+        const v = r.progress.upgrades[track];
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          upgrades[track] = Math.min(Math.max(Math.floor(v), 0), 4);
+        }
+      }
+    }
+    progress.upgrades = upgrades;
+    const stats = { wins: 0, losses: 0, bossWins: 0, trials: [] };
+    if (r.progress.stats && typeof r.progress.stats === 'object') {
+      for (const key of ['wins', 'losses', 'bossWins']) {
+        const v = r.progress.stats[key];
+        if (Number.isInteger(v) && v >= 0) stats[key] = v;
+      }
+      if (Array.isArray(r.progress.stats.trials)) {
+        stats.trials = r.progress.stats.trials.filter((s) => typeof s === 'string');
+      }
+    }
+    progress.stats = stats;
   }
   return { version: PROFILE_VERSION, config: cfg, progress };
 }
