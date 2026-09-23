@@ -157,44 +157,20 @@ export function rebind(bindings, action, code) {
 
   const displaced = next[action][0];
   const other = BINDING_ACTIONS.find((a) => a !== action && next[a].includes(code));
-  // Strip the code from every other action first: one code, one action.
+  // Strip the incoming code from every other action: one code, one action.
   for (const a of BINDING_ACTIONS) {
     if (a !== action) next[a] = next[a].filter((c) => c !== code);
   }
-  // Target takes the new code as primary, keeping old codes as secondaries.
-  next[action] = [code, ...next[action].filter((c) => c !== code)];
   if (other) {
+    // True swap of primaries: the displaced primary leaves the target
+    // (it moves to the donor) so it cannot linger in both actions.
+    next[action] = [code, ...next[action].filter((c) => c !== code && c !== displaced)];
     // The donor lost `code` above; hand it the displaced primary so it
     // stays bound (validateBindings requires non-empty actions).
     next[other] = [displaced, ...next[other]];
-  }
-  return next;
-}
-export function rebind(bindings, action, code) {
-  const err = validateBindings(bindings);
-  if (err) throw new TypeError(`rebind of invalid bindings: ${err}`);
-  if (!BINDING_ACTIONS.includes(action)) {
-    throw new RangeError(`unknown binding action: ${action}`);
-  }
-  if (typeof code !== 'string' || code.length === 0) {
-    throw new TypeError('rebind code must be a non-empty string');
-  }
-  const next = {};
-  for (const a of BINDING_ACTIONS) next[a] = [...bindings[a]];
-  if (next[action].includes(code)) return next;
-
-  const displaced = next[action][0];
-  const other = BINDING_ACTIONS.find((a) => a !== action && next[a].includes(code));
-  // Strip the code from every other action first: one code, one action.
-  for (const a of BINDING_ACTIONS) {
-    if (a !== action) next[a] = next[a].filter((c) => c !== code);
-  }
-  // Target takes the new code as primary, keeping old codes as secondaries.
-  next[action] = [code, ...next[action].filter((c) => c !== code)];
-  if (other) {
-    // The donor lost `code` above; hand it the displaced primary so it
-    // stays bound (validateBindings requires non-empty actions).
-    next[other] = [displaced, ...next[other]];
+  } else {
+    // Target takes the new code as primary, keeping old codes as secondaries.
+    next[action] = [code, ...next[action].filter((c) => c !== code)];
   }
   return next;
 }
