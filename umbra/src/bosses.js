@@ -14,6 +14,8 @@
  * emits a `phase` event whose banner comes from phases[i].banner.
  */
 
+import { ARCHETYPES as AI_ARCHETYPES } from './combat/ai.js';
+
 export const BOSS_IDS = ['vex', 'ruin', 'dusk'];
 
 /** Hp fraction cuts: above cuts[0] is phase 0, between is 1, below cuts[1] is 2. */
@@ -91,15 +93,21 @@ export function bossFor(enemyId) {
 }
 
 /**
- * Phase index from remaining-hp fraction (hostile-safe: NaN and
- * out-of-range fractions clamp to the nearest valid phase).
- * @param {BossDef|null} def boss def (null yields phase 0)
+ * Phase index from remaining-hp fraction (hostile-safe: missing defs,
+ * misshapen defs, null/undefined hp, NaN, and out-of-range fractions all
+ * fall back to phase 0 or clamp to the nearest valid phase; Number(null)
+ * coercing to 0 must never read as a near-death phase 2).
+ * @param {BossDef|null} def boss def (null or misshapen yields phase 0)
  * @param {unknown} hpFrac remaining hp fraction 0..1
  * @returns {0|1|2} phase index
  */
 export function bossPhaseIndex(def, hpFrac) {
+  if (def == null || typeof def !== 'object' || Array.isArray(def)) return 0;
+  if (typeof def.id !== 'string' || def.id.length === 0) return 0;
+  if (!Array.isArray(def.phases) || def.phases.length !== 3) return 0;
+  if (hpFrac == null) return 0;
   const f = Number(hpFrac);
-  if (def == null || !Number.isFinite(f)) return 0;
+  if (!Number.isFinite(f)) return 0;
   if (f > PHASE_CUTS[0]) return 0;
   if (f > PHASE_CUTS[1]) return 1;
   return 2;
@@ -145,14 +153,17 @@ export function validateBosses(defs = BOSSES) {
       const s = b.summon || {};
       if (!isPosInt(s.every)) problems.push(`${tag}: summon.every must be a positive integer`);
       if (!isPosInt(s.fuse)) problems.push(`${tag}: summon.fuse must be a positive integer`);
+      if (isPosInt(s.every) && isPosInt(s.fuse) && s.every <= s.fuse) {
+        problems.push(`${tag}: summon.every must exceed summon.fuse or wisps never resolve`);
+      }
       if (!isNonNeg(s.range) || s.range <= 0) problems.push(`${tag}: summon.range must be positive`);
       if (!isNonNeg(s.damage)) problems.push(`${tag}: summon.damage must be >= 0`);
       if (!isNonNeg(s.chip)) problems.push(`${tag}: summon.chip must be >= 0`);
     } else if (b.mechanic === 'duelist') {
       const d = b.duel || {};
       if (!isPosInt(d.every)) problems.push(`${tag}: duel.every must be a positive integer`);
-      if (!Array.isArray(d.stances) || d.stances.length !== 2 || !d.stances.every((s) => typeof s === 'string')) {
-        problems.push(`${tag}: duel.stances must be a pair of AI archetype names`);
+      if (!Array.isArray(d.stances) || d.stances.length !== 2 || !d.stances.every((s) => AI_ARCHETYPES.includes(s))) {
+        problems.push(`${tag}: duel.stances must be a pair of AI archetypes (${AI_ARCHETYPES.join(', ')})`);
       }
     } else if (b.mechanic === 'eclipse') {
       const e = b.eclipse || {};

@@ -102,23 +102,35 @@ export function checkTrial(trialId, events, side = 0) {
  * @param {Record<string, import("./combat/types.js").MoveDef>} [table]
  * @returns {Array<{move:string, startup:number, active:number, recovery:number, total:number, damage:number, range:number}>}
  */
+/**
+ * Sanitize a frame-data field: only finite numbers survive (Infinity and
+ * NaN both coerce to the fallback, so hostile tables cannot leak
+ * Infinity into the dojo display or trial math).
+ * @param {unknown} value raw field value
+ * @returns {number} finite value or 0
+ */
+function finiteField(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function frameRows(table) {
   if (table == null || typeof table !== 'object') return [];
   const rows = [];
   for (const id of MOVE_ORDER) {
     const m = table[id];
     if (m == null || typeof m !== 'object') continue;
-    const startup = Number(m.startup) || 0;
-    const active = Number(m.active) || 0;
-    const recovery = Number(m.recovery) || 0;
+    const startup = finiteField(m.startup);
+    const active = finiteField(m.active);
+    const recovery = finiteField(m.recovery);
     rows.push({
       move: id,
       startup,
       active,
       recovery,
       total: startup + active + recovery,
-      damage: Number(m.damage) || 0,
-      range: Number(m.range) || 0,
+      damage: finiteField(m.damage),
+      range: finiteField(m.range),
     });
   }
   return rows;

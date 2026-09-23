@@ -11,6 +11,12 @@ export const PROFILE_VERSION = 2;
 export const CONFIG_PATH = 'config.json';
 export const PROFILE_PATH = 'profile.json';
 
+/**
+ * Upper bound on stored ember: bundles that self-grant more clamp here
+ * on import, so a hand-edited backup cannot mint unbounded currency.
+ */
+export const MAX_CURRENCY = 999999;
+
 /** @returns {object} default M1 config */
 export function defaultConfig() {
   return {
@@ -82,7 +88,7 @@ export function migrateProfile(raw) {
     progress.story = { completed, current: 'prologue' };
     if (completed.length > 0) progress.story.current = completed[completed.length - 1];
     if (Number.isInteger(r.progress.currency) && r.progress.currency >= 0) {
-      progress.currency = r.progress.currency;
+      progress.currency = Math.min(r.progress.currency, MAX_CURRENCY);
     }
     let owned = [...base.progress.ownedWeapons];
     if (Array.isArray(r.progress.ownedWeapons)) {
