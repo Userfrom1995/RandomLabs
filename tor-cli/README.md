@@ -29,8 +29,7 @@ resolv.conf state, installs iptables or nft capture rules (TCP + DNS to
 Tor, everything else rejected, IPv6 blocked for the session), and gates
 on a five-row verify suite with automatic rollback. `disconnect` stops
 tor first (redirects blackhole instead of leaking), replays the snapshot
-byte-exact, and post-verifies. macOS/Windows system-wide lands in M4 and
-refuses honestly until then.
+byte-exact, and post-verifies. macOS/Windows system-wide stays an honest exit-4 refusal in M4 (tun2socks path tracked for M5).
 
 ## How it works
 
