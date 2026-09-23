@@ -10,6 +10,8 @@ M3 build notes: [`ideas/2026-09-23-umbra-m3-roster-story-arenas.md`](../../ideas
 
 M4 build notes: [`ideas/2026-09-23-umbra-m4-bosses-weapons-progression.md`](../../ideas/2026-09-23-umbra-m4-bosses-weapons-progression.md).
 
+M5 build notes: [`ideas/2026-09-23-umbra-m5-polish-product-hardening.md`](../../ideas/2026-09-23-umbra-m5-polish-product-hardening.md).
+
 Epic tracker: [`progress/375-umbra.md`](../../progress/375-umbra.md).
 
 ## M1 module map
@@ -68,3 +70,14 @@ Epic tracker: [`progress/375-umbra.md`](../../progress/375-umbra.md).
   tiers ride spare particle slots).
 - `app.js` (M4): shop/dojo/versus-weapon screens, boss banners + stance
   AI override, ember awards + career stats, trial claims, export/import.
+- `src/audio/` (M5): `sfx.js` (11 pure descriptor voices) + `music.js`
+  (5 arena patterns x calm/fight/boss) + `engine.js` (gesture-unlocked
+  WebAudio wrapper, mute via injected callbacks).
+- `src/vfx.js` (M5): deterministic bursts + `sparkPoints` + `slowMoFor`.
+  `src/input/haptics.js` (M5): per-kind patterns + 90 ms throttle.
+  `src/tutorial.js` (M5): 6-step pure lesson machine.
+- Renderers (M5): `opts.sparks` points on all 3 tiers (Canvas2D
+  additive, GPU spare-particle slots, dimmed under reduced motion).
+- `app.js` (M5): per-event SFX/haptics, adaptive music, flash/shake
+  overlays (motion-gated), KO slow-mo clock, tutorial gate + 25-ember
+  graduation, focus placement + Tab trap, `?bench=N` G1/G2 hook, SW v5.
