@@ -200,3 +200,23 @@ func TestStateStrings(t *testing.T) {
 		t.Fatal("state strings wrong")
 	}
 }
+
+func TestGenerateTorrcTrans(t *testing.T) {
+	plain := GenerateTorrc("/tmp/d", nil)
+	if strings.Contains(plain, "TransPort") {
+		t.Fatalf("default torrc must not enable TransPort:\n%s", plain)
+	}
+	rc := GenerateTorrcTrans("/tmp/d", nil, 9040)
+	if !strings.Contains(rc, "TransPort 127.0.0.1:9040") {
+		t.Fatalf("trans torrc missing fixed TransPort:\n%s", rc)
+	}
+	if !strings.Contains(rc, "IsolateClientAddr") {
+		t.Fatalf("trans torrc missing stream isolation flags:\n%s", rc)
+	}
+	// Loopback binding still holds with TransPort on.
+	for _, ln := range strings.Split(rc, "\n") {
+		if strings.HasSuffix(ln, ":auto") && !strings.Contains(ln, "127.0.0.1:auto") {
+			t.Fatalf("non-loopback auto port line: %q", ln)
+		}
+	}
+}
