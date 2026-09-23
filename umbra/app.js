@@ -23,7 +23,7 @@ import {
   describeBindings,
 } from './src/input/bindings.js';
 import { createKeyboard } from './src/input/keyboard.js';
-import { pollGamepad } from './src/input/gamepad.js';
+import { createGamepadPoller } from './src/input/gamepad.js';
 import { createTouchState, shouldVibrate } from './src/input/touch.js';
 import { mergeInputs } from './src/input/combine.js';
 
@@ -52,6 +52,7 @@ const boot = {
   paused: false,
   keyboard: null,
   touch: null,
+  pad: null,
   bindings: null,
   lastVibrateMs: null,
   seenEvents: 0,
@@ -91,11 +92,34 @@ function showScreen(name) {
   const inFight = name === 'fight';
   $('touch-ui').hidden = !(inFight && isTouchDevice());
   if (!inFight) {
+    drainInputs();
     boot.fight = null;
     boot.paused = false;
     $('pause-overlay').hidden = true;
     $('result-overlay').hidden = true;
     hideBanner();
+  }
+}
+
+/**
+ * Consume-and-discard one tick from every input source so edges queued
+ * while paused, finished, or off-screen never fire stale on resume.
+ */
+function drainInputs() {
+  try {
+    if (boot.keyboard) boot.keyboard.consumeTick();
+  } catch {
+    // Draining is best-effort; a wedged driver must not break screens.
+  }
+  try {
+    if (boot.touch) boot.touch.consumeTick();
+  } catch {
+    // Touch drain is best-effort.
+  }
+  try {
+    if (boot.pad) boot.pad.poll();
+  } catch {
+    // Pad drain is best-effort.
   }
 }
 
@@ -116,21 +140,26 @@ function updateHud() {
   if (!f) return;
   for (let side = 0; side < 2; side++) {
     const p = f.fighters[side];
-    const hpPct = Math.max(0, (p.hp / p.maxHp) * 100);
+    const maxHp = Number.isFinite(p.maxHp) && p.maxHp > 0 ? p.maxHp : 1;
+    const hp = Number.isFinite(p.hp) ? p.hp : 0;
+    const hpPct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
     $(`hud-health-${side}`).style.width = `${hpPct}%`;
     $(`hud-health-${side}`).setAttribute('aria-valuenow', String(Math.round(hpPct)));
-    const stPct = Math.max(0, Math.min(100, p.stamina));
+    const stPct = Math.max(0, Math.min(100, Number.isFinite(p.stamina) ? p.stamina : 0));
     $(`hud-stamina-${side}`).style.width = `${stPct}%`;
     const won = f.wins[side];
     const needed = Math.floor(f.rounds / 2) + 1;
     $(`hud-pips-${side}`).textContent = '●'.repeat(won) + '○'.repeat(Math.max(0, needed - won));
   }
   $('hud-timer').textContent = String(Math.max(0, Math.ceil(f.timer / 60)));
-  // Combo: freshest attacker combo inside the 90-tick window.
+  // Combo: the freshest attacker combo inside the 90-tick window wins,
+  // so a newer P1 combo always replaces a stale P0 one (and vice versa).
   let comboText = '';
+  let freshest = Number.NEGATIVE_INFINITY;
   for (let side = 0; side < 2; side++) {
     const p = f.fighters[side];
-    if (p.combo > 1 && f.tick - p.comboTick < 90) {
+    if (p.combo > 1 && f.tick - p.comboTick < 90 && p.comboTick > freshest) {
+      freshest = p.comboTick;
       comboText = side === 0 ? `${p.combo} HITS` : `HIT x${p.combo}`;
     }
   }
@@ -191,6 +220,9 @@ function startFight() {
   boot.paused = false;
   boot.seenEvents = 0;
   boot.lastVibrateMs = null;
+  drainInputs();
+  if (boot.touch) boot.touch.reset();
+  if (boot.pad) boot.pad.reset();
   $('pause-overlay').hidden = true;
   $('result-overlay').hidden = true;
   showScreen('fight');
@@ -209,9 +241,16 @@ function pollPadPause() {
   try {
     if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return false;
     const pads = navigator.getGamepads();
-    const pad = pads && pads[0];
-    const b = pad && pad.buttons && pad.buttons[9];
-    const down = !!(b && (b.pressed === true || (typeof b.value === 'number' && b.value > 0.5)));
+    if (!pads) return false;
+    // Any connected pad's Start button pauses (hot-plug tolerant: all indexes).
+    let down = false;
+    for (const pad of pads) {
+      const b = pad && pad.buttons && pad.buttons[9];
+      if (b && (b.pressed === true || (typeof b.value === 'number' && b.value > 0.5))) {
+        down = true;
+        break;
+      }
+    }
     const edge = down && !boot.prevPadPause;
     boot.prevPadPause = down;
     return edge;
@@ -220,15 +259,22 @@ function pollPadPause() {
   }
 }
 
+/** Pause codes from the remappable bindings table (defaults to Escape). */
+function pauseCodes() {
+  const codes = boot.bindings && Array.isArray(boot.bindings.pause) ? boot.bindings.pause : null;
+  return codes && codes.length > 0 ? codes : ['Escape'];
+}
+
 /** One fixed-step sim tick: gather universal input, sample AI, advance. */
 function tickFight() {
-  const f = boot.fight;
-  if (!f || boot.paused || f.over) return;
+  // Drain first even when paused/finished: stale edges must never fire later.
   const kb = boot.keyboard ? boot.keyboard.consumeTick() : null;
   const touch = boot.touch ? boot.touch.consumeTick() : null;
-  const pad = pollGamepad();
+  const pad = boot.pad ? boot.pad.poll() : null;
+  const f = boot.fight;
+  if (!f || boot.paused || f.over) return;
   const p1 = mergeInputs(kb, touch, pad);
-  const p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], f.rng, f.tick);
+  const p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], undefined, f.tick);
   stepFight(f, p1, p2);
   handleFightEvents();
   updateHud();
@@ -452,7 +498,7 @@ function wireTouch() {
   joy.addEventListener('pointerup', endJoy);
   joy.addEventListener('pointercancel', endJoy);
 
-  for (const btn of ['punch', 'kick', 'block', 'special', 'jump']) {
+  for (const btn of ['punch', 'kick', 'block', 'special', 'jump', 'dash']) {
     const el = $(`btn-${btn}`);
     el.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
@@ -496,12 +542,14 @@ function wireUI() {
   });
 
   // Remap capture: the next keydown rebinds the pending action (Esc cancels).
+  // stopImmediatePropagation (not stopPropagation) so the generic pause
+  // handler on the same node below never sees the capture keystroke.
   document.addEventListener(
     'keydown',
     (ev) => {
       if (!boot.remapCapture) return;
       ev.preventDefault();
-      ev.stopPropagation();
+      ev.stopImmediatePropagation();
       const action = boot.remapCapture;
       boot.remapCapture = null;
       if (ev.code !== 'Escape') {
@@ -523,23 +571,42 @@ function wireUI() {
 
   document.addEventListener('keydown', (ev) => {
     if (boot.remapCapture) return;
+    const codes = pauseCodes();
     if (ev.key === 'Enter' && boot.screen === 'title') $('btn-versus').click();
     else if ((ev.key === 's' || ev.key === 'S') && boot.screen === 'title') $('btn-settings').click();
-    else if (ev.key === 'Escape' && boot.screen === 'fight') togglePause();
-    else if (ev.key === 'Escape' && boot.screen !== 'title') {
+    else if (codes.includes(ev.code) && boot.screen === 'fight') togglePause();
+    else if (codes.includes(ev.code) && boot.screen !== 'title') {
       showScreen(boot.screen === 'settings' ? boot.returnTo || 'title' : 'title');
     }
   });
 
+  const clearStuckInputs = () => {
+    if (boot.keyboard) boot.keyboard.clear();
+    if (boot.touch) boot.touch.reset();
+    if (boot.pad) boot.pad.reset();
+  };
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && boot.screen === 'fight' && boot.fight && !boot.fight.over) {
+      clearStuckInputs();
       togglePause(true);
+    } else if (document.hidden) {
+      clearStuckInputs();
+    }
+  });
+  window.addEventListener('blur', () => {
+    if (boot.screen === 'fight' && boot.fight && !boot.fight.over) {
+      clearStuckInputs();
+      togglePause(true);
+    } else {
+      clearStuckInputs();
     }
   });
 }
 
 async function bootApp() {
   boot.touch = createTouchState();
+  boot.pad = createGamepadPoller();
   wireTouch();
   wireUI();
   showScreen('title');

@@ -250,7 +250,7 @@ footer a { color: var(--accent); }
   /* Landscape: compact dock hugging the bottom edge. */
   #touch-ui { padding-top: 6px; padding-bottom: 6px; }
   #joystick { width: 96px; height: 96px; }
-  #touch-buttons { grid-template-columns: repeat(5, 52px); }
+  #touch-buttons { grid-template-columns: repeat(6, 52px); }
   #touch-buttons button { width: 52px; height: 52px; min-height: 52px; }
 }
 
