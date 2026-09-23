@@ -26,6 +26,12 @@ export const DEFAULT_ROUND_TICKS = 3600;
 export const SPAWN_X = 0.34;
 /** Movement clamp bound (matches fighter.js ARENA_X). */
 export const ARENA_X = 0.9;
+/**
+ * Cap on live summoner wisps: while the cap holds, the summon timer keeps
+ * resetting without spawning, so a hostile def (every <= fuse) or a long
+ * round can never grow the adds array without bound.
+ */
+export const MAX_BOSS_ADDS = 8;
 
 const NEUTRAL = Object.freeze({
   move: 0,
@@ -465,15 +471,22 @@ function updateBoss(state) {
     b.addTick += 1;
     if (b.addTick >= def.summon.every) {
       b.addTick = 0;
-      const px = state.fighters[0].x;
-      b.adds.push({
-        x: Math.max(-ARENA_X, Math.min(ARENA_X, Number.isFinite(px) ? px : 0)),
-        fuse: def.summon.fuse,
-      });
-      pushBossEvent(state, "wisp", 0);
+      if (!Array.isArray(b.adds)) b.adds = [];
+      if (b.adds.length < MAX_BOSS_ADDS) {
+        const px = state.fighters[0].x;
+        b.adds.push({
+          x: Math.max(-ARENA_X, Math.min(ARENA_X, Number.isFinite(px) ? px : 0)),
+          fuse: def.summon.fuse,
+        });
+        pushBossEvent(state, "wisp", 0);
+      }
     }
     const kept = [];
     for (const add of b.adds) {
+      if (add == null || typeof add !== 'object') continue;
+      if (!Number.isFinite(add.fuse)) {
+        add.fuse = 0;
+      }
       add.fuse -= 1;
       if (add.fuse > 0) {
         kept.push(add);
