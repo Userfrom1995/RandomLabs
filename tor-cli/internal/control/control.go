@@ -86,8 +86,10 @@ func (c *Client) send(cmd string) ([]string, error) {
 			return nil, fmt.Errorf("control: unexpected reply %q to %q", line, cmd)
 		}
 		if strings.HasPrefix(rest, "+") {
-			// Multi-line data block terminated by a lone ".".
-			out = append(out, rest[1:])
+			// Multi-line data block terminated by a lone ".". The "+key="
+			// header fragment is NOT a data line: emitting it would let
+			// GetInfo match the key with an empty value and drop the real
+			// dump that follows. Collect only the lines up to ".".
 			for {
 				dl, err := c.r.ReadString('\n')
 				if err != nil {
@@ -157,17 +159,36 @@ func (c *Client) AuthCookie(cookiePath string) error {
 }
 
 // GetInfo fetches one or more keys. Single-key replies arrive as
-// "key=value" lines; the map holds the raw value strings.
+// "key=value" lines; multi-line data blocks (250+key= ... .) arrive as bare
+// dump lines with no key prefix. The map holds the raw value strings;
+// continuation lines are joined onto the last matched key so a circuit-status
+// dump is never lost.
 func (c *Client) GetInfo(keys ...string) (map[string]string, error) {
 	lines, err := c.send("GETINFO " + strings.Join(keys, " "))
 	if err != nil {
 		return nil, err
 	}
 	got := make(map[string]string, len(keys))
+	// A lone "+key=" data block carries no per-line key prefix, so for a
+	// single-key query bare lines can only belong to that key.
+	lastKey := ""
+	if len(keys) == 1 {
+		lastKey = keys[0]
+	}
 	for _, ln := range lines {
+		matched := false
 		for _, k := range keys {
 			if strings.HasPrefix(ln, k+"=") {
 				got[k] = strings.TrimPrefix(ln, k+"=")
+				lastKey = k
+				matched = true
+			}
+		}
+		if !matched && lastKey != "" {
+			if cur, ok := got[lastKey]; ok && cur != "" {
+				got[lastKey] = cur + "\n" + ln
+			} else {
+				got[lastKey] = ln
 			}
 		}
 	}
