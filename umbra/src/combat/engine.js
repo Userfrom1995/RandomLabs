@@ -362,8 +362,25 @@ export function stepFight(state, p1Input, p2Input) {
 }
 
 /**
+ * Canonical digest of the event log contents (kind, tick, side, move,
+ * damage), so a deterministic-but-wrong drift in what happened fails the
+ * hash even when the event count is unchanged.
+ * @param {Array<{t:string, tick:number, side:number, move:string|null, damage:number}>} [events]
+ * @returns {string} 8-char hex string
+ */
+export function eventsDigest(events) {
+  if (!Array.isArray(events) || events.length === 0) return "00000000";
+  const canon = events.map(
+    (e) => `${e.t}:${e.tick}:${e.side}:${e.move ?? "-"}:${e.damage}`,
+  );
+  return hashStr(canon.join(";")).toString(16).padStart(8, "0");
+}
+
+/**
  * Deterministic 8-hex hash of the bout state. Positions are quantized
- * to 1e-3 so the hash is stable across identical replays.
+ * to 1e-3 so the hash is stable across identical replays. Pins maxHp per
+ * side (asymmetric-hp bouts) plus an event-content digest, so hp-only or
+ * count-only collisions cannot pass as identical.
  * @param {FightState} state
  * @returns {string} 8-char hex string
  */
@@ -383,6 +400,7 @@ export function hashState(state) {
     state.over ? 1 : 0,
     state.winner == null ? "x" : String(state.winner),
     state.events.length,
+    eventsDigest(state.events),
   ];
   for (const f of state.fighters) {
     parts.push(
@@ -393,6 +411,7 @@ export function hashState(state) {
         q(f.vy),
         f.facing,
         f.hp,
+        Number.isFinite(f.maxHp) ? Math.round(f.maxHp) : 0,
         Math.round(Number.isFinite(f.stamina) ? f.stamina * 10 : 0),
         f.state,
         f.stateTick,
