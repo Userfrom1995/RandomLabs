@@ -1,7 +1,6 @@
 package perapp
 
 import (
-	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -49,9 +48,6 @@ func TestProxyEnvDedupesShadowKeys(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("socks5h ALL_PROXY missing in %q", env)
-	}
-	if got := os.Getenv("ALL_PROXY"); got != "" {
-		_ = got // parent env untouched; child env only
 	}
 }
 
