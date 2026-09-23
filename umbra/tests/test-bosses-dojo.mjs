@@ -43,6 +43,11 @@ describe('bosses', () => {
     assert.equal(bossPhaseIndex(vex, -5), 2);
     assert.equal(bossPhaseIndex(vex, 99), 0);
     assert.equal(bossPhaseIndex(null, 0.1), 0);
+    assert.equal(bossPhaseIndex(vex, null), 0);
+    assert.equal(bossPhaseIndex(vex, undefined), 0);
+    assert.equal(bossPhaseIndex(42, 0.1), 0);
+    assert.equal(bossPhaseIndex('vex', 0.1), 0);
+    assert.equal(bossPhaseIndex({ id: 'vex', phases: [] }, 0.1), 0);
     assert.deepEqual(PHASE_CUTS, [0.66, 0.33]);
   });
 
@@ -50,6 +55,8 @@ describe('bosses', () => {
     assert.ok(validateBosses(null).length > 0);
     assert.ok(validateBosses([{ ...BOSSES[0], phases: [] }]).length > 0);
     assert.ok(validateBosses([{ ...BOSSES[1], duel: { every: 0, stances: ['x'] } }]).length > 0);
+    assert.ok(validateBosses([{ ...BOSSES[0], summon: { every: 50, fuse: 90, range: 0.3, damage: 1, chip: 0 } }]).some((p) => p.includes('every')));
+    assert.ok(validateBosses([{ ...BOSSES[1], duel: { every: 420, stances: ['brawler', 'hax'] } }]).some((p) => p.includes('archetype')));
   });
 });
 
@@ -88,5 +95,16 @@ describe('dojo', () => {
     assert.equal(jab.total, jab.startup + jab.active + jab.recovery);
     assert.equal(jab.damage, MOVES.jab.damage);
     assert.deepEqual(frameRows(null), []);
+  });
+
+  it('frameRows never leaks Infinity or NaN', () => {
+    const rows = frameRows({
+      jab: { startup: Infinity, active: NaN, recovery: 5, damage: Infinity, range: -Infinity },
+    });
+    assert.equal(rows.length, 1);
+    for (const v of [rows[0].startup, rows[0].active, rows[0].recovery, rows[0].total, rows[0].damage, rows[0].range]) {
+      assert.ok(Number.isFinite(v), `non-finite frame field ${v}`);
+    }
+    assert.equal(rows[0].total, rows[0].startup + rows[0].active + rows[0].recovery);
   });
 });

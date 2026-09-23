@@ -163,7 +163,7 @@ describe('tester M4: bout owns its move table (replay isolation)', () => {
   });
   it('unknown weapon falls back to the canonical fists table', () => {
     for (const junk of ['excalibur', null, 42, {}, '']) {
-      assert.equal(movesForWeapon(junk), MOVES, `no MOVES fallback for ${JSON.stringify(junk)}`);
+      assert.deepEqual(movesForWeapon(junk), MOVES, `no fists fallback for ${JSON.stringify(junk)}`);
     }
     assert.equal(movesForWeapon('sword').jab.damage, 8);
   });
