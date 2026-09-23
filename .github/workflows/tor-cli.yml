@@ -1,0 +1,213 @@
+# torshim (tor-cli) tri-OS CI - M5 hardening gate for issue #387.
+#
+# What it covers, per the M5 test matrix:
+#   - matrix (linux/macos/windows): build, vet, full hermetic go suite
+#     (per-app, shell, lifecycle, control, syswide orchestration with a
+#     fake firewall runner, black-box CLI contract), fail-closed CLI
+#     probes (no tor installed: status/version/disconnect honesty).
+#   - cross: all 5 release targets compile (linux amd64+arm64,
+#     darwin amd64+arm64, windows amd64).
+#   - fuzz: bounded control-parser fuzz (30s per target, linux).
+#   - live-tor (linux): real `tor` daemon lifecycle where testable -
+#     version/status probes, fail-closed exit codes, and a bootstrap
+#     attempt with a hard timeout. No real firewall mutation anywhere
+#     in CI: system-wide orchestration is covered hermetically by the
+#     fake-runner suite; the manual root matrix lives in
+#     tor-cli/docs/reproducibility.md.
+#
+# STAGED FOR LAB INSTALL: this file lives at tor-cli/ci/tor-cli.yml
+# because builder pushes cannot carry .github/workflows/ changes (the
+# App token lacks the `workflows` scope). The Lab Engineer installs it
+# via `/oc lab` (PAT-backed push) to .github/workflows/tor-cli.yml;
+# content is identical. Until then, every job below was executed
+# locally on linux (build/vet/hermetic suite/honesty probes/fuzz all
+# green) and cross-vetted for darwin+windows (GOOS=darwin/windows
+# `go vet ./...` green, `make cross` 5-target green). Merges of PRs
+# touching .github/workflows/* need an owner click or PAT merge
+# (see LAB.md "Merge capability").
+
+name: tor-cli
+
+on:
+  push:
+    paths:
+      - "tor-cli/**"
+      - ".github/workflows/tor-cli.yml"
+  pull_request:
+    paths:
+      - "tor-cli/**"
+      - ".github/workflows/tor-cli.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tor-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.24.x"
+  WORKDIR: tor-cli
+
+jobs:
+  matrix:
+    name: build-vet-test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Hermetic suite
+        run: go test -count=1 ./...
+
+      - name: CLI honesty probes (no tor needed)
+        shell: bash
+        run: |
+          go build -o torshim .
+          # version: accurate backend names, never crashes without tor
+          ./torshim version 2>&1 | tee version.out || true
+          # status with nothing running: absent, never protected
+          ./torshim status 2>&1 | tee status.out
+          grep -qi "protect" status.out
+          if ./torshim status --json | grep -q '"protected": *true'; then
+            echo "FAIL: status claims protected with no tor running"; exit 1
+          fi
+          # fail-closed: bogus tor binary refuses with exit 3, not success
+          if ./torshim run --tor ./does-not-exist-xyz -- echo hi; then
+            echo "FAIL: run with missing tor binary exited 0"; exit 1
+          fi
+          # disconnect with empty state: idempotent, exit 0
+          ./torshim disconnect
+          # connect without privilege (or off-Linux): refuses honestly
+          if ./torshim connect --tor ./does-not-exist-xyz; then
+            echo "FAIL: connect in CI exited 0"; exit 1
+          fi
+          echo "honesty probes passed"
+
+  cross:
+    name: cross-compile (5 targets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cross targets
+        run: make cross
+
+      - name: Man page renders
+        run: |
+          if command -v groff >/dev/null; then
+            groff -man -Tascii torshim.1 | head -n 5
+          else
+            test -s torshim.1 && echo "torshim.1 present (groff unavailable, skipping render)"
+          fi
+
+  fuzz:
+    name: bounded parser fuzz (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Fuzz control parsers (30s each)
+        run: |
+          go test -run=NONE -fuzz=FuzzParseBootstrapPhase -fuzztime=30s ./internal/control/
+          go test -run=NONE -fuzz=FuzzParseCircuitEstablished -fuzztime=30s ./internal/control/
+          go test -run=NONE -fuzz=FuzzHasBuiltCircuit -fuzztime=30s ./internal/control/
+
+  live-tor:
+    name: live tor lifecycle (linux, best-effort)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ env.WORKDIR }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install tor
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tor torsocks
+          tor --version
+
+      - name: Build
+        run: |
+          go build -o torshim .
+          ./torshim version
+
+      - name: Live lifecycle (bootstrap attempt, 90s budget)
+        run: |
+          # Fail-closed first: with tor killed/stopped, run must refuse.
+          # (No tor running yet on a fresh runner, so this is deterministic.)
+          if ./torshim run --timeout 5s -- echo hi; then
+            echo "note: a system tor answered (runner-provided); skipping dead-tor probe"
+          else
+            echo "dead-tor probe: run refused as required (fail-closed)"
+          fi
+          # Bootstrap attempt against the real network with a hard budget.
+          # Restricted CI egress makes this best-effort by design (see the
+          # M5 matrix): success proves end-to-end routing, timeout skips
+          # without failing the gate - the hermetic suite already pins
+          # readiness, reuse, cleanup, and DNS behavior.
+          if timeout 120 ./torshim run --timeout 90s -- ./torshim status; then
+            echo "live bootstrap: TOR ROUTED (nested status under owned tor)"
+          else
+            echo "live bootstrap: SKIP (no Tor network path in this CI environment; hermetic gates above still bind)"
+          fi
+
+      - name: Stale-state honesty (TORSHIM_STATEDIR sandbox)
+        shell: bash
+        run: |
+          export TORSHIM_STATEDIR="$RUNNER_TEMP/torshim-state"
+          mkdir -p "$TORSHIM_STATEDIR"
+          echo '{not-json' > "$TORSHIM_STATEDIR/active.json"
+          if ./torshim status --json | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if not d.get('protected') else 1)"; then
+            echo "corrupt-state status: honest (never protected)"
+          else
+            echo "FAIL: corrupt state reported protected"; exit 1
+          fi
