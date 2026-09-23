@@ -52,6 +52,10 @@ type Options struct {
 	PidAlive func(pid int) bool
 	TermPid  func(pid int) error
 	KillPid  func(pid int) error
+	// LockWait bounds how long Connect/Disconnect/Repair wait for a
+	// concurrent system operation holding the session lock (default
+	// 30s; a live holder means fail closed, a stale one gets reaped).
+	LockWait time.Duration
 }
 
 func (o *Options) withDefaults() *Options {
@@ -103,6 +107,9 @@ func (o *Options) withDefaults() *Options {
 	}
 	if out.KillPid == nil {
 		out.KillPid = killPid
+	}
+	if out.LockWait <= 0 {
+		out.LockWait = 30 * time.Second
 	}
 	return &out
 }
@@ -386,6 +393,15 @@ func Connect(o Options) (*ConnectReport, error) {
 	if err := requireRoot(po, "route"); err != nil {
 		return nil, err
 	}
+	// Serialize with concurrent connect/disconnect/repair runs sharing
+	// this state dir: without the lock two connects would both snapshot,
+	// both launch tor, and both write active.json (orphaned tor + half
+	// firewall). A live holder fails closed; a stale one gets reaped.
+	lk, err := AcquireSessionLock(po.StateDir, po.PidAlive, po.LockWait)
+	if err != nil {
+		return nil, err
+	}
+	defer lk.Release()
 	backendName, err := resolveBackend(po)
 	if err != nil {
 		return nil, err
@@ -526,6 +542,20 @@ func Disconnect(o Options) (*DisconnectReport, error) {
 	if err := requireRoot(po, "restore"); err != nil {
 		return nil, err
 	}
+	lk, err := AcquireSessionLock(po.StateDir, po.PidAlive, po.LockWait)
+	if err != nil {
+		return nil, err
+	}
+	defer lk.Release()
+	// Re-read under the lock: a concurrent operation may have finished
+	// while we waited, in which case there is nothing left to do.
+	s, err = LoadState(po.StateDir)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return rep, nil
+	}
 	rep.WasConnected = true
 	be := backendFor(s.Backend, po.Run)
 	// 1. Tor dies first: any surviving redirect blackholes instead of
@@ -575,6 +605,11 @@ func Repair(o Options) (*RepairReport, error) {
 	if err := requireRoot(po, "repair"); err != nil {
 		return nil, err
 	}
+	lk, err := AcquireSessionLock(po.StateDir, po.PidAlive, po.LockWait)
+	if err != nil {
+		return nil, err
+	}
+	defer lk.Release()
 	rep := &RepairReport{}
 	s, err := LoadState(po.StateDir)
 	if err != nil {

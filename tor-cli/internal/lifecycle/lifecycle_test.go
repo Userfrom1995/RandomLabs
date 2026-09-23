@@ -220,3 +220,68 @@ func TestGenerateTorrcTrans(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateExtraTorrcRejectsManagedKeys(t *testing.T) {
+	// Every managed listener/identity/daemon key must fail closed,
+	// case-insensitively and with leading whitespace tolerated.
+	managed := []string{
+		"SocksPort 0.0.0.0:9050", "  socksport 9050",
+		"ControlPort 9051", "DNSPort 5353", "TransPort 9041",
+		"DataDirectory /tmp/evil", "PidFile /tmp/evil.pid",
+		"CookieAuthentication 0", "CookieAuthFile /tmp/evil",
+		"Log notice stdout", "RunAsDaemon 1", "User root",
+		"__OwningControllerProcess 1", "Include /tmp/evil.conf",
+		"SocksPortWriteToFile /tmp/p", "ControlSocket /tmp/c",
+	}
+	for _, ln := range managed {
+		if err := ValidateExtraTorrc([]string{ln}); err == nil {
+			t.Errorf("ValidateExtraTorrc(%q): expected rejection", ln)
+		}
+	}
+	// Bridge/pluggable-transport lines (the supported passthrough)
+	// must keep working.
+	ok := []string{"UseBridges 1", "Bridge obfs4 1.2.3.4:443 ABCDEF", "ClientTransportPlugin obfs4 exec /usr/bin/obfs4proxy"}
+	if err := ValidateExtraTorrc(ok); err != nil {
+		t.Errorf("ValidateExtraTorrc(bridge lines): unexpected error: %v", err)
+	}
+	if err := ValidateExtraTorrc(nil); err != nil {
+		t.Errorf("ValidateExtraTorrc(nil): unexpected error: %v", err)
+	}
+}
+
+func TestGenerateTorrcDropsManagedKeys(t *testing.T) {
+	// Defense in depth: even without validation, a managed-key line
+	// never reaches the rendered torrc, while legit lines survive.
+	rc := GenerateTorrcTrans("/tmp/d",
+		[]string{"UseBridges 1", "SocksPort 0.0.0.0:9050", "Log notice stdout", "Bridge obfs4 1.2.3.4:443 ABCDEF"}, 0)
+	if strings.Contains(rc, "0.0.0.0:9050") || strings.Contains(rc, "Log notice stdout") {
+		t.Errorf("managed-key override leaked into torrc:\n%s", rc)
+	}
+	if !strings.Contains(rc, "UseBridges 1") || !strings.Contains(rc, "Bridge obfs4") {
+		t.Errorf("legit extra lines lost:\n%s", rc)
+	}
+	// The managed listeners the wrapper owns are still exactly one
+	// loopback line each: no duplicate second listener exists.
+	for _, key := range []string{"SocksPort", "ControlPort", "DNSPort"} {
+		n := 0
+		for _, ln := range strings.Split(rc, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(ln), key+" ") {
+				n++
+			}
+		}
+		if n != 1 {
+			t.Errorf("%s appears %d times, want exactly 1", key, n)
+		}
+	}
+}
+
+func TestLaunchRejectsManagedExtraBeforeSpawn(t *testing.T) {
+	// No tor binary is needed: validation runs before LookPath, so a
+	// managed override fails closed even with a bogus binary path.
+	_, err := Launch(Options{TorBinary: "/nonexistent/tor-xyz", ExtraTorrc: []string{"SocksPort 9050"}})
+	if err == nil || !strings.Contains(err.Error(), "torshim-managed") {
+		t.Fatalf("Launch with managed override: got %v, want managed-key error", err)
+	}
+}
+
+
