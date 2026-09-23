@@ -8,9 +8,12 @@ productizing anything under a `tor*` name.
 ## What it is
 
 torshim automates the existing `tor` daemon. It never implements Tor itself.
-M2 covers per-app routing and isolated shells on Linux; M3 adds
-system-wide routing on Linux; M4 ports per-app + shell to macOS and
-Windows via proxy environment and adds packaging:
+What shipped (0.4.0, issues M1-M5): per-app routing and isolated
+shells on Linux (torsocks shim, fail-closed), system-wide routing on
+Linux (iptables/nft, snapshot-first, verify-gated), per-app + shell
+on macOS and Windows via proxy environment, packaging (Makefile +
+man page), and M5 hardening (session lock, torrc managed-key guard,
+parser fuzz, tri-OS CI):
 
 ```sh
 torshim run -- curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
@@ -29,7 +32,9 @@ resolv.conf state, installs iptables or nft capture rules (TCP + DNS to
 Tor, everything else rejected, IPv6 blocked for the session), and gates
 on a five-row verify suite with automatic rollback. `disconnect` stops
 tor first (redirects blackhole instead of leaking), replays the snapshot
-byte-exact, and post-verifies. macOS/Windows system-wide stays an honest exit-4 refusal in M4 (tun2socks path tracked for M5).
+byte-exact, and post-verifies. Concurrent connect/disconnect/repair runs serialize on a
+session lock (stale locks reaped, live holders fail closed). macOS/Windows system-wide
+stays an honest exit-4 refusal (no tun2socks backend shipped; per-app + shell work there).
 
 ## How it works
 
@@ -38,6 +43,9 @@ byte-exact, and post-verifies. macOS/Windows system-wide stays an honest exit-4 
   `__OwningControllerProcess` then `TAKEOWNERSHIP` + `RESETCONF`, so a crash
   exits the owned tor instead of orphaning it. Shutdown is close-first, then
   SIGTERM (5 s grace), then SIGKILL. Foreign instances are reused, never killed.
+  torrc passthrough lines overriding a torshim-managed key (listeners,
+  identity, daemon behavior, `Include`) are rejected up front (M5):
+  bridge/pluggable-transport lines keep working.
 - Readiness (binding): bootstrap `PROGRESS=100` + `TAG=done` AND
   `status/circuit-established == 1`, polled, 120 s default timeout.
 - Per-app (Linux): exec under the torsocks `LD_PRELOAD` shim with a generated
@@ -81,8 +89,9 @@ Man page: `man ./torshim.1` (or `man torshim` after install).
 - `internal/status/` - state aggregator (absent/unknown never protected;
   folds in the system session, `mode: system` only on state + rules).
 - `internal/version/` - wrapper + tor + torsocks + platform backend versions.
-- `docs/` - research spec (M1), threat model (M3/M4), limitations (M4).
-- `Makefile`, `torshim.1` - build/cross/install + man page (M4).
+- `docs/` - research spec, threat model, per-OS limitations, reproducibility + test matrix.
+- `ci/` - tri-OS GitHub Actions matrix staged for Lab Engineer install (see docs/reproducibility.md).
+- `Makefile`, `torshim.1` - build/cross/install + man page.
 
 Requires `tor` at runtime (`apt install tor`). Linux per-app additionally
 needs `torsocks`. System-wide additionally needs root plus

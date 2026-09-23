@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Wrapper is the torshim version (M4 cross-platform build).
-const Wrapper = "0.3.0-m4"
+// Wrapper is the torshim version (M5 final: all milestones built).
+const Wrapper = "0.4.0"
 
 // Info carries the version surface.
 type Info struct {
@@ -62,7 +62,7 @@ func syswideBackend() string {
 	case "linux":
 		return "iptables/nft transparent proxy"
 	default:
-		return "unsupported (tun2socks path planned, M5)"
+		return "unsupported (no tun2socks backend shipped; per-app + shell only)"
 	}
 }
 

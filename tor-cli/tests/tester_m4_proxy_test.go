@@ -164,7 +164,7 @@ func TestM4VersionReportsPlatformSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("version exit=%d, want 0", code)
 	}
-	for _, want := range []string{"0.3.0-m4", "platform:", "per-app:", "system-wide:"} {
+	for _, want := range []string{"0.4.0", "platform:", "per-app:", "system-wide:"} {
 		if !strings.Contains(so, want) {
 			t.Fatalf("version missing %q:\n%s", want, so)
 		}
@@ -185,9 +185,9 @@ func TestM4HelpNamesProxyAndM5(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("help exit=%d, want 0", code)
 	}
-	for _, want := range []string{"proxy", "socks5h", "tun2socks", "M5"} {
+	for _, want := range []string{"proxy", "socks5h", "tun2socks", "not shipped"} {
 		if !strings.Contains(so, want) {
-			t.Fatalf("help missing %q (M4-accurate usage):\n%s", want, so)
+			t.Fatalf("help missing %q (M5-accurate usage):\n%s", want, so)
 		}
 	}
 }

@@ -55,8 +55,10 @@ const (
 	ResolvPath       = "/etc/resolv.conf"
 )
 
-// ErrUnsupportedOS is returned on non-Linux platforms (M4 owns the ports).
-var ErrUnsupportedOS = errors.New("syswide: system-wide routing is Linux-only in M3 (macOS/Windows land in M4)")
+// ErrUnsupportedOS is returned on non-Linux platforms (no macOS/Windows
+// backend shipped: per-app and shell modes work there, system-wide does
+// not, and the CLI refuses honestly instead of pretending).
+var ErrUnsupportedOS = errors.New("syswide: system-wide routing is Linux-only (no tun2socks backend shipped for this OS)")
 
 // Runner executes privileged commands. The real runner shells out; tests
 // inject a fake. RunWithStdin exists because *-restore reads dumps.
