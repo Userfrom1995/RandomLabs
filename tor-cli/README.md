@@ -8,18 +8,28 @@ productizing anything under a `tor*` name.
 ## What it is
 
 torshim automates the existing `tor` daemon. It never implements Tor itself.
-M2 (this milestone) covers per-app routing and isolated shells on Linux:
+M2 covers per-app routing and isolated shells on Linux; M3 (this milestone)
+adds system-wide routing on Linux:
 
 ```sh
 torshim run -- curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
 torshim curl https://example.com     # bare form = run
 torshim shell                        # child shell routed through Tor
+sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
+torshim disconnect                   # byte-exact restore (needs sudo when a session exists)
+torshim repair                       # clear stale rules/state (needs sudo)
 torshim status [--json]              # never claims protected when not
 torshim version
 ```
 
-`torshim connect` / `disconnect` (system-wide routing) land in M3 and exit 4
-with an honest pointer until then. No stubs, no fake success.
+System-wide mode launches a private tor with a transparent proxy
+(TransPort 9040) under an unprivileged user, snapshots the firewall plus
+resolv.conf state, installs iptables or nft capture rules (TCP + DNS to
+Tor, everything else rejected, IPv6 blocked for the session), and gates
+on a five-row verify suite with automatic rollback. `disconnect` stops
+tor first (redirects blackhole instead of leaking), replays the snapshot
+byte-exact, and post-verifies. macOS/Windows system-wide lands in M4 and
+refuses honestly until then.
 
 ## How it works
 
@@ -50,10 +60,18 @@ go vet ./...
   3 tor-not-ready fail-closed, 4 later-milestone).
 - `internal/control/` - control-protocol v1 client + readiness parsing.
 - `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop.
+  M3 adds fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
+  spawn/signal shims (linux/darwin/windows all compile).
 - `internal/perapp/` - torsocks conf/exec + static-binary guard.
 - `internal/shell/` - child shell + coverage banner.
-- `internal/status/` - state aggregator (absent/unknown never protected).
+- `internal/syswide/` - M3 system-wide: iptables + nft backends, state,
+  snapshot/restore, verify suite, connect/disconnect/repair, status probe.
+- `internal/status/` - state aggregator (absent/unknown never protected;
+  folds in the system session, `mode: system` only on state + rules).
 - `internal/version/` - wrapper + tor + torsocks versions.
-- `docs/` - research spec (M1) and later threat model / limitations / man page.
+- `docs/` - research spec (M1), threat model (M3), limitations (M3).
+
+Requires `tor` and `torsocks` at runtime (`apt install tor torsocks`).
+System-wide additionally needs root plus `iptables`/`ip6tables` or `nft`.
 
 Requires `tor` and `torsocks` installed at runtime (`apt install tor torsocks`).

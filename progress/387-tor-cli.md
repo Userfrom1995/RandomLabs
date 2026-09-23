@@ -8,14 +8,26 @@ Status: in-progress
 
 - M1 Research + Architecture: [x] survey + spec + blueprint (PR #388, Refs #387)
 - M2 Per-app + shell on Linux: [x] lifecycle + control client, [x] readiness wait, [x] torsocks exec + static-binary guard, [x] shell + banner, [x] status/version v1, [x] fail-closed + DNS + lifecycle tests (PR #388, Refs #387)
-- M3 System-wide Linux connect/disconnect: [ ] iptables backend, [ ] nft backend, [ ] backup/restore byte-exact, [ ] idempotence + reboot-safety, [ ] verify suite + repair (PR 2 target, Refs #387)
+- M3 System-wide Linux connect/disconnect: [x] iptables backend, [x] nft backend, [x] backup/restore byte-exact, [x] idempotence + reboot-safety, [x] verify suite + repair (PR 2 target, Refs #387)
 - M4 Cross-platform + polish: [ ] macOS per-app/shell/tun, [ ] Windows per-app/shell/tun, [ ] packaging + man/help + demo, [ ] limitations doc (PR 3 target, Refs #387)
 - M5 Hardening + tri-OS CI: [ ] linux/macos/windows matrix, [ ] edge/fuzz (stale locks, foreign tor, env scrub), [ ] docs complete (Final PR, Closes #387)
 
-Active Milestone: M2 complete, ready for review. M3 next.
+Active Milestone: M3 complete, ready for review. M4 next.
 
-Current step: M2 implemented and tested (2026-09-23 run)
-Next steps: Reviewer -> Tester (live tor + torsocks matrix per section 9); then M3 system-wide Linux
+Current step: M3 implemented and tested (2026-09-23 run)
+Next steps: Reviewer -> Tester (hermetic suite + live root/tor matrix per limitations.md); then M4 cross-platform ports
+
+## Agent log
+
+- 2026-09-23 Builder M3: syswide package (iptables + nft backends,
+  ActiveState under /run/torshim, snapshot-first backup, 5-row verify
+  with rollback, repair, status probe), lifecycle TransPort + RunAs +
+  TempParent + per-OS shims (linux/darwin/windows/arm64 all compile),
+  connect/disconnect/repair wiring with exit-3 verify gate, status
+  system mode (never claims protected when not), threat-model +
+  limitations docs, README + ideas M3 entry. 15 hermetic syswide tests
+  + torrc + black-box contract tests green; no root/tor needed.
+  `connect` on macOS/Windows exits 4 honestly (M4).
 
 ## Agent log
 
