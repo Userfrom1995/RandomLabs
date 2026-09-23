@@ -74,7 +74,7 @@ export const GROUND_Y = 0.14;
  * come from the live sim: x/facing/y per fighter, pose from fighter state,
  * flash/shake from recent fight events. Without `fight` the M1 ambient
  * tableau renders (two idle fighters), unchanged.
- * @param {{tick?: number, arena?: number, fight?: object|null}} opts
+ * @param {{tick?: number, arena?: number, fight?: object|null, rigs?: [{height?:number,bulk?:number,head?:number,limb?:number},{height?:number,bulk?:number,head?:number,limb?:number}]}} opts
  * @returns {SceneDesc}
  */
 export function buildSceneDesc(opts = {}) {
@@ -83,14 +83,18 @@ export function buildSceneDesc(opts = {}) {
   const arena = ARENAS.indexOf(arenaAt(opts.arena ?? 0));
   const time = tick / 60;
   const fight = opts.fight && typeof opts.fight === 'object' ? opts.fight : null;
+  const rigs = Array.isArray(opts.rigs) ? opts.rigs : [];
   const fighters = [0, 1].map((side) => {
     const sim = fight && Array.isArray(fight.fighters) ? fight.fighters[side] : null;
     const facing = sim ? (sim.facing === -1 ? -1 : 1) : side === 0 ? 1 : -1;
     const x = sim && Number.isFinite(sim.x) ? sim.x : side === 0 ? -0.34 : 0.34;
     const groundY = GROUND_Y + (sim && Number.isFinite(sim.y) ? Math.max(0, sim.y) * 0.6 : 0);
     const phase = side === 0 ? 0 : 2.4;
+    // M3 roster identity: per-side silhouette proportions (undefined rig
+    // is the exact M1/M2 path, so ambient + fight goldens hold).
+    const rig = rigs[side] && typeof rigs[side] === 'object' ? rigs[side] : undefined;
     const angles = sim ? combatAngles(sim, time, phase, moveLenOf) : idleAngles(time, phase);
-    return { segs: solveRig(angles, { x, groundY, facing }), side, facing };
+    return { segs: solveRig(angles, { x, groundY, facing, rig }), side, facing };
   });
   const fx = fight ? flashShake(fight.events, fight.tick) : { flash: 0, shake: 0 };
 
