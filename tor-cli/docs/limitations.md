@@ -1,4 +1,4 @@
-# torshim per-OS limitations (M3)
+# torshim per-OS limitations (M4)
 
 Unofficial frontend. Not sponsored by The Tor Project.
 
@@ -32,20 +32,35 @@ Unofficial frontend. Not sponsored by The Tor Project.
 - Tor DNSPort answers only A/AAAA/PTR. Exotic record types get NOTIMPL
   or empty: correct Tor behavior, documented so it is not filed as a bug.
 
-## macOS (M4)
+## macOS (M4: per-app + shell work via proxy env)
 
-- `connect` / `disconnect` / `repair` exit 4 with an honest pointer.
-  Per-app currently uses `socks5h` proxy env (no DYLD shim in the
-  product path) with a coverage banner; system-wide needs a tun2socks
-  path plus per-service DNS overrides (fragile pf `route-to` fallback).
-  Tracked for M4.
+- `run` / `<app>` and `shell` work: proxy environment
+  (`ALL_PROXY`/`all_proxy`/`HTTP(S)_PROXY` as `socks5h://`, DNS
+  resolves exit-side when the app honors it). Every launch prints an
+  honest coverage note; the shell prints its coverage banner.
+- Coverage gaps (by design, stated on every launch): only apps that
+  honor proxy env are covered. GUI apps that ignore the environment,
+  raw syscalls, UDP/ICMP, and children that scrub the environment
+  (`sudo`, `env -i`) leak. There is deliberately no
+  `DYLD_INSERT_LIBRARIES` shim: SIP strips it from system binaries,
+  which would make coverage silently partial - worse than an honest
+  proxy boundary.
+- `torshim version` reports `torsocks: n/a (proxy-env backend ...)`
+  instead of a misleading "unknown".
+- `connect` / `disconnect` / `repair` exit 4 with an honest pointer:
+  system-wide needs a utun + tun2socks path plus per-service DNS
+  overrides (fragile `pf route-to` fallback documented in research).
+  Tracked for M5.
 
-## Windows (M4)
+## Windows (M4: per-app + shell work via proxy env)
 
-- `connect` / `disconnect` / `repair` exit 4 with an honest pointer.
-  System-wide needs a wintun + tun2socks path or an existing WFP
+- `run` / `<app>` and `shell` work via the same `socks5h` proxy
+  environment (PowerShell and most CLI tools honor it; WinINET apps
+  pick up the process env). Same coverage gaps as macOS above.
+- `connect` / `disconnect` / `repair` exit 4 with an honest pointer:
+  system-wide needs a wintun + tun2socks path or an existing WFP
   driver; `netsh advfirewall` cannot redirect, only allow/block.
-  Tracked for M4.
+  Tracked for M5.
 
 ## Reproducibility
 
