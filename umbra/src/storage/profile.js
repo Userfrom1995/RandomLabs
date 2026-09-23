@@ -122,6 +122,7 @@ export function migrateProfile(raw) {
       if (Array.isArray(r.progress.stats.trials)) {
         stats.trials = r.progress.stats.trials.filter((s) => typeof s === 'string');
       }
+      if (r.progress.stats.tutorialDone === true) stats.tutorialDone = true;
     }
     progress.stats = stats;
   }
