@@ -91,14 +91,20 @@ function think(ai, self, foe, dist, tick) {
 
 /**
  * Sample one tick of input for the AI.
+ * Strike bands derive from the bout move table passed as `moves` (the
+ * live `state.moves` when called from the engine shell); when omitted the
+ * static FISTS table is used, which is identical for standard bouts.
+ * Custom tables (longer jab, shorter kick) move the bands with them, so
+ * the AI never plans strikes outside real reach of the bout it fights in.
  * @param {AIState} ai controller (mutated: fsm schedule advances)
  * @param {{x:number, hp?:number, state?:string}} self controlled fighter snapshot
  * @param {{x:number, hp?:number, state?:string}} foe opponent snapshot
  * @param {()=>number} [rng] optional external stream (defaults to the AI stream)
  * @param {number} [tick] current tick
+ * @param {Record<string, {range?:number}>} [moves] bout move table (defaults to MOVES)
  * @returns {CombatInput}
  */
-export function aiInput(ai, self, foe, rng, tick) {
+export function aiInput(ai, self, foe, rng, tick, moves) {
   const now = Number.isFinite(tick) ? Math.floor(tick) : 0;
   const sx = Number.isFinite(self?.x) ? self.x : 0;
   const fx = Number.isFinite(foe?.x) ? foe.x : 0;
@@ -131,13 +137,19 @@ export function aiInput(ai, self, foe, rng, tick) {
   const dashRoll = hash01(ai.seed, now, 37);
   const driftRoll = hash01(ai.seed, now, 41);
 
-  // Strike bands derive from the live move table (minus epsilon) so the AI
+  // Strike bands derive from the bout move table (minus epsilon) so the AI
   // never plans strikes outside real reach: jab is the punch button's move,
-  // kick/sweep share one range, uppercut is the special.
-  const punchReach = MOVES.jab.range - 0.01;
-  const kickReach = MOVES.kick.range - 0.01;
-  const sweepReach = MOVES.sweep.range - 0.01;
-  const uppercutReach = MOVES.uppercut.range - 0.01;
+  // kick/sweep share one range, uppercut is the special. Custom bout tables
+  // move the bands with them; unknown tables fall back to FISTS ranges.
+  const table = moves != null && typeof moves === "object" ? moves : MOVES;
+  const rangeOf = (id, fallback) => {
+    const r = Number(table?.[id]?.range);
+    return Number.isFinite(r) ? r : fallback;
+  };
+  const punchReach = rangeOf("jab", MOVES.jab.range) - 0.01;
+  const kickReach = rangeOf("kick", MOVES.kick.range) - 0.01;
+  const sweepReach = rangeOf("sweep", MOVES.sweep.range) - 0.01;
+  const uppercutReach = rangeOf("uppercut", MOVES.uppercut.range) - 0.01;
 
   const tryStrike = (prob) => {
     if (strikeRoll >= prob) return;
