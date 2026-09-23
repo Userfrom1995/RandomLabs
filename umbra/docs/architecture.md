@@ -10,12 +10,6 @@ M3 build notes: [`ideas/2026-09-23-umbra-m3-roster-story-arenas.md`](../../ideas
 
 M4 build notes: [`ideas/2026-09-23-umbra-m4-bosses-weapons-progression.md`](../../ideas/2026-09-23-umbra-m4-bosses-weapons-progression.md).
 
-Full binding blueprint: [`ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md`](../../ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md).
-
-M1 build notes: [`ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md`](../../ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md).
-
-M2 build notes: [`ideas/2026-09-23-umbra-m2-combat-universal-input.md`](../../ideas/2026-09-23-umbra-m2-combat-universal-input.md).
-
 Epic tracker: [`progress/375-umbra.md`](../../progress/375-umbra.md).
 
 ## M1 module map
