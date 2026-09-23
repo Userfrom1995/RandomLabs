@@ -69,6 +69,39 @@ describe("ai difficulty", () => {
     const retreats = zoner.filter((i) => i.move === -1).length;
     assert.ok(retreats > 40, `zoner retreated only ${retreats}/200 ticks`);
   });
+  it("every emitted strike starts inside its real move range (no systematic whiffs)", async () => {
+    const { createFight, stepFight } = await import("../src/combat/engine.js");
+    const { MOVES } = await import("../src/combat/moves.js");
+    for (const archetype of ARCHETYPES) {
+      const seed = 4242;
+      const s = createFight({ seed });
+      const ai0 = createAI({ seed: seed ^ 0x11, difficulty: 2, archetype });
+      const ai1 = createAI({ seed: seed ^ 0x22, difficulty: 2, archetype: "brawler" });
+      let strikes = 0;
+      for (let t = 0; t < 1200 && !s.over; t++) {
+        const i0 = aiInput(ai0, s.fighters[0], s.fighters[1], undefined, s.tick);
+        const i1 = aiInput(ai1, s.fighters[1], s.fighters[0], undefined, s.tick);
+        const dist = Math.abs(s.fighters[1].x - s.fighters[0].x);
+        for (const inp of [i0, i1]) {
+          if (inp.punch) {
+            strikes++;
+            assert.ok(dist <= MOVES.jab.range + 1e-9, `${archetype} jab at ${dist}`);
+          }
+          if (inp.kick) {
+            strikes++;
+            const range = inp.crouch ? MOVES.sweep.range : MOVES.kick.range;
+            assert.ok(dist <= range + 1e-9, `${archetype} kick at ${dist}`);
+          }
+          if (inp.special) {
+            strikes++;
+            assert.ok(dist <= MOVES.uppercut.range + 1e-9, `${archetype} uppercut at ${dist}`);
+          }
+        }
+        stepFight(s, i0, i1);
+      }
+      assert.ok(strikes > 0, `${archetype} must strike during a live bout`);
+    }
+  });
 });
 
 describe("ai output validity", () => {
