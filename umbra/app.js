@@ -630,6 +630,7 @@ function ratingMeter(v) {
 /** Fighter select grid (story or versus P1). Locked cards name their price. */
 function renderSelect() {
   $('select-title').textContent = boot.selectMode === 'story' ? 'Story: choose your shadow' : 'Versus: choose your fighter';
+  $('hud-scene').textContent = arenaAt(boot.ambientArena).name;
   const have = new Set(unlockedFighters());
   const grid = $('select-grid');
   grid.innerHTML = '';
@@ -694,6 +695,8 @@ function renderStory() {
   const doneSet = new Set(cursor.completed);
   const list = $('story-list');
   list.innerHTML = '';
+  // Keep the arena label honest on menu screens (it names the ground shown).
+  $('hud-scene').textContent = arenaAt(boot.ambientArena).name;
   for (const n of STORY_NODES) {
     const li = document.createElement('li');
     const done = doneSet.has(n.id);
@@ -914,6 +917,7 @@ function wireUI() {
   });
   $('btn-story').addEventListener('click', () => {
     boot.selectMode = 'story';
+    boot.ambientArena = currentActArena();
     renderSelect();
     showScreen('select');
   });

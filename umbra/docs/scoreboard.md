@@ -34,6 +34,28 @@ APPROVE, Tester approve-test, and Evaluator approve-eval >= 9.8/10.
 | G6 a11y | contrast >= 4.5:1, keyboard-only, reduced motion | partial | keyboard-only bout completable (Enter/JKL/U/Space/Esc, no pointer path); focus rings kept; reduced-motion path kept; contrast audit pending M5 |
 | G7 deploy + offline | Pages green at /umbra/, offline reload | pending | SW bumped to umbra-v2 covering combat + input modules; deploy check at M5 |
 
+## M3 (characters + story + levels)
+
+199 node:test assertions green (173 carried + 26 new: roster shape/rigs,
+story graph/walker/dialogue/profile-v2), M1/M2 golden hashes untouched
+(rig identity is bit-exact), headless-Chromium evidence
+`docs/shot-m3-select-desktop.png` (story fighter select),
+`docs/shot-m3-dialogue-desktop.png` (typewriter prologue over story map),
+`docs/shot-m3-fight-desktop.png` (named bout, WebGL2 1280x800),
+`docs/shot-m3-select-mobile.png` (390x844 portrait cards),
+`docs/shot-m3-story-act3-desktop.png` (Void Sanctum ambient, Mira unlocked),
+`docs/shot-m3-versus-desktop.png` (foe/arena unlock gating), zero pageerrors.
+
+| Gate | Target | M3 status | Detail |
+| ---- | ------ | --------- | ------ |
+| G1 60 FPS tier ladder | p95 <= 16.667 ms at 960x540 Tier 1, N>=30 | pending | needs Playwright/browser measurement (unchanged) |
+| G2 TTFF bands | broadband 0.8-2.0s, 4G 2.5-5s, warm < 0.8s | pending | needs browser measurement (unchanged) |
+| G3 input latency | edge-to-sim <= 2 ticks | partial | M2 unit harness intact; dialogue advance is user-paced (no sim path) |
+| G4 determinism | replay hash equality | pass | M2 pins intact (golden `92028ae1`, replay/soak); story walker is pure + fully walked in tests (17/17 nodes) |
+| G5 persistence | round-trip | partial | profile v2 (config + unlocks + story cursor) round-trips via migrate/load/save; export/import in M4 |
+| G6 a11y | contrast >= 4.5:1, keyboard-only, reduced motion | partial | all M3 screens are native buttons (keyboard-only story completable to each fight); reduced-motion typewriter reveals instantly; no live-region spam (gate2 pin kept); contrast audit pending M5 |
+| G7 deploy + offline | Pages green at /umbra/, offline reload | pending | SW bumped to umbra-v3 covering roster + story + dialogue modules; deploy check at M5 |
+
 ## How each gate is measured
 
 - G1: Playwright desktop 1280x800, collect 30+ rAF deltas at 960x540 Tier 1, `summarize()` p95.
