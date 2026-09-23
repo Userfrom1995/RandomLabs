@@ -53,6 +53,22 @@ fight evidence in `umbra/docs/shot-m2-*`. Ready for review.
 
 ## Agent log
 
+- 2026-09-23 (Fixer, M2 review findings): applied all 21 reviewer findings on
+  `opencode/issue375-umbra-m2` across 4 modular commits (combat sim, input,
+  shell, tests). Sim: combo advances on clean hits only (parry/block make
+  contact without combo/whiff), double-buffered same-tick trades via
+  pre-tick snapshots + defender merge, wantBlock guard-break, airborne KO,
+  sim-level rising-edge gate + same-tick crouch sweep, anti-air height gate
+  (uppercut exception), hashState pins didHit/phaseTick/frozenTicks/moves
+  digest, bout-owned frozen move tables, per-side maxHp, side+move jitter.
+  Engine rng deleted (AI keeps its own think stream). AI bands derive from
+  the move table; combos share advanceCombo. Input: gamepad edge poller +
+  all-index hot-plug, rebind uniqueness + validator, touch dash + reset,
+  keyboard clear. Shell: pause from bindings, remap stopImmediatePropagation,
+  edge drain on pause/over/screen-exit, HUD guards + freshest combo, aria
+  fixes, touch dash button + CSS. Mirror test now tolerates side-separated
+  jitter (damage-exact compare dropped, hp/x bounded); full suite 155/155
+  green with replay/soak determinism intact. Decision action: review.
 - 2026-09-23 (Builder run 2, M2): combat core subagent shipped
   `src/combat/` (types/moves/fighter/hitboxes/engine/combos/ai) + 32 tests
   (golden seed-375 bout `92028ae1`, 10k-tick soak); input subagent shipped

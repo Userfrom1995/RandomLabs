@@ -10,9 +10,10 @@ import {
   rebind,
   codeToAction,
   describeBindings,
+  validateBindings,
 } from '../src/input/bindings.js';
 import { codesToInput, createKeyboard } from '../src/input/keyboard.js';
-import { pollGamepad, GAMEPAD_MAP, GAMEPAD_DEADZONE } from '../src/input/gamepad.js';
+import { pollGamepad, createGamepadPoller, GAMEPAD_MAP, GAMEPAD_DEADZONE } from '../src/input/gamepad.js';
 import {
   createTouchState,
   shouldVibrate,
@@ -64,6 +65,21 @@ describe('bindings', () => {
     const next = rebind(defaultBindings(), 'punch', 'KeyP');
     assert.deepEqual(next.punch[0], 'KeyP');
     assert.deepEqual(next.kick, ['KeyK']);
+  });
+  it('rebind never leaves one code in two actions', () => {
+    const next = rebind(defaultBindings(), 'up', 'KeyS');
+    assert.equal(validateBindings(next), null);
+    const owners = (code) =>
+      Object.entries(next).filter(([, codes]) => codes.includes(code)).map(([a]) => a);
+    for (const code of ['KeyS', 'KeyW', 'ArrowUp', 'ArrowDown']) {
+      assert.equal(owners(code).length, 1, `${code} owned by ${owners(code)}`);
+    }
+  });
+  it('validateBindings rejects cross-action duplicates', () => {
+    const dup = defaultBindings();
+    dup.down = [...dup.down, 'KeyW'];
+    assert.match(validateBindings(dup), /both/);
+    assert.equal(loadBindings({ version: 1, bindings: dup }).ok, false);
   });
   it('rebind rejects unknown actions and empty codes', () => {
     assert.throws(() => rebind(defaultBindings(), 'hadouken', 'KeyH'), RangeError);
@@ -174,6 +190,19 @@ describe('createKeyboard', () => {
     assert.equal(kb.consumeTick().punch, false);
     kb.detach();
   });
+  it('clear() drops held levels and queued edges (pause/blur hygiene)', () => {
+    const kb = createKeyboard(defaultBindings());
+    const el = fakeElement();
+    kb.attach(el);
+    const noop = () => {};
+    el.handlers.keydown({ code: 'KeyJ', repeat: false, preventDefault: noop });
+    el.handlers.keydown({ code: 'KeyL', repeat: false, preventDefault: noop });
+    kb.clear();
+    const out = kb.consumeTick();
+    assert.equal(out.punch, false);
+    assert.equal(out.block, false);
+    kb.detach();
+  });
 });
 
 describe('pollGamepad', () => {
@@ -215,6 +244,43 @@ describe('pollGamepad', () => {
     assert.equal(GAMEPAD_MAP.kick, 1);
     assert.equal(GAMEPAD_MAP.special, 2);
     assert.equal(GAMEPAD_MAP.pause, 9);
+  });
+  it('picks up pads past index 0 (hot-plug tolerant)', () => {
+    const buttons = [];
+    for (let i = 0; i < 17; i++) buttons.push({ pressed: i === 0, value: 0 });
+    const nav = { getGamepads: () => [null, undefined, { axes: [0, 0], buttons }] };
+    assert.equal(pollGamepad(nav).punch, true);
+  });
+});
+
+describe('createGamepadPoller edges', () => {
+  function fakeNav({ axes = [0, 0], pressedButtons = [] } = {}) {
+    const buttons = [];
+    for (let i = 0; i < 17; i++) buttons.push({ pressed: pressedButtons.includes(i), value: 0 });
+    return { getGamepads: () => [{ axes, buttons }] };
+  }
+  it('held face buttons fire once; block stays a level', () => {
+    const pad = createGamepadPoller();
+    const nav = fakeNav({ pressedButtons: [0, 4] });
+    const first = pad.poll(nav);
+    assert.equal(first.punch, true);
+    assert.equal(first.block, true);
+    const second = pad.poll(nav);
+    assert.equal(second.punch, false, 'held A must not machine-gun');
+    assert.equal(second.block, true, 'held LB stays held');
+    pad.reset();
+    assert.equal(pad.poll(nav).punch, true, 'reset re-arms the edge');
+  });
+  it('dash fires once per press with the held direction', () => {
+    const pad = createGamepadPoller();
+    const nav = fakeNav({ axes: [0.9, 0], pressedButtons: [10] });
+    assert.equal(pad.poll(nav).dash, 1);
+    assert.equal(pad.poll(nav).dash, 0, 'held R3 must not re-dash');
+  });
+  it('null pads stay null without latching', () => {
+    const pad = createGamepadPoller();
+    assert.equal(pad.poll({ getGamepads: () => [null] }), null);
+    assert.equal(pad.poll(fakeNav({ pressedButtons: [1] })).kick, true);
   });
 });
 
@@ -265,6 +331,29 @@ describe('touch state', () => {
   });
   it('rejects unknown buttons', () => {
     assert.throws(() => createTouchState().press('hadouken'), RangeError);
+  });
+  it('dash is an edge carrying the held direction, cleared on consume', () => {
+    const t = createTouchState();
+    t.press('dash');
+    assert.equal(t.consumeTick().dash, 1, 'standing dash defaults to 1');
+    assert.equal(t.consumeTick().dash, 0, 'dash edge clears');
+    t.press('left');
+    t.press('dash');
+    assert.equal(t.consumeTick().dash, -1);
+    t.release('left');
+  });
+  it('reset() drops held levels, edges, and joystick state', () => {
+    const t = createTouchState();
+    t.press('right');
+    t.press('block');
+    t.press('punch');
+    t.joyStart(1, 100, 100);
+    t.joyMove(1, 200, 100);
+    t.reset();
+    assert.deepEqual(t.consumeTick(), {
+      move: 0, crouch: false, jump: false, punch: false,
+      kick: false, block: false, special: false, dash: 0,
+    });
   });
   it('shouldVibrate enforces the 80 ms gap', () => {
     assert.equal(VIBRATE_MIN_GAP_MS, 80);
