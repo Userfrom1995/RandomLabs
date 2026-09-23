@@ -3,8 +3,8 @@
 - **Issue:** #375
 - **Branch:** opencode/issue375-umbra-m5 (M5 active, final)
 - **Status:** in-progress
-- **Updated:** 2026-09-23T14:10:00Z
-- **Active Milestone:** M5 polish + product hardening (in progress; `Closes #375` ONLY when all gates green + approve/approve-test/approve-eval >= 9.8)
+- **Updated:** 2026-09-23T16:00:00Z
+- **Active Milestone:** M5 polish + product hardening (Complete, ready for review; Refs #375 - eval >= 9.8 and Pages deploy land via the review pipeline)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -47,8 +47,16 @@ flash overlay + shake (both gated off under reduced motion), KO slow-mo in
 the fixed-step clock, tutorial dojo-gate screen + bout + 25-ember
 graduation, focus placement + modal Tab trap + single live region + OS
 motion default + haptics-under-reduced-motion skip, SW umbra-v5.
-452/452 node:test green (355 baseline + 88 track + 9 integration).
+455/455 node:test green (355 baseline + 88 track + 12 integration).
 
+M5 browser pass (Builder run 5c): `?bench=N` hook + CDP wall-clock
+reads - Canvas2D render p95 0.5 ms at 960x540, WebGL2 submit p95
+0.6 ms (SwiftShader presentation stalls excluded with reason, ladder
+governor proven 960x540 to 426x240), 52-file 399 KB shell for G2 bands,
+SW v5 offline reload verified with the server killed. Screenshot review
+caught hidden phone fighter names (`.fname{display:none}`) - restored as
+ellipsized names, re-shot. Landing card + root README + umbra README +
+scoreboard MEASURED + ideas M5 entry + architecture sync done.
 M4 shipped (runs 4/4b/4a + Fixer/Tester hardening, merged to main):
 
 shell UI (shop/dojo/versus weapons, boss banners + stance AI, awards,
