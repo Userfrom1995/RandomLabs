@@ -58,10 +58,13 @@ story graph/walker/dialogue/profile-v2, red-team robustness), M1/M2 golden hashe
 
 ## M4 (bosses + weapons + progression)
 
-300 node:test assertions green (227 carried + 73 new: weapons 17,
-economy/bundle/migration 29, bosses/dojo 8, engine per-side/power/boss
-14, trails 5), M1/M2/M3 golden hashes intact (`e9ef3be3` pinned by
-test-combat + gate suites; SceneDesc ambient contract holds),
+337 node:test tests green across 81 suites (332 carried green at Tester
+sign-off: M1/M2/M3 pins plus M4 weapons/economy/bosses/dojo/engine/trails
+suites plus the 32-test Tester hostile regression suite; 5 new Fixer
+regression tests: canonical shop cost, award/currency caps, bundle clamp,
+Infinity frame rows, wisp cap), M1/M2/M3 golden hashes intact
+(`e9ef3be3` pinned by test-combat + gate suites; SceneDesc ambient
+contract holds),
 headless-Chromium evidence `docs/shot-m4-shop-desktop.png` (arsenal +
 training + backup, Canvas2D 1280x2400 full page),
 `docs/shot-m4-dojo-desktop.png` (frame table + trials),

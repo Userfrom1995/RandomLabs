@@ -43,15 +43,19 @@ M4 build complete (Builder run 4): shell UI (shop/dojo/versus weapons,
 boss banners + stance AI, awards, export/import), sw v4, ember pill,
 trail-width bug found by screenshots and fixed (arena units + validator
 cap + scene clamp), scoreboard M4 rows, ideas entry, README/architecture
-sync, 4 headless-Chromium screenshots with zero pageerrors. 300/300
-node:test green (M2 golden e9ef3be3 intact). Ready for review.
+sync, 4 headless-Chromium screenshots with zero pageerrors. 337/337
+node:test green across 81 suites (M2 golden e9ef3be3 intact). Fixer
+hardening for the Evaluator gate (canonical shop cost, owned/frozen
+weapon tables with copy-out reads, award/currency caps, boss phase and
+param guards, wisp cap, finite frame rows, HUD/footer/frames craft).
+Ready for re-review.
 
 ## Next steps
 
 - Reviewer `/oc review` -> Tester `/oc test` -> Evaluator per milestone;
   intermediates use `Refs #375`, only the final verified M5 uses `Closes #375`
-- M3 (next): characters + story + levels on a new milestone branch
-  (`opencode/issue375-umbra-m3` from main after this PR merges)
+- M5 (next): polish + product hardening on a new milestone branch
+  (`opencode/issue375-umbra-m5` from main after this PR merges)
 - Landing card + root README sync deferred to M5 per blueprint (README
   "Live Projects" section is shipped-on-main only)
 
