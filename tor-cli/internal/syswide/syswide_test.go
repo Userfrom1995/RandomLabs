@@ -184,6 +184,12 @@ func (f *fakeRunner) RunWithStdin(stdin, name string, args ...string) (string, e
 
 func testOpts(t *testing.T, f *fakeRunner) Options {
 	t.Helper()
+	// Fake PID registry: Launch registers each tor pid as alive;
+	// Term/Kill mark it dead. Keeps stops fast and hermetic (no real
+	// signals, no 5s grace waits).
+	alive := map[int]bool{}
+	nextPid := 100000
+	markDead := func(pid int) { delete(alive, pid) }
 	return Options{
 		StateDir:  t.TempDir(),
 		Backend:   BackendIptables,
@@ -193,6 +199,9 @@ func testOpts(t *testing.T, f *fakeRunner) Options {
 		Resolve:   func(name string) (uint32, uint32, error) { return 1001, 1001, nil },
 		PortFree:  func(port int) error { return nil },
 		DialTrans: func(port int) error { return nil },
+		PidAlive:  func(pid int) bool { return alive[pid] },
+		TermPid:   func(pid int) error { markDead(pid); return nil },
+		KillPid:   func(pid int) error { markDead(pid); return nil },
 		Launch: func(lo lifecycle.Options) (*lifecycle.Instance, error) {
 			if lo.TransPort <= 0 {
 				return nil, fmt.Errorf("test launcher needs TransPort")
@@ -200,15 +209,17 @@ func testOpts(t *testing.T, f *fakeRunner) Options {
 			if lo.RunAs == nil || lo.RunAs.UID == 0 {
 				return nil, fmt.Errorf("test launcher needs unprivileged RunAs")
 			}
+			nextPid++
+			alive[nextPid] = true
 			return &lifecycle.Instance{
 				SocksPort:   19050,
 				ControlPort: 19051,
 				DNSPort:     dnsFakePort(t),
-				Pid:         1 << 20, // dead pid: never signaled
+				Pid:         nextPid,
 				Owned:       true,
 			}, nil
 		},
-		Stop: func(in *lifecycle.Instance) error { return nil },
+		Stop: func(in *lifecycle.Instance) error { markDead(in.Pid); return nil },
 	}
 }
 
@@ -498,13 +509,21 @@ func TestRepairStaleAndHealthy(t *testing.T) {
 	if _, err := Connect(o); err != nil {
 		t.Fatal(err)
 	}
-	// Healthy session: repair is a no-op (tor pid is dead in fake, but
-	// rules are present, so this exercises the dead-tor branch).
+	// Healthy session (PidAlive stub reports alive, rules present):
+	// repair must leave it alone.
 	rep2, err := Repair(o)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = rep2
+	foundHealthy := false
+	for _, a := range rep2.Actions {
+		if strings.Contains(a, "healthy") {
+			foundHealthy = true
+		}
+	}
+	if !foundHealthy {
+		t.Fatalf("healthy session must be left alone: %v", rep2.Actions)
+	}
 	// Corrupt state quarantined, never fatal.
 	if err := os.WriteFile(filepath.Join(o.StateDir, "active.json"), []byte("{nope"), 0o600); err != nil {
 		t.Fatal(err)
@@ -588,5 +607,94 @@ func TestSnapshotRestoreRoundtrip(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(empty, FileIp6tablesSave), []byte(""), 0o600)
 	if err := RestoreBackup(empty, BackendIptables, f); err == nil {
 		t.Fatalf("empty dump restore must fail closed")
+	}
+}
+
+func TestConnectDeadTorDemandsForce(t *testing.T) {
+	f := newFake()
+	o := testOpts(t, f)
+	if _, err := Connect(o); err != nil {
+		t.Fatal(err)
+	}
+	// Tor died but rules remain: double-connect must NOT report success.
+	o.PidAlive = func(pid int) bool { return false }
+	if _, err := Connect(o); err == nil || !strings.Contains(err.Error(), "--force") {
+		t.Fatalf("dead-tor double-connect must demand --force, got %v", err)
+	}
+	o.Force = true
+	if _, err := Connect(o); err != nil {
+		t.Fatalf("forced reconnect over dead tor must recover: %v", err)
+	}
+}
+
+func TestDisconnectCleansDataDir(t *testing.T) {
+	f := newFake()
+	o := testOpts(t, f)
+	if _, err := Connect(o); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadState(o.StateDir)
+	if err != nil || s == nil {
+		t.Fatalf("state must exist: %v %+v", err, s)
+	}
+	// Plant an owned datadir with a control cookie.
+	datadir := filepath.Join(o.StateDir, "torshim-test-datadir")
+	if err := os.MkdirAll(datadir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(datadir, "control_auth_cookie"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.TorDataDir = datadir
+	if err := SaveState(o.StateDir, s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Disconnect(o); err != nil {
+		t.Fatalf("disconnect: %v", err)
+	}
+	if _, err := os.Stat(datadir); !os.IsNotExist(err) {
+		t.Fatalf("disconnect must remove owned datadir %s", datadir)
+	}
+}
+
+func TestSnapshotDirsUnique(t *testing.T) {
+	f := newFake()
+	dir := t.TempDir()
+	first, err := Snapshot(dir, BackendIptables, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Snapshot(dir, BackendIptables, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatalf("back-to-back snapshots must land in distinct dirs")
+	}
+	if _, err := os.Stat(filepath.Join(first, FileIptablesSave)); err != nil {
+		t.Fatalf("first snapshot must survive second snapshot: %v", err)
+	}
+}
+
+func TestNftRestoreAtomic(t *testing.T) {
+	f := newFake()
+	dir := t.TempDir()
+	bdir, err := Snapshot(dir, BackendNft, f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.restored = nil
+	if err := RestoreBackup(bdir, BackendNft, f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.restored) != 1 {
+		t.Fatalf("nft restore must be a single atomic load, got %v", f.restored)
+	}
+	body := f.restored[0]
+	if !strings.Contains(body, "flush ruleset") {
+		t.Fatalf("atomic nft restore must start with flush ruleset: %q", body)
+	}
+	if !strings.Contains(body, f.nftDump) {
+		t.Fatalf("atomic nft restore must replay the dump: %q", body)
 	}
 }
