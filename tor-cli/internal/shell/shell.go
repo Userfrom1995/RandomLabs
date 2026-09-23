@@ -52,14 +52,48 @@ func ResolveShell() string {
 	return "/bin/sh"
 }
 
-// Spawn runs the child shell interactively. It returns the shell exit code.
-func Spawn(cfg Config) (int, error) {
-	sh := cfg.Shell
-	if sh == "" {
-		sh = ResolveShell()
+// ownedKeys are environment keys owned by the child shell setup. They must
+// appear exactly once: a duplicate left over from the parent would shadow
+// the new value (getenv returns the first match) and defeat the shim for
+// every command typed in the shell, contradicting the coverage banner.
+func ownedKey(key string) bool {
+	switch key {
+	case "LD_PRELOAD", "TORSOCKS_CONF_FILE", "TORSOCKS_ISOLATE_PID",
+		"TORSHIM_ACTIVE", "TORSHIM_SOCKS",
+		"ALL_PROXY", "all_proxy",
+		"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
+		"PS1":
+		return true
 	}
-	fmt.Print(Banner(cfg))
-	env := os.Environ()
+	if strings.HasPrefix(key, "TORSHIM_") {
+		return true
+	}
+	return false
+}
+
+func envKey(kv string) string {
+	if i := strings.Index(kv, "="); i >= 0 {
+		return kv[:i]
+	}
+	return kv
+}
+
+// Environ builds the child shell environment from base, filtering any
+// owned keys first so the values below cannot be shadowed by duplicates.
+func Environ(base []string, cfg Config) []string {
+	basePS1 := ""
+	for _, kv := range base {
+		if envKey(kv) == "PS1" {
+			basePS1 = strings.TrimPrefix(kv, "PS1=")
+		}
+	}
+	env := make([]string, 0, len(base)+10)
+	for _, kv := range base {
+		if ownedKey(envKey(kv)) {
+			continue
+		}
+		env = append(env, kv)
+	}
 	env = append(env, "TORSHIM_ACTIVE=1", "TORSHIM_SOCKS="+cfg.SocksAddr)
 	if cfg.LibPath != "" {
 		env = append(env,
@@ -78,11 +112,22 @@ func Spawn(cfg Config) (int, error) {
 			"https_proxy="+proxy,
 		)
 	}
-	if ps1 := os.Getenv("PS1"); ps1 != "" {
-		env = append(env, "PS1=[torshim] "+ps1)
+	if basePS1 != "" {
+		env = append(env, "PS1=[torshim] "+basePS1)
 	} else {
 		env = append(env, "PS1=[torshim] \\u@\\h:\\w\\$ ")
 	}
+	return env
+}
+
+// Spawn runs the child shell interactively. It returns the shell exit code.
+func Spawn(cfg Config) (int, error) {
+	sh := cfg.Shell
+	if sh == "" {
+		sh = ResolveShell()
+	}
+	fmt.Print(Banner(cfg))
+	env := Environ(os.Environ(), cfg)
 	cmd := exec.Command(sh)
 	cmd.Env = env
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
