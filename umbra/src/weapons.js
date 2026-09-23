@@ -2,10 +2,12 @@
  * Umbra M4 weapons: six weapon defs plus one tuned move table per weapon.
  * Pure ES module: no DOM, no Math.random, no Date.now.
  *
- * The fists table is the canonical MOVES object itself (identity), so the
- * headless sim runs its long tested path unchanged. Every other weapon keeps
- * the same five canonical move ids and trigger mapping, with tuned frame
- * data for feel. The bout owns a frozen copy via copyMoves, as before.
+ * The fists table carries the same content as the canonical MOVES object
+ * but is owned (deep-copied) by this module, so a console write through
+ * WEAPON_TABLES.fists can never desync the M2-tested sim path. Every
+ * table is deep-frozen, and movesForWeapon hands out a mutable deep copy,
+ * so callers can never pollute the canonicals. The bout owns a frozen
+ * copy via copyMoves, as before.
  */
 
 import { MOVES, validateMoves } from './combat/moves.js';
@@ -105,9 +107,37 @@ export const WEAPONS = [
   },
 ];
 
+/**
+ * Deep-copy a move table (moves plus their cancelInto arrays).
+ * @param {Record<string, MoveDef>} table source table
+ * @returns {Record<string, MoveDef>} mutable owned copy
+ */
+function copyTable(table) {
+  const out = {};
+  for (const [key, m] of Object.entries(table)) {
+    out[key] = { ...m, cancelInto: Array.isArray(m?.cancelInto) ? [...m.cancelInto] : [] };
+  }
+  return out;
+}
+
+/**
+ * Deep-freeze a move table in place (each move object, then the table).
+ * @param {Record<string, MoveDef>} table table to freeze
+ * @returns {Record<string, MoveDef>} the same table, frozen
+ */
+function freezeTable(table) {
+  for (const m of Object.values(table)) {
+    if (m && typeof m === 'object') {
+      if (Array.isArray(m.cancelInto)) Object.freeze(m.cancelInto);
+      Object.freeze(m);
+    }
+  }
+  return Object.freeze(table);
+}
+
 /** @type {Record<string, Record<string, MoveDef>>} */
 export const WEAPON_TABLES = {
-  fists: MOVES,
+  fists: copyTable(MOVES),
   sword: {
     jab: {
       id: 'jab',
@@ -484,19 +514,23 @@ export function weaponById(id) {
   }
 }
 
+for (const table of Object.values(WEAPON_TABLES)) freezeTable(table);
+Object.freeze(WEAPON_TABLES);
+
 /**
- * Look up the move table for a weapon id.
+ * Look up the move table for a weapon id. Always returns a fresh mutable
+ * deep copy (falling back to a fists copy for unknown ids), so callers
+ * can never mutate the frozen canonicals.
  * @param {unknown} id weapon id
- * @returns {Record<string, MoveDef>} table for the id, or MOVES when unknown
+ * @returns {Record<string, MoveDef>} owned copy of the table for the id
  */
 export function movesForWeapon(id) {
   try {
-    if (typeof id !== 'string') return MOVES;
-    const table = WEAPON_TABLES[id];
-    if (table == null || typeof table !== 'object') return MOVES;
-    return table;
+    const table = typeof id === 'string' ? WEAPON_TABLES[id] : null;
+    if (table != null && typeof table === 'object') return copyTable(table);
+    return copyTable(WEAPON_TABLES.fists);
   } catch {
-    return MOVES;
+    return copyTable(WEAPON_TABLES.fists);
   }
 }
 
