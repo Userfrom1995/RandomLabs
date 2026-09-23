@@ -156,6 +156,10 @@ function enterKo(f, ev, moveId) {
 function resolveHit(att, def, mv, ctx, ev) {
   const seed = Number.isFinite(ctx.seed) ? ctx.seed : 0;
   const side = ctx.side === 1 ? 1 : 0;
+  // Per-side damage scale (M4 upgrades, boss enrage): sanitized to a
+  // positive finite multiplier, default 1, so legacy callers replay
+  // byte-identically.
+  const dmgScale = Number.isFinite(ctx.dmgScale) && ctx.dmgScale > 0 ? ctx.dmgScale : 1;
   // Domain-separated per side and per move: same-tick trades never share
   // a jitter draw, while mirrored bouts stay symmetric.
   const moveSalt = hashStr(typeof mv.id === "string" ? mv.id : "");
@@ -206,7 +210,7 @@ function resolveHit(att, def, mv, ctx, ev) {
   att.didHit = true;
   const scale = adv.scale;
   // Clean hit: scaled damage, knockback, stun or launch.
-  const dmg = Math.max(1, Math.round(mv.damage * scale) + jitter);
+  const dmg = Math.max(1, Math.round(mv.damage * scale * dmgScale) + jitter);
   def.hp = Math.max(0, def.hp - dmg);
   def.x = clampX(def.x + att.facing * mv.knockback);
   def.stamina = Math.max(0, def.stamina - 6);
@@ -276,7 +280,7 @@ function attackTick(f, inp, ctx, ev) {
  * Advance one fighter by a single tick.
  * @param {FighterState} f fighter to advance (mutated in place)
  * @param {CombatInput} input raw input edges for this tick
- * @param {{rng?:()=>number, seed?:number, events?:FightEvent[], tick?:number, foe?:FighterState, moveTable?:Record<string, import("./types.js").MoveDef>, side?:0|1}} [ctx]
+ * @param {{rng?:()=>number, seed?:number, events?:FightEvent[], tick?:number, foe?:FighterState, moveTable?:Record<string, import("./types.js").MoveDef>, side?:0|1, dmgScale?:number}} [ctx]
  * @returns {FighterState} the same fighter object
  */
 export function stepFighter(f, input, ctx = {}) {
@@ -311,6 +315,7 @@ export function stepFighter(f, input, ctx = {}) {
     foe: ctx.foe ?? null,
     moveTable: ctx.moveTable ?? {},
     side,
+    dmgScale: ctx.dmgScale,
   };
 
   if (!STATES.includes(f.state)) f.state = "idle";

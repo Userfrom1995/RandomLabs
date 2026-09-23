@@ -7,6 +7,7 @@
 
 import { createFighter, stepFighter, STAMINA_MAX } from "./fighter.js";
 import { MOVES } from "./moves.js";
+import { bossFor, bossPhaseIndex } from "../bosses.js";
 import { hashStr } from "../rng.js";
 
 /**
@@ -153,7 +154,7 @@ function mergeDefender(live, copy, pre) {
 /**
  * Create a fresh bout. The bout deep-copies and freezes the move table;
  * later caller mutations cannot desync the sim.
- * @param {{seed?:number, arena?:number, rounds?:number, roundTicks?:number, moves?:Record<string, import("./types.js").MoveDef>, hp?:number}} [opts]
+ * @param {{seed?:number, arena?:number, rounds?:number, roundTicks?:number, moves?:Record<string, import("./types.js").MoveDef>, movesB?:Record<string, import("./types.js").MoveDef>|null, hp?:number, power?:[number,number]|null, boss?:string|null}} [opts]
  * @returns {FightState}
  */
 export function createFight({
@@ -162,18 +163,26 @@ export function createFight({
   rounds = 3,
   roundTicks = DEFAULT_ROUND_TICKS,
   moves = MOVES,
+  movesB = null,
   hp = 100,
+  power = null,
+  boss = null,
 } = {}) {
   const cleanSeed = (Number.isFinite(seed) ? seed : 0) >>> 0;
   const cleanRounds = Number.isInteger(rounds) && rounds >= 1 ? rounds : 3;
   const cleanTimer =
     Number.isInteger(roundTicks) && roundTicks > 0 ? roundTicks : DEFAULT_ROUND_TICKS;
+  const bossId = typeof boss === "string" ? boss : null;
+  const bossDef = bossId ? bossFor(bossId) : null;
   return {
     seed: cleanSeed,
     arena: Number.isInteger(arena) && arena >= 0 ? arena : 0,
     rounds: cleanRounds,
     roundTicks: cleanTimer,
     moves: copyMoves(moves),
+    movesB: movesB != null && typeof movesB === "object" ? copyMoves(movesB) : null,
+    power: sanitizePower(power),
+    boss: bossDef ? freshBoss(bossDef.id) : null,
     tick: 0,
     round: 1,
     wins: [0, 0],
@@ -191,6 +200,70 @@ export function createFight({
     frozenTicks: 0,
     prev: [{ ...NEUTRAL }, { ...NEUTRAL }],
   };
+}
+
+/**
+ * Sanitize per-side damage multipliers (M4 upgrades): finite 0..8, else 1.
+ * @param {unknown} power
+ * @returns {[number, number]}
+ */
+export function sanitizePower(power) {
+  const out = [1, 1];
+  if (Array.isArray(power)) {
+    for (let i = 0; i < 2; i++) {
+      const v = Number(power[i]);
+      out[i] = Number.isFinite(v) && v > 0 && v <= 8 ? v : 1;
+    }
+  }
+  return out;
+}
+
+/**
+ * Fresh boss dynamics for a round (adds cleared, timers reset).
+ * @param {string} id boss id
+ * @returns {import("./types.js").BossState}
+ */
+export function freshBoss(id) {
+  return {
+    id,
+    phase: 0,
+    phaseTick: 0,
+    stance: 0,
+    stanceTick: 0,
+    enraged: false,
+    adds: [],
+    addTick: 0,
+  };
+}
+
+/**
+ * Move table for a side: side 1 uses the bout's second table when present.
+ * @param {FightState} state
+ * @param {0|1} side
+ * @returns {Record<string, import("./types.js").MoveDef>}
+ */
+export function tableFor(state, side) {
+  return side === 1 && state.movesB ? state.movesB : state.moves;
+}
+
+/**
+ * Effective damage scale for a side: profile power times boss enrage
+ * (side 1 only, while the eclipse is enraged).
+ * @param {FightState} state
+ * @param {0|1} side
+ * @returns {number}
+ */
+export function sidePower(state, side) {
+  const pw = Array.isArray(state.power) ? state.power : [1, 1];
+  const v = Number(pw[side]);
+  const base = Number.isFinite(v) && v > 0 ? v : 1;
+  if (side === 1 && state.boss && state.boss.enraged) {
+    const def = bossFor(state.boss.id);
+    const rage =
+      def && def.eclipse && Number.isFinite(def.eclipse.power) ? def.eclipse.power : 1;
+    return base * rage;
+  }
+  return base;
 }
 
 function faceBoth(state) {
@@ -224,7 +297,9 @@ function applyHitstop(state, fromIndex) {
 
 /**
  * Reset fighters, clock, and phase for the next round, preserving each
- * side's own maxHp (asymmetric-hp bouts survive across rounds).
+ * side's own maxHp (asymmetric-hp bouts survive across rounds). Boss
+ * dynamics reset to fresh (adds cleared, timers zeroed) while the boss
+ * identity carries across rounds of the same bout.
  * @param {FightState} state
  */
 export function resetRound(state) {
@@ -237,6 +312,11 @@ export function resetRound(state) {
   state.hitstop = 0;
   state.phase = "intro";
   state.phaseTick = 0;
+  if (state.boss != null && typeof state.boss === "object" && typeof state.boss.id === "string") {
+    state.boss = freshBoss(state.boss.id);
+  } else {
+    state.boss = null;
+  }
 }
 
 function endRound(state, winnerSide) {
@@ -272,6 +352,148 @@ function checkRoundEnd(state) {
     if (a.hp > b.hp) endRound(state, 0);
     else if (b.hp > a.hp) endRound(state, 1);
     else endRound(state, -1);
+  }
+}
+
+/**
+ * Push a boss presentation event (phase changes, summons, stance, enrage).
+ * @param {FightState} state
+ * @param {string} move event move name
+ * @param {number} damage phase/stance index carried for the HUD
+ */
+function pushBossEvent(state, move, damage) {
+  state.events.push({ t: "phase", tick: state.tick, side: 1, move, damage });
+}
+
+/**
+ * Whether the defender's held block absorbs a wisp strike (mirrors the
+ * fighter guard rule without importing presentation state).
+ * @param {import("./types.js").FighterState} f defender
+ * @returns {boolean}
+ */
+function wispBlocked(f) {
+  return (
+    f.blockHeld &&
+    f.grounded &&
+    (f.state === "block" || f.state === "idle" || f.state === "walk" || f.state === "crouch")
+  );
+}
+
+/**
+ * Resolve one expired summoner wisp against side 0: telegraphed ground
+ * zone, dodgeable by moving away, blockable for chip, parryable.
+ * @param {FightState} state
+ * @param {{x:number, fuse:number}} add expired wisp
+ * @param {{range:number, damage:number, chip:number}} summon summon params
+ */
+function strikeWisp(state, add, summon) {
+  const p0 = state.fighters[0];
+  const dx = Math.abs(add.x - p0.x);
+  const hittable =
+    p0.state !== "ko" &&
+    p0.state !== "knockdown" &&
+    p0.state !== "down" &&
+    p0.grounded &&
+    dx <= summon.range;
+  if (!hittable) {
+    state.events.push({ t: "whiff", tick: state.tick, side: 1, move: "wisp", damage: 0 });
+    return;
+  }
+  if (p0.parryWindow > 0 && p0.blockHeld && p0.grounded) {
+    p0.state = "parry";
+    p0.stateTick = 0;
+    p0.stunTick = 18;
+    p0.moveId = null;
+    p0.moveTick = 0;
+    p0.parryWindow = 0;
+    state.events.push({ t: "parried", tick: state.tick, side: 1, move: "wisp", damage: 0 });
+    return;
+  }
+  if (wispBlocked(p0)) {
+    const chip = Math.max(0, Math.round(summon.chip));
+    p0.hp = Math.max(0, p0.hp - chip);
+    p0.stamina = Math.max(0, p0.stamina - (4 + chip * 2));
+    state.events.push({ t: "blocked", tick: state.tick, side: 1, move: "wisp", damage: chip });
+    if (p0.hp <= 0) {
+      p0.state = "ko";
+      p0.stateTick = 0;
+      state.events.push({ t: "ko", tick: state.tick, side: 1, move: "wisp", damage: 0 });
+    }
+    return;
+  }
+  const dmg = Math.max(1, Math.round(summon.damage));
+  p0.hp = Math.max(0, p0.hp - dmg);
+  p0.stamina = Math.max(0, p0.stamina - 6);
+  p0.stateTick = 0;
+  p0.moveId = null;
+  p0.moveTick = 0;
+  p0.parryWindow = 0;
+  state.events.push({ t: "hit", tick: state.tick, side: 1, move: "wisp", damage: dmg });
+  if (p0.hp <= 0) {
+    p0.state = "ko";
+    p0.stateTick = 0;
+    state.events.push({ t: "ko", tick: state.tick, side: 1, move: "wisp", damage: 0 });
+  } else {
+    p0.state = "hit";
+    p0.stunTick = 12;
+  }
+}
+
+/**
+ * Advance boss dynamics by one live fight tick (never during hitstop or
+ * intermissions): hp-phase tracking, summoner adds, duelist stances,
+ * eclipse enrage. Fully deterministic in (seed-independent) tick counters
+ * plus fighter hp, so replays stay byte-identical.
+ * @param {FightState} state
+ */
+function updateBoss(state) {
+  const b = state.boss;
+  if (b == null || typeof b !== "object") return;
+  const def = bossFor(b.id);
+  if (!def) return;
+  const foe = state.fighters[1];
+  const maxHp = Number.isFinite(foe.maxHp) && foe.maxHp > 0 ? foe.maxHp : 1;
+  const frac = Math.max(0, Math.min(1, foe.hp / maxHp));
+  const phase = bossPhaseIndex(def, frac);
+  if (phase !== b.phase) {
+    b.phase = phase;
+    b.phaseTick = 0;
+    pushBossEvent(state, `phase-${phase}`, phase);
+  }
+  b.phaseTick += 1;
+  if (def.mechanic === "summoner" && def.summon) {
+    b.addTick += 1;
+    if (b.addTick >= def.summon.every) {
+      b.addTick = 0;
+      const px = state.fighters[0].x;
+      b.adds.push({
+        x: Math.max(-ARENA_X, Math.min(ARENA_X, Number.isFinite(px) ? px : 0)),
+        fuse: def.summon.fuse,
+      });
+      pushBossEvent(state, "wisp", 0);
+    }
+    const kept = [];
+    for (const add of b.adds) {
+      add.fuse -= 1;
+      if (add.fuse > 0) {
+        kept.push(add);
+        continue;
+      }
+      strikeWisp(state, add, def.summon);
+    }
+    b.adds = kept;
+  } else if (def.mechanic === "duelist" && def.duel) {
+    b.stanceTick += 1;
+    if (b.stanceTick >= def.duel.every) {
+      b.stanceTick = 0;
+      b.stance = b.stance === 1 ? 0 : 1;
+      pushBossEvent(state, `stance-${b.stance}`, b.stance);
+    }
+  } else if (def.mechanic === "eclipse" && def.eclipse) {
+    if (!b.enraged && frac <= def.eclipse.enrageAt) {
+      b.enraged = true;
+      pushBossEvent(state, "enrage", 0);
+    }
   }
 }
 
@@ -332,6 +554,9 @@ export function stepFight(state, p1Input, p2Input) {
   const e1 = edgeGate(p1, sanitizeInput(prev[0]));
   const e2 = edgeGate(p2, sanitizeInput(prev[1]));
   state.prev = [p1, p2];
+  // M4: boss dynamics tick before the fighters (phase/adds/stance/enrage
+  // events land ahead of this tick's strikes, exactly like strikes do).
+  if (state.boss) updateBoss(state);
   const foeFor0 = { ...f1 };
   const foeFor1 = { ...f0 };
   const pre0 = { hp: f0.hp, x: f0.x, stamina: f0.stamina, state: f0.state };
@@ -341,16 +566,18 @@ export function stepFight(state, p1Input, p2Input) {
     events: state.events,
     tick: state.tick,
     foe: foeFor0,
-    moveTable: state.moves,
+    moveTable: tableFor(state, 0),
     side: 0,
+    dmgScale: sidePower(state, 0),
   });
   stepFighter(f1, e2, {
     seed: state.seed,
     events: state.events,
     tick: state.tick,
     foe: foeFor1,
-    moveTable: state.moves,
+    moveTable: tableFor(state, 1),
     side: 1,
+    dmgScale: sidePower(state, 1),
   });
   mergeDefender(f0, foeFor1, pre0);
   mergeDefender(f1, foeFor0, pre1);
@@ -380,7 +607,9 @@ export function eventsDigest(events) {
  * Deterministic 8-hex hash of the bout state. Positions are quantized
  * to 1e-3 so the hash is stable across identical replays. Pins maxHp per
  * side (asymmetric-hp bouts) plus an event-content digest, so hp-only or
- * count-only collisions cannot pass as identical.
+ * count-only collisions cannot pass as identical. M4 extras (second move
+ * table, per-side power, boss dynamics) append parts ONLY when active, so
+ * standard bouts hash exactly as M2 pinned them.
  * @param {FightState} state
  * @returns {string} 8-char hex string
  */
@@ -402,6 +631,18 @@ export function hashState(state) {
     state.events.length,
     eventsDigest(state.events),
   ];
+  if (state.movesB) parts.push(`movesB:${movesDigest(state.movesB)}`);
+  const pw = Array.isArray(state.power) ? state.power : [1, 1];
+  if (pw[0] !== 1 || pw[1] !== 1) parts.push(`power:${pw[0]}:${pw[1]}`);
+  if (state.boss != null && typeof state.boss === "object") {
+    const b = state.boss;
+    const adds = Array.isArray(b.adds)
+      ? b.adds.map((a) => `${q(a.x)}:${Number.isFinite(a.fuse) ? Math.round(a.fuse) : 0}`).join(",")
+      : "";
+    parts.push(
+      `boss:${b.id}|${b.phase | 0}|${b.phaseTick | 0}|${b.stance | 0}|${b.enraged ? 1 : 0}|${b.addTick | 0}|${b.stanceTick | 0}|${adds}`,
+    );
+  }
   for (const f of state.fighters) {
     parts.push(
       [
