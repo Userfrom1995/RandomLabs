@@ -87,16 +87,16 @@ func (b NftBackend) Dump() (string, error) {
 	return out, nil
 }
 
-// Restore replays the dump (which drops our table along with restoring
-// everything else byte-exact).
+// Restore replays the dump atomically: a single `nft -f -` whose script
+// starts with `flush ruleset` replaces the whole ruleset in one load, so
+// there is no window where the firewall sits empty (a crash between a
+// separate flush and reload would leave it open).
 func (b NftBackend) Restore(dump string) error {
 	if strings.TrimSpace(dump) == "" {
 		return fmt.Errorf("syswide: refusing restore from empty nft dump (run repair, inspect backup dir)")
 	}
-	if _, err := b.Run.RunWithStdin(dump, "nft", "flush", "ruleset"); err != nil {
-		return fmt.Errorf("syswide: nft flush ruleset: %w", err)
-	}
-	if _, err := b.Run.RunWithStdin(dump, "nft", "-f", "-"); err != nil {
+	combined := "flush ruleset\n" + dump
+	if _, err := b.Run.RunWithStdin(combined, "nft", "-f", "-"); err != nil {
 		return fmt.Errorf("syswide: nft restore failed (firewall may be open): %w", err)
 	}
 	return nil
