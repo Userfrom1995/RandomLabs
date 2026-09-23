@@ -224,7 +224,7 @@ function handleFightEvents() {
     }
   }
   if (f.phase === 'intro' && f.phaseTick === 1) {
-    showBanner(f.round === 1 ? 'ROUND 1 — FIGHT' : `ROUND ${f.round} — FIGHT`, 70);
+    showBanner(f.round === 1 ? 'ROUND 1 - FIGHT' : `ROUND ${f.round} - FIGHT`, 70);
   }
   if (f.tick >= boot.bannerUntil && !$('banner').hidden) hideBanner();
 }
@@ -239,16 +239,16 @@ function showResult() {
   $('result-title').textContent = title;
   $('result-sub').textContent =
     f.winner === 0
-      ? `${n0} bests ${n1} ${f.wins[0]}–${f.wins[1]}.`
+      ? `${n0} bests ${n1} ${f.wins[0]}-${f.wins[1]}.`
       : f.winner === 1
-        ? `${n1} prevails ${f.wins[1]}–${f.wins[0]}. Study the guard, then rematch.`
+        ? `${n1} prevails ${f.wins[1]}-${f.wins[0]}. Study the guard, then rematch.`
         : 'Neither shadow yields. Rematch to settle it.';
   // Story bouts won by the player continue the tale; everything else
   // offers rematch/title only (a loss earns no progress).
   const storyWin = b.mode === 'story' && f.winner === 0 && b.nodeId != null;
   $('btn-result-continue').hidden = !storyWin;
   $('result-overlay').hidden = false;
-  announce(`Bout over: ${title} (${f.wins[0]}–${f.wins[1]}).`);
+  announce(`Bout over: ${title} (${f.wins[0]}-${f.wins[1]}).`);
 }
 
 /** Display name for a roster id (falls back for legacy bouts). */
