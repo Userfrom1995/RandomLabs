@@ -45,6 +45,13 @@ type Options struct {
 	// run hermetically without real listeners.
 	PortFree  func(port int) error
 	DialTrans func(port int) error
+	// PidAlive reports whether a tor PID is still running (default:
+	// signal-0 probe). Hooked so tests can simulate dead/alive tor
+	// without real signals. TermPid/KillPid send SIGTERM/SIGKILL
+	// (hooked for the same reason).
+	PidAlive func(pid int) bool
+	TermPid  func(pid int) error
+	KillPid  func(pid int) error
 }
 
 func (o *Options) withDefaults() *Options {
@@ -87,6 +94,15 @@ func (o *Options) withDefaults() *Options {
 	}
 	if out.DialTrans == nil {
 		out.DialTrans = dialTransPort
+	}
+	if out.PidAlive == nil {
+		out.PidAlive = pidAlive
+	}
+	if out.TermPid == nil {
+		out.TermPid = termPid
+	}
+	if out.KillPid == nil {
+		out.KillPid = killPid
 	}
 	return &out
 }
@@ -297,16 +313,64 @@ func runVerify(o *Options, s *ActiveState) ([]VerifyRow, bool) {
 	return rows, ok
 }
 
+// cleanupDataDir removes the owned tor datadir (including the control
+// cookie) after tor death. Every connect/disconnect cycle must leave no
+// trace under /run plus no cookie behind.
+func cleanupDataDir(dir string) {
+	if dir == "" || dir == "/" {
+		return
+	}
+	_ = os.RemoveAll(dir)
+}
+
+// stopPidGraceful best-effort stops a stale tor PID: SIGTERM, grace wait,
+// then SIGKILL. Errors are ignored (stale PID may already be gone).
+func stopPidGraceful(o *Options, pid int) {
+	alive := o.PidAlive
+	if alive == nil {
+		alive = pidAlive
+	}
+	term := o.TermPid
+	if term == nil {
+		term = termPid
+	}
+	kill := o.KillPid
+	if kill == nil {
+		kill = killPid
+	}
+	if pid <= 0 || !alive(pid) {
+		return
+	}
+	_ = term(pid)
+	deadline := time.Now().Add(5 * time.Second)
+	for alive(pid) && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if alive(pid) {
+		_ = kill(pid)
+	}
+}
+
 // rollback removes freshly applied rules, stops the tor we started, and
 // drops the state record (the backup dir is kept for forensics).
+// Fail-closed ordering matches Disconnect: tor dies first (redirects
+// blackhole, nothing leaks), then rules come out, then state drops.
+// The owned datadir is always removed so no control cookie leaks.
 func rollback(o *Options, s *ActiveState, in *lifecycle.Instance) {
-	be := backendFor(s.Backend, o.Run)
-	_ = be.Remove()
 	if in != nil {
 		_ = o.Stop(in)
+		cleanupDataDir(s.TorDataDir)
+		if in.DataDir != "" && in.DataDir != s.TorDataDir {
+			cleanupDataDir(in.DataDir)
+		}
 	} else if s.TorPid > 0 {
-		_ = termPid(s.TorPid)
+		stopPidGraceful(o, s.TorPid)
+		cleanupDataDir(s.TorDataDir)
+	} else if s.TorDataDir != "" {
+		cleanupDataDir(s.TorDataDir)
 	}
+	be := backendFor(s.Backend, o.Run)
+	_ = be.Remove()
 	_ = ClearState(o.StateDir)
 }
 
@@ -335,11 +399,24 @@ func Connect(o Options) (*ConnectReport, error) {
 	} else if cur != nil {
 		curBE := backendFor(cur.Backend, po.Run)
 		if curBE.Present() {
-			return &ConnectReport{State: cur, AlreadyActive: true, AllPassed: true}, nil
+			// Rules present alone is not enough: a dead tor plus
+			// surviving rules blackholes traffic, so the fast path
+			// requires tor liveness too. Dead-tor falls through to
+			// the stale-session handling below (same as Repair).
+			if po.PidAlive(cur.TorPid) {
+				return &ConnectReport{State: cur, AlreadyActive: true, AllPassed: true}, nil
+			}
 		}
 		if !po.Force {
+			if curBE.Present() {
+				return nil, fmt.Errorf("syswide: stale session found (tor dead, rules present but blackholing): re-run with --force to repair-then-connect, or run repair")
+			}
 			return nil, fmt.Errorf("syswide: stale session found (rules missing, tor may be dead): re-run with --force to repair-then-connect, or run repair")
 		}
+		// --force: stop the stale tor before clearing state, or the
+		// previous instance keeps running orphaned next to the new one.
+		stopPidGraceful(po, cur.TorPid)
+		cleanupDataDir(cur.TorDataDir)
 		_ = curBE.Remove()
 		_ = ClearState(po.StateDir)
 	}
@@ -453,17 +530,14 @@ func Disconnect(o Options) (*DisconnectReport, error) {
 	be := backendFor(s.Backend, po.Run)
 	// 1. Tor dies first: any surviving redirect blackholes instead of
 	// leaking, and the owned instance must never outlive the session.
-	if pidAlive(s.TorPid) {
-		_ = termPid(s.TorPid)
-		deadline := time.Now().Add(5 * time.Second)
-		for pidAlive(s.TorPid) && time.Now().Before(deadline) {
-			time.Sleep(100 * time.Millisecond)
-		}
-		if pidAlive(s.TorPid) {
-			_ = killPid(s.TorPid)
-		}
+	wasAlive := po.PidAlive(s.TorPid)
+	stopPidGraceful(po, s.TorPid)
+	if wasAlive {
 		rep.StoppedTor = true
 	}
+	// The owned datadir (including the control cookie) dies with tor:
+	// every connect/disconnect cycle must leave no trace under /run.
+	cleanupDataDir(s.TorDataDir)
 	// 2. Remove only our rules (never a bare flush).
 	_ = be.Remove()
 	rep.RemovedRules = true
@@ -502,39 +576,77 @@ func Repair(o Options) (*RepairReport, error) {
 		return nil, err
 	}
 	rep := &RepairReport{}
-	// Sweep both backends: a crashed run may have mixed them.
-	Present := false
-	for _, name := range []string{BackendIptables, BackendNft} {
-		be := backendFor(name, po.Run)
-		if be.Present() {
-			_ = be.Remove()
-			Present = true
-			rep.Actions = append(rep.Actions, "removed stale "+name+" rules")
-		}
-	}
 	s, err := LoadState(po.StateDir)
 	if err != nil {
-		// Corrupt state file: quarantine it, keep bytes for forensics.
+		// Corrupt state file: clear any leftover rules, quarantine the
+		// bytes for forensics, never fatal.
+		for _, name := range []string{BackendIptables, BackendNft} {
+			be := backendFor(name, po.Run)
+			if be.Present() {
+				_ = be.Remove()
+				rep.Actions = append(rep.Actions, "removed stale "+name+" rules")
+			}
+		}
 		bad := activePath(po.StateDir) + ".corrupt"
 		_ = os.Rename(activePath(po.StateDir), bad)
 		rep.Actions = append(rep.Actions, "quarantined corrupt state file")
 		return rep, nil
 	}
+	if s != nil && po.PidAlive(s.TorPid) && backendFor(s.Backend, po.Run).Present() {
+		// Healthy active session: leave it alone. Only stray rules
+		// from the *other* backend (mixed crashed run) are removed.
+		stray := false
+		for _, name := range []string{BackendIptables, BackendNft} {
+			if name == s.Backend {
+				continue
+			}
+			be := backendFor(name, po.Run)
+			if be.Present() {
+				_ = be.Remove()
+				stray = true
+				rep.Actions = append(rep.Actions, "removed stray "+name+" rules (session uses "+s.Backend+")")
+			}
+		}
+		if !stray {
+			rep.Actions = append(rep.Actions, "session healthy (tor alive, rules present): no action")
+		}
+		return rep, nil
+	}
+	// No healthy session: sweep both backends (a crashed run may have
+	// mixed them), then reconcile the state record. Session-backend
+	// presence is captured before the sweep so the report distinguishes
+	// dead-tor-with-rules from dead-tor-without.
 	if s == nil {
+		Present := false
+		for _, name := range []string{BackendIptables, BackendNft} {
+			be := backendFor(name, po.Run)
+			if be.Present() {
+				_ = be.Remove()
+				Present = true
+				rep.Actions = append(rep.Actions, "removed stale "+name+" rules")
+			}
+		}
 		if !Present {
 			rep.Actions = append(rep.Actions, "nothing to repair (not connected, no stale rules)")
 		}
 		return rep, nil
 	}
-	torDead := !pidAlive(s.TorPid)
-	be := backendFor(s.Backend, po.Run)
-	rulesGone := !be.Present()
+	sessionPresent := backendFor(s.Backend, po.Run).Present()
+	for _, name := range []string{BackendIptables, BackendNft} {
+		if be := backendFor(name, po.Run); be.Present() {
+			_ = be.Remove()
+			rep.Actions = append(rep.Actions, "removed stale "+name+" rules")
+		}
+	}
+	torDead := !po.PidAlive(s.TorPid)
+	rulesGone := !sessionPresent
 	switch {
 	case torDead && rulesGone:
+		cleanupDataDir(s.TorDataDir)
 		_ = ClearState(po.StateDir)
 		rep.Actions = append(rep.Actions, "dropped stale session (tor dead, rules gone; backups kept)")
 	case torDead:
-		_ = be.Remove()
+		cleanupDataDir(s.TorDataDir)
 		_ = ClearState(po.StateDir)
 		rep.Actions = append(rep.Actions, "removed rules for dead tor, dropped stale session")
 	case rulesGone:
