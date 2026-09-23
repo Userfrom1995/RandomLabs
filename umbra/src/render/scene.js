@@ -73,7 +73,9 @@ export function weaponTrail(sim, table, weapon) {
   const length = weapon && Number.isFinite(weapon.length) ? Math.max(0, Math.min(0.5, weapon.length)) : 0.06;
   const trail = (weapon && weapon.trail) || FISTS_TRAIL;
   const color = Array.isArray(trail.color) ? trail.color : FISTS_TRAIL.color;
-  const width = Number.isFinite(trail.width) && trail.width > 0 ? trail.width : FISTS_TRAIL.width;
+  // Arena-unit clamp: a rogue width must never paint the whole screen.
+  const rawW = Number(trail.width);
+  const width = Number.isFinite(rawW) && rawW > 0 ? Math.min(0.1, rawW) : FISTS_TRAIL.width;
   const radius = 0.12 + length;
   const cx = x;
   const cy = gy + 0.62;

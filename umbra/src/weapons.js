@@ -13,7 +13,7 @@ import { MOVES, validateMoves } from './combat/moves.js';
 /**
  * @typedef {object} WeaponTrail
  * @property {[number, number, number]} color trail tint as [r, g, b] floats 0..1
- * @property {number} width trail ribbon width (float above 0)
+ * @property {number} width trail ribbon width in arena units (0 exclusive to 0.1 inclusive)
  */
 
 /**
@@ -49,7 +49,7 @@ export const WEAPONS = [
     epithet: 'the Bare Hands',
     lore: 'Wraps worn thin by a hundred practice bouts still remember every block they ever caught.',
     price: 0,
-    trail: { color: [0.9, 0.9, 0.9], width: 1.5 },
+    trail: { color: [0.9, 0.9, 0.9], width: 0.012 },
     length: 0.06,
     unlock: null,
   },
@@ -59,7 +59,7 @@ export const WEAPONS = [
     epithet: 'the Bright Oath',
     lore: 'A forge folded blade that sings once when drawn and answers every duel with the same bright note.',
     price: 350,
-    trail: { color: [0.45, 0.75, 1.0], width: 2.5 },
+    trail: { color: [0.45, 0.75, 1.0], width: 0.02 },
     length: 0.34,
     unlock: null,
   },
@@ -69,7 +69,7 @@ export const WEAPONS = [
     epithet: 'the Twin Echo',
     lore: 'Twin oak rods joined by a short chain that turns each blocked strike into a faster return.',
     price: 450,
-    trail: { color: [1.0, 0.6, 0.2], width: 2.0 },
+    trail: { color: [1.0, 0.6, 0.2], width: 0.016 },
     length: 0.3,
     unlock: null,
   },
@@ -79,7 +79,7 @@ export const WEAPONS = [
     epithet: 'the Long Watch',
     lore: 'A long ash shaft tipped with dusk steel that keeps the foe at the far edge of the circle.',
     price: 550,
-    trail: { color: [0.55, 1.0, 0.6], width: 1.5 },
+    trail: { color: [0.55, 1.0, 0.6], width: 0.012 },
     length: 0.46,
     unlock: null,
   },
@@ -89,7 +89,7 @@ export const WEAPONS = [
     epithet: 'the Even Branch',
     lore: 'A seasoned bo staff balanced for wide sweeps that control the ground around its bearer.',
     price: 250,
-    trail: { color: [0.75, 0.5, 1.0], width: 2.0 },
+    trail: { color: [0.75, 0.5, 1.0], width: 0.016 },
     length: 0.4,
     unlock: null,
   },
@@ -99,7 +99,7 @@ export const WEAPONS = [
     epithet: 'the Quick Pair',
     lore: 'A pair of short ember knives made for quick close cuts that trade reach for speed.',
     price: 150,
-    trail: { color: [1.0, 0.3, 0.35], width: 1.0 },
+    trail: { color: [1.0, 0.3, 0.35], width: 0.01 },
     length: 0.16,
     unlock: null,
   },
@@ -549,8 +549,8 @@ export function validateWeapons(defs = WEAPONS, tables = WEAPON_TABLES) {
           if (!Array.isArray(color) || color.length !== 3 || !color.every(isUnit)) {
             problems.push(tag + ': trail.color must be [r,g,b] in 0..1');
           }
-          if (typeof trail.width !== 'number' || !Number.isFinite(trail.width) || trail.width <= 0) {
-            problems.push(tag + ': trail.width must be above 0, got ' + String(trail.width));
+          if (typeof trail.width !== 'number' || !Number.isFinite(trail.width) || trail.width <= 0 || trail.width > 0.1) {
+            problems.push(tag + ': trail.width must be in arena units 0..0.1, got ' + String(trail.width));
           }
         }
         if (!isLength(def.length)) {

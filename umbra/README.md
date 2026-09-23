@@ -2,17 +2,18 @@
 
 Shadow-fight-inspired browser combat game at `/umbra/` (issue #375).
 
-- **M3 (this milestone):** full roster (Kaito/Mira/Goran + Echo/Ash/Ruin/
-  Vex/Dusk, distinct rigs/stats/AI), story mode (prologue + 5 acts x
-  intro/fight/outro + epilogue, typewriter dialogue box, progression walker
-  with arena/fighter unlocks persisted to profile v2), versus setup (foe +
-  arena picks gated by unlocks), all five arenas playable with ambient
-  previews, asymmetric bout hp per roster.
-- **Shipped:** M2 versus combat core + universal input; M1 render shell
-  (tier probe WebGPU/WebGL2/Canvas2D, idle tableau, ladder, offline SW v3
-  covering roster + story modules).
-- **Roadmap:** M3 roster + story + arenas, M4 bosses + weapons +
-  progression, M5 polish + hardening (`Closes #375`).
+- **M4 (this milestone):** phased bosses (Vex summoner wisps, Ruin
+  duelist stance-switch, Dusk eclipse enrage, story + versus), 6 weapons
+  (fists/sword/nunchaku/spear/staff/daggers with per-weapon frame data,
+  per-side bout tables, trail ribbons on all 3 render tiers), ember
+  economy (bout awards + jackpot, weapon shop, damage/hp upgrades),
+  export/import profile bundles, dojo mode (dummy + live frame-data
+  table + 6 combo trials with rewards), persistence additive on profile
+  v2, offline SW v4.
+- **Shipped:** M3 roster + story + arenas; M2 versus combat core +
+  universal input; M1 render shell (tier probe WebGPU/WebGL2/Canvas2D,
+  idle tableau, ladder, offline SW).
+- **Roadmap:** M5 polish + hardening (`Closes #375`).
 
 ## Run it
 
@@ -26,7 +27,7 @@ python3 -m http.server 8080
 No build step, no CDN, no binary art. Tests:
 
 ```sh
-node --test umbra/tests/
+node --test "umbra/tests/*.mjs"
 ```
 
 Docs: [`docs/architecture.md`](./docs/architecture.md),

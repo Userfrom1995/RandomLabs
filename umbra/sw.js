@@ -1,5 +1,5 @@
 /* Umbra service worker: versioned offline-first shell, scope /umbra/. */
-const UMBRA_CACHE = 'umbra-v3';
+const UMBRA_CACHE = 'umbra-v4';
 
 const SHELL = [
   './',
@@ -15,6 +15,11 @@ const SHELL = [
   './src/roster.js',
   './src/story.js',
   './src/dialogue.js',
+  './src/weapons.js',
+  './src/bosses.js',
+  './src/dojo.js',
+  './src/economy.js',
+  './src/storage/bundle.js',
   './src/render/scene.js',
   './src/render/tiers.js',
   './src/render/caps.js',

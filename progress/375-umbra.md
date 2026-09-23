@@ -3,8 +3,8 @@
 - **Issue:** #375
 - **Branch:** opencode/issue375-umbra-m4 (M4 active)
 - **Status:** in-progress
-- **Updated:** 2026-09-23T12:30:00Z
-- **Active Milestone:** M4 bosses + weapons + progression (in progress; Refs #375)
+- **Updated:** 2026-09-23T13:30:00Z
+- **Active Milestone:** M4 bosses + weapons + progression (Complete, ready for review; Refs #375)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -27,11 +27,11 @@
   - [x] Story act graph + dialogue/cutscene box + progression walker + 5 arenas (WGSL backgrounds + parallax + music themes)
   - [x] Story mode flow (select > intro > fights > outro) + unlock triggers wired to profile
 - Milestone 4 (M4) bosses + weapons + progression (PR 4 target, Refs #375):
-  - [x] 3 phased bosses with unique mechanics (vex summoner adds, ruin duelist stance-switch, dusk eclipse enrage timer)
-  - [x] 6 weapons (fists/sword/nunchaku/spear/staff/daggers) with frame-data tables + per-side bout tables + power scales
-  - [ ] Dojo training mode (dummy + frame-data display + combo trials) + shop/loot economy + upgrades + persistence v1 + export/import (pure modules done: dojo.js, economy.js, bundle.js, profile v2-additive; shell UI pending)
-  - [ ] Weapon trails in SceneDesc + all-3-tier renderer support (pending)
-  - [ ] Shell UI: weapon picker, shop/dojo screens, boss banners, awards, export/import + sw v4 (pending)
+  - [x] 3 phased bosses with unique mechanics (vex summoner adds, ruin duelist stance-switch, dusk eclipse enrage timer; story + versus)
+  - [x] 6 weapons (fists/sword/nunchaku/spear/staff/daggers) with frame-data tables + per-side bout tables + power scales + trail ribbons on all 3 tiers
+  - [x] Dojo training mode (200-hp dummy + live frame-data table + 6 combo trials with rewards) + shop/loot economy (awards/jackpot/weapons/upgrades) + export/import bundles + additive profile fields (version stays 2)
+  - [x] Shell UI: weapon picker, shop/dojo screens, boss banners, awards, export/import + sw v4 + ember pill
+  - [x] Scoreboard M4 rows + ideas entry + README/architecture sync + 4 headless-Chromium screenshots (zero pageerrors)
 - Final Milestone (M5) polish + product hardening (final PR, Closes #375 ONLY when all gates green):
   - [ ] VFX pass (hit sparks, dust, KO slow-mo) + SFX/adaptive-music mix + haptics tuning + onboarding tutorial bout
   - [ ] Accessibility audit + soak/fuzz ledger + G1-G7 scoreboard MEASURED + landing card + README/docs sync
@@ -39,16 +39,12 @@
 
 ## Current step
 
-M4 engine half complete (Builder run 4a): `src/weapons.js` (6 tables,
-fists identity, balance gates), `src/bosses.js` (vex/ruin/dusk defs +
-phase index), `src/dojo.js` (6 trials + frameRows), `src/economy.js`
-(awards/upgrades/shop) + `src/storage/bundle.js` (export/import) +
-additive profile M4 fields (version stays 2, Tester pins intact).
-Engine: per-side `movesB`, `power` scales via `dmgScale`, boss sim
-(phases/wisps/stances/enrage) with golden-safe conditional hash parts.
-295/295 node:test green (M2 golden e9ef3be3 intact). Next: weapon trails
-+ renderers, shell UI (shop/dojo/weapon picker/boss banners/awards),
-sw v4, scoreboard M4 rows, screenshots, ideas entry.
+M4 build complete (Builder run 4): shell UI (shop/dojo/versus weapons,
+boss banners + stance AI, awards, export/import), sw v4, ember pill,
+trail-width bug found by screenshots and fixed (arena units + validator
+cap + scene clamp), scoreboard M4 rows, ideas entry, README/architecture
+sync, 4 headless-Chromium screenshots with zero pageerrors. 300/300
+node:test green (M2 golden e9ef3be3 intact). Ready for review.
 
 ## Next steps
 
@@ -61,6 +57,14 @@ sw v4, scoreboard M4 rows, screenshots, ideas entry.
 
 ## Agent log
 
+- 2026-09-23 (Builder run 4b, M4 shell): shop/dojo/versus-weapon UI +
+  boss banners + stance AI + awards + export/import, sw v4, ember pill,
+  frame-table CSS, meta nowrap fix. Headless-Chromium evidence (shop,
+  dojo, spear-trail harness, mobile portrait, WebGL2; zero pageerrors).
+  Screenshot review caught a screen-filling trail blob (subagent widths
+  were pixel units): fixed to arena units + validator cap 0.1 + scene
+  clamp. Scoreboard M4 rows, ideas entry, README/architecture sync.
+  300/300 green. Decision action: review.
 - 2026-09-23 (Builder run 4a, M4 engine): weapons + economy/bundle via 2
   parallel subagents (17 + 29 tests), bosses + dojo + engine integration
   direct (22 tests): per-side movesB, power/dmgScale, boss sim with

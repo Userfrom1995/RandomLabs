@@ -172,6 +172,8 @@ footer a { color: var(--accent); }
   background: rgba(5, 6, 10, 0.72);
   border-top: 1px solid var(--border);
 }
+#hud-meta span { white-space: nowrap; }
+#hud-scene { overflow: hidden; text-overflow: ellipsis; }
 
 /* Center announcements: ROUND / K.O. / draw. */
 #banner {
@@ -304,3 +306,9 @@ footer a { color: var(--accent); }
   .hp-fill, .st-fill { transition: none; }
   #banner { text-shadow: 0 2px 6px #000; }
 }
+
+/* M4 dojo frame-data table. */
+.frames { border-collapse: collapse; margin: 12px 0; font-family: monospace; font-size: 0.85rem; }
+.frames th, .frames td { border: 1px solid var(--border); padding: 4px 10px; text-align: right; }
+.frames th { color: var(--muted); font-weight: 400; }
+.frames td:first-child, .frames th:first-child { text-align: left; }

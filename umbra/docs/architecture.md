@@ -1,4 +1,14 @@
-# Umbra architecture (M2 pointer)
+# Umbra architecture (M4 pointer)
+
+Full binding blueprint: [`ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md`](../../ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md).
+
+M1 build notes: [`ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md`](../../ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md).
+
+M2 build notes: [`ideas/2026-09-23-umbra-m2-combat-universal-input.md`](../../ideas/2026-09-23-umbra-m2-combat-universal-input.md).
+
+M3 build notes: [`ideas/2026-09-23-umbra-m3-roster-story-arenas.md`](../../ideas/2026-09-23-umbra-m3-roster-story-arenas.md).
+
+M4 build notes: [`ideas/2026-09-23-umbra-m4-bosses-weapons-progression.md`](../../ideas/2026-09-23-umbra-m4-bosses-weapons-progression.md).
 
 Full binding blueprint: [`ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md`](../../ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md).
 
@@ -42,3 +52,25 @@ Epic tracker: [`progress/375-umbra.md`](../../progress/375-umbra.md).
   state poses, `flashShake` from events); ambient tableau unchanged.
 - `app.js` (M2): fight lifecycle + per-tick input gather + AI sample +
   HUD/pips/combo/banner + pause/result + haptics + remap capture UI.
+- `src/roster.js` (M3): 3 playables + 5 enemies as data (hp, AI, rig,
+  accent, ratings, story unlocks) + `validateRoster`.
+- `src/story.js` (M3): 17-node Ashen Veil graph + pure progression
+  walker + unlock application. `src/dialogue.js` (M3): typewriter model.
+- `src/weapons.js` (M4): 6 weapon defs + per-weapon frame-data tables
+  (canonical 5 move ids, fists identity) + `movesForWeapon` +
+  `validateWeapons`.
+- `src/bosses.js` (M4): vex/ruin/dusk defs (summoner/duelist/eclipse) +
+  `bossPhaseIndex`. `src/dojo.js` (M4): 6 trials + `checkTrial` +
+  `frameRows`.
+- `src/economy.js` (M4): ember awards + upgrade tracks/costs/effects +
+  shop mutations. `src/storage/bundle.js` (M4): versioned
+  export/import. `src/storage/profile.js` (M4): additive economy fields
+  (version stays 2).
+- `src/combat/` (M4): per-side `movesB`, `power` scales via `dmgScale`,
+  boss sim (phases, wisps, stances, enrage) with golden-safe conditional
+  hash parts; AI reads the foe's own table.
+- `src/render/scene.js` (M4): `weaponTrail` ribbons + per-side
+  tables/weapons; all three tiers draw trails (Canvas2D strokes, GPU
+  tiers ride spare particle slots).
+- `app.js` (M4): shop/dojo/versus-weapon screens, boss banners + stance
+  AI override, ember awards + career stats, trial claims, export/import.
