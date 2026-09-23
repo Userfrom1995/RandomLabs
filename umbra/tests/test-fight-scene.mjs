@@ -94,8 +94,8 @@ describe('input-script replay determinism (G4)', () => {
     const ai1 = createAI({ seed: seed ^ 0x22, difficulty: 1, archetype: 'turtle' });
     const log = [];
     for (let t = 0; t < TICKS && !live.over; t++) {
-      const i0 = { ...aiInput(ai0, live.fighters[0], live.fighters[1], undefined, live.tick) };
-      const i1 = { ...aiInput(ai1, live.fighters[1], live.fighters[0], undefined, live.tick) };
+      const i0 = { ...aiInput(ai0, live.fighters[0], live.fighters[1], undefined, live.tick, live.moves) };
+      const i1 = { ...aiInput(ai1, live.fighters[1], live.fighters[0], undefined, live.tick, live.moves) };
       log.push([i0, i1]);
       stepFight(live, i0, i1);
     }
