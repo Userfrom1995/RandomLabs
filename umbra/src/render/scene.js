@@ -3,9 +3,46 @@
  * render tiers (WebGPU, WebGL2, Canvas2D). Pure, deterministic, no DOM.
  */
 
-import { idleAngles, solveRig } from '../poses.js';
+import { idleAngles, solveRig, combatAngles } from '../poses.js';
 import { arenaAt, ARENAS } from '../arenas.js';
 import { frac, hash01 } from '../rng.js';
+import { MOVES } from '../combat/moves.js';
+
+const moveLenOf = (id) => {
+  const m = (id != null && MOVES[id]) || null;
+  return m ? m.startup + m.active + m.recovery : 14;
+};
+
+/**
+ * Hit-flash uniform from recent fight events: 1 at the hit tick,
+ * linear decay over 6 ticks. Knockdown/KO adds screen shake 0..1.
+ * @param {Array<{t: string, tick: number}>} events fight event log
+ * @param {number} tick current tick
+ * @returns {{flash: number, shake: number}}
+ */
+export function flashShake(events, tick) {
+  let flash = 0;
+  let shake = 0;
+  if (!Array.isArray(events)) return { flash, shake };
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (!e || !Number.isFinite(e.tick)) continue;
+    const age = tick - e.tick;
+    if (age < 0 || age > 12) {
+      if (age > 12) break;
+      continue;
+    }
+    if (e.t === 'hit' || e.t === 'parried') {
+      flash = Math.max(flash, 1 - age / 6);
+    }
+    if (e.t === 'ko' || e.t === 'round') {
+      shake = Math.max(shake, 1 - age / 12);
+    } else if (e.t === 'hit') {
+      shake = Math.max(shake, 0.45 * (1 - age / 6));
+    }
+  }
+  return { flash, shake };
+}
 
 export const PARTICLE_COUNT = 48;
 export const GROUND_Y = 0.14;
@@ -33,7 +70,11 @@ export const GROUND_Y = 0.14;
 /**
  * Build one deterministic frame description. Same tick + arena always yields
  * the identical SceneDesc (ambient particles are hash-indexed, not stateful).
- * @param {{tick?: number, arena?: number}} opts
+ * When `fight` (a combat FightState) is passed, fighter placement and poses
+ * come from the live sim: x/facing/y per fighter, pose from fighter state,
+ * flash/shake from recent fight events. Without `fight` the M1 ambient
+ * tableau renders (two idle fighters), unchanged.
+ * @param {{tick?: number, arena?: number, fight?: object|null}} opts
  * @returns {SceneDesc}
  */
 export function buildSceneDesc(opts = {}) {
@@ -41,13 +82,17 @@ export function buildSceneDesc(opts = {}) {
   const tick = Number.isFinite(rawTick) ? Math.max(0, Math.floor(rawTick)) : 0;
   const arena = ARENAS.indexOf(arenaAt(opts.arena ?? 0));
   const time = tick / 60;
+  const fight = opts.fight && typeof opts.fight === 'object' ? opts.fight : null;
   const fighters = [0, 1].map((side) => {
-    const facing = side === 0 ? 1 : -1;
-    const x = side === 0 ? -0.34 : 0.34;
+    const sim = fight && Array.isArray(fight.fighters) ? fight.fighters[side] : null;
+    const facing = sim ? (sim.facing === -1 ? -1 : 1) : side === 0 ? 1 : -1;
+    const x = sim && Number.isFinite(sim.x) ? sim.x : side === 0 ? -0.34 : 0.34;
+    const groundY = GROUND_Y + (sim && Number.isFinite(sim.y) ? Math.max(0, sim.y) * 0.6 : 0);
     const phase = side === 0 ? 0 : 2.4;
-    const angles = idleAngles(time, phase);
-    return { segs: solveRig(angles, { x, groundY: GROUND_Y, facing }), side, facing };
+    const angles = sim ? combatAngles(sim, time, phase, moveLenOf) : idleAngles(time, phase);
+    return { segs: solveRig(angles, { x, groundY, facing }), side, facing };
   });
+  const fx = fight ? flashShake(fight.events, fight.tick) : { flash: 0, shake: 0 };
 
   // Ambient dust motes: stateless drift, wraps via frac so the field loops.
   const particles = [];
@@ -72,8 +117,8 @@ export function buildSceneDesc(opts = {}) {
     weapons: [[], []],
     layers,
     particles,
-    flash: 0,
-    shake: 0,
+    flash: Math.max(0, Math.min(1, fx.flash)),
+    shake: Math.max(0, Math.min(1, fx.shake)),
   };
 }
 
