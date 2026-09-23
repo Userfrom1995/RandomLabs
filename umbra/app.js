@@ -274,7 +274,7 @@ function tickFight() {
   const f = boot.fight;
   if (!f || boot.paused || f.over) return;
   const p1 = mergeInputs(kb, touch, pad);
-  const p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], undefined, f.tick);
+  const p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], undefined, f.tick, f.moves);
   stepFight(f, p1, p2);
   handleFightEvents();
   updateHud();
