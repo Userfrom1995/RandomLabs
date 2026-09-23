@@ -1,10 +1,10 @@
 # Progress: Umbra - Shadow Fight-inspired WebGPU combat game at /umbra/
 
 - **Issue:** #375
-- **Branch:** opencode/issue375-umbra-m4 (M4 active)
+- **Branch:** opencode/issue375-umbra-m5 (M5 active, final)
 - **Status:** in-progress
-- **Updated:** 2026-09-23T13:30:00Z
-- **Active Milestone:** M4 bosses + weapons + progression (Complete, ready for review; Refs #375)
+- **Updated:** 2026-09-23T14:10:00Z
+- **Active Milestone:** M5 polish + product hardening (in progress; `Closes #375` ONLY when all gates green + approve/approve-test/approve-eval >= 9.8)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -39,9 +39,18 @@
 
 ## Current step
 
-M4 build complete (Builder run 4): shell UI (shop/dojo/versus weapons,
-boss banners + stance AI, awards, export/import), sw v4, ember pill,
-trail-width bug found by screenshots and fixed (arena units + validator
+M5 build started (Builder run 5): branch `opencode/issue375-umbra-m5` from
+main (M4 merged, 355/355 node:test green at baseline). Three parallel
+tracks dispatched: (A) WebAudio synth SFX + adaptive music, (B) VFX hit
+sparks/dust/KO slow-mo + haptics tuning, (C) tutorial onboarding +
+accessibility audit. Builder integrates shell wiring + SW v5 + browser
+G1/G2/G7 measurement + landing/README sync + scoreboard MEASURED.
+
+M4 shipped (runs 4/4b/4a + Fixer/Tester hardening, merged to main):
+
+shell UI (shop/dojo/versus weapons, boss banners + stance AI, awards,
+export/import), sw v4, ember pill, trail-width bug found by screenshots
+and fixed (arena units + validator
 cap + scene clamp), scoreboard M4 rows, ideas entry, README/architecture
 sync, 4 headless-Chromium screenshots with zero pageerrors. 337/337
 node:test green across 81 suites (M2 golden e9ef3be3 intact). Fixer
