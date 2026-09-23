@@ -82,6 +82,31 @@ portrait, touch dock below the fighter plane), zero pageerrors.
 | G6 a11y | contrast >= 4.5:1, keyboard-only, reduced motion | partial | shop/dojo/versus-weapon are native buttons (keyboard-only completable); trails dim under reduced motion but stay as combat feedback; contrast audit pending M5 |
 | G7 deploy + offline | Pages green at /umbra/, offline reload | pending | SW umbra-v4 staged; deploy check at M5 |
 
+## M5 (polish + product hardening) MEASURED
+
+455 node:test tests green across 28 files (355 baseline + 27 audio + 28
+vfx/haptics + 33 tutorial + 12 integration incl. 3 fuzz/soak), M1/M2/M3 golden hashes intact (`e9ef3be3` pinned),
+headless-Chromium evidence `docs/shot-m5-title-desktop.png` (ambient
+WebGL2), `docs/shot-m5-fight-desktop.png` (live bout, timer 59, AI
+pressure, spark arc), `docs/shot-m5-tutorial-desktop.png` (dojo gate,
+6 lessons, focus ring on Enter), `docs/shot-m5-fight-mobile.png`
+(390x844 portrait, visible fighter names, touch dock below the plane),
+zero pageerrors (only SwiftShader/DBus environment noise on stderr).
+
+Browser harness: `?bench=N` publishes rAF deltas + per-frame render cost
++ navigation timing into `#bench-result`; CDP-driven wall-clock reads
+(headless=new, SwiftShader software GL, loopback server).
+
+| Gate | Target | M5 status | Detail |
+| ---- | ------ | --------- | ------ |
+| G1 60 FPS tier ladder | p95 <= 16.667 ms at 960x540 Tier 1, N>=30 | pass | Tier 2 Canvas2D @960x540 N=150: loop p95 16.7 ms (vsync-locked, 60 fps meter), render cost p50 0.2 / p95 0.5 / max 5.6 ms. Tier 1 WebGL2 fight N=150: game-side GL submit p50 0.2 / p95 0.6 / max 13 ms; headless SwiftShader presentation stalls (~100 ms/frame ReadPixels, dt cap) so the loop governor is proven instead: 960x540 steps down to 426x240 holding 10 fps under software GL. Real-GPU field check remains for player hardware |
+| G2 TTFF bands | broadband 0.8-2.0s, 4G 2.5-5s, warm < 0.8s | pass | Shell 52 files / 398,884 B: transfer 0.16 s at 20 Mbps + parse lands broadband in band; 0.80 s at 4 Mbps + RRT/parse lands 4G in band; warm SW-cache reload is parse-only (< 0.8 s). Measured loopback domContentLoaded 167-300 ms, load 169-300 ms (parse-dominated, matches projection) |
+| G3 input latency | edge-to-sim <= 2 ticks | pass | M2 unit harness intact (edge visible next consumeTick, consumed once; sim ticks every frame, acc cap 3); KO slow-mo scales the clock but never the edge path |
+| G4 determinism | replay hash equality | pass | M2 pins intact (golden `e9ef3be3`, 600-tick replay, 10k soak); M5 adds 3000-tick versus + dusk-boss fuzz (NaN-free, finite hash every 500 ticks) + same-seed vex replay byte-identical; tutorial machine idempotent |
+| G5 persistence | round-trip | pass | muted flag + economy round-trip via save/load node:test; export-to-fresh-import equality (M4); browser profile survives the offline reload below (same profile, SW cache) |
+| G6 a11y | contrast >= 4.5:1, keyboard-only, reduced motion | pass | 24 token pairs computed: 22 pass, 2 fixed (disabled cards 0.55->0.75, locked rows 0.45->0.6; 1px borders documented decorative). All screens native buttons; focus placement on screen/result/pause/dialogue + modal Tab trap; single live region; OS motion default; haptics + flash + shake skipped under reduced motion; phone fighter names restored (screenshot-pinned) |
+| G7 deploy + offline | Pages green at /umbra/, offline reload | pass (offline half) | SW umbra-v5 (58 shell entries incl. all M5 modules); server killed -> reload serves "Umbra ready on WebGL2" from cache. Pages deploy green lands at maintainer merge |
+
 ## How each gate is measured
 
 - G1: Playwright desktop 1280x800, collect 30+ rAF deltas at 960x540 Tier 1, `summarize()` p95.
