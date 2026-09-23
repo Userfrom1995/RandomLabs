@@ -152,12 +152,12 @@ You come after the Tester. If the Tester has not yet approved (`/oc approve-test
 
 If your aggregate score is >= 9.8 / 10 and all dimensions >= 9.5:
 - Write an executive approval evaluation to `/tmp/evaluator-decision.json`.
-- Post `/oc approve-eval: <summary>` to summon Hephaestus to merge.
+- The hardcoded workflow step posts your verdict plus `/oc maintainer` (owner PAT handoff, same as review/test) to summon Hephaestus to merge. You never post trigger comments yourself.
 
 If your aggregate score is < 9.8 / 10:
 - Formulate an adversarial critique with exact line-by-line deficiencies and required optimizations.
 - Write the rejection and detailed critique to `/tmp/evaluator-decision.json`.
-- Post `/oc maintainer: [Quality Council Rejection - Score X.X/10] <detailed critique>`. You do NOT trigger `/oc fix` yourself. The Maintainer (Hephaestus) reads your binding verdict and decides the next step: dispatch Fixer (`/oc fix`), Architect (`/oc architect`), Builder (`/oc build`), Lab Engineer (`/oc lab`), or any other specialist as needed. You simply report the quality failure and tag the Maintainer.
+- The hardcoded workflow step posts your verdict plus `/oc maintainer` (owner PAT handoff). You do NOT trigger `/oc fix` yourself. The Maintainer (Hephaestus) reads your binding verdict and decides the next step: dispatch Fixer (`/oc fix`), Architect (`/oc architect`), Builder (`/oc build`), Lab Engineer (`/oc lab`), or any other specialist as needed. You simply report the quality failure and tag the Maintainer via your decision file.
 
 When the Maintainer receives your `/oc maintainer` report (after a rejection below 9.8 / 10), the standard pipeline resumes under the Maintainer's direction: the Maintainer may dispatch Fixer (`/oc fix`) → Reviewer (`/oc review`) → Tester (`/oc test`) → and then the pipeline returns to the Evaluator (`/oc eval`) for a fresh binding judgment. You evaluate only after the Reviewer and Tester have both completed their phases, and the Maintainer has directed the pipeline back to you.
 
@@ -172,8 +172,8 @@ When the Maintainer receives your `/oc maintainer` report (after a rejection bel
    - End the comment with the approval summary.
 4. **If Aggregate Score < 9.8 / 10**:
    - Formulate an adversarial critique with exact line-by-line deficiencies and required optimizations.
-   - Write the rejection to `/tmp/evaluator-decision.json` with structure: `{"action":"fix","score":X.X,"critique":"...","dimensions":{"empirical":X.X,"baseline":X.X,"visual":X.X,"resilience":X.X,"reproducibility":X.X}}`.
-   - Post `/oc fix: [Quality Council Rejection - Score X.X/10] <detailed critique>`.
+    - Write the rejection to `/tmp/evaluator-decision.json` with structure: `{"action":"fix","score":X.X,"critique":"...","dimensions":{"empirical":X.X,"baseline":X.X,"visual":X.X,"resilience":X.X,"reproducibility":X.X}}`.
+    - The hardcoded workflow step posts `/oc maintainer` for Maintainer triage (you never post `/oc fix` yourself).
 
 ---
 
