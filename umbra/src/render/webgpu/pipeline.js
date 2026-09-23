@@ -144,19 +144,34 @@ export async function createWebGPURenderer(canvas) {
     device.queue.writeBuffer(rimBuf, 0, rim);
 
     // Particles (skipped under battery saver, dimmed under reduced motion).
+    // M4 weapon trails ride the spare particle slots after the ambient
+    // motes (arena x mapped to 0..1 UV like the silhouette pass).
     f32.fill(0);
     f32[0] = w;
     f32[1] = h;
     f32[2] = aspect;
     let n = 0;
     if (!opts.batterySaver) {
-      n = Math.min(64, scene.particles.length);
-      for (let i = 0; i < n; i++) {
+      const ambient = Math.min(48, scene.particles.length);
+      for (let i = 0; i < ambient && n < 64; i++, n++) {
         const p = scene.particles[i];
-        f32[4 + i * 4] = p.x;
-        f32[5 + i * 4] = p.y;
-        f32[6 + i * 4] = p.s;
-        f32[7 + i * 4] = p.b * (reduced ? 0.4 : 1);
+        f32[4 + n * 4] = p.x;
+        f32[5 + n * 4] = p.y;
+        f32[6 + n * 4] = p.s;
+        f32[7 + n * 4] = p.b * (reduced ? 0.4 : 1);
+      }
+      for (const sideTrails of scene.weapons || []) {
+        for (const tr of sideTrails || []) {
+          if (!tr || !Array.isArray(tr.points)) continue;
+          for (const pt of tr.points) {
+            if (n >= 64) break;
+            f32[4 + n * 4] = pt.x * 0.5 + 0.5;
+            f32[5 + n * 4] = pt.y;
+            f32[6 + n * 4] = 0.012;
+            f32[7 + n * 4] = reduced ? 0.4 : 0.9;
+            n += 1;
+          }
+        }
       }
     }
     f32[4 + 256] = n;

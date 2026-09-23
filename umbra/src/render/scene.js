@@ -8,8 +8,9 @@ import { arenaAt, ARENAS } from '../arenas.js';
 import { frac, hash01 } from '../rng.js';
 import { MOVES } from '../combat/moves.js';
 
-const moveLenOf = (id) => {
-  const m = (id != null && MOVES[id]) || null;
+const lenOfTable = (table, id) => {
+  const t = table != null && typeof table === 'object' ? table : MOVES;
+  const m = (id != null && t[id]) || null;
   return m ? m.startup + m.active + m.recovery : 14;
 };
 
@@ -46,6 +47,48 @@ export function flashShake(events, tick) {
 
 export const PARTICLE_COUNT = 48;
 export const GROUND_Y = 0.14;
+/** Points per weapon trail ribbon. */
+export const TRAIL_POINTS = 6;
+/** Default fists trail (pale ember, thin) when a side has no weapon def. */
+export const FISTS_TRAIL = Object.freeze({ color: [0.75, 0.82, 1.0], width: 0.012 });
+
+/**
+ * Weapon trail ribbon for one fighter: a swoosh arc ahead of the shoulder
+ * that slides with attack progress. Deterministic in (x, facing, moveId,
+ * moveTick, table, weapon). Returns null unless the fighter is mid-swing.
+ * Points are arena coords (x in [-1,1], y up from 0).
+ * @param {{state?:string, moveId?:string|null, moveTick?:number, x?:number, facing?:number, y?:number}} [sim]
+ * @param {Record<string, {startup?:number, active?:number, recovery?:number}>} [table] bout move table
+ * @param {{trail?:{color:[number,number,number], width:number}, length?:number}} [weapon] weapon def
+ * @returns {{points:Array<{x:number,y:number}>, color:[number,number,number], width:number}|null}
+ */
+export function weaponTrail(sim, table, weapon) {
+  if (!sim || sim.state !== 'attack' || typeof sim.moveId !== 'string') return null;
+  const total = Math.max(1, lenOfTable(table, sim.moveId));
+  const tick = Number.isFinite(sim.moveTick) ? Math.max(0, sim.moveTick) : 0;
+  const p = Math.max(0, Math.min(1, tick / total));
+  const facing = sim.facing === -1 ? -1 : 1;
+  const x = Number.isFinite(sim.x) ? sim.x : 0;
+  const gy = GROUND_Y + (Number.isFinite(sim.y) ? Math.max(0, sim.y) * 0.6 : 0);
+  const length = weapon && Number.isFinite(weapon.length) ? Math.max(0, Math.min(0.5, weapon.length)) : 0.06;
+  const trail = (weapon && weapon.trail) || FISTS_TRAIL;
+  const color = Array.isArray(trail.color) ? trail.color : FISTS_TRAIL.color;
+  const width = Number.isFinite(trail.width) && trail.width > 0 ? trail.width : FISTS_TRAIL.width;
+  const radius = 0.12 + length;
+  const cx = x;
+  const cy = gy + 0.62;
+  // Sweep window slides with progress; older points lag behind the tip.
+  const head = -0.7 + 2.0 * p;
+  const points = [];
+  for (let j = 0; j < TRAIL_POINTS; j++) {
+    const ang = head - j * 0.16;
+    points.push({
+      x: cx + facing * radius * Math.cos(ang),
+      y: cy + radius * Math.sin(ang) * 0.6,
+    });
+  }
+  return { points, color, width };
+}
 
 /**
  * @typedef {object} RigPose
@@ -55,12 +98,19 @@ export const GROUND_Y = 0.14;
  */
 
 /**
+ * @typedef {object} WeaponTrail
+ * @property {Array<{x:number, y:number}>} points ribbon polyline in arena coords
+ * @property {[number,number,number]} color trail tint 0..1
+ * @property {number} width ribbon width in arena units
+ */
+
+/**
  * @typedef {object} SceneDesc
  * @property {number} tick 60 Hz presentation tick
  * @property {number} time seconds (tick / 60)
  * @property {number} arena arena index
  * @property {RigPose[2]} fighters
- * @property {Array[]} weapons motion-trail polylines per fighter (empty in M1)
+ * @property {WeaponTrail[][]} weapons motion-trail ribbons per fighter (empty arrays when idle/ambient)
  * @property {number[]} layers parallax layer offsets 0..1
  * @property {Array<{x:number,y:number,s:number,b:number}>} particles ambient motes
  * @property {number} flash hit-flash uniform (0 in M1)
@@ -74,7 +124,7 @@ export const GROUND_Y = 0.14;
  * come from the live sim: x/facing/y per fighter, pose from fighter state,
  * flash/shake from recent fight events. Without `fight` the M1 ambient
  * tableau renders (two idle fighters), unchanged.
- * @param {{tick?: number, arena?: number, fight?: object|null, rigs?: [{height?:number,bulk?:number,head?:number,limb?:number},{height?:number,bulk?:number,head?:number,limb?:number}]}} opts
+ * @param {{tick?: number, arena?: number, fight?: object|null, rigs?: [{height?:number,bulk?:number,head?:number,limb?:number},{height?:number,bulk?:number,head?:number,limb?:number}], tables?: [object, object], weapons?: [object, object]}} opts
  * @returns {SceneDesc}
  */
 export function buildSceneDesc(opts = {}) {
@@ -84,6 +134,8 @@ export function buildSceneDesc(opts = {}) {
   const time = tick / 60;
   const fight = opts.fight && typeof opts.fight === 'object' ? opts.fight : null;
   const rigs = Array.isArray(opts.rigs) ? opts.rigs : [];
+  const tables = Array.isArray(opts.tables) ? opts.tables : [];
+  const weapons = Array.isArray(opts.weapons) ? opts.weapons : [];
   const fighters = [0, 1].map((side) => {
     const sim = fight && Array.isArray(fight.fighters) ? fight.fighters[side] : null;
     const facing = sim ? (sim.facing === -1 ? -1 : 1) : side === 0 ? 1 : -1;
@@ -93,8 +145,22 @@ export function buildSceneDesc(opts = {}) {
     // M3 roster identity: per-side silhouette proportions (undefined rig
     // is the exact M1/M2 path, so ambient + fight goldens hold).
     const rig = rigs[side] && typeof rigs[side] === 'object' ? rigs[side] : undefined;
-    const angles = sim ? combatAngles(sim, time, phase, moveLenOf) : idleAngles(time, phase);
+    // M4 per-side move timing: undefined tables fall back to MOVES, which
+    // is the exact M1/M2/M3 path (goldens hold).
+    const table = tables[side] && typeof tables[side] === 'object' ? tables[side] : undefined;
+    const angles = sim
+      ? combatAngles(sim, time, phase, (id) => lenOfTable(table, id))
+      : idleAngles(time, phase);
     return { segs: solveRig(angles, { x, groundY, facing, rig }), side, facing };
+  });
+  // M4 weapon trails: one ribbon per attacking side (empty when idle or
+  // ambient, so the M1 [[],[]] contract holds without weapons).
+  const trails = [0, 1].map((side) => {
+    const sim = fight && Array.isArray(fight.fighters) ? fight.fighters[side] : null;
+    if (!sim) return [];
+    const table = tables[side] && typeof tables[side] === 'object' ? tables[side] : undefined;
+    const trail = weaponTrail(sim, table, weapons[side]);
+    return trail ? [trail] : [];
   });
   const fx = fight ? flashShake(fight.events, fight.tick) : { flash: 0, shake: 0 };
 
@@ -118,7 +184,7 @@ export function buildSceneDesc(opts = {}) {
     time,
     arena,
     fighters,
-    weapons: [[], []],
+    weapons: trails,
     layers,
     particles,
     flash: Math.max(0, Math.min(1, fx.flash)),

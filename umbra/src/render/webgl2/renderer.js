@@ -110,15 +110,28 @@ export function createWebGL2Renderer(canvas) {
     gl.uniform4f(loc(rimPr, 'uAccent'), arena.accent[0], arena.accent[1], arena.accent[2], 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-    // Pass 3: particles (additive; skipped under battery saver).
+    // Pass 3: particles (additive; skipped under battery saver). M4
+    // weapon trails ride the spare particle slots after the ambient
+    // motes (arena x mapped to 0..1 UV like the silhouette pass).
     if (!opts.batterySaver) {
       gl.useProgram(partPr);
       gl.uniform2f(loc(partPr, 'uRes'), w, h);
-      const n = Math.min(64, scene.particles.length);
       const arr = new Float32Array(64 * 4);
-      for (let i = 0; i < n; i++) {
+      let n = 0;
+      const ambient = Math.min(48, scene.particles.length);
+      for (let i = 0; i < ambient && n < 64; i++, n++) {
         const p = scene.particles[i];
-        arr.set([p.x, p.y, p.s, p.b * (reduced ? 0.4 : 1)], i * 4);
+        arr.set([p.x, p.y, p.s, p.b * (reduced ? 0.4 : 1)], n * 4);
+      }
+      for (const sideTrails of scene.weapons || []) {
+        for (const tr of sideTrails || []) {
+          if (!tr || !Array.isArray(tr.points)) continue;
+          for (const pt of tr.points) {
+            if (n >= 64) break;
+            arr.set([pt.x * 0.5 + 0.5, pt.y, 0.012, reduced ? 0.4 : 0.9], n * 4);
+            n += 1;
+          }
+        }
       }
       gl.uniform4fv(loc(partPr, 'uPts[0]'), arr);
       gl.uniform1f(loc(partPr, 'uCount'), n);

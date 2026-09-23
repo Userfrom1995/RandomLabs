@@ -154,7 +154,34 @@ export function createCanvas2DRenderer(canvas) {
         ctx.arc(m.x * w, (1 - m.y) * h, r, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.globalAlpha = 1.0;
+    ctx.globalAlpha = 1.0;
+
+    // M4 weapon trails: bright ribbon polylines per attacking side.
+    // Gameplay feedback (not decoration): drawn even under battery saver,
+    // single dim pass under reduced motion.
+    const trailCss = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
+    for (const sideTrails of scene.weapons || []) {
+      for (const tr of sideTrails || []) {
+        if (!tr || !Array.isArray(tr.points) || tr.points.length === 0) continue;
+        const col = trailCss(Array.isArray(tr.color) ? tr.color : [0.75, 0.82, 1.0]);
+        const baseW = Math.max(1.5, ((Number(tr.width) || 0.012) * w) / 2);
+        const passes = opts.reducedMotion ? [[baseW, 0.5]] : [[baseW * 2.6, 0.28], [baseW, 0.9]];
+        for (const [lw, alpha] of passes) {
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = col;
+          ctx.lineWidth = lw;
+          ctx.beginPath();
+          tr.points.forEach((pt, i) => {
+            const px = (pt.x * 0.5 + 0.5) * w;
+            const py = (1 - pt.y) * h;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          });
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1.0;
     }
     ctx.restore();
   }
