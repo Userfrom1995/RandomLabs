@@ -6,6 +6,8 @@
 package syswide
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,11 +29,38 @@ const (
 )
 
 // Snapshot captures firewall + DNS state into a fresh timestamped dir
-// under stateDir/backups and returns its path.
+// under stateDir/backups and returns its path. The leaf is unique
+// (second + nanoseconds + random suffix, created with O_EXCL semantics)
+// so two connects in the same second never share a dir and the original
+// pre-connect snapshot is never overwritten.
 func Snapshot(stateDir string, backend string, r Runner) (string, error) {
-	dir := filepath.Join(stateDir, "backups", time.Now().UTC().Format("20060102T150405Z"))
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("syswide: create backup dir: %w", err)
+	if err := os.MkdirAll(filepath.Join(stateDir, "backups"), 0o700); err != nil {
+		return "", fmt.Errorf("syswide: create backup parent: %w", err)
+	}
+	base := time.Now().UTC().Format("20060102T150405.000000000Z")
+	var dir string
+	created := false
+	for i := 0; i < 5; i++ {
+		var suffix string
+		var rnd [4]byte
+		if _, err := rand.Read(rnd[:]); err == nil {
+			suffix = hex.EncodeToString(rnd[:])
+		} else {
+			suffix = fmt.Sprintf("%d-%d", time.Now().UTC().UnixNano(), os.Getpid())
+		}
+		candidate := filepath.Join(stateDir, "backups", base+"-"+suffix)
+		if err := os.Mkdir(candidate, 0o700); err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return "", fmt.Errorf("syswide: create backup dir: %w", err)
+		}
+		dir = candidate
+		created = true
+		break
+	}
+	if !created {
+		return "", fmt.Errorf("syswide: backup dir collision after retries (clock skew?)")
 	}
 	write := func(name, data string) error {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(data), 0o600); err != nil {
