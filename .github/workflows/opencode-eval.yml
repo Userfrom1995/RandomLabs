@@ -149,6 +149,39 @@ jobs:
           echo "Posting evaluation result to PR/issue..."
           gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "$body" || true
 
+      - name: Forward evaluator decision to Maintainer (owner PAT handoff)
+        if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          pr="${{ github.event.issue.number }}"
+          if [ ! -f /tmp/evaluator-decision.json ]; then
+            echo "::error::No evaluator decision file found; verify step above already failed the job closed."
+            exit 1
+          fi
+
+          action=$(jq -r '.action // "unknown"' /tmp/evaluator-decision.json 2>/dev/null || echo "unknown")
+
+          # Owner directive 2026-09-23 on #375: eval must hand its verdict to
+          # Hephaestus via /oc maintainer using the owner PAT, same mechanism
+          # as the review/test forward steps. Both approve-eval and fix route
+          # to the Maintainer, which decides next (merge on approval, fix or
+          # lab dispatch on rejection). The bare trigger keeps the
+          # startsWith '/oc maintainer' match in maintainer.yml.
+          # Loop safety: /oc maintainer never matches this workflow's /oc eval
+          # trigger guard above, so this handoff cannot self-dispatch eval
+          # (see 51c719cc for the retired /oc eval result loop).
+          if [ "$action" = "approve-eval" ]; then
+            echo "Quality Council approved. Posting /oc maintainer to hand over to Maintainer"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          elif [ "$action" = "fix" ]; then
+            echo "Quality Council requested fixes. Posting /oc maintainer for Maintainer triage"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          else
+            echo "Unknown evaluator action '$action'. Posting /oc maintainer for Maintainer triage"
+            gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc maintainer"
+          fi
+
       - name: Push evaluator memory to dedicated branch
         if: always() && steps.verify-eval.outputs.has_decision == 'true'
         env:
