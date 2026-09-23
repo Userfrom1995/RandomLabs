@@ -137,6 +137,24 @@ function progressCurrency(profile) {
 }
 
 /**
+ * Normalize stored funds in place and return the spendable amount. Stored
+ * values above MAX_CURRENCY clamp here too, so console-granted fortunes
+ * cannot bypass the bundle airlock on the live profile.
+ * @param {object} progress profile progress object
+ * @param {object} profile full profile blob (for progressCurrency reads)
+ * @returns {number} spendable funds
+ */
+function normalizeFunds(progress, profile) {
+  const funds = progressCurrency(profile);
+  if (typeof progress.currency !== 'number' || !Number.isFinite(progress.currency) || progress.currency < 0) {
+    progress.currency = funds;
+    return funds;
+  }
+  progress.currency = Math.min(Math.floor(progress.currency), MAX_CURRENCY);
+  return progress.currency;
+}
+
+/**
  * Whether the profile can afford a cost.
  * @param {unknown} profile profile blob
  * @param {number} cost price to check
@@ -175,14 +193,8 @@ export function buyWeapon(profile, weaponId, price) {
     const cost = def.price;
     if (!Array.isArray(progress.ownedWeapons)) progress.ownedWeapons = ['fists'];
     if (progress.ownedWeapons.includes(weaponId)) return { ok: false, reason: 'owned' };
-    let funds = progressCurrency(profile);
+    const funds = normalizeFunds(progress, profile);
     if (funds == null) return { ok: false, reason: 'bad-profile' };
-    if (typeof progress.currency !== 'number' || !Number.isFinite(progress.currency) || progress.currency < 0) {
-      progress.currency = funds;
-    } else {
-      progress.currency = Math.floor(progress.currency);
-      funds = progress.currency;
-    }
     if (funds < cost) return { ok: false, reason: 'funds' };
     progress.currency = funds - cost;
     progress.ownedWeapons.push(weaponId);
@@ -219,14 +231,8 @@ export function buyUpgrade(profile, track) {
     if (current >= MAX_UPGRADE) return { ok: false, reason: 'maxed', cost: null };
     const cost = upgradeCost(track, current);
     if (cost == null) return { ok: false, reason: 'maxed', cost: null };
-    let funds = progressCurrency(profile);
+    const funds = normalizeFunds(progress, profile);
     if (funds == null) return { ok: false, reason: 'bad-profile', cost: null };
-    if (typeof progress.currency !== 'number' || !Number.isFinite(progress.currency) || progress.currency < 0) {
-      progress.currency = funds;
-    } else {
-      progress.currency = Math.floor(progress.currency);
-      funds = progress.currency;
-    }
     if (funds < cost) return { ok: false, reason: 'funds', cost };
     progress.currency = funds - cost;
     progress.upgrades[track] = current + 1;
