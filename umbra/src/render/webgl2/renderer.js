@@ -112,7 +112,8 @@ export function createWebGL2Renderer(canvas) {
 
     // Pass 3: particles (additive; skipped under battery saver). M4
     // weapon trails ride the spare particle slots after the ambient
-    // motes (arena x mapped to 0..1 UV like the silhouette pass).
+    // motes (arena x mapped to 0..1 UV like the silhouette pass). M5
+    // hit sparks take priority over trails (transient combat feedback).
     if (!opts.batterySaver) {
       gl.useProgram(partPr);
       gl.uniform2f(loc(partPr, 'uRes'), w, h);
@@ -122,6 +123,13 @@ export function createWebGL2Renderer(canvas) {
       for (let i = 0; i < ambient && n < 64; i++, n++) {
         const p = scene.particles[i];
         arr.set([p.x, p.y, p.s, p.b * (reduced ? 0.4 : 1)], n * 4);
+      }
+      const sparks = Array.isArray(opts.sparks) ? opts.sparks : [];
+      for (const p of sparks) {
+        if (n >= 64 || !p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.a)) continue;
+        const alpha = Math.max(0, Math.min(1, p.a)) * (reduced ? 0.5 : 1);
+        arr.set([p.x * 0.5 + 0.5, p.y, 0.016, alpha], n * 4);
+        n += 1;
       }
       for (const sideTrails of scene.weapons || []) {
         for (const tr of sideTrails || []) {

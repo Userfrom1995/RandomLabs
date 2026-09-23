@@ -5,7 +5,7 @@
  * bout (player vs seeded AI, best of 3) on top of the M1 render shell.
  */
 
-import { buildSceneDesc } from './src/render/scene.js';
+import { buildSceneDesc, flashShake } from './src/render/scene.js';
 import { arenaAt } from './src/arenas.js';
 import { resolveTier, tierForFailure, TIER_NAMES } from './src/render/tiers.js';
 import { probeCapabilities } from './src/render/caps.js';
@@ -53,8 +53,19 @@ import {
 } from './src/input/bindings.js';
 import { createKeyboard } from './src/input/keyboard.js';
 import { createGamepadPoller } from './src/input/gamepad.js';
-import { createTouchState, shouldVibrate } from './src/input/touch.js';
+import { createTouchState } from './src/input/touch.js';
 import { mergeInputs } from './src/input/combine.js';
+import { patternFor, shouldPlayHaptic } from './src/input/haptics.js';
+import { burstsFor, sparkPoints, slowMoFor } from './src/vfx.js';
+import { sfxDesc } from './src/audio/sfx.js';
+import { themePattern } from './src/audio/music.js';
+import { createAudio } from './src/audio/engine.js';
+import {
+  TUTORIAL_STEPS,
+  createTutorial,
+  tutorialUpdate,
+  tutorialPrompt,
+} from './src/tutorial.js';
 
 const $ = (id) => document.getElementById(id);
 const BINDINGS_PATH = 'bindings.json';
@@ -97,6 +108,14 @@ const boot = {
   pad: null,
   bindings: null,
   lastVibrateMs: null,
+  // M5 audio + tutorial + bench state.
+  audio: null,
+  audioReady: false,
+  tutorial: null,
+  tutorialStartX: 0,
+  dashEdge: false,
+  bench: null,
+  benchResult: null,
   seenEvents: 0,
   bannerUntil: 0,
   remapCapture: null,
@@ -126,7 +145,40 @@ function isTouchDevice() {
   return false;
 }
 
-const SCREENS = ['title', 'select', 'story', 'versus', 'fight', 'settings', 'shop', 'dojo'];
+const SCREENS = ['title', 'select', 'story', 'versus', 'fight', 'settings', 'shop', 'dojo', 'tutorial'];
+
+/** Focus the first meaningful control of a screen (keyboard users). */
+function focusFirst(rootId, fallbackId) {
+  const root = document.getElementById(rootId);
+  const btn = (root && root.querySelector('button:not([disabled])')) || document.getElementById(fallbackId);
+  if (btn && typeof btn.focus === 'function') {
+    try {
+      btn.focus({ preventScroll: true });
+    } catch {
+      // Focus is enhancement; the screen still works.
+    }
+  }
+}
+
+/** Keep Tab inside an open modal overlay until it closes. */
+function trapTab(ev) {
+  const open = [!$('pause-overlay').hidden && $('pause-overlay'), !$('result-overlay').hidden && $('result-overlay')]
+    .filter(Boolean);
+  if (open.length === 0) return;
+  const box = open[0];
+  if (ev.key !== 'Tab') return;
+  const items = [...box.querySelectorAll('button:not([disabled])')];
+  if (items.length === 0) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (ev.shiftKey && document.activeElement === first) {
+    ev.preventDefault();
+    last.focus();
+  } else if (!ev.shiftKey && document.activeElement === last) {
+    ev.preventDefault();
+    first.focus();
+  }
+}
 
 function showScreen(name) {
   boot.screen = name;
@@ -139,12 +191,17 @@ function showScreen(name) {
     drainInputs();
     boot.fight = null;
     boot.paused = false;
+    boot.tutorial = null;
     $('pause-overlay').hidden = true;
     $('result-overlay').hidden = true;
     hideBanner();
     closeDialogue();
+    menuMusic();
   }
   if (boot.profile) updateEmber();
+  // Move keyboard focus onto the incoming screen (A1/B1 audit fix).
+  if (name === 'fight') focusFirst(null, 'btn-pause');
+  else focusFirst(`screen-${name}`, 'btn-versus');
 }
 
 /**
@@ -252,6 +309,142 @@ function claimTrials() {
   }
 }
 
+/* ---- M5 audio + VFX helpers (pure contact math, DOM-light shell) ---- */
+
+/** Midpoint of the two fighters in arena coords (spark origin for VFX). */
+function contactPoint(fight) {
+  if (!fight || !Array.isArray(fight.fighters)) return { x: 0, y: 0.6 };
+  const [a, b] = fight.fighters;
+  const ax = Number.isFinite(a && a.x) ? a.x : -0.2;
+  const bx = Number.isFinite(b && b.x) ? b.x : 0.2;
+  const ay = Number.isFinite(a && a.y) ? Math.max(0, a.y) : 0;
+  const by = Number.isFinite(b && b.y) ? Math.max(0, b.y) : 0;
+  return {
+    x: Math.max(-1, Math.min(1, (ax + bx) / 2)),
+    y: Math.max(0, Math.min(1.2, 0.72 + (ay + by) * 0.3)),
+  };
+}
+
+/** Lazy audio engine bound to the persisted mute flag. */
+function ensureAudio() {
+  if (boot.audio) {
+    boot.audio.ensure();
+    return boot.audio;
+  }
+  try {
+    boot.audio = createAudio({
+      getMuted: () => !!(boot.profile && boot.profile.config && boot.profile.config.muted),
+      setMuted: (m) => {
+        if (boot.profile && boot.profile.config) {
+          boot.profile.config.muted = !!m;
+          persistProfile();
+        }
+      },
+    });
+    boot.audio.ensure();
+  } catch {
+    boot.audio = null;
+  }
+  return boot.audio;
+}
+
+/** Play one named SFX through the shell engine (no-op when muted/absent). */
+function playSfx(name, opts) {
+  try {
+    const audio = ensureAudio();
+    if (!audio) return;
+    audio.playSfx(sfxDesc(name, opts));
+  } catch {
+    // Audio is enhancement-only; the bout never depends on it.
+  }
+}
+
+/** Start the adaptive arena loop (calm on menus, fight/boss in bouts). */
+function startMusic(arena, intensity) {
+  try {
+    const audio = ensureAudio();
+    if (!audio) return;
+    const key = `bout:${arena}:${intensity}`;
+    if (boot.musicKey === key) return;
+    boot.musicKey = key;
+    audio.startMusic(themePattern(arena, intensity));
+  } catch {
+    // Music is enhancement-only.
+  }
+}
+
+/** Calm menu loop once audio is unlocked (no-op until first gesture). */
+function menuMusic() {
+  try {
+    if (!boot.audio) return;
+    const key = `menu:${boot.ambientArena}:0`;
+    if (boot.musicKey === key) return;
+    boot.musicKey = key;
+    boot.audio.startMusic(themePattern(boot.ambientArena, 0));
+  } catch {
+    // Music is enhancement-only.
+  }
+}
+
+function stopMusic() {
+  try {
+    if (boot.audio) boot.audio.stopMusic();
+  } catch {
+    // Best-effort only.
+  }
+}
+
+/** Haptic buzz for a fight event (skipped under reduced motion). */
+function buzzForEvent(e) {
+  if (boot.profile && boot.profile.config && boot.profile.config.reducedMotion) return;
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const kind = e.t === 'hit' || e.t === 'parried' ? 'hit' : e.t === 'ko' || e.t === 'round' ? 'ko' : e.t;
+  if (!shouldPlayHaptic(kind, boot.lastVibrateMs, now)) return;
+  try {
+    const pattern = patternFor(e.t);
+    if (pattern.length === 1 && pattern[0] === 0) return;
+    navigator.vibrate(pattern);
+    boot.lastVibrateMs = now;
+  } catch {
+    // Haptics are enhancement-only.
+  }
+}
+
+/** Paint the current tutorial step into the fight prompt bar. */
+function paintTutorialPrompt() {
+  const bar = $('tutorial-prompt');
+  if (!bar) return;
+  if (!boot.tutorial || boot.screen !== 'fight') {
+    bar.hidden = true;
+    return;
+  }
+  const p = tutorialPrompt(boot.tutorial);
+  bar.hidden = false;
+  bar.textContent = boot.tutorial.done ? 'Gate passed. Finish the bout.' : `Lesson ${p.progress}: ${p.title} - ${p.hint}`;
+}
+
+/** Feed the live sim into the tutorial step machine (at most one step). */
+function tickTutorial() {
+  const t = boot.tutorial;
+  const f = boot.fight;
+  if (!t || !f || t.done) return;
+  const before = t.stepIndex;
+  tutorialUpdate(t, {
+    p0x: f.fighters[0].x,
+    startX: boot.tutorialStartX,
+    p0state: boot.dashEdge ? 'dash' : f.fighters[0].state,
+    eventsSeen: f.events,
+    winner: f.over ? f.winner : null,
+  });
+  if (t.stepIndex !== before || t.done) {
+    paintTutorialPrompt();
+    const p = tutorialPrompt(t);
+    announce(t.done ? 'Gate passed. Finish the bout.' : `Lesson ${p.progress}: ${p.title}.`);
+    playSfx('trial');
+  }
+}
+
 function handleFightEvents() {
   const f = boot.fight;
   if (!f) return;
@@ -259,6 +452,7 @@ function handleFightEvents() {
   boot.seenEvents = f.events.length;
   for (const e of fresh) {
     if (e.t === 'round') {
+      playSfx('round');
       if (f.over) {
         showResult();
       } else {
@@ -267,18 +461,24 @@ function handleFightEvents() {
     } else if (e.t === 'phase') {
       const banner = bossBanner(e);
       if (banner) showBanner(banner, 110);
-    } else if (e.t === 'hit' || e.t === 'parried') {
-      // Haptics: sharp buzz when the player is hit, light tick when landing.
-      const heavy = e.side === 1;
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (shouldVibrate(boot.lastVibrateMs, now) && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        try {
-          navigator.vibrate(heavy ? 40 : 15);
-          boot.lastVibrateMs = now;
-        } catch {
-          // Haptics are enhancement-only.
-        }
+      playSfx('round');
+      try {
+        if (boot.audio) boot.audio.setIntensity(2);
+      } catch {
+        // Intensity is enhancement-only.
       }
+    } else if (e.t === 'hit' || e.t === 'parried') {
+      // SFX: sharp crack when the player lands, duller thud when hit.
+      playSfx(e.t === 'hit' ? 'hit' : 'parry', { heavy: e.side === 1 });
+      buzzForEvent(e);
+    } else if (e.t === 'blocked') {
+      playSfx('block', { heavy: e.side === 1 });
+      buzzForEvent(e);
+    } else if (e.t === 'whiff') {
+      playSfx('whiff');
+    } else if (e.t === 'ko') {
+      playSfx('ko');
+      buzzForEvent(e);
     }
   }
   if (f.phase === 'intro' && f.phaseTick === 1) {
@@ -331,8 +531,27 @@ function showResult() {
   // offers rematch/title only (a loss earns no progress).
   const storyWin = b.mode === 'story' && f.winner === 0 && b.nodeId != null;
   $('btn-result-continue').hidden = !storyWin;
+  // M5 tutorial graduation: first win banks a one-time ember stipend.
+  if (b.mode === 'tutorial' && f.winner === 0) {
+    const stats = boot.profile.progress.stats || (boot.profile.progress.stats = {});
+    if (!stats.tutorialDone) {
+      stats.tutorialDone = true;
+      boot.profile.progress.currency = Math.max(0, (boot.profile.progress.currency || 0) + 25);
+      awardLine += ' Plus 25 ember graduation stipend.';
+      persistProfile();
+      updateEmber();
+      playSfx('unlock');
+    }
+  }
+  if (b.mode === 'tutorial') {
+    $('result-sub').textContent =
+      f.winner === 0
+        ? `You graduate the dojo gate ${f.wins[0]}-${f.wins[1]}.${awardLine} Versus and story await.`
+        : `The gate holds ${f.wins[1]}-${f.wins[0]}. Rematch to try the forms again.${awardLine}`;
+  }
   $('result-overlay').hidden = false;
   announce(`Bout over: ${title} (${f.wins[0]}-${f.wins[1]}).`);
+  focusFirst(null, 'btn-rematch');
 }
 
 /** Display name for a roster id (falls back for legacy bouts). */
@@ -350,19 +569,19 @@ function fighterName(id, fallback) {
  */
 function startFight(opts = {}) {
   const profile = boot.profile;
-  const mode = opts.mode === 'story' ? 'story' : opts.mode === 'dojo' ? 'dojo' : 'versus';
+  const mode = opts.mode === 'story' ? 'story' : opts.mode === 'dojo' ? 'dojo' : opts.mode === 'tutorial' ? 'tutorial' : 'versus';
   const p0 = fighterById(opts.p0) || fighterById('kaito');
   const p1 = fighterById(opts.p1) || fighterById('echo');
   const arena = Number.isInteger(opts.arena) && opts.arena >= 0 ? opts.arena : 0;
-  const rounds = mode === 'dojo' ? 1 : Number.isInteger(opts.rounds) && opts.rounds >= 1 ? opts.rounds : 3;
+  const rounds = mode === 'dojo' || mode === 'tutorial' ? 1 : Number.isInteger(opts.rounds) && opts.rounds >= 1 ? opts.rounds : 3;
   const roundTicks = mode === 'dojo' ? 5400 : undefined;
-  const weapon0 = weaponById(opts.weapon0) ? opts.weapon0 : equippedWeapon();
+  const weapon0 = mode === 'tutorial' ? 'fists' : weaponById(opts.weapon0) ? opts.weapon0 : equippedWeapon();
   const weapon1 = 'fists';
   const upgrades = (profile.progress && profile.progress.upgrades) || { dmg: 0, hp: 0 };
   const dmgLvl = Number.isInteger(upgrades.dmg) ? Math.max(0, Math.min(MAX_UPGRADE, upgrades.dmg)) : 0;
   const hpLvl = Number.isInteger(upgrades.hp) ? Math.max(0, Math.min(MAX_UPGRADE, upgrades.hp)) : 0;
   const power = [upgradeEffect('dmg', dmgLvl) || 1, 1];
-  const boss = mode === 'dojo' ? null : (bossFor(p1.id) ? bossFor(p1.id).id : null);
+  const boss = mode === 'dojo' || mode === 'tutorial' ? null : (bossFor(p1.id) ? bossFor(p1.id).id : null);
   const seed = (Math.random() * 0xffffffff) >>> 0;
   const fight = createFight({
     seed,
@@ -374,13 +593,16 @@ function startFight(opts = {}) {
     power,
     boss,
   });
-  fight.fighters[0].hp = p0.hp + (upgradeEffect('hp', hpLvl) || 0);
+  fight.fighters[0].hp = mode === 'tutorial' ? 200 : p0.hp + (upgradeEffect('hp', hpLvl) || 0);
   fight.fighters[0].maxHp = fight.fighters[0].hp;
-  const foeHp = mode === 'dojo' ? 200 : p1.hp;
+  const foeHp = mode === 'dojo' ? 200 : mode === 'tutorial' ? 30 : p1.hp;
   fight.fighters[1].hp = foeHp;
   fight.fighters[1].maxHp = foeHp;
   boot.fight = fight;
-  boot.ai = createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: p1.difficulty, archetype: p1.ai });
+  // The tutorial gatekeeper spars gently: difficulty 0, turtle temper.
+  boot.ai = mode === 'tutorial'
+    ? createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: 0, archetype: 'turtle' })
+    : createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: p1.difficulty, archetype: p1.ai });
   boot.bout = { mode, p0: p0.id, p1: p1.id, arena, nodeId: opts.nodeId || null, weapon0, weapon1, boss };
   boot.claimedTrials = new Set((profile.progress.stats && profile.progress.stats.trials) || []);
   boot.paused = false;
@@ -393,18 +615,27 @@ function startFight(opts = {}) {
   $('pause-overlay').hidden = true;
   $('result-overlay').hidden = true;
   $('btn-result-continue').hidden = true;
-  $('fname-0').textContent = mode === 'story' ? p0.name : mode === 'dojo' ? `${p0.name} (dojo)` : `You (${p0.name})`;
-  $('fname-1').textContent = mode === 'dojo' ? `${p1.name} (dummy)` : p1.name;
+  $('fname-0').textContent = mode === 'story' ? p0.name : mode === 'dojo' ? `${p0.name} (dojo)` : mode === 'tutorial' ? `${p0.name} (student)` : `You (${p0.name})`;
+  $('fname-1').textContent = mode === 'dojo' ? `${p1.name} (dummy)` : mode === 'tutorial' ? `${p1.name} (gatekeeper)` : p1.name;
   $('fight-title').innerHTML = '';
-  const modeLabel = mode === 'story' ? 'Story' : mode === 'dojo' ? 'Dojo' : 'Versus';
+  const modeLabel = mode === 'story' ? 'Story' : mode === 'dojo' ? 'Dojo' : mode === 'tutorial' ? 'Tutorial' : 'Versus';
   $('fight-title').append(
     document.createTextNode(`${modeLabel}: ${p0.name} vs ${p1.name} `),
-    Object.assign(document.createElement('span'), { className: 'pill', textContent: mode === 'dojo' ? weaponName(weapon0) : `best of ${rounds}` }),
+    Object.assign(document.createElement('span'), { className: 'pill', textContent: mode === 'dojo' ? weaponName(weapon0) : mode === 'tutorial' ? 'dojo gate' : `best of ${rounds}` }),
   );
   const arenaName = arenaAt(arena).name;
   $('hud-scene').textContent = arenaName;
+  // M5 tutorial state: fresh step machine, prompt painted on first tick.
+  boot.tutorial = mode === 'tutorial' ? createTutorial() : null;
+  boot.tutorialStartX = fight.fighters[0].x;
+  boot.dashEdge = false;
   showScreen('fight');
   updateHud();
+  paintTutorialPrompt();
+  // First-gesture audio unlock + adaptive music for the bout.
+  ensureAudio();
+  playSfx('round');
+  startMusic(arena, boss ? 2 : mode === 'versus' || mode === 'story' || mode === 'tutorial' ? 1 : 0);
   announce(`Fight! ${p0.name} versus ${p1.name}. J punch, K kick, L block, U special, Space dash.`);
 }
 
@@ -413,6 +644,8 @@ function togglePause(force) {
   boot.paused = typeof force === 'boolean' ? force : !boot.paused;
   $('pause-overlay').hidden = !boot.paused;
   announce(boot.paused ? 'Paused.' : 'Resumed.');
+  if (boot.paused) focusFirst(null, 'btn-resume');
+  else focusFirst(null, 'btn-pause');
 }
 
 function pollPadPause() {
@@ -452,6 +685,7 @@ function tickFight() {
   const f = boot.fight;
   if (!f || boot.paused || f.over) return;
   const p1 = mergeInputs(kb, touch, pad);
+  boot.dashEdge = !!p1.dash;
   let p2;
   if (boot.bout && boot.bout.mode === 'dojo') {
     // The dojo dummy never acts: neutral input every tick.
@@ -469,6 +703,7 @@ function tickFight() {
   }
   stepFight(f, p1, p2);
   handleFightEvents();
+  tickTutorial();
   updateHud();
 }
 
@@ -527,15 +762,91 @@ function applyCanvasSize() {
   }
 }
 
+/** Expanded spark points for the live bout (cached enrichment, capped). */
+function fightSparks() {
+  const f = boot.fight;
+  if (!f || !Array.isArray(f.events) || boot.screen !== 'fight') return [];
+  if (boot.profile && boot.profile.config && boot.profile.config.batterySaver) return [];
+  if (boot.sparkCacheLen !== f.events.length) {
+    const cp = contactPoint(f);
+    boot.sparkCache = f.events.map((e) => (e && e.x == null ? { ...e, x: cp.x, y: cp.y } : e));
+    boot.sparkCacheLen = f.events.length;
+  }
+  const out = [];
+  for (const b of burstsFor(boot.sparkCache, f.tick)) {
+    for (const p of sparkPoints(b, f.tick)) {
+      out.push(p);
+      if (out.length >= 40) return out;
+    }
+  }
+  return out;
+}
+
+/**
+ * Tier-independent fight FX: hit-flash overlay + KO screen shake.
+ * Both are skipped under reduced motion (vestibular/photosensitivity gate).
+ */
+function paintFightFx(scene) {
+  const flash = $('flash');
+  const canvas = $('umbra-canvas');
+  const reduced = boot.profile && boot.profile.config && boot.profile.config.reducedMotion;
+  if (boot.screen !== 'fight' || !boot.fight || reduced) {
+    if (flash) flash.style.opacity = '0';
+    if (canvas) canvas.style.transform = '';
+    return;
+  }
+  const fx = flashShake(boot.fight.events, boot.fight.tick);
+  if (flash) flash.style.opacity = String(Math.max(0, Math.min(0.35, fx.flash * 0.35)));
+  if (canvas) {
+    canvas.style.transform = fx.shake > 0.03
+      ? `translate(${(fx.shake * 6).toFixed(1)}px, ${(-fx.shake * 4).toFixed(1)}px)`
+      : '';
+  }
+}
+
+/** Bench hook: ?bench=N collects N rAF deltas then publishes JSON. */
+function tickBench(dt) {
+  const b = boot.bench;
+  if (!b || b.done) return;
+  b.samples.push(dt);
+  if (b.samples.length >= b.need) {
+    b.done = true;
+    const s = b.samples.slice().sort((x, y) => x - y);
+    const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+    const result = {
+      n: s.length,
+      p50: q(0.5),
+      p95: q(0.95),
+      max: s[s.length - 1],
+      tier: boot.tier,
+      canvas: { w: $('umbra-canvas').width, h: $('umbra-canvas').height },
+    };
+    boot.benchResult = result;
+    const el = $('bench-result');
+    if (el) {
+      el.hidden = false;
+      el.textContent = JSON.stringify(result);
+    }
+    try {
+      document.title = `BENCH ${JSON.stringify(result)}`;
+    } catch {
+      // Title publish is best-effort.
+    }
+  }
+}
+
 function frame(nowMs) {
   requestAnimationFrame(frame);
   if (!boot.lastFrameMs) boot.lastFrameMs = nowMs;
   const dt = Math.min(100, nowMs - boot.lastFrameMs);
   boot.lastFrameMs = nowMs;
+  tickBench(dt);
 
   // Fixed-step clock: 60 Hz, max 3 ticks per frame. Fight sim ticks here;
   // edges are consumed once per tick so input latency stays <= 2 ticks.
-  boot.acc += dt;
+  // M5 KO slow-mo: the clock drains at quarter speed for 45 ticks after a KO.
+  const slow = boot.screen === 'fight' && boot.fight && !boot.paused ? slowMoFor(boot.fight.events, boot.fight.tick) : 1;
+  boot.acc += dt * slow;
   let steps = 0;
   while (boot.acc >= 16.667 && steps < 3) {
     boot.acc -= 16.667;
@@ -577,10 +888,12 @@ function frame(nowMs) {
       boot.renderer.render(scene, arenaAt(arena), {
         batterySaver: boot.profile.config.batterySaver,
         reducedMotion: boot.profile.config.reducedMotion,
+        sparks: fightSparks(),
       });
     } catch (err) {
       announce(`Render error: ${err.message}`);
     }
+    paintFightFx(scene);
   } else if (boot.renderer && boot.screen === 'title') {
     // Title keeps a live ambient frame behind the menu (frozen clock).
     const scene = buildSceneDesc({ tick: 0, arena: 0 });
@@ -616,6 +929,7 @@ function readSettingsForm() {
   boot.profile.config.ladderIndex = boot.ladderLock != null ? boot.ladderLock : boot.ladderIndex;
   boot.profile.config.batterySaver = $('set-battery').checked;
   boot.profile.config.reducedMotion = $('set-motion').checked;
+  boot.profile.config.muted = $('set-muted').checked;
 }
 
 function writeSettingsForm() {
@@ -624,6 +938,7 @@ function writeSettingsForm() {
   $('set-ladder').value = boot.ladderLock != null ? String(boot.ladderLock) : 'auto';
   $('set-battery').checked = c.batterySaver;
   $('set-motion').checked = c.reducedMotion;
+  $('set-muted').checked = !!c.muted;
 }
 
 async function applySettingsAndRender() {
@@ -1178,15 +1493,16 @@ function stepDialogue() {
     return;
   }
   const done = boot.dialogueOnDone;
-  closeDialogue();
+  closeDialogue(boot.screen === 'fight' ? 'btn-pause' : 'btn-story-play');
   if (done) done();
 }
 
-function closeDialogue() {
+function closeDialogue(returnFocusTo) {
   boot.dialogue = null;
   boot.dialogueOnDone = null;
   const box = $('dialogue-box');
   if (box) box.hidden = true;
+  if (returnFocusTo) focusFirst(null, returnFocusTo);
 }
 
 /* ---- Story advancement ---- */
@@ -1270,6 +1586,29 @@ function continueStory() {
   openDialogue(res.next, () => finishStoryNode(res.next.id));
 }
 
+/** Tutorial intro card: controls recap + graduation terms. */
+function renderTutorialIntro() {
+  const steps = $('tutorial-steps');
+  if (steps) {
+    steps.innerHTML = '';
+    for (const s of TUTORIAL_STEPS) {
+      const li = document.createElement('li');
+      li.className = 'todo';
+      const mark = document.createElement('span');
+      mark.className = 'mark';
+      mark.textContent = '·';
+      const title = document.createElement('span');
+      title.textContent = `${s.title}: ${s.hint}`;
+      li.append(mark, title);
+      steps.append(li);
+    }
+  }
+  const done = boot.profile && boot.profile.progress && boot.profile.progress.stats
+    && boot.profile.progress.stats.tutorialDone;
+  const pill = $('tutorial-picks');
+  if (pill) pill.textContent = done ? 'graduated (replay freely)' : 'six lessons, one gatekeeper';
+}
+
 function wireUI() {
   $('btn-versus').addEventListener('click', () => {
     boot.selectMode = 'versus';
@@ -1292,6 +1631,14 @@ function wireUI() {
   });
   $('btn-shop-back').addEventListener('click', () => showScreen('title'));
   $('btn-dojo-back').addEventListener('click', () => showScreen('title'));
+  $('btn-learn').addEventListener('click', () => {
+    renderTutorialIntro();
+    showScreen('tutorial');
+  });
+  $('btn-tutorial-back').addEventListener('click', () => showScreen('title'));
+  $('btn-tutorial-start').addEventListener('click', () => {
+    startFight({ mode: 'tutorial', p0: boot.storyP0 || boot.versusP0 || 'kaito', p1: 'echo', arena: 0 });
+  });
   $('btn-dojo-fight').addEventListener('click', () => {
     startFight({ mode: 'dojo', p0: boot.versusP0 || boot.storyP0 || 'kaito', p1: 'echo', arena: 0, weapon0: equippedWeapon() });
   });
@@ -1369,6 +1716,13 @@ function wireUI() {
 
   document.addEventListener('keydown', (ev) => {
     if (boot.remapCapture) return;
+    trapTab(ev);
+    // Escape with an open dialogue advances it instead of abandoning the node.
+    if (ev.code === 'Escape' && boot.dialogue && !$('dialogue-box').hidden) {
+      ev.preventDefault();
+      stepDialogue();
+      return;
+    }
     const codes = pauseCodes();
     if (ev.key === 'Enter' && boot.screen === 'title') $('btn-versus').click();
     else if ((ev.key === 's' || ev.key === 'S') && boot.screen === 'title') $('btn-settings').click();
@@ -1404,6 +1758,13 @@ function wireUI() {
       clearStuckInputs();
     }
   });
+
+  // UI blips + first-gesture audio unlock on every button press.
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+    if (!btn) return;
+    playSfx('ui');
+  });
 }
 
 async function bootApp() {
@@ -1415,16 +1776,39 @@ async function bootApp() {
 
   // Test hook (also handy for debugging): ?tier=0|1|2|auto&screen=fight|settings|shop|dojo
   // overrides the stored config for this load without persisting it.
+  // ?bench=N collects N rAF deltas and publishes JSON in #bench-result.
   const params = new URLSearchParams(window.location.search);
   const paramTier = params.get('tier');
   const paramScreen = params.get('screen');
+  const benchN = Math.floor(Number(params.get('bench')));
+  if (Number.isFinite(benchN) && benchN > 0) {
+    boot.bench = { need: Math.min(300, benchN), samples: [], done: false };
+  }
 
   boot.provider = createLocalProvider(window.localStorage);
+  let freshProfile = false;
+  try {
+    freshProfile = (await boot.provider.readJSON('profile.json')) == null;
+  } catch {
+    freshProfile = true;
+  }
   try {
     boot.profile = await loadProfile(boot.provider);
   } catch {
     const { defaultProfile } = await import('./src/storage/profile.js');
     boot.profile = defaultProfile();
+    freshProfile = true;
+  }
+  // First boot follows the OS reduced-motion flag (explicit choice still wins).
+  if (freshProfile && !boot.profile.config.reducedMotion) {
+    try {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        boot.profile.config.reducedMotion = true;
+        await saveProfile(boot.provider, boot.profile);
+      }
+    } catch {
+      // Media query is best-effort.
+    }
   }
   try {
     const raw = await boot.provider.readJSON(BINDINGS_PATH);

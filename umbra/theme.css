@@ -64,6 +64,25 @@ main {
   height: auto;
 }
 
+/* M5 hit-flash overlay: full-stage white flash, driven by JS opacity. */
+#flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 55%, rgba(255,255,255,0.9), rgba(255,255,255,0) 70%);
+  opacity: 0;
+}
+
+/* M5 tutorial lesson prompt bar on the fight panel. */
+.prompt {
+  border: 1px solid var(--focus);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+.prompt[hidden] { display: none; }
+
 #hud {
   position: absolute;
   top: 0;
@@ -236,7 +255,7 @@ footer a { color: var(--accent); }
   display: flex; flex-direction: column; gap: 6px; min-height: 44px;
 }
 .card[aria-pressed="true"] { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
-.card:disabled { opacity: 0.55; cursor: not-allowed; }
+.card:disabled { opacity: 0.75; cursor: not-allowed; }
 .card .cname { font-weight: 700; letter-spacing: 0.08em; }
 .card .csub { font-size: 0.8rem; color: var(--muted); }
 .card .cstats { font-size: 0.8rem; color: var(--muted); font-family: monospace; }
@@ -250,7 +269,7 @@ footer a { color: var(--accent); }
 }
 .story li.done { opacity: 0.7; }
 .story li.now { border-color: var(--focus); }
-.story li.locked { opacity: 0.45; }
+.story li.locked { opacity: 0.6; }
 .story .mark { color: var(--focus); min-width: 2ch; }
 .story .kind {
   margin-left: auto; font-size: 0.7rem; letter-spacing: 0.15em;

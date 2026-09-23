@@ -145,7 +145,8 @@ export async function createWebGPURenderer(canvas) {
 
     // Particles (skipped under battery saver, dimmed under reduced motion).
     // M4 weapon trails ride the spare particle slots after the ambient
-    // motes (arena x mapped to 0..1 UV like the silhouette pass).
+    // motes (arena x mapped to 0..1 UV like the silhouette pass). M5
+    // hit sparks take priority over trails (transient combat feedback).
     f32.fill(0);
     f32[0] = w;
     f32[1] = h;
@@ -159,6 +160,16 @@ export async function createWebGPURenderer(canvas) {
         f32[5 + n * 4] = p.y;
         f32[6 + n * 4] = p.s;
         f32[7 + n * 4] = p.b * (reduced ? 0.4 : 1);
+      }
+      const sparks = Array.isArray(opts.sparks) ? opts.sparks : [];
+      for (const p of sparks) {
+        if (n >= 64 || !p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.a)) continue;
+        const alpha = Math.max(0, Math.min(1, p.a)) * (reduced ? 0.5 : 1);
+        f32[4 + n * 4] = p.x * 0.5 + 0.5;
+        f32[5 + n * 4] = p.y;
+        f32[6 + n * 4] = 0.016;
+        f32[7 + n * 4] = alpha;
+        n += 1;
       }
       for (const sideTrails of scene.weapons || []) {
         for (const tr of sideTrails || []) {
