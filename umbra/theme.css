@@ -305,7 +305,9 @@ footer a { color: var(--accent); }
   .topbar nav { margin-left: 0; }
   .pill { font-size: 0.65rem; }
   #hud { font-size: 0.75rem; }
-  .fname { display: none; }
+  /* M5: fighter names stay visible on phones (abbreviated, ellipsized)
+     so versus foes keep their identity; progressbars carry aria names. */
+  .fname { font-size: 0.65rem; letter-spacing: 0.08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 38vw; }
   #hud-timer { font-size: 1.1rem; }
   /* Portrait bottom-dock: controls sit below the fighter plane, never over center. */
   #touch-buttons { grid-template-columns: repeat(3, 56px); }
