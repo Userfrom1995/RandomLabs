@@ -382,7 +382,9 @@ describe('tester M4: shop/dojo/export DOM contract', () => {
   });
   it('service worker cache bump covers every new M4 module', () => {
     const sw = read('sw.js');
-    assert.ok(sw.includes('umbra-v4'), 'cache tag did not bump to v4');
+    assert.ok(sw.includes('umbra-v5'), 'cache tag did not bump to v5');
+    assert.ok(!sw.includes("'umbra-v4'") && !sw.includes('"umbra-v4"'), 'stale v4 cache tag still present');
+    assert.ok(sw.includes('umbra-'), 'old-cache purge prefix missing');
     for (const mod of ['weapons.js', 'bosses.js', 'dojo.js', 'economy.js', 'bundle.js']) {
       assert.ok(sw.includes(mod), `sw.js does not cache ${mod}`);
     }
