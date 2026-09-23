@@ -499,7 +499,7 @@ async function initRenderer(tier) {
     boot.renderer = createCanvas2DRenderer(canvas);
   }
   boot.tier = tier;
-  $('hud-tier').textContent = `tier: ${tier} ${TIER_NAMES[tier]}`;
+  $('hud-tier').textContent = TIER_NAMES[tier] || 'Canvas2D';
 }
 
 /** Initialize with fallback chain: requested tier, then lower tiers. */
@@ -1136,7 +1136,7 @@ function renderDojo() {
   list.innerHTML = '';
   for (const t of TRIALS) {
     const li = document.createElement('li');
-    li.className = done.has(t.id) ? 'done' : 'locked';
+    li.className = done.has(t.id) ? 'done' : 'todo';
     const mark = document.createElement('span');
     mark.className = 'mark';
     mark.textContent = done.has(t.id) ? '✓' : '·';

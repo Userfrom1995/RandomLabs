@@ -41,7 +41,7 @@
     <div id="hud-meta">
       <span id="hud-scene">Moonlit Temple</span>
       <span id="hud-ember" data-testid="hud-ember">0 ember</span>
-      <span id="hud-tier" data-testid="hud-tier">tier: probing…</span>
+      <span id="hud-tier" data-testid="hud-tier">probing renderer…</span>
       <span id="hud-fps" data-testid="hud-fps">-- fps</span>
     </div>
     <div id="banner" data-testid="banner" role="status" hidden></div>
@@ -161,7 +161,7 @@
     <h3>Backup</h3>
     <div class="row">
       <button id="btn-export" data-testid="btn-export" type="button">Export profile</button>
-      <label class="check" for="import-file">Import profile
+      <label class="file-btn" for="import-file">Import profile
         <input id="import-file" data-testid="import-file" type="file" accept="application/json,.json">
       </label>
     </div>
@@ -175,7 +175,9 @@
     <p class="flavor">The dummy never strikes back. Frame data is in ticks at
       60 Hz. Completing a trial pays ember the first time.</p>
     <h3>Frame data</h3>
-    <table id="dojo-frames" data-testid="dojo-frames" class="frames"></table>
+    <div class="frames-wrap">
+      <table id="dojo-frames" data-testid="dojo-frames" class="frames"></table>
+    </div>
     <h3>Combo trials</h3>
     <ol id="dojo-trials" data-testid="dojo-trials" class="story"></ol>
     <div class="row">
@@ -223,7 +225,7 @@
   </section>
 </main>
 <footer>
-  <p>Umbra M4: bosses, weapons, shop, and dojo. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
+  <p>Umbra: shadow combat. <a href="./docs/scoreboard.md">Scoreboard</a>.</p>
 </footer>
 <script type="module" src="./app.js"></script>
 </body>

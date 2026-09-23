@@ -157,8 +157,8 @@ export function createCanvas2DRenderer(canvas) {
     ctx.globalAlpha = 1.0;
 
     // M4 weapon trails: bright ribbon polylines per attacking side.
-    // Gameplay feedback (not decoration): drawn even under battery saver,
-    // single dim pass under reduced motion.
+    // Skipped under battery saver with the ambient motes (all three tiers
+    // match); single dim pass under reduced motion.
     const trailCss = (c) => `rgb(${Math.round(c[0] * 255)},${Math.round(c[1] * 255)},${Math.round(c[2] * 255)})`;
     for (const sideTrails of scene.weapons || []) {
       for (const tr of sideTrails || []) {
