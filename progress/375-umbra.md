@@ -1,10 +1,10 @@
 # Progress: Umbra - Shadow Fight-inspired WebGPU combat game at /umbra/
 
 - **Issue:** #375
-- **Branch:** opencode/issue375-umbra-m2 (M2 active)
+- **Branch:** opencode/issue375-umbra-m3 (M3 active)
 - **Status:** in-progress
-- **Updated:** 2026-09-23T04:15:00Z
-- **Active Milestone:** M2 deterministic combat engine + universal input (Complete, ready for review; Refs #375)
+- **Updated:** 2026-09-23T12:00:00Z
+- **Active Milestone:** M3 characters + story + levels (Complete, ready for review; Refs #375)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -23,9 +23,9 @@
   - [x] Keyboard + gamepad + touch overlay with responsive contract + remapping UI + persisted bindings
   - [x] Playable versus bout (player vs AI) with KO/rounds/timer + determinism hash + input-script replay test
 - Milestone 3 (M3) characters + story + levels (PR 3 target, Refs #375):
-  - [ ] Full roster data (3 playable + 5 enemy archetypes, distinct rigs/stats)
-  - [ ] Story act graph + dialogue/cutscene box + progression walker + 5 arenas (WGSL backgrounds + parallax + music themes)
-  - [ ] Story mode flow (select > intro > fights > outro) + unlock triggers wired to profile
+  - [x] Full roster data (3 playable + 5 enemy archetypes, distinct rigs/stats)
+  - [x] Story act graph + dialogue/cutscene box + progression walker + 5 arenas (WGSL backgrounds + parallax + music themes)
+  - [x] Story mode flow (select > intro > fights > outro) + unlock triggers wired to profile
 - Milestone 4 (M4) bosses + weapons + progression (PR 4 target, Refs #375):
   - [ ] 3 phased bosses with unique mechanics (summoner adds, duelist stance-switch, eclipse enrage timer)
   - [ ] 6 weapons (fists, sword, nunchaku, spear, staff, daggers) with frame-data + pose tracks + trails
@@ -37,10 +37,14 @@
 
 ## Current step
 
-M2 build complete (Builder run 2, orchestrated): combat core + input via two
-parallel subagents, app integration + fight shell + screenshots by the
-Builder. 133/133 node:test green, desktop + mobile headless-Chromium
-fight evidence in `umbra/docs/shot-m2-*`. Ready for review.
+M3 build complete (Builder run 3): `src/roster.js` (Kaito/Mira/Goran +
+Echo/Ash/Ruin/Vex/Dusk), `src/story.js` (17-node Ashen Veil chain +
+walker), `src/dialogue.js` (pure typewriter), profile v2, rig variants
+(bit-exact identity, M1/M2 goldens untouched), select/story/dialogue/
+versus screens, named bouts with per-side hp + enemy AI, versus unlock
+gating, SW umbra-v3. 199/199 node:test green (26 new). Headless-Chromium
+desktop + mobile evidence in `umbra/docs/shot-m3-*` (zero pageerrors).
+Ready for review.
 
 ## Next steps
 
@@ -53,6 +57,15 @@ fight evidence in `umbra/docs/shot-m2-*`. Ready for review.
 
 ## Agent log
 
+- 2026-09-23 (Builder run 3, M3): roster + story + dialogue + profile v2
+  as pure modules with 26 new tests; rig multipliers on the pose solver
+  (identity bit-exact, goldens pinned); scene rigs passthrough
+  (presentation-only); select/story-map/dialogue/versus screens with
+  unlock gating wired to profile v2; named bouts with per-side hp and
+  enemy AI temperaments; story win banks progress via Continue, loss
+  earns nothing; SW umbra-v3; scoreboard M3 rows; 6 headless-Chromium
+  screenshots (zero pageerrors); ideas M3 entry. 199/199 green.
+  Decision action: review.
 - 2026-09-23 (Fixer, M2 review findings): applied all 21 reviewer findings on
   `opencode/issue375-umbra-m2` across 4 modular commits (combat sim, input,
   shell, tests). Sim: combo advances on clean hits only (parry/block make
