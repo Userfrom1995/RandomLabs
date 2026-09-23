@@ -20,11 +20,12 @@
   <div id="stage">
     <canvas id="umbra-canvas" data-testid="canvas" width="960" height="540"
       aria-label="Umbra arena viewport showing two silhouette fighters in idle stance."></canvas>
+    <div id="flash" data-testid="flash" aria-hidden="true"></div>
     <div id="hud" data-testid="hud">
       <div class="fighter-bar" id="bar-0">
         <span class="fname" id="fname-0">You</span>
         <div class="hp-track"><div class="hp-fill" id="hud-health-0" data-testid="hud-health-0" role="progressbar" aria-label="your health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div></div>
-        <div class="st-track"><div class="st-fill" id="hud-stamina-0" data-testid="hud-stamina-0"></div></div>
+        <div class="st-track" aria-hidden="true"><div class="st-fill" id="hud-stamina-0" data-testid="hud-stamina-0"></div></div>
         <span class="pips" id="hud-pips-0" data-testid="hud-pips-0" aria-label="rounds won by you"></span>
       </div>
       <div class="mid-bar">
@@ -34,7 +35,7 @@
       <div class="fighter-bar right" id="bar-1">
         <span class="fname" id="fname-1">Echo</span>
         <div class="hp-track"><div class="hp-fill" id="hud-health-1" data-testid="hud-health-1" role="progressbar" aria-label="Echo health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div></div>
-        <div class="st-track"><div class="st-fill" id="hud-stamina-1" data-testid="hud-stamina-1"></div></div>
+        <div class="st-track" aria-hidden="true"><div class="st-fill" id="hud-stamina-1" data-testid="hud-stamina-1"></div></div>
         <span class="pips" id="hud-pips-1" data-testid="hud-pips-1" aria-label="rounds won by Echo"></span>
       </div>
     </div>
@@ -44,7 +45,7 @@
       <span id="hud-tier" data-testid="hud-tier">probing renderer…</span>
       <span id="hud-fps" data-testid="hud-fps">-- fps</span>
     </div>
-    <div id="banner" data-testid="banner" role="status" hidden></div>
+    <div id="banner" data-testid="banner" hidden></div>
     <div id="dialogue-box" data-testid="dialogue-box" hidden>
       <div class="dlg-card" role="dialog" aria-modal="false" aria-label="Story dialogue">
         <span id="dlg-speaker" data-testid="dlg-speaker"></span>
@@ -75,7 +76,7 @@
       </div>
     </div>
     <div id="touch-ui" data-testid="touch-ui" hidden>
-      <div id="joystick" data-testid="joystick" aria-label="Move joystick">
+      <div id="joystick" data-testid="joystick" aria-hidden="true">
         <div id="joy-knob"></div>
       </div>
       <div id="touch-buttons">
@@ -89,6 +90,7 @@
     </div>
   </div>
   <p id="status-line" data-testid="status-line" role="status">Loading…</p>
+  <p id="bench-result" data-testid="bench-result" hidden></p>
 
   <section id="screen-title" class="panel" data-testid="screen-title" aria-label="Title screen">
     <h2>Umbra</h2>
@@ -97,13 +99,25 @@
       Shop: spend ember on weapons and training. Dojo: drill combos.</p>
     <div class="row">
       <button id="btn-versus" data-testid="btn-versus" type="button">Versus fight</button>
+      <button id="btn-learn" data-testid="btn-learn" type="button">Learn to fight</button>
       <button id="btn-story" data-testid="btn-story" type="button">Story mode</button>
       <button id="btn-shop" data-testid="btn-shop" type="button">Shop</button>
       <button id="btn-dojo" data-testid="btn-dojo" type="button">Dojo</button>
       <button id="btn-settings" data-testid="btn-settings" type="button">Settings</button>
     </div>
     <p class="hint">Desktop: Enter fights, J punch, K kick, L block (hold), U special,
-      Space dash, S settings, Esc pause. Touch: left stick moves, buttons strike.</p>
+      Space dash, S settings, Esc pause or back. Touch: left stick moves, buttons strike.</p>
+  </section>
+
+  <section id="screen-tutorial" class="panel" data-testid="screen-tutorial" aria-label="Tutorial" hidden>
+    <h2>Dojo gate <span class="pill" id="tutorial-picks"></span></h2>
+    <p class="flavor">Six lessons against the gatekeeper. Move, strike, guard,
+      unleash, dash, then win the bout. Graduation pays 25 ember, once.</p>
+    <ol id="tutorial-steps" data-testid="tutorial-steps" class="story"></ol>
+    <div class="row">
+      <button id="btn-tutorial-start" data-testid="btn-tutorial-start" type="button">Enter the gate</button>
+      <button id="btn-tutorial-back" type="button">Back</button>
+    </div>
   </section>
 
   <section id="screen-select" class="panel" data-testid="screen-select" aria-label="Choose your fighter" hidden>
@@ -142,6 +156,7 @@
 
   <section id="screen-fight" class="panel" data-testid="screen-fight" aria-label="Versus fight" hidden>
     <h2 id="fight-title">Versus: you vs Echo <span class="pill">best of 3</span></h2>
+    <p id="tutorial-prompt" data-testid="tutorial-prompt" class="prompt" hidden></p>
     <p class="flavor">The bout runs on the canvas above. Health, stamina, timer,
       and round pips stay pinned over the arena.</p>
     <div class="row">
@@ -211,6 +226,7 @@
       <div class="row">
         <label class="check"><input id="set-battery" type="checkbox"> Battery saver (lock 640x360, no particles)</label>
         <label class="check"><input id="set-motion" type="checkbox"> Reduced motion (freeze drift, dim rim)</label>
+        <label class="check"><input id="set-muted" data-testid="set-muted" type="checkbox"> Mute audio (SFX + music)</label>
       </div>
       <div class="row">
         <button type="submit">Save</button>

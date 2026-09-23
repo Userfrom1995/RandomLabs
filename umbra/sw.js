@@ -1,5 +1,5 @@
 /* Umbra service worker: versioned offline-first shell, scope /umbra/. */
-const UMBRA_CACHE = 'umbra-v4';
+const UMBRA_CACHE = 'umbra-v5';
 
 const SHELL = [
   './',
@@ -48,6 +48,12 @@ const SHELL = [
   './src/input/gamepad.js',
   './src/input/touch.js',
   './src/input/combine.js',
+  './src/input/haptics.js',
+  './src/vfx.js',
+  './src/tutorial.js',
+  './src/audio/sfx.js',
+  './src/audio/music.js',
+  './src/audio/engine.js',
 ];
 
 self.addEventListener('install', (event) => {

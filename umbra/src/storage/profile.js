@@ -25,6 +25,7 @@ export function defaultConfig() {
     ladderIndex: 1,
     batterySaver: false,
     reducedMotion: false,
+    muted: false,
   };
 }
 
@@ -64,6 +65,7 @@ export function migrateProfile(raw) {
     }
     if (typeof r.config.batterySaver === 'boolean') cfg.batterySaver = r.config.batterySaver;
     if (typeof r.config.reducedMotion === 'boolean') cfg.reducedMotion = r.config.reducedMotion;
+    if (typeof r.config.muted === 'boolean') cfg.muted = r.config.muted;
   }
   const progress = { ...base.progress };
   progress.ownedWeapons = [...base.progress.ownedWeapons];

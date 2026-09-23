@@ -183,6 +183,28 @@ export function createCanvas2DRenderer(canvas) {
     }
     ctx.globalAlpha = 1.0;
     }
+
+    // M5 hit sparks / dust / rings: additive points from opts.sparks
+    // (arena coords like trails). Skipped under battery saver with the
+    // motes; dimmed (not removed) under reduced motion: transient combat
+    // feedback, never full-screen.
+    const sparks = Array.isArray(opts.sparks) ? opts.sparks : [];
+    if (!opts.batterySaver && sparks.length > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgb(255,220,150)';
+      for (const p of sparks) {
+        if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.a)) continue;
+        const alpha = Math.max(0, Math.min(1, p.a)) * (opts.reducedMotion ? 0.5 : 1);
+        if (alpha <= 0.01) continue;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc((p.x * 0.5 + 0.5) * w, (1 - Math.max(0, Math.min(1.2, p.y))) * h, Math.max(1, h * 0.008), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.globalAlpha = 1.0;
+    }
     ctx.restore();
   }
 
