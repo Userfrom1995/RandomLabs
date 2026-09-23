@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/perapp"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/shell"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/status"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/syswide"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/version"
 )
 
@@ -60,10 +62,12 @@ func run(argv []string) int {
 		return cmdStatus(rest)
 	case "version", "--version", "-V":
 		return cmdVersion(rest)
-	case "connect", "disconnect":
-		fmt.Fprintf(os.Stderr, "torshim: system-wide %q lands in M3 (Linux iptables/nft backends).\n", cmd)
-		fmt.Fprintf(os.Stderr, "M2 covers per-app (`torshim run`) and `torshim shell` on Linux.\n")
-		return exitFutureMile
+	case "connect":
+		return cmdConnect(rest)
+	case "disconnect":
+		return cmdDisconnect(rest)
+	case "repair":
+		return cmdRepair(rest)
 	case "help", "--help", "-h":
 		usage()
 		return exitOK
@@ -77,7 +81,7 @@ func run(argv []string) int {
 func isCommand(s string) bool {
 	switch s {
 	case "run", "shell", "status", "version", "--version", "-V",
-		"connect", "disconnect", "help", "--help", "-h":
+		"connect", "disconnect", "repair", "help", "--help", "-h":
 		return true
 	}
 	return false
@@ -90,12 +94,17 @@ Usage:
   torshim run [--tor BIN] [--timeout D] [--reuse] -- <app> [args...]
   torshim <app> [args...]          same as run (Linux: torsocks shim)
   torshim shell                    child shell routed through Tor
+  sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
+  torshim disconnect               restore pre-connect networking (needs sudo)
+  torshim repair                   clear stale rules/state (needs sudo)
   torshim status [--json]          never claims protected when not
   torshim version                  wrapper + tor + backend versions
 
 Per-app on Linux uses torsocks (fail-closed). Static binaries, setuid
 tools, and non-ELF executables are refused: they would silently bypass
-the shim. System-wide connect/disconnect lands in M3.
+the shim. System-wide connect/disconnect is Linux-only (M3); macOS and
+Windows ports land in M4. While connected, TCP goes through Tor, DNS
+resolves through Tor, non-DNS UDP/ICMP is blocked, and IPv6 is blocked.
 
 %s
 `, trademarkNote, "See tor-cli/README.md for details.")
@@ -296,10 +305,11 @@ func cmdStatus(args []string) int {
 	asJSON := fs.Bool("json", false, "machine-readable output")
 	ctlAddr := fs.String("control", "", "control endpoint (default 127.0.0.1:9051, fallback 9151)")
 	socksAddr := fs.String("socks", "", "SOCKS endpoint to probe")
+	sysDir := fs.String("state-dir", "", "system session dir (default /run/torshim or TORSHIM_STATEDIR)")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	rep := status.Collect(status.Options{ControlAddr: *ctlAddr, SocksAddr: *socksAddr})
+	rep := status.Collect(status.Options{ControlAddr: *ctlAddr, SocksAddr: *socksAddr, SystemStateDir: *sysDir})
 	if *asJSON {
 		out, err := status.RenderJSON(rep)
 		if err != nil {
@@ -324,5 +334,149 @@ func cmdVersion(args []string) int {
 	fmt.Printf("tor: %s\n", info.Tor)
 	fmt.Printf("torsocks: %s\n", info.Torsocks)
 	fmt.Println(trademarkNote)
+	return exitOK
+}
+
+// syswideFlags are shared by connect/disconnect/repair.
+type syswideFlags struct {
+	stateDir string
+	torBin   string
+	timeout  time.Duration
+}
+
+func parseSyswide(fs *flag.FlagSet, args []string) (syswideFlags, error) {
+	var sf syswideFlags
+	fs.StringVar(&sf.torBin, "tor", "tor", "tor executable")
+	fs.DurationVar(&sf.timeout, "timeout", 120*time.Second, "bootstrap wait budget")
+	fs.StringVar(&sf.stateDir, "state-dir", "", "session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	if err := fs.Parse(args); err != nil {
+		return sf, err
+	}
+	if len(fs.Args()) != 0 {
+		return sf, fmt.Errorf("takes no positional arguments")
+	}
+	return sf, nil
+}
+
+func syswideUnsupported(cmd string) int {
+	fmt.Fprintf(os.Stderr, "torshim: system-wide %q is Linux-only in M3 (macOS/Windows ports land in M4).\n", cmd)
+	return exitFutureMile
+}
+
+func cmdConnect(args []string) int {
+	if runtime.GOOS != "linux" {
+		return syswideUnsupported("connect")
+	}
+	return cmdConnectFull(args)
+}
+
+// cmdConnectFull parses the full connect flag set (split out so the
+// Linux-only gate above stays trivially readable).
+func cmdConnectFull(args []string) int {
+	fs := flag.NewFlagSet("connect", flag.ContinueOnError)
+	var backendName, torUser, stateDir, torBin string
+	var timeout time.Duration
+	var force bool
+	var transPort int
+	fs.StringVar(&backendName, "backend", "auto", "firewall backend: auto, iptables, nft")
+	fs.StringVar(&torUser, "tor-user", "", "unprivileged user for the system tor (default: tor, debian-tor, _tor, nobody)")
+	fs.StringVar(&stateDir, "state-dir", "", "session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	fs.StringVar(&torBin, "tor", "tor", "tor executable")
+	fs.DurationVar(&timeout, "timeout", 120*time.Second, "bootstrap wait budget")
+	fs.BoolVar(&force, "force", false, "repair a stale session, then connect")
+	fs.IntVar(&transPort, "trans-port", syswide.DefaultTransPort, "fixed transparent proxy port")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(os.Stderr, "torshim connect: takes no positional arguments")
+		return exitUsage
+	}
+	rep, err := syswide.Connect(syswide.Options{
+		StateDir: stateDir, Backend: backendName, TorBinary: torBin,
+		Timeout: timeout, Force: force, TorUser: torUser, TransPort: transPort,
+	})
+	if err != nil {
+		if rep != nil && len(rep.Verify) > 0 {
+			printVerify(rep)
+		}
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		if rep != nil && len(rep.Verify) > 0 {
+			return exitNotReady // verify gate failed: fail closed
+		}
+		return exitError
+	}
+	if rep.AlreadyActive {
+		fmt.Printf("already connected (backend %s since %s)\n", rep.State.Backend, rep.State.CreatedAt)
+		return exitOK
+	}
+	printVerify(rep)
+	fmt.Printf("connected: system-wide via %s (backup %s)\n", rep.State.Backend, rep.BackupDir)
+	if rep.ResolvWarning != "" {
+		fmt.Printf("warning: %s\n", rep.ResolvWarning)
+	}
+	return exitOK
+}
+
+// printVerify renders the connect verify table (pass and fail alike).
+func printVerify(rep *syswide.ConnectReport) {
+	for _, r := range rep.Verify {
+		mark := "ok"
+		if !r.OK {
+			mark = "FAIL"
+		}
+		fmt.Printf("  [%s] %-16s %s\n", mark, r.Name, r.Detail)
+	}
+}
+
+func cmdDisconnect(args []string) int {
+	if runtime.GOOS != "linux" {
+		return syswideUnsupported("disconnect")
+	}
+	fs := flag.NewFlagSet("disconnect", flag.ContinueOnError)
+	sf, err := parseSyswide(fs, args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "torshim disconnect: %v\n", err)
+		return exitUsage
+	}
+	rep, err := syswide.Disconnect(syswide.Options{
+		StateDir: sf.stateDir, TorBinary: sf.torBin, Timeout: sf.timeout,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
+	}
+	if !rep.WasConnected {
+		fmt.Println("not connected (nothing to do)")
+		return exitOK
+	}
+	fmt.Printf("disconnected: rules removed=%v firewall restored=%v post-verify clean=%v\n",
+		rep.RemovedRules, rep.Restored, rep.PostVerifyOK)
+	if rep.ResolvWarning != "" {
+		fmt.Printf("warning: %s\n", rep.ResolvWarning)
+	}
+	return exitOK
+}
+
+func cmdRepair(args []string) int {
+	if runtime.GOOS != "linux" {
+		return syswideUnsupported("repair")
+	}
+	fs := flag.NewFlagSet("repair", flag.ContinueOnError)
+	sf, err := parseSyswide(fs, args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "torshim repair: %v\n", err)
+		return exitUsage
+	}
+	rep, err := syswide.Repair(syswide.Options{
+		StateDir: sf.stateDir, TorBinary: sf.torBin, Timeout: sf.timeout,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
+	}
+	for _, a := range rep.Actions {
+		fmt.Printf("repair: %s\n", a)
+	}
 	return exitOK
 }

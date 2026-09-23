@@ -13,6 +13,7 @@ import (
 
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/control"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/lifecycle"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/syswide"
 )
 
 // Report is the status surface (human + --json).
@@ -35,12 +36,37 @@ type Options struct {
 	ControlAddr string
 	SocksAddr   string
 	Timeout     time.Duration
+	// SystemStateDir overrides the syswide session dir (default resolved
+	// from TORSHIM_STATEDIR or /run/torshim). Empty means probe default.
+	SystemStateDir string
 }
 
 // Collect probes the control endpoint and builds a Report. When nothing
-// answers, the report is absent/unknown with Protected=false.
+// answers, the report is absent/unknown with Protected=false. The system
+// session (M3) is folded in: mode "system" only when a session record and
+// live rules agree; anything else never upgrades the verdict.
 func Collect(o Options) Report {
 	rep := Report{State: "absent", Mode: shellMode()}
+	sys := syswide.Probe(o.SystemStateDir, nil)
+	sysNote := ""
+	switch sys.Mode {
+	case "system":
+		rep.Mode = "system"
+	case "stale":
+		if sys.Detail != "" {
+			sysNote = "system-wide: " + sys.Detail
+			rep.Note = sysNote
+		}
+	}
+	addSysNote := func() {
+		if sysNote != "" && !strings.Contains(rep.Note, sysNote) {
+			if rep.Note != "" {
+				rep.Note += "; " + sysNote
+			} else {
+				rep.Note = sysNote
+			}
+		}
+	}
 	if o.Timeout <= 0 {
 		o.Timeout = 3 * time.Second
 	}
@@ -57,10 +83,12 @@ func Collect(o Options) Report {
 				ctlAddr = "127.0.0.1:9151"
 			} else {
 				rep.Note = "no tor control endpoint answered (tried 9051, 9151)"
+				addSysNote()
 				return rep
 			}
 		} else {
 			rep.Note = fmt.Sprintf("control %s unreachable: %v", ctlAddr, err)
+			addSysNote()
 			return rep
 		}
 	}
@@ -73,6 +101,7 @@ func Collect(o Options) Report {
 		// presence without knowledge. Never claim protected.
 		rep.State = "unknown"
 		rep.Note = "control reachable but state unreadable (foreign instance without cookie?)"
+		addSysNote()
 		return rep
 	}
 	st := control.ParseBootstrapPhase(phase)
@@ -90,6 +119,9 @@ func Collect(o Options) Report {
 		rep.State = lifecycle.Ready.String()
 		rep.Protected = true
 		rep.Note = "tor bootstrapped with a live circuit"
+		if sys.Mode == "system" {
+			rep.Note += "; system-wide via " + sys.State.Backend + " since " + sys.State.CreatedAt
+		}
 	default:
 		rep.State = lifecycle.Bootstrapping.String()
 		rep.Note = fmt.Sprintf("tor bootstrapping (%d%% tag %q)", st.Progress, st.Tag)
@@ -103,6 +135,7 @@ func Collect(o Options) Report {
 		rep.Note += "; SOCKS endpoint not answering: " + err.Error()
 		rep.Protected = false
 	}
+	addSysNote()
 	return rep
 }
 

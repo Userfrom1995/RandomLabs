@@ -81,16 +81,46 @@ func TestHelpAndUsageCodes(t *testing.T) {
 	}
 }
 
-func TestConnectDisconnectHonestExit4(t *testing.T) {
+func TestConnectDisconnectM3Contract(t *testing.T) {
 	bin := buildTorshim(t)
-	for _, cmd := range []string{"connect", "disconnect"} {
-		_, se, code := runBin(bin, cmd)
-		if code != 4 {
-			t.Fatalf("%s exit=%d, want 4 (future milestone)", cmd, code)
+	// M3: connect without root must refuse clearly (fail closed, never
+	// pretend). In CI we run as non-root, so sudo-gated refusal is the
+	// honest path; a root CI would proceed to real firewall work.
+	if os.Geteuid() != 0 {
+		_, se, code := runBin(bin, "connect")
+		if code == 0 {
+			t.Fatalf("non-root connect exit=0, want refusal")
 		}
-		if !strings.Contains(se, "M3") {
-			t.Fatalf("%s stderr missing M3 pointer:\n%s", cmd, se)
+		if !strings.Contains(se, "sudo") {
+			t.Fatalf("non-root connect must demand sudo:\n%s", se)
 		}
+		_, se, _ = runBin(bin, "repair")
+		if !strings.Contains(se, "sudo") {
+			t.Fatalf("non-root repair must demand sudo:\n%s", se)
+		}
+	}
+	// Disconnect with no session is an idempotent no-op (exit 0), even
+	// for non-root when there is provably nothing to do: point state at
+	// an empty dir so no privileged work is attempted.
+	empty := t.TempDir()
+	so, _, code := runBin(bin, "disconnect", "--state-dir", empty)
+	if code != 0 {
+		t.Fatalf("disconnect with no session exit=%d, want 0 (idempotent)", code)
+	}
+	if !strings.Contains(so, "not connected") {
+		t.Fatalf("disconnect with no session must say not connected:\n%s", so)
+	}
+	// Status against an empty session dir never claims protection.
+	so, _, code = runBin(bin, "status", "--json", "--control", "127.0.0.1:19951", "--socks", "127.0.0.1:19950", "--state-dir", empty)
+	if code != 0 {
+		t.Fatalf("status exit=%d, want 0", code)
+	}
+	var rep status.Report
+	if err := json.Unmarshal([]byte(so), &rep); err != nil {
+		t.Fatalf("status --json not parseable: %v\n%s", err, so)
+	}
+	if rep.Protected {
+		t.Fatalf("status claims protected with no session: %+v", rep)
 	}
 }
 
