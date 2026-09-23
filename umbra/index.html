@@ -22,7 +22,7 @@
       aria-label="Umbra arena viewport showing two silhouette fighters in idle stance."></canvas>
     <div id="hud" data-testid="hud">
       <div class="fighter-bar" id="bar-0">
-        <span class="fname">You</span>
+        <span class="fname" id="fname-0">You</span>
         <div class="hp-track"><div class="hp-fill" id="hud-health-0" data-testid="hud-health-0" role="progressbar" aria-label="your health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div></div>
         <div class="st-track"><div class="st-fill" id="hud-stamina-0" data-testid="hud-stamina-0"></div></div>
         <span class="pips" id="hud-pips-0" data-testid="hud-pips-0" aria-label="rounds won by you"></span>
@@ -32,7 +32,7 @@
         <span id="hud-combo" data-testid="hud-combo" aria-label="combo counter"></span>
       </div>
       <div class="fighter-bar right" id="bar-1">
-        <span class="fname">Echo</span>
+        <span class="fname" id="fname-1">Echo</span>
         <div class="hp-track"><div class="hp-fill" id="hud-health-1" data-testid="hud-health-1" role="progressbar" aria-label="Echo health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"></div></div>
         <div class="st-track"><div class="st-fill" id="hud-stamina-1" data-testid="hud-stamina-1"></div></div>
         <span class="pips" id="hud-pips-1" data-testid="hud-pips-1" aria-label="rounds won by Echo"></span>
@@ -44,6 +44,15 @@
       <span id="hud-fps" data-testid="hud-fps">-- fps</span>
     </div>
     <div id="banner" data-testid="banner" role="status" hidden></div>
+    <div id="dialogue-box" data-testid="dialogue-box" hidden>
+      <div class="dlg-card" role="dialog" aria-modal="false" aria-label="Story dialogue">
+        <span id="dlg-speaker" data-testid="dlg-speaker"></span>
+        <p id="dlg-text" data-testid="dlg-text"></p>
+        <div class="row end">
+          <button id="btn-dlg-next" data-testid="btn-dlg-next" type="button">Continue</button>
+        </div>
+      </div>
+    </div>
     <div id="pause-overlay" data-testid="pause-overlay" hidden>
       <div class="overlay-card" role="dialog" aria-modal="true" aria-label="Paused">
         <h2>Paused</h2>
@@ -59,6 +68,7 @@
         <p id="result-sub" class="flavor"></p>
         <div class="row">
           <button id="btn-rematch" type="button">Rematch</button>
+          <button id="btn-result-continue" data-testid="btn-result-continue" type="button" hidden>Continue the story</button>
           <button id="btn-result-title" type="button">Title</button>
         </div>
       </div>
@@ -81,18 +91,51 @@
 
   <section id="screen-title" class="panel" data-testid="screen-title" aria-label="Title screen">
     <h2>Umbra</h2>
-    <p class="flavor">Shadow combat in the moonlit temple. Best of three rounds
-      against Echo: punch, kick, block, parry, dash, and the rising uppercut.</p>
+    <p class="flavor">Shadow combat across five arenas. Versus: pick a fighter,
+      an opponent, and a ground. Story: gather the five Ember Seals.</p>
     <div class="row">
       <button id="btn-versus" data-testid="btn-versus" type="button">Versus fight</button>
+      <button id="btn-story" data-testid="btn-story" type="button">Story mode</button>
       <button id="btn-settings" data-testid="btn-settings" type="button">Settings</button>
     </div>
     <p class="hint">Desktop: Enter fights, J punch, K kick, L block (hold), U special,
       Space dash, S settings, Esc pause. Touch: left stick moves, buttons strike.</p>
   </section>
 
+  <section id="screen-select" class="panel" data-testid="screen-select" aria-label="Choose your fighter" hidden>
+    <h2 id="select-title">Choose your fighter</h2>
+    <p class="flavor" id="select-sub">Unlocked shadows answer the call. Locked ones name their price.</p>
+    <div id="select-grid" data-testid="select-grid" class="cards"></div>
+    <div class="row">
+      <button id="btn-select-back" type="button">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-story" class="panel" data-testid="screen-story" aria-label="Story map" hidden>
+    <h2>The Ashen Veil <span class="pill" id="story-picks"></span></h2>
+    <p class="flavor">Five seals, five guardians. Complete scenes in order; victories unlock arenas and allies.</p>
+    <ol id="story-list" data-testid="story-list" class="story"></ol>
+    <div class="row">
+      <button id="btn-story-play" data-testid="btn-story-play" type="button">Play current scene</button>
+      <button id="btn-story-back" type="button">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-versus" class="panel" data-testid="screen-versus" aria-label="Versus setup" hidden>
+    <h2>Versus <span class="pill" id="versus-picks"></span></h2>
+    <p class="flavor">Pick an opponent and an arena you have unlocked, then fight.</p>
+    <h3>Opponent</h3>
+    <div id="versus-foes" data-testid="versus-foes" class="cards"></div>
+    <h3>Arena</h3>
+    <div id="versus-arenas" data-testid="versus-arenas" class="cards"></div>
+    <div class="row">
+      <button id="btn-versus-fight" data-testid="btn-versus-fight" type="button">Fight</button>
+      <button id="btn-versus-back" type="button">Back</button>
+    </div>
+  </section>
+
   <section id="screen-fight" class="panel" data-testid="screen-fight" aria-label="Versus fight" hidden>
-    <h2>Versus: you vs Echo <span class="pill">best of 3</span></h2>
+    <h2 id="fight-title">Versus: you vs Echo <span class="pill">best of 3</span></h2>
     <p class="flavor">The bout runs on the canvas above. Health, stamina, timer,
       and round pips stay pinned over the arena.</p>
     <div class="row">
@@ -140,7 +183,7 @@
   </section>
 </main>
 <footer>
-  <p>Umbra M2: deterministic combat + universal input. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
+  <p>Umbra M3: roster, story, and five arenas. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
 </footer>
 <script type="module" src="./app.js"></script>
 </body>

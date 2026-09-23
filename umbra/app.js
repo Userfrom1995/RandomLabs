@@ -12,6 +12,22 @@ import { probeCapabilities } from './src/render/caps.js';
 import { LADDER, ladderSize, nextLadderIndex, updateEwma } from './src/render/resolution.js';
 import { createLocalProvider } from './src/storage/provider.js';
 import { loadProfile, saveProfile } from './src/storage/profile.js';
+import { PLAYABLES, ENEMIES, fighterById } from './src/roster.js';
+import {
+  STORY_NODES,
+  nodeById,
+  storyCursor,
+  completeNode,
+  applyStoryUnlocks,
+} from './src/story.js';
+import {
+  createDialogue,
+  dialogueDone,
+  currentLine,
+  visibleText,
+  advanceDialogue,
+  nextDialogueLine,
+} from './src/dialogue.js';
 import { summarize } from './src/perf/stats.js';
 import { createFight, stepFight } from './src/combat/engine.js';
 import { createAI, aiInput } from './src/combat/ai.js';
@@ -50,6 +66,16 @@ const boot = {
   fight: null,
   ai: null,
   paused: false,
+  // M3 bout setup + story flow.
+  bout: null,
+  selectMode: 'versus',
+  versusP0: 'kaito',
+  storyP0: 'kaito',
+  versusFoe: 'echo',
+  versusArena: 0,
+  dialogue: null,
+  dialogueOnDone: null,
+  ambientArena: 0,
   keyboard: null,
   touch: null,
   pad: null,
@@ -84,9 +110,11 @@ function isTouchDevice() {
   return false;
 }
 
+const SCREENS = ['title', 'select', 'story', 'versus', 'fight', 'settings'];
+
 function showScreen(name) {
   boot.screen = name;
-  for (const s of ['title', 'fight', 'settings']) {
+  for (const s of SCREENS) {
     $(`screen-${s}`).hidden = s !== name;
   }
   const inFight = name === 'fight';
@@ -98,6 +126,7 @@ function showScreen(name) {
     $('pause-overlay').hidden = true;
     $('result-overlay').hidden = true;
     hideBanner();
+    closeDialogue();
   }
 }
 
@@ -203,22 +232,52 @@ function handleFightEvents() {
 function showResult() {
   const f = boot.fight;
   if (!f) return;
+  const b = boot.bout || { p0: 'kaito', p1: 'echo', mode: 'versus', nodeId: null };
+  const n0 = fighterName(b.p0, 'You');
+  const n1 = fighterName(b.p1, 'Echo');
   const title = f.winner === 0 ? 'Victory' : f.winner === 1 ? 'Defeat' : 'Draw';
   $('result-title').textContent = title;
   $('result-sub').textContent =
     f.winner === 0
-      ? `You best Echo ${f.wins[0]}–${f.wins[1]} in the moonlit temple.`
+      ? `${n0} bests ${n1} ${f.wins[0]}–${f.wins[1]}.`
       : f.winner === 1
-        ? `Echo prevails ${f.wins[1]}–${f.wins[0]}. Study the guard, then rematch.`
+        ? `${n1} prevails ${f.wins[1]}–${f.wins[0]}. Study the guard, then rematch.`
         : 'Neither shadow yields. Rematch to settle it.';
+  // Story bouts won by the player continue the tale; everything else
+  // offers rematch/title only (a loss earns no progress).
+  const storyWin = b.mode === 'story' && f.winner === 0 && b.nodeId != null;
+  $('btn-result-continue').hidden = !storyWin;
   $('result-overlay').hidden = false;
   announce(`Bout over: ${title} (${f.wins[0]}–${f.wins[1]}).`);
 }
 
-function startFight() {
+/** Display name for a roster id (falls back for legacy bouts). */
+function fighterName(id, fallback) {
+  const def = fighterById(id);
+  return def ? def.name : fallback;
+}
+
+/**
+ * M3 bout setup: versus (chosen fighter/enemy/arena) or story (scripted
+ * act fight). Roster stats apply per side: hp + AI temperament come from
+ * fighter defs; the engine preserves asymmetric maxHp across rounds.
+ */
+function startFight(opts = {}) {
+  const profile = boot.profile;
+  const mode = opts.mode === 'story' ? 'story' : 'versus';
+  const p0 = fighterById(opts.p0) || fighterById('kaito');
+  const p1 = fighterById(opts.p1) || fighterById('echo');
+  const arena = Number.isInteger(opts.arena) && opts.arena >= 0 ? opts.arena : 0;
+  const rounds = Number.isInteger(opts.rounds) && opts.rounds >= 1 ? opts.rounds : 3;
   const seed = (Math.random() * 0xffffffff) >>> 0;
-  boot.fight = createFight({ seed, arena: 0, rounds: 3 });
-  boot.ai = createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: 1, archetype: 'brawler' });
+  const fight = createFight({ seed, arena, rounds });
+  fight.fighters[0].hp = p0.hp;
+  fight.fighters[0].maxHp = p0.hp;
+  fight.fighters[1].hp = p1.hp;
+  fight.fighters[1].maxHp = p1.hp;
+  boot.fight = fight;
+  boot.ai = createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: p1.difficulty, archetype: p1.ai });
+  boot.bout = { mode, p0: p0.id, p1: p1.id, arena, nodeId: opts.nodeId || null };
   boot.paused = false;
   boot.seenEvents = 0;
   boot.lastVibrateMs = null;
@@ -228,9 +287,19 @@ function startFight() {
   if (boot.pad) boot.pad.reset();
   $('pause-overlay').hidden = true;
   $('result-overlay').hidden = true;
+  $('btn-result-continue').hidden = true;
+  $('fname-0').textContent = mode === 'story' ? p0.name : `You (${p0.name})`;
+  $('fname-1').textContent = p1.name;
+  $('fight-title').innerHTML = '';
+  $('fight-title').append(
+    document.createTextNode(`${mode === 'story' ? 'Story' : 'Versus'}: ${p0.name} vs ${p1.name} `),
+    Object.assign(document.createElement('span'), { className: 'pill', textContent: `best of ${rounds}` }),
+  );
+  const arenaName = arenaAt(arena).name;
+  $('hud-scene').textContent = arenaName;
   showScreen('fight');
   updateHud();
-  announce('Fight! Best of three against Echo. J punch, K kick, L block, U special, Space dash.');
+  announce(`Fight! ${p0.name} versus ${p1.name}. J punch, K kick, L block, U special, Space dash.`);
 }
 
 function togglePause(force) {
@@ -369,13 +438,16 @@ function frame(nowMs) {
   applyCanvasSize();
 
   // Render the shared SceneDesc: live fight when bouting, ambient otherwise.
+  // M3: the bout arena + roster rigs drive the scene; menus show the
+  // ambient arena (story screens preview the current act's ground).
   if (boot.renderer && boot.screen !== 'title') {
+    const arena = boot.screen === 'fight' && boot.bout ? boot.bout.arena : boot.ambientArena;
     const scene =
       boot.screen === 'fight' && boot.fight
-        ? buildSceneDesc({ tick: boot.fight.tick, arena: 0, fight: boot.fight })
-        : buildSceneDesc({ tick: boot.tick, arena: 0 });
+        ? buildSceneDesc({ tick: boot.fight.tick, arena, fight: boot.fight, rigs: boutRigs() })
+        : buildSceneDesc({ tick: boot.tick, arena });
     try {
-      boot.renderer.render(scene, arenaAt(0), {
+      boot.renderer.render(scene, arenaAt(arena), {
         batterySaver: boot.profile.config.batterySaver,
         reducedMotion: boot.profile.config.reducedMotion,
       });
@@ -394,6 +466,9 @@ function frame(nowMs) {
       // Title backdrop is decorative; the demo loop reports errors.
     }
   }
+
+  // Typewriter: reveal dialogue text while the box is open.
+  if (boot.dialogue) tickDialogue();
 
   // FPS meter (rolling 60 samples).
   boot.frameSamples.push(dt);
@@ -521,8 +596,339 @@ function wireTouch() {
   }
 }
 
+/** Per-side roster rigs for the live bout (identity when unknown). */
+function boutRigs() {
+  if (!boot.bout) return undefined;
+  const r0 = fighterById(boot.bout.p0);
+  const r1 = fighterById(boot.bout.p1);
+  return [r0 ? r0.rig : undefined, r1 ? r1.rig : undefined];
+}
+
+/** Persist the profile; failures surface as a status note, never a crash. */
+function persistProfile(note) {
+  saveProfile(boot.provider, boot.profile).catch(() => {
+    announce(note || 'Progress save failed; continuing in memory.');
+  });
+}
+
+function unlockedFighters() {
+  const have = (boot.profile.progress.unlockedFighters || []).filter((id) => fighterById(id));
+  if (!have.includes('kaito')) have.unshift('kaito');
+  return have;
+}
+
+function unlockedArenas() {
+  const have = (boot.profile.progress.unlockedArenas || []).filter((n) => Number.isInteger(n));
+  if (!have.includes(0)) have.unshift(0);
+  return [...new Set(have)].sort((a, b) => a - b);
+}
+
+function ratingMeter(v) {
+  return '●'.repeat(v) + '○'.repeat(5 - v);
+}
+
+/** Fighter select grid (story or versus P1). Locked cards name their price. */
+function renderSelect() {
+  $('select-title').textContent = boot.selectMode === 'story' ? 'Story: choose your shadow' : 'Versus: choose your fighter';
+  const have = new Set(unlockedFighters());
+  const grid = $('select-grid');
+  grid.innerHTML = '';
+  for (const f of PLAYABLES) {
+    const open = have.has(f.id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card';
+    btn.disabled = !open;
+    const lines = open
+      ? `${f.name}, ${f.epithet}`
+      : `${f.name}, ${f.epithet} (locked)`;
+    btn.setAttribute('aria-label', lines);
+    const name = document.createElement('span');
+    name.className = 'cname';
+    name.textContent = open ? `${f.name}, ${f.epithet}` : `${f.name} (locked)`;
+    const lore = document.createElement('span');
+    lore.className = 'csub';
+    lore.textContent = f.lore;
+    const stats = document.createElement('span');
+    stats.className = 'cstats';
+    stats.textContent = `HP ${f.hp} PWR ${ratingMeter(f.ratings.power)} SPD ${ratingMeter(f.ratings.speed)} TEC ${ratingMeter(f.ratings.technique)}`;
+    btn.append(name, lore, stats);
+    if (!open && f.unlock) {
+      const lock = document.createElement('span');
+      lock.className = 'clock';
+      const node = nodeById(f.unlock.node);
+      lock.textContent = `Unlock: complete "${node ? node.title : f.unlock.node}"`;
+      btn.append(lock);
+    }
+    if (open) {
+      btn.addEventListener('click', () => {
+        if (boot.selectMode === 'story') {
+          boot.storyP0 = f.id;
+          boot.ambientArena = currentActArena();
+          renderStory();
+          showScreen('story');
+        } else {
+          boot.versusP0 = f.id;
+          renderVersus();
+          showScreen('versus');
+        }
+      });
+    }
+    grid.append(btn);
+  }
+}
+
+/** Act index of the story cursor (prologue counts as act 0 ground). */
+function currentActArena() {
+  const cur = storyCursor(boot.profile);
+  if (cur.done || !cur.current) return 4;
+  if (cur.current.kind === 'fight') return cur.current.arena;
+  const idx = STORY_NODES.indexOf(cur.current);
+  const fight = STORY_NODES.slice(idx).find((n) => n.kind === 'fight');
+  return fight ? fight.arena : 0;
+}
+
+/** Story map: all 17 nodes with done/current/locked marks. */
+function renderStory() {
+  const cursor = storyCursor(boot.profile);
+  const doneSet = new Set(cursor.completed);
+  const list = $('story-list');
+  list.innerHTML = '';
+  for (const n of STORY_NODES) {
+    const li = document.createElement('li');
+    const done = doneSet.has(n.id);
+    const now = !cursor.done && cursor.current && cursor.current.id === n.id;
+    li.className = done ? 'done' : now ? 'now' : 'locked';
+    const mark = document.createElement('span');
+    mark.className = 'mark';
+    mark.textContent = done ? '✓' : now ? '▶' : '·';
+    const title = document.createElement('span');
+    let label = n.title;
+    if (n.kind === 'fight') {
+      const foe = fighterById(n.enemy);
+      label += ` (vs ${foe ? foe.name : n.enemy}, best of ${n.rounds || 3})`;
+    }
+    title.textContent = label;
+    const kind = document.createElement('span');
+    kind.className = 'kind';
+    kind.textContent = n.kind;
+    li.append(mark, title, kind);
+    list.append(li);
+  }
+  const p0 = fighterById(boot.storyP0) || fighterById('kaito');
+  $('story-picks').textContent = `fighting as ${p0.name}`;
+  const play = $('btn-story-play');
+  if (cursor.done) {
+    play.disabled = true;
+    play.textContent = 'The Veil holds (complete)';
+  } else {
+    play.disabled = false;
+    play.textContent = `Play: ${cursor.current.title}`;
+  }
+}
+
+/** Versus setup: enemies gated by reached acts, arenas by unlocks. */
+function renderVersus() {
+  const arenas = new Set(unlockedArenas());
+  const foes = $('versus-foes');
+  foes.innerHTML = '';
+  // An act guardian enters versus once you reach their ground.
+  const foeOpen = (id) => {
+    const node = STORY_NODES.find((n) => n.kind === 'fight' && n.enemy === id);
+    return !node || arenas.has(node.arena);
+  };
+  for (const e of ENEMIES) {
+    const open = foeOpen(e.id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card';
+    btn.disabled = !open;
+    btn.setAttribute('aria-pressed', String(boot.versusFoe === e.id));
+    btn.setAttribute('aria-label', open ? `Opponent ${e.name}` : `Opponent ${e.name} (locked)`);
+    const name = document.createElement('span');
+    name.className = 'cname';
+    name.textContent = e.name + (open ? '' : ' (locked)');
+    const sub = document.createElement('span');
+    sub.className = 'csub';
+    sub.textContent = open ? `${e.epithet}. HP ${e.hp}.` : 'Reach their act in story mode.';
+    btn.append(name, sub);
+    if (open) btn.addEventListener('click', () => {
+      boot.versusFoe = e.id;
+      renderVersus();
+    });
+    foes.append(btn);
+  }
+  if (!foeOpen(boot.versusFoe)) boot.versusFoe = 'echo';
+  const box = $('versus-arenas');
+  box.innerHTML = '';
+  for (const a of unlockedArenas()) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card';
+    btn.setAttribute('aria-pressed', String(boot.versusArena === a));
+    btn.setAttribute('aria-label', `Arena ${arenaAt(a).name}`);
+    const name = document.createElement('span');
+    name.className = 'cname';
+    name.textContent = arenaAt(a).name;
+    btn.append(name);
+    btn.addEventListener('click', () => {
+      boot.versusArena = a;
+      renderVersus();
+    });
+    box.append(btn);
+  }
+  if (!arenas.has(boot.versusArena)) boot.versusArena = 0;
+  const p0 = fighterById(boot.versusP0) || fighterById('kaito');
+  const foe = fighterById(boot.versusFoe) || fighterById('echo');
+  $('versus-picks').textContent = `${p0.name} vs ${foe.name} at ${arenaAt(boot.versusArena).name}`;
+}
+
+/* ---- Dialogue box (typewriter over the ambient canvas) ---- */
+
+function openDialogue(node, onDone) {
+  boot.dialogue = createDialogue(node.lines || []);
+  boot.dialogueOnDone = typeof onDone === 'function' ? onDone : null;
+  paintDialogue();
+  $('dialogue-box').hidden = false;
+  $('btn-dlg-next').focus();
+}
+
+function paintDialogue() {
+  const line = currentLine(boot.dialogue);
+  $('dlg-speaker').textContent = line && line.speaker ? line.speaker : '';
+  $('dlg-text').textContent = visibleText(boot.dialogue);
+  const last = boot.dialogue && boot.dialogue.lineIndex >= boot.dialogue.lines.length - 1;
+  $('btn-dlg-next').textContent = last ? 'Finish' : 'Continue';
+}
+
+function tickDialogue() {
+  if ($('dialogue-box').hidden || dialogueDone(boot.dialogue)) return;
+  advanceDialogue(boot.dialogue, boot.profile.config.reducedMotion ? 99 : 2);
+  paintDialogue();
+}
+
+function stepDialogue() {
+  if (!boot.dialogue || $('dialogue-box').hidden) return;
+  if (nextDialogueLine(boot.dialogue)) {
+    paintDialogue();
+    return;
+  }
+  const done = boot.dialogueOnDone;
+  closeDialogue();
+  if (done) done();
+}
+
+function closeDialogue() {
+  boot.dialogue = null;
+  boot.dialogueOnDone = null;
+  const box = $('dialogue-box');
+  if (box) box.hidden = true;
+}
+
+/* ---- Story advancement ---- */
+
+/** Complete a non-fight node, persist, and move to whatever follows. */
+function finishStoryNode(nodeId) {
+  const res = completeNode(boot.profile, nodeId);
+  if (!res.ok) {
+    announce(`Story blocked: ${res.reason}`);
+    return;
+  }
+  applyStoryUnlocks(boot.profile.progress, res.unlocks, nodeId);
+  persistProfile();
+  const earned = [
+    ...res.unlocks.arenas.map((a) => arenaAt(a).name),
+    ...res.unlocks.fighters.map((f) => fighterName(f, f)),
+  ];
+  if (earned.length > 0) announce(`Unlocked: ${earned.join(', ')}.`);
+  if (res.next == null) {
+    renderStory();
+    if (boot.screen === 'story') renderStory();
+    announce('The Ashen Veil rests. The Gate still stands: versus awaits.');
+    return;
+  }
+  if (res.next.kind === 'fight') {
+    startStoryFight(res.next);
+  } else {
+    openDialogue(res.next, () => finishStoryNode(res.next.id));
+  }
+}
+
+/** Start the scripted act fight for a story fight node. */
+function startStoryFight(node) {
+  const foe = fighterById(node.enemy) || fighterById('echo');
+  const p0 = fighterById(boot.storyP0) || fighterById('kaito');
+  startFight({ mode: 'story', p0: p0.id, p1: foe.id, arena: node.arena, rounds: node.rounds || 3, nodeId: node.id });
+}
+
+/** Play whatever the cursor points at (dialogue now, fight now). */
+function playCurrentScene() {
+  const cursor = storyCursor(boot.profile);
+  if (cursor.done || !cursor.current) return;
+  const node = cursor.current;
+  boot.ambientArena = currentActArena();
+  if (node.kind === 'fight') {
+    startStoryFight(node);
+  } else {
+    if (boot.screen !== 'story') {
+      renderStory();
+      showScreen('story');
+    }
+    openDialogue(node, () => finishStoryNode(node.id));
+  }
+}
+
+/** After a won story bout: bank the victory, then play the outro chain. */
+function continueStory() {
+  const nodeId = boot.bout && boot.bout.nodeId;
+  if (!nodeId) return;
+  $('result-overlay').hidden = true;
+  const res = completeNode(boot.profile, nodeId);
+  if (!res.ok) {
+    announce(`Story blocked: ${res.reason}`);
+    showScreen('story');
+    return;
+  }
+  applyStoryUnlocks(boot.profile.progress, res.unlocks, nodeId);
+  persistProfile();
+  const earned = [
+    ...res.unlocks.arenas.map((a) => arenaAt(a).name),
+    ...res.unlocks.fighters.map((f) => fighterName(f, f)),
+  ];
+  boot.ambientArena = currentActArena();
+  renderStory();
+  showScreen('story');
+  if (earned.length > 0) announce(`Victory banked. Unlocked: ${earned.join(', ')}.`);
+  if (res.next == null) {
+    announce('Story complete: dawn keeps. Versus and rematches remain.');
+    return;
+  }
+  openDialogue(res.next, () => finishStoryNode(res.next.id));
+}
+
 function wireUI() {
-  $('btn-versus').addEventListener('click', () => startFight());
+  $('btn-versus').addEventListener('click', () => {
+    boot.selectMode = 'versus';
+    renderSelect();
+    showScreen('select');
+  });
+  $('btn-story').addEventListener('click', () => {
+    boot.selectMode = 'story';
+    renderSelect();
+    showScreen('select');
+  });
+  $('btn-select-back').addEventListener('click', () => showScreen('title'));
+  $('btn-story-back').addEventListener('click', () => showScreen('title'));
+  $('btn-story-play').addEventListener('click', () => playCurrentScene());
+  $('btn-versus-back').addEventListener('click', () => {
+    renderSelect();
+    showScreen('select');
+  });
+  $('btn-versus-fight').addEventListener('click', () => {
+    startFight({ mode: 'versus', p0: boot.versusP0 || 'kaito', p1: boot.versusFoe, arena: boot.versusArena, rounds: 3 });
+  });
+  $('btn-dlg-next').addEventListener('click', () => stepDialogue());
+  $('btn-result-continue').addEventListener('click', () => continueStory());
   $('btn-settings').addEventListener('click', () => {
     boot.returnTo = boot.screen === 'settings' ? 'title' : boot.screen;
     writeSettingsForm();
@@ -533,7 +939,12 @@ function wireUI() {
   $('btn-fight-quit').addEventListener('click', () => showScreen('title'));
   $('btn-resume').addEventListener('click', () => togglePause(false));
   $('btn-quit').addEventListener('click', () => showScreen('title'));
-  $('btn-rematch').addEventListener('click', () => startFight());
+  $('btn-rematch').addEventListener('click', () => {
+    // Rematch replays the same bout (same mode, fighters, arena, node).
+    const b = boot.bout;
+    if (b) startFight({ mode: b.mode, p0: b.p0, p1: b.p1, arena: b.arena, rounds: 3, nodeId: b.nodeId });
+    else startFight({});
+  });
   $('btn-result-title').addEventListener('click', () => showScreen('title'));
   $('btn-settings-back').addEventListener('click', () => {
     boot.remapCapture = null;
@@ -579,7 +990,11 @@ function wireUI() {
     else if ((ev.key === 's' || ev.key === 'S') && boot.screen === 'title') $('btn-settings').click();
     else if (codes.includes(ev.code) && boot.screen === 'fight') togglePause();
     else if (codes.includes(ev.code) && boot.screen !== 'title') {
-      showScreen(boot.screen === 'settings' ? boot.returnTo || 'title' : 'title');
+      if (boot.screen === 'settings') showScreen(boot.returnTo || 'title');
+      else if (boot.screen === 'versus') {
+        renderSelect();
+        showScreen('select');
+      } else showScreen('title');
     }
   });
 
