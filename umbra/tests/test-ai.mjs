@@ -69,6 +69,31 @@ describe("ai difficulty", () => {
     const retreats = zoner.filter((i) => i.move === -1).length;
     assert.ok(retreats > 40, `zoner retreated only ${retreats}/200 ticks`);
   });
+  it("strike bands follow the bout move table, not the static FISTS table", async () => {
+    const { MOVES } = await import("../src/combat/moves.js");
+    // At dist 0.5 every default FISTS range whiffs, so the default-table AI
+    // can never strike; a long-reach bout table must strike on the same seed.
+    const self = { x: 0, hp: 100, state: "idle" };
+    const foe = { x: 0.5, hp: 100, state: "idle" };
+    const longReach = {
+      ...MOVES,
+      jab: { ...MOVES.jab, range: 0.9 },
+      kick: { ...MOVES.kick, range: 0.9 },
+      sweep: { ...MOVES.sweep, range: 0.9 },
+      uppercut: { ...MOVES.uppercut, range: 0.9 },
+    };
+    const count = (moves) => {
+      const ai = createAI({ seed: 42, difficulty: 2, archetype: "brawler" });
+      let strikes = 0;
+      for (let t = 0; t < 600; t++) {
+        const inp = aiInput(ai, self, foe, undefined, t, moves);
+        if (inp.punch || inp.kick || inp.special) strikes++;
+      }
+      return strikes;
+    };
+    assert.equal(count(undefined), 0, "default table must whiff at dist 0.5");
+    assert.ok(count(longReach) > 0, "bout table reach must unlock strikes");
+  });
   it("every emitted strike starts inside its real move range (no systematic whiffs)", async () => {
     const { createFight, stepFight } = await import("../src/combat/engine.js");
     const { MOVES } = await import("../src/combat/moves.js");
@@ -79,8 +104,8 @@ describe("ai difficulty", () => {
       const ai1 = createAI({ seed: seed ^ 0x22, difficulty: 2, archetype: "brawler" });
       let strikes = 0;
       for (let t = 0; t < 1200 && !s.over; t++) {
-        const i0 = aiInput(ai0, s.fighters[0], s.fighters[1], undefined, s.tick);
-        const i1 = aiInput(ai1, s.fighters[1], s.fighters[0], undefined, s.tick);
+        const i0 = aiInput(ai0, s.fighters[0], s.fighters[1], undefined, s.tick, s.moves);
+        const i1 = aiInput(ai1, s.fighters[1], s.fighters[0], undefined, s.tick, s.moves);
         const dist = Math.abs(s.fighters[1].x - s.fighters[0].x);
         for (const inp of [i0, i1]) {
           if (inp.punch) {

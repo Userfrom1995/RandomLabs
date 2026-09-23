@@ -29,6 +29,7 @@ import {
   resetRound,
   edgeGate,
   movesDigest,
+  eventsDigest,
   INTRO_TICKS,
 } from "../src/combat/engine.js";
 
@@ -120,6 +121,40 @@ describe("golden bout replay", () => {
     const a = runBout(375, p1, p2);
     const b = runBout(376, p1, p2);
     assert.notEqual(hashState(a), hashState(b));
+  });
+  it("pins the golden hashState literal for the 600-tick seed-375 scripted bout", () => {
+    // Deterministic-but-wrong drift must fail here: run-vs-run equality
+    // alone would still pass if both runs drifted together.
+    const { p1, p2 } = scriptedInputs(375, 600);
+    const s = runBout(375, p1, p2);
+    assert.equal(hashState(s), "e9ef3be3");
+  });
+  it("replay equality holds across a 30-seed sweep", () => {
+    for (let seed = 1000; seed < 1030; seed++) {
+      const { p1, p2 } = scriptedInputs(seed, 200);
+      const a = runBout(seed, p1, p2);
+      const b = runBout(seed, p1, p2);
+      assert.equal(hashState(a), hashState(b), `seed ${seed} hash mismatch`);
+      assert.equal(
+        JSON.stringify(a.events),
+        JSON.stringify(b.events),
+        `seed ${seed} events mismatch`,
+      );
+    }
+  });
+  it("hash pins maxHp and event contents, not just counts", () => {
+    const { p1, p2 } = scriptedInputs(375, 600);
+    const a = runBout(375, p1, p2);
+    const base = hashState(a);
+    const bumpedHp = runBout(375, p1, p2);
+    bumpedHp.fighters[0].maxHp += 1;
+    assert.notEqual(hashState(bumpedHp), base, "maxHp must feed the hash");
+    const tweaked = runBout(375, p1, p2);
+    assert.ok(tweaked.events.length > 0, "scripted bout must log events");
+    tweaked.events[0] = { ...tweaked.events[0], damage: tweaked.events[0].damage + 1 };
+    assert.notEqual(hashState(tweaked), base, "event contents must feed the hash");
+    assert.match(eventsDigest(tweaked.events), /^[0-9a-f]{8}$/);
+    assert.equal(eventsDigest([]), "00000000");
   });
   it("hash is sensitive to mid-bout state", () => {
     const { p1, p2 } = scriptedInputs(7, 300);
