@@ -11,6 +11,8 @@ import {
   JACKPOT_BONUS,
   UPGRADE_TRACKS,
   MAX_UPGRADE,
+  MAX_BONUS_ROUNDS,
+  MAX_CURRENCY,
   awardFor,
   upgradeCost,
   upgradeEffect,
@@ -126,24 +128,34 @@ describe('shop', () => {
   it('buyWeapon succeeds and mutates currency plus ownership', () => {
     const p = defaultProfile();
     p.progress.currency = 500;
-    const r = buyWeapon(p, 'katana', 200);
+    const r = buyWeapon(p, 'sword', 350);
     assert.equal(r.ok, true);
-    assert.equal(p.progress.currency, 300);
-    assert.ok(p.progress.ownedWeapons.includes('katana'));
+    assert.equal(p.progress.currency, 150);
+    assert.ok(p.progress.ownedWeapons.includes('sword'));
   });
   it('buyWeapon rejects duplicates and short funds', () => {
     const p = defaultProfile();
     p.progress.currency = 500;
-    assert.equal(buyWeapon(p, 'katana', 200).ok, true);
-    const dup = buyWeapon(p, 'katana', 200);
+    assert.equal(buyWeapon(p, 'sword', 350).ok, true);
+    const dup = buyWeapon(p, 'sword', 350);
     assert.equal(dup.ok, false);
     assert.equal(typeof dup.reason, 'string');
     const poor = defaultProfile();
     poor.progress.currency = 50;
-    const noFunds = buyWeapon(poor, 'katana', 200);
+    const noFunds = buyWeapon(poor, 'sword', 350);
     assert.equal(noFunds.ok, false);
     assert.equal(poor.progress.currency, 50);
-    assert.ok(!poor.progress.ownedWeapons.includes('katana'));
+    assert.ok(!poor.progress.ownedWeapons.includes('sword'));
+  });
+  it('buyWeapon charges the canonical cost and rejects unknown ids', () => {
+    const p = defaultProfile();
+    p.progress.currency = 500;
+    assert.equal(buyWeapon(p, 'katana', 200).ok, false);
+    assert.equal(buyWeapon(p, 'katana', 200).reason, 'bad-weapon');
+    const discount = buyWeapon(p, 'sword', 1);
+    assert.equal(discount.ok, false);
+    assert.equal(discount.reason, 'bad-price');
+    assert.equal(p.progress.currency, 500);
   });
   it('buyWeapon rejects bad ids and prices without throwing', () => {
     const p = defaultProfile();
@@ -157,10 +169,10 @@ describe('shop', () => {
     assert.equal(buyWeapon(p, 'spear', 'free').ok, false);
   });
   it('buyWeapon survives hostile profiles', () => {
-    assert.equal(buyWeapon(null, 'katana', 100).ok, false);
-    assert.equal(buyWeapon({}, 'katana', 100).ok, false);
-    assert.equal(buyWeapon({ progress: null }, 'katana', 100).ok, false);
-    assert.equal(buyWeapon({ progress: 'nope' }, 'katana', 100).ok, false);
+    assert.equal(buyWeapon(null, 'sword', 350).ok, false);
+    assert.equal(buyWeapon({}, 'sword', 350).ok, false);
+    assert.equal(buyWeapon({ progress: null }, 'sword', 350).ok, false);
+    assert.equal(buyWeapon({ progress: 'nope' }, 'sword', 350).ok, false);
   });
   it('buyUpgrade walks the cost curve then maxes out', () => {
     const p = defaultProfile();
@@ -194,6 +206,16 @@ describe('shop', () => {
     assert.equal(buyUpgrade(null, 'dmg').ok, false);
     assert.equal(buyUpgrade({}, 'dmg').ok, false);
     assert.equal(buyUpgrade({ progress: null }, 'dmg').ok, false);
+  });
+  it('awardFor caps round bonuses and clamps self-granted currency', () => {
+    const capped = awardFor({ outcome: 'win', roundsWon: 1e9 });
+    assert.equal(capped.currency, 60 + MAX_BONUS_ROUNDS * 15);
+    assert.equal(capped.parts.rounds, MAX_BONUS_ROUNDS * 15);
+    const rich = defaultProfile();
+    rich.progress.currency = 1e12;
+    assert.ok(canAfford(rich, MAX_CURRENCY));
+    assert.equal(buyWeapon(rich, 'sword', 350).ok, true);
+    assert.equal(rich.progress.currency, MAX_CURRENCY - 350);
   });
   it('canAfford checks funds without throwing', () => {
     const p = defaultProfile();
@@ -259,6 +281,15 @@ describe('bundle', () => {
     assert.equal(importBundle(nullProfile).ok, false);
     assert.equal(BUNDLE_KIND, 'umbra-profile');
     assert.equal(BUNDLE_VERSION, 1);
+  });
+  it('importBundle clamps self-granted currency at the max', () => {
+    const p = defaultProfile();
+    p.progress.currency = 1e12;
+    const text = JSON.stringify({ kind: BUNDLE_KIND, version: BUNDLE_VERSION, profile: p });
+    const back = importBundle(text);
+    assert.equal(back.ok, true);
+    assert.equal(back.profile.progress.currency, MAX_CURRENCY);
+    assert.equal(migrateProfile({ progress: { currency: 1e12 } }).progress.currency, MAX_CURRENCY);
   });
 });
 

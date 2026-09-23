@@ -10,6 +10,7 @@ import {
   sanitizePower,
   freshBoss,
   movesDigest,
+  MAX_BOSS_ADDS,
 } from '../src/combat/engine.js';
 import { MOVES } from '../src/combat/moves.js';
 import { WEAPON_TABLES, movesForWeapon } from '../src/weapons.js';
@@ -191,5 +192,13 @@ describe('m4 boss sim', () => {
   it('movesDigest covers each weapon table distinctly', () => {
     const digests = new Set(Object.values(WEAPON_TABLES).map((t) => movesDigest(t)));
     assert.equal(digests.size, Object.keys(WEAPON_TABLES).length);
+  });
+
+  it('vex adds never exceed the cap even on long hostile rounds', () => {
+    const f = createFight({ seed: 101, boss: 'vex', roundTicks: 20000 });
+    for (let i = 0; i < 5000; i++) {
+      stepFight(f, NEUTRAL, NEUTRAL);
+      assert.ok(f.boss.adds.length <= MAX_BOSS_ADDS, `adds overflow: ${f.boss.adds.length}`);
+    }
   });
 });

@@ -53,9 +53,11 @@ describe('weapon defs', () => {
 });
 
 describe('fists identity and digests', () => {
-  it('fists table is the MOVES object itself', () => {
-    assert.equal(WEAPON_TABLES.fists, MOVES);
-    assert.equal(movesForWeapon('fists'), MOVES);
+  it('fists table owns a detached frozen copy of MOVES content', () => {
+    assert.deepEqual(WEAPON_TABLES.fists, MOVES);
+    assert.notEqual(WEAPON_TABLES.fists, MOVES);
+    assert.ok(Object.isFrozen(WEAPON_TABLES.fists), 'fists table not frozen');
+    assert.deepEqual(movesForWeapon('fists'), MOVES);
   });
   it('movesDigest is stable and distinct per weapon', () => {
     const first = new Map();
@@ -157,13 +159,21 @@ describe('hostile lookups', () => {
     assert.equal(weaponById(undefined), null);
     for (const w of WEAPONS) assert.equal(weaponById(w.id), w);
   });
-  it('movesForWeapon falls back to MOVES without throwing', () => {
-    assert.equal(movesForWeapon(null), MOVES);
-    assert.equal(movesForWeapon(42), MOVES);
-    assert.equal(movesForWeapon({}), MOVES);
-    assert.equal(movesForWeapon('nope'), MOVES);
-    assert.equal(movesForWeapon(undefined), MOVES);
-    for (const id of WEAPON_IDS) assert.equal(movesForWeapon(id), WEAPON_TABLES[id]);
+  it('movesForWeapon returns owned copies with fists fallback', () => {
+    for (const junk of [null, 42, {}, 'nope', undefined, '']) {
+      assert.deepEqual(movesForWeapon(junk), WEAPON_TABLES.fists, `bad fallback for ${String(junk)}`);
+    }
+    for (const id of WEAPON_IDS) {
+      const a = movesForWeapon(id);
+      assert.deepEqual(a, WEAPON_TABLES[id], `${id} content drift`);
+      assert.notEqual(a, WEAPON_TABLES[id], `${id} leaks the canonical table`);
+      const b = movesForWeapon(id);
+      assert.notEqual(a, b, `${id} reuses one shared copy`);
+    }
+    const src = movesForWeapon('sword');
+    const before = src.jab.damage;
+    src.jab.damage = before + 5000;
+    assert.equal(movesForWeapon('sword').jab.damage, before, 'caller write polluted the canonical');
   });
 });
 
