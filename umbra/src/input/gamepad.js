@@ -11,8 +11,10 @@
  *   right-stick press R3(10) dash
  * - Dpad: 14 left / 15 right move, 13 crouch, 12 jump
  *
- * CombatInput buttons are edges consumed once per tick: each poll() call
- * represents exactly one tick, so a pressed button reads as that tick's edge.
+ * pollGamepad reports button LEVELS for the tick (held A reads true every
+ * tick). CombatInput buttons are edges consumed once per tick, so callers
+ * must latch edges with createGamepadPoller, which converts punch/kick/
+ * special/jump/dash to rising edges and keeps block/crouch/move as levels.
  */
 
 export const GAMEPAD_DEADZONE = 0.35;
@@ -45,17 +47,12 @@ function pressed(btn) {
 }
 
 /**
- * Poll gamepad index 0 for one tick of CombatInput.
- * @param {object} [navigatorLike] defaults to globalThis.navigator when present
- * @returns {object|null} CombatInput, or null when no gamepad is connected
+ * First connected pad in the navigator list (hot-plug tolerant: any index,
+ * not just 0, so a pad that enumerates late is still picked up).
+ * @param {object} nav navigator-like with getGamepads()
+ * @returns {object|null} first non-null pad or null
  */
-export function pollGamepad(navigatorLike) {
-  const nav =
-    navigatorLike !== undefined
-      ? navigatorLike
-      : typeof navigator !== 'undefined'
-        ? navigator
-        : null;
+export function firstPad(nav) {
   if (!nav || typeof nav.getGamepads !== 'function') return null;
   let pads;
   try {
@@ -64,7 +61,25 @@ export function pollGamepad(navigatorLike) {
     return null;
   }
   if (!pads) return null;
-  const pad = pads[GAMEPAD_POLL_INDEX];
+  for (const pad of pads) {
+    if (pad) return pad;
+  }
+  return null;
+}
+
+/**
+ * Poll the first connected gamepad for one tick of CombatInput LEVELS.
+ * @param {object} [navigatorLike] defaults to globalThis.navigator when present
+ * @returns {object|null} CombatInput levels, or null when no gamepad is connected
+ */
+export function pollGamepad(navigatorLike) {
+  const nav =
+    navigatorLike !== undefined
+      ? navigatorLike
+      : typeof navigator !== 'undefined'
+        ? navigator
+        : null;
+  const pad = firstPad(nav);
   if (!pad) return null;
 
   const axes = Array.isArray(pad.axes) ? pad.axes : [];
@@ -101,5 +116,41 @@ export function pollGamepad(navigatorLike) {
     block,
     special,
     dash: dashPressed ? (move !== 0 ? move : 1) : 0,
+  };
+}
+
+/**
+ * Stateful per-tick gamepad driver: latches previous button levels so
+ * punch/kick/special/jump/dash read as rising edges (a held A fires once,
+ * matching the keyboard edge queue). Block/crouch/move stay levels.
+ * @returns {{poll:(navLike?:object)=>object|null, reset:()=>void}}
+ */
+export function createGamepadPoller() {
+  const prev = { punch: false, kick: false, special: false, jump: false, dash: false };
+  return {
+    poll(navigatorLike) {
+      const lv = pollGamepad(navigatorLike);
+      if (!lv) return null;
+      const edge = (key, cur) => {
+        const fire = !!cur && !prev[key];
+        prev[key] = !!cur;
+        return fire;
+      };
+      const dashNow = lv.dash !== 0;
+      const dashFire = dashNow && !prev.dash;
+      prev.dash = dashNow;
+      return {
+        ...lv,
+        punch: edge('punch', lv.punch),
+        kick: edge('kick', lv.kick),
+        special: edge('special', lv.special),
+        jump: edge('jump', lv.jump),
+        dash: dashFire ? lv.dash : 0,
+      };
+    },
+    /** Forget latched levels (call when leaving pause/screens). */
+    reset() {
+      prev.punch = prev.kick = prev.special = prev.jump = prev.dash = false;
+    },
   };
 }

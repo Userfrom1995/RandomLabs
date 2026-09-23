@@ -98,6 +98,11 @@ export function createKeyboard(bindings) {
       state.edges.length = 0;
       return input;
     },
+    /** Drop every held level and queued edge (pause/blur/screen-exit). */
+    clear() {
+      state.held.clear();
+      state.edges.length = 0;
+    },
     /** Live held levels only (no edge consumption). */
     heldState() {
       const input = codesToInput([...state.held], [], bindings);
