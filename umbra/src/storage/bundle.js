@@ -3,7 +3,7 @@
  * Pure ES module: no DOM, no Math.random, no Date.now.
  */
 
-import { migrateProfile, defaultProfile } from '../storage/profile.js';
+import { migrateProfile, defaultProfile } from './profile.js';
 
 export const BUNDLE_KIND = 'umbra-profile';
 export const BUNDLE_VERSION = 1;
