@@ -13,6 +13,19 @@ import { LADDER, ladderSize, nextLadderIndex, updateEwma } from './src/render/re
 import { createLocalProvider } from './src/storage/provider.js';
 import { loadProfile, saveProfile } from './src/storage/profile.js';
 import { PLAYABLES, ENEMIES, fighterById } from './src/roster.js';
+import { WEAPONS, weaponById, movesForWeapon } from './src/weapons.js';
+import { bossFor } from './src/bosses.js';
+import {
+  awardFor,
+  upgradeCost,
+  upgradeEffect,
+  buyWeapon,
+  buyUpgrade,
+  MAX_UPGRADE,
+  UPGRADE_TRACKS,
+} from './src/economy.js';
+import { exportBundle, importBundle } from './src/storage/bundle.js';
+import { TRIALS, trialById, checkTrial, frameRows } from './src/dojo.js';
 import {
   STORY_NODES,
   nodeById,
@@ -73,6 +86,9 @@ const boot = {
   storyP0: 'kaito',
   versusFoe: 'echo',
   versusArena: 0,
+  // M4 loadout + progression.
+  versusWeapon: 'fists',
+  claimedTrials: null,
   dialogue: null,
   dialogueOnDone: null,
   ambientArena: 0,
@@ -110,7 +126,7 @@ function isTouchDevice() {
   return false;
 }
 
-const SCREENS = ['title', 'select', 'story', 'versus', 'fight', 'settings'];
+const SCREENS = ['title', 'select', 'story', 'versus', 'fight', 'settings', 'shop', 'dojo'];
 
 function showScreen(name) {
   boot.screen = name;
@@ -128,6 +144,7 @@ function showScreen(name) {
     hideBanner();
     closeDialogue();
   }
+  if (boot.profile) updateEmber();
 }
 
 /**
@@ -197,6 +214,44 @@ function updateHud() {
   $('hud-combo').textContent = comboText;
 }
 
+/** Banner text for a boss phase event (null when not a boss moment). */
+function bossBanner(e) {
+  const b = boot.bout;
+  if (!b || !b.boss) return null;
+  const def = bossFor(b.boss);
+  if (!def) return null;
+  if (typeof e.move !== 'string') return null;
+  if (e.move === 'wisp') return 'A HOLLOW WISP RISES';
+  if (e.move === 'enrage') return 'THE ECLIPSE RAGES';
+  if (e.move === 'stance-0' || e.move === 'stance-1') return 'RUIN SHIFTS ITS STANCE';
+  const m = /^phase-(\d)$/.exec(e.move);
+  if (m) {
+    const ph = def.phases[Number(m[1])];
+    return ph ? ph.banner : null;
+  }
+  return null;
+}
+
+/** Claim freshly completed dojo trials (side-0 hits only). */
+function claimTrials() {
+  const f = boot.fight;
+  if (!f || !boot.bout || boot.bout.mode !== 'dojo') return;
+  if (!boot.claimedTrials) boot.claimedTrials = new Set();
+  for (const t of TRIALS) {
+    if (boot.claimedTrials.has(t.id)) continue;
+    if (!checkTrial(t.id, f.events, 0).ok) continue;
+    boot.claimedTrials.add(t.id);
+    const stats = boot.profile.progress.stats || (boot.profile.progress.stats = {});
+    const done = Array.isArray(stats.trials) ? stats.trials : (stats.trials = []);
+    if (!done.includes(t.id)) done.push(t.id);
+    boot.profile.progress.currency = Math.max(0, (boot.profile.progress.currency || 0) + t.reward);
+    persistProfile();
+    updateEmber();
+    showBanner(`TRIAL COMPLETE: ${t.name} (+${t.reward} ember)`, 110);
+    announce(`Trial complete: ${t.name}. Plus ${t.reward} ember.`);
+  }
+}
+
 function handleFightEvents() {
   const f = boot.fight;
   if (!f) return;
@@ -209,6 +264,9 @@ function handleFightEvents() {
       } else {
         showBanner(e.side === -1 ? 'DRAW' : e.side === 0 ? 'YOU TAKE THE ROUND' : 'ECHO TAKES THE ROUND', 110);
       }
+    } else if (e.t === 'phase') {
+      const banner = bossBanner(e);
+      if (banner) showBanner(banner, 110);
     } else if (e.t === 'hit' || e.t === 'parried') {
       // Haptics: sharp buzz when the player is hit, light tick when landing.
       const heavy = e.side === 1;
@@ -224,25 +282,51 @@ function handleFightEvents() {
     }
   }
   if (f.phase === 'intro' && f.phaseTick === 1) {
-    showBanner(f.round === 1 ? 'ROUND 1 - FIGHT' : `ROUND ${f.round} - FIGHT`, 70);
+    if (boot.bout && boot.bout.boss) {
+      const def = bossFor(boot.bout.boss);
+      showBanner(def ? def.name.toUpperCase() : 'BOSS FIGHT', 110);
+    } else {
+      showBanner(f.round === 1 ? 'ROUND 1 - FIGHT' : `ROUND ${f.round} - FIGHT`, 70);
+    }
   }
+  claimTrials();
   if (f.tick >= boot.bannerUntil && !$('banner').hidden) hideBanner();
 }
 
 function showResult() {
   const f = boot.fight;
   if (!f) return;
-  const b = boot.bout || { p0: 'kaito', p1: 'echo', mode: 'versus', nodeId: null };
+  const b = boot.bout || { p0: 'kaito', p1: 'echo', mode: 'versus', nodeId: null, boss: null };
   const n0 = fighterName(b.p0, 'You');
   const n1 = fighterName(b.p1, 'Echo');
   const title = f.winner === 0 ? 'Victory' : f.winner === 1 ? 'Defeat' : 'Draw';
   $('result-title').textContent = title;
+  // M4 progression: ember awards + career stats (dojo pays via trials only).
+  let awardLine = '';
+  if (b.mode !== 'dojo') {
+    const outcome = f.winner === 0 ? 'win' : f.winner === 1 ? 'loss' : 'draw';
+    const stats = boot.profile.progress.stats || (boot.profile.progress.stats = {});
+    const careerWins = Number.isInteger(stats.wins) ? stats.wins : 0;
+    const award = awardFor({
+      outcome,
+      roundsWon: f.wins[0],
+      boss: !!b.boss && f.winner === 0,
+      careerWins,
+    });
+    boot.profile.progress.currency = Math.max(0, (boot.profile.progress.currency || 0) + award.currency);
+    if (f.winner === 0) stats.wins = careerWins + 1;
+    else if (f.winner === 1) stats.losses = (Number.isInteger(stats.losses) ? stats.losses : 0) + 1;
+    if (b.boss && f.winner === 0) stats.bossWins = (Number.isInteger(stats.bossWins) ? stats.bossWins : 0) + 1;
+    awardLine = ` Plus ${award.currency} ember${award.jackpot ? ' (jackpot)' : ''}.`;
+    persistProfile();
+    updateEmber();
+  }
   $('result-sub').textContent =
     f.winner === 0
-      ? `${n0} bests ${n1} ${f.wins[0]}-${f.wins[1]}.`
+      ? `${n0} bests ${n1} ${f.wins[0]}-${f.wins[1]}.${awardLine}`
       : f.winner === 1
-        ? `${n1} prevails ${f.wins[1]}-${f.wins[0]}. Study the guard, then rematch.`
-        : 'Neither shadow yields. Rematch to settle it.';
+        ? `${n1} prevails ${f.wins[1]}-${f.wins[0]}. Study the guard, then rematch.${awardLine}`
+        : `Neither shadow yields. Rematch to settle it.${awardLine}`;
   // Story bouts won by the player continue the tale; everything else
   // offers rematch/title only (a loss earns no progress).
   const storyWin = b.mode === 'story' && f.winner === 0 && b.nodeId != null;
@@ -258,26 +342,47 @@ function fighterName(id, fallback) {
 }
 
 /**
- * M3 bout setup: versus (chosen fighter/enemy/arena) or story (scripted
- * act fight). Roster stats apply per side: hp + AI temperament come from
- * fighter defs; the engine preserves asymmetric maxHp across rounds.
+ * M4 bout setup: versus (chosen fighter/enemy/arena/weapon), story
+ * (scripted act fight, boss mechanics when the foe is vex/ruin/dusk), or
+ * dojo (unresisting dummy for trial practice). Roster stats apply per
+ * side; the player side wields the chosen weapon table, the foe fights
+ * barehanded; upgrade tracks apply as side-0 power and bonus hp.
  */
 function startFight(opts = {}) {
   const profile = boot.profile;
-  const mode = opts.mode === 'story' ? 'story' : 'versus';
+  const mode = opts.mode === 'story' ? 'story' : opts.mode === 'dojo' ? 'dojo' : 'versus';
   const p0 = fighterById(opts.p0) || fighterById('kaito');
   const p1 = fighterById(opts.p1) || fighterById('echo');
   const arena = Number.isInteger(opts.arena) && opts.arena >= 0 ? opts.arena : 0;
-  const rounds = Number.isInteger(opts.rounds) && opts.rounds >= 1 ? opts.rounds : 3;
+  const rounds = mode === 'dojo' ? 1 : Number.isInteger(opts.rounds) && opts.rounds >= 1 ? opts.rounds : 3;
+  const roundTicks = mode === 'dojo' ? 5400 : undefined;
+  const weapon0 = weaponById(opts.weapon0) ? opts.weapon0 : equippedWeapon();
+  const weapon1 = 'fists';
+  const upgrades = (profile.progress && profile.progress.upgrades) || { dmg: 0, hp: 0 };
+  const dmgLvl = Number.isInteger(upgrades.dmg) ? Math.max(0, Math.min(MAX_UPGRADE, upgrades.dmg)) : 0;
+  const hpLvl = Number.isInteger(upgrades.hp) ? Math.max(0, Math.min(MAX_UPGRADE, upgrades.hp)) : 0;
+  const power = [upgradeEffect('dmg', dmgLvl) || 1, 1];
+  const boss = mode === 'dojo' ? null : (bossFor(p1.id) ? bossFor(p1.id).id : null);
   const seed = (Math.random() * 0xffffffff) >>> 0;
-  const fight = createFight({ seed, arena, rounds });
-  fight.fighters[0].hp = p0.hp;
-  fight.fighters[0].maxHp = p0.hp;
-  fight.fighters[1].hp = p1.hp;
-  fight.fighters[1].maxHp = p1.hp;
+  const fight = createFight({
+    seed,
+    arena,
+    rounds,
+    ...(roundTicks ? { roundTicks } : {}),
+    moves: movesForWeapon(weapon0),
+    movesB: movesForWeapon(weapon1),
+    power,
+    boss,
+  });
+  fight.fighters[0].hp = p0.hp + (upgradeEffect('hp', hpLvl) || 0);
+  fight.fighters[0].maxHp = fight.fighters[0].hp;
+  const foeHp = mode === 'dojo' ? 200 : p1.hp;
+  fight.fighters[1].hp = foeHp;
+  fight.fighters[1].maxHp = foeHp;
   boot.fight = fight;
   boot.ai = createAI({ seed: (seed ^ 0x9e3779b9) >>> 0, difficulty: p1.difficulty, archetype: p1.ai });
-  boot.bout = { mode, p0: p0.id, p1: p1.id, arena, nodeId: opts.nodeId || null };
+  boot.bout = { mode, p0: p0.id, p1: p1.id, arena, nodeId: opts.nodeId || null, weapon0, weapon1, boss };
+  boot.claimedTrials = new Set((profile.progress.stats && profile.progress.stats.trials) || []);
   boot.paused = false;
   boot.seenEvents = 0;
   boot.lastVibrateMs = null;
@@ -288,12 +393,13 @@ function startFight(opts = {}) {
   $('pause-overlay').hidden = true;
   $('result-overlay').hidden = true;
   $('btn-result-continue').hidden = true;
-  $('fname-0').textContent = mode === 'story' ? p0.name : `You (${p0.name})`;
-  $('fname-1').textContent = p1.name;
+  $('fname-0').textContent = mode === 'story' ? p0.name : mode === 'dojo' ? `${p0.name} (dojo)` : `You (${p0.name})`;
+  $('fname-1').textContent = mode === 'dojo' ? `${p1.name} (dummy)` : p1.name;
   $('fight-title').innerHTML = '';
+  const modeLabel = mode === 'story' ? 'Story' : mode === 'dojo' ? 'Dojo' : 'Versus';
   $('fight-title').append(
-    document.createTextNode(`${mode === 'story' ? 'Story' : 'Versus'}: ${p0.name} vs ${p1.name} `),
-    Object.assign(document.createElement('span'), { className: 'pill', textContent: `best of ${rounds}` }),
+    document.createTextNode(`${modeLabel}: ${p0.name} vs ${p1.name} `),
+    Object.assign(document.createElement('span'), { className: 'pill', textContent: mode === 'dojo' ? weaponName(weapon0) : `best of ${rounds}` }),
   );
   const arenaName = arenaAt(arena).name;
   $('hud-scene').textContent = arenaName;
@@ -346,10 +452,30 @@ function tickFight() {
   const f = boot.fight;
   if (!f || boot.paused || f.over) return;
   const p1 = mergeInputs(kb, touch, pad);
-  const p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], undefined, f.tick, f.moves);
+  let p2;
+  if (boot.bout && boot.bout.mode === 'dojo') {
+    // The dojo dummy never acts: neutral input every tick.
+    p2 = { move: 0, crouch: false, jump: false, punch: false, kick: false, block: false, special: false, dash: 0 };
+  } else {
+    // Duelist boss stance overrides the AI temperament live.
+    if (f.boss && boot.ai) {
+      const def = bossFor(f.boss.id);
+      if (def && def.mechanic === 'duelist' && def.duel) {
+        const stance = f.boss.stance === 1 ? 1 : 0;
+        if (def.duel.stances[stance]) boot.ai.archetype = def.duel.stances[stance];
+      }
+    }
+    p2 = aiInput(boot.ai, f.fighters[1], f.fighters[0], undefined, f.tick, tableForBout(1));
+  }
   stepFight(f, p1, p2);
   handleFightEvents();
   updateHud();
+}
+
+/** Bout move table for a side (defaults to the shared table). */
+function tableForBout(side) {
+  const t = boutTables();
+  return t ? t[side] : undefined;
 }
 
 async function initRenderer(tier) {
@@ -440,11 +566,12 @@ function frame(nowMs) {
   // Render the shared SceneDesc: live fight when bouting, ambient otherwise.
   // M3: the bout arena + roster rigs drive the scene; menus show the
   // ambient arena (story screens preview the current act's ground).
+  // M4: per-side move tables (pose timing) + weapon defs (trails) ride along.
   if (boot.renderer && boot.screen !== 'title') {
     const arena = boot.screen === 'fight' && boot.bout ? boot.bout.arena : boot.ambientArena;
     const scene =
       boot.screen === 'fight' && boot.fight
-        ? buildSceneDesc({ tick: boot.fight.tick, arena, fight: boot.fight, rigs: boutRigs() })
+        ? buildSceneDesc({ tick: boot.fight.tick, arena, fight: boot.fight, rigs: boutRigs(), tables: boutTables(), weapons: boutWeaponDefs() })
         : buildSceneDesc({ tick: boot.tick, arena });
     try {
       boot.renderer.render(scene, arenaAt(arena), {
@@ -602,6 +729,45 @@ function boutRigs() {
   const r0 = fighterById(boot.bout.p0);
   const r1 = fighterById(boot.bout.p1);
   return [r0 ? r0.rig : undefined, r1 ? r1.rig : undefined];
+}
+
+/* ---- M4 loadout + progression helpers ---- */
+
+/** Owned weapon ids (always includes fists). */
+function ownedWeapons() {
+  const have = (boot.profile.progress.ownedWeapons || []).filter((id) => weaponById(id));
+  if (!have.includes('fists')) have.unshift('fists');
+  return have;
+}
+
+/** Currently equipped weapon id (falls back to fists). */
+function equippedWeapon() {
+  const id = boot.profile.progress.equippedWeapon;
+  return weaponById(id) ? id : 'fists';
+}
+
+/** Display name for a weapon id. */
+function weaponName(id) {
+  const w = weaponById(id);
+  return w ? w.name : 'Fists';
+}
+
+/** Per-side move tables for the live bout (player weapon vs foe fists). */
+function boutTables() {
+  if (!boot.bout) return undefined;
+  return [movesForWeapon(boot.bout.weapon0), movesForWeapon(boot.bout.weapon1)];
+}
+
+/** Per-side weapon defs for trail rendering. */
+function boutWeaponDefs() {
+  if (!boot.bout) return undefined;
+  return [weaponById(boot.bout.weapon0) || weaponById('fists'), weaponById(boot.bout.weapon1) || weaponById('fists')];
+}
+
+/** Refresh the ember balance pill. */
+function updateEmber() {
+  const n = Number.isFinite(boot.profile.progress.currency) ? Math.max(0, Math.floor(boot.profile.progress.currency)) : 0;
+  $('hud-ember').textContent = `${n} ember`;
 }
 
 /** Persist the profile; failures surface as a status note, never a crash. */
@@ -781,9 +947,204 @@ function renderVersus() {
     box.append(btn);
   }
   if (!arenas.has(boot.versusArena)) boot.versusArena = 0;
+  if (!weaponById(boot.versusWeapon)) boot.versusWeapon = equippedWeapon();
   const p0 = fighterById(boot.versusP0) || fighterById('kaito');
   const foe = fighterById(boot.versusFoe) || fighterById('echo');
-  $('versus-picks').textContent = `${p0.name} vs ${foe.name} at ${arenaAt(boot.versusArena).name}`;
+  $('versus-picks').textContent = `${p0.name} [${weaponName(boot.versusWeapon)}] vs ${foe.name} at ${arenaAt(boot.versusArena).name}`;
+  // Weapon picker: owned weapons only, equipped default.
+  const wbox = $('versus-weapons');
+  wbox.innerHTML = '';
+  for (const id of ownedWeapons()) {
+    const w = weaponById(id);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'card';
+    btn.setAttribute('aria-pressed', String(boot.versusWeapon === id));
+    btn.setAttribute('aria-label', `Weapon ${w.name}`);
+    const name = document.createElement('span');
+    name.className = 'cname';
+    name.textContent = w.name;
+    const sub = document.createElement('span');
+    sub.className = 'csub';
+    sub.textContent = w.epithet;
+    btn.append(name, sub);
+    btn.addEventListener('click', () => {
+      boot.versusWeapon = id;
+      renderVersus();
+    });
+    wbox.append(btn);
+  }
+}
+
+/* ---- M4 shop: weapons, upgrades, export/import ---- */
+
+/** Shop screen: owned arsenal, upgrade tracks, backup controls. */
+function renderShop() {
+  updateEmber();
+  const owned = new Set(ownedWeapons());
+  const equipped = equippedWeapon();
+  const grid = $('shop-weapons');
+  grid.innerHTML = '';
+  for (const w of WEAPONS) {
+    const has = owned.has(w.id);
+    const card = document.createElement('div');
+    card.className = 'card';
+    const name = document.createElement('span');
+    name.className = 'cname';
+    name.textContent = w.name;
+    const sub = document.createElement('span');
+    sub.className = 'csub';
+    sub.textContent = `${w.epithet}. ${w.lore}`;
+    card.append(name, sub);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.shopBuy = w.id;
+    if (equipped === w.id) {
+      btn.textContent = 'Equipped';
+      btn.disabled = true;
+    } else if (has) {
+      btn.textContent = 'Equip';
+      btn.setAttribute('aria-label', `Equip ${w.name}`);
+      btn.addEventListener('click', () => {
+        boot.profile.progress.equippedWeapon = w.id;
+        persistProfile();
+        announce(`${w.name} equipped.`);
+        renderShop();
+      });
+    } else {
+      btn.textContent = `Buy (${w.price} ember)`;
+      btn.setAttribute('aria-label', `Buy ${w.name} for ${w.price} ember`);
+      btn.addEventListener('click', () => {
+        const res = buyWeapon(boot.profile, w.id, w.price);
+        if (res.ok) {
+          boot.profile.progress.equippedWeapon = w.id;
+          persistProfile();
+          updateEmber();
+          announce(`${w.name} bought and equipped.`);
+        } else {
+          announce(`Cannot buy: ${res.reason}.`);
+        }
+        renderShop();
+      });
+    }
+    card.append(btn);
+    grid.append(card);
+  }
+  const upg = $('shop-upgrades');
+  upg.innerHTML = '';
+  const levels = (boot.profile.progress && boot.profile.progress.upgrades) || { dmg: 0, hp: 0 };
+  const labels = { dmg: 'Edge training (damage)', hp: 'Iron body (health)' };
+  for (const track of UPGRADE_TRACKS) {
+    const lvl = Number.isInteger(levels[track]) ? levels[track] : 0;
+    const cost = upgradeCost(track, lvl);
+    const row = document.createElement('div');
+    row.className = 'card';
+    const name = document.createElement('span');
+    name.className = 'cname';
+    name.textContent = `${labels[track]} ${'●'.repeat(lvl)}${'○'.repeat(MAX_UPGRADE - lvl)}`;
+    row.append(name);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.shopBuy = `upgrade-${track}`;
+    if (cost == null) {
+      btn.textContent = 'Maxed';
+      btn.disabled = true;
+    } else {
+      btn.textContent = `Train (${cost} ember)`;
+      btn.setAttribute('aria-label', `Train ${labels[track]} for ${cost} ember`);
+      btn.addEventListener('click', () => {
+        const res = buyUpgrade(boot.profile, track);
+        if (res.ok) {
+          persistProfile();
+          updateEmber();
+          announce(`${labels[track]} raised to ${lvl + 1}.`);
+        } else {
+          announce(`Cannot train: ${res.reason}.`);
+        }
+        renderShop();
+      });
+    }
+    row.append(btn);
+    upg.append(row);
+  }
+}
+
+/** Download the versioned profile bundle as JSON. */
+function exportProfile() {
+  try {
+    const text = exportBundle(boot.profile);
+    const blob = new Blob([text], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'umbra-profile.json';
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    announce('Profile exported as umbra-profile.json.');
+  } catch {
+    announce('Export failed; continuing in memory.');
+  }
+}
+
+/** Import a profile bundle file (validated, atomic, never half-applied). */
+function importProfileFile(file) {
+  if (!file) return;
+  file.text().then(
+    (text) => {
+      const res = importBundle(text);
+      if (!res.ok) {
+        announce(`Import rejected: ${res.reason}.`);
+        return;
+      }
+      boot.profile = res.profile;
+      persistProfile();
+      updateEmber();
+      renderShop();
+      announce('Profile imported.');
+    },
+    () => announce('Import failed: unreadable file.'),
+  );
+}
+
+/* ---- M4 dojo: frame data + combo trials ---- */
+
+/** Dojo screen: frame-data table for the equipped weapon + trial list. */
+function renderDojo() {
+  const wid = equippedWeapon();
+  $('dojo-weapon').textContent = `Wielding ${weaponName(wid)} (change in the shop)`;
+  const table = $('dojo-frames');
+  table.innerHTML = '';
+  const head = document.createElement('tr');
+  for (const h of ['move', 'startup', 'active', 'recovery', 'total', 'dmg', 'reach']) {
+    const th = document.createElement('th');
+    th.textContent = h;
+    head.append(th);
+  }
+  table.append(head);
+  for (const r of frameRows(movesForWeapon(wid))) {
+    const tr = document.createElement('tr');
+    for (const v of [r.move, r.startup, r.active, r.recovery, r.total, r.damage, r.range]) {
+      const td = document.createElement('td');
+      td.textContent = String(v);
+      tr.append(td);
+    }
+    table.append(tr);
+  }
+  const done = new Set((boot.profile.progress.stats && boot.profile.progress.stats.trials) || []);
+  const list = $('dojo-trials');
+  list.innerHTML = '';
+  for (const t of TRIALS) {
+    const li = document.createElement('li');
+    li.className = done.has(t.id) ? 'done' : 'locked';
+    const mark = document.createElement('span');
+    mark.className = 'mark';
+    mark.textContent = done.has(t.id) ? '✓' : '·';
+    const title = document.createElement('span');
+    title.textContent = `${t.name} (+${t.reward} ember): ${t.hint}`;
+    li.append(mark, title);
+    list.append(li);
+  }
 }
 
 /* ---- Dialogue box (typewriter over the ambient canvas) ---- */
@@ -921,6 +1282,25 @@ function wireUI() {
     renderSelect();
     showScreen('select');
   });
+  $('btn-shop').addEventListener('click', () => {
+    renderShop();
+    showScreen('shop');
+  });
+  $('btn-dojo').addEventListener('click', () => {
+    renderDojo();
+    showScreen('dojo');
+  });
+  $('btn-shop-back').addEventListener('click', () => showScreen('title'));
+  $('btn-dojo-back').addEventListener('click', () => showScreen('title'));
+  $('btn-dojo-fight').addEventListener('click', () => {
+    startFight({ mode: 'dojo', p0: boot.versusP0 || boot.storyP0 || 'kaito', p1: 'echo', arena: 0, weapon0: equippedWeapon() });
+  });
+  $('btn-export').addEventListener('click', () => exportProfile());
+  $('import-file').addEventListener('change', (ev) => {
+    const file = ev.target && ev.target.files && ev.target.files[0];
+    importProfileFile(file);
+    ev.target.value = '';
+  });
   $('btn-select-back').addEventListener('click', () => showScreen('title'));
   $('btn-story-back').addEventListener('click', () => showScreen('title'));
   $('btn-story-play').addEventListener('click', () => playCurrentScene());
@@ -929,7 +1309,7 @@ function wireUI() {
     showScreen('select');
   });
   $('btn-versus-fight').addEventListener('click', () => {
-    startFight({ mode: 'versus', p0: boot.versusP0 || 'kaito', p1: boot.versusFoe, arena: boot.versusArena, rounds: 3 });
+    startFight({ mode: 'versus', p0: boot.versusP0 || 'kaito', p1: boot.versusFoe, arena: boot.versusArena, rounds: 3, weapon0: boot.versusWeapon || equippedWeapon() });
   });
   $('btn-dlg-next').addEventListener('click', () => stepDialogue());
   $('btn-result-continue').addEventListener('click', () => continueStory());
@@ -944,9 +1324,9 @@ function wireUI() {
   $('btn-resume').addEventListener('click', () => togglePause(false));
   $('btn-quit').addEventListener('click', () => showScreen('title'));
   $('btn-rematch').addEventListener('click', () => {
-    // Rematch replays the same bout (same mode, fighters, arena, node).
+    // Rematch replays the same bout (same mode, fighters, arena, weapon, node).
     const b = boot.bout;
-    if (b) startFight({ mode: b.mode, p0: b.p0, p1: b.p1, arena: b.arena, rounds: 3, nodeId: b.nodeId });
+    if (b) startFight({ mode: b.mode, p0: b.p0, p1: b.p1, arena: b.arena, rounds: 3, nodeId: b.nodeId, weapon0: b.weapon0 });
     else startFight({});
   });
   $('btn-result-title').addEventListener('click', () => showScreen('title'));
@@ -1033,7 +1413,7 @@ async function bootApp() {
   wireUI();
   showScreen('title');
 
-  // Test hook (also handy for debugging): ?tier=0|1|2|auto&screen=fight|settings
+  // Test hook (also handy for debugging): ?tier=0|1|2|auto&screen=fight|settings|shop|dojo
   // overrides the stored config for this load without persisting it.
   const params = new URLSearchParams(window.location.search);
   const paramTier = params.get('tier');
@@ -1076,16 +1456,22 @@ async function bootApp() {
   });
   try {
     await initRendererWithFallback(want);
-    announce(`Umbra ready on ${TIER_NAMES[boot.tier]}. Versus fight or Settings.`);
+    announce(`Umbra ready on ${TIER_NAMES[boot.tier]}. Versus, story, shop, or dojo.`);
   } catch (err) {
     announce(`No renderer available: ${err.message}`);
     return;
   }
 
-  if (paramScreen === 'fight' || paramScreen === 'settings') {
+  if (paramScreen === 'fight' || paramScreen === 'settings' || paramScreen === 'shop' || paramScreen === 'dojo') {
     if (paramScreen === 'settings') {
       writeSettingsForm();
       renderRemap();
+      showScreen(paramScreen);
+    } else if (paramScreen === 'shop') {
+      renderShop();
+      showScreen(paramScreen);
+    } else if (paramScreen === 'dojo') {
+      renderDojo();
       showScreen(paramScreen);
     } else {
       startFight();

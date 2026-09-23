@@ -40,6 +40,7 @@
     </div>
     <div id="hud-meta">
       <span id="hud-scene">Moonlit Temple</span>
+      <span id="hud-ember" data-testid="hud-ember">0 ember</span>
       <span id="hud-tier" data-testid="hud-tier">tier: probing…</span>
       <span id="hud-fps" data-testid="hud-fps">-- fps</span>
     </div>
@@ -92,10 +93,13 @@
   <section id="screen-title" class="panel" data-testid="screen-title" aria-label="Title screen">
     <h2>Umbra</h2>
     <p class="flavor">Shadow combat across five arenas. Versus: pick a fighter,
-      an opponent, and a ground. Story: gather the five Ember Seals.</p>
+      an opponent, and a ground. Story: gather the five Ember Seals.
+      Shop: spend ember on weapons and training. Dojo: drill combos.</p>
     <div class="row">
       <button id="btn-versus" data-testid="btn-versus" type="button">Versus fight</button>
       <button id="btn-story" data-testid="btn-story" type="button">Story mode</button>
+      <button id="btn-shop" data-testid="btn-shop" type="button">Shop</button>
+      <button id="btn-dojo" data-testid="btn-dojo" type="button">Dojo</button>
       <button id="btn-settings" data-testid="btn-settings" type="button">Settings</button>
     </div>
     <p class="hint">Desktop: Enter fights, J punch, K kick, L block (hold), U special,
@@ -128,6 +132,8 @@
     <div id="versus-foes" data-testid="versus-foes" class="cards"></div>
     <h3>Arena</h3>
     <div id="versus-arenas" data-testid="versus-arenas" class="cards"></div>
+    <h3>Weapon</h3>
+    <div id="versus-weapons" data-testid="versus-weapons" class="cards"></div>
     <div class="row">
       <button id="btn-versus-fight" data-testid="btn-versus-fight" type="button">Fight</button>
       <button id="btn-versus-back" type="button">Back</button>
@@ -141,6 +147,40 @@
     <div class="row">
       <button id="btn-pause" type="button">Pause</button>
       <button id="btn-fight-quit" type="button">Quit to title</button>
+    </div>
+  </section>
+
+  <section id="screen-shop" class="panel" data-testid="screen-shop" aria-label="Shop" hidden>
+    <h2>Shop <span class="pill" id="shop-picks">spend ember, fight richer</span></h2>
+    <p class="flavor">Bout victories pay ember. Weapons change your frame data;
+      training raises damage and health for every bout.</p>
+    <h3>Arsenal</h3>
+    <div id="shop-weapons" data-testid="shop-weapons" class="cards"></div>
+    <h3>Training</h3>
+    <div id="shop-upgrades" data-testid="shop-upgrades" class="cards"></div>
+    <h3>Backup</h3>
+    <div class="row">
+      <button id="btn-export" data-testid="btn-export" type="button">Export profile</button>
+      <label class="check" for="import-file">Import profile
+        <input id="import-file" data-testid="import-file" type="file" accept="application/json,.json">
+      </label>
+    </div>
+    <div class="row">
+      <button id="btn-shop-back" type="button">Back</button>
+    </div>
+  </section>
+
+  <section id="screen-dojo" class="panel" data-testid="screen-dojo" aria-label="Dojo" hidden>
+    <h2>Dojo <span class="pill" id="dojo-weapon"></span></h2>
+    <p class="flavor">The dummy never strikes back. Frame data is in ticks at
+      60 Hz. Completing a trial pays ember the first time.</p>
+    <h3>Frame data</h3>
+    <table id="dojo-frames" data-testid="dojo-frames" class="frames"></table>
+    <h3>Combo trials</h3>
+    <ol id="dojo-trials" data-testid="dojo-trials" class="story"></ol>
+    <div class="row">
+      <button id="btn-dojo-fight" data-testid="btn-dojo-fight" type="button">Enter the dojo</button>
+      <button id="btn-dojo-back" type="button">Back</button>
     </div>
   </section>
 
@@ -179,11 +219,11 @@
     <ul id="remap-list" data-testid="remap-list" class="remap"></ul>
     <p class="hint">Bindings persist in the local profile. Gamepad: stick moves,
       A punch, B kick, X special, LB/RB block, R3 dash, Start pauses.</p>
-    <p class="hint">Saved to local profile (full persistence v1 arrives in M4).</p>
+    <p class="hint">Saved to the local profile, with export and import in the shop.</p>
   </section>
 </main>
 <footer>
-  <p>Umbra M3: roster, story, and five arenas. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
+  <p>Umbra M4: bosses, weapons, shop, and dojo. <a href="./docs/scoreboard.md">G1-G7 scoreboard</a>.</p>
 </footer>
 <script type="module" src="./app.js"></script>
 </body>

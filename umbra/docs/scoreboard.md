@@ -56,6 +56,29 @@ story graph/walker/dialogue/profile-v2, red-team robustness), M1/M2 golden hashe
 | G6 a11y | contrast >= 4.5:1, keyboard-only, reduced motion | partial | all M3 screens are native buttons (keyboard-only story completable to each fight); reduced-motion typewriter reveals instantly; no live-region spam (gate2 pin kept); contrast audit pending M5 |
 | G7 deploy + offline | Pages green at /umbra/, offline reload | pending | SW bumped to umbra-v3 covering roster + story + dialogue modules; deploy check at M5 |
 
+## M4 (bosses + weapons + progression)
+
+300 node:test assertions green (227 carried + 73 new: weapons 17,
+economy/bundle/migration 29, bosses/dojo 8, engine per-side/power/boss
+14, trails 5), M1/M2/M3 golden hashes intact (`e9ef3be3` pinned by
+test-combat + gate suites; SceneDesc ambient contract holds),
+headless-Chromium evidence `docs/shot-m4-shop-desktop.png` (arsenal +
+training + backup, Canvas2D 1280x2400 full page),
+`docs/shot-m4-dojo-desktop.png` (frame table + trials),
+`docs/shot-m4-trail-desktop.png` (spear swoosh mid-swing, harness
+`trails:1:0:7511f013`), `docs/shot-m4-fight-mobile.png` (390x844
+portrait, touch dock below the fighter plane), zero pageerrors.
+
+| Gate | Target | M4 status | Detail |
+| ---- | ------ | --------- | ------ |
+| G1 60 FPS tier ladder | p95 <= 16.667 ms at 960x540 Tier 1, N>=30 | pending | needs Playwright/browser measurement (unchanged) |
+| G2 TTFF bands | broadband 0.8-2.0s, 4G 2.5-5s, warm < 0.8s | pending | needs browser measurement (unchanged) |
+| G3 input latency | edge-to-sim <= 2 ticks | partial | M2 unit harness intact; shop/dojo buttons are menu-paced (no sim path) |
+| G4 determinism | replay hash equality | pass | M2 pins intact; boss bouts (vex 700-tick) + weapon bouts replay byte-identical; per-side/power/boss hash parts pinned conditionally |
+| G5 persistence | round-trip | partial | profile economy fields round-trip via migrate/load/save; export-to-fresh-import equality + hostile rejects covered by node:test; SW umbra-v4 staged; browser reload + fault injection remain for M5 |
+| G6 a11y | contrast >= 4.5:1, keyboard-only, reduced motion | partial | shop/dojo/versus-weapon are native buttons (keyboard-only completable); trails dim under reduced motion but stay as combat feedback; contrast audit pending M5 |
+| G7 deploy + offline | Pages green at /umbra/, offline reload | pending | SW umbra-v4 staged; deploy check at M5 |
+
 ## How each gate is measured
 
 - G1: Playwright desktop 1280x800, collect 30+ rAF deltas at 960x540 Tier 1, `summarize()` p95.
