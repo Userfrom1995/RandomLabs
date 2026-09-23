@@ -39,12 +39,15 @@
 
 ## Current step
 
-M5 build started (Builder run 5): branch `opencode/issue375-umbra-m5` from
-main (M4 merged, 355/355 node:test green at baseline). Three parallel
-tracks dispatched: (A) WebAudio synth SFX + adaptive music, (B) VFX hit
-sparks/dust/KO slow-mo + haptics tuning, (C) tutorial onboarding +
-accessibility audit. Builder integrates shell wiring + SW v5 + browser
-G1/G2/G7 measurement + landing/README sync + scoreboard MEASURED.
+M5 integration complete (Builder run 5b): three parallel tracks landed as
+new pure modules (audio 27 tests, vfx+haptics 28, tutorial 33) and the
+shell wires them all: per-event SFX + adaptive arena music + mute setting,
+hit sparks on all 3 tiers (Canvas2D strokes, GPU spare-particle slots),
+flash overlay + shake (both gated off under reduced motion), KO slow-mo in
+the fixed-step clock, tutorial dojo-gate screen + bout + 25-ember
+graduation, focus placement + modal Tab trap + single live region + OS
+motion default + haptics-under-reduced-motion skip, SW umbra-v5.
+452/452 node:test green (355 baseline + 88 track + 9 integration).
 
 M4 shipped (runs 4/4b/4a + Fixer/Tester hardening, merged to main):
 
