@@ -9,16 +9,24 @@ Status: in-progress
 - M1 Research + Architecture: [x] survey + spec + blueprint (PR #388, Refs #387)
 - M2 Per-app + shell on Linux: [x] lifecycle + control client, [x] readiness wait, [x] torsocks exec + static-binary guard, [x] shell + banner, [x] status/version v1, [x] fail-closed + DNS + lifecycle tests (PR #388, Refs #387)
 - M3 System-wide Linux connect/disconnect: [x] iptables backend, [x] nft backend, [x] backup/restore byte-exact, [x] idempotence + reboot-safety, [x] verify suite + repair (PR 2 target, Refs #387)
-- M4 Cross-platform + polish: [ ] macOS per-app/shell/tun, [ ] Windows per-app/shell/tun, [ ] packaging + man/help + demo, [ ] limitations doc (PR 3 target, Refs #387)
+- M4 Cross-platform + polish: [x] macOS per-app/shell via proxy env, [x] Windows per-app/shell via proxy env, [x] version platform backends, [x] Makefile + man page + help polish, [x] limitations/threat-model/README M4 (PR 3 target, Refs #387)
 - M5 Hardening + tri-OS CI: [ ] linux/macos/windows matrix, [ ] edge/fuzz (stale locks, foreign tor, env scrub), [ ] docs complete (Final PR, Closes #387)
 
-Active Milestone: M3 complete, ready for review. M4 next.
+Active Milestone: M4 complete, ready for review. M5 next.
 
-Current step: M3 implemented and tested (2026-09-23 run)
-Next steps: Reviewer -> Tester (hermetic suite + live root/tor matrix per limitations.md); then M4 cross-platform ports
+Current step: M4 implemented and tested (2026-09-23 run)
+Next steps: Reviewer -> Tester (hermetic suite + live root/tor matrix per limitations.md); then M5 hardening + CI
 
 ## Agent log
 
+- 2026-09-23 Builder M4: proxy-env per-app backend (proxy.go: socks5h
+  URL, shadow-key scrub, coverage note on every launch, NeedsProxy
+  dispatch, RunProxy fail-closed) + proxy_test.go, main.go platform
+  wiring (conf-dir skip, direct proxy shell, M4 usage, per-OS exit-4
+  pointer), version 0.3.0-m4 with platform/per-app/syswide fields,
+  Makefile + torshim.1 man page, limitations/threat-model/README M4,
+  ideas entry. Full suite + 5-target cross green; no root/tor needed.
+  System-wide off-Linux stays honest exit 4 (M5 tun2socks path).
 - 2026-09-23 Builder M3: syswide package (iptables + nft backends,
   ActiveState under /run/torshim, snapshot-first backup, 5-row verify
   with rollback, repair, status probe), lifecycle TransPort + RunAs +

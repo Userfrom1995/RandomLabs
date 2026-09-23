@@ -8,8 +8,9 @@ productizing anything under a `tor*` name.
 ## What it is
 
 torshim automates the existing `tor` daemon. It never implements Tor itself.
-M2 covers per-app routing and isolated shells on Linux; M3 (this milestone)
-adds system-wide routing on Linux:
+M2 covers per-app routing and isolated shells on Linux; M3 adds
+system-wide routing on Linux; M4 ports per-app + shell to macOS and
+Windows via proxy environment and adds packaging:
 
 ```sh
 torshim run -- curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
@@ -44,17 +45,27 @@ refuses honestly until then.
   fail-closed profile (`IsolatePID 1`, `AllowInbound 0`,
   `AllowOutboundLocalhost 0`). Static binaries, non-ELF executables, and
   setuid/setgid files are refused: they would silently bypass the shim.
+- Per-app (macOS/Windows, M4): exec with `socks5h://` proxy environment
+  (all six `*_PROXY` keys, parent duplicates scrubbed). Only apps honoring
+  proxy env are covered; every launch prints the coverage note. No DYLD
+  shim by decision (SIP would strip it silently).
 - Shell: child `$SHELL` (else `/bin/sh`) with the shim env, `TORSHIM_ACTIVE=1`,
   `[torshim]` prompt prefix, and a coverage banner. Parent shell untouched.
 
-## Build, test, layout
+## Build, test, install
 
 ```sh
 cd tor-cli
-go build ./...   # stdlib only, CGO_ENABLED=0 for the static binary
-go test ./...
-go vet ./...
+make build   # CGO_ENABLED=0 static binary ./torshim
+make test    # go test ./...
+make vet     # go vet ./...
+make cross   # compile-check linux/darwin/windows (amd64+arm64)
+sudo make install  # -> /usr/local/bin/torshim + torshim.1
 ```
+
+Man page: `man ./torshim.1` (or `man torshim` after install).
+
+## Layout
 
 - `main.go` - cobra-free flag dispatch, exit codes (0 ok, 1 error, 2 usage,
   3 tor-not-ready fail-closed, 4 later-milestone).
@@ -62,16 +73,18 @@ go vet ./...
 - `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop.
   M3 adds fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
   spawn/signal shims (linux/darwin/windows all compile).
-- `internal/perapp/` - torsocks conf/exec + static-binary guard.
-- `internal/shell/` - child shell + coverage banner.
+- `internal/perapp/` - torsocks conf/exec + static-binary guard (Linux);
+  socks5h proxy-env backend with coverage note (macOS/Windows, M4).
+- `internal/shell/` - child shell + coverage banner (shim on Linux,
+  proxy env elsewhere).
 - `internal/syswide/` - M3 system-wide: iptables + nft backends, state,
   snapshot/restore, verify suite, connect/disconnect/repair, status probe.
 - `internal/status/` - state aggregator (absent/unknown never protected;
   folds in the system session, `mode: system` only on state + rules).
-- `internal/version/` - wrapper + tor + torsocks versions.
-- `docs/` - research spec (M1), threat model (M3), limitations (M3).
+- `internal/version/` - wrapper + tor + torsocks + platform backend versions.
+- `docs/` - research spec (M1), threat model (M3/M4), limitations (M4).
+- `Makefile`, `torshim.1` - build/cross/install + man page (M4).
 
-Requires `tor` and `torsocks` at runtime (`apt install tor torsocks`).
-System-wide additionally needs root plus `iptables`/`ip6tables` or `nft`.
-
-Requires `tor` and `torsocks` installed at runtime (`apt install tor torsocks`).
+Requires `tor` at runtime (`apt install tor`). Linux per-app additionally
+needs `torsocks`. System-wide additionally needs root plus
+`iptables`/`ip6tables` or `nft`.

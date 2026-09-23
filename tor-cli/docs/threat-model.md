@@ -1,7 +1,22 @@
-# torshim threat model (M3)
+# torshim threat model (M4)
 
 Unofficial frontend. Not sponsored by The Tor Project. `Tor` is a
 registered mark of The Tor Project.
+
+## M4 delta: proxy-env per-app on macOS/Windows
+
+- The proxy backend covers strictly less than the Linux torsocks
+  shim: an app that ignores its environment leaks in full, and the
+  wrapper cannot detect that from outside. The mitigation is honesty
+  plus scheme choice: `socks5h://` (remote DNS) on all six proxy keys,
+  parent-duplicate scrubbing (a stale `ALL_PROXY` would otherwise
+  shadow the Tor value), and a coverage note on every launch plus the
+  shell banner. `status` semantics are unchanged: a running tor means
+  the endpoint is ready, never that any particular app obeys it.
+- No `DYLD_INSERT_LIBRARIES` shim exists on macOS by decision, not
+  omission: SIP strips it from protected binaries, so a shim would
+  report success while covering an unknowable subset. The proxy
+  boundary is narrower but knowable.
 
 ## What torshim protects against
 
