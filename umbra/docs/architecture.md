@@ -1,8 +1,10 @@
-# Umbra architecture (M1 pointer)
+# Umbra architecture (M2 pointer)
 
 Full binding blueprint: [`ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md`](../../ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md).
 
 M1 build notes: [`ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md`](../../ideas/2026-09-22-umbra-m1-scaffold-render-tiers.md).
+
+M2 build notes: [`ideas/2026-09-23-umbra-m2-combat-universal-input.md`](../../ideas/2026-09-23-umbra-m2-combat-universal-input.md).
 
 Epic tracker: [`progress/375-umbra.md`](../../progress/375-umbra.md).
 
@@ -22,3 +24,21 @@ Epic tracker: [`progress/375-umbra.md`](../../progress/375-umbra.md).
 - `src/storage/`: provider interface + local provider + profile schema v1.
 - `src/perf/`: stats + G1-G7 gate assertions.
 - `sw.js` + `manifest.webmanifest`: offline shell + install metadata.
+- `src/combat/` (M2): `types.js` (JSDoc contracts), `moves.js` (FISTS
+  frame-data + cancel graph + `validateMoves`), `fighter.js` (12-state
+  machine + parry window + chip/stamina/guard-break), `hitboxes.js`
+  (facing-space capsule tests), `engine.js` (`createFight`/`stepFight`/
+  `sanitizeInput`/`hashState`, intro + hitstop + round flow), `combos.js`
+  (counter + 0.35-floor scaling + 90-tick window), `ai.js` (seeded FSM:
+  neutral/approach/punish/retreat x brawler/turtle/zoner x 3 difficulties).
+- `src/input/` (M2): `bindings.js` (v1 table + conflict-swap rebind +
+  persist), `keyboard.js` (`codesToInput` pure + edge-queue driver),
+  `gamepad.js` (standard-map poll + 0.35 deadzone), `touch.js` (overlay
+  state + joystick quantize + 80 ms haptic throttle), `combine.js`
+  (OR-merge for one tick).
+- `src/poses.js` (M2 adds): `attackDeltas`/`stateDeltas`/`combatAngles`
+  (M1 `idleAngles`/`solveRig` untouched, golden hashes hold).
+- `src/render/scene.js` (M2 adds): `fight`-driven SceneDesc (sim x/facing/y,
+  state poses, `flashShake` from events); ambient tableau unchanged.
+- `app.js` (M2): fight lifecycle + per-tick input gather + AI sample +
+  HUD/pips/combo/banner + pause/result + haptics + remap capture UI.

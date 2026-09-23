@@ -1,10 +1,10 @@
 # Progress: Umbra - Shadow Fight-inspired WebGPU combat game at /umbra/
 
 - **Issue:** #375
-- **Branch:** opencode/issue375-20260922160615 (M1 active)
+- **Branch:** opencode/issue375-umbra-m2 (M2 active)
 - **Status:** in-progress
-- **Updated:** 2026-09-22T16:30:00Z
-- **Active Milestone:** M1 scaffold + render tiers + offline shell (Complete, ready for review; Refs #375)
+- **Updated:** 2026-09-23T04:15:00Z
+- **Active Milestone:** M2 deterministic combat engine + universal input (Complete, ready for review; Refs #375)
 - **Blueprint:** `ideas/2026-09-22-umbra-shadow-fight-webgpu-combat.md` (binding: WGSL first,
   WebGL2 second, Canvas2D third over one shared SceneDesc; deterministic headless 60 Hz combat
   core; universal keyboard/gamepad/touch input; 3 playable + 5 enemies + 3 phased bosses +
@@ -18,10 +18,10 @@
   - [x] Two idle fighters posing in arena 1 (moonlit temple) via data-driven pose solver
   - [x] Resolution ladder + battery saver + `sw.js` offline pass
   - [x] `umbra/docs/scoreboard.md` skeleton (G1-G7) + desktop + mobile screenshots (headless Chromium evidence in `umbra/docs/shot-*`)
-- Milestone 2 (M2) deterministic combat engine + universal input (PR 2 target, Refs #375):
-  - [ ] Headless `combat/` core (state machine, fists frame data, hitboxes, block/parry/dodge, hit-stop, combos + scaling, seeded AI tier 1)
-  - [ ] Keyboard + gamepad + touch overlay with responsive contract + remapping UI + persisted bindings
-  - [ ] Playable versus bout (player vs AI) with KO/rounds/timer + determinism hash + input-script replay test
+- Milestone 2 (M2) deterministic combat engine + universal input (PR 2, Refs #375):
+  - [x] Headless `combat/` core (state machine, fists frame data, hitboxes, block/parry/dodge, hit-stop, combos + scaling, seeded AI tier 1)
+  - [x] Keyboard + gamepad + touch overlay with responsive contract + remapping UI + persisted bindings
+  - [x] Playable versus bout (player vs AI) with KO/rounds/timer + determinism hash + input-script replay test
 - Milestone 3 (M3) characters + story + levels (PR 3 target, Refs #375):
   - [ ] Full roster data (3 playable + 5 enemy archetypes, distinct rigs/stats)
   - [ ] Story act graph + dialogue/cutscene box + progression walker + 5 arenas (WGSL backgrounds + parallax + music themes)
@@ -37,18 +37,36 @@
 
 ## Current step
 
-M1 build complete (Builder run 1 + Fixer eval-hardening): app shell, all tiers, 63/63 node:test,
-headless-Chromium screenshots verified. Ready for review.
+M2 build complete (Builder run 2, orchestrated): combat core + input via two
+parallel subagents, app integration + fight shell + screenshots by the
+Builder. 133/133 node:test green, desktop + mobile headless-Chromium
+fight evidence in `umbra/docs/shot-m2-*`. Ready for review.
 
 ## Next steps
 
 - Reviewer `/oc review` -> Tester `/oc test` -> Evaluator per milestone;
   intermediates use `Refs #375`, only the final verified M5 uses `Closes #375`
-- M2 (next): deterministic combat engine + universal input on a new milestone branch
+- M3 (next): characters + story + levels on a new milestone branch
+  (`opencode/issue375-umbra-m3` from main after this PR merges)
 - Landing card + root README sync deferred to M5 per blueprint (README
   "Live Projects" section is shipped-on-main only)
 
 ## Agent log
+
+- 2026-09-23 (Builder run 2, M2): combat core subagent shipped
+  `src/combat/` (types/moves/fighter/hitboxes/engine/combos/ai) + 32 tests
+  (golden seed-375 bout `92028ae1`, 10k-tick soak); input subagent shipped
+  `src/input/` (bindings/keyboard/gamepad/touch) + 26 tests. Builder added
+  `combine.js` OR-merge, combat pose tracks (`attackDeltas`/`stateDeltas`/
+  `combatAngles`, M1 goldens untouched), fight-driven SceneDesc +
+  `flashShake`, full fight shell (HUD/pips/combo/banner/pause/result/remap/
+  haptics/touch dock below canvas), SW umbra-v2, red-team test updated to
+  the M2 screen contract, `test-fight-scene.mjs` (poses/flash/replay).
+  133/133 green. Headless-Chromium desktop (WebGL2) + mobile portrait
+  (Canvas2D + touch) verified; ideas M2 entry + scoreboard M2 rows written.
+  Decision action: review.
+- 2026-09-22 (M1 merged as PR #376): scaffold + render tiers + offline
+  shell on main; M2 branched fresh as `opencode/issue375-umbra-m2`.
 
 - 2026-09-22 (Fixer eval-hardening): NaN/Infinity tick clamp + clamped arena
   stored in SceneDesc (scene.js), G1 rejects negative p95 (gates.js),
