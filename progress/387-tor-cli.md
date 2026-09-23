@@ -10,12 +10,12 @@ Status: in-progress
 - M2 Per-app + shell on Linux: [x] lifecycle + control client, [x] readiness wait, [x] torsocks exec + static-binary guard, [x] shell + banner, [x] status/version v1, [x] fail-closed + DNS + lifecycle tests (PR #388, Refs #387)
 - M3 System-wide Linux connect/disconnect: [x] iptables backend, [x] nft backend, [x] backup/restore byte-exact, [x] idempotence + reboot-safety, [x] verify suite + repair (PR 2 target, Refs #387)
 - M4 Cross-platform + polish: [x] macOS per-app/shell via proxy env, [x] Windows per-app/shell via proxy env, [x] version platform backends, [x] Makefile + man page + help polish, [x] limitations/threat-model/README M4 (PR 3 target, Refs #387)
-- M5 Hardening + tri-OS CI: [ ] linux/macos/windows matrix, [ ] edge/fuzz (stale locks, foreign tor, env scrub), [ ] docs complete (Final PR, Closes #387)
+- M5 Hardening + tri-OS CI: [x] torrc managed-key guard, [x] syswide session lock, [x] control-parser fuzz + syswide edge tests, [ ] linux/macos/windows matrix, [ ] docs complete (Final PR, Closes #387)
 
-Active Milestone: M4 complete, ready for review. M5 next.
+Active Milestone: M5 in progress (hardening landed, CI + docs next).
 
-Current step: M4 implemented and tested (2026-09-23 run)
-Next steps: Reviewer -> Tester (hermetic suite + live root/tor matrix per limitations.md); then M5 hardening + CI
+Current step: M5 hardening implemented and tested (2026-09-23 run)
+Next steps: tri-OS CI workflow, M5 docs + version bump, root README/landing entries, then review
 
 ## Agent log
 

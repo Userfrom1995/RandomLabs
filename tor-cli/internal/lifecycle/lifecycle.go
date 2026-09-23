@@ -104,8 +104,11 @@ type Options struct {
 	Timeout time.Duration
 	// PollInterval for readiness polling (default 500ms).
 	PollInterval time.Duration
-	// ExtraTorrc lines are appended verbatim to the generated torrc
+	// ExtraTorrc lines are appended to the generated torrc
 	// (bridge/passthrough config; M2 accepts but never requires them).
+	// Lines that would override a torshim-managed key (listeners,
+	// identity, daemon behavior) are rejected by ValidateExtraTorrc
+	// and fail Launch closed instead of silently re-listening.
 	ExtraTorrc []string
 	// TransPort enables a transparent TCP proxy listener on 127.0.0.1 at
 	// the given fixed port (0 disables; system-wide mode uses 9040 by
@@ -142,6 +145,58 @@ func GenerateTorrc(dir string, extra []string) string {
 	return GenerateTorrcTrans(dir, extra, 0)
 }
 
+// managedTorrcKeys are torrc keywords owned by torshim. An ExtraTorrc
+// line starting with one of these (case-insensitive) would add a second
+// listener, move the identity, or change daemon behavior outside the
+// wrapper's supervision, so it is rejected, never merged. "Include" is
+// included: an included file could carry any of the above.
+var managedTorrcKeys = map[string]bool{
+	"datadirectory": true, "pidfile": true,
+	"socksport": true, "socksportwritetofile": true,
+	"sockslistenaddress": true,
+	"controlport":        true, "controlportwritetofile": true,
+	"controlsocket": true, "controlsocketwritetofile": true,
+	"controllistenaddress": true,
+	"dnsport":              true, "dnsportwritetofile": true, "dnslistenaddress": true,
+	"transport": true, "transportwritetofile": true, "translistenaddress": true,
+	"natdport": true, "natdlistenaddress": true,
+	"cookieauthentication": true, "cookieauthfile": true,
+	"cookieauthfilegroupreadable": true,
+	"log":                         true, "runasdaemon": true, "user": true, "group": true,
+	"owningcontrollerprocess": true, "__owningcontrollerprocess": true,
+	"include": true,
+}
+
+// torrcKey extracts the keyword of a torrc line (lowercased). Empty lines
+// and comments return "". Separators (space, tab, equals) are all cut.
+func torrcKey(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "#") {
+		return ""
+	}
+	if i := strings.IndexAny(line, " \t="); i >= 0 {
+		line = line[:i]
+	}
+	return strings.ToLower(line)
+}
+
+// ValidateExtraTorrc rejects ExtraTorrc lines that would override a
+// torshim-managed key. Fail-closed: callers must refuse to launch when
+// this errors instead of dropping the lines silently.
+func ValidateExtraTorrc(extra []string) error {
+	var bad []string
+	for _, ln := range extra {
+		if k := torrcKey(ln); k != "" && managedTorrcKeys[k] {
+			bad = append(bad, strings.TrimSpace(ln))
+		}
+	}
+	if len(bad) > 0 {
+		return fmt.Errorf("lifecycle: ExtraTorrc overrides torshim-managed key(s): %s (managed keys cannot be overridden; use bridge/pluggable-transport lines instead)",
+			strings.Join(bad, "; "))
+	}
+	return nil
+}
+
 // GenerateTorrcTrans is GenerateTorrc with an optional fixed TransPort.
 func GenerateTorrcTrans(dir string, extra []string, transPort int) string {
 	var b strings.Builder
@@ -168,6 +223,12 @@ func GenerateTorrcTrans(dir string, extra []string, transPort int) string {
 		if ln == "" || strings.HasPrefix(ln, "#") {
 			continue
 		}
+		// Defense in depth: even if a caller skips ValidateExtraTorrc,
+		// a managed-key line never reaches the torrc (Launch validates
+		// first and fails closed with the offending line named).
+		if k := torrcKey(ln); k != "" && managedTorrcKeys[k] {
+			continue
+		}
 		b.WriteString(ln + "\n")
 	}
 	return b.String()
@@ -179,6 +240,11 @@ func GenerateTorrcTrans(dir string, extra []string, transPort int) string {
 // exits the owned tor instead of orphaning it.
 func Launch(o Options) (*Instance, error) {
 	o = o.withDefaults()
+	// Fail closed before creating anything: a managed-key override
+	// would otherwise add an unsupervised listener or move identity.
+	if err := ValidateExtraTorrc(o.ExtraTorrc); err != nil {
+		return nil, err
+	}
 	if _, err := exec.LookPath(o.TorBinary); err != nil {
 		return nil, fmt.Errorf("lifecycle: tor binary %q not found on PATH (install tor first): %w", o.TorBinary, err)
 	}
