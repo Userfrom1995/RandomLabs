@@ -804,6 +804,23 @@ function paintFightFx(scene) {
   }
 }
 
+/** Navigation + asset timing for the G2 TTFF ledger (best-effort). */
+function recordLoadTiming() {
+  try {
+    const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+    if (nav) {
+      return {
+        domContentLoaded: Math.round(nav.domContentLoadedEventEnd),
+        load: Math.round(nav.loadEventEnd),
+        transfer: Math.round(nav.transferSize || 0),
+      };
+    }
+  } catch {
+    // Timing is best-effort.
+  }
+  return null;
+}
+
 /** Bench hook: ?bench=N collects N rAF deltas then publishes JSON. */
 function tickBench(dt) {
   const b = boot.bench;
@@ -813,13 +830,19 @@ function tickBench(dt) {
     b.done = true;
     const s = b.samples.slice().sort((x, y) => x - y);
     const q = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+    const r = (b.renderMs || []).slice().sort((x, y) => x - y);
+    const rq = (p) => (r.length > 0 ? r[Math.min(r.length - 1, Math.floor(p * r.length))] : null);
     const result = {
       n: s.length,
       p50: q(0.5),
       p95: q(0.95),
       max: s[s.length - 1],
+      renderP50: rq(0.5),
+      renderP95: rq(0.95),
+      renderMax: rq(1),
       tier: boot.tier,
       canvas: { w: $('umbra-canvas').width, h: $('umbra-canvas').height },
+      loadMs: recordLoadTiming(),
     };
     boot.benchResult = result;
     const el = $('bench-result');
@@ -878,6 +901,9 @@ function frame(nowMs) {
   // M3: the bout arena + roster rigs drive the scene; menus show the
   // ambient arena (story screens preview the current act's ground).
   // M4: per-side move tables (pose timing) + weapon defs (trails) ride along.
+  // M5: opts.sparks carries expanded hit-spark points for every tier.
+  const benchTiming = boot.bench && !boot.bench.done;
+  const renderT0 = benchTiming && typeof performance !== 'undefined' ? performance.now() : 0;
   if (boot.renderer && boot.screen !== 'title') {
     const arena = boot.screen === 'fight' && boot.bout ? boot.bout.arena : boot.ambientArena;
     const scene =
@@ -905,6 +931,9 @@ function frame(nowMs) {
     } catch {
       // Title backdrop is decorative; the demo loop reports errors.
     }
+  }
+  if (benchTiming) {
+    boot.bench.renderMs.push(performance.now() - renderT0);
   }
 
   // Typewriter: reveal dialogue text while the box is open.
@@ -1782,7 +1811,7 @@ async function bootApp() {
   const paramScreen = params.get('screen');
   const benchN = Math.floor(Number(params.get('bench')));
   if (Number.isFinite(benchN) && benchN > 0) {
-    boot.bench = { need: Math.min(300, benchN), samples: [], done: false };
+    boot.bench = { need: Math.min(300, benchN), samples: [], renderMs: [], done: false };
   }
 
   boot.provider = createLocalProvider(window.localStorage);
@@ -1846,10 +1875,13 @@ async function bootApp() {
     return;
   }
 
-  if (paramScreen === 'fight' || paramScreen === 'settings' || paramScreen === 'shop' || paramScreen === 'dojo') {
+  if (paramScreen === 'fight' || paramScreen === 'settings' || paramScreen === 'shop' || paramScreen === 'dojo' || paramScreen === 'tutorial') {
     if (paramScreen === 'settings') {
       writeSettingsForm();
       renderRemap();
+      showScreen(paramScreen);
+    } else if (paramScreen === 'tutorial') {
+      renderTutorialIntro();
       showScreen(paramScreen);
     } else if (paramScreen === 'shop') {
       renderShop();
