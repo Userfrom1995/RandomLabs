@@ -1,0 +1,119 @@
+.TH TORSHIM 1 "September 2026" "torshim 0.3.0-m4" "User Commands"
+.SH NAME
+torshim \- lightweight launcher for the Tor network (unofficial)
+.SH SYNOPSIS
+.B torshim run
+.RI [ options ] " -- " app " [" args ...]
+.br
+.B torshim
+.I app
+.RI [ args ...]
+.br
+.B torshim shell
+.RI [ options ]
+.br
+.B sudo torshim connect
+.RI [ options ]
+.br
+.B torshim disconnect
+.RI [ options ]
+.br
+.B torshim repair
+.RI [ options ]
+.br
+.B torshim status
+.RB [ --json ]
+.br
+.B torshim version
+.SH DESCRIPTION
+torshim automates the existing
+.B tor
+daemon: private instance lifecycle, readiness gating, per-app routing,
+and isolated child shells. It never implements Tor itself.
+Every command fails closed: when Tor is not ready or a route would
+leak, torshim exits non-zero instead of claiming protection.
+.PP
+Unofficial frontend \- not sponsored by The Tor Project. "Tor" is a
+registered mark of The Tor Project.
+.SH COMMANDS
+.TP
+.B run -- app [args...]
+Run one application through Tor. The bare form
+.B torshim app [args...]
+means the same. On Linux this uses the torsocks LD_PRELOAD shim
+(fail-closed: static binaries, non-ELF files, and setuid/setgid
+targets are refused). On macOS and Windows it uses proxy environment
+(socks5h); only applications honoring proxy env are covered.
+.TP
+.B shell
+Spawn a child shell routed through Tor; the parent shell is
+untouched. Exit the shell to drop Tor routing. A coverage banner is
+printed on entry.
+.TP
+.B connect (Linux only, needs sudo)
+Route the whole system through Tor via iptables/nft transparent
+proxy. Snapshots firewall state first, gates on a verify suite, and
+rolls back on any failure. Refuses honestly on macOS/Windows.
+.TP
+.B disconnect
+Stop system tor first, restore the firewall byte-exact, post-verify.
+Needs sudo when a session exists. Idempotent.
+.TP
+.B repair
+Clear stale rules and dead session records (needs sudo). Never
+flushes foreign rules.
+.TP
+.B status [--json]
+Report tor state. Never claims protected when not.
+.TP
+.B version
+Print wrapper, platform, per-app mechanism, system-wide support, tor,
+and torsocks versions.
+.SH OPTIONS
+.TP
+.BI "--tor " BIN
+tor executable (default: tor).
+.TP
+.BI "--timeout " D
+bootstrap wait budget (default: 120s).
+.TP
+.B --reuse
+Reuse a verifiable foreign tor (cookie auth + readiness gate)
+instead of launching a private instance.
+.TP
+.BI "--backend " "auto|iptables|nft"
+connect firewall backend (default: auto).
+.TP
+.BI "--tor-user " USER
+unprivileged user for the system tor.
+.TP
+.B --force
+connect: repair a stale session, then connect.
+.SH EXIT STATUS
+.TP
+.B 0
+success.
+.TP
+.B 1
+runtime or application failure.
+.TP
+.B 2
+usage error.
+.TP
+.B 3
+tor not ready (fail-closed).
+.TP
+.B 4
+feature lands in a later milestone (e.g. system-wide on macOS/Windows).
+.SH LIMITATIONS
+Linux per-app needs the torsocks package. macOS per-app uses proxy
+env (no DYLD shim: SIP would strip it silently). Windows per-app uses
+proxy env. System-wide connect is Linux-only; macOS needs a
+utun+tun2socks+pf path and Windows a wintun+tun2socks+WFP path (M5).
+While connected, non-DNS UDP, ICMP, and IPv6 are blocked by design.
+See tor-cli/docs/limitations.md.
+.SH SEE ALSO
+.BR tor (1),
+.BR torsocks (1)
+.SH AUTHOR
+The Random lab Builder.
