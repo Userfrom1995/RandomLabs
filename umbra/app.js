@@ -104,10 +104,12 @@ function showScreen(name) {
 /**
  * Consume-and-discard one tick from every input source so edges queued
  * while paused, finished, or off-screen never fire stale on resume.
+ * Held keyboard levels are fully released here as well: block/move held
+ * across a screen transition must not leak into the next fight.
  */
 function drainInputs() {
   try {
-    if (boot.keyboard) boot.keyboard.consumeTick();
+    if (boot.keyboard) boot.keyboard.clear();
   } catch {
     // Draining is best-effort; a wedged driver must not break screens.
   }
@@ -221,6 +223,7 @@ function startFight() {
   boot.seenEvents = 0;
   boot.lastVibrateMs = null;
   drainInputs();
+  if (boot.keyboard) boot.keyboard.clear();
   if (boot.touch) boot.touch.reset();
   if (boot.pad) boot.pad.reset();
   $('pause-overlay').hidden = true;
