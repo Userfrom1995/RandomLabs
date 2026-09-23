@@ -32,6 +32,23 @@ export function comboExpired(lastTick, tick) {
 }
 
 /**
+ * Single owner of the combo-advance algorithm. The live sim (fighter.js
+ * resolveHit) is the runtime owner of combo/comboTick fields; this helper
+ * computes the next count and scale so comboTrack/registerHit below and the
+ * sim can never drift apart.
+ * @param {number} hits current consecutive-hit count (0 when none)
+ * @param {number} lastTick tick of the most recent landed hit
+ * @param {number} tick current tick
+ * @returns {{hits:number, scale:number}} next count plus its damage scale
+ */
+export function advanceCombo(hits, lastTick, tick) {
+  const h = Number.isFinite(hits) ? Math.max(0, Math.floor(hits)) : 0;
+  const now = Number.isFinite(tick) ? tick : 0;
+  const next = comboExpired(lastTick, now) ? 1 : h + 1;
+  return { hits: next, scale: comboScale(next) };
+}
+
+/**
  * Per-fighter combo tracker factory.
  * @returns {{hits:number, lastTick:number, scaleFor:(tick:number)=>number, register:(tick:number)=>number, reset:()=>void}}
  */
@@ -52,10 +69,10 @@ export function comboTrack() {
      * @param {number} tick current tick
      */
     register(tick) {
-      if (comboExpired(track.lastTick, tick)) track.hits = 1;
-      else track.hits += 1;
-      track.lastTick = tick;
-      return comboScale(track.hits);
+      const adv = advanceCombo(track.hits, track.lastTick, tick);
+      track.hits = adv.hits;
+      track.lastTick = Number.isFinite(tick) ? tick : 0;
+      return adv.scale;
     },
     /** Drop the combo immediately. */
     reset() {
@@ -100,16 +117,14 @@ export function registerHit(side, state, tick) {
   const last = Number.isFinite(holder.comboTick)
     ? holder.comboTick
     : holder.lastTick;
-  if (comboExpired(last, now)) {
-    if ("combo" in holder) holder.combo = 1;
-    else holder.hits = 1;
-  } else if ("combo" in holder) {
-    holder.combo = (Number.isFinite(holder.combo) ? holder.combo : 0) + 1;
+  const base = "combo" in holder ? holder.combo : holder.hits;
+  const adv = advanceCombo(base, last, now);
+  if ("combo" in holder) {
+    holder.combo = adv.hits;
+    holder.comboTick = now;
   } else {
-    holder.hits = (Number.isFinite(holder.hits) ? holder.hits : 0) + 1;
+    holder.hits = adv.hits;
+    holder.lastTick = now;
   }
-  if ("comboTick" in holder) holder.comboTick = now;
-  else holder.lastTick = now;
-  const hits = "combo" in holder ? holder.combo : holder.hits;
-  return comboScale(hits);
+  return adv.scale;
 }

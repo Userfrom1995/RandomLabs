@@ -54,7 +54,9 @@
  * @property {number} stateTick ticks spent in the current state
  * @property {string|null} moveId active MoveDef id while state is "attack"
  * @property {number} moveTick ticks since the current attack started
+ * @property {boolean} didHit true once the current swing has made contact
  * @property {boolean} blockHeld whether block is currently held
+ * @property {boolean} wantBlock raw block intent (held + grounded, even at 0 stamina)
  * @property {number} parryWindow ticks remaining in which a held block parries
  * @property {number} stunTick ticks remaining in hit/stun/parry/knockdown/down
  * @property {number} combo consecutive hits landed by this fighter
@@ -69,6 +71,8 @@
  * @property {number} arena arena index (presentation only)
  * @property {number} rounds total rounds in the match (first to floor(rounds/2)+1)
  * @property {number} roundTicks timer ticks per round
+ * @property {Record<string, MoveDef>} moves bout-owned frozen copy of the move table
+ * @property {[CombatInput, CombatInput]} prev sanitized inputs from the last simulated tick (rising-edge memory)
  * @property {number} tick global tick counter (advances even through hitstop)
  * @property {number} round current round, 1-indexed
  * @property {[number, number]} wins rounds won per side

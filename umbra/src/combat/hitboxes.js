@@ -18,17 +18,29 @@ export function hitRange(ax, facing, range) {
 }
 
 /**
+ * Defender height above which grounded strikes whiff: a mid-jump fighter
+ * dodges jabs, crosses, kicks, and sweeps. The rising uppercut is the
+ * anti-air exception and connects at any height.
+ */
+export const AIR_DODGE_HEIGHT = 0.12;
+
+/**
  * Test whether a defender point lies inside the attacker's strike interval.
  * @param {number} attX attacker origin
  * @param {1|-1} attFacing attacker facing
  * @param {number} range attack reach
  * @param {number} defX defender position
+ * @param {number} [defY] defender height above ground (0 = grounded)
+ * @param {string|null} [moveId] attacking move id ("uppercut" hits airborne)
  * @returns {boolean}
  */
-export function attackHits(attX, attFacing, range, defX) {
+export function attackHits(attX, attFacing, range, defX, defY = 0, moveId = null) {
   const { lo, hi } = hitRange(attX, attFacing, range);
   const d = Number(defX);
-  return d >= lo && d <= hi;
+  if (!(d >= lo && d <= hi)) return false;
+  const y = Number(defY);
+  if (Number.isFinite(y) && y > AIR_DODGE_HEIGHT && moveId !== "uppercut") return false;
+  return true;
 }
 
 function ptSegDist(px, py, ax, ay, bx, by) {
