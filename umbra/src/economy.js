@@ -3,6 +3,8 @@
  * Pure ES module: no DOM, no Math.random, no Date.now.
  */
 
+import { weaponById } from './weapons.js';
+
 export const AWARD_WIN = 60;
 export const AWARD_ROUND_BONUS = 15;
 export const AWARD_LOSS = 15;
@@ -13,6 +15,13 @@ export const JACKPOT_BONUS = 100;
 
 export const UPGRADE_TRACKS = ['dmg', 'hp'];
 export const MAX_UPGRADE = 4;
+
+/**
+ * Bounds: round bonuses stop accruing past this many rounds, and stored
+ * currency never exceeds this cap (bundle airlock clamps on import).
+ */
+export const MAX_BONUS_ROUNDS = 10;
+export const MAX_CURRENCY = 999999;
 
 /**
  * Sanitize a numeric input to a non-negative integer.
@@ -39,7 +48,7 @@ export function awardFor(opts = {}) {
   try {
     const o = opts && typeof opts === 'object' ? opts : {};
     const outcome = typeof o.outcome === 'string' ? o.outcome : 'loss';
-    const roundsWon = toNonNegInt(o.roundsWon, 0);
+    const roundsWon = Math.min(toNonNegInt(o.roundsWon, 0), MAX_BONUS_ROUNDS);
     const careerWins = toNonNegInt(o.careerWins, 0);
     const boss = !!o.boss;
     if (outcome === 'win') {
@@ -122,7 +131,7 @@ function progressCurrency(profile) {
   const progress = profile && typeof profile === 'object' ? profile.progress : null;
   if (!progress || typeof progress !== 'object') return null;
   if (typeof progress.currency === 'number' && Number.isFinite(progress.currency) && progress.currency >= 0) {
-    return Math.floor(progress.currency);
+    return Math.min(Math.floor(progress.currency), MAX_CURRENCY);
   }
   return 0;
 }
@@ -145,10 +154,13 @@ export function canAfford(profile, cost) {
 }
 
 /**
- * Buy a weapon: deducts currency and records ownership.
+ * Buy a weapon: deducts currency and records ownership. The charge always
+ * comes from the canonical weapon def, never from the caller's price
+ * argument: unknown ids fail closed and discounted caller prices are
+ * rejected instead of honored.
  * @param {object} profile profile (progress mutated in place)
  * @param {string} weaponId weapon id
- * @param {number} price price
+ * @param {number} price caller-quoted price (must match the canonical cost)
  * @returns {{ok:boolean, reason:string}} result
  */
 export function buyWeapon(profile, weaponId, price) {
@@ -156,9 +168,11 @@ export function buyWeapon(profile, weaponId, price) {
     if (!profile || typeof profile !== 'object') return { ok: false, reason: 'bad-profile' };
     const progress = profile.progress;
     if (!progress || typeof progress !== 'object') return { ok: false, reason: 'bad-profile' };
-    if (typeof weaponId !== 'string' || weaponId.length === 0) return { ok: false, reason: 'bad-weapon' };
+    const def = weaponById(weaponId);
+    if (!def) return { ok: false, reason: 'bad-weapon' };
     if (typeof price !== 'number' || !Number.isFinite(price) || price < 0) return { ok: false, reason: 'bad-price' };
-    const cost = Math.floor(price);
+    if (Math.floor(price) !== def.price) return { ok: false, reason: 'bad-price' };
+    const cost = def.price;
     if (!Array.isArray(progress.ownedWeapons)) progress.ownedWeapons = ['fists'];
     if (progress.ownedWeapons.includes(weaponId)) return { ok: false, reason: 'owned' };
     let funds = progressCurrency(profile);
