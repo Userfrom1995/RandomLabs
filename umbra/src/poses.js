@@ -51,37 +51,44 @@ export function idleAngles(timeSec, phase) {
 /**
  * Forward-kinematics: joint angles to 11 world-space capsule segments.
  * @param {Record<string, number>} a joint angles from idleAngles()
- * @param {{x?: number, groundY?: number, facing?: 1 | -1}} opts root placement
+ * @param {{x?: number, groundY?: number, facing?: 1 | -1, rig?: {height?: number, bulk?: number, head?: number, limb?: number}}} opts root placement + silhouette proportions
  * @returns {Array<{ax:number, ay:number, bx:number, by:number, w:number, name:string}>}
  */
 export function solveRig(a, opts = {}) {
   const x = opts.x ?? 0;
   const groundY = opts.groundY ?? 0.14;
   const f = opts.facing === -1 ? -1 : 1;
+  // Silhouette proportions (M3 roster identity). The identity rig is the
+  // exact M1/M2 path: every multiplier is 1, so golden hashes hold.
+  const rig = opts.rig && typeof opts.rig === 'object' ? opts.rig : {};
+  const H = Number.isFinite(rig.height) ? rig.height : 1;
+  const B = Number.isFinite(rig.bulk) ? rig.bulk : 1;
+  const HD = Number.isFinite(rig.head) ? rig.head : 1;
+  const LM = Number.isFinite(rig.limb) ? rig.limb : 1;
   const segs = [];
   const push = (name, ax, ay, bx, by, w) => segs.push({ ax, ay, bx, by, w, name });
 
-  const hipY = groundY + 0.3 + a.bob;
+  const hipY = groundY + 0.3 * H + a.bob;
   const sway = a.sway * f;
 
   // Pelvis: horizontal capsule at the hips.
-  push('pelvis', x - 0.045, hipY, x + 0.045, hipY, 0.062);
+  push('pelvis', x - 0.045 * B, hipY, x + 0.045 * B, hipY, 0.062 * B);
 
   // Torso: pelvis to shoulders with forward lean toward the foe.
   const shX = x + sway * 0.5 + f * a.lean * 0.12;
-  const shY = hipY + 0.22;
-  push('torso', x + sway * 0.3, hipY + 0.01, shX, shY, 0.078);
+  const shY = hipY + 0.22 * H;
+  push('torso', x + sway * 0.3, hipY + 0.01, shX, shY, 0.078 * B);
 
   // Head: capsule above the shoulders with a slight tilt.
   const hx = shX + f * a.headTilt * 0.1;
-  push('head', shX, shY + 0.005, hx, shY + 0.1, 0.088);
+  push('head', shX, shY + 0.005, hx, shY + 0.1 * H, 0.088 * HD);
 
   // Arms: shoulder origin, front arm raised in guard, back arm low.
   const arm = (prefix, shoulderAng, elbowAng, upper, fore, w) => {
-    const ex = shX + f * Math.sin(shoulderAng) * upper;
-    const ey = shY - Math.cos(shoulderAng) * upper + a.bob * 0.5;
-    const hx2 = ex + f * Math.sin(shoulderAng + elbowAng) * fore;
-    const hy2 = ey - Math.cos(shoulderAng + elbowAng) * fore;
+    const ex = shX + f * Math.sin(shoulderAng) * upper * LM;
+    const ey = shY - Math.cos(shoulderAng) * upper * LM + a.bob * 0.5;
+    const hx2 = ex + f * Math.sin(shoulderAng + elbowAng) * fore * LM;
+    const hy2 = ey - Math.cos(shoulderAng + elbowAng) * fore * LM;
     push(prefix === 'F' ? 'upperArmL' : 'upperArmR', shX, shY - 0.01, ex, ey, w);
     push(
       prefix === 'F' ? 'lowerArmL' : 'lowerArmR',
@@ -94,28 +101,28 @@ export function solveRig(a, opts = {}) {
   };
   // Facing side is the lead (front) arm.
   if (f === 1) {
-    arm('F', a.shoulderF, a.elbowF, 0.13, 0.12, 0.042);
-    arm('B', a.shoulderB, a.elbowB, 0.13, 0.12, 0.042);
+    arm('F', a.shoulderF, a.elbowF, 0.13, 0.12, 0.042 * B);
+    arm('B', a.shoulderB, a.elbowB, 0.13, 0.12, 0.042 * B);
   } else {
-    arm('B', a.shoulderF, a.elbowF, 0.13, 0.12, 0.042);
-    arm('F', a.shoulderB, a.elbowB, 0.13, 0.12, 0.042);
+    arm('B', a.shoulderF, a.elbowF, 0.13, 0.12, 0.042 * B);
+    arm('F', a.shoulderB, a.elbowB, 0.13, 0.12, 0.042 * B);
   }
 
   // Legs: hips to feet, front leg forward, back leg trailing.
   const leg = (prefix, hipAng, kneeAng, w) => {
-    const kx = x + sway * 0.2 + f * Math.sin(hipAng) * 0.15;
-    const ky = hipY - Math.cos(hipAng) * 0.15;
-    const fx2 = kx + f * Math.sin(hipAng + kneeAng) * 0.15;
+    const kx = x + sway * 0.2 + f * Math.sin(hipAng) * 0.15 * LM;
+    const ky = hipY - Math.cos(hipAng) * 0.15 * LM;
+    const fx2 = kx + f * Math.sin(hipAng + kneeAng) * 0.15 * LM;
     const fy2 = Math.max(groundY + 0.004, ky - Math.cos(hipAng + kneeAng) * 0.15);
     push(prefix === 'F' ? 'upperLegL' : 'upperLegR', x + sway * 0.2, hipY - 0.01, kx, ky, w);
     push(prefix === 'F' ? 'lowerLegL' : 'lowerLegR', kx, ky, fx2, fy2, w * 0.85);
   };
   if (f === 1) {
-    leg('F', a.hipF, a.kneeF, 0.052);
-    leg('B', a.hipB, a.kneeB, 0.052);
+    leg('F', a.hipF, a.kneeF, 0.052 * B);
+    leg('B', a.hipB, a.kneeB, 0.052 * B);
   } else {
-    leg('B', a.hipF, a.kneeF, 0.052);
-    leg('F', a.hipB, a.kneeB, 0.052);
+    leg('B', a.hipF, a.kneeF, 0.052 * B);
+    leg('F', a.hipB, a.kneeB, 0.052 * B);
   }
 
   return segs;
