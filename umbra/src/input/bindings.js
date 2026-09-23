@@ -78,6 +78,17 @@ export function validateBindings(bindings) {
       }
     }
   }
+  // No physical code may live in two actions: duplicates make one keypress
+  // drive two intents (e.g. crouch + punch at once).
+  const seen = new Map();
+  for (const action of BINDING_ACTIONS) {
+    for (const code of b[action]) {
+      if (seen.has(code)) {
+        return `code "${code}" is bound to both "${seen.get(code)}" and "${action}"`;
+      }
+      seen.set(code, action);
+    }
+  }
   return null;
 }
 
@@ -123,7 +134,8 @@ export function loadBindings(json) {
 
 /**
  * Rebind one action to a code, swapping on conflict: if `code` is already
- * bound to another action, that action receives the displaced primary code.
+ * bound to another action, that action loses it and receives the displaced
+ * primary code instead, so no code ever lives in two actions afterwards.
  * Pure: returns a new table, never mutates the input.
  * @param {object} bindings
  * @param {string} action
@@ -145,10 +157,44 @@ export function rebind(bindings, action, code) {
 
   const displaced = next[action][0];
   const other = BINDING_ACTIONS.find((a) => a !== action && next[a].includes(code));
+  // Strip the code from every other action first: one code, one action.
+  for (const a of BINDING_ACTIONS) {
+    if (a !== action) next[a] = next[a].filter((c) => c !== code);
+  }
   // Target takes the new code as primary, keeping old codes as secondaries.
   next[action] = [code, ...next[action].filter((c) => c !== code)];
   if (other) {
-    next[other] = next[other].map((c) => (c === code ? displaced : c));
+    // The donor lost `code` above; hand it the displaced primary so it
+    // stays bound (validateBindings requires non-empty actions).
+    next[other] = [displaced, ...next[other]];
+  }
+  return next;
+}
+export function rebind(bindings, action, code) {
+  const err = validateBindings(bindings);
+  if (err) throw new TypeError(`rebind of invalid bindings: ${err}`);
+  if (!BINDING_ACTIONS.includes(action)) {
+    throw new RangeError(`unknown binding action: ${action}`);
+  }
+  if (typeof code !== 'string' || code.length === 0) {
+    throw new TypeError('rebind code must be a non-empty string');
+  }
+  const next = {};
+  for (const a of BINDING_ACTIONS) next[a] = [...bindings[a]];
+  if (next[action].includes(code)) return next;
+
+  const displaced = next[action][0];
+  const other = BINDING_ACTIONS.find((a) => a !== action && next[a].includes(code));
+  // Strip the code from every other action first: one code, one action.
+  for (const a of BINDING_ACTIONS) {
+    if (a !== action) next[a] = next[a].filter((c) => c !== code);
+  }
+  // Target takes the new code as primary, keeping old codes as secondaries.
+  next[action] = [code, ...next[action].filter((c) => c !== code)];
+  if (other) {
+    // The donor lost `code` above; hand it the displaced primary so it
+    // stays bound (validateBindings requires non-empty actions).
+    next[other] = [displaced, ...next[other]];
   }
   return next;
 }

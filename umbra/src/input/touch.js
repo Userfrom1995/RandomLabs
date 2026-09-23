@@ -20,6 +20,7 @@ export const TOUCH_BUTTONS = [
   'kick',
   'block',
   'special',
+  'dash',
 ];
 
 /**
@@ -46,6 +47,7 @@ export function createTouchState() {
     kickEdge: false,
     blockHeld: false,
     specialEdge: false,
+    dashEdge: false,
     joy,
 
     press(btn) {
@@ -72,6 +74,9 @@ export function createTouchState() {
           break;
         case 'special':
           st.specialEdge = true;
+          break;
+        case 'dash':
+          st.dashEdge = true;
           break;
       }
       recompute();
@@ -122,13 +127,34 @@ export function createTouchState() {
         kick: st.kickEdge,
         block: st.blockHeld,
         special: st.specialEdge,
-        dash: 0,
+        dash: st.dashEdge ? (st.move !== 0 ? st.move : 1) : 0,
       };
       st.jumpEdge = false;
       st.punchEdge = false;
       st.kickEdge = false;
       st.specialEdge = false;
+      st.dashEdge = false;
       return input;
+    },
+
+    /**
+     * Drop every held level, latched edge, and joystick deflection.
+     * Call on pause/blur/screen-exit so no button sticks.
+     */
+    reset() {
+      heldDirs.clear();
+      crouchButton = false;
+      st.blockHeld = false;
+      st.jumpEdge = false;
+      st.punchEdge = false;
+      st.kickEdge = false;
+      st.specialEdge = false;
+      st.dashEdge = false;
+      joy.active = false;
+      joy.pointerId = null;
+      joy.dx = 0;
+      joy.dy = 0;
+      recompute();
     },
   };
 
