@@ -184,10 +184,39 @@ func isDynamicELF(path string) (bool, error) {
 	return false, nil
 }
 
-// Env builds the torsocks environment for a child process.
+// shimKeys are the environment keys owned by the torsocks shim. They must
+// appear exactly once in a child environment: a duplicate left over from the
+// parent would shadow the shim value (getenv returns the first match) and
+// run the app untorified while the wrapper reports success.
+var shimKeys = []string{"LD_PRELOAD", "TORSOCKS_CONF_FILE", "TORSOCKS_ISOLATE_PID"}
+
+func shimOwned(key string) bool {
+	for _, k := range shimKeys {
+		if key == k {
+			return true
+		}
+	}
+	return false
+}
+
+func envKey(kv string) string {
+	if i := strings.Index(kv, "="); i >= 0 {
+		return kv[:i]
+	}
+	return kv
+}
+
+// Env builds the torsocks environment for a child process. Any shim-owned
+// keys already present in base (or caller-supplied extras) are dropped so
+// the shim values below cannot be shadowed by duplicates.
 func Env(base []string, libPath, confPath string) []string {
 	env := make([]string, 0, len(base)+4)
-	env = append(env, base...)
+	for _, kv := range base {
+		if shimOwned(envKey(kv)) {
+			continue
+		}
+		env = append(env, kv)
+	}
 	env = append(env,
 		"LD_PRELOAD="+libPath,
 		"TORSOCKS_CONF_FILE="+confPath,
@@ -235,6 +264,11 @@ func Run(socksAddr string, argv []string, extraEnv []string, confDir string) (Ru
 	cmd := exec.Command(bin, argv[1:]...)
 	cmd.Env = Env(os.Environ(), lib, confPath)
 	for _, kv := range extraEnv {
+		// Caller extras must not reintroduce a duplicate shim key that
+		// would shadow the values Env just installed.
+		if shimOwned(envKey(kv)) {
+			continue
+		}
 		cmd.Env = append(cmd.Env, kv)
 	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr

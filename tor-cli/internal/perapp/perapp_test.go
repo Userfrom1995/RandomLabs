@@ -181,3 +181,42 @@ func TestRunRefusesStatic(t *testing.T) {
 		t.Fatal("refused run must not report an app exit code")
 	}
 }
+
+func TestEnvDropsDuplicateShimKeys(t *testing.T) {
+	// Regression: a parent LD_PRELOAD (or torsocks var) must not survive
+	// into the child env where getenv would prefer it over the shim.
+	base := []string{
+		"PATH=/usr/bin",
+		"LD_PRELOAD=/tmp/evil.so",
+		"TORSOCKS_CONF_FILE=/tmp/evil.conf",
+		"TORSOCKS_ISOLATE_PID=0",
+	}
+	env := Env(base, "/lib/libtorsocks.so", "/tmp/c.conf")
+	seen := map[string]int{}
+	for _, kv := range env {
+		k := kv
+		if i := strings.Index(kv, "="); i >= 0 {
+			k = kv[:i]
+		}
+		seen[k]++
+	}
+	for _, k := range []string{"LD_PRELOAD", "TORSOCKS_CONF_FILE", "TORSOCKS_ISOLATE_PID"} {
+		if seen[k] != 1 {
+			t.Fatalf("env has %d entries for %s, want exactly 1:\n%v", seen[k], k, env)
+		}
+	}
+	joined := strings.Join(env, "\n")
+	for _, want := range []string{
+		"LD_PRELOAD=/lib/libtorsocks.so",
+		"TORSOCKS_CONF_FILE=/tmp/c.conf",
+		"TORSOCKS_ISOLATE_PID=1",
+		"PATH=/usr/bin",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("env missing %q", want)
+		}
+	}
+	if strings.Contains(joined, "/tmp/evil") {
+		t.Errorf("parent shim values leaked into child env:\n%s", joined)
+	}
+}
