@@ -484,7 +484,7 @@
     <h2>Six stages, one invariant</h2>
     <p class="sub">
       The hard rule that gates everything: decode(encode(x)) equals x, byte for byte,
-      at every effort level. Corruption is rejected, never mis-decoded.
+      measured at efforts 0/4/7. Corruption is rejected, never mis-decoded.
     </p>
     <div class="pipe">
       <div class="stage"><i>stage 1</i><b>Color</b><span>Reversible decorrelation (YCoCg-R and five adopted rotations) chosen by measured coded bytes.</span></div>
@@ -509,7 +509,8 @@
       Accepted by the Owner as <strong>finished at ceiling</strong> at <code>9bd6d10</code>
       (2026-09-03, issue #130). The gates are reported exactly as measured: passes and
       misses alike, with a fresh-binary reproduction stated in both units. Lower is better
-      (cells are labeled per-sample or summed).
+      (gate cells are summed then per-sample; oracle cells per-sample then summed; Prism
+      cells carry explicit units).
     </p>
     <div class="table-wrap" role="region" aria-label="Kodak-24 gate ledger" tabindex="0">
       <table>
