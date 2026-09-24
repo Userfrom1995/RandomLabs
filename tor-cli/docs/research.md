@@ -1,8 +1,8 @@
-# Tor CLI (torshim) - Research Specification (M1)
+# Tor CLI (torshim) - Research Specification
 
-Status: research complete, handing off to Architect.
+Status: research complete (original specification plus the 2026-09-24 feature, UX, and landscape survey), handing off to Architect.
 Scope: lightweight cross-platform Tor wrapper. Uses the existing Tor client and network; never implements Tor itself.
-Issue: #387. Owner directive 2026-09-23 on #42.
+Issue: #387. Owner directives 2026-09-23 on #42 and 2026-09-24 on #387.
 Author: Dr. Mob, the Researcher.
 
 ## 0. Naming decision
@@ -252,5 +252,425 @@ Adversary: local network observer and remote destination trying to link the user
 ## 11. Sources surveyed
 
 tor daemon manpage and control-spec v1; torsocks 2.5.0 source and conf; proxychains-ng 4.17 conf and docs; tsocks history and torify removal; badvpn-tun2socks, xjasonlyu/tun2socks, hev-socks5-tunnel; Linux iptables/nft/iproute2/systemd/resolvectl/NetworkManager; macOS pf/pfctl/scutil/networksetup/utun/SIP; Windows WFP/netsh/registry/wintun; Tor Browser tor-launcher, Stem launch_tor, txtorcon launch versus connect; Tor trademark FAQ; crates.io/npm/PyPI registry checks 2026-09-23.
+
+---
+
+# Part II: Feature, UX, and landscape research (2026-09-24)
+
+Owner directive 2026-09-24 on #387: survey existing Tor, proxy, and network
+CLI tools; identify genuinely useful features, usage cases, and UX
+improvements users actually need (a `verbose` mode was named as an
+example); research first, prioritize real value, document the reasoning,
+and keep the tool lightweight, fast, reliable, and easy to use. Ordered
+workflow: CLI research and improvement first, per-OS real-user testing
+second, website refresh third.
+
+Method: two parallel subagent surveys (competitive landscape and UX
+conventions; Tor control-port and lifecycle capability depth), both
+grounded against the shipped 0.4.0 code in this repository, plus
+issue-tracker, forum, and support-documentation evidence. The sections
+below are binding input to the Architect's next epic.
+
+## 12. Baseline inventory: what 0.4.0 ships today
+
+Grounded in `tor-cli/main.go`, `internal/control`, `internal/lifecycle`,
+`internal/status`, `internal/perapp`.
+
+- Commands: `run`, bare `torshim <app> [args]`, `shell`, `status`,
+  `version`, `connect`, `disconnect`, `repair`, `help` (main.go:56-78).
+- Flags: `run`/`shell` take `--tor`, `--timeout`, `--reuse`; `status`
+  takes `--json`, `--control`, `--socks`, `--state-dir`; `connect` takes
+  `--backend`, `--tor-user`, `--state-dir`, `--tor`, `--timeout`,
+  `--force`, `--trans-port`. **There is no verbosity flag anywhere in
+  the source** (zero matches for verbose or log-level in `.go` files).
+- Exit codes: 0 ok, 1 runtime/app failure, 2 usage, 3 tor not ready
+  (fail-closed), 4 platform unsupported (main.go:32-38).
+- Control client (`internal/control`): `PROTOCOLINFO`, cookie
+  `AUTHENTICATE`, `GetInfo`/`GetOne`, `TakeOwnership`, and an implemented
+  but **never called** `Signal(name)` method. Async `650` events are
+  tolerated and dropped: readiness is polling only, no `SETEVENTS`.
+  Exactly four GETINFO keys are queried in production:
+  `status/bootstrap-phase`, `status/circuit-established`,
+  `circuit-status` (BUILT fallback), `version`.
+- Lifecycle (`internal/lifecycle`): generated torrc with wrapper-picked
+  free `SocksPort`/`DNSPort` (real tor rejects `SocksPortWriteToFile`/
+  `DNSPortWriteToFile`; only `ControlPortWriteToFile` exists),
+  `ControlPort auto`, cookie auth, `SafeSocks 1`, `AutomapHostsOnResolve 1`,
+  optional `TransPort` isolation flags, `ExtraTorrc` passthrough guarded
+  by `managedTorrcKeys`. Readiness = 100 percent + `TAG=done` +
+  `circuit-established` + real SOCKS5 handshake probe.
+- Status (`internal/status`): running/state/bootstrap/circuit/mode/
+  endpoints/tor_version/protected plus `--json`. `protected=true` only
+  when ready and the SOCKS probe succeeds.
+- Per-app: Linux torsocks conf with `IsolatePID 1` (perapp.go:25);
+  macOS/Windows `socks5h://` on all six proxy keys with shadow-key scrub
+  and a mandatory coverage note (perapp/proxy.go).
+- Known cosmetic wart (Auditor 2026-09-24): subcommand `--help` exits 2
+  instead of 0 (`flag.ContinueOnError` returns `flag.ErrHelp`, which the
+  command handlers map to `exitUsage`).
+
+## 13. Competitive and UX landscape survey
+
+### 13.1 Tool landscape
+
+| Tool | What it is | What torshim learns from it | Gap torshim exploits |
+|---|---|---|---|
+| torsocks 2.5.0 | LD_PRELOAD wrapper, fail-closed UDP deny, `IsolatePID`, `-u/-p/-i` isolation, `-d` debug levels via `TORSOCKS_LOG_LEVEL` | Level-based library logging; isolation flags as first-class UX | No Windows, no macOS SIP path, static-binary bypass, no status/JSON |
+| proxychains-ng 4.17 | Multi-hop LD_PRELOAD proxifier, chain modes, `proxy_dns` | Config search order; chain semantics | Open macOS/ARM issues (#357 #453 #481), DNS safety only when configured, TCP-only |
+| tsocks / torify | Obsolete / thin torify wrapper | What never to ship: torify's leaky silent fallback is a documented hazard (HN 25602260) | Both are footguns; torshim's fail-closed stance is the counter-position |
+| socksify (Dante) | `socksify cmd` with `SOCKS5_SERVER` env knobs | Env-var configuration of a wrapper is idiomatic | Single-vendor, not Tor-aware |
+| torghost | System-wide iptables redirect CLI (`-s` start, `-r` switch, `-x` stop) | Short verb names for identity operations (`switch` = newnym) | Linux only, no readiness gating, no per-app mode, no JSON |
+| nyx 2.1.0 | Python/Stem Tor monitor TUI (bandwidth graph, circuits, logs, config) | The observability users expect: circuits, bandwidth, log tail, `n` = new identity | Aging: Stem unmaintained (#68), Python 3.11 breakage (#63), RAM leak (#52), high CPU (#65), Windows request (#53), no JSON machine surface |
+| tor daemon CLI | `--verify-config`, `--dump-config`, `--list-torrc-options`, `--hash-password`, `--service install` (Windows) | Self-inspection verbs and vocabulary to reuse | Raw internals; torshim's value is wrapping them honestly |
+| Arti CLI | `arti proxy -l <level> -o key=value -p socks-port`, config.toml | Single log-level flag; `--set` override syntax; log-level UX | Only `help` and `proxy` subcommands; issues #2725/#2726/#2678: bootstrap silently hangs with no retry, no error, no timeout - exactly the UX torshim must beat |
+| Whonix onion-grater | Control-port filter proxy, deny-by-default allowlist | Binding security model: the wrapper is the only control-port client; children never get control access; `GETINFO address` must never leak | Whitelist grammar we should adopt for our own control use |
+| Tails / uwt / onioncircuits | Stream-isolated curl wrappers; circuit viewer | Isolation wrappers per app; circuit inspection as a lightweight verb | Not a general CLI |
+| torbrowser-launcher | Download, verify, launch, `--settings` | Verify-then-run plus a settings verb is familiar Tor UX | Desktop-scoped |
+| onionshare CLI | `--receive/--website/--chat/--persistent` | Failure UX under real network conditions (71 open issues) | Server-side, different problem |
+| mullvad CLI | `status [-v]`, `connect`, `disconnect`, `relay set location`, `problem-report collect`, documented exit codes | **Closest UX north star**: short verbs, idempotent connect/disconnect, problem-report diagnostics | VPN not Tor; no per-app shim, no bootstrap surface |
+| gh / kubectl / curl / ssh | `--json`/`-o` field selection, `-v` stacking, `kubectl -v=0..8`, documented exit codes, `completion -s` | The modern CLI bar (section 13.3) | Generic, not Tor-aware |
+| gost / cloudflared | Forwarders/tunnels; issues: cloudflared #23 DNS stops resolving (90 comments), #917 reconnect loops | Daemon resilience and honest degradation expectations | Wrong direction (expose, not privacy) |
+
+### 13.2 What real users actually ask for (demand evidence)
+
+| Source | Demand or pain | Implication for torshim |
+|---|---|---|
+| Tor Forum thread 16360 | Go and other static binaries escape LD_PRELOAD; correct answers are transproxy, Whonix, Tails, oniux | Validates the non-LD_PRELOAD design; proxy-env plus transparent backends are the right bet |
+| HN 25602260 (Using Tor from the Command Line) | torify can fall back to leaky tunneling; trust in wrappers is low | Fail-closed defaults and a `status --verify` proof are differentiators |
+| nyx issues #52 #63 #65 #68 #80 | Memory leak, Python breakage, CPU burn, unmaintained Stem, "is this even safe anymore?" | A static Go `circuits`/`status --watch` subset is credible competition |
+| Arti #2725 #2726 #2678 | Bootstrap hangs silently: no retry, no error, no timeout | Surfacing `WARN BOOTSTRAP REASON=...` on timeout and a `doctor` command are must-haves |
+| Arti #2569 | SOCKS port conflicts with Tor Browser | `doctor` port-conflict detection (9050 vs 9150) |
+| proxychains-ng #357 #453 #481 | macOS and Apple Silicon breakage | Cross-platform static story stays central |
+| Tor support docs (check-for-leaks, kill switch) | Users want leak proof and a kill switch | `status --verify` plus honest pre-flight (`--require-tor` style), never an oversold "kill switch" label |
+| Owner field report 2026-09-24 on #387 | "It doesn't work on my system" with no OS/version/command data captured | The tool must make diagnosis effortless: `doctor`, `-v`, machine-readable errors |
+
+Synthesized demand: (a) work where torsocks fails (static, macOS,
+Windows); (b) honest leak reporting; (c) machine-readable status;
+(d) per-app isolation; (e) resilient bootstrap with timeouts and
+actionable errors; (f) diagnostics a user can paste into a bug report;
+(g) bridges from the CLI; (h) a new-identity verb; (i) observability
+without Python.
+
+### 13.3 The modern CLI UX bar (binding conventions)
+
+1. **Verbosity models surveyed**: `curl -v`/`-vv`/`-vvv` progressive
+   stacking; `ssh -v`..`-vvv`; `kubectl -v=0..8`; Arti
+   `-l trace|debug|info|warn|error`; Ubuntu `--verbosity=` enum; nyx
+   `-d file` plus `-l events` (two orthogonal knobs). **Binding
+   choice**: stackable `-v` (info) / `-vv` (debug) / `-vvv` (trace),
+   `-q` quiet, plus an explicit `--log-level` enum for scripts and
+   `--log-file` for capture. Design in section 15.
+2. **Machine output**: every command grows `--json` with a stable,
+   documented schema (gh `--json`, kubectl `-o`). stdout carries only
+   the payload; human logs stay on stderr.
+3. **Exit codes**: keep the shipped contract (0/1/2/3/4) untouched;
+   document it in `--help`. New commands must map failures onto it
+   deliberately (section 14).
+4. **Completion, man, help**: `completion bash|zsh|fish` (gh pattern),
+   man page already ships (`torshim.1`), help epilogs carry examples.
+5. **Idempotence**: connect when connected and disconnect when not are
+   successes (already true for system mode; keep it for new verbs).
+6. **Structured errors**: message plus `code` plus `remediation`
+   (clig.dev pattern), rendered in text and `--json`.
+7. **Three-state verdicts**: `protected | degraded | unverified`,
+   never a bare "connected"; any failed probe degrades the verdict.
+
+## 14. Baselines, matched budgets, and performance gates (binding)
+
+Established baselines for any feature claim (fair comparison: same
+machine, same tor version, same network, same evaluation script;
+bootstrap time excluded from wrapper-overhead measurements because it is
+network-dominated):
+
+- **B1 torsocks 2.5.0**: per-app routing and DNS correctness on Linux.
+- **B2 proxychains-ng 4.17**: generic proxifier behavior and config UX.
+- **B3 nyx 2.1.0**: observability (circuits, bandwidth, log tail).
+- **B4 mullvad CLI**: verbs, status, diagnostics, exit-code honesty.
+- **B5 modern CLI conventions** (section 13.3): output, completion,
+  errors.
+
+Quantitative gates for the improvement epic:
+
+- **G1 (deps)**: `go.mod` stays stdlib-only. Zero new module
+  dependencies for any feature in sections 15 and 16.
+- **G2 (size)**: static linux/amd64 binary grows no more than 15
+  percent over the 0.4.0 baseline (recorded by the Builder before and
+  after).
+- **G3 (startup)**: wrapper overhead before tor spawn at most 50 ms
+  p95 (measured excluding tor bootstrap); `version` and `help` return
+  in at most 50 ms.
+- **G4 (latency)**: `status` without `--verify` completes in at most
+  1 s when tor is absent and at most 2 s when a control endpoint is
+  unresponsive (bounded dial and read deadlines).
+- **G5 (observability purity)**: verbosity flags never change control
+  flow: every existing test must pass identically with `-vv` and
+  `--log-level trace` injected, and exit codes must be byte-identical.
+  With logging disabled, no per-line formatting cost is paid (level
+  check first). The one documented exception: `trace` may add
+  `Log debug file` to the private-instance torrc (observability only,
+  section 15.5).
+- **G6 (honesty invariants)**: `status` never reports `protected:true`
+  unless the readiness gates plus the live probe pass; new commands get
+  the same never-lying tests; fail-closed exit 3 semantics are
+  preserved for launch paths.
+- **G7 (tri-OS)**: every new command ships black-box tests with per-OS
+  honest branches (no new CI skips), and the per-OS real-user testers
+  (`test-linux`, `test-macos`, `test-windows`) exercise every new
+  command, flag, and error path natively.
+- **G8 (pipeline)**: Reviewer approve, Tester `approve-test` with live
+  run evidence, Evaluator `approve-eval` at least 9.8 before merge.
+
+Anti-gates (claims that require measured evidence before they may be
+written anywhere): "faster than X", "leak-proof", "works with every
+app", "system-wide" off-Linux. Each must be phrased per the measured
+scope or dropped.
+
+## 15. Prioritized capability roadmap (binding recommendation)
+
+Priorities are justified by the demand evidence in 13.2, the gaps in
+13.1, and the lightweight constraint. Nothing ships because it is
+novel; each item names its user and its proof.
+
+### P0 - the diagnostics and honesty surface (answers the Owner's named example and the field-failure report)
+
+| ID | Capability | User and value | Evidence | Implementation sketch | Fail-closed risk |
+|---|---|---|---|---|---|
+| P0.1 | **Verbosity system** (`-v`/`-vv`/`-vvv`, `-q`, `--log-level`, `--log-file`) | Everyone: shows what torshim is doing, endpoint, mode, connected verdict, timings (Owner's explicit example) | Arti `-l`, curl/ssh stacking, Ubuntu enum; Arti silent-hang issues | `internal/diag` leveled logger to stderr (design section 15.x below) | Low: observability only, G5 gate |
+| P0.2 | **`torshim doctor`** read-only environment diagnostics with `--json` | The user whose system fails: answers "why" without a bug report; paste-able report | mullvad `problem-report`; Arti #2569 port conflicts; Owner field report | Check list in section 16.1; per-check `ok`/`detail`/`remediation`; exit 0 all pass, 1 any check failed, 2 usage | Low: never mutates, never claims protection |
+| P0.3 | **`status --verify`** live protection proof plus enriched fields | Anyone scripting or doubting: proves egress is Tor through the exact configured SOCKS | HN leak anxiety; Tor check-for-leaks docs; `check.torproject.org/api/ip` returns `{"IsTor":bool,"IP":"..."}` | Through the configured socks5h endpoint: IsTor probe (URL overridable for tests), report exit IP, verdict `protected\|degraded\|unverified`; add `listeners`, `uptime`, `instance` (private/foreign) to the report, additive-only JSON keys | Medium if overclaimed: any probe failure renders `unverified`, cached results never reused |
+| P0.4 | **`--help` exit-code wart** | Scripts parse exit codes; `cmd --help` must exit 0 | Auditor 2026-09-24 finding | Map `flag.ErrHelp` to `exitOK` in command handlers; update the pinned contract test | None (test update disclosed) |
+
+### P1 - real-world workflow features (high value, contained effort, all stdlib)
+
+| ID | Capability | User and value | Evidence | Implementation sketch | Fail-closed risk |
+|---|---|---|---|---|---|
+| P1.1 | **`torshim newnym`** | Rotate circuits between sensitive sessions | torghost `-r`; nyx `n` keybind; `Signal()` already implemented and unused | `SIGNAL NEWNYM` via existing client; honest wording: "new circuits for new connections; existing streams keep their circuits; guards unchanged; tor rate-limits about 10 s"; track last rotation in state dir; `--json`; exit 3 without verified control | Low if wording is honest: never say "new identity" |
+| P1.2 | **Shell integration**: `torshim shellenv` + `completion bash\|zsh\|fish` | `eval "$(torshim shellenv)"` for current shell; tab completion | direnv/Homebrew `shellenv` convention; gh `completion -s` | `shellenv` resolves an endpoint from an active system session or verifiable foreign instance (side-effect free: never launches); if none, exit 3 with the remediation "use `torshim shell` or `sudo torshim connect`". Completion emits static scripts, `bash -n` tested | Low: side-effect free by binding |
+| P1.3 | **`--isolate`** per-session circuit separation | Separate apps' traffic onto distinct circuits | Proposal 171; torsocks `-i`; Tor Browser uses SOCKS-auth isolation instead of NEWNYM | Linux: swap the generated conf from `IsolatePID 1` to random explicit `SOCKS5Username/Password` (they are mutually exclusive in torsocks); proxy-env: embed random `user:pass@` in the socks5h URL. Verify at launch with `GETCONF SocksPort` rather than assuming isolation defaults; if isolation cannot be confirmed, report `degraded` (status) or warn (run), never silently claim it | Medium: some apps choke on SOCKS auth (tor ships `PreferSOCKSNoAuth` for this); coverage note must survive |
+| P1.4 | **Bridge management**: `torshim bridge add\|list\|remove` | Censorship-circumvention users get bridges without editing torrc | research.md explicitly deferred bridges as future work while `ExtraTorrc` already accepts `Bridge`/`UseBridges`/`ClientTransportPlugin` (pinned by tests); lyrebird ships obfs4/meek/snowflake/webtunnel | Persist lines under the state dir; validate shape plus `tor --list-torrc-options` (catches version drift); auto-add `UseBridges 1` when the set is non-empty; detect the PT binary (`lyrebird`, `obfs4proxy`, `snowflake-client`) and fail closed at launch with remediation if missing; splice at `Launch` (regenerate-and-restart semantics documented; live `SETCONF Bridge` replaces the whole list, so we never hot-mutate) | Medium: bridge bootstrap failures surface `WARN` reasons and stay exit 3 |
+| P1.5 | **Observability subset**: `torshim circuits` + `status --watch` | nyx replacement without Python: circuit table, live bootstrap and bandwidth deltas | nyx aging issues #52 #65 #68 #80 | `circuits` = `GETINFO circuit-status` table (longnames embed `$FP~Nick`); `--watch` = 2 s ticker over `traffic/read`/`traffic/written` deltas plus bootstrap percent; plain `fmt`, ANSI only on TTY, `--json` for snapshots; observer connections never `TAKEOWNERSHIP` | Low: display only; verdict still comes from readiness gates |
+| P1.6 | **`--set Key=Value` torrc overrides** (validated) | Real requests: `EntryNodes`/`ExitNodes` country steering, `StrictNodes`, `ClientOnionBindAddr` without hand-editing torrc | Arti `-o key=value`; tor `--option value` passthrough | Route through the existing `managedTorrcKeys` guard (managed keys rejected, exit 2 with the offending key), validate the full rendered torrc with `tor --verify-config` before spawn. Optional sugar `--exit {cc}` renders `ExitNodes {cc}` + `StrictNodes 1` with the documented warning that exit selection narrows anonymity | Low: existing guard plus verify-config |
+| P1.7 | **System-proxy mode on macOS/Windows** behind `connect --backend proxy` | The largest real cross-platform gap without a tun2socks binary: browsers and system-proxy-honoring apps go through Tor | macOS `networksetup -setsocksfirewallproxy` (+ web/secure web proxy); Windows `HKCU\...\Internet Settings` `ProxyEnable`/`ProxyServer` (`http=;https=;socks=`) plus WinINET refresh; mullvad-style snapshot/restore verbs | Same session shape as the Linux backend: session lock, snapshot-first backup under the state dir, idempotent on/off, byte-exact restore in `disconnect`, `repair` for stale sessions, verify step that Tor answers before claiming success. Off-Linux `connect` without `--backend proxy` keeps today's honest exit 4, so existing contract tests stay valid. `status` reports mode `sysproxy`, never `system-wide` | Medium-high naming risk: mode label and coverage notes must say "apps honoring the system proxy", DNS posture stated per OS; `status` must never upgrade `sysproxy` to `protected` without `--verify` |
+| P1.8 | **Structured errors** (`code` + `remediation` in `--json` stderr) | Bug reports become machine-readable; consistent UX | clig.dev pattern; HN JSON-output thread | Shared error renderer; codes like `E_NO_TOR`, `E_NO_CONTROL`, `E_SHIM_BYPASS`, `E_STALE_STATE`, `E_PLATFORM` | None |
+
+### P2 - differentiating but deferred (revisit after P0/P1 evidence)
+
+- **`HTTPTunnelPort`** HTTP CONNECT listener for Java and legacy tools
+  that speak HTTP proxies but not SOCKS (one torrc line plus a status
+  probe).
+- **`torshim open <url>`** (including `.onion`): readiness-gated launch
+  of the right browser with per-browser proxy config; must verify the
+  browser actually honors it before claiming coverage.
+- **tun2socks system-wide on macOS/Windows**: remains rejected for the
+  lightweight constraint (bundled third-party binary, kernel surface)
+  unless P1.7 proves insufficient in real-user testing.
+- **Arti interop**: `doctor` and `--reuse` already probe 9050/9150
+  foreign instances; deeper Arti support waits for stable Arti RPC.
+- **Windows `--service install`** vocabulary (mirrors `tor --service`).
+- **`monitor`** full nyx-style dashboard; **problem-report zip export**;
+  a config file under `~/.config/torshim/` (add only if the flag
+  surface demands it; the state dir already stores bridges and session
+  state).
+
+### Rejected features and non-goals (binding)
+
+- **UDP/WebSocket/QUIC claims**: Tor has no UDP exit; torsocks and
+  proxychains deny UDP. Never imply support.
+- **LD_PRELOAD/DYLD shims as product paths** on macOS or Windows
+  (SIP and the LSP deprecation make them silently partial).
+- **"Kill switch" wording without a real outbound-block mechanism**:
+  name the honest feature `--require-tor` (pre-flight refuses to launch
+  unless verified). Linux system mode's REJECT tail is the only real
+  kill-switch-shaped mechanism we ship, and it is already documented.
+- **Silent fallbacks** (the torify hazard): any degradation is visible
+  in `status`, in the exit code, and in `-v` output.
+- **Exposing the control port to child apps**: the wrapper stays the
+  sole controller (onion-grater lesson); children get SOCKS only.
+- **Auto-downloading a tor binary**: supply-chain trust and packaging
+  policy forbid it; detect and instruct instead.
+- **Telemetry, third-party TUI/logging frameworks, implementing Tor
+  itself**: out of scope by charter.
+
+## 16. Design details for the P0 surface (binding)
+
+### 16.1 `doctor` check list (read-only)
+
+1. tor binary present, executable, version parse (warn below 0.4.x).
+2. Per-app mechanism availability: torsocks library on Linux; proxy-env
+   statement on macOS/Windows (mechanism reported by `version`).
+3. Control endpoint: dial, `PROTOCOLINFO`, cookie auth, instance kind
+   (private state dir vs foreign 9051/9151).
+4. Bootstrap state via `GETINFO status/bootstrap-phase` and
+   `status/circuit-established`.
+5. SOCKS handshake probe.
+6. Port conflicts: listeners on 9050/9150 that fail control
+   verification (Arti/Tor Browser overlap).
+7. Session state: `/run/torshim` (or `TORSHIM_STATEDIR`) presence,
+   lock holder liveness, firewall rules present but tor dead (the
+   critical mismatch), rules absent but state claims connected.
+8. Env hygiene: pre-existing `HTTP_PROXY`/`ALL_PROXY` shadows,
+   stale `TORSHIM_ACTIVE`.
+9. Bridge preconditions: configured bridges plus PT binary present.
+10. Platform coverage statement: what this OS can and cannot cover
+    (mirrors `limitations.md`).
+11. `--deep` opt-in adds network checks: live IsTor probe, IPv6
+    posture attempt, and time sanity against an HTTP `Date` header.
+
+Output: per-check `[ok]`/`[FAIL]` lines with `detail` and
+`remediation`; `--json` renders
+`{overall, checks:[{id, ok, severity, detail, remediation}]}`. Exit 0
+all pass, 1 any failed, 2 usage. Doctor never mutates state and never
+uses the word "protected".
+
+### 16.2 `status --verify` verdict rule (binding)
+
+`protected` requires ALL of: readiness gates (100 percent + `done` +
+circuit-established + SOCKS handshake) AND a live `IsTor:true` response
+through the exact configured socks5h endpoint. Any failure, timeout, or
+override mismatch renders `degraded` (endpoint answers but proof
+failed) or `unverified` (no endpoint), with the failing check named.
+The probe URL is injectable (`--check-url`) so tests and privacy
+paranoids can point it elsewhere; the response shape is
+`{"IsTor":bool,"IP":"..."}`.
+
+### 16.3 Verbosity system (binding, answers the Owner's example)
+
+**Flags** (recognized globally, section 16.4 for placement rules):
+
+- `-v` (info): every step, timing, endpoint, and mode.
+- `-vv` (debug): adds control request/response lines (cookie hex
+  redacted), tor log tail, environment exports (`user:***@` redacted),
+  retry loops.
+- `-vvv` (trace): adds per-iteration poll timestamps and permits
+  `Log debug file` in the private-instance torrc (the single documented
+  behavior touch, G5 exception).
+- `-q` (error): errors only.
+- `--log-level quiet|error|warn|info|debug|trace`: explicit level for
+  scripts; wins over stacking.
+- `--log-file FILE`: tee all log lines to a file (for bug reports).
+
+**Format** (stderr only): `HH:MM:SS.mmm LEVEL stage: message` with
+stages `cli`, `lifecycle`, `readiness`, `control`, `perapp`, `shell`,
+`status`, `syswide`, `doctor`, `verify`. Color only when stderr is a
+TTY and `NO_COLOR` is unset. Timestamps are wall clock; durations use a
+monotonic clock.
+
+**What `-v` must show** (the Owner's acceptance list, one line each):
+command and flags parsed; instance decision (private launch vs foreign
+reuse with pid/version); spawned tor path, data dir, and every chosen
+endpoint (socks, control, dns, trans); mechanism per OS (torsocks vs
+proxy-env vs system backend); bootstrap transitions (at least 25/50/75/
+100 percent plus tag); each readiness gate result; coverage notes;
+and a terminal verdict line on every run:
+
+- success: `torshim: ready mode=per-app mechanism=torsocks socks=127.0.0.1:43123 bootstrap=100% (done) circuit=established elapsed=12.4s`
+- failure: `torshim: NOT protected reason=<cause> remediation=<action>` (exit code unchanged from the non-verbose path).
+
+**Interaction with `--json`**: stdout carries only the JSON payload;
+log level drops to `warn` unless `--log-level`/`--log-file` was given
+explicitly.
+
+### 16.4 Flag placement rules (binding, avoids the bare-app ambiguity)
+
+- Global flags are recognized (a) before the command name
+  (`torshim -v status`), (b) inside a torshim subcommand's flag set
+  (`torshim status --log-level debug`), and (c) before `--` in
+  `run`/`shell`.
+- The bare form passes everything after the app name to the app:
+  `torshim curl -v https://...` gives `-v` to curl, never to torshim.
+  The global pre-scan stops at the first non-flag token.
+- This rule is documented in `help` and pinned by black-box tests on
+  all three OSes.
+
+## 17. Per-OS feasibility matrix for the new capabilities
+
+| Capability | Linux | macOS | Windows |
+|---|---|---|---|
+| Verbosity system | identical | identical | identical (stderr handles ANSI; guard for legacy consoles) |
+| `doctor` checks | torsocks + firewall-rule checks + `/run/torshim` | proxy-env statement, networksetup read-back for sysproxy | registry read-back for sysproxy, `torshim.exe` aware |
+| `status --verify` | identical (socks5h probe) | identical | identical |
+| `newnym` | control client (same on all) | same | same |
+| `shellenv` / `completion` | bash/zsh/fish | bash/zsh/fish | bash (Git Bash), pwsh export via `--shell` |
+| `--isolate` | torsocks explicit creds (replaces `IsolatePID`) | creds in socks5h URL | creds in socks5h URL |
+| `bridge` | identical (PT binary detection on PATH) | brew-installed lyrebird paths | Tor Browser `lyrebird.exe` path discovery |
+| `circuits` / `--watch` | identical | identical | identical |
+| `--set` / `--exit` | identical (`tor --verify-config` gate) | same | same |
+| System-proxy backend | not needed (transparent backend exists) | `networksetup` per active service, snapshot/restore | HKCU registry snapshot/export, WinINET refresh |
+
+## 18. Acceptance gates and test matrix for this pass
+
+Inherits the full section 9 matrix; adds:
+
+- **Verbose parity**: run the entire existing suite twice (default and
+  with `-vv`) asserting identical exit codes and JSON payloads (G5).
+- **Format stability**: golden tests for the log line grammar and the
+  terminal verdict line (not timestamps).
+- **`doctor`**: hermetic checks against fake control/SOCKS listeners
+  (pass, fail, and timeout paths); `--json` schema test; never
+  mutates (assert state dir untouched after run).
+- **`status --verify`**: fake SOCKS endpoint returning `IsTor:true`,
+  `IsTor:false`, and unreachable; verdict mapping table test; no
+  network in hermetic CI (probe URL injection).
+- **`newnym`**: fake control server asserts `SIGNAL NEWNYM` is sent
+  exactly once, rate-limit warning path, exit 3 without auth.
+- **`bridge`**: managed-key rejection, malformed line rejection,
+  missing PT binary fail-closed at launch, rendered torrc passes
+  `tor --verify-config`.
+- **`--isolate`**: generated conf and URL carry per-session creds;
+  coverage note preserved; isolation-unconfirmable path warns.
+- **`shellenv`**: no side effects (no tor spawned), exit 3 with
+  remediation when no persistent instance exists.
+- **Completion**: emitted scripts pass `bash -n`; man page still
+  renders.
+- **`connect --backend proxy`** (if scheduled): snapshot/restore
+  round-trip hermetic tests mirroring the Linux syswide fake-runner
+  discipline; off-Linux default `connect` still exits 4.
+- **Per-OS real-user passes**: `test-linux`, `test-macos`,
+  `test-windows` execute every command, flag, mode, and error path
+  natively and report per platform (Owner's ordered workflow).
+- **Performance ledger**: Builder records G2 binary size and G3/G4
+  timings before and after in `decisions/builder/` (empirical ledger).
+
+## 19. Handoff notes to the Architect
+
+- Suggested phase slicing (capability-driven names, numeric prefixes
+  for order): (1) Diagnostics and honesty surface: verbosity system,
+  `doctor`, `status --verify`, `--help` exit-code fix; (2) Workflow
+  verbs: `newnym`, `shellenv`, completions, `--isolate`, structured
+  errors; (3) Network features: `bridge`, `circuits`/`--watch`,
+  `--set`/`--exit`; (4) Platform system-proxy backend behind
+  `connect --backend proxy`. Each phase references `Refs #387`; the
+  epic closes only after per-OS real-user passes, green tri-OS CI,
+  Evaluator at least 9.8, and the website refresh.
+- **Ordering is binding**: website updates happen after the CLI and
+  per-OS testing are final (Owner directive), then the Curator keeps
+  `tor-cli/index.html`, README, and `docs/` in one consistent view.
+- Extend, never rename, the existing `status --json` keys (Tester
+  contract tests pin them); new fields are additive.
+- Keep the exit-code table and the trademark subtitle on every new
+  surface (help, completion headers, man page, doctor output footer).
+- New tests must carry per-OS honest branches so the CI skip list does
+  not grow (load-bearing skips stay exactly as documented in
+  `limitations.md`).
+- Watch item: `--help` exit-code fix (P0.4) touches a pinned Tester
+  contract; disclose the test update in the PR body.
+- Budget realism: P0 is small (days), P1 items are independent and can
+  land as separate phase PRs; reject any phase that adds a dependency.
+
+## 20. Sources for this pass
+
+Tor control-spec (commands, events, isolation flags) and tor man page
+(`SocksPort` isolation, `TestSocks`, `SafeSocks`, `--list-torrc-options`,
+`--verify-config`); proposal 171 (stream isolation); torsocks 2.5.0 and
+proxychains-ng 4.17 man pages and issue trackers; nyx site and GitHub
+issues; Arti CLI reference and GitLab issues #2725 #2726 #2678 #2569
+#735 #1581; Whonix onion-grater documentation; Tails/uwt and
+onioncircuits; torbrowser-launcher; onionshare CLI; mullvad CLI docs;
+gh CLI manual (exit codes, formatting, completion); clig.dev guidelines;
+curl/ssh/kubectl verbosity conventions; gost and cloudflared issues;
+HN items 25602260 and 40098606; Reddit r/TOR threads; Tor Forum thread
+16360; Tor support docs (check-for-leaks, kill switch); check.torproject
+API (`/api/ip`); `limitations.md` and `threat-model.md` in this
+repository; Auditor field report 2026-09-24.
 
 - Dr. Mob, the Researcher
