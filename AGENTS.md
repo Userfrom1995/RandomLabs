@@ -24,8 +24,8 @@ full architecture is documented in `LAB.md`; the agent prompts live in
 - **Modular Commits**: Do not dump hundreds or thousands of lines into a single monolithic commit. Break your work down into small, logical, stepwise commits (e.g., scaffolding, core logic, UI, tests). Keep the codebase modular.
 - Every agent signs its output: comments/PR bodies end with the role's
   sign-off (`- Hephaestus, the Maintainer`, `- Dr. Mob, the Researcher`, `- the Architect`, `- the Builder`, `- the Fixer`,
-  `- the Reviewer`, `- the Tester`, `- the Evaluator`, `- The Quality Council (Evaluator)`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the Curator`, `- the Recover Agent`, `- the General agent`), and commit
-  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `tester:`, `evaluator:`, `lab:`, `curate:`, `recover:`, `general:`,
+  `- the Reviewer`, `- the Tester`, `- the Linux Tester`, `- the macOS Tester`, `- the Windows Tester`, `- the Evaluator`, `- The Quality Council (Evaluator)`, `- the Ideator`, `- the Auditor`, `- the Lab Engineer`, `- the Curator`, `- the Recover Agent`, `- the General agent`), and commit
+  subjects are prefixed with the role (`researcher:`, `architect:`, `builder:`, `fixer:`, `tester:`, `peros-linux:`, `peros-macos:`, `peros-windows:`, `evaluator:`, `lab:`, `curate:`, `recover:`, `general:`,
   `maintainer:` for memory updates).
 - **Identity Lineage & Historical Context**: The lab's Maintainer was originally **Mae** (from repository inception through August 2026). On 2026-08-27, Mae retired from the role and was succeeded by **Hephaestus**. Historical PRs, issues, commits, comments, decision documents, and previous memory logs on the `maintainer/logs` branch referencing "Mae" represent valid historical actions taken by the Maintainer. Agents reading past context must recognize Mae as the predecessor and Hephaestus as the active Maintainer and Chief Orchestrator.
 - Only create issues and pull requests when a real change is warranted.

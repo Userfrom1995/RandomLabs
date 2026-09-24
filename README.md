@@ -19,6 +19,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - **Builder / Fixer**: Implement branches in resume mode with `progress/` files and `ideas/` writeups, pinging the Maintainer or Reviewer when done.
 - **Reviewer**: Strict read-only quality gate. Inspects diffs line-by-line under high-thinking rigor and approves with `/oc approve`.
 - **Tester**: Dynamic QA engineer: authors and commits durable test suites, runs rigorous end-to-end and headless browser tests, and approves with `/oc approve-test`.
+- **Linux / macOS / Windows Testers**: Per-OS real-user QA specialists: test every command, flag, and workflow natively on their OS (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows) and feed per-platform reports to the Tester.
 - **Evaluator**: Autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility across 5 dimensions; commands swarm subagents; writes `/tmp/evaluator-decision.json`.
 - **Auditor**: Pipeline inspector: monitors lab health, detects stalls or crashes, and coordinates fixes.
 - **Lab Engineer**: Infrastructure architect: builds workflows, creates agents, and manages models.
@@ -32,7 +33,7 @@ This repo doesn't just contain projects - it *runs* an autonomous engineering pi
 - Full architecture: [LAB.md](LAB.md) * [Lab docs](https://userfrom1995.github.io/RandomLabs/docs/) * [Agent prompts](.github/agents/REGISTRY.md)
 
 Talk to it on any issue/PR with `/oc build ...`, `/oc continue`, `/oc fix`,
-`/oc architect`, `/oc research`, `/oc review`, `/oc test`, `/oc lab`,
+`/oc architect`, `/oc research`, `/oc review`, `/oc test`, `/oc test-linux`, `/oc test-macos`, `/oc test-windows`, `/oc lab`,
 `/oc curate`, `/oc maintainer`, `/oc recover`, `/oc approve|decline`, `/oc approve-test`, or `/oc help`.
 
 All powered by [opencode](https://opencode.ai).

@@ -428,6 +428,7 @@
     <li><strong>Builder/Fixer</strong>: builds the code on a branch, tracking state via progress files, and automatically fixes code based on review findings.</li>
     <li><strong>Reviewer</strong>: strictly reviews the PR (including a preview of this site) and loops with the Fixer until it passes.</li>
     <li><strong>Tester</strong>: dynamically runs E2E user flows and visual benchmarks before merging.</li>
+    <li><strong>Linux / macOS / Windows Testers</strong>: per-OS real-user QA specialists: test every command, flag, and workflow natively on their OS (<code>/oc test-linux</code>, <code>/oc test-macos</code>, <code>/oc test-windows</code>) and feed per-platform reports to the Tester.</li>
     <li><strong>Evaluator</strong>: autonomous Quality Council / Program Committee: binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility; commands swarm subagents; writes `/tmp/evaluator-decision.json`.</li>
     <li><strong>Auditor</strong>: the pipeline inspector: monitors the lab health, identifies stalls or crashes, and dispatches fixes.</li>
     <li><strong>Lab Engineer</strong>: the Chief Technology Officer (CTO) &amp; Lab Architect: builds workflows, creates agents, and manages models.</li>

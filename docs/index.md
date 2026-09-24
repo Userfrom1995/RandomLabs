@@ -34,6 +34,7 @@ lab that maintains the whole repository).
   code-first (`file:line` + corrected code); it approves with `/oc approve`.
 - **The Tester** - QA & Performance Engineer. Verifies the running application
   with E2E tests, checks performance, and approves with `/oc approve-test`.
+- **The Linux / macOS / Windows Testers** - per-OS real-user QA specialists. Test every command, flag, and workflow natively on their OS (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows) and feed per-platform reports to the Tester.
 - **The Evaluator** - Autonomous Quality Council / Program Committee. Binding quality gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility across 5 dimensions; commands swarm subagents (visual Playwright, scientific proof, CLI execution); writes `/tmp/evaluator-decision.json`.
 - **The Auditor** - pipeline inspector. Actively monitors the lab health, identifies stalled/looping agents, and creatively devises solutions to infrastructure bugs, escalating to the Maintainer.
  - **The Lab Engineer** - the Chief Technology Officer (CTO) & Lab Architect. Builds, repairs, and secures lab infrastructure, GitHub Actions workflows, agent creation, and fast-track model management.
