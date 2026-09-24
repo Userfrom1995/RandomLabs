@@ -2,7 +2,7 @@ name: maintainer
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/20 * * * *"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -22,7 +22,7 @@ on:
   issues:
     types: [opened]
   pull_request:
-    types: [opened]
+    types: [opened, closed]
   workflow_run:
     # Failure/crash summon. GitHub REQUIRES a non-empty `workflows:` list
     # here (an omitted list is an invalid workflow file that disables this
@@ -106,6 +106,7 @@ jobs:
               "PR_TITLE: \(.pull_request.title // "" // "")",
               "PR_HEAD: \(.pull_request.head.sha // "" // "")",
               "PR_HEAD_REF: \(.pull_request.head.ref // "" // "")",
+              "PR_MERGED: \(.pull_request.merged // false)",
               "PR_AUTHOR: \(.pull_request.user.login // .issue.user.login // "" // "")",
               "PR_BODY: \(.pull_request.body // "" // "")",
               "COMMENT_AUTHOR: \(.comment.user.login // "" // "")",
