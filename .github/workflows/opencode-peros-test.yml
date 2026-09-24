@@ -1,0 +1,273 @@
+name: opencode-peros-test
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: opencode-peros-test-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  test-linux:
+    if: startsWith(github.event.comment.body, '/oc test-linux') || startsWith(github.event.comment.body, '/opencode test-linux')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    concurrency:
+      group: opencode-peros-linux-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Get target ref
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          num="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+          else
+            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            [ -z "$head_ref" ] && head_ref="main"
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "Target ref: $head_ref"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Linux Tester"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run Linux tester agent
+        id: test
+        continue-on-error: true
+        timeout-minutes: 90
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/muse-spark-1.3-contributor-free
+          use_github_token: true
+          prompt: |
+            You are the Linux Tester of the Random lab, triggered by "/oc test-linux" on this issue/PR.
+
+            READ FIRST: `.github/agents/tester-linux.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding): test like a real Linux end user (every command, every flag, every major workflow). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The Linux Tester" with prefix "peros-linux:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run, you MUST write the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate). Post ONE plain-text findings comment ending with `- the Linux Tester`. You never post "/oc" triggers yourself.
+
+      - name: Verify test decided, else fail closed
+        id: verify-test
+        if: always()
+        run: |
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Linux tester decision present."
+            exit 0
+          fi
+          echo "::error::Linux tester wrote no decision file; failing closed."
+          exit 1
+
+      - name: Forward Linux tester decision
+        if: always() && steps.verify-test.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          target="${{ github.event.issue.number }}"
+          case "$action" in
+            fix) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Linux tester findings (see report)" || true ;;
+            lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
+            *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
+          esac
+
+  test-macos:
+    if: startsWith(github.event.comment.body, '/oc test-macos') || startsWith(github.event.comment.body, '/opencode test-macos')
+    runs-on: macos-latest
+    timeout-minutes: 120
+    concurrency:
+      group: opencode-peros-macos-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Get target ref
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          num="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+          else
+            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            [ -z "$head_ref" ] && head_ref="main"
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "Target ref: $head_ref"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The macOS Tester"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run macOS tester agent
+        id: test
+        continue-on-error: true
+        timeout-minutes: 90
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/muse-spark-1.3-contributor-free
+          use_github_token: true
+          prompt: |
+            You are the macOS Tester of the Random lab, triggered by "/oc test-macos" on this issue/PR.
+
+            READ FIRST: `.github/agents/tester-macos.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding): test like a real macOS end user (every command, every flag, every major workflow; honest exit 4 for Linux-only modes, never exit 0 with no effect). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The macOS Tester" with prefix "peros-macos:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run, you MUST write the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate). Post ONE plain-text findings comment ending with `- the macOS Tester`. You never post "/oc" triggers yourself.
+
+      - name: Verify test decided, else fail closed
+        id: verify-test
+        if: always()
+        run: |
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "macOS tester decision present."
+            exit 0
+          fi
+          echo "::error::macOS tester wrote no decision file; failing closed."
+          exit 1
+
+      - name: Forward macOS tester decision
+        if: always() && steps.verify-test.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          target="${{ github.event.issue.number }}"
+          case "$action" in
+            fix) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: macOS tester findings (see report)" || true ;;
+            lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
+            *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
+          esac
+
+  test-windows:
+    if: startsWith(github.event.comment.body, '/oc test-windows') || startsWith(github.event.comment.body, '/opencode test-windows')
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    concurrency:
+      group: opencode-peros-windows-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Get target ref
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          set +e
+          num="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          if [ "$is_pr" = "true" ]; then
+            head_ref=$(gh pr view "$num" --repo "${{ github.repository }}" --json headRefName --jq '.headRefName' 2>/dev/null || echo "main")
+          else
+            head_ref=$(gh pr list --repo "${{ github.repository }}" --state open --json number,headRefName --jq '[.[] | select(.headRefName | startswith("opencode/issue'"$num"'-"))] | sort_by(.createdAt) | last | .headRefName' 2>/dev/null || echo "")
+            [ -z "$head_ref" ] && head_ref="main"
+          fi
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
+          echo "Target ref: $head_ref"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          token: ${{ github.token }}
+          ref: ${{ steps.pr-info.outputs.head_ref }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name "The Windows Tester"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clear runtime decision
+        run: rm -f /tmp/random-lab-decision.json
+
+      - name: Run Windows tester agent
+        id: test
+        continue-on-error: true
+        timeout-minutes: 90
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          model: opencode/muse-spark-1.3-contributor-free
+          use_github_token: true
+          prompt: |
+            You are the Windows Tester of the Random lab, triggered by "/oc test-windows" on this issue/PR.
+
+            READ FIRST: `.github/agents/tester-windows.md` - that file IS your complete system prompt; every rule there is binding.
+
+            SAFETY NET (always binding): test like a real Windows end user from Git Bash (every command, every flag, every major workflow; honest exit 4 for Linux-only modes, never exit 0 with no effect; .exe handling, NTFS filename rules, CRLF traps). You NEVER edit production application code. On standard project PRs you may commit per-OS regression tests in test directories as "The Windows Tester" with prefix "peros-windows:". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, .github/scripts/, AGENTS.md, LAB.md, setup.sh, shutdown.sh) you are strictly read-only and must NEVER commit or push. Before ending the run, you MUST write the machine handoff to `/tmp/random-lab-decision.json`: `{"action":"fix"}` (app bug), `{"action":"lab"}` (infra bug), or `{"action":"maintainer"}` (pass or escalate). Post ONE plain-text findings comment ending with `- the Windows Tester`. You never post "/oc" triggers yourself.
+
+      - name: Verify test decided, else fail closed
+        id: verify-test
+        if: always()
+        run: |
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Windows tester decision present."
+            exit 0
+          fi
+          echo "::error::Windows tester wrote no decision file; failing closed."
+          exit 1
+
+      - name: Forward Windows tester decision
+        if: always() && steps.verify-test.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          target="${{ github.event.issue.number }}"
+          case "$action" in
+            fix) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Windows tester findings (see report)" || true ;;
+            lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
+            *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
+          esac

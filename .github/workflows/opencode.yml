@@ -996,6 +996,12 @@ jobs:
       !startsWith(github.event.comment.body, '/opencode maintainer') &&
       !startsWith(github.event.comment.body, '/oc test') &&
       !startsWith(github.event.comment.body, '/opencode test') &&
+      !startsWith(github.event.comment.body, '/oc test-linux') &&
+      !startsWith(github.event.comment.body, '/opencode test-linux') &&
+      !startsWith(github.event.comment.body, '/oc test-macos') &&
+      !startsWith(github.event.comment.body, '/opencode test-macos') &&
+      !startsWith(github.event.comment.body, '/oc test-windows') &&
+      !startsWith(github.event.comment.body, '/opencode test-windows') &&
       !startsWith(github.event.comment.body, '/oc architect') &&
       !startsWith(github.event.comment.body, '/opencode architect') &&
       !startsWith(github.event.comment.body, '/oc research') &&
