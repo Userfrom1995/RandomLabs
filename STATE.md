@@ -1,5 +1,5 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-24T19:19Z (maintainer run 36047396219 - /oc maintainer on #70 at 19:19:43Z, main 90a24916 LIVE, model switch to mimo-v2.6-flash-free RESOLVED)**
+ - **Updated: 2026-09-24T20:32Z (maintainer run 36055598121 - schedule quiet watch, main 90a24916 LIVE, model switch RESOLVED)**
 
 ## STANDING OWNER DIRECTIVES (active)
  - **MODEL SWITCH DIRECTIVE (2026-09-24T07:14:03Z, via #70 `/oc lab mimo-v2.6-flash-free two-knob switch` + reaffirmed 18x to 19:19:43Z):** RESOLVED at `90a24916` - owner requested switch to `mimo-v2.6-flash-free` (verified free via `https://opencode.ai/zen/v1/models` 80/10). Lab landed Mode 2 two-knob switch at `59a8847a` (16 workflow pins + opencode.json model+small_model to `opencode/mimo-v2.6-flash-free`) plus `lab.yml` push-fix at `90a24916` (`git add opencode.json`). Verified live via `gh api contents/opencode.json` and `grep model: .github/workflows/*.yml` 16 pins, Deploy success on 90a2491, 18/18 PASS.
