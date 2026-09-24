@@ -69,7 +69,6 @@ func run(argv []string) int {
 		return exitError
 	}
 	cmd, rest := argv[0], argv[1:]
-	diag.Logf(diag.Info, diag.StageCLI, "command=%q args=%q", cmd, rest)
 	// Bare `torshim <app> [args]`: everything is the app.
 	if !isCommand(cmd) {
 		return cmdRun(argv)
@@ -210,6 +209,13 @@ func flagsFailed(fs *flag.FlagSet, err error, usage func(io.Writer)) int {
 // warn unless logging was configured explicitly).
 func applyDiag(jsonMode bool) error {
 	return diag.Apply(diag.Options{JSON: jsonMode})
+}
+
+// logCommand emits the Owner's "command and flags parsed" line. It
+// must run AFTER the command's applyDiag so a --json run's log-level
+// drop swallows it and stdout stays payload-only.
+func logCommand(name string, args []string) {
+	diag.Logf(diag.Info, diag.StageCLI, "command=%q args=%q", name, args)
 }
 
 // usageRun is the `torshim run` help body.
@@ -396,6 +402,7 @@ func cmdRun(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	logCommand("run", args)
 	if len(rest) == 0 {
 		fmt.Fprintln(os.Stderr, "torshim run: no application given")
 		usageRun(os.Stderr)
@@ -458,6 +465,7 @@ func cmdShell(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	logCommand("shell", args)
 	if len(rest) != 0 {
 		fmt.Fprintln(os.Stderr, "torshim shell: takes no arguments")
 		usageShell(os.Stderr)
@@ -579,6 +587,7 @@ func cmdStatus(args []string) int {
 	if *socksAddr == "" {
 		*socksAddr = os.Getenv("TORSHIM_SOCKS")
 	}
+	logCommand("status", args)
 	diag.Logf(diag.Info, diag.StageStatus, "flags json=%v verify=%v control=%q socks=%q state_dir=%q",
 		*asJSON, *verify, *ctlAddr, *socksAddr, *sysDir)
 	rep := status.Collect(status.Options{ControlAddr: *ctlAddr, SocksAddr: *socksAddr, SystemStateDir: *sysDir})
@@ -653,6 +662,7 @@ func cmdDoctor(args []string) int {
 	if *socksAddr == "" {
 		*socksAddr = os.Getenv("TORSHIM_SOCKS")
 	}
+	logCommand("doctor", args)
 	diag.Logf(diag.Info, diag.StageDoctor, "flags deep=%v json=%v control=%q socks=%q check_url=%q",
 		*deep, *asJSON, *ctlAddr, *socksAddr, *checkURL)
 	rep := doctor.Run(doctor.Options{
@@ -699,6 +709,7 @@ func cmdVersion(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	logCommand("version", args)
 	info := version.Collect(*torBin)
 	fmt.Printf("torshim %s\n", info.Wrapper)
 	fmt.Printf("platform: %s\n", info.Platform)
@@ -751,6 +762,7 @@ func cmdConnect(args []string) int {
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("connect")
 	}
+	logCommand("connect", args)
 	diag.Logf(diag.Info, diag.StageSyswide, "connect: backend=%q force=%v trans_port=%d state_dir=%q",
 		o.backendName, o.force, o.transPort, o.stateDir)
 	rep, err := syswide.Connect(syswide.Options{
@@ -861,6 +873,7 @@ func cmdDisconnect(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	logCommand("disconnect", args)
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("disconnect")
 	}
@@ -905,6 +918,7 @@ func cmdRepair(args []string) int {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	logCommand("repair", args)
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("repair")
 	}

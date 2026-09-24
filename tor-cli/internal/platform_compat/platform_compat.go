@@ -14,6 +14,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -119,20 +120,15 @@ func probeDependency(name, overridePath string, o Options) Dependency {
 	return d
 }
 
-// ParseVersionLine extracts the most version-shaped token from a
-// binary's version output (e.g. "Tor version 0.4.8.12 (git-...)" or
-// "0.4.8.12"). Returns "" when nothing version-shaped appears.
+// versionRe matches the first version-shaped run in a banner, so
+// "obfs4proxy-0.0.14" and "Tor version 0.4.8.12 (git-...)" both parse.
+var versionRe = regexp.MustCompile(`\d+\.\d+(?:\.\d+)*`)
+
+// ParseVersionLine extracts the first version-shaped token from a
+// binary's version output. Returns "" when nothing version-shaped
+// appears.
 func ParseVersionLine(out string) string {
-	best := ""
-	for _, f := range strings.Fields(out) {
-		f = strings.Trim(f, ",;()[]")
-		if len(f) >= 3 && f[0] >= '0' && f[0] <= '9' && strings.Contains(f, ".") {
-			if strings.Count(f, ".") >= strings.Count(best, ".") {
-				best = f
-			}
-		}
-	}
-	return best
+	return versionRe.FindString(out)
 }
 
 // PredatesTor04 reports whether a parsed tor version predates 0.4.x

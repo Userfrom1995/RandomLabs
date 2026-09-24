@@ -182,7 +182,7 @@ func (l *Logger) Logf(lv Level, stage Stage, format string, args ...any) {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
-	line := fmt.Sprintf("%s %-5s %s: %s", l.now().Format("15:04:05.000"), lv.tag(), stage, msg)
+	line := fmt.Sprintf("%s %s %s: %s", l.now().Format("15:04:05.000"), lv.tag(), stage, msg)
 	l.emitLocked(line, lv)
 }
 
@@ -317,9 +317,17 @@ func (s *flagState) reset() {
 type stackValue struct {
 	s     *flagState
 	quiet bool
+	// n is how many -v pushes one flag occurrence means (1 for -v,
+	// 2 for -vv, 3 for -vvv; ignored for -q).
+	n int
 }
 
-func (v *stackValue) String() string { return "" }
+func (v *stackValue) String() string {
+	if v == nil || v.s == nil {
+		return ""
+	}
+	return ""
+}
 
 // IsBoolFlag makes "-v" legal without a value (and "-v=false" a no-op,
 // matching Go bool-flag conventions).
@@ -334,7 +342,9 @@ func (v *stackValue) Set(x string) error {
 	if v.quiet {
 		v.s.pushQuiet()
 	} else {
-		v.s.pushV()
+		for i := 0; i < v.n; i++ {
+			v.s.pushV()
+		}
 	}
 	return nil
 }
@@ -342,6 +352,9 @@ func (v *stackValue) Set(x string) error {
 type levelValue struct{ s *flagState }
 
 func (v *levelValue) String() string {
+	if v == nil || v.s == nil {
+		return ""
+	}
 	v.s.mu.Lock()
 	defer v.s.mu.Unlock()
 	return v.s.explicit
@@ -361,6 +374,9 @@ func (v *levelValue) Set(x string) error {
 type fileValue struct{ s *flagState }
 
 func (v *fileValue) String() string {
+	if v == nil || v.s == nil {
+		return ""
+	}
 	v.s.mu.Lock()
 	defer v.s.mu.Unlock()
 	return v.s.logFile
@@ -382,10 +398,16 @@ func (v *fileValue) Set(x string) error {
 // command already defines are left untouched.
 func Register(fs *flag.FlagSet) {
 	if fs.Lookup("v") == nil {
-		fs.Var(&stackValue{s: fsState}, "v", "verbose: -v info, -vv debug, -vvv trace (stackable)")
+		fs.Var(&stackValue{s: fsState, n: 1}, "v", "verbose: -v info, -vv debug, -vvv trace (stackable)")
+	}
+	if fs.Lookup("vv") == nil {
+		fs.Var(&stackValue{s: fsState, n: 2}, "vv", "verbose twice: debug level")
+	}
+	if fs.Lookup("vvv") == nil {
+		fs.Var(&stackValue{s: fsState, n: 3}, "vvv", "verbose thrice: trace level")
 	}
 	if fs.Lookup("q") == nil {
-		fs.Var(&stackValue{s: fsState, quiet: true}, "q", "errors only")
+		fs.Var(&stackValue{s: fsState, quiet: true, n: 1}, "q", "errors only")
 	}
 	if fs.Lookup("log-level") == nil {
 		fs.Var(&levelValue{s: fsState}, "log-level", "quiet|error|warn|info|debug|trace (wins over -v/-q)")

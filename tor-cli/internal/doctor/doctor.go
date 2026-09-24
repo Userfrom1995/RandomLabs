@@ -363,7 +363,10 @@ func (e *env) checkEnvHygiene() Check {
 	active, activeSet := os.LookupEnv("TORSHIM_ACTIVE")
 	socksEnv := os.Getenv("TORSHIM_SOCKS")
 	for _, kv := range os.Environ() {
-		k, _, _ := strings.Cut(kv, "=")
+		k, v, _ := strings.Cut(kv, "=")
+		if v == "" {
+			continue // an empty proxy var shadows nothing
+		}
 		for _, p := range proxyKeys {
 			if k == p {
 				shadowed = append(shadowed, k)
