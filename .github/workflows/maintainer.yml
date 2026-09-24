@@ -428,7 +428,7 @@ jobs:
           BOT_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import json, os, subprocess
+          import json, os, subprocess, time
 
           repo = os.environ["GITHUB_REPOSITORY"]
           owner = os.environ["GITHUB_REPOSITORY_OWNER"]
@@ -469,6 +469,7 @@ jobs:
                     "may have stopped the agent before it wrote its output files. No /oc triggers were posted.")
 
           posted = set()
+          sweep_failed = False
           for d in decisions:
               if not isinstance(d, dict):
                   continue
@@ -501,7 +502,7 @@ jobs:
               # must go out with the owner credential. Handled here (never
               # via an agent-run gh call, never via /oc comment) because no
               # agent env may hold the PAT.
-              SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "poolduel-m9", "poolduel-m10-soak", "postformer-cpu-train")
+              SWEEP_ALLOWLIST = ("poolduel-m1", "poolduel-m2", "poolduel-m9", "poolduel-m10-soak", "postformer-cpu-train", "tor-cli")
               if action == "sweep":
                   wf = d.get("workflow", "")
                   ref = d.get("ref", "") or "main"
@@ -512,19 +513,58 @@ jobs:
                       continue
                   if wf not in SWEEP_ALLOWLIST:
                       print(f"::error::Refusing sweep dispatch for '{wf}': not in allowlist {list(SWEEP_ALLOWLIST)} (route new sweep workflows via lab first)")
+                      sweep_failed = True
                       continue
                   if not isinstance(inputs, dict):
                       print(f"::error::sweep 'inputs' must be an object for '{wf}'")
+                      sweep_failed = True
                       continue
                   cmd = ["gh", "workflow", "run", wf, "--repo", repo, "--ref", ref]
                   for k, v in inputs.items():
                       cmd += ["-f", f"{k}={v}"]
                   r = subprocess.run(cmd, capture_output=True, text=True, check=False)
-                  if r.returncode == 0:
-                      print(f"dispatched sweep '{wf}' on ref '{ref}'" + (f" inputs {inputs}" if inputs else " (defaults)"))
+                  if r.returncode != 0:
+                      print(f"::error::Failed to dispatch sweep '{wf}': {r.stderr.strip()}")
+                      sweep_failed = True
+                      continue
+                  print(f"dispatched sweep '{wf}' on ref '{ref}'" + (f" inputs {inputs}" if inputs else " (defaults)"))
+                  # Run-existence verification (issue #399): a dispatch that
+                  # emits no run must fail loudly instead of silently
+                  # blocking closure. Resolve the ref to its head SHA, then
+                  # poll for a matching workflow_dispatch run.
+                  expected_sha = ""
+                  rr = subprocess.run(["gh", "api", f"repos/{repo}/git/ref/heads/{ref}", "--jq", ".object.sha"], capture_output=True, text=True, check=False)
+                  if rr.returncode == 0 and rr.stdout.strip():
+                      expected_sha = rr.stdout.strip().lower()
+                  elif len(ref) >= 4 and all(c in "0123456789abcdef" for c in ref.lower()):
+                      expected_sha = ref.lower()
+                  def _sweep_match(run):
+                      if run.get("event") != "workflow_dispatch":
+                          return False
+                      if expected_sha:
+                          return run.get("headSha", "").lower().startswith(expected_sha[:12])
+                      return run.get("headBranch", "") == ref
+                  found = False
+                  for attempt in range(6):
+                      time.sleep(30)
+                      lr = subprocess.run(["gh", "run", "list", "--repo", repo, "--workflow", wf, "--event", "workflow_dispatch", "--limit", "10", "--json", "databaseId,headSha,headBranch,event,createdAt"], capture_output=True, text=True, check=False)
+                      try:
+                          runs = json.loads(lr.stdout) if lr.returncode == 0 else []
+                      except Exception:
+                          runs = []
+                      for run in runs:
+                          if _sweep_match(run):
+                              print(f"verified sweep '{wf}' run {run.get('databaseId')} on {(run.get('headSha') or '')[:12]} (attempt {attempt + 1})")
+                              found = True
+                              break
+                      if found:
+                          break
+                      print(f"sweep '{wf}' run not yet visible (attempt {attempt + 1}/6)")
+                  if found:
                       posted.add(skey)
                   else:
-                      print(f"::error::Failed to dispatch sweep '{wf}': {r.stderr.strip()}")
+                      print(f"::error::Sweep '{wf}' dispatched on ref '{ref}' but no workflow_dispatch run on {(expected_sha[:12] if expected_sha else ref)} appeared within 3m (dispatch misfire or allowlist drift)")
+                      sweep_failed = True
                   continue
 
               if not target:
@@ -594,6 +634,10 @@ jobs:
                       print(f"posted '{body}' on #{target}")
                   else:
                       print(f"::error::Failed to post '{body}' on #{target}: {r.stderr.strip()}")
+
+          if sweep_failed:
+              print("::error::Sweep dispatch or run-existence verification failed (see errors above); failing loudly so the missing-run gap pages triage instead of silently blocking closure")
+              raise SystemExit(1)
           PY
 
       - name: PAT-backed merge for approved workflow-touching PRs
