@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="torshim: a lightweight cross-platform Tor CLI. Route one app through Tor, open a Tor-routed shell, or send a whole Linux system through Tor with fail-closed guarantees and honest status.">
+<meta name="theme-color" content="#0a0d13">
+<link rel="icon" href="data:,">
+<title>torshim: route anything through Tor</title>
+<style>
+  :root {
+    --bg: #0a0d13;
+    --bg-raise: #0e121b;
+    --panel: #131826;
+    --panel-2: #171d2d;
+    --border: #263042;
+    --border-soft: #1d2534;
+    --text: #dbe1ee;
+    --muted: #8b94aa;
+    --amber: #f2b134;
+    --amber-deep: #c98d1c;
+    --teal: #4fc1a0;
+    --violet: #9d7bd8;
+    --danger: #e06c6c;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --radius: 12px;
+    --maxw: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation: none !important; transition: none !important; }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--teal); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  code, kbd, pre { font-family: var(--mono); }
+  code {
+    background: #0d1119;
+    border: 1px solid var(--border-soft);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 0.88em;
+  }
+  kbd {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: 0.85em;
+    color: var(--text);
+  }
+
+  /* ---------- nav ---------- */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 12px 20px;
+    background: rgba(10, 13, 19, 0.92);
+    border-bottom: 1px solid var(--border-soft);
+    backdrop-filter: blur(8px);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--text);
+    font-size: 1.02rem;
+  }
+  .brand:hover { text-decoration: none; }
+  .brand svg { display: block; }
+  .nav-links {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .nav-links a {
+    color: var(--muted);
+    font-size: 0.92rem;
+    padding: 6px 11px;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--panel); text-decoration: none; }
+  .nav-links a.cta { color: #12161f; background: var(--amber); font-weight: 600; }
+  .nav-links a.cta:hover { background: #ffc44d; }
+
+  /* ---------- hero ---------- */
+  header.hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-soft);
+    background:
+      radial-gradient(900px 420px at 78% -10%, rgba(157, 123, 216, 0.16), transparent 60%),
+      radial-gradient(700px 380px at 12% 0%, rgba(242, 177, 52, 0.12), transparent 60%),
+      linear-gradient(180deg, var(--bg-raise), var(--bg));
+  }
+  .hero-inner {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 72px 24px 64px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 44px;
+    align-items: center;
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .chip {
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    background: rgba(19, 24, 38, 0.7);
+    border-radius: 999px;
+    padding: 3px 11px;
+  }
+  .chip.hot { color: var(--amber); border-color: rgba(242, 177, 52, 0.45); }
+  .chip.ok { color: var(--teal); border-color: rgba(79, 193, 160, 0.4); }
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(2.6rem, 6vw, 3.7rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+  h1 .dot { color: var(--amber); }
+  .tagline {
+    margin: 0 0 16px;
+    font-size: clamp(1.1rem, 2.4vw, 1.35rem);
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .lede { margin: 0 0 26px; color: var(--muted); max-width: 34rem; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 22px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); text-decoration: none; }
+  .btn-primary { background: var(--amber); color: #14181f; }
+  .btn-primary:hover { background: #ffc44d; }
+  .btn-ghost { background: var(--panel); color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--teal); }
+  .disclaimer {
+    font-size: 0.82rem;
+    color: var(--muted);
+    border-left: 3px solid var(--violet);
+    padding: 6px 0 6px 12px;
+    max-width: 34rem;
+  }
+  .disclaimer strong { color: var(--text); font-weight: 600; }
+
+  /* ---------- terminal ---------- */
+  .term {
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+    min-width: 0;
+  }
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 14px;
+    background: #0d1119;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .term-bar .b { width: 11px; height: 11px; border-radius: 50%; }
+  .b.r { background: #e06c6c; } .b.y { background: #f2b134; } .b.g { background: #4fc1a0; }
+  .term-bar .title {
+    margin-left: 8px;
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .term pre {
+    margin: 0;
+    padding: 18px 18px 20px;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: #c9d2e4;
+  }
+  .term .ps { color: var(--amber); }
+  .term .cmd { color: #eef2fa; }
+  .term .ok { color: var(--teal); }
+  .term .dim { color: #62708a; }
+  .term .vio { color: var(--violet); }
+
+  /* ---------- sections ---------- */
+  main { max-width: var(--maxw); margin: 0 auto; padding: 12px 24px 40px; }
+  section { padding-top: 56px; }
+  .kicker {
+    font-size: 0.76rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin: 0 0 8px;
+    font-weight: 700;
+  }
+  h2 {
+    margin: 0 0 10px;
+    font-size: clamp(1.5rem, 3vw, 1.9rem);
+    letter-spacing: -0.02em;
+  }
+  .sub { color: var(--muted); margin: 0 0 26px; max-width: 46rem; }
+  h3 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: -0.01em; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    min-width: 0;
+  }
+  .card.accent-amber { border-top: 3px solid var(--amber); }
+  .card.accent-teal { border-top: 3px solid var(--teal); }
+  .card.accent-violet { border-top: 3px solid var(--violet); }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 0.94rem; }
+  .card p:last-child { margin-bottom: 0; }
+  .os-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .os {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    padding: 2px 9px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--bg-raise);
+  }
+  .os.full { color: var(--teal); border-color: rgba(79, 193, 160, 0.45); }
+  .os.partial { color: var(--amber); border-color: rgba(242, 177, 52, 0.45); }
+  .os.no { color: var(--danger); border-color: rgba(224, 108, 108, 0.4); }
+
+  /* ---------- tables ---------- */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 560px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  th {
+    background: var(--panel-2);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  td code { white-space: nowrap; }
+  .verdict { font-weight: 600; white-space: nowrap; }
+  .verdict.yes { color: var(--teal); }
+  .verdict.limited { color: var(--amber); }
+  .verdict.no { color: var(--danger); }
+
+  /* ---------- code blocks ---------- */
+  .codeblock {
+    position: relative;
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 0 0 16px;
+    overflow: hidden;
+  }
+  .codeblock header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #0d1119;
+    border-bottom: 1px solid var(--border-soft);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .codeblock pre {
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    color: #d3daea;
+  }
+  .codeblock .c { color: #62708a; }
+  .copy-btn {
+    font-family: var(--sans);
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 3px 11px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .copy-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .copy-btn.done { border-color: var(--teal); color: var(--teal); }
+
+  /* ---------- steps ---------- */
+  ol.flow { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 12px; }
+  ol.flow li {
+    counter-increment: step;
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px 14px 60px;
+    color: var(--muted);
+    font-size: 0.94rem;
+  }
+  ol.flow li::before {
+    content: counter(step);
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(242, 177, 52, 0.12);
+    border: 1px solid rgba(242, 177, 52, 0.5);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+  ol.flow li strong { color: var(--text); }
+
+  /* ---------- command list ---------- */
+  .cmds { display: grid; gap: 10px; }
+  .cmd-row {
+    display: grid;
+    grid-template-columns: minmax(230px, 340px) 1fr;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    align-items: baseline;
+  }
+  .cmd-row code { font-size: 0.86rem; color: var(--amber); background: #0d1119; white-space: nowrap; }
+  .cmd-row span { color: var(--muted); font-size: 0.92rem; }
+  @media (max-width: 640px) {
+    .cmd-row { grid-template-columns: 1fr; gap: 4px; }
+    .term pre, .codeblock pre { white-space: pre-wrap; word-break: break-word; }
+  }
+
+  /* ---------- exit codes ---------- */
+  .exits { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .exit {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+  }
+  .exit b { display: block; font-family: var(--mono); font-size: 1.3rem; color: var(--amber); }
+  .exit span { font-size: 0.8rem; color: var(--muted); }
+
+  /* ---------- docs ---------- */
+  .doc-card { display: flex; flex-direction: column; gap: 6px; }
+  .doc-card a.doc-title { font-weight: 700; font-size: 1.02rem; color: var(--text); }
+  .doc-card a.doc-title:hover { color: var(--teal); text-decoration: none; }
+  .doc-card .kind {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--violet);
+  }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--border-soft);
+    margin-top: 64px;
+    padding: 30px 24px 44px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+  footer .foot-links { margin-bottom: 10px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  footer p { margin: 4px 0; }
+
+  @media (max-width: 900px) {
+    .hero-inner { grid-template-columns: 1fr; padding-top: 52px; gap: 32px; }
+    .nav-links a:not(.cta) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Primary">
+  <a class="brand" href="./" aria-label="torshim home">
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="14" fill="none" stroke="#9d7bd8" stroke-width="2" opacity="0.55"/>
+      <circle cx="16" cy="16" r="9.5" fill="none" stroke="#f2b134" stroke-width="2" opacity="0.85"/>
+      <circle cx="16" cy="16" r="4.5" fill="#f2b134"/>
+      <path d="M16 2v6M16 24v6M2 16h6M24 16h6" stroke="#4fc1a0" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    torshim
+  </a>
+  <div class="nav-links">
+    <a href="#modes">Modes</a>
+    <a href="#commands">Commands</a>
+    <a href="#platform">Platform</a>
+    <a href="#docs">Docs</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/tor-cli">GitHub</a>
+    <a class="cta" href="#start">Get started</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="chip-row">
+        <span class="chip hot">v0.4.0</span>
+        <span class="chip">Go, stdlib only</span>
+        <span class="chip ok">Fail-closed by design</span>
+        <span class="chip">Linux / macOS / Windows</span>
+      </div>
+      <h1>torshim<span class="dot">.</span></h1>
+      <p class="tagline">Anything through Tor. One command. No Tor internals to learn.</p>
+      <p class="lede">
+        A lightweight cross-platform Tor CLI. Route a single application through Tor,
+        spawn a Tor-routed shell, or send an entire Linux system through Tor with
+        snapshot-first firewall state and a verify-gated, byte-exact restore.
+        torshim automates the existing <code>tor</code> daemon; it never implements Tor itself.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#start">Quick start</a>
+        <a class="btn btn-ghost" href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/README.md">README</a>
+        <a class="btn btn-ghost" href="#docs">Documentation</a>
+      </div>
+      <p class="disclaimer">
+        <strong>Unofficial.</strong> Not sponsored or endorsed by The Tor Project.
+        <code>Tor</code> is a registered mark of The Tor Project. See
+        <a href="https://www.torproject.org/">torproject.org</a>.
+      </p>
+    </div>
+
+    <div class="term" role="img" aria-label="Terminal session: torshim status reports protected false when no tor answers, sudo torshim connect passes a five-row verify table, and torshim disconnect restores the firewall byte exact.">
+      <div class="term-bar">
+        <span class="b r"></span><span class="b y"></span><span class="b g"></span>
+        <span class="title">fail-closed status, verify-gated connect</span>
+      </div>
+<pre><span class="ps">$</span> <span class="cmd">torshim status</span>
+state: <span class="dim">absent</span>
+running: <span class="dim">false</span>
+mode: <span class="dim">none</span>
+protected: <span class="dim">false</span>
+note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</span>
+
+<span class="ps">$</span> <span class="cmd">sudo torshim connect</span>
+  <span class="ok">[ok]</span> tor-ready         bootstrap 100% + live circuit
+  <span class="ok">[ok]</span> rules-present     nft rules installed
+  <span class="ok">[ok]</span> transport-open    127.0.0.1:9040 accepts
+  <span class="ok">[ok]</span> dns-alive         Tor DNSPort answers
+  <span class="ok">[ok]</span> resolv-untouched  unchanged from snapshot
+<span class="vio">connected:</span> system-wide via nft
+  (backup /run/torshim/backups/20260924T211502Z-9f3ac2)
+
+<span class="ps">$</span> <span class="cmd">torshim disconnect</span>
+<span class="ok">disconnected:</span> rules removed=true firewall restored=true
+  post-verify clean=true</pre>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section id="modes">
+    <p class="kicker">Three modes</p>
+    <h2>Pick your blast radius</h2>
+    <p class="sub">
+      Every mode shares one rule: if Tor is not bootstrapped, not ready, or a route would
+      leak, torshim fails closed with a clear error. It never reports "protected" when it is not.
+    </p>
+    <div class="grid-3">
+      <div class="card accent-amber">
+        <h3>One application</h3>
+        <p>
+          Run a single command through Tor. On Linux the app executes under a fail-closed
+          <code>torsocks</code> shim (static binaries and setuid tools are refused, because
+          they would silently bypass it). On macOS and Windows it runs with a
+          <code>socks5h://</code> proxy environment; every launch prints an honest coverage note.
+        </p>
+        <div class="codeblock">
+          <header><span>per-app</span><button class="copy-btn" type="button" data-copy="torshim curl ifconfig.me">Copy</button></header>
+<pre>torshim curl ifconfig.me
+torshim git pull
+torshim run -- firefox</pre>
+        </div>
+        <div class="os-row">
+          <span class="os full">Linux: torsocks shim</span>
+          <span class="os partial">macOS: proxy env</span>
+          <span class="os partial">Windows: proxy env</span>
+        </div>
+      </div>
+
+      <div class="card accent-teal">
+        <h3>A Tor-routed shell</h3>
+        <p>
+          Open a child shell whose processes route through Tor while the parent shell stays
+          untouched. The child carries the shim environment, a <code>[torshim]</code> prompt
+          prefix, and a coverage banner, so you always know what is and is not covered.
+        </p>
+        <div class="codeblock">
+          <header><span>shell</span><button class="copy-btn" type="button" data-copy="torshim shell">Copy</button></header>
+<pre>torshim shell
+<span class="c"># traffic exits via Tor</span>
+[torshim] $ curl ifconfig.me</pre>
+        </div>
+        <div class="os-row">
+          <span class="os full">Linux</span>
+          <span class="os partial">macOS: proxy env</span>
+          <span class="os partial">Windows: proxy env</span>
+        </div>
+      </div>
+
+      <div class="card accent-violet">
+        <h3>The whole system</h3>
+        <p>
+          Send every TCP exit and DNS query on a Linux box through a private Tor instance:
+          iptables or nft capture rules, a snapshot-first backup of the firewall, a five-row
+          verify suite with automatic rollback, and a byte-exact restore on
+          <code>disconnect</code>. IPv6, non-DNS UDP, and ICMP are blocked for the session,
+          never silently passed.
+        </p>
+        <div class="codeblock">
+          <header><span>system-wide</span><button class="copy-btn" type="button" data-copy="sudo torshim connect">Copy</button></header>
+<pre>sudo torshim connect
+torshim status --json
+torshim disconnect  <span class="c"># restore</span></pre>
+        </div>
+        <div class="os-row">
+          <span class="os full">Linux: iptables / nft</span>
+          <span class="os no">macOS: honest exit 4</span>
+          <span class="os no">Windows: honest exit 4</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="commands">
+    <p class="kicker">Command reference</p>
+    <h2>Every command, in one place</h2>
+    <p class="sub">
+      One binary, nine verbs. Bare <code>torshim &lt;app&gt; [args...]</code> is shorthand
+      for <code>run</code>. Run <code>torshim help</code> for the built-in usage text.
+    </p>
+    <div class="cmds">
+      <div class="cmd-row"><code>torshim &lt;app&gt; [args...]</code><span>Run one application through Tor (same as <code>run</code>). Flags: <code>--tor BIN</code>, <code>--timeout D</code>, <code>--reuse</code>.</span></div>
+      <div class="cmd-row"><code>torshim run -- &lt;app&gt; [args...]</code><span>Explicit form of per-app routing with a separating <code>--</code>.</span></div>
+      <div class="cmd-row"><code>torshim shell</code><span>Open a Tor-routed child shell; the parent shell is unaffected.</span></div>
+      <div class="cmd-row"><code>sudo torshim connect</code><span>System-wide Tor on Linux. Flags: <code>--backend auto|iptables|nft</code>, <code>--tor-user USER</code>, <code>--trans-port PORT</code>, <code>--state-dir DIR</code>, <code>--force</code>.</span></div>
+      <div class="cmd-row"><code>torshim disconnect</code><span>Stop tor first, then replay the pre-connect snapshot byte-exact and post-verify (needs sudo when a session exists).</span></div>
+      <div class="cmd-row"><code>torshim repair</code><span>Clear stale rules and dead session state; only ever removes torshim-owned rules, never a foreign flush.</span></div>
+      <div class="cmd-row"><code>torshim status [--json]</code><span>Is tor running, bootstrapped, circuit ready, which mode is active, any leak risk? Flags: <code>--control</code>, <code>--socks</code>, <code>--state-dir</code>. Never claims protected when it cannot prove it.</span></div>
+      <div class="cmd-row"><code>torshim version</code><span>Wrapper version plus platform backend, tor, and torsocks versions.</span></div>
+      <div class="cmd-row"><code>torshim help</code><span>Usage text and the platform support summary.</span></div>
+    </div>
+
+    <h3 style="margin-top:26px">Exit codes</h3>
+    <p class="sub" style="margin-bottom:14px">Stable across every platform, so scripts can branch on them.</p>
+    <div class="exits">
+      <div class="exit"><b>0</b><span>success</span></div>
+      <div class="exit"><b>1</b><span>runtime or app failure</span></div>
+      <div class="exit"><b>2</b><span>usage error</span></div>
+      <div class="exit"><b>3</b><span>tor not ready (fail closed)</span></div>
+      <div class="exit"><b>4</b><span>unavailable on this platform</span></div>
+    </div>
+  </section>
+
+  <section id="principles">
+    <p class="kicker">Design principles</p>
+    <h2>Fail closed, never fail friendly</h2>
+    <p class="sub">
+      A privacy tool that lies is worse than no tool. Every guarantee below is enforced
+      in code paths, not in marketing copy.
+    </p>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Never falsely claim protection</h3>
+        <p>
+          <code>run</code> and <code>shell</code> refuse to start without a bootstrapped tor
+          (exit 3). <code>connect</code> applies no firewall rule until tor reports
+          bootstrap 100% plus a live circuit, then gates on a five-row verify suite and
+          rolls back on any failure. <code>status</code> reports
+          <code>protected: false</code> for every state it cannot positively confirm:
+          absent, unknown, bootstrapping, stale session, or an unreadable foreign control port.
+        </p>
+      </div>
+      <div class="card">
+        <h3>DNS goes through Tor too</h3>
+        <p>
+          Per-app DNS uses SOCKS5 hostname resolution (<code>socks5h://</code>), so names
+          resolve at the exit, not on your resolver. System-wide DNS is captured by
+          REDIRECT into the Tor DNSPort; <code>/etc/resolv.conf</code> is never rewritten,
+          so DHCP cannot clobber the capture. IPv4 and IPv6 leaks are handled explicitly:
+          IPv6 is blocked for the session rather than routed around.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Reversible by construction</h3>
+        <p>
+          <code>connect</code> snapshots the firewall and resolver state before touching
+          anything. <code>disconnect</code> stops tor first (so redirects blackhole instead
+          of leaking), replays the snapshot byte-exact, and post-verifies that no torshim
+          rules remain. Concurrent connect/disconnect/repair runs serialize on a session
+          lock; stale locks from a crash are reaped.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Honest about what it does not cover</h3>
+        <p>
+          On macOS and Windows, only applications that honor proxy environment variables
+          are covered; the coverage note is printed on every launch because the wrapper
+          cannot see an app that ignores it. Per-app mode refuses static binaries, raw
+          syscalls, and setuid tools, pointing you at system-wide mode instead. The
+          limitations are documented per OS, not glossed over.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <p class="kicker">Under the hood</p>
+    <h2>How a session works</h2>
+    <p class="sub">
+      The same lifecycle backs every mode: a private, supervised tor instance (or a
+      verifiable reused one), a binding readiness gate, and cleanup that survives Ctrl-C.
+    </p>
+    <ol class="flow">
+      <li><strong>Launch a private tor.</strong> A <code>mkdtemp</code> data directory with random loopback Socks, Control, and DNS ports, cookie authentication, and <code>__OwningControllerProcess</code> plus <code>TAKEOWNERSHIP</code>, so a crash exits the owned tor instead of orphaning it. A foreign instance can be reused with <code>--reuse</code>, but never killed.</li>
+      <li><strong>Wait for real readiness.</strong> Bootstrap <code>PROGRESS=100</code> with <code>TAG=done</code> <em>and</em> a live circuit (<code>status/circuit-established == 1</code>), polled within the timeout budget (120 s default).</li>
+      <li><strong>Route.</strong> Per-app: exec under the torsocks shim (Linux) or with <code>socks5h://</code> proxy environment (macOS/Windows). System-wide: install iptables/nft capture rules redirecting TCP and DNS to the transparent proxy port (9040) while rejecting everything else.</li>
+      <li><strong>Verify.</strong> System-wide mode gates on five checks: <code>tor-ready</code>, <code>rules-present</code>, <code>transport-open</code>, <code>dns-alive</code>, <code>resolv-untouched</code>. Any failure rolls the firewall back and exits non-zero.</li>
+      <li><strong>Restore.</strong> On <code>disconnect</code> (or on rollback): stop tor first, replay the snapshot, post-verify, and drop the session state. Ctrl-C during a run stops the owned tor before exiting.</li>
+    </ol>
+  </section>
+
+  <section id="platform">
+    <p class="kicker">Platform support</p>
+    <h2>What works where</h2>
+    <p class="sub">
+      Stated honestly per operating system. Unsupported combinations refuse with exit 4
+      and a pointer to what would be required; they never pretend to succeed.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Capability</th><th>Linux</th><th>macOS</th><th>Windows</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>torshim &lt;app&gt;</code> per-app routing</td>
+            <td><span class="verdict yes">Full</span><br>fail-closed torsocks shim</td>
+            <td><span class="verdict limited">Proxy env</span><br>apps honoring proxy vars</td>
+            <td><span class="verdict limited">Proxy env</span><br>apps honoring proxy vars</td>
+          </tr>
+          <tr>
+            <td><code>torshim shell</code></td>
+            <td><span class="verdict yes">Full</span></td>
+            <td><span class="verdict limited">Proxy env</span></td>
+            <td><span class="verdict limited">Proxy env</span></td>
+          </tr>
+          <tr>
+            <td><code>sudo torshim connect</code> system-wide</td>
+            <td><span class="verdict yes">Full</span><br>iptables or nft, verify-gated</td>
+            <td><span class="verdict no">Refused</span><br>exit 4 (needs tun2socks)</td>
+            <td><span class="verdict no">Refused</span><br>exit 4 (needs WFP/tun2socks)</td>
+          </tr>
+          <tr>
+            <td><code>disconnect</code> / <code>repair</code> with a live session</td>
+            <td><span class="verdict yes">Full</span><br>byte-exact snapshot replay</td>
+            <td><span class="verdict no">Stateless</span><br>exit 4 when no session exists</td>
+            <td><span class="verdict no">Stateless</span><br>exit 4 when no session exists</td>
+          </tr>
+          <tr>
+            <td><code>status</code>, <code>version</code>, <code>help</code></td>
+            <td><span class="verdict yes">Full</span></td>
+            <td><span class="verdict yes">Full</span></td>
+            <td><span class="verdict yes">Full</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:16px">
+      While a system-wide session is active on Linux: all TCP exits through Tor, DNS
+      (A/AAAA/PTR) resolves through Tor, and all other UDP, ICMP, and IPv6 are rejected
+      for the session. That blocking is the fail-closed design, not a bug. Full details
+      and edge cases live in the <a href="./docs/limitations.md">per-OS limitations</a> doc.
+    </p>
+  </section>
+
+  <section id="start">
+    <p class="kicker">Quick start</p>
+    <h2>Build and install</h2>
+    <p class="sub">
+      Go 1.24+, standard library only (<code>CGO_ENABLED=0</code>, no <code>go.sum</code>).
+      Runtime dependency: a stock <code>tor</code> binary. Linux per-app additionally needs
+      <code>torsocks</code>; system-wide additionally needs root plus <code>iptables</code>/<code>ip6tables</code> or <code>nft</code>.
+    </p>
+
+    <div class="grid-2">
+      <div>
+        <div class="codeblock">
+          <header><span>build from source</span><button class="copy-btn" type="button" data-copy="git clone https://github.com/Userfrom1995/RandomLabs.git
+cd RandomLabs/tor-cli
+make build   # static binary ./torshim
+make test    # hermetic suite: no root, no tor, no firewall
+sudo make install   # /usr/local/bin/torshim + man page">Copy</button></header>
+<pre><span class="c"># build from source</span>
+git clone https://github.com/Userfrom1995/RandomLabs.git
+cd RandomLabs/tor-cli
+make build   <span class="c"># static binary ./torshim</span>
+make test    <span class="c"># hermetic: no root, no tor, no firewall</span>
+sudo make install   <span class="c"># torshim + torshim.1 man page</span></pre>
+        </div>
+        <div class="codeblock">
+          <header><span>verify the install</span><button class="copy-btn" type="button" data-copy="torshim version
+torshim status --json">Copy</button></header>
+<pre>torshim version
+torshim status --json   <span class="c"># protected: false until proven</span></pre>
+        </div>
+      </div>
+      <div>
+        <div class="codeblock">
+          <header><span>first minutes with torshim</span><button class="copy-btn" type="button" data-copy="torshim curl https://check.torproject.org/api/ip
+torshim shell
+sudo torshim connect
+torshim status
+torshim disconnect">Copy</button></header>
+<pre><span class="c"># 1. one app through Tor</span>
+torshim curl https://check.torproject.org/api/ip
+
+<span class="c"># 2. a Tor-routed shell</span>
+torshim shell
+
+<span class="c"># 3. the whole machine (Linux, root)</span>
+sudo torshim connect
+torshim status
+torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
+        </div>
+        <div class="codeblock">
+          <header><span>one-line gates</span><button class="copy-btn" type="button" data-copy="make build && make test && make vet && make cross">Copy</button></header>
+<pre>make build &amp;&amp; make test &amp;&amp; make vet &amp;&amp; make cross
+<span class="c"># linux/darwin amd64+arm64, windows amd64</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="docs">
+    <p class="kicker">Documentation</p>
+    <h2>Read the details</h2>
+    <p class="sub">
+      The full documentation set ships with the source under <code>tor-cli/docs/</code>,
+      plus the man page (<code>man torshim</code> after install).
+    </p>
+    <div class="grid-2">
+      <div class="card doc-card">
+        <span class="kind">research</span>
+        <a class="doc-title" href="./docs/research.md">Research &amp; mechanism survey</a>
+        <p>How the tool decided between torsocks, proxy environment, transparent proxying, and the per-OS backend primitives (iptables/nft, pf, WFP), with the per-OS matrix.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/research.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">threat model</span>
+        <a class="doc-title" href="./docs/threat-model.md">Threat model</a>
+        <p>What torshim protects against (clearnet leaks, DNS leaks, false protection claims), what it explicitly does not (global passive adversaries, malware on the host), and its trust boundaries.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/threat-model.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">limitations</span>
+        <a class="doc-title" href="./docs/limitations.md">Per-OS limitations</a>
+        <p>The honest matrix: what breaks while connected (UDP, ICMP, IPv6, LAN by IP), the proxy coverage boundary on macOS and Windows, and the cross-OS exit-code contract.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/limitations.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">reproducibility</span>
+        <a class="doc-title" href="./docs/reproducibility.md">Reproducibility &amp; test matrix</a>
+        <p>What each layer proves (hermetic suites, bounded control-protocol fuzz, CLI honesty probes, best-effort live tor), what stays out of CI and why, plus the manual root checklist.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/reproducibility.md">View on GitHub</a></p>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:16px">
+      <div class="card doc-card">
+        <span class="kind">source</span>
+        <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/tree/main/tor-cli">tor-cli on GitHub</a>
+        <p>Makefile, man page (<code>torshim.1</code>), staged CI matrix, and the <code>internal/</code> packages: control, lifecycle, perapp, shell, syswide, status, version.</p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">project record</span>
+        <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/issues/387">Issue #387</a>
+        <p>The build record: interface contract, hard requirements, acceptance gates, and the research-to-hardening pipeline that shipped torshim 0.4.0.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="foot-links">
+    <a href="../">Random lab home</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/tor-cli">Source</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/README.md">README</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/LICENSE">MIT License</a>
+    <a href="https://www.torproject.org/">torproject.org</a>
+  </div>
+  <p>torshim is unofficial and not sponsored or endorsed by The Tor Project. <code>Tor</code> is a registered mark of The Tor Project.</p>
+  <p>Built by the Random lab. Run <code>torshim help</code> for the full usage text.</p>
+</footer>
+
+<script>
+(function () {
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy") ? resolve() : reject(new Error("copy failed"));
+      } catch (err) {
+        reject(err);
+      } finally {
+        document.body.removeChild(ta);
+      }
+    });
+  }
+  document.querySelectorAll(".copy-btn").forEach(function (btn) {
+    var idle = btn.textContent;
+    btn.addEventListener("click", function () {
+      copyText(btn.getAttribute("data-copy") || "").then(function () {
+        btn.textContent = "Copied";
+        btn.classList.add("done");
+      }).catch(function () {
+        btn.textContent = "Select and copy";
+      });
+      setTimeout(function () {
+        btn.textContent = idle;
+        btn.classList.remove("done");
+      }, 1600);
+    });
+  });
+})();
+</script>
+</body>
+</html>
