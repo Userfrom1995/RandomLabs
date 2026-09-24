@@ -15,6 +15,9 @@ reviewed PRs (see LAB.md §21).
 | The Fixer | Applies reviewer findings | worker | bootstrap | 2026-08-12 | `/oc fix` | `.github/agents/fixer.md` |
 | The Reviewer | Strict quality gate; read-only | worker | bootstrap | 2026-08-12 | `/oc review` | `.github/agents/reviewer.md` |
 | The Tester | Dynamic QA engineer (runs & commits tests) | worker | bootstrap | 2026-08-14 | `/oc test` | `.github/agents/tester.md` |
+| The Linux Tester | Per-OS real-user QA on Linux (ubuntu runner) | worker | lab-engineer | 2026-09-24 | `/oc test-linux` | `.github/agents/tester-linux.md` |
+| The macOS Tester | Per-OS real-user QA on macOS (macos runner) | worker | lab-engineer | 2026-09-24 | `/oc test-macos` | `.github/agents/tester-macos.md` |
+| The Windows Tester | Per-OS real-user QA on Windows (windows runner) | worker | lab-engineer | 2026-09-24 | `/oc test-windows` | `.github/agents/tester-windows.md` |
 | The Auditor | Lab pipeline inspector | worker | bootstrap | 2026-08-16 | `schedule` · `workflow_dispatch` | `.github/agents/auditor.md` |
 | The Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | worker | bootstrap | 2026-08-16 | `/oc lab` | `.github/agents/labengineer.md` |
 | The Recover Agent | PR survival & continuation engineer | worker | bootstrap | 2026-08-21 | `/oc recover` · `auto-detect` | `.github/agents/recover.md` |
@@ -32,6 +35,7 @@ The lab operates as a collaborative, highly cohesive agent squad. Agents trust e
 - **Fixer** applies findings surgically and hands back to **Reviewer** (`/oc review`).
 - **Reviewer** audits code; on approval, hands off to **Tester** (`/oc test`); if fixes are required, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
 - **Tester** dynamically executes the app; on approval (`/oc approve-test`), hands off to **Evaluator** (`/oc eval`); if tests fail, hands off to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`).
+- **Linux Tester** (`/oc test-linux`, ubuntu runner), **macOS Tester** (`/oc test-macos`, macos runner), and **Windows Tester** (`/oc test-windows`, windows runner) run real-user every-command/flag testing natively on their OS and feed per-platform reports to the **Tester**; failures route to **Fixer** (`/oc fix`) or **Lab Engineer** (`/oc lab`). Dispatched by the Maintainer, Tester, or Owner.
 - **The Evaluator** audits the deliverable with a binding 5-dimension rubric (empirical rigor, competitive baseline integrity, visual/presentation craft, adversarial resilience, deterministic reproducibility). It commands swarm subagents for parallel inspection and writes its verdict (`approve-eval` or `fix`) to `/tmp/evaluator-decision.json`. When approved (`approve-eval`), the workflow posts `/oc approve-eval` so the pipeline advances to the Maintainer for final merge.
 - **Auditor** monitors pipeline and model health; reports to the universal health board and escalates bugs and model updates directly to the **Maintainer** (`/oc maintainer`).
 - **Curator** audits public surface, website pages, and root README.md; opens PRs with surgical fixes and hands off to **Reviewer** (`/oc review`), or notifies **Maintainer** (`/oc maintainer`) if structural escalation is needed.
