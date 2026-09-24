@@ -10,19 +10,25 @@ import (
 )
 
 func TestGenerateTorrc(t *testing.T) {
-	rc := GenerateTorrc("/tmp/abs-dir", nil)
+	rc := GenerateTorrc("/tmp/abs-dir", nil, 19050, 15353)
 	for _, want := range []string{
 		"DataDirectory /tmp/abs-dir",
-		"SocksPort 127.0.0.1:auto",
-		"SocksPortWriteToFile",
+		"SocksPort 127.0.0.1:19050",
 		"ControlPort 127.0.0.1:auto",
 		"ControlPortWriteToFile",
-		"DNSPort 127.0.0.1:auto",
+		"DNSPort 127.0.0.1:15353",
 		"CookieAuthentication 1",
 		"SafeSocks 1",
 	} {
 		if !strings.Contains(rc, want) {
 			t.Errorf("torrc missing %q:\n%s", want, rc)
+		}
+	}
+	// Real tor rejects SocksPortWriteToFile/DNSPortWriteToFile as unknown
+	// options (only ControlPortWriteToFile exists): they must never render.
+	for _, bogus := range []string{"SocksPortWriteToFile", "DNSPortWriteToFile"} {
+		if strings.Contains(rc, bogus) {
+			t.Errorf("torrc contains real-tor-rejected %q:\n%s", bogus, rc)
 		}
 	}
 	// No loopback escape: every port line must bind 127.0.0.1.
@@ -34,7 +40,7 @@ func TestGenerateTorrc(t *testing.T) {
 }
 
 func TestGenerateTorrcExtraPassthrough(t *testing.T) {
-	rc := GenerateTorrc("/tmp/d", []string{"UseBridges 1", "# comment", "", "Bridge obfs4 1.2.3.4:443 ABC"})
+	rc := GenerateTorrc("/tmp/d", []string{"UseBridges 1", "# comment", "", "Bridge obfs4 1.2.3.4:443 ABC"}, 19050, 15353)
 	if !strings.Contains(rc, "UseBridges 1") || !strings.Contains(rc, "Bridge obfs4") {
 		t.Errorf("extra torrc lines lost:\n%s", rc)
 	}
@@ -65,6 +71,24 @@ func TestParsePortFile(t *testing.T) {
 		if !tc.ok && err == nil {
 			t.Errorf("parse %q: expected error", tc.in)
 		}
+	}
+}
+
+func TestPickListenerPortsDistinctAndValid(t *testing.T) {
+	socks, dns, err := pickListenerPorts(9040)
+	if err != nil {
+		t.Fatalf("pickListenerPorts: %v", err)
+	}
+	for _, p := range []int{socks, dns} {
+		if p <= 0 || p > 65535 {
+			t.Fatalf("picked port out of range: %d", p)
+		}
+	}
+	if socks == dns {
+		t.Fatalf("picked identical SOCKS/DNS ports: %d", socks)
+	}
+	if socks == 9040 || dns == 9040 {
+		t.Fatalf("picked port collides with TransPort 9040: socks=%d dns=%d", socks, dns)
 	}
 }
 
@@ -202,11 +226,11 @@ func TestStateStrings(t *testing.T) {
 }
 
 func TestGenerateTorrcTrans(t *testing.T) {
-	plain := GenerateTorrc("/tmp/d", nil)
+	plain := GenerateTorrc("/tmp/d", nil, 19050, 15353)
 	if strings.Contains(plain, "TransPort") {
 		t.Fatalf("default torrc must not enable TransPort:\n%s", plain)
 	}
-	rc := GenerateTorrcTrans("/tmp/d", nil, 9040)
+	rc := GenerateTorrcTrans("/tmp/d", nil, 9040, 19050, 15353)
 	if !strings.Contains(rc, "TransPort 127.0.0.1:9040") {
 		t.Fatalf("trans torrc missing fixed TransPort:\n%s", rc)
 	}
@@ -253,7 +277,7 @@ func TestGenerateTorrcDropsManagedKeys(t *testing.T) {
 	// Defense in depth: even without validation, a managed-key line
 	// never reaches the rendered torrc, while legit lines survive.
 	rc := GenerateTorrcTrans("/tmp/d",
-		[]string{"UseBridges 1", "SocksPort 0.0.0.0:9050", "Log notice stdout", "Bridge obfs4 1.2.3.4:443 ABCDEF"}, 0)
+		[]string{"UseBridges 1", "SocksPort 0.0.0.0:9050", "Log notice stdout", "Bridge obfs4 1.2.3.4:443 ABCDEF"}, 0, 19050, 15353)
 	if strings.Contains(rc, "0.0.0.0:9050") || strings.Contains(rc, "Log notice stdout") {
 		t.Errorf("managed-key override leaked into torrc:\n%s", rc)
 	}

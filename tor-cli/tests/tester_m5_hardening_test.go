@@ -74,11 +74,11 @@ func TestM5TorrcRenderFiltersManagedKeepsBridges(t *testing.T) {
 		"Include /tmp/evil.torrc",
 		"Bridge obfs4 1.2.3.4:443 ABCDEF cert=xyz iat-mode=0",
 		"UseBridges 1",
-	})
+	}, 19050, 15353)
 	if strings.Contains(rc, "9999") || strings.Contains(strings.ToLower(rc), "include /tmp") {
 		t.Fatalf("managed-key override leaked into torrc:\n%s", rc)
 	}
-	for _, want := range []string{"Bridge obfs4", "UseBridges 1", "SocksPort 127.0.0.1:auto"} {
+	for _, want := range []string{"Bridge obfs4", "UseBridges 1", "SocksPort 127.0.0.1:19050"} {
 		if !strings.Contains(rc, want) {
 			t.Fatalf("torrc missing %q:\n%s", want, rc)
 		}
