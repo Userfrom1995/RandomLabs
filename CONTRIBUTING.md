@@ -28,6 +28,7 @@ If you want to suggest improvements to these components, you can either open an 
 
 - The global lab documentation is in the root `/docs/` folder (do not delete or overwrite the main landing page `index.html`).
 - Each project has its own documentation in `/<project-name>/docs/`.
+- **Every project ships a website.** Each project directory must include an `index.html` served on GitHub Pages at `https://userfrom1995.github.io/RandomLabs/<project>/` that introduces the project and links its documentation. Interactive projects (games, studios, dashboards) ship the live app; CLI, engine, and library projects ship a documentation and introduction hub that explains the tool, shows a real quickstart, and surfaces `<project>/docs/`. The Curator audits this rule on every run, so new projects must include their site before merge.
 - Deep-dive technical writeups for projects live in the `/ideas/` folder.
 - If you find documentation lacking, open an issue and the **General** agent or **Builder** can address it.
 
