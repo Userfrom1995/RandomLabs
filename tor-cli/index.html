@@ -665,7 +665,7 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
       <div class="cmd-row"><code>sudo torshim connect</code><span>System-wide Tor on Linux. Flags: <code>--backend auto|iptables|nft</code>, <code>--tor BIN</code>, <code>--timeout D</code>, <code>--tor-user USER</code>, <code>--trans-port PORT</code>, <code>--state-dir DIR</code>, <code>--force</code>.</span></div>
       <div class="cmd-row"><code>torshim disconnect</code><span>Stop tor first, then replay the pre-connect snapshot byte-exact and post-verify (needs sudo when a session exists).</span></div>
       <div class="cmd-row"><code>torshim repair</code><span>Clear stale rules and dead session state; only ever removes torshim-owned rules, never a foreign flush.</span></div>
-      <div class="cmd-row"><code>torshim status [--json]</code><span>Is tor running, bootstrapped, circuit ready, which mode is active, endpoint and session state? Flags: <code>--control</code>, <code>--socks</code>, <code>--state-dir</code>. Never claims protected when it cannot prove it.</span></div>
+      <div class="cmd-row"><code>torshim status [--json]</code><span>Is tor running, bootstrapped, circuit ready, which mode is active, endpoint and session state? Flags: <code>--json</code>, <code>--control</code>, <code>--socks</code>, <code>--state-dir</code>. Never claims protected when it cannot prove it.</span></div>
       <div class="cmd-row"><code>torshim version</code><span>Wrapper version plus platform backend, tor, and torsocks versions.</span></div>
       <div class="cmd-row"><code>torshim help</code><span>Usage text and the platform support summary.</span></div>
     </div>
