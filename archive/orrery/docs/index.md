@@ -96,6 +96,6 @@ GitHub Pages.
 ## Source
 
 The project lives in [`orrery/`](https://github.com/Userfrom1995/RandomLabs/tree/main/orrery)
-with a [`README`](https://github.com/Userfrom1995/RandomLabs/blob/main/orrery/README.md)
+with a [`README`](https://github.com/Userfrom1995/RandomLabs/blob/main/archive/orrery/README.md)
 and a full writeup in
 [`ideas/`](https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-13-orrery-webgl-solar-system.md).
