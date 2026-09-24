@@ -564,8 +564,9 @@ note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</spa
       Every mode shares one rule: if Tor is not bootstrapped or not ready, torshim fails
       closed with a clear error. Where a route could leak but cannot be inspected from
       outside (apps ignoring proxy env on macOS/Windows, raw syscalls under the shim),
-      torshim prints the coverage note instead of guessing. It never reports "protected"
-      when it is not.
+      torshim does not guess: proxy-mode launches print the coverage note, the shell
+      prints its coverage banner, and the raw-syscall gap is stated in that banner and
+      in the docs. It never reports "protected" when it is not.
     </p>
     <div class="grid-3">
       <div class="card accent-amber">
