@@ -40,17 +40,18 @@ func verifyTorrcAgainstRealTor(t *testing.T, torrc string) {
 }
 
 // The stock per-app/shell torrc must be accepted by a real tor.
+// Fixed example ports are fine: tor --verify-config parses without binding.
 func TestPerosLinuxGeneratedTorrcVerifiesAgainstRealTor(t *testing.T) {
-	verifyTorrcAgainstRealTor(t, GenerateTorrcTrans("@DATADIR@", nil, 0))
+	verifyTorrcAgainstRealTor(t, GenerateTorrcTrans("@DATADIR@", nil, 0, 19050, 15353))
 }
 
 // The system-wide torrc (fixed TransPort) must also be accepted.
 func TestPerosLinuxSystemTorrcVerifiesAgainstRealTor(t *testing.T) {
-	verifyTorrcAgainstRealTor(t, GenerateTorrcTrans("@DATADIR@", nil, 9040))
+	verifyTorrcAgainstRealTor(t, GenerateTorrcTrans("@DATADIR@", nil, 9040, 19050, 15353))
 }
 
 // Bridge passthrough lines must not break real-tor verification either.
 func TestPerosLinuxBridgeTorrcVerifiesAgainstRealTor(t *testing.T) {
 	verifyTorrcAgainstRealTor(t, GenerateTorrcTrans("@DATADIR@",
-		[]string{"UseBridges 1", "Bridge obfs4 1.2.3.4:443 FINGERPRINT"}, 0))
+		[]string{"UseBridges 1", "Bridge obfs4 1.2.3.4:443 FINGERPRINT"}, 0, 19050, 15353))
 }
