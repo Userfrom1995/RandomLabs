@@ -247,11 +247,11 @@
     white-space: nowrap;
   }
   tr:last-child td { border-bottom: none; }
-  .verdict { font-weight: 700; white-space: nowrap; font-family: var(--mono); font-size: 0.82rem; }
+  .verdict { font-weight: 700; font-family: var(--mono); font-size: 0.82rem; }
   .verdict.pass { color: var(--teal); }
   .verdict.miss { color: var(--amber); }
   .verdict.goal { color: var(--red); }
-  td.num { font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+  td.num { font-family: var(--mono); font-size: 0.85rem; }
 
   /* code */
   .codeblock {
@@ -453,7 +453,8 @@
     <p class="sub">
       Accepted by the Owner as <strong>finished at ceiling</strong> at <code>9bd6d10</code>
       (2026-09-03, issue #130). The gates are reported exactly as measured: passes and
-      misses alike, with a fresh-binary reproduction column. Lower bits per sample is better.
+      misses alike, with a fresh-binary reproduction stated in both units. Lower is better
+      (cells are labeled per-sample or summed).
     </p>
     <div class="table-wrap">
       <table>
@@ -475,15 +476,15 @@
           </tr>
           <tr>
             <td>Beat the WebP lossless floor / JPEG-LS</td>
-            <td class="num">WebP 9.61 / JPEG-LS 9.71</td>
+            <td class="num">gate 9.498 / 3.166 (WebP m6); JPEG-LS 9.71</td>
             <td class="num">9.6525 summed (3.2175 / sample)</td>
-            <td><span class="verdict miss">MISS ~1.6% vs WebP</span></td>
+            <td><span class="verdict miss">MISS ~1.6% vs WebP gate (beats JPEG-LS 9.71)</span></td>
           </tr>
           <tr>
             <td>Reach JPEG XL parity (owner goal)</td>
-            <td class="num">JXL 8.71 harness</td>
-            <td class="num">9.6525 summed (repro 9.65529)</td>
-            <td><span class="verdict goal">SHORT ~11.5%</span></td>
+            <td class="num">gate 8.655 / 2.885 (JXL -d0 -e9; harness 8.71)</td>
+            <td class="num">9.6525 summed (3.2175 / sample; repro 3.21843 / 9.65529)</td>
+            <td><span class="verdict goal">SHORT ~11.5% vs gate</span></td>
           </tr>
           <tr>
             <td>Unrealizable oracle bounds (map/table cost excluded)</td>
@@ -553,12 +554,12 @@ ctest --test-dir build --output-on-failure</pre>
         </div>
         <div class="codeblock">
           <header><span>benchmark on Kodak</span><button class="copy-btn" type="button" data-copy="prism/benchmarks/run_kodak.sh --effort 4 \
-  --kodak data/kodak
+  --kodak prism/benchmarks/data/kodak
 python3 prism/benchmarks/aggregate.py">Copy</button></header>
 <pre>prism/benchmarks/run_kodak.sh --effort 4 \
-  --kodak data/kodak
+  --kodak prism/benchmarks/data/kodak
 python3 prism/benchmarks/aggregate.py
-<span class="c"># results committed under benchmarks/results/</span></pre>
+<span class="c"># provision the git-ignored Kodak-24 corpus first (see docs/benchmark-methodology.md); the script falls back to a 2-image synthetic probe if it is missing</span></pre>
         </div>
       </div>
     </div>
@@ -633,7 +634,7 @@ python3 prism/benchmarks/aggregate.py
     <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/LICENSE">MIT License</a>
   </div>
   <p>Prism: a lossless image codec from scratch in C++17. Built by the Random lab.</p>
-  <p>Results measured on Kodak-24; reproduce them with <code>benchmarks/run_kodak.sh</code>.</p>
+  <p>Results measured on Kodak-24; the X6b ceiling reproduces with <code>prism bench-x</code>, the baseline curves with <code>benchmarks/run_kodak.sh</code>.</p>
 </footer>
 
 <script>
