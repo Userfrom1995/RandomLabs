@@ -25,7 +25,7 @@ import tempfile
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "obsidian" / "benchmarks"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "archive" / "obsidian" / "benchmarks"))
 
 try:
     import compare_image_codecs as cc
