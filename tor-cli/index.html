@@ -516,7 +516,7 @@ note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</spa
   <span class="ok">[ok]</span> transport-open   127.0.0.1:9040 accepts
   <span class="ok">[ok]</span> dns-alive        Tor DNSPort answers
   <span class="ok">[ok]</span> resolv-untouched unchanged from snapshot
-<span class="vio">connected:</span> system-wide via nft (backup /run/torshim/backups/20260924T211502Z-9f3ac2)
+<span class="vio">connected:</span> system-wide via nft (backup /run/torshim/backups/20260924T211502.483921000Z-9f3ac2)
 
 <span class="ps">$</span> <span class="cmd">torshim disconnect</span>
 <span class="ok">disconnected:</span> rules removed=true firewall restored=true post-verify clean=true</pre>
@@ -635,6 +635,7 @@ torshim disconnect  <span class="c"># restore</span></pre>
       <div class="exit"><b>2</b><span>usage error</span></div>
       <div class="exit"><b>3</b><span>tor not ready (fail closed)</span></div>
       <div class="exit"><b>4</b><span>unavailable on this platform</span></div>
+      <div class="exit"><b>130</b><span>interrupted (SIGINT/SIGTERM)</span></div>
     </div>
   </section>
 
