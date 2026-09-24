@@ -15,6 +15,7 @@ package tests
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -177,7 +178,11 @@ func TestM5CLIBlackBoxHonesty(t *testing.T) {
 		t.Fatalf("corrupt state claims protected:\n%s", sj)
 	}
 	so, _, code = runBin(bin, "disconnect", "--state-dir", t.TempDir())
-	if code != 0 || !strings.Contains(so, "not connected") {
+	if runtime.GOOS != "linux" {
+		if code != 4 {
+			t.Fatalf("off-Linux stateless disconnect exit=%d, want honest 4", code)
+		}
+	} else if code != 0 || !strings.Contains(so, "not connected") {
 		t.Fatalf("stateless disconnect must be idempotent exit 0, got %d:\n%s", code, so)
 	}
 	_, _, code = runBin(bin, "run", "--tor", "./does-not-exist-xyz", "--", "echo", "hi")
