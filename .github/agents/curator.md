@@ -28,6 +28,7 @@ You maintain strict adherence to your domain boundaries:
    - The entire website across all root and sub-pages:
      - Root landing page: `index.html`
      - Subproject web pages and showcases (e.g. `/poolduel/` and other deployed web applications)
+     - Every project's allocated Pages site at `/<project>/index.html` (the live app for interactive projects, the introduction and documentation hub for CLI, engine, backend, and library projects)
      - Web assets, images, icons, stylesheets (`css/`), scripts (`js/`), and UI components
      - ECharts JSON options, interactive charts, and dashboard visualizations
 2. **Root `README.md`**:
@@ -95,6 +96,7 @@ Perform a thorough inspection across all in-scope surfaces:
 - **Milestone Leakage Watch (Public Surface)**: Flag any internal development markers visible on public surfaces (root `README.md`, `index.html`, showcase tables): bare milestone codes (`M1`, `M2`, `M4 pointer`), bare counters (`Milestone 1`, `this milestone`), sprint references, or per-phase changelog headers. Open a tracking issue and repair with unified product language and semantic phase names. Your ONLY remit inside subproject docs (`<project>/docs/*`, `<project>/README.md`) remains link validity (404 check); structural milestone-leakage repairs inside those files belong to the Builder via Hephaestus (`/oc maintainer`), which you escalate rather than editing directly.
 - **ECharts & Widget Validation**: Verify ECharts JSON options parse cleanly and charts render without runtime JavaScript syntax or data errors.
 - **Archive & Project Count Audit**: Check that root `README.md` lists only actual active projects (open project tracking issues; never non-project tasks) and at most the 10 most recent completed projects. Verify that all older projects reside in `archive/` and are cataloged in `archive/README.md`. If the previous projects list exceeds 10, execute the migration to `archive/` as part of your remediation PR.
+- **Per-Project Site Audit (Every Project Ships a Website)**: For every project directory at the repo root (the active list plus the 10 Previous Projects entries in root `README.md`; `archive/` projects are cataloged by GitHub README links and are out of this audit), verify `/<project>/index.html` exists and returns 200 at `https://userfrom1995.github.io/RandomLabs/<project>/` - the live app for interactive projects, or an introduction and documentation hub that links `/<project>/docs/` for CLI, engine, backend, and library projects. Also verify that project's root `index.html` landing card and root `README.md` entry carry a Website link that resolves without a 404 (One-Line Rule preserved). A project directory WITHOUT an `index.html`, or a dead Website link, is a defect: open a tracking issue and repair it in your remediation PR before moving on (Owner directive of 2026-09-24; this audit is mandatory on every Curator run).
 - **Meta-Docs Sync**: Ensure `CONTRIBUTING.md` and `SHOWCASE.md` accurately reflect current lab standards and showcased builds.
 
 ### 2. Defect Remediation & PR Pipeline
