@@ -26,14 +26,9 @@
 #     fake-runner suite; the manual root matrix lives in
 #     tor-cli/docs/reproducibility.md.
 #
-# STAGED FOR LAB INSTALL: this file lives at tor-cli/ci/tor-cli.yml
-# because builder pushes cannot carry .github/workflows/ changes (the
-# App token lacks the `workflows` scope). The Lab Engineer installs it
-# via `/oc lab` (PAT-backed push) to .github/workflows/tor-cli.yml;
-# content is identical. Until then, every job below was executed
-# locally on linux (build/vet/hermetic suite/honesty probes/fuzz all
-# green) and cross-vetted for darwin+windows (GOOS=darwin/windows
-# `go vet ./...` green, `make cross` 5-target green). Merges of PRs
+# STAGED FOR LAB INSTALL: this file was promoted from tor-cli/ci/tor-cli.yml
+# by the Lab Engineer via `/oc lab` (PAT-backed push) to
+# .github/workflows/tor-cli.yml; content is identical. Merges of PRs
 # touching .github/workflows/* need an owner click or PAT merge
 # (see LAB.md "Merge capability").
 
@@ -49,6 +44,15 @@ on:
       - "tor-cli/**"
       - ".github/workflows/tor-cli.yml"
   workflow_dispatch:
+  workflow_call:
+  schedule:
+    # Backstop (issue #399): bot rebase-merges to main via GITHUB_TOKEN
+    # never trigger push workflows (platform loop suppression), and a
+    # misfiring sweep dispatch is silent without verification. This weekly
+    # head check guarantees live main gets validated even when both event
+    # paths miss. Cheap by design: reuses the existing jobs, no extra
+    # matrix. Schedule runs execute on the default branch only.
+    - cron: "17 6 * * 1"
 
 permissions:
   contents: read
