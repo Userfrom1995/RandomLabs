@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/diag"
 )
 
 // Config describes the shell to spawn.
@@ -59,6 +61,7 @@ func ResolveShell() string {
 func ownedKey(key string) bool {
 	switch key {
 	case "LD_PRELOAD", "TORSOCKS_CONF_FILE", "TORSOCKS_ISOLATE_PID",
+		"TORSOCKS_LOG_LEVEL",
 		"TORSHIM_ACTIVE", "TORSHIM_SOCKS",
 		"ALL_PROXY", "all_proxy",
 		"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
@@ -101,6 +104,10 @@ func Environ(base []string, cfg Config) []string {
 			"TORSOCKS_CONF_FILE="+cfg.ConfPath,
 			"TORSOCKS_ISOLATE_PID=1",
 		)
+		// -vv and up: let torsocks' own log join the shell transcript.
+		if lvl := diag.TorsocksLogLevel(); lvl != "" {
+			env = append(env, "TORSOCKS_LOG_LEVEL="+lvl)
+		}
 	} else {
 		proxy := "socks5h://" + cfg.SocksAddr
 		env = append(env,

@@ -9,18 +9,25 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/control"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/diag"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/doctor"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/lifecycle"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/perapp"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/probe"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/shell"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/status"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/syswide"
@@ -40,15 +47,29 @@ const (
 const trademarkNote = "torshim - lightweight launcher for the Tor network (unofficial, not sponsored by The Tor Project)"
 
 func main() {
-	os.Exit(run(os.Args[1:]))
+	code := run(os.Args[1:])
+	diag.Close()
+	os.Exit(code)
 }
 
 func run(argv []string) int {
+	// Global verbosity flags are recognized before the command name
+	// (research 16.4); everything else falls through untouched so the
+	// bare form keeps handing its flags to the app.
+	argv = diag.Prescan(argv)
 	if len(argv) == 0 {
 		usage()
 		return exitUsage
 	}
+	// Apply the pre-scanned verbosity now so even the command line
+	// below is visible at -v; commands re-Apply after their own flag
+	// set parses (adds --json and subcommand-position globals).
+	if err := diag.Apply(diag.Options{}); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
+	}
 	cmd, rest := argv[0], argv[1:]
+	diag.Logf(diag.Info, diag.StageCLI, "command=%q args=%q", cmd, rest)
 	// Bare `torshim <app> [args]`: everything is the app.
 	if !isCommand(cmd) {
 		return cmdRun(argv)
@@ -60,6 +81,8 @@ func run(argv []string) int {
 		return cmdShell(rest)
 	case "status":
 		return cmdStatus(rest)
+	case "doctor":
+		return cmdDoctor(rest)
 	case "version", "--version", "-V":
 		return cmdVersion(rest)
 	case "connect":
@@ -80,25 +103,73 @@ func run(argv []string) int {
 
 func isCommand(s string) bool {
 	switch s {
-	case "run", "shell", "status", "version", "--version", "-V",
+	case "run", "shell", "status", "doctor", "version", "--version", "-V",
 		"connect", "disconnect", "repair", "help", "--help", "-h":
 		return true
 	}
 	return false
 }
 
+// exitCodeTable is the binding exit-code contract, printed on every
+// help surface (research 19: keep it on help, doctor, man, README).
+const exitCodeTable = `Exit codes:
+  0  success (status --verify: verdict protected)
+  1  runtime failure (status --verify: degraded or unverified)
+  2  usage error
+  3  tor not ready (fail-closed)
+  4  feature unavailable on this platform
+`
+
+// parseFlags parses fs with -h/--help routed to usage(os.Stdout) at
+// exit 0 and any parse error routed to usage(os.Stderr) at exit 2.
+// The flag package's own output is discarded so help text lands on
+// stdout with the exit-code table (the --help exit-0 fix, research
+// P0.4). Returns ok=false when the caller must return code.
+func parseFlags(fs *flag.FlagSet, args []string, usage func(io.Writer)) (ok bool, code int) {
+	fs.SetOutput(io.Discard)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			usage(os.Stdout)
+			return false, exitOK
+		}
+		fmt.Fprintf(os.Stderr, "torshim %s: %v\n", fs.Name(), err)
+		usage(os.Stderr)
+		return false, exitUsage
+	}
+	return true, exitOK
+}
+
+// printUsage renders cmd-specific usage plus the shared exit-code
+// table and trademark line.
+func printUsage(w io.Writer, body string) {
+	fmt.Fprint(w, body)
+	fmt.Fprint(w, "\n"+exitCodeTable+"\n"+trademarkNote+"\n")
+}
+
 func usage() {
-	fmt.Printf(`%s
+	body := fmt.Sprintf(`%s
 
 Usage:
-  torshim run [--tor BIN] [--timeout D] [--reuse] -- <app> [args...]
+  torshim run [--tor BIN] [--timeout D] [--reuse] [-- -v ...] -- <app> [args...]
   torshim <app> [args...]          same as run (shim on Linux, proxy env elsewhere)
   torshim shell                    child shell routed through Tor
   sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
   torshim disconnect               restore pre-connect networking (needs sudo)
   torshim repair                   clear stale rules/state (needs sudo)
-  torshim status [--json]          never claims protected when not
+  torshim status [--json] [--verify [--check-url URL]]
+                                   never claims protected when not;
+                                   --verify proves egress through Tor
+  torshim doctor [--deep] [--json] read-only environment diagnostics
   torshim version                  wrapper + tor + backend versions
+
+Verbosity (global: before the command, inside a command's flags, or
+before -- in run/shell; never stolen from a bare app):
+  -v  info: steps, endpoints, modes, verdict line
+  -vv debug: adds control chatter, child log level, retries
+  -vvv trace: adds per-poll timestamps
+  -q  errors only
+  --log-level quiet|error|warn|info|debug|trace   wins over -v/-q
+  --log-file FILE                 tee log lines to FILE (bug reports)
 
 Per-app routing uses torsocks on Linux (fail-closed shim) and proxy
 environment (socks5h, DNS exit-side when the app honors it) on macOS
@@ -108,8 +179,58 @@ Windows system-wide needs a tun2socks backend (not shipped) and refuses honestly
 While connected, TCP goes through Tor, DNS resolves through Tor,
 non-DNS UDP/ICMP is blocked, and IPv6 is blocked.
 
-%s
-`, trademarkNote, "See tor-cli/README.md for details.")
+See tor-cli/README.md for details.
+`, trademarkNote)
+	printUsage(os.Stdout, body)
+}
+
+// newFlagSet builds a flag set whose own error/help chatter is
+// discarded: parseFlags/flagsFailed own all of that output, so --help
+// goes to stdout at exit 0 and parse errors go to stderr at exit 2.
+func newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	return fs
+}
+
+// flagsFailed renders a failed flag parse: ErrHelp is success with the
+// usage on stdout (the --help exit-0 contract), anything else is a
+// usage error at exit 2 with the usage on stderr.
+func flagsFailed(fs *flag.FlagSet, err error, usage func(io.Writer)) int {
+	if errors.Is(err, flag.ErrHelp) {
+		usage(os.Stdout)
+		return exitOK
+	}
+	fmt.Fprintf(os.Stderr, "torshim %s: %v\n", fs.Name(), err)
+	usage(os.Stderr)
+	return exitUsage
+}
+
+// applyDiag finalizes verbosity after flag parsing (JSON runs drop to
+// warn unless logging was configured explicitly).
+func applyDiag(jsonMode bool) error {
+	return diag.Apply(diag.Options{JSON: jsonMode})
+}
+
+// usageRun is the `torshim run` help body.
+func usageRun(w io.Writer) {
+	printUsage(w, `Usage:
+  torshim run [--tor BIN] [--timeout D] [--reuse] [--log-level L] [--log-file F] -- <app> [args...]
+  torshim <app> [args...]   bare form: everything after the app name goes to the app
+                            (torshim curl -v URL gives -v to curl)
+
+Launches (or reuses, with --reuse) a private tor instance, waits for
+readiness, then execs the application through the per-app backend.`)
+}
+
+// usageShell is the `torshim shell` help body.
+func usageShell(w io.Writer) {
+	printUsage(w, `Usage:
+  torshim shell [--tor BIN] [--timeout D] [--reuse]
+
+Opens a child shell whose processes route through Tor; the parent shell
+is untouched. A coverage banner states the mechanism, endpoints, and
+what is not covered.`)
 }
 
 // shared flags for run/shell.
@@ -134,20 +255,35 @@ func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error)
 	return lf, rest, nil
 }
 
-// ensureTor returns a ready SOCKS endpoint plus a cleanup func. Default is a
-// private owned instance; --reuse attempts a verifiable foreign tor first.
-func ensureTor(lf launchFlags) (socksAddr string, cleanup func(), err error) {
+// readyInfo carries what the terminal verdict line needs after a
+// successful launch: elapsed time to readiness (the diagnostic clock
+// stops at ready, not when the child exits).
+type readyInfo struct {
+	Elapsed time.Duration
+}
+
+// ensureTor returns a ready SOCKS endpoint, readiness metadata, plus a
+// cleanup func. Default is a private owned instance; --reuse attempts a
+// verifiable foreign tor first. Diagnostics answer the Owner's -v
+// acceptance list: instance decision, endpoints, timing.
+func ensureTor(lf launchFlags) (socksAddr string, ready readyInfo, cleanup func(), err error) {
+	start := time.Now()
 	if lf.reuse {
 		if addr, ok, rerr := tryReuse(lf); rerr != nil {
-			return "", nil, rerr
+			return "", readyInfo{}, nil, rerr
 		} else if ok {
-			return addr, func() {}, nil
+			return addr, readyInfo{Elapsed: time.Since(start)}, func() {}, nil
 		}
 	}
+	diag.Logf(diag.Info, diag.StageLife, "launching private instance tor=%q timeout=%s reuse=%v",
+		lf.torBin, lf.timeout, lf.reuse)
 	in, err := lifecycle.Launch(lifecycle.Options{TorBinary: lf.torBin, Timeout: lf.timeout})
 	if err != nil {
-		return "", nil, err
+		return "", readyInfo{}, nil, err
 	}
+	diag.Logf(diag.Info, diag.StageLife,
+		"private instance up pid=%d data_dir=%s socks=%s control=%s dns_port=%d trans_port=%d elapsed=%s",
+		in.Pid, in.DataDir, in.SocksAddr(), in.ControlAddr(), in.DNSPort, in.TransPort, time.Since(start).Round(time.Millisecond))
 	// Ctrl-C/SIGTERM during the app run must not orphan the owned tor.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -156,10 +292,43 @@ func ensureTor(lf launchFlags) (socksAddr string, cleanup func(), err error) {
 		in.Stop()
 		os.Exit(130)
 	}()
-	return in.SocksAddr(), func() {
+	return in.SocksAddr(), readyInfo{Elapsed: time.Since(start)}, func() {
 		signal.Stop(sigCh)
 		in.Stop()
 	}, nil
+}
+
+// failReason maps a launch error onto the verdict reason slug and an
+// actionable remediation (verdict line, research 16.3).
+func failReason(err error) (reason, remediation string) {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "not found on PATH"):
+		return "tor_binary_missing", `install tor (package "tor") and retry`
+	case strings.Contains(msg, "within deadline") || strings.Contains(msg, "timed out"):
+		return "bootstrap_timeout", "check network reachability or raise --timeout"
+	case strings.Contains(msg, "unverifiable"):
+		return "control_auth_unverified", "stop the foreign tor or drop --reuse for a private instance"
+	case strings.Contains(msg, "dial control") || strings.Contains(msg, "control:"):
+		return "control_unreachable", "run torshim doctor to diagnose the control endpoint"
+	case strings.Contains(msg, "SOCKS") || strings.Contains(msg, "socks"):
+		return "socks_not_serving", "run torshim doctor to diagnose the SOCKS endpoint"
+	default:
+		return "launch_failed", "run torshim doctor for a full diagnosis"
+	}
+}
+
+// verdictReady emits the terminal success verdict (only at -v and up).
+func verdictReady(mode, mechanism, socks string, ready readyInfo) {
+	diag.Verdictf("torshim: ready mode=%s mechanism=%s socks=%s bootstrap=100%% (done) circuit=established elapsed=%.1fs",
+		mode, mechanism, socks, ready.Elapsed.Seconds())
+}
+
+// verdictFailed emits the terminal failure verdict (only at -v and up;
+// the error itself already printed on the user channel).
+func verdictFailed(err error) {
+	reason, remediation := failReason(err)
+	diag.Verdictf("torshim: NOT protected reason=%s remediation=%s", reason, remediation)
 }
 
 // tryReuse reuses a foreign tor only when readiness is verifiable (cookie
@@ -199,31 +368,65 @@ func tryReuse(lf launchFlags) (string, bool, error) {
 	if err := lifecycle.WaitReady(ctl, deadline, 500*time.Millisecond); err != nil {
 		return "", false, err
 	}
-	fmt.Fprintf(os.Stderr, "torshim: reusing foreign tor at %s (will not stop it)\n", f.SocksAddr)
+	// Post-auth: name the exact process being reused (Owner acceptance
+	// list: instance decision with pid and version).
+	if v, perr := ctl.GetOne("process/id"); perr == nil {
+		if n, cerr := strconv.Atoi(strings.TrimSpace(v)); cerr == nil {
+			f.Pid = n
+		}
+	}
+	if f.Pid > 0 {
+		diag.Logf(diag.Warn, diag.StageLife, "reusing foreign tor at %s pid=%d version=%q (will not stop it)",
+			f.SocksAddr, f.Pid, f.Version)
+	} else {
+		diag.Logf(diag.Warn, diag.StageLife, "reusing foreign tor at %s version=%q (will not stop it)",
+			f.SocksAddr, f.Version)
+	}
 	return f.SocksAddr, true, nil
 }
 
 func cmdRun(args []string) int {
-	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs := newFlagSet("run")
+	diag.Register(fs)
 	lf, rest, err := parseLaunch(fs, args)
 	if err != nil {
-		return exitUsage
+		return flagsFailed(fs, err, usageRun)
+	}
+	if err := applyDiag(false); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
 	}
 	if len(rest) == 0 {
 		fmt.Fprintln(os.Stderr, "torshim run: no application given")
-		fs.Usage()
+		usageRun(os.Stderr)
 		return exitUsage
 	}
-	socks, cleanup, err := ensureTor(lf)
+	diag.Logf(diag.Info, diag.StageCLI, "run: tor=%q timeout=%s reuse=%v app=%q",
+		lf.torBin, lf.timeout, lf.reuse, rest)
+	socks, ready, cleanup, err := ensureTor(lf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		verdictFailed(err)
 		return exitNotReady
 	}
 	defer cleanup()
+	mechanism := "torsocks"
+	if perapp.NeedsProxy() {
+		mechanism = "proxy-env"
+	}
+	diag.Logf(diag.Info, diag.StagePerApp, "mechanism=%s socks=%s", mechanism, socks)
+	code := runApp(socks, rest)
+	verdictReady("per-app", mechanism, socks, ready)
+	return code
+}
+
+// runApp executes the application through the platform backend and
+// returns its exit code (shared by the run and bare-app forms).
+func runApp(socks string, argv []string) int {
 	if perapp.NeedsProxy() {
 		// macOS/Windows (M4): proxy-environment backend, no torsocks
 		// conf dir needed. Run prints the honest coverage note.
-		res, err := perapp.Run(socks, rest, nil, "")
+		res, err := perapp.Run(socks, argv, nil, "")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 			return exitError
@@ -236,7 +439,7 @@ func cmdRun(args []string) int {
 		return exitError
 	}
 	defer os.RemoveAll(confDir)
-	res, err := perapp.Run(socks, rest, nil, confDir)
+	res, err := perapp.Run(socks, argv, nil, confDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
@@ -245,22 +448,31 @@ func cmdRun(args []string) int {
 }
 
 func cmdShell(args []string) int {
-	fs := flag.NewFlagSet("shell", flag.ContinueOnError)
+	fs := newFlagSet("shell")
+	diag.Register(fs)
 	lf, rest, err := parseLaunch(fs, args)
 	if err != nil {
-		return exitUsage
+		return flagsFailed(fs, err, usageShell)
+	}
+	if err := applyDiag(false); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
 	}
 	if len(rest) != 0 {
 		fmt.Fprintln(os.Stderr, "torshim shell: takes no arguments")
+		usageShell(os.Stderr)
 		return exitUsage
 	}
-	socks, cleanup, err := ensureTor(lf)
+	diag.Logf(diag.Info, diag.StageCLI, "shell: tor=%q timeout=%s reuse=%v", lf.torBin, lf.timeout, lf.reuse)
+	socks, ready, cleanup, err := ensureTor(lf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		verdictFailed(err)
 		return exitNotReady
 	}
 	defer cleanup()
 	cfg := shell.Config{SocksAddr: socks}
+	mechanism := "proxy-env"
 	if perapp.NeedsProxy() {
 		// macOS/Windows (M4): proxy env only, no DYLD/LSP shim.
 		// Spawn prints the coverage banner; nothing to probe.
@@ -269,9 +481,11 @@ func cmdShell(args []string) int {
 			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 			return exitError
 		}
+		verdictReady("shell", mechanism, socks, ready)
 		return code
 	}
 	if lib, lerr := perapp.FindLib(); lerr == nil {
+		mechanism = "torsocks"
 		confDir, merr := os.MkdirTemp("", "torshim-shell-*")
 		if merr != nil {
 			fmt.Fprintf(os.Stderr, "torshim: mkdtemp: %v\n", merr)
@@ -286,13 +500,14 @@ func cmdShell(args []string) int {
 		}
 		cfg.LibPath, cfg.ConfPath = lib, cpath
 	} else {
-		fmt.Fprintf(os.Stderr, "torshim: torsocks not found (%v); shell uses proxy env only\n", lerr)
+		diag.Logf(diag.Warn, diag.StageShell, "torsocks not found (%v); shell uses proxy env only", lerr)
 	}
 	code, err := shell.Spawn(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	verdictReady("shell", mechanism, socks, ready)
 	return code
 }
 
@@ -322,16 +537,80 @@ func lastColon(s string) int {
 	return -1
 }
 
+// usageStatus is the `torshim status` help body.
+func usageStatus(w io.Writer) {
+	printUsage(w, `Usage:
+  torshim status [--json] [--verify [--check-url URL]] [--control ADDR] [--socks ADDR] [--state-dir DIR]
+
+Reports instance state without ever claiming protection when it is
+not established. Plain status always exits 0. --verify probes egress
+through the exact configured socks5h endpoint (IsTor check) and exits
+0 only when the verdict is protected, else 1.`)
+}
+
+// usageDoctor is the `torshim doctor` help body.
+func usageDoctor(w io.Writer) {
+	printUsage(w, `Usage:
+  torshim doctor [--deep] [--json] [--tor BIN] [--control ADDR] [--socks ADDR] [--check-url URL] [--timeout D]
+
+Read-only environment diagnostics: ten baseline checks (tor binary,
+per-app mechanism, control, bootstrap, SOCKS, port conflicts, session
+state, env hygiene, bridges, platform coverage) plus, with --deep,
+three live network checks (IsTor probe, IPv6 posture, clock sanity).
+Exit 0 all pass, 1 any failed, 2 usage. Doctor never mutates state.`)
+}
+
 func cmdStatus(args []string) int {
-	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs := newFlagSet("status")
 	asJSON := fs.Bool("json", false, "machine-readable output")
+	verify := fs.Bool("verify", false, "probe egress through the configured SOCKS endpoint (exit 0 iff verdict protected)")
+	checkURL := fs.String("check-url", probe.DefaultCheckURL, "IsTor probe URL for --verify")
 	ctlAddr := fs.String("control", "", "control endpoint (default 127.0.0.1:9051, fallback 9151)")
 	socksAddr := fs.String("socks", "", "SOCKS endpoint to probe")
 	sysDir := fs.String("state-dir", "", "system session dir (default /run/torshim or TORSHIM_STATEDIR)")
-	if err := fs.Parse(args); err != nil {
-		return exitUsage
+	diag.Register(fs)
+	if ok, code := parseFlags(fs, args, usageStatus); !ok {
+		return code
 	}
+	if err := applyDiag(*asJSON); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
+	}
+	if *socksAddr == "" {
+		*socksAddr = os.Getenv("TORSHIM_SOCKS")
+	}
+	diag.Logf(diag.Info, diag.StageStatus, "flags json=%v verify=%v control=%q socks=%q state_dir=%q",
+		*asJSON, *verify, *ctlAddr, *socksAddr, *sysDir)
 	rep := status.Collect(status.Options{ControlAddr: *ctlAddr, SocksAddr: *socksAddr, SystemStateDir: *sysDir})
+	diag.Logf(diag.Info, diag.StageStatus, "collected state=%s running=%v protected=%v note=%q",
+		rep.State, rep.Running, rep.Protected, rep.Note)
+	if !*verify {
+		if *asJSON {
+			out, err := status.RenderJSON(rep)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+				return exitError
+			}
+			fmt.Print(out)
+			return exitOK
+		}
+		fmt.Print(status.RenderText(rep))
+		return exitOK
+	}
+	// --verify: live proof through the exact configured endpoint
+	// (research 16.2 binding rule).
+	res := probe.Verify(probe.Options{
+		SocksAddr:  rep.SocksAddr,
+		CheckURL:   *checkURL,
+		Timeout:    3 * time.Second,
+		GatesReady: rep.Protected,
+		GatesNote:  rep.Note,
+	})
+	rep.Verdict = string(res.Verdict)
+	rep.CheckURL = res.CheckURL
+	rep.ExitIP = res.ExitIP
+	diag.Logf(diag.Info, diag.StageVerify, "verdict=%s failed_check=%q detail=%q exit_ip=%q",
+		res.Verdict, res.FailedCheck, res.Detail, res.ExitIP)
 	if *asJSON {
 		out, err := status.RenderJSON(rep)
 		if err != nil {
@@ -339,17 +618,86 @@ func cmdStatus(args []string) int {
 			return exitError
 		}
 		fmt.Print(out)
+	} else {
+		fmt.Print(status.RenderText(rep))
+		fmt.Printf("verdict: %s\n", res.Verdict)
+		if res.Verdict != probe.VerdictProtected {
+			fmt.Printf("failed check: %s (%s)\n", res.FailedCheck, res.Detail)
+		}
+	}
+	if res.Verdict == probe.VerdictProtected {
 		return exitOK
 	}
-	fmt.Print(status.RenderText(rep))
-	return exitOK
+	return exitError
+}
+
+// cmdDoctor runs the read-only environment diagnostics (research 16.1).
+func cmdDoctor(args []string) int {
+	fs := newFlagSet("doctor")
+	deep := fs.Bool("deep", false, "add live network checks (IsTor probe, IPv6 posture, clock sanity)")
+	asJSON := fs.Bool("json", false, "machine-readable output")
+	torBin := fs.String("tor", "tor", "tor executable")
+	ctlAddr := fs.String("control", "", "control endpoint (default 127.0.0.1:9051, fallback 9151)")
+	socksAddr := fs.String("socks", "", "SOCKS endpoint to probe (default 9050, or 9150 next to control 9151)")
+	sysDir := fs.String("state-dir", "", "system session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	checkURL := fs.String("check-url", probe.DefaultCheckURL, "probe URL for --deep checks")
+	timeout := fs.Duration("timeout", 3*time.Second, "per-check network timeout")
+	diag.Register(fs)
+	if ok, code := parseFlags(fs, args, usageDoctor); !ok {
+		return code
+	}
+	if err := applyDiag(*asJSON); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
+	}
+	if *socksAddr == "" {
+		*socksAddr = os.Getenv("TORSHIM_SOCKS")
+	}
+	diag.Logf(diag.Info, diag.StageDoctor, "flags deep=%v json=%v control=%q socks=%q check_url=%q",
+		*deep, *asJSON, *ctlAddr, *socksAddr, *checkURL)
+	rep := doctor.Run(doctor.Options{
+		TorBinary:   *torBin,
+		ControlAddr: *ctlAddr,
+		SocksAddr:   *socksAddr,
+		StateDir:    *sysDir,
+		CheckURL:    *checkURL,
+		Deep:        *deep,
+		Timeout:     *timeout,
+	})
+	if *asJSON {
+		out, err := doctor.RenderJSON(rep)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+			return exitError
+		}
+		fmt.Print(out)
+	} else {
+		fmt.Print(doctor.RenderText(rep))
+	}
+	if rep.Overall == "pass" {
+		return exitOK
+	}
+	return exitError
+}
+
+// usageVersion is the `torshim version` help body.
+func usageVersion(w io.Writer) {
+	printUsage(w, `Usage:
+  torshim version [--tor BIN]
+
+Prints wrapper, platform, backend, tor, and torsocks versions.`)
 }
 
 func cmdVersion(args []string) int {
-	fs := flag.NewFlagSet("version", flag.ContinueOnError)
+	fs := newFlagSet("version")
 	torBin := fs.String("tor", "tor", "tor executable")
-	if err := fs.Parse(args); err != nil {
-		return exitUsage
+	diag.Register(fs)
+	if ok, code := parseFlags(fs, args, usageVersion); !ok {
+		return code
+	}
+	if err := applyDiag(false); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
 	}
 	info := version.Collect(*torBin)
 	fmt.Printf("torshim %s\n", info.Wrapper)
@@ -396,9 +744,15 @@ func cmdConnect(args []string) int {
 	if code != exitOK {
 		return code
 	}
+	if err := applyDiag(false); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
+	}
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("connect")
 	}
+	diag.Logf(diag.Info, diag.StageSyswide, "connect: backend=%q force=%v trans_port=%d state_dir=%q",
+		o.backendName, o.force, o.transPort, o.stateDir)
 	rep, err := syswide.Connect(syswide.Options{
 		StateDir: o.stateDir, Backend: o.backendName, TorBinary: o.torBin,
 		Timeout: o.timeout, Force: o.force, TorUser: o.torUser, TransPort: o.transPort,
@@ -414,10 +768,12 @@ func cmdConnect(args []string) int {
 		return exitError
 	}
 	if rep.AlreadyActive {
+		diag.Logf(diag.Info, diag.StageSyswide, "already active: backend=%s since=%s", rep.State.Backend, rep.State.CreatedAt)
 		fmt.Printf("already connected (backend %s since %s)\n", rep.State.Backend, rep.State.CreatedAt)
 		return exitOK
 	}
 	printVerify(rep)
+	diag.Logf(diag.Info, diag.StageSyswide, "connected via backend=%s backup=%s", rep.State.Backend, rep.BackupDir)
 	fmt.Printf("connected: system-wide via %s (backup %s)\n", rep.State.Backend, rep.BackupDir)
 	if rep.ResolvWarning != "" {
 		fmt.Printf("warning: %s\n", rep.ResolvWarning)
@@ -444,18 +800,29 @@ func defineConnectFlags(fs *flag.FlagSet, o *connectFlags) {
 	fs.IntVar(&o.transPort, "trans-port", syswide.DefaultTransPort, "fixed transparent proxy port")
 }
 
+// usageConnect is the `torshim connect` help body.
+func usageConnect(w io.Writer) {
+	printUsage(w, `Usage:
+  sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
+                       [--state-dir DIR] [--tor BIN] [--timeout D] [--force] [--trans-port PORT]
+
+Brings up system-wide transparent routing through Tor (Linux-only:
+iptables/nft backend), verifies every rule, and fails closed if
+verification does not pass.`)
+}
+
 // parseConnectFlags parses the full connect flag set, returning exitOK on
-// success or exitUsage when the invocation is malformed.
+// success or the flagsFailed result when the invocation is malformed.
 func parseConnectFlags(args []string) (connectFlags, int) {
 	var o connectFlags
-	fs := flag.NewFlagSet("connect", flag.ContinueOnError)
+	fs := newFlagSet("connect")
 	defineConnectFlags(fs, &o)
+	diag.Register(fs)
 	if err := fs.Parse(args); err != nil {
-		return o, exitUsage
+		return o, flagsFailed(fs, err, usageConnect)
 	}
 	if len(fs.Args()) != 0 {
-		fmt.Fprintln(os.Stderr, "torshim connect: takes no positional arguments")
-		return o, exitUsage
+		return o, flagsFailed(fs, fmt.Errorf("takes no positional arguments"), usageConnect)
 	}
 	return o, exitOK
 }
@@ -471,14 +838,28 @@ func printVerify(rep *syswide.ConnectReport) {
 	}
 }
 
+// usageDisconnect is the `torshim disconnect` help body.
+func usageDisconnect(w io.Writer) {
+	printUsage(w, `Usage:
+  sudo torshim disconnect [--state-dir DIR] [--tor BIN] [--timeout D]
+
+Restores pre-connect networking: removes torshim firewall rules and
+restores the resolver snapshot (Linux-only). Idempotent: running it
+when not connected succeeds with "not connected".`)
+}
+
 func cmdDisconnect(args []string) int {
 	// Usage errors surface identically on every OS (exit 2): parsing is
 	// side-effect free, so it runs before the Linux-only gate.
-	fs := flag.NewFlagSet("disconnect", flag.ContinueOnError)
+	fs := newFlagSet("disconnect")
+	diag.Register(fs)
 	sf, err := parseSyswide(fs, args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "torshim disconnect: %v\n", err)
-		return exitUsage
+		return flagsFailed(fs, err, usageDisconnect)
+	}
+	if err := applyDiag(false); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
 	}
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("disconnect")
@@ -502,14 +883,27 @@ func cmdDisconnect(args []string) int {
 	return exitOK
 }
 
+// usageRepair is the `torshim repair` help body.
+func usageRepair(w io.Writer) {
+	printUsage(w, `Usage:
+  sudo torshim repair [--state-dir DIR] [--tor BIN] [--timeout D]
+
+Clears stale torshim session state and firewall rules (Linux-only),
+reporting every action it took.`)
+}
+
 func cmdRepair(args []string) int {
 	// Usage errors surface identically on every OS (exit 2): parsing is
 	// side-effect free, so it runs before the Linux-only gate.
-	fs := flag.NewFlagSet("repair", flag.ContinueOnError)
+	fs := newFlagSet("repair")
+	diag.Register(fs)
 	sf, err := parseSyswide(fs, args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "torshim repair: %v\n", err)
-		return exitUsage
+		return flagsFailed(fs, err, usageRepair)
+	}
+	if err := applyDiag(false); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitError
 	}
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("repair")

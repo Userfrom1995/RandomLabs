@@ -14,6 +14,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/diag"
 )
 
 // TorsocksConf is the minimal fail-closed torsocks profile.
@@ -188,7 +190,7 @@ func isDynamicELF(path string) (bool, error) {
 // appear exactly once in a child environment: a duplicate left over from the
 // parent would shadow the shim value (getenv returns the first match) and
 // run the app untorified while the wrapper reports success.
-var shimKeys = []string{"LD_PRELOAD", "TORSOCKS_CONF_FILE", "TORSOCKS_ISOLATE_PID"}
+var shimKeys = []string{"LD_PRELOAD", "TORSOCKS_CONF_FILE", "TORSOCKS_ISOLATE_PID", "TORSOCKS_LOG_LEVEL"}
 
 func shimOwned(key string) bool {
 	for _, k := range shimKeys {
@@ -222,6 +224,12 @@ func Env(base []string, libPath, confPath string) []string {
 		"TORSOCKS_CONF_FILE="+confPath,
 		"TORSOCKS_ISOLATE_PID=1",
 	)
+	// -vv and up: torsocks' own diagnostics join the transcript
+	// (blueprint: TORSOCKS_LOG_LEVEL mapping). Below -vv the key is
+	// absent so the library keeps its default level.
+	if lvl := diag.TorsocksLogLevel(); lvl != "" {
+		env = append(env, "TORSOCKS_LOG_LEVEL="+lvl)
+	}
 	return env
 }
 

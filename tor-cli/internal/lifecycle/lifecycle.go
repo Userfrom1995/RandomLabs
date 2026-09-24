@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/control"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/diag"
 )
 
 // State is the lifecycle state of a tor instance.
@@ -306,6 +307,8 @@ func Launch(o Options) (*Instance, error) {
 		os.RemoveAll(abs)
 		return nil, fmt.Errorf("lifecycle: spawn tor: %w", err)
 	}
+	diag.Logf(diag.Info, diag.StageLife, "spawned tor pid=%d binary=%q data_dir=%s torrc=%s",
+		cmd.Process.Pid, o.TorBinary, abs, torrcPath)
 	in := &Instance{DataDir: abs, Owned: true, Pid: cmd.Process.Pid, cmd: cmd}
 	deadline := time.Now().Add(o.Timeout)
 	cleanup := func(err error) (*Instance, error) {
@@ -341,15 +344,20 @@ func Launch(o Options) (*Instance, error) {
 		return cleanup(fmt.Errorf("lifecycle: starting: take ownership: %w", err))
 	}
 	if err := WaitReady(ctl, deadline, o.PollInterval); err != nil {
+		diag.Logf(diag.Error, diag.StageReady, "gate bootstrap/circuit: FAIL (%v)", err)
 		return cleanup(err)
 	}
+	diag.Logf(diag.Info, diag.StageReady, "gate bootstrap=100%% (done): pass")
+	diag.Logf(diag.Info, diag.StageReady, "gate circuit-established: pass")
 	// The SOCKS listener is a fixed wrapper-picked port, so prove it
 	// serves SOCKS (not just TCP-open) before handing the instance out.
 	// DNS liveness is verified downstream by the system-wide dnsQuery
 	// gate; per-app/shell paths only need SOCKS here.
 	if err := ProbeSocks(in.SocksAddr(), 5*time.Second); err != nil {
+		diag.Logf(diag.Error, diag.StageReady, "gate socks-handshake %s: FAIL (%v)", in.SocksAddr(), err)
 		return cleanup(fmt.Errorf("lifecycle: socks listener %s not serving: %w", in.SocksAddr(), err))
 	}
+	diag.Logf(diag.Info, diag.StageReady, "gate socks-handshake %s: pass", in.SocksAddr())
 	return in, nil
 }
 
@@ -397,6 +405,8 @@ func WaitReady(ctl *control.Client, deadline time.Time, poll time.Duration) erro
 		poll = 500 * time.Millisecond
 	}
 	var last control.BootstrapState
+	prevTag := ""
+	nextMilestone := 25
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("lifecycle: tor not ready within deadline (last bootstrap %d%% tag %q circuit %v): bootstrapping timed out",
@@ -416,6 +426,22 @@ func WaitReady(ctl *control.Client, deadline time.Time, poll time.Duration) erro
 			return fmt.Errorf("lifecycle: bootstrapping: circuit query: %w", err)
 		}
 		last.CircuitEstablished = est
+		// Owner acceptance list (-v): bootstrap transitions at 25/50/75/100
+		// percent with their tags; tag handoffs at -vv; per-poll detail at -vvv.
+		if last.Progress >= nextMilestone {
+			diag.Logf(diag.Info, diag.StageReady, "bootstrap %d%% tag %q", last.Progress, last.Tag)
+			for nextMilestone <= 100 && last.Progress >= nextMilestone {
+				nextMilestone += 25
+			}
+		}
+		if last.Tag != "" && last.Tag != prevTag {
+			if prevTag != "" {
+				diag.Logf(diag.Debug, diag.StageReady, "bootstrap tag %q -> %q at %d%%", prevTag, last.Tag, last.Progress)
+			}
+			prevTag = last.Tag
+		}
+		diag.Logf(diag.Trace, diag.StageReady, "poll progress=%d%% tag=%q circuit=%v",
+			last.Progress, last.Tag, last.CircuitEstablished)
 		if last.Ready() {
 			return nil
 		}
