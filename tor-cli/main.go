@@ -588,6 +588,8 @@ func cmdStatus(args []string) int {
 		*socksAddr = os.Getenv("TORSHIM_SOCKS")
 	}
 	logCommand("status", args)
+	diag.Logf(diag.Debug, diag.StageStatus, "endpoints control=%q socks=%q state_dir=%q verify=%v check_url=%q",
+		*ctlAddr, *socksAddr, *sysDir, *verify, *checkURL)
 	diag.Logf(diag.Info, diag.StageStatus, "flags json=%v verify=%v control=%q socks=%q state_dir=%q",
 		*asJSON, *verify, *ctlAddr, *socksAddr, *sysDir)
 	rep := status.Collect(status.Options{ControlAddr: *ctlAddr, SocksAddr: *socksAddr, SystemStateDir: *sysDir})
@@ -751,8 +753,11 @@ func cmdConnect(args []string) int {
 	// Usage errors surface identically on every OS (exit 2), so flag
 	// parsing runs before the Linux-only gate below. The gate still
 	// fires for well-formed invocations off-Linux (honest exit 4).
-	o, code := parseConnectFlags(args)
-	if code != exitOK {
+	// done separates "usage rendered, stop" from success: --help maps
+	// to exitOK yet must still terminate here instead of falling
+	// through into the networking path.
+	o, code, done := parseConnectFlags(args)
+	if done {
 		return code
 	}
 	if err := applyDiag(false); err != nil {
@@ -823,20 +828,22 @@ iptables/nft backend), verifies every rule, and fails closed if
 verification does not pass.`)
 }
 
-// parseConnectFlags parses the full connect flag set, returning exitOK on
-// success or the flagsFailed result when the invocation is malformed.
-func parseConnectFlags(args []string) (connectFlags, int) {
+// parseConnectFlags parses the full connect flag set, returning the
+// exit code plus a done flag: done=true means usage was already
+// rendered (--help to stdout at 0, malformed to stderr at 2) and the
+// caller must stop.
+func parseConnectFlags(args []string) (connectFlags, int, bool) {
 	var o connectFlags
 	fs := newFlagSet("connect")
 	defineConnectFlags(fs, &o)
 	diag.Register(fs)
 	if err := fs.Parse(args); err != nil {
-		return o, flagsFailed(fs, err, usageConnect)
+		return o, flagsFailed(fs, err, usageConnect), true
 	}
 	if len(fs.Args()) != 0 {
-		return o, flagsFailed(fs, fmt.Errorf("takes no positional arguments"), usageConnect)
+		return o, flagsFailed(fs, fmt.Errorf("takes no positional arguments"), usageConnect), true
 	}
-	return o, exitOK
+	return o, exitOK, false
 }
 
 // printVerify renders the connect verify table (pass and fail alike).
