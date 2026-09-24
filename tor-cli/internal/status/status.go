@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,14 @@ type Report struct {
 	TorVersion         string `json:"tor_version,omitempty"`
 	Protected          bool   `json:"protected"`
 	Note               string `json:"note"`
+	// Additive verify/enrichment keys (research P0.3): present only
+	// when there is evidence for them; existing keys stay pinned.
+	Listeners map[string]string `json:"listeners,omitempty"`
+	Uptime    int64             `json:"uptime,omitempty"`
+	Instance  string            `json:"instance,omitempty"`
+	Verdict   string            `json:"verdict,omitempty"`
+	CheckURL  string            `json:"check_url,omitempty"`
+	ExitIP    string            `json:"exit_ip,omitempty"`
 }
 
 // Options tune collection.
@@ -74,6 +84,10 @@ func Collect(o Options) Report {
 	if ctlAddr == "" {
 		ctlAddr = "127.0.0.1:9051"
 	}
+	// Resolve the SOCKS endpoint before dialing so every early return
+	// still reports it: `status --verify` needs it even when control is
+	// unreachable. An explicit flag/env always wins.
+	rep.SocksAddr = o.SocksAddr
 	ctl, err := control.Dial(ctlAddr, o.Timeout)
 	if err != nil {
 		// Try the Tor Browser conventional port before giving up.
@@ -83,18 +97,31 @@ func Collect(o Options) Report {
 				ctlAddr = "127.0.0.1:9151"
 			} else {
 				rep.Note = "no tor control endpoint answered (tried 9051, 9151)"
+				if rep.SocksAddr == "" {
+					rep.SocksAddr = guessSocks(ctlAddr)
+				}
 				addSysNote()
 				return rep
 			}
 		} else {
 			rep.Note = fmt.Sprintf("control %s unreachable: %v", ctlAddr, err)
+			if rep.SocksAddr == "" {
+				rep.SocksAddr = guessSocks(ctlAddr)
+			}
 			addSysNote()
 			return rep
 		}
 	}
 	defer ctl.Close()
+	if rep.SocksAddr == "" {
+		rep.SocksAddr = guessSocks(ctlAddr)
+	}
 	rep.Running = true
 	rep.ControlAddr = ctlAddr
+	// Best-effort cookie authentication: real tor refuses GETINFO until
+	// AUTHENTICATE, while permissive fakes never notice the attempt
+	// (missing cookie files abort before anything hits the wire).
+	authBestEffort(ctl)
 	phase, err := ctl.GetOne("status/bootstrap-phase")
 	if err != nil {
 		// Control answered but we cannot authenticate/read state:
@@ -113,6 +140,7 @@ func Collect(o Options) Report {
 	if v, err := ctl.GetOne("version"); err == nil {
 		rep.TorVersion = strings.TrimSpace(v)
 	}
+	enrich(ctl, &rep, sys.Mode)
 	st.CircuitEstablished = rep.CircuitEstablished
 	switch {
 	case st.Ready():
@@ -126,17 +154,85 @@ func Collect(o Options) Report {
 		rep.State = lifecycle.Bootstrapping.String()
 		rep.Note = fmt.Sprintf("tor bootstrapping (%d%% tag %q)", st.Progress, st.Tag)
 	}
-	if o.SocksAddr != "" {
-		rep.SocksAddr = o.SocksAddr
-	} else {
-		rep.SocksAddr = guessSocks(ctlAddr)
-	}
 	if err := lifecycle.ProbeSocks(rep.SocksAddr, o.Timeout); err != nil {
 		rep.Note += "; SOCKS endpoint not answering: " + err.Error()
 		rep.Protected = false
 	}
 	addSysNote()
 	return rep
+}
+
+// authBestEffort tries the standard cookie locations and never fails
+// the report: an unreadable control stays "unknown", exactly as before.
+func authBestEffort(ctl *control.Client) {
+	candidates := []string{os.Getenv("TOR_COOKIE")}
+	if home, err := os.UserHomeDir(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(home, ".tor", "control_auth_cookie"))
+	}
+	candidates = append(candidates,
+		"/var/run/tor/control.authcookie",
+		"/run/tor/control.authcookie")
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if err := ctl.AuthCookie(c); err == nil {
+			return
+		}
+	}
+}
+
+// enrich fills the additive JSON keys (research P0.3): listeners,
+// uptime, and instance kind. Every read is best-effort; a fake control
+// that lacks the keys simply leaves them empty.
+func enrich(ctl *control.Client, rep *Report, sysMode string) {
+	vals, err := ctl.GetInfo("uptime", "data-dir",
+		"net/listeners/socks", "net/listeners/control",
+		"net/listeners/dns", "net/listeners/trans")
+	if err != nil {
+		return
+	}
+	if u, e := strconv.ParseInt(strings.TrimSpace(vals["uptime"]), 10, 64); e == nil {
+		rep.Uptime = u
+	}
+	listeners := map[string]string{}
+	for _, k := range []string{"socks", "control", "dns", "trans"} {
+		if v := cleanListener(vals["net/listeners/"+k]); v != "" {
+			listeners[k] = v
+		}
+	}
+	if len(listeners) > 0 {
+		rep.Listeners = listeners
+	}
+	rep.Instance = classifyInstance(sysMode, rep.Running, vals["data-dir"])
+}
+
+// cleanListener strips Tor's quoting from a listener value.
+func cleanListener(v string) string {
+	v = strings.TrimSpace(v)
+	return strings.Trim(v, `"`)
+}
+
+// classifyInstance names what kind of tor is being reported: a system
+// session, a torshim private instance (temp data dir marker), a foreign
+// instance, or nothing at all.
+func classifyInstance(sysMode string, running bool, dataDir string) string {
+	if !running {
+		return ""
+	}
+	switch sysMode {
+	case "system":
+		return "system"
+	}
+	dataDir = strings.TrimSpace(dataDir)
+	if dataDir != "" {
+		base := filepath.Base(dataDir)
+		if strings.HasPrefix(base, "torshim-") && filepath.Dir(dataDir) == os.TempDir() {
+			return "private"
+		}
+	}
+	return "foreign"
 }
 
 func guessSocks(ctlAddr string) string {
@@ -171,6 +267,17 @@ func RenderText(rep Report) string {
 	}
 	fmt.Fprintf(&b, "protected: %v\n", rep.Protected)
 	fmt.Fprintf(&b, "note: %s\n", rep.Note)
+	if rep.Instance != "" {
+		fmt.Fprintf(&b, "instance: %s\n", rep.Instance)
+	}
+	if rep.Uptime > 0 {
+		fmt.Fprintf(&b, "uptime: %ds\n", rep.Uptime)
+	}
+	for _, k := range []string{"socks", "control", "dns", "trans"} {
+		if v, ok := rep.Listeners[k]; ok {
+			fmt.Fprintf(&b, "listener %s: %s\n", k, v)
+		}
+	}
 	return b.String()
 }
 

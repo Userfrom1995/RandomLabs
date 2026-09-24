@@ -208,6 +208,55 @@ func (c *Client) GetOne(key string) (string, error) {
 	return v, nil
 }
 
+// GetConf fetches configuration keys via GETCONF. Unlike GETINFO,
+// replies are "key value" (multi-valued keys like Bridge arrive as one
+// line per value); values for the same key join with newlines. A bare
+// "key" line (no value) records an empty string so an unconfigured key
+// still reads as present.
+func (c *Client) GetConf(keys ...string) (map[string]string, error) {
+	lines, err := c.send("GETCONF " + strings.Join(keys, " "))
+	if err != nil {
+		return nil, err
+	}
+	got := make(map[string]string, len(keys))
+	lastKey := ""
+	if len(keys) == 1 {
+		lastKey = keys[0]
+	}
+	for _, ln := range lines {
+		matched := false
+		for _, k := range keys {
+			switch {
+			case ln == k:
+				got[k] = ""
+				lastKey = k
+				matched = true
+			case strings.HasPrefix(ln, k+"="):
+				got[k] = strings.TrimPrefix(ln, k+"=")
+				lastKey = k
+				matched = true
+			case strings.HasPrefix(ln, k+" "):
+				val := strings.TrimPrefix(ln, k+" ")
+				if cur, ok := got[k]; ok && cur != "" {
+					got[k] = cur + "\n" + val
+				} else {
+					got[k] = val
+				}
+				lastKey = k
+				matched = true
+			}
+		}
+		if !matched && lastKey != "" {
+			if cur, ok := got[lastKey]; ok && cur != "" {
+				got[lastKey] = cur + "\n" + ln
+			} else {
+				got[lastKey] = ln
+			}
+		}
+	}
+	return got, nil
+}
+
 // TakeOwnership sends TAKEOWNERSHIP then drops __OwningControllerProcess so
 // the owned tor dies on disconnect without PID polling (post-Vidalia fix).
 func (c *Client) TakeOwnership() error {
