@@ -734,9 +734,9 @@ torshim disconnect  <span class="c"># restore</span></pre>
     <ol class="flow">
       <li><strong>Launch a private tor.</strong> A <code>mkdtemp</code> data directory with random loopback Socks, Control, and DNS ports, cookie authentication, and <code>__OwningControllerProcess</code> plus <code>TAKEOWNERSHIP</code>, so a crash exits the owned tor instead of orphaning it. A foreign instance can be reused with <code>--reuse</code>, but never killed.</li>
       <li><strong>Wait for real readiness.</strong> Bootstrap <code>PROGRESS=100</code> with <code>TAG=done</code> <em>and</em> a live circuit (<code>status/circuit-established == 1</code>), polled within the timeout budget (120 s default).</li>
-      <li><strong>Route.</strong> Per-app: exec under the torsocks shim (Linux) or with <code>socks5h://</code> proxy environment (macOS/Windows). System-wide: install iptables/nft capture rules redirecting TCP and DNS to the transparent proxy port (9040) while rejecting everything else.</li>
+      <li><strong>Route.</strong> Per-app: exec under the torsocks shim (Linux) or with <code>socks5h://</code> proxy environment (macOS/Windows). System-wide: install iptables/nft capture rules redirecting TCP to the transparent proxy port (9040) and port-53 UDP to the Tor DNSPort, while rejecting everything else.</li>
       <li><strong>Verify.</strong> System-wide mode gates on five checks: <code>tor-ready</code>, <code>rules-present</code>, <code>transport-open</code>, <code>dns-alive</code>, <code>resolv-untouched</code>. Any failure rolls the firewall back and exits non-zero.</li>
-      <li><strong>Restore.</strong> On <code>disconnect</code> (or on rollback): stop tor first, replay the snapshot, post-verify, and drop the session state. Ctrl-C during a run stops the owned tor before exiting.</li>
+      <li><strong>Restore.</strong> On <code>disconnect</code>: stop tor first, remove only the torshim rules, replay the pre-connect snapshot byte-exact, drop the session state, then post-verify that no rules remain. On rollback after a failed <code>connect</code>: stop tor, remove only the rules just applied, and drop state (the snapshot is kept for forensics; no replay or post-verify). Ctrl-C during a run stops the owned tor before exiting.</li>
     </ol>
   </section>
 
