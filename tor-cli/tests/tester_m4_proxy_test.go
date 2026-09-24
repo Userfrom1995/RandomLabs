@@ -196,11 +196,17 @@ func TestM4DisconnectIdempotentAndRunFailClosed(t *testing.T) {
 	bin := buildTorshim(t)
 	empty := t.TempDir()
 	so, _, code := runBin(bin, "disconnect", "--state-dir", empty)
-	if code != 0 {
-		t.Fatalf("stateless disconnect exit=%d, want 0", code)
-	}
-	if !strings.Contains(so, "not connected") {
-		t.Fatalf("stateless disconnect must say not connected:\n%s", so)
+	if runtime.GOOS != "linux" {
+		if code != 4 {
+			t.Fatalf("off-Linux stateless disconnect exit=%d, want honest 4", code)
+		}
+	} else {
+		if code != 0 {
+			t.Fatalf("stateless disconnect exit=%d, want 0", code)
+		}
+		if !strings.Contains(so, "not connected") {
+			t.Fatalf("stateless disconnect must say not connected:\n%s", so)
+		}
 	}
 	_, _, code = runBin(bin, "run", "--tor", "/nonexistent-tor-binary-xyz", "--", "/bin/true")
 	if code != 3 {
@@ -228,6 +234,9 @@ func TestM4PackagingArtifacts(t *testing.T) {
 		}
 	}
 	if out, err := exec.Command("groff", "-man", "-Tascii", filepath.Join("..", "torshim.1")).CombinedOutput(); err != nil {
+		if _, lookErr := exec.LookPath("groff"); lookErr != nil {
+			t.Skip("groff absent on this runner; man-page source checks above still bind")
+		}
 		t.Fatalf("torshim.1 groff render failed: %v\n%s", err, out)
 	}
 }

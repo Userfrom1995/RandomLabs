@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,7 +31,14 @@ import (
 func buildTorshim(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "torshim")
+	// Windows cannot exec a file without the .exe suffix (exec would
+	// fail with exit 99 by construction, not by product behavior), so
+	// the helper binary carries the platform suffix there.
+	name := "torshim"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	bin := filepath.Join(dir, name)
 	// Module root is one level up from this tests directory.
 	cmd := exec.Command("go", "build", "-o", bin, ".")
 	cmd.Dir = filepath.Join("..")

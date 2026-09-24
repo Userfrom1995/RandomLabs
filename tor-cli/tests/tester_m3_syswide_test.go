@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -59,6 +60,16 @@ func TestM3ConnectRefusesNonRoot(t *testing.T) {
 		t.Skip("root CI would do real firewall work; refusal path not applicable")
 	}
 	bin := buildTorshim(t)
+	if runtime.GOOS != "linux" {
+		// No sudo story off-Linux: system-wide was never available there,
+		// so the honest answer is the Linux-only pointer (exit 4), tested
+		// here on every OS instead of skipped.
+		_, se, code := runBin(bin, "connect")
+		if code != 4 || !strings.Contains(se, "Linux-only") {
+			t.Fatalf("off-Linux connect exit=%d, want honest 4:\n%s", code, se)
+		}
+		return
+	}
 	_, se, code := runBin(bin, "connect")
 	if code == 0 {
 		t.Fatalf("non-root connect exit=0, want refusal")
@@ -80,6 +91,15 @@ func TestM3RepairAlwaysNeedsSudo(t *testing.T) {
 	}
 	bin := buildTorshim(t)
 	empty := t.TempDir()
+	if runtime.GOOS != "linux" {
+		// Off-Linux there is nothing to repair and no sudo story: the
+		// honest answer is the Linux-only pointer (exit 4).
+		_, se, code := runBin(bin, "repair", "--state-dir", empty)
+		if code != 4 || !strings.Contains(se, "Linux-only") {
+			t.Fatalf("off-Linux repair exit=%d, want honest 4:\n%s", code, se)
+		}
+		return
+	}
 	// Unlike disconnect, repair mutates, so even a provably empty state
 	// dir must still refuse without sudo (fail closed).
 	_, se, code := runBin(bin, "repair", "--state-dir", empty)
@@ -94,6 +114,15 @@ func TestM3RepairAlwaysNeedsSudo(t *testing.T) {
 func TestM3DisconnectStatelessIdempotent(t *testing.T) {
 	bin := buildTorshim(t)
 	empty := t.TempDir()
+	if runtime.GOOS != "linux" {
+		// System-wide does not exist off-Linux, so there is no
+		// idempotent exit 0 to offer: the honest answer is exit 4
+		// (never 0, never a mutation).
+		if _, _, code := runBin(bin, "disconnect", "--state-dir", empty); code != 4 {
+			t.Fatalf("off-Linux stateless disconnect exit=%d, want honest 4", code)
+		}
+		return
+	}
 	so, _, code := runBin(bin, "disconnect", "--state-dir", empty)
 	if code != 0 {
 		t.Fatalf("stateless disconnect exit=%d, want 0 (idempotent)", code)
@@ -120,6 +149,14 @@ func TestM3DisconnectCorruptStateFailsWithSudoGuidance(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "active.json"), []byte("{nope"), 0o600); err != nil {
 		t.Fatal(err)
+	}
+	if runtime.GOOS != "linux" {
+		// The OS gate fires before state is even read off-Linux:
+		// corrupt state still yields the honest exit 4, never 0.
+		if _, _, code := runBin(bin, "disconnect", "--state-dir", dir); code != 4 {
+			t.Fatalf("off-Linux corrupt-state disconnect exit=%d, want honest 4", code)
+		}
+		return
 	}
 	_, se, code := runBin(bin, "disconnect", "--state-dir", dir)
 	if code == 0 {
