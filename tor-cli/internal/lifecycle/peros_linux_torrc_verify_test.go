@@ -53,5 +53,5 @@ func TestPerosLinuxSystemTorrcVerifiesAgainstRealTor(t *testing.T) {
 // Bridge passthrough lines must not break real-tor verification either.
 func TestPerosLinuxBridgeTorrcVerifiesAgainstRealTor(t *testing.T) {
 	verifyTorrcAgainstRealTor(t, GenerateTorrcTrans("@DATADIR@",
-		[]string{"UseBridges 1", "Bridge obfs4 1.2.3.4:443 FINGERPRINT"}, 0, 19050, 15353))
+		[]string{"UseBridges 1", "Bridge obfs4 1.2.3.4:443 0123456789ABCDEF0123456789ABCDEF01234567"}, 0, 19050, 15353))
 }
