@@ -12,10 +12,20 @@ Status: in-progress
 - M4 Cross-platform + polish: [x] macOS per-app/shell via proxy env, [x] Windows per-app/shell via proxy env, [x] version platform backends, [x] Makefile + man page + help polish, [x] limitations/threat-model/README M4 (PR 3 target, Refs #387)
 - M5 Hardening + tri-OS CI: [x] torrc managed-key guard, [x] syswide session lock, [x] control-parser fuzz + syswide edge tests, [x] linux/macos/windows matrix (staged at tor-cli/ci/tor-cli.yml for /oc lab install: builder pushes cannot carry workflow files), [x] docs complete (Final PR, Refs #387: Closes waits on lab CI install + green + Tester/Evaluator)
 
-Active Milestone: M5 complete, final hardening complete, ready for review.
+Active Milestone: M5 complete, final hardening complete, staged CI re-synced, ready for review.
 
-Current step: final hardening implemented and tested (2026-09-24 run)
-Next steps: Reviewer -> Tester (full suite + installed-CI equivalence; macOS/Windows matrix exercises the new per-OS branches) -> Evaluator -> Maintainer merges -> Closes #387
+Current step: staged tor-cli/ci/tor-cli.yml re-synced byte-identical with Lab-trimmed installed workflow (2026-09-24 sync run)
+Next steps: Reviewer -> Tester (verify staged/installed identical, full suite + off-Linux skip equivalence) -> Maintainer merges -> Closes #387 (after tor-cli sweep green on live head)
+
+## Agent log
+
+- 2026-09-24 Builder sync: copied `.github/workflows/tor-cli.yml`
+  (Lab-trimmed: shared else branch, single load-bearing skip
+  `TestConnectDisconnect`) over `tor-cli/ci/tor-cli.yml`; `diff` clean,
+  YAML parses (4 jobs: matrix/cross/fuzz/live-tor), no em dashes.
+  Full `go build/vet/test ./...` green, `GOOS=darwin/windows vet`
+  green, `make cross` 5-target green, installed-CI off-Linux skip
+  commands green on Linux. No product code touched. Refs #387.
 
 ## Agent log
 
