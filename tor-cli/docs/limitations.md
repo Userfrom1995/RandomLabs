@@ -76,6 +76,25 @@ pinned by `internal/syswide/edge_test.go`.
   Not implemented in 0.4.0 (same deferral rationale as macOS above).
   Per-app + shell are the Windows story.
 
+## Cross-OS exit-code contract (final hardening)
+
+- Usage errors exit 2 on every OS: `connect` / `disconnect` / `repair`
+  parse flags before the Linux-only gate, so `torshim connect foo`
+  is exit 2 (usage) on macOS/Windows too, not exit 4. The exit-4
+  pointer fires only for well-formed invocations on an OS without a
+  system-wide backend.
+- Black-box tests assert the honest answer per OS instead of skipping:
+  off-Linux they expect exit 4 (never 0, never a mutation) where
+  Linux expects the real behavior. `TestM4PackagingArtifacts`
+  self-skips only the groff render step when groff is absent, and the
+  test helper builds `torshim.exe` on Windows. As a result the
+  macOS `tests/` skip list and the Windows-only black-box skips in
+  `.github/workflows/tor-cli.yml` are now redundant (still green, but
+  retireable by a follow-up `/oc lab` trim): only the
+  `internal/syswide` orchestration skips (`TestConnect|TestDisconnect|
+  TestRepair|TestNftConnectDisconnect`) remain load-bearing, because
+  transparent routing is Linux-only by design.
+
 ## Reproducibility
 
 - `go build ./...` (stdlib only, `CGO_ENABLED=0` for the static
