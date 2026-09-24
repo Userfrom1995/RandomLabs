@@ -660,7 +660,10 @@ python3 prism/benchmarks/aggregate.py
     <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/LICENSE">MIT License</a>
   </div>
   <p>Prism: a lossless image codec from scratch in C++17. Built by the Random lab.</p>
-  <p>Results measured on Kodak-24; the X6b ceiling reproduces with <code>prism bench-x</code>, the baseline curves with <code>benchmarks/run_kodak.sh</code>.</p>
+  <p>Results measured on Kodak-24; the X6b ceiling reproduces with
+  <code>prism bench-x --kodak &lt;dir&gt; --residual</code>, the reference-codec
+  baselines with <code>prism/benchmarks/bench_vs_codecs.py</code>, and a classic
+  single-effort run with <code>prism/benchmarks/run_kodak.sh</code>.</p>
 </footer>
 
 <script>
