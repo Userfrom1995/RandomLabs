@@ -389,37 +389,19 @@ func syswideUnsupported(cmd string) int {
 }
 
 func cmdConnect(args []string) int {
+	// Usage errors surface identically on every OS (exit 2), so flag
+	// parsing runs before the Linux-only gate below. The gate still
+	// fires for well-formed invocations off-Linux (honest exit 4).
+	o, code := parseConnectFlags(args)
+	if code != exitOK {
+		return code
+	}
 	if runtime.GOOS != "linux" {
 		return syswideUnsupported("connect")
 	}
-	return cmdConnectFull(args)
-}
-
-// cmdConnectFull parses the full connect flag set (split out so the
-// Linux-only gate above stays trivially readable).
-func cmdConnectFull(args []string) int {
-	fs := flag.NewFlagSet("connect", flag.ContinueOnError)
-	var backendName, torUser, stateDir, torBin string
-	var timeout time.Duration
-	var force bool
-	var transPort int
-	fs.StringVar(&backendName, "backend", "auto", "firewall backend: auto, iptables, nft")
-	fs.StringVar(&torUser, "tor-user", "", "unprivileged user for the system tor (default: tor, debian-tor, _tor, nobody)")
-	fs.StringVar(&stateDir, "state-dir", "", "session dir (default /run/torshim or TORSHIM_STATEDIR)")
-	fs.StringVar(&torBin, "tor", "tor", "tor executable")
-	fs.DurationVar(&timeout, "timeout", 120*time.Second, "bootstrap wait budget")
-	fs.BoolVar(&force, "force", false, "repair a stale session, then connect")
-	fs.IntVar(&transPort, "trans-port", syswide.DefaultTransPort, "fixed transparent proxy port")
-	if err := fs.Parse(args); err != nil {
-		return exitUsage
-	}
-	if len(fs.Args()) != 0 {
-		fmt.Fprintln(os.Stderr, "torshim connect: takes no positional arguments")
-		return exitUsage
-	}
 	rep, err := syswide.Connect(syswide.Options{
-		StateDir: stateDir, Backend: backendName, TorBinary: torBin,
-		Timeout: timeout, Force: force, TorUser: torUser, TransPort: transPort,
+		StateDir: o.stateDir, Backend: o.backendName, TorBinary: o.torBin,
+		Timeout: o.timeout, Force: o.force, TorUser: o.torUser, TransPort: o.transPort,
 	})
 	if err != nil {
 		if rep != nil && len(rep.Verify) > 0 {
@@ -443,6 +425,41 @@ func cmdConnectFull(args []string) int {
 	return exitOK
 }
 
+// connectFlags carries the parsed connect flag set (no side effects from
+// parsing alone, so this doubles as the cross-OS usage pre-check).
+type connectFlags struct {
+	backendName, torUser, stateDir, torBin string
+	timeout                                time.Duration
+	force                                  bool
+	transPort                              int
+}
+
+func defineConnectFlags(fs *flag.FlagSet, o *connectFlags) {
+	fs.StringVar(&o.backendName, "backend", "auto", "firewall backend: auto, iptables, nft")
+	fs.StringVar(&o.torUser, "tor-user", "", "unprivileged user for the system tor (default: tor, debian-tor, _tor, nobody)")
+	fs.StringVar(&o.stateDir, "state-dir", "", "session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	fs.StringVar(&o.torBin, "tor", "tor", "tor executable")
+	fs.DurationVar(&o.timeout, "timeout", 120*time.Second, "bootstrap wait budget")
+	fs.BoolVar(&o.force, "force", false, "repair a stale session, then connect")
+	fs.IntVar(&o.transPort, "trans-port", syswide.DefaultTransPort, "fixed transparent proxy port")
+}
+
+// parseConnectFlags parses the full connect flag set, returning exitOK on
+// success or exitUsage when the invocation is malformed.
+func parseConnectFlags(args []string) (connectFlags, int) {
+	var o connectFlags
+	fs := flag.NewFlagSet("connect", flag.ContinueOnError)
+	defineConnectFlags(fs, &o)
+	if err := fs.Parse(args); err != nil {
+		return o, exitUsage
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(os.Stderr, "torshim connect: takes no positional arguments")
+		return o, exitUsage
+	}
+	return o, exitOK
+}
+
 // printVerify renders the connect verify table (pass and fail alike).
 func printVerify(rep *syswide.ConnectReport) {
 	for _, r := range rep.Verify {
@@ -455,14 +472,16 @@ func printVerify(rep *syswide.ConnectReport) {
 }
 
 func cmdDisconnect(args []string) int {
-	if runtime.GOOS != "linux" {
-		return syswideUnsupported("disconnect")
-	}
+	// Usage errors surface identically on every OS (exit 2): parsing is
+	// side-effect free, so it runs before the Linux-only gate.
 	fs := flag.NewFlagSet("disconnect", flag.ContinueOnError)
 	sf, err := parseSyswide(fs, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim disconnect: %v\n", err)
 		return exitUsage
+	}
+	if runtime.GOOS != "linux" {
+		return syswideUnsupported("disconnect")
 	}
 	rep, err := syswide.Disconnect(syswide.Options{
 		StateDir: sf.stateDir, TorBinary: sf.torBin, Timeout: sf.timeout,
@@ -484,14 +503,16 @@ func cmdDisconnect(args []string) int {
 }
 
 func cmdRepair(args []string) int {
-	if runtime.GOOS != "linux" {
-		return syswideUnsupported("repair")
-	}
+	// Usage errors surface identically on every OS (exit 2): parsing is
+	// side-effect free, so it runs before the Linux-only gate.
 	fs := flag.NewFlagSet("repair", flag.ContinueOnError)
 	sf, err := parseSyswide(fs, args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim repair: %v\n", err)
 		return exitUsage
+	}
+	if runtime.GOOS != "linux" {
+		return syswideUnsupported("repair")
 	}
 	rep, err := syswide.Repair(syswide.Options{
 		StateDir: sf.stateDir, TorBinary: sf.torBin, Timeout: sf.timeout,
