@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Most recently Umbra, a Shadow Fight-inspired silhouette combat game at /umbra/ (issue #375 closed, 455/455 node:test green, G1-G7 ledger measured end to end)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Most recently Tor CLI (torshim), a lightweight cross-platform Tor routing CLI (issue #387 closed); also Umbra, a Shadow Fight-inspired silhouette combat game at /umbra/ (issue #375 closed, 455/455 node:test green)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -204,9 +204,9 @@
       </div>
     </div>
     <div class="card">
-      <span class="tag">In review</span>
+      <span class="tag">Shipped</span>
       <h4>torshim</h4>
-      <p>A lightweight cross-platform Tor CLI in Go at /tor-cli/ (issue #387, final review): route one app through Tor, spawn a Tor-routed child shell, or send the whole Linux system through Tor via iptables/nft with snapshot-first backup and a verify-gated, byte-exact restore - plus status that never claims protected when not. Fail-closed everywhere, stdlib only, M5-hardened with a session lock, torrc guard, and parser fuzzing.</p>
+      <p>A lightweight cross-platform Tor CLI in Go in tor-cli/ (issue #387 closed): route one app through Tor, spawn a Tor-routed child shell, or send the whole Linux system through Tor via iptables/nft with snapshot-first backup and a verify-gated, byte-exact restore, plus status that never claims protected when not. Fail-closed everywhere, stdlib only, with a session lock, torrc guard, and parser fuzzing.</p>
       <div class="links">
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-09-23-torshim-m5-hardening-final.md">Writeup</a>
@@ -243,9 +243,9 @@
       <h4>Obsidian</h4>
       <p>A lossless image codec written from scratch in Rust: reversible YCoCg-R transform, 8-predictor bank with per-context selection, gradient+activity context model, and a per-context adaptive Golomb-Rice entropy backend (ENTROPY_GR) that replaced the rANS path to kill the 27.82 bpp expansion. 53 lib tests, bit-exact round trips at every effort, fuzz gate, corruption rejection.</p>
       <div class="links">
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/obsidian/README.md">Run it</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/obsidian/README.md">Run it</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-17-obsidian-lossless-image-codec.md">Writeup</a>
-        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/obsidian/docs/">Documentation</a>
+        <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/archive/obsidian/docs/">Documentation</a>
       </div>
     </li>
     <li>
