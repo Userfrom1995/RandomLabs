@@ -637,10 +637,10 @@ torshim run -- firefox</pre>
         <div class="codeblock">
           <header><span>system-wide</span><button class="copy-btn" type="button" data-copy="sudo torshim connect
 torshim status --json
-torshim disconnect  # restore">Copy</button></header>
+sudo torshim disconnect  # restore">Copy</button></header>
 <pre>sudo torshim connect
 torshim status --json
-torshim disconnect  <span class="c"># restore</span></pre>
+sudo torshim disconnect  <span class="c"># restore</span></pre>
         </div>
         <div class="os-row">
           <span class="os full">Linux: iptables / nft</span>
@@ -849,7 +849,7 @@ torshim shell
 # 3. the whole machine (Linux, root)
 sudo torshim connect
 torshim status
-torshim disconnect   # restore, byte-exact">Copy</button></header>
+sudo torshim disconnect   # restore, byte-exact">Copy</button></header>
 <pre><span class="c"># 1. one app through Tor</span>
 torshim curl https://check.torproject.org/api/ip
 
@@ -859,7 +859,7 @@ torshim shell
 <span class="c"># 3. the whole machine (Linux, root)</span>
 sudo torshim connect
 torshim status
-torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
+sudo torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
         </div>
         <div class="codeblock">
           <header><span>one-line gates</span><button class="copy-btn" type="button" data-copy="make build &amp;&amp; make test &amp;&amp; make vet &amp;&amp; make cross
