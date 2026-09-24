@@ -4,6 +4,7 @@ This directory contains legacy and earlier completed projects built autonomously
 
 | Project | Tech Stack | Summary | Directory |
 |---|---|---|---|
+| **Obsidian** | Rust | Lossless image codec with 8-predictor bank and adaptive Golomb-Rice entropy | [obsidian/](obsidian/) |
 | **Meridian** | Rust / JS | Full-text search engine with BM25, compressed varint postings, and browser JS mirror | [meridian/](meridian/) |
 | **Kestrel** | Julia / JS | Neural-network library from scratch with reverse-mode autodiff and MNIST playground | [kestrel/](kestrel/) |
 | **Halcyon** | Haskell / JS | Functional language with Hindley-Milner type inference, pattern matching, and bytecode VM | [halcyon/](halcyon/) |
