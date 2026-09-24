@@ -585,6 +585,12 @@ jobs:
                   body = f"/oc review (head {head})"
               elif action == "test":
                   body = "/oc test"
+              elif action == "test-linux":
+                  body = "/oc test-linux"
+              elif action == "test-macos":
+                  body = "/oc test-macos"
+              elif action == "test-windows":
+                  body = "/oc test-windows"
               elif action == "eval":
                   body = "/oc eval"
               elif action == "continue":
