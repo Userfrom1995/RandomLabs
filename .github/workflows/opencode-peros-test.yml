@@ -93,8 +93,18 @@ jobs:
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          head_ref="${{ steps.pr-info.outputs.head_ref }}"
           case "$action" in
-            fix) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Linux tester findings (see report)" || true ;;
+            fix)
+              if echo "$head_ref" | grep -q "opencode/lab"; then
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true
+              elif [ "$is_pr" = "true" ]; then
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Linux tester findings (see report)" || true
+              else
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+              fi ;;
             lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
             *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
           esac
@@ -178,8 +188,18 @@ jobs:
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          head_ref="${{ steps.pr-info.outputs.head_ref }}"
           case "$action" in
-            fix) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: macOS tester findings (see report)" || true ;;
+            fix)
+              if echo "$head_ref" | grep -q "opencode/lab"; then
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true
+              elif [ "$is_pr" = "true" ]; then
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: macOS tester findings (see report)" || true
+              else
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+              fi ;;
             lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
             *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
           esac
@@ -266,8 +286,18 @@ jobs:
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
+          is_pr="false"
+          if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
+          head_ref="${{ steps.pr-info.outputs.head_ref }}"
           case "$action" in
-            fix) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Windows tester findings (see report)" || true ;;
+            fix)
+              if echo "$head_ref" | grep -q "opencode/lab"; then
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true
+              elif [ "$is_pr" = "true" ]; then
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc fix: Windows tester findings (see report)" || true
+              else
+                gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true
+              fi ;;
             lab) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc lab" || true ;;
             *) gh issue comment "$target" --repo "${{ github.repository }}" --body "/oc maintainer" || true ;;
           esac

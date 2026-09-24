@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    if: github.event.issue.pull_request != null && (startsWith(github.event.comment.body, '/oc test') || startsWith(github.event.comment.body, '/opencode test'))
+    if: github.event.issue.pull_request != null && (startsWith(github.event.comment.body, '/oc test') || startsWith(github.event.comment.body, '/opencode test')) && !startsWith(github.event.comment.body, '/oc test-linux') && !startsWith(github.event.comment.body, '/opencode test-linux') && !startsWith(github.event.comment.body, '/oc test-macos') && !startsWith(github.event.comment.body, '/opencode test-macos') && !startsWith(github.event.comment.body, '/oc test-windows') && !startsWith(github.event.comment.body, '/opencode test-windows')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
