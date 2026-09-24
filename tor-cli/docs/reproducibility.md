@@ -1,4 +1,4 @@
-# torshim reproducibility + test matrix (M5 final)
+# torshim reproducibility + test matrix
 
 Unofficial frontend. Not sponsored by The Tor Project.
 
@@ -23,9 +23,9 @@ runs the full suite natively there).
 
 | Layer | Where | What it proves |
 |---|---|---|
-| Hermetic unit suites (`internal/*`, `tests/`) | `make test`, CI matrix | torrc shape + managed-key guard, control parsing, lifecycle state machine, torsocks classification + env scrub, proxy env + coverage notes, shell banner + env, syswide orchestration (fake iptables/nft Runner, local fake DNSPort UDP server), session lock, stale/corrupt edge cases, black-box CLI contract (exit codes, honesty) |
+| Hermetic unit suites (`internal/*`, `tests/`) | `make test`, CI matrix | torrc shape + managed-key guard, control parsing, lifecycle state machine, torsocks classification + env scrub, proxy env + coverage notes, shell banner + env, syswide orchestration (fake iptables/nft Runner, local fake DNSPort UDP server), session lock, stale/corrupt edge cases, black-box CLI contract (exit codes, honesty, --help exits 0), verbosity grammar/thresholds/parity, doctor checks + no-mutation, status verify verdict table, G3/G4 timing bounds |
 | Bounded fuzz (`internal/control/fuzz_test.go`) | CI `fuzz` job, 30 s per target | parsers never panic, deterministic, never report Ready straight from the parser (250k+ execs clean on the bootstrap target) |
-| CLI honesty probes | CI matrix, no tor installed | `version` prints without tor; `status` reports absent + `protected:false` (text and `--json`); `run` with missing tor binary exits 3; stateless `disconnect` exits 0; `connect` without root (or off-Linux) refuses non-zero |
+| CLI honesty probes | CI matrix, no tor installed | `version` prints without tor; `status` reports absent + `protected:false` (text and `--json`); `run` with missing tor binary exits 3; stateless `disconnect` exits 0; `connect` without root (or off-Linux) refuses non-zero; every `--help` exits 0 with the exit-code table; `status --verify` and `doctor` exit codes follow their verdict/check tables |
 | Live tor lifecycle | CI `live-tor` job (linux, best-effort) + manual | real `tor` bootstrap with a 90 s budget; fail-closed probes first. Restricted CI egress may force a documented SKIP (logged, gate stays green): the hermetic suite above is the binding gate, live is the bonus proof |
 | Stale-state honesty | CI `live-tor` job (`TORSHIM_STATEDIR` sandbox) | corrupt `active.json` under `status --json` still parses and still reports `protected:false` |
 

@@ -23,8 +23,20 @@ torshim \- lightweight launcher for the Tor network (unofficial)
 .br
 .B torshim status
 .RB [ --json ]
+.RB [ --verify ]
+.RB [ --check-url
+.IR URL ]
+.br
+.B torshim doctor
+.RB [ --deep ]
+.RB [ --json ]
 .br
 .B torshim version
+.RB [ -v | -vv | -vvv | -q ]
+.RB [ --log-level
+.IR LEVEL ]
+.RB [ --log-file
+.IR FILE ]
 .SH DESCRIPTION
 torshim automates the existing
 .B tor
@@ -63,8 +75,27 @@ Needs sudo when a session exists. Idempotent.
 Clear stale rules and dead session records (needs sudo). Never
 flushes foreign rules.
 .TP
-.B status [--json]
-Report tor state. Never claims protected when not.
+.B status [--json] [--verify [--check-url URL]]
+Report tor state. Never claims protected when not. Plain status always
+exits 0. With
+.BR --verify ,
+probe egress through the exact configured socks5h endpoint (readiness
+gates plus a live IsTor fetch) and exit 0 only when the verdict is
+.BR protected ;
+otherwise exit 1 with verdict
+.B degraded
+or
+.B unverified
+and a failed-check reason.
+.TP
+.B doctor [--deep] [--json]
+Read-only environment diagnostics: ten baseline checks (tor binary,
+per-app mechanism, control, bootstrap, SOCKS, port conflicts, session
+state, environment hygiene, bridges, platform coverage).
+.B --deep
+adds three live network checks (IsTor probe, IPv6 posture, clock
+sanity). Exit 0 when all pass, 1 when any fails, 2 on usage errors.
+Never mutates state.
 .TP
 .B version
 Print wrapper, platform, per-app mechanism, system-wide support, tor,
@@ -81,6 +112,17 @@ bootstrap wait budget (default: 120s).
 Reuse a verifiable foreign tor (cookie auth + readiness gate)
 instead of launching a private instance.
 .TP
+.B -v, -vv, -vvv, -q
+Verbosity: info, debug, trace, or errors only (default: warnings).
+Accepted before the command or inside it. Diagnostics go to stderr as
+HH:MM:SS.mmm LEVEL stage: message; stdout stays payload-only.
+.TP
+.BI "--log-level " "quiet|error|warn|info|debug|trace"
+Explicit log level (wins over -v/-q).
+.TP
+.BI "--log-file " FILE
+Tee all log lines to FILE (bug reports).
+.TP
 .BI "--backend " "auto|iptables|nft"
 connect firewall backend (default: auto).
 .TP
@@ -95,7 +137,8 @@ connect: repair a stale session, then connect.
 success.
 .TP
 .B 1
-runtime or application failure.
+runtime or application failure (for status --verify: verdict degraded
+or unverified; for doctor: any failed check).
 .TP
 .B 2
 usage error.

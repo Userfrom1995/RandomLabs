@@ -8,12 +8,11 @@ productizing anything under a `tor*` name.
 ## What it is
 
 torshim automates the existing `tor` daemon. It never implements Tor itself.
-What shipped (0.4.0, issues M1-M5): per-app routing and isolated
-shells on Linux (torsocks shim, fail-closed), system-wide routing on
-Linux (iptables/nft, snapshot-first, verify-gated), per-app + shell
-on macOS and Windows via proxy environment, packaging (Makefile +
-man page), and M5 hardening (session lock, torrc managed-key guard,
-parser fuzz, tri-OS CI):
+It ships per-app routing and isolated shells on Linux (torsocks shim,
+fail-closed), system-wide routing on Linux (iptables/nft, snapshot-first,
+verify-gated), per-app + shell on macOS and Windows via proxy environment,
+diagnostics with machine-readable proofs, packaging (Makefile + man page),
+and hardening (session lock, torrc managed-key guard, parser fuzz, tri-OS CI):
 
 ```sh
 torshim run -- curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
@@ -22,9 +21,31 @@ torshim shell                        # child shell routed through Tor
 sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
 torshim disconnect                   # byte-exact restore (needs sudo when a session exists)
 torshim repair                       # clear stale rules/state (needs sudo)
-torshim status [--json]              # never claims protected when not
+torshim status [--json] [--verify [--check-url URL]]
+                                     # --verify: live egress proof; exit 0 iff verdict protected
+torshim doctor [--deep] [--json]     # read-only environment diagnostics
 torshim version
 ```
+
+Exit codes everywhere: 0 success (for `status --verify`: verdict
+`protected`), 1 runtime failure (for `status --verify`: `degraded` or
+`unverified`), 2 usage error, 3 tor not ready (fail-closed), 4 feature
+unavailable on this platform.
+
+## Diagnostics
+
+Every command takes `-v` (info), `-vv` (debug), `-vvv` (trace), `-q`
+(errors only), plus `--log-level quiet|error|warn|info|debug|trace` and
+`--log-file FILE`. Diagnostics go to stderr with the line grammar
+`HH:MM:SS.mmm LEVEL stage: message`; stdout stays payload-only (`--json`
+drops the level to warnings unless logging was configured explicitly).
+With `-v`, terminal runs end in a bare verdict line: `torshim: ready
+mode=... mechanism=... ...` on success, `torshim: NOT protected
+reason=<cause> remediation=<action>` on failure. `doctor` runs ten
+baseline checks (binary, mechanism, control, bootstrap, SOCKS, ports,
+session state, environment, bridges, platform coverage); `--deep` adds a
+live IsTor probe, IPv6 posture, and clock sanity. It never mutates state
+and never uses the word "protected".
 
 System-wide mode launches a private tor with a transparent proxy
 (TransPort 9040) under an unprivileged user, snapshots the firewall plus
@@ -44,15 +65,21 @@ stays an honest exit-4 refusal (no tun2socks backend shipped; per-app + shell wo
   exits the owned tor instead of orphaning it. Shutdown is close-first, then
   SIGTERM (5 s grace), then SIGKILL. Foreign instances are reused, never killed.
   torrc passthrough lines overriding a torshim-managed key (listeners,
-  identity, daemon behavior, `Include`) are rejected up front (M5):
+  identity, daemon behavior, `Include`) are rejected up front:
   bridge/pluggable-transport lines keep working.
 - Readiness (binding): bootstrap `PROGRESS=100` + `TAG=done` AND
   `status/circuit-established == 1`, polled, 120 s default timeout.
+- Verification (`status --verify`): through the exact configured
+  `socks5h` endpoint - handshake, readiness gates, then a live fetch of
+  `https://check.torproject.org/api/ip` (URL overridable via
+  `--check-url`) - mapping to `protected`, `degraded`, or `unverified`
+  with a failed-check reason. The whole report is built inside a 1.5 s
+  wall-clock budget so a dead control endpoint cannot stall it past 2 s.
 - Per-app (Linux): exec under the torsocks `LD_PRELOAD` shim with a generated
   fail-closed profile (`IsolatePID 1`, `AllowInbound 0`,
   `AllowOutboundLocalhost 0`). Static binaries, non-ELF executables, and
   setuid/setgid files are refused: they would silently bypass the shim.
-- Per-app (macOS/Windows, M4): exec with `socks5h://` proxy environment
+- Per-app (macOS/Windows): exec with `socks5h://` proxy environment
   (all six `*_PROXY` keys, parent duplicates scrubbed). Only apps honoring
   proxy env are covered; every launch prints the coverage note. No DYLD
   shim by decision (SIP would strip it silently).
@@ -74,20 +101,32 @@ Man page: `man ./torshim.1` (or `man torshim` after install).
 
 ## Layout
 
-- `main.go` - cobra-free flag dispatch, exit codes (0 ok, 1 error, 2 usage,
-  3 tor-not-ready fail-closed, 4 later-milestone).
+- `main.go` - cobra-free flag dispatch, exit codes (0 ok, 1 runtime
+  error or verify verdict not protected, 2 usage, 3 tor-not-ready
+  fail-closed, 4 platform unavailable), `--help` exits 0 with the
+  exit-code table on every command.
 - `internal/control/` - control-protocol v1 client + readiness parsing.
-- `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop.
-  M3 adds fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
+- `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop;
+  fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
   spawn/signal shims (linux/darwin/windows all compile).
 - `internal/perapp/` - torsocks conf/exec + static-binary guard (Linux);
-  socks5h proxy-env backend with coverage note (macOS/Windows, M4).
+  socks5h proxy-env backend with coverage note (macOS/Windows).
 - `internal/shell/` - child shell + coverage banner (shim on Linux,
   proxy env elsewhere).
-- `internal/syswide/` - M3 system-wide: iptables + nft backends, state,
+- `internal/syswide/` - system-wide: iptables + nft backends, state,
   snapshot/restore, verify suite, connect/disconnect/repair, status probe.
 - `internal/status/` - state aggregator (absent/unknown never protected;
-  folds in the system session, `mode: system` only on state + rules).
+  folds in the system session, `mode: system` only on state + rules;
+  bounded 1.5 s collect budget; additive JSON verdict fields under
+  `--verify`).
+- `internal/diag/` - verbosity levels, flag pre-scan, log-line grammar,
+  log-file tee, `TORSOCKS_LOG_LEVEL` mapping.
+- `internal/doctor/` - read-only environment diagnostics (ten baseline
+  checks, three deep network checks).
+- `internal/probe/` - SOCKS5 handshake/IsTor egress probe and the
+  three-state verification verdict.
+- `internal/platform_compat/` - platform capability, dependency, and
+  sandbox facts shared by doctor and status.
 - `internal/version/` - wrapper + tor + torsocks + platform backend versions.
 - `docs/` - research spec, threat model, per-OS limitations, reproducibility + test matrix.
 - `ci/` - tri-OS GitHub Actions matrix staged for Lab Engineer install (see docs/reproducibility.md).
