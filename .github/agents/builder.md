@@ -90,8 +90,8 @@ env/files; a missing required value -> clear error + non-zero exit. Note: For we
 ## Step 4 - Docs & site
 
 - **Project Directory**: All code must go in `/<project-name>/`.
-  - **Hostable on GitHub Pages**: If the project can run entirely in the browser as static files (e.g. pure frontend HTML/JS, Canvas, WASM), place its entrypoint at `/<project-name>/index.html` so it serves at the project sub-domain.
-  - **Not Hostable**: If the project requires a backend server (e.g. full-stack app, Node/Python API) or is a CLI tool, it cannot be hosted on GitHub Pages. Leave the project root WITHOUT an `index.html`.
+  - **Hostable on GitHub Pages**: If the project can run entirely in the browser as static files (e.g. pure frontend HTML/JS, Canvas, WASM), place its live entrypoint at `/<project-name>/index.html` so it serves at the project sub-domain.
+  - **Every Project Ships a Website (binding)**: EVERY project directory must include an `index.html` served on GitHub Pages at `/<project-name>/`. Backend servers, engines, CLI tools, and libraries cannot run their app on Pages, so their `/<project-name>/index.html` is an introduction and documentation hub instead: what the product is, a real quickstart and command reference, an honest per-OS/support matrix where applicable, and working links into `/<project-name>/docs/`. NEVER leave a project root WITHOUT an `index.html` - a shipped project with no browsable surface is a defect (Owner directive; enforced by The Reviewer and audited by The Curator on every run).
 - **Project Docs**: Project documentation MUST go in `/<project-name>/docs/`. Follow the same structure (`index.html` and `index.md`). Project docs MUST obey the Unified Documentation Invariant: a single cohesive product view with zero internal milestone markers (`M1`, `M2`, `this milestone`, sprint or changelog headers). Integrate each new subsystem into the existing unified docs; never append per-phase chapters.
 - **Lab Docs (DO NOT TOUCH)**: The global lab docs live in the root `/docs/` folder. NEVER overwrite or delete the root `/docs/` folder.
 - **Landing Page & Documentation**: When finishing a project, you MUST update BOTH the root  
