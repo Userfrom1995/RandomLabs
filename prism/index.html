@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Prism: a lossless image codec written from scratch in C++17. Bit-exact round trips, a measured Kodak-24 ceiling, and a complete negative ledger of 49+ mechanisms.">
+<meta name="theme-color" content="#0a0d13">
+<link rel="icon" href="data:,">
+<title>Prism: a lossless image codec from scratch</title>
+<style>
+  :root {
+    --bg: #0a0d13;
+    --bg-raise: #0e121b;
+    --panel: #131826;
+    --panel-2: #171d2d;
+    --border: #263042;
+    --border-soft: #1d2534;
+    --text: #dbe1ee;
+    --muted: #8b94aa;
+    --violet: #9d7bd8;
+    --blue: #6ea8f7;
+    --teal: #4fc1a0;
+    --amber: #f2b134;
+    --red: #e06c6c;
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --radius: 12px;
+    --maxw: 1040px;
+    --spectrum: linear-gradient(90deg, #9d7bd8 0%, #6ea8f7 30%, #4fc1a0 62%, #f2b134 100%);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation: none !important; transition: none !important; }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  code, kbd, pre { font-family: var(--mono); }
+  code {
+    background: #0d1119;
+    border: 1px solid var(--border-soft);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 0.88em;
+  }
+
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 12px 20px;
+    background: rgba(10, 13, 19, 0.92);
+    border-bottom: 1px solid var(--border-soft);
+    backdrop-filter: blur(8px);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    color: var(--text);
+    font-size: 1.02rem;
+  }
+  .brand:hover { text-decoration: none; }
+  .brand svg { display: block; }
+  .nav-links { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+  .nav-links a {
+    color: var(--muted);
+    font-size: 0.92rem;
+    padding: 6px 11px;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--panel); text-decoration: none; }
+  .nav-links a.cta { color: #12161f; background: var(--amber); font-weight: 600; }
+  .nav-links a.cta:hover { background: #ffc44d; }
+
+  header.hero {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-soft);
+    background:
+      radial-gradient(760px 380px at 85% -10%, rgba(110, 168, 247, 0.14), transparent 60%),
+      radial-gradient(640px 360px at 8% 0%, rgba(157, 123, 216, 0.14), transparent 60%),
+      linear-gradient(180deg, var(--bg-raise), var(--bg));
+  }
+  .hero-inner {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 70px 24px 58px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 40px;
+    align-items: center;
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .chip {
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    background: rgba(19, 24, 38, 0.7);
+    border-radius: 999px;
+    padding: 3px 11px;
+  }
+  .chip.done { color: var(--teal); border-color: rgba(79, 193, 160, 0.45); }
+  .chip.spec { color: var(--violet); border-color: rgba(157, 123, 216, 0.45); }
+  h1 {
+    margin: 0 0 12px;
+    font-size: clamp(2.5rem, 6vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+  }
+  .tagline {
+    margin: 0 0 16px;
+    font-size: clamp(1.05rem, 2.3vw, 1.3rem);
+    color: var(--text);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .lede { margin: 0 0 24px; color: var(--muted); max-width: 36rem; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); text-decoration: none; }
+  .btn-primary { background: var(--amber); color: #14181f; }
+  .btn-primary:hover { background: #ffc44d; }
+  .btn-ghost { background: var(--panel); color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--blue); }
+
+  /* refraction graphic */
+  .prism-art {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px 22px 20px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  }
+  .prism-art svg { width: 100%; height: auto; display: block; }
+  .prism-art .caption {
+    margin: 14px 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    font-family: var(--mono);
+    letter-spacing: 0.03em;
+  }
+
+  main { max-width: var(--maxw); margin: 0 auto; padding: 12px 24px 40px; }
+  section { padding-top: 54px; }
+  .kicker {
+    font-size: 0.76rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin: 0 0 8px;
+    font-weight: 700;
+    background: var(--spectrum);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    width: fit-content;
+  }
+  h2 { margin: 0 0 10px; font-size: clamp(1.5rem, 3vw, 1.9rem); letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 26px; max-width: 48rem; }
+  h3 { margin: 0 0 8px; font-size: 1.05rem; letter-spacing: -0.01em; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    min-width: 0;
+  }
+  .card p { margin: 0 0 12px; color: var(--muted); font-size: 0.94rem; }
+  .card p:last-child { margin-bottom: 0; }
+  .rule { height: 3px; border-radius: 3px; background: var(--spectrum); margin-bottom: 16px; }
+
+  /* pipeline */
+  .pipe {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+  }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px;
+    position: relative;
+  }
+  .stage b { display: block; font-size: 0.92rem; margin-bottom: 4px; }
+  .stage span { font-size: 0.8rem; color: var(--muted); line-height: 1.5; display: block; }
+  .stage i {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--blue);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ledger table */
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 560px; }
+  th, td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  th {
+    background: var(--panel-2);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  tr:last-child td { border-bottom: none; }
+  .verdict { font-weight: 700; white-space: nowrap; font-family: var(--mono); font-size: 0.82rem; }
+  .verdict.pass { color: var(--teal); }
+  .verdict.miss { color: var(--amber); }
+  .verdict.goal { color: var(--red); }
+  td.num { font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+
+  /* code */
+  .codeblock {
+    position: relative;
+    background: #080b10;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 0 0 16px;
+    overflow: hidden;
+  }
+  .codeblock header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #0d1119;
+    border-bottom: 1px solid var(--border-soft);
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .codeblock pre {
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    color: #d3daea;
+  }
+  .codeblock .c { color: #62708a; }
+  .copy-btn {
+    font-family: var(--sans);
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 3px 11px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+  .copy-btn:hover { border-color: var(--teal); color: var(--teal); }
+  .copy-btn.done { border-color: var(--teal); color: var(--teal); }
+
+  /* docs */
+  .doc-card { display: flex; flex-direction: column; gap: 6px; }
+  .doc-card a.doc-title { font-weight: 700; font-size: 1.02rem; color: var(--text); }
+  .doc-card a.doc-title:hover { color: var(--blue); text-decoration: none; }
+  .doc-card .kind {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--violet);
+  }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .stat b { display: block; font-family: var(--mono); font-size: 1.15rem; color: var(--blue); }
+  .stat span { font-size: 0.78rem; color: var(--muted); }
+
+  footer {
+    border-top: 1px solid var(--border-soft);
+    margin-top: 62px;
+    padding: 30px 24px 44px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+  footer .foot-links { margin-bottom: 10px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  footer p { margin: 4px 0; }
+
+  @media (max-width: 900px) {
+    .hero-inner { grid-template-columns: 1fr; padding-top: 50px; gap: 30px; }
+    .nav-links a:not(.cta) { display: none; }
+  }
+
+  @media (max-width: 640px) {
+    .codeblock pre { white-space: pre-wrap; word-break: break-word; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Primary">
+  <a class="brand" href="./" aria-label="Prism home">
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#9d7bd8"/><stop offset="0.4" stop-color="#6ea8f7"/>
+          <stop offset="0.7" stop-color="#4fc1a0"/><stop offset="1" stop-color="#f2b134"/>
+        </linearGradient>
+      </defs>
+      <path d="M16 4 L28 26 L4 26 Z" fill="none" stroke="url(#g)" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M2 15 L12 15" stroke="#dbe1ee" stroke-width="2" stroke-linecap="round"/>
+      <path d="M20 19 L30 15 M20 21 L30 21 M20 23 L30 27" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    Prism
+  </a>
+  <div class="nav-links">
+    <a href="#pipeline">Pipeline</a>
+    <a href="#results">Results</a>
+    <a href="#build">Build</a>
+    <a href="#docs">Docs</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/prism">GitHub</a>
+    <a class="cta" href="#build">Get started</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="chip-row">
+        <span class="chip done">Shipped: finished at ceiling</span>
+        <span class="chip">C++17, no deps required</span>
+        <span class="chip spec">Bit-exact by construction</span>
+        <span class="chip">Kodak-24 benchmarked</span>
+      </div>
+      <h1>Prism</h1>
+      <p class="tagline">A lossless image codec written from scratch, measured against the state of the art.</p>
+      <p class="lede">
+        Reversible color decorrelation, a MED/GAP predictor bank with MA-tree context,
+        context-modeled entropy, and a corruption-rejecting <code>PRSM</code> container -
+        every byte verified round-trip exact. Built as the successor to Obsidian and
+        benchmarked head-to-head with PNG, WebP, JPEG-LS, and JPEG XL on the Kodak
+        dataset, with every negative result committed, not buried.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#build">Build it</a>
+        <a class="btn btn-ghost" href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">README</a>
+        <a class="btn btn-ghost" href="#docs">Documentation</a>
+      </div>
+    </div>
+
+    <div class="prism-art" role="img" aria-label="Diagram: a white beam enters a triangular prism and leaves as a spectrum of colored beams, representing the codec stages.">
+      <svg viewBox="0 0 420 260" aria-hidden="true">
+        <defs>
+          <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#dbe1ee"/><stop offset="1" stop-color="#9d7bd8"/>
+          </linearGradient>
+          <linearGradient id="spec" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#9d7bd8"/><stop offset="0.33" stop-color="#6ea8f7"/>
+            <stop offset="0.66" stop-color="#4fc1a0"/><stop offset="1" stop-color="#f2b134"/>
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="420" height="260" fill="#0d1119" rx="10"/>
+        <path d="M14 130 L160 130" stroke="url(#beam)" stroke-width="5" stroke-linecap="round"/>
+        <path d="M210 44 L286 214 L134 214 Z" fill="rgba(157,123,216,0.10)" stroke="#9d7bd8" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M250 150 L406 96" stroke="#9d7bd8" stroke-width="4" stroke-linecap="round"/>
+        <path d="M250 152 L406 124" stroke="#6ea8f7" stroke-width="4" stroke-linecap="round"/>
+        <path d="M250 154 L406 152" stroke="#4fc1a0" stroke-width="4" stroke-linecap="round"/>
+        <path d="M250 156 L406 180" stroke="#f2b134" stroke-width="4" stroke-linecap="round"/>
+        <path d="M250 158 L406 208" stroke="#e06c6c" stroke-width="4" stroke-linecap="round"/>
+        <text x="24" y="118" fill="#8b94aa" font-family="monospace" font-size="12">pixels</text>
+        <text x="150" y="34" fill="#9d7bd8" font-family="monospace" font-size="12">PRSM</text>
+        <text x="330" y="84" fill="#8b94aa" font-family="monospace" font-size="12">bitstream</text>
+      </svg>
+      <p class="caption">color - prediction - context - entropy - container</p>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section id="pipeline">
+    <p class="kicker">How it works</p>
+    <h2>Five stages, one invariant</h2>
+    <p class="sub">
+      The hard rule that gates everything: decode(encode(x)) equals x, byte for byte,
+      at every effort level. Corruption is rejected, never mis-decoded.
+    </p>
+    <div class="pipe">
+      <div class="stage"><i>stage 1</i><b>Color</b><span>Reversible decorrelation (YCoCg-R and five adopted rotations) chosen by measured coded bytes.</span></div>
+      <div class="stage"><i>stage 2</i><b>Prediction</b><span>MED/GAP predictor bank with optional multi-resolution Squeeze (true integer lifting).</span></div>
+      <div class="stage"><i>stage 3</i><b>Context</b><span>MA decision-tree context modeling over spatial residual features, accepted only when trial encodes win.</span></div>
+      <div class="stage"><i>stage 4</i><b>Entropy</b><span>Context-modeled binary adaptation with Rice quotient/remainder coding (finite-state rANS lineage).</span></div>
+      <div class="stage"><i>stage 5</i><b>Container</b><span><code>PRSM</code> magic, LE header, CRC-checked model blob and payload. Hard rejection on corruption.</span></div>
+    </div>
+    <div class="stat-row" style="margin-top:16px">
+      <div class="stat"><b>0 bytes</b><span>round-trip divergence</span></div>
+      <div class="stat"><b>0..7</b><span>effort levels, one bitstream version</span></div>
+      <div class="stat"><b>49+</b><span>measured mechanisms</span></div>
+      <div class="stat"><b>7+</b><span>benchmark programs</span></div>
+    </div>
+  </section>
+
+  <section id="results">
+    <p class="kicker">Measured results</p>
+    <h2>The Kodak-24 ledger</h2>
+    <p class="sub">
+      Accepted by the Owner as <strong>finished at ceiling</strong> at <code>9bd6d10</code>
+      (2026-09-03, issue #130). The gates are reported exactly as measured: passes and
+      misses alike, with a fresh-binary reproduction column. Lower bits per sample is better.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Gate</th><th>Baseline</th><th>Prism (X6b)</th><th>Verdict</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Bit-exact round trip, corruption rejection, fuzz</td>
+            <td>invariant</td>
+            <td class="num">exact at efforts 0/4/7</td>
+            <td><span class="verdict pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>Beat PNG</td>
+            <td class="num">PNG 13.05</td>
+            <td class="num">9.6525 summed</td>
+            <td><span class="verdict pass">PASS</span></td>
+          </tr>
+          <tr>
+            <td>Beat the WebP lossless floor / JPEG-LS</td>
+            <td class="num">WebP 9.61 / JPEG-LS 9.71</td>
+            <td class="num">9.6525 summed (3.2175 / sample)</td>
+            <td><span class="verdict miss">MISS ~1.6% vs WebP</span></td>
+          </tr>
+          <tr>
+            <td>Reach JPEG XL parity (owner goal)</td>
+            <td class="num">JXL 8.71 harness</td>
+            <td class="num">9.6525 summed (repro 9.65529)</td>
+            <td><span class="verdict goal">SHORT ~11.5%</span></td>
+          </tr>
+          <tr>
+            <td>Unrealizable oracle bounds (map/table cost excluded)</td>
+            <td class="num">3.161 / 9.483</td>
+            <td class="num">3.2175 / 9.6525</td>
+            <td><span class="verdict">reference only</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid-2" style="margin-top:16px">
+      <div class="card">
+        <div class="rule"></div>
+        <h3>Why it stopped there</h3>
+        <p>
+          The single-pass architecture has a hard, reproducible ceiling. Across the
+          research program, 49+ mechanisms were measured over 7+ benchmark programs and
+          no legitimate mechanism class remained unmeasured. The full negative ledger is
+          committed on <code>main</code>, and every build branch is retained - nothing
+          was deleted, so every claim here is re-checkable.
+        </p>
+      </div>
+      <div class="card">
+        <div class="rule"></div>
+        <h3>Successor to Obsidian</h3>
+        <p>
+          Obsidian (issue #68, archived) plateaued at 9.5208 bpp. Prism was built to
+          close the redundancy-class gap to JPEG XL by coupling multi-resolution Squeeze
+          with a meta-adaptive MA-tree context model, behind a bit-exact round-trip
+          invariant from day one. The complete build record lives in issue #130.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="build">
+    <p class="kicker">Quick start</p>
+    <h2>Build, encode, verify</h2>
+    <p class="sub">
+      CMake and a C++17 compiler. PNG/JPEG/BMP/TGA/HDR input via stb_image; WebP and
+      TIFF behind CMake options. The fuzz gate proves the round-trip invariant locally.
+    </p>
+    <div class="grid-2">
+      <div>
+        <div class="codeblock">
+          <header><span>build</span><button class="copy-btn" type="button" data-copy="cmake -S prism -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+ctest --test-dir build --output-on-failure">Copy</button></header>
+<pre>cmake -S prism -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+ctest --test-dir build --output-on-failure</pre>
+        </div>
+        <div class="codeblock">
+          <header><span>round-trip proof</span><button class="copy-btn" type="button" data-copy="./build/prism fuzz --iters 1000">Copy</button></header>
+<pre>./build/prism fuzz --iters 1000
+<span class="c"># encode/decode round trips, corruption rejection</span></pre>
+        </div>
+      </div>
+      <div>
+        <div class="codeblock">
+          <header><span>encode and decode</span><button class="copy-btn" type="button" data-copy="./build/prism enc in.png out.prism --effort 4
+./build/prism dec out.prism out.ppm
+./build/prism info out.prism">Copy</button></header>
+<pre>./build/prism enc in.png out.prism --effort 4
+./build/prism dec out.prism out.ppm
+./build/prism info out.prism</pre>
+        </div>
+        <div class="codeblock">
+          <header><span>benchmark on Kodak</span><button class="copy-btn" type="button" data-copy="prism/benchmarks/run_kodak.sh --effort 4 \
+  --kodak data/kodak
+python3 prism/benchmarks/aggregate.py">Copy</button></header>
+<pre>prism/benchmarks/run_kodak.sh --effort 4 \
+  --kodak data/kodak
+python3 prism/benchmarks/aggregate.py
+<span class="c"># results committed under benchmarks/results/</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="docs">
+    <p class="kicker">Documentation</p>
+    <h2>Read the research</h2>
+    <p class="sub">
+      Every spec, architecture decision, benchmark methodology, and negative result ships
+      with the source under <code>prism/docs/</code>. Start with the hub, then go deep.
+    </p>
+    <div class="grid-2">
+      <div class="card doc-card">
+        <span class="kind">hub</span>
+        <a class="doc-title" href="./docs/index.md">Documentation index</a>
+        <p>The curated entry point: research, architecture series, algorithmic spec, and benchmark methodology with the closure ledger.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/index.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">specification</span>
+        <a class="doc-title" href="./docs/algorithmic-spec.md">Algorithmic spec</a>
+        <p>The normative format: transforms, predictors, context modeling, entropy coding, and the container layout.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/algorithmic-spec.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">research</span>
+        <a class="doc-title" href="./docs/research.md">Research program</a>
+        <p>The full mechanism survey and measurement history behind every design choice in the codec.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/research.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">architecture</span>
+        <a class="doc-title" href="./docs/architecture.md">Architecture</a>
+        <p>Module layout, data flow through the pipeline stages, and the encoder-side decision engine.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/architecture.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">methodology</span>
+        <a class="doc-title" href="./docs/benchmark-methodology.md">Benchmark methodology</a>
+        <p>How the Kodak-24 numbers are produced, pinned, and gated so every reported figure is reproducible.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/benchmark-methodology.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">negative results</span>
+        <a class="doc-title" href="./docs/research-complete-negative-ledger.md">Negative ledger</a>
+        <p>Every mechanism tried and measured, including the ones that lost. Committed on main; all build branches retained.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/research-complete-negative-ledger.md">View on GitHub</a></p>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top:16px">
+      <div class="card doc-card">
+        <span class="kind">source</span>
+        <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/tree/main/prism">prism on GitHub</a>
+        <p>Codec core, CLI, unit tests, and the benchmark harness with committed results CSVs.</p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">project record</span>
+        <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/issues/130">Issue #130</a>
+        <p>The full build record: gates, parity program, addenda, and the Owner's finished-at-ceiling acceptance.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="foot-links">
+    <a href="../">Random lab home</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/prism">Source</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">README</a>
+    <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/LICENSE">MIT License</a>
+  </div>
+  <p>Prism: a lossless image codec from scratch in C++17. Built by the Random lab.</p>
+  <p>Results measured on Kodak-24; reproduce them with <code>benchmarks/run_kodak.sh</code>.</p>
+</footer>
+
+<script>
+(function () {
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy") ? resolve() : reject(new Error("copy failed"));
+      } catch (err) {
+        reject(err);
+      } finally {
+        document.body.removeChild(ta);
+      }
+    });
+  }
+  document.querySelectorAll(".copy-btn").forEach(function (btn) {
+    var idle = btn.textContent;
+    btn.addEventListener("click", function () {
+      copyText(btn.getAttribute("data-copy") || "").then(function () {
+        btn.textContent = "Copied";
+        btn.classList.add("done");
+      }).catch(function () {
+        btn.textContent = "Select and copy";
+      });
+      setTimeout(function () {
+        btn.textContent = idle;
+        btn.classList.remove("done");
+      }, 1600);
+    });
+  });
+})();
+</script>
+</body>
+</html>
