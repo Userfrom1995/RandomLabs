@@ -163,9 +163,9 @@ Example:
 ## Source
 
 The project lives in
-[`meridian/`](https://github.com/Userfrom1995/RandomLabs/tree/main/meridian) with
+[`meridian/`](https://github.com/Userfrom1995/RandomLabs/tree/main/archive/meridian) with
 the web UI at
-[`meridian/index.html`](https://github.com/Userfrom1995/RandomLabs/tree/main/meridian/index.html),
+[`meridian/index.html`](https://github.com/Userfrom1995/RandomLabs/tree/main/archive/meridian/index.html),
 a [README](https://github.com/Userfrom1995/RandomLabs/blob/main/archive/meridian/README.md),
 and a full writeup in
 [`ideas/2026-08-16-meridian-fulltext-search-engine-rust.md`](https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-16-meridian-fulltext-search-engine-rust.md).
