@@ -654,7 +654,8 @@ torshim disconnect  <span class="c"># restore</span></pre>
           bootstrap 100% plus a live circuit, then gates on a five-row verify suite and
           rolls back on any failure. <code>status</code> reports
           <code>protected: false</code> for every state it cannot positively confirm:
-          absent, unknown, bootstrapping, stale session, or an unreadable foreign control port.
+          absent, unknown, bootstrapping, or an unreadable foreign control port. A stale
+          system-wide session is reported as a note and never upgrades the mode.
         </p>
       </div>
       <div class="card">
