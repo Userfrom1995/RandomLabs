@@ -103,9 +103,7 @@ jobs:
       - name: CLI honesty probes (no tor needed)
         shell: bash
         run: |
-          go build -o torshim .
-          BIN=./torshim
-          if [ -f ./torshim.exe ]; then BIN=./torshim.exe; fi
+          if [ "$RUNNER_OS" = "Windows" ]; then go build -o torshim.exe .; BIN=./torshim.exe; else go build -o torshim .; BIN=./torshim; fi
           # version: accurate backend names, never crashes without tor
           $BIN version 2>&1 | tee version.out || true
           # status with nothing running: absent, never protected
