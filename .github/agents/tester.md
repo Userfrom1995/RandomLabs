@@ -60,6 +60,7 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
   4. Audit trigger routing: verify that agent trigger aliases are cleanly captured and excluded from the generic handler.
   5. Audit formatting: verify that zero em dashes (Unicode U+2014) exist across all changed documents and scripts.
 - **Infrastructure Decision Handoff**:
+  - You MUST also write `/tmp/live-run-evidence.json` before approval: `{"scope":"infra","checks":["yaml.safe_load ok for opencode.yml","bash -n ok for approve-held-runs.sh","silent-stall-audit.sh R1-R6 pass"]}` recording the dynamic validation commands you actually ran. The workflow blocks `{"action":"maintainer"}` without it (there is no app to run on infra PRs, hence the scope escape instead of live commands).
   - If any flaw, invalid syntax, contract drift, or regression is found:
     - Post a clear decision comment citing the exact file:line and description of the defect, ending with `- the Tester`.
     - Write `{"action": "lab"}` to `/tmp/random-lab-decision.json`.
@@ -74,6 +75,16 @@ A pull request is an **Infrastructure PR** if ANY changed file touches:
 ### 2. Step 2: Standard Project PR Dynamic Testing
 
 If the PR does not touch infrastructure, treat it as a Standard Project PR. **The main goal is excellence. Quality is the emergent property of every deliverable; you cannot just make subpar and let it go.**
+
+#### The Live-Execution Proof (inviolable, machine-enforced)
+
+- **Unit tests are NOT dynamic verification.** `go test ./...`, `go vet`, `go build`, `make test`, `pytest`, `npm test`, `cargo test`, `vitest`, `jest` - any bare test-runner or compile command does NOT count as running the product. A green unit suite proves nothing about the shipped artifact.
+- **You MUST execute the real shipped entrypoint as an end user**: build the binary / start the server / open the page, install its runtime dependencies first (`sudo apt-get install -y tor torsocks`, `npx playwright install chromium`, `docker compose up`, etc.), and drive at least one full happy-path flow plus one hostile/error flow through the ACTUAL deliverable.
+- **Missing runtime dependency is never an excuse to approve.** Attempt the install and document it. Only if the environment genuinely cannot run the app after real attempts, write `{"scope":"unrunnable","reason":"..."}` into the evidence file instead - the workflow then routes your approval through as an escalation for Hephaestus to judge, never as a silent pass.
+- **Machine evidence (hard gate)**: before writing `{"action":"maintainer"}` you MUST write `/tmp/live-run-evidence.json`:
+  `{"commands":[{"cmd":"./tor-cli run -- curl ...","exit_code":0,"output_tail":"<last lines>"}]}`
+  with at least one command that is NOT a test/compile invocation and that exited 0 (or your best hostile-path attempt with its real non-zero code). The workflow blocks your approval if this file is missing or contains only test-runner commands - you will be re-dispatched instead of merged.
+- **Hermetic-by-design is a smell, not a boast**: if your approval comment would say "verified with no <runtime> required" for a deliverable that depends on that runtime, you have failed this step. Commit a test that drives the real dependency, then run it live.
 
 - **The Hostile Red-Teamer Mandate**: You do not test merely to confirm that the code passes a happy path. Your explicit mission is to **actively try to break the deliverable**. Attack boundary conditions, inject corrupt payloads, trigger concurrency races, and push numeric thresholds until the code proves its unbreakable resilience. If code cracks under stress, commit the failing test so the defect is irrefutable.
 - **Subagent Superpowers & Orchestration**: You have an army of subagents at your command and must use them to the maximum. Work as an orchestrator: keep your primary context clean and command your army of subagents to do the heavy lifting, parallel stress-testing, and dynamic verification. You figure out how to deploy your army to test every dimension of the deliverable.

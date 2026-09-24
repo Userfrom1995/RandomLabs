@@ -68,7 +68,7 @@ jobs:
           git fetch origin "$branch" --quiet 2>/dev/null || true
 
       - name: Clear runtime decision
-        run: rm -f /tmp/evaluator-decision.json
+        run: rm -f /tmp/evaluator-decision.json /tmp/live-run-evidence.json
 
       - name: Run evaluator agent
         id: evaluator
@@ -92,7 +92,8 @@ jobs:
             - Sign your work: every comment ends with your sign-off (`- The Quality Council (Evaluator)`).
             - You never post "/oc" comments yourself; the hardcoded workflow step posts the trigger.
             - Verify the Tester has approved (`/oc approve-test` is present in PR comments) before giving approval; otherwise document the missing phase in your decision file.
-            - Invoke subagents for parallel evaluation: visual inspection (headless Playwright), scientific review (proof audit, benchmark verification, boundary fuzzing), CLI execution (interactive resilience, hostile inputs, reproduction script verification).
+            - Invoke subagents for parallel evaluation: visual inspection (headless Playwright), scientific review (proof audit, benchmark verification, boundary fuzzing), CLI execution (interactive resilience, hostile inputs, reproduction script verification). NOTE: go test/vet/build and other bare test-runner commands are NOT CLI execution; only executing the shipped entrypoint with its runtime dependencies counts.
+            - LIVE-EXECUTION PROOF (hard gate): before any approve-eval verdict you MUST write /tmp/live-run-evidence.json per evaluator.md section 6: {"commands":[{"cmd":"...","exit_code":0,"output_tail":"..."}]} with at least one NON-test command against the shipped entrypoint (or {"scope":"unrunnable","reason":"..."} if the environment truly cannot run it). The workflow blocks approve-eval (red run) if this file is missing or holds only test/compile commands.
             - End with a clean working tree (`git status --porcelain` must be empty at the end).
 
       - name: Verify evaluator decided
@@ -115,8 +116,42 @@ jobs:
           echo "has_decision=false" >> "$GITHUB_OUTPUT"
           exit 1
 
-      - name: Post Quality Council result as bot (never as owner, never with /oc prefix)
+      - name: Enforce live-execution evidence gate
+        id: evidence-gate
         if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        run: |
+          # Hard gate against green-but-never-ran approvals (PR #389 precedent):
+          # an approve-eval verdict requires /tmp/live-run-evidence.json with at
+          # least one NON-test command against the shipped entrypoint. Missing
+          # or test-only evidence fails the gate red; the job failure reaches
+          # the Maintainer's workflow_run trigger for a fresh /oc eval.
+          action=$(jq -r '.action // empty' /tmp/evaluator-decision.json 2>/dev/null || echo "")
+          if [ "$action" != "approve-eval" ]; then
+            echo "Gate applies to approve-eval only (action='$action'); rejections pass unblocked."
+            exit 0
+          fi
+          ev=/tmp/live-run-evidence.json
+          if [ ! -f "$ev" ]; then
+            echo "::error::Evaluator approved without /tmp/live-run-evidence.json. End-user execution proof is mandatory (evaluator.md section 6). Approval blocked."
+            exit 1
+          fi
+          if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+            echo "Evidence declares scope=unrunnable with a substantive reason; routing onward for Maintainer triage."
+            exit 0
+          fi
+          if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+            echo "Evidence declares scope=infra with validation checks recorded."
+            exit 0
+          fi
+          good=$(jq '[.commands[]? | select(((.cmd // "") | length) > 0) | select((.cmd | test("^((go (test|vet|build|run|install))|(make (test|build|vet|check|install))|(npm (test|run build))|(yarn (test|build))|(pnpm (test|build))|pytest|python[0-9.]* -m pytest|(cargo (test|build|check))|vitest|jest|dotnet test|mvn (test|compile)|gradle (test|build)|rspec|bundle exec (test|rspec))( |$)")) | not)] | length' "$ev" 2>/dev/null || echo 0)
+          if [ "${good:-0}" -lt 1 ]; then
+            echo "::error::Live-execution evidence contains only test/compile commands. 'CLI hostile: go build/vet/test green' is NOT end-user execution (the exact PR #389 failure). Approval blocked."
+            exit 1
+          fi
+          echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
+
+      - name: Post Quality Council result as bot (never as owner, never with /oc prefix)
+        if: always() && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -150,7 +185,7 @@ jobs:
           gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "$body" || true
 
       - name: Forward evaluator decision to Maintainer (owner PAT handoff)
-        if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        if: always() && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |

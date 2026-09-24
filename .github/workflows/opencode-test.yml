@@ -41,7 +41,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Clear runtime decision
-        run: rm -f /tmp/random-lab-decision.json
+        run: rm -f /tmp/random-lab-decision.json /tmp/live-run-evidence.json
 
       - name: Run opencode tester
         id: test
@@ -60,7 +60,7 @@ jobs:
 
             READ FIRST: `.github/agents/tester.md` - that file IS your complete system prompt; every rule there is binding.
 
-            SAFETY NET (always binding): you NEVER write code to fix the app yourself; you only author test files and test suites in test directories. On standard project PRs, you ARE authorized to commit and push your new test suites using git identity "The Tester" and commit message prefix "tester: ...". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, AGENTS.md, or LAB.md), you are strictly read-only and must NEVER commit or push. If tests fail on standard PRs, commit your failing test case so it is reproducible, push it, and output {"action":"fix"}. On infrastructure PRs, if checks fail, output {"action":"lab"}. If all pass, commit and push your test suites (on standard PRs), and output {"action":"maintainer"}.
+            SAFETY NET (always binding): you NEVER write code to fix the app yourself; you only author test files and test suites in test directories. On standard project PRs, you ARE authorized to commit and push your new test suites using git identity "The Tester" and commit message prefix "tester: ...". On infrastructure PRs (diff touches .github/workflows/, .github/agents/, AGENTS.md, or LAB.md), you are strictly read-only and must NEVER commit or push. If tests fail on standard PRs, commit your failing test case so it is reproducible, push it, and output {"action":"fix"}. On infrastructure PRs, if checks fail, output {"action":"lab"}. If all pass, commit and push your test suites (on standard PRs), and output {"action":"maintainer"}. LIVE-EXECUTION PROOF (hard gate): before any {"action":"maintainer"} verdict you MUST write /tmp/live-run-evidence.json per tester.md "The Live-Execution Proof" - go test/vet/build and other bare test-runner commands do NOT count as running the product; execute the shipped entrypoint with its runtime dependencies installed. The workflow blocks your approval (red run) if this file is missing or holds only test/compile commands.
             Before ending the run, you MUST write the machine handoff decision to `/tmp/random-lab-decision.json`: `{"action":"maintainer"}` for approval/escalation, `{"action":"fix"}` when app fixes are required, or `{"action":"lab"}` when infrastructure fixes are required. The hardcoded workflow step reads this file; it never parses your prose comment.
             You post ONE plain text decision comment per run containing your findings. End every decision comment with your sign-off: `- the Tester`.
 
@@ -83,8 +83,51 @@ jobs:
           echo "::error::Tester step finished with outcome '$outcome' and no decision file (timed out or crashed mid-run). Failing closed instead of exiting green."
           exit 1
 
-      - name: Forward tester decision
+      - name: Enforce live-execution evidence gate
+        id: evidence-gate
         if: always()
+        run: |
+          # Hard gate (issue-style fix for green-but-never-ran approvals): a
+          # {"action":"maintainer"} verdict on a standard PR requires proof that
+          # the SHIPPED artifact was really executed. Missing file, or evidence
+          # containing only test/compile invocations, fails the gate red. The
+          # job failure then reaches the Maintainer's workflow_run trigger for
+          # a fresh /oc test dispatch (crash-parity pattern).
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file; verify step above already failed the job closed."
+            exit 0
+          fi
+          action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
+          if [ "$action" != "maintainer" ]; then
+            echo "Gate applies to approvals only (action='$action'); nothing to enforce."
+            exit 0
+          fi
+          ev=/tmp/live-run-evidence.json
+          if [ ! -f "$ev" ]; then
+            echo "::error::Tester wrote an approval without /tmp/live-run-evidence.json. Live-execution proof is mandatory (see tester.md 'The Live-Execution Proof'). Approval blocked."
+            exit 1
+          fi
+          # Documented escapes: infra PRs (validation commands, no app to run)
+          # and genuinely unrunnable environments must declare scope + reason.
+          if jq -e '.scope == "unrunnable" and ((.reason // "") | length > 20)' "$ev" >/dev/null 2>&1; then
+            echo "Evidence declares scope=unrunnable with a substantive reason; routing as escalation."
+            exit 0
+          fi
+          if jq -e '.scope == "infra" and ((.checks // []) | length > 0)' "$ev" >/dev/null 2>&1; then
+            echo "Evidence declares scope=infra with validation checks recorded."
+            exit 0
+          fi
+          # Standard PR: at least one evidence command must target the shipped
+          # entrypoint, not a bare test-runner or compile invocation.
+          good=$(jq '[.commands[]? | select(((.cmd // "") | length) > 0) | select((.cmd | test("^((go (test|vet|build|run|install))|(make (test|build|vet|check|install))|(npm (test|run build))|(yarn (test|build))|(pnpm (test|build))|pytest|python[0-9.]* -m pytest|(cargo (test|build|check))|vitest|jest|dotnet test|mvn (test|compile)|gradle (test|build)|rspec|bundle exec (test|rspec))( |$)")) | not)] | length' "$ev" 2>/dev/null || echo 0)
+          if [ "${good:-0}" -lt 1 ]; then
+            echo "::error::Live-execution evidence contains only test/compile commands (or is malformed). Running the unit suite is NOT executing the product. Approval blocked; see tester.md 'The Live-Execution Proof'."
+            exit 1
+          fi
+          echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
+
+      - name: Forward tester decision
+        if: always() && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |

@@ -33,7 +33,7 @@ honestly with evidence, then complies when overruled.
 | Linux Tester | Per-OS real-user QA on Linux (ubuntu runner) | Real-user every-command/flag testing on Linux |
 | macOS Tester | Per-OS real-user QA on macOS (macos runner) | Real-user every-command/flag testing on macOS |
 | Windows Tester | Per-OS real-user QA on Windows (windows runner) | Real-user every-command/flag testing on Windows |
-| Evaluator | Autonomous Quality Council / Program Committee | Binding quality gate; commands swarm subagents; audits 5-dimension rubric |
+| Evaluator | Autonomous Quality Council / Program Committee | Binding quality gate; commands swarm subagents; audits 5-dimension rubric; approvals hard-gated on live-execution evidence (`/tmp/live-run-evidence.json`) |
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
 | Curator | Public surface, web & README custodian | Meticulous web craftsperson, aesthetic guardian, and public surface custodian |
