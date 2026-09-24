@@ -66,6 +66,36 @@
     color: var(--text);
   }
 
+  /* ---------- skip link ---------- */
+  .skip-link {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .skip-link:focus {
+    position: fixed;
+    left: 8px;
+    top: 8px;
+    z-index: 100;
+    width: auto;
+    height: auto;
+    padding: 10px 16px;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    background: var(--amber);
+    color: #12161f;
+    font-weight: 600;
+    border-radius: 6px;
+    outline: 2px solid var(--text);
+  }
+
   /* ---------- nav ---------- */
   .nav {
     position: sticky;
@@ -448,6 +478,7 @@
 </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <nav class="nav" aria-label="Primary">
   <a class="brand" href="./" aria-label="torshim home">
@@ -524,7 +555,7 @@ note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</spa
   </div>
 </header>
 
-<main>
+<main id="main-content">
 
   <section id="modes">
     <p class="kicker">Three modes</p>
