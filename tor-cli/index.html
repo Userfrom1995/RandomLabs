@@ -321,7 +321,18 @@
     white-space: nowrap;
   }
   tr:last-child td { border-bottom: none; }
-  td code { white-space: nowrap; }
+  tr:last-child th { border-bottom: none; }
+  tbody th {
+    background: transparent;
+    font-size: 0.92rem;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text);
+    font-weight: 600;
+    white-space: normal;
+  }
+  td code, th code { white-space: nowrap; }
+  .table-wrap:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
   .verdict { font-weight: 600; white-space: nowrap; }
   .verdict.yes { color: var(--teal); }
   .verdict.limited { color: var(--amber); }
@@ -748,38 +759,38 @@ torshim disconnect  <span class="c"># restore</span></pre>
       Stated honestly per operating system. Unsupported combinations refuse with exit 4
       and a pointer to what would be required; they never pretend to succeed.
     </p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Platform support matrix" tabindex="0">
       <table>
         <thead>
-          <tr><th>Capability</th><th>Linux</th><th>macOS</th><th>Windows</th></tr>
+          <tr><th scope="col">Capability</th><th scope="col">Linux</th><th scope="col">macOS</th><th scope="col">Windows</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>torshim &lt;app&gt;</code> per-app routing</td>
+            <th scope="row"><code>torshim &lt;app&gt;</code> per-app routing</th>
             <td><span class="verdict yes">Full</span><br>fail-closed torsocks shim</td>
             <td><span class="verdict limited">Proxy env</span><br>apps honoring proxy vars</td>
             <td><span class="verdict limited">Proxy env</span><br>apps honoring proxy vars</td>
           </tr>
           <tr>
-            <td><code>torshim shell</code></td>
+            <th scope="row"><code>torshim shell</code></th>
             <td><span class="verdict yes">Full</span></td>
             <td><span class="verdict limited">Proxy env</span></td>
             <td><span class="verdict limited">Proxy env</span></td>
           </tr>
           <tr>
-            <td><code>sudo torshim connect</code> system-wide</td>
+            <th scope="row"><code>sudo torshim connect</code> system-wide</th>
             <td><span class="verdict yes">Full</span><br>iptables or nft, verify-gated</td>
             <td><span class="verdict no">Refused</span><br>exit 4 (needs tun2socks)</td>
             <td><span class="verdict no">Refused</span><br>exit 4 (needs WFP/tun2socks)</td>
           </tr>
           <tr>
-            <td><code>disconnect</code> / <code>repair</code> with a live session</td>
-            <td><span class="verdict yes">Full</span><br>byte-exact snapshot replay</td>
+            <th scope="row"><code>disconnect</code> / <code>repair</code> with a live session</th>
+            <td><span class="verdict yes">Full</span><br>disconnect replays the snapshot byte-exact; repair clears torshim rules only</td>
             <td><span class="verdict no">Refused</span><br>exit 4 (Linux-only backend)</td>
             <td><span class="verdict no">Refused</span><br>exit 4 (Linux-only backend)</td>
           </tr>
           <tr>
-            <td><code>status</code>, <code>version</code>, <code>help</code></td>
+            <th scope="row"><code>status</code>, <code>version</code>, <code>help</code></th>
             <td><span class="verdict yes">Full</span></td>
             <td><span class="verdict yes">Full</span></td>
             <td><span class="verdict yes">Full</span></td>
