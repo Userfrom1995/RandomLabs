@@ -123,6 +123,23 @@ jobs:
             done
           done
 
+      # upload-pages-artifact archives _site with `tar --dereference`, so a
+      # symlink whose target is absent from the workspace aborts the whole tar
+      # ("File removed before we read it", exit 1) and fails the deploy. One
+      # dangling link anywhere in any staged PR preview therefore takes down
+      # every deploy on main (live case 2026-09-24: PR #412 ships
+      # prism/index.html, staging prism/benchmarks/data/kodak -> fetched,
+      # untracked data; all main deploys died in Upload artifact while the
+      # pull_request runs kept reporting green with the deploy job skipped).
+      # A dangling link can never serve content on a static host, so drop it.
+      - name: Prune dangling symlinks
+        run: |
+          if links=$(find _site -xtype l) && [ -n "$links" ]; then
+            echo "Removing dangling symlinks that would abort the Pages artifact upload:"
+            printf '%s\n' "$links"
+            find _site -xtype l -delete
+          fi
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
