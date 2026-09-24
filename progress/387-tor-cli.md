@@ -54,13 +54,23 @@ feature/UX depth, GUI applications).
 
 Active Phase: Phase 1: Diagnostics and Honesty Surface
 
-Current step: Ready for initial build (Phase 1: Diagnostics and Honesty Surface)
+Current step: Phase 1 build in progress (verbosity system, doctor,
+status --verify, --help exit fix) on PR #413
 
-Next steps: Builder to implement Phase 1 with real code and zero stubs
-(per-OS tester pass before Phase 2 starts; website refresh only in the
-final phase per Owner ordering)
+Next steps: implement internal/diag + global pre-scan, internal/doctor,
+internal/probe + status --verify, --help contract test, verbose-parity
+suite (G5), docs/man updates, G2/G3 ledger (per-OS tester pass before
+Phase 2 starts; website refresh only in the final phase per Owner
+ordering)
 
 ## Agent log
+
+- 2026-09-24 Builder Phase 1 run 1: oriented on the Architect blueprint
+  (cherry-picked `ideas/2026-09-24-torshim-cli-v2.md` + this tracker
+  onto PR #413's branch, the pipeline's verified push target), wrote
+  `ideas/2026-09-24-torshim-cli-v2-phase1-diagnostics.md` build entry;
+  research Part II (PR #413) is the binding P0 spec. No product code
+  yet. Refs #387.
 
 - 2026-09-24 Builder sync: copied `.github/workflows/tor-cli.yml`
   (Lab-trimmed: shared else branch, single load-bearing skip
