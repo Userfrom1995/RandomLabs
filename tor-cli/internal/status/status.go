@@ -45,7 +45,11 @@ type Report struct {
 type Options struct {
 	ControlAddr string
 	SocksAddr   string
-	Timeout     time.Duration
+	// Timeout is the whole-collect wall-clock budget (default 1500ms),
+	// not a per-operation one: dial, control reads, and the SOCKS probe
+	// share the same deadline so status stays inside the 2s G4 bound
+	// even against a silent endpoint.
+	Timeout time.Duration
 	// SystemStateDir overrides the syswide session dir (default resolved
 	// from TORSHIM_STATEDIR or /run/torshim). Empty means probe default.
 	SystemStateDir string
@@ -77,8 +81,20 @@ func Collect(o Options) Report {
 			}
 		}
 	}
+	// The whole report is built inside one wall-clock budget so a dead
+	// or silent control endpoint cannot stall status past G4 (2s): the
+	// dial gets the budget, every control operation is capped by the
+	// absolute deadline, and the SOCKS probe only gets what remains.
 	if o.Timeout <= 0 {
-		o.Timeout = 3 * time.Second
+		o.Timeout = 1500 * time.Millisecond
+	}
+	deadline := time.Now().Add(o.Timeout)
+	remaining := func() time.Duration {
+		d := time.Until(deadline)
+		if d < 50*time.Millisecond {
+			d = 50 * time.Millisecond
+		}
+		return d
 	}
 	ctlAddr := o.ControlAddr
 	if ctlAddr == "" {
@@ -92,7 +108,7 @@ func Collect(o Options) Report {
 	if err != nil {
 		// Try the Tor Browser conventional port before giving up.
 		if ctlAddr == "127.0.0.1:9051" {
-			if ctl2, err2 := control.Dial("127.0.0.1:9151", o.Timeout); err2 == nil {
+			if ctl2, err2 := control.Dial("127.0.0.1:9151", remaining()); err2 == nil {
 				ctl = ctl2
 				ctlAddr = "127.0.0.1:9151"
 			} else {
@@ -113,6 +129,7 @@ func Collect(o Options) Report {
 		}
 	}
 	defer ctl.Close()
+	ctl.Deadline = deadline
 	if rep.SocksAddr == "" {
 		rep.SocksAddr = guessSocks(ctlAddr)
 	}
@@ -154,7 +171,7 @@ func Collect(o Options) Report {
 		rep.State = lifecycle.Bootstrapping.String()
 		rep.Note = fmt.Sprintf("tor bootstrapping (%d%% tag %q)", st.Progress, st.Tag)
 	}
-	if err := lifecycle.ProbeSocks(rep.SocksAddr, o.Timeout); err != nil {
+	if err := lifecycle.ProbeSocks(rep.SocksAddr, remaining()); err != nil {
 		rep.Note += "; SOCKS endpoint not answering: " + err.Error()
 		rep.Protected = false
 	}

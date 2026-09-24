@@ -28,6 +28,11 @@ const DefaultTimeout = 10 * time.Second
 type Client struct {
 	conn net.Conn
 	r    *bufio.Reader
+	// Deadline caps every operation on this connection absolutely (the
+	// whole-session budget of a caller such as status, which must stay
+	// inside G4). Zero means no session cap: each operation gets
+	// DefaultTimeout from its own start.
+	Deadline time.Time
 }
 
 // Dial opens a control connection to addr (host:port).
@@ -58,7 +63,13 @@ func (c *Client) SetDeadline(t time.Time) error {
 // a run of "250-..." / "250+..." lines terminated by "250 ...". Any 4xx/5xx
 // first line is returned as an error carrying the status code.
 func (c *Client) send(cmd string) ([]string, error) {
-	if err := c.conn.SetDeadline(time.Now().Add(DefaultTimeout)); err != nil {
+	// Absolute session deadline wins when set; otherwise each operation
+	// gets its own DefaultTimeout window.
+	deadline := time.Now().Add(DefaultTimeout)
+	if !c.Deadline.IsZero() && c.Deadline.Before(deadline) {
+		deadline = c.Deadline
+	}
+	if err := c.conn.SetDeadline(deadline); err != nil {
 		return nil, err
 	}
 	if _, err := fmt.Fprintf(c.conn, "%s\r\n", cmd); err != nil {
