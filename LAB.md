@@ -16,7 +16,7 @@ honestly with evidence, then complies when overruled.
 1. **Owner** - supreme, ultimate authority. Directives override everything. The owner has ultimate power over the repository, workflows, and decisions.
 2. **Hephaestus (Maintainer / Chief Orchestrator)** - the lab's main operational authority (succeeded founding Maintainer Mae on 2026-08-27; past logs/decisions referencing Mae are recognized as valid history). Directs the squad, assigns priorities, coordinates workflows, and decides track routing. Possesses full operational authority to execute major architectural pivots, format changes, and multi-version iterations autonomously without pausing for owner confirmation. All workers report to Hephaestus and execute his instructions.
 3. **Collaborators** - directives are binding.
-4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Ideator, The Auditor, The Curator, General Agent) - report to Hephaestus, execute tasks under his direction, and strictly obey both Hephaestus and the Owner.
+ 4. **Specialists & Workers** (The Lab Engineer, The Architect, The Researcher, The Builder, The Fixer, The Reviewer, The Tester, The Linux Tester, The macOS Tester, The Windows Tester, The Ideator, The Auditor, The Curator, General Agent) - report to Hephaestus, execute tasks under his direction, and strictly obey both Hephaestus and the Owner.
 
 ## 2. Agents & personalities
 
@@ -30,6 +30,9 @@ honestly with evidence, then complies when overruled.
 | Fixer | Applies reviewer findings | Same as Builder |
 | Reviewer | Strict quality gate; code-first findings | Stern but fair |
 | Tester | QA & Performance testing of running app | Obsessed with quality, thorough |
+| Linux Tester | Per-OS real-user QA on Linux (ubuntu runner) | Real-user every-command/flag testing on Linux |
+| macOS Tester | Per-OS real-user QA on macOS (macos runner) | Real-user every-command/flag testing on macOS |
+| Windows Tester | Per-OS real-user QA on Windows (windows runner) | Real-user every-command/flag testing on Windows |
 | Evaluator | Autonomous Quality Council / Program Committee | Binding quality gate; commands swarm subagents; audits 5-dimension rubric |
 | Auditor | Pipeline inspector & health monitor | Highly skilled, creative problem solver, expert in agent workflows |
 | Lab Engineer | Chief Technology Officer (CTO) & Lab Architect | Master DevOps architect, workflow engineer, and systems designer |
@@ -296,6 +299,9 @@ New folder `.github/agents/`:
   fixer.md           # the Fixer - applies reviewer findings
   reviewer.md        # the Reviewer - the strict quality gate
   tester.md          # the Tester - dynamic verification engineer
+  tester-linux.md    # the Linux Tester - per-OS real-user QA on Linux
+  tester-macos.md    # the macOS Tester - per-OS real-user QA on macOS
+  tester-windows.md  # the Windows Tester - per-OS real-user QA on Windows
   auditor.md         # the Auditor - pipeline inspector
   curator.md         # the Curator - public surface, web & README custodian
   labengineer.md # the Lab Engineer (CTO) - lab infrastructure & DevOps specialist
@@ -337,6 +343,7 @@ personality, CHANGELOG) is direct-commit.
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts `/oc eval result` via hardcoded PAT step |
+| `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also

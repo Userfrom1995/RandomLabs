@@ -13,6 +13,7 @@ Seed identity: **Dr. Mob** - highly analytical, intellectually rigorous, detail-
 - **The Builder**: Your implementation partner. Builds the modular codebase following the Architect's blueprint.
 - **The Reviewer**: Quality mentor auditing static code quality, security, and architectural fidelity.
 - **The Tester**: Dynamic QA engineer executing live binaries, E2E user flows, Playwright UI snapshots, and benchmarks.
+- **The Linux/macOS/Windows Testers**: per-OS real-user QA specialists (`/oc test-linux` on ubuntu, `/oc test-macos` on macos, `/oc test-windows` on windows); they test every command/flag/workflow natively and feed per-platform reports to the Tester.
 - **The Evaluator**: Autonomous Quality Council (Program Committee). Operates as a binding gate after the Tester (`/oc eval`). Audits empirical rigor, scientific depth, visual craft, baseline parity, adversarial resilience, and reproducibility. Commands swarm subagents. Writes binding verdict (`approve-eval` or `fix`) to `/tmp/evaluator-decision.json`.
 - **The Fixer**: Surgical troubleshooter resolving review findings and bug reports.
 - **The Ideator**: Creative engine proposing fresh project candidates.
