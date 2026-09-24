@@ -729,17 +729,32 @@ python3 prism/benchmarks/aggregate.py
   }
   document.querySelectorAll(".copy-btn").forEach(function (btn) {
     var idle = btn.textContent;
+    var timer = null;
+    var token = 0;
+    btn.setAttribute("aria-live", "polite");
     btn.addEventListener("click", function () {
+      var mine = ++token;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       copyText(btn.getAttribute("data-copy") || "").then(function () {
+        if (mine !== token) return;
         btn.textContent = "Copied";
         btn.classList.add("done");
       }).catch(function () {
+        if (mine !== token) return;
         btn.textContent = "Copy failed";
-      });
-      setTimeout(function () {
-        btn.textContent = idle;
         btn.classList.remove("done");
-      }, 1600);
+      }).then(function () {
+        if (mine !== token) return;
+        timer = setTimeout(function () {
+          if (mine !== token) return;
+          btn.textContent = idle;
+          btn.classList.remove("done");
+          timer = null;
+        }, 1600);
+      });
     });
   });
 })();
