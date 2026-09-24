@@ -247,6 +247,17 @@
     white-space: nowrap;
   }
   tr:last-child td { border-bottom: none; }
+  tr:last-child th { border-bottom: none; }
+  tbody th {
+    background: transparent;
+    font-size: 0.92rem;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text);
+    font-weight: 600;
+    white-space: normal;
+  }
+  .table-wrap:focus-visible { outline: 2px solid var(--amber); outline-offset: -2px; }
   .verdict { font-weight: 700; font-family: var(--mono); font-size: 0.82rem; }
   .verdict.pass { color: var(--teal); }
   .verdict.miss { color: var(--amber); }
@@ -283,7 +294,7 @@
     line-height: 1.65;
     color: #d3daea;
   }
-  .codeblock .c { color: #62708a; }
+  .codeblock .c { color: #7c8aa6; }
   .copy-btn {
     font-family: var(--sans);
     font-size: 0.76rem;
@@ -335,7 +346,19 @@
 
   @media (max-width: 900px) {
     .hero-inner { grid-template-columns: 1fr; padding-top: 50px; gap: 30px; }
-    .nav-links a:not(.cta) { display: none; }
+    .nav { flex-wrap: wrap; row-gap: 8px; }
+    .nav-links {
+      order: 3;
+      width: 100%;
+      margin-left: 0;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+    .nav-links a { flex: 0 0 auto; white-space: nowrap; }
   }
 
   @media (max-width: 640px) {
@@ -395,7 +418,7 @@
       </div>
     </div>
 
-    <div class="prism-art" role="img" aria-label="Diagram: a white beam enters a triangular prism and leaves as a spectrum of colored beams, representing the codec stages.">
+    <div class="prism-art">
       <svg viewBox="0 0 420 260" aria-hidden="true">
         <defs>
           <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
@@ -456,38 +479,38 @@
       misses alike, with a fresh-binary reproduction stated in both units. Lower is better
       (cells are labeled per-sample or summed).
     </p>
-    <div class="table-wrap">
+    <div class="table-wrap" role="region" aria-label="Kodak-24 gate ledger" tabindex="0">
       <table>
         <thead>
-          <tr><th>Gate</th><th>Baseline</th><th>Prism (X6b)</th><th>Verdict</th></tr>
+          <tr><th scope="col">Gate</th><th scope="col">Baseline</th><th scope="col">Prism (X6b)</th><th scope="col">Verdict</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>Bit-exact round trip, corruption rejection, fuzz</td>
+            <th scope="row">Bit-exact round trip, corruption rejection, fuzz</th>
             <td>invariant</td>
             <td class="num">exact at efforts 0/4/7</td>
             <td><span class="verdict pass">PASS</span></td>
           </tr>
           <tr>
-            <td>Beat PNG</td>
+            <th scope="row">Beat PNG</th>
             <td class="num">PNG 13.05</td>
             <td class="num">9.6525 summed</td>
             <td><span class="verdict pass">PASS</span></td>
           </tr>
           <tr>
-            <td>Beat the WebP lossless floor / JPEG-LS</td>
+            <th scope="row">Beat the WebP lossless floor / JPEG-LS</th>
             <td class="num">gate 9.498 / 3.166 (WebP m6); JPEG-LS 9.71</td>
             <td class="num">9.6525 summed (3.2175 / sample)</td>
             <td><span class="verdict miss">MISS ~1.6% vs WebP gate (beats JPEG-LS 9.71)</span></td>
           </tr>
           <tr>
-            <td>Reach JPEG XL parity (owner goal)</td>
+            <th scope="row">Reach JPEG XL parity (owner goal)</th>
             <td class="num">gate 8.655 / 2.885 (JXL -d0 -e9; harness 8.71)</td>
             <td class="num">9.6525 summed (3.2175 / sample; repro 3.21843 / 9.65529)</td>
             <td><span class="verdict goal">SHORT ~11.5% vs gate</span></td>
           </tr>
           <tr>
-            <td>Unrealizable oracle bounds (map/table cost excluded)</td>
+            <th scope="row">Unrealizable oracle bounds (map/table cost excluded)</th>
             <td class="num">3.161 / 9.483</td>
             <td class="num">3.2175 / 9.6525</td>
             <td><span class="verdict">reference only</span></td>
@@ -538,7 +561,8 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure</pre>
         </div>
         <div class="codeblock">
-          <header><span>round-trip proof</span><button class="copy-btn" type="button" data-copy="./build/prism fuzz --iters 1000">Copy</button></header>
+          <header><span>round-trip proof</span><button class="copy-btn" type="button" data-copy="./build/prism fuzz --iters 1000
+# encode/decode round trips, corruption rejection">Copy</button></header>
 <pre>./build/prism fuzz --iters 1000
 <span class="c"># encode/decode round trips, corruption rejection</span></pre>
         </div>
@@ -555,7 +579,8 @@ ctest --test-dir build --output-on-failure</pre>
         <div class="codeblock">
           <header><span>benchmark on Kodak</span><button class="copy-btn" type="button" data-copy="prism/benchmarks/run_kodak.sh --effort 4 \
   --kodak prism/benchmarks/data/kodak
-python3 prism/benchmarks/aggregate.py">Copy</button></header>
+python3 prism/benchmarks/aggregate.py
+# provision the git-ignored Kodak-24 corpus first (see docs/benchmark-methodology.md); the script falls back to a 2-image synthetic probe if it is missing">Copy</button></header>
 <pre>prism/benchmarks/run_kodak.sh --effort 4 \
   --kodak prism/benchmarks/data/kodak
 python3 prism/benchmarks/aggregate.py
@@ -667,7 +692,7 @@ python3 prism/benchmarks/aggregate.py
         btn.textContent = "Copied";
         btn.classList.add("done");
       }).catch(function () {
-        btn.textContent = "Select and copy";
+        btn.textContent = "Copy failed";
       });
       setTimeout(function () {
         btn.textContent = idle;
