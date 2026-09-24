@@ -52,22 +52,22 @@ You can also improve the project itself - see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 Active projects are software or research builds currently in progress under open tracking issues (meta tasks such as lab health audits or workflow maintenance are not listed here):
 
-- **Tor CLI (`tor-cli`)** (Tracking Issue: [#387](https://github.com/Userfrom1995/RandomLabs/issues/387)) - A lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`). [Website](https://userfrom1995.github.io/RandomLabs/tor-cli/) · [README](tor-cli/README.md)
+- None currently in flight; the lab is in standby.
 
 ## Previous Projects (Latest 10)
 
 The 10 most recent completed projects produced by the lab:
 
+- **Tor CLI (`tor-cli`)** - Lightweight cross-platform Tor routing and network isolation CLI in Go (`torshim`): per-app routing, Tor-routed shell, and system-wide isolation with fail-closed guarantees. [README](tor-cli/README.md)
 - **Umbra** - Deterministic 60 Hz WebGPU/WGSL silhouette combat game with particle systems and WebGL2 fallback. [Website](https://userfrom1995.github.io/RandomLabs/umbra/) · [README](umbra/README.md)
 - **Doom** - Client-side web Doom engine with checked WAD parser and FM music synthesis. [Website](https://userfrom1995.github.io/RandomLabs/doom/) · [README](doom/README.md)
 - **Poolduel** - Exhaustive PostgreSQL connection pooler shootout harness, statistical audit, and report. [Website](https://userfrom1995.github.io/RandomLabs/poolduel/) · [README](poolduel/README.md)
 - **Sextant** - Offline GIS mapping engine in C# Blazor WASM with R*-tree spatial indexing and turn-penalized A* routing. [Website](https://userfrom1995.github.io/RandomLabs/sextant/) · [README](sextant/README.md)
 - **Tabula** - Headless Swift spreadsheet engine with topological cycle-detecting dependency recalculation DAG. [Website](https://userfrom1995.github.io/RandomLabs/tabula/) · [README](tabula/README.md)
 - **Folio** - Client-side in-browser PDF manipulation studio backed by OPFS. [Website](https://userfrom1995.github.io/RandomLabs/folio/) · [README](folio/README.md)
-- **Prism** - Lossless image codec from scratch in C++17 with 2D LeGall 5/3 DWT and finite-state rANS. [Website](https://userfrom1995.github.io/RandomLabs/prism/) · [README](prism/README.md)
+- **Prism** - Lossless image codec from scratch in C++17 with 2D LeGall 5/3 DWT and finite-state rANS. [README](prism/README.md)
 - **Helix** - From-scratch vector search engine in Go with HNSW graph indexing and Product Quantization. [Website](https://userfrom1995.github.io/RandomLabs/helix/) · [README](helix/README.md)
 - **Kinetica** - From-scratch 2D rigid-body physics engine in TypeScript with sequential impulse solver. [Website](https://userfrom1995.github.io/RandomLabs/kinetica/) · [README](kinetica/README.md)
-- **Obsidian** - Lossless image codec in Rust with 8-predictor bank and adaptive Golomb-Rice entropy. [Website](https://userfrom1995.github.io/RandomLabs/obsidian/) · [README](obsidian/README.md)
 
 ## Archived Projects
 
