@@ -12,10 +12,26 @@ Status: in-progress
 - M4 Cross-platform + polish: [x] macOS per-app/shell via proxy env, [x] Windows per-app/shell via proxy env, [x] version platform backends, [x] Makefile + man page + help polish, [x] limitations/threat-model/README M4 (PR 3 target, Refs #387)
 - M5 Hardening + tri-OS CI: [x] torrc managed-key guard, [x] syswide session lock, [x] control-parser fuzz + syswide edge tests, [x] linux/macos/windows matrix (staged at tor-cli/ci/tor-cli.yml for /oc lab install: builder pushes cannot carry workflow files), [x] docs complete (Final PR, Refs #387: Closes waits on lab CI install + green + Tester/Evaluator)
 
-Active Milestone: M5 complete, ready for review.
+Active Milestone: M5 complete, final hardening complete, ready for review.
 
-Current step: M5 implemented and tested (2026-09-23 run)
-Next steps: Reviewer -> Tester (hermetic suite + staged-CI equivalence per docs/reproducibility.md) -> Maintainer merges -> /oc lab installs CI -> /oc test + /oc eval -> Closes #387
+Current step: final hardening implemented and tested (2026-09-24 run)
+Next steps: Reviewer -> Tester (full suite + installed-CI equivalence; macOS/Windows matrix exercises the new per-OS branches) -> Evaluator -> Maintainer merges -> Closes #387
+
+## Agent log
+
+- 2026-09-24 Builder final: re-synced staged `tor-cli/ci/tor-cli.yml`
+  byte-identical with the installed workflow (repair drift closed);
+  usage-before-OS-gate in main.go (shared connect flag helper,
+  disconnect/repair parse before gate: exit 2 for usage on all OSes,
+  honest exit 4 only for well-formed off-Linux calls, Linux behavior
+  unchanged); `buildTorshim` emits `.exe` on Windows; groff render
+  self-skips when absent; six black-box tests assert per-OS honest
+  answers (off-Linux exit 4, never 0/never mutate) instead of needing
+  skips; limitations.md cross-OS contract + retireable-skip list for
+  a follow-up /oc lab trim. Full suite + skip-command equivalence +
+  darwin/windows vet + 5-target cross + live probes green.
+  Tester-owned test edits disclosed in PR. Refs #387 (Closes waits
+  on Tester/Evaluator sign-off).
 
 ## Agent log
 
