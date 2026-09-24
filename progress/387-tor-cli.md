@@ -1,10 +1,13 @@
 # Tor CLI (torshim) - Build Epic
 
-Issue: #387. Research: `tor-cli/docs/research.md` (M1 done).
-Blueprint: `ideas/2026-09-23-torshim-tor-cli.md`.
+Issue: #387 (closed epic carrying the active CLI v2 workload).
+Research: `tor-cli/docs/research.md` Part I (original spec) + Part II
+(feature/UX roadmap, PR #413; Phase 1 build starts after #413 merges).
+Blueprints: `ideas/2026-09-23-torshim-tor-cli.md` (v1, shipped 0.4.0),
+`ideas/2026-09-24-torshim-cli-v2.md` (v2, this roadmap).
 Status: in-progress
 
-## Milestone roadmap
+## Milestone roadmap (v1, shipped)
 
 - M1 Research + Architecture: [x] survey + spec + blueprint (PR #388, Refs #387)
 - M2 Per-app + shell on Linux: [x] lifecycle + control client, [x] readiness wait, [x] torsocks exec + static-binary guard, [x] shell + banner, [x] status/version v1, [x] fail-closed + DNS + lifecycle tests (PR #388, Refs #387)
@@ -12,10 +15,50 @@ Status: in-progress
 - M4 Cross-platform + polish: [x] macOS per-app/shell via proxy env, [x] Windows per-app/shell via proxy env, [x] version platform backends, [x] Makefile + man page + help polish, [x] limitations/threat-model/README M4 (PR 3 target, Refs #387)
 - M5 Hardening + tri-OS CI: [x] torrc managed-key guard, [x] syswide session lock, [x] control-parser fuzz + syswide edge tests, [x] linux/macos/windows matrix (staged at tor-cli/ci/tor-cli.yml for /oc lab install: builder pushes cannot carry workflow files), [x] docs complete (Final PR, Refs #387: Closes waits on lab CI install + green + Tester/Evaluator)
 
-Active Milestone: M5 complete, final hardening complete, staged CI re-synced, ready for review.
+Active Milestone (v1): M5 complete and merged; #387 closed, epic kept
+open for the Owner's 2026-09-24 v2 directives (verbose diagnostics,
+feature/UX depth, GUI applications).
 
-Current step: staged tor-cli/ci/tor-cli.yml re-synced byte-identical with Lab-trimmed installed workflow (2026-09-24 sync run)
-Next steps: Reviewer -> Tester (verify staged/installed identical, full suite + off-Linux skip equivalence) -> Maintainer merges -> Closes #387 (after tor-cli sweep green on live head)
+## Phase roadmap: CLI v2 (2026-09-24 Owner directives)
+
+- Phase 1: Diagnostics and Honesty Surface: [ ] verbosity system
+  (-v/-vv/-vvv/-q, --log-level, --log-file, verdict lines, flag
+  placement), [ ] `doctor` (+--deep, --json), [ ] `status --verify`
+  (three-state verdict, --check-url, additive JSON), [ ] `--help`
+  exit-0 fix with pinned contract test disclosed (PR 1 target, Refs #387)
+- Phase 2: GUI-Safe Application Launch: [ ] diagnosis harness proving
+  H1-H6 with real apps (firefox/falkon/chromium), [ ] launch supervisor
+  (process groups, INT/TERM/HUP forwarding, ordered teardown, exit-code
+  propagation), [ ] bounded-wait invariant + NOT-protected failure
+  lines, [ ] desktop torsocks profile on Linux, [ ] chromium/firefox
+  injection profiles on macOS/Windows, [ ] GUI matrix + coverage docs
+  (PR 2 target, Refs #387)
+- Phase 3: Workflow Verbs and Shell Integration: [ ] `newnym`, [ ]
+  `shellenv`, [ ] `completion bash|zsh|fish`, [ ] `--isolate`, [ ]
+  structured errors (code + remediation) (PR 3 target, Refs #387)
+- Phase 4: Network Control and Observability: [ ] `bridge
+  add|list|remove` with PT detection, [ ] `circuits`, [ ]
+  `status --watch`, [ ] `--set`/`--exit` with verify-config gate
+  (PR 4 target, Refs #387)
+- Phase 5: System-Proxy Session Backend: [ ] `internal/sysproxy`
+  snapshot core, [ ] macOS networksetup backend, [ ] Windows HKCU/WinINET
+  backend, [ ] `connect --backend proxy` wiring, [ ] `status` mode
+  `sysproxy` honesty, [ ] GUI coverage upgrade for system-proxy-only
+  apps (PR 5 target, Refs #387)
+- Phase 6: Per-OS Verification and Website Refresh: [ ] consolidated
+  test-linux/test-macos/test-windows campaign, [ ] tri-OS CI zero new
+  skips, [ ] performance ledger G2/G3/G4, [ ] unified docs/man/README,
+  [ ] tor-cli/index.html + landing refresh with live transcripts,
+  [ ] Evaluator at least 9.8 (Final PR, Refs #387: issue already
+  closed, so the final PR carries Refs, not Closes)
+
+Active Phase: Phase 1: Diagnostics and Honesty Surface
+
+Current step: Ready for initial build (Phase 1: Diagnostics and Honesty Surface)
+
+Next steps: Builder to implement Phase 1 with real code and zero stubs
+(per-OS tester pass before Phase 2 starts; website refresh only in the
+final phase per Owner ordering)
 
 ## Agent log
 
