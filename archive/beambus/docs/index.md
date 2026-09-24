@@ -232,7 +232,7 @@ powerup { at 22 kind shield }
 ## Source
 
 The project lives in
-[`beambus/`](https://github.com/Userfrom1995/RandomLabs/tree/main/beambus) with a
+[`beambus/`](https://github.com/Userfrom1995/RandomLabs/tree/main/archive/beambus) with a
 [README](https://github.com/Userfrom1995/RandomLabs/blob/main/archive/beambus/README.md)
 and a full writeup in
 [`ideas/`](https://github.com/Userfrom1995/RandomLabs/blob/main/ideas/2026-08-14-beambus-retro-arcade-shooter.md).

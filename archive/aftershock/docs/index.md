@@ -112,7 +112,7 @@ command line; there is no interactive input.
 ## Source
 
 The project lives in
-[`aftershock/`](https://github.com/Userfrom1995/RandomLabs/tree/main/aftershock)
+[`aftershock/`](https://github.com/Userfrom1995/RandomLabs/tree/main/archive/aftershock)
 with a
 [README](https://github.com/Userfrom1995/RandomLabs/blob/main/archive/aftershock/README.md)
 and a full writeup in
