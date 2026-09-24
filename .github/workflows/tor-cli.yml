@@ -5,15 +5,17 @@
 #     (per-app, shell, lifecycle, control, syswide orchestration with a
 #     fake firewall runner, black-box CLI contract), fail-closed CLI
 #     probes (no tor installed: status/version/disconnect honesty).
-#     Off-Linux runners skip the Linux-only syswide orchestration and
-#     contract tests (documented skips: transparent routing is
-#     Linux-only by design, see tor-cli/docs/limitations.md); the
-#     disconnect probe expects honest exit 4 there instead of exit 0.
-#     Windows additionally skips the black-box tests whose helper builds
-#     a bare `torshim` binary without the `.exe` suffix (exec fails with
-#     exit 99 there by construction, not by product behavior); macOS runs
-#     those. Product follow-up: teach `buildTorshim` to append `.exe` on
-#     Windows, then retire the Windows-only entries.
+#     Off-Linux runners skip only the tests that assert Linux-only
+#     behavior by construction: the syswide orchestration backends are
+#     Linux-only (see tor-cli/docs/limitations.md), and
+#     TestConnectDisconnectM3Contract pins the Linux contract
+#     (stateless disconnect exit 0 plus sudo wording) while the honest
+#     off-Linux answer is exit 4 with a Linux-only pointer. Every other
+#     black-box test is cross-OS honest by final-hardening design
+#     (per-OS exit-4 branches, .exe-aware helper, groff self-skip),
+#     so no other skips remain.
+#     The disconnect probe expects honest exit 4 off-Linux
+#     instead of exit 0.
 #   - cross: all 5 release targets compile (linux amd64+arm64,
 #     darwin amd64+arm64, windows amd64).
 #   - fuzz: bounded control-parser fuzz (30s per target, linux).
@@ -92,28 +94,24 @@ jobs:
           # Off-Linux, transparent routing is unavailable by design
           # (syswide backends are Linux-only; see
           # tor-cli/docs/limitations.md and the issue #387 "documented
-          # skips" clause). Skip the Linux-only orchestration and
-          # contract tests there; the OS-independent suites (control,
-          # lifecycle, perapp, shell, status, session lock, rule-spec
-          # honesty, proxy-env, torrc guard) still run on every OS.
+          # skips" clause). Two skip groups remain load-bearing there;
+          # everything else runs on all three OSes:
+          #   - internal/syswide orchestration (TestConnect,
+          #     TestDisconnect, TestRepair, TestNftConnectDisconnect):
+          #     drives the Linux firewall backends directly.
+          #   - tests/TestConnectDisconnectM3Contract: pins the Linux
+          #     contract (stateless disconnect exit 0, sudo wording)
+          #     while the honest off-Linux answer is exit 4 with a
+          #     Linux-only pointer. All sibling black-box tests carry
+          #     explicit per-OS branches (or self-skips, e.g. groff),
+          #     so they run unskipped on macOS and Windows.
           if [ "$RUNNER_OS" = "Linux" ]; then
             go test -count=1 ./...
-          elif [ "$RUNNER_OS" = "macOS" ]; then
-            go test -count=1 ./internal/... \
-              -skip 'TestConnect|TestDisconnect|TestRepair|TestNftConnectDisconnect'
-            go test -count=1 ./tests/ \
-              -skip 'TestConnectDisconnect|TestM3Connect|TestM3Repair|TestM3Disconnect|TestM4DisconnectIdempotentAndRunFailClosed|TestM4PackagingArtifacts|TestM5CLIBlackBoxHonesty'
           else
-            # Windows: same Linux-only skips, plus the black-box tests
-            # that exec the helper-built binary (bare `torshim` name, no
-            # `.exe`, so exec fails with exit 99 on Windows by
-            # construction). The remaining tests/ suite (classify,
-            # env-dedup, banner, control block, proxy-env units,
-            # session-lock, torrc guard, staged-CI parse) still runs.
             go test -count=1 ./internal/... \
               -skip 'TestConnect|TestDisconnect|TestRepair|TestNftConnectDisconnect'
             go test -count=1 ./tests/ \
-              -skip 'TestConnectDisconnect|TestM3Connect|TestM3Repair|TestM3Disconnect|TestM4DisconnectIdempotentAndRunFailClosed|TestM4PackagingArtifacts|TestM5CLIBlackBoxHonesty|TestVersionHonest|TestHelpAndUsageCodes|TestStatusHonest|TestRunFailClosedWithoutTor|TestM3Status|TestM3NoEmDash|TestM4VersionReports|TestM4HelpNames'
+              -skip 'TestConnectDisconnect'
           fi
 
       - name: CLI honesty probes (no tor needed)
