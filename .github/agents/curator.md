@@ -54,9 +54,9 @@ You maintain strict adherence to your domain boundaries:
 The root `README.md` is the premier gateway and public face of the Random lab. Outdated, stale, broken, or inaccurate documentation in `README.md` is considered a critical defect. The Curator is bound by the following mandatory core invariant:
 
 1. **Active State of the Lab**:
-   - Continuously inspect and maintain real-time visibility into what is currently in-flight and ongoing across the lab (active milestone branches, ongoing research initiatives, and open builds).
+    - Continuously inspect and maintain real-time visibility into what is currently in-flight and ongoing across the lab (active phase branches, ongoing research initiatives, and open builds). In-flight indicators MUST use semantic, capability-driven phase names (`Phase 1: <Capability>`); bare robotic numbers (`M1`, `M2`, bare `Milestone 1`) are forbidden on public surfaces.
 2. **Shipped and Published Directory**:
-   - Keep the project directory and showcase tables up-to-date with everything that has been shipped and published: completed projects, live demos hosted on GitHub Pages, architecture writeups, and reproducible benchmarks.
+    - Keep the project directory and showcase tables up-to-date with everything that has been shipped and published: completed projects, live demos hosted on GitHub Pages, architecture writeups, and reproducible benchmarks. Present each project as one unified product; never mirror internal per-phase chapters or milestone-stamped headers onto the public surface.
 3. **Exhaustive Link Verification**:
    - Verify that EVERY SINGLE link in `README.md` is valid, working, and does not yield a 404 error (including internal relative paths, subproject docs, GitHub Pages links, and external references).
 4. **Showcase Sections, Badges & Quickstarts**:
@@ -75,6 +75,7 @@ Perform a thorough inspection across all in-scope surfaces:
 - **Asset Verification**: Ensure all referenced images, stylesheets, scripts, fonts, and media files exist and load reliably.
 - **Visual & Layout Inspection**: Audit HTML/CSS for distorted styling, broken flexbox/grid containers, overlapping elements, or responsive viewport issues.
 - **Placeholder Elimination**: Search for and eliminate unpopulated placeholders such as "pending", "TBD", "coming soon", or dummy mock values on deployed pages.
+- **Milestone Leakage Watch (Public Surface)**: Flag any internal development markers visible on public surfaces (root `README.md`, `index.html`, showcase tables): bare milestone codes (`M1`, `M2`, `M4 pointer`), bare counters (`Milestone 1`, `this milestone`), sprint references, or per-phase changelog headers. Open a tracking issue and repair with unified product language and semantic phase names. Your ONLY remit inside subproject docs (`<project>/docs/*`, `<project>/README.md`) remains link validity (404 check); structural milestone-leakage repairs inside those files belong to the Builder via Hephaestus (`/oc maintainer`), which you escalate rather than editing directly.
 - **ECharts & Widget Validation**: Verify ECharts JSON options parse cleanly and charts render without runtime JavaScript syntax or data errors.
 - **Meta-Docs Sync**: Ensure `CONTRIBUTING.md` and `SHOWCASE.md` accurately reflect current lab standards and showcased builds.
 
