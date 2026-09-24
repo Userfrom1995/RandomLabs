@@ -17,7 +17,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -27,7 +26,7 @@ import (
 
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/control"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/lifecycle"
-	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/perapp"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/platform_compat"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/probe"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/syswide"
 )
@@ -62,6 +61,7 @@ type Options struct {
 // individual checks consult (single control dial, one syswide probe).
 type env struct {
 	opts    Options
+	snap    platform_compat.Snapshot
 	sys     syswide.ProbeResult
 	ctl     *control.Client
 	ctlAddr string
@@ -84,6 +84,9 @@ func Run(o Options) Report {
 		o.Timeout = 3 * time.Second
 	}
 	e := &env{opts: o}
+	// One snapshot feeds every platform/dependency check (component A
+	// is the single source of truth for capability and version facts).
+	e.snap = platform_compat.Gather(platform_compat.Options{TorBinary: o.TorBinary})
 	e.sys = syswide.Probe(o.StateDir, nil)
 	e.openControl()
 	defer e.closeControl()
@@ -195,101 +198,39 @@ func authBestEffort(ctl *control.Client) {
 	}
 }
 
-func runVersion(bin string, timeout time.Duration) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, bin, "--version").CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("%s --version: %w", bin, err)
-	}
-	return string(out), nil
-}
-
-// parseTorVersion extracts "0.4.8.12"-style tokens from --version output.
-func parseTorVersion(out string) string {
-	best := ""
-	for _, f := range strings.Fields(out) {
-		f = strings.Trim(f, ",;()")
-		if len(f) >= 3 && f[0] >= '0' && f[0] <= '9' && strings.Contains(f, ".") {
-			// Prefer the most dotted (most version-shaped) token.
-			if strings.Count(f, ".") >= strings.Count(best, ".") {
-				best = f
-			}
-		}
-	}
-	return best
-}
-
-// versionLessThan4 reports whether a parsed version predates 0.4.x.
-func versionLessThan4(v string) bool {
-	major, rest, ok := strings.Cut(v, ".")
-	if !ok {
-		return false
-	}
-	m, err := strconv.Atoi(major)
-	if err != nil {
-		return false
-	}
-	if m != 0 {
-		return m < 0
-	}
-	minor, _, ok := strings.Cut(rest, ".")
-	if !ok {
-		return false
-	}
-	n, err := strconv.Atoi(minor)
-	if err != nil {
-		return false
-	}
-	return n < 4
-}
-
 // ---------------------------------------------------------------------------
 // Baseline checks (1-10).
 // ---------------------------------------------------------------------------
 
 func (e *env) checkTorBinary() Check {
-	c := Check{ID: "tor_binary", OK: true, Severity: "info"}
-	lp, err := exec.LookPath(e.opts.TorBinary)
-	if err != nil {
+	tor := e.snap.Dep("tor")
+	if !tor.Present {
 		return Check{ID: "tor_binary", OK: false, Severity: "error",
 			Detail:      fmt.Sprintf("tor binary %q not found on PATH", e.opts.TorBinary),
 			Remediation: `install tor (package "tor") and retry`}
 	}
-	out, verr := runVersion(lp, 2*time.Second)
-	if verr != nil {
+	if tor.Version == "" {
 		return Check{ID: "tor_binary", OK: true, Severity: "warning",
-			Detail: fmt.Sprintf("tor found at %s but --version failed: %v", lp, verr)}
+			Detail: fmt.Sprintf("tor found at %s (version string unreadable)", tor.Path)}
 	}
-	ver := parseTorVersion(out)
-	if ver == "" {
-		c.Severity = "warning"
-		c.Detail = fmt.Sprintf("tor found at %s (version string unrecognized)", lp)
-		return c
+	if platform_compat.PredatesTor04(tor.Version) {
+		return Check{ID: "tor_binary", OK: true, Severity: "warning",
+			Detail:      fmt.Sprintf("tor %s at %s (predates 0.4.x)", tor.Version, tor.Path),
+			Remediation: "upgrade to a current tor release"}
 	}
-	if versionLessThan4(ver) {
-		c.Severity = "warning"
-		c.Detail = fmt.Sprintf("tor %s at %s (predates 0.4.x)", ver, lp)
-		c.Remediation = "upgrade to a current tor release"
-		return c
-	}
-	c.Detail = fmt.Sprintf("tor %s at %s", ver, lp)
-	return c
+	return Check{ID: "tor_binary", OK: true, Severity: "info",
+		Detail: fmt.Sprintf("tor %s at %s", tor.Version, tor.Path)}
 }
 
 func (e *env) checkMechanism() Check {
-	if runtime.GOOS == "linux" {
-		lib, err := perapp.FindLib()
-		if err != nil {
-			return Check{ID: "perapp_mechanism", OK: false, Severity: "error",
-				Detail:      "torsocks library not found: " + err.Error(),
-				Remediation: `install torsocks (package "torsocks")`}
-		}
-		return Check{ID: "perapp_mechanism", OK: true, Severity: "info",
-			Detail: "per-app mechanism: torsocks (" + lib + ")"}
+	caps := e.snap.Capabilities
+	if caps.PerAppMechanism == "unavailable" {
+		return Check{ID: "perapp_mechanism", OK: false, Severity: "error",
+			Detail:      "per-app mechanism unavailable: " + caps.PerAppDetail,
+			Remediation: `install torsocks (package "torsocks")`}
 	}
 	return Check{ID: "perapp_mechanism", OK: true, Severity: "info",
-		Detail: "per-app mechanism: proxy-env (socks5h); apps honoring proxy env are covered, apps ignoring it are not"}
+		Detail: "per-app mechanism: " + caps.PerAppMechanism + " (" + caps.PerAppDetail + ")"}
 }
 
 func (e *env) checkControl() Check {
@@ -443,28 +384,6 @@ func (e *env) checkEnvHygiene() Check {
 		Detail: "no stale markers or shadowing proxy env"}
 }
 
-// ptBinaryFor returns the on-PATH pluggable transport binary for a
-// transport name, trying the modern and legacy names.
-func ptBinaryFor(transport string) (string, bool) {
-	switch transport {
-	case "obfs4", "meek_lite", "meek", "webtunnel", "scramblesuit":
-		for _, n := range []string{"lyrebird", "obfs4proxy"} {
-			if lp, err := exec.LookPath(n); err == nil {
-				return lp, true
-			}
-		}
-	case "snowflake":
-		for _, n := range []string{"snowflake-client", "lyrebird"} {
-			if lp, err := exec.LookPath(n); err == nil {
-				return lp, true
-			}
-		}
-	case "", "vanilla":
-		return "", true // no PT binary needed
-	}
-	return "", false
-}
-
 func (e *env) checkBridges() Check {
 	if e.ctlErr != nil {
 		return Check{ID: "bridges", OK: false, Severity: "warning",
@@ -514,13 +433,13 @@ func (e *env) checkBridges() Check {
 	}
 	sort.Strings(names)
 	for _, t := range names {
-		lp, ok := ptBinaryFor(t)
-		if t == "vanilla" || (ok && lp != "") {
-			if lp != "" {
-				found = append(found, t+" via "+lp)
-			} else {
-				found = append(found, t)
-			}
+		dep, needed := e.snap.PTFor(t)
+		if !needed {
+			found = append(found, t)
+			continue
+		}
+		if dep.Present {
+			found = append(found, t+" via "+dep.Path)
 			continue
 		}
 		missing = append(missing, t)
@@ -536,15 +455,9 @@ func (e *env) checkBridges() Check {
 }
 
 func (e *env) checkCoverage() Check {
-	var detail string
-	switch runtime.GOOS {
-	case "linux":
-		detail = "platform coverage: per-app (torsocks) and system-wide (iptables/nft) covered; UDP/ICMP never supported (see tor-cli/docs/limitations.md)"
-	case "darwin":
-		detail = "platform coverage: per-app and shell via proxy-env covered; system-wide needs tun2socks (not shipped) (see tor-cli/docs/limitations.md)"
-	default:
-		detail = "platform coverage: per-app and shell via proxy-env covered; system-wide needs tun2socks (not shipped) (see tor-cli/docs/limitations.md)"
-	}
+	caps := e.snap.Capabilities
+	detail := fmt.Sprintf("platform coverage (%s/%s): per-app via %s; system-wide: %s; UDP/ICMP never supported (see tor-cli/docs/limitations.md)",
+		caps.OS, caps.Arch, caps.PerAppMechanism, caps.SystemWideDetail)
 	return Check{ID: "platform_coverage", OK: true, Severity: "info", Detail: detail}
 }
 
