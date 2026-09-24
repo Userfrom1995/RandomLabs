@@ -219,7 +219,7 @@
   .term .ps { color: var(--amber); }
   .term .cmd { color: #eef2fa; }
   .term .ok { color: var(--teal); }
-  .term .dim { color: #62708a; }
+  .term .dim { color: #7c8aa6; }
   .term .vio { color: var(--violet); }
 
   /* ---------- sections ---------- */
@@ -325,7 +325,7 @@
     line-height: 1.65;
     color: #d3daea;
   }
-  .codeblock .c { color: #62708a; }
+  .codeblock .c { color: #7c8aa6; }
   .copy-btn {
     font-family: var(--sans);
     font-size: 0.76rem;
@@ -429,7 +429,19 @@
 
   @media (max-width: 900px) {
     .hero-inner { grid-template-columns: 1fr; padding-top: 52px; gap: 32px; }
-    .nav-links a:not(.cta) { display: none; }
+    .nav { flex-wrap: wrap; row-gap: 8px; }
+    .nav-links {
+      order: 3;
+      width: 100%;
+      margin-left: 0;
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .nav-links::-webkit-scrollbar { display: none; }
+    .nav-links a { flex: 0 0 auto; white-space: nowrap; }
   }
 </style>
 </head>
@@ -497,17 +509,15 @@ protected: <span class="dim">false</span>
 note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</span>
 
 <span class="ps">$</span> <span class="cmd">sudo torshim connect</span>
-  <span class="ok">[ok]</span> tor-ready         bootstrap 100% + live circuit
-  <span class="ok">[ok]</span> rules-present     nft rules installed
-  <span class="ok">[ok]</span> transport-open    127.0.0.1:9040 accepts
-  <span class="ok">[ok]</span> dns-alive         Tor DNSPort answers
-  <span class="ok">[ok]</span> resolv-untouched  unchanged from snapshot
-<span class="vio">connected:</span> system-wide via nft
-  (backup /run/torshim/backups/20260924T211502Z-9f3ac2)
+  <span class="ok">[ok]</span> tor-ready        bootstrap 100% + live circuit
+  <span class="ok">[ok]</span> rules-present    nft rules installed
+  <span class="ok">[ok]</span> transport-open   127.0.0.1:9040 accepts
+  <span class="ok">[ok]</span> dns-alive        Tor DNSPort answers
+  <span class="ok">[ok]</span> resolv-untouched unchanged from snapshot
+<span class="vio">connected:</span> system-wide via nft (backup /run/torshim/backups/20260924T211502Z-9f3ac2)
 
 <span class="ps">$</span> <span class="cmd">torshim disconnect</span>
-<span class="ok">disconnected:</span> rules removed=true firewall restored=true
-  post-verify clean=true</pre>
+<span class="ok">disconnected:</span> rules removed=true firewall restored=true post-verify clean=true</pre>
     </div>
   </div>
 </header>
@@ -534,7 +544,9 @@ note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</spa
           <code>socks5h://</code> proxy environment; every launch prints an honest coverage note.
         </p>
         <div class="codeblock">
-          <header><span>per-app</span><button class="copy-btn" type="button" data-copy="torshim curl ifconfig.me">Copy</button></header>
+          <header><span>per-app</span><button class="copy-btn" type="button" data-copy="torshim curl ifconfig.me
+torshim git pull
+torshim run -- firefox">Copy</button></header>
 <pre>torshim curl ifconfig.me
 torshim git pull
 torshim run -- firefox</pre>
@@ -554,7 +566,9 @@ torshim run -- firefox</pre>
           prefix, and a coverage banner, so you always know what is and is not covered.
         </p>
         <div class="codeblock">
-          <header><span>shell</span><button class="copy-btn" type="button" data-copy="torshim shell">Copy</button></header>
+          <header><span>shell</span><button class="copy-btn" type="button" data-copy="torshim shell
+# traffic exits via Tor
+[torshim] $ curl ifconfig.me">Copy</button></header>
 <pre>torshim shell
 <span class="c"># traffic exits via Tor</span>
 [torshim] $ curl ifconfig.me</pre>
@@ -576,7 +590,9 @@ torshim run -- firefox</pre>
           never silently passed.
         </p>
         <div class="codeblock">
-          <header><span>system-wide</span><button class="copy-btn" type="button" data-copy="sudo torshim connect">Copy</button></header>
+          <header><span>system-wide</span><button class="copy-btn" type="button" data-copy="sudo torshim connect
+torshim status --json
+torshim disconnect  # restore">Copy</button></header>
 <pre>sudo torshim connect
 torshim status --json
 torshim disconnect  <span class="c"># restore</span></pre>
@@ -755,11 +771,12 @@ torshim disconnect  <span class="c"># restore</span></pre>
     <div class="grid-2">
       <div>
         <div class="codeblock">
-          <header><span>build from source</span><button class="copy-btn" type="button" data-copy="git clone https://github.com/Userfrom1995/RandomLabs.git
+          <header><span>build from source</span><button class="copy-btn" type="button" data-copy="# build from source
+git clone https://github.com/Userfrom1995/RandomLabs.git
 cd RandomLabs/tor-cli
 make build   # static binary ./torshim
-make test    # hermetic suite: no root, no tor, no firewall
-sudo make install   # /usr/local/bin/torshim + man page">Copy</button></header>
+make test    # hermetic: no root, no tor, no firewall
+sudo make install   # torshim + torshim.1 man page">Copy</button></header>
 <pre><span class="c"># build from source</span>
 git clone https://github.com/Userfrom1995/RandomLabs.git
 cd RandomLabs/tor-cli
@@ -769,18 +786,23 @@ sudo make install   <span class="c"># torshim + torshim.1 man page</span></pre>
         </div>
         <div class="codeblock">
           <header><span>verify the install</span><button class="copy-btn" type="button" data-copy="torshim version
-torshim status --json">Copy</button></header>
+torshim status --json   # protected: false until proven">Copy</button></header>
 <pre>torshim version
 torshim status --json   <span class="c"># protected: false until proven</span></pre>
         </div>
       </div>
       <div>
         <div class="codeblock">
-          <header><span>first minutes with torshim</span><button class="copy-btn" type="button" data-copy="torshim curl https://check.torproject.org/api/ip
+          <header><span>first minutes with torshim</span><button class="copy-btn" type="button" data-copy="# 1. one app through Tor
+torshim curl https://check.torproject.org/api/ip
+
+# 2. a Tor-routed shell
 torshim shell
+
+# 3. the whole machine (Linux, root)
 sudo torshim connect
 torshim status
-torshim disconnect">Copy</button></header>
+torshim disconnect   # restore, byte-exact">Copy</button></header>
 <pre><span class="c"># 1. one app through Tor</span>
 torshim curl https://check.torproject.org/api/ip
 
@@ -793,7 +815,8 @@ torshim status
 torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
         </div>
         <div class="codeblock">
-          <header><span>one-line gates</span><button class="copy-btn" type="button" data-copy="make build && make test && make vet && make cross">Copy</button></header>
+          <header><span>one-line gates</span><button class="copy-btn" type="button" data-copy="make build &amp;&amp; make test &amp;&amp; make vet &amp;&amp; make cross
+# linux/darwin amd64+arm64, windows amd64">Copy</button></header>
 <pre>make build &amp;&amp; make test &amp;&amp; make vet &amp;&amp; make cross
 <span class="c"># linux/darwin amd64+arm64, windows amd64</span></pre>
         </div>
@@ -892,7 +915,7 @@ torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
         btn.textContent = "Copied";
         btn.classList.add("done");
       }).catch(function () {
-        btn.textContent = "Select and copy";
+        btn.textContent = "Copy failed";
       });
       setTimeout(function () {
         btn.textContent = idle;
