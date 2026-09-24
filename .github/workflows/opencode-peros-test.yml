@@ -66,7 +66,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          model: opencode/mimo-v2.6-flash-free
           use_github_token: true
           prompt: |
             You are the Linux Tester of the Random lab, triggered by "/oc test-linux" on this issue/PR.
@@ -161,7 +161,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          model: opencode/mimo-v2.6-flash-free
           use_github_token: true
           prompt: |
             You are the macOS Tester of the Random lab, triggered by "/oc test-macos" on this issue/PR.
@@ -259,7 +259,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         with:
-          model: opencode/muse-spark-1.3-contributor-free
+          model: opencode/mimo-v2.6-flash-free
           use_github_token: true
           prompt: |
             You are the Windows Tester of the Random lab, triggered by "/oc test-windows" on this issue/PR.
