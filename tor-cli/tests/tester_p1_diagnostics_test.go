@@ -567,3 +567,82 @@ func TestP1DoctorDeepExitOneWhenProofFails(t *testing.T) {
 		t.Fatalf("failing proof not reported:\n%s", so)
 	}
 }
+
+// TestP1G3HelpAndVersionFast pins the G3 budget: help and version
+// return in at most 50 ms (best of five runs each; cold-start noise
+// excluded so the bound measures command work, not page-cache misses).
+func TestP1G3HelpAndVersionFast(t *testing.T) {
+	bin := buildTorshim(t)
+	best := func(args ...string) time.Duration {
+		min := time.Duration(1<<62 - 1)
+		for i := 0; i < 5; i++ {
+			start := time.Now()
+			_, _, _ = runBin(bin, args...)
+			if d := time.Since(start); d < min {
+				min = d
+			}
+		}
+		return min
+	}
+	if d := best("version"); d > 50*time.Millisecond {
+		t.Fatalf("version best=%v exceeds the 50ms G3 bound", d)
+	}
+	if d := best("--help"); d > 50*time.Millisecond {
+		t.Fatalf("--help best=%v exceeds the 50ms G3 bound", d)
+	}
+}
+
+// TestP1G4StatusStaysInsideTwoSeconds pins the G4 budget: status
+// without --verify must finish within 2s against both a silent control
+// endpoint (accepts, never writes) and an unroutable one.
+func TestP1G4StatusStaysInsideTwoSeconds(t *testing.T) {
+	bin := buildTorshim(t)
+	stateDir := t.TempDir()
+
+	// Silent: accepts the TCP connection and never sends a byte.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("no loopback: %v", err)
+	}
+	defer ln.Close()
+	go func() {
+		var held []net.Conn
+		defer func() {
+			for _, c := range held {
+				_ = c.Close()
+			}
+		}()
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			held = append(held, c)
+		}
+	}()
+	start := time.Now()
+	so, _, code := runBin(bin, "status", "--control", ln.Addr().String(), "--state-dir", stateDir)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("status against a silent control endpoint took %v, G4 bound is 2s", d)
+	}
+	if code != 0 {
+		t.Fatalf("silent-control status exit=%d, want 0", code)
+	}
+	if !strings.Contains(so, "unreadable") && !strings.Contains(so, "unreachable") {
+		t.Fatalf("silent control must stay honest:\n%s", so)
+	}
+	if !strings.Contains(so, "protected: false") || strings.Contains(so, "protected: true") {
+		t.Fatalf("silent control must report protected: false only:\n%s", so)
+	}
+
+	// Unroutable: the dial itself must be bounded by the same budget.
+	black := "10.255.255.1:9051"
+	start = time.Now()
+	_, _, code = runBin(bin, "status", "--control", black, "--state-dir", stateDir)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("status against an unroutable control endpoint took %v, G4 bound is 2s", d)
+	}
+	if code != 0 {
+		t.Fatalf("blackhole status exit=%d, want 0", code)
+	}
+}
