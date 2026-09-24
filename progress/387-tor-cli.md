@@ -2,7 +2,8 @@
 
 Issue: #387 (closed epic carrying the active CLI v2 workload).
 Research: `tor-cli/docs/research.md` Part I (original spec) + Part II
-(feature/UX roadmap, PR #413; Phase 1 build starts after #413 merges).
+(feature/UX roadmap, PR #413; the Phase 1 build lands on the same PR
+branch, the pipeline's verified push target).
 Blueprints: `ideas/2026-09-23-torshim-tor-cli.md` (v1, shipped 0.4.0),
 `ideas/2026-09-24-torshim-cli-v2.md` (v2, this roadmap).
 Status: in-progress
@@ -21,11 +22,14 @@ feature/UX depth, GUI applications).
 
 ## Phase roadmap: CLI v2 (2026-09-24 Owner directives)
 
-- Phase 1: Diagnostics and Honesty Surface: [ ] verbosity system
+- Phase 1: Diagnostics and Honesty Surface: [x] verbosity system
   (-v/-vv/-vvv/-q, --log-level, --log-file, verdict lines, flag
-  placement), [ ] `doctor` (+--deep, --json), [ ] `status --verify`
-  (three-state verdict, --check-url, additive JSON), [ ] `--help`
-  exit-0 fix with pinned contract test disclosed (PR 1 target, Refs #387)
+  placement), [x] `doctor` (+--deep, --json), [x] `status --verify`
+  (three-state verdict, --check-url, additive JSON), [x] `--help`
+  exit-0 fix with pinned contract test disclosed, [x] performance
+  ledger (G2 recorded as a structural conflict for Architect/Owner
+  adjudication; G3 pass; G4 fixed 3.0s -> 1.5s and pinned by test)
+  (PR 1 target, Refs #387)
 - Phase 2: GUI-Safe Application Launch: [ ] diagnosis harness proving
   H1-H6 with real apps (firefox/falkon/chromium), [ ] launch supervisor
   (process groups, INT/TERM/HUP forwarding, ordered teardown, exit-code
@@ -52,16 +56,20 @@ feature/UX depth, GUI applications).
   [ ] Evaluator at least 9.8 (Final PR, Refs #387: issue already
   closed, so the final PR carries Refs, not Closes)
 
-Active Phase: Phase 1: Diagnostics and Honesty Surface
+Active Phase: Phase 1: Diagnostics and Honesty Surface (Complete,
+ready for review)
 
-Current step: Phase 1 build in progress (verbosity system, doctor,
-status --verify, --help exit fix) on PR #413
+Current step: Phase 1 handed to the Reviewer on PR #413. All features,
+unit + black-box suites, README/man/reproducibility updates, and the
+performance ledger (`.github/agents/decisions/builder/2026-09-24-
+torshim-p1-diagnostics-ledger.md`) are pushed.
 
-Next steps: implement internal/diag + global pre-scan, internal/doctor,
-internal/probe + status --verify, --help contract test, verbose-parity
-suite (G5), docs/man updates, G2/G3 ledger (per-OS tester pass before
-Phase 2 starts; website refresh only in the final phase per Owner
-ordering)
+Next steps: Reviewer -> Tester -> Evaluator -> Maintainer on PR #413.
+Open adjudication carried into review: G2 (+92.61% vs +15% cap) is
+structurally in conflict with the mandated HTTPS IsTor proof (research
+P0.3); measured and attributed in the ledger, `Refs #387` stands.
+Phase 2 (GUI-Safe Application Launch) starts only after Phase 1 merges
+(website refresh stays in the final phase per Owner ordering).
 
 ## Agent log
 
@@ -82,6 +90,30 @@ ordering)
 
 ## Agent log
 
+- 2026-09-24 Builder Phase 1 complete: shipped the diagnostics surface
+  (`internal/diag`: level table quiet..trace, argv pre-scan + in-flagset
+  `-v/-vv/-vvv/-q/--log-level/--log-file`, single-space grammar
+  `HH:MM:SS.mmm LEVEL stage: message`, JSON drop-to-warn, log-file tee,
+  `TORSOCKS_LOG_LEVEL` at debug+; `internal/doctor`: 10 baseline + 3
+  deep checks, `--json` schema, never-"protected", never-mutates;
+  `internal/probe`: hand-rolled SOCKS5 + socks5h IsTor fetch and the
+  protected/degraded/unverified verdict rule; `status --verify` with
+  additive JSON keys and cookie best-effort auth; `--help` exits 0 on
+  every flag set while malformed usage stays 2; terminal verdict lines
+  at info; `internal/platform_compat` capability layer feeding doctor;
+  lifecycle spawn/milestone/gate instrumentation). Gate work: G3
+  version/help 3-6 ms (pass); G4 dead-control 3,008 ms -> 1,508 ms via
+  a whole-collect 1.5 s budget with an absolute control deadline (pinned
+  by `TestP1G4StatusStaysInsideTwoSeconds`); G2 recorded at +92.61%
+  against the +15% cap with full attribution (the spec-mandated HTTPS
+  IsTor trust stack alone is 3-5 MB vs a 791 KB budget) - ledger at
+  `.github/agents/decisions/builder/2026-09-24-torshim-p1-diagnostics-ledger.md`,
+  escalated for Architect/Owner adjudication, `Refs #387` stands.
+  Tests: diag/probe/doctor/platform_compat units + black-box contract
+  suite (help/usage/grammar/parity/verdict table/doctor/G3/G4).
+  Docs: README + man + reproducibility integrated as one product view
+  (milestone markers stripped from touched docs). Full `go test ./...`,
+  `go vet`, `go build` green. Refs #387 (review handoff).
 - 2026-09-24 Builder final: re-synced staged `tor-cli/ci/tor-cli.yml`
   byte-identical with the installed workflow (repair drift closed);
   usage-before-OS-gate in main.go (shared connect flag helper,
