@@ -64,6 +64,16 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: research
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "Dr. Mob (Researcher)"
@@ -74,6 +84,7 @@ jobs:
 
       - name: Run opencode researcher agent
         id: opencode
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
@@ -100,7 +111,21 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the agent step
+          # never started, so "failed + no decision file" is a DENIAL, not a
+          # crash. A denial must not post an owner auto-retry (that would
+          # launder the unprivileged trigger under an admin identity) and must
+          # not escalate. The bounded retry below only runs for a privileged
+          # trigger whose agent actually started and then crashed.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the researcher agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           outcome="${{ steps.opencode.outcome }}"
 
           # Crash-parity with build/fix/review mode (issue #138): a healthy
@@ -149,7 +174,7 @@ jobs:
           exit 1
 
       - name: Forward researcher decision
-        if: always() && steps.verify-phase.outputs.handled != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -184,7 +209,7 @@ jobs:
           exit 0
 
       - name: Strip owner Co-authored-by trailers from the PR branch
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -208,6 +233,16 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: architect
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Architect"
@@ -218,6 +253,7 @@ jobs:
 
       - name: Run opencode architect agent
         id: opencode
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
@@ -244,7 +280,21 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the agent step
+          # never started, so "failed + no decision file" is a DENIAL, not a
+          # crash. A denial must not post an owner auto-retry (that would
+          # launder the unprivileged trigger under an admin identity) and must
+          # not escalate. The bounded retry below only runs for a privileged
+          # trigger whose agent actually started and then crashed.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the architect agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           outcome="${{ steps.opencode.outcome }}"
 
           # Crash-parity with build/fix/review mode (issue #138): a healthy
@@ -294,7 +344,7 @@ jobs:
           exit 1
 
       - name: Forward architect decision
-        if: always() && steps.verify-phase.outputs.handled != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-phase.outputs.handled != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -329,7 +379,7 @@ jobs:
           exit 0
 
       - name: Strip owner Co-authored-by trailers from the PR branch
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -358,7 +408,7 @@ jobs:
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -412,6 +462,16 @@ jobs:
           # Full history: orphan-guard merge-base checks fail closed on
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
+
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: build
+        run: bash .github/scripts/actor-write-gate.sh
 
       - name: Configure git identity
         run: |
@@ -467,6 +527,7 @@ jobs:
 
       - name: Run opencode build agent
         id: opencode
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 105
         uses: ./.github/actions/opencode-run
@@ -494,7 +555,7 @@ jobs:
             - Think deeply before coding; use subagents when available. This is a real build: plan, scaffold with progress files, push after every milestone, mark Status: complete only when actually done.
 
       - name: Preserve local commits if agent was killed before pushing
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -527,10 +588,24 @@ jobs:
         id: verify
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           BASELINE_BRANCH: ${{ steps.baseline.outputs.branch }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
           PATTERN_TIPS: ${{ steps.baseline.outputs.pattern_tips }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the agent step
+          # never started, so "no push" is a DENIAL, not a crash. A denial must
+          # not post an owner auto-retry (that would launder the unprivileged
+          # trigger under an admin identity) and must not escalate. The bounded
+          # retry below only runs for a privileged trigger whose agent actually
+          # started and then failed to push.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the build agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            echo "pushed=unknown" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           issue="${{ github.event.issue.number }}"
 
           # Like-for-like push detection on server-resolved state (issue #135).
@@ -632,7 +707,7 @@ jobs:
           exit 1
 
       - name: Preserve build branch with recover tag
-        if: always() && steps.verify.outputs.retry != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -667,7 +742,7 @@ jobs:
           exit 0
 
       - name: Diagnose silent build no-op and self-heal
-        if: always() && steps.verify.outputs.retry != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -712,7 +787,7 @@ jobs:
           exit 0
 
       - name: Forward builder decision
-        if: always() && steps.verify.outputs.retry != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -770,7 +845,7 @@ jobs:
           exit 0
 
       - name: Strip owner Co-authored-by trailers from the PR branch
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -799,7 +874,7 @@ jobs:
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -833,6 +908,16 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: fix
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Fixer"
@@ -865,6 +950,7 @@ jobs:
 
       - name: Run opencode fix agent
         id: opencode
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
@@ -892,8 +978,21 @@ jobs:
         id: verify
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
           BASELINE_HEAD: ${{ steps.baseline.outputs.head_before }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the agent step
+          # never started, so "no push" is a DENIAL, not a crash. A denial must
+          # not post an owner auto-retry (that would launder the unprivileged
+          # trigger under an admin identity) and must not escalate. The bounded
+          # retry below only runs for a privileged trigger whose agent actually
+          # started and then failed to push.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the fix agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           pr="${{ github.event.issue.number }}"
 
           # Hard stop: a fix can only land on an OPEN pull request. If the PR is
@@ -937,7 +1036,7 @@ jobs:
           exit 1
 
       - name: Post /oc review to trigger Reviewer
-        if: always() && steps.verify.outputs.retry != 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify.outputs.retry != 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -955,7 +1054,7 @@ jobs:
           exit 0
 
       - name: Strip owner Co-authored-by trailers from the PR branch
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -977,7 +1076,7 @@ jobs:
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -1044,6 +1143,16 @@ jobs:
           # shallow clones and misroute healthy branches (issue #283).
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: general
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "General Agent"
@@ -1051,6 +1160,7 @@ jobs:
 
       - name: Run opencode general agent
         id: opencode
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
@@ -1072,7 +1182,7 @@ jobs:
             - Sign your work: commit subjects start with `general:`, comments end with ` -  the General agent`.
 
       - name: Post /oc maintainer to trigger Maintainer
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -1090,7 +1200,7 @@ jobs:
           exit 0
 
       - name: Strip owner Co-authored-by trailers from the PR branch
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1119,7 +1229,7 @@ jobs:
 
       - name: Approve held CI runs on the PR
         continue-on-error: true
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
