@@ -141,7 +141,7 @@ jobs:
           fi
 
       # upload-pages-artifact archives _site with `tar --dereference
-      # --hard-dereference`, so two distinct hostile-link classes can take
+      # --hard-dereference`, so three distinct hostile-link classes can take
       # the main deploy down. Class 1 - boundary escapes: any symlink whose
       # canonical realpath is OUTSIDE _site is silently expanded into the
       # public Pages artifact and served from GitHub Pages (Tester hostile
@@ -162,7 +162,22 @@ jobs:
       # preserve such links from a hostile PR, so pass 2 walks the surviving
       # directory-link edges from each directory link's target and strips the
       # link when that walk can return to the link's own directory (exactly
-      # when tar recurses forever).
+      # when tar recurses forever). Pass 2 must be byte-safe against hostile
+      # path names: frontier/seen are bash arrays (never newline-joined
+      # strings, which fragment on a name containing a newline), and every
+      # dirname/realpath capture uses `$(cmd && printf x)` plus
+      # `${v%$'\nx'}` (a bare `$( )` eats a path's own trailing newline
+      # while coreutils prints its own trailing newline). Class 3 - resource
+      # expansion (reviewer finding on #419): a finite, cycle-free
+      # directory-symlink DAG keeps passes 1 and 2 green yet multiplies
+      # tar --dereference output exponentially (measured: a depth-10 DAG of
+      # 11 real dirs + 20 symlinks archives 147,622 members / 105,820,160
+      # bytes in 3 s; depth 15 runs away until the 6-hour job limit or the
+      # Pages artifact cap kills the deploy), so pass 3 dry-runs the exact
+      # upload command as a watchdog circuit breaker (2 GiB `ulimit -f` file
+      # cap in 1024-byte units + 60 s timeout); on failure it strips ALL
+      # symlinks from _site and re-runs the dry run, degrading links instead
+      # of ever failing a deploy that would otherwise proceed.
       # The scan uses `find -type l` WITHOUT -L so it never follows a link
       # across the very boundary it enforces. Stripping instead of hard-failing
       # keeps a hostile or buggy PR from taking main deploys down, matching
@@ -193,28 +208,33 @@ jobs:
           cycle_logged=0
           while IFS= read -r -d '' link; do
             [ -d "$link" ] || continue
-            t="$(realpath -e -- "$link" 2>/dev/null)" || continue
-            ep+=("$(realpath -m -- "$(dirname -- "$link")")")
+            if t="$(realpath -e -- "$link" 2>/dev/null && printf x)"; then t="${t%$'\nx'}"; else continue; fi
+            if dpath="$(dirname -- "$link" && printf x)"; then dpath="${dpath%$'\nx'}"; else continue; fi
+            if ep_c="$(realpath -m -- "$dpath" 2>/dev/null && printf x)"; then ep_c="${ep_c%$'\nx'}"; else ep_c="$dpath"; fi
+            ep+=("$ep_c")
             et+=("$t")
           done < <(find _site -type l -print0)
           while IFS= read -r -d '' link; do
             [ -d "$link" ] || continue
-            parent="$(realpath -m -- "$(dirname -- "$link")")"
-            target="$(realpath -e -- "$link" 2>/dev/null)" || continue
-            frontier="$target"
-            seen=$'\n'
+            if dpath="$(dirname -- "$link" && printf x)"; then dpath="${dpath%$'\nx'}"; else continue; fi
+            if parent="$(realpath -m -- "$dpath" 2>/dev/null && printf x)"; then parent="${parent%$'\nx'}"; else parent="$dpath"; fi
+            if target="$(realpath -e -- "$link" 2>/dev/null && printf x)"; then target="${target%$'\nx'}"; else continue; fi
+            frontier=("$target")
+            seen=()
             hit=""
-            while [ -n "$frontier" ]; do
-              cur="${frontier%%$'\n'*}"
-              if [ "$cur" = "$frontier" ]; then frontier=""; else frontier="${frontier#*$'\n'}"; fi
+            while [ "${#frontier[@]}" -gt 0 ]; do
+              cur="${frontier[0]}"
+              frontier=("${frontier[@]:1}")
               [ -n "$cur" ] || continue
-              case "$seen" in *$'\n'"$cur"$'\n'*) continue ;; esac
-              seen="$seen$cur"$'\n'
+              dup=""
+              for s in "${seen[@]}"; do
+                if [ "$s" = "$cur" ]; then dup=1; break; fi
+              done
+              [ -n "$dup" ] && continue
+              seen+=("$cur")
               case "$parent" in "$cur"|"$cur"/*) hit=1; break ;; esac
               for i in "${!ep[@]}"; do
-                case "${ep[$i]}" in "$cur"|"$cur"/*)
-                  if [ -z "$frontier" ]; then frontier="${et[$i]}"; else frontier="$frontier"$'\n'"${et[$i]}"; fi ;;
-                esac
+                case "${ep[$i]}" in "$cur"|"$cur"/*) frontier+=("${et[$i]}") ;; esac
               done
             done
             [ -n "$hit" ] || continue
@@ -229,6 +249,26 @@ jobs:
           if [ "$stripped" -gt 0 ]; then
             echo "Stripped $stripped symlink(s) crossing the _site boundary."
           fi
+          wd="${RUNNER_TEMP:-/tmp}/pages-dryrun.tar"
+          rm -f -- "$wd"
+          dry() {
+            ( ulimit -f 2097152 2>/dev/null || true
+              exec timeout 60 tar --dereference --hard-dereference --directory _site -cf "$wd" --exclude=.git --exclude=.github . )
+          }
+          if ! dry; then
+            echo "Watchdog: bounded tar dry-run failed (symlink recursion or expansion blowup). Stripping ALL symlinks from _site so the deploy can still complete:"
+            wcount=0
+            while IFS= read -r -d '' wlink; do
+              printf '%s -> %s\n' "$wlink" "$(realpath -e -- "$wlink" 2>/dev/null || printf '%s' '<unresolvable>')"
+              rm -f -- "$wlink"
+              wcount=$((wcount + 1))
+            done < <(find _site -type l -print0)
+            echo "Watchdog stripped $wcount symlink(s)."
+            if ! dry; then
+              echo "Watchdog: _site still unarchivable after stripping all symlinks (content-level failure, nothing left to strip); continuing so the Upload step decides."
+            fi
+          fi
+          rm -f -- "$wd"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
