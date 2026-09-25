@@ -166,7 +166,7 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 
 1. Posting `/oc` trigger comments (maintainer.yml)
 2. The automatic PR push → Maintainer → Reviewer chain: `opencode-pr-trigger.yml`
-   posts `/oc maintainer` on every non-draft PR open/synchronize, and the
+   posts `/oc maintainer` on every non-draft same-repo PR open/synchronize, and the
    Maintainer's `review` decision then posts `/oc review (head <sha>)`
 3. The reviewer→fixer short `/oc fix` trigger (opencode-review.yml)
 4. Approve-CI API calls (stable-head polling on PRs; non-held runs also do a
@@ -205,8 +205,10 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
   → push → open a PR early with `Closes #N`.
 - **Live pushes**: commit + push after every milestone (progress file updated
   first - work is always saved; the next runner can pick up anytime).
-- **End complete** → Status: complete on the final push → the automatic
-  push→reviewer trigger fires.
+- **End complete** → Status: complete on the final push →
+  `opencode-pr-trigger.yml` posts `/oc maintainer`, and the Maintainer
+  posts `/oc review (head <sha>)` once the progress file shows the work
+  complete.
 - **End in-progress** → push state as-is; the Maintainer continues it later.
 - Multi-day projects: the Maintainer marks daily progress in its log + CHANGELOG.
 
@@ -239,8 +241,9 @@ Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 ## 12. Human PR playbook
 
 - Never merged as-is - the review gate applies to everyone.
-- Human PR events → the review-trigger posts `/oc review` on every push
-  (trusted, same-repo) → reviewer findings as guidance comments.
+- Human PR events → `opencode-pr-trigger.yml` posts `/oc maintainer` on
+  every push (non-draft, same-repo) → the Maintainer posts `/oc review` →
+  reviewer findings as guidance comments.
 - Consent-first Fixer: a human replies "fix it" on their own same-repo PR →
   the Maintainer sees it (`issue_comment`) → posts `/oc fix` → the Fixer
   pushes to the same-repo branch. Fork PRs: never.
@@ -344,7 +347,7 @@ personality, CHANGELOG) is direct-commit.
 | File | Role |
 |---|---|
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
-| `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft PR, waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
+| `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft same-repo PR (fork PRs get no secrets, so the section 12 guidance-only path applies), waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
 | `opencode.yml` | Build / Fix / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); ownership-gated restore-head; short `/oc fix` trigger |
 | `opencode-test.yml` | Tester gate: `/oc test` (the per-OS `/oc test-linux`, `/oc test-macos`, `/oc test-windows` aliases route to `opencode-peros-test.yml`) → dynamic real-user and code-expert testing of the PR head, durable test commits as `tester:`, `/oc approve-test` → notifies the Maintainer; infrastructure PRs run strictly read-only |
