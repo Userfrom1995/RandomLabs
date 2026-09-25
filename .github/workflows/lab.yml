@@ -84,6 +84,12 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Env indirection (issue #422 residual, audit R10): a ${{ inputs.* }}
+          # expanded inside the run block below executes as SHELL with this
+          # step's owner PAT in env, so a value like 0"; touch /tmp/PWNED; echo "
+          # would inject. In an env: mapping the same expression is inert data.
+          SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
+          INPUT_ISSUE: ${{ inputs.issue_number }}
         run: |
           outcome="${{ steps.opencode.outcome }}"
           event_name="${{ github.event_name }}"
@@ -108,7 +114,7 @@ jobs:
           # Dispatch arm: bounded self-heal, forwarding the target issue so the
           # retry run still knows what to work on. Regression-guarded by audit rule R9.
           if [ "$event_name" = "workflow_dispatch" ]; then
-            if bash .github/scripts/schedule-selfheal.sh lab.yml "${{ inputs.selfheal_retry }}" "issue_number=${{ inputs.issue_number }}"; then
+            if bash .github/scripts/schedule-selfheal.sh lab.yml "${SELFHEAL_RETRY}" "issue_number=${INPUT_ISSUE}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
               exit 0
             fi
@@ -119,8 +125,25 @@ jobs:
           # summons the Maintainer.
           exit 1
 
-      - name: Strip owner Co-authored-by trailers from the PR branch
+      # Issue #422 residual (audit R11): the strip and push steps below carry
+      # the owner PAT and used to run under a bare `if: always()`, so a crashed
+      # agent run (no decision file) still ran filter-branch and pushed/opened a
+      # PR from partial state. A healthy lab run ALWAYS writes the decision file
+      # as its final act, so its presence is the exact contract gate.
+      - name: Gate post-agent PAT steps on a written decision
+        id: decision-gate
         if: always()
+        run: |
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "Decision file present; strip/push enabled for this run."
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No decision file; strip/push stay disabled for this run."
+          fi
+
+      - name: Strip owner Co-authored-by trailers from the PR branch
+        if: always() && steps.decision-gate.outputs.present == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -137,7 +160,7 @@ jobs:
           fi
 
       - name: Push PR branch or direct model updates (PAT-backed)
-        if: always()
+        if: always() && steps.decision-gate.outputs.present == 'true'
         id: push_step
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
@@ -145,6 +168,9 @@ jobs:
           GIT_AUTHOR_EMAIL: "github-actions[bot]@users.noreply.github.com"
           GIT_COMMITTER_NAME: "The Lab Engineer (CTO)"
           GIT_COMMITTER_EMAIL: "github-actions[bot]@users.noreply.github.com"
+          # Env indirection (issue #422 residual, audit R10): this step's run
+          # block must never interpolate ${{ inputs.* }} - see decision-gate above.
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         run: |
           # Remove actions/checkout credential injection so the PAT URL actually authenticates:
           # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
@@ -155,7 +181,7 @@ jobs:
           done
 
           branch=$(git branch --show-current 2>/dev/null || echo "")
-          issue="${{ github.event.issue.number || inputs.issue_number }}"
+          issue="${ISSUE_NUMBER}"
 
           if [ -n "$branch" ] && [ "$branch" != "main" ]; then
             # Fetch the existing PR branch so the lease is fresh and a local
@@ -241,6 +267,9 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Env indirection (issue #422 residual, audit R10): run blocks read
+          # $ISSUE_NUMBER from here instead of expanding ${{ inputs.* }} inline.
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         run: |
           if [ ! -f /tmp/random-lab-decision.json ]; then
             echo "No decision file found."
@@ -250,7 +279,7 @@ jobs:
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           echo "Lab engineer decision action: '$action'"
           
-          issue="${{ github.event.issue.number || inputs.issue_number }}"
+          issue="${ISSUE_NUMBER}"
           target="${pr_number:-$issue}"
           if [ -z "$target" ] || [ "$target" = "null" ]; then
             echo "No target context available."
@@ -280,9 +309,12 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          # Env indirection (issue #422 residual, audit R10): run blocks read
+          # $ISSUE_NUMBER from here instead of expanding ${{ inputs.* }} inline.
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         run: |
           set +e
-          issue="${{ github.event.issue.number || inputs.issue_number }}"
+          issue="${ISSUE_NUMBER}"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then
             pr="$issue"
           else
