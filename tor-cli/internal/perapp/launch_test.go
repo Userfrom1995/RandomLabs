@@ -3,6 +3,7 @@ package perapp
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -19,6 +20,36 @@ func stubScript(t *testing.T, body string) string {
 	return p
 }
 
+// proxyStubArgv returns argv for a proxy-backend supervision stub.
+// On Unix it is a shell script (extensionless exec works); on Windows
+// an extensionless shebang script is not runnable and %PATH% resolution
+// needs a PATHEXT-suffixed binary, so the stub runs through cmd.exe,
+// which is always present and resolvable via LookPath/PATHEXT.
+func proxyStubArgv(t *testing.T, kind string) []string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		switch kind {
+		case "sleep30":
+			return []string{stubScript(t, "sleep 30")}
+		case "exit7":
+			return []string{stubScript(t, "exit 7")}
+		default:
+			t.Fatalf("unknown proxy stub kind %q", kind)
+			return nil
+		}
+	}
+	switch kind {
+	case "sleep30":
+		// ping -n 30 waits ~29 s: long-lived enough for the detach
+		// prompt-return assertion without a real browser.
+		return []string{"cmd", "/C", "ping", "-n", "30", "127.0.0.1"}
+	case "exit7":
+		return []string{"cmd", "/C", "exit", "7"}
+	default:
+		t.Fatalf("unknown proxy stub kind %q", kind)
+		return nil
+	}
+}
 // withFakeShim points TORSOCKS_LIB at a present file so the shim path
 // (not installed on CI runners) proceeds to supervision.
 func withFakeShim(t *testing.T) {
@@ -112,9 +143,9 @@ func TestDetachWritesLogFile(t *testing.T) {
 }
 
 func TestProxyDetachReturnsPromptly(t *testing.T) {
-	app := stubScript(t, "sleep 30")
+	argv := proxyStubArgv(t, "sleep30")
 	start := time.Now()
-	res, err := RunProxyWithOptions("127.0.0.1:9050", []string{app}, nil,
+	res, err := RunProxyWithOptions("127.0.0.1:9050", argv, nil,
 		LaunchOptions{Detach: true, AlivePoll: 300 * time.Millisecond})
 	if err != nil {
 		t.Fatal(err)
@@ -131,8 +162,8 @@ func TestProxyDetachReturnsPromptly(t *testing.T) {
 }
 
 func TestProxyWaitPassesExitCode(t *testing.T) {
-	app := stubScript(t, "exit 7")
-	res, err := RunProxyWithOptions("127.0.0.1:9050", []string{app}, nil, LaunchOptions{})
+	argv := proxyStubArgv(t, "exit7")
+	res, err := RunProxyWithOptions("127.0.0.1:9050", argv, nil, LaunchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
