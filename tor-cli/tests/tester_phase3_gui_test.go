@@ -14,10 +14,22 @@ package tests
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// haveTor reports whether a tor binary is resolvable on PATH. The
+// exit-3 ("tor absent") oracles below are hermetic only on tor-less
+// runners (e.g. CI); on tor-ful workstations they must skip, otherwise
+// the gate-pass cases proceed into a real tor session and exit 0/1 by
+// design. Tor-agnostic gate assertions live in
+// tester_phase3_tester_hostile_test.go and run everywhere.
+func haveTor() bool {
+	_, err := exec.LookPath("tor")
+	return err == nil
+}
 
 // fakeGUIBin links /bin/true (or sh) under a GUI-tier basename so the
 // gate classifies it as an interactive browser without needing one.
@@ -54,6 +66,9 @@ func TestTesterPhase3GUIGateRequiresDetach(t *testing.T) {
 }
 
 func TestTesterPhase3DetachClearsGate(t *testing.T) {
+	if haveTor() {
+		t.Skip("tor present: gate-pass proceeds into a live session (covered tor-agnostically in tester_phase3_tester_hostile_test.go)")
+	}
 	bin := buildTorshim(t)
 	app := fakeGUIBin(t)
 	// Gate passes; ensureTor then fails closed without tor (exit 3).
@@ -87,6 +102,9 @@ func TestTesterPhase3LogFileNeedsDetach(t *testing.T) {
 }
 
 func TestTesterPhase3HeadlessBypassesGate(t *testing.T) {
+	if haveTor() {
+		t.Skip("tor present: gate-bypass proceeds into a live session (covered tor-agnostically in tester_phase3_tester_hostile_test.go)")
+	}
 	bin := buildTorshim(t)
 	app := fakeGUIBin(t)
 	// Headless browsers are CLI-like: the gate must let them through
