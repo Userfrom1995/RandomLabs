@@ -504,6 +504,7 @@
   <div class="nav-links">
     <a href="#modes">Modes</a>
     <a href="#commands">Commands</a>
+    <a href="#diagnostics">Diagnostics</a>
     <a href="#platform">Platform</a>
     <a href="#docs">Docs</a>
     <a href="https://github.com/Userfrom1995/RandomLabs/tree/main/tor-cli">GitHub</a>
@@ -591,11 +592,21 @@ note: <span class="dim">no tor control endpoint answered (tried 9051, 9151)</spa
         <div class="codeblock">
           <header><span>per-app</span><button class="copy-btn" type="button" data-copy="torshim curl ifconfig.me
 torshim git pull
-torshim run -- firefox">Copy</button></header>
+torshim run --detach -- firefox">Copy</button></header>
 <pre>torshim curl ifconfig.me
 torshim git pull
-torshim run -- firefox</pre>
+torshim run --detach -- firefox</pre>
         </div>
+        <p>
+          GUI browsers (Firefox, Falkon, Chromium, Chrome) are long-lived, so a
+          bare <code>torshim run -- firefox</code> is refused with detach guidance
+          instead of hanging: relaunch with <code>--detach</code> and the prompt
+          returns at once with the child PID. On macOS and Windows a detached
+          proxy-backend browser additionally needs
+          <code>--acknowledge-gui-risks</code> as an explicit opt-in to the
+          partial proxy contract. Headless runs (<code>--headless</code>,
+          <code>--screenshot</code>) stay on the wait path like CLI tools.
+        </p>
         <div class="os-row">
           <span class="os full">Linux: torsocks shim</span>
           <span class="os partial">macOS: proxy env</span>
@@ -656,23 +667,27 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
     <p class="kicker">Command reference</p>
     <h2>Every command, in one place</h2>
     <p class="sub">
-      One binary, eight verbs, plus the bare-app shorthand. Bare <code>torshim &lt;app&gt; [args...]</code>
-      is shorthand for <code>run</code>. Run <code>torshim help</code> for the built-in usage text.
+      One binary, ten verbs, plus the bare-app shorthand. Bare <code>torshim &lt;app&gt; [args...]</code>
+      is shorthand for <code>run</code>. Every verb accepts <code>-v</code> / <code>--verbose</code>,
+      which prints the session behind the command: endpoints, mode, circuit state, backend,
+      and the tor notices tail. Run <code>torshim help</code> for the built-in usage text.
     </p>
     <div class="cmds">
       <div class="cmd-row"><code>torshim &lt;app&gt; [args...]</code><span>Run one application through Tor (same as <code>run</code>). Flags go before the app name: <code>--tor BIN</code>, <code>--timeout D</code>, <code>--reuse</code>.</span></div>
-      <div class="cmd-row"><code>torshim run -- &lt;app&gt; [args...]</code><span>Explicit form of per-app routing with a separating <code>--</code>.</span></div>
-      <div class="cmd-row"><code>torshim shell</code><span>Open a Tor-routed child shell; the parent shell is unaffected.</span></div>
+      <div class="cmd-row"><code>torshim run -- &lt;app&gt; [args...]</code><span>Explicit per-app routing with a separating <code>--</code>. Launch mode: <code>--wait</code> (default, waits with signal forwarding and exit-code passthrough) or <code>--detach</code> (GUI path: releases the prompt at once and reports the child PID). <code>--log-file PATH</code> captures detached output (needs <code>--detach</code>). GUI browsers additionally accept <code>--acknowledge-gui-risks</code>.</span></div>
+      <div class="cmd-row"><code>torshim shell [-v]</code><span>Open a Tor-routed child shell; the parent shell is unaffected.</span></div>
+      <div class="cmd-row"><code>torshim newnym [-v]</code><span>Rotate circuits without restarting tor (<code>SIGNAL NEWNYM</code> over the control port). Rate-limit honesty: tor accepts a new identity roughly every 10 seconds, so a too-soon rotation exits 1 with the wait to retry instead of pretending it worked. Endpoint flags: <code>--control</code>, <code>--cookie</code>, <code>--timeout D</code>.</span></div>
+      <div class="cmd-row"><code>torshim doctor [--json] [-v]</code><span>Full health verdict with graded pass / fail / skip checks: bootstrap, circuit, SOCKS handshake, DNSPort liveness, exit-IP egress, firewall presence, IPv6 confinement. Skips always carry their reason (unsupported platform, per-app mode needs no firewall, offline run). Flags: <code>--json</code>, <code>--control</code>, <code>--cookie</code>, <code>--socks</code>, <code>--state-dir</code>, <code>--skip-dns</code>, <code>--skip-exit-ip</code>, <code>--timeout D</code>.</span></div>
       <div class="cmd-row"><code>sudo torshim connect</code><span>System-wide Tor on Linux. Flags: <code>--backend auto|iptables|nft</code>, <code>--tor BIN</code>, <code>--timeout D</code>, <code>--tor-user USER</code>, <code>--trans-port PORT</code>, <code>--state-dir DIR</code>, <code>--force</code>.</span></div>
       <div class="cmd-row"><code>torshim disconnect</code><span>Stop tor first, then replay the pre-connect snapshot byte-exact and post-verify (needs sudo whenever a root-owned session directory exists).</span></div>
       <div class="cmd-row"><code>torshim repair</code><span>Clear stale rules and dead session state; only ever removes torshim-owned rules, never a foreign flush (needs sudo).</span></div>
-      <div class="cmd-row"><code>torshim status [--json]</code><span>Is tor running, bootstrapped, circuit ready, which mode is active, endpoint and session state? Flags: <code>--json</code>, <code>--control</code>, <code>--socks</code>, <code>--state-dir</code>. Never claims protected when it cannot prove it.</span></div>
-      <div class="cmd-row"><code>torshim version</code><span>Wrapper version plus platform backend, tor, and torsocks versions.</span></div>
+      <div class="cmd-row"><code>torshim status [--json] [-v]</code><span>Is tor running, bootstrapped, circuit ready, which mode is active, endpoint and session state? Flags: <code>--json</code>, <code>--control</code>, <code>--cookie</code>, <code>--socks</code>, <code>--state-dir</code>. Never claims protected when it cannot prove it.</span></div>
+      <div class="cmd-row"><code>torshim version [-v]</code><span>Wrapper version plus platform backend, tor, and torsocks versions; <code>-v</code> adds live control-protocol fields when a tor answers. Flags: <code>--tor BIN</code>.</span></div>
       <div class="cmd-row"><code>torshim help</code><span>Usage text and the platform support summary.</span></div>
     </div>
 
     <h3 style="margin-top:26px">Exit codes</h3>
-    <p class="sub" style="margin-bottom:14px">Stable across every platform, so scripts can branch on them. <code>run</code> and <code>shell</code> pass the wrapped application's own exit status through unchanged (Unix 0-255; a signal-killed app reads as 255, Windows passes its native exit code), so the app's code is what your script observes; <code>connect</code> returns 3 only when the verify gate fails and 1 when tor cannot launch (<code>main.go:411-414</code>).</p>
+    <p class="sub" style="margin-bottom:14px">Stable across every platform, so scripts can branch on them. <code>run</code> and <code>shell</code> pass the wrapped application's own exit status through unchanged (Unix 0-255; a signal-killed app reads as 255, Windows passes its native exit code), so the app's code is what your script observes. <code>connect</code> returns 3 only when the verify gate fails and 1 when tor cannot launch; <code>newnym</code> returns 1 when tor rate-limits the rotation signal and 3 when no control endpoint answers; <code>doctor</code> returns 0 for a healthy verdict and 3 when any check fails.</p>
     <div class="exits">
       <div class="exit"><b>0</b><span>success</span></div>
       <div class="exit"><b>1</b><span>runtime or app failure</span></div>
@@ -680,6 +695,59 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
       <div class="exit"><b>3</b><span>tor not ready (fail closed)</span></div>
       <div class="exit"><b>4</b><span>unavailable on this platform</span></div>
       <div class="exit"><b>130</b><span>interrupted (SIGINT/SIGTERM while an owned tor is running)</span></div>
+    </div>
+  </section>
+
+  <section id="diagnostics">
+    <p class="kicker">Control plane</p>
+    <h2>See what tor is doing</h2>
+    <p class="sub">
+      Three additions turn torshim from a launcher into an observable tool. <code>-v</code> /
+      <code>--verbose</code> works on every verb and only reads: control version, listeners,
+      bootstrap and circuit state, traffic counters, the backend decision, and a tail of the
+      tor notices log. <code>newnym</code> and <code>doctor</code> address a persistent tor,
+      resolved in order from <code>--control</code>, to <code>TORSHIM_CONTROL</code> (live shell
+      or run session), to the system connect session, to <code>127.0.0.1:9051</code> / <code>9151</code>;
+      cookies via <code>--cookie</code>, <code>TOR_COOKIE</code>, <code>TORSHIM_COOKIE</code>,
+      then conventional paths.
+    </p>
+    <div class="grid-2">
+      <div>
+        <div class="codeblock">
+          <header><span>verbose on any verb</span><button class="copy-btn" type="button" data-copy="torshim status -v
+torshim version -v
+torshim shell -v">Copy</button></header>
+<pre>torshim status -v
+torshim version -v
+torshim shell -v</pre>
+        </div>
+        <div class="codeblock">
+          <header><span>rotate identity</span><button class="copy-btn" type="button" data-copy="torshim newnym
+torshim newnym -v   # show endpoint + pre-rotation diagnostics">Copy</button></header>
+<pre>torshim newnym
+torshim newnym -v   <span class="c"># show endpoint + pre-rotation diagnostics</span></pre>
+        </div>
+      </div>
+      <div>
+        <div class="codeblock">
+          <header><span>health verdict</span><button class="copy-btn" type="button" data-copy="torshim doctor
+torshim doctor --json
+torshim doctor --skip-exit-ip   # offline runs">Copy</button></header>
+<pre>torshim doctor
+torshim doctor --json
+torshim doctor --skip-exit-ip   <span class="c"># offline runs</span></pre>
+        </div>
+        <div class="card">
+          <h3>Honest by construction</h3>
+          <p>
+            <code>newnym</code> refuses when tor is not ready (no bootstrap plus live
+            circuit to rotate) and reports tor's own rate limit as exit 1 with the
+            wait to retry, instead of pretending the rotation worked.
+            <code>doctor</code> grades every check pass, fail, or skip; skips always
+            carry their reason. Exit 0 means healthy, exit 3 means something failed.
+          </p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -798,6 +866,12 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
             <td><span class="verdict yes">Full</span></td>
             <td><span class="verdict yes">Full</span></td>
           </tr>
+          <tr>
+            <th scope="row"><code>newnym</code>, <code>doctor</code>, <code>-v</code> diagnostics</th>
+            <td><span class="verdict yes">Full</span><br>control plane plus firewall and IPv6 probes</td>
+            <td><span class="verdict yes">Full</span><br>firewall and IPv6 checks skip with reasons (Linux connect-mode properties)</td>
+            <td><span class="verdict yes">Full</span><br>firewall and IPv6 checks skip with reasons (Linux connect-mode properties)</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -837,9 +911,11 @@ sudo make install   <span class="c"># torshim + torshim.1 man page</span></pre>
         </div>
         <div class="codeblock">
           <header><span>verify the install</span><button class="copy-btn" type="button" data-copy="torshim version
-torshim status --json   # protected: false until proven">Copy</button></header>
+torshim status --json   # protected: false until proven
+torshim doctor --skip-exit-ip   # graded health verdict">Copy</button></header>
 <pre>torshim version
-torshim status --json   <span class="c"># protected: false until proven</span></pre>
+torshim status --json   <span class="c"># protected: false until proven</span>
+torshim doctor --skip-exit-ip   <span class="c"># graded health verdict</span></pre>
         </div>
       </div>
       <div>
@@ -924,12 +1000,12 @@ sudo torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
       <div class="card doc-card">
         <span class="kind">source</span>
         <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/tree/main/tor-cli">tor-cli on GitHub</a>
-        <p>Makefile, man page (<code>torshim.1</code>), CI matrix, and the <code>internal/</code> packages: control, lifecycle, perapp, shell, syswide, status, version.</p>
+        <p>Makefile, man page (<code>torshim.1</code>), CI matrix, and the <code>internal/</code> packages: control, lifecycle, perapp (including the GUI classification tier and wait/detach supervision), doctor, shell, syswide, status, version.</p>
       </div>
       <div class="card doc-card">
         <span class="kind">project record</span>
         <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/issues/387">Issue #387</a>
-        <p>The build record: interface contract, hard requirements, acceptance gates, and the research-to-hardening pipeline that shipped torshim 0.4.0 (current release: 0.5.0 with CLI diagnostics).</p>
+        <p>The build record: interface contract, hard requirements, acceptance gates, and the research-to-hardening pipeline that shipped torshim 0.4.0 (current release: 0.5.0 with the <code>--verbose</code> / <code>newnym</code> / <code>doctor</code> control plane and detached GUI launch).</p>
       </div>
     </div>
   </section>
