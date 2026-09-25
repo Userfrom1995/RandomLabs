@@ -36,7 +36,7 @@ If the new agent is invoked via `/oc <keyword>` and shares `opencode.yml`:
 
 ### B. Standalone Workflows
 If the new agent runs on a schedule or dedicated workflow (e.g. `auditor.yml` or `ideate.yml`):
-- Set `cancel-in-progress: false` so queued executions run in order; only a deliberately superseding workflow (a newer event replaces a stale one, like the `ideate.yml` group) may set `true`.
+- Set `cancel-in-progress: false` so queued executions run in order; only a deliberately superseding workflow (a newer event replaces a stale one, like the `pages.yml` deploy group) may set `true`.
 - Set appropriate `permissions:` (`contents: read/write`, `issues: write`, `pull-requests: read/write`).
 - Use `${{ github.token }}` in `actions/checkout` and in the agent's `GITHUB_TOKEN` environment variable.
 
