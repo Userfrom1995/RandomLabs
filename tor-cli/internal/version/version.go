@@ -7,8 +7,9 @@ import (
 	"strings"
 )
 
-// Wrapper is the torshim version (M5 final: all milestones built).
-const Wrapper = "0.4.0"
+// Wrapper is the torshim version (0.5.0: control-plane diagnostics,
+// NEWNYM rotation, and the doctor health check on top of M5).
+const Wrapper = "0.5.0"
 
 // Info carries the version surface.
 type Info struct {

@@ -164,7 +164,7 @@ func TestM4VersionReportsPlatformSurface(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("version exit=%d, want 0", code)
 	}
-	for _, want := range []string{"0.4.0", "platform:", "per-app:", "system-wide:"} {
+	for _, want := range []string{"0.5.0", "platform:", "per-app:", "system-wide:"} {
 		if !strings.Contains(so, want) {
 			t.Fatalf("version missing %q:\n%s", want, so)
 		}
