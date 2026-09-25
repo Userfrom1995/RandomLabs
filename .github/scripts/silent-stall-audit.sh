@@ -3,14 +3,16 @@
 # silent-stall-audit.sh - Static regression checks for the issue #122 silent-stall
 # hardening invariants (S1/S2/L1/L2), the R6 model free-tier guard, the R7
 # review-restore ownership guard (PR #412 head rewind), the R8 vendored
-# hardened runner guard, and the R9 schedule/dispatch retry-parity guard
-# (issue #422).
-# Wired into auditor.yml as the R1-R9 matrix.
+# hardened runner guard, the R9 schedule/dispatch retry-parity guard
+# (issue #422), the R10 PAT-step input-indirection guard, and the R11
+# post-agent PAT gate guard (both issue #422 residual hardening).
+# Wired into auditor.yml as the R1-R11 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
-# R1-R6 are scoped to <path-to-opencode.yml>; R7-R9 audit the whole tree
-# (the review-restore guard, the vendored runner, and every schedule/dispatch
-# agent arm), so they trip on a bad curator.yml/auditor.yml/ideate.yml/lab.yml
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R11 audit the whole tree
+# (the review-restore guard, the vendored runner, every schedule/dispatch
+# agent arm, dispatch-input indirection, and the lab post-agent PAT gates),
+# so they trip on a bad curator.yml/auditor.yml/ideate.yml/lab.yml/maintainer.yml
 # no matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
 # on stdout and (when a health issue number is supplied and GITHUB_TOKEN is set)
@@ -38,12 +40,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
- [R1-R9 PASS] $name: $desc"
+ [R1-R11 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
- [R1-R9 FAIL] $name: $desc"
+ [R1-R11 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -242,16 +244,87 @@ else
   check "R9" "schedule/dispatch retry parity missing:${r9_bad} (issue #422 B: a crash burns the whole cron cycle)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R9) on ${WF}: ${pass} passed, ${fail} failed."
+# [R10] Dispatch-input shell indirection (issue #422 residual): a
+# `${{ inputs.* }}` expression expanded INSIDE a `run:` block is substituted by
+# the runner before the shell starts, so the value executes as SHELL with the
+# step's env - and the verify/push/approve steps carry the owner PAT there
+# (B3 repro: selfheal_retry='0"; touch /tmp/PWNED; echo "' ran the touch).
+# Inputs must reach shell only through `env:` mappings, where the same
+# expression is inert data. The scan covers every run block in every workflow;
+# the cohort additionally must still map SELFHEAL_RETRY so the indirection
+# call sites can never silently read an empty counter.
+run_input_hits=$(awk '
+  function gi(s) { match(s, /^[ \t]*/); return RLENGTH }
+  FNR == 1 { cap = 0 }
+  $0 ~ /^[ \t]*run:[ \t]*\|/ { indent = gi($0); cap = 1; next }
+  cap {
+    if ($0 ~ /^[ \t]*$/) next
+    ind = gi($0)
+    if (ind > indent) {
+      if ($0 ~ /\$\{\{[^}]*inputs\./) print FILENAME ":" FNR ": " $0
+      next
+    }
+    cap = 0
+  }
+  $0 ~ /^[ \t]*run:/ && $0 ~ /\$\{\{[^}]*inputs\./ { print FILENAME ":" FNR ": " $0 }
+' .github/workflows/*.yml 2>/dev/null || true)
+r10_bad=""
+if [ -n "$run_input_hits" ]; then
+  r10_bad=" inline-inputs:$(echo "$run_input_hits" | tr '\n' ';')"
+fi
+for r10_wf in curator.yml auditor.yml ideate.yml lab.yml; do
+  r10_path=".github/workflows/${r10_wf}"
+  if [ ! -f "$r10_path" ]; then
+    r10_bad="${r10_bad} ${r10_wf}(missing)"
+    continue
+  fi
+  grep -q 'SELFHEAL_RETRY: \${{ inputs\.selfheal_retry }}' "$r10_path" || r10_bad="${r10_bad} ${r10_wf}(no-SELFHEAL_RETRY-env-mapping)"
+done
+if [ -z "$r10_bad" ]; then
+  check "R10" "no \${{ inputs.* }} expansion inside any run: block; cohort verify steps map SELFHEAL_RETRY via env (PAT-step input indirection)" "ok"
+else
+  check "R10" "input indirection broken:${r10_bad} (issue #422 residual: inline expansion runs dispatch inputs as shell against the step's PAT env)" "bad"
+fi
+
+# [R11] Post-agent PAT gates (issue #422 residual): lab.yml's owner-PAT strip
+# (filter-branch over the PR branch) and push (branch push + PR open) steps
+# must run only when the agent finished its contract, i.e. the decision file
+# exists. They used to run under a bare `if: always()`, so a crashed run (no
+# decision file) still rewrote and pushed the branch from partial state.
+LAB_WF=".github/workflows/lab.yml"
+r11_bad=""
+if [ ! -f "$LAB_WF" ]; then
+  r11_bad=" lab.yml(missing)"
+else
+  grep -q 'id: decision-gate' "$LAB_WF" || r11_bad="${r11_bad} lab.yml(no-decision-gate-step)"
+  gate_block=$(grep -A8 -F -- "id: decision-gate" "$LAB_WF" || true)
+  if ! echo "$gate_block" | grep -q 'random-lab-decision\.json'; then
+    r11_bad="${r11_bad} lab.yml(decision-gate-ignores-decision-file)"
+  fi
+  for r11_name in "Strip owner Co-authored-by trailers from the PR branch" "Push PR branch or direct model updates (PAT-backed)"; do
+    step_if=$(grep -A8 -F -- "- name: ${r11_name}" "$LAB_WF" | grep -m1 -E '^[[:space:]]*if:' || true)
+    case "$step_if" in
+      *"steps.decision-gate.outputs.present == 'true'"*) ;;
+      *) r11_bad="${r11_bad} lab.yml(step-not-decision-gated:$(echo "$r11_name" | cut -d' ' -f1-2))" ;;
+    esac
+  done
+fi
+if [ -z "$r11_bad" ]; then
+  check "R11" "lab.yml strip and push PAT steps are gated on the written decision file (crashed runs never push)" "ok"
+else
+  check "R11" "post-agent PAT gate missing:${r11_bad} (issue #422 residual: an ungated always() push ships partial state from crashed runs)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R11) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R9)
+  body="## Silent-stall regression audit FAILED (R1-R11)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, or R9 schedule/dispatch retry parity). Investigate before merging any workflow change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, R9 schedule/dispatch retry parity, R10 dispatch-input indirection, or R11 post-agent PAT gates). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
