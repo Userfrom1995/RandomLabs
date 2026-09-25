@@ -106,7 +106,7 @@ jobs:
           echo "::error::Lab step finished with outcome '$outcome' and no decision file (crashed before or during the agent run)."
 
           # Dispatch arm: bounded self-heal, forwarding the target issue so the
-          # retry run still knows what to work on. Regression-guarded by audit rule R8.
+          # retry run still knows what to work on. Regression-guarded by audit rule R9.
           if [ "$event_name" = "workflow_dispatch" ]; then
             if bash .github/scripts/schedule-selfheal.sh lab.yml "${{ inputs.selfheal_retry }}" "issue_number=${{ inputs.issue_number }}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."

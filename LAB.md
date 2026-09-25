@@ -475,7 +475,7 @@ catches up in seconds.
   the agent starts. Schedule/dispatch agent arms additionally self-heal once
   (`.github/scripts/schedule-selfheal.sh`) and escalate to `/oc maintainer`
   at the cap, so a crash never burns an entire cron cycle unnoticed.
-  Both rules are statically enforced by R7/R8 in
+  Both rules are statically enforced by R8/R9 in
   `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main

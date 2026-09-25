@@ -123,7 +123,7 @@ jobs:
           # burning the whole 6-hour cron cycle on one pre-agent crash.
           # schedule-selfheal.sh re-dispatches this workflow ONCE, then
           # escalates to the Maintainer on the lab-health board at the cap.
-          # Regression-guarded by rule R8 in silent-stall-audit.sh.
+          # Regression-guarded by rule R9 in silent-stall-audit.sh.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
             if bash .github/scripts/schedule-selfheal.sh curator.yml "${{ inputs.selfheal_retry }}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
