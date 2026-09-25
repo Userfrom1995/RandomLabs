@@ -83,7 +83,13 @@ Public Surface / Web Track:                                              │
 - **Flexible Pipeline Routing**: In both tracks, `[Researcher]` (algorithmic/mathematical research) and `[Architect]` (system architecture blueprints) are invoked whenever Hephaestus determines that research or design planning is warranted before implementation by the Builder or Lab Engineer.
 - **The Curator Track**: The Curator operates on a recurring 6-hour schedule, dispatch, or via `/oc curate`. It audits the entire GitHub Pages website and root `README.md`. When defects are found, it opens a tracking issue, creates a dedicated branch (`opencode/issue<issue>-curate-...`), commits surgical fixes with prefix `curate:`, opens a PR referencing `Fixes #<issue>`, and hands off directly to the Reviewer (`/oc review`). If structural maintainer escalation is required, it notifies Hephaestus (`/oc maintainer`).
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
-- **Queued Execution**: All workflows operate with `cancel-in-progress: false`. Trigger events queue up sequentially so that in-flight builds, reviews, tests, and maintainer merges finish cleanly without being cancelled mid-run.
+- **Queued Execution**: The lab's pipeline workflows (`opencode*.yml`,
+  `maintainer.yml`, `lab.yml`, `curator.yml`, `auditor.yml`) all set
+  `cancel-in-progress: false`, so trigger events queue up sequentially and
+  in-flight builds, reviews, tests, and maintainer merges finish cleanly
+  without being cancelled mid-run. Superseding-only workflows (`pages.yml`
+  deploys, `ideate.yml`, `tor-cli.yml`) set `cancel-in-progress: true` on
+  purpose: a newer event replaces a stale one.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
@@ -159,7 +165,9 @@ re-surveys the entire repo fresh and may act on multiple things in one run.
 Your PAT is used ONLY by hardcoded workflow steps, for exactly these things:
 
 1. Posting `/oc` trigger comments (maintainer.yml)
-2. The automatic push→reviewer trigger (opencode-review-trigger.yml)
+2. The automatic PR push → Maintainer → Reviewer chain: `opencode-pr-trigger.yml`
+   posts `/oc maintainer` on every non-draft PR open/synchronize, and the
+   Maintainer's `review` decision then posts `/oc review (head <sha>)`
 3. The reviewer→fixer short `/oc fix` trigger (opencode-review.yml)
 4. Approve-CI API calls (stable-head polling on PRs; non-held runs also do a
    repo-wide sweep of ALL held runs - so the Maintainer's 4×/day schedule and
@@ -336,15 +344,28 @@ personality, CHANGELOG) is direct-commit.
 | File | Role |
 |---|---|
 | `maintainer.yml` | The brain: triggers, per-PR concurrency, memory-branch handling, decision list → hardcoded PAT step, 60-min timeout |
-| `opencode-review-trigger.yml` | The single automatic exception: PR push → if bot PR + progress complete (or human same-repo PR) → `/oc review (head <sha>)` (PAT, head-deduped) |
+| `opencode-pr-trigger.yml` | PR opened/synchronize → posts `/oc maintainer` as owner (PAT) on every non-draft PR, waking the Maintainer, which then decides review/continue/merge (the `/oc review (head <sha>)` comment is posted by `maintainer.yml`) |
 | `opencode.yml` | Build / Fix / General modes (prompts from files; `/oc continue`; per-issue concurrency; clean-tree + sanitize; extended approve-CI with stable-head polling; no end-of-run dispatches) |
 | `opencode-review.yml` | Reviewer (prompts from file); human-vs-bot fix behavior; `/oc approve` → dispatch Maintainer (fallback: merge as bot); ownership-gated restore-head; short `/oc fix` trigger |
+| `opencode-test.yml` | Tester gate: `/oc test` (the per-OS `/oc test-linux`, `/oc test-macos`, `/oc test-windows` aliases route to `opencode-peros-test.yml`) → dynamic real-user and code-expert testing of the PR head, durable test commits as `tester:`, `/oc approve-test` → notifies the Maintainer; infrastructure PRs run strictly read-only |
 | `opencode-recover.yml` | Recovery: `detect` job (schedule + PR-close auto-detect) resurrects closed/orphaned build PRs via `recover.sh`; `recover` job runs the Recover Agent on `/oc recover`. Tags `recover/<pr>` and re-links orphans onto `main` (never rewriting `main`) |
+| `lab.yml` | Lab Engineer (CTO): `/oc lab` on an issue or PR → infrastructure builds, workflow repairs, agent creation, model switches; the PAT-backed runner step pushes the branch and opens the PR; handoff via `/tmp/random-lab-decision.json` |
 | `ideate.yml` | On-demand Ideator - posts candidates on the Brainstorm Board and notifies Maintainer; no PAT in agent env |
 | `curator.yml` | Public surface & README custodian: scheduled (6h) / dispatch / /oc curate audits and surgical PRs |
+| `auditor.yml` | The Auditor: daily schedule + `/oc auditor` → runs `.github/scripts/silent-stall-audit.sh` over `opencode.yml`, audits CI/CD and model health, posts the summary on the `lab-health` board, opens bug issues |
 | `opencode-eval.yml` | Evaluator (binding quality gate after Tester): reads deliverable, invokes swarm subagents, writes `/tmp/evaluator-decision.json`, posts `/oc eval result` via hardcoded PAT step |
 | `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
+
+Concurrency: the pipeline workflows above (`opencode*.yml`, `maintainer.yml`,
+`lab.yml`, `curator.yml`, `auditor.yml`) queue with
+`cancel-in-progress: false`; the superseding-only workflows (`pages.yml`
+deploys, `ideate.yml`, `tor-cli.yml`) set `true` on purpose - a newer event
+replaces a stale one (see AGENTS.md, Queued Execution).
+
+Project CI (separate from lab infrastructure): `tor-cli.yml`,
+`poolduel-m1.yml`, `poolduel-m2.yml`, `poolduel-m9.yml`,
+`poolduel-m10-soak.yml`, `postformer-cpu-train.yml`.
 
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also
 removed the PAT that used to sit in the ideation agent's env).
