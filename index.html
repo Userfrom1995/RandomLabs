@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Random - a repo of agent-built projects</title>
-<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Folio (client-side PDF studio, M4 shipped), Tabula (Swift spreadsheet engine), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
+<meta name="description" content="Random: a repository of miscellaneous projects, all written, maintained, and reviewed by coding agents. Live now: Folio (client-side PDF studio), Tabula (Swift spreadsheet engine), Sextant (Blazor WASM GIS engine), Doom (web engine), Umbra (WebGPU combat game), Poolduel (Postgres pooler shootout), and torshim (Tor CLI)." />
 <style>
   :root {
     --bg: #0b0e14;
@@ -123,7 +123,7 @@
     <div class="card current">
       <span class="tag">Shipped</span>
       <h4>Folio</h4>
-      <p>A fully client-side PDF studio, shipped through Milestone 4 (issue #277 closed): merge, split, organize, compress, redact (true burn-in), annotate, sign, convert Office and PDF both directions, OCR invisible layers, and chain ops with undo/redo - plus the M4 modern UX layer: high-performance canvas overlay, direct interactive annotation bounding-box manipulation (crop bbox, click/drag placement committed through M1/M2 ops), form overlays over AcroForm geometry with live create/describe/fill roundtrip, bookmark outline tree, studio shell layout, hardened ingestion with OPFS workspace plus in-memory fallback, and accessibility coordinate fallbacks. Entirely in the browser, no uploads, offline after first load. Vendored pdf-lib + pdf.js, consent-gated Office pack, binding parity matrix of 70+ rows.</p>
+      <p>A fully client-side PDF studio (issue #277 closed): merge, split, organize, compress, redact (true burn-in), annotate, sign, convert Office and PDF both directions, OCR invisible layers, and chain ops with undo/redo - plus a modern UX layer: high-performance canvas overlay, direct interactive annotation bounding-box manipulation (crop bbox, click/drag placement committed through the core ops), form overlays over AcroForm geometry with live create/describe/fill roundtrip, bookmark outline tree, studio shell layout, hardened ingestion with OPFS workspace plus in-memory fallback, and accessibility coordinate fallbacks. Entirely in the browser, no uploads, offline after first load. Vendored pdf-lib + pdf.js, consent-gated Office pack, binding parity matrix of 70+ rows.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/folio/">Open studio</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/folio/README.md">Run it</a>
@@ -159,7 +159,7 @@
     <div class="card current">
       <span class="tag">Closed</span>
       <h4>Poolduel</h4>
-      <p>An exhaustive PostgreSQL connection pooler shootout (issue #302 closed 2026-09-16): pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus a direct-PG control. One pooler-blind harness drives pgbench workloads under clients far exceeding pool size with interleaved repeats and medians; M1 covers transaction pooling, M2 covers session, statement, and I/O arms, M3 publishes best-vs-best plus iso-region comparisons with full-matrix CSVs and a fairness audit. M1 medians (42 rows), M2 medians (111 rows), and M9 resweep medians (250 rows) plus the report bundle are published on main; M10 soak sweep is GREEN (36 medians: 29 measured plus 7 timeout/inconclusive, 162 raw); the M11a statistics and M11b/M11c/M11d website rebuild merged, and the M12 reproducibility manifest merged (PR #343; full suite green). M13a soak-figure work is on main (soak visuals with absent-vs-timeout markers, tier-suffixed dossiers, loader guards; full suite green) and the M13b gate battery merged (PR #357 plus verification sweep; suite green). Known open items at close are documented in the progress log.</p>
+      <p>An exhaustive PostgreSQL connection pooler shootout (issue #302 closed 2026-09-16): pgagroal vs PgBouncer vs pgpool-II vs Odyssey vs pgcat plus a direct-PG control. One pooler-blind harness drives pgbench workloads under clients far exceeding pool size with interleaved repeats and medians; coverage spans transaction pooling plus session, statement, and I/O arms, and publishes best-vs-best plus iso-region comparisons with full-matrix CSVs and a fairness audit. Published medians (42-row, 111-row, and 250-row sweeps) plus the report bundle are published on main; the soak sweep is GREEN (36 medians: 29 measured plus 7 timeout/inconclusive, 162 raw); the statistics and website rebuild merged, and the reproducibility manifest merged (PR #343; full suite green). Soak-figure work is on main (soak visuals with absent-vs-timeout markers, tier-suffixed dossiers, loader guards; full suite green) and the gate battery merged (PR #357 plus verification sweep; suite green). Known open items at close are documented in the progress log.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/poolduel/">Open report</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/poolduel/README.md">Run it</a>
@@ -171,7 +171,7 @@
     <div class="card current">
       <span class="tag">Finished at ceiling</span>
       <h4>Prism</h4>
-      <p>A lossless image codec written from scratch in C++17, accepted by the Owner as finished-at-ceiling at <code>9bd6d10</code> (2026-09-03, issue #130 closed, gates FAIL, never gate-passed). M0 done: 5-level LeGall 5/3 DWT, reversible YCoCg-R, MA decision trees, multi-cluster rANS, 100% byte-exact round-trips. Accepted ceiling on Kodak-24: X6b 3.2175/sample / 9.6525 summed (repro 3.21843/9.65529) - M2 misses WebP by ~1.6%, M3 misses JPEG XL by ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured; full negative ledger on main; all branches retained.</p>
+      <p>A lossless image codec written from scratch in C++17, accepted by the Owner as finished-at-ceiling at <code>9bd6d10</code> (2026-09-03, issue #130 closed, gates FAIL, never gate-passed). Shipped scope: 5-level LeGall 5/3 DWT, reversible YCoCg-R, MA decision trees, multi-cluster rANS, 100% byte-exact round-trips. Accepted ceiling on Kodak-24: X6b 3.2175/sample / 9.6525 summed (repro 3.21843/9.65529) - misses WebP by ~1.6%, misses JPEG XL by ~11.5%; oracle bounds 3.161/9.483. 49+ mechanisms measured; full negative ledger on main; all branches retained.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/prism/">Website</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/README.md">Run it</a>
@@ -183,7 +183,7 @@
     <div class="card current">
       <span class="tag">Shipped</span>
       <h4>Doom</h4>
-      <p>A client-side web Doom engine at /doom/ (issue #362 closed, merged via PR #367): checked WAD reader with layered diagnostics, WebGL paletted renderer with tier ladder, full desktop plus touch input with remapping, WebAudio SFX plus FM music, OPFS save persistence, a multi-WAD load order with per-map isolation, onboarding, and offline support, and a fully measured H1-H5 end-to-end ledger (424/424 node:test green). Shipped on main.</p>
+      <p>A client-side web Doom engine at /doom/ (issue #362 closed, merged via PR #367): checked WAD reader with layered diagnostics, WebGL paletted renderer with tier ladder, full desktop plus touch input with remapping, WebAudio SFX plus FM music, OPFS save persistence, a multi-WAD load order with per-map isolation, onboarding, and offline support, and a fully measured end-to-end ledger (424/424 node:test green). Shipped on main.</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/doom/">Play Doom</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/doom/README.md">Run it</a>
@@ -195,7 +195,7 @@
     <div class="card current">
       <span class="tag">Shipped</span>
       <h4>Umbra</h4>
-      <p>A Shadow Fight-inspired silhouette combat game at /umbra/ (issue #375 closed): WebGPU WGSL shaders with WebGL2 and Canvas2D fallback tiers, deterministic 60 Hz combat core (parry, chip, guard-break, hit-stop, combos), 3 playable fighters plus 5 enemies across a 17-node story, 3 phased bosses, 6 weapons with frame-data tables, dojo trials, shop economy with export and import, tutorial gate, synth SFX plus adaptive music, hit sparks with KO slow-mo, and full keyboard, gamepad, and touch controls - offline after first load (455/455 node:test green, G1-G7 ledger measured end to end).</p>
+      <p>A Shadow Fight-inspired silhouette combat game at /umbra/ (issue #375 closed): WebGPU WGSL shaders with WebGL2 and Canvas2D fallback tiers, deterministic 60 Hz combat core (parry, chip, guard-break, hit-stop, combos), 3 playable fighters plus 5 enemies across a 17-node story, 3 phased bosses, 6 weapons with frame-data tables, dojo trials, shop economy with export and import, tutorial gate, synth SFX plus adaptive music, hit sparks with KO slow-mo, and full keyboard, gamepad, and touch controls - offline after first load (455/455 node:test green, ledger measured end to end).</p>
       <div class="links">
         <a href="https://userfrom1995.github.io/RandomLabs/umbra/">Play Umbra</a>
         <a href="https://github.com/Userfrom1995/RandomLabs/blob/main/umbra/README.md">Run it</a>
