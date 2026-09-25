@@ -491,7 +491,7 @@
       <div class="stage"><i>stage 2</i><b>Squeeze</b><span>Multi-resolution JPEG XL CDC lifting (true integer H-then-V passes), adopted per plane when coded bytes win.</span></div>
       <div class="stage"><i>stage 3</i><b>Prediction</b><span>MED/GAP predictor bank chosen by measured coded bytes.</span></div>
       <div class="stage"><i>stage 4</i><b>Context</b><span>MA decision-tree context modeling over spatial residual features, accepted only when trial encodes win.</span></div>
-      <div class="stage"><i>stage 5</i><b>Entropy</b><span>Context-modeled binary adaptation (per-leaf adaptive models) entropy-coded by a 32-bit FIFO adaptive binary range coder (rANS is retained for the static effort-0 path); zero-flag/sign/gamma-style magnitude binarization.</span></div>
+      <div class="stage"><i>stage 5</i><b>Entropy</b><span>Context-modeled binary adaptation (343 causal residual-DIFF contexts on flat planes; per-leaf models only when the stage 4 tree trial wins) entropy-coded by a 32-bit FIFO adaptive binary range coder (rANS is retained for the static effort-0 path); zero-flag/sign/gamma-style magnitude binarization.</span></div>
       <div class="stage"><i>stage 6</i><b>Container</b><span><code>PRSM</code> magic, LE header, CRC-checked model blob and payload. Hard rejection on corruption.</span></div>
     </div>
     <div class="stat-row" style="margin-top:16px">
