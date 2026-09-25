@@ -20,6 +20,11 @@ type fakeServer struct {
 	circuit string
 	version string
 	ready   bool // when true, phase=100/done and circuit=1
+	// newnymLimit makes SIGNAL NEWNYM answer 515 (rate-limited).
+	newnymLimit bool
+	// minimal makes GETINFO answer only the core readiness keys and 552
+	// the rest (old tor without listener/traffic introspection).
+	minimal bool
 }
 
 func startFake(t *testing.T, fs *fakeServer) string {
@@ -78,7 +83,16 @@ func (fs *fakeServer) handle(conn net.Conn) {
 		case strings.HasPrefix(up, "GETINFO "):
 			keys := strings.Fields(line[len("GETINFO "):])
 			for _, k := range keys {
-				switch strings.ToLower(k) {
+				lk := strings.ToLower(k)
+				if fs.minimal {
+					switch lk {
+					case "status/bootstrap-phase", "status/circuit-established", "version", "circuit-status":
+					default:
+						fmt.Fprintf(conn, "552 Unrecognized key %q\r\n", k)
+						continue
+					}
+				}
+				switch lk {
 				case "status/bootstrap-phase":
 					fmt.Fprintf(conn, "250-status/bootstrap-phase=%s\r\n", phase)
 				case "status/circuit-established":
@@ -86,10 +100,30 @@ func (fs *fakeServer) handle(conn net.Conn) {
 				case "version":
 					fmt.Fprintf(conn, "250-version=%s\r\n", fs.version)
 				case "circuit-status":
-					fmt.Fprint(conn, "250+circuit-status=\r\n12 BUILT $AAA PURPOSE=GENERAL\r\n.\r\n250 OK\r\n")
+					fmt.Fprint(conn, "250+circuit-status=\r\n12 BUILT $AAA PURPOSE=GENERAL\r\n.\r\n")
+				case "stream-status":
+					fmt.Fprint(conn, "250+stream-status=\r\n7 SUCCEEDED 12 93.184.216.34:80\r\n8 NEW 0 93.184.216.34:443\r\n.\r\n")
+				case "entry-guards":
+					fmt.Fprint(conn, "250+entry-guards=\r\n$AAA nickname1\r\n$BBB nickname2\r\n.\r\n")
+				case "traffic/read":
+					fmt.Fprint(conn, "250-traffic/read=2048\r\n")
+				case "traffic/written":
+					fmt.Fprint(conn, "250-traffic/written=512\r\n")
+				case "net/listeners/socks":
+					fmt.Fprint(conn, "250-net/listeners/socks=\"127.0.0.1:9050\"\r\n")
+				case "net/listeners/control":
+					fmt.Fprint(conn, "250-net/listeners/control=\"127.0.0.1:9051\"\r\n")
+				case "net/listeners/dns":
+					fmt.Fprint(conn, "250-net/listeners/dns=\"127.0.0.1:9053\"\r\n")
 				}
 			}
 			fmt.Fprint(conn, "250 OK\r\n")
+		case strings.HasPrefix(up, "SIGNAL NEWNYM"):
+			if fs.newnymLimit {
+				fmt.Fprint(conn, "515 Rate limited: please wait 10 seconds\r\n")
+			} else {
+				fmt.Fprint(conn, "250 OK\r\n")
+			}
 		case up == "TAKEOWNERSHIP" || strings.HasPrefix(up, "RESETCONF") || strings.HasPrefix(up, "SIGNAL"):
 			fmt.Fprint(conn, "250 OK\r\n")
 		default:
