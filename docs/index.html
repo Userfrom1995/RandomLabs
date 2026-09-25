@@ -210,6 +210,8 @@ bash shutdown.sh</code></pre>
     <tr><td><code>.github/agents/</code></td><td>The prompts themselves, <code>REGISTRY.md</code> roster, and <code>CREATING_AGENTS.md</code> creation rules.</td></tr>
     <tr><td><code>maintainer/logs</code> branch</td><td>The Maintainer's memory: <code>STATE.md</code>, daily logs, <code>personality.md</code> - every run catches up from it.</td></tr>
     <tr><td><code>.github/workflows/</code></td><td>Thin wiring: <code>maintainer.yml</code>, <code>opencode.yml</code>, <code>opencode-review.yml</code>, <code>opencode-test.yml</code>, <code>auditor.yml</code>, <code>ideate.yml</code>, <code>pages.yml</code>.</td></tr>
+    <tr><td><code>.github/actions/</code></td><td>The vendored opencode runner (hardened composite action): an authenticated, non-fatal version lookup so one rate-limited API call can never abort a run before the agent starts.</td></tr>
+    <tr><td><code>.github/scripts/</code></td><td>Shared CI scripts: schedule self-heal, silent-stall audit rules, held-run approval sweep, PR recovery.</td></tr>
   </table>
 
   <h2>Security &amp; fail-safes</h2>

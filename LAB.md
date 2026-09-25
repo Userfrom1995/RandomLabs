@@ -349,6 +349,22 @@ personality, CHANGELOG) is direct-commit.
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also
 removed the PAT that used to sit in the ideation agent's env).
 
+Every agent job above runs opencode through the in-repo composite action
+`.github/actions/opencode-run/` (vendored from `anomalyco/opencode/github@latest`
+and hardened: authenticated releases lookup, retry, `|| true` under `pipefail`,
+`continue-on-error`, real `${VERSION:-latest}` fallback). The upstream version
+step could abort a whole run in under 130 ms on an anonymous rate limit, before
+the agent ever started (issue #422), so the third-party `@latest` reference is
+gone from every workflow.
+
+The `schedule` and `workflow_dispatch` arms of `curator.yml`, `auditor.yml`,
+`ideate.yml`, and `lab.yml` share `.github/scripts/schedule-selfheal.sh`: when
+the agent step fails and no decision file was written, the run re-dispatches
+its own workflow exactly once (bounded `selfheal_retry` input), then escalates
+with `/oc maintainer` on the lab-health board at the cap. Comment arms keep
+their existing auto-retry caps; `opencode-recover.yml`'s schedule arm is the
+fully scripted 20-minute detector (no agent) and needs no such retry.
+
 ## 20. File map
 
 ```
@@ -359,6 +375,8 @@ ideas/YYYY-MM-DD-<name>-<what>.md   build writeups
 docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
+.github/actions/               the vendored opencode runner (composite action, issue #422)
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit, CI approval sweep, PR recovery
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -451,6 +469,14 @@ catches up in seconds.
   (so no external commit lies in between), with the local ref matching, and pushes
   with a lease: a concurrent Fixer/Builder push is never rewound (PR #412).
 - PAT is only ever in hardcoded steps (§7); agents never see it.
+- Agent runs go through the vendored runner (`.github/actions/opencode-run/`),
+  whose version lookup is authenticated and non-fatal: one rate-limited API
+  call degrades to the `latest` cache key instead of killing the run before
+  the agent starts. Schedule/dispatch agent arms additionally self-heal once
+  (`.github/scripts/schedule-selfheal.sh`) and escalate to `/oc maintainer`
+  at the cap, so a crash never burns an entire cron cycle unnoticed.
+  Both rules are statically enforced by R7/R8 in
+  `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
   revival path fires only with a complete `.maintainer/emergency.json`
