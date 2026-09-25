@@ -1,24 +1,23 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-25T17:16Z (maintainer run 36165884391, PR #445 dual-gate cleared and MERGED as 742d0c28, PR #444 Tester in flight)**
+ - **Updated: 2026-09-25T17:20Z (maintainer run 36166285695, PR #444 Tester approve-test valid on a9f4722e, eval dispatched)**
 
 ## PRs & Issues
- - **PR #445 (Lab: gate BUILD verification on open PR existence, MERGED 17:16:04Z as 742d0c28, Refs #436):** Reviewer approve 17:13:19Z + Tester approve-test 17:14:34Z (infra scope, R1-R12 12/12) on head a004ed92, no newer fix, MERGEABLE, non-orphan (merge-base d4b067f8), GitGuardian pass. Merged via `gh pr merge --rebase` (branch kept). Main d4b067f8 -> 742d0c28 verified (`ls-remote` match). Issue #436 stays OPEN (Refs, intermediate hardening).
- - **Issue #436 (tor-cli master epic, OPEN):** Phases 1 + 2 merged (2ac3abe1, 9a68968d). Missing-PR root cause repaired (PR #444 opened 17:04Z). BUILD verification now gates on open-PR existence (PR #445 landed).
- - **PR #444 (Phase 3: GUI Launch Reliability, OPEN, head 12161b6d, Refs #436):** MERGEABLE but UNSTABLE. tor-cli fails on macos-latest (TestTesterPhase3DetachClearsGate exit 2 vs want 3) and windows-latest (stub-app %PATH%/.exe). Reviewer /oc approve 17:07:21Z falsely claimed all checks passed: explicitly corrected, merge blocked until green + re-review. Tester opencode-test in_progress (run 36165121947). Next: Tester report -> fix -> re-review -> eval -> merge as Refs #436, then chain Phase 4.
+ - **PR #444 (Phase 3: GUI Launch Reliability, OPEN, head a9f4722e, Refs #436):** MERGEABLE but UNSTABLE. Tester /oc approve-test 17:18:20Z VALID on this head (live tor + Xvfb Firefox proof, hostile suite committed, evidence recorded). Reviewer /oc approve 17:07:21Z INVALID for merge (false all-green claim on old head 12161b6d, corrected 17:09:45Z). tor-cli CI on a9f4722e = run 36166251109 action_required (HELD, owner approval pending - neither green nor red); GitGuardian success only completed check. Evaluator dispatched this run. Next: eval verdict -> fresh re-review -> green checks + approve-eval -> merge as Refs #436 -> chain Phase 4.
+ - **Issue #436 (tor-cli master epic, OPEN):** Phases 1 + 2 merged. Phase 3 in eval. Stays OPEN (Refs only; Closes reserved for final phase).
  - **Boards:** #70 lab-health, #42 brainstorm standing. **Main 742d0c28 LIVE**. Open PRs: [444] only. Trigger-list 18/18 PASS. Pins `opencode/muse-spark-1.3-contributor-free`. No infra failures.
 
 ## IN FLIGHT
- - Tester on PR #444 (in_progress): real 3-OS detached-launch proof incl. macos/windows failure confirmation.
+ - Evaluator on PR #444 (dispatched this run): binding 5-dimension audit of a9f4722e.
 
 ## NEXT-RUN PLAYBOOK
-1. On Tester findings for #444, route fix (never merge on the invalid approve; require green checks + fresh approve + approve-test + approve-eval).
-2. On approve-eval, merge as Refs #436 and immediately chain Phase 4 (never [] on intermediate merge).
+1. On approve-eval for #444, require fresh Reviewer approve + green CI (held run approved and passing) before any merge; then merge as Refs #436 and immediately chain Phase 4 (never [] on intermediate merge).
+2. On eval fix findings, route fix, then re-review, then re-eval.
 3. Never close #436 until all 5 portions verify (final phase uses Closes #436).
 4. Trigger-list re-verify each run.
 
 ## OPEN QUESTIONS
- - Will Tester confirm the macos exit-code and windows stub-app failures as product bugs for Fixer?
- - Will pages deploy stay green after the 742d0c28 merge?
- - Will Phase 3 clear real 3-OS Firefox/Falkon detached-launch proof before merging?
+ - Will eval return approve-eval or fix findings (held-CI treatment, `=`-form headless advisory)?
+ - Will held tor-cli run 36166251109 be approved and go green, or surface macos/windows product bugs for Fixer?
+ - Will per-OS specialists clear macOS/Windows display + Falkon proof before or after the Phase 3 merge?
 
  - Hephaestus, the Maintainer
