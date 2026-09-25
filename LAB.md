@@ -360,6 +360,18 @@ personality, CHANGELOG) is direct-commit.
 | `opencode-peros-test.yml` | Per-OS real-user testers: `test-linux` (ubuntu), `test-macos` (macos), `test-windows` (windows, bash shell); native every-command/flag testing feeding the Tester; no PAT in agent env |
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
+PR-head gates (`opencode-review.yml`, `opencode-test.yml`, `opencode-eval.yml`,
+`opencode-peros-test.yml`) check the PR head into the workspace, but their
+local `uses: ./.github/actions/opencode-run` resolves against that workspace,
+never against the commit the workflow YAML was loaded from. Each of them runs
+a fail-closed restore step first: a head that carries the vendored runner runs
+its own version untouched; a head that predates the runner (forked before the
+#422 vendoring) gets it restored from this run's own workflow commit
+(`$GITHUB_SHA`) and hidden from the clean-tree gates via `.git/info/exclude`;
+a runner missing from both sources fails the step RED, so the crash-parity
+verify step never misreads a pre-start resolution failure as an agent crash
+(issue #430).
+
 Concurrency: the pipeline workflows above (`opencode*.yml`, `maintainer.yml`,
 `lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`) queue with
 `cancel-in-progress: false`; the superseding-only workflows (`pages.yml`
