@@ -65,6 +65,14 @@ jobs:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
+      - name: Record checked-out PR head
+        id: checkout-head
+        if: steps.pr-info.outputs.is_pr == 'true'
+        run: |
+          oid=$(git rev-parse --verify HEAD 2>/dev/null || echo "")
+          echo "oid=$oid" >> "$GITHUB_OUTPUT"
+          echo "Checked-out PR head: ${oid:-<none>}"
+
       - name: Configure git identity
         if: steps.pr-info.outputs.is_pr == 'true'
         run: |
@@ -142,19 +150,54 @@ jobs:
           echo "::error::Reviewer step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
           exit 1
 
-      - name: Restore PR head if reviewer dirtied the branch
+      - name: Restore PR head only when this run's own agent moved it
         if: steps.pr-info.outputs.is_pr == 'true' && always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           pr="${{ github.event.issue.number }}"
-          expected="${{ steps.pr-info.outputs.head_oid }}"
+          branch="${{ steps.pr-info.outputs.head_ref }}"
+          recorded="${{ steps.pr-info.outputs.head_oid }}"
+          checkout_oid="${{ steps.checkout-head.outputs.oid }}"
+
+          if [ -z "$branch" ] || [ -z "$checkout_oid" ]; then
+            echo "Branch or checked-out OID unknown; skipping restore."
+            exit 0
+          fi
+
           actual=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
-          if [ -n "$actual" ] && [ "$actual" != "$expected" ]; then
-            echo "Reviewer run changed PR head ($expected -> $actual); restoring branch head"
-            branch="${{ steps.pr-info.outputs.head_ref }}"
-            git fetch origin "$expected" --quiet
-            git push --force origin "$expected:refs/heads/$branch"
+          if [ -z "$actual" ]; then
+            echo "::warning::Could not read the live head of PR #$pr; refusing to push blind."
+            exit 0
+          fi
+
+          if [ "$actual" = "$checkout_oid" ]; then
+            echo "PR head unchanged ($checkout_oid); nothing to restore."
+            exit 0
+          fi
+
+          # Ownership gate (PR #412 head rewind). The previous version compared
+          # the live head against a snapshot captured when this run STARTED and
+          # force-pushed that snapshot back, so every push that landed while a
+          # review was still running (Fixer, Builder, owner) was silently
+          # reverted at run end. The Reviewer is contractually read-only, so the
+          # only head movement this step may undo is one made from THIS
+          # workspace: the local branch ref advancing past the checked-out OID.
+          # A live head that differs while our local ref still sits on the
+          # checked-out OID belongs to another actor - never touch it.
+          local_head=$(git rev-parse --verify "refs/heads/$branch" 2>/dev/null || git rev-parse HEAD 2>/dev/null || echo "")
+
+          if [ "$local_head" != "$actual" ] || [ "$local_head" = "$checkout_oid" ]; then
+            echo "::notice::PR #$pr head moved outside this run (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
+            exit 0
+          fi
+
+          echo "This run's agent moved $branch ($checkout_oid -> $actual); restoring to $checkout_oid"
+          if git push --force-with-lease="refs/heads/$branch:$actual" origin "$checkout_oid:refs/heads/$branch"; then
+            git reset --hard "$checkout_oid" --quiet 2>/dev/null || true
+            echo "PR head restored to $checkout_oid"
+          else
+            echo "::warning::Restore rejected: $branch moved again after $actual; keeping the newer head."
           fi
 
       - name: Force lab routing for infrastructure PRs
