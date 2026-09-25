@@ -121,6 +121,16 @@ Public Surface / Web Track:                                              │
   plus a Reviewer checklist block on infra PRs that add/rename workflows
   without updating it. Conclusions filtered to failure/timed_out in the job
   gate, so a crashed run with no comment still summons triage).
+- Actor-permission preflight (issue #427): for `issue_comment`, `issues`, and
+  `pull_request` events the opencode CLI asserts that the trigger actor holds
+  `admin|write` before its session starts and, ungated, posts the raw failure
+  as a PR/issue comment while `continue-on-error` keeps the job green. A
+  preflight step resolves `GET /repos/{owner}/collaborators/{actor}/permission`
+  first and skips the agent cleanly (annotated notice, honest memory stub) when
+  the actor is unprivileged; `schedule`, `workflow_dispatch`, and
+  `workflow_run` carry no trigger-actor assert and are always allowed, and an
+  unresolvable permission fails the run red instead of guessing. Coverage for
+  bot-authored PR opens is kept by `opencode-pr-trigger.yml`.
 - Concurrency - per-PR groups, queued execution:
 
 ```yaml
