@@ -38,6 +38,16 @@ jobs:
           persist-credentials: true
           token: ${{ github.token }}
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: auditor
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Auditor"
@@ -60,6 +70,7 @@ jobs:
 
       - name: Run auditor agent
         id: auditor
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
@@ -91,7 +102,19 @@ jobs:
           # expansion is SHELL against this step's owner PAT env. The env
           # mapping is inert data even when the value carries shell metachars.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the auditor
+          # step never started, so "failed + no decision file" is a DENIAL,
+          # not a crash. No fail-closed red, no self-heal re-dispatch, no
+          # escalation - a denial is not a crash. Schedule/dispatch arms always
+          # pass the gate, so their self-heal parity below is intact.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the auditor agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           outcome="${{ steps.auditor.outcome }}"
           event_name="${{ github.event_name }}"
 
@@ -127,7 +150,7 @@ jobs:
           exit 1
 
       - name: Forward auditor decision
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |

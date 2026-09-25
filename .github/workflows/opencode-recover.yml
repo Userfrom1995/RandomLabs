@@ -82,6 +82,16 @@ jobs:
           token: ${{ github.token }}
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: recover
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Recover Agent"
@@ -104,6 +114,7 @@ jobs:
 
       - name: Run Recover agent
         id: opencode
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 45
         uses: ./.github/actions/opencode-run
@@ -126,7 +137,7 @@ jobs:
             - Sign your comment: ` -  the Recover Agent`. NO EM DASHES.
 
       - name: Fallback direct recovery if the agent produced no result
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -148,7 +159,7 @@ jobs:
 
       - name: Approve held CI runs on the recovered PR
         continue-on-error: true
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
