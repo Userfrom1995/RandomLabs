@@ -409,7 +409,7 @@ comment arm); the newer comment arms (`auditor.yml`, `ideate.yml`, `lab.yml`)
 fail closed on purpose so the `workflow_run` failure trigger summons the
 Maintainer. `opencode-recover.yml`'s schedule arm is the fully scripted
 20-minute detector (no agent) and needs no such retry; the Maintainer's own
-schedule arm does not re-dispatch (its 2-hour heartbeat and `workflow_run`
+schedule arm does not re-dispatch (its own recurring schedule and `workflow_run`
 failure triage cover the next tick).
 
 ## 20. File map
