@@ -487,7 +487,7 @@
       measured at efforts 0/4/7. Corruption is rejected, never silently mis-decoded (CRC-32 checked).
     </p>
     <div class="pipe">
-      <div class="stage"><i>stage 1</i><b>Color</b><span>Reversible decorrelation (YCoCg-R and five adopted rotations) chosen by measured coded bytes.</span></div>
+      <div class="stage"><i>stage 1</i><b>Color</b><span>Reversible decorrelation chosen by measured coded bytes (effort 1+; effort 0 is identity; candidates: identity, subtract-green, YCoCg-R, YCoCg-R + subtract-green, 5/3 lifting at effort 2+, and five adopted rotations - the full color family runs on 8-bit input).</span></div>
       <div class="stage"><i>stage 2</i><b>Squeeze</b><span>Multi-resolution JPEG XL CDC lifting (true integer H-then-V passes), adopted per plane when coded bytes win (effort 3+).</span></div>
       <div class="stage"><i>stage 3</i><b>Prediction</b><span>Nine-predictor bank (MED/GAP/gradient/clamped/weighted/true-motion) chosen by measured coded bytes (effort 1+; effort 0 is fixed MED).</span></div>
       <div class="stage"><i>stage 4</i><b>Context</b><span>MA decision-tree context modeling over spatial residual features, accepted only when trial encodes win (effort 3+).</span></div>
