@@ -55,9 +55,10 @@ fi
 
 # [R1] Concurrency assertion, scoped to the file under audit ($WF): NO
 # concurrency group IN THAT FILE may cancel in progress. This rule scans one
-# file and claims nothing repo-wide; the deliberate repo-wide exemptions
-# (pages.yml, ideate.yml, tor-cli.yml) are named in AGENTS.md "Queued
-# Execution". Failures below therefore name the file they were found in.
+# file and claims nothing repo-wide; the deliberate superseding-only
+# workflows (pages.yml deploys, tor-cli.yml CI) are named in AGENTS.md
+# "Queued Execution" (ideate.yml queued with cancel-in-progress: false).
+# Failures below therefore name the file they were found in.
 cancel_true=$(grep -nE 'cancel-in-progress:\s*true' "$WF" || true)
 if [ -z "$cancel_true" ]; then
   check "R1" "scan scope ${WF} only: no concurrency group sets cancel-in-progress: true (S2 non-cancellation)" "ok"
