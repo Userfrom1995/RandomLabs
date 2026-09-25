@@ -8,23 +8,34 @@ productizing anything under a `tor*` name.
 ## What it is
 
 torshim automates the existing `tor` daemon. It never implements Tor itself.
-What shipped (0.4.0, issues M1-M5): per-app routing and isolated
+What shipped (0.5.0): per-app routing and isolated
 shells on Linux (torsocks shim, fail-closed), system-wide routing on
 Linux (iptables/nft, snapshot-first, verify-gated), per-app + shell
 on macOS and Windows via proxy environment, packaging (Makefile +
-man page), and M5 hardening (session lock, torrc managed-key guard,
-parser fuzz, tri-OS CI):
+man page), hardening (session lock, torrc managed-key guard,
+parser fuzz, tri-OS CI), and a control plane: `-v`/`--verbose`
+session diagnostics on every verb, `newnym` circuit rotation with
+rate-limit honesty, and a `doctor` health verdict (bootstrap, SOCKS,
+DNSPort, exit IP, firewall, IPv6) with `--json`:
 
 ```sh
 torshim run -- curl --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip
 torshim curl https://example.com     # bare form = run
 torshim shell                        # child shell routed through Tor
+torshim run -v -- curl https://example.com   # endpoints, circuit, notices tail
+torshim newnym                       # rotate circuits without restarting
+torshim doctor [--json]              # full health check, exit 0 healthy / 3 not
 sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
 torshim disconnect                   # byte-exact restore (needs sudo when a session exists)
 torshim repair                       # clear stale rules/state (needs sudo)
-torshim status [--json]              # never claims protected when not
-torshim version
+torshim status [--json] [-v]         # never claims protected when not
+torshim version [-v]
 ```
+
+`newnym` and `doctor` address a persistent tor: `--control`, then
+`TORSHIM_CONTROL` (exported into every shell child), then the system
+session record, then 9051/9151. See `docs/diagnostics.md` for the full
+reference and `docs/platforms.md` for the per-OS matrix.
 
 System-wide mode launches a private tor with a transparent proxy
 (TransPort 9040) under an unprivileged user, snapshots the firewall plus
@@ -76,7 +87,12 @@ Man page: `man ./torshim.1` (or `man torshim` after install).
 
 - `main.go` - cobra-free flag dispatch, exit codes (0 ok, 1 error, 2 usage,
   3 tor-not-ready fail-closed, 4 later-milestone).
-- `internal/control/` - control-protocol v1 client + readiness parsing.
+- `internal/control/` - control-protocol v1 client + readiness parsing,
+  read-only diagnostics (version, circuits, streams, guards, traffic,
+  listeners) + rate-limited NEWNYM.
+- `internal/doctor/` - `doctor` verdict: graded pass/fail/skip checks over
+  control, bootstrap, circuit, SOCKS, DNSPort, exit-IP egress, firewall,
+  IPv6; stub-injectable, stdlib-only probes.
 - `internal/lifecycle/` - torrc gen, launch, readiness wait, detect, stop.
   M3 adds fixed TransPort, RunAs setuid, TempParent scoping, and per-OS
   spawn/signal shims (linux/darwin/windows all compile).
@@ -89,7 +105,8 @@ Man page: `man ./torshim.1` (or `man torshim` after install).
 - `internal/status/` - state aggregator (absent/unknown never protected;
   folds in the system session, `mode: system` only on state + rules).
 - `internal/version/` - wrapper + tor + torsocks + platform backend versions.
-- `docs/` - research spec, threat model, per-OS limitations, reproducibility + test matrix.
+- `docs/` - research spec, threat model, per-OS limitations, reproducibility + test matrix,
+  diagnostics reference, cross-platform notes.
 - `ci/` - tri-OS GitHub Actions matrix staged for Lab Engineer install (see docs/reproducibility.md).
 - `Makefile`, `torshim.1` - build/cross/install + man page.
 

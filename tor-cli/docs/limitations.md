@@ -41,6 +41,11 @@ pinned by `internal/syswide/edge_test.go`.
   operator builds their own unit file (out of scope for M3).
 - Tor DNSPort answers only A/AAAA/PTR. Exotic record types get NOTIMPL
   or empty: correct Tor behavior, documented so it is not filed as a bug.
+- Per-app mode does not block host IPv6: the torsocks shim only
+  intercepts the calls it sees, so a v6-capable app may egress outside
+  Tor while IPv4 goes through the circuit. Users needing v6 confinement
+  should use system mode (v6 REJECTed session-wide) or disable host v6.
+  `doctor` reports this as a skip-with-reason, never a pass.
 
 ## macOS (M4: per-app + shell work via proxy env)
 
@@ -60,7 +65,7 @@ pinned by `internal/syswide/edge_test.go`.
 - `connect` / `disconnect` / `repair` exit 4 with an honest pointer:
   system-wide needs a utun + tun2socks path plus per-service DNS
   overrides (fragile `pf route-to` fallback documented in research).
-  Not implemented in 0.4.0: tun2socks was deferred as out of scope
+  Not implemented as of 0.5.0: tun2socks was deferred as out of scope
   for a lightweight wrapper (new binary dependency, kernel extension
   surface, per-OS packet plumbing). Per-app + shell are the macOS
   story.
@@ -73,7 +78,7 @@ pinned by `internal/syswide/edge_test.go`.
 - `connect` / `disconnect` / `repair` exit 4 with an honest pointer:
   system-wide needs a wintun + tun2socks path or an existing WFP
   driver; `netsh advfirewall` cannot redirect, only allow/block.
-  Not implemented in 0.4.0 (same deferral rationale as macOS above).
+  Not implemented as of 0.5.0 (same deferral rationale as macOS above).
   Per-app + shell are the Windows story.
 
 ## Cross-OS exit-code contract (final hardening)

@@ -2,7 +2,7 @@
 
 Unofficial frontend. Not sponsored by The Tor Project.
 
-Version under test: `torshim 0.4.0` (`tor-cli/internal/version`).
+Version under test: `torshim 0.5.0` (`tor-cli/internal/version`).
 Toolchain: Go 1.24, stdlib only (no `go.sum`; `CGO_ENABLED=0` for the
 static binary). Every command below runs from `tor-cli/`.
 
