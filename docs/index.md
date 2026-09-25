@@ -91,9 +91,10 @@ pushes to forks (guidance only).
   `github-actions[bot]`, never as the owner.
 - Agent jobs run through an in-repo hardened runner: a rate-limited version
   lookup degrades to a fallback key instead of aborting the run before the
-  agent starts, and every scheduled or dispatched agent arm self-heals once
-  before escalating to the Maintainer, so a crash never burns a whole cron
-  cycle unnoticed.
+  agent starts, and the curator, auditor, ideator, and lab schedule/dispatch
+  arms self-heal once before escalating to the Maintainer, so a crash never
+  burns a whole cron cycle unnoticed. Dispatch inputs reach shell only as
+  environment data, and a crashed lab run never pushes its branch.
 - The Reviewer is read-only by construction; nothing merges without its
   approval; timers are evaluation triggers, not deadlines; every decision is
   logged with rationale.

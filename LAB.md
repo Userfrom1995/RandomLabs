@@ -385,10 +385,13 @@ Project CI (separate from lab infrastructure): `tor-cli.yml`,
 `idea.yml` was deleted (superseded by the Maintainer-dispatched Ideator; also
 removed the PAT that used to sit in the ideation agent's env).
 
-Every agent job above runs opencode through the in-repo composite action
-`.github/actions/opencode-run/` (vendored from `anomalyco/opencode/github@latest`
+Every agent job in the table above runs opencode through the in-repo composite
+action `.github/actions/opencode-run/` (vendored from `anomalyco/opencode/github@latest`
 and hardened: authenticated releases lookup, retry, `|| true` under `pipefail`,
-`continue-on-error`, real `${VERSION:-latest}` fallback). The upstream version
+`continue-on-error`, real `${VERSION:-latest}` fallback). `maintainer.yml` is
+the one exception: it inlines its own copy of the same hardened version
+lookup instead of the composite (`pages.yml` and the trigger workflow run no
+agent). The upstream version
 step could abort a whole run in under 130 ms on an anonymous rate limit, before
 the agent ever started (issue #422), so the third-party `@latest` reference is
 gone from every workflow.
@@ -397,9 +400,13 @@ The `schedule` and `workflow_dispatch` arms of `curator.yml`, `auditor.yml`,
 `ideate.yml`, and `lab.yml` share `.github/scripts/schedule-selfheal.sh`: when
 the agent step fails and no decision file was written, the run re-dispatches
 its own workflow exactly once (bounded `selfheal_retry` input), then escalates
-with `/oc maintainer` on the lab-health board at the cap. Comment arms keep
+with `/oc maintainer` on the lab-health board at the cap. The counter and the
+forwarded issue number reach the shell only through `env:` mappings, never as
+an inline `${{ }}` expansion inside a `run:` block (audit R10). Comment arms keep
 their existing auto-retry caps; `opencode-recover.yml`'s schedule arm is the
-fully scripted 20-minute detector (no agent) and needs no such retry.
+fully scripted 20-minute detector (no agent) and needs no such retry; the
+Maintainer's own schedule arm does not re-dispatch (its 2-hour heartbeat and
+`workflow_run` failure triage cover the next tick).
 
 ## 20. File map
 
@@ -508,10 +515,13 @@ catches up in seconds.
 - Agent runs go through the vendored runner (`.github/actions/opencode-run/`),
   whose version lookup is authenticated and non-fatal: one rate-limited API
   call degrades to the `latest` cache key instead of killing the run before
-  the agent starts. Schedule/dispatch agent arms additionally self-heal once
-  (`.github/scripts/schedule-selfheal.sh`) and escalate to `/oc maintainer`
-  at the cap, so a crash never burns an entire cron cycle unnoticed.
-  Both rules are statically enforced by R8/R9 in
+  the agent starts (`maintainer.yml` inlines the same hardened lookup).
+  The curator, auditor, ideator, and lab schedule/dispatch arms additionally
+  self-heal once (`.github/scripts/schedule-selfheal.sh`) and escalate to
+  `/oc maintainer` at the cap, so a crash never burns an entire cron cycle
+  unnoticed. Dispatch inputs reach PAT-backed shell steps only as env data,
+  and a crashed lab run never strips or pushes its branch. These rules are
+  statically enforced by R8-R11 in
   `.github/scripts/silent-stall-audit.sh`.
 - The Maintainer cannot land infra/model/workflow changes herself: routine
   changes route to the Lab Engineer (`{"action":"lab"}`), and the direct-to-main
