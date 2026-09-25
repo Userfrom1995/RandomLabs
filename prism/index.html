@@ -498,7 +498,7 @@
       <div class="stat"><b>0 bytes</b><span>round-trip divergence</span></div>
       <div class="stat"><b>0..7</b><span>effort levels, one bitstream version</span></div>
       <div class="stat"><b>49+</b><span>measured mechanisms</span></div>
-      <div class="stat"><b>7+</b><span>benchmark programs</span></div>
+      <div class="stat"><b>7+</b><span>research programs</span></div>
     </div>
   </section>
 
@@ -545,7 +545,7 @@
           <tr>
             <th scope="row">Unrealizable oracle bounds (map/table cost excluded)</th>
             <td class="num">3.161 / 9.483</td>
-            <td class="num">3.2175 / 9.6525</td>
+            <td class="num">3.2175 / 9.6525 (per-sample / summed)</td>
             <td><span class="verdict">reference only</span></td>
           </tr>
         </tbody>
@@ -557,7 +557,7 @@
         <h3>Why it stopped there</h3>
         <p>
           The single-pass architecture has a hard, reproducible ceiling. Across the
-          research program, 49+ mechanisms were measured over 7+ benchmark programs and
+          research program, 49+ mechanisms were measured over 7+ research programs and
           no legitimate mechanism class remained unmeasured. The full negative ledger is
           committed on <code>main</code>, and every build branch is retained - nothing
           was deleted, so every claim here is re-checkable.
@@ -651,7 +651,7 @@ python3 prism/benchmarks/aggregate.py
       <div class="card doc-card">
         <span class="kind">research</span>
         <a class="doc-title" href="./docs/research.md">Research program</a>
-        <p>The full mechanism survey and measurement history behind every design choice in the codec.</p>
+        <p>The pre-build literature review and SOTA survey that motivates the spec: mechanism survey, Obsidian's measured record, and the risk register.</p>
         <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/prism/docs/research.md">View on GitHub</a></p>
       </div>
       <div class="card doc-card">
