@@ -607,8 +607,9 @@ torshim run -- firefox</pre>
         <h3>A Tor-routed shell</h3>
         <p>
           Open a child shell whose processes route through Tor while the parent shell stays
-          untouched. The child carries the shim environment, a <code>[torshim]</code> prompt
-          prefix, and a coverage banner, so you always know what is and is not covered.
+          untouched. The child carries the Linux shim environment (proxy environment on
+          macOS/Windows), a <code>[torshim]</code> prompt prefix, and a coverage banner,
+          so you always know what is and is not covered.
         </p>
         <div class="codeblock">
           <header><span>shell</span><button class="copy-btn" type="button" data-copy="torshim shell
@@ -705,7 +706,8 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
       <div class="card">
         <h3>DNS goes through Tor too</h3>
         <p>
-          Per-app DNS uses SOCKS5 hostname resolution (<code>socks5h://</code>), so names
+          Per-app DNS resolves names at the Tor exit (<code>socks5h://</code> proxy
+          environment on macOS/Windows, torsocks RESOLVE on Linux), so names
           resolve at the exit, not on your resolver. System-wide DNS is captured by
           REDIRECT into the Tor DNSPort; <code>/etc/resolv.conf</code> is never rewritten,
           so DHCP cannot clobber the capture. IPv4 and IPv6 leaks are handled explicitly:
@@ -785,7 +787,7 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
           </tr>
           <tr>
             <th scope="row"><code>disconnect</code> / <code>repair</code> with a live session</th>
-            <td><span class="verdict yes">Full</span><br>disconnect replays the snapshot byte-exact; repair clears torshim rules only</td>
+            <td><span class="verdict yes">Full</span><br>disconnect replays the snapshot byte-exact; repair leaves a healthy session alone and only ever removes torshim-owned rules</td>
             <td><span class="verdict no">Refused</span><br>exit 4 (Linux-only backend)</td>
             <td><span class="verdict no">Refused</span><br>exit 4 (Linux-only backend)</td>
           </tr>
