@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 #
 # silent-stall-audit.sh - Static regression checks for the issue #122 silent-stall
-# hardening invariants (S1/S2/L1/L2), the R6 model free-tier guard, and the R7
-# review-restore ownership guard (PR #412 head rewind).
-# Wired into auditor.yml as the R1-R7 matrix.
+# hardening invariants (S1/S2/L1/L2), the R6 model free-tier guard, the R7
+# review-restore ownership guard (PR #412 head rewind), the R8 vendored
+# hardened runner guard, and the R9 schedule/dispatch retry-parity guard
+# (issue #422).
+# Wired into auditor.yml as the R1-R9 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
+# R1-R6 are scoped to <path-to-opencode.yml>; R7-R9 audit the whole tree
+# (the review-restore guard, the vendored runner, and every schedule/dispatch
+# agent arm), so they trip on a bad curator.yml/auditor.yml/ideate.yml/lab.yml
+# no matter which file the audit was pointed at.
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
 # on stdout and (when a health issue number is supplied and GITHUB_TOKEN is set)
 # posted as a comment to the lab-health board.
@@ -32,12 +38,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
- [R1-R7 PASS] $name: $desc"
+ [R1-R9 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
- [R1-R7 FAIL] $name: $desc"
+ [R1-R9 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -173,16 +179,75 @@ else
   fi
 fi
 
-summary="Silent-stall regression audit (R1-R7) on ${WF}: ${pass} passed, ${fail} failed."
+# [R8] Vendored hardened runner (issue #422 A): every agent arm must run
+# opencode through the in-repo composite action, never through the third-party
+# anomalyco/opencode/github@latest, whose version step aborts the whole run
+# (anonymous releases-API rate limit under `bash -e -o pipefail`) before the
+# agent ever starts. The vendored step must keep all four hardening markers.
+ACTION_FILE=".github/actions/opencode-run/action.yml"
+upstream_refs=$(grep -rn 'uses:.*anomalyco/opencode' .github/workflows 2>/dev/null || true)
+if [ -n "$upstream_refs" ]; then
+  check "R8" "external anomalyco/opencode action still referenced -> $(echo "$upstream_refs" | head -3 | tr '\n' ' ') (issue #422 A: version step can abort the run before the agent starts)" "bad"
+elif [ ! -f "$ACTION_FILE" ]; then
+  check "R8" "vendored runner missing at ${ACTION_FILE} (issue #422 A)" "bad"
+else
+  missing=""
+  grep -q 'Authorization: Bearer' "$ACTION_FILE" || missing="${missing} authenticated-lookup"
+  grep -q 'VERSION:-latest' "$ACTION_FILE" || missing="${missing} version-fallback"
+  grep -qE '\|\|[[:space:]]*true' "$ACTION_FILE" || missing="${missing} pipefail-guard"
+  grep -q 'continue-on-error: true' "$ACTION_FILE" || missing="${missing} continue-on-error"
+  if [ -z "$missing" ]; then
+    check "R8" "vendored runner is in-repo and hardened (auth + fallback + pipefail guard + continue-on-error)" "ok"
+  else
+    check "R8" "vendored runner lost hardening marker(s):${missing} in ${ACTION_FILE} (issue #422 A)" "bad"
+  fi
+fi
+
+# [R9] Schedule/dispatch retry parity (issue #422 B): every schedule- or
+# dispatch-only agent arm must own the bounded self-heal instead of failing
+# closed and burning a whole cron cycle (curator: 6h, auditor: 24h). Cohort:
+#   curator.yml  schedule (6h) + dispatch  - the burn that triggered the audit
+#   auditor.yml  schedule (24h) + dispatch
+#   ideate.yml   dispatch arm (its issue_comment arm stays fail-closed)
+#   lab.yml      dispatch arm (must forward issue_number to the retry run)
+# opencode-recover.yml is deliberately out of cohort: its schedule/dispatch
+# arms run the fully scripted detect job (no agent; the 20-minute detector is
+# its own retry loop) and its agent arm is issue_comment-only with a scripted
+# fallback step.
+SELFHEAL_SCRIPT=".github/scripts/schedule-selfheal.sh"
+r9_bad=""
+for r9_wf in curator.yml auditor.yml ideate.yml lab.yml; do
+  r9_path=".github/workflows/${r9_wf}"
+  if [ ! -f "$r9_path" ]; then
+    r9_bad="${r9_bad} ${r9_wf}(missing)"
+    continue
+  fi
+  grep -q 'schedule-selfheal\.sh' "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-selfheal-call)"
+  grep -q 'selfheal_retry:' "$r9_path" || r9_bad="${r9_bad} ${r9_wf}(no-selfheal_retry-input)"
+done
+if [ ! -f "$SELFHEAL_SCRIPT" ]; then
+  r9_bad="${r9_bad} schedule-selfheal.sh(missing)"
+else
+  grep -qE '^MAX_RETRIES=[0-9]+' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-bounded-cap)"
+  grep -q '/oc maintainer' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-maintainer-escalation)"
+  grep -q 'refusing to fall back to 0' "$SELFHEAL_SCRIPT" || r9_bad="${r9_bad} script(no-phantom-zero-guard)"
+fi
+if [ -z "$r9_bad" ]; then
+  check "R9" "schedule/dispatch arms (curator/auditor/ideate/lab) wired to bounded self-heal with maintainer escalation" "ok"
+else
+  check "R9" "schedule/dispatch retry parity missing:${r9_bad} (issue #422 B: a crash burns the whole cron cycle)" "bad"
+fi
+
+summary="Silent-stall regression audit (R1-R9) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R7)
+  body="## Silent-stall regression audit FAILED (R1-R9)
 
 ${summary}
 ${report}
 
-A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, or R7 review-restore ownership). Investigate before merging.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, R7 review-restore ownership, R8 vendored hardened runner, or R9 schedule/dispatch retry parity). Investigate before merging any workflow change.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
