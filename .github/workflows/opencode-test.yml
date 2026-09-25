@@ -35,6 +35,16 @@ jobs:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: test
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Tester"
@@ -75,6 +85,7 @@ jobs:
 
       - name: Run opencode tester
         id: test
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 90
         uses: ./.github/actions/opencode-run
@@ -97,7 +108,21 @@ jobs:
       - name: Verify test decided, else fail closed
         id: verify-test
         if: always()
+        env:
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the tester
+          # step never started, so a missing decision file is a DENIAL, not a
+          # crash - fail open as a clean skip instead of failing the job red
+          # (which would summon the Maintainer for a denial that needs no
+          # triage). No owner auto-retry, no escalation; privileged triggers
+          # whose agent started keep the fail-closed guard below.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the tester agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           outcome="${{ steps.test.outcome }}"
 
           # Fail-closed silent-stall guard (issue #297): the agent step above
@@ -115,7 +140,7 @@ jobs:
 
       - name: Enforce live-execution evidence gate
         id: evidence-gate
-        if: always()
+        if: always() && steps.actor_gate.outputs.run == 'true'
         run: |
           # Hard gate (issue-style fix for green-but-never-ran approvals): a
           # {"action":"maintainer"} verdict on a standard PR requires proof that
@@ -157,7 +182,7 @@ jobs:
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
       - name: Forward tester decision
-        if: always() && steps.evidence-gate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
           HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
