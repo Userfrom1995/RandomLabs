@@ -23,6 +23,15 @@ type Config struct {
 	ConfPath string
 	// Shell is the shell binary; defaults to $SHELL else /bin/sh.
 	Shell string
+	// ControlAddr is the instance control endpoint (host:port). Exported
+	// to the child as TORSHIM_CONTROL so a second terminal (or a command
+	// inside this shell) can address this session with
+	// `torshim newnym` / `torshim doctor` without root or guessing ports.
+	ControlAddr string
+	// CookiePath is the control cookie for ControlAddr, exported as
+	// TORSHIM_COOKIE. Same-user only: the cookie file is already
+	// readable by this uid, so exporting the path grants nothing new.
+	CookiePath string
 }
 
 // Banner renders the coverage banner printed on shell entry. The banner is
@@ -95,6 +104,12 @@ func Environ(base []string, cfg Config) []string {
 		env = append(env, kv)
 	}
 	env = append(env, "TORSHIM_ACTIVE=1", "TORSHIM_SOCKS="+cfg.SocksAddr)
+	if cfg.ControlAddr != "" {
+		env = append(env, "TORSHIM_CONTROL="+cfg.ControlAddr)
+	}
+	if cfg.CookiePath != "" {
+		env = append(env, "TORSHIM_COOKIE="+cfg.CookiePath)
+	}
 	if cfg.LibPath != "" {
 		env = append(env,
 			"LD_PRELOAD="+cfg.LibPath,

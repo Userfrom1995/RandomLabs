@@ -28,6 +28,33 @@ func TestBannerProxyMode(t *testing.T) {
 	}
 }
 
+func TestEnvironExportsControlEndpoint(t *testing.T) {
+	base := []string{
+		"PATH=/usr/bin",
+		"TORSHIM_CONTROL=127.0.0.1:1",
+		"TORSHIM_COOKIE=/tmp/stale.cookie",
+	}
+	cfg := Config{SocksAddr: "127.0.0.1:19050", ControlAddr: "127.0.0.1:19051", CookiePath: "/tmp/session.cookie"}
+	env := Environ(base, cfg)
+	joined := strings.Join(env, "\n")
+	for _, want := range []string{
+		"TORSHIM_CONTROL=127.0.0.1:19051",
+		"TORSHIM_COOKIE=/tmp/session.cookie",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("env missing %q:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "127.0.0.1:1\n") || strings.Contains(joined, "stale.cookie") {
+		t.Errorf("stale parent control endpoint leaked into child env:\n%s", joined)
+	}
+	// Sessions without a known endpoint export nothing: no empty keys.
+	plain := strings.Join(Environ([]string{"PATH=/usr/bin"}, Config{SocksAddr: "127.0.0.1:19050"}), "\n")
+	if strings.Contains(plain, "TORSHIM_CONTROL=") || strings.Contains(plain, "TORSHIM_COOKIE=") {
+		t.Errorf("endpoint keys must be absent when unknown:\n%s", plain)
+	}
+}
+
 func TestResolveShell(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
 	if got := ResolveShell(); got != "/bin/zsh" {
