@@ -9,16 +9,19 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/control"
+	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/doctor"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/lifecycle"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/perapp"
 	"github.com/Userfrom1995/RandomLabs/tor-cli/internal/shell"
@@ -60,6 +63,10 @@ func run(argv []string) int {
 		return cmdShell(rest)
 	case "status":
 		return cmdStatus(rest)
+	case "newnym":
+		return cmdNewnym(rest)
+	case "doctor":
+		return cmdDoctor(rest)
 	case "version", "--version", "-V":
 		return cmdVersion(rest)
 	case "connect":
@@ -80,7 +87,8 @@ func run(argv []string) int {
 
 func isCommand(s string) bool {
 	switch s {
-	case "run", "shell", "status", "version", "--version", "-V",
+	case "run", "shell", "status", "newnym", "doctor",
+		"version", "--version", "-V",
 		"connect", "disconnect", "repair", "help", "--help", "-h":
 		return true
 	}
@@ -91,14 +99,24 @@ func usage() {
 	fmt.Printf(`%s
 
 Usage:
-  torshim run [--tor BIN] [--timeout D] [--reuse] -- <app> [args...]
+  torshim run [-v] [--tor BIN] [--timeout D] [--reuse] -- <app> [args...]
   torshim <app> [args...]          same as run (shim on Linux, proxy env elsewhere)
-  torshim shell                    child shell routed through Tor
+  torshim shell [-v]               child shell routed through Tor
+  torshim newnym [--control ADDR] [--cookie PATH] [-v]
+                                   rotate circuits without restarting tor
+  torshim doctor [--json] [-v]     full health check (bootstrap, SOCKS, DNS,
+                                   exit IP, firewall, IPv6)
   sudo torshim connect [--backend auto|iptables|nft] [--tor-user USER]
   torshim disconnect               restore pre-connect networking (needs sudo)
   torshim repair                   clear stale rules/state (needs sudo)
-  torshim status [--json]          never claims protected when not
-  torshim version                  wrapper + tor + backend versions
+  torshim status [--json] [-v]     never claims protected when not
+  torshim version [-v]             wrapper + tor + backend versions
+
+-v / --verbose prints the session behind the command: endpoints, mode,
+circuit state, backend, and the tor notices.log tail. newnym and doctor
+address a persistent tor: --control, then TORSHIM_CONTROL (live shell or
+run session), then the system connect session, then 9051/9151; cookies
+via --cookie, TOR_COOKIE, TORSHIM_COOKIE, then conventional paths.
 
 Per-app routing uses torsocks on Linux (fail-closed shim) and proxy
 environment (socks5h, DNS exit-side when the app honors it) on macOS
@@ -117,6 +135,7 @@ type launchFlags struct {
 	torBin  string
 	timeout time.Duration
 	reuse   bool
+	verbose bool
 }
 
 func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error) {
@@ -124,6 +143,8 @@ func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error)
 	fs.StringVar(&lf.torBin, "tor", "tor", "tor executable")
 	fs.DurationVar(&lf.timeout, "timeout", 120*time.Second, "bootstrap wait budget")
 	fs.BoolVar(&lf.reuse, "reuse", false, "reuse a foreign tor if verifiable (default: private instance)")
+	fs.BoolVar(&lf.verbose, "verbose", false, "show endpoints, mode, circuit, backend, notices tail")
+	fs.BoolVar(&lf.verbose, "v", false, "same as --verbose")
 	if err := fs.Parse(args); err != nil {
 		return lf, nil, err
 	}
@@ -134,19 +155,36 @@ func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error)
 	return lf, rest, nil
 }
 
+// torSession is a ready tor plus everything --verbose reports about it.
+// Default is a private owned instance; --reuse attaches to a verifiable
+// foreign tor (no notices log, never stopped by us).
+type torSession struct {
+	socksAddr   string
+	controlAddr string
+	cookiePath  string
+	noticesPath string
+	backend     string
+	mode        string
+	cleanup     func()
+}
+
 // ensureTor returns a ready SOCKS endpoint plus a cleanup func. Default is a
 // private owned instance; --reuse attempts a verifiable foreign tor first.
-func ensureTor(lf launchFlags) (socksAddr string, cleanup func(), err error) {
+func ensureTor(lf launchFlags) (*torSession, error) {
+	backend := "torsocks LD_PRELOAD shim (Linux)"
+	if perapp.NeedsProxy() {
+		backend = "proxy environment socks5h (only honoring apps covered)"
+	}
 	if lf.reuse {
-		if addr, ok, rerr := tryReuse(lf); rerr != nil {
-			return "", nil, rerr
+		if sess, ok, rerr := tryReuse(lf, backend); rerr != nil {
+			return nil, rerr
 		} else if ok {
-			return addr, func() {}, nil
+			return sess, nil
 		}
 	}
 	in, err := lifecycle.Launch(lifecycle.Options{TorBinary: lf.torBin, Timeout: lf.timeout})
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	// Ctrl-C/SIGTERM during the app run must not orphan the owned tor.
 	sigCh := make(chan os.Signal, 1)
@@ -156,19 +194,60 @@ func ensureTor(lf launchFlags) (socksAddr string, cleanup func(), err error) {
 		in.Stop()
 		os.Exit(130)
 	}()
-	return in.SocksAddr(), func() {
-		signal.Stop(sigCh)
-		in.Stop()
+	return &torSession{
+		socksAddr:   in.SocksAddr(),
+		controlAddr: in.ControlAddr(),
+		cookiePath:  in.CookiePath,
+		noticesPath: in.NoticesPath(),
+		backend:     backend,
+		mode:        "private owned instance (launched by torshim, stopped on exit)",
+		cleanup: func() {
+			signal.Stop(sigCh)
+			in.Stop()
+		},
 	}, nil
+}
+
+// printVerboseSession reports the session behind a command to stderr:
+// endpoints, mode, backend, and the tor notices tail. It never fails the
+// command: every probe degrades to a parenthetical.
+func printVerboseSession(sess *torSession) {
+	fmt.Fprintln(os.Stderr, "[torshim verbose]")
+	fmt.Fprintf(os.Stderr, "mode: %s\n", sess.mode)
+	fmt.Fprintf(os.Stderr, "socks: %s\n", sess.socksAddr)
+	if sess.controlAddr != "" {
+		fmt.Fprintf(os.Stderr, "control: %s\n", sess.controlAddr)
+	}
+	if sess.cookiePath != "" {
+		fmt.Fprintf(os.Stderr, "cookie: %s\n", sess.cookiePath)
+	}
+	fmt.Fprintf(os.Stderr, "backend: %s\n", sess.backend)
+	fmt.Fprintln(os.Stderr, "notices (tail):")
+	if sess.noticesPath == "" {
+		fmt.Fprintln(os.Stderr, "  (foreign instance: no notices.log)")
+		return
+	}
+	lines, err := lifecycle.TailFile(sess.noticesPath, 5)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "  (unreadable: %v)\n", err)
+		return
+	}
+	if len(lines) == 0 {
+		fmt.Fprintln(os.Stderr, "  (notices.log not written yet)")
+		return
+	}
+	for _, ln := range lines {
+		fmt.Fprintf(os.Stderr, "  %s\n", ln)
+	}
 }
 
 // tryReuse reuses a foreign tor only when readiness is verifiable (cookie
 // auth succeeds and the binding gate passes). Unverifiable instances fail
 // closed instead of being trusted blindly.
-func tryReuse(lf launchFlags) (string, bool, error) {
+func tryReuse(lf launchFlags, backend string) (*torSession, bool, error) {
 	f, err := lifecycle.Detect(3 * time.Second)
 	if err != nil || f == nil {
-		return "", false, err
+		return nil, false, err
 	}
 	cookies := []string{os.Getenv("TOR_COOKIE")}
 	if home, herr := os.UserHomeDir(); herr == nil {
@@ -192,15 +271,21 @@ func tryReuse(lf launchFlags) (string, bool, error) {
 		break
 	}
 	if ctl == nil {
-		return "", false, fmt.Errorf("torshim: foreign tor found but readiness is unverifiable (no cookie auth); stop it or drop --reuse for a private instance")
+		return nil, false, fmt.Errorf("torshim: foreign tor found but readiness is unverifiable (no cookie auth); stop it or drop --reuse for a private instance")
 	}
 	defer ctl.Close()
 	deadline := time.Now().Add(lf.timeout)
 	if err := lifecycle.WaitReady(ctl, deadline, 500*time.Millisecond); err != nil {
-		return "", false, err
+		return nil, false, err
 	}
 	fmt.Fprintf(os.Stderr, "torshim: reusing foreign tor at %s (will not stop it)\n", f.SocksAddr)
-	return f.SocksAddr, true, nil
+	return &torSession{
+		socksAddr:   f.SocksAddr,
+		controlAddr: f.ControlAddr,
+		backend:     backend,
+		mode:        "reused foreign tor (verified, will not stop it)",
+		cleanup:     func() {},
+	}, true, nil
 }
 
 func cmdRun(args []string) int {
@@ -214,16 +299,19 @@ func cmdRun(args []string) int {
 		fs.Usage()
 		return exitUsage
 	}
-	socks, cleanup, err := ensureTor(lf)
+	sess, err := ensureTor(lf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitNotReady
 	}
-	defer cleanup()
+	defer sess.cleanup()
+	if lf.verbose {
+		printVerboseSession(sess)
+	}
 	if perapp.NeedsProxy() {
 		// macOS/Windows (M4): proxy-environment backend, no torsocks
 		// conf dir needed. Run prints the honest coverage note.
-		res, err := perapp.Run(socks, rest, nil, "")
+		res, err := perapp.Run(sess.socksAddr, rest, nil, "")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 			return exitError
@@ -236,7 +324,7 @@ func cmdRun(args []string) int {
 		return exitError
 	}
 	defer os.RemoveAll(confDir)
-	res, err := perapp.Run(socks, rest, nil, confDir)
+	res, err := perapp.Run(sess.socksAddr, rest, nil, confDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
@@ -254,13 +342,16 @@ func cmdShell(args []string) int {
 		fmt.Fprintln(os.Stderr, "torshim shell: takes no arguments")
 		return exitUsage
 	}
-	socks, cleanup, err := ensureTor(lf)
+	sess, err := ensureTor(lf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitNotReady
 	}
-	defer cleanup()
-	cfg := shell.Config{SocksAddr: socks}
+	defer sess.cleanup()
+	if lf.verbose {
+		printVerboseSession(sess)
+	}
+	cfg := shell.Config{SocksAddr: sess.socksAddr, ControlAddr: sess.controlAddr, CookiePath: sess.cookiePath}
 	if perapp.NeedsProxy() {
 		// macOS/Windows (M4): proxy env only, no DYLD/LSP shim.
 		// Spawn prints the coverage banner; nothing to probe.
@@ -278,7 +369,7 @@ func cmdShell(args []string) int {
 			return exitError
 		}
 		defer os.RemoveAll(confDir)
-		host, port := splitSocks(socks)
+		host, port := splitSocks(sess.socksAddr)
 		cpath := filepath.Join(confDir, "torsocks.conf")
 		if werr := perapp.WriteConf(cpath, host, port); werr != nil {
 			fmt.Fprintf(os.Stderr, "torshim: %v\n", werr)
@@ -326,8 +417,11 @@ func cmdStatus(args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	asJSON := fs.Bool("json", false, "machine-readable output")
 	ctlAddr := fs.String("control", "", "control endpoint (default 127.0.0.1:9051, fallback 9151)")
+	cookiePath := fs.String("cookie", "", "control cookie path (default: session env, then conventional paths)")
 	socksAddr := fs.String("socks", "", "SOCKS endpoint to probe")
 	sysDir := fs.String("state-dir", "", "system session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	verbose := fs.Bool("verbose", false, "add control diagnostics (version, circuits, traffic, listeners)")
+	fs.BoolVar(verbose, "v", false, "same as --verbose")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
@@ -342,12 +436,57 @@ func cmdStatus(args []string) int {
 		return exitOK
 	}
 	fmt.Print(status.RenderText(rep))
+	if *verbose {
+		printStatusVerbose(rep, *ctlAddr, *cookiePath)
+	}
 	return exitOK
+}
+
+// printStatusVerbose appends control diagnostics to a status report. Auth
+// uses the same cookie resolution as newnym/doctor, so `status --verbose`
+// works fully inside a torshim shell session. A locked control port is a
+// note, never a failure: the status above already stands on its own.
+func printStatusVerbose(rep status.Report, controlFlag, cookieFlag string) {
+	if !rep.Running || rep.ControlAddr == "" {
+		fmt.Fprintln(os.Stderr, "[torshim verbose] (no live control endpoint: no diagnostics)")
+		return
+	}
+	addr := rep.ControlAddr
+	if controlFlag != "" {
+		addr = controlFlag
+	}
+	_, source := doctor.ResolveControl(controlFlag)
+	ctl, err := control.Dial(addr, 5*time.Second)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] (control %s unreachable: %v)\n", addr, err)
+		return
+	}
+	defer ctl.Close()
+	if err := doctor.AuthAny(ctl, doctor.ResolveCookies(cookieFlag, source)); err != nil {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] (control state unreadable: %v)\n", err)
+		return
+	}
+	d, err := control.CollectDiagnostics(ctl)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] (diagnostics: %v)\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[torshim verbose]\n%s", indentLines(d.Text()))
+}
+
+func indentLines(s string) string {
+	var b strings.Builder
+	for _, ln := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		b.WriteString("  " + ln + "\n")
+	}
+	return b.String()
 }
 
 func cmdVersion(args []string) int {
 	fs := flag.NewFlagSet("version", flag.ContinueOnError)
 	torBin := fs.String("tor", "tor", "tor executable")
+	verbose := fs.Bool("verbose", false, "add live control-protocol fields when a tor answers")
+	fs.BoolVar(verbose, "v", false, "same as --verbose")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
@@ -358,8 +497,180 @@ func cmdVersion(args []string) int {
 	fmt.Printf("system-wide: %s\n", info.Syswide)
 	fmt.Printf("tor: %s\n", info.Tor)
 	fmt.Printf("torsocks: %s\n", info.Torsocks)
+	if *verbose {
+		printVersionVerbose()
+	}
 	fmt.Println(trademarkNote)
 	return exitOK
+}
+
+// printVersionVerbose adds the live control-protocol view (tor version as
+// the daemon reports it, bootstrap state). No reachable or authorized
+// endpoint is a note, never a failure: the binary versions stand alone.
+func printVersionVerbose() {
+	addr, source := doctor.ResolveControl("")
+	ctl, addr, err := dialControlChoices(addr, 5*time.Second)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] (no control endpoint answered: %v)\n", err)
+		return
+	}
+	defer ctl.Close()
+	if err := doctor.AuthAny(ctl, doctor.ResolveCookies("", source)); err != nil {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] (control state unreadable: %v)\n", err)
+		return
+	}
+	d, err := control.CollectDiagnostics(ctl)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] (diagnostics: %v)\n", err)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[torshim verbose] control %s:\n%s", addr, indentLines(d.Text()))
+}
+
+// dialControlChoices dials addr, or the conventional 9051/9151 pair when
+// addr is "". It returns the client and the endpoint that answered.
+func dialControlChoices(addr string, timeout time.Duration) (*control.Client, string, error) {
+	addrs := []string{addr}
+	if addr == "" {
+		addrs = []string{"127.0.0.1:9051", "127.0.0.1:9151"}
+	}
+	var firstErr error
+	for _, a := range addrs {
+		c, err := control.Dial(a, timeout)
+		if err == nil {
+			return c, a, nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return nil, "", firstErr
+}
+
+// cmdNewnym rotates the tor identity without restarting: SIGNAL NEWNYM
+// over the resolved control endpoint. It targets persistent tors (the
+// system connect session, a torshim shell session via TORSHIM_CONTROL, a
+// foreign tor, Tor Browser): per-app private instances exit with their
+// command, so there is nothing to signal there. Fail-closed throughout:
+// unreachable control, failed auth, a non-ready tor, and tor's own
+// rate limit are all reported instead of claimed.
+func cmdNewnym(args []string) int {
+	fs := flag.NewFlagSet("newnym", flag.ContinueOnError)
+	controlFlag := fs.String("control", "", "control endpoint (default: session env, system session, then 9051/9151)")
+	cookieFlag := fs.String("cookie", "", "control cookie path (default: session env, then conventional paths)")
+	timeout := fs.Duration("timeout", 10*time.Second, "control operation budget")
+	verbose := fs.Bool("verbose", false, "show endpoint and pre-rotation diagnostics")
+	fs.BoolVar(verbose, "v", false, "same as --verbose")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(os.Stderr, "torshim newnym: takes no positional arguments")
+		return exitUsage
+	}
+	addr, source := doctor.ResolveControl(*controlFlag)
+	ctl, addr, err := dialControlChoices(addr, *timeout)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: no tor control endpoint answered: %v\n", err)
+		return exitNotReady
+	}
+	defer ctl.Close()
+	cookies := doctor.ResolveCookies(*cookieFlag, source)
+	if err := doctor.AuthAny(ctl, cookies); err != nil {
+		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+		return exitNotReady
+	}
+	if !newnymReady(ctl) {
+		fmt.Fprintln(os.Stderr, "torshim: refusing NEWNYM: tor is not ready (no bootstrap + live circuit to rotate)")
+		return exitNotReady
+	}
+	if *verbose {
+		if d, derr := control.CollectDiagnostics(ctl); derr == nil {
+			fmt.Fprintf(os.Stderr, "[torshim verbose] control %s (%s):\n%s", addr, source, indentLines(d.Text()))
+		}
+	}
+	if err := ctl.Newnym(); err != nil {
+		if errors.Is(err, control.ErrRateLimited) {
+			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+			return exitError
+		}
+		fmt.Fprintf(os.Stderr, "torshim: identity rotation failed: %v\n", err)
+		return exitError
+	}
+	fmt.Printf("new identity requested via %s: tor closed old circuits and is building fresh ones (verify with torshim doctor)\n", addr)
+	return exitOK
+}
+
+// newnymReady is the single-shot readiness check before SIGNAL NEWNYM:
+// bootstrap 100% + done AND a usable circuit. Unlike WaitReady it never
+// polls: rotating a tor that cannot carry traffic would be a no-op claim.
+func newnymReady(ctl *control.Client) bool {
+	phase, err := ctl.GetOne("status/bootstrap-phase")
+	if err != nil {
+		return false
+	}
+	st := control.ParseBootstrapPhase(phase)
+	if st.Progress != 100 || st.Tag != "done" {
+		return false
+	}
+	if v, err := ctl.GetOne("status/circuit-established"); err == nil {
+		return control.ParseCircuitEstablished(v)
+	}
+	if dump, err := ctl.GetOne("circuit-status"); err == nil {
+		return control.HasBuiltCircuit(dump)
+	}
+	return false
+}
+
+// cmdDoctor runs the full health verdict and exits 0 when healthy, 3 when
+// any check fails (tor-side: fail-closed semantics), 2 on usage errors.
+func cmdDoctor(args []string) int {
+	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	controlFlag := fs.String("control", "", "control endpoint (default: session env, system session, then 9051/9151)")
+	cookieFlag := fs.String("cookie", "", "control cookie path (default: session env, then conventional paths)")
+	socksFlag := fs.String("socks", "", "SOCKS endpoint (default: derived from control)")
+	timeout := fs.Duration("timeout", 10*time.Second, "per-probe budget")
+	asJSON := fs.Bool("json", false, "machine-readable verdict")
+	verbose := fs.Bool("verbose", false, "show endpoint resolution")
+	fs.BoolVar(verbose, "v", false, "same as --verbose")
+	skipExit := fs.Bool("skip-exit-ip", false, "skip the egress fetch (offline runs)")
+	skipDNS := fs.Bool("skip-dns", false, "skip the DNSPort liveness query")
+	sysDir := fs.String("state-dir", "", "system session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if len(fs.Args()) != 0 {
+		fmt.Fprintln(os.Stderr, "torshim doctor: takes no positional arguments")
+		return exitUsage
+	}
+	addr, source := doctor.ResolveControl(*controlFlag)
+	cookies := doctor.ResolveCookies(*cookieFlag, source)
+	rep := doctor.Collect(doctor.Options{
+		ControlAddr: addr, CookiePaths: cookies, SocksAddr: *socksFlag,
+		Timeout: *timeout, SystemStateDir: *sysDir,
+		SkipExitIP: *skipExit, SkipDNS: *skipDNS,
+	}, doctor.DefaultDeps())
+	if *asJSON {
+		out, err := doctor.RenderJSON(rep)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
+			return exitError
+		}
+		fmt.Print(out)
+	} else {
+		fmt.Print(doctor.RenderText(rep))
+	}
+	if *verbose {
+		shown := addr
+		if shown == "" {
+			shown = "127.0.0.1:9051/9151"
+		}
+		fmt.Fprintf(os.Stderr, "[torshim verbose] control %s (%s, %d cookie candidate(s))\n", shown, source, len(cookies))
+	}
+	if rep.Healthy {
+		return exitOK
+	}
+	return exitNotReady
 }
 
 // syswideFlags are shared by connect/disconnect/repair.
@@ -367,6 +678,7 @@ type syswideFlags struct {
 	stateDir string
 	torBin   string
 	timeout  time.Duration
+	verbose  bool
 }
 
 func parseSyswide(fs *flag.FlagSet, args []string) (syswideFlags, error) {
@@ -374,6 +686,8 @@ func parseSyswide(fs *flag.FlagSet, args []string) (syswideFlags, error) {
 	fs.StringVar(&sf.torBin, "tor", "tor", "tor executable")
 	fs.DurationVar(&sf.timeout, "timeout", 120*time.Second, "bootstrap wait budget")
 	fs.StringVar(&sf.stateDir, "state-dir", "", "session dir (default /run/torshim or TORSHIM_STATEDIR)")
+	fs.BoolVar(&sf.verbose, "verbose", false, "show session dir and backend detail")
+	fs.BoolVar(&sf.verbose, "v", false, "same as --verbose")
 	if err := fs.Parse(args); err != nil {
 		return sf, err
 	}
@@ -422,6 +736,10 @@ func cmdConnect(args []string) int {
 	if rep.ResolvWarning != "" {
 		fmt.Printf("warning: %s\n", rep.ResolvWarning)
 	}
+	if o.verbose {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] session %s: socks 127.0.0.1:%d, control 127.0.0.1:%d, dns 127.0.0.1:%d, transparent %d, tor pid %d\n",
+			syswide.StateDir(), rep.State.SocksPort, rep.State.ControlPort, rep.State.DNSPort, rep.State.TransPort, rep.State.TorPid)
+	}
 	return exitOK
 }
 
@@ -431,6 +749,7 @@ type connectFlags struct {
 	backendName, torUser, stateDir, torBin string
 	timeout                                time.Duration
 	force                                  bool
+	verbose                                bool
 	transPort                              int
 }
 
@@ -441,6 +760,8 @@ func defineConnectFlags(fs *flag.FlagSet, o *connectFlags) {
 	fs.StringVar(&o.torBin, "tor", "tor", "tor executable")
 	fs.DurationVar(&o.timeout, "timeout", 120*time.Second, "bootstrap wait budget")
 	fs.BoolVar(&o.force, "force", false, "repair a stale session, then connect")
+	fs.BoolVar(&o.verbose, "verbose", false, "show session endpoints after connect")
+	fs.BoolVar(&o.verbose, "v", false, "same as --verbose")
 	fs.IntVar(&o.transPort, "trans-port", syswide.DefaultTransPort, "fixed transparent proxy port")
 }
 
@@ -499,6 +820,9 @@ func cmdDisconnect(args []string) int {
 	if rep.ResolvWarning != "" {
 		fmt.Printf("warning: %s\n", rep.ResolvWarning)
 	}
+	if sf.verbose {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] session dir %s\n", syswide.StateDir())
+	}
 	return exitOK
 }
 
@@ -523,6 +847,9 @@ func cmdRepair(args []string) int {
 	}
 	for _, a := range rep.Actions {
 		fmt.Printf("repair: %s\n", a)
+	}
+	if sf.verbose {
+		fmt.Fprintf(os.Stderr, "[torshim verbose] session dir %s\n", syswide.StateDir())
 	}
 	return exitOK
 }

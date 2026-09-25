@@ -163,10 +163,19 @@ func CollectDiagnostics(c *Client) (*Diagnostics, error) {
 			}
 		}
 	}
-	d.SocksListeners = optionalGetOne(c, "net/listeners/socks")
-	d.ControlListeners = optionalGetOne(c, "net/listeners/control")
-	d.DNSListeners = optionalGetOne(c, "net/listeners/dns")
+	d.SocksListeners = unquoteListener(optionalGetOne(c, "net/listeners/socks"))
+	d.ControlListeners = unquoteListener(optionalGetOne(c, "net/listeners/control"))
+	d.DNSListeners = unquoteListener(optionalGetOne(c, "net/listeners/dns"))
 	return d, nil
+}
+
+// unquoteListener strips the single layer of double quotes tor puts around
+// net/listeners values, so verbose output prints each listener once.
+func unquoteListener(v string) string {
+	if len(v) >= 2 && strings.HasPrefix(v, `"`) && strings.HasSuffix(v, `"`) {
+		return v[1 : len(v)-1]
+	}
+	return v
 }
 
 // HumanBytes renders a byte count for verbose output (deterministic,

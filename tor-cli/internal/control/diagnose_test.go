@@ -69,6 +69,9 @@ func TestCollectDiagnosticsFull(t *testing.T) {
 	if !strings.Contains(d.SocksListeners, "9050") {
 		t.Errorf("socks listeners = %q", d.SocksListeners)
 	}
+	if d.SocksListeners != "127.0.0.1:9050" {
+		t.Errorf("listener quotes must be stripped once, got %q", d.SocksListeners)
+	}
 	if !strings.Contains(d.DNSListeners, "9053") {
 		t.Errorf("dns listeners = %q", d.DNSListeners)
 	}
