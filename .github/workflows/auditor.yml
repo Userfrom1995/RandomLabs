@@ -108,7 +108,7 @@ jobs:
           echo "::error::Auditor step finished with outcome '$outcome' and no decision file (crashed before or during the agent run)."
 
           # Schedule/dispatch arms: bounded self-heal, never a silently burned
-          # 24-hour cron cycle. Regression-guarded by audit rule R8.
+          # 24-hour cron cycle. Regression-guarded by audit rule R9.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
             if bash .github/scripts/schedule-selfheal.sh auditor.yml "${{ inputs.selfheal_retry }}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."

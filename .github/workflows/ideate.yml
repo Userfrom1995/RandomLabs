@@ -85,7 +85,7 @@ jobs:
           echo "::error::Ideator step finished with outcome '$outcome' (crashed before or during the agent run)."
 
           # Dispatch/schedule arms: bounded self-heal instead of a silently
-          # lost dispatch. Regression-guarded by audit rule R8.
+          # lost dispatch. Regression-guarded by audit rule R9.
           if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
             if bash .github/scripts/schedule-selfheal.sh ideate.yml "${{ inputs.selfheal_retry }}"; then
               echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
