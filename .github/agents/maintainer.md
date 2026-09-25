@@ -96,7 +96,8 @@ Never forget the ultimate goal of the Random lab: we are a world-leading AI-gene
 ```
 
    - `review` → `/oc review (head <sha>)` - for PRs whose work looks complete
-     and whose push did not already trigger the automatic reviewer.
+     and whose current head does not already carry a `/oc review (head <sha>)`
+     comment (dedupe against existing comments, not against a push trigger).
    - `test` → `/oc test` - explicitly demand a QA and performance test from the Tester agent on a PR.
    - `research` → `/oc research` on an issue or PR - to trigger the Researcher for deep algorithmic design or scientific enhancements.
    - `architect` → `/oc architect` on an issue or PR - to trigger the Architect to design technical blueprints.
