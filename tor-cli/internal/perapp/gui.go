@@ -75,7 +75,16 @@ func LooksHeadless(argv []string) bool {
 		low := strings.ToLower(a)
 		if low == "--headless" || low == "-headless" ||
 			strings.HasPrefix(low, "--headless=") ||
-			low == "--screenshot" || low == "--dump-dom" || low == "--print-to-pdf" {
+			strings.HasPrefix(low, "-headless=") ||
+			low == "--screenshot" || low == "-screenshot" ||
+			strings.HasPrefix(low, "--screenshot=") ||
+			strings.HasPrefix(low, "-screenshot=") ||
+			low == "--dump-dom" || low == "-dump-dom" ||
+			strings.HasPrefix(low, "--dump-dom=") ||
+			strings.HasPrefix(low, "-dump-dom=") ||
+			low == "--print-to-pdf" || low == "-print-to-pdf" ||
+			strings.HasPrefix(low, "--print-to-pdf=") ||
+			strings.HasPrefix(low, "-print-to-pdf=") {
 			return true
 		}
 	}
