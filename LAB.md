@@ -396,17 +396,21 @@ step could abort a whole run in under 130 ms on an anonymous rate limit, before
 the agent ever started (issue #422), so the third-party `@latest` reference is
 gone from every workflow.
 
-The `schedule` and `workflow_dispatch` arms of `curator.yml`, `auditor.yml`,
-`ideate.yml`, and `lab.yml` share `.github/scripts/schedule-selfheal.sh`: when
-the agent step fails and no decision file was written, the run re-dispatches
-its own workflow exactly once (bounded `selfheal_retry` input), then escalates
-with `/oc maintainer` on the lab-health board at the cap. The counter and the
-forwarded issue number reach the shell only through `env:` mappings, never as
-an inline `${{ }}` expansion inside a `run:` block (audit R10). Comment arms keep
-their existing auto-retry caps; `opencode-recover.yml`'s schedule arm is the
-fully scripted 20-minute detector (no agent) and needs no such retry; the
-Maintainer's own schedule arm does not re-dispatch (its 2-hour heartbeat and
-`workflow_run` failure triage cover the next tick).
+The schedule arms (`curator.yml`, `auditor.yml`) and the dispatched arms
+(`curator.yml`, `auditor.yml`, `ideate.yml`, `lab.yml`) share
+`.github/scripts/schedule-selfheal.sh`: when the agent step fails and no
+decision file was written, the run re-dispatches its own workflow exactly once
+(bounded `selfheal_retry` input), then escalates with `/oc maintainer` on the
+lab-health board at the cap. The counter and the forwarded issue number reach
+the shell only through `env:` mappings, never as an inline `${{ }}` expansion
+inside a `run:` block (audit R10). The older comment arms keep their
+auto-retry caps (`opencode.yml`, `opencode-review.yml`, and the curator's
+comment arm); the newer comment arms (`auditor.yml`, `ideate.yml`, `lab.yml`)
+fail closed on purpose so the `workflow_run` failure trigger summons the
+Maintainer. `opencode-recover.yml`'s schedule arm is the fully scripted
+20-minute detector (no agent) and needs no such retry; the Maintainer's own
+schedule arm does not re-dispatch (its 2-hour heartbeat and `workflow_run`
+failure triage cover the next tick).
 
 ## 20. File map
 
@@ -419,7 +423,7 @@ docs/                          the lab's documentation site (docs/index.html)
 .github/agents/                prompt files + REGISTRY.md + decisions/ protocol
 .github/workflows/             the wiring above
 .github/actions/               the vendored opencode runner (composite action, issue #422)
-.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit, CI approval sweep, PR recovery
+.github/scripts/               shared CI scripts: schedule self-heal, silent-stall audit (R1-R11), CI approval sweep, PR recovery, trailer strip
 maintainer/logs branch         STATE.md · personality.md · logs/YYYY-MM-DD.md · REGISTRY.md mirror
 ```
 
@@ -516,7 +520,8 @@ catches up in seconds.
   whose version lookup is authenticated and non-fatal: one rate-limited API
   call degrades to the `latest` cache key instead of killing the run before
   the agent starts (`maintainer.yml` inlines the same hardened lookup).
-  The curator, auditor, ideator, and lab schedule/dispatch arms additionally
+  The schedule arms (`curator`, `auditor`) and the dispatched arms
+  (`curator`, `auditor`, `ideator`, `lab`) additionally
   self-heal once (`.github/scripts/schedule-selfheal.sh`) and escalate to
   `/oc maintainer` at the cap, so a crash never burns an entire cron cycle
   unnoticed. Dispatch inputs reach PAT-backed shell steps only as env data,
