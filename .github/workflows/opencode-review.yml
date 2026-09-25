@@ -108,6 +108,38 @@ jobs:
         if: steps.pr-info.outputs.is_pr == 'true'
         run: rm -f /tmp/random-lab-decision.json
 
+      - name: Restore the vendored runner when the checked-out head predates it
+        if: steps.pr-info.outputs.is_pr == 'true'
+        run: |
+          set -o pipefail
+          # Local `uses: ./.github/actions/opencode-run` resolves against this
+          # workspace (the PR head), never against the ref this workflow file was
+          # loaded from, so a branch forked before the runner was vendored dies
+          # before the agent starts with "Can't find 'action.yml' ... under
+          # .../opencode-run" - and the crash-parity verify step misreads that
+          # pre-start failure as a mid-stream agent crash, burning the whole
+          # auto-retry budget on a gate that never ran (issue #430). Restore the
+          # runner from this run's own workflow commit instead.
+          if [ -f .github/actions/opencode-run/action.yml ]; then
+            echo "Vendored runner present on the checked-out head; nothing to restore."
+            exit 0
+          fi
+          if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+            git fetch --quiet --depth=1 origin "${GITHUB_SHA}" 2>/dev/null || true
+          fi
+          if ! git cat-file -e "${GITHUB_SHA}:.github/actions/opencode-run/action.yml" 2>/dev/null; then
+            echo "::error::Vendored runner absent from the checked-out head and from workflow commit ${GITHUB_SHA}; the agent gate cannot run (fail closed)."
+            exit 1
+          fi
+          rm -rf .github/actions/opencode-run
+          git archive "${GITHUB_SHA}" -- .github/actions/opencode-run | tar -x
+          printf '%s\n' ".github/actions/opencode-run/" >> "$(git rev-parse --git-path info/exclude)"
+          if [ ! -f .github/actions/opencode-run/action.yml ]; then
+            echo "::error::Runner restore from ${GITHUB_SHA} did not yield action.yml (fail closed)."
+            exit 1
+          fi
+          echo "Restored .github/actions/opencode-run from workflow commit ${GITHUB_SHA}; the checked-out head predates the vendored runner."
+
       - name: Run opencode reviewer
         id: review
         if: steps.pr-info.outputs.is_pr == 'true'
