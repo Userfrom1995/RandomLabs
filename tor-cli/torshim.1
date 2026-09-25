@@ -1,4 +1,4 @@
-.TH TORSHIM 1 "September 2026" "torshim 0.4.0" "User Commands"
+.TH TORSHIM 1 "September 2026" "torshim 0.5.0" "User Commands"
 .SH NAME
 torshim \- lightweight launcher for the Tor network (unofficial)
 .SH SYNOPSIS
@@ -22,9 +22,16 @@ torshim \- lightweight launcher for the Tor network (unofficial)
 .RI [ options ]
 .br
 .B torshim status
-.RB [ --json ]
+.RB [ --json ] " [" -v ]
 .br
 .B torshim version
+.RB [ -v ]
+.br
+.B torshim newnym
+.RI [ options ]
+.br
+.B torshim doctor
+.RI [ options ]
 .SH DESCRIPTION
 torshim automates the existing
 .B tor
@@ -63,12 +70,26 @@ Needs sudo when a session exists. Idempotent.
 Clear stale rules and dead session records (needs sudo). Never
 flushes foreign rules.
 .TP
-.B status [--json]
-Report tor state. Never claims protected when not.
+.B status [--json] [-v]
+Report tor state. Never claims protected when not. With -v, append
+control diagnostics (version, circuits, traffic, listeners).
 .TP
-.B version
+.B version [-v]
 Print wrapper, platform, per-app mechanism, system-wide support, tor,
-and torsocks versions.
+and torsocks versions. With -v, add live control-protocol fields when
+a tor answers.
+.TP
+.B newnym
+Rotate circuits without restarting tor (SIGNAL NEWNYM against a
+persistent tor: --control, TORSHIM_CONTROL session export, system
+session, then 9051/9151). Refuses on unready tor (exit 3); tor's own
+rate limit surfaces honestly (exit 1, wait spelled out).
+.TP
+.B doctor
+Full health verdict: bootstrap, circuit, SOCKS, DNSPort, exit-IP
+egress, firewall, IPv6 (pass/fail/skip rows, exit 0 healthy, 3 not).
+Options: --json, -v, --control, --cookie, --socks, --state-dir,
+--skip-exit-ip, --skip-dns.
 .SH OPTIONS
 .TP
 .BI "--tor " BIN
@@ -89,6 +110,21 @@ unprivileged user for the system tor.
 .TP
 .B --force
 connect: repair a stale session, then connect.
+.TP
+.BR -v ", " --verbose
+Show the session behind the command: endpoints, mode, circuit,
+backend, notices tail (run/shell); diagnostics (status/version);
+session ports (connect) or session dir (disconnect/repair); endpoint
+resolution (doctor); pre-rotation diagnostics (newnym). To stderr,
+never changes the exit code.
+.TP
+.BI "--control " ADDR
+newnym/doctor/status: control endpoint (default: TORSHIM_CONTROL
+session export, system session record, then 9051/9151).
+.TP
+.BI "--cookie " PATH
+newnym/doctor/status: control cookie (default: TOR_COOKIE,
+TORSHIM_COOKIE, system session cookie, then conventional paths).
 .SH EXIT STATUS
 .TP
 .B 0
@@ -101,7 +137,8 @@ runtime or application failure.
 usage error.
 .TP
 .B 3
-tor not ready (fail-closed).
+tor not ready (fail-closed): bootstrap gated commands, newnym on an
+unready tor, and an unhealthy doctor verdict.
 .TP
 .B 4
 feature not available on this platform (system-wide routing on
