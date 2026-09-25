@@ -182,7 +182,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
-          MODEL: opencode/muse-spark-1.2-contributor-free
+          MODEL: opencode/muse-spark-1.3-contributor-free
           USE_GITHUB_TOKEN: "true"
           PROMPT: |
             You are the lab Maintainer (Hephaestus) on the Random repo, in a scheduled/dispatched/event run.
