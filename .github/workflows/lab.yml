@@ -14,6 +14,11 @@ on:
         required: false
         default: "/oc lab"
         type: string
+      selfheal_retry:
+        description: "Bounded dispatch self-heal attempt counter (written by .github/scripts/schedule-selfheal.sh; empty on the original run)"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: lab-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
@@ -51,7 +56,7 @@ jobs:
         id: opencode
         continue-on-error: true
         timeout-minutes: 60
-        uses: anomalyco/opencode/github@latest
+        uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -73,6 +78,46 @@ jobs:
             - You never post "/oc" comments directly. Write your structured machine decision to `/tmp/random-lab-decision.json`:
               `{"action": "review"}` when PR is ready, or `{"action": "maintainer"}` when Hephaestus should retry/triage.
             - NO EM DASHES anywhere in commits, comments, or documentation.
+
+      - name: Verify lab engineer decided, else self-heal on dispatch
+        id: verify-decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          outcome="${{ steps.opencode.outcome }}"
+          event_name="${{ github.event_name }}"
+
+          # Crash-parity (issue #422 B): a healthy lab run ALWAYS writes the
+          # decision file as its final act, so "no decision file + failed
+          # agent step" is exactly the pre-agent or mid-stream crash signature.
+          # Without this gate a crashed agent run stayed green while its push
+          # step pushed nothing (phantom success, work silently lost).
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Lab decision file present; run completed and decided."
+            exit 0
+          fi
+
+          if [ "$outcome" = "success" ]; then
+            echo "::error::Lab step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+            exit 1
+          fi
+
+          echo "::error::Lab step finished with outcome '$outcome' and no decision file (crashed before or during the agent run)."
+
+          # Dispatch arm: bounded self-heal, forwarding the target issue so the
+          # retry run still knows what to work on. Regression-guarded by audit rule R8.
+          if [ "$event_name" = "workflow_dispatch" ]; then
+            if bash .github/scripts/schedule-selfheal.sh lab.yml "${{ inputs.selfheal_retry }}" "issue_number=${{ inputs.issue_number }}"; then
+              echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
+              exit 0
+            fi
+            exit 1
+          fi
+
+          # issue_comment arm: fail closed so the workflow_run failure trigger
+          # summons the Maintainer.
+          exit 1
 
       - name: Strip owner Co-authored-by trailers from the PR branch
         if: always()

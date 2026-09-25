@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
+    inputs:
+      selfheal_retry:
+        description: "Bounded schedule/dispatch self-heal attempt counter (written by .github/scripts/schedule-selfheal.sh; empty on the original run)"
+        required: false
+        default: ""
+        type: string
   issue_comment:
     types: [created]
 
@@ -45,7 +51,7 @@ jobs:
         id: curator
         continue-on-error: true
         timeout-minutes: 60
-        uses: anomalyco/opencode/github@latest
+        uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -113,8 +119,21 @@ jobs:
             exit 1
           fi
 
-          # On schedule or workflow_dispatch, fail closed immediately so Maintainer failure triage catches it:
-          echo "::error::Curator scheduled/dispatch run crashed or wrote no decision file; failing closed so Maintainer triage triggers."
+          # Schedule/dispatch arms (issue #422 B): bounded self-heal instead of
+          # burning the whole 6-hour cron cycle on one pre-agent crash.
+          # schedule-selfheal.sh re-dispatches this workflow ONCE, then
+          # escalates to the Maintainer on the lab-health board at the cap.
+          # Regression-guarded by rule R8 in silent-stall-audit.sh.
+          if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
+            if bash .github/scripts/schedule-selfheal.sh curator.yml "${{ inputs.selfheal_retry }}"; then
+              echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
+              exit 0
+            fi
+            exit 1
+          fi
+
+          # Any other trigger: fail closed so Maintainer failure triage catches it:
+          echo "::error::Curator run crashed or wrote no decision file; failing closed so Maintainer triage triggers."
           exit 1
 
       - name: Forward curator decision
