@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -99,7 +100,7 @@ func usage() {
 	fmt.Printf(`%s
 
 Usage:
-  torshim run [-v] [--tor BIN] [--timeout D] [--reuse] -- <app> [args...]
+  torshim run [-v] [--tor BIN] [--timeout D] [--reuse] [--detach|--wait] [--log-file PATH] [--acknowledge-gui-risks] -- <app> [args...]
   torshim <app> [args...]          same as run (shim on Linux, proxy env elsewhere)
   torshim shell [-v]               child shell routed through Tor
   torshim newnym [--control ADDR] [--cookie PATH] [-v]
@@ -121,6 +122,12 @@ via --cookie, TOR_COOKIE, TORSHIM_COOKIE, then conventional paths.
 Per-app routing uses torsocks on Linux (fail-closed shim) and proxy
 environment (socks5h, DNS exit-side when the app honors it) on macOS
 and Windows - only apps honoring proxy env are covered there.
+GUI browsers (firefox, falkon, chromium, chrome) are long-lived: launch
+them detached (run --detach -- <browser>; on macOS/Windows also add
+--acknowledge-gui-risks for the partial-coverage contract) so the
+prompt returns at once. Headless runs (--headless, --screenshot,
+--dump-dom) stay on the wait path like CLI tools. --wait selects
+the wait path explicitly; --log-file PATH captures detached output.
 System-wide connect/disconnect is Linux-only (iptables/nft); macOS and
 Windows system-wide needs a tun2socks backend (not shipped) and refuses honestly.
 While connected, TCP goes through Tor, DNS resolves through Tor,
@@ -136,6 +143,14 @@ type launchFlags struct {
 	timeout time.Duration
 	reuse   bool
 	verbose bool
+	// detach selects the GUI supervision path (Start plus Release,
+	// prompt returns at once with the child PID). wait forces the CLI
+	// supervision path explicitly. logFile captures detached child
+	// output; ackGUI opts into the partial proxy coverage contract.
+	detach  bool
+	wait    bool
+	logFile string
+	ackGUI  bool
 }
 
 func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error) {
@@ -145,6 +160,10 @@ func parseLaunch(fs *flag.FlagSet, args []string) (launchFlags, []string, error)
 	fs.BoolVar(&lf.reuse, "reuse", false, "reuse a foreign tor if verifiable (default: private instance)")
 	fs.BoolVar(&lf.verbose, "verbose", false, "show endpoints, mode, circuit, backend, notices tail")
 	fs.BoolVar(&lf.verbose, "v", false, "same as --verbose")
+	fs.BoolVar(&lf.detach, "detach", false, "GUI path: release the child, return the prompt at once with its PID")
+	fs.BoolVar(&lf.wait, "wait", false, "CLI path: block until the child exits (default)")
+	fs.StringVar(&lf.logFile, "log-file", "", "detached child stdout/stderr target (detach mode only)")
+	fs.BoolVar(&lf.ackGUI, "acknowledge-gui-risks", false, "accept partial proxy coverage for GUI apps on macOS/Windows")
 	if err := fs.Parse(args); err != nil {
 		return lf, nil, err
 	}
@@ -299,6 +318,17 @@ func cmdRun(args []string) int {
 		fs.Usage()
 		return exitUsage
 	}
+	if lf.detach && lf.wait {
+		fmt.Fprintln(os.Stderr, "torshim run: --detach and --wait are mutually exclusive")
+		return exitUsage
+	}
+	if lf.logFile != "" && !lf.detach {
+		fmt.Fprintln(os.Stderr, "torshim run: --log-file needs --detach (wait-mode output streams to the terminal)")
+		return exitUsage
+	}
+	if code, ok := gateGUILaunch(rest, lf); !ok {
+		return code
+	}
 	sess, err := ensureTor(lf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
@@ -308,13 +338,17 @@ func cmdRun(args []string) int {
 	if lf.verbose {
 		printVerboseSession(sess)
 	}
+	opts := perapp.LaunchOptions{Detach: lf.detach, LogFile: lf.logFile}
 	if perapp.NeedsProxy() {
 		// macOS/Windows (M4): proxy-environment backend, no torsocks
 		// conf dir needed. Run prints the honest coverage note.
-		res, err := perapp.Run(sess.socksAddr, rest, nil, "")
+		res, err := perapp.RunProxyWithOptions(sess.socksAddr, rest, nil, opts)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 			return exitError
+		}
+		if res.Detached {
+			printDetached(sess, rest[0], res.PID, lf.logFile)
 		}
 		return res.ExitCode
 	}
@@ -324,12 +358,72 @@ func cmdRun(args []string) int {
 		return exitError
 	}
 	defer os.RemoveAll(confDir)
-	res, err := perapp.Run(sess.socksAddr, rest, nil, confDir)
+	res, err := perapp.RunWithOptions(sess.socksAddr, rest, nil, confDir, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "torshim: %v\n", err)
 		return exitError
 	}
+	if res.Detached {
+		printDetached(sess, rest[0], res.PID, lf.logFile)
+	}
 	return res.ExitCode
+}
+
+// gateGUILaunch enforces the GUI supervision contract before any tor is
+// started: interactive GUI browsers must take the detach path (the old
+// bare wait is what hung forever), and proxy-backend GUI launches must
+// additionally carry the explicit coverage acknowledgment. Headless
+// browsers bypass the gate and run like CLI tools. Failures are usage
+// errors (exit 2): nothing was launched, no tor was started.
+func gateGUILaunch(rest []string, lf launchFlags) (int, bool) {
+	bin := rest[0]
+	resolved := bin
+	if !strings.Contains(bin, string(os.PathSeparator)) {
+		if lp, lerr := lookPath(bin); lerr == nil {
+			resolved = lp
+		} else {
+			return exitOK, true // let Run report "not found on PATH"
+		}
+	}
+	if perapp.ClassifyLaunch(resolved, resolveArgv(resolved, rest)) != perapp.ClassGUI {
+		return exitOK, true
+	}
+	name, _ := perapp.GUIAppName(resolved)
+	if name == "" {
+		name = bin
+	}
+	if !lf.detach {
+		fmt.Fprintf(os.Stderr, "torshim: %s is a long-lived GUI app: re-run with torshim run --detach -- %s so the prompt returns at once (headless runs with --headless stay on the wait path)\n", name, strings.Join(rest, " "))
+		return exitUsage, false
+	}
+	if perapp.NeedsProxy() && !lf.ackGUI {
+		fmt.Fprintf(os.Stderr, "torshim: %s on this OS uses proxy env with partial coverage (only honoring connections routed; GPU/D-Bus/single-instance IPC bypass Tor): re-run adding --acknowledge-gui-risks, or use Tor Browser for fingerprint-sensitive browsing\n", name)
+		return exitUsage, false
+	}
+	return exitOK, true
+}
+
+// lookPath is a thin indirection over exec.LookPath so tests can stub
+// binary resolution without touching PATH.
+var lookPath = exec.LookPath
+
+func resolveArgv(resolved string, rest []string) []string {
+	out := make([]string, len(rest))
+	out[0] = resolved
+	copy(out[1:], rest[1:])
+	return out
+}
+
+// printDetached reports a released GUI child: PID, route, and log
+// target. The parent exits 0 once the child has survived the alive
+// poll; the browser keeps running under Tor routing.
+func printDetached(sess *torSession, app string, pid int, logFile string) {
+	target := "discarded (use --log-file to capture)"
+	if logFile != "" {
+		target = logFile
+	}
+	fmt.Printf("launched %s (pid %d) detached via %s; prompt returned; SOCKS %s; output: %s\n",
+		app, pid, sess.backend, sess.socksAddr, target)
 }
 
 func cmdShell(args []string) int {
