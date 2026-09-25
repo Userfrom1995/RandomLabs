@@ -147,6 +147,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
+          # In-shell defense in depth (audit R11): even if the step-level gate
+          # above were deleted or loosened, a run without a written decision
+          # file must never rewrite local history.
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file: agent never completed; skipping trailer strip (no push will follow)."
+            exit 0
+          fi
           set +e
           branch=$(git branch --show-current 2>/dev/null || echo "")
           if [ -n "$branch" ] && [ "$branch" != "main" ]; then
@@ -172,6 +179,15 @@ jobs:
           # block must never interpolate ${{ inputs.* }} - see decision-gate above.
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
         run: |
+          # In-shell defense in depth (audit R11): `if: always()` on this step
+          # bypasses the implicit success() gate, so without this check a run
+          # whose agent crashed would still auto-commit, push with the owner
+          # PAT, and open an unreviewed PR. No decision file means the agent
+          # never completed: no remote mutation of any kind.
+          if [ ! -f /tmp/random-lab-decision.json ]; then
+            echo "No decision file: agent never completed; skipping remote mutation (no branch push, no main push, no PR creation)."
+            exit 0
+          fi
           # Remove actions/checkout credential injection so the PAT URL actually authenticates:
           # checkout v6 stores the App-token extraheader in $RUNNER_TEMP/git-credentials-*.config,
           # referenced via includeIf.gitdir:* entries; a plain unset of http.extraheader cannot remove it.
