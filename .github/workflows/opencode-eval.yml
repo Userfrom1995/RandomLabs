@@ -61,6 +61,7 @@ jobs:
 
       - name: Read deliverable context
         id: context
+        if: steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
