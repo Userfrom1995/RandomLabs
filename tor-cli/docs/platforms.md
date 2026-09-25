@@ -52,8 +52,8 @@ Surveyed so the wrapper complements rather than duplicates:
   next backend project if system-wide ever leaves Linux.
 - **GUI apps** (Firefox, Falkon, Chromium): long-lived multiprocess
   binaries. The synchronous `run` path blocks on them; the dedicated
-  detach/wait launch split is tracked separately (epic Phase 3), not
-  papered over here.
+  detach/wait launch split is tracked separately as GUI launch
+  reliability work, not papered over here.
 
 ## Portability rules for contributors
 

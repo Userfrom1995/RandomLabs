@@ -907,6 +907,18 @@ sudo torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
         <p>What each layer proves (hermetic suites, bounded control-protocol fuzz, CLI honesty probes, best-effort live tor), what stays out of CI and why, plus the manual root checklist.</p>
         <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/reproducibility.md">View on GitHub</a></p>
       </div>
+      <div class="card doc-card">
+        <span class="kind">diagnostics</span>
+        <a class="doc-title" href="./docs/diagnostics.md">CLI diagnostics</a>
+        <p>What tor is doing right now without restarting anything: <code>--verbose</code> session reports, <code>newnym</code> circuit rotation, and the graded <code>doctor</code> health checks with the exit-code contract.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/diagnostics.md">View on GitHub</a></p>
+      </div>
+      <div class="card doc-card">
+        <span class="kind">platforms</span>
+        <a class="doc-title" href="./docs/platforms.md">Cross-platform notes</a>
+        <p>The per-OS capability matrix (Linux, macOS, Windows), the honest gaps on each platform, and the portability rules contributors must follow.</p>
+        <p><a href="https://github.com/Userfrom1995/RandomLabs/blob/main/tor-cli/docs/platforms.md">View on GitHub</a></p>
+      </div>
     </div>
     <div class="grid-2" style="margin-top:16px">
       <div class="card doc-card">
@@ -917,7 +929,7 @@ sudo torshim disconnect   <span class="c"># restore, byte-exact</span></pre>
       <div class="card doc-card">
         <span class="kind">project record</span>
         <a class="doc-title" href="https://github.com/Userfrom1995/RandomLabs/issues/387">Issue #387</a>
-        <p>The build record: interface contract, hard requirements, acceptance gates, and the research-to-hardening pipeline that shipped torshim 0.4.0.</p>
+        <p>The build record: interface contract, hard requirements, acceptance gates, and the research-to-hardening pipeline that shipped torshim 0.4.0 (current release: 0.5.0 with CLI diagnostics).</p>
       </div>
     </div>
   </section>
