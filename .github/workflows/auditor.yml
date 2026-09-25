@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: '0 0 * * *' # Run daily at midnight UTC
   workflow_dispatch:
+    inputs:
+      selfheal_retry:
+        description: "Bounded schedule/dispatch self-heal attempt counter (written by .github/scripts/schedule-selfheal.sh; empty on the original run)"
+        required: false
+        default: ""
+        type: string
   issue_comment:
     types: [created]
 
@@ -40,12 +46,12 @@ jobs:
       - name: Clear runtime decision
         run: rm -f /tmp/random-lab-decision.json
 
-      - name: Silent-stall regression audit (R1-R7)
+      - name: Silent-stall regression audit (R1-R9)
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          chmod +x .github/scripts/silent-stall-audit.sh
+          chmod +x .github/scripts/silent-stall-audit.sh .github/scripts/schedule-selfheal.sh
           health_issue=""
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             health_issue=$(gh api "repos/${{ github.repository }}/issues?state=open&labels=lab-health" --jq '.[0].number' 2>/dev/null || echo "")
@@ -53,8 +59,10 @@ jobs:
           .github/scripts/silent-stall-audit.sh ".github/workflows/opencode.yml" "${health_issue}"
 
       - name: Run auditor agent
+        id: auditor
+        continue-on-error: true
         timeout-minutes: 60
-        uses: anomalyco/opencode/github@latest
+        uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -72,6 +80,46 @@ jobs:
             - You NEVER post `/oc fix`, `/oc build this`, or `/oc architect`.
             - Before ending the run, you MUST write your structured machine handoff decision to `/tmp/random-lab-decision.json`: `[{"action": "maintainer", "issue": <new_issue_number>}]` for each opened bug issue, or `[{"action": "maintainer"}]` to notify on the health board. The hardcoded workflow step reads this file and posts `/oc maintainer` with owner PAT.
             - You must always leave a daily report on the universal "Lab Health & Audit Logs" issue (create it with label `lab-health` if missing).
+
+      - name: Verify auditor decided, else self-heal on schedule/dispatch
+        id: verify-decision
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+        run: |
+          outcome="${{ steps.auditor.outcome }}"
+          event_name="${{ github.event_name }}"
+
+          # Crash-parity with the curator/review gates: a healthy auditor
+          # ALWAYS writes the decision file as its final act, so "no decision
+          # file + failed agent step" is exactly the pre-agent or mid-stream
+          # crash signature (issue #422: the upstream version-fetch step
+          # aborting on an anonymous rate limit before the agent ever starts).
+          if [ -f /tmp/random-lab-decision.json ]; then
+            echo "Auditor decision file present; run completed and decided."
+            exit 0
+          fi
+
+          if [ "$outcome" = "success" ]; then
+            echo "::error::Auditor step reported success but wrote no decision file (silent no-op); failing loudly instead of exiting green."
+            exit 1
+          fi
+
+          echo "::error::Auditor step finished with outcome '$outcome' and no decision file (crashed before or during the agent run)."
+
+          # Schedule/dispatch arms: bounded self-heal, never a silently burned
+          # 24-hour cron cycle. Regression-guarded by audit rule R8.
+          if [ "$event_name" = "schedule" ] || [ "$event_name" = "workflow_dispatch" ]; then
+            if bash .github/scripts/schedule-selfheal.sh auditor.yml "${{ inputs.selfheal_retry }}"; then
+              echo "Self-heal re-dispatch queued; run concludes green (the retry run carries the work)."
+              exit 0
+            fi
+            exit 1
+          fi
+
+          # issue_comment arm: fail closed so the workflow_run failure
+          # trigger summons the Maintainer.
+          exit 1
 
       - name: Forward auditor decision
         if: always()
