@@ -41,6 +41,7 @@ func SummarizeCircuits(dump string) CircuitSummary {
 		}
 		fields := strings.Fields(ln)
 		if len(fields) < 2 {
+			s.Total++
 			s.Other++
 			continue
 		}
