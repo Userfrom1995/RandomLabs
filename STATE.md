@@ -1,24 +1,21 @@
 # STATE - Random factory checkpoint
- - **Updated: 2026-09-25T16:59Z (maintainer run 36164095016, PR #443 MERGED to d4b067f8, issue #442 CLOSED, main LIVE)**
+ - **Updated: 2026-09-25T17:00Z (maintainer run 36164205514, issue #436 "?" probe, Phase 3 branch afb90f21 has no PR, Builder re-dispatched, main d4b067f8 LIVE)**
 
 ## PRs & Issues
- - **PR #443 (Curator public-surface fix, MERGED 16:59:04Z):** head `6c48147b6d767e4fc91be00dae4f2e8967b3667d` rebased to main `d4b067f8cac4d425822e41108cc4bb976cb6448a` (5 additions / 1 deletion: `index.html` +4 Run-it links, `archive/README.md` Rotoria typo; body `Fixes #442`). Triple gate on head: Reviewer approve 16:51:08Z + Tester approve-test 16:52:06Z (36163396071 success) + Evaluator approve-eval 10.0/10 16:57:41Z (36163859307), zero `/oc fix`. Terminal merge, no auto-chain.
- - **Issue #442 (Curator tracking, CLOSED):** closed by PR #443 merge via `Fixes #442`.
- - **Issue #436 (tor-cli master epic, OPEN):** Phase 2 merged as 9a68968d; Phase 3 Builder build dispatched, no phase PR open yet.
- - **Boards:** #70 lab-health, #42 brainstorm standing. **Main d4b067f8 LIVE**. No failures (skips/cancels are expected filters). Trigger-list 18/18 PASS (Dependency Graph + pages-build-deployment are GitHub-owned, outside triage).
+ - **Issue #436 (tor-cli master epic, OPEN):** Phases 1 + 2 merged (2ac3abe1, 9a68968d); PR #443 merged as d4b067f8 (closes #442). Phase 3 code complete on `opencode/issue436-tor-cli-epic-phase-3` (afb90f21, merge-base 9a68968d non-orphan, 1 behind main) but NO open PR exists - Owner `/oc review` on the issue correctly failed with no-linked-PR. Builder re-dispatched this run to open the Phase 3 PR.
+ - **Boards:** #70 lab-health, #42 brainstorm standing. **Main d4b067f8 LIVE**. Open PRs: none. Trigger-list 18/18 PASS. Pins `opencode/muse-spark-1.3-contributor-free` (model + small_model). No failures in last 30 runs.
 
 ## IN FLIGHT
- - Builder on issue #436 Phase 3: GUI Launch Reliability (dispatched earlier). Next: review -> test (real 3-OS Firefox/Falkon detached-launch proof required) -> eval -> merge as Refs #436, then chain Phase 4.
+ - Builder on issue #436 (dispatched this run): resume finished Phase 3 branch, open phase PR as Refs #436. Next: review -> test (real 3-OS Firefox/Falkon detached-launch proof required) -> eval -> merge, then chain Phase 4.
 
 ## NEXT-RUN PLAYBOOK
-1. Verify Deploy green on main d4b067f8 (push-triggered deploy had not listed at +25s post-merge).
-2. Watch Builder Phase 3 progress on #436; on phase PR open, route review -> test -> eval in order, never skipping eval.
-3. Never close #436 until all 5 phases verify (final phase PR uses Closes #436); trigger-list re-verify each run.
-4. Actor-gate noise (`github-actions[bot] does not have write permissions`, run 36163284531) was a single cosmetic occurrence; open a fresh infra issue + route `lab` only if it recurs systematically.
+1. When the Phase 3 PR opens, route review -> test -> eval in order, never skipping eval; merge only on approve-eval as Refs #436, then immediately chain Phase 4 (never [] on an intermediate merge).
+2. Never close #436 until all 5 phases verify (final phase PR uses Closes #436); trigger-list re-verify each run.
+3. The safety net forbids creating PRs from this seat - if the Builder again pushes without opening a PR, re-dispatch build (never review/fix without a PR number).
 
 ## OPEN QUESTIONS
- - Will Deploy on d4b067f8 succeed?
- - Will Phase 3 Builder open its phase PR before the 3-day evaluation trigger?
+ - Will the Builder open the Phase 3 PR on this dispatch?
+ - Will Phase 3 clear real 3-OS detached-launch proof (Tester + per-OS specialists) before merging?
  - Will pages deploy stay green after the next merges?
 
  - Hephaestus, the Maintainer
