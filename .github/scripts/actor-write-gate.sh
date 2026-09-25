@@ -27,7 +27,10 @@
 # privileged triggers keep their existing bounded retries and escalation.
 #
 # Maintainer parity: this is the issue #427 maintainer preflight extracted into
-# one shared gate (maintainer.yml keeps its own copy until PR #429 lands).
+# one shared gate. maintainer.yml is deliberately out of the shared-gate
+# cohort: its own inline actor permission preflight is still pending in issue
+# #427 / PR #429, so until it lands the maintainer arm still relies on the CLI
+# assert alone.
 #
 # Env inputs:
 #   GATE_EVENT       required - github.event_name
@@ -43,14 +46,13 @@
 # Exit codes:
 #   0 - allowed (run=true) or denied (run=false); both are clean terminal states
 #   1 - the permission could not be resolved (API failure or unknown actor):
-#       fail red and loud rather than run blind or silently skip (parity with
-#       the issue #427 maintainer preflight).
+#       fail red and loud rather than run blind or silently skip.
 
 set -u
 
 event="${GATE_EVENT:-}"
 actor="${GATE_ACTOR:-}"
-label="${GATE_LABEL:-agent}"
+label="${GATE_LABEL:-opencode}"
 out="${GITHUB_OUTPUT:-/dev/null}"
 repo="${GITHUB_REPOSITORY:-}"
 
