@@ -123,6 +123,10 @@ fi
 # snapshot captured at run START, so any push that landed while a review was
 # still running (Fixer, Builder, owner) was silently reverted when the run
 # ended - that is exactly how PR #412 lost 13 Fixer commits.
+# The gate needs THREE properties: a local-ref ownership test, a lease, and the
+# pre-push marker. The marker is what closes the proxy hole - a local ref alone
+# is advanced by a plain `git pull --ff-only` / `git reset --hard origin/<b>`
+# that never pushed, so ref movement by itself still rewinds external work.
 REVIEW_WF="$(dirname "$WF")/opencode-review.yml"
 restore_block=""
 if [ -f "$REVIEW_WF" ]; then
@@ -133,11 +137,14 @@ if [ -z "$restore_block" ]; then
 else
   owns_local=$(printf '%s\n' "$restore_block" | grep -c 'rev-parse --verify "refs/heads/' || true)
   leased=$(printf '%s\n' "$restore_block" | grep -c -- '--force-with-lease' || true)
-  bare_force=$(printf '%s\n' "$restore_block" | grep -cE 'git push --force origin' || true)
-  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
-    check "R7" "review restore gates on this workspace's own head movement and pushes with a lease (PR #412 rewind guard)" "ok"
+  marker=$(printf '%s\n' "$restore_block" | grep -c 'review-workspace-pushed' || true)
+  # Bare force push in any argument order: `git push --force origin`,
+  # `git push origin --force`, or a trailing bare `git push --force`.
+  bare_force=$(printf '%s\n' "$restore_block" | grep -cE 'git push[^|&;]*--force([^-]|$)' || true)
+  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$marker" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
+    check "R7" "review restore gates on this workspace's own push (marker + local ref) and pushes with a lease (PR #412 rewind guard)" "ok"
   else
-    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}) or lease (=${leased}), or force-pushes bare (=${bare_force})" "bad"
+    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}), lease (=${leased}), push marker (=${marker}), or force-pushes bare (=${bare_force})" "bad"
   fi
 fi
 
