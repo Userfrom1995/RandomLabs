@@ -801,7 +801,11 @@ jobs:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
           new_sha=$(git ls-remote origin main | awk '{print $1}')
-          if [ "${{ steps.pre_agent.outputs.sha }}" != "$new_sha" ] && [ -n "$new_sha" ]; then
+          # An empty pre-SHA means the pre-agent record step never ran (an
+          # earlier hard failure, e.g. the issue #427 preflight going red):
+          # with no baseline, "advanced" is unprovable, so never dispatch -
+          # same fail-closed posture as the integrity guard below.
+          if [ -n "${{ steps.pre_agent.outputs.sha }}" ] && [ "${{ steps.pre_agent.outputs.sha }}" != "$new_sha" ] && [ -n "$new_sha" ]; then
             echo "Main branch advanced from ${{ steps.pre_agent.outputs.sha }} to $new_sha. Triggering pages.yml."
             gh workflow run pages.yml --repo "${{ github.repository }}" || true
           else
