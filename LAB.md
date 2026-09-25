@@ -84,12 +84,12 @@ Public Surface / Web Track:                                              │
 - **The Curator Track**: The Curator operates on a recurring 6-hour schedule, dispatch, or via `/oc curate`. It audits the entire GitHub Pages website and root `README.md`. When defects are found, it opens a tracking issue, creates a dedicated branch (`opencode/issue<issue>-curate-...`), commits surgical fixes with prefix `curate:`, opens a PR referencing `Fixes #<issue>`, and hands off directly to the Reviewer (`/oc review`). If structural maintainer escalation is required, it notifies Hephaestus (`/oc maintainer`).
 - **Peer Handoffs**: Each agent knows its role in the pipeline and hands off work directly to its teammates via the workflow decision forwarder.
 - **Queued Execution**: The lab's pipeline workflows (`opencode*.yml`,
-  `maintainer.yml`, `lab.yml`, `curator.yml`, `auditor.yml`) all set
-  `cancel-in-progress: false`, so trigger events queue up sequentially and
-  in-flight builds, reviews, tests, and maintainer merges finish cleanly
-  without being cancelled mid-run. Superseding-only workflows (`pages.yml`
-  deploys, `ideate.yml`, `tor-cli.yml`) set `cancel-in-progress: true` on
-  purpose: a newer event replaces a stale one.
+  `maintainer.yml`, `lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`)
+  all set `cancel-in-progress: false`, so trigger events queue up
+  sequentially and in-flight builds, reviews, tests, and maintainer merges
+  finish cleanly without being cancelled mid-run. Superseding-only workflows
+  (`pages.yml` deploys and `tor-cli.yml` CI) set `cancel-in-progress: true`
+  on purpose: a newer event replaces a stale one.
 - **Merge is the Maintainer's job**: The Tester approves (`/oc approve-test`) -> the test workflow notifies the Maintainer (`/oc maintainer`) -> the Maintainer merges (rebase, bot identity), closes linked issues, updates memory, and advances the pipeline.
 - **Merge capability**: Workflow-file PRs require `workflows` scope, which `GITHUB_TOKEN` cannot grant via `permissions:` (valid `GITHUB_TOKEN` scopes are `actions`, `contents`, `pull-requests`, etc.; `workflows` is App/PAT only). The mutating workflows (`lab.yml`, `maintainer.yml`, `opencode.yml`, `opencode-recover.yml`) push via the PAT-backed runner step (`https://x-access-token:${OPENCODE_PAT}@github.com/...` with credential-injection cleanup), and merges of PRs touching `.github/workflows/*` must likewise use the PAT or an owner click. Read-only agents (Reviewer, Tester, Auditor, Ideator) carry no extra scope. Without a PAT merge, infra PR merges fail with "refusing to allow a GitHub App to create or update workflow ... without workflows permission" (observed on PR #139; flagged in #120).
 - In-progress continuation: When a build requires additional phases (`Status: in-progress`), the workflow triggers `/oc continue`.
@@ -361,9 +361,9 @@ personality, CHANGELOG) is direct-commit.
 | `pages.yml` | Unchanged - Pages deploy + PR previews |
 
 Concurrency: the pipeline workflows above (`opencode*.yml`, `maintainer.yml`,
-`lab.yml`, `curator.yml`, `auditor.yml`) queue with
+`lab.yml`, `curator.yml`, `auditor.yml`, `ideate.yml`) queue with
 `cancel-in-progress: false`; the superseding-only workflows (`pages.yml`
-deploys, `ideate.yml`, `tor-cli.yml`) set `true` on purpose - a newer event
+deploys and `tor-cli.yml` CI) set `true` on purpose - a newer event
 replaces a stale one (see AGENTS.md, Queued Execution).
 
 Project CI (separate from lab infrastructure): `tor-cli.yml`,
