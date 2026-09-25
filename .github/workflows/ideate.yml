@@ -35,6 +35,16 @@ jobs:
           persist-credentials: true
           token: ${{ github.token }}
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: ideate
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Ideator"
@@ -42,6 +52,7 @@ jobs:
 
       - name: Run ideator agent
         id: ideate
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 60
         uses: ./.github/actions/opencode-run
@@ -74,7 +85,19 @@ jobs:
           # expansion is SHELL against this step's owner PAT env. The env
           # mapping is inert data even when the value carries shell metachars.
           SELFHEAL_RETRY: ${{ inputs.selfheal_retry }}
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the ideator
+          # step never started, so a failed step with no board output is a
+          # DENIAL, not a crash. No fail-closed red, no self-heal re-dispatch,
+          # no escalation - a denial is not a crash. Schedule/dispatch arms
+          # always pass the gate, so their self-heal parity below is intact.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the ideator agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           outcome="${{ steps.ideate.outcome }}"
           event_name="${{ github.event_name }}"
 
@@ -108,7 +131,7 @@ jobs:
         # run also ends verify-decision with outcome=success (it just queued
         # the retry), and that run must not announce candidates that were
         # never posted. Only a genuinely completed ideator notifies.
-        if: always() && steps.ideate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.ideate.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
@@ -121,6 +144,7 @@ jobs:
           fi
 
       - name: Verify board comment was posted
+        if: steps.actor_gate.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
