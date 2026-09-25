@@ -283,7 +283,6 @@ func Collect(o Options, deps Deps) Report {
 	check("control-reachable", StatusPass, "answered at "+rep.ControlAddr)
 	if err := deps.AuthControl(ctl, o.CookiePaths); err != nil {
 		check("control-auth", StatusFail, err.Error())
-		ctl.Close()
 		rep.SocksAddr = o.SocksAddr
 		if rep.SocksAddr == "" {
 			rep.SocksAddr = GuessSocks(rep.ControlAddr)

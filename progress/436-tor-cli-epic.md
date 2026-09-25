@@ -1,7 +1,7 @@
 # Progress - Tor CLI Epic (diagnostics, GUI reliability, showcase site)
 
 - **Issue:** #436
-- **Branch:** opencode/issue436-20260925122049
+- **Branch:** opencode/issue436-20260925130510
 - **Status:** in-progress
 - **Updated:** 2026-09-25T12:00:00Z
 - **Blueprint:** `ideas/2026-09-25-tor-cli-epic.md`
