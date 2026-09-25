@@ -140,6 +140,47 @@ jobs:
             find _site -xtype l -delete
           fi
 
+      # upload-pages-artifact archives _site with `tar --dereference
+      # --hard-dereference`, so any symlink that canonicalizes to a path
+      # OUTSIDE _site is silently expanded into the public Pages artifact and
+      # served from GitHub Pages (Tester hostile proof on #416: a staged PR
+      # link to the runner's .git/config published the checkout's
+      # GITHUB_TOKEN extraheader, and any `../` link pulls
+      # workspace-adjacent paths). The dangling prune above only catches
+      # broken links; it never inspects where a *valid* link points, and a
+      # symlink loop also survives it (find -xtype l reports ELOOP and skips
+      # the entry) while aborting tar outright. This boundary check strips
+      # every link whose canonical realpath is not strictly inside _site:
+      # escaping targets, symlink loops, and anything else unresolvable.
+      # The scan uses `find -type l` WITHOUT -L so it never follows a link
+      # across the very boundary it enforces. Stripping instead of hard-failing
+      # keeps a hostile or buggy PR from taking main deploys down, matching
+      # the dangling-prune policy from #416. Idempotent: a rerun finds nothing
+      # left to strip. Valid in-site links are untouched and still
+      # dereference into the artifact.
+      - name: Strip symlinks escaping _site
+        run: |
+          site_root="$(realpath -m -- _site)"
+          stripped=0
+          while IFS= read -r -d '' link; do
+            if target="$(realpath -e -- "$link" 2>/dev/null)"; then
+              case "$target" in
+                "$site_root"/*) continue ;;
+              esac
+            else
+              target="<unresolvable: dangling or symlink loop>"
+            fi
+            if [ "$stripped" -eq 0 ]; then
+              echo "Removing symlinks that cross the _site boundary (tar --dereference would archive the target into the public Pages artifact):"
+            fi
+            printf '%s -> %s\n' "$link" "$target"
+            rm -f -- "$link"
+            stripped=$((stripped + 1))
+          done < <(find _site -type l -print0)
+          if [ "$stripped" -gt 0 ]; then
+            echo "Stripped $stripped symlink(s) crossing the _site boundary."
+          fi
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
