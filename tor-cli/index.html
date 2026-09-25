@@ -664,7 +664,7 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
       <div class="cmd-row"><code>torshim shell</code><span>Open a Tor-routed child shell; the parent shell is unaffected.</span></div>
       <div class="cmd-row"><code>sudo torshim connect</code><span>System-wide Tor on Linux. Flags: <code>--backend auto|iptables|nft</code>, <code>--tor BIN</code>, <code>--timeout D</code>, <code>--tor-user USER</code>, <code>--trans-port PORT</code>, <code>--state-dir DIR</code>, <code>--force</code>.</span></div>
       <div class="cmd-row"><code>torshim disconnect</code><span>Stop tor first, then replay the pre-connect snapshot byte-exact and post-verify (needs sudo when a session exists).</span></div>
-      <div class="cmd-row"><code>torshim repair</code><span>Clear stale rules and dead session state; only ever removes torshim-owned rules, never a foreign flush.</span></div>
+      <div class="cmd-row"><code>torshim repair</code><span>Clear stale rules and dead session state; only ever removes torshim-owned rules, never a foreign flush (needs sudo).</span></div>
       <div class="cmd-row"><code>torshim status [--json]</code><span>Is tor running, bootstrapped, circuit ready, which mode is active, endpoint and session state? Flags: <code>--json</code>, <code>--control</code>, <code>--socks</code>, <code>--state-dir</code>. Never claims protected when it cannot prove it.</span></div>
       <div class="cmd-row"><code>torshim version</code><span>Wrapper version plus platform backend, tor, and torsocks versions.</span></div>
       <div class="cmd-row"><code>torshim help</code><span>Usage text and the platform support summary.</span></div>
@@ -727,10 +727,10 @@ sudo torshim disconnect  <span class="c"># restore</span></pre>
         <p>
           On macOS and Windows, only applications that honor proxy environment variables
           are covered; the coverage note is printed on every launch because the wrapper
-          cannot see an app that ignores it. Per-app mode refuses static binaries and
-          setuid/setgid tools up front; raw syscalls are not covered by the shim (the
-          coverage banner says so), which is one reason system-wide mode exists. The
-          limitations are documented per OS, not glossed over.
+          cannot see an app that ignores it. On Linux, per-app mode refuses static
+          binaries and setuid/setgid tools up front; raw syscalls are not covered by
+          the shim (the coverage banner says so), which is one reason system-wide
+          mode exists. The limitations are documented per OS, not glossed over.
         </p>
       </div>
     </div>
