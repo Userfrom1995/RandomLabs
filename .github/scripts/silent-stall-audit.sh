@@ -254,34 +254,52 @@ else
   check "R9" "schedule/dispatch retry parity missing:${r9_bad} (issue #422 B: a crash burns the whole cron cycle)" "bad"
 fi
 
-# [R10] Dispatch-input shell indirection (issue #422 residual): a
-# `${{ inputs.* }}` expression expanded INSIDE a `run:` block is substituted by
-# the runner before the shell starts, so the value executes as SHELL with the
-# step's env - and the verify/push/approve steps carry the owner PAT there
-# (B3 repro: selfheal_retry='0"; touch /tmp/PWNED; echo "' ran the touch).
-# Inputs must reach shell only through `env:` mappings, where the same
-# expression is inert data. The scan covers every run block in every workflow;
-# the cohort additionally must still map SELFHEAL_RETRY so the indirection
-# call sites can never silently read an empty counter.
-run_input_hits=$(awk '
-  function gi(s) { match(s, /^[ \t]*/); return RLENGTH }
-  FNR == 1 { cap = 0 }
-  $0 ~ /^[ \t]*(-[ \t]+)?run:[ \t]*\|/ { indent = gi($0); cap = 1; next }
-  cap {
-    if ($0 ~ /^[ \t]*$/) next
-    ind = gi($0)
-    if (ind > indent) {
-      if ($0 ~ /\$\{\{[^}]*inputs\./) print FILENAME ":" FNR ": " $0
-      next
-    }
-    cap = 0
-  }
-  $0 ~ /^[ \t]*(-[ \t]+)?run:/ && $0 ~ /\$\{\{[^}]*inputs\./ { print FILENAME ":" FNR ": " $0 }
-' .github/workflows/*.yml 2>/dev/null || true)
+# [R10] Expression-injection guard (issue #422 residual): a free-form input
+# (workflow_dispatch `inputs.*`, legacy `github.event.inputs.*`) or untrusted
+# event text (comment body, issue/PR title or body, head branch) must NEVER be
+# interpolated as `${{ }}` text inside a `run:` block. GitHub substitutes
+# expressions into the SCRIPT SOURCE before bash parses it, so a double quote
+# in the input escapes the surrounding quotes and executes as a command inside
+# a step that may carry the owner PAT - a repo-write credential escalating to
+# the owner identity (B3 repro: selfheal_retry='0"; touch /tmp/PWNED; echo "'
+# ran the touch). The required pattern is env indirection: declare the value
+# under `env:` and reference it as "$VAR" (repo standard: maintainer.yml
+# OC_TARGET, poolduel-m1 TARGET_REF). The scan covers every `run:` form -
+# named steps, list-style `- run:` steps, multi-line `run: |` blocks, and the
+# composite action's `runs:` - and the cohort must additionally still MAP the
+# indirection values, so a call site can never silently read an empty counter.
 r10_bad=""
-if [ -n "$run_input_hits" ]; then
-  r10_bad=" inline-inputs:$(echo "$run_input_hits" | tr '\n' ';')"
-fi
+for r10_file in .github/workflows/*.yml .github/actions/*/action.yml; do
+  [ -f "$r10_file" ] || continue
+  r10_hits=$(awk '
+    function gi(s) { match(s, /^[ \t]*/); return RLENGTH }
+    function unsafe() {
+      return ($0 ~ /\$\{[^}]*inputs[.]/ ||
+              $0 ~ /\$\{[^}]*event[.](comment[.]body|issue[.]title|issue[.]body|pull_request[.]title|pull_request[.]body|workflow_run[.]head_branch)/ ||
+              $0 ~ /\$\{[^}]*github[.]head_ref/)
+    }
+    FNR == 1 { inrun = 0 }
+    {
+      if (inrun && $0 !~ /^[ \t]*$/) {
+        if (gi($0) <= runindent) { inrun = 0 }
+        else {
+          if (unsafe()) print FILENAME ":" FNR ": " $0
+          next
+        }
+      }
+      if ($0 ~ /^[ \t]*(-[ \t]+)?run:[ \t]*\|/) {
+        match($0, /^[ \t]*(-[ \t]+)?[ \t]*/)
+        runindent = RLENGTH
+        inrun = 1
+        next
+      }
+      if ($0 ~ /^[ \t]*(-[ \t]+)?run:[ \t]*[^|]/ && unsafe()) print FILENAME ":" FNR ": " $0
+    }' "$r10_file")
+  if [ -n "$r10_hits" ]; then
+    r10_bad="${r10_bad}
+$(echo "$r10_hits" | head -5)"
+  fi
+done
 for r10_wf in curator.yml auditor.yml ideate.yml lab.yml; do
   r10_path=".github/workflows/${r10_wf}"
   if [ ! -f "$r10_path" ]; then
@@ -291,9 +309,9 @@ for r10_wf in curator.yml auditor.yml ideate.yml lab.yml; do
   grep -q 'SELFHEAL_RETRY: \${{ inputs\.selfheal_retry }}' "$r10_path" || r10_bad="${r10_bad} ${r10_wf}(no-SELFHEAL_RETRY-env-mapping)"
 done
 if [ -z "$r10_bad" ]; then
-  check "R10" "no \${{ inputs.* }} expansion inside any run: block; cohort verify steps map SELFHEAL_RETRY via env (PAT-step input indirection)" "ok"
+  check "R10" "no free-form input or untrusted event text interpolated into any run: block; cohort verify steps map SELFHEAL_RETRY via env (env indirection everywhere)" "ok"
 else
-  check "R10" "input indirection broken:${r10_bad} (issue #422 residual: inline expansion runs dispatch inputs as shell against the step's PAT env)" "bad"
+  check "R10" "expression injection in run block(s):${r10_bad} (move the value to env: and read it as a shell variable)" "bad"
 fi
 
 # [R11] Post-agent PAT gates (issue #422 residual): lab.yml's owner-PAT strip
