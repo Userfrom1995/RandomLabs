@@ -432,6 +432,10 @@ func cmdShell(args []string) int {
 	if err != nil {
 		return exitUsage
 	}
+	if lf.detach || lf.wait || lf.logFile != "" || lf.ackGUI {
+		fmt.Fprintln(os.Stderr, "torshim shell: --detach/--wait/--log-file/--acknowledge-gui-risks are run-only flags (shell takes no application to supervise)")
+		return exitUsage
+	}
 	if len(rest) != 0 {
 		fmt.Fprintln(os.Stderr, "torshim shell: takes no arguments")
 		return exitUsage
