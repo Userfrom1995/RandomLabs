@@ -73,6 +73,22 @@ jobs:
           echo "oid=$oid" >> "$GITHUB_OUTPUT"
           echo "Checked-out PR head: ${oid:-<none>}"
 
+      - name: Arm workspace push detector
+        if: steps.pr-info.outputs.is_pr == 'true'
+        run: |
+          # PR #412 head-rewind follow-up: the local branch ref is only a PROXY
+          # for "this workspace pushed" - `git pull --ff-only` and `git reset
+          # --hard origin/<branch>` fast-forward it onto someone else's commit
+          # without ever pushing. A pre-push hook records the real event, so the
+          # restore gate below needs the push itself, not a proxy that a plain
+          # fetch/pull can fake. The marker lives in RUNNER_TEMP because the
+          # reviewer's clean-tree step would delete anything inside the checkout.
+          hooks="$(git rev-parse --git-path hooks)"
+          mkdir -p "$hooks"
+          printf '#!/bin/sh\ntouch "${RUNNER_TEMP:-/tmp}/review-workspace-pushed"\nexit 0\n' > "$hooks/pre-push"
+          chmod +x "$hooks/pre-push"
+          echo "pre-push detector armed at $hooks/pre-push"
+
       - name: Configure git identity
         if: steps.pr-info.outputs.is_pr == 'true'
         run: |
@@ -154,18 +170,28 @@ jobs:
         if: steps.pr-info.outputs.is_pr == 'true' && always()
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          PR: ${{ github.event.issue.number }}
+          BRANCH: ${{ steps.pr-info.outputs.head_ref }}
+          RECORDED: ${{ steps.pr-info.outputs.head_oid }}
+          CHECKOUT_OID: ${{ steps.checkout-head.outputs.oid }}
+          REPO: ${{ github.repository }}
         run: |
-          pr="${{ github.event.issue.number }}"
-          branch="${{ steps.pr-info.outputs.head_ref }}"
-          recorded="${{ steps.pr-info.outputs.head_oid }}"
-          checkout_oid="${{ steps.checkout-head.outputs.oid }}"
+          # Every value is read from env, never via an expression macro inside
+          # the script: macros are expanded into the shell text before bash
+          # starts, so a contributor-controlled branch name containing $(...)
+          # would execute here with the PAT in scope (GitHub "script
+          # injections"). env: passes the same values as data.
+          pr="$PR"
+          branch="$BRANCH"
+          recorded="$RECORDED"
+          checkout_oid="$CHECKOUT_OID"
 
           if [ -z "$branch" ] || [ -z "$checkout_oid" ]; then
             echo "Branch or checked-out OID unknown; skipping restore."
             exit 0
           fi
 
-          actual=$(gh pr view "$pr" --repo "${{ github.repository }}" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
+          actual=$(gh pr view "$pr" --repo "$REPO" --json headRefOid --jq '.headRefOid' 2>/dev/null || echo "")
           if [ -z "$actual" ]; then
             echo "::warning::Could not read the live head of PR #$pr; refusing to push blind."
             exit 0
@@ -182,13 +208,25 @@ jobs:
           # review was still running (Fixer, Builder, owner) was silently
           # reverted at run end. The Reviewer is contractually read-only, so the
           # only head movement this step may undo is one made from THIS
-          # workspace: the local branch ref advancing past the checked-out OID.
-          # A live head that differs while our local ref still sits on the
-          # checked-out OID belongs to another actor - never touch it.
+          # workspace. Two independent signals are required, both of them:
+          #   1. this workspace actually pushed (the pre-push hook marker), and
+          #   2. the live head IS that push (local ref advanced past the
+          #      checked-out OID up to the live head).
+          # The local ref alone is a false-positive proxy: a plain
+          # `git pull --ff-only` or `git reset --hard origin/<branch>` advances
+          # it onto someone else's commit without pushing, and rewinding on that
+          # basis would delete exactly the external work this gate exists to
+          # protect.
+          marker="${RUNNER_TEMP:-/tmp}/review-workspace-pushed"
           local_head=$(git rev-parse --verify "refs/heads/$branch" 2>/dev/null || git rev-parse HEAD 2>/dev/null || echo "")
 
+          if [ ! -f "$marker" ]; then
+            echo "::notice::PR #$pr head moved outside this run (no push from this workspace; start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
+            exit 0
+          fi
+
           if [ "$local_head" != "$actual" ] || [ "$local_head" = "$checkout_oid" ]; then
-            echo "::notice::PR #$pr head moved outside this run (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
+            echo "::notice::PR #$pr head no longer matches this workspace's own push (start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
             exit 0
           fi
 
