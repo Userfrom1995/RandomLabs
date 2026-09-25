@@ -130,10 +130,13 @@ fi
 # snapshot captured at run START, so any push that landed while a review was
 # still running (Fixer, Builder, owner) was silently reverted when the run
 # ended - that is exactly how PR #412 lost 13 Fixer commits.
-# The gate needs FOUR properties: a local-ref ownership test, a lease, the
-# pre-push marker, and a marker that records the PUSHED COMMIT (marker_sha)
-# which must equal the live head - an existence-only marker survives a later
-# external push and still rewinds it. A bare force push is banned outright.
+# The gate needs FIVE properties: a local-ref ownership test, a lease, the
+# pre-push marker, a marker that records the PUSHED COMMIT (marker_sha) which
+# must equal the live head, and an unbroken push chain (chain_ok) proving no
+# external commit sits between the checked-out head and the live head - an
+# existence-only marker or a marker without the chain survives a later
+# external push and still rewinds it (Y2/Z2). A bare force push is banned
+# outright.
 # The marker closes the proxy hole: a local ref alone is advanced by a plain
 # `git pull --ff-only` / `git reset --hard origin/<b>` that never pushed, so
 # ref movement by itself still rewinds external work.
@@ -155,13 +158,18 @@ else
   leased=$(printf '%s\n' "$restore_block" | grep -cE -- '--force-with-lease="?refs/heads/' || true)
   marker=$(printf '%s\n' "$restore_block" | grep -c 'review-workspace-pushed' || true)
   marker_sha=$(printf '%s\n' "$restore_block" | grep -c 'marker_sha' || true)
+  # Unbroken push chain: the marker's first push must start at the checked-out
+  # head, each push must link to the previous one, and the last pushed commit
+  # must be the live head - otherwise an external commit this workspace pulled
+  # and pushed on top of is silently rewound (Y2/Z2).
+  chain=$(printf '%s\n' "$restore_block" | grep -c 'chain_ok' || true)
   # Bare force push in any argument order: `git push --force origin`,
   # `git push origin --force`, or a trailing bare `git push --force`.
   bare_force=$(printf '%s\n' "$restore_block" | grep -cE 'git push[^|&;]*--force([^-]|$)' || true)
-  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$marker" -gt 0 ] && [ "$marker_sha" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
-    check "R7" "review restore gates on this workspace's own push (marker commit == live head + local ref) and pushes with an explicit lease (PR #412 rewind guard)" "ok"
+  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$marker" -gt 0 ] && [ "$marker_sha" -gt 0 ] && [ "$chain" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
+    check "R7" "review restore gates on an unbroken chain of this workspace's own pushes up to the live head (marker commit == live head + local ref) and pushes with an explicit lease (PR #412 rewind guard)" "ok"
   else
-    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}), lease (=${leased}), push marker (=${marker}), marker commit check (=${marker_sha}), or force-pushes bare (=${bare_force})" "bad"
+    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}), lease (=${leased}), push marker (=${marker}), marker commit check (=${marker_sha}), push chain (=${chain}), or force-pushes bare (=${bare_force})" "bad"
   fi
 fi
 
