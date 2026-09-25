@@ -700,9 +700,10 @@ python3 prism/benchmarks/aggregate.py
   <p>Results measured on Kodak-24; the X6b ceiling reproduces with
   <code>./build/prism bench-x --kodak &lt;dir&gt; --residual</code>, the WebP and JPEG XL
   gate baselines with <code>python3 prism/benchmarks/bench_vs_codecs.py --kodak &lt;kodak-dir&gt;</code>
-  (Pillow required, Kodak-24 corpus provisioned first; PNG 13.05 and JPEG-LS 9.71 are the
+  (Pillow required, Kodak-24 corpus provisioned first; requires cjxl and djxl for the
+  JXL row, prints per-sample bpp; PNG 13.05 and JPEG-LS 9.71 are the
   Obsidian optipng/CharLS harness baselines), and a classic single-effort run with
-  <code>prism/benchmarks/run_kodak.sh</code>.</p>
+  <code>prism/benchmarks/run_kodak.sh --kodak &lt;dir&gt;</code>.</p>
 </footer>
 
 <script>
