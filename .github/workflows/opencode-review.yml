@@ -87,7 +87,11 @@ jobs:
           # pushed, not merely THAT it pushed once - an existence-only marker
           # survives a later external push and would still rewind it. The
           # marker lives in RUNNER_TEMP because the reviewer's clean-tree step
-          # would delete anything inside the checkout.
+          # would delete anything inside the checkout. The hook fires before
+          # the remote accepts, so a push rejected later still leaves a line
+          # whose local sha never landed; the chain check below then fails and
+          # the run skips cleanup - safe direction (rogue garbage stays,
+          # nobody's work is destroyed).
           hooks="$(git rev-parse --git-path hooks)"
           mkdir -p "$hooks"
           printf '#!/bin/sh\ncat >> "${RUNNER_TEMP:-/tmp}/review-workspace-pushed"\nexit 0\n' > "$hooks/pre-push"
@@ -213,21 +217,42 @@ jobs:
           # review was still running (Fixer, Builder, owner) was silently
           # reverted at run end. The Reviewer is contractually read-only, so the
           # only head movement this step may undo is one made from THIS
-          # workspace. Three independent signals are required, all of them:
+          # workspace. Four independent signals are required, all of them:
           #   1. this workspace pushed at all (the pre-push marker exists), and
           #   2. the live head IS that push: the marker records the pushed
           #      commit, so the last pushed SHA must still equal the live head
           #      (a marker that only proved "a push happened" would survive a
           #      later external push and rewind it), and
           #   3. the local ref agrees (it advanced past the checked-out OID up
-          #      to the live head).
+          #      to the live head), and
+          #   4. the pushes form an unbroken chain from the checked-out head to
+          #      the live head (no external commit in between).
           # The local ref alone is a false-positive proxy: a plain `git pull
           # --ff-only` or `git reset --hard origin/<branch>` advances it onto
           # someone else's commit without pushing, and rewinding on that basis
           # would delete exactly the external work this gate exists to protect.
           marker="${RUNNER_TEMP:-/tmp}/review-workspace-pushed"
           marker_sha=""
+          chain_ok="no"
           if [ -f "$marker" ]; then
+            # Walk every push this workspace made to this branch, in order, and
+            # require an unbroken chain: the first push's remote side must be
+            # the checked-out head, each push must start where the previous one
+            # ended, and the last pushed commit must be the live head. That
+            # proves every commit in checkout..actual was pushed from this
+            # workspace, so restoring to checkout_oid can only drop our own
+            # commits - never an external one that landed in between. Without
+            # the chain, an external push that this workspace pulled and then
+            # pushed on top of is indistinguishable from a pure rogue push.
+            chain_ok=$(awk -v r="refs/heads/$branch" -v want="$checkout_oid" -v live="$actual" '
+              $3 == r {
+                if (n == 0) { if ($4 != want) bad = 1 }
+                else if ($4 != prev) { bad = 1 }
+                prev = $2; n++; last = $2
+              }
+              END {
+                if (n > 0 && !bad && last == live) print "yes"; else print "no"
+              }' "$marker" 2>/dev/null || echo "no")
             marker_sha=$(awk -v r="refs/heads/$branch" '$3 == r { h = $2 } END { print h }' "$marker" 2>/dev/null || echo "")
           fi
           local_head=$(git rev-parse --verify "refs/heads/$branch" 2>/dev/null || git rev-parse HEAD 2>/dev/null || echo "")
@@ -237,8 +262,8 @@ jobs:
             exit 0
           fi
 
-          if [ "$marker_sha" != "$actual" ]; then
-            echo "::notice::PR #$pr head no longer equals this workspace's own last push (marker $marker_sha, start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
+          if [ "$marker_sha" != "$actual" ] || [ "$chain_ok" != "yes" ]; then
+            echo "::notice::PR #$pr head not provably this workspace's own push (marker ${marker_sha:-?}, chain ${chain_ok}, start snapshot ${recorded:-?}, checkout $checkout_oid, live $actual, local ${local_head:-?}); leaving the head untouched."
             exit 0
           fi
 
