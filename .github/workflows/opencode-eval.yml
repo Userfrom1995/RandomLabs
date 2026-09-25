@@ -44,6 +44,16 @@ jobs:
           ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
+      - name: Actor write gate (issue #428)
+        id: actor_gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GATE_EVENT: ${{ github.event_name }}
+          GATE_ACTOR: ${{ github.actor }}
+          GATE_LABEL: eval
+        run: bash .github/scripts/actor-write-gate.sh
+
       - name: Configure git identity
         run: |
           git config --global user.name "The Evaluator"
@@ -101,6 +111,7 @@ jobs:
 
       - name: Run evaluator agent
         id: evaluator
+        if: steps.actor_gate.outputs.run == 'true'
         continue-on-error: true
         timeout-minutes: 75
         uses: ./.github/actions/opencode-run
@@ -128,7 +139,21 @@ jobs:
       - name: Verify evaluator decided
         id: verify-eval
         if: always()
+        env:
+          AGENT_GATE: ${{ steps.actor_gate.outputs.run }}
         run: |
+          # Terminal third outcome for a gate skip (issue #428): the evaluator
+          # step never started, so a missing decision file is a DENIAL, not a
+          # crash. Report has_decision=false so the result post, the owner-PAT
+          # forward, the evidence gate, and the memory push all stay skipped:
+          # a denial must not post, escalate, or auto-retry.
+          if [ "${AGENT_GATE:-}" != "true" ]; then
+            echo "::notice::Actor write gate skipped the evaluator agent (issue #428): denial is not a crash - no auto-retry, no escalation."
+            echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+            echo "has_decision=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           outcome="${{ steps.evaluator.outcome }}"
 
           # Fail-closed guard: any missing decision file is a hard failure (crash or timeout).
@@ -180,7 +205,7 @@ jobs:
           echo "Evidence gate passed: $good non-test command(s) recorded against the deliverable."
 
       - name: Post Quality Council result as bot (never as owner, never with /oc prefix)
-        if: always() && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -214,7 +239,7 @@ jobs:
           gh issue comment "${{ github.event.issue.number }}" --repo "${{ github.repository }}" --body "$body" || true
 
       - name: Forward evaluator decision to Maintainer (owner PAT handoff)
-        if: always() && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true' && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
@@ -247,7 +272,7 @@ jobs:
           fi
 
       - name: Push evaluator memory to dedicated branch
-        if: always() && steps.verify-eval.outputs.has_decision == 'true'
+        if: always() && steps.actor_gate.outputs.run == 'true' && steps.verify-eval.outputs.has_decision == 'true'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
         run: |
