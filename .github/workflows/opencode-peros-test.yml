@@ -60,7 +60,7 @@ jobs:
         id: test
         continue-on-error: true
         timeout-minutes: 90
-        uses: anomalyco/opencode/github@latest
+        uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -156,7 +156,7 @@ jobs:
         id: test
         continue-on-error: true
         timeout-minutes: 90
-        uses: anomalyco/opencode/github@latest
+        uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -255,7 +255,7 @@ jobs:
         id: test
         continue-on-error: true
         timeout-minutes: 90
-        uses: anomalyco/opencode/github@latest
+        uses: ./.github/actions/opencode-run
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

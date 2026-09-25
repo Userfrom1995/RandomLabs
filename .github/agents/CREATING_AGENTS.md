@@ -6,7 +6,7 @@ This guide outlines the strict rules, architectural patterns, and mandatory chec
 
 ## 1. Security & Identity (The PAT Rule)
 Agents must never be granted the authority or credentials of the repository owner.
-- **CRITICAL**: Never pass `${{ secrets.OPENCODE_PAT }}` into the agent's environment (the `env:` block of `uses: anomalyco/opencode/github@latest`).
+- **CRITICAL**: Never pass `${{ secrets.OPENCODE_PAT }}` into the agent's environment (the `env:` block of `uses: ./.github/actions/opencode-run`).
 - Always use `GITHUB_TOKEN: ${{ github.token }}` for the agent's run environment. This ensures the agent authenticates properly as `github-actions[bot]`.
 - The owner's PAT (`OPENCODE_PAT`) is strictly reserved for hardcoded, human-written YAML steps that execute *outside* the agent's environment.
 - Always configure the git identity with the agent's persona display name (e.g. `The Builder`, `Hephaestus (Maintainer)`, `The Lab Engineer (CTO)`) and email `github-actions[bot]@users.noreply.github.com` before running any agent.
@@ -54,7 +54,7 @@ If an agent needs to trigger other workflows (e.g. by posting `/oc test` or `/oc
 **Example YAML Pattern:**
 ```yaml
 - name: Run agent
-  uses: anomalyco/opencode/github@latest
+  uses: ./.github/actions/opencode-run
   env:
     OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     GITHUB_TOKEN: ${{ github.token }}
