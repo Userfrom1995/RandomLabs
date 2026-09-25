@@ -90,12 +90,13 @@ jobs:
         if: always() && steps.verify-test.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          head_ref="${{ steps.pr-info.outputs.head_ref }}"
+          head_ref="$HEAD_REF"
           case "$action" in
             fix)
               if echo "$head_ref" | grep -q "opencode/lab"; then
@@ -185,12 +186,13 @@ jobs:
         if: always() && steps.verify-test.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          head_ref="${{ steps.pr-info.outputs.head_ref }}"
+          head_ref="$HEAD_REF"
           case "$action" in
             fix)
               if echo "$head_ref" | grep -q "opencode/lab"; then
@@ -283,12 +285,13 @@ jobs:
         if: always() && steps.verify-test.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
         run: |
           action=$(jq -r '.action // empty' /tmp/random-lab-decision.json 2>/dev/null || echo "")
           target="${{ github.event.issue.number }}"
           is_pr="false"
           if [ -n "${{ github.event.issue.pull_request.html_url }}" ]; then is_pr="true"; fi
-          head_ref="${{ steps.pr-info.outputs.head_ref }}"
+          head_ref="$HEAD_REF"
           case "$action" in
             fix)
               if echo "$head_ref" | grep -q "opencode/lab"; then

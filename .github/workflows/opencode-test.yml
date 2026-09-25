@@ -130,6 +130,7 @@ jobs:
         if: always() && steps.evidence-gate.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}
+          HEAD_REF: ${{ steps.pr-info.outputs.head_ref }}
         run: |
           pr="${{ github.event.issue.number }}"
           if [ ! -f /tmp/random-lab-decision.json ]; then
@@ -146,7 +147,7 @@ jobs:
             echo "Tester requested lab fixes on infrastructure PR. Posting /oc lab"
             gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
           elif [ "$action" = "fix" ]; then
-            head_branch="${{ steps.pr-info.outputs.head_ref }}"
+            head_branch="$HEAD_REF"
             if echo "$head_branch" | grep -q "opencode/lab"; then
               echo "Tester requested fixes on lab PR. Posting /oc lab"
               gh issue comment "$pr" --repo "${{ github.repository }}" --body "/oc lab"
