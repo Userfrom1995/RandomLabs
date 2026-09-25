@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # silent-stall-audit.sh - Static regression checks for the issue #122 silent-stall
-# hardening invariants (S1/S2/L1/L2) plus R6 model free-tier guard.
-# Wired into auditor.yml as the R1-R6 matrix.
+# hardening invariants (S1/S2/L1/L2), the R6 model free-tier guard, and the R7
+# review-restore ownership guard (PR #412 head rewind).
+# Wired into auditor.yml as the R1-R7 matrix.
 #
 # Usage: silent-stall-audit.sh <path-to-opencode.yml> [health-issue-number]
 # Exit code is always 0 so it never breaks the auditor run; failures are reported
@@ -24,12 +25,12 @@ check() {
   if [ "$ok" = "ok" ]; then
     pass=$((pass + 1))
     report="${report}
- [R1-R6 PASS] $name: $desc"
+ [R1-R7 PASS] $name: $desc"
     echo "PASS  $name: $desc"
   else
     fail=$((fail + 1))
     report="${report}
- [R1-R6 FAIL] $name: $desc"
+ [R1-R7 FAIL] $name: $desc"
     echo "FAIL  $name: $desc"
   fi
 }
@@ -116,16 +117,40 @@ else
   check "R6" "non-free model pin found -> ${detail} (violates two-knob free guard)" "bad"
 fi
 
-summary="Silent-stall regression audit (R1-R6) on ${WF}: ${pass} passed, ${fail} failed."
+# [R7] Review-restore ownership gate (PR #412 head-rewind regression): the
+# opencode-review restore step may only undo a head movement made from its own
+# workspace, and must push with a lease. The pre-fix version force-pushed the
+# snapshot captured at run START, so any push that landed while a review was
+# still running (Fixer, Builder, owner) was silently reverted when the run
+# ended - that is exactly how PR #412 lost 13 Fixer commits.
+REVIEW_WF="$(dirname "$WF")/opencode-review.yml"
+restore_block=""
+if [ -f "$REVIEW_WF" ]; then
+  restore_block=$(sed -n '/- name: Restore PR head/,/^      - name: /p' "$REVIEW_WF" 2>/dev/null || true)
+fi
+if [ -z "$restore_block" ]; then
+  check "R7" "restore step missing or renamed in ${REVIEW_WF} (head-rewind guard lost)" "bad"
+else
+  owns_local=$(printf '%s\n' "$restore_block" | grep -c 'rev-parse --verify "refs/heads/' || true)
+  leased=$(printf '%s\n' "$restore_block" | grep -c -- '--force-with-lease' || true)
+  bare_force=$(printf '%s\n' "$restore_block" | grep -cE 'git push --force origin' || true)
+  if [ "$owns_local" -gt 0 ] && [ "$leased" -gt 0 ] && [ "$bare_force" -eq 0 ]; then
+    check "R7" "review restore gates on this workspace's own head movement and pushes with a lease (PR #412 rewind guard)" "ok"
+  else
+    check "R7" "restore step in ${REVIEW_WF} missing local-ref ownership test (=${owns_local}) or lease (=${leased}), or force-pushes bare (=${bare_force})" "bad"
+  fi
+fi
+
+summary="Silent-stall regression audit (R1-R7) on ${WF}: ${pass} passed, ${fail} failed."
 echo "$summary"
 
 if [ "$fail" -gt 0 ]; then
-  body="## Silent-stall regression audit FAILED (R1-R6)
+  body="## Silent-stall regression audit FAILED (R1-R7)
 
 ${summary}
 ${report}
 
-The issue #122 silent-stall hardening invariants were violated in ${WF}. Investigate before merging any opencode.yml change.
+A lab CI invariant was violated in the audited workflow set rooted at ${WF} (silent-stall S1/S2/L1/L2, R6 two-knob free tier, or R7 review-restore ownership). Investigate before merging.
 
 - the Auditor"
   if [ -n "$HEALTH_ISSUE" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
