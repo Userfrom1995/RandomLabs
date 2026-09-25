@@ -38,7 +38,7 @@ concurrency:
 #   - Keep K = 2 (finite). Changing K must still preserve the L1 termination proof.
 #   - NEVER assume a zero counter on an API/rate-limit failure; escalate to
 #     /oc maintainer instead (prevents the phantom-zero infinite loop).
-# These are statically audited by R1-R5 in auditor.yml (.github/scripts/silent-stall-audit.sh).
+# These are statically audited by R1-R7 in auditor.yml (.github/scripts/silent-stall-audit.sh).
 # =============================================================================
 
 jobs:
