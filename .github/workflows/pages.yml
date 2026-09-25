@@ -177,7 +177,24 @@ jobs:
       # upload command as a watchdog circuit breaker (2 GiB `ulimit -f` file
       # cap in 1024-byte units + 60 s timeout); on failure it strips ALL
       # symlinks from _site and re-runs the dry run, degrading links instead
-      # of ever failing a deploy that would otherwise proceed.
+      # of ever failing a deploy that would otherwise proceed. Class 4 -
+      # detector self-DoS (reviewer finding on #419): pass 2's edge walk is
+      # cubic in the number of directory symlinks (measured against the
+      # committed step: 6 s / 41 s / 316 s at 120 / 240 / 480 chain links,
+      # ~7.7x per doubling; ~2000 links extrapolates past the 6-hour job
+      # limit, so a link-flood PR would kill every main deploy before Upload
+      # even though no cycle exists), and it runs BEFORE the pass-3 watchdog,
+      # so the watchdog never gets the chance to bound it. Pass 2 therefore
+      # carries a 30 s work budget (SECONDS deadline checked at the collect
+      # loop top, per BFS node, and at the walk-loop guard); on expiry it
+      # STOPS detecting (never strips by itself), logs the abort, and defers
+      # the remaining links to the bounded dry-run watchdog, which is a
+      # proven complete availability backstop. If the abort hits content with
+      # no cycles the watchdog passes and all links survive (zero
+      # collateral); if it hits a cycle the watchdog strip-alls and the
+      # deploy completes. Pass 1 and the strip loops are linear in link count
+      # (same order as the staging step that created the links) and need no
+      # budget.
       # The scan uses `find -type l` WITHOUT -L so it never follows a link
       # across the very boundary it enforces. Stripping instead of hard-failing
       # keeps a hostile or buggy PR from taking main deploys down, matching
@@ -206,7 +223,10 @@ jobs:
           ep=()
           et=()
           cycle_logged=0
+          p2_deadline=$((SECONDS + 30))
+          p2_abort=""
           while IFS= read -r -d '' link; do
+            if [ "$SECONDS" -ge "$p2_deadline" ]; then p2_abort=1; break; fi
             [ -d "$link" ] || continue
             if t="$(realpath -e -- "$link" 2>/dev/null && printf x)"; then t="${t%$'\nx'}"; else continue; fi
             if dpath="$(dirname -- "$link" && printf x)"; then dpath="${dpath%$'\nx'}"; else continue; fi
@@ -214,7 +234,7 @@ jobs:
             ep+=("$ep_c")
             et+=("$t")
           done < <(find _site -type l -print0)
-          while IFS= read -r -d '' link; do
+          while [ -z "$p2_abort" ] && IFS= read -r -d '' link; do
             [ -d "$link" ] || continue
             if dpath="$(dirname -- "$link" && printf x)"; then dpath="${dpath%$'\nx'}"; else continue; fi
             if parent="$(realpath -m -- "$dpath" 2>/dev/null && printf x)"; then parent="${parent%$'\nx'}"; else parent="$dpath"; fi
@@ -223,6 +243,7 @@ jobs:
             seen=()
             hit=""
             while [ "${#frontier[@]}" -gt 0 ]; do
+              if [ "$SECONDS" -ge "$p2_deadline" ]; then p2_abort=1; break; fi
               cur="${frontier[0]}"
               frontier=("${frontier[@]:1}")
               [ -n "$cur" ] || continue
@@ -237,6 +258,7 @@ jobs:
                 case "${ep[$i]}" in "$cur"|"$cur"/*) frontier+=("${et[$i]}") ;; esac
               done
             done
+            [ -n "$p2_abort" ] && break
             [ -n "$hit" ] || continue
             if [ "$cycle_logged" -eq 0 ]; then
               echo "Removing in-site directory symlinks that re-enter their own directory (tar --dereference recurses until SIGSEGV):"
@@ -246,6 +268,9 @@ jobs:
             rm -f -- "$link"
             stripped=$((stripped + 1))
           done < <(find _site -type l -print0)
+          if [ -n "$p2_abort" ]; then
+            echo "Cycle-detection budget (30 s) exhausted on a large link graph; deferring the remaining links to the bounded tar dry-run watchdog below (it degrades links instead of ever failing the deploy)."
+          fi
           if [ "$stripped" -gt 0 ]; then
             echo "Stripped $stripped symlink(s) crossing the _site boundary."
           fi
