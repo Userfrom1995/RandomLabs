@@ -104,7 +104,11 @@ jobs:
           exit 1
 
       - name: Notify the Maintainer (candidates posted)
-        if: always()
+        # Gate on the AGENT step, not on verify-decision: a green self-heal
+        # run also ends verify-decision with outcome=success (it just queued
+        # the retry), and that run must not announce candidates that were
+        # never posted. Only a genuinely completed ideator notifies.
+        if: always() && steps.ideate.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.OPENCODE_PAT }}

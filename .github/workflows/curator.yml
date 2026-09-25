@@ -103,6 +103,15 @@ jobs:
             exit 0
           fi
 
+          # "Success" with no decision file is a broken contract, not a crash:
+          # fail closed NOW instead of spending the one bounded self-heal
+          # retry (schedule/dispatch) or an auto-retry (comment arm) on a run
+          # that claimed success while doing nothing.
+          if [ "$outcome" = "success" ]; then
+            echo "::error::Curator step reported success but wrote no decision file (silent no-op); failing closed instead of consuming a retry."
+            exit 1
+          fi
+
           echo "::error::Curator step finished with outcome '$outcome' and no decision file (/tmp/random-lab-decision.json missing; crashed or silent exit)."
 
           # On issue_comment trigger (e.g. /oc curate), mirror review/build auto-retry parity up to 3 times:
