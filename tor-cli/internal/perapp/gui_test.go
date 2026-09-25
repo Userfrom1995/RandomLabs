@@ -33,6 +33,9 @@ func TestHeadlessBypass(t *testing.T) {
 		{"/usr/bin/firefox", "--headless=new", "https://example.com/"},
 		{"/usr/bin/falkon", "-headless"},
 		{"/usr/bin/chromium", "--dump-dom", "https://example.com/"},
+		{"/usr/bin/chromium", "--screenshot=/tmp/x.png"},
+		{"/usr/bin/chromium", "--print-to-pdf=/tmp/x.pdf"},
+		{"/usr/bin/chromium", "--dump-dom=/tmp/x.html"},
 	}
 	for _, argv := range headless {
 		if !LooksHeadless(argv) {
